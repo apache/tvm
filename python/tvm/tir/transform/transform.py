@@ -782,3 +782,14 @@ def ExtractPrimFuncConstants():
         The result pass
     """
     return _ffi_api.ExtractPrimFuncConstants()  # type: ignore
+
+
+def RenomalizeSplitPattern():
+    """Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RenormalizeSplitPattern() # type: ignore

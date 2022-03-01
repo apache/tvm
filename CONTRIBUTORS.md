@@ -64,6 +64,7 @@ We do encourage everyone to work anything they are interested in.
 - [Christopher Sidebottom](https://github.com/Mousius): @Mousius - arm, ethos-u, relay
 - [Junru Shao](https://github.com/junrushao1994) (PMC): @junrushao1994 - relay, compiler
 - [Haichen Shen](https://github.com/icemelon) (PMC): @icemelon - relay, topi
+- [Chris Sullivan](https://github.com/csullivan): @csullivan - amd backend
 - [Siva Rama Krishna Reddy](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch - topi, compiler, runtime

@@ -203,3 +203,400 @@ if ethosu_enabled:
     @pytest.fixture
     def MobileNetv2DiamondTE():
         return make_MobileNetv2DiamondTE()
+
+    @pytest.fixture
+    def MobileNetv2DiamondGraph():
+        _, te_graph, const_dict = make_MobileNetv2DiamondTE()
+        device_config = cs.EthosuDeviceConfig("ethos-u55-256")
+        return cs.create_cascader_graph(te_graph, const_dict, device_config)
+
+    def make_BinaryTE():
+        def _get_func():
+            ifm_a = relay.var("ifm_a", shape=(1, 8, 8, 8), dtype="int8")
+            ifm_b = relay.var("ifm_b", shape=(1, 8, 8, 8), dtype="int8")
+            conv1 = make_ethosu_conv2d(
+                ifm=ifm_a,
+                ifm_channels=8,
+                ofm_channels=8,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            conv2 = make_ethosu_conv2d(
+                ifm=ifm_b,
+                ifm_channels=8,
+                ofm_channels=8,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            add1 = make_ethosu_binary_elementwise(
+                ifm=conv1,
+                ifm2=conv2,
+                ifm_channels=8,
+                ifm2_channels=8,
+                operator_type="ADD",
+                ofm_dtype="int8",
+            )
+            func = relay.Function(relay.analysis.free_vars(add1), add1)
+            func = run_opt_pass(func, relay.transform.InferType())
+            return func
+
+        func = _get_func()
+        te_graph, const_dict = create_te_graph(func)
+        sch = tvm.te.create_schedule([t.op for t in te_graph.outputs])
+        return sch, te_graph, const_dict
+
+    @pytest.fixture
+    def BinaryTE():
+        return make_BinaryTE()
+
+    @pytest.fixture
+    def BinaryGraph():
+        _, te_graph, const_dict = make_BinaryTE()
+        device_config = cs.EthosuDeviceConfig("ethos-u55-256")
+        return cs.create_cascader_graph(te_graph, const_dict, device_config)
+
+    def make_MobileNetv1StartTE():
+        def _get_func():
+            ifm = relay.var("ifm", shape=(1, 224, 224, 3), dtype="int8")
+            conv1 = make_ethosu_conv2d(
+                ifm=ifm,
+                ifm_channels=3,
+                ofm_channels=32,
+                kernel_shape=(3, 3),
+                padding=(0, 0, 1, 1),
+                strides=(2, 2),
+                dilation=(1, 1),
+            )
+            depth1 = make_ethosu_depthwise_conv2d(
+                ifm=conv1,
+                channels=32,
+                kernel_shape=(3, 3),
+                padding=(1, 1, 1, 1),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            conv2 = make_ethosu_conv2d(
+                ifm=depth1,
+                ifm_channels=32,
+                ofm_channels=64,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth2 = make_ethosu_depthwise_conv2d(
+                ifm=conv2,
+                channels=64,
+                kernel_shape=(3, 3),
+                padding=(0, 0, 1, 1),
+                strides=(2, 2),
+                dilation=(1, 1),
+            )
+            conv3 = make_ethosu_conv2d(
+                ifm=depth2,
+                ifm_channels=64,
+                ofm_channels=128,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth3 = make_ethosu_depthwise_conv2d(
+                ifm=conv3,
+                channels=128,
+                kernel_shape=(3, 3),
+                padding=(1, 1, 1, 1),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            conv4 = make_ethosu_conv2d(
+                ifm=depth3,
+                ifm_channels=128,
+                ofm_channels=128,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth4 = make_ethosu_depthwise_conv2d(
+                ifm=conv4,
+                channels=128,
+                kernel_shape=(3, 3),
+                padding=(0, 0, 1, 1),
+                strides=(2, 2),
+                dilation=(1, 1),
+            )
+            func = relay.Function(relay.analysis.free_vars(depth4), depth4)
+            func = run_opt_pass(func, relay.transform.InferType())
+            return func
+
+        func = _get_func()
+        te_graph, const_dict = create_te_graph(func)
+        sch = tvm.te.create_schedule([t.op for t in te_graph.outputs])
+        return sch, te_graph, const_dict
+
+    @pytest.fixture
+    def MobileNetv1StartTE():
+        return make_MobileNetv1StartTE()
+
+    @pytest.fixture
+    def MobileNetv1StartGraph():
+        _, te_graph, const_dict = make_MobileNetv1StartTE()
+        device_config = cs.EthosuDeviceConfig("ethos-u55-256")
+        return cs.create_cascader_graph(te_graph, const_dict, device_config)
+
+    def make_MobileNetv1TE():
+        def _get_func():
+            ifm = relay.var("ifm", shape=(1, 224, 224, 3), dtype="int8")
+            conv1 = make_ethosu_conv2d(
+                ifm=ifm,
+                ifm_channels=3,
+                ofm_channels=32,
+                kernel_shape=(3, 3),
+                padding=(0, 0, 1, 1),
+                strides=(2, 2),
+                dilation=(1, 1),
+            )
+            depth1 = make_ethosu_depthwise_conv2d(
+                ifm=conv1,
+                channels=32,
+                kernel_shape=(3, 3),
+                padding=(1, 1, 1, 1),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            conv2 = make_ethosu_conv2d(
+                ifm=depth1,
+                ifm_channels=32,
+                ofm_channels=64,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth2 = make_ethosu_depthwise_conv2d(
+                ifm=conv2,
+                channels=64,
+                kernel_shape=(3, 3),
+                padding=(0, 0, 1, 1),
+                strides=(2, 2),
+                dilation=(1, 1),
+            )
+            conv3 = make_ethosu_conv2d(
+                ifm=depth2,
+                ifm_channels=64,
+                ofm_channels=128,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth3 = make_ethosu_depthwise_conv2d(
+                ifm=conv3,
+                channels=128,
+                kernel_shape=(3, 3),
+                padding=(1, 1, 1, 1),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            conv4 = make_ethosu_conv2d(
+                ifm=depth3,
+                ifm_channels=128,
+                ofm_channels=128,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth4 = make_ethosu_depthwise_conv2d(
+                ifm=conv4,
+                channels=128,
+                kernel_shape=(3, 3),
+                padding=(0, 0, 1, 1),
+                strides=(2, 2),
+                dilation=(1, 1),
+            )
+            conv5 = make_ethosu_conv2d(
+                ifm=depth4,
+                ifm_channels=128,
+                ofm_channels=256,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth5 = make_ethosu_depthwise_conv2d(
+                ifm=conv5,
+                channels=256,
+                kernel_shape=(3, 3),
+                padding=(1, 1, 1, 1),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            conv6 = make_ethosu_conv2d(
+                ifm=depth5,
+                ifm_channels=256,
+                ofm_channels=256,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth6 = make_ethosu_depthwise_conv2d(
+                ifm=conv6,
+                channels=256,
+                kernel_shape=(3, 3),
+                padding=(0, 0, 1, 1),
+                strides=(2, 2),
+                dilation=(1, 1),
+            )
+            conv7 = make_ethosu_conv2d(
+                ifm=depth6,
+                ifm_channels=256,
+                ofm_channels=512,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth7 = make_ethosu_depthwise_conv2d(
+                ifm=conv7,
+                channels=512,
+                kernel_shape=(3, 3),
+                padding=(1, 1, 1, 1),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            conv8 = make_ethosu_conv2d(
+                ifm=depth7,
+                ifm_channels=512,
+                ofm_channels=512,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth8 = make_ethosu_depthwise_conv2d(
+                ifm=conv8,
+                channels=512,
+                kernel_shape=(3, 3),
+                padding=(1, 1, 1, 1),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            conv9 = make_ethosu_conv2d(
+                ifm=depth8,
+                ifm_channels=512,
+                ofm_channels=512,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth9 = make_ethosu_depthwise_conv2d(
+                ifm=conv9,
+                channels=512,
+                kernel_shape=(3, 3),
+                padding=(1, 1, 1, 1),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            conv10 = make_ethosu_conv2d(
+                ifm=depth9,
+                ifm_channels=512,
+                ofm_channels=512,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth10 = make_ethosu_depthwise_conv2d(
+                ifm=conv10,
+                channels=512,
+                kernel_shape=(3, 3),
+                padding=(1, 1, 1, 1),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            conv11 = make_ethosu_conv2d(
+                ifm=depth10,
+                ifm_channels=512,
+                ofm_channels=512,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth11 = make_ethosu_depthwise_conv2d(
+                ifm=conv11,
+                channels=512,
+                kernel_shape=(3, 3),
+                padding=(1, 1, 1, 1),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            conv12 = make_ethosu_conv2d(
+                ifm=depth11,
+                ifm_channels=512,
+                ofm_channels=512,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth12 = make_ethosu_depthwise_conv2d(
+                ifm=conv12,
+                channels=512,
+                kernel_shape=(3, 3),
+                padding=(0, 0, 1, 1),
+                strides=(2, 2),
+                dilation=(1, 1),
+            )
+            conv13 = make_ethosu_conv2d(
+                ifm=depth12,
+                ifm_channels=512,
+                ofm_channels=1024,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth13 = make_ethosu_depthwise_conv2d(
+                ifm=conv13,
+                channels=1024,
+                kernel_shape=(3, 3),
+                padding=(1, 1, 1, 1),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            conv14 = make_ethosu_conv2d(
+                ifm=depth13,
+                ifm_channels=1024,
+                ofm_channels=1024,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            func = relay.Function(relay.analysis.free_vars(conv14), conv14)
+            func = run_opt_pass(func, relay.transform.InferType())
+            return func
+
+        func = _get_func()
+        te_graph, const_dict = create_te_graph(func)
+        sch = tvm.te.create_schedule([t.op for t in te_graph.outputs])
+        return sch, te_graph, const_dict
+
+    @pytest.fixture
+    def MobileNetv1TE():
+        return make_MobileNetv1TE()
+
+    @pytest.fixture
+    def MobileNetv1Graph():
+        _, te_graph, const_dict = make_MobileNetv1TE()
+        device_config = cs.EthosuDeviceConfig("ethos-u55-256")
+        return cs.create_cascader_graph(te_graph, const_dict, device_config)

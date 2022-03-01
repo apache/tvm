@@ -216,6 +216,8 @@ def create_test_runner(accel="ethos-u55-256", enable_usmp=True):
                 "accelerator_config": accel,
             },
             "tir.usmp.enable": enable_usmp,
+            "tir.usmp.algorithm": "hill_climb",
+            "tir.disable_storage_rewrite": enable_usmp,
         },
     )
 
@@ -242,12 +244,13 @@ def build_source(
 def verify_source(
     models: List[AOTCompiledTestModel],
     accel="ethos-u55-256",
+    enable_usmp=True,
 ):
     """
     This method verifies the generated source from an NPU module by building it and running on an FVP.
     """
     interface_api = "c"
-    test_runner = create_test_runner(accel)
+    test_runner = create_test_runner(accel, enable_usmp)
     run_and_check(
         models,
         test_runner,

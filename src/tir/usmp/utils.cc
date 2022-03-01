@@ -181,7 +181,7 @@ class ModuleWorkspaceSizeCalculator : public StmtExprVisitor {
     for (const auto& gv_func : mod_->functions) {
       functions_.Set(gv_func.first->name_hint, Downcast<PrimFunc>(gv_func.second));
     }
-    main_func_ = Downcast<PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
+    main_func_ = Downcast<PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_module_main));
     ICHECK(main_func_.defined()) << "main function is not in the module";
     Optional<Target> target_host = main_func_->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target_host) << "main function does not have a target attr";

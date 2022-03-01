@@ -499,6 +499,10 @@ TVM_DLL Pass PlanDevices(CompilationConfig config);
 /*!
  * \brief Bind the free variables to a Relay expression. This is a helper
  * function usually called by other pass functions to help optimizations.
+ * If any free variables are introduced into a function, those are added
+ * to the functoin parameters.
+ * Additionally this may change the order of parameters if you map a variable
+ * to a variable.
  *
  * \param expr The input expression.
  * \param binds The variable to expression map that will be used to help the
@@ -507,6 +511,19 @@ TVM_DLL Pass PlanDevices(CompilationConfig config);
  * \return The updated expression.
  */
 TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
+
+/*!
+ * \brief Substitute variables with new variables (including function parameters) in a function.
+ * This is a helper function usually called by other pass functions to help optimizations.
+ * Expects all values in the bind map to be Vars.
+ *
+ * \param func The input function.
+ * \param binds The variable to expression map that will be used to help the
+ *        binding.
+ *
+ * \return The updated expression.
+ */
+TVM_DLL Function SubstituteBoundVars(const Function& func, const tvm::Map<Var, Expr>& binds);
 
 /*!
  * \brief Apply rewrite rules to rewrite the expr in post DFS order. This

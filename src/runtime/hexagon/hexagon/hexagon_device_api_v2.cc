@@ -40,6 +40,8 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
+int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length);
+
 HexagonDeviceAPIv2* HexagonDeviceAPIv2::Global() {
   static auto* inst = new HexagonDeviceAPIv2();
   return inst;
@@ -148,6 +150,16 @@ void HexagonDeviceAPIv2::CopyDataFromTo(const void* from, size_t from_offset, vo
                                         TVMStreamHandle stream) {
   memcpy(static_cast<char*>(to) + to_offset, static_cast<const char*>(from) + from_offset, size);
 }
+
+TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
+  void* dst = args[0];
+  void* src = args[1];
+  int size = args[2];
+
+  hexagon_user_dma_1d_sync(dst, src, size);
+
+  *rv = static_cast<int32_t>(0);
+});
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.v2").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = HexagonDeviceAPIv2::Global();
