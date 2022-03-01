@@ -125,8 +125,6 @@ def run_and_verify_func(config, target="cuda", run_module=True, data_type="float
                 result_key = mode + ("_trt" if use_trt else "")
                 if use_trt:
                     mod = relay.transform.InferType()(mod)
-                    print(mod)
-                    # pdb.set_trace()
                     mod, config = tensorrt.partition_for_tensorrt(mod, params)
                     with tvm.transform.PassContext(
                         opt_level=3, config={"relay.ext.tensorrt.options": config}
@@ -140,12 +138,10 @@ def run_and_verify_func(config, target="cuda", run_module=True, data_type="float
                         func = relay.create_executor(
                             mode, mod=mod, device=dev, target=target
                         ).evaluate()
-                # pdb.set_trace()
 
                 if run_module:
                     result_dict[result_key] = func(**input_dict, **params)
 
-                print(result_dict)
                 if run_module:
                     assert_result_dict_holds(result_dict, data_type)
 
@@ -195,8 +191,6 @@ def run_and_verify_model(model, run_module):
             result_dict[result_key] = compile_and_run(
                 mod, params, i_data, mode=mode, use_trt=use_trt
             )
-
-    print(result_dict)
 
     if run_module:
         assert_result_dict_holds(result_dict)
@@ -466,11 +460,11 @@ def test_conv2d(run_module):
                     )
     run_and_verify_func(
         get_graph((1, 3, 16, 16), (3, 8, 7, 7), 3, [
-                  2, 2, 3, 3], [2, 2], [1, 1], 24),
-        run_module=run_module,
-    )
-    # run_and_verify_func(
-    #     get_graph((1, 3, 16, 16), (1, 3, 1, 1), channels=1), run_module=run_module)
+                  2, 2, 3, 3], [2, 2], [1, 1], 24, data_type="float16"),
+        run_module=run_module, data_type="float16")
+
+    run_and_verify_func(
+        get_graph((1, 3, 16, 16), (1, 3, 1, 1), channels=1, data_type="float32"), run_module=run_module, data_type="float32")
 
 
 def test_conv2d_nhwc(run_module):
@@ -966,17 +960,20 @@ def test_add(run_module):
 
 
 def test_softmax(run_module):
-    def get_graph(x_shape, axis):
-        x = relay.var("x", shape=(x_shape), dtype="float32")
+    def get_graph(x_shape, axis, data_type="float32"):
+        x = relay.var("x", shape=(x_shape), dtype=data_type)
         out = relay.nn.softmax(x, axis=axis)
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 
-    run_and_verify_func(get_graph((1, 1000), axis=1),
+    run_and_verify_func(get_graph((1, 1000), axis=1, data_type="float32"),
                         run_module=run_module, data_type="float32")
-    # run_and_verify_func(get_graph((1, 1000), axis=-1), run_module=run_module)
-    # run_and_verify_func(get_graph((1, 3, 4), axis=-2), run_module=run_module)
-    # run_and_verify_func(get_graph((1, 3, 4), axis=1), run_module=run_module)
+    run_and_verify_func(get_graph((1, 1000), axis=-1, data_type="float32"),
+                        run_module=run_module, data_type="float32")
+    run_and_verify_func(get_graph((1, 3, 4), axis=-2, data_type="float16"),
+                        run_module=run_module, data_type="float16")
+    run_and_verify_func(get_graph((1, 3, 4), axis=1, data_type="float16"),
+                        run_module=run_module, data_type="float16")
 
 
 def test_batch_norm(run_module):
