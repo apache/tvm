@@ -19,7 +19,7 @@
 
 /*!
  * \file aot_executor_factory.cc
- * \brief Graph executor factory implementations
+ * \brief AOT executor factory implementations
  */
 
 #include "./aot_executor_factory.h"

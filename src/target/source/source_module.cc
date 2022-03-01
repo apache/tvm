@@ -554,12 +554,9 @@ class MetadataQueuer : public AttrVisitor {
       auto metadata = Downcast<runtime::metadata::MetadataBase>(*value);
       const runtime::metadata::MetadataArrayNode* arr =
           value->as<runtime::metadata::MetadataArrayNode>();
-      std::cout << "Is array? " << arr << std::endl;
       if (arr != nullptr) {
         for (unsigned int i = 0; i < arr->array.size(); i++) {
           ObjectRef o = arr->array[i];
-          std::cout << "queue-visiting array element " << i << ": " << o->type_index() << " ("
-                    << o.operator->() << ")" << std::endl;
           if (o.as<runtime::metadata::MetadataBaseNode>() != nullptr) {
             std::stringstream ss;
             ss << i;
@@ -656,14 +653,10 @@ class MetadataSerializer : public AttrVisitor {
   }
 
   void VisitArray(const runtime::metadata::MetadataArrayNode* array) {
-    std::cout << "visit array " << array << ": " << array->type_index << " " << array->struct_name
-              << "," << array->array.size() << std::endl;
     auto old_is_first_item = is_first_item_;
     is_first_item_ = true;
     for (unsigned int i = 0; i < array->array.size(); ++i) {  // ObjectRef o : *(array->array)) {
       ObjectRef o = array->array[i];
-      std::cout << "visiting array element " << i << ": " << o->type_index() << " ("
-                << o.operator->() << ")" << std::endl;
       if (o->IsInstance<IntImmNode>()) {
         int64_t i = Downcast<Integer>(o);
         Visit(nullptr, &i);
@@ -690,7 +683,6 @@ class MetadataSerializer : public AttrVisitor {
   void Visit(const char* key, ObjectRef* value) final {
     const runtime::metadata::MetadataArrayNode* arr =
         value->as<runtime::metadata::MetadataArrayNode>();
-    std::cout << "Is array? " << arr << std::endl;
     if (arr != nullptr) {
       WriteComma();
       if (key != nullptr) {
@@ -725,7 +717,6 @@ class MetadataSerializer : public AttrVisitor {
       auto struct_name = std::get<0>(item);
       auto obj = std::get<1>(item);
       auto arr = obj.as<runtime::metadata::MetadataArrayNode>();
-      std::cout << "codegen: " << struct_name;
       is_first_item_ = true;
       address_.push_back(struct_name);
       if (arr != nullptr) {

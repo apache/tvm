@@ -80,6 +80,8 @@ static runtime::Module CreateCrtMetadataModule(
 // TODO(areusch,masahi): Unify metadata representation and remove the need for this function
 static runtime::metadata::Metadata ConvertMetaData(
     relay::backend::ExecutorCodegenMetadata metadata) {
+  ICHECK_NOTNULL(metadata->pool_inputs);
+
   std::vector<runtime::metadata::TensorInfo> inputs;
   ICHECK(metadata.defined());
   for (size_t i = 0; i < metadata->inputs.size(); ++i) {

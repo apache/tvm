@@ -133,8 +133,8 @@ void AotExecutor::Run() {
   ICHECK(pf != nullptr) << "Module entrypoint is not defined";
 
   const int num_args = args_.size();
-  ::std::unique_ptr<TVMValue> call_values{new TVMValue[num_args]};
-  ::std::unique_ptr<int> call_type_codes{new int[num_args]};
+  auto call_values = ::std::make_unique<TVMValue[]>(num_args);
+  auto call_type_codes = ::std::make_unique<int[]>(num_args);
   for (int i = 0; i < num_args; ++i) {
     auto managed = args_[i].ToDLPack();
     call_values.get()[i].v_handle = &managed->dl_tensor;

@@ -16,6 +16,7 @@
 # under the License.
 
 
+import re
 import sys
 import textwrap
 
@@ -37,6 +38,32 @@ from aot_test_utils import (
     compile_models,
     parametrize_aot_options,
 )
+
+
+def test_error_c_interface():
+    interface_api = "c"
+    use_unpacked_api = False
+    test_runner = AOT_DEFAULT_RUNNER
+
+    two = relay.add(relay.const(1), relay.const(1))
+    func = relay.Function([], two)
+
+    with pytest.raises(
+        tvm.TVMError,
+        match=re.escape(
+            'Either need interface_api == "packed" (got: c) or '
+            "unpacked-api == true (got: (bool)0) when targeting "
+            "c runtime"
+        ),
+    ):
+        compile_and_run(
+            AOTTestModel(
+                module=IRModule.from_expr(func), inputs={}, outputs=generate_ref_data(func, {})
+            ),
+            test_runner,
+            interface_api,
+            use_unpacked_api,
+        )
 
 
 enable_usmp = tvm.testing.parameter(True, False)
@@ -127,6 +154,16 @@ def test_mobilenet():
     runner.set_input(**inputs)
     runner.run()
     assert (runner.get_output(0).asnumpy() == list(ref_outputs.values())[0]).all()
+
+
+def test_create_executor():
+    x = tvm.relay.var("x", tvm.relay.TensorType([1], dtype="float32"))
+    expr = tvm.relay.add(x, tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32"))))
+    actual = relay.create_executor(
+        "aot", mod=tvm.IRModule.from_expr(tvm.relay.Function([x], expr))
+    ).evaluate()(np.array([2], dtype="float32"))
+
+    assert np.array([3.], dtype="float32") == actual
 
 
 if __name__ == "__main__":

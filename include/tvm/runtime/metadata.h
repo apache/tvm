@@ -75,7 +75,7 @@ struct TVMMetadata {
   const struct TVMTensorInfo* outputs;
   /*! \brief Number of elements in `outputs` array. */
   int64_t num_outputs;
-  /*! \brief Memory Pools needed by the AOT run_model function.
+  /*! \brief Memory Pools needed by the AOT main function.
    * The order of the elements is the same as in the arguments to run_model. That is to say,
    * this array specifies the last `num_pools` arguments to run_model.
    */

@@ -327,7 +327,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
   }
 
-  void PushArgs(const Expr& expr, std::vector<tir::Var> sids, Array<PrimExpr>* args) {
+  void PushArgs(const Expr& expr, const std::vector<tir::Var>& sids, Array<PrimExpr>* args) {
     const TupleNode* t = expr.as<TupleNode>();
     if (t != nullptr) {
       CHECK_EQ(sids.size(), t->fields.size()) << "Relay tuple does not map 1:1 into TIR; AOT can't "
@@ -920,8 +920,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           << ") or unpacked-api == true (got: " << use_unpacked_api_
           << ") when targeting c runtime";
     } else if (runtime_config->name == kTvmRuntimeCpp) {
-      CHECK(static_cast<bool>(use_unpacked_api_) == false &&
-            static_cast<bool>(use_call_cpacked_) == true)
+      CHECK(static_cast<bool>(use_unpacked_api_) == false)
           << "Need unpacked-api == false (got: " << use_unpacked_api_
           << ") and interface-api == \"packed\" (got: " << interface_api
           << ") when targeting c++ runtime";

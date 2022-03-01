@@ -29,12 +29,12 @@ class AotModule(object):
     Parameters
     ----------
     module : tvm.runtime.Module
-        The internal tvm module that holds the actual graph functions.
+        The internal tvm module that holds the implemented model functions.
 
     Attributes
     ----------
     module : tvm.runtime.Module
-        The internal tvm module that holds the actual graph functions.
+        The internal tvm module that holds the implemented model functions.
 
     Examples
     --------
@@ -51,9 +51,9 @@ class AotModule(object):
         # load it back as a runtime
         lib: tvm.runtime.Module = tvm.runtime.load_module("compiled_lib.so")
         # Call the library factory function for default and create
-        # a new runtime.Module, wrap with graph module.
-        gmod = graph_executor.GraphModule(lib["default"](dev))
-        # use the graph module.
+        # a new runtime.Module, wrap with aot module.
+        gmod = tvm.runtime.executor.AotModule(lib["default"](dev))
+        # use the aot  module.
         gmod.set_input("x", data)
         gmod.run()
     """
@@ -85,7 +85,7 @@ class AotModule(object):
         if key is not None:
             v = self._get_input(key)
             if v is None:
-                raise RuntimeError("Could not find '%s' in graph's inputs" % key)
+                raise RuntimeError("Could not find '%s' in model's inputs" % key)
             v.copyfrom(value)
 
         if params:
@@ -101,7 +101,7 @@ class AotModule(object):
                     self._get_input(k).copyfrom(params[k])
 
     def run(self, **input_dict):
-        """Run forward execution of the graph
+        """Run forward execution of the model
 
         Parameters
         ----------
@@ -113,7 +113,7 @@ class AotModule(object):
         self._run()
 
     def get_num_outputs(self):
-        """Get the number of outputs from the graph
+        """Get the number of outputs from the model
 
         Returns
         -------
@@ -123,7 +123,7 @@ class AotModule(object):
         return self._get_num_outputs()
 
     def get_num_inputs(self):
-        """Get the number of inputs to the graph
+        """Get the number of inputs to the model
 
         Returns
         -------
