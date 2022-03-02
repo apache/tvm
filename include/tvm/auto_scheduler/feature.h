@@ -43,7 +43,7 @@ namespace auto_scheduler {
 
 /*!
  * \brief Get per-store features from a TIR PrimFunc
- * \param stmt The input lowered TIR PrimFunc
+ * \param func The input lowered TIR PrimFunc
  * \param cache_line_size The size of cache line in bytes
  * \param max_n_bufs The maximum number of extracted buffers for one statement
  * \param ret The returned feature vector
