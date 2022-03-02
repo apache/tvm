@@ -50,7 +50,7 @@ sphinx_precheck() {
 
     pushd docs
     make clean
-    TVM_TUTORIAL_EXEC_PATTERN=none make html 2>&1 | tee /tmp/$$.log.txt
+    TVM_TUTORIAL_EXEC_PATTERN=none make html SPHINXOPTS="-W --keep-going" 2>&1 | tee /tmp/$$.log.txt
     check_sphinx_warnings "docs"
     popd
 }
@@ -121,7 +121,7 @@ find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
 cd docs
-PYTHONPATH=$(pwd)/../python make html SPHINXOPTS='-j auto' |& tee /tmp/$$.log.txt
+PYTHONPATH=$(pwd)/../python make html SPHINXOPTS='-W --keep-going -j auto' |& tee /tmp/$$.log.txt
 if grep -E "failed to execute|Segmentation fault" < /tmp/$$.log.txt; then
     echo "Some of sphinx-gallery item example failed to execute."
     exit 1
