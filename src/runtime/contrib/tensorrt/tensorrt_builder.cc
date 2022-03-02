@@ -153,9 +153,10 @@ void TensorRTBuilder::AddLayer(int nid, const JSONGraphNode& node) {
   // Get outputs.
   node_output_map_[nid] = {};
   for (auto out : params.outputs) {
-    // out->setType(params.inputs.at(1).weight.type);
-    // out->setType(nvinfer1::DataType::kFLOAT);
-    out->setType(nvinfer1::DataType::kHALF);
+    auto out_type = params.inputs.at(1).weight.type == params.inputs.at(0).tensor->getType()
+                        ? params.inputs.at(0).tensor->getType()
+                        : params.inputs.at(1).weight.type;
+    out->setType(out_type);
 
     node_output_map_[nid].push_back(TensorRTOpInput(out));
   }

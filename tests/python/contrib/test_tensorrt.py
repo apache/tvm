@@ -536,11 +536,11 @@ def test_dense(run_module):
         kernel = relay.var("kernel", shape=(k_shape), dtype=dtp)
         # Dense requires constant weights in TensorRT, so the weights are transposed by us.
         out = relay.nn.dense(
-            x, kernel, units=k_shape[0], out_dtype="float16")
+            x, kernel, units=k_shape[0])
         f = relay.Function([x, kernel], out)
         return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
 
-    for tp in ["float16"]:
+    for tp in ["float32"]:
         run_and_verify_func(get_graph(dtp=tp),
                             run_module=run_module, data_type=tp)
         run_and_verify_func(get_graph(k_shape=(1, 16), dtp=tp),
