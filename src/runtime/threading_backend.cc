@@ -280,7 +280,14 @@ void Yield() { std::this_thread::yield(); }
 /*!
  * \bief Set the maximum number of available cores.
  */
-void SetMaxConcurrency(int value) { max_concurrency = std::max(0, value); }
+void SetMaxConcurrency(int value) {
+  if (value < 0) {
+    LOG(WARNING) << "The value of maximum concurrency '" << value << "' is negative, "
+                 << "and the setting is not success.";
+    return;
+  }
+  max_concurrency = value;
+}
 int MaxConcurrency() {
   int max_concurrency = 1;
   if (tvm::runtime::threading::max_concurrency != 0) {
