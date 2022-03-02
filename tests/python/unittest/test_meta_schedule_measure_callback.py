@@ -26,7 +26,7 @@ from tvm.meta_schedule.measure_callback import PyMeasureCallback
 from tvm.meta_schedule.runner import RunnerResult
 from tvm.meta_schedule.search_strategy import MeasureCandidate
 from tvm.meta_schedule.task_scheduler.task_scheduler import TaskScheduler
-from tvm.meta_schedule.utils import get_hex_address
+from tvm.meta_schedule.utils import _get_hex_address
 from tvm.script import tir as T
 from tvm.tir.schedule import Schedule
 
@@ -119,7 +119,7 @@ def test_meta_schedule_measure_callback_as_string():
             pass
 
         def __str__(self) -> str:
-            return f"NotSoFancyMeasureCallback({get_hex_address(self.handle)})"
+            return f"NotSoFancyMeasureCallback({_get_hex_address(self.handle)})"
 
     measure_callback = NotSoFancyMeasureCallback()
     pattern = re.compile(r"NotSoFancyMeasureCallback\(0x[a-f|0-9]*\)")

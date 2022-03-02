@@ -381,7 +381,7 @@ def check_override(
     return inner
 
 
-def get_hex_address(handle: ctypes.c_void_p) -> str:
+def _get_hex_address(handle: ctypes.c_void_p) -> str:
     """Get the hexadecimal address of a handle.
     Parameters
     ----------

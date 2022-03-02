@@ -24,7 +24,7 @@ from tvm._ffi import register_object
 from tvm.runtime import Object
 from tvm.tir.schedule import Schedule, BlockRV
 
-from ..utils import get_hex_address, check_override
+from ..utils import _get_hex_address, check_override
 from .. import _ffi_api
 
 if TYPE_CHECKING:
@@ -93,4 +93,4 @@ class PyScheduleRule(ScheduleRule):
         )
 
     def __str__(self) -> str:
-        return f"{self.__class__.__name__}({get_hex_address(self.handle)})"
+        return f"{self.__class__.__name__}({_get_hex_address(self.handle)})"

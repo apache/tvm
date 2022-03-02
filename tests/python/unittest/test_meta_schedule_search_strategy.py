@@ -31,7 +31,6 @@ from tvm.meta_schedule.mutator.mutator import PyMutator
 from tvm.meta_schedule.runner import LocalRunner, RunnerResult
 from tvm.meta_schedule.search_strategy import (
     EvolutionarySearch,
-    MeasureCandidate,
     ReplayFunc,
     ReplayTrace,
     SearchStrategy,
@@ -117,14 +116,15 @@ def test_meta_schedule_replay_func(TestClass: SearchStrategy):  # pylint: disabl
     assert num_trials_each_iter == [7, 7, 6]
 
 
-def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name
+def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name]
+    @derived_object
     class DummyMutator(PyMutator):
         """Dummy Mutator for testing"""
 
         def initialize_with_tune_context(self, context: "TuneContext") -> None:
             pass
 
-        def apply(self, trace: Trace) -> Optional[Trace]:
+        def apply(self, trace: Trace, _) -> Optional[Trace]:
             return Trace(trace.insts, {})
 
     @derived_object

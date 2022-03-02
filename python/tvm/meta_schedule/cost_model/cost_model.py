@@ -20,7 +20,7 @@ from typing import Callable, List
 
 import numpy as np  # type: ignore
 from tvm._ffi import register_object
-from tvm.meta_schedule.utils import get_hex_address
+from tvm.meta_schedule.utils import _get_hex_address
 from tvm.runtime import Object
 
 from .. import _ffi_api
@@ -208,4 +208,4 @@ class PyCostModel:
         result : str
             Get the cost model as string with name.
         """
-        return f"meta_schedule.{self.__class__.__name__}({get_hex_address(self.handle)})"
+        return f"meta_schedule.{self.__class__.__name__}({_get_hex_address(self.handle)})"
