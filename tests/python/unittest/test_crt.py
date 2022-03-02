@@ -32,6 +32,7 @@ import tvm.relay
 import tvm.testing
 from tvm.target import Target
 from tvm.relay.backend import Runtime
+from tvm.relay.backend import Executor
 
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python
@@ -161,6 +162,40 @@ def test_graph_executor():
         graph_mod.run(a=A_data, b=B_data)
 
         out = graph_mod.get_output(0)
+        assert (out.numpy() == np.array([6, 10])).all()
+
+
+@tvm.testing.requires_micro
+def test_aot_executor():
+    """Test use of the AOT executor with microTVM."""
+
+    ws_root = pathlib.Path(os.path.dirname(__file__) + "/micro-workspace")
+    if ws_root.exists():
+        shutil.rmtree(ws_root)
+    with tvm.contrib.utils.TempDirectory.set_keep_for_debug():
+        temp_dir = tvm.contrib.utils.tempdir(ws_root.resolve())
+    relay_mod = tvm.parser.fromtext(
+        """
+      #[version = "0.0.5"]
+      def @main(%a : Tensor[(1, 2), uint8], %b : Tensor[(1, 2), uint8]) {
+          %0 = %a + %b;
+          %0
+      }"""
+    )
+
+    runtime = Runtime("crt", {"system-lib": True})
+    executor = Executor("aot")
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        factory = tvm.relay.build(relay_mod, target=TARGET, runtime=runtime, executor=executor)
+
+    with _make_session(temp_dir, factory) as sess:
+        aot_executor = sess.get_system_lib()
+        A_data = aot_executor["get_input"]("a").copyfrom(np.array([2, 3], dtype="uint8"))
+        B_data = aot_executor["get_input"]("b").copyfrom(np.array([4, 7], dtype="uint8"))
+
+        aot_executor["run"]()
+
+        out = aot_executor["get_output"](0)
         assert (out.numpy() == np.array([6, 10])).all()
 
 
