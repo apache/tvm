@@ -678,8 +678,11 @@ class IterMapRewriter : public ExprMutator {
       } else {
         // constraint_to_match not found, skip this iterator
         visited[j] = true;
-        flattened_iters.push_back(expr->args[j]);
-        grouped_iters.push_back(expr->args[j]);
+        IterSplitExpr arg = expr->args[j];
+        arg.CopyOnWrite()->scale =
+            analyzer_->Simplify(div(expr->args[j]->scale, base_scale.value()));
+        flattened_iters.push_back(arg);
+        grouped_iters.push_back(arg);
         expected_scale *= expr->args[j]->extent;
         ++i;
       }
