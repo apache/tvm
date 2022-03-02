@@ -196,18 +196,6 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     return Everything();
   }
 
-  Entry VisitExpr_(const FloorModNode* op) final {
-    Entry b = VisitExpr(op->b);
-    if (b.is_const()) {
-      int64_t c2 = b.base;
-      ICHECK(c2 != 0) << "MathError: the divisor is 0";
-      Entry a = VisitExpr(op->a);
-      int64_t coeff = ZeroAwareGCD(a.coeff, c2);
-      return Entry(coeff, a.base % c2);
-    }
-    return Everything();
-  }
-
   Entry VisitExpr_(const MinNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
@@ -229,20 +217,9 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   Entry ModByConst(const PrimExpr& lhs, int64_t val, bool round_down) {
     Entry a = VisitExpr(lhs);
     ICHECK_NE(val, 0);
-    if (a.coeff % val == 0) {
-      if (a.base == 0) {
-        return Entry(std::abs(val), 0);
-      }
-      // positive modulo have a clear rounding mode.
-      // Only handle case where we clearly know we need to round down for the division.
-      if (a.base > 0 && val > 0 && (round_down || parent_->CanProveGreaterEqual(lhs, round_down))) {
-        return Entry(val, a.base % val);
-      }
-    } else if (val % a.coeff == 0) {
-      if (a.base == 0 || (a.base > 0 && val > 0 &&
-                          (round_down || parent_->CanProveGreaterEqual(lhs, round_down)))) {
-        return a;
-      }
+    int64_t coeff = ZeroAwareGCD(a.coeff, val);
+    if (a.base % coeff == 0 || (a.base > 0 && (round_down || parent_->CanProveGreaterEqual(lhs, 0)))) {
+      return Entry(coeff, a.base % coeff);
     }
     return Everything();
   }
