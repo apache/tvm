@@ -672,9 +672,7 @@ class AotExecutor(_interpreter.Executor):
         self.mod = InferType()(self.mod)
         ret_type = self.mod["main"].checked_type.ret_type
         if _ty.is_dynamic(ret_type):
-            raise ValueError(
-                "AOT Executor only supports static graphs, got output type", ret_type
-            )
+            raise ValueError("AOT Executor only supports static graphs, got output type", ret_type)
         mod = build(self.mod, target=self.target)
 
         # NOTE: Given AOT requires use of the "c" backend, must export/import to compile the

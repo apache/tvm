@@ -172,8 +172,11 @@ def test_pass_wrong_device_arg():
     x = tvm.relay.var("x", tvm.relay.TensorType([1], dtype="float32"))
     expr = tvm.relay.add(x, tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32"))))
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(tvm.IRModule.from_expr(tvm.relay.Function([x], expr)), target="c",
-                              executor=backend.Executor("aot", {"interface-api": "packed"}))
+        mod = tvm.relay.build(
+            tvm.IRModule.from_expr(tvm.relay.Function([x], expr)),
+            target="c",
+            executor=backend.Executor("aot", {"interface-api": "packed"}),
+        )
 
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"
@@ -183,7 +186,10 @@ def test_pass_wrong_device_arg():
     with pytest.raises(tvm.TVMError) as cm:
         tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0), tvm.cpu(0)))
 
-        assert "Check failed: devices_.size() == 1 (2 vs. 1) : Expect exactly 1 device passed." in str(cm.exception)
+        assert (
+            "Check failed: devices_.size() == 1 (2 vs. 1) : Expect exactly 1 device passed."
+            in str(cm.exception)
+        )
     # TODO write asserts for # and type of device.
 
 
