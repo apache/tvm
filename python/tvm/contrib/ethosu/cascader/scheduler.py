@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """Scheduler for cascader which converts Proposals into Schedules."""
 from typing import Tuple, List, Dict, DefaultDict
 from collections import defaultdict
@@ -94,11 +95,14 @@ def cascade_part(
 
 
 def update_readers(part: Part, readers: DefaultDict[te.Tensor, List[te.Tensor]]) -> None:
-    """Update a dictionary which stores the te.Tensors that need to be read in order to produce a given te.Tensor."""
+    """
+    Update a dictionary which stores the te.Tensors that need to be read in
+    order to produce a given te.Tensor.
+    """
     visited = set()
 
     def _visit(tensor):
-        if tensor is not visited and tensor not in part.subgraph.input_tensors:
+        if tensor not in visited and tensor not in part.subgraph.input_tensors:
             visited.add(tensor)
             for input_tensor in tensor.op.input_tensors:
                 readers[input_tensor].append(tensor)
