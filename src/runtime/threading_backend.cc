@@ -282,8 +282,8 @@ void Yield() { std::this_thread::yield(); }
  */
 void SetMaxConcurrency(int value) {
   if (value < 0) {
-    LOG(WARNING) << "The value of maximum concurrency '" << value << "' is negative, "
-                 << "and the setting is not success.";
+    LOG(WARNING) << "The value of maximum concurrency '" << value << "' can not be negative "
+                 << "the setting of maximum concurrency is not success.";
     return;
   }
   max_concurrency = value;
