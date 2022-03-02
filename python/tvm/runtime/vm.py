@@ -380,6 +380,7 @@ class VirtualMachine(object):
         self._get_num_outputs = self.module["get_num_outputs"]
         self._get_input_index = self.module["get_input_index"]
         self._set_input = self.module["set_input"]
+        self._set_one_input = self.module["set_one_input"]
         self._setup_device(device, memory_cfg)
 
     def _setup_device(self, dev, memory_cfg):
@@ -449,6 +450,30 @@ class VirtualMachine(object):
             args = new_args
         cargs = convert(args)
         self._set_input(func_name, *cargs)
+
+    def set_one_input(self, func_name, *args, **kwargs):
+        """Set the one input tensor with tag to a function.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+        args : [str or int, tvm.runtime.NDArray]
+            name or index of tensor and input tensor, optional
+        kwargs: dict of str or int to tvm.runtime.NDArray, optional
+            taged arguments to the function.
+        Only args or kwargs should exist
+        """
+        if kwargs:
+            assert len(kwargs) == 1
+            tag = next(iter(kwargs))
+            if isinstance(tag, str):
+                func_params = self._exec.get_function_params(func_name)
+                assert tag in func_params
+            self._set_one_input(func_name, tag, kwargs[tag])
+        else:
+            assert len(args) == 2
+            self._set_one_input(func_name, args[0], args[1])
 
     def invoke(self, func_name, *args, **kwargs):
         """Invoke a function.

@@ -590,11 +590,10 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
     dilation = get_const_tuple(attrs.dilation)
     groups = attrs.groups
     assert dilation == (1, 1), "not support dilate now"
-    assert groups == 1, "only support groups == 1 when targetting cuda/gpu"
     strategy = _op.OpStrategy()
     num_strategies = 0
 
-    if layout == "NCHW":
+    if layout == "NCHW" and groups == 1:
         strategy.add_implementation(
             wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_nchw),
             wrap_topi_schedule(topi.cuda.schedule_conv2d_transpose_nchw),
@@ -611,7 +610,9 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
         )
     ):
         strategy.add_implementation(
-            wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_cudnn, add_layout=True),
+            wrap_compute_conv2d_transpose(
+                topi.cuda.conv2d_transpose_cudnn, add_layout=True, has_groups=True
+            ),
             wrap_topi_schedule(topi.generic.schedule_extern),
             name="conv2d_transpose.cudnn.cuda",
             plevel=25,
@@ -619,7 +620,10 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
         num_strategies += 1
 
     # TODO(masahi): Support conv2d_transpose NHWC for non-cudnn path.
-    assert num_strategies > 0, "Unsupported conv2d_transpose workload, layout = %s" % layout
+    assert num_strategies > 0, "Unsupported conv2d_transpose workload, layout = %s, groups = %d" % (
+        layout,
+        groups,
+    )
     return strategy
 
 
@@ -666,6 +670,7 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
             and stride_w == 1
             and dilation_h == 1
             and dilation_w == 1
+            and attrs["groups"] == 1
         ):
             strategy.add_implementation(
                 wrap_compute_conv3d(topi.cuda.conv3d_ncdhw_winograd),
@@ -688,7 +693,7 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
                     (N % 16 == 0 and CI % 16 == 0 and CO % 16 == 0)
                     or (N % 8 == 0 and CI % 16 == 0 and CO % 32 == 0)
                     or (N % 32 == 0 and CI % 16 == 0 and CO % 8 == 0)
-                ):
+                ) and out_type == "float16":
                     strategy.add_implementation(
                         wrap_compute_conv3d(topi.cuda.conv3d_ndhwc_tensorcore),
                         wrap_topi_schedule(topi.cuda.schedule_conv3d_ndhwc_tensorcore),
@@ -921,7 +926,7 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
             wrap_compute_batch_matmul(topi.cuda.batch_matmul_cublas),
             wrap_topi_schedule(topi.generic.schedule_extern),
             name="batch_matmul_cublas.cuda",
-            plevel=15,
+            plevel=30,
         )
     if (
         target.kind.name == "cuda"

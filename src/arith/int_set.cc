@@ -453,6 +453,24 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
     return IntervalSet(min_value, max_value);
   }
 
+  IntervalSet VisitExpr_(const BufferLoadNode* op) final {
+    if (!(op->dtype.is_int() || op->dtype.is_uint())) {
+      DLOG(WARNING) << "cannot evaluate set BufferLoad which loads from a " << op->dtype
+                    << " buffer";
+      return IntervalSet::Everything();
+    }
+    // If the indices do not contain any variables to be relaxed, return the BufferLoad itself.
+    // Otherwise return `IntervalSet::everything()` since we have no knowledge on the buffer data.
+    for (const PrimExpr& index : op->indices) {
+      if (UsesVar(index, [dom_map = &this->dom_map_](const VarNode* var) {
+            return dom_map->find(GetRef<Var>(var)) != dom_map->end();
+          })) {
+        return IntervalSet::Everything();
+      }
+    }
+    return IntervalSet::SinglePoint(GetRef<PrimExpr>(op));
+  }
+
   IntervalSet VisitExprDefault_(const Object* op) final {
     DLOG(WARNING) << "cannot evaluate set type " << op->GetTypeKey();
     return IntervalSet::Everything();

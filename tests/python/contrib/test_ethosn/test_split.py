@@ -37,8 +37,9 @@ def test_split(dtype):
     trials = [
         ((1, 16, 16, 32), (2, 7, 10), 2),
         ((1, 12, 8, 16), 3, 1),
-        ((1, 66), 11, 1),
     ]
+    if tei.get_ethosn_api_version() < 2111:
+        trials.append(((1, 66), 11, 1))
 
     np.random.seed(0)
     for shape, splits, axis in trials:

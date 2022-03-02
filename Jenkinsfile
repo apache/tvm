@@ -47,11 +47,12 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = "tlcpack/ci-lint:v0.68"
 ci_gpu = "tlcpack/ci-gpu:v0.81"
-ci_cpu = "tlcpack/ci-cpu:v0.80"
+ci_cpu = "tlcpack/ci-cpu:v0.81"
 ci_wasm = "tlcpack/ci-wasm:v0.71"
 ci_i386 = "tlcpack/ci-i386:v0.74"
 ci_qemu = "tlcpack/ci-qemu:v0.10"
 ci_arm = "tlcpack/ci-arm:v0.07"
+ci_hexagon = "tlcpack/ci-hexagon:v0.01"
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -102,6 +103,21 @@ def init_git() {
       sh (script: 'git submodule update --init -f', label: 'Update git submodules')
     }
   }
+}
+
+def should_skip_slow_tests(pr_number) {
+  withCredentials([string(
+    credentialsId: 'tvm-bot-jenkins-reader',
+    variable: 'GITHUB_TOKEN',
+  )]) {
+    // Exit code of 1 means run slow tests, exit code of 0 means skip slow tests
+    result = sh (
+      returnStatus: true,
+      script: "./tests/scripts/should_run_slow_tests.py --pr '${pr_number}'",
+      label: 'Check if CI should run slow tests',
+    )
+  }
+  return result == 0
 }
 
 def cancel_previous_build() {
@@ -168,6 +184,7 @@ stage('Sanity Check') {
           label: 'Check for docs only changes',
         )
         skip_ci = should_skip_ci(env.CHANGE_ID)
+        skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
         sh (
           script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
           label: 'Run lint',
@@ -256,6 +273,9 @@ def cpp_unittest(image) {
 }
 
 stage('Build') {
+  environment {
+    SKIP_SLOW_TESTS = "${skip_slow_tests}"
+  }
   parallel 'BUILD: GPU': {
     if (!skip_ci) {
       node('GPUBUILD') {
@@ -286,7 +306,7 @@ stage('Build') {
             ci_setup(ci_cpu)
             // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
             // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-            sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: "Rust build and test")
+            sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
           }
         }
       }
@@ -381,10 +401,41 @@ stage('Build') {
      } else {
       Utils.markStageSkippedForConditional('BUILD: QEMU')
     }
+  },
+  'BUILD: Hexagon': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU') {
+        ws(per_exec_ws('tvm/build-hexagon')) {
+          init_git()
+          sh (
+            script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh",
+            label: 'Create Hexagon cmake config',
+          )
+          try {
+            make(ci_hexagon, 'build', '-j2')
+            sh (
+              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
+              label: 'Build Hexagon API',
+            )
+            sh (
+              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+              label: 'Run Hexagon tests',
+            )
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+     } else {
+      Utils.markStageSkippedForConditional('BUILD: Hexagon')
+    }
   }
 }
 
 stage('Test') {
+  environment {
+    SKIP_SLOW_TESTS = "${skip_slow_tests}"
+  }
   parallel 'unittest: GPU': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('TensorCore') {
@@ -442,7 +493,7 @@ stage('Test') {
   'unittest: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
-        ws(per_exec_ws("tvm/ut-python-cpu")) {
+        ws(per_exec_ws('tvm/ut-python-cpu')) {
           try {
             init_git()
             unpack_lib('cpu', tvm_multilib_tsim)
@@ -452,7 +503,7 @@ stage('Test') {
               fsim_test(ci_cpu)
               sh (
                 script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
-                label: "Run VTA tests in TSIM",
+                label: 'Run VTA tests in TSIM',
               )
             }
           } finally {

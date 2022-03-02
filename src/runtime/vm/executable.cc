@@ -109,27 +109,20 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
   }
 }
 
-int Executable::GetFunctionArity(std::string func_name) const {
+const VMFunction& Executable::GetVMFunctionWithName(const std::string& func_name) const {
   auto it = global_map.find(func_name);
-  if (it == global_map.end()) {
-    LOG(ERROR) << "Cannot find function " << func_name << " in executable";
-    return -1;
-  }
-  const auto& func = functions[it->second];
+  ICHECK(it != global_map.end()) << "Cannot find function " << func_name << " in executable";
+  return functions[it->second];
+}
+
+int Executable::GetFunctionArity(std::string func_name) const {
+  const auto& func = GetVMFunctionWithName(func_name);
   return func.params.size();
 }
 
 std::string Executable::GetFunctionParameterName(std::string func_name, uint32_t index) const {
-  auto it = global_map.find(func_name);
-  if (it == global_map.end()) {
-    LOG(ERROR) << "Cannot find function " << func_name << " in executable";
-    return "";
-  }
-  const auto& func = functions[it->second];
-  if (index > func.params.size()) {
-    LOG(ERROR) << "Invalid parameter index";
-    return "";
-  }
+  const auto& func = GetVMFunctionWithName(func_name);
+  ICHECK_LT(index, func.params.size()) << "Invalid parameter index";
   return func.params[index];
 }
 

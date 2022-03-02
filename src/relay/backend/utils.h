@@ -35,6 +35,8 @@
 #include <tvm/te/operation.h>
 #include <tvm/tir/usmp/utils.h>
 
+#include <iostream>
+#include <sstream>
 #include <string>
 #include <typeinfo>
 #include <unordered_map>
@@ -61,10 +63,10 @@ class ExecutorCodegenMetadataNode : public Object {
  public:
   /*! \brief input information for the main function */
   Array<tir::Var> inputs;
+  /*! \brief output information for the main function */
+  Array<String> outputs;
   /*! \brief pool information for the main function */
   Array<tir::Var> pools;
-  /*! \brief number of outputs of the main function */
-  Integer num_outputs = 1;
   /*! \brief device contexts information for the main function */
   Array<String> devices;
   /*! \brief the executor to be used to run the model */
@@ -81,7 +83,7 @@ class ExecutorCodegenMetadataNode : public Object {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("inputs", &inputs);
     v->Visit("pools", &pools);
-    v->Visit("num_outputs", &num_outputs);
+    v->Visit("outputs", &outputs);
     v->Visit("devices", &devices);
     v->Visit("executor", &executor);
     v->Visit("unpacked_api", &unpacked_api);
@@ -98,7 +100,7 @@ class ExecutorCodegenMetadataNode : public Object {
 class ExecutorCodegenMetadata : public ObjectRef {
  public:
   TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<tir::Var> pools,
-                                  Array<String> devices, Integer num_outputs, String executor,
+                                  Array<String> devices, Array<String> outputs, String executor,
                                   String mod_name, String interface_api = "packed",
                                   bool unpacked_api = false,
                                   Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
@@ -357,6 +359,8 @@ inline std::string DType2String(const tvm::DataType dtype) {
     os << "int";
   } else if (dtype.is_uint()) {
     os << "uint";
+  } else if (dtype.is_bfloat16()) {
+    os << "bfloat";
   } else if ((*GetPackedFunc("runtime._datatype_get_type_registered"))(dtype.code())) {
     os << "custom["
        << (*GetPackedFunc("runtime._datatype_get_type_name"))(dtype.code()).operator std::string()
@@ -522,7 +526,7 @@ Array<Pass> GetPassPrefix(bool is_homogenous, bool is_vm);
 /*! \brief Target hash function */
 struct TargetStrHash {
   /*!
-   * \brief Calculate the hash code of a Target based on the string value of the Target.
+   * \brief Calculate the hash code of a Target based on the string value of the Target KIND.
    Note that this hash should NOT be used in new usecases, equality of targets based on their
    value is not well-defined.
    This will be removed when maps from Targets to IRModules are removed from the codebase.
@@ -530,7 +534,8 @@ struct TargetStrHash {
    * \return String hash of the target
    */
   size_t operator()(const Target& target) const {
-    return String::HashBytes(target->str().c_str(), target->str().size());
+    std::string s(target->kind->name);
+    return String::HashBytes(s.c_str(), s.size());
   }
 };
 

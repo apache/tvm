@@ -18,7 +18,7 @@
 import sys
 import pytest
 import numpy as np
-import os
+import logging
 
 import tvm.testing
 from tvm import te
@@ -28,12 +28,11 @@ from tvm.contrib import utils, ndk
 from tvm.contrib.hexagon.build import HexagonLauncher
 import tvm.contrib.hexagon.hexagon as hexagon
 
-from ..conftest import requires_rpc_tracker, requires_hexagon_toolchain
+from .conftest import requires_hexagon_toolchain
 
 
-@requires_rpc_tracker
 @requires_hexagon_toolchain
-def test_add(tvm_tracker_host, tvm_tracker_port, android_serial_number):
+def test_add(android_serial_number, tvm_tracker_host, tvm_tracker_port):
     dtype = "int8"
     A = tvm.te.placeholder((2,), dtype=dtype)
     B = tvm.te.placeholder((1,), dtype=dtype)
@@ -49,6 +48,9 @@ def test_add(tvm_tracker_host, tvm_tracker_port, android_serial_number):
     dso_binary = "test_binary.so"
     dso_binary_path = temp.relpath(dso_binary)
     func.save(dso_binary_path)
+
+    if not android_serial_number:
+        pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
     launcher = HexagonLauncher(serial_number=android_serial_number)
     launcher.android_run_rpc(rpc_tracker_host=tvm_tracker_host, rpc_tracker_port=tvm_tracker_port)
@@ -76,9 +78,8 @@ def test_add(tvm_tracker_host, tvm_tracker_port, android_serial_number):
     launcher.close()
 
 
-@requires_rpc_tracker
 @requires_hexagon_toolchain
-def test_add_vtcm(tvm_tracker_host, tvm_tracker_port, android_serial_number):
+def test_add_vtcm(android_serial_number, tvm_tracker_host, tvm_tracker_port):
     dtype = "int8"
     A = tvm.te.placeholder((2,), dtype=dtype)
     B = tvm.te.placeholder((1,), dtype=dtype)
@@ -94,6 +95,9 @@ def test_add_vtcm(tvm_tracker_host, tvm_tracker_port, android_serial_number):
     dso_binary = "test_binary.so"
     dso_binary_path = temp.relpath(dso_binary)
     func.save(dso_binary_path)
+
+    if not android_serial_number:
+        pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
     launcher = HexagonLauncher(serial_number=android_serial_number)
     launcher.android_run_rpc(rpc_tracker_host=tvm_tracker_host, rpc_tracker_port=tvm_tracker_port)
@@ -129,9 +133,8 @@ class TestMatMul:
     N = tvm.testing.parameter(32)
     K = tvm.testing.parameter(32)
 
-    @requires_rpc_tracker
     @requires_hexagon_toolchain
-    def test_matmul(self, tvm_tracker_host, tvm_tracker_port, android_serial_number, M, N, K):
+    def test_matmul(self, android_serial_number, tvm_tracker_host, tvm_tracker_port, M, N, K):
         X = te.placeholder((M, K), dtype="float32")
         Y = te.placeholder((K, N), dtype="float32")
         k1 = te.reduce_axis((0, K), name="k1")
@@ -147,6 +150,9 @@ class TestMatMul:
         dso_binary = "test_binary.so"
         dso_binary_path = temp.relpath(dso_binary)
         func.save(dso_binary_path)
+
+        if not android_serial_number:
+            pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
         launcher = HexagonLauncher(serial_number=android_serial_number)
         launcher.android_run_rpc(
@@ -185,9 +191,8 @@ class TestMatMul:
         tvm.testing.assert_allclose(zt.numpy(), ztcpu.numpy(), rtol=1e-4)
 
 
-@requires_rpc_tracker
 @requires_hexagon_toolchain
-def test_graph_executor(tvm_tracker_host, tvm_tracker_port, android_serial_number):
+def test_graph_executor(android_serial_number, tvm_tracker_host, tvm_tracker_port):
     dtype = "float32"
     data = relay.var("data", relay.TensorType((1, 64, 64, 3), dtype))
     weight = relay.var("weight", relay.TensorType((5, 5, 3, 8), dtype))
@@ -220,6 +225,9 @@ def test_graph_executor(tvm_tracker_host, tvm_tracker_port, android_serial_numbe
             executor=executor,
         )
         lowered.get_lib().save(dso_binary_path)
+
+    if not android_serial_number:
+        pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
     launcher = HexagonLauncher(serial_number=android_serial_number)
     launcher.android_run_rpc(rpc_tracker_host=tvm_tracker_host, rpc_tracker_port=tvm_tracker_port)

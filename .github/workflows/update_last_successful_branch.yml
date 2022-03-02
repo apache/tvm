@@ -15,4 +15,29 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Testing infrastructure for Hexagon RPC"""
+# GH actions.
+# We use it to cover windows and mac builds
+# Jenkins is still the primary CI
+
+name: Update last-successful branch
+
+on:
+  schedule:
+    - cron: "0/15 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: update-last-successful-branch
+  cancel-in-progress: true
+
+jobs:
+  update-last-successful-branch:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: Update last-successful branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eux
+          python tests/scripts/update_branch.py || echo step failed

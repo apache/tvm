@@ -122,9 +122,9 @@ class LinearStructure:
                 T.store(T_cast_7.data, (((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3), T.cast(T.load("uint8", tensor_2, (((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3)), "int16"), True)
 
     @T.prim_func
-    def run_model(input: T.handle, output: T.handle) -> None:
+    def __tvm_main__(input: T.handle, output: T.handle) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "run_model", "runner_function": True})
+        T.func_attr({"global_symbol": "__tvm_main__", "runner_function": True})
         # body
         T.attr("default", "device_id", 0)
         T.attr("default", "device_type", 1)
@@ -140,7 +140,7 @@ class LinearStructure:
 @tvm.script.ir_module
 class LinearStructurePlanned:
     @T.prim_func
-    def run_model(input: T.handle, fast_memory_0_var: T.handle, slow_memory_1_var: T.handle,  output: T.handle) -> None:
+    def __tvm_main__(input: T.handle, fast_memory_0_var: T.handle, slow_memory_1_var: T.handle,  output: T.handle) -> None:
         fast_memory_0_buffer_var = T.match_buffer(fast_memory_0_var, [200704], dtype="uint8", strides=[1], elem_offset=1, align=16)
         slow_memory_1_buffer_var = T.match_buffer(slow_memory_1_var, [1418528], dtype="uint8", strides=[1], elem_offset=1, align=16)
         # body
@@ -217,7 +217,7 @@ def test_mobilenet_subgraph():
     tir_mod = assign_poolinfos_to_allocates_in_irmodule(
         tir_mod, [fast_memory_pool, slow_memory_pool]
     )
-    main_func = tir_mod["run_model"]
+    main_func = tir_mod["__tvm_main__"]
     buffer_analysis = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
     buffer_info_map = buffer_analysis.buffer_info_stmts
 
@@ -328,9 +328,9 @@ class ResnetStructure:
                     T.store(T_cast_7.data, ax0_ax1_fused_ax2_fused_3 * 256 + ax3_outer_2 * 64 + ax3_inner_4, T.cast(T.max(T.min(T.q_multiply_shift(T.cast(T.cast(T.max(T.min(T.q_multiply_shift(T.load("int32", Conv2dOutput_3, ax3_inner_4) + T.load("int32", placeholder_26.data, ax3_outer_2 * 64 + ax3_inner_4), 1343014664, 31, -8, dtype="int32") + 136, 255), 0), "uint8"), "int32") - 136, 1073903788, 31, 1, dtype="int32") + T.load("int32", placeholder_28.data, ax0_ax1_fused_ax2_fused_3 * 256 + ax3_outer_2 * 64 + ax3_inner_4), 255), 0), "uint8"), True)
 
     @T.prim_func
-    def run_model(input: T.handle, output: T.handle) -> None:
+    def __tvm_main__(input: T.handle, output: T.handle) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "run_model", "runner_function": True})
+        T.func_attr({"global_symbol": "__tvm_main__", "runner_function": True})
         # body
         T.attr("default", "device_id", 0)
         T.attr("default", "device_type", 1)
@@ -464,7 +464,7 @@ class ResnetStructurePlanned:
                 T.store(T_cast_5.data, ax0_ax1_fused_ax2_fused_1 * 64 + ax3_inner_2, T.cast(T.cast(T.max(T.min(T.q_multiply_shift(T.load("int32", Conv2dOutput_1_let, ax3_inner_2) + T.load("int32", placeholder_15.data, ax3_inner_2), 1608879842, 31, -7, dtype="int32"), 255), 0), "uint8"), "int16"), True)
 
     @T.prim_func
-    def run_model(input: T.handle, global_workspace_0_var: T.handle, output: T.handle) -> None:
+    def __tvm_main__(input: T.handle, global_workspace_0_var: T.handle, output: T.handle) -> None:
         global_workspace_0_buffer_var = T.match_buffer(global_workspace_0_var, [7920256], dtype="uint8", strides=[1], elem_offset=1, align=16)
         # body
         T.attr("default", "device_id", 0)
@@ -491,7 +491,7 @@ def test_resnet_subgraph():
     tir_mod = ResnetStructure
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
     tir_mod = assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_workspace_pool])
-    main_func = tir_mod["run_model"]
+    main_func = tir_mod["__tvm_main__"]
     buffer_analysis = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
     buffer_info_map = buffer_analysis.buffer_info_stmts
 

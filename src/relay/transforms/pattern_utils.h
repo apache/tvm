@@ -63,6 +63,9 @@ namespace relay {
   } else if (type == DataType::Float(16)) {                                           \
     typedef uint16_t DType;                                                           \
     { __VA_ARGS__ }                                                                   \
+  } else if (type == DataType::BFloat(16)) {                                          \
+    typedef uint16_t DType;                                                           \
+    { __VA_ARGS__ }                                                                   \
   } else if (type == DataType::Int(64)) {                                             \
     typedef int64_t DType;                                                            \
     { __VA_ARGS__ }                                                                   \
@@ -259,6 +262,11 @@ inline Constant MakeConstantScalar(DataType dtype, T value) {
       // storage is uint16_t
       *static_cast<DType*>(arr->data) =
           __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(static_cast<float>(value));
+    } else if (dtype == DataType::BFloat(16)) {
+      // convert to bfloat16
+      // storage is uint16_t
+      *static_cast<DType*>(arr->data) =
+          __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(static_cast<float>(value));
     } else {
       *static_cast<DType*>(arr->data) = value;
     }
@@ -285,6 +293,12 @@ static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> s
         // Similar handling as that in MakeConstantScalar
         *(static_cast<DType*>(arr->data) + i) =
             __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(
+                static_cast<float>(value[i]));
+      } else if (dtype == DataType::BFloat(16)) {
+        // convert to bfloat16
+        // storage is uint16_t
+        *(static_cast<DType*>(arr->data) + i) =
+            __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(
                 static_cast<float>(value[i]));
       } else {
         *(static_cast<DType*>(arr->data) + i) = value[i];
@@ -313,6 +327,12 @@ static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> s
         // Similar handling as that in MakeConstantScalar
         *(static_cast<DType*>(arr->data) + i) =
             __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(
+                static_cast<float>(value[i]));
+      } else if (dtype == DataType::BFloat(16)) {
+        // convert to bfloat16
+        // storage is uint16_t
+        *(static_cast<DType*>(arr->data) + i) =
+            __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(
                 static_cast<float>(value[i]));
       } else {
         *(static_cast<DType*>(arr->data) + i) = value[i];
@@ -416,6 +436,12 @@ static inline dmlc::optional<long double> TryToScalar(const runtime::NDArray& ar
       return dmlc::optional<long double>(reinterpret_cast<float*>(array->data)[i]);
     } else if (array->dtype.bits == 64) {
       return dmlc::optional<long double>(reinterpret_cast<double*>(array->data)[i]);
+    }
+  } else if (array->dtype.code == kDLBfloat) {
+    if (array->dtype.bits == 16) {
+      return dmlc::optional<long double>(
+          __extendXfYf2__<uint16_t, uint16_t, 7, float, uint32_t, 23>(
+              reinterpret_cast<uint16_t*>(array->data)[i]));
     }
   }
   return dmlc::optional<long double>();

@@ -307,13 +307,13 @@ def dense_vnni_compute(cfg, X, packed_w, bias=None):
     return C
 
 
-def dense_vnni_schedule(cfg, s, C, O):
+def dense_vnni_schedule(cfg, s, C, O, do_parallel=True):
     """Schedule dense compute using VNNI vpdpbusd instruction"""
     # C: The output of GEMM
     # O: The output of the fused op
     def split_y(out):
         default_y_split_factor = 32
-        a_y = out.op.axis[0]
+        a_y = out.op.axis[-2]
 
         if cfg.is_fallback:
             return s[out].split(a_y, factor=default_y_split_factor)
@@ -323,7 +323,7 @@ def dense_vnni_schedule(cfg, s, C, O):
     (a_k,) = C.op.reduce_axis
 
     a_yo, a_yi = split_y(C)
-    a_xo, a_xi = s[C].split(C.op.axis[1], factor=16)
+    a_xo, a_xi = s[C].split(C.op.axis[-1], factor=16)
     a_ko, a_ki = s[C].split(a_k, factor=4)
 
     s[C].reorder(a_yo, a_xo, a_yi, a_ko, a_xi, a_ki)
@@ -335,7 +335,7 @@ def dense_vnni_schedule(cfg, s, C, O):
         fused = s[O].fuse(a_yo, a_xo)
     else:
         a_yo, a_yi = split_y(O)
-        a_xo, a_xi = s[O].split(O.op.axis[1], factor=16)
+        a_xo, a_xi = s[O].split(O.op.axis[-1], factor=16)
 
         s[O].reorder(a_yo, a_xo, a_yi, a_xi)
         s[O].vectorize(a_xi)
@@ -343,9 +343,10 @@ def dense_vnni_schedule(cfg, s, C, O):
 
         fused = s[O].fuse(a_yo, a_xo)
 
-    s[O].parallel(fused)
+    if do_parallel:
+        s[O].parallel(fused)
 
-    return s
+    return s, fused
 
 
 @autotvm.register_topi_compute("dense_vnni.x86")

@@ -18,7 +18,7 @@
 # CI docker i386 env
 # tag: v0.53
 
-FROM ioft/i386-ubuntu:16.04
+FROM i386/ubuntu:18.04
 
 RUN apt-get update --fix-missing && apt-get install -y ca-certificates
 
@@ -28,8 +28,8 @@ RUN bash /install/ubuntu_install_core.sh
 COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
 RUN bash /install/ubuntu_install_llvm.sh
 
-COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
-RUN bash /install/ubuntu_install_python.sh
+COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
+RUN bash /install/ubuntu1804_install_python.sh
 
 # Globally disable pip cache
 RUN pip config set global.no-cache-dir false
