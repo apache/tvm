@@ -136,6 +136,7 @@ class ThreadGroup::Impl {
           break;
         case kLittle:
         case kBig:
+        default:
           LOG(WARNING) << "The thread affinity cannot be set when the number of workers"
                        << "is larger than the number of available cores in the system.";
           break;
@@ -279,11 +280,7 @@ void Yield() { std::this_thread::yield(); }
 /*!
  * \bief Set the maximum number of available cores.
  */
-void SetMaxConcurrency(int value) {
-  if (value > 0) {
-    max_concurrency = value;
-  }
-}
+void SetMaxConcurrency(int value) { max_concurrency = std::max(0, value); }
 int MaxConcurrency() {
   int max_concurrency = 1;
   if (tvm::runtime::threading::max_concurrency != 0) {
