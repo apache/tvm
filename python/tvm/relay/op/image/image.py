@@ -455,22 +455,33 @@ def affine_grid(data, target_shape=None):
     return _make.affine_grid(data, target_shape)
 
 
-def grid_sample(data, grid, method="bilinear", layout="NCHW", padding_mode="zeros"):
-    """Applies bilinear sampling to input feature map.
+def grid_sample(
+    data, grid, method="bilinear", layout="NCHW", padding_mode="zeros", align_corners=True
+):
+    """Applies grid sampling to input feature map.
 
-    Given :math:`data` and :math:`grid`, then the output is computed by
+    Given :math:`data` and :math:`grid`, then for 4-D the output is computed by
 
     .. math::
 
         x_{src} = grid[batch, 0, y_{dst}, x_{dst}] \\
         y_{src} = grid[batch, 1, y_{dst}, x_{dst}] \\
-        output[batch, channel, y_{dst}, x_{dst}] = G(data[batch, channel, y_{src}, x_{src})
+        output[batch, channel, y_{dst}, x_{dst}] = G(data[batch, channel, y_{src}, x_{src}])
 
     :math:`x_{dst}`, :math:`y_{dst}` enumerate all spatial locations in :math:`output`, and
     :math:`G()` denotes the interpolation function.
-    The out-boundary points will be padded with zeros if padding_mode is "zeros".
+
+    The out-boundary points will be padded with zeros if padding_mode is "zeros", or
+    border pixel value if padding_mode is "border", or
+    inner pixel value if padding_mode is "reflection".
+
+    The left-top corner (-1, -1) and right-bottom corner (1, 1) in grid will be map to
+    (0, 0) and (h - 1, w - 1) of data if align_corners is "True", or
+    (-0.5, -0.5) and (h + 0.5, w + 0.5) of data if align_corners is "False".
+
     The shape of the output will be
-    (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3]).
+    4-D (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3]), or
+    5-D (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3], grid.shape[4]).
 
     The operator assumes that :math:`grid` has been normalized to [-1, 1].
 
@@ -479,23 +490,34 @@ def grid_sample(data, grid, method="bilinear", layout="NCHW", padding_mode="zero
     Parameters
     ----------
     data : tvm.Tensor
-        4-D with shape [batch, in_channel, in_height, in_width]
+        4-D with shape [batch, in_channel, in_height, in_width], or
+        5-D with shape [batch, in_channel, in_depth, in_height, in_width]
 
     grid : tvm.Tensor
-        4-D with shape [batch, 2, out_height, out_width]
+        4-D with shape [batch, 2, out_height, out_width], or
+        5-D with shape [batch, 3, out_depth, out_height, out_width]
 
     method : str
-        The interpolation method. Only 'bilinear' is supported.
+        The interpolation method, 4-D "nearest", "bilinear", "bicubic" and
+        5-D "nearest", "bilinear"("trilinear") are supported.
 
     layout : str
         The layout of input data and the output.
 
     padding_mode : str
-        The padding mode for outside grid values.
+        The padding mode for outside grid values, "zeros", "border", "reflection" are supported.
+
+    align_corners: bool
+        Geometrically, we consider the pixels of the input as squares rather than points.
+        If set to "True", the extrema ("-1" and "1") are considered as referring
+        to the center points of the input corner pixels. If set to "False", they
+        are instead considered as referring to the corner points of the input corner
+        pixels, making the sampling more resolution agnostic.
 
     Returns
     -------
     Output : tvm.Tensor
-        4-D with shape [batch, 2, out_height, out_width]
+        4-D with shape [batch, in_channel, out_height, out_width], or
+        5-D with shape [batch, in_channel, out_depth, out_height, out_width]
     """
-    return _make.grid_sample(data, grid, method, layout, padding_mode)
+    return _make.grid_sample(data, grid, method, layout, padding_mode, align_corners)
