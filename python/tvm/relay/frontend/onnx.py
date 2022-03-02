@@ -4058,7 +4058,6 @@ class MatMulInteger(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        # The production MUST never overflow. The accumulation may overflow if and only if in 32 bits
         a = inputs[0]
         b = inputs[1]
 
@@ -4076,7 +4075,6 @@ class MatMulInteger(OnnxOpConverter):
 
         a_zero_point = _op.const(0.0, dtype=a_dtype)
         b_zero_point = _op.const(0.0, dtype=b_dtype)
-        # We use a_dtype here because a_dtype and b_dtype are equivalent
         out_zero_point = _op.const(0.0, dtype="int32")
 
         if len(inputs) == 4:
