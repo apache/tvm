@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule FeatureExtractor."""
-from typing import List
+from typing import Callable, List
+from numpy import extract
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
@@ -46,7 +47,7 @@ class FeatureExtractor(Object):
         Returns
         -------
         features : List[NDArray]
-            The feature numpy ndarray extracted.
+            The feature tvm ndarray extracted.
         """
         result = _ffi_api.FeatureExtractorExtractFrom(  # type: ignore # pylint: disable=no-member
             self, context, candidates
@@ -55,27 +56,54 @@ class FeatureExtractor(Object):
 
 
 @register_object("meta_schedule.PyFeatureExtractor")
-class PyFeatureExtractor(FeatureExtractor):
-    """An abstract feature extractor with customized methods on the python-side."""
+class _PyFeatureExtractor(FeatureExtractor):
+    """
+    A TVM object feature extractor to support customization on the python side.
+    This is NOT the user facing class for function overloading inheritance.
 
-    def __init__(self):
+    See also: PyFeatureExtractor
+    """
+
+    def __init__(self, methods: List[Callable]):
         """Constructor."""
-
-        @check_override(self.__class__, FeatureExtractor)
-        def f_extract_from(
-            context: TuneContext, candidates: List[MeasureCandidate]
-        ) -> List[NDArray]:
-            features = self.extract_from(context, candidates)
-            return features
-
-        def f_as_string() -> str:
-            return str(self)
 
         self.__init_handle_by_constructor__(
             _ffi_api.FeatureExtractorPyFeatureExtractor,  # type: ignore # pylint: disable=no-member
-            f_extract_from,
-            f_as_string,
+            *methods,
         )
+
+
+class PyFeatureExtractor:
+    """
+    An abstract feature extractor with customized methods on the python-side.
+    This is the user facing class for function overloading inheritance.
+
+    Note: @derived_object is required for proper usage of any inherited class.
+    """
+
+    _tvm_metadata = {
+        "cls": _PyFeatureExtractor,
+        "methods": ["extract_from", "__str__"],
+    }
+
+    def extract_from(
+        self, context: TuneContext, candidates: List[MeasureCandidate]
+    ) -> List[NDArray]:
+        """Extract features from the given measure candidate.
+
+        Parameters
+        ----------
+        context : TuneContext
+            The tuning context for feature extraction.
+        candidates : List[MeasureCandidate]
+            The measure candidates to extract features from.
+
+        Returns
+        -------
+        features : List[NDArray]
+            The feature tvm ndarray extracted.
+        """
+        raise NotImplementedError
 
     def __str__(self) -> str:
         return f"meta_schedule.{self.__class__.__name__}({_get_hex_address(self.handle)})"
