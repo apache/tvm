@@ -588,7 +588,7 @@ stage('Test') {
       Utils.markStageSkippedForConditional('topi: GPU')
     }
   },
-  'frontend: GPU': {
+  'frontend: GPU 1': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('GPU') {
         ws(per_exec_ws('tvm/frontend-python-gpu')) {
@@ -598,8 +598,8 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_gpu)
               sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh",
-                label: 'Run Python frontend tests',
+                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh 1",
+                label: 'Run Python frontend tests (shard 1)',
               )
             }
           } finally {
@@ -608,7 +608,30 @@ stage('Test') {
         }
       }
      } else {
-      Utils.markStageSkippedForConditional('frontend: GPU')
+      Utils.markStageSkippedForConditional('frontend: GPU 1')
+    }
+  },
+  'frontend: GPU 2': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('GPU') {
+        ws(per_exec_ws('tvm/frontend-python-gpu')) {
+          try {
+            init_git()
+            unpack_lib('gpu', tvm_multilib)
+            timeout(time: max_time, unit: 'MINUTES') {
+              ci_setup(ci_gpu)
+              sh (
+                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh 2",
+                label: 'Run Python frontend tests (shard 2)',
+              )
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+     } else {
+      Utils.markStageSkippedForConditional('frontend: GPU 2')
     }
   },
   'frontend: CPU': {
