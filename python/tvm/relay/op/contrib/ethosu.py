@@ -23,7 +23,8 @@ import numpy as np  # type: ignore
 
 import tvm  # type: ignore
 from tvm import relay
-from tvm.relay.expr import Constant, Call  # type: ignore
+from tvm.relay.expr import Constant, Call
+from tvm.relay.op.contrib.arm_compute_lib import qnn_dense  # type: ignore
 from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
 from tvm.relay.dataflow_pattern import wildcard, is_op, is_constant, is_tuple  # type: ignore
 from tvm.relay.build_module import bind_params_by_name  # type: ignore
@@ -1103,7 +1104,10 @@ class LutActivationParams:
         """
         if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
             return False
-        return True
+        return True  # optional_bias_add = (
+
+    #     is_op("nn.bias_add")(dense, is_constant()) | dense
+    # )
 
 
 class TanhParams(LutActivationParams):
@@ -1544,7 +1548,6 @@ class FullyConnectedParams:
     """
 
     composite_name = "ethos-u.fully_connected"
-    activation_map = {"clip": "CLIP"}
 
     @requires_vela
     def __init__(self, func_body):
@@ -1553,18 +1556,19 @@ class FullyConnectedParams:
         from tvm.relay.backend.contrib.ethosu.util import RequantArgs
 
         self.activation = None
-        if str(func_body.op) in self.activation_map.keys():
-            activation = func_body
-            requantize_op = activation.args[0]
+        if str(func_body.op) == "clip":
+            self.activation = func_body
+            requantize_op = self.activation.args[0]
         else:
             requantize_op = func_body
 
-        call = func_body.args[0]
-        if str(requantize_op.op) == "nn.bias_add":
+        call = requantize_op.args[0]
+        if str(requantize_op.args[0].op) == "nn.bias_add":
             bias_add = call
+            qnn_dense = call
         else:
             bias_add = None
-        qnn_dense = call
+            qnn_dense = call
 
         # weights & biases are params as they should be constant
         self.weights = TensorParams(
@@ -1595,10 +1599,6 @@ class FullyConnectedParams:
             requantize_op.args[RequantArgs.OFM_SCALE.value],
             requantize_op.args[RequantArgs.OFM_ZERO_POINT.value],
         )
-
-        self.strides = (1, 1)
-        self.dilation = (1, 1)
-        self.padding = (0, 0, 0, 0)
 
     def is_valid(self) -> bool:
         """
@@ -1639,9 +1639,9 @@ def qnn_fc_pattern():
     dense = is_op("qnn.dense")(
         wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
     )
-    bias_add = is_op("nn.bias_add")(dense, is_constant())
+    optional_bias_add = is_op("nn.bias_add")(dense, is_constant()) | dense
     req = is_op("qnn.requantize")(
-        dense | bias_add, is_constant(), is_constant(), is_constant(), is_constant()
+        dense | optional_bias_add, is_constant(), is_constant(), is_constant(), is_constant()
     )
     optional_clip = req.optional(is_op("clip"))
     return optional_clip
@@ -1664,6 +1664,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             QnnConv2DTransposeParams.composite_name,
             qnn_conv2d_transpose_pattern(),
             lambda pat: QnnConv2DTransposeParams(pat).is_valid(),
+        ),
+        (
+            FullyConnectedParams.composite_name,
+            qnn_fc_pattern(),
+            lambda pat: FullyConnectedParams(pat).is_valid(),
         ),
         (
             MaxPool2DParams.composite_name,
@@ -1761,11 +1766,6 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             SqueezeParams.composite_name,
             squeeze_pattern(),
             lambda pat: SqueezeParams(pat).is_valid(),
-        ),
-        (
-            FullyConnectedParams.composite_name,
-            qnn_fc_pattern(),
-            lambda pat: FullyConnectedParams(pat).is_valid(),
         ),
     ]
 

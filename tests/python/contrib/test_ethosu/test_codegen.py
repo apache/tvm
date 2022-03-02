@@ -1181,17 +1181,18 @@ def test_tflite_fully_connected(
 ):
     @tf.function
     def fully_connected(x):
-        bias_shape = ofm_channels
+        bias_shape = ifm_shape[1]
         bias = tf.constant(np.random.uniform(size=bias_shape), dtype=tf.float32)
         w = tf.constant(
             np.random.uniform(size=[ifm_shape[1], ofm_channels]),
             dtype=tf.float32,
         )
         if use_bias:
-            w = tf.nn.bias_add(w, bias)
+            x = tf.nn.bias_add(x, bias)
         if activation_function:
-            w = tf.nn.relu(w)
-        return tf.matmul(x, w)
+            x = tf.nn.relu(x)
+        x = tf.matmul(x, w)
+        return x
 
     # TODO(dchauhan-arm) For now output is not bit exact with TFLite.
     # This is because TFLite reference kernels are not being used.

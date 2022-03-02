@@ -1589,7 +1589,6 @@ class FullyConnectedRewriter(DFPatternCallback):
     def callback(self, pre, post, node_map):
         params = ethosu_patterns.FullyConnectedParams(post.op.body)
         params.ifm.tensor = post.args[0]
-        activation = None
 
         # IFM reshapes
         ifm = post.args[0]
@@ -1600,19 +1599,15 @@ class FullyConnectedRewriter(DFPatternCallback):
         weights_values = params.weights.values
         weights_values_ohwi = np.expand_dims(weights_values, axis=(1, 2))
         if params.activation:
-            activation = ethosu_patterns.FullyConnectedParams.activation_map[
-                params.activation.op.name
-            ]
-            if params.activation:
-                clip_min = int(params.activation.attrs.a_min)
-                clip_max = int(params.activation.attrs.a_max)
+            clip_min = int(params.activation.attrs.a_min)
+            clip_max = int(params.activation.attrs.a_max)
         else:
             clip_min = 0
             clip_max = 0
         bias_values = (
             params.biases.tensor.data.asnumpy()
             if params.biases
-            else np.zeros((params.ifm.shape[-1]))
+            else np.zeros((params.ofm.shape[-1]))
         )
         scale_bias = vela_api.pack_biases(
             biases=bias_values,
@@ -1634,10 +1629,10 @@ class FullyConnectedRewriter(DFPatternCallback):
             ofm_zero_point=int(params.ofm.q_params.zero_point),
             kernel_shape=[1, 1],
             ofm_channels=params.weights.shape[0],
-            strides=params.strides,
-            padding=params.padding,
-            dilation=params.dilation,
-            activation=activation,
+            strides=(1, 1),
+            padding=(0, 0, 0, 0),
+            dilation=(1, 1),
+            activation=params.activation,
             clip_min=clip_min,
             clip_max=clip_max,
             upscale="NONE",
