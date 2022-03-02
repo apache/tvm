@@ -31,6 +31,7 @@ from utils import skip_if_no_reference_system, get_range_for_dtype_str
 from tests.python.relay.aot.aot_test_utils import (
     AOTTestModel,
     AOT_CORSTONE300_RUNNER,
+    AOT_USMP_CORSTONE300_RUNNER,
     generate_ref_data,
     compile_and_run,
 )
@@ -77,7 +78,8 @@ def convert_to_relay(
 @skip_if_no_reference_system
 @tvm.testing.requires_package("tflite")
 @tvm.testing.requires_cmsisnn
-def test_cnn_small():
+@pytest.mark.parametrize("test_runner", [AOT_CORSTONE300_RUNNER, AOT_USMP_CORSTONE300_RUNNER])
+def test_cnn_small(test_runner):
     # download the model
     base_url = "https://github.com/ARM-software/ML-zoo/raw/48a22ee22325d15d2371a6df24eb7d67e21dcc97/models/keyword_spotting/cnn_small/tflite_int8"
     file_to_download = "cnn_s_quantized.tflite"
@@ -99,7 +101,6 @@ def test_cnn_small():
     # validate CMSIS-NN output against CPU output
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_CORSTONE300_RUNNER
     inputs = {"input": input_data}
     params = {}
     output_list = generate_ref_data(orig_mod["main"], inputs, params)

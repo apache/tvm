@@ -232,6 +232,8 @@ class ExprMutator : public ::tvm::relay::ExprFunctor<Expr(const Expr&)> {
  */
 class MixedModeVisitor : public ::tvm::relay::ExprVisitor {
  public:
+  using ::tvm::relay::ExprFunctor<void(const Expr& n)>::VisitExpr_;
+
   /*! \brief The constructor of MixedModeVisitor
    *  \param visit_limit The number of times to allow visitation to a node. Usually 1, ocassionally
    * higher (i.e., 2 for dead code elimiation), limited to 10 as a sanity check.
@@ -277,6 +279,8 @@ class MixedModeVisitor : public ::tvm::relay::ExprVisitor {
  */
 class MixedModeMutator : public ::tvm::relay::ExprMutator {
  public:
+  using ::tvm::relay::ExprFunctor<Expr(const Expr&)>::VisitExpr_;
+
   MixedModeMutator(bool pre = false) : pre_{pre} {};
   Expr VisitExpr(const Expr& expr) final;
 
