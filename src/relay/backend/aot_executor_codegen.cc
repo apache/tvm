@@ -915,12 +915,12 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     // Validate choice of use_unpacked_api_ and use_call_cpacked_
     if (runtime_config->name == kTvmRuntimeCrt) {
-      CHECK(interface_api == "packed" || static_cast<bool>(use_unpacked_api_) == true)
-          << "Either need interface_api == \"packed\" (got: " << interface_api
-          << ") or unpacked-api == true (got: " << use_unpacked_api_
-          << ") when targeting c runtime";
+      ICHECK(interface_api == "packed" || static_cast<bool>(use_unpacked_api_) == true)
+        << "Either need interface_api == \"packed\" (got: " << interface_api
+        << ") or unpacked-api == true (got: " << use_unpacked_api_
+        << ") when targeting c runtime";
     } else if (runtime_config->name == kTvmRuntimeCpp) {
-      CHECK(static_cast<bool>(use_unpacked_api_) == false)
+      ICHECK(static_cast<bool>(use_unpacked_api_) == false)
           << "Need unpacked-api == false (got: " << use_unpacked_api_
           << ") and interface-api == \"packed\" (got: " << interface_api
           << ") when targeting c++ runtime";

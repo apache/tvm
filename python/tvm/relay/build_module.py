@@ -27,9 +27,11 @@ from tvm.ir.transform import PassContext
 from tvm.tir import expr as tvm_expr
 from tvm.target import Target
 from .. import nd as _nd, autotvm, register_func
+from ..runtime import load_module
 from ..runtime.executor import aot_executor as _aot_executor
 from ..target import Target
 from ..contrib import graph_executor as _graph_executor
+from ..contrib import utils as contrib_utils
 from . import _build_module
 from . import ty as _ty
 from . import expr as _expr
@@ -662,6 +664,7 @@ class AotExecutor(_interpreter.Executor):
         self.mod = mod
         self.device = device
         self.target = target
+        assert target.attrs.get("executor", "graph") == "aot"
 
     def _make_executor(self, expr=None):
         if expr:
@@ -673,7 +676,16 @@ class AotExecutor(_interpreter.Executor):
                 "AOT Executor only supports static graphs, got output type", ret_type
             )
         mod = build(self.mod, target=self.target)
-        gmodule = _aot_executor.AotModule(mod["default"](self.device))
+
+        # NOTE: Given AOT requires use of the "c" backend, must export/import to compile the
+        # generated code.
+        temp_so_dir = contrib_utils.TempDirectory()
+        temp_so = temp_so_dir / "temp.so"
+        mod.export_library(temp_so)
+
+        mod = load_module(temp_so)
+        aot_mod = mod["default"](self.device)
+        gmodule = _aot_executor.AotModule(aot_mod)
 
         def _unflatten(flat_iter, cur_type):
             if isinstance(cur_type, _ty.TensorType):
@@ -699,7 +711,7 @@ class AotExecutor(_interpreter.Executor):
             unflattened = _unflatten(iter(flattened), ret_type)
             return unflattened
 
-        return _graph_wrapper
+        return _aot_wrapper
 
 
 # TODO(mbs): Collapse the create_executor/evaluate phases together since a) most callers don't
@@ -764,5 +776,5 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
     if kind == "vm":
         return VMExecutor(mod, device, target)
     if kind == "aot":
-        return AotModule(mod)
+        return AotExecutor(mod, device, target)
     raise RuntimeError("unknown execution strategy: {0}".format(kind))

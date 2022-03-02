@@ -57,11 +57,8 @@ class TVM_DLL AotExecutor : public ModuleNode {
    * \brief Initialize the AOT executor with metadata, runtime::Module, and device.
    * \param module The module containing the compiled functions for the host
    *  processor.
-   * \param devs The device of the host and devices where graph nodes will be
-   *  executed on.
-   * \param lookup_linked_param_func If given, a PackedFunc invoked to lookup linked parameters
-   *  by storage_id. If not given, linked parameters are looked-up using an internal implementation,
-   *  which is not compatible with RPCModules. Default is nullptr.
+   * \param devs A 1-element vector. The Device which AOT compute will run on. Currently, only
+   *  Device(kDLCPU, 0) is supported.
    */
   AotExecutor(tvm::runtime::Module module, const std::vector<Device>& devs);
 

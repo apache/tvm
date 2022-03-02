@@ -105,11 +105,11 @@ class InMemoryMetadataNode : public ::tvm::target::metadata::VisitableMetadataNo
                        const ::std::vector<::tvm::runtime::metadata::TensorInfo>& pools,
                        const ::tvm::runtime::String mod_name)
       : VisitableMetadataNode{&storage_},
-        inputs_{new struct TVMTensorInfo[inputs.size()]()},
+        inputs_{new struct TVMTensorInfo[inputs.size()]},
         inputs_objs_{inputs},
-        outputs_{new struct TVMTensorInfo[outputs.size()]()},
+        outputs_{new struct TVMTensorInfo[outputs.size()]},
         outputs_objs_{outputs},
-        pools_{new struct TVMTensorInfo[pools.size()]()},
+        pools_{new struct TVMTensorInfo[pools.size()]},
         pools_objs_{pools},
         mod_name_{mod_name},
         storage_{version, nullptr, 0, nullptr, 0, nullptr, 0, mod_name_.c_str()} {

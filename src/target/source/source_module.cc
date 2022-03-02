@@ -23,6 +23,7 @@
  */
 #include "source_module.h"
 
+#include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -655,7 +656,7 @@ class MetadataSerializer : public AttrVisitor {
   void VisitArray(const runtime::metadata::MetadataArrayNode* array) {
     auto old_is_first_item = is_first_item_;
     is_first_item_ = true;
-    for (unsigned int i = 0; i < array->array.size(); ++i) {  // ObjectRef o : *(array->array)) {
+    for (unsigned int i = 0; i < array->array.size(); ++i) {
       ObjectRef o = array->array[i];
       if (o->IsInstance<IntImmNode>()) {
         int64_t i = Downcast<Integer>(o);
@@ -675,7 +676,6 @@ class MetadataSerializer : public AttrVisitor {
       address_.push_back(i_str.str());
       Visit(nullptr, &metadata);
       address_.pop_back();
-      //      ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
     }
     is_first_item_ = old_is_first_item;
   }
@@ -800,7 +800,7 @@ runtime::Module CreateCSourceCppMetadataModule(runtime::metadata::Metadata metad
               << "extern \"C\"\n"
               << "#endif\n";
 
-  lookup_func << "TVM_DLL int32_t get_c_metadata(TVMValue* arg_values, int* arg_tcodes, int "
+  lookup_func << "TVM_DLL int32_t " << ::tvm::runtime::symbol::tvm_get_c_metadata << "(TVMValue* arg_values, int* arg_tcodes, int "
                  "num_args, TVMValue* ret_values, int* ret_tcodes, void* resource_handle) {"
               << std::endl;
   lookup_func << "    ret_values[0].v_handle = (void*) &" << MetadataSerializer::kGlobalSymbol
@@ -810,8 +810,7 @@ runtime::Module CreateCSourceCppMetadataModule(runtime::metadata::Metadata metad
   lookup_func << "};" << std::endl;
 
   auto mod = MetadataModuleCreate(metadata);
-  std::vector<String> func_names{"get_c_metadata"};
-  // definer.GetOutput() +
+  std::vector<String> func_names{::tvm::runtime::symbol::tvm_get_c_metadata};
   auto c = CSourceModuleCreate(serializer.GetOutput() + lookup_func.str(), "c", func_names,
                                Array<String>());
   mod->Import(c);

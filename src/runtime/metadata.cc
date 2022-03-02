@@ -65,14 +65,7 @@ TVM_REGISTER_OBJECT_TYPE(TensorInfoNode);
 
 class MetadataModuleNode : public ::tvm::runtime::ModuleNode {
  public:
-  explicit MetadataModuleNode(runtime::metadata::Metadata metadata) {
-    // CHECK((metadata.defined() && code.size() > 0) || (!metadata.defined() && code.size() == 0))
-    //   << "metadata and code must both be either defined (when passed from compiler) or undefined
-    //   "
-    //   << "(when passed from runtime)";
-    metadata_ = metadata;
-    //    code_ = code;
-  }
+  explicit MetadataModuleNode(runtime::metadata::Metadata metadata) : metadata_{::std::move(metadata)} {}
 
   const char* type_key() const { return "metadata_module"; }
 
@@ -87,17 +80,17 @@ class MetadataModuleNode : public ::tvm::runtime::ModuleNode {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         if (!metadata_.defined()) {
           TVMFunctionHandle f_handle;
-          int32_t ret_code = TVMBackendGetFuncFromEnv(this, "get_c_metadata", &f_handle);
-          CHECK_EQ(ret_code, 0) << "Unable to locate get_c_metadata PackedFunc";
+          int32_t ret_code = TVMBackendGetFuncFromEnv(this, symbol::tvm_get_c_metadata, &f_handle);
+          ICHECK_EQ(ret_code, 0) << "Unable to locate " << symbol::tvm_get_c_metadata << " PackedFunc";
 
           TVMValue ret_value;
           int ret_type_code;
           ret_code = TVMFuncCall(f_handle, nullptr, nullptr, 0, &ret_value, &ret_type_code);
-          CHECK_EQ(ret_code, 0) << "Invoking get_c_metadata: TVMFuncCall returned " << ret_code;
+          ICHECK_EQ(ret_code, 0) << "Invoking " << symbol::tvm_get_c_metadata << ": TVMFuncCall returned " << ret_code;
 
-          CHECK_EQ(ret_type_code, kTVMOpaqueHandle)
+          ICHECK_EQ(ret_type_code, kTVMOpaqueHandle)
               << "Expected kOpaqueHandle returned; got " << ret_type_code;
-          CHECK(ret_value.v_handle != nullptr) << "get_c_metadata returned nullptr";
+          ICHECK(ret_value.v_handle != nullptr) << symbol::tvm_get_c_metadata << " returned nullptr";
 
           metadata_ = runtime::metadata::Metadata(
               static_cast<const struct ::TVMMetadata*>(ret_value.v_handle));

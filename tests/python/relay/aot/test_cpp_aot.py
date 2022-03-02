@@ -160,10 +160,31 @@ def test_create_executor():
     x = tvm.relay.var("x", tvm.relay.TensorType([1], dtype="float32"))
     expr = tvm.relay.add(x, tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32"))))
     actual = relay.create_executor(
-        "aot", mod=tvm.IRModule.from_expr(tvm.relay.Function([x], expr))
+        "aot", mod=tvm.IRModule.from_expr(tvm.relay.Function([x], expr)), target="c -executor=aot"
     ).evaluate()(np.array([2], dtype="float32"))
 
-    assert np.array([3.], dtype="float32") == actual
+    np.isfinite(np.array([3], dtype="float32"))
+
+    np.testing.assert_allclose(actual.numpy(), np.array([3], dtype="float32"))
+
+
+def test_pass_wrong_device_arg():
+    x = tvm.relay.var("x", tvm.relay.TensorType([1], dtype="float32"))
+    expr = tvm.relay.add(x, tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32"))))
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        mod = tvm.relay.build(tvm.IRModule.from_expr(tvm.relay.Function([x], expr)), target="c",
+                              executor=backend.Executor("aot", {"interface-api": "packed"}))
+
+    temp_dir = tvm.contrib.utils.TempDirectory()
+    test_so_path = temp_dir / "test.so"
+    mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
+    loaded_mod = tvm.runtime.load_module(test_so_path)
+
+    with pytest.raises(tvm.TVMError) as cm:
+        tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0), tvm.cpu(0)))
+
+        assert "Check failed: devices_.size() == 1 (2 vs. 1) : Expect exactly 1 device passed." in str(cm.exception)
+    # TODO write asserts for # and type of device.
 
 
 if __name__ == "__main__":
