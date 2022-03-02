@@ -771,7 +771,7 @@ Expr TypeInferencer::Infer(GlobalVar var, Function function) {
     this->diag_ctx.Emit(Diagnostic::Bug(function->span)
                         << "the type checked function is malformed, please report this");
   }
-
+  type_map_[var].checked_type = resolved_expr->checked_type_; 
   return resolved_expr;
 }
 
@@ -940,6 +940,7 @@ Pass InferType() {
         AddGlobalTypes(mod);
 
         std::vector<std::pair<GlobalVar, Function> > updates;
+        auto inferencer = TypeInferencer(mod, pass_ctx->diag_ctx.value());
         for (const auto& it : updated_mod->functions) {
           // Currently we don't type check TIR.
           //
@@ -957,7 +958,7 @@ Pass InferType() {
 
             // TODO(@jroesch): we should be able to move the type inferencer outside
             // of this function but it seems to be more stateful then I expect.
-            auto inferencer = TypeInferencer(mod, pass_ctx->diag_ctx.value());
+            // auto inferencer = TypeInferencer(mod, pass_ctx->diag_ctx.value());
             auto updated_func = inferencer.Infer(it.first, func);
 
             pass_ctx->diag_ctx.value().Render();
