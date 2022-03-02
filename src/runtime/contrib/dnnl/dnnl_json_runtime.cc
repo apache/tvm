@@ -143,7 +143,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       {"OHWI32o", tag::Ohwi32o},
       {"OHWI48o", tag::Ohwi48o},
       {"OHWI64o", tag::Ohwi64o},
-      {"HWIOG16g", tag::hwioG16g},
       {"GOIHW8g", tag::Goihw8g},
       {"GOIHW16g", tag::Goihw16g},
       {"NCDHW16c", tag::nCdhw16c},
@@ -345,7 +344,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     dnnl::memory::dims dst_dims = src_dims;
     dst_dims[1] = channels;
     weights_dims_[0] = channels;
-    for (int i = 2; i < src_dims.size(); i++) {
+    for (size_t i = 2; i < src_dims.size(); i++) {
       dnnl::memory::dim K = weights_dims_[i];
       dnnl::memory::dim S = strides_dims[i - 2];
       dnnl::memory::dim D = dilates_dims[i - 2];
@@ -470,7 +469,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     dnnl::memory::dims out_padding = TransformStr2Dims(str_out_padding);
     dnnl::memory::dims dst_dims = src_dims;
     dst_dims[1] = channels;
-    for (int i = 2; i < src_dims.size(); i++) {
+    for (size_t i = 2; i < src_dims.size(); i++) {
       dnnl::memory::dim K = weights_dims_[i];
       dnnl::memory::dim S = strides_dims[i - 2];
       dnnl::memory::dim D = dilates_dims[i - 2];
@@ -505,8 +504,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
                        padding_dims_l, padding_dims_r);
 
     // Enable elementwise post-ops.
-    auto deconv_prim_desc =
-        dnnl::deconvolution_forward::primitive_desc(deconv_desc, attr, engine_);
+    auto deconv_prim_desc = dnnl::deconvolution_forward::primitive_desc(deconv_desc, attr, engine_);
 
     // Push to the network.
     auto deconv = dnnl::deconvolution_forward(deconv_prim_desc);

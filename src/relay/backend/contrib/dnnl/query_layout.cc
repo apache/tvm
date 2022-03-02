@@ -146,8 +146,7 @@ std::string md2fmt_tag_str(const dnnl::memory::desc* md) {
   return s;
 }
 
-dnnl::memory::dims str2dims(const std::string& str_shape,
-                            bool dilates = false,
+dnnl::memory::dims str2dims(const std::string& str_shape, bool dilates = false,
                             std::string interval = ",") {
   // Split strings
   std::vector<std::string> str_dims;
@@ -164,10 +163,10 @@ dnnl::memory::dims str2dims(const std::string& str_shape,
   dnnl::memory::dims out_dims;
   if (dilates) {
     std::transform(str_dims.begin(), str_dims.end(), std::back_inserter(out_dims),
-                    [](const std::string& str) { return std::stoi(str) - 1; });
+                   [](const std::string& str) { return std::stoi(str) - 1; });
   } else {
     std::transform(str_dims.begin(), str_dims.end(), std::back_inserter(out_dims),
-                    [](const std::string& str) { return std::stoi(str); });
+                   [](const std::string& str) { return std::stoi(str); });
   }
   return out_dims;
 }
@@ -175,10 +174,10 @@ dnnl::memory::dims str2dims(const std::string& str_shape,
 void check_shapes(const std::vector<std::string> shapes) {
   std::regex valid_pat("(\\d*)(,(\\d*))*");
   bool checked = std::regex_match(shapes[0], valid_pat);
-  for (size_t i = 1; i < shapes.size()-1; i++) {
+  for (size_t i = 1; i < shapes.size() - 1; i++) {
     checked &= std::regex_match(shapes[i], valid_pat);
   }
-  checked &= std::regex_match(shapes[shapes.size()-1], std::regex("\\d*"));
+  checked &= std::regex_match(shapes[shapes.size() - 1], std::regex("\\d*"));
   if (!checked) {
     LOG(FATAL) << "Invalid input args for query dnnl optimal layout.";
   }
@@ -193,7 +192,7 @@ void check_layout(bool var, bool ref) {
 std::string get_optimal_layout_for_conv(std::string data_layout, std::string kernel_layout,
                                         std::string weight_shape, std::string out_shape,
                                         std::string paddings, std::string strides,
-                                        std::string dilates, std::string G) {   
+                                        std::string dilates, std::string G) {
   check_layout(std::regex_match(data_layout, std::regex("NC(D?)(H?)W")), true);
   check_layout(std::regex_match(kernel_layout, std::regex("(G?)OI(D?)(H?)W")), true);
   check_shapes({weight_shape, out_shape, paddings, strides, dilates, G});
@@ -227,7 +226,7 @@ std::string get_optimal_layout_for_conv(std::string data_layout, std::string ker
 
   dnnl::memory::dims input_dims = out_dims;
   input_dims[1] = weight_dims[1];
-  for (int i = 2; i < out_dims.size(); i++) {
+  for (size_t i = 2; i < out_dims.size(); i++) {
     dnnl::memory::dim K = weight_dims[i];
     dnnl::memory::dim S = strides_dims[i - 2];
     dnnl::memory::dim D = dilates_dims[i - 2];
@@ -272,7 +271,8 @@ std::string get_optimal_layout_for_conv(std::string data_layout, std::string ker
   return res;
 }
 
-std::string get_optimal_layout_for_conv_transpose(std::string data_layout, std::string kernel_layout,
+std::string get_optimal_layout_for_conv_transpose(std::string data_layout,
+                                                  std::string kernel_layout,
                                                   std::string weight_shape, std::string out_shape,
                                                   std::string paddings, std::string output_paddings,
                                                   std::string strides, std::string dilates,
@@ -314,7 +314,7 @@ std::string get_optimal_layout_for_conv_transpose(std::string data_layout, std::
     input_dims[1] = weight_dims[0];
     std::swap(weight_dims[0], weight_dims[1]);
   }
-  for (int i = 2; i < out_dims.size(); i++) {
+  for (size_t i = 2; i < out_dims.size(); i++) {
     dnnl::memory::dim K = weight_dims[i];
     dnnl::memory::dim S = strides_dims[i - 2];
     dnnl::memory::dim D = dilates_dims[i - 2];
