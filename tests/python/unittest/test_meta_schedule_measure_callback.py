@@ -118,11 +118,8 @@ def test_meta_schedule_measure_callback_as_string():
         ) -> None:
             pass
 
-        def __str__(self) -> str:
-            return f"NotSoFancyMeasureCallback({_get_hex_address(self.handle)})"
-
     measure_callback = NotSoFancyMeasureCallback()
-    pattern = re.compile(r"NotSoFancyMeasureCallback\(0x[a-f|0-9]*\)")
+    pattern = re.compile(r"meta_schedule.NotSoFancyMeasureCallback\(0x[a-f|0-9]*\)")
     assert pattern.match(str(measure_callback))
 
 

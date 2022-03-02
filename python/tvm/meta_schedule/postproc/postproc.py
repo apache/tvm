@@ -16,7 +16,7 @@
 # under the License.
 """Meta Schedule Postproc."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, List
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
@@ -70,7 +70,7 @@ class _PyPostproc(Postproc):
     See also: PyPostproc
     """
 
-    def __init__(self, methods):
+    def __init__(self, methods: List[Callable]):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
@@ -85,6 +85,11 @@ class PyPostproc:
 
     Note: @derived_object is required for proper usage of any inherited class.
     """
+
+    _tvm_metadata = {
+        "cls": _PyPostproc,
+        "methods": ["initialize_with_tune_context", "apply", "__str__"],
+    }
 
     def initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the postprocessor with a tune context.
@@ -119,4 +124,4 @@ class PyPostproc:
         result : str
             Get the post processor as string with name.
         """
-        return f"{self.__class__.__name__}({_get_hex_address(self.handle)})"
+        return f"meta_schedule.{self.__class__.__name__}({_get_hex_address(self.handle)})"

@@ -50,7 +50,7 @@ def derived_object(cls: Any) -> type:
 
         @register_object("meta_schedule.PyRunner")
         class _PyRunner(meta_schedule.Runner):
-            def __init__(self, methods) -> None:
+            def __init__(self, methods: List[Callable]):
                 self.__init_handle_by_constructor__(_ffi_api.RunnerPyRunner, *methods)
 
         class PyRunner():

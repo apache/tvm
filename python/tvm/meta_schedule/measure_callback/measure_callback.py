@@ -101,4 +101,4 @@ class PyMeasureCallback(MeasureCallback):
         )
 
     def __str__(self) -> str:
-        return f"PyMeasureCallback({_get_hex_address(self.handle)})"
+        return f"meta_schedule.{self.__class__.__name__}({_get_hex_address(self.handle)})"
