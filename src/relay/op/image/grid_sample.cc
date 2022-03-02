@@ -103,24 +103,44 @@ bool GridSampleRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (!data || !grid) return false;
   const auto* param = attrs.as<GridSampleAttrs>();
   ICHECK(param);
-  static const Layout kNCHW("NCHW");
   const Layout in_layout(param->layout);
-  auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
-  auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(2, grid->shape[2]);
-  oshape.Set(3, grid->shape[3]);
-  // assign output type
-  reporter->Assign(types[2], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
-  return true;
+
+  if (data->shape.size() == 4) {
+    static const Layout kNCHW("NCHW");
+    auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
+    auto oshape = layout_converter.ForwardShape(data->shape);
+    oshape.Set(2, grid->shape[2]);
+    oshape.Set(3, grid->shape[3]);
+
+    // assign output type
+    reporter->Assign(types[2], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
+    return true;
+  } else if (data->shape.size() == 5) {
+    static const Layout kNDCHW("NCDHW");
+    auto layout_converter = tir::BijectiveLayout(in_layout, kNDCHW);
+    auto oshape = layout_converter.ForwardShape(data->shape);
+    oshape.Set(2, grid->shape[2]);
+    oshape.Set(3, grid->shape[3]);
+    oshape.Set(4, grid->shape[4]);
+
+    // assign output type
+    reporter->Assign(types[2], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
+    return true;
+  }
+
+  return false;
 }
 
 // Positional relay function to create affine_grid operator
 // used by frontend FFI.
-Expr MakeGridSample(Expr data, Expr grid, String method, String layout, String padding_mode) {
+Expr MakeGridSample(Expr data, Expr grid, String method, String layout, String padding_mode,
+                    bool align_corners) {
   auto attrs = make_object<GridSampleAttrs>();
   attrs->method = std::move(method);
   attrs->layout = std::move(layout);
   attrs->padding_mode = std::move(padding_mode);
+  attrs->align_corners = std::move(align_corners);
+
   static const Op& op = Op::Get("image.grid_sample");
   return Call(op, {data, grid}, Attrs(attrs), {});
 }
@@ -133,14 +153,42 @@ RELAY_REGISTER_OP("image.grid_sample")
 Given :math:`data` and :math:`grid`, then the output is computed by
 
 .. math::
-  x_{src} = grid[batch, 0, y_{dst}, x_{dst}] \\
-  y_{src} = grid[batch, 1, y_{dst}, x_{dst}] \\
-  output[batch, channel, y_{dst}, x_{dst}] = G(data[batch, channel, y_{src}, x_{src})
+
+  4D:
+    x_{src} = grid[batch, 0, y_{dst}, x_{dst}] \\
+    y_{src} = grid[batch, 1, y_{dst}, x_{dst}] \\
+    output[batch, channel, y_{dst}, x_{dst}] = G(data[batch, channel, y_{src}, x_{src})
+
+    or for pytorch:
+
+    x_{src} = grid[batch, y_{dst}, x_{dst}, 0] \\
+    y_{src} = grid[batch, y_{dst}, x_{dst}, 1] \\
+    output[batch, channel, y_{dst}, x_{dst}] = G(data[batch, channel, y_{src}, x_{src})
+
+  5D:
+    x_{src} = grid[batch, 0, z_{dst}, y_{dst}, x_{dst}] \\
+    y_{src} = grid[batch, 1, z_{dst}, y_{dst}, x_{dst}] \\
+    z_{src} = grid[batch, 2, z_{dst}, y_{dst}, x_{dst}] \\
+    output[batch, channel, y_{dst}, x_{dst}] = G(data[batch, channel, z_{src}, y_{src}, x_{src})
+
+    or for pytorch:
+
+    x_{src} = grid[batch, z_{dst}, y_{dst}, x_{dst}, 0] \\
+    y_{src} = grid[batch, z_{dst}, y_{dst}, x_{dst}, 1] \\
+    z_{src} = grid[batch, z_{dst}, y_{dst}, x_{dst}, 2] \\
+    output[batch, channel, y_{dst}, x_{dst}] = G(data[batch, channel, z_{src}, y_{src}, x_{src})
 
 :math:`x_{dst}`, :math:`y_{dst}` enumerate all spatial locations in :math:`output`, and
 :math:`G()` denotes the interpolation function.
-The out-boundary points will be padded with zeros. The shape of the output will be
-(data.shape[0], data.shape[1], grid.shape[2], grid.shape[3]).
+The out-boundary points will be padded with zeros. The shape of the output will be:
+4D:
+    (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3]),
+    or for pytorch
+    (data.shape[0], data.shape[1], grid.shape[1], grid.shape[2]).
+5D:
+    (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3], grid.shape[4]),
+    or for pytorch
+    (data.shape[0], data.shape[1], grid.shape[1], grid.shape[2], grid.shape[3]).
 
 The operator assumes that :math:`data` has 'NCHW' layout and :math:`grid` has been normalized to [-1, 1].
 
@@ -150,12 +198,21 @@ grid_sample often cooperates with affine_grid which generates sampling grids for
             (batch_size, channels, in_height, in_width) for NCHW
             (batch_size, in_height, in_width, channels) for NHWC
 
+            or 5D array of shape
+            (batch_size, channels, in_depth, in_height, in_width) for NCDHW
+            (batch_size, in_depth, in_height, in_width, channels) for NDHWC
+
 - **grid**: grid is 4D array of shape [batch, 2, out_height, out_width], where each vector
-           :math:`out[b, :, h, w]` represents the coordinate :math:`(x, y)`
+           :math:`out[b, :, h, w]` represents the coordinate :math:`(x, y)`,
+           however, for pytorch, 4D shape is [batch, out_height, out_width, 2]
+
+           or 5D array of shape for pytorch [batch, out_depth, out_height, out_width, 3]
 
 - **out**: out is 4D array of shape
            (batch, in_channel, out_height, out_width) for NCHW
            (batch_size, in_height, in_width, channels) for NHWC
+
+           or 5-D with shape [batch, channel, out_depth, out_height, out_width] for NCDHW
 
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
