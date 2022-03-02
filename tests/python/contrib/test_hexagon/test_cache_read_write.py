@@ -75,16 +75,16 @@ def test_cache_read_write(android_serial_number, tvm_tracker_host, tvm_tracker_p
     z = te.compute(outer_shape, lambda i: x[i] + y[i], name="z")
     s = te.create_schedule(z.op)
 
-    x_global = s.cache_read(x, "global.vtcm", [z])
-    y_global = s.cache_read(y, "global.vtcm", [z])
-    z_global = s.cache_write(z, "global.vtcm")
+    x_global = s.cache_read(x, "global.texture", [z])
+    y_global = s.cache_read(y, "global.texture", [z])
+    z_global = s.cache_write(z, "global.texture")
 
     zouter, zinner = s[z_global].split(z_global.op.axis[0], factor=factor)
 
     s[x_global].compute_at(s[z_global], zouter)
     s[y_global].compute_at(s[z_global], zouter)
 
-    mem_copy_read = intrin_mem_copy(inner_shape, dtype, "global.vtcm", "global")
+    mem_copy_read = intrin_mem_copy(inner_shape, dtype, "global.texture", "global")
 
     (cache_read_x,) = s[x_global].op.axis
     s[x_global].tensorize(cache_read_x, mem_copy_read)
@@ -92,7 +92,7 @@ def test_cache_read_write(android_serial_number, tvm_tracker_host, tvm_tracker_p
     (cache_read_y,) = s[y_global].op.axis
     s[y_global].tensorize(cache_read_y, mem_copy_read)
 
-    mem_copy_write = intrin_mem_copy(outer_shape, dtype, "global", "global.vtcm")
+    mem_copy_write = intrin_mem_copy(outer_shape, dtype, "global", "global.texture")
 
     (cache_write_z,) = s[z].op.axis
     s[z].tensorize(cache_write_z, mem_copy_write)

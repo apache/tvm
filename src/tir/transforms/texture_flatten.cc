@@ -66,8 +66,8 @@ class TextureLoweringBase : public StmtExprMutator {
   }
 
  protected:
-  std::string GetStorageScope(const Buffer& buffer) {
-    auto* ptr = buffer->data->type_annotation.as<PointerTypeNode>();
+  std::string GetStorageScope(const Var& var) {
+    auto* ptr = var->type_annotation.as<PointerTypeNode>();
     ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
     return ptr->storage_scope;
   }
@@ -87,97 +87,20 @@ class TextureFlattener : public TextureLoweringBase {
                             IRVisitorWithAnalyzer* bound_analyzer)
       : TextureLoweringBase(extern_buffer_map, bound_analyzer) {}
 
-  Stmt VisitStmt_(const BufferRealizeNode* op) final {
-    if (extern_buf_.count(op->buffer)) {
-      return this->VisitStmt(op->body);
-    }
-
-    std::string storage_scope = GetStorageScope(op->buffer);
-    Var buffer_var(op->buffer->data->name_hint,
-                   PointerType(PrimType(op->buffer->dtype), String(storage_scope)));
-    let_binding_.insert({op->buffer->data, buffer_var});
-
+  Stmt VisitStmt_(const AllocateNode* op) final {
+    Stmt body = this->VisitStmt(op->body);
+    std::string storage_scope = GetStorageScope(op->buffer_var);
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BufferRealizeNode>();
+    op = stmt.as<AllocateNode>();
 
     // Rewrite any buffer realizations with storage scope to 2d texture allocations
     if (IsTextureStorage(storage_scope)) {
-      Stmt body = this->VisitStmt(op->body);
-      ICHECK(op->bounds.size() >= 3) << "Only 2d RGBA texture is currently supported";
-      int vec_length = static_cast<int>(op->bounds.back()->extent.as<IntImmNode>()->value);
-      ICHECK(vec_length == 4 || vec_length == 1)
-          << "Inner dimension of texture must be vector of length 1 or 4 (RGBA)";
-
-      struct ShapeFromRange {
-        const Array<Range>& bounds;
-        PrimExpr operator[](size_t i) const { return bounds[i]->extent; }
-      };
-      size_t axis = DefaultTextureLayoutSeparator(op->bounds.size(), storage_scope);
-      auto texture =
-          ApplyTexture2DFlattening<PrimExpr>(ShapeFromRange{op->bounds}, op->bounds.size(), axis);
-      Array<PrimExpr> args = {texture.width, texture.height};
-      stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::texture2d_alloca(), args), body);
+      Array<PrimExpr> args = {op->extents.back()};
+      stmt = LetStmt(op->buffer_var, Call(op->buffer_var.dtype(), builtin::texture2d_alloca(), args), body);
     }
 
     return stmt;
   }
-
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BufferStoreNode>();
-    std::string storage_scope = GetStorageScope(op->buffer);
-    // Lower to two dimensional access
-    if (IsTextureStorage(storage_scope)) {
-      Array<PrimExpr> args = GetTextureAccessArgs(op, op->buffer);
-      args.push_back(op->value);
-      stmt = Evaluate(Call(args[0]->dtype, builtin::texture2d_store(), args));
-    }
-
-    return stmt;
-  }
-
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<BufferLoadNode>();
-    // Lower to two dimensional access
-    std::string storage_scope = GetStorageScope(op->buffer);
-    if (IsTextureStorage(storage_scope)) {
-      Array<PrimExpr> args = GetTextureAccessArgs(op, op->buffer);
-      args.push_back(op->indices.back());
-      expr = Call(op->buffer->dtype, builtin::texture2d_load(), args);
-    }
-
-    return expr;
-  }
-
- protected:
-  template <typename T>
-  Array<PrimExpr> GetTextureAccessArgs(const T* op, const Buffer& buffer) {
-    Array<PrimExpr> args;
-    if (let_binding_.count(op->buffer->data)) {
-      args.push_back(let_binding_[op->buffer->data]);
-    } else {
-      args.push_back(buffer->data);
-    }
-    Array<PrimExpr> row_dims, row_indices, col_dims, col_indices;
-    for (size_t i = 0; i < op->buffer->shape.size() - 1; i++) {
-      if (i < DefaultTextureLayoutSeparator(op->buffer->shape.size(), GetStorageScope(buffer))) {
-        col_dims.push_back(op->buffer->shape[i]);
-        col_indices.push_back(op->indices[i]);
-      } else {
-        row_dims.push_back(op->buffer->shape[i]);
-        row_indices.push_back(op->indices[i]);
-      }
-    }
-    PrimExpr row_offset = SimplifyOffset(row_dims, row_indices);
-    PrimExpr col_offset = SimplifyOffset(col_dims, col_indices);
-    args.push_back(row_offset);
-    args.push_back(col_offset);
-    return args;
-  }
-
-  // Bindings to new texture vars with texture pointer scope
-  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> let_binding_;
 };
 
 PrimFunc TextureFlatten(PrimFunc func) {

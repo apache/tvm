@@ -416,7 +416,7 @@ class BuiltinLower : public StmtExprMutator {
         Call(let->var.dtype(), builtin::tvm_call_packed(),
              {StringImm(fdevapi_prefix + ".AllocTexture"), cast(DataType::Int(32), device_type_),
               cast(DataType::Int(32), device_id_), cast(DataType::UInt(64), call->args[0]),
-              cast(DataType::UInt(64), call->args[1]), IntImm(DataType::Int(32), dtype.code()),
+              /*cast(DataType::UInt(64), call->args[1]),*/ IntImm(DataType::Int(32), dtype.code()),
               IntImm(DataType::Int(32), dtype.bits())});
 
     Stmt alloca = LetStmt(let->var, call_packed, body);
