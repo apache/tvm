@@ -21,7 +21,7 @@ Compile OneFlow Models
 
 This article is an introductory tutorial to deploy OneFlow models with Relay.
 
-For us to begin with, OneFlow should be installed.
+For us to begin with, OneFlow package should be installed.
 
 A quick solution is to install via pip
 
