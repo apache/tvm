@@ -82,7 +82,7 @@ def test_vector_simplify():
     ck.verify(fld(tvm.tir.Ramp(x, 8, 5), tvm.tir.Broadcast(4, 5)), tvm.tir.Ramp(fld(x, 4), 2, 5))
     ck.verify(
         fld(tvm.tir.Ramp(flm(x * 4, 256), 1, 4), tvm.tir.Broadcast(8, 4)),
-        tvm.tir.Broadcast(fld(flm(x * 4, 256), 8), 4)
+        tvm.tir.Broadcast(fld(flm(x * 4, 256), 8), 4),
     )
     ck.verify(
         fld(tvm.tir.Ramp(x, 7, 4), tvm.tir.Broadcast(4, 4)),
