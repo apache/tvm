@@ -25,10 +25,8 @@ from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.utils import get_const_tuple
 
 _group_conv2d_nchw_implement = {
-    "generic": (
-        topi.nn.group_conv2d_transpose_nchw,
-        topi.generic.schedule_group_conv2d_transpose_nchw,
-    ),
+    "generic": (topi.nn.group_conv2d_transpose_nchw, topi.generic.schedule_group_conv2d_transpose_nchw),
+    "cuda": (topi.cuda.conv2d_transpose_nchw, topi.cuda.schedule_conv2d_transpose_nchw),
 }
 
 
@@ -92,16 +90,23 @@ def verify_group_conv2d_transpose_nchw(
             s,
             [A, W, C],
             target,
-            name="group_conv2d_transpose_%d_%d_%s_%d_%s_%s_%s_%s_%d"
+            name="group_conv2d_transpose_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d"
             % (
                 batch,
                 in_channel,
-                in_size,
+                in_size[0],
+                in_size[1],
                 num_filter,
-                kernel,
-                stride,
-                padding,
-                output_padding,
+                kernel[0],
+                kernel[1],
+                stride[0],
+                stride[1],
+                padding[0],
+                padding[1],
+                padding[2],
+                padding[3],
+                output_padding[0],
+                output_padding[1],
                 groups,
             ),
         )
@@ -110,46 +115,26 @@ def verify_group_conv2d_transpose_nchw(
         for measurement, reference in zip(c, c_np):
             tvm.testing.assert_allclose(measurement, reference, rtol=1e-5)
 
-    for target in ["llvm"]:
+    for target in ["llvm", "cuda"]:
         check_target(target)
 
 
 @tvm.testing.uses_gpu
 def test_group_conv2d_transpose_nchw():
-    verify_group_conv2d_transpose_nchw(1, 1, (224, 224), 1, (1, 1), (1, 1), (0, 0, 0, 0), (0, 0), 1)
-    verify_group_conv2d_transpose_nchw(
-        1, 3, (224, 224), 32, (3, 3), (1, 1), (0, 0, 0, 0), (0, 0), 1
-    )
-    verify_group_conv2d_transpose_nchw(
-        1, 3, (224, 224), 32, (3, 3), (3, 3), (0, 0, 0, 0), (0, 0), 1
-    )
-    verify_group_conv2d_transpose_nchw(
-        1, 3, (224, 224), 32, (3, 3), (1, 1), (0, 0, 0, 0), (0, 0), 1
-    )
-    verify_group_conv2d_transpose_nchw(
-        1, 3, (224, 224), 32, (3, 3), (2, 2), (1, 1, 1, 1), (0, 0), 1
-    )
     verify_group_conv2d_transpose_nchw(1, 4, (32, 32), 4, (5, 5), (1, 1), (0, 0, 0, 0), (0, 0), 2)
     verify_group_conv2d_transpose_nchw(1, 9, (32, 32), 9, (5, 5), (1, 1), (0, 0, 0, 0), (0, 0), 3)
     verify_group_conv2d_transpose_nchw(1, 4, (32, 32), 16, (5, 5), (2, 2), (1, 1, 1, 1), (0, 0), 4)
-    verify_group_conv2d_transpose_nchw(
-        1, 32, (8192, 1), 8, (31, 1), (2, 1), (14, 0, 15, 0), (0, 0), 2
-    )
-    verify_group_conv2d_transpose_nchw(
-        1, 512, (8, 1), 256, (31, 1), (2, 1), (14, 0, 15, 0), (0, 0), 16
-    )
-    verify_group_conv2d_transpose_nchw(
-        1, 512, (8, 1), 256, (31, 1), (2, 1), (14, 0, 15, 0), (1, 0), 16
-    )
-    verify_group_conv2d_transpose_nchw(
-        1, 64, (64, 64), 64, (4, 4), (1, 1), (0, 0, 0, 0), (0, 0), 64
-    )
-    verify_group_conv2d_transpose_nchw(
-        1, 128, (32, 32), 128, (4, 4), (1, 1), (0, 0, 0, 0), (0, 0), 128
-    )
-    verify_group_conv2d_transpose_nchw(
-        1, 256, (16, 16), 256, (4, 4), (1, 1), (0, 0, 0, 0), (0, 0), 256
-    )
+    verify_group_conv2d_transpose_nchw(1, 32, (8192, 1), 8, (31, 1), (2, 1), (14, 0, 15, 0), (0, 0), 2)
+    verify_group_conv2d_transpose_nchw(1, 512, (8, 1), 256, (31, 1), (2, 1), (14, 0, 15, 0), (0, 0), 16)
+    verify_group_conv2d_transpose_nchw(1, 512, (8, 1), 256, (31, 1), (2, 1), (14, 0, 15, 0), (1, 0), 16)
+    verify_group_conv2d_transpose_nchw(1, 64, (64, 64), 64, (4, 4), (1, 1), (0, 0, 0, 0), (0, 0), 64)
+    verify_group_conv2d_transpose_nchw(1, 128, (32, 32), 128, (4, 4), (1, 1), (0, 0, 0, 0), (0, 0), 128)
+    verify_group_conv2d_transpose_nchw(1, 256, (16, 16), 256, (4, 4), (1, 1), (0, 0, 0, 0), (0, 0), 256)
+    verify_group_conv2d_transpose_nchw(1, 1, (224, 224), 1, (1, 1), (1, 1), (0, 0, 0, 0), (0, 0), 1)
+    verify_group_conv2d_transpose_nchw(1, 3, (224, 224), 32, (3, 3), (1, 1), (0, 0, 0, 0), (0, 0), 1)
+    verify_group_conv2d_transpose_nchw(1, 3, (224, 224), 32, (3, 3), (3, 3), (0, 0, 0, 0), (0, 0), 1)
+    verify_group_conv2d_transpose_nchw(1, 3, (224, 224), 32, (3, 3), (1, 1), (0, 0, 0, 0), (0, 0), 1)
+    verify_group_conv2d_transpose_nchw(1, 3, (224, 224), 32, (3, 3), (2, 2), (1, 1, 1, 1), (0, 0), 1)
 
 
 if __name__ == "__main__":

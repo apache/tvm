@@ -31,10 +31,11 @@ from .interface import (
     VizEdge,
     VizGraph,
     VizNode,
+    VizParser,
 )
 
 
-class TermVizParser(DefaultVizParser):
+class TermVizParser(VizParser):
     """`TermVizParser` parse nodes and edges for `TermPlotter`."""
 
     def __init__(self):
@@ -166,7 +167,7 @@ class TermGraph(VizGraph):
 
         Parameters
         ----------
-        id_start : VizEdge
+        viz_edge : VizEdge
             A `VizEdge` instance.
         """
         # Take CallNode as an example, instead of "arguments point to CallNode",

@@ -593,9 +593,9 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     num_strategies = 0
 
-    if layout == "NCHW" and groups == 1:
+    if layout == "NCHW":
         strategy.add_implementation(
-            wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_nchw),
+            wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_nchw, has_groups=True),
             wrap_topi_schedule(topi.cuda.schedule_conv2d_transpose_nchw),
             name="conv2d_transpose_nchw.cuda",
         )

@@ -32,6 +32,8 @@ A default parser is provided. Users can implement their own renderers to render 
 Here we use a renderer rendering graph in the text-form.
 It is a lightweight, AST-like visualizer, inspired by `clang ast-dump <https://clang.llvm.org/docs/IntroductionToTheClangAST.html>`_.
 We will introduce how to implement customized parsers and renderers through interface classes.
+
+For more details, please refer to :py:mod:`tvm.contrib.relay_viz`.
 """
 from typing import (
     Dict,
