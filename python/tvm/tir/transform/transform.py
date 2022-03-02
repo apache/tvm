@@ -792,4 +792,4 @@ def RenomalizeSplitPattern():
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.RenormalizeSplitPattern() # type: ignore
+    return _ffi_api.RenormalizeSplitPattern()  # type: ignore
