@@ -25,7 +25,7 @@ from .. import _ffi_api
 from ..builder import BuilderResult
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
-from ..utils import _get_hex_address, check_override
+from ..utils import _get_hex_address
 
 if TYPE_CHECKING:
     from ..task_scheduler import TaskScheduler

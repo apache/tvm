@@ -16,14 +16,13 @@
 # under the License.
 """Meta Schedule FeatureExtractor."""
 from typing import Callable, List
-from numpy import extract
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
 from tvm.runtime.ndarray import NDArray
 
 from .. import _ffi_api
-from ..utils import _get_hex_address, check_override
+from ..utils import _get_hex_address
 from ..tune_context import TuneContext
 from ..search_strategy import MeasureCandidate
 

@@ -31,7 +31,7 @@ from tvm.runtime import PackedFunc, String
 from tvm.tir import FloatImm, IntImm
 
 
-def derived_object(cls: Any) -> type:
+def derived_object(cls: type) -> type:
     """A decorator to register derived subclasses for TVM objects.
 
     Parameters
@@ -70,7 +70,7 @@ def derived_object(cls: Any) -> type:
     import functools  # pylint: disable=import-outside-toplevel
     import weakref  # pylint: disable=import-outside-toplevel
 
-    def _extract(inst: Any, name: str):
+    def _extract(inst: type, name: str):
         """Extract function from intrinsic class."""
 
         def method(*args, **kwargs):
@@ -339,46 +339,6 @@ def structural_hash(mod: IRModule) -> str:
         # but ffi can't handle unsigned integers properly so it's parsed into a negative number
         shash += 1 << 64
     return str(shash)
-
-
-def check_override(
-    derived_class: Any, base_class: Any, required: bool = True, func_name: str = None
-) -> Callable:
-    """Check if the derived class has overridden the base class's method.
-
-    Parameters
-    ----------
-    derived_class : Any
-        The derived class.
-    base_class : Any
-        The base class of derived class.
-    required : bool
-        If the method override is required.
-    func_name : str
-        Name of the method. Default value None, which would be set to substring of the given
-        function, e.g. `f_generate`->`generate`.
-
-    Returns
-    -------
-    func : Callable
-        Raise NotImplementedError if the function is required and not overridden. If the
-        function is not overridden return None, other return the overridden function.
-    """
-
-    def inner(func: Callable):
-
-        if func_name is None:
-            method = func.__name__[2:]
-        else:
-            method = func_name
-
-        if getattr(derived_class, method) is getattr(base_class, method):
-            if required:
-                raise NotImplementedError(f"{derived_class}'s {method} method is not implemented!")
-            return None
-        return func
-
-    return inner
 
 
 def _get_hex_address(handle: ctypes.c_void_p) -> str:
