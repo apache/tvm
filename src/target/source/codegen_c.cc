@@ -195,12 +195,16 @@ std::string CodeGenC::GetBufferRef(DataType t, const BufferNode* buffer, PrimExp
   std::string index_str = PrintExpr(index);
   if (t.bits() == 4 || (t.bits() == 1 && t.is_int())) {
     // This is a special case, because CodegenCUDA::PrintType()
-    // returns "int" for bool and for 4-bit integers.  Therefore, we
-    // need to do the pointer arithmetic in the output's datatype,
-    // rather than the buffer's element type.
+    // returns "int" for bool and for 4-bit integers. In most cases,
+    // we divide by the number of lanes to determine the index.
+    // However, the backing type for scalar int4 and scalar bool is
+    // int32.  Therefore, we need to divide by the ratio of their
+    // sizes in that case.
+    int div_factor = (t.lanes() == 1) ? (32 / t.bits()) : t.lanes();
+
     os << "*("
        << "(" << ptr_cast(t) << vid << ")"
-       << " + " << index_str << " / " << t.lanes() << ")";
+       << " + " << index_str << " / " << div_factor << ")";
   } else if (t == buffer_element_dtype) {
     os << buffer_str << "[" << index_str << "]";
   } else {
@@ -565,15 +569,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
       ICHECK(op->args.size() == 1 && load);
       ICHECK_EQ(load->indices.size(), 1) << "CodeGenC only supports flat memory allocations.";
-      os << "((";
-      this->PrintType(load->dtype.element_of(), os);
-      os << " *)" << this->GetVarID(load->buffer->data.get()) << " + "
-         << "(";
-      this->PrintExpr(load->indices[0], os);
-      if (load->dtype.bits() == 4 || (load->dtype.bits() == 1 && load->dtype.is_int())) {
-        os << " / " << (32 / load->dtype.bits());
-      }
-      os << "))";
+      os << "(&(" << GetBufferRef(load->dtype, load->buffer.get(), load->indices[0]) << "))";
     } else if (op->op.same_as(builtin::tvm_struct_get())) {
       ICHECK_EQ(op->args.size(), 3U);
       os << GetStructRef(op->dtype, op->args[0], op->args[1], op->args[2].as<IntImmNode>()->value);
