@@ -45,7 +45,7 @@ class RandomModel(PyCostModel):
     https://numpy.org/doc/stable/reference/random/generated/numpy.random.get_state.html
     """
 
-    import numpy as np  # pylint: disable=import-outside-toplevel
+    import numpy as np  # type: ignore # pylint: disable=import-outside-toplevel
 
     random_state: Union[Tuple[str, np.ndarray, int, int, float], dict]
     path: Optional[str]
@@ -57,7 +57,7 @@ class RandomModel(PyCostModel):
         path: Optional[str] = None,
         max_range: Optional[int] = 100,
     ):
-        import numpy as np  # pylint: disable=import-outside-toplevel
+        import numpy as np  # type: ignore # pylint: disable=import-outside-toplevel
 
         super().__init__()
         if path is not None:
@@ -75,7 +75,7 @@ class RandomModel(PyCostModel):
         path : str
             The file path.
         """
-        import numpy as np  # pylint: disable=import-outside-toplevel
+        import numpy as np  # type: ignore # pylint: disable=import-outside-toplevel
 
         self.random_state = tuple(np.load(path, allow_pickle=True))  # type: ignore
 
@@ -87,7 +87,7 @@ class RandomModel(PyCostModel):
         path : str
             The file path.
         """
-        import numpy as np  # pylint: disable=import-outside-toplevel
+        import numpy as np  # type: ignore # pylint: disable=import-outside-toplevel
 
         np.save(path, np.array(self.random_state, dtype=object), allow_pickle=True)
 
@@ -126,7 +126,7 @@ class RandomModel(PyCostModel):
         result : np.ndarray
             The predicted running results.
         """
-        import numpy as np  # pylint: disable=import-outside-toplevel
+        import numpy as np  # type: ignore # pylint: disable=import-outside-toplevel
 
         np.random.set_state(self.random_state)
         # TODO(@zxybazh): Use numpy's RandState object:
