@@ -109,7 +109,9 @@ class RandomModel(PyCostModel):
             The running results of the measure candidates.
         """
 
-    def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
+    def predict(
+        self, context: TuneContext, candidates: List[MeasureCandidate]
+    ) -> np.ndarray:  # type: ignore
         """Update the cost model given running results.
 
         Parameters

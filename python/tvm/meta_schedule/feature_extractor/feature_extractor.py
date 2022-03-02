@@ -22,7 +22,7 @@ from tvm.runtime import Object
 from tvm.runtime.ndarray import NDArray
 
 from .. import _ffi_api
-from ..utils import _get_hex_address
+from ..utils import _get_default_str
 from ..tune_context import TuneContext
 from ..search_strategy import MeasureCandidate
 
@@ -105,4 +105,4 @@ class PyFeatureExtractor:
         raise NotImplementedError
 
     def __str__(self) -> str:
-        return f"meta_schedule.{self.__class__.__name__}({_get_hex_address(self.handle)})"  # type: ignore
+        return _get_default_str(self)

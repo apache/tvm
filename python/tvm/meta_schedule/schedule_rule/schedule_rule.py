@@ -24,7 +24,7 @@ from tvm._ffi import register_object
 from tvm.runtime import Object
 from tvm.tir.schedule import Schedule, BlockRV
 
-from ..utils import _get_hex_address
+from ..utils import _get_default_str
 from .. import _ffi_api
 
 if TYPE_CHECKING:
@@ -137,4 +137,4 @@ class PyScheduleRule:
         result : str
             Get the schedule rule as string with name.
         """
-        return f"meta_schedule.{self.__class__.__name__}({_get_hex_address(self.handle)})"  # type: ignore
+        return _get_default_str(self)

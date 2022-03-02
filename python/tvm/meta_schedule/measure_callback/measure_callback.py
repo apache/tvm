@@ -25,7 +25,7 @@ from .. import _ffi_api
 from ..builder import BuilderResult
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
-from ..utils import _get_hex_address
+from ..utils import _get_default_str
 
 if TYPE_CHECKING:
     from ..task_scheduler import TaskScheduler
@@ -125,4 +125,4 @@ class PyMeasureCallback:
         raise NotImplementedError
 
     def __str__(self) -> str:
-        return f"meta_schedule.{self.__class__.__name__}({_get_hex_address(self.handle)})"  # type: ignore
+        return _get_default_str(self)

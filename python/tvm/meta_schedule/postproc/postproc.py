@@ -23,7 +23,7 @@ from tvm.runtime import Object
 from tvm.tir.schedule import Schedule
 
 from .. import _ffi_api
-from ..utils import _get_hex_address
+from ..utils import _get_default_str
 
 if TYPE_CHECKING:
     from ..tune_context import TuneContext
@@ -124,4 +124,4 @@ class PyPostproc:
         result : str
             Get the post processor as string with name.
         """
-        return f"meta_schedule.{self.__class__.__name__}({_get_hex_address(self.handle)})"  # type: ignore
+        return _get_default_str(self)

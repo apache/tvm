@@ -341,7 +341,11 @@ def structural_hash(mod: IRModule) -> str:
     return str(shash)
 
 
-def _get_hex_address(handle: ctypes.c_void_p) -> str:
+def _get_default_str(obj: Any) -> str:
+    return f"meta_schedule.{obj.__class__.__name__}({_to_hex_address(obj.handle)})"  # type: ignore
+
+
+def _to_hex_address(handle: ctypes.c_void_p) -> str:
     """Get the hexadecimal address of a handle.
     Parameters
     ----------
