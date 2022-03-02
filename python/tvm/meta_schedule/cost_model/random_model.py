@@ -111,7 +111,7 @@ class RandomModel(PyCostModel):
 
     def predict(
         self, context: TuneContext, candidates: List[MeasureCandidate]
-    ) -> np.ndarray:  # type: ignore
+    ) -> np.ndarray:  # type: ignore # pylint: disable=used-before-assignment
         """Update the cost model given running results.
 
         Parameters
