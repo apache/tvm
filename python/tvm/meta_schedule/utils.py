@@ -19,7 +19,7 @@ import ctypes
 import json
 import os
 import shutil
-from typing import Any, Set, List, Optional, Union, Callable
+from typing import Any, List, Optional, Union, Callable
 
 import psutil  # type: ignore
 import tvm
