@@ -33,6 +33,7 @@
 
 #include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/auto_scheduler/measure.h>
+#include <tvm/tir/function.h>
 
 #include <string>
 #include <vector>
@@ -41,13 +42,13 @@ namespace tvm {
 namespace auto_scheduler {
 
 /*!
- * \brief Get per-store feature from a TIR Stmt
- * \param stmt The input lowered TIR statement
+ * \brief Get per-store features from a TIR PrimFunc
+ * \param stmt The input lowered TIR PrimFunc
  * \param cache_line_size The size of cache line in bytes
  * \param max_n_bufs The maximum number of extracted buffers for one statement
  * \param ret The returned feature vector
  */
-void GetPerStoreFeature(const Stmt& stmt, int cache_line_size, int max_n_bufs,
+void GetPerStoreFeature(const PrimFunc& func, int cache_line_size, int max_n_bufs,
                         std::vector<float>* ret);
 
 /*

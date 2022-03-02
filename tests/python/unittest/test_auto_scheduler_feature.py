@@ -22,6 +22,7 @@ import tempfile
 
 import tvm
 from tvm import te, auto_scheduler
+from tvm.script import tir as T
 
 from tvm.testing.auto_scheduler import matmul_auto_scheduler_test
 
@@ -198,6 +199,37 @@ def test_gpu_feature():
         assert fequal(fea_dicts[0]["threadIdx_y_len"], math.log2(1 + 1))
         assert fequal(fea_dicts[2]["blockIdx_z_len"], math.log2(1 + 1))
         assert fequal(fea_dicts[0]["is_gpu"], 1.0)
+
+
+@T.prim_func
+def tir_matmul(
+    A: T.Buffer[(128, 128), "float32"],
+    B: T.Buffer[(128, 128), "float32"],
+    C: T.Buffer[(128, 128), "float32"],
+) -> None:
+    T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+    for y in T.serial(128):
+        T.store(C.data, T.ramp(y, 128, 128), T.broadcast(T.float32(0), 128), T.broadcast(True, 128))
+        for k in T.serial(128):
+            T.store(
+                C.data,
+                T.ramp(y, 128, 128),
+                T.load("float32x128", C.data, T.ramp(y, 128, 128), T.broadcast(True, 128))
+                + T.load("float32x128", A.data, T.ramp(k, 128, 128), T.broadcast(True, 128))
+                * T.broadcast(T.load("float32", B.data, y * 128 + k), 128),
+                T.broadcast(True, 128),
+            )
+
+
+def test_primfunc():
+    features = auto_scheduler.feature.named_fullscale_features(tir_matmul)
+    print(tir_matmul)
+    print(features)
+    assert features["float_mad"].shape == (1,)
+    # featurization does not handle multiple-add right now, so they are split out
+    assert abs(features["float_addsub"][0] - 128 * 128 * 128) < 10
+    assert abs(features["float_mul"][0] - 128 * 128 * 128) < 10
+    assert abs(features["B0.unique_bytes"][0] - 128 * 128 * 4) < 10  # 4 bytes per float32
 
 
 if __name__ == "__main__":

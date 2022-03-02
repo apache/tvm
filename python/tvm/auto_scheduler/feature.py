@@ -26,7 +26,7 @@ the predicted score of each BufferStoreNode as the score of a TIR Stmt.
 The feature specification is defined by `src/auto_scheduler/feature.cc::FeatureSet`
 """
 
-from typing import List, Tuple, Union, Optional
+from typing import List, Tuple, Union, Optional, Dict
 import struct
 
 import numpy as np
@@ -34,6 +34,7 @@ import numpy as np
 from .loop_state import State, StateObject
 from .measure import MeasureInput, MeasureResult
 from . import _ffi_api
+from ..tir import PrimFunc
 
 # The maximum number of extracted buffers for one statement
 DEFAULT_MAX_N_BUFS = 5
@@ -252,3 +253,94 @@ def get_per_store_feature_names(max_n_bufs: Optional[int] = None) -> List[str]:
         The names of elements in the flatten feature vector
     """
     return _ffi_api.GetPerStoreFeatureNames(max_n_bufs or DEFAULT_MAX_N_BUFS)
+
+
+def logscale_features(
+    func: PrimFunc, cache_line_bytes: int = 64, max_n_bufs: Optional[int] = None
+) -> np.ndarray:
+    """Extract performance features from a PrimFunc.
+
+    Parameters
+    ----------
+    func: PrimFunc
+        PrimFunc from which features will be extracted. Each store operation to
+        a unique buffer in the function will result in one row of features in
+        the output.
+
+    cache_line_bytes: int, optional
+        Size of a cache line in bytes. Defaults to 64 which is the size for
+        most x86 processors.
+
+    max_n_bufs: int, optional
+        Maximum number of buffers in generated features. This determines the
+        length of the resulting feature vector.
+
+    Returns
+    -------
+    np.ndarray
+        Output features, one row per store into a unique buffer statement in
+        `func`. Each feature is `slog` of the original feature value, where
+        `slog = x < 0 ? -std::log2(-x + 1) : std::log2(x + 1)`.
+    """
+    return _ffi_api.FeaturesFromPrimFunc(
+        func, cache_line_bytes, max_n_bufs or DEFAULT_MAX_N_BUFS
+    ).numpy()
+
+
+def fullscale_features(
+    func: PrimFunc, cache_line_bytes: int = 64, max_n_bufs: Optional[int] = None
+) -> np.ndarray:
+    """Extract performance features from a PrimFunc.
+
+    Parameters
+    ----------
+    func: PrimFunc
+        PrimFunc from which features will be extracted. Each store operation to
+        a unique buffer in the function will result in one row of features in
+        the output.
+
+    cache_line_bytes: int, optional
+        Size of a cache line in bytes. Defaults to 64 which is the size for
+        most x86 processors.
+
+    max_n_bufs: int, optional
+        Maximum number of buffers in generated features. This determines the
+        length of the resulting feature vector.
+
+    Returns
+    -------
+    np.ndarray
+        Output features, one row per store into a unique buffer statement in `func`.
+    """
+    return np.exp2(logscale_features(func, cache_line_bytes, max_n_bufs)) - 1.0
+
+
+def named_fullscale_features(
+    func: PrimFunc, cache_line_bytes: int = 64, max_n_bufs: Optional[int] = None
+) -> Dict[str, np.ndarray]:
+    """Extract performance features and associated names from a PrimFunc.
+
+    Parameters
+    ----------
+    func: PrimFunc
+        PrimFunc from which features will be extracted. Each store operation to
+        a unique buffer in the function will result in one row of features in
+        the output.
+
+    cache_line_bytes: int, optional
+        Size of a cache line in bytes. Defaults to 64 which is the size for
+        most x86 processors.
+
+    max_n_bufs: int, optional
+        Maximum number of buffers in generated features. This determines the
+        length of the resulting feature vector.
+
+    Returns
+    -------
+    Dict[str, np.ndarray]
+        Mapping from feature name to features. One element per store into a
+        unique buffer statement in `func`.
+    """
+    features = fullscale_features(func, cache_line_bytes, max_n_bufs)
+    names = get_per_store_feature_names(max_n_bufs)
+    return {name: features[:, i] for i, name in enumerate(names)}
