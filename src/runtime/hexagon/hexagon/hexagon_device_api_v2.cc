@@ -36,6 +36,10 @@
 #include "hexagon_buffer.h"
 #include "hexagon_common.h"
 
+#if defined(__hexagon__)
+#include "HAP_compute_res.h"
+#endif
+
 namespace tvm {
 namespace runtime {
 namespace hexagon {
@@ -152,6 +156,7 @@ void HexagonDeviceAPIv2::CopyDataFromTo(const void* from, size_t from_offset, vo
 }
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
+  HEXAGON_PRINT(ALWAYS, "STRAW: Made it to mem_copy");
   void* dst = args[0];
   void* src = args[1];
   int size = args[2];
@@ -161,7 +166,45 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVM
   *rv = static_cast<int32_t>(0);
 });
 
+TVM_REGISTER_GLOBAL("device_api.hexagon.AllocTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int nbytes = args[0];
+//   unsigned int context_id_ = 0;
+//   void* data_ = nullptr;
+// #if defined(__hexagon__)
+//   compute_res_attr_t res_info;
+//   HEXAGON_SAFE_CALL(HAP_compute_res_attr_init(&res_info));
+
+//   // allocate nbytes of vtcm on a single page
+//   HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param(&res_info, /*vtcm_size = */ nbytes,
+//                                                         /*b_single_page = */ 1));
+//   context_id_ = HAP_compute_res_acquire(&res_info, /*timeout = */ 10000);
+
+//   if (context_id_) {
+//     data_ = HAP_compute_res_attr_get_vtcm_ptr(&res_info);
+//     if (!data_) {
+//       HEXAGON_PRINT(ERROR, "ERROR: Allocated VTCM ptr is null.");
+//       HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
+//       return;
+//     }
+//   } else {
+//     HEXAGON_PRINT(ERROR, "ERROR: Unable to acquire requeisted resource.");
+//     return;
+//   }
+// #endif
+  HEXAGON_PRINT(ALWAYS, "STRAW: Made it to AllocTexture");
+  auto data_ = malloc(nbytes);
+  *rv = data_;
+});
+
+TVM_REGISTER_GLOBAL("device_api.hexagon.FreeTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
+  HEXAGON_PRINT(ALWAYS, "STRAW: Made it to FreeTexture");
+  void* data_ = args[2];
+  free(data_);
+  *rv = static_cast<int32_t>(0);
+});
+
 TVM_REGISTER_GLOBAL("device_api.hexagon.v2").set_body([](TVMArgs args, TVMRetValue* rv) {
+  HEXAGON_PRINT(ALWAYS, "STRAW: Getting Device API");
   DeviceAPI* ptr = HexagonDeviceAPIv2::Global();
   *rv = static_cast<void*>(ptr);
 });

@@ -55,6 +55,9 @@ class TextureFlattener : public StmtExprMutator {
 
     // Rewrite any allocations with storage scope to 1d (TODO Nd) texture allocations
     if (IsTextureStorage(storage_scope)) {
+      std::cout << "--------------------------------------------------------\n";
+      std::cout << "op->extents.back() = " << op->extents.back() << "\n";
+      std::cout << "--------------------------------------------------------\n";
       Array<PrimExpr> args = {op->extents.back()};
       stmt = LetStmt(op->buffer_var, Call(op->buffer_var.dtype(), builtin::texture2d_alloca(), args), body);
     }
