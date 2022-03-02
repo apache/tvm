@@ -62,29 +62,61 @@ class Postproc(Object):
 
 
 @register_object("meta_schedule.PyPostproc")
-class PyPostproc(Postproc):
-    """An abstract Postproc with customized methods on the python-side."""
+class _PyPostproc(Postproc):
+    """
+    A TVM object post processor to support customization on the python side.
+    This is NOT the user facing class for function overloading inheritance.
 
-    def __init__(self):
+    See also: PyPostproc
+    """
+
+    def __init__(self, methods):
         """Constructor."""
 
-        @check_override(self.__class__, Postproc)
-        def f_initialize_with_tune_context(context: "TuneContext") -> None:
-            self.initialize_with_tune_context(context)
-
-        @check_override(self.__class__, Postproc)
-        def f_apply(sch: Schedule) -> bool:
-            return self.apply(sch)
-
-        def f_as_string() -> str:
-            return str(self)
-
         self.__init_handle_by_constructor__(
-            _ffi_api.PostprocPyPostproc,  # type: ignore # pylint: disable=no-member
-            f_initialize_with_tune_context,
-            f_apply,
-            f_as_string,
+            _ffi_api.PostprocPyPostproc, *methods  # type: ignore # pylint: disable=no-member
         )
 
+
+class PyPostproc:
+    """
+    An abstract post processor with customized methods on the python-side.
+    This is the user facing class for function overloading inheritance.
+
+    Note: @derived_object is required for proper usage of any inherited class.
+    """
+
+    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+        """Initialize the postprocessor with a tune context.
+
+        Parameters
+        ----------
+        context : TuneContext
+            The tuning context for initializing the postprocessor.
+        """
+        raise NotImplementedError
+
+    def apply(self, sch: Schedule) -> bool:
+        """Apply a postprocessor to the given schedule.
+
+        Parameters
+        ----------
+        sch : Schedule
+            The schedule to be post processed.
+
+        Returns
+        -------
+        result : bool
+            Whether the postprocessor was successfully applied.
+        """
+        raise NotImplementedError
+
     def __str__(self) -> str:
+        """Get the post processor as string with name.
+
+        Return
+        ------
+        result : str
+            Get the post processor as string with name.
+        """
         return f"{self.__class__.__name__}({_get_hex_address(self.handle)})"
