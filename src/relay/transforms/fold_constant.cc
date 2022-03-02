@@ -252,7 +252,16 @@ class ConstantFolder : public MixedModeMutator {
 
     // Use a fresh build context in case we are already in a build context.
     // needed for both execution and creation(due to JIT)
-    With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
+    // With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
+
+    // Disabling vectorization in Eval, as temporary workaround for
+    // testing PR-9727.  Constant folding current produces incorrect
+    // results, looks to be an issue with vectorized access of
+    // AllocateConst buffers.
+    auto fresh_context = transform::PassContext::Create();
+    fresh_context->config.Set("tir.disable_vectorize", Bool(true));
+    With<transform::PassContext> with_context(fresh_context);
+
     Map<String, ObjectRef> dict =
         (module_->attrs.defined()) ? module_->attrs->dict : Map<String, ObjectRef>();
     Expr result = ObjectToExpr(Eval(expr, module_->type_definitions, module_->Imports(),
