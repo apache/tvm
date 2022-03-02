@@ -18,24 +18,30 @@ import pytest
 
 import tvm.contrib.ethosu.cascader as cs
 
+from .infra import ethosu_enabled
 
-def test_cascade(SRAM, FLASH, TwoConv2DWithSliceTE, TwoConv2DTE, MobileNetv1StartTE, MobileNetv1TE):
-    fixtures = [
-        TwoConv2DTE,
-        TwoConv2DWithSliceTE,
-        MobileNetv1StartTE,
-        MobileNetv1TE,
-    ]
-    device_config = cs.EthosuDeviceConfig("ethos-u55-256")
-    for sch, te_graph, const_dict in fixtures:
-        options = cs.CascaderOptions(
-            cascade_region=SRAM,
-            max_proposals=64,
-            stripe_factors=4,
-            max_plan_size=10,
-            always_copy_size=1024,
-        )
-        cs.cascade(sch, te_graph, const_dict, options, SRAM, FLASH, [SRAM], device_config)
+
+if ethosu_enabled:
+
+    def test_cascade(
+        SRAM, FLASH, TwoConv2DWithSliceTE, TwoConv2DTE, MobileNetv1StartTE, MobileNetv1TE
+    ):
+        fixtures = [
+            TwoConv2DTE,
+            TwoConv2DWithSliceTE,
+            MobileNetv1StartTE,
+            MobileNetv1TE,
+        ]
+        device_config = cs.EthosuDeviceConfig("ethos-u55-256")
+        for sch, te_graph, const_dict in fixtures:
+            options = cs.CascaderOptions(
+                cascade_region=SRAM,
+                max_proposals=64,
+                stripe_factors=4,
+                max_plan_size=10,
+                always_copy_size=1024,
+            )
+            cs.cascade(sch, te_graph, const_dict, options, SRAM, FLASH, [SRAM], device_config)
 
 
 if __name__ == "__main__":
