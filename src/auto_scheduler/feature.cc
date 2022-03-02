@@ -1119,13 +1119,15 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   BufferMap<DataType> buffer_dtypes;
 };
 
-// shifted log to incorporate the property that slog(0) = 0
-inline float slog(float x) { return x < 0 ? -std::log2(-x + 1) : std::log2(x + 1); }
+// shifted log to incorporate the property that log2p(0) = 0
+inline float log2p(float x) { return x < 0 ? -std::log2(-x + 1) : std::log2(x + 1); }
 
 void GetPerStoreFeature(const PrimFunc& func, int cache_line_size, int max_n_bufs,
-                        std::vector<float>* ret) {
+                        std::vector<float>* ret, bool log_scale) {
   PerStoreFeatureExtractor extractor(cache_line_size, func->buffer_map);
   extractor(func->body);
+
+  auto slog = log_scale ? log2p : [](float x) { return x; };
 
   ret->push_back(extractor.buffer_features.size());
 
@@ -1744,9 +1746,9 @@ TVM_REGISTER_GLOBAL("auto_scheduler.GetPerStoreFeatureNames")
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.FeaturesFromPrimFunc")
-    .set_body_typed([](const PrimFunc& func, int cache_line_size, int max_n_bufs) {
+    .set_body_typed([](const PrimFunc& func, int cache_line_size, int max_n_bufs, bool log_scale) {
       std::vector<float> vec;
-      GetPerStoreFeature(func, cache_line_size, max_n_bufs, &vec);
+      GetPerStoreFeature(func, cache_line_size, max_n_bufs, &vec, log_scale);
       int64_t num_feature_rows = vec[0];  // first element is number of rows
       int64_t row_length = (vec.size() - 1) / num_feature_rows;
       auto ary =

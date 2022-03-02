@@ -255,8 +255,11 @@ def get_per_store_feature_names(max_n_bufs: Optional[int] = None) -> List[str]:
     return _ffi_api.GetPerStoreFeatureNames(max_n_bufs or DEFAULT_MAX_N_BUFS)
 
 
-def logscale_features(
-    func: PrimFunc, cache_line_bytes: int = 64, max_n_bufs: Optional[int] = None
+def primfunc_features(
+    func: PrimFunc,
+    cache_line_bytes: int = 64,
+    max_n_bufs: Optional[int] = None,
+    log_scale: bool = False,
 ) -> np.ndarray:
     """Extract performance features from a PrimFunc.
 
@@ -275,48 +278,25 @@ def logscale_features(
         Maximum number of buffers in generated features. This determines the
         length of the resulting feature vector.
 
-    Returns
-    -------
-    np.ndarray
-        Output features, one row per store into a unique buffer statement in
-        `func`. Each feature is `slog` of the original feature value, where
-        `slog = x < 0 ? -std::log2(-x + 1) : std::log2(x + 1)`.
-    """
-    return _ffi_api.FeaturesFromPrimFunc(
-        func, cache_line_bytes, max_n_bufs or DEFAULT_MAX_N_BUFS
-    ).numpy()
-
-
-def fullscale_features(
-    func: PrimFunc, cache_line_bytes: int = 64, max_n_bufs: Optional[int] = None
-) -> np.ndarray:
-    """Extract performance features from a PrimFunc.
-
-    Parameters
-    ----------
-    func: PrimFunc
-        PrimFunc from which features will be extracted. Each store operation to
-        a unique buffer in the function will result in one row of features in
-        the output.
-
-    cache_line_bytes: int, optional
-        Size of a cache line in bytes. Defaults to 64 which is the size for
-        most x86 processors.
-
-    max_n_bufs: int, optional
-        Maximum number of buffers in generated features. This determines the
-        length of the resulting feature vector.
+    log_scale: bool
+        Should entries in the feature vector be scaled by log2(x + 1). Defaults
+        to False. Use True if using features with a cost model.
 
     Returns
     -------
     np.ndarray
         Output features, one row per store into a unique buffer statement in `func`.
     """
-    return np.exp2(logscale_features(func, cache_line_bytes, max_n_bufs)) - 1.0
+    return _ffi_api.FeaturesFromPrimFunc(
+        func, cache_line_bytes, max_n_bufs or DEFAULT_MAX_N_BUFS, log_scale
+    ).numpy()
 
 
-def named_fullscale_features(
-    func: PrimFunc, cache_line_bytes: int = 64, max_n_bufs: Optional[int] = None
+def named_primfunc_features(
+    func: PrimFunc,
+    cache_line_bytes: int = 64,
+    max_n_bufs: Optional[int] = None,
+    log_scale: bool = False,
 ) -> Dict[str, np.ndarray]:
     """Extract performance features and associated names from a PrimFunc.
 
@@ -335,12 +315,16 @@ def named_fullscale_features(
         Maximum number of buffers in generated features. This determines the
         length of the resulting feature vector.
 
+    log_scale: bool
+        Should entries in the feature vector be scaled by log2(x + 1). Defaults
+        to False. Use True if using features with a cost model.
+
     Returns
     -------
     Dict[str, np.ndarray]
         Mapping from feature name to features. One element per store into a
         unique buffer statement in `func`.
     """
-    features = fullscale_features(func, cache_line_bytes, max_n_bufs)
+    features = primfunc_features(func, cache_line_bytes, max_n_bufs, log_scale)
     names = get_per_store_feature_names(max_n_bufs)
     return {name: features[:, i] for i, name in enumerate(names)}

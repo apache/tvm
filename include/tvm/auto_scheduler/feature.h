@@ -47,9 +47,10 @@ namespace auto_scheduler {
  * \param cache_line_size The size of cache line in bytes
  * \param max_n_bufs The maximum number of extracted buffers for one statement
  * \param ret The returned feature vector
+ * \param log_scale Should the outputs be scaled by log2(1+x).
  */
 void GetPerStoreFeature(const PrimFunc& func, int cache_line_size, int max_n_bufs,
-                        std::vector<float>* ret);
+                        std::vector<float>* ret, bool log_scale = true);
 
 /*
  * \brief Get the names of elements in the feature vector. Use this for debug and inspection.

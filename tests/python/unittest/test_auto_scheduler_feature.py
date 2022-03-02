@@ -222,9 +222,7 @@ def tir_matmul(
 
 
 def test_primfunc():
-    features = auto_scheduler.feature.named_fullscale_features(tir_matmul)
-    print(tir_matmul)
-    print(features)
+    features = auto_scheduler.feature.named_primfunc_features(tir_matmul)
     assert features["float_mad"].shape == (1,)
     # featurization does not handle multiple-add right now, so they are split out
     assert abs(features["float_addsub"][0] - 128 * 128 * 128) < 10
