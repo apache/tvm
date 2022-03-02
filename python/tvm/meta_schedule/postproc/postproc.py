@@ -124,4 +124,4 @@ class PyPostproc:
         result : str
             Get the post processor as string with name.
         """
-        return f"meta_schedule.{self.__class__.__name__}({_get_hex_address(self.handle)})"
+        return f"meta_schedule.{self.__class__.__name__}({_get_hex_address(self.handle)})"  # type: ignore

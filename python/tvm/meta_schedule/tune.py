@@ -291,7 +291,7 @@ class Parse:
     @staticmethod
     def _cost_model(cost_model: Optional[CostModel]) -> CostModel:
         if cost_model is None:
-            return XGBModel(extractor=PerStoreFeature())
+            return XGBModel(extractor=PerStoreFeature())  # type: ignore
         if not isinstance(cost_model, CostModel):
             raise TypeError(f"Expected `cost_model` to be CostModel, but gets: {cost_model}")
         return cost_model

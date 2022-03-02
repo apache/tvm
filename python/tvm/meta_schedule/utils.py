@@ -125,7 +125,7 @@ def derived_object(cls: type) -> type:
             else:
                 super(TVMDerivedObject, self).__setattr__(name, value)
 
-    functools.update_wrapper(TVMDerivedObject.__init__, cls.__init__)
+    functools.update_wrapper(TVMDerivedObject.__init__, cls.__init__)  # type: ignore
     TVMDerivedObject.__name__ = cls.__name__
     TVMDerivedObject.__doc__ = cls.__doc__
     TVMDerivedObject.__module__ = cls.__module__
