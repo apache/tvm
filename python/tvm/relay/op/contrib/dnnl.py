@@ -36,9 +36,6 @@ import logging
 
 import tvm.ir
 from tvm import relay
-from tvm.relay import transform
-from tvm.relay.build_module import bind_params_by_name
-from tvm.relay.testing.temp_op_attr import TempOpAttr
 
 from ... import _ffi_api
 from ...dataflow_pattern import wildcard, is_op
@@ -414,71 +411,3 @@ def alter_conv_transpose(attrs, inputs, tinfos, out_type):
     if conv_type == "Conv2DTranspose":
         return relay.nn.conv2d_transpose(data, weight, **new_attrs)
     return relay.nn.conv3d_transpose(data, weight, **new_attrs)
-
-
-def partition_for_dnnl(mod, params=None, alter_layout=True):
-    """Partition the graph greedily offloading supported operators to DNNL.
-
-    Parameters
-    ----------
-    mod : Module
-        The module to run passes on.
-    params : Optional[Dict[str, NDArray]]
-        Constant input parameters.
-    Returns
-    -------
-    mod : Module
-        Annotated and partitioned module.
-    """
-    if params:
-        mod["main"] = bind_params_by_name(mod["main"], params)
-
-    with TempOpAttr("nn.conv2d", "FTVMLegalize", legalize_group_conv):
-        with TempOpAttr("nn.conv2d_transpose", "FTVMLegalize", legalize_group_conv):
-            seq = tvm.transform.Sequential(
-                [
-                    transform.CanonicalizeOps(),
-                    transform.InferType(),
-                    transform.SimplifyInference(),
-                    transform.FoldConstant(),
-                    transform.FoldScaleAxis(),
-                    # fold consecutive add ops to simplify pattern `conv2d-bias_add-bn-relu`
-                    transform.SimplifyExpr(),
-                    transform.FoldConstant(),
-                    # alter group conv /conv_transpose layout to `GOIHW` / `GIOHW`
-                    transform.Legalize(),
-                    transform.FoldConstant(),
-                ]
-            )
-            with tvm.transform.PassContext(opt_level=3):
-                mod = seq(mod)
-    if alter_layout:
-        with TempOpAttr("nn.conv1d", "FTVMAlterOpLayout", alter_conv):
-            with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv):
-                with TempOpAttr("nn.conv3d", "FTVMAlterOpLayout", alter_conv):
-                    with TempOpAttr(
-                        "nn.conv2d_transpose", "FTVMAlterOpLayout", alter_conv_transpose
-                    ):
-                        with TempOpAttr(
-                            "nn.conv3d_transpose", "FTVMAlterOpLayout", alter_conv_transpose
-                        ):
-                            alter_layout_seq = tvm.transform.Sequential(
-                                [
-                                    transform.AlterOpLayout(),
-                                    transform.FoldConstant(),
-                                ]
-                            )
-                            with tvm.transform.PassContext(opt_level=3):
-                                mod = alter_layout_seq(mod)
-
-    byoc_seq = tvm.transform.Sequential(
-        [
-            transform.MergeComposite(pattern_table()),
-            transform.AnnotateTarget("dnnl"),
-            transform.MergeCompilerRegions(),
-            transform.PartitionGraph(),
-        ]
-    )
-    with tvm.transform.PassContext(opt_level=3):
-        mod = byoc_seq(mod)
-    return mod

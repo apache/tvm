@@ -21,6 +21,9 @@ import numpy as np
 
 import tvm
 from tvm import relay
+from tvm.relay import transform
+from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.testing.temp_op_attr import TempOpAttr
 from tvm.relay.op.contrib import dnnl
 import tvm.testing
 
@@ -34,6 +37,74 @@ run_module = tvm.testing.parameter(
     pytest.param(True, marks=[has_dnnl_codegen, *tvm.testing.requires_llvm()]),
     ids=["compile", "run"],
 )
+
+
+def partition_for_dnnl(mod, params=None, alter_layout=True):
+    """Partition the graph greedily offloading supported operators to DNNL.
+
+    Parameters
+    ----------
+    mod : Module
+        The module to run passes on.
+    params : Optional[Dict[str, NDArray]]
+        Constant input parameters.
+    Returns
+    -------
+    mod : Module
+        Annotated and partitioned module.
+    """
+    if params:
+        mod["main"] = bind_params_by_name(mod["main"], params)
+
+    with TempOpAttr("nn.conv2d", "FTVMLegalize", dnnl.legalize_group_conv):
+        with TempOpAttr("nn.conv2d_transpose", "FTVMLegalize", dnnl.legalize_group_conv):
+            seq = tvm.transform.Sequential(
+                [
+                    transform.CanonicalizeOps(),
+                    transform.InferType(),
+                    transform.SimplifyInference(),
+                    transform.FoldConstant(),
+                    transform.FoldScaleAxis(),
+                    # fold consecutive add ops to simplify pattern `conv2d-bias_add-bn-relu`
+                    transform.SimplifyExpr(),
+                    transform.FoldConstant(),
+                    # alter group conv /conv_transpose layout to `GOIHW` / `GIOHW`
+                    transform.Legalize(),
+                    transform.FoldConstant(),
+                ]
+            )
+            with tvm.transform.PassContext(opt_level=3):
+                mod = seq(mod)
+    if alter_layout:
+        with TempOpAttr("nn.conv1d", "FTVMAlterOpLayout", dnnl.alter_conv):
+            with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", dnnl.alter_conv):
+                with TempOpAttr("nn.conv3d", "FTVMAlterOpLayout", dnnl.alter_conv):
+                    with TempOpAttr(
+                        "nn.conv2d_transpose", "FTVMAlterOpLayout", dnnl.alter_conv_transpose
+                    ):
+                        with TempOpAttr(
+                            "nn.conv3d_transpose", "FTVMAlterOpLayout", dnnl.alter_conv_transpose
+                        ):
+                            alter_layout_seq = tvm.transform.Sequential(
+                                [
+                                    transform.AlterOpLayout(),
+                                    transform.FoldConstant(),
+                                ]
+                            )
+                            with tvm.transform.PassContext(opt_level=3):
+                                mod = alter_layout_seq(mod)
+
+    byoc_seq = tvm.transform.Sequential(
+        [
+            transform.MergeComposite(dnnl.pattern_table()),
+            transform.AnnotateTarget("dnnl"),
+            transform.MergeCompilerRegions(),
+            transform.PartitionGraph(),
+        ]
+    )
+    with tvm.transform.PassContext(opt_level=3):
+        mod = byoc_seq(mod)
+    return mod
 
 
 def vmobj_to_list(o):
@@ -66,7 +137,7 @@ def run_and_verify(mod, input, params, target, run_module):
         for use_dnnl, alter_layout in [(False, False), (True, False), (True, True)]:
             result_key = mode + ("_dnnl" if use_dnnl else "") + ("_layout" if alter_layout else "")
             if use_dnnl:
-                processed_mod = dnnl.partition_for_dnnl(mod, params, alter_layout)
+                processed_mod = partition_for_dnnl(mod, params, alter_layout)
                 check_dnnl_used(processed_mod)
             else:
                 processed_mod = mod
@@ -470,7 +541,7 @@ def test_dnnl_not_compatible(run_module, target="llvm", dtype="float32"):
     f = relay.Function([x], out)
     mod = tvm.IRModule()
     mod["main"] = f
-    mod = dnnl.partition_for_dnnl(mod)
+    mod = partition_for_dnnl(mod)
     for mode in ["graph", "vm"]:
         with tvm.transform.PassContext(opt_level=3):
             func = relay.create_executor(mode, mod=mod, device=tvm.cpu(0), target=target).evaluate()
