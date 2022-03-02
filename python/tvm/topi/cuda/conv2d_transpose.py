@@ -27,7 +27,7 @@ from ..utils import get_const_tuple, traverse_inline
 
 
 @autotvm.register_topi_compute("conv2d_transpose_nchw.cuda")
-def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype, output_padding):
+def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype, output_padding, groups=1):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -46,6 +46,8 @@ def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype, output_
         The output type. This is used in mixed precision
     output_padding : tuple of two ints
         Used to disambiguate output shape.
+    groups : int
+        number of groups
 
     Returns
     -------
@@ -57,6 +59,7 @@ def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype, output_
     stride_height, stride_width = stride
     outpad_height, outpad_width = output_padding
     assert outpad_height < stride_height and outpad_width < stride_width
+    assert inp_channels % groups == 0, f"input channels {inp_channels} must divide group size {groups}"
     cfg.stride = stride
     pad_top, pad_left, pad_bottom, pad_right = nn.get_pad_tuple(
         padding, (kernel_height, kernel_width)
@@ -103,14 +106,21 @@ def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype, output_
     )
 
     # compute transposed conv
-    dc = te.reduce_axis((0, inp_channels), name="dc")
+    dc = te.reduce_axis((0, inp_channels // groups), name="dc")
     dh = te.reduce_axis((0, kernel_height), name="dh")
     dw = te.reduce_axis((0, kernel_width), name="dw")
     data_out = te.compute(
-        (batch, out_channels, out_height, out_width),
+        (batch, out_channels * groups, out_height, out_width),
         lambda b, c, h, w: te.sum(
-            data[b, dc, h + dh, w + dw].astype(out_dtype)
-            * kernel[dc, c, kernel_height - 1 - dh, kernel_width - 1 - dw].astype(out_dtype),
+            data[
+                b,  c // out_channels * (inp_channels // groups) + dc, h + dh, w + dw
+            ].astype(out_dtype)
+            * kernel[
+                c // out_channels * (inp_channels // groups) + dc,
+                c % out_channels,
+                kernel_height - 1 - dh,
+                kernel_width - 1 - dw
+            ].astype(out_dtype),
             axis=[dc, dh, dw],
         ),
         tag="conv2d_transpose_nchw",
