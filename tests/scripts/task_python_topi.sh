@@ -33,4 +33,6 @@ make cython3
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
+export ENABLE_XDIST=1
 run_pytest cython python-topi tests/python/topi/
+export ENABLE_XDIST=0
