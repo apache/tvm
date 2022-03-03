@@ -105,7 +105,12 @@ TVM_DLL const Op& large_uint_imm();
 TVM_DLL const Op& q_multiply_shift();
 
 /*!
- * \brief See pseudo code
+ * \brief Returns the address of an element in the buffer (see pseudocode below).
+ *
+ * The number of indices should match the dimensionality of the buffer
+ * being accessed.  If this operation occurs after buffer flattening,
+ * the number of indices must be supported by the target (i.e. N>1
+ * only on targets that support non-flat memory buffers).
  *
  *  Handle address_of(BufferLoad *op) {
  *     return &op->buffer_var[op->indices[0], op->indices[1], ..., op->indices[N-1]];
