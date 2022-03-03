@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule Mutator."""
-from typing import Callable, Optional, List, TYPE_CHECKING
+from typing import Callable, Optional, TYPE_CHECKING
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
@@ -68,11 +68,19 @@ class _PyMutator(Mutator):
     See also: PyMutator
     """
 
-    def __init__(self, methods: List[Callable]):
+    def __init__(
+        self,
+        f_initialize_with_tune_context: Callable = None,
+        f_apply: Callable = None,
+        f_as_string: Callable = None,
+    ):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
-            _ffi_api.MutatorPyMutator, *methods  # type: ignore # pylint: disable=no-member
+            _ffi_api.MutatorPyMutator,  # type: ignore # pylint: disable=no-member
+            f_initialize_with_tune_context,
+            f_apply,
+            f_as_string,
         )
 
 

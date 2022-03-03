@@ -222,12 +222,23 @@ class _PyDatabase(Database):
     See also: PyDatabase
     """
 
-    def __init__(self, methods: List[Callable]):
+    def __init__(
+        self,
+        f_has_workload: Callable = None,
+        f_commit_workload: Callable = None,
+        f_commit_tuning_record: Callable = None,
+        f_get_top_k: Callable = None,
+        f_size: Callable = None,
+    ):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
             _ffi_api.DatabasePyDatabase,  # type: ignore  # pylint: disable=no-member
-            *methods,
+            f_has_workload,
+            f_commit_workload,
+            f_commit_tuning_record,
+            f_get_top_k,
+            f_size,
         )
 
 

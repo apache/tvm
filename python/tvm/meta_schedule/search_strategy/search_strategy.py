@@ -145,12 +145,23 @@ class _PySearchStrategy(SearchStrategy):
     See also: PySearchStrategy
     """
 
-    def __init__(self, methods: List[Callable]):
+    def __init__(
+        self,
+        f_initialize_with_tune_context: Callable = None,
+        f_pre_tuning: Callable = None,
+        f_post_tuning: Callable = None,
+        f_generate_measure_candidates: Callable = None,
+        f_notify_runner_results: Callable = None,
+    ):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
             _ffi_api.SearchStrategyPySearchStrategy,  # type: ignore # pylint: disable=no-member
-            *methods,
+            f_initialize_with_tune_context,
+            f_pre_tuning,
+            f_post_tuning,
+            f_generate_measure_candidates,
+            f_notify_runner_results,
         )
 
 

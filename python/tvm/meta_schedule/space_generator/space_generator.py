@@ -18,7 +18,7 @@
 Meta Schedule design space generators that generates design
 space for generation of measure candidates.
 """
-from typing import TYPE_CHECKING, Callable, List
+from typing import TYPE_CHECKING, Callable, List, Optional
 
 from tvm._ffi import register_object
 from tvm.ir import IRModule
@@ -72,12 +72,17 @@ class _PySpaceGenerator(SpaceGenerator):
     See also: PySpaceGenerator
     """
 
-    def __init__(self, methods: List[Callable]):
+    def __init__(
+        self,
+        f_initialize_with_tune_context: Optional[Callable] = None,
+        f_generate_design_space: Optional[Callable] = None,
+    ):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
             _ffi_api.SpaceGeneratorPySpaceGenerator,  # type: ignore # pylint: disable=no-member
-            *methods,
+            f_initialize_with_tune_context,
+            f_generate_design_space,
         )
 
 

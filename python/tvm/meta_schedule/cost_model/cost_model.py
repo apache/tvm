@@ -107,7 +107,14 @@ class _PyCostModel(CostModel):
     See also: PyCostModel
     """
 
-    def __init__(self, methods: List[Callable]):
+    def __init__(
+        self,
+        f_load: Callable = None,
+        f_save: Callable = None,
+        f_update: Callable = None,
+        predict_func: Callable = None,
+        f_as_string: Callable = None,
+    ):
         """Constructor."""
 
         def f_predict(context: TuneContext, candidates: List[MeasureCandidate], return_ptr) -> None:
@@ -120,7 +127,6 @@ class _PyCostModel(CostModel):
                 array_wrapper.dtype == "float64"
             ), "ValueError: Invalid data type returned from CostModel Predict!"
 
-        f_load, f_save, f_update, predict_func, f_as_string = methods
         self.__init_handle_by_constructor__(
             _ffi_api.CostModelPyCostModel,  # type: ignore # pylint: disable=no-member
             f_load,

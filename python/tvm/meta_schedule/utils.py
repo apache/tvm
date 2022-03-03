@@ -50,8 +50,8 @@ def derived_object(cls: type) -> type:
 
         @register_object("meta_schedule.PyRunner")
         class _PyRunner(meta_schedule.Runner):
-            def __init__(self, methods: List[Callable]):
-                self.__init_handle_by_constructor__(_ffi_api.RunnerPyRunner, *methods)
+            def __init__(self, f_run: Callable = None):
+                self.__init_handle_by_constructor__(_ffi_api.RunnerPyRunner, f_run)
 
         class PyRunner():
             _tvm_metadata = {
@@ -90,7 +90,7 @@ def derived_object(cls: type) -> type:
 
     base = cls.__base__
     metadata = getattr(base, "_tvm_metadata")
-    members = metadata.get("members", [])
+    fields = metadata.get("fields", [])
     methods = metadata.get("methods", [])
 
     class TVMDerivedObject(metadata["cls"]):  # type: ignore
@@ -103,15 +103,15 @@ def derived_object(cls: type) -> type:
 
             super().__init__(
                 # the constructor's parameters, builder, runner, etc.
-                *[getattr(self._inst, name) for name in members],
+                *[getattr(self._inst, name) for name in fields],
                 # the function methods, init_with_tune_context, build, run, etc.
-                [_extract(self._inst, name) for name in methods],
+                *[_extract(self._inst, name) for name in methods],
             )
 
             # for task scheduler hybrid funcs in c++ & python side
             # using weakref to avoid cyclic dependency
             self._inst._outer = weakref.ref(self)
-            # keep track of the handle in self
+            # keep track of the handle in self for usage of __str__
             # won't cause cyclic dependency because handle type is c_void_p
             self._inst.handle = self.handle
 

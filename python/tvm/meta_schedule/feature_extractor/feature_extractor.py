@@ -63,12 +63,13 @@ class _PyFeatureExtractor(FeatureExtractor):
     See also: PyFeatureExtractor
     """
 
-    def __init__(self, methods: List[Callable]):
+    def __init__(self, f_extract_from: Callable, f_as_string: Callable = None):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
             _ffi_api.FeatureExtractorPyFeatureExtractor,  # type: ignore # pylint: disable=no-member
-            *methods,
+            f_extract_from,
+            f_as_string,
         )
 
 

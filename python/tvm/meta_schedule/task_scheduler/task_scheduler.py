@@ -132,25 +132,14 @@ class _PyTaskScheduler(TaskScheduler):
         database: Database,
         cost_model: Optional[CostModel] = None,
         measure_callbacks: Optional[List[MeasureCallback]] = None,
-        methods: List[Callable] = None,
+        f_tune: Callable = None,
+        f_initialize_task: Callable = None,
+        f_set_task_stopped: Callable = None,
+        f_is_task_running: Callable = None,
+        f_join_running_task: Callable = None,
+        f_next_task_id: Callable = None,
     ):
-        """Constructor.
-
-        Parameters
-        ----------
-        tasks: List[TuneContext]
-            The list of tune context to process.
-        builder: Builder
-            The builder of the scheduler.
-        runner: Runner
-            The runner of the scheduler.
-        database: Database
-            The database of the scheduler.
-        cost_model: Optional[CostModel]
-            The cost model of the scheduler.
-        measure_callbacks: List[MeasureCallback]
-            The list of measure callbacks of the scheduler.
-        """
+        """Constructor."""
 
         self.__init_handle_by_constructor__(
             _ffi_api.TaskSchedulerPyTaskScheduler,  # type: ignore # pylint: disable=no-member
@@ -160,7 +149,12 @@ class _PyTaskScheduler(TaskScheduler):
             database,
             cost_model,
             measure_callbacks,
-            *methods,
+            f_tune,
+            f_initialize_task,
+            f_set_task_stopped,
+            f_is_task_running,
+            f_join_running_task,
+            f_next_task_id,
         )
 
 
@@ -174,7 +168,7 @@ class PyTaskScheduler:
 
     _tvm_metadata = {
         "cls": _PyTaskScheduler,
-        "members": [
+        "fields": [
             "tasks",
             "builder",
             "runner",

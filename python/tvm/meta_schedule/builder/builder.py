@@ -132,12 +132,12 @@ class _PyBuilder(Builder):
     See also: PyBuilder
     """
 
-    def __init__(self, methods: List[Callable]):
+    def __init__(self, f_build: Callable = None):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
             _ffi_api.BuilderPyBuilder,  # type: ignore # pylint: disable=no-member
-            *methods,
+            f_build,
         )
 
 
