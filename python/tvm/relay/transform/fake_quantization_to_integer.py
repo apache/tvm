@@ -340,24 +340,27 @@ def leaky_relu(expr, type_map):
     """Rewrite a leaky relu op"""
     arg = expr.args[0]
     t = type_map[arg]
+    alpha = 0.1
 
-    arg = relay.op.cast(arg, "int32")
-    z_p = t.zero_point
-    zero = relay.op.cast(z_p, "int32")
+    output = relay.qnn.op.leaky_relu(expr, alpha, t.scale, t.zero_point)
 
-    alpha = expr.attrs.alpha
-    q_val, shift = math.frexp(alpha)
-    q_alpha = int(q_val * (1 << 31))
-    prod = relay.op.fixed_point_multiply(arg, q_alpha, shift)
+    # arg = relay.op.cast(arg, "int32")
+    # z_p = t.zero_point
+    # zero = relay.op.cast(z_p, "int32")
 
-    zq_val, zshift = math.frexp(1 - alpha)
-    zq_alpha = int(zq_val * (1 << 31))
-    scaled_z = relay.op.fixed_point_multiply(zero, zq_alpha, zshift)
+    # alpha = expr.attrs.alpha
+    # q_val, shift = math.frexp(alpha)
+    # q_alpha = int(q_val * (1 << 31))
+    # prod = relay.op.fixed_point_multiply(arg, q_alpha, shift)
 
-    val = relay.op.add(prod, scaled_z)
+    # zq_val, zshift = math.frexp(1 - alpha)
+    # zq_alpha = int(zq_val * (1 << 31))
+    # scaled_z = relay.op.fixed_point_multiply(zero, zq_alpha, zshift)
 
-    output = relay.op.where(relay.op.less(arg, fold_constant(zero)), val, arg)
-    output = relay.op.cast(output, t.dtype)
+    # val = relay.op.add(prod, scaled_z)
+
+    # output = relay.op.where(relay.op.less(arg, fold_constant(zero)), val, arg)
+    # output = relay.op.cast(output, t.dtype)
     return [output, t]
 
 
