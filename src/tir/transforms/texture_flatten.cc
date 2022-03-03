@@ -40,8 +40,6 @@ namespace tvm {
 namespace tir {
 using runtime::IsTextureStorage;
 
-// Lower Nd storage access to 2d texture access using lowering convention
-// specified by the buffers storage scope.
 class TextureFlattener : public StmtExprMutator {
  public:
   using StmtExprMutator::VisitStmt_;
@@ -53,19 +51,17 @@ class TextureFlattener : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<AllocateNode>();
 
-    // Rewrite any allocations with storage scope to 1d (TODO Nd) texture allocations
     if (IsTextureStorage(storage_scope)) {
-      std::cout << "--------------------------------------------------------\n";
-      std::cout << "op->extents.back() = " << op->extents.back() << "\n";
-      std::cout << "--------------------------------------------------------\n";
       Array<PrimExpr> args = {op->extents.back()};
-      stmt = LetStmt(op->buffer_var, Call(op->buffer_var.dtype(), builtin::texture2d_alloca(), args), body);
+      stmt = LetStmt(op->buffer_var,
+                     Call(op->buffer_var.dtype(), builtin::texture2d_alloca(), args), body);
     }
 
     return stmt;
   }
+
  protected:
-   std::string GetStorageScope(const Var& var) {
+  std::string GetStorageScope(const Var& var) {
     auto* ptr = var->type_annotation.as<PointerTypeNode>();
     ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
     return ptr->storage_scope;
