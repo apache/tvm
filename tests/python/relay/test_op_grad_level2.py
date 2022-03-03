@@ -283,9 +283,6 @@ def test_conv2d_backward_weight():
 
 def test_conv2d_backward_weight_infer_type():
     # From https://github.com/apache/tvm/pull/10439
-    import tvm
-    from tvm import relay
-
     depthwise_conv_code = """
     fn (%input0: Tensor[(1, 3, 32, 32), float32], %v0_weight: Tensor[(3, 1, 3, 3), float32], %v0_bias: Tensor[(3), float32]) {
       %0 = nn.conv2d(%input0, %v0_weight, padding=[1, 1, 1, 1], groups=3, channels=3, kernel_size=[3, 3]);
