@@ -526,6 +526,10 @@ Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> 
   // tensors without a common datatype.  Therefore, we check that the
   // data pointer is a pointer, but not the exact type of the
   // pointed-to values.
+
+  // TODO(Lunderberg): Use an explicit pointer cast for the data
+  // pointer.  Should be done alongside extensions to StmtExprMutator
+  // to more easily handle buffer/buffer_var updates.
   ICHECK(data->type_annotation.defined())
       << "Variable " << data->name_hint << " is missing a type annotation.";
   ICHECK(data->type_annotation.as<PointerTypeNode>())
