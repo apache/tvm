@@ -385,7 +385,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     if (!indices.same_as(op->indices)) {
       auto writer = load.CopyOnWrite();
       writer->indices = indices;
-      writer->LegalizeDtype();
+      writer->LegalizeDType();
     }
 
     return std::move(load);

@@ -1058,7 +1058,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<AnyNode>([](const ObjectRef& node, ReprPrinter* p) { p->stream << "?"; });
 
 // BufferLoad
-void BufferLoadNode::LegalizeDtype() {
+void BufferLoadNode::LegalizeDType() {
   int index_lanes = 1;
   for (const auto& index : indices) {
     index_lanes *= index.dtype().lanes();
@@ -1079,7 +1079,7 @@ BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span) {
   node->buffer = std::move(buffer);
   node->indices = std::move(indices);
   node->span = std::move(span);
-  node->LegalizeDtype();
+  node->LegalizeDType();
   data_ = std::move(node);
 }
 

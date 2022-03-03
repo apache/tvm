@@ -123,7 +123,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
       return std::move(node);
     } else {
       auto writer = modified.CopyOnWrite();
-      writer->LegalizeDtype();
+      writer->LegalizeDType();
       return std::move(modified);
     }
   }
