@@ -136,6 +136,7 @@ class ThreadGroup::Impl {
           break;
         case kLittle:
         case kBig:
+        default:
           LOG(WARNING) << "The thread affinity cannot be set when the number of workers"
                        << "is larger than the number of available cores in the system.";
           break;
@@ -280,9 +281,12 @@ void Yield() { std::this_thread::yield(); }
  * \bief Set the maximum number of available cores.
  */
 void SetMaxConcurrency(int value) {
-  if (value > 0) {
-    max_concurrency = value;
+  if (value < 0) {
+    LOG(WARNING) << "The value of maximum concurrency '" << value << "' can not be negative "
+                 << "the setting of maximum concurrency is not success.";
+    return;
   }
+  max_concurrency = value;
 }
 int MaxConcurrency() {
   int max_concurrency = 1;
