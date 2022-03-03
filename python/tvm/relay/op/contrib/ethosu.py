@@ -24,7 +24,6 @@ import numpy as np  # type: ignore
 import tvm  # type: ignore
 from tvm import relay
 from tvm.relay.expr import Constant, Call
-from tvm.relay.op.contrib.arm_compute_lib import qnn_dense  # type: ignore
 from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
 from tvm.relay.dataflow_pattern import wildcard, is_op, is_constant, is_tuple  # type: ignore
 from tvm.relay.build_module import bind_params_by_name  # type: ignore
@@ -1565,7 +1564,7 @@ class FullyConnectedParams:
         call = requantize_op.args[0]
         if str(requantize_op.args[0].op) == "nn.bias_add":
             bias_add = call
-            qnn_dense = call
+            qnn_dense = call.args[0]
         else:
             bias_add = None
             qnn_dense = call

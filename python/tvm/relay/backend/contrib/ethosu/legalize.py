@@ -1599,9 +1599,11 @@ class FullyConnectedRewriter(DFPatternCallback):
         weights_values = params.weights.values
         weights_values_ohwi = np.expand_dims(weights_values, axis=(1, 2))
         if params.activation:
+            activation = "CLIP"
             clip_min = int(params.activation.attrs.a_min)
             clip_max = int(params.activation.attrs.a_max)
         else:
+            activation = "NONE"
             clip_min = 0
             clip_max = 0
         bias_values = (
@@ -1632,7 +1634,7 @@ class FullyConnectedRewriter(DFPatternCallback):
             strides=(1, 1),
             padding=(0, 0, 0, 0),
             dilation=(1, 1),
-            activation=params.activation,
+            activation=activation,
             clip_min=clip_min,
             clip_max=clip_max,
             upscale="NONE",

@@ -18,6 +18,8 @@
 
 import pytest
 
+from tvm.relay.analysis.analysis import extract_fused_functions
+
 pytest.importorskip("ethosu.vela")
 
 import math
@@ -2395,7 +2397,43 @@ def test_tflite_fully_connected(
         return tflite_model
 
     def verify(ext_func):
-        op = ext_func.body
+        op = ext_func.body.args[0]
+        ofm_channels = op.attrs.ofm_channels
+
+        # check IFM
+        ifm = op.args[0].checked_type
+        assert [ifm.shape[2], ifm.shape[3]] == list(ifm_shape)
+        assert str(ifm.dtype) == dtype
+
+        # check OFM
+        ofm = op.checked_type
+        assert [ofm.shape[2], ofm.shape[3]] == [1, ofm_channels]
+        # assert list(ofm.shape) == list(expected_ofm_shape)
+        assert str(ofm.dtype) == dtype
+        # assert ofm.shape[3] == ofm_channels
+
+        # check weights
+        weights_ohwi = op.args[1].data.asnumpy()
+        assert str(weights_ohwi.dtype) == dtype
+        assert weights_ohwi.shape[0] == ofm_channels
+        assert weights_ohwi.shape[1] == 1
+        assert weights_ohwi.shape[2] == 1
+        assert weights_ohwi.shape[3] == ifm_shape[1]
+
+        # Check that scale_bias matches weight tensor
+        assert list(op.args[2].checked_type.shape)[0] == ofm_channels
+
+        # expected_padding = infra.compute_padding_shape(
+        #     ifm_shape,
+        #     expected_ofm_shape,
+        #     (0, 0, 0, 0),
+        #     (1, 1),
+        #     (1, 1),
+        #     (1, 1),
+        # )
+        assert list(op.attrs.padding) == [0, 0, 0, 0]
+        assert list(op.attrs.strides) == [1, 1]
+        assert list(op.attrs.dilation) == [1, 1]
         if activation_function == "RELU":
             assert str(op.attrs.activation) == "CLIP"
 
