@@ -19,29 +19,30 @@
 # We use it to cover windows and mac builds
 # Jenkins is still the primary CI
 
-name: PR
+name: Teams
 
 on:
   # See https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request_target
   pull_request_target:
-    types: [assigned, opened, synchronize, reopened, edited, ready_for_review]
+    types: [opened, reopened, edited, ready_for_review, labeled]
+  issues:
+    types: [opened, edited, reopened, labeled]
 
 concurrency:
-  group: PR-${{ github.event.pull_request.number }}
+  group: Teams-${{ github.event.pull_request.number }}-${{ github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
-  cc-reviewers:
+  tag-teams:
     if: github.repository == 'apache/tvm'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-        with:
-          submodules: "recursive"
-      - name: Add cc'ed reviewers
+      - name: Tag people from relevant teams
         env:
           PR: ${{ toJson(github.event.pull_request) }}
+          ISSUE: ${{ toJson(github.event.issue) }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eux
-          python tests/scripts/github_cc_reviewers.py || echo step failed
+          python tests/scripts/github_tag_teams.py || echo failed

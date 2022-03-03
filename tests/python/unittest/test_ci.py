@@ -19,6 +19,7 @@ import pathlib
 import subprocess
 import sys
 import json
+import textwrap
 import tempfile
 
 import pytest
@@ -403,6 +404,241 @@ def test_ping_reviewers(tmpdir_factory):
             },
         },
         "Not pinging PR 123",
+    )
+
+
+def assert_in(needle: str, haystack: str):
+    if needle not in haystack:
+        raise AssertionError(f"item not found:\n{needle}\nin:\n{haystack}")
+
+
+def test_github_tag_teams(tmpdir_factory):
+    tag_script = REPO_ROOT / "tests" / "scripts" / "github_tag_teams.py"
+
+    def run(type, data, check):
+        git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+        git.run("init")
+        git.run("checkout", "-b", "main")
+        git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+
+        issue_body = """
+        some text
+        [temporary] opt-in: @person5
+
+        - something: @person1 @person2
+        - something else @person1 @person2
+        - something else2: @person1 @person2
+        - something-else @person1 @person2
+        """
+        comment1 = """
+        another thing: @person3
+        another-thing @person3
+        """
+        comment2 = """
+        something @person4
+        """
+        teams = {
+            "data": {
+                "repository": {
+                    "issue": {
+                        "body": issue_body,
+                        "comments": {"nodes": [{"body": comment1}, {"body": comment2}]},
+                    }
+                }
+            }
+        }
+        env = {
+            type: json.dumps(data),
+        }
+        proc = subprocess.run(
+            [
+                str(tag_script),
+                "--dry-run",
+                "--team-issue-json",
+                json.dumps(teams),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+            cwd=git.cwd,
+            env=env,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
+
+        assert_in(check, proc.stdout)
+
+    run(
+        "ISSUE",
+        {
+            "title": "A title",
+            "number": 1234,
+            "user": {
+                "login": "person5",
+            },
+            "labels": [{"name": "abc"}],
+            "body": textwrap.dedent(
+                """
+            hello
+            """.strip()
+            ),
+        },
+        "No one to cc, exiting",
+    )
+
+    run(
+        "ISSUE",
+        {
+            "title": "A title",
+            "number": 1234,
+            "user": {
+                "login": "person5",
+            },
+            "labels": [{"name": "abc"}],
+            "body": textwrap.dedent(
+                """
+            hello
+
+            cc @test
+            """.strip()
+            ),
+        },
+        "No one to cc, exiting",
+    )
+
+    run(
+        type="ISSUE",
+        data={
+            "title": "A title",
+            "number": 1234,
+            "user": {
+                "login": "person5",
+            },
+            "labels": [{"name": "something"}],
+            "body": textwrap.dedent(
+                """
+                hello
+
+                something"""
+            ),
+        },
+        check="would have updated issues/1234 with {'body': '\\nhello\\n\\nsomething\\n\\ncc @person1 @person2 @person4'}",
+    )
+
+    run(
+        type="ISSUE",
+        data={
+            "title": "A title",
+            "number": 1234,
+            "user": {
+                "login": "person6",
+            },
+            "labels": [{"name": "something"}],
+            "body": textwrap.dedent(
+                """
+                hello
+
+                something"""
+            ),
+        },
+        check="Author person6 is not opted in, quitting",
+    )
+
+    run(
+        type="ISSUE",
+        data={
+            "title": "A title",
+            "number": 1234,
+            "user": {
+                "login": "person5",
+            },
+            "labels": [{"name": "something"}],
+            "body": textwrap.dedent(
+                """
+                hello
+
+                cc @person1 @person2 @person4"""
+            ),
+        },
+        check="Everyone to cc is already cc'ed, no update needed",
+    )
+
+    run(
+        type="ISSUE",
+        data={
+            "title": "[something] A title",
+            "number": 1234,
+            "user": {
+                "login": "person5",
+            },
+            "labels": [{"name": "something2"}],
+            "body": textwrap.dedent(
+                """
+                hello
+
+                something"""
+            ),
+        },
+        check="would have updated issues/1234 with {'body': '\\nhello\\n\\nsomething\\n\\ncc @person1 @person2 @person4'}",
+    )
+
+    run(
+        type="ISSUE",
+        data={
+            "title": "[something] A title",
+            "number": 1234,
+            "user": {
+                "login": "person5",
+            },
+            "labels": [{"name": "something2"}],
+            "body": textwrap.dedent(
+                """
+                hello
+
+                cc @person1 @person2 @person4"""
+            ),
+        },
+        check="Everyone to cc is already cc'ed, no update needed",
+    )
+
+    run(
+        type="PR",
+        data={
+            "title": "[something] A title",
+            "number": 1234,
+            "draft": False,
+            "user": {
+                "login": "person5",
+            },
+            "labels": [{"name": "something2"}],
+            "body": textwrap.dedent(
+                """
+                hello
+
+                cc @person1 @person2 @person4"""
+            ),
+        },
+        check="Everyone to cc is already cc'ed, no update needed",
+    )
+
+    run(
+        type="PR",
+        data={
+            "title": "[something] A title",
+            "number": 1234,
+            "draft": True,
+            "user": {
+                "login": "person5",
+            },
+            "labels": [{"name": "something2"}],
+            "body": textwrap.dedent(
+                """
+                hello
+
+                cc @person1 @person2 @person4"""
+            ),
+        },
+        check="Terminating since 1234 is a draft",
     )
 
 

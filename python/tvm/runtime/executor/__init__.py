@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,7 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
+"""This module contains Python wrappers for the TVM C++ Executor implementations.
 
-./tests/lint/git-black.sh HEAD~1
-./tests/lint/git-black.sh origin/main
+NOTE: at present, only AOT Executor is contained here. The others are:
+ - GraphExecutor, in python/tvm/contrib/graph_executor.py
+ - VM Executor, in python/tvm/runtime/vm.py
+
+TODO(areusch): Consolidate these into this module.
+"""
+from .aot_executor import AotModule

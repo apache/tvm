@@ -1800,7 +1800,10 @@ bool Conv2DBackwardWeightRel(const Array<Type>& types, int num_inputs, const Att
                                param->kernel_size[1]};
   auto wshape = trans_kernel_layout.BackwardShape(wshape_oihw);
 
-  const auto dw_dtype = param->out_dtype == DataType() ? grad->dtype : param->out_dtype;
+  const auto dw_dtype = (param->out_dtype == DataType() || param->out_dtype.is_void())
+                            ? grad->dtype
+                            : param->out_dtype;
+
   reporter->Assign(types[2], TensorType(wshape, dw_dtype));
   return true;
 }

@@ -57,8 +57,17 @@ class Expected:
             with T.let(tvm_value_1, T.tvm_stack_alloca("array", 1, dtype="handle")):
                 with T.let(tvm_value_0, T.tvm_stack_alloca("array", 1, dtype="handle")):
                     T.evaluate(T.tvm_struct_set(tvm_value_0, 0, 1, A, dtype="handle"))
+                    T.evaluate(T.tvm_struct_set(tvm_value_0, 0, 10, 1, dtype="handle"))
+                    T.evaluate(T.tvm_struct_set(tvm_value_0, 0, 9, 0, dtype="handle"))
+
                     T.evaluate(T.tvm_struct_set(tvm_value_1, 0, 1, B, dtype="handle"))
+                    T.evaluate(T.tvm_struct_set(tvm_value_1, 0, 10, 1, dtype="handle"))
+                    T.evaluate(T.tvm_struct_set(tvm_value_1, 0, 9, 0, dtype="handle"))
+
                     T.evaluate(T.tvm_struct_set(tvm_value_2, 0, 1, C, dtype="handle"))
+                    T.evaluate(T.tvm_struct_set(tvm_value_2, 0, 10, 1, dtype="handle"))
+                    T.evaluate(T.tvm_struct_set(tvm_value_2, 0, 9, 0, dtype="handle"))
+
                     T.evaluate(
                         T.tvm_call_cpacked(
                             "tvm_test_cpacked",
