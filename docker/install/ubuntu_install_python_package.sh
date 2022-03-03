@@ -37,6 +37,5 @@ pip3 install --upgrade \
     requests \
     scipy \
     synr==0.6.0 \
-    junitparser==2.4.2 \
     six \
     tornado

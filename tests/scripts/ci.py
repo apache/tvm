@@ -265,7 +265,7 @@ def docs(
         "IS_LOCAL": "1",
     }
     check_build()
-    docker(name="ci-docs", image=image, scripts=scripts, env=env)
+    docker(name="ci-docs", image=image, scripts=scripts, env=env, interactive=False)
 
 
 def serve_docs(directory: str = "_docs") -> None:
@@ -290,6 +290,7 @@ def lint() -> None:
         image="ci_lint",
         scripts=["./tests/scripts/task_lint.sh"],
         env={},
+        interactive=False,
     )
 
 
