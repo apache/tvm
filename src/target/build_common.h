@@ -58,7 +58,7 @@ inline std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(co
     }
     if (auto opt = f->GetAttr<Integer>(tir::attr::kDeviceUseDynSharedMemory)) {
       if (opt.value()) {
-        info.launch_param_tags.push_back(runtime::kUseDynamicSharedMemoryTag);
+        info.launch_param_tags.push_back(runtime::launch_param::kUseDynamicSharedMemoryTag);
       }
     }
     auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);

@@ -40,6 +40,7 @@ class CodeGenCHost : public CodeGenC {
   CodeGenCHost();
   void Init(bool output_ssa, bool emit_asserts, std::string target_str);
 
+  void InitGlobalContext();
   void AddFunction(const PrimFunc& f);
 
   void DefineModuleName();

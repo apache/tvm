@@ -38,6 +38,7 @@ tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" O
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
 tvm_option(USE_GRAPH_EXECUTOR "Build with tiny graph executor" ON)
 tvm_option(USE_GRAPH_EXECUTOR_CUDA_GRAPH "Build with tiny graph executor with CUDA Graph for GPUs" OFF)
+tvm_option(USE_AOT_EXECUTOR "Build with AOT executor" ON)
 tvm_option(USE_PROFILER "Build profiler for the VM and graph executor" ON)
 tvm_option(USE_OPENMP "Build with OpenMP thread pool implementation" OFF)
 tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
@@ -394,6 +395,13 @@ if(USE_PROFILER)
   tvm_file_glob(GLOB RUNTIME_VM_PROFILER_SRCS src/runtime/vm/profiler/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
 endif(USE_PROFILER)
+
+if(USE_AOT_EXECUTOR)
+  message(STATUS "Build with AOT Executor support...")
+  file(GLOB RUNTIME_AOT_EXECUTOR_SRCS src/runtime/aot_executor/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_AOT_EXECUTOR_SRCS})
+
+endif(USE_AOT_EXECUTOR)
 
 # Enable ctest if gtest is available
 if(USE_GTEST)
