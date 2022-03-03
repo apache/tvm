@@ -107,7 +107,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
                            {context_buffer_size}, tir::const_true(), body);
     }
 
-    tir::PrimFunc replacement_func(func_signature, body, VoidType(), Map<tir::Var, tir::Buffer>(),
+    tir::PrimFunc replacement_func(func_signature, body, VoidType(), buffer_map,
                                    Map<tir::Var, tir::Buffer>(), DictAttrs(dict_attrs));
     ir_module_->Add(global_var, replacement_func);
   }
