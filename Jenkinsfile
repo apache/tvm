@@ -442,6 +442,10 @@ stage('Build') {
               script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
               label: 'Run Hexagon tests',
             )
+            sh (
+              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon_simulator.sh",
+              label: 'Run Hexagon tests on simulator',
+            )
           } finally {
             junit 'build/pytest-results/*.xml'
           }

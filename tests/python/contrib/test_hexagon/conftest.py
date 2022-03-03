@@ -78,3 +78,18 @@ def tvm_tracker_port() -> int:
 @tvm.testing.fixture
 def adb_server_socket() -> str:
     return os.getenv(ADB_SERVER_SOCKET, default="tcp:5037")
+
+
+# If the execution aborts while an RPC server is running, the python
+# code that is supposed to shut it dowm will never execute. This will
+# keep pytest from terminating (indefinitely), so add a cleanup
+# fixture to terminate any still-running servers.
+@pytest.fixture(scope="session", autouse=True)
+def terminate_rpc_servers():
+    # Since this is a fixture that runs regardless of whether the
+    # execution happens on simulator or on target, make sure the
+    # yield happens every time.
+    serial = os.environ.get(ANDROID_SERIAL_NUMBER)
+    yield []
+    if serial == "simulator":
+        os.system("ps ax | grep tvm_rpc_x86 | awk '{print $1}' | xargs kill")
