@@ -430,6 +430,7 @@ def test_postproc_verify_gpu_3():
     # threadIdx.x extent).
     assert not ctx.postprocs[0].apply(sch)
 
+
 def test_postproc_verify_gpu_4():
     mod = GmmCuda0
     ctx = _create_context(mod, target=_target())
@@ -449,6 +450,7 @@ def test_postproc_verify_gpu_6():
     ctx = _create_context(mod, target=_target())
     sch = tir.Schedule(mod, debug_mask="all")
     assert not ctx.postprocs[0].apply(sch)
+
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
