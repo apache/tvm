@@ -218,7 +218,8 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     Entry a = VisitExpr(lhs);
     ICHECK_NE(val, 0);
     int64_t coeff = ZeroAwareGCD(a.coeff, val);
-    if (a.base % coeff == 0 || (a.base > 0 && (round_down || parent_->CanProveGreaterEqual(lhs, 0)))) {
+    if (a.base % coeff == 0 ||
+        (a.base > 0 && (round_down || parent_->CanProveGreaterEqual(lhs, 0)))) {
       return Entry(coeff, a.base % coeff);
     }
     return Everything();
