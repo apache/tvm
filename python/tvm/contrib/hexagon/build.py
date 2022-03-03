@@ -278,7 +278,9 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
     ):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        subprocess.check_call(self._adb_device_sub_cmd + ["push", str(local_path), str(remote_path)])
+        subprocess.check_call(
+            self._adb_device_sub_cmd + ["push", str(local_path), str(remote_path)]
+        )
 
     def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
