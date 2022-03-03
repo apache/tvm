@@ -17,6 +17,7 @@
 """ Test Meta Schedule Task Scheduler """
 
 import random
+import weakref
 import sys
 from typing import List
 
@@ -182,6 +183,34 @@ class DummyDatabase(PyDatabase):
         print("\n".join([str(r) for r in self.records]))
 
 
+@derived_object
+class MyTaskScheduler(PyTaskScheduler):
+    done = set()
+
+    def next_task_id(self) -> int:
+        while len(self.done) != len(self.tasks):
+            x = random.randint(0, len(self.tasks) - 1)
+            task = self.tasks[x]
+            if not task.is_stopped:
+                """Calling base func via following route:
+                Python side:
+                    PyTaskScheduler does not have `_is_task_running`
+                    Call TaskScheduler's `is_task_running`, which calls ffi
+                C++ side:
+                    The ffi calls TaskScheduler's `is_task_running`
+                    But it is overridden in PyTaskScheduler
+                    PyTaskScheduler checks if the function is overridden in python
+                    If not, it returns the TaskScheduler's vtable, calling
+                        TaskScheduler::IsTaskRunning
+                """
+                if self.is_task_running(x):
+                    self.join_running_task(x)
+                return x
+            else:
+                self.done.add(x)
+        return -1
+
+
 def test_meta_schedule_task_scheduler_single():
     num_trials_per_iter = 3
     num_trials_total = 10
@@ -260,42 +289,32 @@ def test_meta_schedule_task_scheduler_multiple():
 
 def test_meta_schedule_task_scheduler_NIE():  # pylint: disable=invalid-name
     @derived_object
-    class MyTaskScheduler(PyTaskScheduler):
+    class NIETaskScheduler(PyTaskScheduler):
         pass
 
     with pytest.raises(TVMError, match="PyTaskScheduler's NextTaskId method not implemented!"):
-        scheduler = MyTaskScheduler([], DummyBuilder(), DummyRunner(), DummyDatabase())
+        scheduler = NIETaskScheduler([], DummyBuilder(), DummyRunner(), DummyDatabase())
         scheduler.next_task_id()
 
 
-def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: disable=invalid-name
-    @derived_object
-    class MyTaskScheduler(PyTaskScheduler):
-        done = set()
+def test_meta_schedule_task_scheduler_avoid_cyclic():  # pylint: disable=invalid-name
 
-        def next_task_id(self) -> int:
-            while len(self.done) != len(tasks):
-                x = random.randint(0, len(tasks) - 1)
-                task = tasks[x]
-                if not task.is_stopped:
-                    """Calling base func via following route:
-                    Python side:
-                        PyTaskScheduler does not have `_is_task_running`
-                        Call TaskScheduler's `is_task_running`, which calls ffi
-                    C++ side:
-                        The ffi calls TaskScheduler's `is_task_running`
-                        But it is overridden in PyTaskScheduler
-                        PyTaskScheduler checks if the function is overridden in python
-                        If not, it returns the TaskScheduler's vtable, calling
-                            TaskScheduler::IsTaskRunning
-                    """
-                    if self.is_task_running(x):
-                        # Same Here
-                        self.join_running_task(x)
-                    return x
-                else:
-                    self.done.add(x)
-            return -1
+    database = DummyDatabase()
+    scheduler = MyTaskScheduler(
+        [],
+        DummyBuilder(),
+        DummyRunner(),
+        database,
+        measure_callbacks=[
+            measure_callback.AddToDatabase(),
+        ],
+    )
+    test = weakref.ref(scheduler)  # test if it can be destructed successfully
+    del scheduler
+    assert test() is None
+
+
+def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: disable=invalid-name
 
     num_trials_per_iter = 6
     num_trials_total = 101
