@@ -414,6 +414,12 @@ def conv2d_grad(orig, grad):
     assert attrs.kernel_layout == "OIHW", "only support OIHW kernel layout"
     assert attrs.out_layout in ["", "NCHW"], "only support NCHW output layout"
 
+    if attrs.out_dtype in ["", None]:
+        assert data.checked_type, "Call InferType first."
+        out_dtype = data.checked_type.dtype
+    else:
+        out_dtype = attrs.out_dtype
+
     backward_data = _nn.conv2d_transpose(
         grad,
         weight,
@@ -422,6 +428,7 @@ def conv2d_grad(orig, grad):
         dilation=attrs.dilation,
         groups=attrs.groups,
         output_padding=output_padding,
+        out_dtype=out_dtype,
     )
 
     backward_weight = _nn.conv2d_backward_weight(
@@ -436,7 +443,7 @@ def conv2d_grad(orig, grad):
         grad_layout=attrs.out_layout if attrs.out_layout else attrs.data_layout,
         data_layout=attrs.data_layout,
         kernel_layout=attrs.kernel_layout,
-        out_dtype=attrs.out_dtype,
+        out_dtype=out_dtype,
     )
 
     return [backward_data, backward_weight]
