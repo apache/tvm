@@ -36,10 +36,6 @@
 #include "hexagon_buffer.h"
 #include "hexagon_common.h"
 
-#if defined(__hexagon__)
-#include "HAP_compute_res.h"
-#endif
-
 namespace tvm {
 namespace runtime {
 namespace hexagon {
@@ -158,11 +154,11 @@ void HexagonDeviceAPIv2::CopyDataFromTo(const void* from, size_t from_offset, vo
 TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
   HEXAGON_PRINT(ALWAYS, "STRAW: Made it to mem_copy");
   void* dst = args[0];
-  HEXAGON_PRINT(ALWAYS, "STRAW: dst = %p", dst);
+  HEXAGON_PRINT(ALWAYS, "STRAW:   dst = %p", dst);
   void* src = args[1];
-  HEXAGON_PRINT(ALWAYS, "STRAW: src = %p", src);
+  HEXAGON_PRINT(ALWAYS, "STRAW:   src = %p", src);
   int size = args[2];
-  HEXAGON_PRINT(ALWAYS, "STRAW: size = %d", size);
+  HEXAGON_PRINT(ALWAYS, "STRAW:   size = %d", size);
 
   hexagon_user_dma_1d_sync(dst, src, size);
 
@@ -172,22 +168,21 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVM
 TVM_REGISTER_GLOBAL("device_api.hexagon.AllocTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
   HEXAGON_PRINT(ALWAYS, "STRAW: Made it to AllocTexture");
   int nbytes = args[0];
-  HEXAGON_PRINT(ALWAYS, "STRAW: nbytes = %d", nbytes);
+  HEXAGON_PRINT(ALWAYS, "STRAW:   nbytes = %d", nbytes);
   auto data_ = malloc(nbytes);
-  HEXAGON_PRINT(ALWAYS, "STRAW: data_ = %p", data_);
+  HEXAGON_PRINT(ALWAYS, "STRAW:   data_ = %p", data_);
   *rv = data_;
 });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.FreeTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
   HEXAGON_PRINT(ALWAYS, "STRAW: Made it to FreeTexture");
   void* data_ = args[0];
-  HEXAGON_PRINT(ALWAYS, "STRAW: data_ = %p", data_);
+  HEXAGON_PRINT(ALWAYS, "STRAW:   data_ = %p", data_);
   free(data_);
   *rv = static_cast<int32_t>(0);
 });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.v2").set_body([](TVMArgs args, TVMRetValue* rv) {
-  HEXAGON_PRINT(ALWAYS, "STRAW: Getting Device API");
   DeviceAPI* ptr = HexagonDeviceAPIv2::Global();
   *rv = static_cast<void*>(ptr);
 });

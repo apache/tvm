@@ -30,8 +30,6 @@
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/transform.h>
 
-#include <unordered_map>
-
 #include "../../arith/ir_visitor_with_analyzer.h"
 #include "../../runtime/texture.h"
 #include "../../runtime/thread_storage_scope.h"
