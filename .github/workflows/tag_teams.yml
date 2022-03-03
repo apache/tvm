@@ -34,6 +34,7 @@ concurrency:
 
 jobs:
   tag-teams:
+    if: github.repository == 'apache/tvm'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
