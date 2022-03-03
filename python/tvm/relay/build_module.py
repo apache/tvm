@@ -459,51 +459,43 @@ def build(
     if deprecated_runtime:
         runtime = deprecated_runtime
 
-    # If current dispatch context is fallback context (the default root context),
-    # then load pre-tuned parameters from TopHub
-    if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
-        tophub_context = autotvm.tophub.context(list(target.values()))
-    else:
-        tophub_context = autotvm.utils.EmptyContext()
+    bld_mod = BuildModule()
+    graph_json, runtime_mod, params = bld_mod.build(
+        mod=ir_mod,
+        target=target,
+        params=params,
+        executor=executor,
+        runtime=runtime,
+        workspace_memory_pools=workspace_memory_pools,
+        mod_name=mod_name,
+    )
+    func_metadata = bld_mod.get_function_metadata()
+    devices = bld_mod.get_devices()
+    lowered_ir_mods = bld_mod.get_irmodule()
+    executor_codegen_metadata = bld_mod.get_executor_codegen_metadata()
 
-    with tophub_context:
-        bld_mod = BuildModule()
-        graph_json, runtime_mod, params = bld_mod.build(
-            mod=ir_mod,
-            target=target,
-            params=params,
-            executor=executor,
-            runtime=runtime,
-            workspace_memory_pools=workspace_memory_pools,
-            mod_name=mod_name,
+    if str(executor) == "aot":
+        executor_factory = _executor_factory.AOTExecutorFactoryModule(
+            ir_mod,
+            lowered_ir_mods,
+            target,
+            executor,
+            runtime,
+            runtime_mod,
+            mod_name,
+            params,
+            func_metadata,
+            executor_codegen_metadata,
+            devices,
         )
-        func_metadata = bld_mod.get_function_metadata()
-        devices = bld_mod.get_devices()
-        lowered_ir_mods = bld_mod.get_irmodule()
-        executor_codegen_metadata = bld_mod.get_executor_codegen_metadata()
+    elif str(executor) == "graph":
+        executor_factory = _executor_factory.GraphExecutorFactoryModule(
+            ir_mod, target, executor, graph_json, runtime_mod, mod_name, params, func_metadata
+        )
+    else:
+        assert False, "Executor " + executor + " not supported"
 
-        if str(executor) == "aot":
-            executor_factory = _executor_factory.AOTExecutorFactoryModule(
-                ir_mod,
-                lowered_ir_mods,
-                target,
-                executor,
-                runtime,
-                runtime_mod,
-                mod_name,
-                params,
-                func_metadata,
-                executor_codegen_metadata,
-                devices,
-            )
-        elif str(executor) == "graph":
-            executor_factory = _executor_factory.GraphExecutorFactoryModule(
-                ir_mod, target, executor, graph_json, runtime_mod, mod_name, params, func_metadata
-            )
-        else:
-            assert False, "Executor " + executor + " not supported"
-
-        return executor_factory
+    return executor_factory
 
 
 def optimize(mod, target=None, params=None):

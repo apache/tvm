@@ -27,7 +27,6 @@ import numpy as np
 import tvm
 import tvm.runtime.ndarray as _nd
 import tvm.runtime.vm as vm_rt
-from tvm import autotvm
 from tvm.relay import expr as _expr
 from tvm.relay.backend.interpreter import Executor
 from tvm.target import Target
@@ -150,9 +149,7 @@ class VMCompiler(object):
             target, target_host, target_is_dict_key=False
         )
 
-        tophub_context = self._tophub_context(target)
-        with tophub_context:
-            self._lower(mod, target, target_host)
+        self._lower(mod, target, target_host)
 
     def codegen(self):
         """Generate the kernel library."""
@@ -253,16 +250,6 @@ class VMCompiler(object):
         if isinstance(target_host, str):
             target_host = tvm.target.Target(target_host)
         return target_host
-
-    def _tophub_context(self, target):
-        """Get the autotvm context."""
-        # If current dispatch context is fallback context (the default root context),
-        # then load pre-tuned parameters from TopHub
-        if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
-            tophub_context = autotvm.tophub.context(list(target.values()))
-        else:
-            tophub_context = autotvm.utils.EmptyContext()
-        return tophub_context
 
 
 class VMExecutor(Executor):
