@@ -25,7 +25,6 @@ test cases.
 """
 from typing import List
 
-import sys
 import os
 import struct
 import numpy
@@ -252,24 +251,13 @@ def verify_source(
     """
     interface_api = "c"
     test_runner = create_test_runner(accel, enable_usmp)
-
-    def run_mod():
-        run_and_check(
-            models,
-            test_runner,
-            interface_api,
-            workspace_byte_alignment=16,
-            data_linkage=AOTDataLinkage(section="ethosu_scratch", alignment=16),
-        )
-
-    # TODO(lhutton1) This is a quick and dirty work around to help temporarily reduce
-    # the flakyness of the tests. Will remove once #10300 is resolved.
-    try:
-        run_mod()
-    except RuntimeError as err:
-        print("Failed to run the module, having a second attempt...", file=sys.stderr)
-        print(err, file=sys.stderr)
-        run_mod()
+    run_and_check(
+        models,
+        test_runner,
+        interface_api,
+        workspace_byte_alignment=16,
+        data_linkage=AOTDataLinkage(section="ethosu_scratch", alignment=16),
+    )
 
 
 def flatten_numpy_data(data):
