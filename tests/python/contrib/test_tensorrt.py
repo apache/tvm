@@ -52,8 +52,7 @@ has_tensorrt_runtime = pytest.mark.skipif(
 )
 
 run_module = tvm.testing.parameter(
-    pytest.param(False, marks=[has_tensorrt_codegen,
-                 *tvm.testing.requires_cuda()]),
+    pytest.param(False, marks=[has_tensorrt_codegen, *tvm.testing.requires_cuda()]),
     pytest.param(
         True, marks=[has_tensorrt_runtime, has_tensorrt_codegen, *tvm.testing.requires_cuda()]
     ),
@@ -181,8 +180,7 @@ def run_and_verify_model(model, run_module):
     input_shape = (1, 3, 224, 224)
     i_data = np.random.uniform(-1, 1, input_shape).astype(dtype)
     block = get_model(model, pretrained=True)
-    mod, params = relay.frontend.from_mxnet(
-        block, shape={"data": input_shape}, dtype=dtype)
+    mod, params = relay.frontend.from_mxnet(block, shape={"data": input_shape}, dtype=dtype)
 
     result_dict = dict()
     for mode in ["vm", "graph"]:
@@ -287,8 +285,7 @@ def test_tensorrt_serialize_graph_executor(run_module):
     data_type = "float32"
     i_data = np.random.uniform(0, 1, data_shape).astype(data_type)
     block = get_model("resnet18_v1", pretrained=True)
-    mod, params = relay.frontend.from_mxnet(
-        block, shape={"data": data_shape}, dtype=data_type)
+    mod, params = relay.frontend.from_mxnet(block, shape={"data": data_shape}, dtype=data_type)
     mod, config = tensorrt.partition_for_tensorrt(mod)
     tmpdir = utils.tempdir()
 
@@ -330,8 +327,7 @@ def test_tensorrt_serialize_graph_executor(run_module):
     if run_module:
         result_dict = dict()
         result_dict["graph"] = run_graph(graph, lib, graph_params)
-        result_dict["graph_ref"] = run_graph(
-            loaded_graph, loaded_lib, loaded_params)
+        result_dict["graph_ref"] = run_graph(loaded_graph, loaded_lib, loaded_params)
         assert_result_dict_holds(result_dict)
 
 
@@ -343,8 +339,7 @@ def test_tensorrt_serialize_vm(run_module):
     data_type = "float32"
     i_data = np.random.uniform(0, 1, data_shape).astype(data_type)
     block = get_model("resnet18_v1", pretrained=True)
-    mod, params = relay.frontend.from_mxnet(
-        block, shape={"data": data_shape}, dtype=data_type)
+    mod, params = relay.frontend.from_mxnet(block, shape={"data": data_shape}, dtype=data_type)
     mod, config = tensorrt.partition_for_tensorrt(mod)
     tmpdir = utils.tempdir()
 
@@ -425,7 +420,7 @@ def test_conv2d(run_module):
         strides=(1, 1),
         dilation=(1, 1),
         channels=None,
-        data_type="float16"
+        data_type="float16",
     ):
         x = relay.var("x", shape=(x_shape), dtype=data_type)
         kernel = relay.var("kernel", shape=(k_shape), dtype=data_type)
@@ -438,7 +433,7 @@ def test_conv2d(run_module):
             strides=strides,
             dilation=dilation,
             channels=channels,
-            out_dtype=data_type
+            out_dtype=data_type,
         )
         f = relay.Function([x, kernel], out)
         return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
@@ -459,12 +454,18 @@ def test_conv2d(run_module):
                         data_type="float16",
                     )
     run_and_verify_func(
-        get_graph((1, 3, 16, 16), (3, 8, 7, 7), 3, [
-                  2, 2, 3, 3], [2, 2], [1, 1], 24, data_type="float16"),
-        run_module=run_module, data_type="float16")
+        get_graph(
+            (1, 3, 16, 16), (3, 8, 7, 7), 3, [2, 2, 3, 3], [2, 2], [1, 1], 24, data_type="float16"
+        ),
+        run_module=run_module,
+        data_type="float16",
+    )
 
     run_and_verify_func(
-        get_graph((1, 3, 16, 16), (1, 3, 1, 1), channels=1, data_type="float32"), run_module=run_module, data_type="float32")
+        get_graph((1, 3, 16, 16), (1, 3, 1, 1), channels=1, data_type="float32"),
+        run_module=run_module,
+        data_type="float32",
+    )
 
 
 def test_conv2d_nhwc(run_module):
@@ -511,8 +512,7 @@ def test_conv2d_weights_const(run_module):
         return f, {"x": x_shape}, []
 
     for tp in ["float16"]:
-        run_and_verify_func(get_graph(data_type=tp),
-                            run_module=run_module, data_type=tp)
+        run_and_verify_func(get_graph(data_type=tp), run_module=run_module, data_type=tp)
 
 
 def test_conv2d_weights_transposed(run_module):
@@ -522,8 +522,7 @@ def test_conv2d_weights_transposed(run_module):
         kernel_t = relay.transpose(kernel, order)
         # Conv2d requires constant weights in TensorRT, so the weights should be transposed by
         # FoldConstant.
-        out = relay.nn.conv2d(
-            x, kernel_t, channels=k_shape[order[0]], kernel_size=(3, 3))
+        out = relay.nn.conv2d(x, kernel_t, channels=k_shape[order[0]], kernel_size=(3, 3))
         f = relay.Function([x, kernel], out)
         return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
 
@@ -535,45 +534,37 @@ def test_dense(run_module):
         x = relay.var("x", shape=(x_shape), dtype=dtp)
         kernel = relay.var("kernel", shape=(k_shape), dtype=dtp)
         # Dense requires constant weights in TensorRT, so the weights are transposed by us.
-        out = relay.nn.dense(
-            x, kernel, units=k_shape[0])
+        out = relay.nn.dense(x, kernel, units=k_shape[0])
         f = relay.Function([x, kernel], out)
         return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
 
     for tp in ["float32"]:
-        run_and_verify_func(get_graph(dtp=tp),
-                            run_module=run_module, data_type=tp)
-        run_and_verify_func(get_graph(k_shape=(1, 16), dtp=tp),
-                            run_module=run_module, data_type=tp)
+        run_and_verify_func(get_graph(dtp=tp), run_module=run_module, data_type=tp)
+        run_and_verify_func(get_graph(k_shape=(1, 16), dtp=tp), run_module=run_module, data_type=tp)
 
 
 def test_batch_matmul(run_module):
     def get_graph(x_shape=(12, 128, 64), y_shape=(12, 128, 64), transa=False, transb=True):
         x = relay.var("x", shape=(x_shape), dtype="float32")
         y = relay.var("y", shape=(y_shape), dtype="float32")
-        out = relay.nn.batch_matmul(
-            x, y, transpose_a=transa, transpose_b=transb)
+        out = relay.nn.batch_matmul(x, y, transpose_a=transa, transpose_b=transb)
         f = relay.Function([x, y], out)
         return f, {"x": x_shape, "y": y_shape}, []
 
     run_and_verify_func(
-        get_graph(x_shape=(12, 64, 128), y_shape=(
-            12, 128, 64), transa=True, transb=True),
+        get_graph(x_shape=(12, 64, 128), y_shape=(12, 128, 64), transa=True, transb=True),
         run_module=run_module,
     )
     run_and_verify_func(
-        get_graph(x_shape=(12, 64, 128), y_shape=(
-            12, 64, 128), transa=True, transb=False),
+        get_graph(x_shape=(12, 64, 128), y_shape=(12, 64, 128), transa=True, transb=False),
         run_module=run_module,
     )
     run_and_verify_func(
-        get_graph(x_shape=(12, 128, 64), y_shape=(
-            12, 128, 64), transa=False, transb=True),
+        get_graph(x_shape=(12, 128, 64), y_shape=(12, 128, 64), transa=False, transb=True),
         run_module=run_module,
     )
     run_and_verify_func(
-        get_graph(x_shape=(12, 128, 64), y_shape=(
-            12, 64, 128), transa=False, transb=False),
+        get_graph(x_shape=(12, 128, 64), y_shape=(12, 64, 128), transa=False, transb=False),
         run_module=run_module,
     )
 
@@ -662,10 +653,8 @@ def test_global_pool2d(run_module):
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 
-    run_and_verify_func(
-        get_graph(relay.nn.global_max_pool2d), run_module=run_module)
-    run_and_verify_func(
-        get_graph(relay.nn.global_avg_pool2d), run_module=run_module)
+    run_and_verify_func(get_graph(relay.nn.global_max_pool2d), run_module=run_module)
+    run_and_verify_func(get_graph(relay.nn.global_avg_pool2d), run_module=run_module)
 
 
 def test_batch_flatten(run_module):
@@ -676,8 +665,7 @@ def test_batch_flatten(run_module):
         return f, {"x": x_shape}, []
 
     for dtp in ["float16", "float32"]:
-        run_and_verify_func(get_graph(data_type=dtp),
-                            run_module=run_module, data_type=dtp)
+        run_and_verify_func(get_graph(data_type=dtp), run_module=run_module, data_type=dtp)
 
 
 def test_expand_dims(run_module):
@@ -712,31 +700,25 @@ def test_concatenate(run_module):
         shapes_dict = {}
         for i in range(len(input_shapes)):
             name = "input_{}".format(i)
-            concat_inputs.append(
-                relay.var(name, shape=(input_shapes[i]), dtype="float32"))
+            concat_inputs.append(relay.var(name, shape=(input_shapes[i]), dtype="float32"))
             shapes_dict[name] = input_shapes[i]
         out = relay.concatenate(concat_inputs, axis)
         f = relay.Function(concat_inputs, out)
         return f, shapes_dict, []
 
-    run_and_verify_func(
-        get_graph([(1, 2, 6, 6), (1, 3, 6, 6)], axis=1), run_module=run_module)
+    run_and_verify_func(get_graph([(1, 2, 6, 6), (1, 3, 6, 6)], axis=1), run_module=run_module)
 
 
 def test_split(run_module):
     def get_graph(x_shape, indices_or_sections, axis):
         x = relay.var("x", shape=(x_shape), dtype="float32")
-        out = relay.split(
-            x, indices_or_sections=indices_or_sections, axis=axis)
+        out = relay.split(x, indices_or_sections=indices_or_sections, axis=axis)
         f = relay.Function([x], out.astuple())
         return f, {"x": x_shape}, []
 
-    run_and_verify_func(
-        get_graph((1, 16), indices_or_sections=2, axis=1), run_module=run_module)
-    run_and_verify_func(
-        get_graph((1, 16), indices_or_sections=4, axis=1), run_module=run_module)
-    run_and_verify_func(get_graph((1, 16), indices_or_sections=[
-                        8], axis=1), run_module=run_module)
+    run_and_verify_func(get_graph((1, 16), indices_or_sections=2, axis=1), run_module=run_module)
+    run_and_verify_func(get_graph((1, 16), indices_or_sections=4, axis=1), run_module=run_module)
+    run_and_verify_func(get_graph((1, 16), indices_or_sections=[8], axis=1), run_module=run_module)
     run_and_verify_func(
         get_graph((1, 16), indices_or_sections=[2, 3, 6, 10, 14], axis=1), run_module=run_module
     )
@@ -766,8 +748,7 @@ def test_conv2d_transpose(run_module):
 
     for padding in [(0, 0), (1, 1)]:
         for strides in [(1, 1), (2, 2)]:
-            run_and_verify_func(
-                get_graph(padding=padding, strides=strides), run_module=run_module)
+            run_and_verify_func(get_graph(padding=padding, strides=strides), run_module=run_module)
 
 
 def test_reshape(run_module):
@@ -777,10 +758,8 @@ def test_reshape(run_module):
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 
-    run_and_verify_func(get_graph((1, 1, 1, 10), (-1, 10)),
-                        run_module=run_module)
-    run_and_verify_func(get_graph((1, 10, 2, 3), (1, -1)),
-                        run_module=run_module)
+    run_and_verify_func(get_graph((1, 1, 1, 10), (-1, 10)), run_module=run_module)
+    run_and_verify_func(get_graph((1, 10, 2, 3), (1, -1)), run_module=run_module)
     run_and_verify_func(get_graph((1, 1, 2, 3), (1, 6)), run_module=run_module)
 
 
@@ -819,8 +798,7 @@ def are_ops_on_trt(mod, op_list):
         elif mod[name].attrs and mod[name].attrs["Compiler"] == "tensorrt":
             op_on_trt = AreOpsOnGraph(op_list).are_ops_on_graph(mod[name].body)
         else:
-            op_on_tvm &= AreOpsOnGraph(
-                op_list).are_ops_on_graph(mod[name].body)
+            op_on_tvm &= AreOpsOnGraph(op_list).are_ops_on_graph(mod[name].body)
 
         if not op_on_trt or op_on_tvm:
             return False
@@ -844,8 +822,7 @@ def test_dynamic_reshape(run_module):
                 mod, _ = tensorrt.partition_for_tensorrt(
                     mod, params={}, remove_no_mac_subgraphs=False
                 )
-                assert are_ops_on_trt(
-                    mod, op_list=["reshape"]) == should_offload_to_trt
+                assert are_ops_on_trt(mod, op_list=["reshape"]) == should_offload_to_trt
             if run_module:
                 with relay.build_config(opt_level=3):
                     func = relay.create_executor(
@@ -880,8 +857,7 @@ def test_dynamic_reshape(run_module):
     dim_values = [1, 1, 0, 2, 3, 0, 1, 3, 2]
     x_shape = (1, relay.Any(), 2, 3)
     x_data_list = [
-        np.ones(list(x_shape[:1]) + [dim_value] +
-                list(x_shape)[2:]).astype("float32")
+        np.ones(list(x_shape[:1]) + [dim_value] + list(x_shape)[2:]).astype("float32")
         for dim_value in dim_values
     ]
     new_shape = (1, -1, 2, 3)
@@ -896,10 +872,8 @@ def test_transpose(run_module):
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 
-    run_and_verify_func(
-        get_graph((1, 16, 7, 7), [0, 2, 3, 1]), run_module=run_module)
-    run_and_verify_func(
-        get_graph((1, 7, 7, 16), [0, 3, 1, 2]), run_module=run_module)
+    run_and_verify_func(get_graph((1, 16, 7, 7), [0, 2, 3, 1]), run_module=run_module)
+    run_and_verify_func(get_graph((1, 7, 7, 16), [0, 3, 1, 2]), run_module=run_module)
 
 
 def test_float_const(run_module):
@@ -910,8 +884,7 @@ def test_float_const(run_module):
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 
-    run_and_verify_func(get_graph(), run_module=run_module,
-                        data_type="float32")
+    run_and_verify_func(get_graph(), run_module=run_module, data_type="float32")
 
 
 def test_float_const16(run_module):
@@ -955,8 +928,7 @@ def test_add(run_module):
         f = relay.Function([x, y], out)
         return f, {"x": x_shape, "y": x_shape}, []
 
-    run_and_verify_func(get_graph((1, 1000)),
-                        run_module=run_module, data_type="float16")
+    run_and_verify_func(get_graph((1, 1000)), run_module=run_module, data_type="float16")
 
 
 def test_softmax(run_module):
@@ -966,14 +938,26 @@ def test_softmax(run_module):
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 
-    run_and_verify_func(get_graph((1, 1000), axis=1, data_type="float32"),
-                        run_module=run_module, data_type="float32")
-    run_and_verify_func(get_graph((1, 1000), axis=-1, data_type="float32"),
-                        run_module=run_module, data_type="float32")
-    run_and_verify_func(get_graph((1, 3, 4), axis=-2, data_type="float16"),
-                        run_module=run_module, data_type="float16")
-    run_and_verify_func(get_graph((1, 3, 4), axis=1, data_type="float16"),
-                        run_module=run_module, data_type="float16")
+    run_and_verify_func(
+        get_graph((1, 1000), axis=1, data_type="float32"),
+        run_module=run_module,
+        data_type="float32",
+    )
+    run_and_verify_func(
+        get_graph((1, 1000), axis=-1, data_type="float32"),
+        run_module=run_module,
+        data_type="float32",
+    )
+    run_and_verify_func(
+        get_graph((1, 3, 4), axis=-2, data_type="float16"),
+        run_module=run_module,
+        data_type="float16",
+    )
+    run_and_verify_func(
+        get_graph((1, 3, 4), axis=1, data_type="float16"),
+        run_module=run_module,
+        data_type="float16",
+    )
 
 
 def test_batch_norm(run_module):
@@ -981,10 +965,8 @@ def test_batch_norm(run_module):
         x = relay.var("x", shape=(x_shape), dtype="float32")
         beta = relay.var("beta", shape=(param_shape), dtype="float32")
         gamma = relay.var("gamma", shape=(param_shape), dtype="float32")
-        moving_mean = relay.var(
-            "moving_mean", shape=(param_shape), dtype="float32")
-        moving_var = relay.var("moving_var", shape=(
-            param_shape), dtype="float32")
+        moving_mean = relay.var("moving_mean", shape=(param_shape), dtype="float32")
+        moving_var = relay.var("moving_var", shape=(param_shape), dtype="float32")
         out, _, _ = relay.nn.batch_norm(
             x,
             gamma=gamma,
@@ -1009,22 +991,16 @@ def test_batch_norm(run_module):
             ["beta", "gamma", "moving_mean", "moving_var"],
         )
 
-    run_and_verify_func(get_graph((1, 64, 56, 56), (64,)),
-                        run_module=run_module)
+    run_and_verify_func(get_graph((1, 64, 56, 56), (64,)), run_module=run_module)
     run_and_verify_func(
         get_graph((1, 56, 56, 64), (64,), axis=3, epsilon=1.001e-05), run_module=run_module
     )
-    run_and_verify_func(get_graph((1, 4, 8, 4), (8,),
-                        axis=2), run_module=run_module)
-    run_and_verify_func(get_graph((1, 8, 4, 4, 4), (8,),
-                        axis=1), run_module=run_module)
-    run_and_verify_func(get_graph((1, 4, 8, 4, 4), (8,),
-                        axis=2), run_module=run_module)
-    run_and_verify_func(get_graph((1, 4, 4, 4, 8), (8,),
-                        axis=4), run_module=run_module)
+    run_and_verify_func(get_graph((1, 4, 8, 4), (8,), axis=2), run_module=run_module)
+    run_and_verify_func(get_graph((1, 8, 4, 4, 4), (8,), axis=1), run_module=run_module)
+    run_and_verify_func(get_graph((1, 4, 8, 4, 4), (8,), axis=2), run_module=run_module)
+    run_and_verify_func(get_graph((1, 4, 4, 4, 8), (8,), axis=4), run_module=run_module)
     run_and_verify_func(get_graph((1, 8), (8,), axis=1), run_module=run_module)
-    run_and_verify_func(get_graph((1, 3, 8), (8,), axis=2),
-                        run_module=run_module)
+    run_and_verify_func(get_graph((1, 3, 8), (8,), axis=2), run_module=run_module)
 
 
 def test_layer_norm(run_module):
@@ -1092,8 +1068,7 @@ def test_clip(run_module):
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 
-    run_and_verify_func(get_graph(), run_module=run_module,
-                        data_type="float16")
+    run_and_verify_func(get_graph(), run_module=run_module, data_type="float16")
 
 
 def test_relu(run_module):
@@ -1103,8 +1078,7 @@ def test_relu(run_module):
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 
-    run_and_verify_func(get_graph(), run_module=run_module,
-                        data_type="float16")
+    run_and_verify_func(get_graph(), run_module=run_module, data_type="float16")
 
 
 def test_leaky_relu(run_module):
@@ -1114,8 +1088,7 @@ def test_leaky_relu(run_module):
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 
-    run_and_verify_func(get_graph(), run_module=run_module,
-                        data_type="float16")
+    run_and_verify_func(get_graph(), run_module=run_module, data_type="float16")
 
 
 def test_binary(run_module):
@@ -1135,14 +1108,12 @@ def test_binary(run_module):
         for d_type in SUPPORTED_DTYPES:
             for y_is_const in [True, False]:
                 run_and_verify_func(
-                    get_graph(op, (1, 8, 3, 3), (1, 8, 3, 3),
-                              y_is_const, d_type),
+                    get_graph(op, (1, 8, 3, 3), (1, 8, 3, 3), y_is_const, d_type),
                     run_module=run_module,
                     data_type=d_type,
                 )
                 run_and_verify_func(
-                    get_graph(op, (1, 8, 1, 3), (1, 8, 3, 1),
-                              y_is_const, d_type),
+                    get_graph(op, (1, 8, 1, 3), (1, 8, 3, 1), y_is_const, d_type),
                     run_module=run_module,
                     data_type=d_type,
                 )
@@ -1189,8 +1160,7 @@ def test_reduce(run_module):
                     data_type=type,
                 )
                 run_and_verify_func(
-                    get_graph(op, axis=(1, 2, 3),
-                              keepdims=keepdims, d_type=type),
+                    get_graph(op, axis=(1, 2, 3), keepdims=keepdims, d_type=type),
                     run_module=run_module,
                     data_type=type,
                 )
@@ -1219,23 +1189,19 @@ def test_strided_slice(run_module):
 
     for slice_mode in ["size", "end"]:
         run_and_verify_func(
-            get_graph((1, 3, 6, 7), (0, 0, 0, 0),
-                      (1, 1, 6, 7), slice_mode=slice_mode),
+            get_graph((1, 3, 6, 7), (0, 0, 0, 0), (1, 1, 6, 7), slice_mode=slice_mode),
             run_module=run_module,
         )
         run_and_verify_func(
-            get_graph((1, 3, 6, 7), [0, 1, 0, 0], [
-                      1, 2, 6, 6], slice_mode=slice_mode),
+            get_graph((1, 3, 6, 7), [0, 1, 0, 0], [1, 2, 6, 6], slice_mode=slice_mode),
             run_module=run_module,
         )
         run_and_verify_func(
-            get_graph((2, 3, 6, 7), [0, 0, 0, 0],
-                      [-1, -1, -1, -1], slice_mode=slice_mode),
+            get_graph((2, 3, 6, 7), [0, 0, 0, 0], [-1, -1, -1, -1], slice_mode=slice_mode),
             run_module=run_module,
         )
         run_and_verify_func(
-            get_graph((2, 3, 6, 7), [0, 1, 0, 0],
-                      [-1, -1, -1, -1], slice_mode=slice_mode),
+            get_graph((2, 3, 6, 7), [0, 1, 0, 0], [-1, -1, -1, -1], slice_mode=slice_mode),
             run_module=run_module,
         )
         run_and_verify_func(
@@ -1274,8 +1240,7 @@ def test_multiple_outputs(run_module):
         return f, {"x": (1, 3), "y": (1, 3)}, []
 
     for type in SUPPORTED_DTYPES:
-        run_and_verify_func(get_graph(d_type=type),
-                            run_module=run_module, data_type=type)
+        run_and_verify_func(get_graph(d_type=type), run_module=run_module, data_type=type)
 
 
 def test_conv3d(run_module):
@@ -1303,8 +1268,7 @@ def test_conv3d(run_module):
         return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
 
     run_and_verify_func(get_graph(), run_module=run_module)
-    run_and_verify_func(
-        get_graph(padding=(0, 0, 0, 1, 1, 1)), run_module=run_module)
+    run_and_verify_func(get_graph(padding=(0, 0, 0, 1, 1, 1)), run_module=run_module)
 
 
 def test_pool3d(run_module):
@@ -1343,8 +1307,7 @@ def test_pool3d(run_module):
     run_and_verify_func(
         get_graph(relay.nn.max_pool3d, padding=(0, 0, 0, 1, 1, 1)), run_module=run_module
     )
-    run_and_verify_func(get_graph(relay.nn.max_pool3d,
-                        strides=(1, 1, 1)), run_module=run_module)
+    run_and_verify_func(get_graph(relay.nn.max_pool3d, strides=(1, 1, 1)), run_module=run_module)
 
 
 def test_conv3d_transpose(run_module):
@@ -1450,8 +1413,7 @@ def test_dynamic_offload():
     data_shape = (1, 32, 8, 8)
     k_shape = (1, 32, 3, 3)
 
-    x = relay.var("x", shape=(
-        data_shape[0], data_shape[1], Any(), Any()), dtype="float32")
+    x = relay.var("x", shape=(data_shape[0], data_shape[1], Any(), Any()), dtype="float32")
     y = relay.var("y", shape=(data_shape), dtype="float32")
     kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
 
@@ -1459,10 +1421,8 @@ def test_dynamic_offload():
         # Create a nested TRT function that matches the expected output
         mod = tvm.IRModule()
         var1 = relay.var("tensorrt_0_i0", shape=(data_shape), dtype="float32")
-        kernel_trt = relay.var(
-            "tensorrt_0_i1", shape=(k_shape), dtype="float32")
-        out1 = relay.nn.conv2d(
-            var1, kernel_trt, channels=k_shape[0], kernel_size=k_shape[2:4])
+        kernel_trt = relay.var("tensorrt_0_i1", shape=(k_shape), dtype="float32")
+        out1 = relay.nn.conv2d(var1, kernel_trt, channels=k_shape[0], kernel_size=k_shape[2:4])
         f1 = GlobalVar("tvmgen_default_tensorrt_0")
         func = relay.Function([var1, kernel_trt], out1)
         func = set_func_attr(func, "tensorrt", "tvmgen_default_tensorrt_0")
@@ -1470,8 +1430,7 @@ def test_dynamic_offload():
         mod = relay.transform.InferType()(mod)
 
         # Create the main function
-        out1 = relay.nn.conv2d(
-            x, kernel, channels=k_shape[0], kernel_size=k_shape[2:4])
+        out1 = relay.nn.conv2d(x, kernel, channels=k_shape[0], kernel_size=k_shape[2:4])
         out = relay.add(out1, f1(y, kernel))
         f = relay.Function([x, y, kernel], out)
         mod["main"] = f
@@ -1479,10 +1438,8 @@ def test_dynamic_offload():
         return mod
 
     # Create relay function that will be offloaded to TRT
-    out1 = relay.nn.conv2d(
-        x, kernel, channels=k_shape[0], kernel_size=k_shape[2:4])
-    out2 = relay.nn.conv2d(
-        y, kernel, channels=k_shape[0], kernel_size=k_shape[2:4])
+    out1 = relay.nn.conv2d(x, kernel, channels=k_shape[0], kernel_size=k_shape[2:4])
+    out2 = relay.nn.conv2d(y, kernel, channels=k_shape[0], kernel_size=k_shape[2:4])
     out = relay.add(out1, out2)
     f = relay.Function([x, y, kernel], out)
 
@@ -1500,8 +1457,7 @@ def test_dynamic_offload():
 def test_tensorrt_dynamic_batch(run_module):
     batches_to_test = [1, 1, 0, 2, 3, 0, 1, 3, 2]
     x_shape = (relay.Any(), 1, 8, 8)
-    x_data = np.ones([max(batches_to_test)] +
-                     list(x_shape)[1:]).astype("float32")
+    x_data = np.ones([max(batches_to_test)] + list(x_shape)[1:]).astype("float32")
     result_arr = [{} for _ in range(len(batches_to_test))]
     for use_trt in [True, False]:
         x = relay.var("x", shape=x_shape, dtype="float32")
@@ -1528,18 +1484,15 @@ def test_tensorrt_dynamic_batch(run_module):
 def test_tensorrt_dynamic_batch_conv(run_module):
     batches_to_test = [1, 5, 1, 0, 2, 3, 0, 1, 3, 2]
     x_shape = (relay.Any(), 32, 8, 8)
-    x_data = np.ones([max(batches_to_test)] +
-                     list(x_shape)[1:]).astype("float32")
+    x_data = np.ones([max(batches_to_test)] + list(x_shape)[1:]).astype("float32")
     k_shape = (16, 32, 3, 3)
     params = {"kernel": np.random.uniform(-1, 1, k_shape).astype("float32")}
     for use_implicit_batch in [True, False]:
-        result_arr = [{"cuda": {}, "llvm": {}}
-                      for _ in range(len(batches_to_test))]
+        result_arr = [{"cuda": {}, "llvm": {}} for _ in range(len(batches_to_test))]
         for use_trt in [True, False]:
             x = relay.var("x", shape=x_shape, dtype="float32")
             kernel = relay.var("kernel", shape=k_shape, dtype="float32")
-            out = relay.nn.conv2d(x, kernel, channels=16,
-                                  kernel_size=(3, 3), groups=1)
+            out = relay.nn.conv2d(x, kernel, channels=16, kernel_size=(3, 3), groups=1)
             f = relay.Function([x, kernel], out)
             mod = tvm.IRModule()
             mod["main"] = f
@@ -1556,8 +1509,7 @@ def test_tensorrt_dynamic_batch_conv(run_module):
                             "vm", mod=mod, device=tvm.device(target), target=target
                         ).evaluate()
                     for i, batch_size in enumerate(batches_to_test):
-                        result_arr[i][target][use_trt] = func(
-                            x_data[:batch_size, ...], **params)
+                        result_arr[i][target][use_trt] = func(x_data[:batch_size, ...], **params)
         if run_module:
             for i in range(len(batches_to_test)):
                 for target in ["llvm", "cuda"]:
@@ -1583,8 +1535,7 @@ def test_maskrcnn_resnet50(run_module) -> None:
         input_name = "input0"
         shape_list = [(input_name, input_shape)]
         mod, params = relay.frontend.from_pytorch(traced_module, shape_list)
-        mod, config = tensorrt.partition_for_tensorrt(
-            mod, params, remove_no_mac_subgraphs=True)
+        mod, config = tensorrt.partition_for_tensorrt(mod, params, remove_no_mac_subgraphs=True)
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["FoldScaleAxis"]):
             vm_trt_exec = relay.vm.compile(mod, target=target, params=params)
 
@@ -1612,8 +1563,7 @@ def test_maskrcnn_resnet50(run_module) -> None:
         model_func = torchvision.models.detection.maskrcnn_resnet50_fpn
         model = TraceWrapper(model_func(pretrained=True))
         model.eval()
-        inp = torch.Tensor(np.random.uniform(
-            0.0, 250.0, size=np_sample_input.shape))
+        inp = torch.Tensor(np.random.uniform(0.0, 250.0, size=np_sample_input.shape))
 
         with torch.no_grad():
             out = model(inp)
@@ -1646,8 +1596,7 @@ def test_maskrcnn_resnet50(run_module) -> None:
     in_size = 300
     np_sample_input = get_maskrcnn_input(in_size)
     traced_module = get_traced_maskrcnn_model(np_sample_input)
-    vm_trt_exec = convert_traced_model_to_vm_trt(
-        traced_module, np_sample_input, target="llvm")
+    vm_trt_exec = convert_traced_model_to_vm_trt(traced_module, np_sample_input, target="llvm")
 
     if run_module:
         dev = tvm.cpu()
@@ -1658,14 +1607,12 @@ def test_maskrcnn_resnet50(run_module) -> None:
         # Descending sort by scores and get the high confidence indices. In this example 9 is chosen,
         # because this image has 9 boxes over 0.9 confidence
         num_high_confidence_boxes = 9
-        tvm_indices = np.argsort(-1 *
-                                 tvm_res[1].numpy())[:num_high_confidence_boxes]
+        tvm_indices = np.argsort(-1 * tvm_res[1].numpy())[:num_high_confidence_boxes]
 
         with torch.no_grad():
             out = traced_module(torch.Tensor(np_sample_input))
             # Descending sort by scores and get the high confidence indices
-            pt_indices = np.argsort(-1 *
-                                    out[1].numpy())[:num_high_confidence_boxes]
+            pt_indices = np.argsort(-1 * out[1].numpy())[:num_high_confidence_boxes]
 
         # [Box Tol, Score Tol, Label Tol, Mask Tol]
         tol = [1e-1, 5e-3, 1e-5, 4e-1]

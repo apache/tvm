@@ -87,6 +87,8 @@ def partition_for_tensorrt(
     use_implicit_batch=True,
     remove_no_mac_subgraphs=False,
     max_workspace_size=1 << 30,
+    use_fp16=False,
+    use_uint8=False,
 ):
     """Partition the graph greedily offloading supported operators to TensorRT.
 
@@ -110,6 +112,11 @@ def partition_for_tensorrt(
     max_workspace_size : Optional[int]
         How many bytes of workspace size to allow each subgraph to use for TensorRT engine creation.
         See TensorRT documentation for more info.
+    use_fp16: Optional[bool]
+        Allows, TRT to automatically convert FP32 inputs to FP16. Also, it is required to be enabled if FP16 inputs tensors and weights are used.
+        Note that TensorRT will still choose a higher-precision kernel if it results in overall lower runtime, or if no low-precision implementation exists.
+    use_uint8: Optional[bool]
+        Allows, TRT to automatically convert FP32 inputs to UINT8.
     Returns
     -------
     mod_and_config : Tuple[Module, Dict[str, Any]]
@@ -120,6 +127,8 @@ def partition_for_tensorrt(
         "use_implicit_batch": use_implicit_batch,
         "max_workspace_size": max_workspace_size,
         "remove_no_mac_subgraphs": remove_no_mac_subgraphs,
+        "use_fp16": use_fp16,
+        "use_uint8": use_uint8,
     }
     if version:
         assert isinstance(version, tuple) and len(version) == 3

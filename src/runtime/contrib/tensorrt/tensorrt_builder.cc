@@ -141,7 +141,6 @@ void TensorRTBuilder::AddLayer(int nid, const JSONGraphNode& node) {
                    << " requires weights but got a tensor.";
       }
     }
-    VLOG(1) << "INT " << input.type;
     params.inputs.push_back(input);
   }
 
