@@ -180,11 +180,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
         return_ids_.push_back(sid);
       }
       return_ttypes_.clear();
-      auto ttypes = FlattenTupleType(e->checked_type());
-      return_ttypes_.reserve(ttypes.size());
-      for (auto ttype : ttypes) {
-        return_ttypes_.push_back(ttype);
-      }
+      return_ttypes_ = FlattenTupleType(e->checked_type());
     }
   }
   /*!
