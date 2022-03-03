@@ -771,7 +771,7 @@ Expr TypeInferencer::Infer(GlobalVar var, Function function) {
     this->diag_ctx.Emit(Diagnostic::Bug(function->span)
                         << "the type checked function is malformed, please report this");
   }
-  type_map_[var].checked_type = resolved_expr->checked_type_; 
+  type_map_[var].checked_type = resolved_expr->checked_type_;
   return resolved_expr;
 }
 
