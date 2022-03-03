@@ -339,7 +339,9 @@ def structural_hash(mod: IRModule) -> str:
 
 
 def _get_default_str(obj: Any) -> str:
-    return f"meta_schedule.{obj.__class__.__name__}({_to_hex_address(obj._outer().handle)})"  # type: ignore
+    return (
+        f"meta_schedule.{obj.__class__.__name__}" + f"({_to_hex_address(obj._outer().handle)})"
+    )  # type: ignore
 
 
 def _to_hex_address(handle: ctypes.c_void_p) -> str:
