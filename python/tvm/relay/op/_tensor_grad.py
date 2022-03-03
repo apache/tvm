@@ -443,7 +443,7 @@ def conv2d_grad(orig, grad):
         grad_layout=attrs.out_layout if attrs.out_layout else attrs.data_layout,
         data_layout=attrs.data_layout,
         kernel_layout=attrs.kernel_layout,
-        out_dtype=attrs.out_dtype,
+        out_dtype=out_dtype,
     )
 
     return [backward_data, backward_weight]
