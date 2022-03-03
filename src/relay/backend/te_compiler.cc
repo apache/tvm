@@ -350,7 +350,14 @@ class TECompilerImpl : public TECompilerNode {
         GlobalVar global_var = kv.first->name_hint == value->cached_func->prim_fn_var->name_hint
                                    ? value->cached_func->prim_fn_var
                                    : kv.first;
-        value->cached_func->funcs->Add(global_var, kv.second);
+        auto func = kv.second;
+        // Propagate the structural hash of the relay function to the tir
+        // function so associations can be made between the two.
+        Optional<String> hash = key->source_func->attrs.GetAttr<String>("hash");
+        if (hash) {
+          func = WithAttrs(Downcast<tir::PrimFunc>(func), {{String("hash"), hash.value()}});
+        }
+        value->cached_func->funcs->Add(global_var, func);
       }
       ICHECK(value->cached_func->funcs->Lookup(value->cached_func->prim_fn_var)
                  .as<tir::PrimFuncNode>());
