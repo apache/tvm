@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
+# pylint: disable=misisng-function-docstring,missing-module-docstring
 import sys
 import pytest
 import tvm
