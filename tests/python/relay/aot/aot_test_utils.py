@@ -153,6 +153,20 @@ AOT_CORSTONE300_RUNNER = AOTTestRunner(
     },
 )
 
+AOT_USMP_CORSTONE300_RUNNER = AOTTestRunner(
+    makefile="corstone300",
+    prologue="""
+    uart_init();
+    """,
+    includes=["uart.h"],
+    pass_config={
+        "relay.ext.cmsisnn.options": {
+            "mcpu": "cortex-m55",
+        },
+        "tir.usmp.enable": True,
+    },
+)
+
 
 def mangle_name(mod_name, name):
     mod_name = mangle_module_name(mod_name)

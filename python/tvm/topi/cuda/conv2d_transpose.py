@@ -59,8 +59,9 @@ def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype, output_
     stride_height, stride_width = stride
     outpad_height, outpad_width = output_padding
     assert outpad_height < stride_height and outpad_width < stride_width
-    msg = f"input channels {inp_channels} must divide group size {groups}"
-    assert inp_channels % groups == 0, msg
+    assert (
+        inp_channels % groups == 0
+    ), f"input channels {inp_channels} must divide group size {groups}"
     cfg.stride = stride
     pad_top, pad_left, pad_bottom, pad_right = nn.get_pad_tuple(
         padding, (kernel_height, kernel_width)

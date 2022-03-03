@@ -98,13 +98,14 @@ def parse_virtualbox_devices():
 
 
 VIRTUALBOX_USB_DEVICE_RE = (
-    "USBAttachVendorId[0-9]+=0x([0-9a-z]{4})\n" +
-    "USBAttachProductId[0-9]+=0x([0-9a-z]{4})"
+    "USBAttachVendorId[0-9]+=0x([0-9a-z]{4})\n" + "USBAttachProductId[0-9]+=0x([0-9a-z]{4})"
 )
 
 
 def parse_virtualbox_attached_usb_devices(vm_uuid):
-    output = subprocess.check_output(["VBoxManage", "showvminfo", "--machinereadable", vm_uuid], encoding="utf-8")
+    output = subprocess.check_output(
+        ["VBoxManage", "showvminfo", "--machinereadable", vm_uuid], encoding="utf-8"
+    )
 
     r = re.compile(VIRTUALBOX_USB_DEVICE_RE)
     attached_usb_devices = r.findall(output, re.MULTILINE)

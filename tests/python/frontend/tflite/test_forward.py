@@ -3758,9 +3758,42 @@ def test_forward_prelu():
     )
     _test_prelu(
         np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"),
+        np.full((1, 3), 0.2, dtype="float32"),
+    )
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"),
         np.full((1, 1, 3), 0.2, dtype="float32"),
     )
-
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"),
+        np.full((1, 1, 1, 3), 0.2, dtype="float32"),
+    )
+    #
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"),
+        np.full((32, 3), 0.2, dtype="float32"),
+    )
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"),
+        np.full((32, 32, 3), 0.2, dtype="float32"),
+    )
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"),
+        np.full((1, 32, 1, 3), 0.2, dtype="float32"),
+    )
+    #
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(1, 1, 3)).astype("float32"),
+        np.full((3,), 0.2, dtype="float32"),
+    )
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(1, 32, 3)).astype("float32"),
+        np.full((32, 3), 0.2, dtype="float32"),
+    )
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(32, 3)).astype("float32"),
+        np.full((3), 0.2, dtype="float32"),
+    )
 
 #######################################################################
 # DepthToSpace

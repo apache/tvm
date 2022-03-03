@@ -27,6 +27,7 @@ from tvm.relay.op.contrib import cmsisnn
 from tests.python.relay.aot.aot_test_utils import (
     AOTTestModel,
     AOT_CORSTONE300_RUNNER,
+    AOT_USMP_CORSTONE300_RUNNER,
     AOT_DEFAULT_RUNNER,
     generate_ref_data,
     compile_and_run,
@@ -119,7 +120,7 @@ def test_op_int8(
 ):
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_CORSTONE300_RUNNER
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     dtype = "int8"
     kernel_zero_point = 0

@@ -66,7 +66,7 @@ def elementwise_symbolic_fused(a: T.handle, b: T.handle, n: T.int32) -> None:
     for i_j_k_fused in T.serial(0, (n * 16384)):
         with T.block("B"):
             vi = T.axis.S(128, T.floordiv(i_j_k_fused, n * 128))
-            vj = T.axis.S(128, T.floordiv(T.floormod(i_j_k_fused, n*128), n))
+            vj = T.axis.S(128, T.floordiv(T.floormod(i_j_k_fused, n * 128), n))
             vk = T.axis.S(n, T.floormod(i_j_k_fused, n))
             T.reads([A[vi, vj, vk]])
             T.writes([B[vi, vj, vk]])
