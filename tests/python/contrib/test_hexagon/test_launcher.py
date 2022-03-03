@@ -53,9 +53,9 @@ def test_add(android_serial_number, tvm_tracker_host, tvm_tracker_port):
         pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
     rpc_info = {
-      "rpc_tracker_host" : tvm_tracker_host,
-      "rpc_tracker_port" : tvm_tracker_port,
-      "rpc_server_port" : 7070,
+        "rpc_tracker_host": tvm_tracker_host,
+        "rpc_tracker_port": tvm_tracker_port,
+        "rpc_server_port": 7070,
     }
     launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
@@ -97,9 +97,9 @@ def test_add_vtcm(android_serial_number, tvm_tracker_host, tvm_tracker_port):
         pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
     rpc_info = {
-      "rpc_tracker_host" : tvm_tracker_host,
-      "rpc_tracker_port" : tvm_tracker_port,
-      "rpc_server_port" : 7070,
+        "rpc_tracker_host": tvm_tracker_host,
+        "rpc_tracker_port": tvm_tracker_port,
+        "rpc_server_port": 7070,
     }
     launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
@@ -149,9 +149,9 @@ class TestMatMul:
             pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
         rpc_info = {
-          "rpc_tracker_host" : tvm_tracker_host,
-          "rpc_tracker_port" : tvm_tracker_port,
-          "rpc_server_port" : 7070,
+            "rpc_tracker_host": tvm_tracker_host,
+            "rpc_tracker_port": tvm_tracker_port,
+            "rpc_server_port": 7070,
         }
         launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
         launcher.upload(dso_binary_path, dso_binary)
@@ -220,9 +220,9 @@ def test_graph_executor(android_serial_number, tvm_tracker_host, tvm_tracker_por
         pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
     rpc_info = {
-      "rpc_tracker_host" : tvm_tracker_host,
-      "rpc_tracker_port" : tvm_tracker_port,
-      "rpc_server_port" : 7070,
+        "rpc_tracker_host": tvm_tracker_host,
+        "rpc_tracker_port": tvm_tracker_port,
+        "rpc_server_port": 7070,
     }
     launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
