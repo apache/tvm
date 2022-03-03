@@ -164,7 +164,7 @@ class Tuner(object):
                     format_si_prefix(self.best_flops, si_prefix),
                     result_msg,
                     config,
-                    )
+                )
 
             i += len(results)
             self.ttl = min(early_stopping + self.best_iter, n_trial) - i

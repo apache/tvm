@@ -111,25 +111,22 @@ def test_cache_read_write(android_serial_number, tvm_tracker_host, tvm_tracker_p
     if not android_serial_number:
         pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
-    launcher = HexagonLauncher(serial_number=android_serial_number)
-    launcher.android_run_rpc(rpc_tracker_host=tvm_tracker_host, rpc_tracker_port=tvm_tracker_port)
-    launcher.hexagon_setup()
-    remote_kw = {
-        "host": tvm_tracker_host,
-        "port": tvm_tracker_port,
-        "priority": 0,
-        "timeout": 60,
+    rpc_info = {
+      "rpc_tracker_host" : tvm_tracker_host,
+      "rpc_tracker_port" : tvm_tracker_port,
+      "rpc_server_port" : 7070,
     }
-    launcher.hexagon_session_setup(remote_kw)
+    launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
+    launcher.start_server()
 
-    with launcher.session as sess:
-        mod = launcher.get_module(dso_binary)
+    with launcher.start_session() as sess:
+        mod = launcher.load_module(dso_binary, sess)
         xt = tvm.nd.array(np.random.uniform(size=size).astype(x.dtype), device=sess.device)
         yt = tvm.nd.array(np.random.uniform(size=size).astype(y.dtype), device=sess.device)
         zt = tvm.nd.array(np.random.uniform(size=size).astype(z.dtype), device=sess.device)
         mod["dmacpy"](xt, yt, zt)
-    launcher.close()
+    launcher.stop_server()
 
     ref = xt.numpy() + yt.numpy()
     np.testing.assert_equal(zt.numpy(), ref)

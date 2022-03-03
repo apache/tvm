@@ -38,6 +38,7 @@ from utils import (
 from tests.python.relay.aot.aot_test_utils import (
     AOTTestModel,
     AOT_CORSTONE300_RUNNER,
+    AOT_USMP_CORSTONE300_RUNNER,
     generate_ref_data,
     compile_and_run,
 )
@@ -101,7 +102,7 @@ def make_model(
 def test_op_int8(op, input_0_scale, input_0_zero_point, input_1_scale, input_1_zero_point):
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_CORSTONE300_RUNNER
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     dtype = "int8"
     shape = [1, 16, 16, 3]
@@ -174,7 +175,7 @@ def parameterize_for_constant_inputs(test):
 def test_constant_input_int8(op, input_0, input_1):
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_CORSTONE300_RUNNER
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     dtype = "int8"
     shape = [1, 16, 16, 3]

@@ -21,6 +21,68 @@
 #include "../utils.h"
 
 namespace tvm {
+namespace tir {
+class ThreadExtentChecker : private StmtVisitor {
+ public:
+  static bool Check(const Stmt& stmt) {
+    try {
+      ThreadExtentChecker().VisitStmt(stmt);
+      return true;
+    } catch (const dmlc::Error& e) {
+      return false;
+    }
+  }
+
+ private:
+  void VisitStmt_(const ForNode* loop) {
+    if (IsThreadIdx(GetThreadScope(loop))) {
+      const std::string& thread_tag = loop->thread_binding.value()->thread_tag;
+      if (const int64_t* p_ext = GetLoopIntExtent(loop)) {
+        auto it = thread_tag2extent_.find(thread_tag);
+        bool new_thread = it == thread_tag2extent_.end();
+        if (new_thread) {
+          thread_extent_product *= *p_ext;
+          thread_tag2extent_[thread_tag] = *p_ext;
+        } else {
+          CHECK_EQ(it->second, *p_ext)
+              << "ValueError: All loops that are bound to `" << thread_tag
+              << "` should have the same extent. However, there are two loops with extent "
+              << it->second << " and " << p_ext << ", which are not equal";
+        }
+        StmtVisitor::VisitStmt_(loop);
+        if (new_thread) {
+          thread_extent_product /= *p_ext;
+          thread_tag2extent_.erase(thread_tag);
+        }
+        return;
+      } else {
+        throw dmlc::Error("Dynamic thread extent");
+      }
+    }
+    StmtVisitor::VisitStmt_(loop);
+  }
+
+  void VisitStmt_(const BlockNode* block) {
+    if (Optional<Integer> low_inclusive =
+            GetAnn<Integer>(block, attr::meta_schedule_thread_extent_low_inclusive)) {
+      if (Optional<Integer> high_inclusive =
+              GetAnn<Integer>(block, attr::meta_schedule_thread_extent_high_inclusive)) {
+        int64_t low = low_inclusive.value()->value;
+        int64_t high = high_inclusive.value()->value;
+        if (!(low <= thread_extent_product && thread_extent_product <= high)) {
+          throw dmlc::Error("Thread extent");
+        }
+      }
+    }
+    StmtVisitor::VisitStmt_(block);
+  }
+
+  int64_t thread_extent_product = 1;
+
+  /*! \brief A mapping from a thread tag to its thread extent */
+  std::unordered_map<std::string, int64_t> thread_tag2extent_;
+};
+}  // namespace tir
 namespace meta_schedule {
 
 /*! \brief Extract attribute from a target. */
@@ -66,6 +128,9 @@ class VerifyGPUCodeNode : public PostprocNode {
       const GlobalVar& g_var = kv.first;
       const BaseFunc& base_func = kv.second;
       if (const auto* prim_func = base_func.as<tir::PrimFuncNode>()) {
+        if (!tir::ThreadExtentChecker::Check(prim_func->body)) {
+          return false;
+        }
         IRModule lowered{nullptr};
         try {
           auto pass_list = Array<tvm::transform::Pass>();
@@ -81,6 +146,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tir::transform::UnifyThreadBinding());
           pass_list.push_back(tir::transform::CompactBufferAllocation());
           pass_list.push_back(tir::transform::LowerMatchBuffer());
+          pass_list.push_back(tir::transform::InjectSoftwarePipeline());
           pass_list.push_back(tir::transform::FlattenBuffer());
           pass_list.push_back(tir::transform::BF16Legalize());
           pass_list.push_back(tir::transform::NarrowDataType(32));
