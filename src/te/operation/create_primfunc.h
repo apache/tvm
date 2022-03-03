@@ -17,6 +17,9 @@
  * under the License.
  */
 
+#ifndef TVM_TE_OPERATION_CREATE_PRIMFUNC_H_
+#define TVM_TE_OPERATION_CREATE_PRIMFUNC_H_
+
 #include <tvm/runtime/container/array.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tir/function.h>
@@ -28,3 +31,5 @@ PrimFunc CreatePrimFuncFromOutputs(const Array<te::Tensor>& outputs);
 
 }  // namespace tir
 }  // namespace tvm
+
+#endif  // TVM_TE_OPERATION_CREATE_PRIMFUNC_H_
