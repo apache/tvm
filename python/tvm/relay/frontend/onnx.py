@@ -3913,10 +3913,17 @@ class QLinearMatMul(OnnxOpConverter):
     - Only supports 2D input tensors.
     - Not guaranteed to meet the integer-overflow behavior stipulated in the
       ONNX documentation for this operator.
+
+    The QLinearMatMul converter is re-used for MatMulInteger and is adapted for
+    the latter with the optional `expected_out_dtypes` argument.
     """
 
     @classmethod
-    def _impl_v10(cls, inputs, attr, params, expected_out_dtypes=["int8", "uint8"]):
+    def _impl_v10(cls, inputs, attr, params, expected_out_dtypes=None):
+        if expected_out_dtypes is None:
+            # The default QLinearMatMul converter is expected to have one of
+            # these output dtypes.
+            expected_out_dtypes = ["int8", "uint8"]
 
         # Some of the ops used below take scalar-like inputs, and may require either
         # of the following:
@@ -4027,6 +4034,11 @@ class QLinearMatMul(OnnxOpConverter):
         # of the [de/re]quantize ops below.
         matmul_result_scale_scalar = fold_constant(_op.multiply(a_scale_scalar, b_scale_scalar))
         matmul_result_zp_scalar = _op.const(0, dtype="int32")
+
+        if "int32" in expected_out_dtypes:
+            # This is the adaptation of the QLinearMatMul converter for MatMulInteger,
+            # in the MatMulInteger case we skip the unnecessary requantization step.
+            return matmul_result
 
         # requantize requires y_scale to be constant,
         # if y_scale is not constant, doing dequantize -> quantize
