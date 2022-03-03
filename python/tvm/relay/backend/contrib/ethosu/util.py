@@ -241,6 +241,12 @@ def get_accelerator_config():
     return compiler_attrs.accelerator_config
 
 
+def enable_cascader():
+    """Get the variant of the accelerator to compile for"""
+    compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
+    return compiler_attrs.enable_cascader
+
+
 def get_arg_count(func):
     """Helper function to get the number of
     arguments in a python function"""

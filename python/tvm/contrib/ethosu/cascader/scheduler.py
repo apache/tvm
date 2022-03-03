@@ -44,7 +44,7 @@ def tile_nd(
     tensor : te.Tensor
         The tensor to apply the tiling to.
     tile : Tuple[int, ...]
-        The N-dimensional tile size.
+        The N-dimensional tile size
 
     Returns
     -------
@@ -78,8 +78,8 @@ def stripe_part(
         include_inputs=False,
     )
     g.compute_at(sch[te_output_tensor], outer_indices[-1])
-    for ax in outer_indices:
-        sch[te_output_tensor].unroll(ax)
+    for axis in outer_indices:
+        sch[te_output_tensor].unroll(axis)
 
     return sch[te_output_tensor], outer_indices[-1]
 
