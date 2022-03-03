@@ -331,7 +331,7 @@ def get_ofm_params(pointer, consumers, producers):
     output_pointer : tvm.tir.Var
         The pointer that the OFM DMA pipeline produces.
     is_allocator : bool
-        Whether this operator allocates its output.    accel_config = vela_api.get_accelerator_config()
+        Whether this operator allocates its output.
 
     """
     convert_to_nhcwb16 = consumers[pointer]
