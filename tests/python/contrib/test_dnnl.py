@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from gluoncv.model_zoo import get_model
 import pytest
 import itertools
 import numpy as np
@@ -934,23 +933,6 @@ def test_pool3d(run_module, dtype="float32"):
         get_graph(relay.nn.max_pool3d, padding=(0, 0, 0, 1, 1, 1)), run_module=run_module
     )
     run_and_verify_func(get_graph(relay.nn.max_pool3d, strides=(1, 1, 1)), run_module=run_module)
-
-
-def run_and_verify_model(
-    model, run_module, input_shape=(1, 3, 224, 224), target="llvm", dtype="float32"
-):
-    i_data = np.random.uniform(-1, 1, input_shape).astype(dtype)
-    block = get_model(model, pretrained=True)
-    mod, params = relay.frontend.from_mxnet(block, shape={"data": input_shape}, dtype=dtype)
-    run_and_verify(mod, i_data, params, target=target, run_module=run_module)
-
-
-@pytest.mark.skip(reason="takes a long time for this test ")
-def test_model(run_module, dtype="float32"):
-    run_and_verify_model("ResNet50_v1b", run_module, dtype=dtype)
-    run_and_verify_model("VGG11_bn", run_module, dtype=dtype)
-    run_and_verify_model("InceptionV3", run_module, input_shape=(1, 3, 300, 300), dtype=dtype)
-    run_and_verify_model("MobileNet1.0", run_module, dtype=dtype)
 
 
 if __name__ == "__main__":
