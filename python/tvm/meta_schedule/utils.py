@@ -111,9 +111,6 @@ def derived_object(cls: type) -> type:
             # for task scheduler hybrid funcs in c++ & python side
             # using weakref to avoid cyclic dependency
             self._inst._outer = weakref.ref(self)
-            # keep track of the handle in self for usage of __str__
-            # won't cause cyclic dependency because handle type is c_void_p
-            self._inst.handle = self.handle
 
         def __getattr__(self, name: str):
             """Bridge the attribute function."""
@@ -342,7 +339,7 @@ def structural_hash(mod: IRModule) -> str:
 
 
 def _get_default_str(obj: Any) -> str:
-    return f"meta_schedule.{obj.__class__.__name__}({_to_hex_address(obj.handle)})"  # type: ignore
+    return f"meta_schedule.{obj.__class__.__name__}({_to_hex_address(obj._outer().handle)})"  # type: ignore
 
 
 def _to_hex_address(handle: ctypes.c_void_p) -> str:
