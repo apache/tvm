@@ -225,17 +225,24 @@ def test_without_device_api_packed_api(non_device_api_main_func):
     """Test a graph without the Device API with the packed internal calls"""
 
     main_func = non_device_api_main_func(interface_api="packed", use_unpacked_api=False)
-    assert (
-        str(main_func.body)
-        == 'let tvm_value_3 = tir.tvm_stack_alloca("array", 1)\n'
-        + 'let tvm_value_2 = tir.tvm_stack_alloca("array", 1)\n'
-        + 'let tvm_value_1 = tir.tvm_stack_alloca("array", 1)\n'
-        + 'let tvm_value_0 = tir.tvm_stack_alloca("array", 1)\n'
-        + "tir.tvm_struct_set(tvm_value_0, 0, 1, x_buffer_var)\n"
-        + "tir.tvm_struct_set(tvm_value_1, 0, 1, y_buffer_var)\n"
-        + "tir.tvm_struct_set(tvm_value_2, 0, 1, output_buffer_var)\n"
-        + "tir.tvm_struct_set(tvm_value_3, 0, 1, tir.reinterpret((uint64)0))\n"
-        + 'tir.tvm_call_cpacked("tvmgen_default_fused_multiply", tvm_value_0, tvm_value_1, tvm_value_2, tvm_value_3)\n'
+    assert str(main_func.body) == (
+        'let tvm_value_3 = tir.tvm_stack_alloca("array", 1)\n'
+        'let tvm_value_2 = tir.tvm_stack_alloca("array", 1)\n'
+        'let tvm_value_1 = tir.tvm_stack_alloca("array", 1)\n'
+        'let tvm_value_0 = tir.tvm_stack_alloca("array", 1)\n'
+        "tir.tvm_struct_set(tvm_value_0, 0, 1, x_buffer_var)\n"
+        "tir.tvm_struct_set(tvm_value_0, 0, 10, 1)\n"
+        "tir.tvm_struct_set(tvm_value_0, 0, 9, 0)\n"
+        "tir.tvm_struct_set(tvm_value_1, 0, 1, y_buffer_var)\n"
+        "tir.tvm_struct_set(tvm_value_1, 0, 10, 1)\n"
+        "tir.tvm_struct_set(tvm_value_1, 0, 9, 0)\n"
+        "tir.tvm_struct_set(tvm_value_2, 0, 1, output_buffer_var)\n"
+        "tir.tvm_struct_set(tvm_value_2, 0, 10, 1)\n"
+        "tir.tvm_struct_set(tvm_value_2, 0, 9, 0)\n"
+        "tir.tvm_struct_set(tvm_value_3, 0, 1, tir.reinterpret((uint64)0))\n"
+        "tir.tvm_struct_set(tvm_value_3, 0, 10, 1)\n"
+        "tir.tvm_struct_set(tvm_value_3, 0, 9, 0)\n"
+        'tir.tvm_call_cpacked("tvmgen_default_fused_multiply", tvm_value_0, tvm_value_1, tvm_value_2, tvm_value_3)\n'
     )
 
 

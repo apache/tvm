@@ -217,6 +217,8 @@ TVM_DLL bool RuntimeEnabled(const std::string& target);
 
 /*! \brief namespace for constant symbols */
 namespace symbol {
+/*! \brief A PackedFunc that retrieves exported metadata. */
+constexpr const char* tvm_get_c_metadata = "get_c_metadata";
 /*! \brief Global variable to store module context. */
 constexpr const char* tvm_module_ctx = "__tvm_module_ctx";
 /*! \brief Global variable to store device module blob */
