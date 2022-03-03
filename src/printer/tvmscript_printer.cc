@@ -1020,7 +1020,7 @@ struct AllocUsage {
 };
 
 template <typename AllocNode>
-AllocUsage find_allocate_usage(AllocNode* op, Map<Var, Array<Buffer>>* cache_ptr) {
+AllocUsage FindAllocateUsage(AllocNode* op, Map<Var, Array<Buffer>>* cache_ptr) {
   Map<Var, Array<Buffer>>& cache = *cache_ptr;
   if (!cache.count(op->buffer_var)) {
     cache = BufferUsageFinder::FindUsage(std::move(cache), op->body);
@@ -1061,7 +1061,7 @@ AllocUsage find_allocate_usage(AllocNode* op, Map<Var, Array<Buffer>>* cache_ptr
 }  // namespace
 
 Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
-  auto usage = find_allocate_usage(op, &buffer_var_usage_);
+  auto usage = FindAllocateUsage(op, &buffer_var_usage_);
   Buffer& alloc_buffer = usage.alloc_buffer;
   Array<Buffer>& aliasing_buffers = usage.aliasing_buffers;
   buf_not_in_headers_.insert(alloc_buffer.get());
@@ -1124,7 +1124,7 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
   }
   auto ndarray_str = ss.str();
 
-  auto usage = find_allocate_usage(alloc, &buffer_var_usage_);
+  auto usage = FindAllocateUsage(alloc, &buffer_var_usage_);
   Buffer& alloc_buffer = usage.alloc_buffer;
   Array<Buffer>& aliasing_buffers = usage.aliasing_buffers;
   buf_not_in_headers_.insert(alloc_buffer.get());
