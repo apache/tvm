@@ -46,10 +46,10 @@ AotExecutor::AotExecutor(tvm::runtime::Module module, const std::vector<Device>&
   ICHECK_EQ(devices_[0].device_id, expected_device.device_id)
       << "At this time, AOTExecutor supports only execution on kDLCPU 0";
   // TODO(tvm-team): Temporary hack since Hexagon is defined different than kDLCPU.
-  if (!(DLDeviceType(devices_[0].device_type) == kDLCPU ||
-        TVMDeviceExtType(devices_[0].device_type) == kDLHexagon)) {
-    LOG(ERROR) << "At this time, AOTExecutor supports only execution on kDLCPU 0 or kDLHexagon 0";
-  }
+  bool is_valid_device = (TVMDeviceExtType(devices_[0].device_type) == kDLHexagon) ||
+                         (DLDeviceType(devices_[0].device_type) == kDLCPU);
+  CHECK(is_valid_device)
+      << "At this time, AOTExecutor supports only execution on kDLCPU 0 or kDLHexagon 0";
 
   for (auto input : metadata_->inputs()) {
     // TODO(areusch): Encode device information in Metadata.

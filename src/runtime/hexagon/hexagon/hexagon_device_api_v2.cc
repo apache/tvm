@@ -84,12 +84,9 @@ void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, size_t nbytes, size_t align
 }
 
 void HexagonDeviceAPIv2::FreeDataSpace(Device dev, void* ptr) {
-  bool device = false;
-  if ((TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
-      (DLDeviceType(dev.device_type) == kDLCPU)) {
-    device = true;
-  }
-  CHECK(device) << "dev.device_type: " << dev.device_type;
+  bool is_valid_device = (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
+                         (DLDeviceType(dev.device_type) == kDLCPU);
+  CHECK(is_valid_device) << "dev.device_type: " << dev.device_type;
   auto* hexbuf = static_cast<HexagonBuffer*>(ptr);
   CHECK(hexbuf != nullptr);
   delete hexbuf;

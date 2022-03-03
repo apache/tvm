@@ -67,7 +67,6 @@ def hexagon_link() -> str:
     return str(HEXAGON_LINK_MAIN)
 
 
-@register_func("tvm.contrib.hexagon.hexagon.hexagon_clang_plus")
 def hexagon_clang_plus() -> str:
     """Return path to the Hexagon clang++."""
     return str(HEXAGON_CLANG_PLUS)
@@ -300,9 +299,7 @@ def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: st
     for path in HEXAGON_SDK_INCLUDE_DIRS:
         compile_options.append(f"-I{str(path)}")
 
-    cross_compile = cc.cross_compiler(
-        compile_func=tvm.get_global_func("tvm.contrib.hexagon.hexagon.hexagon_clang_plus")()
-    )
+    cross_compile = cc.cross_compiler(compile_func=hexagon_clang_plus())
     cross_compile.output_format = "o"
     c_files = [str(file) for file in files]
     cross_compile(str(so_name), c_files, options=compile_options)
