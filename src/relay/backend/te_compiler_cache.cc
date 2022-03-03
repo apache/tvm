@@ -180,6 +180,7 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
         }
       }
       if (use_meta_schedule_) {
+        prim_func = CreatePrimFuncFromOutputs(tensor_outs);
         Optional<ObjectRef> opt_mod_or_base_func = meta_schedule::ContextQueryInsideWithScope(
             prim_fn_var->name_hint, IRModule({{prim_fn_var, relay_func}}), target_,
             Array<IRModule>{IRModule({{prim_fn_var, prim_func}})});
