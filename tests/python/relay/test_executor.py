@@ -23,12 +23,12 @@ from tvm.relay.backend import Executor
 
 def test_create_executor():
     executor = Executor("aot")
-    assert str(executor) == "aot"
+    assert executor.name == "aot"
 
 
 def test_create_executor_with_options():
     executor = Executor("aot", {"interface-api": "c"})
-    assert str(executor) == "aot"
+    assert executor.name == "aot"
     assert executor["interface-api"] == "c"
 
 

@@ -27,7 +27,7 @@ from . import _backend
 class Executor(Object):
     """Executor configuration"""
 
-    name = "executor"
+    registry_name = "executor"
 
     def __init__(self, name, options=None) -> None:
         if options is None:

@@ -34,6 +34,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ExecutorNode>([](const ObjectRef& obj, ReprPrinter* p) {
       const Executor& executor = Downcast<Executor>(obj);
       p->stream << executor->name;
+      p->stream << executor->attrs;
     });
 
 /**********  Registry-related code  **********/

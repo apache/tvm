@@ -157,7 +157,7 @@ class BuildModule(object):
         # Get artifacts
         mod = self.get_module()
         params = self.get_params()
-        executor_config = self.get_graph_json() if str(executor) == "graph" else None
+        executor_config = self.get_graph_json() if executor.name == "graph" else None
 
         return executor_config, mod, params
 
@@ -427,7 +427,7 @@ def build(
         lowered_ir_mods = bld_mod.get_irmodule()
         executor_codegen_metadata = bld_mod.get_executor_codegen_metadata()
 
-        if str(executor) == "aot":
+        if executor.name == "aot":
             executor_factory = _executor_factory.AOTExecutorFactoryModule(
                 ir_mod,
                 lowered_ir_mods,
@@ -441,7 +441,7 @@ def build(
                 executor_codegen_metadata,
                 devices,
             )
-        elif str(executor) == "graph":
+        elif executor.name == "graph":
             executor_factory = _executor_factory.GraphExecutorFactoryModule(
                 ir_mod,
                 raw_targets,
