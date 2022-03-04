@@ -18,7 +18,7 @@
 
 from tvm.script import tir as T
 
-# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,no-self-use,unused-argument
+# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,no-self-use,unused-argument,chained-comparison,misplaced-comparison-constant
 
 
 @T.prim_func
