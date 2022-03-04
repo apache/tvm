@@ -90,12 +90,6 @@ class BufferVar(ObjectGeneric):
         except TypeError:
             index = [index]
 
-        t = DataType(self._content_type)
-        if t.lanes > 1:
-            base = index[-1] * t.lanes
-            stride = 1 if (not hasattr(base, "dtype")) else const(1, base.dtype)
-            index[-1] = _expr.Ramp(base, stride, t.lanes)
-
         index = [x.var if isinstance(x, _expr.IterVar) else x for x in index]
 
         # Workaround to support previous behavior of ir_builder
