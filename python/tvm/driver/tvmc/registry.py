@@ -85,7 +85,7 @@ def reconstruct_registry_entity(args, registry):
         if possible_name != name and reconstructed[possible_name]:
             first_option = list(reconstructed[possible_name])[0]
             raise TVMCException(
-                f"Passed --{rregistry.registry_nam}-{possible_name}-{first_option} "
+                f"Passed --{registry.registry_name}-{possible_name}-{first_option} "
                 f"but did not specify {possible_name} executor"
             )
 
