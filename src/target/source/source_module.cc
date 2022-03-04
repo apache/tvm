@@ -30,7 +30,6 @@
 #include <tvm/runtime/registry.h>
 
 #include <string>
-#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -41,6 +40,7 @@
 #include "../../support/str_escape.h"
 #include "../func_registry_generator.h"
 #include "../metadata.h"
+#include "../metadata_utils.h"
 #include "codegen_source_base.h"
 
 namespace tvm {
@@ -522,65 +522,6 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     }
     code_ << ";";
   }
-};
-
-static std::string address_from_parts(const std::vector<std::string>& parts) {
-  std::stringstream ss;
-  for (unsigned int i = 0; i < parts.size(); ++i) {
-    if (i > 0) {
-      ss << "_";
-    }
-    ss << parts[i];
-  }
-  return ss.str();
-}
-
-class MetadataQueuer : public AttrVisitor {
- public:
-  using QueueItem = std::tuple<std::string, runtime::metadata::MetadataBase>;
-  explicit MetadataQueuer(std::vector<QueueItem>* queue) : queue_{queue} {}
-
-  void Visit(const char* key, double* value) final {}
-  void Visit(const char* key, int64_t* value) final {}
-  void Visit(const char* key, uint64_t* value) final {}
-  void Visit(const char* key, int* value) final {}
-  void Visit(const char* key, bool* value) final {}
-  void Visit(const char* key, std::string* value) final {}
-  void Visit(const char* key, DataType* value) final {}
-  void Visit(const char* key, runtime::NDArray* value) final {}
-  void Visit(const char* key, void** value) final {}
-
-  void Visit(const char* key, ObjectRef* value) final {
-    address_parts_.push_back(key);
-    if (value->as<runtime::metadata::MetadataBaseNode>() != nullptr) {
-      auto metadata = Downcast<runtime::metadata::MetadataBase>(*value);
-      const runtime::metadata::MetadataArrayNode* arr =
-          value->as<runtime::metadata::MetadataArrayNode>();
-      if (arr != nullptr) {
-        for (unsigned int i = 0; i < arr->array.size(); i++) {
-          ObjectRef o = arr->array[i];
-          if (o.as<runtime::metadata::MetadataBaseNode>() != nullptr) {
-            std::stringstream ss;
-            ss << i;
-            address_parts_.push_back(ss.str());
-            runtime::metadata::MetadataBase metadata = Downcast<runtime::metadata::MetadataBase>(o);
-            ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
-            address_parts_.pop_back();
-          }
-        }
-      } else {
-        ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
-      }
-
-      queue_->push_back(std::make_tuple(address_from_parts(address_parts_),
-                                        Downcast<runtime::metadata::MetadataBase>(*value)));
-    }
-    address_parts_.pop_back();
-  }
-
- private:
-  std::vector<QueueItem>* queue_;
-  std::vector<std::string> address_parts_;
 };
 
 class MetadataSerializer : public AttrVisitor {

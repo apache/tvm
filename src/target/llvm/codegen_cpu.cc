@@ -33,6 +33,7 @@
 #include <unordered_set>
 
 #include "../func_registry_generator.h"
+#include "../metadata_utils.h"
 
 namespace tvm {
 namespace codegen {
@@ -892,7 +893,6 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
 }
 
 llvm::Value* CodeGenCPU::CreateCallPacked(const CallNode* op, bool use_string_lookup) {
-  LOG(INFO) << "CreateCallPacked: " << GetRef<Call>(op);
   auto expected_num_args = use_string_lookup ? 5U : 6U;
   ICHECK_EQ(op->args.size(), expected_num_args);
   PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[3].as<IntImmNode>()->value,
