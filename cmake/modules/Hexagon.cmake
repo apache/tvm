@@ -96,11 +96,12 @@ if(NOT USE_HEXAGON_DEVICE AND NOT USE_HEXAGON_RPC AND NOT BUILD_FOR_HEXAGON)
   # and some stuff needed by cpptests (this part is a temporary workaround
   # until e2e support for Hexagon is enabled).
   if(BUILD_FOR_HOST)
-    list(APPEND COMPILER_SRCS src/target/opt/build_hexagon_off.cc)
+    target_sources(tvm_objs PRIVATE src/target/opt/build_hexagon_off.cc)
   endif()
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_buffer.cc)
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_common.cc)
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_user_dma.cc)
+  target_sources(tvm_runtime_objs PRIVATE
+    src/runtime/hexagon/hexagon/hexagon_buffer.cc
+    src/runtime/hexagon/hexagon/hexagon_common.cc
+    src/runtime/hexagon/hexagon/hexagon_user_dma.cc)
   return()
 endif()
 
@@ -171,7 +172,7 @@ if(USE_HEXAGON_DEVICE)
       "${TVMRT_SOURCE_DIR}/hexagon/android/*.cc"
       "${TVMRT_SOURCE_DIR}/hexagon/android/sim/*.cc"
     )
-    list(APPEND TVM_RUNTIME_LINKER_LIBS "-lwrapper")
+    target_link_libraries(tvm_runtime PRIVATE "-lwrapper")
 
     ExternalProject_Add(sim_dev
       SOURCE_DIR "${TVMRT_SOURCE_DIR}/hexagon/android/sim/driver"
@@ -194,7 +195,7 @@ if(USE_HEXAGON_DEVICE)
       "${TVMRT_SOURCE_DIR}/hexagon/android/target/*.cc"
     )
     # Hexagon runtime uses __android_log_print, which is in liblog.
-    list(APPEND TVM_RUNTIME_LINKER_LIBS dl log cdsprpc)
+    target_link_libraries(tvm_runtime PRIVATE dl log cdsprpc)
 
   elseif(BUILD_FOR_HEXAGON)
     invalid_device_value_for("Hexagon")
@@ -237,7 +238,7 @@ if(USE_HEXAGON_RPC)
     list(APPEND RUNTIME_HEXAGON_SRCS
       "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_stub.c"
     )
-    list(APPEND TVM_RUNTIME_LINKER_LIBS cdsprpc)
+    target_link_libraries(tvm_runtime PRIVATE cdsprpc)
 
   elseif(BUILD_FOR_HEXAGON)
     # Hexagon part
@@ -278,9 +279,10 @@ if(USE_HEXAGON_RPC)
       "${TVMRT_SOURCE_DIR}/hexagon/host/*.cc"
       "${TVMRT_SOURCE_DIR}/hexagon/rpc/simulator/session.cc"
     )
-    list(APPEND TVM_RUNTIME_LINKER_LIBS "-lwrapper")
+    target_link_libraries(tvm PRIVATE "-lwrapper")
+    target_link_libraries(tvm_runtime PRIVATE "-lwrapper")
   endif()
 endif()   # USE_HEXAGON_RPC
 
 
-list(APPEND RUNTIME_SRCS ${RUNTIME_HEXAGON_SRCS})
+target_sources(tvm_runtime_objs PRIVATE ${RUNTIME_HEXAGON_SRCS})

@@ -435,7 +435,6 @@ include(cmake/modules/StandaloneCrt.cmake)
 include(cmake/modules/Zephyr.cmake)
 include(cmake/modules/Arduino.cmake)
 include(cmake/modules/CUDA.cmake)
-include(cmake/modules/Hexagon.cmake)
 include(cmake/modules/OpenCL.cmake)
 include(cmake/modules/OpenMP.cmake)
 include(cmake/modules/Vulkan.cmake)
@@ -515,6 +514,10 @@ target_compile_definitions(tvm_libinfo_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm
 target_compile_definitions(tvm PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 target_compile_definitions(tvm_runtime PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 
+
+include(cmake/modules/Hexagon.cmake)
+
+
 # This has to come after Hexagon.cmake because it may set USE_CUSTOM_LOGGING.
 if(USE_CUSTOM_LOGGING)
   message(STATUS "Using user-defined logging")
@@ -528,6 +531,7 @@ endif()
 # logging option for libbacktrace
 include(cmake/modules/Logging.cmake)
 
+# Module rules that depend on targets
 include(cmake/modules/contrib/PAPI.cmake)
 
 if(USE_MICRO)
