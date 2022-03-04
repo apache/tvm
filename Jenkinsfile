@@ -98,6 +98,16 @@ def init_git() {
     script: './tests/scripts/task_show_node_info.sh',
     label: 'Show executor node info',
   )
+  sh (
+    label: 'Rebase onto origin/main',
+    script: '''
+      set -eux
+      git fetch origin main
+      git rebase origin/main
+      git log -1
+      git log $(git merge-base origin/main HEAD)..HEAD
+    '''
+  )
   retry(5) {
     timeout(time: 2, unit: 'MINUTES') {
       sh (script: 'git submodule update --init -f', label: 'Update git submodules')
