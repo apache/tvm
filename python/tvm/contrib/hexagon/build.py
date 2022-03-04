@@ -241,6 +241,25 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         graph_mod = self.load_module(module_name, session)
         return tvm.contrib.graph_executor.create(graph_json, graph_mod, session.device)
 
+    def get_aot_executor(self, module_name: Union[str, pathlib.Path], session: Session):
+        """Create a local AoTModule which consumes a remote libmod.
+
+        Parameters
+        ----------
+        module_name : str or pathlib.Path
+            Remote module filename. Same restrictions apply as in load_module().
+        session : Session
+            Remote session. The session must be established (via __enter__)
+            prior to calling this function.
+
+        Returns
+        -------
+        aot_module : AotModule
+            Runtime AOT module that can be used to execute.
+        """
+        aot_mod = self.load_module(module_name, session)
+        return tvm.runtime.executor.AotModule(aot_mod["default"](session.device))
+
 
 class HexagonLauncherAndroid(HexagonLauncherRPC):
     """Hexagon Launcher for Android."""
@@ -284,7 +303,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
 
     def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        subprocess.check_call(self._adb_device_sub_cmd + ["shell", "mkdir", "-p", str(path)])
+        subprocess.check_call(self._adb_device_sub_cmd + ["shell", "mkdir", "-p", str(remote_path)])
 
     def _copy_binaries(self):
         """Upload Android server binaries."""

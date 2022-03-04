@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pathlib
 import sys
 import pytest
 import numpy as np
@@ -50,12 +51,12 @@ def test_add(android_serial_number, tvm_tracker_host, tvm_tracker_port):
     func.save(dso_binary_path)
 
     if not android_serial_number:
-        pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
+        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
     rpc_info = {
-      "rpc_tracker_host" : tvm_tracker_host,
-      "rpc_tracker_port" : tvm_tracker_port,
-      "rpc_server_port" : 7070,
+        "rpc_tracker_host": tvm_tracker_host,
+        "rpc_tracker_port": tvm_tracker_port,
+        "rpc_server_port": 7070,
     }
     launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
@@ -94,12 +95,12 @@ def test_add_vtcm(android_serial_number, tvm_tracker_host, tvm_tracker_port):
     func.save(dso_binary_path)
 
     if not android_serial_number:
-        pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
+        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
     rpc_info = {
-      "rpc_tracker_host" : tvm_tracker_host,
-      "rpc_tracker_port" : tvm_tracker_port,
-      "rpc_server_port" : 7070,
+        "rpc_tracker_host": tvm_tracker_host,
+        "rpc_tracker_port": tvm_tracker_port,
+        "rpc_server_port": 7070,
     }
     launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
@@ -146,12 +147,12 @@ class TestMatMul:
         func.save(dso_binary_path)
 
         if not android_serial_number:
-            pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
+            pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
         rpc_info = {
-          "rpc_tracker_host" : tvm_tracker_host,
-          "rpc_tracker_port" : tvm_tracker_port,
-          "rpc_server_port" : 7070,
+            "rpc_tracker_host": tvm_tracker_host,
+            "rpc_tracker_port": tvm_tracker_port,
+            "rpc_server_port": 7070,
         }
         launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
         launcher.upload(dso_binary_path, dso_binary)
@@ -207,6 +208,11 @@ def test_graph_executor(android_serial_number, tvm_tracker_host, tvm_tracker_por
     dso_binary = "test_binary.so"
     dso_binary_path = temp.relpath(dso_binary)
 
+    weight_in = np.random.rand(5, 5, 3, 8).astype(dtype=dtype)
+    data_in = np.random.rand(1, 64, 64, 3).astype(dtype=dtype)
+    params = {"weight": weight_in}
+    inputs = {"data": data_in}
+
     with tvm.transform.PassContext(opt_level=3):
         lowered = tvm.relay.build(
             relay_mod,
@@ -217,12 +223,12 @@ def test_graph_executor(android_serial_number, tvm_tracker_host, tvm_tracker_por
         lowered.get_lib().save(dso_binary_path)
 
     if not android_serial_number:
-        pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
+        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
     rpc_info = {
-      "rpc_tracker_host" : tvm_tracker_host,
-      "rpc_tracker_port" : tvm_tracker_port,
-      "rpc_server_port" : 7070,
+        "rpc_tracker_host": tvm_tracker_host,
+        "rpc_tracker_port": tvm_tracker_port,
+        "rpc_server_port": 7070,
     }
     launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
@@ -230,11 +236,10 @@ def test_graph_executor(android_serial_number, tvm_tracker_host, tvm_tracker_por
 
     with launcher.start_session() as sess:
         graph_mod = launcher.get_graph_executor(lowered.get_graph_json(), dso_binary, sess)
-        weight_in = np.random.rand(5, 5, 3, 8).astype(dtype=dtype)
-        data_in = np.random.rand(1, 64, 64, 3).astype(dtype=dtype)
-        graph_mod.set_input(weight=weight_in)
-        graph_mod.run(data=data_in)
+        graph_mod.set_input(**params)
+        graph_mod.run(**inputs)
         hexagon_output = graph_mod.get_output(0).numpy()
+        launcher.stop_server()
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):
@@ -245,10 +250,283 @@ def test_graph_executor(android_serial_number, tvm_tracker_host, tvm_tracker_por
             executor=executor,
         )
     llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
-    llvm_graph_mod.set_input(weight=weight_in)
-    llvm_graph_mod.run(data=data_in)
+    llvm_graph_mod.set_input(**params)
+    llvm_graph_mod.run(**inputs)
     expected_output = llvm_graph_mod.get_output(0).numpy()
-    launcher.stop_server()
+
+    tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
+
+
+@requires_hexagon_toolchain
+def test_graph_executor_multiple_conv2d(tvm_tracker_host, tvm_tracker_port, android_serial_number):
+    dtype = "float32"
+    input_shape = (1, 8, 8, 3)
+    w1_shape = (5, 5, 3, 1)
+    w2_shape = (5, 5, 1, 3)
+    data = relay.var("data", relay.TensorType(input_shape, dtype))
+    weight1 = relay.var("weight1", relay.TensorType(w1_shape, dtype))
+    weight2 = relay.var("weight2", relay.TensorType(w2_shape, dtype))
+    y1 = relay.nn.conv2d(
+        data,
+        weight1,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="float32",
+    )
+    y2 = relay.nn.conv2d(
+        y1,
+        weight2,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="float32",
+    )
+    f = relay.Function([data, weight1, weight2], y2)
+    relay_mod = tvm.IRModule.from_expr(f)
+    relay_mod = relay.transform.InferType()(relay_mod)
+
+    target_hexagon = tvm.target.hexagon("v68")
+    runtime = Runtime("cpp")
+    executor = Executor("graph")
+
+    temp = utils.tempdir()
+    dso_binary = "test_binary.so"
+    dso_binary_path = temp.relpath(dso_binary)
+
+    with tvm.transform.PassContext(opt_level=3):
+        lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_hexagon, host=target_hexagon),
+            runtime=runtime,
+            executor=executor,
+        )
+        lowered.get_lib().save(dso_binary_path)
+
+    if not android_serial_number:
+        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
+
+    rpc_info = {
+        "rpc_tracker_host": tvm_tracker_host,
+        "rpc_tracker_port": tvm_tracker_port,
+        "rpc_server_port": 7070,
+    }
+    launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
+    launcher.upload(dso_binary_path, dso_binary)
+    launcher.start_server()
+
+    weight1_data = np.random.rand(w1_shape[0], w1_shape[1], w1_shape[2], w1_shape[3]).astype(
+        dtype=dtype
+    )
+    weight2_data = np.random.rand(w2_shape[0], w2_shape[1], w2_shape[2], w2_shape[3]).astype(
+        dtype=dtype
+    )
+    input_data = np.random.rand(
+        input_shape[0], input_shape[1], input_shape[2], input_shape[3]
+    ).astype(dtype=dtype)
+
+    params = {"weight1": weight1_data, "weight2": weight2_data}
+    inputs = {"data": input_data}
+
+    with launcher.start_session() as sess:
+        graph_mod = launcher.get_graph_executor(lowered.get_graph_json(), dso_binary, sess)
+        graph_mod.set_input(**params)
+        graph_mod.run(**inputs)
+        hexagon_output = graph_mod.get_output(0).numpy()
+        launcher.stop_server()
+
+    target_llvm = tvm.target.Target("llvm")
+    with tvm.transform.PassContext(opt_level=3):
+        llvm_lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_llvm, host=target_llvm),
+            runtime=runtime,
+            executor=executor,
+        )
+    llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
+    llvm_graph_mod.set_input(**params)
+    llvm_graph_mod.run(**inputs)
+    expected_output = llvm_graph_mod.get_output(0).numpy()
+
+    tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
+
+
+@requires_hexagon_toolchain
+def test_aot_executor(tvm_tracker_host, tvm_tracker_port, android_serial_number):
+    dtype = "float32"
+    input_shape = (1, 128, 128, 3)
+    w_shape = (5, 5, 3, 8)
+    data = relay.var("data", relay.TensorType(input_shape, dtype))
+    weight = relay.var("weight", relay.TensorType(w_shape, dtype))
+    y = relay.nn.conv2d(
+        data,
+        weight,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="float32",
+    )
+    f = relay.Function([data, weight], y)
+    relay_mod = tvm.IRModule.from_expr(f)
+    relay_mod = relay.transform.InferType()(relay_mod)
+
+    target_hexagon = tvm.target.hexagon("v68")
+    temp = utils.tempdir()
+    dso_binary = "test_binary.so"
+    dso_binary_path = temp / dso_binary
+
+    weight_data = np.random.rand(w_shape[0], w_shape[1], w_shape[2], w_shape[3]).astype(dtype=dtype)
+    input_data = np.random.rand(
+        input_shape[0], input_shape[1], input_shape[2], input_shape[3]
+    ).astype(dtype=dtype)
+
+    params = {"weight": weight_data}
+    inputs = {"data": input_data}
+
+    with tvm.transform.PassContext(opt_level=3):
+        lowered = tvm.relay.build(
+            relay_mod,
+            params=params,
+            target=tvm.target.Target(target_hexagon, host="c"),
+            runtime=Runtime("cpp"),
+            executor=Executor("aot", {"unpacked-api": False, "interface-api": "c"}),
+        )
+        lowered.export_library(
+            dso_binary_path, fcompile=hexagon.create_aot_shared, hexagon_arch="v68"
+        )
+
+    if not android_serial_number:
+        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
+
+    rpc_info = {
+        "rpc_tracker_host": tvm_tracker_host,
+        "rpc_tracker_port": tvm_tracker_port,
+        "rpc_server_port": 7070,
+    }
+    launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
+    launcher.upload(dso_binary_path, dso_binary)
+    launcher.start_server()
+
+    with launcher.start_session() as sess:
+        aot_mod = launcher.get_aot_executor(dso_binary, sess)
+        aot_mod.set_input(**inputs)
+        aot_mod.run()
+        hexagon_output = aot_mod.get_output(0).numpy()
+        launcher.stop_server()
+
+    target_llvm = tvm.target.Target("llvm")
+    with tvm.transform.PassContext(opt_level=3):
+        llvm_lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_llvm, host=target_llvm),
+            runtime=Runtime("cpp"),
+            executor=Executor("graph"),
+        )
+
+    llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
+    llvm_graph_mod.set_input(**params)
+    llvm_graph_mod.run(**inputs)
+    expected_output = llvm_graph_mod.get_output(0).numpy()
+
+    tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
+
+
+@requires_hexagon_toolchain
+def test_aot_executor_multiple_conv2d(tvm_tracker_host, tvm_tracker_port, android_serial_number):
+    dtype = "float32"
+    input_shape = (1, 8, 8, 3)
+    w1_shape = (5, 5, 3, 1)
+    w2_shape = (5, 5, 1, 3)
+    data = relay.var("data", relay.TensorType(input_shape, dtype))
+    weight1 = relay.var("weight1", relay.TensorType(w1_shape, dtype))
+    weight2 = relay.var("weight2", relay.TensorType(w2_shape, dtype))
+    y1 = relay.nn.conv2d(
+        data,
+        weight1,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="float32",
+    )
+    y2 = relay.nn.conv2d(
+        y1,
+        weight2,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="float32",
+    )
+    f = relay.Function([data, weight1, weight2], y2)
+    relay_mod = tvm.IRModule.from_expr(f)
+    relay_mod = relay.transform.InferType()(relay_mod)
+
+    target_hexagon = tvm.target.hexagon("v68")
+    temp = utils.tempdir()
+    dso_binary = "test_binary.so"
+    dso_binary_path = temp / dso_binary
+
+    weight1_data = np.random.rand(w1_shape[0], w1_shape[1], w1_shape[2], w1_shape[3]).astype(
+        dtype=dtype
+    )
+    weight2_data = np.random.rand(w2_shape[0], w2_shape[1], w2_shape[2], w2_shape[3]).astype(
+        dtype=dtype
+    )
+    input_data = np.random.rand(
+        input_shape[0], input_shape[1], input_shape[2], input_shape[3]
+    ).astype(dtype=dtype)
+
+    params = {"weight1": weight1_data, "weight2": weight2_data}
+    inputs = {"data": input_data}
+
+    with tvm.transform.PassContext(opt_level=3):
+        lowered = tvm.relay.build(
+            relay_mod,
+            params=params,
+            target=tvm.target.Target(target_hexagon, host="c"),
+            runtime=Runtime("cpp"),
+            executor=Executor("aot", {"unpacked-api": False, "interface-api": "c"}),
+        )
+        lowered.export_library(
+            dso_binary_path, fcompile=hexagon.create_aot_shared, hexagon_arch="v68"
+        )
+
+    if not android_serial_number:
+        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
+
+    rpc_info = {
+        "rpc_tracker_host": tvm_tracker_host,
+        "rpc_tracker_port": tvm_tracker_port,
+        "rpc_server_port": 7070,
+    }
+    launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
+    launcher.upload(dso_binary_path, dso_binary)
+    launcher.start_server()
+
+    with launcher.start_session() as sess:
+        aot_mod = launcher.get_aot_executor(dso_binary, sess)
+        aot_mod.set_input(**inputs)
+        aot_mod.run()
+        hexagon_output = aot_mod.get_output(0).numpy()
+        launcher.stop_server()
+
+    target_llvm = tvm.target.Target("llvm")
+    with tvm.transform.PassContext(opt_level=3):
+        llvm_lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_llvm, host=target_llvm),
+            runtime=Runtime("cpp"),
+            executor=Executor("graph"),
+        )
+
+    llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
+    llvm_graph_mod.set_input(**params)
+    llvm_graph_mod.run(**inputs)
+    expected_output = llvm_graph_mod.get_output(0).numpy()
 
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 

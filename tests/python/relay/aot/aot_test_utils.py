@@ -276,9 +276,7 @@ def subprocess_check_log_output(cmd, cwd, logfile):
 
     proc.wait()
     if proc.returncode != 0:
-        raise RuntimeError(
-            f"Subprocess failed: {cmd}\nstdout:\n{stdout}"
-        )
+        raise RuntimeError(f"Subprocess failed: {cmd}\nstdout:\n{stdout}")
 
 
 # TODO: Move to linker script with list of symbols rather than coding into source
