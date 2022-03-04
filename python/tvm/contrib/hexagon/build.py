@@ -289,6 +289,10 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
             Same as in HexagonLauncherRPC, except if the "workspace_base"
             key is not present or is None, ANDROID_HEXAGON_TEST_BASE_DIR
             is used as the base directory.
+        workspace : str or pathlib.Path, optional
+            Test workspace path on android.
+        adb_socket : str, Optional
+            ADB server socket which runs on the host.
         """
         if not rpc_info.get("workspace_base"):
             rpc_info["workspace_base"] = self.ANDROID_HEXAGON_TEST_BASE_DIR
