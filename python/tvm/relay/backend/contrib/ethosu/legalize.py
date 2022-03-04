@@ -1585,7 +1585,7 @@ class LegalizeSqueeze:
 
 
 class FullyConnectedRewriter(DFPatternCallback):
-    """Legalize Fully Connected (with bias and clip) to an EthosU operator"""
+    """Legalize Fully Connected (with bias and clip) to an NPU operator"""
 
     def __init__(self):
         super().__init__(require_type=True)

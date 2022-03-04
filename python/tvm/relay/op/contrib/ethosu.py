@@ -23,7 +23,7 @@ import numpy as np  # type: ignore
 
 import tvm  # type: ignore
 from tvm import relay
-from tvm.relay.expr import Constant, Call
+from tvm.relay.expr import Constant, Call  # type: ignore
 from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
 from tvm.relay.dataflow_pattern import wildcard, is_op, is_constant, is_tuple  # type: ignore
 from tvm.relay.build_module import bind_params_by_name  # type: ignore
@@ -1103,10 +1103,7 @@ class LutActivationParams:
         """
         if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
             return False
-        return True  # optional_bias_add = (
-
-    #     is_op("nn.bias_add")(dense, is_constant()) | dense
-    # )
+        return True
 
 
 class TanhParams(LutActivationParams):
@@ -1624,12 +1621,10 @@ class FullyConnectedParams:
         if not check_batch_size(self.ifm):
             return False
         # Check input shape
-        if len(self.ifm.shape) < 2:
+        if not len(self.ifm.shape) == 2:
             return False
-        if not np.all(np.array(self.ifm.shape[:-1]) == 1):
-            # As we reshape the ifm from
-            # [n0, n1, ... , n_m] to [n0 * n1 * ... * n_{m-1}, n_m]
-            # all except the last dims need to be 1.
+        # Check output shape
+        if not len(self.ofm.shape) == 2:
             return False
         return True
 
@@ -1638,7 +1633,7 @@ def qnn_fc_pattern():
     dense = is_op("qnn.dense")(
         wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
     )
-    optional_bias_add = is_op("nn.bias_add")(dense, is_constant()) | dense
+    optional_bias_add = is_op("nn.bias_add")(dense, is_constant())
     req = is_op("qnn.requantize")(
         dense | optional_bias_add, is_constant(), is_constant(), is_constant(), is_constant()
     )
