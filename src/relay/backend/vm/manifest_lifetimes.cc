@@ -527,6 +527,8 @@ class KillInserter : public ExprMutator {
  */
 class AliasEliminator : public MixedModeMutator {
  public:
+  using MixedModeMutator::VisitExpr_;
+
   Expr VisitExpr_(const LetNode* let_node) override {
     Expr expr = GetRef<Expr>(let_node);
     LetList ll;
