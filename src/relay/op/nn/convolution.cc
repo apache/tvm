@@ -192,10 +192,10 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->kernel_layout);
 
-  bool is_group = false;
+  bool is_dnnl_group_conv = false;
   if (param->groups > 1 && kernel_layout.name().find("G") != std::string::npos) {
     kOIHW = Layout("GOIHW");
-    is_group = true;
+    is_dnnl_group_conv = true;
   }
 
   const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCHW);
@@ -250,7 +250,7 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     ICHECK_EQ(param->dilation.size(), 2);
     Array<IndexExpr> wshape;
 
-    if (is_group) {
+    if (is_dnnl_group_conv) {
       // infer weight's shape for group convolution
       wshape = {{param->groups, indexdiv(param->channels, param->groups),
                  indexdiv(dshape_nchw[1], param->groups), param->kernel_size[0],
@@ -752,10 +752,10 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->kernel_layout);
 
-  bool is_group = false;
+  bool is_dnnl_group_conv = false;
   if (param->groups > 1 && kernel_layout.name().find("G") != std::string::npos) {
     kIOHW = Layout("GIOHW");
-    is_group = true;
+    is_dnnl_group_conv = true;
   }
 
   const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCHW);
@@ -784,7 +784,7 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
     ICHECK_EQ(param->dilation.size(), 2);
 
     Array<IndexExpr> wshape;
-    if (is_group) {
+    if (is_dnnl_group_conv) {
       // infer weight's shape for group convolution
       wshape = {{param->groups, indexdiv(dshape_nchw[1], param->groups),
                  indexdiv(param->channels, param->groups), param->kernel_size[0],
