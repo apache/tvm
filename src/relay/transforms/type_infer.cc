@@ -771,6 +771,7 @@ Expr TypeInferencer::Infer(GlobalVar var, Function function) {
     this->diag_ctx.Emit(Diagnostic::Bug(function->span)
                         << "the type checked function is malformed, please report this");
   }
+
   return resolved_expr;
 }
 
