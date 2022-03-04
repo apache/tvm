@@ -36,6 +36,10 @@
 #include "hexagon_buffer.h"
 #include "hexagon_common.h"
 
+#if defined(__hexagon__)
+#include "HAP_compute_res.h"
+#endif
+
 namespace tvm {
 namespace runtime {
 namespace hexagon {
@@ -157,85 +161,60 @@ void HexagonDeviceAPIv2::CopyDataFromTo(const void* from, size_t from_offset, vo
 }
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
-  void **p = (void**)0x0024FA10;
-  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
-
-  HEXAGON_PRINT(ALWAYS, "STRAW: Made it to mem_copy");
   void* dst = args[0];
-  HEXAGON_PRINT(ALWAYS, "STRAW:   dst = %p", dst);
-  std::string dst_scope = args[1];
-  HEXAGON_PRINT(ALWAYS, "STRAW:   dst_scope = %s", dst_scope.c_str());
+  // std::string dst_scope = args[1];
   void* src = args[2];
-  HEXAGON_PRINT(ALWAYS, "STRAW:   src = %p", src);
-  std::string src_scope = args[3];
-  HEXAGON_PRINT(ALWAYS, "STRAW:   src_scope = %s", src_scope.c_str());
+  // std::string src_scope = args[3];
   int size = args[4];
-  HEXAGON_PRINT(ALWAYS, "STRAW:   size = %d", size);
-
-  if(dst_scope == "global.texture") {
-    HEXAGON_PRINT(ALWAYS, "STRAW:   dst is vtcm");
-    auto* hexbuf = static_cast<HexagonBuffer*>(dst);
-    HEXAGON_PRINT(ALWAYS, "STRAW:   hexbuf = %p", hexbuf);
-    dst = hexbuf->GetPointer()[0];
-    HEXAGON_PRINT(ALWAYS, "STRAW:   vtcm dst = %p", dst);
-  }
-    
-  if(src_scope == "global.texture") {
-    HEXAGON_PRINT(ALWAYS, "STRAW:   src is vtcm");
-    auto* hexbuf = static_cast<HexagonBuffer*>(src);
-    HEXAGON_PRINT(ALWAYS, "STRAW:   hexbuf = %p", hexbuf);
-    src = hexbuf->GetPointer()[0];
-    HEXAGON_PRINT(ALWAYS, "STRAW:   vtcm src = %p", src);
-  }
 
   hexagon_user_dma_1d_sync(dst, src, size);
 
   *rv = static_cast<int32_t>(0);
-  //void **p = (void**)0x0024FA10;
-  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
 });
 
+std::map<void*, unsigned int> vtcmallocs;
+
 TVM_REGISTER_GLOBAL("device_api.hexagon.AllocTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
-  void **p = (void**)0x0024FA10;
-  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
-
-  HEXAGON_PRINT(ALWAYS, "STRAW: Made it to AllocTexture");
   int nbytes = args[0];
-  HEXAGON_PRINT(ALWAYS, "STRAW:   nbytes = %d", nbytes);
-  auto *hexbuf = new HexagonBuffer(nbytes, kHexagonAllocAlignment, String("global.vtcm"));
-  HEXAGON_PRINT(ALWAYS, "STRAW:   hexbuf = %p", hexbuf);
-  auto *ptr = hexbuf->GetPointer()[0];
-  HEXAGON_PRINT(ALWAYS, "STRAW:   vtcm src = %p", ptr);
+  void *data_ = nullptr;
+  unsigned int context_id_ = 0;
+#if defined(__hexagon__)
+    compute_res_attr_t res_info;
+    HEXAGON_SAFE_CALL(HAP_compute_res_attr_init(&res_info));
 
-  *rv = hexbuf;
-  //void **p = (void**)0x0024FA10;
-  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
+    // allocate nbytes of vtcm on a single page
+    HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param(&res_info, /*vtcm_size = */ nbytes,
+                                                          /*b_single_page = */ 1));
+    context_id_ = HAP_compute_res_acquire(&res_info, /*timeout = */ 10000);
+
+    if (context_id_) {
+      data_ = HAP_compute_res_attr_get_vtcm_ptr(&res_info);
+      if (!data_) {
+        HEXAGON_PRINT(ERROR, "ERROR: Allocated VTCM ptr is null.");
+        HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
+        return;
+      }
+    } else {
+      HEXAGON_PRINT(ERROR, "ERROR: Unable to acquire requeisted resource.");
+      return;
+    }
+#endif
+  vtcmallocs[data_] = context_id_;
+  *rv = data_;
 });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.FreeTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
-  void **p = (void**)0x0024FA10;
-  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
-
-  HEXAGON_PRINT(ALWAYS, "STRAW: Made it to FreeTexture");
-  void* ptr = args[0];
-  HEXAGON_PRINT(ALWAYS, "STRAW:   ptr = %p", ptr);
-  auto *hexbuf = static_cast<HexagonBuffer*>(ptr);
-  HEXAGON_PRINT(ALWAYS, "STRAW:   hexbuf = %p", hexbuf);
-  auto *x = hexbuf->GetPointer()[0];
-  HEXAGON_PRINT(ALWAYS, "STRAW:   vtcm src = %p", x);
-  delete hexbuf;
+  void* data_ = args[0];
+  unsigned int context_id_ = vtcmallocs[data_];
+#if defined(__hexagon__)
+    HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
+#endif
   *rv = static_cast<int32_t>(0);
-
-  //void **p = (void**)0x0024FA10;
-  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
 });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.v2").set_body([](TVMArgs args, TVMRetValue* rv) {
-  void **p = (void**)0x0024FA10;
-  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
   DeviceAPI* ptr = HexagonDeviceAPIv2::Global();
   *rv = static_cast<void*>(ptr);
-  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
 });
 
 }  // namespace hexagon
