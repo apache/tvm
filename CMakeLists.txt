@@ -94,6 +94,7 @@ tvm_option(USE_TENSORRT_CODEGEN "Build with TensorRT Codegen support" OFF)
 tvm_option(USE_TENSORRT_RUNTIME "Build with TensorRT runtime" OFF)
 tvm_option(USE_RUST_EXT "Build with Rust based compiler extensions, STATIC, DYNAMIC, or OFF" OFF)
 tvm_option(USE_VITIS_AI "Build with VITIS-AI Codegen support" OFF)
+tvm_option(USE_CUSTOM_LOGGING "Use a user-provided logging implementation" OFF)
 tvm_option(SUMMARIZE "Print CMake option summary after configuring" OFF)
 
 # include directories
@@ -513,6 +514,16 @@ target_compile_definitions(tvm_runtime_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm
 target_compile_definitions(tvm_libinfo_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 target_compile_definitions(tvm PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 target_compile_definitions(tvm_runtime PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
+
+# This has to come after Hexagon.cmake because it may set USE_CUSTOM_LOGGING.
+if(USE_CUSTOM_LOGGING)
+  message(STATUS "Using user-defined logging")
+  target_compile_definitions(tvm PUBLIC TVM_LOG_CUSTOMIZE=1)
+  target_compile_definitions(tvm_runtime PUBLIC TVM_LOG_CUSTOMIZE=1)
+  target_compile_definitions(tvm_objs PUBLIC TVM_LOG_CUSTOMIZE=1)
+  target_compile_definitions(tvm_runtime_objs PUBLIC TVM_LOG_CUSTOMIZE=1)
+  target_compile_definitions(tvm_libinfo_objs PUBLIC TVM_LOG_CUSTOMIZE=1)
+endif()
 
 # logging option for libbacktrace
 include(cmake/modules/Logging.cmake)

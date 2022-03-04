@@ -20,8 +20,6 @@
 /*!
  * \file hexagon_common.cc
  */
-#define TVM_LOG_CUSTOMIZE 1
-
 #include "hexagon_common.h"
 
 #include <tvm/runtime/logging.h>
@@ -108,6 +106,7 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
 }
 }  // namespace hexagon
 
+#if USE_HEXAGON_LOGGING
 namespace {
 std::vector<std::string> SplitString(const std::string& str, char delim) {
   std::vector<std::string> lines;
@@ -135,6 +134,7 @@ void LogMessageImpl(const std::string& file, int lineno, const std::string& mess
   HexagonLog(file, lineno, message);
 }
 }  // namespace detail
+#endif
 
 TVM_REGISTER_GLOBAL("tvm.runtime.hexagon.lookup_linked_params")
     .set_body(hexagon::HexagonLookupLinkedParam);

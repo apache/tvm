@@ -17,8 +17,6 @@
  * under the License.
  */
 
-#define TVM_LOG_CUSTOMIZE 1
-
 #include "hexagon_buffer.h"
 
 #include <tvm/runtime/module.h>

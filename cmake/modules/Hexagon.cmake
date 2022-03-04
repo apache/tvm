@@ -142,6 +142,12 @@ if(BUILD_FOR_HEXAGON)
   include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_QURT_INCLUDES})
 
   list(APPEND RUNTIME_HEXAGON_SRCS ${RUNTIME_HEXAGON_COMMON_SRCS})
+
+  # Hexagon provides its own logging. Currently this logging cannot be
+  # overridden by a user.
+  set(USE_CUSTOM_LOGGING ON)
+  target_compile_definitions(tvm_objs PRIVATE USE_HEXAGON_LOGGING=1)
+  target_compile_definitions(tvm_runtime_objs PRIVATE USE_HEXAGON_LOGGING=1)
 endif()
 
 
