@@ -52,6 +52,8 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
  public:
   explicit SplitPatternReNormalizer(Analyzer* analyzer) : IRMutatorWithAnalyzer(analyzer) {}
 
+  using IRMutatorWithAnalyzer::VisitExpr_;
+
   PrimExpr VisitExpr_(const FloorDivNode* op) final {
     PrimExpr a = VisitExpr(op->a);
     PrimExpr b = VisitExpr(op->b);

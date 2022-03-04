@@ -21,6 +21,7 @@
 
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/type_functor.h>
+#include <tvm/meta_schedule/integration.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/expr.h>
@@ -41,6 +42,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
 #include "../transforms/pass_utils.h"
 #include "utils.h"
@@ -178,16 +180,11 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
         }
       }
       if (use_meta_schedule_) {
-        const auto* f_create_func = runtime::Registry::Get("te.CreatePrimFuncFromOutputs");
-        const auto* f_meta_schedule =
-            runtime::Registry::Get("meta_schedule.MetaScheduleContextQueryInsideWithScope");
-        ICHECK(f_create_func) << "te.CreatePrimFuncFromOutputs is not registered";
-        ICHECK(f_meta_schedule)
-            << "meta_schedule.MetaScheduleContextQueryInsideWithScope is not registered";
-        prim_func = (*f_create_func)(tensor_outs);
+        prim_func = tir::CreatePrimFuncFromOutputs(tensor_outs);
         Optional<ObjectRef> opt_mod_or_base_func =
-            (*f_meta_schedule)(prim_fn_var->name_hint, IRModule({{prim_fn_var, relay_func}}),
-                               target_, Array<IRModule>{IRModule({{prim_fn_var, prim_func}})});
+            meta_schedule::MetaScheduleContext::QueryInsideWithScope(
+                prim_fn_var->name_hint, IRModule({{prim_fn_var, relay_func}}), target_,
+                Array<IRModule>{IRModule({{prim_fn_var, prim_func}})});
         if (const auto* result = opt_mod_or_base_func.as<tir::PrimFuncNode>()) {
           prim_func = GetRef<tir::PrimFunc>(result);
         } else {
