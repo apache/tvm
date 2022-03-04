@@ -66,7 +66,7 @@ def test_list_executors():
     assert "aot" in Executor.list_registered()
 
 
-@pytest.mark.parametrize("executor", [Executor("aot"), "aot"])
+@pytest.mark.parametrize("executor", [Executor("aot").name, "aot"])
 def test_list_executor_options(executor):
     aot_options = Executor.list_registered_options(executor)
     assert "interface-api" in aot_options
