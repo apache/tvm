@@ -120,7 +120,7 @@ inline PrimExpr TryConstFold<tir::Sub>(PrimExpr a, PrimExpr b) {
 
 template <>
 inline PrimExpr TryConstFold<tir::Mul>(PrimExpr a, PrimExpr b) {
-  TVM_ARITH_CONST_PROPAGATION({ 
+  TVM_ARITH_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
     if (pa && pb) return IntImm(rtype, pa->value * pb->value);
     if (pa) {

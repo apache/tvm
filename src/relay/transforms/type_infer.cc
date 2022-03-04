@@ -939,7 +939,7 @@ Pass InferType() {
         AddGlobalTypes(mod);
 
         std::vector<std::pair<GlobalVar, Function> > updates;
-        
+
         for (const auto& it : updated_mod->functions) {
           // Currently we don't type check TIR.
           //

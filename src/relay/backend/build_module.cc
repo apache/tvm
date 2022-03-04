@@ -425,7 +425,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Generate code for the updated function.
     executor_codegen_ = MakeExecutorCodegen(executor_->name);
     executor_codegen_->Init(nullptr, config_->legacy_target_map);
-    executor_codegen_->Codegen(func_module, func, mod_name); // haoyang here
+    executor_codegen_->Codegen(func_module, func, mod_name);
     executor_codegen_->UpdateOutput(&ret_);
     ret_.params = executor_codegen_->GetParams();
 

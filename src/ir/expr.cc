@@ -61,7 +61,6 @@ IntImm::IntImm(DataType dtype, int64_t value, Span span) {
   ICHECK(dtype.is_int() || dtype.is_uint())
       << "ValueError: IntImm supports only int or uint type, but " << dtype << " was supplied.";
   if (dtype.is_uint()) {
-    // std::cout << "is_uint value is " << value << std::endl; // haoyang
     ICHECK_GE(value, 0U);
   }
   ObjectPtr<IntImmNode> node = make_object<IntImmNode>();
