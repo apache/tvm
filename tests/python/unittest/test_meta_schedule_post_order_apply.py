@@ -26,6 +26,7 @@ from tvm.error import TVMError
 from tvm.meta_schedule import TuneContext
 from tvm.meta_schedule.schedule_rule import PyScheduleRule
 from tvm.meta_schedule.space_generator import PostOrderApply
+from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir.schedule import BlockRV, Schedule
@@ -134,6 +135,7 @@ def _check_correct(schedule: Schedule):
         assert math.prod(trace.decisions[inst]) == 1024
 
 
+@derived_object
 class WowSoFancyScheduleRule(PyScheduleRule):
     def initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
@@ -150,6 +152,7 @@ class WowSoFancyScheduleRule(PyScheduleRule):
         return [new_sch]
 
 
+@derived_object
 class DoubleScheduleRule(PyScheduleRule):
     def initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
@@ -174,6 +177,7 @@ class DoubleScheduleRule(PyScheduleRule):
         return result
 
 
+@derived_object
 class ReorderScheduleRule(PyScheduleRule):
     def initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
@@ -261,6 +265,7 @@ def test_meta_schedule_post_order_apply_duplicate_matmul():
 
 
 def test_meta_schedule_post_order_apply_remove_block():
+    @derived_object
     class TrinityDouble(PyScheduleRule):
         def initialize_with_tune_context(self, context: "TuneContext") -> None:
             pass
@@ -282,6 +287,7 @@ def test_meta_schedule_post_order_apply_remove_block():
             result.append(new_sch)
             return result
 
+    @derived_object
     class RemoveBlock(PyScheduleRule):
         def initialize_with_tune_context(self, context: "TuneContext") -> None:
             pass

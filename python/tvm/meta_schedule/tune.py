@@ -230,7 +230,7 @@ class Parse:
     @staticmethod
     def _builder(builder: Optional[Builder]) -> Builder:
         if builder is None:
-            builder = LocalBuilder()
+            builder = LocalBuilder()  # type: ignore
         if not isinstance(builder, Builder):
             raise TypeError(f"Expected `builder` to be Builder, but gets: {builder}")
         return builder
@@ -238,7 +238,7 @@ class Parse:
     @staticmethod
     def _runner(runner: Optional[Runner]) -> Runner:
         if runner is None:
-            runner = LocalRunner()
+            runner = LocalRunner()  # type: ignore
         if not isinstance(runner, Runner):
             raise TypeError(f"Expected `runner` to be Runner, but gets: {runner}")
         return runner
@@ -291,7 +291,7 @@ class Parse:
     @staticmethod
     def _cost_model(cost_model: Optional[CostModel]) -> CostModel:
         if cost_model is None:
-            return XGBModel(extractor=PerStoreFeature())
+            return XGBModel(extractor=PerStoreFeature())  # type: ignore
         if not isinstance(cost_model, CostModel):
             raise TypeError(f"Expected `cost_model` to be CostModel, but gets: {cost_model}")
         return cost_model

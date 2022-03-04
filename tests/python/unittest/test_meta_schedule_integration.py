@@ -22,6 +22,7 @@ import pytest
 import tvm
 from tvm import meta_schedule as ms
 from tvm.ir.module import IRModule
+from tvm.meta_schedule.utils import derived_object
 from tvm.tir import Schedule
 from tvm.target import Target
 from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
@@ -122,6 +123,7 @@ def test_meta_schedule_integration_extract_from_resnet():
 
 
 def test_meta_schedule_integration_apply_history_best():
+    @derived_object
     class DummyDatabase(PyDatabase):
         def __init__(self):
             super().__init__()

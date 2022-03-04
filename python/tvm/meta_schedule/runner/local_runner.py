@@ -23,9 +23,9 @@ import tvm
 
 from ...contrib.popen_pool import PopenPoolExecutor
 from ...runtime import Device, Module
-from ..utils import get_global_func_with_default_on_worker
+from ..utils import derived_object, get_global_func_with_default_on_worker
 from .config import EvaluatorConfig
-from .runner import PyRunner, RunnerFuture, RunnerInput, RunnerResult
+from .runner import PyRunner, RunnerFuture, RunnerInput, RunnerResult, PyRunnerFuture
 from .utils import (
     T_ARGUMENT_LIST,
     T_ARG_INFO_JSON_OBJ_LIST,
@@ -36,7 +36,31 @@ from .utils import (
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-class LocalRunnerFuture(RunnerFuture):
+T_ALLOC_ARGUMENT = Callable[  # pylint: disable=invalid-name
+    [
+        Device,  # The device on the remote
+        T_ARG_INFO_JSON_OBJ_LIST,  # The metadata information of the arguments to be allocated
+        int,  # The number of repeated allocations to be done
+    ],
+    List[T_ARGUMENT_LIST],  # A list of argument lists
+]
+T_RUN_EVALUATOR = Callable[  # pylint: disable=invalid-name
+    [
+        Module,  # The Module opened on the remote
+        Device,  # The device on the remote
+        EvaluatorConfig,  # The evaluator configuration
+        List[T_ARGUMENT_LIST],  # A list of argument lists
+    ],
+    List[float],  # A list of running time
+]
+T_CLEANUP = Callable[  # pylint: disable=invalid-name
+    [],
+    None,
+]
+
+
+@derived_object
+class LocalRunnerFuture(PyRunnerFuture):
     """Local based runner future
 
     Parameters
@@ -88,6 +112,54 @@ class LocalRunnerFuture(RunnerFuture):
         return RunnerResult(self.res, self.error_message)
 
 
+def _worker_func(
+    _f_alloc_argument: Optional[str],
+    _f_run_evaluator: Optional[str],
+    _f_cleanup: Optional[str],
+    evaluator_config: EvaluatorConfig,
+    alloc_repeat: int,
+    artifact_path: str,
+    device_type: str,
+    args_info: T_ARG_INFO_JSON_OBJ_LIST,
+) -> List[float]:
+    f_alloc_argument: T_ALLOC_ARGUMENT = get_global_func_with_default_on_worker(
+        _f_alloc_argument, default_alloc_argument
+    )
+    f_run_evaluator: T_RUN_EVALUATOR = get_global_func_with_default_on_worker(
+        _f_run_evaluator, default_run_evaluator
+    )
+    f_cleanup: T_CLEANUP = get_global_func_with_default_on_worker(_f_cleanup, default_cleanup)
+
+    @contextmanager
+    def resource_handler():
+        try:
+            yield
+        finally:
+            # Final step. Always clean up
+            f_cleanup()
+
+    with resource_handler():
+        # Step 1: create the local runtime module
+        rt_mod = tvm.runtime.load_module(artifact_path)
+        # Step 2: create the local device
+        device = tvm.runtime.device(dev_type=device_type, dev_id=0)
+        # Step 3: Allocate input arguments
+        repeated_args: List[T_ARGUMENT_LIST] = f_alloc_argument(
+            device,
+            args_info,
+            alloc_repeat,
+        )
+        # Step 4: Run time_evaluator
+        costs: List[float] = f_run_evaluator(
+            rt_mod,
+            device,
+            evaluator_config,
+            repeated_args,
+        )
+    return costs
+
+
+@derived_object
 class LocalRunner(PyRunner):
     """Local runner
 
@@ -143,28 +215,6 @@ class LocalRunner(PyRunner):
         def default_cleanup() -> None:
             ...
     """
-
-    T_ALLOC_ARGUMENT = Callable[
-        [
-            Device,  # The device on the remote
-            T_ARG_INFO_JSON_OBJ_LIST,  # The metadata information of the arguments to be allocated
-            int,  # The number of repeated allocations to be done
-        ],
-        List[T_ARGUMENT_LIST],  # A list of argument lists
-    ]
-    T_RUN_EVALUATOR = Callable[
-        [
-            Module,  # The Module opened on the remote
-            Device,  # The device on the remote
-            EvaluatorConfig,  # The evaluator configuration
-            List[T_ARGUMENT_LIST],  # A list of argument lists
-        ],
-        List[float],  # A list of running time
-    ]
-    T_CLEANUP = Callable[
-        [],
-        None,
-    ]
 
     timeout_sec: float
     evaluator_config: EvaluatorConfig
@@ -230,7 +280,7 @@ class LocalRunner(PyRunner):
         results: List[RunnerFuture] = []
         for runner_input in runner_inputs:
             future = self.pool.submit(
-                LocalRunner._worker_func,
+                _worker_func,
                 self.f_alloc_argument,
                 self.f_run_evaluator,
                 self.f_cleanup,
@@ -250,7 +300,7 @@ class LocalRunner(PyRunner):
                 result = None
                 error_message = "LocalRunner: An exception occurred\n" + str(exception)
             local_future = LocalRunnerFuture(res=result, error_message=error_message)
-            results.append(local_future)
+            results.append(local_future)  # type: ignore
         return results
 
     def _sanity_check(self) -> None:
@@ -273,55 +323,6 @@ class LocalRunner(PyRunner):
             self.f_cleanup,
         )
         value.result()
-
-    @staticmethod
-    def _worker_func(
-        _f_alloc_argument: Optional[str],
-        _f_run_evaluator: Optional[str],
-        _f_cleanup: Optional[str],
-        evaluator_config: EvaluatorConfig,
-        alloc_repeat: int,
-        artifact_path: str,
-        device_type: str,
-        args_info: T_ARG_INFO_JSON_OBJ_LIST,
-    ) -> List[float]:
-        f_alloc_argument: LocalRunner.T_ALLOC_ARGUMENT = get_global_func_with_default_on_worker(
-            _f_alloc_argument, default_alloc_argument
-        )
-        f_run_evaluator: LocalRunner.T_RUN_EVALUATOR = get_global_func_with_default_on_worker(
-            _f_run_evaluator, default_run_evaluator
-        )
-        f_cleanup: LocalRunner.T_CLEANUP = get_global_func_with_default_on_worker(
-            _f_cleanup, default_cleanup
-        )
-
-        @contextmanager
-        def resource_handler():
-            try:
-                yield
-            finally:
-                # Final step. Always clean up
-                f_cleanup()
-
-        with resource_handler():
-            # Step 1: create the local runtime module
-            rt_mod = tvm.runtime.load_module(artifact_path)
-            # Step 2: create the local device
-            device = tvm.runtime.device(dev_type=device_type, dev_id=0)
-            # Step 3: Allocate input arguments
-            repeated_args: List[T_ARGUMENT_LIST] = f_alloc_argument(
-                device,
-                args_info,
-                alloc_repeat,
-            )
-            # Step 4: Run time_evaluator
-            costs: List[float] = f_run_evaluator(
-                rt_mod,
-                device,
-                evaluator_config,
-                repeated_args,
-            )
-        return costs
 
 
 def default_alloc_argument(
