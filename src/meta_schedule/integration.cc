@@ -140,12 +140,6 @@ Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRMod
   return NullOpt;
 }
 
-Optional<ObjectRef> ContextQueryInsideWithScope(runtime::String task_name, IRModule mod,
-                                                Target target,
-                                                Optional<Array<IRModule>> dispatched) {
-  return MetaScheduleContext::QueryInsideWithScope(task_name, mod, target, dispatched);
-}
-
 /**************** FFI ****************/
 
 class MetaScheduleContextInternal {

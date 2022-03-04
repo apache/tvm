@@ -215,9 +215,6 @@ class ApplyHistoryBest : public MetaScheduleContext {
                                                     ApplyHistoryBestNode);
 };
 
-Optional<ObjectRef> ContextQueryInsideWithScope(runtime::String task_name, IRModule mod,
-                                                Target target,
-                                                Optional<Array<IRModule>> dispatched);
 }  // namespace meta_schedule
 }  // namespace tvm
 
