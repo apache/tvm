@@ -349,6 +349,25 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
 
     def _run_server_script(self):
         """Setup the ADB connection and execute the server script."""
+
+        # Removed pre-defined forward/reverse rules
+        subprocess.check_call(self._adb_device_sub_cmd + ["forward", "--remove-all"])
+        subprocess.check_call(self._adb_device_sub_cmd + ["reverse", "--remove-all"])
+
+        # Enable port reverse for RPC tracker
+        rpc_tracker_port = self._rpc_info["rpc_tracker_port"]
+        rpc_server_port = self._rpc_info["rpc_server_port"]
+        subprocess.check_call(
+            self._adb_device_sub_cmd
+            + ["reverse", f"tcp:{rpc_tracker_port}", f"tcp:{rpc_tracker_port}"]
+        )
+        # Enable port forward for RPC server. We forward 9 ports after the rpc_server_port.
+        for i in range(0, 10):
+            subprocess.check_call(
+                self._adb_device_sub_cmd
+                + ["forward", f"tcp:{rpc_server_port+i}", f"tcp:{rpc_server_port+i}"]
+            )
+
         # Run server and connect to tracker
         subprocess.Popen(
             self._adb_device_sub_cmd + ["shell", f"cd {self._workspace} && ./android_bash.sh"],
