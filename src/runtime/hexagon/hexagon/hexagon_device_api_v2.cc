@@ -125,20 +125,25 @@ void HexagonDeviceAPIv2::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamH
   HexagonBuffer* hex_from_buf = static_cast<HexagonBuffer*>(from->data);
   HexagonBuffer* hex_to_buf = static_cast<HexagonBuffer*>(to->data);
 
+  HEXAGON_PRINT(ALWAYS, "HERE1");
   if (TVMDeviceExtType(from->device.device_type) == kDLHexagon &&
       TVMDeviceExtType(to->device.device_type) == kDLHexagon) {
+    HEXAGON_PRINT(ALWAYS, " In HEREa");
     CHECK(hex_from_buf != nullptr);
     CHECK(hex_to_buf != nullptr);
     hex_to_buf->CopyFrom(*hex_from_buf, GetDataSize(*from));
   } else if (from->device.device_type == kDLCPU &&
              TVMDeviceExtType(to->device.device_type) == kDLHexagon) {
+    HEXAGON_PRINT(ALWAYS, " In HEREb");
     CHECK(hex_to_buf != nullptr);
     hex_to_buf->CopyFrom(from->data, GetDataSize(*from));
   } else if (TVMDeviceExtType(from->device.device_type) == kDLHexagon &&
              to->device.device_type == kDLCPU) {
+    HEXAGON_PRINT(ALWAYS, " In HEREc");
     CHECK(hex_from_buf != nullptr);
     hex_from_buf->CopyTo(to->data, GetDataSize(*to));
   } else {
+    HEXAGON_PRINT(ALWAYS, " In HEREd");
     CHECK(false)
         << "Expect copy between DLTensor devices of types kDLHexagon and kDLCPU (external) only.";
   }
@@ -152,39 +157,85 @@ void HexagonDeviceAPIv2::CopyDataFromTo(const void* from, size_t from_offset, vo
 }
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
+  void **p = (void**)0x0024FA10;
+  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
+
   HEXAGON_PRINT(ALWAYS, "STRAW: Made it to mem_copy");
   void* dst = args[0];
   HEXAGON_PRINT(ALWAYS, "STRAW:   dst = %p", dst);
-  void* src = args[1];
+  std::string dst_scope = args[1];
+  HEXAGON_PRINT(ALWAYS, "STRAW:   dst_scope = %s", dst_scope.c_str());
+  void* src = args[2];
   HEXAGON_PRINT(ALWAYS, "STRAW:   src = %p", src);
-  int size = args[2];
+  std::string src_scope = args[3];
+  HEXAGON_PRINT(ALWAYS, "STRAW:   src_scope = %s", src_scope.c_str());
+  int size = args[4];
   HEXAGON_PRINT(ALWAYS, "STRAW:   size = %d", size);
+
+  if(dst_scope == "global.texture") {
+    HEXAGON_PRINT(ALWAYS, "STRAW:   dst is vtcm");
+    auto* hexbuf = static_cast<HexagonBuffer*>(dst);
+    HEXAGON_PRINT(ALWAYS, "STRAW:   hexbuf = %p", hexbuf);
+    dst = hexbuf->GetPointer()[0];
+    HEXAGON_PRINT(ALWAYS, "STRAW:   vtcm dst = %p", dst);
+  }
+    
+  if(src_scope == "global.texture") {
+    HEXAGON_PRINT(ALWAYS, "STRAW:   src is vtcm");
+    auto* hexbuf = static_cast<HexagonBuffer*>(src);
+    HEXAGON_PRINT(ALWAYS, "STRAW:   hexbuf = %p", hexbuf);
+    src = hexbuf->GetPointer()[0];
+    HEXAGON_PRINT(ALWAYS, "STRAW:   vtcm src = %p", src);
+  }
 
   hexagon_user_dma_1d_sync(dst, src, size);
 
   *rv = static_cast<int32_t>(0);
+  //void **p = (void**)0x0024FA10;
+  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
 });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.AllocTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
+  void **p = (void**)0x0024FA10;
+  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
+
   HEXAGON_PRINT(ALWAYS, "STRAW: Made it to AllocTexture");
   int nbytes = args[0];
   HEXAGON_PRINT(ALWAYS, "STRAW:   nbytes = %d", nbytes);
-  auto data_ = malloc(nbytes);
-  HEXAGON_PRINT(ALWAYS, "STRAW:   data_ = %p", data_);
-  *rv = data_;
+  auto *hexbuf = new HexagonBuffer(nbytes, kHexagonAllocAlignment, String("global.vtcm"));
+  HEXAGON_PRINT(ALWAYS, "STRAW:   hexbuf = %p", hexbuf);
+  auto *ptr = hexbuf->GetPointer()[0];
+  HEXAGON_PRINT(ALWAYS, "STRAW:   vtcm src = %p", ptr);
+
+  *rv = hexbuf;
+  //void **p = (void**)0x0024FA10;
+  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
 });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.FreeTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
+  void **p = (void**)0x0024FA10;
+  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
+
   HEXAGON_PRINT(ALWAYS, "STRAW: Made it to FreeTexture");
-  void* data_ = args[0];
-  HEXAGON_PRINT(ALWAYS, "STRAW:   data_ = %p", data_);
-  free(data_);
+  void* ptr = args[0];
+  HEXAGON_PRINT(ALWAYS, "STRAW:   ptr = %p", ptr);
+  auto *hexbuf = static_cast<HexagonBuffer*>(ptr);
+  HEXAGON_PRINT(ALWAYS, "STRAW:   hexbuf = %p", hexbuf);
+  auto *x = hexbuf->GetPointer()[0];
+  HEXAGON_PRINT(ALWAYS, "STRAW:   vtcm src = %p", x);
+  delete hexbuf;
   *rv = static_cast<int32_t>(0);
+
+  //void **p = (void**)0x0024FA10;
+  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
 });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.v2").set_body([](TVMArgs args, TVMRetValue* rv) {
+  void **p = (void**)0x0024FA10;
+  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
   DeviceAPI* ptr = HexagonDeviceAPIv2::Global();
   *rv = static_cast<void*>(ptr);
+  HEXAGON_PRINT(ALWAYS, "STRAW: CORRUPTED MEMORY = %p", *p);
 });
 
 }  // namespace hexagon

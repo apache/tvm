@@ -54,7 +54,7 @@ def intrin_mem_copy(shape, dtype, dst_scope, src_scope):
         _dst = outs[0]
         ib.emit(
             tvm.tir.call_intrin(
-                "handle", "tir.mem_copy", _dst.access_ptr("w"), _src.access_ptr("r"), size
+                "handle", "tir.mem_copy", _dst.access_ptr("w"), dst_scope, _src.access_ptr("r"), src_scope, size
             )
         )
         return ib.get()
