@@ -17,14 +17,15 @@
 # pylint: disable=invalid-name
 """Common topi utilities"""
 from __future__ import absolute_import as _abs
+
 from numbers import Integral
+
 import numpy as np
-
-
 import tvm
 from tvm import te
-from tvm.tir import layout, bijective_layout
-from . import tag, cpp
+from tvm.tir import bijective_layout, layout
+
+from . import cpp, tag
 
 
 class InvalidShapeError(ValueError):
@@ -347,7 +348,15 @@ def const_matrix(matrix, name="const_matrix"):
                 )
         return now
 
-    return te.compute(matrix.shape, select_array, name=name, attrs={"const_matrix": True})
+    return te.compute(
+        matrix.shape,
+        select_array,
+        name=name,
+        attrs={
+            "const_matrix": True,
+            "schedule_rule": "meta_schedule.compute_inline",
+        },
+    )
 
 
 def get_max_power2_factor(n, max_value=None):

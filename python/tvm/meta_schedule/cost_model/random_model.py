@@ -131,6 +131,6 @@ class RandomModel(PyCostModel):
         np.random.set_state(self.random_state)
         # TODO(@zxybazh): Use numpy's RandState object:
         # https://numpy.org/doc/1.16/reference/generated/numpy.random.RandomState.html#numpy.random.RandomState
-        result = np.random.rand(len(candidates)) * self.max_range
+        result = np.random.rand(len(candidates)) * self.max_range  # type: ignore
         self.random_state = np.random.get_state()
         return result
