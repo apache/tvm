@@ -17,7 +17,7 @@
 """Developer API of IR node builder make function."""
 import tvm
 from tvm._ffi.base import string_types
-from tvm.runtime import ObjectGeneric, DataType, convert, const
+from tvm.runtime import ObjectGeneric, convert, const
 from tvm.ir import container as _container
 
 from . import stmt as _stmt
