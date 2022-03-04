@@ -23,6 +23,14 @@
         "vid_hex": "",
         "pid_hex": ""
     },
+    "mps3_an547": {
+        "board": "mps3_an547",
+        "model": "mps3_an547",
+        "is_qemu": true,
+        "fpu": false,
+        "vid_hex": "",
+        "pid_hex": ""
+    },
     "nrf5340dk_nrf5340_cpuapp": {
         "board": "nrf5340dk_nrf5340_cpuapp",
         "model": "nrf5340dk",
