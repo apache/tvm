@@ -45,14 +45,14 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = "tlcpack/ci-lint:v0.68"
-ci_gpu = "tlcpack/ci-gpu:v0.81"
-ci_cpu = "tlcpack/ci-cpu:v0.81"
-ci_wasm = "tlcpack/ci-wasm:v0.71"
-ci_i386 = "tlcpack/ci-i386:v0.74"
-ci_qemu = "tlcpack/ci-qemu:v0.10"
-ci_arm = "tlcpack/ci-arm:v0.07"
-ci_hexagon = "tlcpack/ci-hexagon:v0.01"
+ci_lint = 'tlcpack/ci-lint:v0.68'
+ci_gpu = 'tlcpack/ci-gpu:v0.81'
+ci_cpu = 'tlcpack/ci-cpu:v0.81'
+ci_wasm = 'tlcpack/ci-wasm:v0.71'
+ci_i386 = 'tlcpack/ci-i386:v0.74'
+ci_qemu = 'tlcpack/ci-qemu:v0.10'
+ci_arm = 'tlcpack/ci-arm:v0.07'
+ci_hexagon = 'tlcpack/ci-hexagon:v0.01'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -147,6 +147,14 @@ def should_skip_ci(pr_number) {
   return git_skip_ci_code == 0
 }
 
+// skips builds from branch indexing; sourced from https://www.jvt.me/posts/2020/02/23/jenkins-multibranch-skip-branch-index/
+// execute this before anything else, including requesting any time on an agent
+if (currentBuild.getBuildCauses().toString().contains('BranchIndexingCause')) {
+  print "INFO: Build skipped due to trigger being Branch Indexing"
+  currentBuild.result = 'ABORTED' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
+  return
+}
+
 cancel_previous_build()
 
 stage('Prepare') {
@@ -193,6 +201,7 @@ stage('Sanity Check') {
     }
   }
 }
+
 
 // Run make. First try to do an incremental make from a previous workspace in hope to
 // accelerate the compilation. If something is wrong, clean the workspace and then
@@ -254,13 +263,13 @@ def python_unittest(image) {
 def fsim_test(image) {
   sh (
     script: "${docker_run} ${image} ./tests/scripts/task_python_vta_fsim.sh",
-    label: 'Run VTA tests in FSIM ',
+    label: 'Run VTA tests in FSIM',
   )
 }
 
 def cmake_build(image, path, make_flag) {
   sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_build.sh ${path} ${make_flag}",
+    script: "${docker_run} ${image} ./tests/scripts/task_build.py --num-executors ${CI_NUM_EXECUTORS} --sccache-bucket tvm-sccache-prod",
     label: 'Run cmake build',
   )
 }

@@ -27,8 +27,11 @@ from tvm.ir.transform import PassContext
 from tvm.tir import expr as tvm_expr
 from tvm.target import Target
 from .. import nd as _nd, autotvm, register_func
+from ..runtime import load_module
+from ..runtime.executor import aot_executor as _aot_executor
 from ..target import Target
-from ..contrib import graph_executor as _graph_rt
+from ..contrib import graph_executor as _graph_executor
+from ..contrib import utils as contrib_utils
 from . import _build_module
 from . import ty as _ty
 from . import expr as _expr
@@ -612,7 +615,7 @@ class GraphExecutor(_interpreter.Executor):
                 "Graph Executor only supports static graphs, got output type", ret_type
             )
         mod = build(self.mod, target=self.target)
-        gmodule = _graph_rt.GraphModule(mod["default"](self.device))
+        gmodule = _graph_executor.GraphModule(mod["default"](self.device))
 
         def _unflatten(flat_iter, cur_type):
             if isinstance(cur_type, _ty.TensorType):
@@ -641,6 +644,74 @@ class GraphExecutor(_interpreter.Executor):
         return _graph_wrapper
 
 
+class AotExecutor(_interpreter.Executor):
+    """Implements the Executor interface for AOT.
+
+    Parameters
+    ----------
+    mod : :py:class:`~tvm.IRModule`
+        The module to support the execution.
+
+    device : :py:class:`Device`
+        The runtime device to run the code on.
+
+    target : :py:class:`Target`
+        The target option to build the function.
+    """
+
+    def __init__(self, mod, device, target):
+        assert mod is not None
+        self.mod = mod
+        self.device = device
+        self.target = target
+        assert target.attrs.get("executor", "graph") == "aot"
+
+    def _make_executor(self, expr=None):
+        if expr:
+            self.mod["main"] = expr
+        self.mod = InferType()(self.mod)
+        ret_type = self.mod["main"].checked_type.ret_type
+        if _ty.is_dynamic(ret_type):
+            raise ValueError("AOT Executor only supports static graphs, got output type", ret_type)
+        mod = build(self.mod, target=self.target)
+
+        # NOTE: Given AOT requires use of the "c" backend, must export/import to compile the
+        # generated code.
+        temp_so_dir = contrib_utils.TempDirectory()
+        temp_so = temp_so_dir / "temp.so"
+        mod.export_library(temp_so, cc="gcc", options=["-std=c11"])
+
+        mod = load_module(temp_so)
+        aot_mod = mod["default"](self.device)
+        gmodule = _aot_executor.AotModule(aot_mod)
+
+        def _unflatten(flat_iter, cur_type):
+            if isinstance(cur_type, _ty.TensorType):
+                return next(flat_iter)
+            if isinstance(cur_type, _ty.TupleType):
+                fields = []
+                for field_type in cur_type.fields:
+                    field = _unflatten(flat_iter, field_type)
+                    fields.append(field)
+                return fields
+            raise ValueError("Return type", ret_type, "contains unsupported type", cur_type)
+
+        def _aot_wrapper(*args, **kwargs):
+            args = self._convert_args(self.mod["main"], args, kwargs)
+            # Create map of inputs.
+            for i, arg in enumerate(args):
+                gmodule.set_input(i, arg)
+            # Run the module, and fetch the output.
+            gmodule.run()
+            flattened = []
+            for i in range(gmodule.get_num_outputs()):
+                flattened.append(gmodule.get_output(i).copyto(_nd.cpu(0)))
+            unflattened = _unflatten(iter(flattened), ret_type)
+            return unflattened
+
+        return _aot_wrapper
+
+
 # TODO(mbs): Collapse the create_executor/evaluate phases together since a) most callers don't
 # reuse the executor for multiple expressions and b) any preparation necessary for the expression
 # evaluation needs to (currently) be done along with preparation for the module.
@@ -664,9 +735,8 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
     Parameters
     ----------
     kind : str
-        The type of executor. Avaliable options are `debug` for the
-        interpreter, `graph` for the graph executor, and `vm` for the virtual
-        machine.
+        The type of executor. Avaliable options are `debug` for the interpreter, `graph` for the
+        graph executor, `aot` for the aot executor, and `vm` for the virtual machine.
 
     mod : :py:class:`~tvm.IRModule`
         The Relay module containing collection of functions
@@ -703,4 +773,6 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
         return GraphExecutor(mod, device, target)
     if kind == "vm":
         return VMExecutor(mod, device, target)
+    if kind == "aot":
+        return AotExecutor(mod, device, target)
     raise RuntimeError("unknown execution strategy: {0}".format(kind))

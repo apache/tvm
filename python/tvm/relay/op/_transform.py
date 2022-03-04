@@ -299,7 +299,7 @@ def _strided_slice_shape_func_with_axes(data_shape, begin, end, strides, slice_m
             else:
                 cend = cbegin + int64(end[i])
         else:
-            if end[i] > data_shape[i]:
+            if end[i] > data_shape[axes[i]]:
                 cend = dim_size
             else:
                 cend = int64(end[i])

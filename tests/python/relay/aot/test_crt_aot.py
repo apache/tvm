@@ -16,6 +16,7 @@
 # under the License.
 
 from collections import OrderedDict
+import re
 import sys
 
 import numpy as np
@@ -49,7 +50,14 @@ def test_error_c_interface_with_packed_api():
     two = relay.add(relay.const(1), relay.const(1))
     func = relay.Function([], two)
 
-    with pytest.raises(tvm.TVMError, match="Packed interface required for packed operators"):
+    with pytest.raises(
+        tvm.TVMError,
+        match=re.escape(
+            'Either need interface_api == "packed" (got: c) or '
+            "unpacked-api == true (got: (bool)0) when targeting "
+            "c runtime"
+        ),
+    ):
         compile_and_run(
             AOTTestModel(
                 module=IRModule.from_expr(func), inputs={}, outputs=generate_ref_data(func, {})

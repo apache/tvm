@@ -46,7 +46,7 @@ from tvm.meta_schedule.runner.local_runner import (
     default_alloc_argument as local_default_alloc_argument,
 )
 from tvm.meta_schedule.testing import LocalRPC
-from tvm.meta_schedule.utils import get_global_func_with_default_on_worker
+from tvm.meta_schedule.utils import derived_object, get_global_func_with_default_on_worker
 from tvm.rpc import RPCSession
 from tvm.runtime import Device, Module
 from tvm.script import tir as T
@@ -357,6 +357,7 @@ def test_meta_schedule_local_multiple_runs():
 def test_meta_schedule_py_runner():
     """Test meta schedule PyRunner"""
 
+    @derived_object
     class TestRunner(PyRunner):
         def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
             raise ValueError("TestRunner")
@@ -885,4 +886,4 @@ def test_meta_schedule_local_runner_add_test():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    test_meta_schedule_local_single_run()

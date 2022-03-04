@@ -19,6 +19,9 @@
 
 import functools as ft
 import os
+import pathlib
+from typing import Union
+
 import tvm
 import tvm.ir
 import tvm.contrib.cc as cc
@@ -39,10 +42,18 @@ from ..._ffi.registry import register_func
 #
 # Subsequent calls to 'link_shared' will use the newly registered linker.
 
-hexagon_toolchain_root = os.environ.get("HEXAGON_TOOLCHAIN") or ""  # pylint: disable=invalid-name
-hexagon_link_main = os.path.join(  # pylint: disable=invalid-name
-    hexagon_toolchain_root, "bin", "hexagon-link"
-)
+HEXAGON_TOOLCHAIN = os.environ.get("HEXAGON_TOOLCHAIN", default="")  # pylint: disable=invalid-name
+HEXAGON_SDK_PATH = os.environ.get("HEXAGON_SDK_PATH", default="")  # pylint: disable=invalid-name
+HEXAGON_LINK_MAIN = (
+    pathlib.Path(HEXAGON_TOOLCHAIN) / "bin" / "hexagon-link"
+)  # pylint: disable=invalid-name
+HEXAGON_CLANG_PLUS = (
+    pathlib.Path(HEXAGON_TOOLCHAIN) / "bin" / "hexagon-clang++"
+)  # pylint: disable=invalid-name
+HEXAGON_SDK_INCLUDE_DIRS = [  # pylint: disable=invalid-name
+    pathlib.Path(HEXAGON_SDK_PATH) / "incs",
+    pathlib.Path(HEXAGON_SDK_PATH) / "incs" / "stddef",
+]
 
 
 def register_linker(f):
@@ -51,9 +62,14 @@ def register_linker(f):
 
 
 @register_func("tvm.contrib.hexagon.hexagon.hexagon_link")
-def hexagon_link():
+def hexagon_link() -> str:
     """Return path to the Hexagon linker."""
-    return hexagon_link_main
+    return str(HEXAGON_LINK_MAIN)
+
+
+def hexagon_clang_plus() -> str:
+    """Return path to the Hexagon clang++."""
+    return str(HEXAGON_CLANG_PLUS)
 
 
 @register_func("tvm.contrib.hexagon.hexagon.link_shared")
@@ -101,12 +117,12 @@ def link_shared(so_name, objs, **kwargs):
             message += (
                 " Please verify the value of the HEXAGON_LINKER environment variable "
                 + '(currently set to "'
-                + hexagon_toolchain_root
+                + HEXAGON_TOOLCHAIN
                 + '").'
             )
         raise Exception(message)
 
-    libpath = os.path.join(hexagon_toolchain_root, "target", "hexagon", "lib", "v66", "G0")
+    libpath = os.path.join(HEXAGON_TOOLCHAIN, "target", "hexagon", "lib", "v66", "G0")
     cc.create_shared(
         so_name,
         objs,
@@ -248,3 +264,42 @@ def ir_lower_vtcm():
 
 def ir_lower_vtcm_pass():
     return [(3, ir_lower_vtcm())]
+
+
+def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: str, options=None):
+    """Export Hexagon AOT module."""
+    if not os.access(str(HEXAGON_CLANG_PLUS), os.X_OK):
+        raise Exception(
+            'The Clang++ "' + str(HEXAGON_CLANG_PLUS) + '" does not exist or is not executable.'
+        )
+    if not HEXAGON_TOOLCHAIN:
+        raise Exception(
+            " The environment variable HEXAGON_TOOLCHAIN is unset. Please export "
+            + "HEXAGON_TOOLCHAIN in your environment."
+        )
+    if not HEXAGON_SDK_PATH:
+        raise Exception(
+            " The environment variable HEXAGON_SDK_PATH is unset. Please export "
+            + "HEXAGON_SDK_PATH in your environment."
+        )
+
+    tvm_dir = pathlib.Path(os.path.dirname(os.path.realpath(__file__))) / ".." / ".." / ".." / ".."
+    compute_arch = f"compute{hexagon_arch}"
+    compile_options = [
+        f"-I{tvm_dir / 'include'}",
+        f"-I{tvm_dir / '3rdparty' / 'dlpack' / 'include'}",
+        f"-I{tvm_dir / '3rdparty' / 'dmlc-core' / 'include'}",
+        f"-I{pathlib.Path(HEXAGON_SDK_PATH) / 'rtos' / 'qurt' / compute_arch / 'include'/ 'posix'}",
+        f"-I{pathlib.Path(HEXAGON_SDK_PATH) / 'rtos' / 'qurt' / compute_arch / 'include' / 'qurt'}",
+        f"-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>",
+        f"-D_MACH_I32=int",
+    ]
+
+    # For debugging
+    for path in HEXAGON_SDK_INCLUDE_DIRS:
+        compile_options.append(f"-I{str(path)}")
+
+    cross_compile = cc.cross_compiler(compile_func=hexagon_clang_plus())
+    cross_compile.output_format = "o"
+    c_files = [str(file) for file in files]
+    cross_compile(str(so_name), c_files, options=compile_options)

@@ -45,7 +45,7 @@ function filter_jenkinsfile() {
 function lookup_image_spec() {
     img_line=$(cat "${GIT_TOPLEVEL}/Jenkinsfile" | filter_jenkinsfile | grep -E "^${1} = ")
     if [ -n "${img_line}" ]; then
-        img_spec=$(echo "${img_line}" | sed -E "s/${1} = \"([^\"]*)\"/\1/")
+        img_spec=$(echo "${img_line}" | sed -E "s/${1} = '([^\"]*)'/\1/")
         has_similar_docker_image=1
         docker inspect "${1}" &>/dev/null || has_similar_docker_image=0
         if [ ${has_similar_docker_image} -ne 0 ]; then

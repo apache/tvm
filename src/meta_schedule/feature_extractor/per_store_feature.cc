@@ -1303,7 +1303,7 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
     auto f = [this, is_gpu, &candidates, &results](int, int task_id) -> void {
       const auto& candidate = candidates[task_id];
       std::vector<std::vector<double>> features;
-      ExtractSingle(candidate->sch->mod(), is_gpu, &features);
+      ExtractSingle(DeepCopyIRModule(candidate->sch->mod()), is_gpu, &features);
       results[task_id] = tir::utils::AsNDArray(features);
     };
     support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);

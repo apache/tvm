@@ -1077,7 +1077,8 @@ def test_forward_conv2d_transpose_group():
             B, C, H, W = x.shape
             I, O, KH, KW = w.shape
 
-            # weight is different for each input in batch (this is why we want grouped conv transpose)
+            # weight is different for each input in batch (this is why we want grouped conv
+            # transpose)
             w = w.unsqueeze(0) * s.reshape(B, 1, 1, 1, 1)
             w = w.reshape(B * I, O, KH, KW)
             x = x.reshape(1, B * C, H, W)

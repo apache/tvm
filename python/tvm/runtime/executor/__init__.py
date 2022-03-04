@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,5 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
-cd $1 && cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo && make $2 && cd ..
+
+"""This module contains Python wrappers for the TVM C++ Executor implementations.
+
+NOTE: at present, only AOT Executor is contained here. The others are:
+ - GraphExecutor, in python/tvm/contrib/graph_executor.py
+ - VM Executor, in python/tvm/runtime/vm.py
+
+TODO(areusch): Consolidate these into this module.
+"""
+from .aot_executor import AotModule
