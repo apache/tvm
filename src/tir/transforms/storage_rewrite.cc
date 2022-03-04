@@ -430,11 +430,11 @@ class StoragePlanRewriter : public StmtExprMutator {
       return it->second;
     }
 
-    auto writer = buf.CopyOnWrite();
-    writer->data = new_backing_array;
-
-    buffer_remap_[key] = buf;
-    return buf;
+    Buffer remapped = Buffer(new_backing_array, buf->dtype, buf->shape, buf->strides,
+                             buf->elem_offset, new_backing_array->name_hint, buf->data_alignment,
+                             buf->offset_factor, buf->buffer_type, buf->axis_separators, buf->span);
+    buffer_remap_[key] = remapped;
+    return remapped;
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {

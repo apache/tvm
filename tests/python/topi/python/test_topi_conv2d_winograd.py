@@ -233,7 +233,7 @@ def test_conv2d_nhwc():
     verify_conv2d_nhwc(1, 512, 7, 512, 3, 1, 1)
 
     # more shapes
-    # verify_conv2d_nhwc(2, 64, 56, 64, 3, 1, 1)
+    verify_conv2d_nhwc(2, 64, 56, 64, 3, 1, 1)
     verify_conv2d_nhwc(1, 1, 1, 1, 3, 1, 1)
     verify_conv2d_nhwc(3, 3, 3, 3, 3, 1, 1)
     verify_conv2d_nhwc(2, 13, 71, 59, 3, 1, 1)
