@@ -22,6 +22,7 @@ from typing import List
 
 import pytest
 import tvm
+from tvm._ffi import register_func
 from tvm.error import TVMError
 from tvm.meta_schedule import TuneContext
 from tvm.meta_schedule.schedule_rule import PyScheduleRule
@@ -30,7 +31,6 @@ from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir.schedule import BlockRV, Schedule
-
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,
 # fmt: off
@@ -120,6 +120,23 @@ class TrinityMatmulProcessedForReference:
                 T.writes([D[vi, vj]])
                 D[vi, vj] = (B[vi, vj] + T.float32(3)) * T.float32(5)
 
+
+@tvm.script.ir_module
+class MatmulCustomized:
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+        T.func_attr({"global_symbol": "main"})
+        A = T.match_buffer(a, (1024, 1024), "float32")
+        B = T.match_buffer(b, (1024, 1024), "float32")
+        C = T.match_buffer(c, (1024, 1024), "float32")
+        with T.block("root"):
+            for i, j, k in T.grid(1024, 1024, 1024):
+                with T.block("matmul"):
+                    T.block_attr({"schedule_rule": "tvm.meta_schedule.test.custom_search_space"})
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = 0.0
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
@@ -342,6 +359,32 @@ def test_meta_schedule_post_order_apply_remove_block():
             or str(sch_trace) == correct_trace([16, 64], [64, 16], [16, 64], [64, 16])
             or str(sch_trace) == correct_trace([2, 512], [2, 512], [16, 64], [64, 16])
         )
+
+
+def test_meta_schedule_custom_search_space():
+    mod = MatmulCustomized
+    context = TuneContext(
+        mod=mod,
+        target=Target("llvm"),
+        task_name="Custom Search Space Task",
+        sch_rules=[],
+    )
+    post_order_apply = PostOrderApply()
+    post_order_apply.initialize_with_tune_context(context)
+    with pytest.raises(ValueError, match="Custom schedule rule not found"):
+        post_order_apply.generate_design_space(mod)
+
+    called = False
+
+    def custom_search_space_func(sch: Schedule, _: BlockRV) -> List[Schedule]:
+        nonlocal called
+        called = True
+        return [sch]
+
+    register_func("tvm.meta_schedule.test.custom_search_space", custom_search_space_func)
+
+    post_order_apply.generate_design_space(mod)
+    assert called
 
 
 if __name__ == "__main__":

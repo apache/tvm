@@ -278,7 +278,7 @@ int ThreadGroup::Configure(AffinityMode mode, int nthreads, bool exclude_worker0
 
 void Yield() { std::this_thread::yield(); }
 /*!
- * \bief Set the maximum number of available cores.
+ * \brief Set the maximum number of available cores.
  */
 void SetMaxConcurrency(int value) {
   if (value < 0) {
