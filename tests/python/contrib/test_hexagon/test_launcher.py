@@ -59,10 +59,9 @@ def test_add(android_serial_number, tvm_tracker_host, tvm_tracker_port, adb_serv
         "rpc_tracker_host": tvm_tracker_host,
         "rpc_tracker_port": tvm_tracker_port,
         "rpc_server_port": RPC_SERVER_PORT,
+        "adb_server_socket": adb_server_socket,
     }
-    launcher = HexagonLauncher(
-        serial_number=android_serial_number, rpc_info=rpc_info, adb_socket=adb_server_socket
-    )
+    launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
     launcher.start_server()
 
@@ -105,10 +104,9 @@ def test_add_vtcm(android_serial_number, tvm_tracker_host, tvm_tracker_port, adb
         "rpc_tracker_host": tvm_tracker_host,
         "rpc_tracker_port": tvm_tracker_port,
         "rpc_server_port": RPC_SERVER_PORT,
+        "adb_server_socket": adb_server_socket,
     }
-    launcher = HexagonLauncher(
-        serial_number=android_serial_number, rpc_info=rpc_info, adb_socket=adb_server_socket
-    )
+    launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
     launcher.start_server()
 
@@ -161,10 +159,9 @@ class TestMatMul:
             "rpc_tracker_host": tvm_tracker_host,
             "rpc_tracker_port": tvm_tracker_port,
             "rpc_server_port": RPC_SERVER_PORT,
+            "adb_server_socket": adb_server_socket,
         }
-        launcher = HexagonLauncher(
-            serial_number=android_serial_number, rpc_info=rpc_info, adb_socket=adb_server_socket
-        )
+        launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
         launcher.upload(dso_binary_path, dso_binary)
         launcher.start_server()
 
@@ -240,10 +237,9 @@ def test_graph_executor(
         "rpc_tracker_host": tvm_tracker_host,
         "rpc_tracker_port": tvm_tracker_port,
         "rpc_server_port": RPC_SERVER_PORT,
+        "adb_server_socket": adb_server_socket,
     }
-    launcher = HexagonLauncher(
-        serial_number=android_serial_number, rpc_info=rpc_info, adb_socket=adb_server_socket
-    )
+    launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
     launcher.start_server()
 
@@ -327,10 +323,9 @@ def test_graph_executor_multiple_conv2d(
         "rpc_tracker_host": tvm_tracker_host,
         "rpc_tracker_port": tvm_tracker_port,
         "rpc_server_port": RPC_SERVER_PORT,
+        "adb_server_socket": adb_server_socket,
     }
-    launcher = HexagonLauncher(
-        serial_number=android_serial_number, rpc_info=rpc_info, adb_socket=adb_server_socket
-    )
+    launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
     launcher.start_server()
 
@@ -422,10 +417,9 @@ def test_aot_executor(tvm_tracker_host, tvm_tracker_port, android_serial_number,
         "rpc_tracker_host": tvm_tracker_host,
         "rpc_tracker_port": tvm_tracker_port,
         "rpc_server_port": RPC_SERVER_PORT,
+        "adb_server_socket": adb_server_socket,
     }
-    launcher = HexagonLauncher(
-        serial_number=android_serial_number, rpc_info=rpc_info, adb_socket=adb_server_socket
-    )
+    launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
     launcher.start_server()
 
@@ -523,10 +517,9 @@ def test_aot_executor_multiple_conv2d(
         "rpc_tracker_host": tvm_tracker_host,
         "rpc_tracker_port": tvm_tracker_port,
         "rpc_server_port": RPC_SERVER_PORT,
+        "adb_server_socket": adb_server_socket,
     }
-    launcher = HexagonLauncher(
-        serial_number=android_serial_number, rpc_info=rpc_info, adb_socket=adb_server_socket
-    )
+    launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
     launcher.start_server()
 
