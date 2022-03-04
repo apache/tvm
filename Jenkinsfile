@@ -132,6 +132,14 @@ def cancel_previous_build() {
 }
 
 def should_skip_ci(pr_number) {
+  glob_skip_ci_code = sh (
+    returnStatus: true,
+    script: "./tests/scripts/git_skip_ci_globs.py",
+    label: 'Check if CI should be skipped due to changed files',
+  )
+  if (glob_skip_ci_code == 0) {
+    return true
+  }
   withCredentials([string(
     credentialsId: 'tvm-bot-jenkins-reader',
     variable: 'TOKEN',
@@ -143,7 +151,7 @@ def should_skip_ci(pr_number) {
       script: "./tests/scripts/git_skip_ci.py --pr '${pr_number}'",
       label: 'Check if CI should be skipped',
     )
-    }
+  }
   return git_skip_ci_code == 0
 }
 
