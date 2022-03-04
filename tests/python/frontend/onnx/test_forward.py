@@ -5150,6 +5150,9 @@ target_skips = {
 @pytest.mark.parametrize("onnx_test", onnx_test_folders)
 @tvm.testing.parametrize_targets
 def test_onnx_nodes(target, dev, onnx_test):
+    # breakpoint()
+    target = "cuda"
+    dev = tvm.cuda(0)
     target_kind = tvm.target.Target(target).kind.name
 
     if onnx_test in unsupported_onnx_tests:
@@ -5189,6 +5192,8 @@ def test_onnx_nodes(target, dev, onnx_test):
             else:
                 raise ImportError(str(tensor) + " not labeled as an import or an output")
 
+    breakpoint()
+    print(inputs)
     tvm_val = get_tvm_output_with_vm(onnx_model, inputs, target, dev)
     if len(outputs) == 1:
         tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=rtol, atol=atol)
