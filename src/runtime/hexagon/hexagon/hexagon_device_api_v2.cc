@@ -129,25 +129,20 @@ void HexagonDeviceAPIv2::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamH
   HexagonBuffer* hex_from_buf = static_cast<HexagonBuffer*>(from->data);
   HexagonBuffer* hex_to_buf = static_cast<HexagonBuffer*>(to->data);
 
-  HEXAGON_PRINT(ALWAYS, "HERE1");
   if (TVMDeviceExtType(from->device.device_type) == kDLHexagon &&
       TVMDeviceExtType(to->device.device_type) == kDLHexagon) {
-    HEXAGON_PRINT(ALWAYS, " In HEREa");
     CHECK(hex_from_buf != nullptr);
     CHECK(hex_to_buf != nullptr);
     hex_to_buf->CopyFrom(*hex_from_buf, GetDataSize(*from));
   } else if (from->device.device_type == kDLCPU &&
              TVMDeviceExtType(to->device.device_type) == kDLHexagon) {
-    HEXAGON_PRINT(ALWAYS, " In HEREb");
     CHECK(hex_to_buf != nullptr);
     hex_to_buf->CopyFrom(from->data, GetDataSize(*from));
   } else if (TVMDeviceExtType(from->device.device_type) == kDLHexagon &&
              to->device.device_type == kDLCPU) {
-    HEXAGON_PRINT(ALWAYS, " In HEREc");
     CHECK(hex_from_buf != nullptr);
     hex_from_buf->CopyTo(to->data, GetDataSize(*to));
   } else {
-    HEXAGON_PRINT(ALWAYS, " In HEREd");
     CHECK(false)
         << "Expect copy between DLTensor devices of types kDLHexagon and kDLCPU (external) only.";
   }

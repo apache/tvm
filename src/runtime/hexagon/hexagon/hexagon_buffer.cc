@@ -165,25 +165,12 @@ HexagonBuffer::HexagonBuffer(void* data, size_t nbytes, Optional<String> scope)
   allocations_.push_back(data);
 }
 
-HexagonBuffer::~HexagonBuffer() { 
-  HEXAGON_PRINT(ALWAYS, "STRAW: ---------------------------------------");
-  HEXAGON_PRINT(ALWAYS, "STRAW: DELETING HexagonBuffer at %p", this);
-  managed_allocations_.clear(); 
-  HEXAGON_PRINT(ALWAYS, "STRAW: ---------------------------------------");
-}
+HexagonBuffer::~HexagonBuffer() { managed_allocations_.clear(); }
 
 void** HexagonBuffer::GetPointer() {
-  HEXAGON_PRINT(ALWAYS, "STRAW:     In HexagonBuffer::GetPointer");
-  HEXAGON_PRINT(ALWAYS, "STRAW:       checking size");
   if (!allocations_.size()) {
-  HEXAGON_PRINT(ALWAYS, "STRAW:       returning nullptr");
     return nullptr;
   }
-  HEXAGON_PRINT(ALWAYS, "STRAW:       checking data");
-  void** x = allocations_.data();
-  HEXAGON_PRINT(ALWAYS, "STRAW:       addressof %p", addressof(allocations_));
-  HEXAGON_PRINT(ALWAYS, "STRAW:       returning %p", x);
-  HEXAGON_PRINT(ALWAYS, "STRAW:       vtcm pointer %p", x[0]);
   return allocations_.data();
 }
 

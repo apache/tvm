@@ -112,8 +112,6 @@ def test_cache_read_write(android_serial_number, tvm_tracker_host, tvm_tracker_p
     for impmod in func.imported_modules:
         print(impmod.get_source("ll"))
     print("DONE")
-    print(type(func))
-    print(type(func).__mro__)
 
     if not android_serial_number:
         pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
