@@ -20,9 +20,6 @@ set -e
 set -u
 set -o pipefail
 
-# install python and pip, don't modify this, modify install_python_package.sh
-apt-get update
-
 # python 3.7
 apt-get install -y software-properties-common
 
