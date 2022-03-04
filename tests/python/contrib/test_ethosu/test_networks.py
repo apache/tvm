@@ -48,6 +48,7 @@ MOBILENET_V2_URL = (
 )
 
 
+@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10487")
 @pytest.mark.parametrize(
     "accel_type, model_url, workspace_size, tolerance",
     [

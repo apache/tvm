@@ -526,6 +526,7 @@ def test_binary_add_with_non_4d_shapes(
     )
 
 
+@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10487")
 @pytest.mark.parametrize(
     "accel_type",
     ACCEL_TYPES,
@@ -885,6 +886,7 @@ def test_ethosu_section_name():
     )
 
 
+@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10487")
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 def test_ethosu_clz(accel_type):
     ifm_shape = (1, 42, 5, 4)
