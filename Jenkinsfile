@@ -132,6 +132,10 @@ def cancel_previous_build() {
 }
 
 def should_skip_ci(pr_number) {
+  if (!env.BRANCH_NAME.startsWith('PR-')) {
+    // never skip CI on build sourced from a branch
+    return false
+  }
   glob_skip_ci_code = sh (
     returnStatus: true,
     script: "./tests/scripts/git_skip_ci_globs.py",
