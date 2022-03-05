@@ -96,6 +96,10 @@ struct MeanParams {
   sl::TensorInfo input_info;
 };
 
+struct TanhParams {
+  sl::TensorInfo input_info;
+};
+
 struct ConcatenateParams {
   sl::QuantizationInfo qInfo;
   sl::ConcatenationInfo concat_info = sl::ConcatenationInfo(1, qInfo);
@@ -198,6 +202,8 @@ class EthosnAPI {
   static EthosnError Sigmoid(const Expr& expr, SigmoidParams* params);
   /*! \brief Extract the Support Library mean params from a mean func */
   static EthosnError Mean(const Expr& expr, MeanParams* params);
+  /*! \brief Extract the Support Library tanh params from a Relay an ethos-n tanh func */
+  static EthosnError Tanh(const Expr& expr, TanhParams* params);
   /*! \brief Extract the Support Library concatenate params from a Relay qnn.concatenate call */
   static EthosnError Concatenate(const Expr& expr, ConcatenateParams* params);
   /*! \brief Extract the Support Library split params from a Relay split call */
