@@ -17,27 +17,20 @@
 # pylint: disable=missing-docstring
 import logging
 import tempfile
-import pytest
+from typing import List
+
 import numpy as np
-from typing import Tuple, List
-
-from tvm.meta_schedule.utils import derived_object
-
-try:
-    import torch
-except ModuleNotFoundError:
-    pass
-
+import pytest
 import tvm
 from tvm import relay
-from tvm.ir import IRModule
-from tvm.runtime.ndarray import cpu, cuda
-from tvm.target.target import Target
 from tvm.contrib import graph_executor
+from tvm.ir import IRModule
 from tvm.meta_schedule import ReplayTraceConfig
-from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
-from tvm.meta_schedule.testing import MODEL_TYPE, MODEL_TYPES, get_torch_model
+from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
+from tvm.meta_schedule.testing.relay_workload import get_network
 from tvm.meta_schedule.tune import tune_relay
+from tvm.meta_schedule.utils import derived_object
+from tvm.target.target import Target
 
 logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
@@ -83,47 +76,33 @@ class DummyDatabase(PyDatabase):
 
 
 @pytest.mark.skip("Integration test")
-@pytest.mark.parametrize("model_name", ["resnet18", "mobilenet_v2", "bert_base"])
-@pytest.mark.parametrize("batch_size", [1])
-@pytest.mark.parametrize("target", ["llvm --num-cores=16", "nvidia/geforce-rtx-3070"])
-def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str):
-    if model_name == "inception_v3" and batch_size == 1:
-        pytest.skip("inception_v3 does not handle batch_size of 1")
-
-    input_shape: Tuple[int, ...]
-    input_name = "input0"
-    dev = tvm.cpu() if str(target).startswith("llvm") else cuda()
-    if MODEL_TYPES[model_name] == MODEL_TYPE.TEXT_CLASSIFICATION:
-        seq_length = 128
-        input_name = "input_ids"
-        input_shape = (batch_size, seq_length)
+@pytest.mark.parametrize(
+    "model_name, input_shape, target",
+    [
+        ("resnet_18", [1, 3, 224, 224], "llvm --num-cores=16"),
+        ("resnet_18", [1, 3, 224, 224], "nvidia/geforce-rtx-3070"),
+        ("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=16"),
+        ("mobilenet_v2", [1, 3, 224, 224], "nvidia/geforce-rtx-3070"),
+        ("bert_base", [1, 64], "llvm --num-cores=16"),
+        ("bert_base", [1, 64], "nvidia/geforce-rtx-3070"),
+    ],
+)
+def test_meta_schedule_tune_relay(
+    model_name: str,
+    input_shape: List[int],
+    target: str,
+):
+    dev = tvm.cpu() if str(target).startswith("llvm") else tvm.cuda()
+    if model_name.startswith("bert"):
         data = tvm.nd.array(np.random.randint(0, 30521, size=input_shape), dev)  # embedding size
     else:
-        if MODEL_TYPES[model_name] == MODEL_TYPE.IMAGE_CLASSIFICATION:
-            input_shape = (batch_size, 3, 299, 299)
-        elif MODEL_TYPES[model_name] == MODEL_TYPE.SEGMENTATION:
-            input_shape = (batch_size, 3, 299, 299)
-        elif MODEL_TYPES[model_name] == MODEL_TYPE.OBJECT_DETECTION:
-            input_shape = (1, 3, 300, 300)
-        elif MODEL_TYPES[model_name] == MODEL_TYPE.VIDEO_CLASSIFICATION:
-            input_shape = (batch_size, 3, 3, 299, 299)
-        else:
-            raise ValueError("Unsupported model: " + model_name)
         data = tvm.nd.array(np.random.randn(*input_shape).astype("float32"), dev)
 
-    output_shape: Tuple[int, int] = (batch_size, 1000)
-
-    mod, params = get_torch_model(
-        model_name=model_name,
-        input_shape=input_shape,
-        output_shape=output_shape,
-        dtype="float32",
-    )
-
+    mod, params, (input_name, _, _) = get_network(name=model_name, input_shape=input_shape)
+    target = Target(target)
     with tempfile.TemporaryDirectory() as work_dir:
-        target = Target(target)
         database = DummyDatabase()
-        rt_mod: tvm.module = tune_relay(
+        rt_mod: tvm.runtime.Module = tune_relay(
             mod=mod,
             params=params,
             target=target,
@@ -136,7 +115,7 @@ def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str)
         )
         # Compile without meta-scheduler for correctness check
         with tvm.transform.PassContext(opt_level=0):
-            rt_mod2 = relay.build(mod, target=target, params=params)
+            rt_mod2 = relay.build(mod, target=Target("llvm"), params=params)
 
         def get_output(data, lib):
             module = graph_executor.GraphModule(lib["default"](dev))
@@ -146,14 +125,14 @@ def test_meta_schedule_tune_relay(model_name: str, batch_size: int, target: str)
 
         # Check correctness
         actual_output = get_output(data, rt_mod)
-        expected_output = get_output(data, rt_mod2)
+        expected_output = get_output(tvm.nd.array(data.numpy(), device=tvm.cpu()), rt_mod2)
         assert np.allclose(actual_output, expected_output, rtol=1e-4, atol=2e-4)
 
 
 if __name__ == """__main__""":
-    test_meta_schedule_tune_relay("resnet18", 1, "llvm --num-cores=16")
-    test_meta_schedule_tune_relay("resnet18", 1, "nvidia/geforce-rtx-3070")
-    test_meta_schedule_tune_relay("mobilenet_v2", 1, "llvm --num-cores=16")
-    test_meta_schedule_tune_relay("mobilenet_v2", 1, "nvidia/geforce-rtx-3070")
-    test_meta_schedule_tune_relay("bert_base", 1, "llvm --num-cores=16")
-    test_meta_schedule_tune_relay("bert_base", 1, "nvidia/geforce-rtx-3070")
+    test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "llvm --num-cores=16")
+    test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "nvidia/geforce-rtx-3070")
+    test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=16")
+    test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "nvidia/geforce-rtx-3070")
+    test_meta_schedule_tune_relay("bert_base", [1, 64], "llvm --num-cores=16")
+    test_meta_schedule_tune_relay("bert_base", [1, 64], "nvidia/geforce-rtx-3070")

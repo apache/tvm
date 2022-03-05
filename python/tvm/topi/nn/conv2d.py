@@ -1052,6 +1052,12 @@ def _conv2d_winograd_nhwc_impl(
     )
 
     # transform data
+    target = tvm.target.Target.current(allow_none=True)
+    if target is not None:
+        target_kind = "meta_schedule.winograd_data_pack." + target.kind.name
+    else:
+        target_kind = "None"
+
     r_a = te.reduce_axis((0, alpha), "r_a")
     r_b = te.reduce_axis((0, alpha), "r_b")
     data_pack = te.compute(
@@ -1062,7 +1068,7 @@ def _conv2d_winograd_nhwc_impl(
         name="data_pack",
         attrs={
             "auto_scheduler_simplify_const_tensor_indices": ["eps", "nu", "r_a", "r_b"],
-            "schedule_rule": "meta_schedule.winograd_data_pack.cpu",
+            "schedule_rule": target_kind,
         },
         # the attrs are necessary hints for the auto-scheduler
     )
