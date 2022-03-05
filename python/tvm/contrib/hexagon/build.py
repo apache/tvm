@@ -273,7 +273,10 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
     ]
 
     def __init__(
-        self, serial_number: str, rpc_info: dict, workspace: Union[str, pathlib.Path] = None
+        self,
+        serial_number: str,
+        rpc_info: dict,
+        workspace: Union[str, pathlib.Path] = None,
     ):
         """Configure a new HexagonLauncherAndroid
 
@@ -285,11 +288,14 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
             Same as in HexagonLauncherRPC, except if the "workspace_base"
             key is not present or is None, ANDROID_HEXAGON_TEST_BASE_DIR
             is used as the base directory.
+        workspace : str or pathlib.Path, optional
+            Test workspace path on android.
         """
         if not rpc_info.get("workspace_base"):
             rpc_info["workspace_base"] = self.ANDROID_HEXAGON_TEST_BASE_DIR
         self._serial_number = serial_number
-        self._adb_device_sub_cmd = ["adb", "-s", self._serial_number]
+        adb_socket = rpc_info["adb_server_socket"] if rpc_info["adb_server_socket"] else "tcp:5037"
+        self._adb_device_sub_cmd = ["adb", "-L", adb_socket, "-s", self._serial_number]
 
         super(HexagonLauncherAndroid, self).__init__(rpc_info, workspace)
 
@@ -488,7 +494,11 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
 
 
 # pylint: disable=invalid-name
-def HexagonLauncher(serial_number: str, rpc_info: dict, workspace: Union[str, pathlib.Path] = None):
+def HexagonLauncher(
+    serial_number: str,
+    rpc_info: dict,
+    workspace: Union[str, pathlib.Path] = None,
+):
     if serial_number == "simulator":
         return HexagonLauncherSimulator(rpc_info, workspace)
     return HexagonLauncherAndroid(serial_number, rpc_info, workspace)
