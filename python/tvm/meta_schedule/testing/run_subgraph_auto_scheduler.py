@@ -78,7 +78,7 @@ ARGS = _parse_args()
 def main():
     log_file = os.path.join(ARGS.log_dir, f"{ARGS.workload}.json")
     workload_func, params = CONFIGS[ARGS.workload]
-    params = params[0]
+    params = params[0]  # type: ignore
     workload_func = auto_scheduler.register_workload(workload_func)
 
     if ARGS.target.kind.name == "llvm":

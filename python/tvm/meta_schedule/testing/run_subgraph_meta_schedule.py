@@ -104,7 +104,7 @@ def main():
             num_trials_total=ARGS.num_trials,
             init_min_unmeasured=50,
         ),
-        runner=runner,
+        runner=runner,  # type: ignore
         task_name=ARGS.workload,
         work_dir=ARGS.work_dir,
         num_threads=cpu_count(),
