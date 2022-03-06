@@ -216,7 +216,7 @@ def test_target_tag_0():
     tgt = tvm.target.Target("nvidia/geforce-rtx-2080-ti")
     assert tgt.kind.name == "cuda"
     assert tgt.attrs["arch"] == "sm_75"
-    assert tgt.attrs["shared_memory_per_block"] == 49152
+    assert tgt.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.attrs["max_threads_per_block"] == 1024
     assert tgt.attrs["thread_warp_size"] == 32
     assert tgt.attrs["registers_per_block"] == 65536
@@ -226,7 +226,7 @@ def test_target_tag_1():
     tgt = tvm.target.Target("nvidia/jetson-nano")
     assert tgt.kind.name == "cuda"
     assert tgt.attrs["arch"] == "sm_53"
-    assert tgt.attrs["shared_memory_per_block"] == 49152
+    assert tgt.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.attrs["max_threads_per_block"] == 1024
     assert tgt.attrs["thread_warp_size"] == 32
     assert tgt.attrs["registers_per_block"] == 32768
@@ -243,13 +243,13 @@ def test_target_host_tags():
     tgt = tvm.target.Target("nvidia/jetson-nano", "nvidia/geforce-rtx-2080-ti")
     assert tgt.kind.name == "cuda"
     assert tgt.attrs["arch"] == "sm_53"
-    assert tgt.attrs["shared_memory_per_block"] == 49152
+    assert tgt.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.attrs["max_threads_per_block"] == 1024
     assert tgt.attrs["thread_warp_size"] == 32
     assert tgt.attrs["registers_per_block"] == 32768
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_75"
-    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 65536
@@ -259,7 +259,7 @@ def test_target_host_tag_dict():
     tgt = tvm.target.Target("nvidia/jetson-nano", {"kind": "llvm"})
     assert tgt.kind.name == "cuda"
     assert tgt.attrs["arch"] == "sm_53"
-    assert tgt.attrs["shared_memory_per_block"] == 49152
+    assert tgt.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.attrs["max_threads_per_block"] == 1024
     assert tgt.attrs["thread_warp_size"] == 32
     assert tgt.attrs["registers_per_block"] == 32768
@@ -271,7 +271,7 @@ def test_target_host_single_dict():
     assert tgt.kind.name == "llvm"
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
-    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 32768
@@ -288,7 +288,7 @@ def test_target_host_single_string_with_tag():
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
-    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 32768
@@ -299,7 +299,7 @@ def test_target_host_merge_0():
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
-    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 32768
@@ -346,7 +346,7 @@ def test_target_with_host():
     tgt = tgt.with_host(cuda_host)
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
-    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 32768
