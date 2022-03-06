@@ -377,8 +377,21 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
   } else if (op->op.same_as(builtin::popcount())) {
     return builder_->MakeValue(spv::OpBitCount, builder_->GetSType(op->dtype),
                                MakeValue(op->args[0]));
-  } else if (op->op.same_as(builtin::call_extern()) ||
-             op->op.same_as(builtin::call_pure_extern())) {
+  } else if (op->op.same_as(builtin::call_pure_extern())) {
+    ICHECK_GE(op->args.size(), 1U);
+    const std::string& func_name = op->args[0].as<StringImmNode>()->value;
+    if (func_name == "__dp4a") {
+      std::vector<spirv::Value> values;
+      for (size_t i = 1; i < op->args.size(); ++i) {
+        values.push_back(MakeValue(op->args[i]));
+      }
+      return builder_->CallKHRIntegerDotProduct(builder_->GetSType(op->dtype), values, op->dtype);
+    } else {
+      LOG(FATAL) << "SPIR-V shader cannot make extern calls.  Graph contains extern \""
+                 << Downcast<StringImm>(op->args[0]) << "\"";
+      return spirv::Value();
+    }
+  } else if (op->op.same_as(builtin::call_extern())) {
     ICHECK_GE(op->args.size(), 1U);
     LOG(FATAL) << "SPIR-V shader cannot make extern calls.  Graph contains extern \""
                << Downcast<StringImm>(op->args[0]) << "\"";
@@ -653,8 +666,10 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
         builder_->Allocate(etype, static_cast<uint32_t>(constant_size), spv::StorageClassFunction);
   } else if (storage_scope.rank == runtime::StorageRank::kShared) {
     // Shared memory
-    buf =
-        builder_->Allocate(etype, static_cast<uint32_t>(constant_size), spv::StorageClassWorkgroup);
+    // Aligned on 4-byte boundary
+    int32_t aligned_constant_size = ((constant_size + 3) & ~0x3);
+    buf = builder_->Allocate(etype, static_cast<uint32_t>(aligned_constant_size),
+                             spv::StorageClassWorkgroup);
 
     size_t num_bytes = op->dtype.bytes() * op->dtype.lanes() * static_cast<uint32_t>(constant_size);
     shared_memory_bytes_used_ += num_bytes;

@@ -420,6 +420,17 @@ class IRBuilder {
    * \return The result value.
    */
   Value CallGLSL450(const SType& ret_type, uint32_t inst_id, const std::vector<Value>& args);
+
+  /*!
+   * \brief Create a SPIRV_KHR_integer_dot_product call
+   *
+   * \param ret_type The result type.
+   * \param args The arguments
+   * \return The result value.
+   */
+  Value CallKHRIntegerDotProduct(const SType& ret_type, const std::vector<Value>& args,
+                                 const DataType& dtype);
+
   /*!
    * \brief Build vector by concatenating components
    *
