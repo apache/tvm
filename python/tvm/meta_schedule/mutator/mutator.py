@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule Mutator."""
-from typing import Optional, TYPE_CHECKING
+from typing import Callable, Optional, TYPE_CHECKING
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
 from tvm.tir.schedule import Trace
 
 from .. import _ffi_api
-from ..utils import _get_hex_address, check_override
+from ..utils import _get_default_str
 
 if TYPE_CHECKING:
     from ..tune_context import TuneContext
@@ -60,22 +60,21 @@ class Mutator(Object):
 
 
 @register_object("meta_schedule.PyMutator")
-class PyMutator(Mutator):
-    """An abstract mutator with customized methods on the python-side."""
+class _PyMutator(Mutator):
+    """
+    A TVM object mutator to support customization on the python side.
+    This is NOT the user facing class for function overloading inheritance.
 
-    def __init__(self):
+    See also: PyMutator
+    """
+
+    def __init__(
+        self,
+        f_initialize_with_tune_context: Callable = None,
+        f_apply: Callable = None,
+        f_as_string: Callable = None,
+    ):
         """Constructor."""
-
-        @check_override(self.__class__, Mutator)
-        def f_initialize_with_tune_context(context: "TuneContext") -> None:
-            self.initialize_with_tune_context(context)
-
-        @check_override(self.__class__, Mutator)
-        def f_apply(trace: Trace, _) -> Optional[Trace]:
-            return self.apply(trace)
-
-        def f_as_string() -> str:
-            return str(self)
 
         self.__init_handle_by_constructor__(
             _ffi_api.MutatorPyMutator,  # type: ignore # pylint: disable=no-member
@@ -84,5 +83,51 @@ class PyMutator(Mutator):
             f_as_string,
         )
 
+
+class PyMutator:
+    """
+    An abstract mutator with customized methods on the python-side.
+    This is the user facing class for function overloading inheritance.
+
+    Note: @derived_object is required for proper usage of any inherited class.
+    """
+
+    _tvm_metadata = {
+        "cls": _PyMutator,
+        "methods": ["initialize_with_tune_context", "apply", "__str__"],
+    }
+
+    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+        """Initialize the mutator with a tune context.
+
+        Parameters
+        ----------
+        context : TuneContext
+            The tuning context for initializing the mutator.
+        """
+        raise NotImplementedError
+
+    def apply(self, trace: Trace, _) -> Optional[Trace]:
+        """Apply the mutator function to the given trace.
+
+        Parameters
+        ----------
+        trace : Trace
+            The given trace for mutation.
+
+        Returns
+        -------
+        trace : Optional[Trace]
+            None if mutator failed, otherwise return the mutated trace.
+        """
+        raise NotImplementedError
+
     def __str__(self) -> str:
-        return f"{self.__class__.__name__}({_get_hex_address(self.handle)})"
+        """Get the mutator as string with name.
+
+        Return
+        ------
+        result : str
+            Get the mutator as string with name.
+        """
+        return _get_default_str(self)

@@ -19,7 +19,7 @@ import ctypes
 import json
 import os
 import shutil
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, List, Optional, Union, Callable
 
 import psutil  # type: ignore
 import tvm
@@ -29,6 +29,104 @@ from tvm.ir import Array, IRModule, Map
 from tvm.rpc import RPCSession
 from tvm.runtime import PackedFunc, String
 from tvm.tir import FloatImm, IntImm
+
+
+def derived_object(cls: type) -> type:
+    """A decorator to register derived subclasses for TVM objects.
+
+    Parameters
+    ----------
+    cls : type
+        The derived class to be registered.
+
+    Returns
+    -------
+    cls : type
+        The decorated TVM object.
+
+    Example
+    -------
+    .. code-block:: python
+
+        @register_object("meta_schedule.PyRunner")
+        class _PyRunner(meta_schedule.Runner):
+            def __init__(self, f_run: Callable = None):
+                self.__init_handle_by_constructor__(_ffi_api.RunnerPyRunner, f_run)
+
+        class PyRunner():
+            _tvm_metadata = {
+                "cls": _PyRunner,
+                "methods": ["run"]
+            }
+            def run(self, runner_inputs):
+                raise NotImplementedError
+
+        @derived_object
+        class LocalRunner(PyRunner):
+            def run(self, runner_inputs):
+                ...
+    """
+
+    import functools  # pylint: disable=import-outside-toplevel
+    import weakref  # pylint: disable=import-outside-toplevel
+
+    def _extract(inst: type, name: str):
+        """Extract function from intrinsic class."""
+
+        def method(*args, **kwargs):
+            return getattr(inst, name)(*args, **kwargs)
+
+        if getattr(base, name) is getattr(cls, name) and name != "__str__":
+            # for task scheduler return None means calling default function
+            # otherwise it will trigger a TVMError of method not implemented
+            # on the c++ side when you call the method, __str__ not required
+            return None
+        return method
+
+    assert isinstance(cls.__base__, type)
+    assert hasattr(
+        cls, "_tvm_metadata"
+    ), "Please use the user-facing method overiding class, i.e., PyRunner."
+
+    base = cls.__base__
+    metadata = getattr(base, "_tvm_metadata")
+    fields = metadata.get("fields", [])
+    methods = metadata.get("methods", [])
+
+    class TVMDerivedObject(metadata["cls"]):  # type: ignore
+        """The derived object to avoid cyclic dependency."""
+
+        def __init__(self, *args, **kwargs):
+            """Constructor."""
+            self.handle = None
+            self._inst = cls(*args, **kwargs)
+
+            super().__init__(
+                # the constructor's parameters, builder, runner, etc.
+                *[getattr(self._inst, name) for name in fields],
+                # the function methods, init_with_tune_context, build, run, etc.
+                *[_extract(self._inst, name) for name in methods],
+            )
+
+            # for task scheduler hybrid funcs in c++ & python side
+            # using weakref to avoid cyclic dependency
+            self._inst._outer = weakref.ref(self)
+
+        def __getattr__(self, name: str):
+            """Bridge the attribute function."""
+            return self._inst.__getattribute__(name)
+
+        def __setattr__(self, name, value):
+            if name not in ["_inst", "key", "handle"]:
+                self._inst.__setattr__(name, value)
+            else:
+                super(TVMDerivedObject, self).__setattr__(name, value)
+
+    functools.update_wrapper(TVMDerivedObject.__init__, cls.__init__)  # type: ignore
+    TVMDerivedObject.__name__ = cls.__name__
+    TVMDerivedObject.__doc__ = cls.__doc__
+    TVMDerivedObject.__module__ = cls.__module__
+    return TVMDerivedObject
 
 
 @register_func("meta_schedule.cpu_count")
@@ -240,47 +338,13 @@ def structural_hash(mod: IRModule) -> str:
     return str(shash)
 
 
-def check_override(
-    derived_class: Any, base_class: Any, required: bool = True, func_name: str = None
-) -> Callable:
-    """Check if the derived class has overridden the base class's method.
-
-    Parameters
-    ----------
-    derived_class : Any
-        The derived class.
-    base_class : Any
-        The base class of derived class.
-    required : bool
-        If the method override is required.
-    func_name : str
-        Name of the method. Default value None, which would be set to substring of the given
-        function, e.g. `f_generate`->`generate`.
-
-    Returns
-    -------
-    func : Callable
-        Raise NotImplementedError if the function is required and not overridden. If the
-        function is not overridden return None, other return the overridden function.
-    """
-
-    def inner(func: Callable):
-
-        if func_name is None:
-            method = func.__name__[2:]
-        else:
-            method = func_name
-
-        if getattr(derived_class, method) is getattr(base_class, method):
-            if required:
-                raise NotImplementedError(f"{derived_class}'s {method} method is not implemented!")
-            return None
-        return func
-
-    return inner
+def _get_default_str(obj: Any) -> str:
+    return (
+        f"meta_schedule.{obj.__class__.__name__}" + f"({_to_hex_address(obj._outer().handle)})"
+    )  # type: ignore
 
 
-def _get_hex_address(handle: ctypes.c_void_p) -> str:
+def _to_hex_address(handle: ctypes.c_void_p) -> str:
     """Get the hexadecimal address of a handle.
     Parameters
     ----------
