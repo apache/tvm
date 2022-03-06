@@ -139,7 +139,7 @@ int64_t CalculateRelayExprSizeBytes(const Type& expr_type) {
     }
     return size;
   }
-  if(expr_type->IsInstance<FuncTypeNode>()){
+  if (expr_type->IsInstance<FuncTypeNode>()) {
     return 0;
   }
   auto tensor_type = expr_type.as<TensorTypeNode>();
