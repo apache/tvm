@@ -1269,7 +1269,7 @@ bool CodeGenLLVM::HasAlignmentPadding(DataType dtype) {
   const llvm::DataLayout& data_layout = module_->getDataLayout();
   int bytes = data_layout.getTypeAllocSize(DTypeToLLVMType(dtype));
   int bytes_scalar = data_layout.getTypeAllocSize(DTypeToLLVMType(dtype.element_of()));
-  return bytes != bytes_scalar*dtype.lanes();
+  return bytes != bytes_scalar * dtype.lanes();
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
