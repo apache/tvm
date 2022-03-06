@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -137,6 +138,9 @@ int64_t CalculateRelayExprSizeBytes(const Type& expr_type) {
       size += CalculateRelayExprSizeBytes(field);
     }
     return size;
+  }
+  if(expr_type->IsInstance<FuncTypeNode>()){
+    return 0;
   }
   auto tensor_type = expr_type.as<TensorTypeNode>();
   auto shape = tensor_type->shape;
