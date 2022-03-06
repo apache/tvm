@@ -281,5 +281,34 @@ def test_conv2d_backward_weight():
     )
 
 
+def test_conv2d_backward_weight_infer_type():
+    # From https://github.com/apache/tvm/pull/10439
+    depthwise_conv_code = """
+    fn (%input0: Tensor[(1, 3, 32, 32), float32], %v0_weight: Tensor[(3, 1, 3, 3), float32], %v0_bias: Tensor[(3), float32]) {
+      %0 = nn.conv2d(%input0, %v0_weight, padding=[1, 1, 1, 1], groups=3, channels=3, kernel_size=[3, 3]);
+      nn.bias_add(%0, %v0_bias)
+    }
+    """
+
+    normal_conv_code = """
+    fn (%input0: Tensor[(1, 3, 32, 32), float32], %v0_weight: Tensor[(3, 3, 3, 3), float32], %v0_bias: Tensor[(3), float32]) {
+      %0 = nn.conv2d(%input0, %v0_weight, padding=[1, 1, 1, 1], groups=1, channels=3, kernel_size=[3, 3]);
+      nn.bias_add(%0, %v0_bias)
+    }
+    """
+
+    SEMVER = '#[version = "0.0.5"]\n'
+
+    for code in [normal_conv_code, depthwise_conv_code]:
+        expr = tvm.parser.parse_expr(SEMVER + code)
+        fmod = tvm.IRModule.from_expr(expr)
+
+        mod = relay.transform.InferType()(fmod)
+        bwd_expr = relay.transform.gradient(mod["main"], mode="first_order")
+
+        bwd_mod = tvm.IRModule.from_expr(bwd_expr)
+        bwd_mod = relay.transform.InferType()(bwd_mod)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

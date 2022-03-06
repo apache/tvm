@@ -22,16 +22,19 @@ import numpy as np
 from tvm.meta_schedule import TuneContext
 from tvm.meta_schedule.feature_extractor import PyFeatureExtractor
 from tvm.meta_schedule.search_strategy import MeasureCandidate
+from tvm.meta_schedule.utils import derived_object
+from tvm.runtime.ndarray import array
 
 
 def test_meta_schedule_feature_extractor():
+    @derived_object
     class FancyFeatureExtractor(PyFeatureExtractor):
         def extract_from(
             self,
             context: TuneContext,  # pylint: disable = unused-argument
             candidates: List[MeasureCandidate],  # pylint: disable = unused-argument
         ) -> List[np.ndarray]:
-            return [np.random.rand(4, 5)]
+            return [array(np.random.rand(4, 5))]
 
     extractor = FancyFeatureExtractor()
     features = extractor.extract_from(TuneContext(), [])
@@ -40,6 +43,7 @@ def test_meta_schedule_feature_extractor():
 
 
 def test_meta_schedule_feature_extractor_as_string():
+    @derived_object
     class NotSoFancyFeatureExtractor(PyFeatureExtractor):
         def extract_from(
             self,
@@ -49,7 +53,7 @@ def test_meta_schedule_feature_extractor_as_string():
             return []
 
     feature_extractor = NotSoFancyFeatureExtractor()
-    pattern = re.compile(r"NotSoFancyFeatureExtractor\(0x[a-f|0-9]*\)")
+    pattern = re.compile(r"meta_schedule.NotSoFancyFeatureExtractor\(0x[a-f|0-9]*\)")
     assert pattern.match(str(feature_extractor))
 
 

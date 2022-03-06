@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Callable, List, Union
 
 from tvm.ir import IRModule
 from tvm.ir.container import Array
+from tvm.meta_schedule.utils import derived_object
 from tvm.tir.schedule import Schedule
 
 from .space_generator import PySpaceGenerator
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
     from ..tune_context import TuneContext
 
 
+@derived_object
 class ScheduleFn(PySpaceGenerator):
     """A design space generator with design spaces specified by a schedule function."""
 

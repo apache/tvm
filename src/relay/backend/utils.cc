@@ -179,14 +179,17 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 ExecutorCodegenMetadata::ExecutorCodegenMetadata(
-    Array<tir::Var> inputs, Array<tir::Var> pools, Array<String> devices, Array<String> outputs,
+    Array<tir::Var> inputs, Array<TensorType> input_tensor_types, Array<String> outputs,
+    Array<TensorType> output_tensor_types, Array<tir::Var> pools, Array<String> devices,
     String executor, String mod_name, String interface_api, bool unpacked_api,
     Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs) {
   auto n = make_object<ExecutorCodegenMetadataNode>();
   n->inputs = inputs;
+  n->input_tensor_types = input_tensor_types;
+  n->outputs = outputs;
+  n->output_tensor_types = output_tensor_types;
   n->pools = pools;
   n->devices = devices;
-  n->outputs = outputs;
   n->executor = executor;
   n->interface_api = interface_api;
   n->unpacked_api = unpacked_api;
@@ -292,6 +295,15 @@ void UpdateAutoSchedulerOpWeights(const IRModule& module) {
       module->GetAttr<Map<String, Integer>>("op_weights", Map<String, Integer>()).value();
 
   (*te_compiler_update_weights)(weight_map);
+}
+
+std::vector<int64_t> ShapeToJSON(tvm::Array<IndexExpr> shape) {
+  std::vector<int64_t> ret;
+  for (IndexExpr dim : shape) {
+    const int64_t* pval = tir::as_const_int(dim);
+    ret.push_back(*pval);
+  }
+  return ret;
 }
 
 }  // namespace backend

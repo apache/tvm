@@ -26,11 +26,17 @@ from tvm.runtime import Module, NDArray, load_param_dict, save_param_dict
 from tvm.target import Target
 
 from ...contrib.popen_pool import MapResult, PopenPoolExecutor, StatusKind
-from ..utils import cpu_count, get_global_func_with_default_on_worker
+from ..utils import cpu_count, derived_object, get_global_func_with_default_on_worker
 from .builder import BuilderInput, BuilderResult, PyBuilder
 
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+
+
+T_BUILD = Callable[  # pylint: disable=invalid-name
+    [IRModule, Target, Optional[Dict[str, NDArray]]], Module
+]
+T_EXPORT = Callable[[Module], str]  # pylint: disable=invalid-name
 
 
 def _serialize_params(params: Optional[Dict[str, NDArray]]) -> Optional[bytearray]:
@@ -45,6 +51,7 @@ def _deserialize_params(params: Optional[bytearray]) -> Optional[Dict[str, NDArr
     return load_param_dict(params)
 
 
+@derived_object
 class LocalBuilder(PyBuilder):
     """A builder that builds the given input on local host.
 
@@ -54,10 +61,10 @@ class LocalBuilder(PyBuilder):
         The process pool to run the build.
     timeout_sec : float
         The timeout in seconds for the build.
-    f_build : Union[None, str, LocalBuilder.T_BUILD]
+    f_build : Union[None, str, T_BUILD]
         Name of the build function to be used.
         Defaults to `meta_schedule.builder.default_build`.
-    f_export : Union[None, str, LocalBuilder.T_EXPORT]
+    f_export : Union[None, str, T_EXPORT]
         Name of the export function to be used.
         Defaults to `meta_schedule.builder.default_export`.
 
@@ -91,9 +98,6 @@ class LocalBuilder(PyBuilder):
     please send the registration logic via initializer.
     """
 
-    T_BUILD = Callable[[IRModule, Target, Optional[Dict[str, NDArray]]], Module]
-    T_EXPORT = Callable[[Module], str]
-
     pool: PopenPoolExecutor
     timeout_sec: float
     f_build: Union[None, str, T_BUILD]
@@ -117,10 +121,10 @@ class LocalBuilder(PyBuilder):
             Defaults to number of CPUs.
         timeout_sec : float
             The timeout in seconds for the build.
-        f_build : LocalBuilder.T_BUILD
+        f_build : T_BUILD
             Name of the build function to be used.
             Defaults to `meta_schedule.builder.default_build`.
-        f_export : LocalBuilder.T_EXPORT
+        f_export : T_EXPORT
             Name of the export function to be used.
             Defaults to `meta_schedule.builder.default_export`.
         initializer : Optional[Callable[[], None]]
@@ -148,7 +152,7 @@ class LocalBuilder(PyBuilder):
 
         # Dispatch the build inputs to the worker processes.
         for map_result in self.pool.map_with_error_catching(
-            lambda x: LocalBuilder._worker_func(*x),
+            lambda x: _worker_func(*x),
             [
                 (
                     self.f_build,
@@ -188,28 +192,28 @@ class LocalBuilder(PyBuilder):
         value = self.pool.submit(_check, self.f_build, self.f_export)
         value.result()
 
-    @staticmethod
-    def _worker_func(
-        _f_build: Union[None, str, T_BUILD],
-        _f_export: Union[None, str, T_EXPORT],
-        mod: IRModule,
-        target: Target,
-        params: Optional[bytearray],
-    ) -> str:
-        # Step 0. Get the registered functions
-        f_build: LocalBuilder.T_BUILD = get_global_func_with_default_on_worker(
-            _f_build,
-            default_build,
-        )
-        f_export: LocalBuilder.T_EXPORT = get_global_func_with_default_on_worker(
-            _f_export,
-            default_export,
-        )
-        # Step 1. Build the IRModule
-        rt_mod: Module = f_build(mod, target, _deserialize_params(params))
-        # Step 2. Export the Module
-        artifact_path: str = f_export(rt_mod)
-        return artifact_path
+
+def _worker_func(
+    _f_build: Union[None, str, T_BUILD],
+    _f_export: Union[None, str, T_EXPORT],
+    mod: IRModule,
+    target: Target,
+    params: Optional[bytearray],
+) -> str:
+    # Step 0. Get the registered functions
+    f_build: T_BUILD = get_global_func_with_default_on_worker(
+        _f_build,
+        default_build,
+    )
+    f_export: T_EXPORT = get_global_func_with_default_on_worker(
+        _f_export,
+        default_export,
+    )
+    # Step 1. Build the IRModule
+    rt_mod: Module = f_build(mod, target, _deserialize_params(params))
+    # Step 2. Export the Module
+    artifact_path: str = f_export(rt_mod)
+    return artifact_path
 
 
 @register_func("meta_schedule.builder.default_build")

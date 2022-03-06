@@ -2847,11 +2847,15 @@ class OperatorConverter(object):
         alpha_tensor_type = alpha_tensor.tensor.Type()
         alpha_tensor_type_str = self.get_tensor_type_str(alpha_tensor_type)
         alpha_expr = self.exp_tab.new_const(
-            self.get_tensor_value(alpha_tensor).flatten(), dtype=alpha_tensor_type_str
+            self.get_tensor_value(alpha_tensor), dtype=alpha_tensor_type_str
         )
         in_expr = self.get_expr(input_tensor.tensor_idx)
-        out = _op.nn.prelu(in_expr, alpha_expr, axis=3)
+        data_shape = to_int_list(self.get_tensor_shape(input_tensor))
 
+        alpha_expr = _op.broadcast_to(alpha_expr, data_shape)
+        alpha_expr = _op.reshape(alpha_expr, [-1])
+        out = _op.nn.prelu(_op.reshape(in_expr, [-1]), alpha_expr, axis=0)
+        out = _op.reshape(out, data_shape)
         return out
 
     def convert_transpose_conv(self, op):

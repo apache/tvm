@@ -17,6 +17,7 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
 import sys
+
 import pytest
 import tvm
 from tvm import tir
@@ -380,7 +381,7 @@ def test_postproc_verify_gpu_1():
     mod = Conv2dCuda1
     ctx = _create_context(mod, target=_target())
     sch = tir.Schedule(mod, debug_mask="all")
-    assert not ctx.postprocs[0].apply(sch)
+    assert ctx.postprocs[0].apply(sch)
 
 
 def test_postproc_verify_gpu_2():
@@ -395,6 +396,7 @@ def test_postproc_verify_gpu_3():
     ctx = _create_context(mod, target=_target())
     sch = tir.Schedule(mod, debug_mask="all")
     assert not ctx.postprocs[0].apply(sch)
+
 
 def test_postproc_verify_gpu_4():
     mod = GmmCuda0
@@ -415,6 +417,7 @@ def test_postproc_verify_gpu_6():
     ctx = _create_context(mod, target=_target())
     sch = tir.Schedule(mod, debug_mask="all")
     assert not ctx.postprocs[0].apply(sch)
+
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

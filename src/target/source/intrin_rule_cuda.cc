@@ -43,6 +43,8 @@ struct CUDAMath {
         case 16: {
           if (name == "fabs") {
             return "__habs";
+          } else if (name == "round") {
+            return "hrint";
           } else {
             return "h" + name;
           }

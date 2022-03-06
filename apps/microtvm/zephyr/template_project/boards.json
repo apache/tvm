@@ -1,4 +1,12 @@
 {
+    "b_u585i_iot02a": {
+        "board": "b_u585i_iot02a",
+        "model": "stm32u5xx",
+        "is_qemu": false,
+        "fpu": true,
+        "vid_hex": "0483",
+        "pid_hex": "374e"
+    },
     "mimxrt1050_evk": {
         "board": "mimxrt1050_evk",
         "model": "imxrt10xx",

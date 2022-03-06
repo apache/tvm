@@ -23,6 +23,7 @@
 #include "codegen_c_host.h"
 
 #include <tvm/relay/executor.h>
+#include <tvm/relay/runtime.h>
 #include <tvm/runtime/crt/error_codes.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
@@ -49,6 +50,10 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_s
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "#include <math.h>\n";
   CodeGenC::Init(output_ssa);
+}
+
+void CodeGenCHost::InitGlobalContext() {
+  decl_stream << "void* " << tvm::runtime::symbol::tvm_module_ctx << " = NULL;\n";
 }
 
 void CodeGenCHost::DefineModuleName() { decl_stream << "void* " << module_name_ << " = NULL;\n"; }
@@ -364,6 +369,19 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
 
   if (aot_executor_fn.defined()) {
     cg.AddFunction(aot_executor_fn);
+  }
+
+  // NOTE: it's possible that kRuntime attr is not attached when the mod was built with tvm.build().
+  // See issue #10373.
+  auto opt_runtime = mod->GetAttr<relay::Runtime>(tvm::attr::kRuntime);
+  relay::Runtime runtime;
+  if (opt_runtime.get() != nullptr) {
+    runtime = opt_runtime.value();
+  } else {
+    runtime = relay::Runtime::Create("cpp", {});
+  }
+  if (aot_executor_fn.defined() && runtime->name == relay::kTvmRuntimeCpp) {
+    cg.InitGlobalContext();
   }
 
   if (target->GetAttr<Bool>("system-lib").value_or(Bool(false))) {

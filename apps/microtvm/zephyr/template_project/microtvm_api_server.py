@@ -662,6 +662,10 @@ class ZephyrSerialTransport:
         return generic_find_serial_port()
 
     @classmethod
+    def _find_stm32cubeprogrammer_serial_port(cls, options):
+        return generic_find_serial_port()
+
+    @classmethod
     def _find_serial_port(cls, options):
         flash_runner = _get_flash_runner()
 
@@ -673,6 +677,9 @@ class ZephyrSerialTransport:
 
         if flash_runner == "jlink":
             return cls._find_jlink_serial_port(options)
+
+        if flash_runner == "stm32cubeprogrammer":
+            return cls._find_stm32cubeprogrammer_serial_port(options)
 
         raise RuntimeError(f"Don't know how to deduce serial port for flash runner {flash_runner}")
 
