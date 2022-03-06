@@ -23,8 +23,8 @@ from typing import Any, List
 
 import numpy as np
 import pytest
-
 import tvm
+import tvm.testing
 from tvm._ffi import register_func
 from tvm.meta_schedule.arg_info import TensorInfo
 from tvm.meta_schedule.builder import BuilderInput, LocalBuilder
@@ -37,21 +37,25 @@ from tvm.meta_schedule.runner import (
     RunnerFuture,
     RunnerInput,
 )
-from tvm.meta_schedule.runner.rpc_runner import (
-    default_alloc_argument as rpc_default_alloc_argument,
-    T_ARG_INFO_JSON_OBJ_LIST,
-    T_ARGUMENT_LIST,
-)
 from tvm.meta_schedule.runner.local_runner import (
     default_alloc_argument as local_default_alloc_argument,
 )
-from tvm.meta_schedule.testing import LocalRPC
-from tvm.meta_schedule.utils import derived_object, get_global_func_with_default_on_worker
+from tvm.meta_schedule.runner.rpc_runner import (
+    T_ARG_INFO_JSON_OBJ_LIST,
+    T_ARGUMENT_LIST,
+)
+from tvm.meta_schedule.runner.rpc_runner import (
+    default_alloc_argument as rpc_default_alloc_argument,
+)
+from tvm.meta_schedule.testing.local_rpc import LocalRPC
+from tvm.meta_schedule.utils import (
+    derived_object,
+    get_global_func_with_default_on_worker,
+)
 from tvm.rpc import RPCSession
 from tvm.runtime import Device, Module
 from tvm.script import tir as T
 from tvm.target import Target
-import tvm.testing
 from tvm.tir import FloatImm
 
 MATMUL_N = 16
@@ -886,4 +890,4 @@ def test_meta_schedule_local_runner_add_test():
 
 
 if __name__ == "__main__":
-    test_meta_schedule_local_single_run()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

@@ -69,7 +69,7 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_inverse")
       return {sch};
     });
 
-TVM_REGISTER_GLOBAL("meta_schedule.winograd_data_pack.cpu")
+TVM_REGISTER_GLOBAL("meta_schedule.winograd_data_pack.llvm")
     .set_body_typed([](Schedule sch, BlockRV data_pack) -> Array<Schedule> {
       BlockRV input_tile = GetOnlyProducer(sch, data_pack);
       BlockRV data_pad = GetOnlyProducer(sch, input_tile);

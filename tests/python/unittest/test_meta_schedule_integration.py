@@ -18,30 +18,29 @@ import sys
 from typing import List
 
 import pytest
-
 import tvm
 from tvm import meta_schedule as ms
 from tvm.ir.module import IRModule
-from tvm.meta_schedule.utils import derived_object
-from tvm.tir import Schedule
-from tvm.target import Target
-from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
+from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
 from tvm.meta_schedule.integration import (
+    ApplyHistoryBest,
     ExtractedTask,
     MetaScheduleContext,
     TaskExtraction,
-    ApplyHistoryBest,
 )
-from tvm.meta_schedule.testing import get_network
+from tvm.meta_schedule.testing.relay_workload import get_network
+from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
+from tvm.target import Target
+from tvm.tir import Schedule
 
-# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring,unbalanced-tuple-unpacking
+# pylint: disable=no-member,line-too-long,too-many-nested-blocks,unbalanced-tuple-unpacking,no-self-argument,missing-docstring,invalid-name
 
 
 @tvm.script.ir_module
 class MockModule:
     @T.prim_func
-    def main(a: T.handle, b: T.handle) -> None:  # pylint: disable=no-self-argument
+    def main(a: T.handle, b: T.handle) -> None:  # type: ignore
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -51,7 +50,17 @@ class MockModule:
                 B[vi] = A[vi]
 
 
-# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring,unbalanced-tuple-unpacking
+# pylint: enable=no-member,line-too-long,too-many-nested-blocks,unbalanced-tuple-unpacking,no-self-argument
+
+
+def _has_torch():
+    import importlib.util  # pylint: disable=unused-import,import-outside-toplevel
+
+    spec = importlib.util.find_spec("torch")
+    return spec is not None
+
+
+requires_torch = pytest.mark.skipif(not _has_torch(), reason="torch is not installed")
 
 
 def _check_mock_task(tasks: List[ExtractedTask], mod: IRModule):
@@ -63,13 +72,9 @@ def _check_mock_task(tasks: List[ExtractedTask], mod: IRModule):
     tvm.ir.assert_structural_equal(tir_mod, MockModule)
 
 
+@requires_torch
 def test_meta_schedule_integration_task_extraction_query():
-    mod, _, _, _ = get_network(
-        name="resnet-18",
-        batch_size=1,
-        layout="NHWC",
-        dtype="float32",
-    )
+    mod, _, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     env = TaskExtraction()
     env.query(task_name="mock-task", mod=mod, target=Target("llvm"), dispatched=[MockModule])
     _check_mock_task(env.tasks, mod)
@@ -93,13 +98,9 @@ def test_meta_schedule_integration_multiple_current():
                 ...
 
 
+@requires_torch
 def test_meta_schedule_integration_query_inside_with_scope():
-    mod, _, _, _ = get_network(
-        name="resnet-18",
-        batch_size=1,
-        layout="NHWC",
-        dtype="float32",
-    )
+    mod, _, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     env = TaskExtraction()
     with env:
         MetaScheduleContext.query_inside_with_scope(
@@ -111,17 +112,43 @@ def test_meta_schedule_integration_query_inside_with_scope():
     _check_mock_task(env.tasks, mod)
 
 
+@requires_torch
 def test_meta_schedule_integration_extract_from_resnet():
-    mod, params, _, _ = get_network(
-        name="resnet-18",
-        batch_size=1,
-        layout="NHWC",
-        dtype="float32",
-    )
+    mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     extracted_tasks = ms.integration.extract_task_from_relay(mod, target="llvm", params=params)
-    assert len(extracted_tasks) == 30
+    expected_task_names = [
+        "vm_mod_fused_" + s
+        for s in [
+            "nn_max_pool2d",
+            "nn_adaptive_avg_pool2d",
+            "nn_dense_add",
+            "nn_conv2d_add",
+            "nn_conv2d_add_1",
+            "nn_conv2d_add_2",
+            "nn_conv2d_add_add_nn_relu",
+            "nn_conv2d_add_add_nn_relu_1",
+            "nn_conv2d_add_nn_relu",
+            "nn_conv2d_add_nn_relu_1",
+            "nn_conv2d_add_nn_relu_2",
+            "nn_conv2d_add_nn_relu_3",
+            "nn_conv2d_add_nn_relu_4",
+            "nn_conv2d_add_nn_relu_5",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_add_nn_relu",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_add_nn_relu_1",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu_1",
+            # The two tasks below are purely spatial and are ruled out by AutoScheduler
+            "layout_transform",
+            "layout_transform_reshape_squeeze",
+        ]
+    ]
+
+    assert len(extracted_tasks) == 20
+    for t in extracted_tasks:
+        assert t.task_name in expected_task_names, t.task_name
 
 
+@requires_torch
 def test_meta_schedule_integration_apply_history_best():
     @derived_object
     class DummyDatabase(PyDatabase):
@@ -161,12 +188,7 @@ def test_meta_schedule_integration_apply_history_best():
         def print_results(self) -> None:
             print("\n".join([str(r) for r in self.records]))
 
-    mod, _, _, _ = get_network(
-        name="resnet-18",
-        batch_size=1,
-        layout="NHWC",
-        dtype="float32",
-    )
+    mod, _, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     database = DummyDatabase()
     env = ApplyHistoryBest(database)
     target = Target("llvm")
@@ -175,6 +197,7 @@ def test_meta_schedule_integration_apply_history_best():
         TuningRecord(Schedule(MockModule).trace, [1.0], workload, target, [])
     )
     mod = env.query(task_name="mock-task", mod=mod, target=target, dispatched=[MockModule])
+    mod = IRModule({"main": mod})
     assert tvm.ir.structural_equal(mod, workload.mod)
 
 

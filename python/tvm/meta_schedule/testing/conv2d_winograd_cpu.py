@@ -79,7 +79,7 @@ def conv2d_winograd_cpu(
             eps_1, nu_1, p_1, ci_1, r_a, r_b = T.axis.remap(
                 "SSSSRR", [i0_4, i1_4, i2_3, i3_3, i4, i5]
             )
-            T.block_attr({"schedule_rule": "meta_schedule.winograd_data_pack.cpu"})
+            T.block_attr({"schedule_rule": "meta_schedule.winograd_data_pack.llvm"})
             T.reads(
                 [
                     data_pack[eps_1, nu_1, p_1, ci_1],
