@@ -75,13 +75,13 @@ def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
             "fp16",
             "fp16",
             "fp16",
-            multi_a,
+            multi_a.data,
             0,
-            multi_b,
+            multi_b.data,
             0,
-            accum,
+            accum.data,
             0,
-            meta_local,
+            meta_local.data,
             0,
             0,
             False,
@@ -90,7 +90,7 @@ def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     )
 
     for i in range(4):
-        C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = T.load("float16", accum, i)
+        C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
 @T.prim_func
@@ -129,13 +129,13 @@ def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
             "fp16",
             "fp16",
             "fp32",
-            multi_a,
+            multi_a.data,
             0,
-            multi_b,
+            multi_b.data,
             0,
-            accum,
+            accum.data,
             0,
-            meta_local,
+            meta_local.data,
             0,
             0,
             False,
@@ -144,7 +144,7 @@ def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     )
 
     for i in range(4):
-        C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = T.load("float32", accum, i)
+        C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
 @T.prim_func
@@ -183,13 +183,13 @@ def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
             "fp16",
             "fp16",
             "fp16",
-            multi_a,
+            multi_a.data,
             0,
-            multi_b,
+            multi_b.data,
             0,
-            accum,
+            accum.data,
             0,
-            meta_local,
+            meta_local.data,
             0,
             0,
             False,
@@ -198,7 +198,7 @@ def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     )
 
     for i in range(4):
-        C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = T.load("float16", accum, i)
+        C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
 @T.prim_func
@@ -237,13 +237,13 @@ def mma_sp_m16n8k32_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
             "fp16",
             "fp16",
             "fp32",
-            multi_a,
+            multi_a.data,
             0,
-            multi_b,
+            multi_b.data,
             0,
-            accum,
+            accum.data,
             0,
-            meta_local,
+            meta_local.data,
             0,
             0,
             False,
@@ -252,7 +252,7 @@ def mma_sp_m16n8k32_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     )
 
     for i in range(4):
-        C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = T.load("float32", accum, i)
+        C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
 @tvm.testing.requires_cuda
