@@ -445,14 +445,30 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
       {"relu", "nn.relu"},
       {"tanh", "tanh"},
       {"sigmoid", "sigmoid"},
+      {"nn.deconv2d", "nn.conv2d_transpose"},
+      {"nn.deconv3d", "nn.conv3d_transpose"},
   };
 
-  std::vector<std::string> ParsingOpList(std::string op, std::string pattern_name) {
-    std::vector<std::string> op_list = {"nn." + op};
-    for (auto& t : op_map) {
-      if (pattern_name.find(t.first) != std::string::npos) {
-        op_list.push_back(t.second);
+  std::vector<std::string> ParsingOpList(const std::string& pattern_name,
+                                         std::string interval = "_") {
+    ICHECK_NE(pattern_name, "");
+    std::vector<std::string> op_list;
+    size_t pos = 0, start = 0;
+    while ((pos = pattern_name.find(interval, start)) != std::string::npos) {
+      std::string op_name = pattern_name.substr(start, pos - start);
+      if (op_name.find("dnnl") != std::string::npos) {
+        op_name.replace(op_name.find("dnnl"), 4, "nn");
+        if (op_name.find("deconv") != std::string::npos) {
+          op_name = op_map[op_name];
+        }
+      } else {
+        op_name = op_map[op_name];
       }
+      if (pos > start) op_list.push_back(op_name);
+      start = pos + interval.size();
+    }
+    if (pattern_name.size() > start) {
+      op_list.push_back(op_map[pattern_name.substr(start)]);
     }
     return op_list;
   }
@@ -471,28 +487,28 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
       ICHECK(comp.defined()) << "DNNL JSON runtime only supports composite functions.";
       name = comp.value();
 
-      if (name.find("dnnl.conv2d_transpose") != std::string::npos) {
-        std::vector<std::string> op_list = ParsingOpList("conv2d_transpose", name);
+      if (name.find("dnnl.deconv2d") != std::string::npos) {
+        std::vector<std::string> op_list = ParsingOpList(name);
         call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
         ICHECK(call->op.as<OpNode>()) << "Not op node";
-      } else if (name.find("dnnl.conv3d_transpose") != std::string::npos) {
-        std::vector<std::string> op_list = ParsingOpList("conv3d_transpose", name);
+      } else if (name.find("dnnl.deconv3d") != std::string::npos) {
+        std::vector<std::string> op_list = ParsingOpList(name);
         call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
         ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else if (name.find("dnnl.conv1d") != std::string::npos) {
-        std::vector<std::string> op_list = ParsingOpList("conv1d", name);
+        std::vector<std::string> op_list = ParsingOpList(name);
         call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
         ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else if (name.find("dnnl.conv2d") != std::string::npos) {
-        std::vector<std::string> op_list = ParsingOpList("conv2d", name);
+        std::vector<std::string> op_list = ParsingOpList(name);
         call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
         ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else if (name.find("dnnl.conv3d") != std::string::npos) {
-        std::vector<std::string> op_list = ParsingOpList("conv3d", name);
+        std::vector<std::string> op_list = ParsingOpList(name);
         call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
         ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else if (name.find("dnnl.dense") != std::string::npos) {
-        std::vector<std::string> op_list = ParsingOpList("dense", name);
+        std::vector<std::string> op_list = ParsingOpList(name);
         call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
         ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else {
