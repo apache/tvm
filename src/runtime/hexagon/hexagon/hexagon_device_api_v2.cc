@@ -165,43 +165,19 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVM
   *rv = static_cast<int32_t>(0);
 });
 
-std::map<void*, unsigned int> vtcmallocs;
+std::map<void*, HexagonBuffer*> vtcmallocs;
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.AllocTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
   int nbytes = args[0];
-  void *data_ = nullptr;
-  unsigned int context_id_ = 0;
-#if defined(__hexagon__)
-    compute_res_attr_t res_info;
-    HEXAGON_SAFE_CALL(HAP_compute_res_attr_init(&res_info));
-
-    // allocate nbytes of vtcm on a single page
-    HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param(&res_info, /*vtcm_size = */ nbytes,
-                                                          /*b_single_page = */ 1));
-    context_id_ = HAP_compute_res_acquire(&res_info, /*timeout = */ 10000);
-
-    if (context_id_) {
-      data_ = HAP_compute_res_attr_get_vtcm_ptr(&res_info);
-      if (!data_) {
-        HEXAGON_PRINT(ERROR, "ERROR: Allocated VTCM ptr is null.");
-        HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
-        return;
-      }
-    } else {
-      HEXAGON_PRINT(ERROR, "ERROR: Unable to acquire requeisted resource.");
-      return;
-    }
-#endif
-  vtcmallocs[data_] = context_id_;
-  *rv = data_;
+  HexagonBuffer *hexbuf = new HexagonBuffer(nbytes, kHexagonAllocAlignment, String("global.vtcm"));
+  void* ptr = hexbuf->GetPointer()[0];
+  vtcmallocs[ptr] = hexbuf;
+  *rv = ptr;
 });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.FreeTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
-  void* data_ = args[0];
-  unsigned int context_id_ = vtcmallocs[data_];
-#if defined(__hexagon__)
-    HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
-#endif
+  void* ptr = args[0];
+  delete vtcmallocs[ptr];
   *rv = static_cast<int32_t>(0);
 });
 
