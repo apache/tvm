@@ -218,16 +218,14 @@ class BuiltinLower : public StmtExprMutator {
 
   PrimExpr MakeMemCopy(const CallNode* op) {
     PrimExpr dst = op->args[0];
-    PrimExpr dst_scope = op->args[1];
-    PrimExpr src = op->args[2];
-    PrimExpr src_scope = op->args[3];
-    PrimExpr size = op->args[4];
+    PrimExpr src = op->args[1];
+    PrimExpr size = op->args[2];
 
     std::string fdevapi_prefix =
         "device_api." + std::string(runtime::DeviceName(device_type_.as<IntImmNode>()->value));
 
     Call call_packed = Call(DataType::Int(32), builtin::tvm_call_packed(),
-                            {StringImm(fdevapi_prefix + ".mem_copy"), dst, dst_scope, src, src_scope, size});
+                            {StringImm(fdevapi_prefix + ".mem_copy"), dst, src, size});
     return VisitExpr(call_packed);
   }
 

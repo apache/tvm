@@ -157,10 +157,8 @@ void HexagonDeviceAPIv2::CopyDataFromTo(const void* from, size_t from_offset, vo
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
   void* dst = args[0];
-  // std::string dst_scope = args[1];
-  void* src = args[2];
-  // std::string src_scope = args[3];
-  int size = args[4];
+  void* src = args[1];
+  int size = args[2];
 
   hexagon_user_dma_1d_sync(dst, src, size);
 
