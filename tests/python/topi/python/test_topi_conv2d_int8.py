@@ -370,14 +370,19 @@ def verify_conv2d_NCHWc_int8(
             lambda a, w, s, p, d, l, ol, o: topi.cuda.conv2d_NCHWc_int8(a, w, s, p, d, l, o),
             topi.cuda.schedule_conv2d_NCHWc_int8,
             4,
-        ),
-        (
-            "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon",
-            topi.arm_cpu.conv2d_NCHWc_int8,
-            topi.arm_cpu.schedule_conv2d_NCHWc_int8,
-            8,
-        ),
+        )
     ]
+
+    if in_dtype == "int8":
+        targets.append(
+            (
+                "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon",
+                topi.arm_cpu.conv2d_NCHWc_int8,
+                topi.arm_cpu.schedule_conv2d_NCHWc_int8,
+                8,
+            )
+        )
+
     for target, compute, schedule, oc_block_factor in targets:
         check_target(target, compute, schedule, oc_block_factor)
 
