@@ -52,7 +52,6 @@ from .transform import (
     reshape_like,
     strided_slice,
     take,
-    tile,
     transpose,
     where,
     repeat,
@@ -399,15 +398,14 @@ def conv2d_grad(orig, grad):
     data_shape = get_const_tuple(data.checked_type.shape)
     weight_shape = get_const_tuple(weight.checked_type.shape)
     _, _, grad_h, grad_w = get_const_tuple(orig.checked_type.shape)
-    batch, in_channel, in_h, in_w = data_shape
-    out_channel, _, filter_h, filter_w = weight_shape
+    _, _, in_h, in_w = data_shape
+    _, _, filter_h, filter_w = weight_shape
 
     # infer output_padding
     fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(
         get_const_tuple(attrs.padding), (filter_h, filter_w)
     )
     stride_h, stride_w = get_const_tuple(attrs.strides)
-    dilation_h, dilation_w = get_const_tuple(attrs.dilation)
     out_h = (grad_h - 1) * stride_h - fpad_top - fpad_bottom + filter_h
     out_w = (grad_w - 1) * stride_w - fpad_left - fpad_right + filter_w
     output_padding = (in_h - out_h, in_w - out_w)
@@ -415,6 +413,12 @@ def conv2d_grad(orig, grad):
     assert attrs.data_layout == "NCHW", "only support NCHW data layout"
     assert attrs.kernel_layout == "OIHW", "only support OIHW kernel layout"
     assert attrs.out_layout in ["", "NCHW"], "only support NCHW output layout"
+
+    if attrs.out_dtype in ["", None]:
+        assert data.checked_type, "Call InferType first."
+        out_dtype = data.checked_type.dtype
+    else:
+        out_dtype = attrs.out_dtype
 
     backward_data = _nn.conv2d_transpose(
         grad,
@@ -424,47 +428,23 @@ def conv2d_grad(orig, grad):
         dilation=attrs.dilation,
         groups=attrs.groups,
         output_padding=output_padding,
+        out_dtype=out_dtype,
     )
-    grad = tile(grad, [1, in_channel // attrs.groups, 1, 1])
-    grad = reshape(grad, [-1, 1, 0, 0])  # batch * oc * ic // groups, 1, oh, ow
-    data = reshape(data, [1, -1, 0, 0])  # 1, batch * ic, ih, iw
 
-    backward_weight = _nn.conv2d(
-        data,
+    backward_weight = _nn.conv2d_backward_weight(
         grad,
-        strides=attrs.dilation,
+        data,
+        strides=attrs.strides,
         padding=attrs.padding,
-        dilation=attrs.strides,
-        groups=in_channel * batch,
+        dilation=attrs.dilation,
+        groups=attrs.groups,
+        channels=attrs.channels,
+        kernel_size=(filter_h, filter_w),
+        grad_layout=attrs.out_layout if attrs.out_layout else attrs.data_layout,
+        data_layout=attrs.data_layout,
+        kernel_layout=attrs.kernel_layout,
+        out_dtype=out_dtype,
     )
-    # infer shape of backward_weight
-    padded_weight_grad_h = (
-        in_h - (grad_h - 1) * stride_h - 1 + fpad_top + fpad_bottom
-    ) // dilation_h + 1
-    padded_weight_grad_w = (
-        in_w - (grad_w - 1) * stride_w - 1 + fpad_left + fpad_right
-    ) // dilation_w + 1
-    backward_weight = reshape(
-        backward_weight,
-        [
-            batch,
-            in_channel // attrs.groups,
-            out_channel,
-            padded_weight_grad_h,
-            padded_weight_grad_w,
-        ],
-    )
-    backward_weight = _sum(backward_weight, axis=0)
-    backward_weight = transpose(backward_weight, [1, 0, 2, 3])
-
-    assert padded_weight_grad_h >= filter_h
-    assert padded_weight_grad_w >= filter_w
-    if padded_weight_grad_h > filter_h or padded_weight_grad_w > filter_w:
-        backward_weight = strided_slice(
-            backward_weight,
-            begin=[0, 0, 0, 0],
-            end=[out_channel, in_channel // attrs.groups, filter_h, filter_w],
-        )
 
     return [backward_data, backward_weight]
 

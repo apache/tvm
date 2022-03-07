@@ -15,15 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import datetime
 import pathlib
 import re
 import shutil
 import sys
-
 import pytest
 
-import conftest
+import test_utils
 
 """
 This unit test simulates a simple user workflow, where we:
@@ -41,7 +39,7 @@ This unit test simulates a simple user workflow, where we:
 # directory for all tests in this file
 @pytest.fixture(scope="module")
 def workspace_dir(request, board):
-    return conftest.make_workspace_dir("arduino_workflow", board)
+    return test_utils.make_workspace_dir("arduino_workflow", board)
 
 
 @pytest.fixture(scope="module")
@@ -52,7 +50,7 @@ def project_dir(workspace_dir):
 # We MUST pass workspace_dir, not project_dir, or the workspace will be dereferenced too soon
 @pytest.fixture(scope="module")
 def project(board, arduino_cli_cmd, tvm_debug, workspace_dir):
-    return conftest.make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir)
+    return test_utils.make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir)
 
 
 def _get_directory_elements(directory):

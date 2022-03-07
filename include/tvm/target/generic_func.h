@@ -86,7 +86,10 @@ class GenericFunc : public ObjectRef {
    * \param ret The return value
    */
   TVM_DLL void CallPacked(runtime::TVMArgs args, runtime::TVMRetValue* ret) const;
-
+  /*!
+   * \brief Get the packed function specified for the current target context.
+   */
+  TVM_DLL PackedFunc GetPacked() const;
   /*!
    * \brief Find or register the GenericFunc instance corresponding to the give name
    * \param name The name of the registered GenericFunc

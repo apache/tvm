@@ -25,22 +25,47 @@ import re
 import tarfile
 import typing
 
+import tvm
 from tvm.ir.type import TupleType
+from tvm.micro import get_standalone_crt_dir
 from .._ffi import get_global_func
-from .interface_api import generate_c_interface_header
 from ..contrib import utils
 from ..driver import build_module
 from ..runtime import ndarray as _nd
 from ..relay.backend import executor_factory
+from ..relay.backend.name_transforms import to_c_variable_style, prefix_generated_name
 from ..relay import param_dict
 from ..tir import expr
 
 # This should be kept identical to runtime::symbol::tvm_module_main
 MAIN_FUNC_NAME_STR = "__tvm_main__"
+STANDALONE_CRT_URL = "./runtime"
 
 
 class UnsupportedInModelLibraryFormatError(Exception):
     """Raised when export_model_library_format does not support the given Module tree."""
+
+
+def generate_c_interface_header(
+    module_name, inputs, outputs, pools, devices, workspace_size, include_path
+):
+    """Generate C Interface header to be included in MLF"""
+    mangled_name = to_c_variable_style(prefix_generated_name(module_name))
+    metadata_header = os.path.join(include_path, f"{mangled_name}.h")
+
+    interface_c_create = tvm._ffi.get_global_func("runtime.InterfaceCCreate")
+    interface_c_module = interface_c_create(
+        module_name, inputs, outputs, pools, devices, workspace_size
+    )
+
+    with open(metadata_header, "w") as header_file:
+        header_file.write(interface_c_module.get_source())
+
+    return metadata_header
+
+
+# List of type_key for modules which are ephemeral and do not need to be exported.
+EPHEMERAL_MODULE_TYPE_KEYS = ("metadata_module",)
 
 
 def _populate_codegen_dir(mod, codegen_dir: str, module_name: str = None):
@@ -58,6 +83,11 @@ def _populate_codegen_dir(mod, codegen_dir: str, module_name: str = None):
     """
     dso_modules = mod._collect_dso_modules()
     non_dso_modules = mod._collect_from_import_tree(lambda m: m not in dso_modules)
+
+    # Filter ephemeral modules which cannot be exported.
+    dso_modules = [m for m in dso_modules if m.type_key not in EPHEMERAL_MODULE_TYPE_KEYS]
+    non_dso_modules = [m for m in non_dso_modules if m.type_key not in EPHEMERAL_MODULE_TYPE_KEYS]
+
     if non_dso_modules:
         raise UnsupportedInModelLibraryFormatError(
             f"Don't know how to export non-c or non-llvm modules; found: {non_dso_modules!r}"
@@ -69,10 +99,12 @@ def _populate_codegen_dir(mod, codegen_dir: str, module_name: str = None):
 
     for dso_mod in dso_modules:
         if dso_mod.type_key == "c":
+            assert dso_mod.format in ["c", "cc", "cpp"]
+            ext = dso_mod.format
             index = mod_indices["src"]
             mod_indices["src"] += 1
             parent_dir = os.path.join(host_codegen_dir, "src")
-            file_name = os.path.join(parent_dir, f"{lib_name}{index}.c")
+            file_name = os.path.join(parent_dir, f"{lib_name}{index}.{ext}")
         elif dso_mod.type_key == "llvm":
             index = mod_indices["lib"]
             mod_indices["lib"] += 1
@@ -158,36 +190,26 @@ def _build_function_memory_map(function_metadata):
     """
     device_max_workspace = dict()
     main_func_metadata = function_metadata[MAIN_FUNC_NAME_STR]
-    num_targets = len(main_func_metadata.workspace_sizes.items())
     func_entries = []
     target_local_entries = dict()
-    for i in range(num_targets):
-        target = main_func_metadata.workspace_sizes.items()[i][0]
-        device_max_workspace[target] = 0
-        for func_name, finfo in function_metadata.items():
-            if func_name == MAIN_FUNC_NAME_STR:
-                continue
-            target_local_entries[func_name] = list()
 
-        for func_name, finfo in function_metadata.items():
-            # Skip a few unsupported cases:
-            # 1. The main function metadata is exported elsewhere.
-            # 2. BYOC operator implementations do not currently export useful FunctionInfo.
-            if func_name == MAIN_FUNC_NAME_STR or not finfo.tir_primfuncs:
-                continue
-            assert (
-                len(finfo.constant_sizes.items()) == num_targets
-            ), f"{func_name}: found {finfo.constant_sizes!r} vs {num_targets}"
-            assert len(finfo.io_sizes.items()) == num_targets
-            target = finfo.workspace_sizes.items()[i][0]
-            workspace_size = finfo.workspace_sizes.items()[i][1]
+    for func_name, finfo in function_metadata.items():
+        # Skip a few unsupported cases:
+        # 1. The main function metadata is exported elsewhere.
+        # 2. BYOC operator implementations do not currently export useful FunctionInfo.
+        if func_name == MAIN_FUNC_NAME_STR or not finfo.tir_primfuncs:
+            continue
+        if func_name not in target_local_entries.keys():
+            target_local_entries[func_name] = list()
+        for target in dict(finfo.workspace_sizes).keys():
+            workspace_size = finfo.workspace_sizes[target]
             target_entry = {
                 "device": int(target.kind.device_type),
                 "workspace_size_bytes": int(workspace_size),
             }
             target_local_entries[func_name].append(target_entry)
-            if workspace_size > device_max_workspace[target]:
-                device_max_workspace[target] = workspace_size
+            if workspace_size >= device_max_workspace.get(int(target.kind.device_type), 0):
+                device_max_workspace[int(target.kind.device_type)] = workspace_size
 
     for func_name, target_entries_ in target_local_entries.items():
         func_entry = {
@@ -196,25 +218,46 @@ def _build_function_memory_map(function_metadata):
         }
         func_entries.append(func_entry)
 
-    target_main_entries = list()
-    for i in range(num_targets):
-        target = main_func_metadata.workspace_sizes.items()[i][0]
-        main_func_local_workspace = main_func_metadata.workspace_sizes.items()[i][1]
-        main_func_constants = main_func_metadata.constant_sizes.items()[i][1]
-        main_func_io = main_func_metadata.io_sizes.items()[i][1]
-        target_main_entries.append(
-            {
-                "device": int(target.kind.device_type),
-                "workspace_size_bytes": int(device_max_workspace[target])
-                + int(main_func_local_workspace),
-                "constants_size_bytes": int(main_func_constants),
-                "io_size_bytes": int(main_func_io),
-            }
+    target_main_entries = dict()
+
+    def _create_empty_entry(target_device_type):
+        return {
+            "device": int(target_device_type),
+            "workspace_size_bytes": 0,
+            "constants_size_bytes": 0,
+            "io_size_bytes": 0,
+        }
+
+    for target in dict(main_func_metadata.workspace_sizes).keys():
+        main_func_local_workspace = main_func_metadata.workspace_sizes[target]
+        target_main_entries[int(target.kind.device_type)] = _create_empty_entry(
+            int(target.kind.device_type)
+        )
+        target_main_entries[int(target.kind.device_type)]["workspace_size_bytes"] = int(
+            device_max_workspace.get(int(target.kind.device_type), 0)
+        ) + int(main_func_local_workspace)
+
+    for target in dict(main_func_metadata.constant_sizes).keys():
+        if int(target.kind.device_type) not in target_main_entries.keys():
+            target_main_entries[int(target.kind.device_type)] = _create_empty_entry(
+                int(target.kind.device_type)
+            )
+        target_main_entries[int(target.kind.device_type)]["constants_size_bytes"] = int(
+            main_func_metadata.constant_sizes[target]
+        )
+
+    for target in dict(main_func_metadata.io_sizes).keys():
+        if int(target.kind.device_type) not in target_main_entries.keys():
+            target_main_entries[int(target.kind.device_type)] = _create_empty_entry(
+                int(target.kind.device_type)
+            )
+        target_main_entries[int(target.kind.device_type)]["io_size_bytes"] = int(
+            main_func_metadata.io_sizes[target]
         )
 
     ret = {
         "operator_functions": func_entries,
-        "main": target_main_entries,
+        "main": list(target_main_entries.values()),
     }
     return ret
 
@@ -241,18 +284,26 @@ def _get_inputs_and_outputs_from_module(mod):
     main_func = _get_main_relay_func(mod)
     inputs = [argument.name_hint for argument in main_func.params]
 
-    outputs = ["output"]
-    if isinstance(main_func.ret_type, TupleType):
-        outputs = _convert_tuple_to_outputs(main_func.ret_type)
+    if "output_tensor_names" in main_func.attrs:
+        outputs = main_func.attrs["output_tensor_names"]
+    else:
+        if isinstance(main_func.ret_type, TupleType):
+            outputs = _convert_tuple_to_outputs(main_func.ret_type)
+        else:
+            outputs = ["output"]
 
     return inputs, outputs
 
 
+def _get_pools_from_module(mod):
+    return list(dict(mod.executor_codegen_metadata.pool_inputs).values())
+
+
 def _should_generate_interface_header(mod):
-    return any(target.attrs.get("interface-api") == "c" for target in mod.target.values())
+    return "interface-api" in mod.executor and mod.executor["interface-api"] == "c"
 
 
-def _make_tar(source_dir, tar_file_path):
+def _make_tar(source_dir, tar_file_path, mod):
     """Build a tar file from source_dir."""
     with tarfile.open(tar_file_path, "w") as tar_f:
 
@@ -262,6 +313,9 @@ def _make_tar(source_dir, tar_file_path):
             return tarinfo
 
         tar_f.add(str(source_dir), arcname=".", filter=reset)
+        is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
+        if is_aot and str(mod.runtime) == "crt":
+            tar_f.add(get_standalone_crt_dir(), arcname=STANDALONE_CRT_URL)
 
 
 _GENERATED_VERSION = 5
@@ -292,6 +346,16 @@ def _export_graph_model_library_format(
         "style": "full-model",
     }
 
+    if is_aot and (str(mod.runtime) == "crt"):
+        standalone_crt = {
+            "short_name": "tvm_standalone_crt",
+            "url": f"{STANDALONE_CRT_URL}",
+            "url_type": "mlf_path",
+            "version_spec": f"{tvm.__version__}",
+        }
+        external_dependencies = [standalone_crt]
+        metadata["external_dependencies"] = external_dependencies
+
     with open(tempdir / "metadata.json", "w") as json_f:
         json.dump(metadata, json_f, indent=2, sort_keys=True)
 
@@ -303,7 +367,12 @@ def _export_graph_model_library_format(
         include_path = codegen_dir / "host" / "include"
         include_path.mkdir()
         inputs, outputs = _get_inputs_and_outputs_from_module(mod)
-        generate_c_interface_header(mod.libmod_name, inputs, outputs, include_path)
+        devices = mod.get_devices()
+        pools = _get_pools_from_module(mod)
+        workspace_size = int(metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"])
+        generate_c_interface_header(
+            mod.libmod_name, inputs, outputs, pools, devices, workspace_size, include_path
+        )
 
     parameters_dir = tempdir / "parameters"
     parameters_dir.mkdir()
@@ -459,6 +528,6 @@ def export_model_library_format(mod: ExportableModule, file_name: typing.Union[s
     else:
         raise NotImplementedError(f"Don't know how to export module of type {mod.__class__!r}")
 
-    _make_tar(tempdir.path, file_name)
+    _make_tar(tempdir.path, file_name, mod)
 
     return file_name

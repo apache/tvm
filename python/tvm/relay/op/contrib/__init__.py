@@ -25,3 +25,4 @@ from .coreml import *
 from .ethosn import *
 from .libtorch import *
 from .tensorrt import *
+from .cutlass import *

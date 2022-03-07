@@ -31,7 +31,7 @@ There can be internal header files within each module that sit in src.
 - relay: Relay IR, high-level optimizations.
 - runtime: Minimum runtime related codes.
 - support: Internal support utilities.
-- target: Hardwaer target.
+- target: Hardware targets.
 - tir: Tensor IR, low-level optimizations.
 - te: Tensor expression DSL.
 - topi: Tensor Operator Inventory.

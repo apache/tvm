@@ -69,6 +69,9 @@ void CodeGenHybrid::PrintType(DataType t, std::ostream& os) {
   } else if (t.is_int()) {
     os << "int";
     ICHECK(t.bits() == 8 || t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
+  } else if (t.is_bfloat16()) {
+    os << "bfloat";
+    ICHECK(t.bits() == 16);
   } else {
     ICHECK(t.is_uint()) << "Unsupported type " << t;
     os << "uint";
@@ -270,6 +273,14 @@ void CodeGenHybrid::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLIN
 }
 
 void CodeGenHybrid::VisitStmt_(const StoreNode* op) { LOG(FATAL) << "Phase 0 has no Store(s)!"; }
+
+void CodeGenHybrid::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
+  LOG(FATAL) << "Phase 0 has no BufferLoad(s)!";
+}
+
+void CodeGenHybrid::VisitStmt_(const BufferStoreNode* op) {
+  LOG(FATAL) << "Phase 0 has no BufferStore(s)!";
+}
 
 void CodeGenHybrid::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Phase 0 has no Let(s)!";

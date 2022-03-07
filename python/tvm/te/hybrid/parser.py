@@ -312,7 +312,7 @@ class HybridParser(ast.NodeVisitor):
                     "You should bind a pure name to the tensors",
                 )
                 self.add_symbol(node.targets[i].id, Symbol.GlobalBuffer, rhs.output(i))
-                rmap[rhs.outputs[i].op] = rhs.output(i)
+                rmap[rhs.symbolic_outputs[i].op] = rhs.output(i)
             return utils.replace_io(rhs.body, rmap)
 
         _internal_assert(len(node.targets) == 1, "So far only one-valued assignment is supported!")

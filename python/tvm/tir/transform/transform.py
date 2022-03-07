@@ -74,6 +74,19 @@ def InjectPrefetch():
     return _ffi_api.InjectPrefetch()  # type: ignore
 
 
+def ApplyLayoutTransforms():
+    """Reshape buffers that appear in the "layout_transform_map"
+    fucntion attribute.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    """
+    return _ffi_api.ApplyLayoutTransforms()  # type: ignore
+
+
 def StorageFlatten(cache_line_size, create_bound_attribute: bool = False):
     """Flatten the multi-dimensional read/write to 1D.
 
@@ -206,6 +219,17 @@ def InjectDoubleBuffer():
     return _ffi_api.InjectDoubleBuffer()  # type: ignore
 
 
+def InjectRollingBuffer():
+    """Inject rolling buffer statements.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectRollingBuffer()  # type: ignore
+
+
 def StorageRewrite():
     """Rewrite storage allocation pattern.
 
@@ -298,6 +322,17 @@ def BF16TypeLowering():
         The result pass
     """
     return _ffi_api.BF16TypeLowering()  # type: ignore
+
+
+def CommonSubexprElimTIR(enable_cse_tir: bool = True):
+    """Replace redundant computations by new variables.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.CommonSubexprElimTIR(enable_cse_tir)  # type: ignore
 
 
 def RewriteUnsafeSelect():
@@ -577,6 +612,18 @@ def HoistIfThenElse(variant: Optional[str] = None):
         return _ffi_api.HoistIfThenElse()  # type: ignore
 
 
+def LowerCrossThreadReduction():
+    """Lower cross-thread reduction from thread bindings to
+    intrinsic function calls.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerCrossThreadReduction()  # type: ignore
+
+
 def LowerInitBlock():
     """Lower block init stmt into IfThenElse statements.
 
@@ -628,8 +675,8 @@ def CompactBufferAllocation():
     .. code-block:: python
 
         for i in range(0, 16):
-            with tir.block([]):
-                B = tir.alloc_buffer(16, 16)
+            with T.block():
+                B = T.alloc_buffer(16, 16)
                 for j in range(0, 16):
                     B[i, j] = A[i, j] + 1
                 for j in range(0, 16):
@@ -643,8 +690,8 @@ def CompactBufferAllocation():
     .. code-block:: python
 
         for i in range(0, 16):
-            with tir.block([]):
-                B = tir.alloc_buffer(1, 16)
+            with T.block():
+                B = T.alloc_buffer(1, 16)
                 for j in range(0, 16):
                     B[0, j] = A[i, j] + 1
                 for j in range(0, 16):
@@ -715,3 +762,47 @@ def MergeDynamicSharedMemoryAllocations():
         The result pass
     """
     return _ffi_api.MergeDynamicSharedMemoryAllocations()  # type: ignore
+
+
+def ConvertForLoopsToSerial():
+    """Convert Parallel For Loops to Serial For Loops.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ConvertForLoopsToSerial()  # type: ignore
+
+
+def InjectSoftwarePipeline():
+    """Transform annotated loops into pipelined one that parallelize producers and consumers
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectSoftwarePipeline()  # type: ignore
+
+
+def ExtractPrimFuncConstants():
+    """Collects and unificates tir non-scalar constants to module's attr 'Constants' array.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ExtractPrimFuncConstants()  # type: ignore
+
+
+def RenormalizeSplitPattern():
+    """Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RenormalizeSplitPattern()  # type: ignore

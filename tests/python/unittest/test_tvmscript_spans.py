@@ -15,29 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import inspect
 
-import tvm
-import tvm.script
-from tvm import tir
+from tvm.script import tir as T
 
 
+@T.prim_func
 def loops() -> None:
-    for i in tir.parallel(0, 2):
-        for j in tir.serial(0, 1):
-            for z in tir.vectorized(3, 4):
-                tir.evaluate(0)
+    for i in T.parallel(0, 2):
+        for j in T.serial(0, 1):
+            for z in T.vectorized(3, 4):
+                T.evaluate(0)
 
 
 def test_loops():
-    _, start_line = inspect.getsourcelines(loops)
-    parsed = tvm.script.tir(loops)
+    start_line = 23
+    parsed = loops
 
     assert parsed.span.line == start_line
 
     assert parsed.body.span.line == start_line + 1
-    assert parsed.body.min.span.column == 27
-    assert parsed.body.extent.span.column == 30
+    assert parsed.body.min.span.column == 25
+    assert parsed.body.extent.span.column == 28
     assert parsed.body.extent.span.line == start_line + 1
 
     assert parsed.body.body.span.line == start_line + 2
@@ -51,14 +49,15 @@ def test_loops():
     assert parsed.body.body.body.body.span.column == 17
 
 
+@T.prim_func
 def statements() -> None:
-    tir.evaluate(1)
-    tir.evaluate("test")
+    T.evaluate(1)
+    T.evaluate("test")
 
 
 def test_statements():
-    _, start_line = inspect.getsourcelines(statements)
-    parsed = tvm.script.tir(statements)
+    start_line = 53
+    parsed = statements
 
     assert parsed.body.span.line == start_line + 1
 

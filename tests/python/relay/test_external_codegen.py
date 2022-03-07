@@ -16,7 +16,6 @@
 # under the License.
 """Unit tests for graph partitioning."""
 
-import os
 import sys
 from collections import OrderedDict
 import numpy as np
@@ -24,86 +23,17 @@ import pytest
 
 import tvm
 from tvm import relay, runtime
-from tvm.contrib import utils
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.op.annotation import compiler_begin, compiler_end
-
-
-def update_lib(lib):
-    test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-    source_dir = os.path.join(test_dir, "..", "..", "..")
-    contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
-
-    kwargs = {}
-    kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
-    tmp_path = utils.tempdir()
-    lib_name = "lib.so"
-    lib_path = tmp_path.relpath(lib_name)
-    lib.export_library(lib_path, fcompile=False, **kwargs)
-    lib = tvm.runtime.load_module(lib_path)
-
-    return lib
-
-
-def check_vm_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", device=tvm.cpu()):
-    with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-        exe = relay.vm.compile(mod, target=target)
-    code, lib = exe.save()
-    lib = update_lib(lib)
-    exe = runtime.vm.Executable.load_exec(code, lib)
-    vm = runtime.vm.VirtualMachine(exe, device)
-    out = vm.run(**map_inputs)
-    tvm.testing.assert_allclose(out.numpy(), result, rtol=tol, atol=tol)
-
-
-def check_graph_executor_result(
-    mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", device=tvm.cpu()
-):
-    with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-        json, lib, _ = relay.build(mod, target=target)
-    lib = update_lib(lib)
-    rt_mod = tvm.contrib.graph_executor.create(json, lib, device)
-
-    for name, data in map_inputs.items():
-        rt_mod.set_input(name, data)
-    rt_mod.run()
-    out = tvm.nd.empty(out_shape, device=device)
-    out = rt_mod.get_output(0, out)
-
-    tvm.testing.assert_allclose(out.numpy(), result, rtol=tol, atol=tol)
-
-
-def check_aot_executor_result(
-    mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", device=tvm.cpu()
-):
-    if tvm.support.libinfo().get("USE_MICRO", "OFF") != "ON":
-        pytest.skip("MicroTVM support not enabled. Set USE_MICRO=ON in config.cmake to enable.")
-
-    # Late import to avoid breaking test with USE_MICRO=OFF.
-    from aot.aot_test_utils import AOTTestModel, AOT_DEFAULT_RUNNER, compile_and_run
-
-    interface_api = "packed"
-    use_unpacked_api = False
-    test_runner = AOT_DEFAULT_RUNNER
-    compile_and_run(
-        AOTTestModel(module=mod, inputs=map_inputs, outputs=[result]),
-        test_runner,
-        interface_api,
-        use_unpacked_api,
-    )
-
-
-def set_external_func_attr(func, compiler, ext_symbol):
-    func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-    func = func.with_attr("Compiler", compiler)
-    func = func.with_attr("global_symbol", ext_symbol)
-    return func
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="Skip test on Windows for now")
-@pytest.mark.parametrize(
-    "check_result", [check_vm_result, check_graph_executor_result, check_aot_executor_result]
+from utils.external_codegen import (
+    update_lib,
+    set_external_func_attr,
+    parametrize_external_codegen_checks,
+    parametrize_external_json_codegen_checks,
 )
+
+
+@parametrize_external_codegen_checks
 def test_multi_node_subgraph(check_result):
     x = relay.var("x", shape=(10, 10))
     w0 = relay.var("w0", shape=(10, 10))
@@ -170,10 +100,7 @@ def test_multi_node_subgraph(check_result):
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="Skip test on Windows for now")
-@pytest.mark.parametrize(
-    "check_result", [check_vm_result, check_graph_executor_result, check_aot_executor_result]
-)
+@parametrize_external_codegen_checks
 def test_extern_gcc_single_op(check_result):
     x = relay.var("x", shape=(8, 8))
     y = relay.var("y", shape=(8, 8))
@@ -191,10 +118,7 @@ def test_extern_gcc_single_op(check_result):
     check_result(mod, {"x": x_data, "y": y_data}, (8, 8), x_data + y_data)
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="Skip test on Windows for now")
-@pytest.mark.parametrize(
-    "check_result", [check_vm_result, check_graph_executor_result, check_aot_executor_result]
-)
+@parametrize_external_codegen_checks
 def test_extern_gcc_single_op_int(check_result):
     x = relay.var("x", shape=(8, 8), dtype="int32")
     y = relay.var("y", shape=(8, 8), dtype="int32")
@@ -212,10 +136,7 @@ def test_extern_gcc_single_op_int(check_result):
     check_result(mod, {"x": x_data, "y": y_data}, (8, 8), x_data + y_data)
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="Skip test on Windows for now")
-@pytest.mark.parametrize(
-    "check_result", [check_vm_result, check_graph_executor_result, check_aot_executor_result]
-)
+@parametrize_external_codegen_checks
 def test_extern_gcc(check_result):
     x = relay.var("x", shape=(2, 2))
     y = relay.var("y", shape=(2, 2))
@@ -292,12 +213,44 @@ def test_extern_gcc_consts():
     tvm._ffi.registry.remove_global_func("relay.ext.ccompiler.constant_updater")
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="Skip test on Windows for now")
 @pytest.mark.skipif(
     not tvm.get_global_func("relay.ext.dnnl", True),
     reason="skip because DNNL codegen is not available",
 )
-@pytest.mark.parametrize("check_result", [check_vm_result, check_graph_executor_result])
+@parametrize_external_json_codegen_checks
+def test_extern_dnnl_padding(check_result):
+    dtype = "float32"
+    ishape = (1, 1, 99, 12)
+    w1shape = (54, 1, 3, 3)
+    data0 = relay.var("data0", shape=(ishape), dtype=dtype)
+    weight0 = relay.var("weight0", shape=(w1shape), dtype=dtype)
+    out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), strides=(2, 2), padding=(1, 0, 1, 1))
+    f = relay.Function([data0, weight0], out)
+    ref_mod = tvm.IRModule()
+    ref_mod["main"] = f
+
+    data1 = relay.var("data0", shape=(ishape), dtype=dtype)
+    weight1 = relay.var("weight0", shape=(w1shape), dtype=dtype)
+    f = set_external_func_attr(f, "dnnl", "dnnl_0")
+    call = relay.Call(f, [data1, weight1])
+    mod = tvm.IRModule.from_expr(call)
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+    w_data = np.random.uniform(0, 1, w1shape).astype(dtype)
+
+    ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu()).evaluate()(
+        i_data, w_data
+    )
+    check_result(
+        mod, {"data0": i_data, "weight0": w_data}, (1, 54, 50, 6), ref_res.numpy(), tol=1e-5
+    )
+
+
+@pytest.mark.skipif(
+    not tvm.get_global_func("relay.ext.dnnl", True),
+    reason="skip because DNNL codegen is not available",
+)
+@parametrize_external_json_codegen_checks
 def test_extern_dnnl(check_result):
     dtype = "float32"
     ishape = (1, 32, 14, 14)
@@ -335,12 +288,11 @@ def test_extern_dnnl(check_result):
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="Skip test on Windows for now")
 @pytest.mark.skipif(
     not tvm.get_global_func("relay.ext.dnnl", True),
     reason="skip because DNNL codegen is not available",
 )
-@pytest.mark.parametrize("check_result", [check_vm_result, check_graph_executor_result])
+@parametrize_external_json_codegen_checks
 def test_extern_dnnl_const(check_result):
     dtype = "float32"
     ishape = (1, 32, 14, 14)

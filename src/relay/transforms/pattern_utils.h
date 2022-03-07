@@ -63,6 +63,9 @@ namespace relay {
   } else if (type == DataType::Float(16)) {                                           \
     typedef uint16_t DType;                                                           \
     { __VA_ARGS__ }                                                                   \
+  } else if (type == DataType::BFloat(16)) {                                          \
+    typedef uint16_t DType;                                                           \
+    { __VA_ARGS__ }                                                                   \
   } else if (type == DataType::Int(64)) {                                             \
     typedef int64_t DType;                                                            \
     { __VA_ARGS__ }                                                                   \
@@ -259,6 +262,11 @@ inline Constant MakeConstantScalar(DataType dtype, T value) {
       // storage is uint16_t
       *static_cast<DType*>(arr->data) =
           __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(static_cast<float>(value));
+    } else if (dtype == DataType::BFloat(16)) {
+      // convert to bfloat16
+      // storage is uint16_t
+      *static_cast<DType*>(arr->data) =
+          __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(static_cast<float>(value));
     } else {
       *static_cast<DType*>(arr->data) = value;
     }
@@ -285,6 +293,12 @@ static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> s
         // Similar handling as that in MakeConstantScalar
         *(static_cast<DType*>(arr->data) + i) =
             __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(
+                static_cast<float>(value[i]));
+      } else if (dtype == DataType::BFloat(16)) {
+        // convert to bfloat16
+        // storage is uint16_t
+        *(static_cast<DType*>(arr->data) + i) =
+            __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(
                 static_cast<float>(value[i]));
       } else {
         *(static_cast<DType*>(arr->data) + i) = value[i];
@@ -313,6 +327,12 @@ static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> s
         // Similar handling as that in MakeConstantScalar
         *(static_cast<DType*>(arr->data) + i) =
             __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(
+                static_cast<float>(value[i]));
+      } else if (dtype == DataType::BFloat(16)) {
+        // convert to bfloat16
+        // storage is uint16_t
+        *(static_cast<DType*>(arr->data) + i) =
+            __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(
                 static_cast<float>(value[i]));
       } else {
         *(static_cast<DType*>(arr->data) + i) = value[i];
@@ -417,6 +437,12 @@ static inline dmlc::optional<long double> TryToScalar(const runtime::NDArray& ar
     } else if (array->dtype.bits == 64) {
       return dmlc::optional<long double>(reinterpret_cast<double*>(array->data)[i]);
     }
+  } else if (array->dtype.code == kDLBfloat) {
+    if (array->dtype.bits == 16) {
+      return dmlc::optional<long double>(
+          __extendXfYf2__<uint16_t, uint16_t, 7, float, uint32_t, 23>(
+              reinterpret_cast<uint16_t*>(array->data)[i]));
+    }
   }
   return dmlc::optional<long double>();
 }
@@ -446,6 +472,23 @@ static inline Array<Integer> ToVector(const runtime::NDArray& array) {
   for (size_t i = 0; i < len; ++i) {
     long double elem_val = ToScalar(array, i);
     out.push_back(Integer(IntImm(DataType::Int(32), static_cast<int64_t>(elem_val))));
+  }
+  return out;
+}
+
+/*!
+ * \brief Convert a NDArray with type int or float to Array<FloatImm>.
+ * \param array Input NDArray
+ * \return Converted Array.
+ */
+static inline Array<FloatImm> ToFloatVector(const runtime::NDArray& array) {
+  size_t ndim = array.Shape().size();
+  ICHECK_EQ(ndim, 1) << "This function should only be used for 1D NDArrays";
+  size_t len = array.Shape().front();
+  Array<FloatImm> out;
+  for (size_t i = 0; i < len; ++i) {
+    long double elem_val = ToScalar(array, i);
+    out.push_back(FloatImm(DataType::Float(32), static_cast<float>(elem_val)));
   }
   return out;
 }
@@ -483,6 +526,11 @@ inline Expr Exp(Expr e) {
   return Call(op, {e});
 }
 
+inline Expr Erf(Expr e) {
+  static const Op& op = Op::Get("erf");
+  return Call(op, {e});
+}
+
 inline Expr FastExp(Expr e) {
   static const Op& op = Op::Get("fast_exp");
   return Call(op, {e});
@@ -505,6 +553,11 @@ inline Expr FastSoftmax(Expr e, tvm::Attrs attr) {
 
 inline Expr Log(Expr e) {
   static const Op& op = Op::Get("log");
+  return Call(op, {e});
+}
+
+inline Expr Tanh(Expr e) {
+  static const Op& op = Op::Get("tanh");
   return Call(op, {e});
 }
 /*!
@@ -533,6 +586,16 @@ inline Expr Sqrt(Expr x) {
   return Call(op, {x}, Attrs(), {});
 }
 
+inline Expr Sigmoid(Expr x) {
+  static const Op& op = Op::Get("sigmoid");
+  return Call(op, {x}, Attrs(), {});
+}
+
+inline Expr Rsqrt(Expr x) {
+  static const Op& op = Op::Get("rsqrt");
+  return Call(op, {x}, Attrs(), {});
+}
+
 inline Expr Relu(Expr x) {
   static const Op& op = Op::Get("nn.relu");
   return Call(op, {x}, Attrs(), {});
@@ -540,6 +603,11 @@ inline Expr Relu(Expr x) {
 
 inline Expr Round(Expr x) {
   static const Op& op = Op::Get("round");
+  return Call(op, {x}, Attrs(), {});
+}
+
+inline Expr Floor(Expr x) {
+  static const Op& op = Op::Get("floor");
   return Call(op, {x}, Attrs(), {});
 }
 
@@ -640,9 +708,29 @@ static inline Expr Where(const Expr& condition, const Expr& x, const Expr& y) {
   return Call(op, {condition, x, y});
 }
 
+static inline Expr LogicalOr(const Expr& lhs, const Expr& rhs) {
+  static const Op& op = Op::Get("logical_or");
+  return Call(op, {lhs, rhs}, Attrs(), {});
+}
+
 static inline Expr GreaterEqual(const Expr& lhs, const Expr& rhs) {
   static const Op& op = Op::Get("greater_equal");
   return Call(op, {lhs, rhs}, Attrs(), {});
+}
+
+static inline Expr Equal(const Expr& lhs, const Expr& rhs) {
+  static const Op& op = Op::Get("equal");
+  return Call(op, {lhs, rhs}, Attrs(), {});
+}
+
+static inline Expr Less(const Expr& lhs, const Expr& rhs) {
+  static const Op& op = Op::Get("less");
+  return Call(op, {lhs, rhs}, Attrs(), {});
+}
+
+static inline Expr IsFinite(const Expr x) {
+  static const Op& op = Op::Get("isfinite");
+  return Call(op, {x}, Attrs(), {});
 }
 
 static inline Expr Full(Expr fill_value, Array<IndexExpr> shape, DataType dtype) {
@@ -676,9 +764,10 @@ static inline Expr Reshape(Expr data, Array<Integer> newshape) {
 
 static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
                              Array<IndexExpr> dilation, Array<IndexExpr> padding,
-                             std::string layout, bool ceil_mode, bool count_include_pad) {
-  return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, dilation, padding, layout, ceil_mode,
-                                     count_include_pad, "nn.avg_pool2d");
+                             std::string layout, std::string out_layout, bool ceil_mode,
+                             bool count_include_pad) {
+  return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, dilation, padding, layout,
+                                     out_layout, ceil_mode, count_include_pad, "nn.avg_pool2d");
 }
 
 static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, Expr pad_value,
@@ -695,10 +784,6 @@ static inline Expr Tile(Expr data, Array<Integer> reps) { return MakeTile(data, 
 static inline Expr BroadCastTo(Expr data, Array<IndexExpr> shape) {
   return MakeBroadCastTo(data, CheckConstantShapeArrayInteger(shape));
 }
-
-Expr StopFusion(Expr data);
-
-Expr CastHint(Expr data, DataType dtype);
 
 }  // namespace relay
 }  // namespace tvm

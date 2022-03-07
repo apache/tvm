@@ -53,9 +53,9 @@ def _dlpack_deleter(pycapsule):
     if ctypes.pythonapi.PyCapsule_IsValid(pycapsule, _c_str_dltensor):
         ptr = ctypes.pythonapi.PyCapsule_GetPointer(pycapsule, _c_str_dltensor)
         # enforce type to make sure it works for all ctypes
-        ptr = ctypes.cast(ctypes.c_void_p, ptr)
+        ptr = ctypes.cast(ptr, ctypes.c_void_p)
         _LIB.TVMDLManagedTensorCallDeleter(ptr)
-        ctypes.pythonapi.PyCapsule_SetDestructor(dltensor, TVMPyCapsuleDestructor(0))
+        ctypes.pythonapi.PyCapsule_SetDestructor(pycapsule, None)
 
 
 _c_dlpack_deleter = TVMPyCapsuleDestructor(_dlpack_deleter)

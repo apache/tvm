@@ -42,15 +42,26 @@ import typing
 _LOG = logging.getLogger(__name__)
 
 
-_ProjectOption = collections.namedtuple("ProjectOption", ("name", "choices", "help"))
+_ProjectOption = collections.namedtuple(
+    "ProjectOption", ("name", "choices", "default", "type", "required", "optional", "help")
+)
 
 
 class ProjectOption(_ProjectOption):
+    """Class used to keep the metadata associated to project options."""
+
     def __new__(cls, name, **kw):
         """Override __new__ to force all options except name to be specified as kwargs."""
         assert "name" not in kw
+        assert (
+            "required" in kw or "optional" in kw
+        ), "at least one of 'required' or 'optional' must be specified."
+        assert "type" in kw, "'type' field must be specified."
+
         kw["name"] = name
-        kw.setdefault("choices", None)
+        for param in ["choices", "default", "required", "optional"]:
+            kw.setdefault(param, None)
+
         return super().__new__(cls, **kw)
 
 

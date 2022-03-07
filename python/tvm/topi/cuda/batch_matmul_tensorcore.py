@@ -60,6 +60,8 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
 
     def _schedule(cfg, s, C):
         A, B = s[C].op.input_tensors
+        if len(B.op.input_tensors) == 1 and B.op.input_tensors[0] == A:
+            s[B].compute_inline()
         batch, m_dim, k_dim = get_const_tuple(A.shape)
         batch, n_dim, k_dim = get_const_tuple(B.shape)
         data_dtype = A.dtype
@@ -201,7 +203,7 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
         s[BF].reorder(bs, o, i, o_ii, i_ii)
 
         # Schedule for A's(B's) shared memory load
-        def shared_shedule(stage, strides):
+        def shared_schedule(stage, strides):
             s[stage].compute_at(s[CF], ko)
             bs, xo, yo = stage.op.axis
             s[stage].storage_align(xo, strides - 1, strides)
@@ -215,8 +217,8 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
             s[stage].bind(tx, thread_x)
             s[stage].vectorize(vi)
 
-        shared_shedule(AS, AS_align)
-        shared_shedule(BS, BS_align)
+        shared_schedule(AS, AS_align)
+        shared_schedule(BS, BS_align)
 
         shape = (wmma_m, wmma_n, wmma_k)
         AL_gemm = te.placeholder((wmma_m, wmma_k), name="AL_gemm", dtype=data_dtype)

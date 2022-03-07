@@ -133,6 +133,18 @@ ENTRY(Reset_Handler)
 
 SECTIONS
 {
+  /* .ddr is placed before .text so that .rodata.tvm is encountered before .rodata* */
+  .ddr :
+  {
+    . = ALIGN(16);
+    *(ethosu_scratch)
+    . = ALIGN (16);
+    *(.rodata.tvm)
+    . = ALIGN (16);
+    *(.data.tvm)
+    . = ALIGN (16);
+  } > DDR
+
   .text :
   {
     KEEP(*(.vectors))

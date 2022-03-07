@@ -17,7 +17,6 @@
 
 import random
 import re
-import sys
 import threading
 
 import numpy as np
@@ -503,10 +502,9 @@ class TestVectorizedIndices:
             store_index = index_map[store_type]
 
             if indirect_indices:
-                load_index = tvm.tir.expr.Load("int32x4", R, load_index)
+                load_index = R[load_index]
 
-            transfer = tvm.tir.expr.Load("int32x4", A, load_index)
-            ib.emit(tvm.tir.stmt.Store(B, transfer, store_index))
+            B[store_index] = A[load_index]
 
             return ib.get()
 
@@ -557,4 +555,6 @@ def test_shared_mem_alloc(target, dev):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    import sys
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

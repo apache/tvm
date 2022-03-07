@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -33,7 +33,6 @@ echo set\(USE_LLVM llvm-config-11\) >> config.cmake
 echo set\(USE_NNPACK ON\) >> config.cmake
 echo set\(NNPACK_PATH /NNPACK/build/\) >> config.cmake
 echo set\(USE_ANTLR ON\) >> config.cmake
-echo set\(CMAKE_CXX_COMPILER g++\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
 echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
 echo set\(USE_VTA_TSIM ON\) >> config.cmake
@@ -49,3 +48,4 @@ echo set\(USE_VERILATOR ON\) >> config.cmake
 echo set\(USE_LIBBACKTRACE ON\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(USE_ETHOSU ON\) >> config.cmake
+echo set\(SUMMARIZE ON\) >> config.cmake

@@ -105,10 +105,15 @@ TVM_DLL const Op& large_uint_imm();
 TVM_DLL const Op& q_multiply_shift();
 
 /*!
- * \brief See pesudo code
+ * \brief Returns the address of an element in the buffer (see pseudocode below).
  *
- *  Handle address_of(Load *op) {
- *     return &op->buffer_var[index];
+ * The number of indices should match the dimensionality of the buffer
+ * being accessed.  If this operation occurs after buffer flattening,
+ * the number of indices must be supported by the target (i.e. N>1
+ * only on targets that support non-flat memory buffers).
+ *
+ *  Handle address_of(BufferLoad *op) {
+ *     return &op->buffer_var[op->indices[0], op->indices[1], ..., op->indices[N-1]];
  *  }
  */
 TVM_DLL const Op& address_of();
@@ -580,6 +585,17 @@ TVM_DLL const Op& tvm_fill_fragment();
  */
 TVM_DLL const Op& tvm_store_matrix_sync();
 
+/*!
+ * \brief tvm intrinsic for ptx tensor core mma instructions.
+ *
+ *  void ptx_mma(StringImm shape, StringImm A_layout, StringImm B_layout,
+ *               StringImm A_dtype, StringImm B_dtype, StringImm C_dtype,
+ *               Var multiplicand_a, Expr a_index,
+ *               Var multiplicand_b, Expr b_index,
+ *               Var accumulator, Expr c_index, bool saturate);
+ */
+TVM_DLL const Op& ptx_mma();
+
 // TODO(tvm-team) replace the usage of the vector operations by Shuffle.
 /*!
  * \brief Get the high level half of the vector
@@ -614,6 +630,13 @@ TVM_DLL const Op& texture2d_store();
  * \brief Load from texture 2d memory
  */
 TVM_DLL const Op& texture2d_load();
+
+/*!
+ * \brief Copy 1d memory from source to destination
+ * Same semantics as memcpy(destination, source, size)
+ * Allows for device specific implementations e.g. direct memory access (DMA)
+ */
+TVM_DLL const Op& mem_copy();
 
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {

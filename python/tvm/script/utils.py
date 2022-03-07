@@ -16,16 +16,13 @@
 # under the License.
 """Helper functions in TVM Script Parser"""
 
-from typing import Callable, List, Any, Optional, Tuple, Union
+from typing import Callable, List, Any, Optional, Tuple
 
 import inspect
 import synr
 
-from tvm.arith import Analyzer
-from tvm.ir import Range, Span, SourceName
-from tvm.tir import PrimExpr, BufferRegion
+from tvm.ir import Span, SourceName
 from tvm.error import DiagnosticError
-from .node import BufferSlice
 
 
 def get_param_list(
@@ -66,36 +63,6 @@ def get_param_list(
             kwargs.append((arg, default))
 
     return pos_only, kwargs, full_arg_spec.varargs
-
-
-def buffer_slice_to_region(
-    buffer_slice: BufferSlice, analyzer: Optional[Analyzer] = None
-) -> BufferRegion:
-    """Construct BufferRegion from BufferSlice
-
-    Parameters
-    ----------
-    buffer_slice : BufferSlice
-        The input BufferSlice
-
-    analyzer : Optional[tvm.arith.Analyzer]
-        The analyzer for simplifying. If not provided, the method will construct a new one
-
-    Returns
-    -------
-    buffer_region : BufferRegion
-        The constructed BufferRegion.
-    """
-    region: List[Range] = []
-    for s in buffer_slice.slices:
-        start: Union[PrimExpr, int] = s.start
-        extent: Union[PrimExpr, int] = 1 if s.stop is None else s.stop - s.start
-        if not analyzer:
-            analyzer = Analyzer()
-        if isinstance(extent, PrimExpr):
-            extent = analyzer.simplify(extent)
-        region.append(Range.from_min_extent(start, extent, span=s.span))
-    return BufferRegion(buffer_slice.buffer, region)
 
 
 def tvm_span_from_synr(span: synr.ast.Span) -> Span:

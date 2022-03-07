@@ -52,8 +52,8 @@ elseif(PYTHON)
   # Fast simulator driver build
   if(USE_VTA_FSIM)
     # Add fsim driver sources
-    file(GLOB FSIM_RUNTIME_SRCS ${VTA_HW_PATH}/src/*.cc)
-    file(GLOB FSIM_RUNTIME_SRCS vta/runtime/*.cc)
+    tvm_file_glob(GLOB FSIM_RUNTIME_SRCS ${VTA_HW_PATH}/src/*.cc)
+    tvm_file_glob(GLOB FSIM_RUNTIME_SRCS vta/runtime/*.cc)
     list(APPEND FSIM_RUNTIME_SRCS ${VTA_HW_PATH}/src/sim/sim_driver.cc)
     list(APPEND FSIM_RUNTIME_SRCS ${VTA_HW_PATH}/src/sim/sim_tlpp.cc)
     list(APPEND FSIM_RUNTIME_SRCS ${VTA_HW_PATH}/src/vmem/virtual_memory.cc)
@@ -85,8 +85,8 @@ elseif(PYTHON)
       message(FATAL_ERROR "Cannot find Verilator, VERILATOR_INC_DIR is not defined")
     endif()
     # Add tsim driver sources
-    file(GLOB TSIM_RUNTIME_SRCS ${VTA_HW_PATH}/src/*.cc)
-    file(GLOB TSIM_RUNTIME_SRCS vta/runtime/*.cc)
+    tvm_file_glob(GLOB TSIM_RUNTIME_SRCS ${VTA_HW_PATH}/src/*.cc)
+    tvm_file_glob(GLOB TSIM_RUNTIME_SRCS vta/runtime/*.cc)
     list(APPEND TSIM_RUNTIME_SRCS ${VTA_HW_PATH}/src/tsim/tsim_driver.cc)
     list(APPEND TSIM_RUNTIME_SRCS ${VTA_HW_PATH}/src/dpi/module.cc)
     list(APPEND TSIM_RUNTIME_SRCS ${VTA_HW_PATH}/src/vmem/virtual_memory.cc)
@@ -105,8 +105,8 @@ elseif(PYTHON)
 
   # VTA FPGA driver sources
   if(USE_VTA_FPGA)
-    file(GLOB FSIM_RUNTIME_SRCS ${VTA_HW_PATH}/src/*.cc)
-    file(GLOB FPGA_RUNTIME_SRCS vta/runtime/*.cc)
+    tvm_file_glob(GLOB FSIM_RUNTIME_SRCS ${VTA_HW_PATH}/src/*.cc)
+    tvm_file_glob(GLOB FPGA_RUNTIME_SRCS vta/runtime/*.cc)
     # Rules for Zynq-class FPGAs with pynq OS support (see pynq.io)
     if(${VTA_TARGET} STREQUAL "pynq" OR
        ${VTA_TARGET} STREQUAL "ultra96")
@@ -114,10 +114,10 @@ elseif(PYTHON)
       # Rules for Pynq v2.4
       find_library(__cma_lib NAMES cma PATH /usr/lib)
     elseif(${VTA_TARGET} STREQUAL "de10nano")  # DE10-Nano rules
-      file(GLOB DE10_FPGA_RUNTIME_SRCS ${VTA_HW_PATH}/src/de10nano/*.cc ${VTA_HW_PATH}/src/*.cc)
+      tvm_file_glob(GLOB DE10_FPGA_RUNTIME_SRCS ${VTA_HW_PATH}/src/de10nano/*.cc ${VTA_HW_PATH}/src/*.cc)
       list(APPEND FPGA_RUNTIME_SRCS ${DE10_FPGA_RUNTIME_SRCS})
     elseif(${VTA_TARGET} STREQUAL "intelfocl")  # Intel OpenCL for FPGA rules
-      file(GLOB FOCL_SRC ${VTA_HW_PATH}/src/oclfpga/*.cc)
+      tvm_file_glob(GLOB FOCL_SRC ${VTA_HW_PATH}/src/oclfpga/*.cc)
       list(APPEND FPGA_RUNTIME_SRCS ${FOCL_SRC})
       list(APPEND FPGA_RUNTIME_SRCS ${VTA_HW_PATH}/src/vmem/virtual_memory.cc ${VTA_HW_PATH}/src/vmem/virtual_memory.h)
     endif()

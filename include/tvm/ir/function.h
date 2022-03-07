@@ -189,6 +189,7 @@ constexpr const char* kTarget = "target";
  * Type: String
  */
 constexpr const char* kGlobalSymbol = "global_symbol";
+
 }  // namespace attr
 }  // namespace tvm
 #endif  // TVM_IR_FUNCTION_H_

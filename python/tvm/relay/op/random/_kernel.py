@@ -31,3 +31,5 @@ register_pattern("random.threefry_split", OpPattern.OPAQUE)
 # Distribution
 register_strategy("random.uniform", strategy.uniform_strategy)
 register_pattern("random.uniform", OpPattern.OPAQUE)
+register_strategy("random.normal", strategy.normal_strategy)
+register_pattern("random.normal", OpPattern.OPAQUE)

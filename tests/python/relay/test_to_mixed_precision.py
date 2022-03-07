@@ -459,5 +459,34 @@ def test_batch_matmul_simple():
     assert tvm.ir.structural_equal(expected_mod, output_mod)
 
 
+def test_convert_follow_node_with_integer_arguments():
+    """Tests the conversion of a follow op with integer arguments + constant float args.
+
+    The follow op should convert the floating point argument into fp16 as constants/vars
+    will always be converted if safe to do so.
+    """
+
+    data = relay.var("data", shape=[1, 10], dtype="float32")
+
+    # We use an addition to make sure the input indices are not a var
+    # (which are always casted if safe)
+    indices = relay.var("indices", shape=[1, 1], dtype="int32") + relay.const(0, dtype="int32")
+    take = relay.take(data, indices, axis=0)
+    mod = tvm.IRModule.from_expr(take)
+
+    mod_params = {
+        "data": np.random.uniform(-1, 1, size=[1, 10]).astype("float32"),
+        "indices": np.array([[0]]).astype("int32"),
+    }
+    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=0.01)
+
+    # Create expected module
+    data = relay.cast(relay.var("data", shape=[1, 10]), "float16")
+    take = relay.take(data, indices, axis=0)
+    expected_mod = tvm.IRModule.from_expr(take)
+    expected_mod = InferType()(expected_mod)
+    assert tvm.ir.structural_equal(expected_mod, output_mod)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

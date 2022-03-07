@@ -388,6 +388,7 @@ class BufferRealize : public Stmt {
                                  Span span = Span());
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BufferRealize, Stmt, BufferRealizeNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRealizeNode);
 };
 
 /*!
@@ -521,6 +522,13 @@ class AllocateNode : public StmtNode {
   PrimExpr condition;
   /*! \brief The body to be executed. */
   Stmt body;
+  /*!
+   * \brief Additional annotations about the allocation.
+   *
+   *  These annotations can be used as auxiliary hint
+   *  to future transformations.
+   */
+  Map<String, ObjectRef> annotations;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
@@ -528,13 +536,14 @@ class AllocateNode : public StmtNode {
     v->Visit("extents", &extents);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
+    v->Visit("annotations", &annotations);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const AllocateNode* other, SEqualReducer equal) const {
     return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
            equal(extents, other->extents) && equal(condition, other->condition) &&
-           equal(body, other->body);
+           equal(body, other->body) && equal(annotations, other->annotations);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -543,6 +552,7 @@ class AllocateNode : public StmtNode {
     hash_reduce(extents);
     hash_reduce(condition);
     hash_reduce(body);
+    hash_reduce(annotations);
   }
 
   /*!
@@ -550,16 +560,18 @@ class AllocateNode : public StmtNode {
    *        Otherwise return 0.
    * \return The result.
    */
-  int32_t constant_allocation_size() const { return constant_allocation_size(extents); }
+  int64_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
   /*!
    * \brief If the buffer size is constant, return the size.
    *        Otherwise return 0.
    * \param extents The extents of the buffer.
    * \return The result.
    */
-  TVM_DLL static int32_t constant_allocation_size(const Array<PrimExpr>& extents);
+  TVM_DLL static int64_t ConstantAllocationSize(const Array<PrimExpr>& extents);
 
   static constexpr const char* _type_key = "tir.Allocate";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateNode, StmtNode);
 };
 
@@ -570,9 +582,101 @@ class AllocateNode : public StmtNode {
 class Allocate : public Stmt {
  public:
   TVM_DLL Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, Span span = Span());
+                   Stmt body, Map<String, ObjectRef> annotations = Map<String, ObjectRef>(),
+                   Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocateNode);
+};
+
+/*!
+ * \brief Allocate a buffer that can be used in body.
+ */
+class AllocateConstNode : public StmtNode {
+ public:
+  /*! \brief The buffer variable. */
+  Var buffer_var;
+  /*! \brief The optional data associated to the constant.
+   */
+  Optional<runtime::NDArray> data;
+  /*! \brief If the PrimFunc containing the Stmt is added to IRModule,
+       this is an optional index to indicate the index within
+       "Constants" attribute, that is a Array<NDArray> of IRModule.
+   */
+  Optional<Integer> irmod_storage_idx;
+  /*! \brief The type of the buffer. */
+  DataType dtype;
+  /*! \brief The extents of the buffer. */
+  Array<PrimExpr> extents;
+  /*! \brief The body to be executed. */
+  Stmt body;
+  /*!
+   * \brief Additional annotations about the allocation.
+   *
+   *  These annotations can be used as auxiliary hint
+   *  to future transformations.
+   */
+  Map<String, ObjectRef> annotations;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("buffer_var", &buffer_var);
+    v->Visit("data", &data);
+    v->Visit("irmod_storage_idx", &irmod_storage_idx);
+    v->Visit("dtype", &dtype);
+    v->Visit("extents", &extents);
+    v->Visit("body", &body);
+    v->Visit("annotations", &annotations);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const AllocateConstNode* other, SEqualReducer equal) const {
+    return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
+           equal(extents, other->extents) && equal(data, other->data) && equal(body, other->body) &&
+           equal(annotations, other->annotations);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(buffer_var);
+    hash_reduce(dtype);
+    hash_reduce(extents);
+    hash_reduce(body);
+    hash_reduce(annotations);
+    hash_reduce(data);
+  }
+
+  /*!
+   * \brief If the buffer size is constant, return the size.
+   *        Otherwise return 0.
+   * \return The result.
+   */
+  int64_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
+  /*!
+   * \brief If the buffer size is constant, return the size.
+   *        Otherwise return 0.
+   * \param extents The extents of the buffer.
+   * \return The result.
+   */
+  TVM_DLL static int64_t ConstantAllocationSize(const Array<PrimExpr>& extents);
+
+  static constexpr const char* _type_key = "tir.AllocateConst";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(AllocateConstNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to AllocateConstNode.
+ * \sa AllocateConstNode
+ */
+class AllocateConst : public Stmt {
+ public:
+  /* The constructor to create a IRNode with constant data
+   * depending on the type of ObjectRef, it will either
+   * create AllocateConstNode with irmod_storage_idx or data
+   */
+  TVM_DLL AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> extents,
+                        ObjectRef data_or_idx, Stmt body, Span span = Span());
+  TVM_DEFINE_OBJECT_REF_METHODS(AllocateConst, Stmt, AllocateConstNode);
 };
 
 /*!
@@ -1068,17 +1172,17 @@ class MatchBufferRegion : public ObjectRef {
  * \note Block's body is parameterized by iter vars.
  * \code
  *
- *  with tir.block([extent0, extent1, ...], name) as [v0, v1, ...]:
- *      tir.bind(v0, value0)
- *      tir.bind(v1, value1)
+ *  with T.block(name):
+ *      v0 = T.axis.S(domain, value0)
+ *      v1 = T.axis.R(domain, value1)
  *      ...
- *      tir.reads([buffer0[start:end, ...], ...])
- *      tir.writes([buffer1[start:end, ...], ...])
- *      tir.where(predicate)
- *      buffer2 = tir.alloc_buffer(shape, dtype)
- *      buffer3 = tir.match_buffer(source_buffer[start:end, ...])
- *      tir.attr({attr_key: attr_value, ...})
- *      with tir.init():
+ *      T.reads([buffer0[start:end, ...], ...])
+ *      T.writes([buffer1[start:end, ...], ...])
+ *      T.where(predicate)
+ *      buffer2 = T.alloc_buffer(shape, dtype)
+ *      buffer3 = T.match_buffer(source_buffer[start:end, ...])
+ *      T.attr({attr_key: attr_value, ...})
+ *      with T.init():
  *          // init body
  *      // body
  *
@@ -1214,7 +1318,7 @@ class BlockRealize : public Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BlockRealizeNode);
 };
 
-/*! \brief namespace of possible attribute sin AttrStmt.attr_key */
+/*! \brief namespace of possible attributes in AttrStmt.attr_key */
 namespace attr {
 // The above attr does not pass to ir stage.
 /*! \brief Mark launching extent of thread, used by device API. */
@@ -1241,7 +1345,7 @@ constexpr const char* extern_scope = "extern_scope";
  *  This can hint some code generator to create a new function for compute.
  */
 constexpr const char* compute_scope = "compute_scope";
-/*! \brief Mark storage alignement requirement of buffers */
+/*! \brief Mark storage alignment requirement of buffers */
 constexpr const char* storage_alignment = "storage_alignment";
 /*! \brief Mark storage scope of realization */
 constexpr const char* realize_scope = "realize_scope";
@@ -1253,6 +1357,10 @@ constexpr const char* device_type = "device_type";
 constexpr const char* loop_scope = "loop_scope";
 /*! \brief Mark of reduce scope */
 constexpr const char* reduce_scope = "reduce_scope";
+/*! \brief Pragma: auto-unroll, max_step */
+constexpr const char* pragma_auto_unroll_max_step = "pragma_auto_unroll_max_step";
+/*! \brief Pragma: unroll explicit */
+constexpr const char* pragma_unroll_explicit = "pragma_unroll_explicit";
 /*! \brief Mark region is guarded by the pragma extension */
 constexpr const char* pragma_scope_prefix = "pragma_";
 /*! \brief Import C source or file into the final code gen module */
@@ -1267,6 +1375,21 @@ constexpr const char* pragma_tensor_core = "pragma_tensor_core";
  */
 constexpr const char* prefetch_scope = "prefetch_scope";
 /*!
+ * \brief Marks the layout transforms to be used for a tensor.
+ *
+ * Only applies to a DataProducer, as it should be made part of the
+ * PrimFunc attributes for TIR.
+ */
+constexpr const char* layout_transforms = "layout_transforms";
+/*!
+ * \brief Marks the physical axis separators
+ *
+ * Only applies to a DataProducer, as it should be made part of the
+ * Buffer definition in a PrimFunc.  See `BufferNode::axis_separators`
+ * for more details.
+ */
+constexpr const char* axis_separators = "axis_separators";
+/*!
  * \brief Marks production of double buffer data
  */
 constexpr const char* double_buffer_scope = "double_buffer_scope";
@@ -1274,6 +1397,8 @@ constexpr const char* double_buffer_scope = "double_buffer_scope";
  * \brief Marks region used by double buffer write
  */
 constexpr const char* double_buffer_write = "double_buffer_write";
+/*! \brief Mark realization for rolling buffer optimization */
+constexpr const char* rolling_buffer_scope = "rolling_buffer_scope";
 /*! \brief Mark of scan update scope */
 constexpr const char* scan_update_scope = "scan_update_scope";
 /*! \brief Mark of scan init scope */
@@ -1339,6 +1464,51 @@ constexpr const char* hand_threaded = "hand_threaded";
  *       if (mask & 2) the write region should be detected.
  */
 constexpr const char* script_parsing_detect_access = "tir.script_parsing_detect_access";
+
+/*!
+ * \brief Mark that the loop should be partitioned.
+ */
+constexpr const char* pragma_loop_partition_hint = "pragma_loop_partition_hint";
+
+/*! \brief Mark the stage of a statement in the software pipeline */
+constexpr const char* software_pipeline_stage = "software_pipeline_stage";
+
+/*! \brief Mark the order of a statement in the software pipeline */
+constexpr const char* software_pipeline_order = "software_pipeline_order";
+
+/*! \brief Mark the tiling structure of blocks that are applied by rule Multi-Level-Tiling */
+constexpr const char* meta_schedule_tiling_structure = "meta_schedule.tiling_structure";
+
+/*!
+ * \brief Mark that the loop should be further skip and bound to environment threads to enable
+ * cooperative fetching.
+ */
+constexpr const char* meta_schedule_cooperative_fetch = "meta_schedule.cooperative_fetch";
+
+/*! \brief The allowed range of thread extent in thread bindings */
+constexpr const char* meta_schedule_thread_extent_low_inclusive =
+    "meta_schedule.thread_extent_low_inclusive";
+
+/*! \brief The allowed range of thread extent in thread bindings */
+constexpr const char* meta_schedule_thread_extent_high_inclusive =
+    "meta_schedule.thread_extent_high_inclusive";
+
+/*! \brief Mark the block whose producer needs to be applied by rule Random-Compute-Location */
+constexpr const char* meta_schedule_random_compute_producer =
+    "meta_schedule.random_compute_producer";
+
+/*! \brief Mark auto-parallel setting on the block. */
+constexpr const char* meta_schedule_parallel = "meta_schedule.parallel";
+
+/*! \brief Mark auto-vectorize setting on the block. */
+constexpr const char* meta_schedule_vectorize = "meta_schedule.vectorize";
+
+/*! \brief Mark auto-unroll setting on the block. */
+constexpr const char* meta_schedule_unroll_explicit = "meta_schedule.unroll_explicit";
+
+/*! \brief Mark auto-unroll setting on the block. */
+constexpr const char* meta_schedule_unroll_implicit = "meta_schedule.unroll_implicit";
+
 /*!
  * \brief Check if attr_key is a pragma key extension
  * \param attr_key The attr key to be compared

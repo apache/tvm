@@ -16,27 +16,24 @@
 # under the License.
 
 # pylint: disable=invalid-name
-"""The build utils in python.
-"""
+"""The build utils in python."""
+import warnings
 
 from typing import Union, Optional, List, Mapping
-import warnings
 
 import tvm.tir
 
 from tvm.runtime import Module
 from tvm.runtime import ndarray
 from tvm.ir import container
-from tvm.ir import CallingConv
 from tvm.tir import PrimFunc
 from tvm.ir.module import IRModule
-from tvm.ir.transform import PassContext
-from tvm.target import codegen
 from tvm.te import tensor
 from tvm.te import schedule
 from tvm.target import Target
 from tvm.tir.buffer import Buffer
 from tvm.tir.expr import Var
+from tvm.driver import _ffi_api as _driver_ffi
 
 from . import _ffi_api as ffi
 
@@ -71,6 +68,11 @@ def schedule_to_module(
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
 ) -> IRModule:
     """According to the given schedule, form a function.
+
+    This is a low-level function intended for testing purposes, and
+    does not apply any optimization passes.  In general, `tvm.lower`
+    and `tvm.build` should be used instead.
+
     Parameters
     ----------
     sch : tvm.te.schedule.Schedule
@@ -104,8 +106,8 @@ def lower(
 
     args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
         The argument lists to the function for TE schedule.
-        It should be None if we want to lower TensorIR.
 
+        It should be None if we want to lower TensorIR.
     name : str
         The name of the result function.
 
@@ -132,103 +134,14 @@ def lower(
     raise ValueError("Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
 
 
-def _build_for_device(input_mod, target, target_host):
-    """Build the lowered functions for a device with the given compilation
-    target.
-
-    Parameters
-    ----------
-    input_mod : IRModule
-        The schedule to be built.
-
-    target : str or :any:`tvm.target.Target`
-        The target and option of the compilation.
-
-    target_host : str or :any:`tvm.target.Target`
-        The host compilation target.
-
-    Returns
-    -------
-    fhost : IRModule
-        The host IRModule.
-
-    mdev : tvm.module
-        A module that contains device code.
-    """
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
-    device_type = ndarray.device(target.kind.name, 0).device_type
-
-    mod_mixed = input_mod
-    mod_mixed = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_mixed)
-
-    opt_mixed = [
-        tvm.tir.transform.VerifyMemory(),
-        tvm.tir.transform.MergeDynamicSharedMemoryAllocations(),
-    ]
-    if len(mod_mixed.functions) == 1:
-        opt_mixed += [tvm.tir.transform.Apply(lambda f: f.with_attr("tir.is_entry_func", True))]
-
-    if PassContext.current().config.get("tir.detect_global_barrier", False):
-        opt_mixed += [tvm.tir.transform.ThreadSync("global")]
-    opt_mixed += [
-        tvm.tir.transform.ThreadSync("shared"),
-        tvm.tir.transform.ThreadSync("warp"),
-        tvm.tir.transform.InferFragment(),
-        tvm.tir.transform.LowerThreadAllreduce(),
-        tvm.tir.transform.MakePackedAPI(),
-        tvm.tir.transform.SplitHostDevice(),
-    ]
-    mod_mixed = tvm.transform.Sequential(opt_mixed)(mod_mixed)
-
-    # device optimizations
-    opt_device = tvm.transform.Sequential(
-        [
-            tvm.tir.transform.Filter(
-                lambda f: "calling_conv" in f.attrs
-                and f.attrs["calling_conv"].value == CallingConv.DEVICE_KERNEL_LAUNCH
-            ),
-            tvm.tir.transform.LowerWarpMemory(),
-            tvm.tir.transform.Simplify(),
-            tvm.tir.transform.LowerDeviceStorageAccessInfo(),
-            tvm.tir.transform.LowerCustomDatatypes(),
-            tvm.tir.transform.LowerIntrin(),
-        ]
-    )
-    mod_dev = opt_device(mod_mixed)
-
-    # host optimizations
-    opt_host = tvm.transform.Sequential(
-        [
-            tvm.tir.transform.Filter(
-                lambda f: "calling_conv" not in f.attrs
-                or f.attrs["calling_conv"].value != CallingConv.DEVICE_KERNEL_LAUNCH
-            ),
-            tvm.tir.transform.Apply(lambda f: f.with_attr("target", target_host)),
-            tvm.tir.transform.LowerTVMBuiltin(),
-            tvm.tir.transform.LowerDeviceStorageAccessInfo(),
-            tvm.tir.transform.LowerCustomDatatypes(),
-            tvm.tir.transform.LowerIntrin(),
-            tvm.tir.transform.CombineContextCall(),
-        ]
-    )
-    mod_host = opt_host(mod_mixed)
-
-    if device_type == ndarray.cpu(0).device_type and target_host == target:
-        assert len(mod_dev.functions) == 0
-    if "gpu" in target.keys and len(mod_dev.functions) == 0:
-        warnings.warn(
-            "Specified target %s, but cannot find device code, did you do " "bind?" % target
-        )
-
-    rt_mod_dev = codegen.build_module(mod_dev, target) if len(mod_dev.functions) != 0 else None
-    return mod_host, rt_mod_dev
-
-
 def build(
     inputs: Union[schedule.Schedule, PrimFunc, IRModule, Mapping[str, IRModule]],
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
     target: Optional[Union[str, Target]] = None,
     target_host: Optional[Union[str, Target]] = None,
+    runtime: Optional[
+        "tvm.relay.backend.Runtime"
+    ] = None,  # Type is annotated this way to avoid cyclic dependency
     name: Optional[str] = "default_function",
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
 ):
@@ -237,7 +150,8 @@ def build(
 
     Parameters
     ----------
-    inputs : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
+    inputs : Union[tvm.te.schedule.Schedule,
+        tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
         The input to be built
 
     args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
@@ -253,7 +167,10 @@ def build(
         setup the dimensions and parameters correctly.
         target_host is used to specify the host side codegen target.
         By default, llvm is used if it is enabled,
-        otherwise a stackvm intepreter is used.
+        otherwise a stackvm interpreter is used.
+
+    runtime : Optional[Runtime]
+        Runtime to generate artifacts for
 
     name : Optional[str]
         The name of result function.
@@ -296,7 +213,7 @@ def build(
           s2 = topi.cuda.schedule_injective(cuda_tgt, [C])
           m1 = tvm.lower(s1, [A, B, C], name="test_add1")
           m2 = tvm.lower(s2, [A, B, C], name="test_add2")
-          rt_mod = tvm.build({"llvm": m1, "cuda": m2}, target_host="llvm")
+          rt_mod = tvm.build({"llvm": m1, "cuda": m2})
 
     Note
     ----
@@ -311,12 +228,20 @@ def build(
         for x in inputs:
             merged_mod.update(lower(x))
         input_mod = merged_mod
-    elif isinstance(inputs, (tvm.IRModule, PrimFunc)):
+    elif isinstance(inputs, PrimFunc):
+        input_mod = lower(inputs, name=name)
+    elif isinstance(inputs, tvm.IRModule):
         input_mod = lower(inputs)
     elif not isinstance(inputs, (dict, container.Map)):
         raise ValueError(
             f"Inputs must be Schedule, IRModule or dict of target to IRModule, "
             f"but got {type(inputs)}."
+        )
+
+    if target_host is not None:
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
         )
 
     if not isinstance(inputs, (dict, container.Map)):
@@ -326,18 +251,20 @@ def build(
     else:
         target_input_mod = inputs
 
+    # Because modules can be created from a variety of sources, we annotate them
+    # with the relevant attributes here to ensure they propagate
+    annotated_mods = {}
     for tar, mod in target_input_mod.items():
         if not isinstance(tar, (str, Target)):
             raise ValueError("The key of inputs must be str or " "Target when inputs is dict.")
         if not isinstance(mod, tvm.IRModule):
             raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
+        annotated_mods[tar] = mod.with_attr("runtime", runtime)
 
-    target_input_mod, target_host = Target.check_and_update_host_consist(
-        target_input_mod, target_host
-    )
+    annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
 
     if not target_host:
-        for tar, mod in target_input_mod.items():
+        for tar, mod in annotated_mods.items():
             tar = Target(tar)
             device_type = ndarray.device(tar.kind.name, 0).device_type
             if device_type == ndarray.cpu(0).device_type:
@@ -346,47 +273,30 @@ def build(
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
-    target_input_mod, target_host = Target.check_and_update_host_consist(
-        target_input_mod, target_host
-    )
+    annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
 
-    mod_host_all = tvm.IRModule({})
+    rt_mod_host = _driver_ffi.preprocess_module(annotated_mods, target_host)
 
-    device_modules = []
-    for tar, input_mod in target_input_mod.items():
-        mod_host, mdev = _build_for_device(input_mod, tar, target_host)
-        mod_host_all.update(mod_host)
-        device_modules.append(mdev)
-
-    # Generate a unified host module.
-    rt_mod_host = codegen.build_module(mod_host_all, target_host)
-
-    # Import all modules.
-    for mdev in device_modules:
-        if mdev:
-            rt_mod_host.import_module(mdev)
+    annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
 
     if not isinstance(target_host, Target):
         target_host = Target(target_host)
-    if (
-        target_host.attrs.get("runtime", tvm.runtime.String("c++")) == "c"
-        and target_host.attrs.get("system-lib", 0) == 1
-    ):
+
+    if str(runtime) == "crt" and runtime["system-lib"]:
         if target_host.kind.name == "c":
             create_csource_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateCSourceCrtMetadataModule"
             )
-            to_return = create_csource_crt_metadata_module([rt_mod_host], target_host)
-
+            to_return = create_csource_crt_metadata_module([rt_mod_host], target_host, runtime)
         elif target_host.kind.name == "llvm":
             create_llvm_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateLLVMCrtMetadataModule"
             )
-            to_return = create_llvm_crt_metadata_module([rt_mod_host], target_host)
+            to_return = create_llvm_crt_metadata_module([rt_mod_host], target_host, runtime)
     else:
         to_return = rt_mod_host
 
-    return OperatorModule.from_module(to_return, ir_module_by_target=target_input_mod, name=name)
+    return OperatorModule.from_module(to_return, ir_module_by_target=annotated_mods, name=name)
 
 
 class OperatorModule(Module):

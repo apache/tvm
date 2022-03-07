@@ -73,6 +73,31 @@ def test_dynamic_to_static_reshape():
 
 
 @tvm.testing.uses_gpu
+def test_dynamic_to_static_squeeze():
+    def verify_squeeze(shape, axis, oshape):
+        x = relay.var("x", relay.TensorType(shape, "float32"))
+        y = relay.var("y", relay.TensorType(axis, "float32"))
+        z = relay.squeeze(x, relay.shape_of(y))
+        func = run_infer_type(relay.Function([x, y], z))
+        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+
+        zz = func2.body
+        assert isinstance(zz, relay.Call)
+        assert zz.op == relay.op.get("squeeze")
+        assert "axis=" in zz.astext()
+        assert zz.checked_type == relay.ty.TensorType(oshape, "float32")
+
+        x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
+        y_data = np.random.uniform(low=-1, high=1, size=axis).astype("float32")
+        ref_res = np.squeeze(x_data, axis)
+        verify_func(func2, [x_data, y_data], ref_res)
+
+    verify_squeeze((1, 3, 4, 1), (0,), (3, 4, 1))
+    verify_squeeze((1, 3, 4, 1), (3,), (1, 3, 4))
+    verify_squeeze((1, 3, 4, 1), (0, 3), (3, 4))
+
+
+@tvm.testing.uses_gpu
 def test_dynamic_to_static_double_reshape():
     def verify_reshape(shape, newshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -266,7 +291,7 @@ def test_dynamic_to_static_resize2d():
         size_var = relay.var("size", relay.TensorType((len(size),), "float32"))
         coord_trans = "asymmetric" if method == "nearest_neighbor" else "align_corners"
         z = relay.image.resize2d(
-            x, size_var, layout, method, coordinate_transformation_mode=coord_trans
+            x, size_var, None, layout, method, coordinate_transformation_mode=coord_trans
         )
         params = {"size": np.array(size).astype("float32")}
 

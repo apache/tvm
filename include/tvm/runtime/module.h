@@ -157,6 +157,11 @@ class TVM_DLL ModuleNode : public Object {
    */
   virtual std::string GetSource(const std::string& format = "");
   /*!
+   * \brief Get the format of the module, when available.
+   * \return Possible format when available.
+   */
+  virtual std::string GetFormat();
+  /*!
    * \brief Get packed function from current module by name.
    *
    * \param name The name of the function.
@@ -212,6 +217,8 @@ TVM_DLL bool RuntimeEnabled(const std::string& target);
 
 /*! \brief namespace for constant symbols */
 namespace symbol {
+/*! \brief A PackedFunc that retrieves exported metadata. */
+constexpr const char* tvm_get_c_metadata = "get_c_metadata";
 /*! \brief Global variable to store module context. */
 constexpr const char* tvm_module_ctx = "__tvm_module_ctx";
 /*! \brief Global variable to store device module blob */
@@ -230,8 +237,6 @@ constexpr const char* tvm_module_main = "__tvm_main__";
 constexpr const char* tvm_param_prefix = "__tvm_param__";
 /*! \brief A PackedFunc that looks up linked parameters by storage_id. */
 constexpr const char* tvm_lookup_linked_param = "_lookup_linked_param";
-/*! \brief The main AOT executor function generated from TIR */
-constexpr const char* tvm_run_func_suffix = "run_model";
 /*! \brief Model entrypoint generated as an interface to the AOT function outside of TIR */
 constexpr const char* tvm_entrypoint_suffix = "run";
 }  // namespace symbol

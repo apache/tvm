@@ -77,7 +77,7 @@ int NodeEntry_Load(TVMGraphExecutorNodeEntry* entry, JSONReader* reader) {
 void TVMGraphExecutorNode_LoadAttrs(TVMGraphExecutorNode* node, JSONReader* reader,
                                     TVMOpParam* param) {
   int bitmask = 0;
-  char key[20], value[120];
+  char key[20], value[TVM_CRT_MAX_STRLEN_FUNCTION_NAME];
   memset(param, 0, sizeof(TVMOpParam));
   memset(key, 0, sizeof(key));
   memset(value, 0, sizeof(value));
@@ -445,6 +445,7 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
         status = -1;
         break;
       }
+      reader->BeginArray(reader);
       size_t num_items = 0;
       if (reader->ArrayLength(reader, &num_items) != 0) {
         fprintf(stderr, "error determing list_int length\n");
@@ -795,13 +796,13 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_bl
   char* names = NULL;
   DLDevice dev = {kDLCPU, 0};
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(
-      TVM_CRT_MAX_STRLEN_FUNCTION_NAME * executor->nodes_count, dev, (void**)&names);
+      TVM_CRT_MAX_STRLEN_PARAM_NAME * executor->nodes_count, dev, (void**)&names);
   if (err != kTvmErrorNoError) {
     fprintf(stderr, "memory allocate error: %08x", err);
     status = -1;
     return status;
   }
-  memset(names, 0, TVM_CRT_MAX_STRLEN_FUNCTION_NAME * executor->nodes_count);
+  memset(names, 0, TVM_CRT_MAX_STRLEN_PARAM_NAME * executor->nodes_count);
   uint64_t names_count;
   int idx;
   memcpy(&names_count, bptr, sizeof(names_count));
@@ -810,11 +811,11 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_bl
     uint64_t name_length;
     memcpy(&name_length, bptr, sizeof(name_length));
     bptr += sizeof(name_length);
-    if (name_length >= TVM_CRT_MAX_STRLEN_FUNCTION_NAME) {
+    if (name_length >= TVM_CRT_MAX_STRLEN_PARAM_NAME) {
       fprintf(stderr, "Error: function name longer than expected.\n");
       status = -1;
     }
-    memcpy(names + TVM_CRT_MAX_STRLEN_FUNCTION_NAME * idx, bptr, name_length);
+    memcpy(names + TVM_CRT_MAX_STRLEN_PARAM_NAME * idx, bptr, name_length);
     bptr += name_length;
   }
 
@@ -830,9 +831,9 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_bl
 
   for (idx = 0; idx < size; idx++) {
     int32_t in_idx =
-        TVMGraphExecutor_GetInputIndex(executor, names + TVM_CRT_MAX_STRLEN_FUNCTION_NAME * idx);
+        TVMGraphExecutor_GetInputIndex(executor, names + TVM_CRT_MAX_STRLEN_PARAM_NAME * idx);
     CHECK_GT(in_idx, 0, "Found param for non-existent input: %s\n",
-             names + TVM_CRT_MAX_STRLEN_FUNCTION_NAME * idx);
+             names + TVM_CRT_MAX_STRLEN_PARAM_NAME * idx);
     uint32_t eid = TVMGraphExecutor_GetEntryId(executor, executor->input_nodes[in_idx], 0);
     if (!(eid < executor->data_entry_count)) {
       fprintf(stderr, "`entry_id`=%d is greater than expected(%d).\n", eid,
@@ -858,7 +859,7 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_bl
 #if TVM_CRT_DEBUG
     TVMNDArray* entry = &(executor->data_entry[eid]);
     printf("loading: param %s loaded, in_idx=%d, eid=%d, ndim=%d, data[0]=%f\n",
-           names + TVM_CRT_MAX_STRLEN_FUNCTION_NAME * idx, in_idx, eid, entry->dl_tensor.ndim,
+           names + TVM_CRT_MAX_STRLEN_PARAM_NAME * idx, in_idx, eid, entry->dl_tensor.ndim,
            ((float*)entry->dl_tensor.data)[0]);  // NOLINT(*)
 #endif                                           // TVM_CRT_DEBUG
   }
@@ -1180,13 +1181,6 @@ int TVMGraphExecutor_Init(TVMGraphExecutor* executor, const char* graph_json,
     return status;
   }
   status = TVMGraphExecutor_SetupOpExecs(executor);
-  if (status != 0) {
-    if (status != 0) {
-      return status;
-    }
-
-    return status;
-  }
 
   return status;
 }

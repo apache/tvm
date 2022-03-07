@@ -142,4 +142,5 @@ def test_opencl_erf():
 if __name__ == "__main__":
     test_opencl_ternary_expression()
     test_opencl_inf_nan()
+    test_opencl_max()
     test_opencl_erf()

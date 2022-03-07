@@ -17,12 +17,14 @@
 # pylint: disable=invalid-name, unused-argument
 """Backend QNN related feature registration"""
 import numpy as np
-
+from scipy import special
 import tvm
 from tvm import relay
 from tvm._ffi.base import TVMError
-from .. import op as reg
+from tvm.relay.qnn.op.canonicalizations import create_integer_lookup_op
+
 from ....topi.x86.utils import target_has_sse42
+from .. import op as reg
 
 #################################################
 # Register the functions for different operators.
@@ -44,6 +46,32 @@ def legalize_qnn_conv2d_transpose(attrs, inputs, types):
 @reg.register_qnn_legalize("qnn.dense")
 def legalize_qnn_dense(attrs, inputs, types):
     return qnn_dense_legalize(attrs, inputs, types)
+
+
+def register_qnn_unary_op_legalize(op_name, floating_point_func):
+    """Register unary qnn op for legalization via table lookup op."""
+
+    def legalize_qnn_unary_op(attrs, inputs, types):
+        return create_integer_lookup_op(
+            input_arg=inputs[0],
+            floating_point_func=floating_point_func,
+            in_scale=inputs[1],
+            in_zero_point=inputs[2],
+            out_scale=inputs[3],
+            out_zero_point=inputs[4],
+            in_dtype=types[0].dtype,
+            out_dtype=types[0].dtype,
+        )
+
+    return reg.register_qnn_legalize(op_name, legalize_qnn_unary_op)
+
+
+register_qnn_unary_op_legalize("qnn.sqrt", np.sqrt)
+register_qnn_unary_op_legalize("qnn.rsqrt", lambda arr: 1 / np.sqrt(arr))
+register_qnn_unary_op_legalize("qnn.exp", np.exp)
+register_qnn_unary_op_legalize("qnn.erf", special.erf)
+register_qnn_unary_op_legalize("qnn.sigmoid", lambda arr: 1 / (1 + np.exp(-arr)))
+register_qnn_unary_op_legalize("qnn.tanh", np.tanh)
 
 
 # Default to None. If overridden by target, this will not be run.
@@ -167,7 +195,7 @@ def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
 
         shift_kernel = relay.nn.bias_add(
             relay.cast(kernel, dtype="int16"),
-            relay.cast(kernel_zero_point, dtype="int16"),
+            -relay.cast(kernel_zero_point, dtype="int16"),
             output_axis,
         )
     new_attrs = {k: attrs[k] for k in attrs.keys()}

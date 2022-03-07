@@ -112,14 +112,14 @@ class CUDADeviceAPI final : public DeviceAPI {
     ICHECK_EQ(256 % alignment, 0U) << "CUDA space is aligned at 256 bytes";
     void* ret;
     if (dev.device_type == kDLCUDAHost) {
-      DLOG(INFO) << "allocating " << nbytes << "bytes on host";
+      VLOG(1) << "allocating " << nbytes << "bytes on host";
       CUDA_CALL(cudaMallocHost(&ret, nbytes));
     } else {
       CUDA_CALL(cudaSetDevice(dev.device_id));
       size_t free_mem, total_mem;
       CUDA_CALL(cudaMemGetInfo(&free_mem, &total_mem));
-      DLOG(INFO) << "allocating " << nbytes << " bytes on device, with " << free_mem
-                 << " bytes currently free out of " << total_mem << " bytes available";
+      VLOG(1) << "allocating " << nbytes << " bytes on device, with " << free_mem
+              << " bytes currently free out of " << total_mem << " bytes available";
       CUDA_CALL(cudaMalloc(&ret, nbytes));
     }
     return ret;
@@ -127,11 +127,11 @@ class CUDADeviceAPI final : public DeviceAPI {
 
   void FreeDataSpace(Device dev, void* ptr) final {
     if (dev.device_type == kDLCUDAHost) {
-      DLOG(INFO) << "freeing host memory";
+      VLOG(1) << "freeing host memory";
       CUDA_CALL(cudaFreeHost(ptr));
     } else {
       CUDA_CALL(cudaSetDevice(dev.device_id));
-      DLOG(INFO) << "freeing device memory";
+      VLOG(1) << "freeing device memory";
       CUDA_CALL(cudaFree(ptr));
     }
   }

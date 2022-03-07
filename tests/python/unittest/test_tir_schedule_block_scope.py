@@ -20,47 +20,55 @@ import sys
 import pytest
 import tvm
 from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.tir.schedule import DepKind
 from tvm.tir.stmt_functor import post_order_visit
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@tvm.script.tir
-def elementwise(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128), "float32")
-    C = tir.match_buffer(c, (128, 128), "float32")
-    B = tir.alloc_buffer((128, 128), "float32")
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
+@T.prim_func
+def elementwise(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128), "float32")
+    C = T.match_buffer(c, (128, 128), "float32")
+    B = T.alloc_buffer((128, 128), "float32")
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
-@tvm.script.tir
-def matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    C = tir.match_buffer(c, [128, 128])
-    for i, j in tir.grid(128, 128):
-        with tir.block([128, 128], "init") as [vi, vj]:
-            C[vi, vj] = tir.float32(0)
+@T.prim_func
+def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+    for i, j in T.grid(128, 128):
+        with T.block("init"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = T.float32(0)
         for k in range(0, 128):
-            with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
+            with T.block("update"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@tvm.script.tir
-def war_dependency(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.match_buffer(b, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
+@T.prim_func
+def war_dependency(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128, 128))
+    C = T.match_buffer(c, (128, 128))
 
-    for i, j in tir.grid(128, 128):
-        with tir.block([128, 128], "C") as [vi, vj]:
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
-        with tir.block([128, 128], "B") as [vi, vj]:
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
 

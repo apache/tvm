@@ -359,6 +359,7 @@ std::function<void()> CreateTVMOp(const DSOModule& module, const TVMOpParam& par
   if (param.func_name == "__nop") {
     return []() {};
   } else if (param.func_name == "__copy") {
+    // TODO(mbs): device_copy cleanup.
     assert(false);
   }
 

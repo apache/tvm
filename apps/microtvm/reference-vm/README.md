@@ -85,7 +85,7 @@ $ ./base-box-tool.py --provider virtualbox build zephyr
 
    For example:
    ```base
-   $ ./base-box-tool.py --provider virtualbox test --microtvm-board=stm32f746xx_disco zephyr
+   $ ./base-box-tool.py --provider virtualbox test --microtvm-board=stm32f746g_disco zephyr
    ```
 
    This command does the following for the specified provider:

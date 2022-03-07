@@ -37,6 +37,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
 namespace tvm {
 namespace relay {
 
@@ -227,10 +228,12 @@ class ExprMutator : public ::tvm::relay::ExprFunctor<Expr(const Expr&)> {
  *
  * MixedModeVisitor provides the same recursive API as ExprVisitor, and uses
  * recursion to traverse most forms of the IR, but under the hood it expands nested dataflow regions
- * of the graph and processes them iteratatively to prevent stack overflows
+ * of the graph and processes them iteratively to prevent stack overflows
  */
 class MixedModeVisitor : public ::tvm::relay::ExprVisitor {
  public:
+  using ::tvm::relay::ExprFunctor<void(const Expr& n)>::VisitExpr_;
+
   /*! \brief The constructor of MixedModeVisitor
    *  \param visit_limit The number of times to allow visitation to a node. Usually 1, ocassionally
    * higher (i.e., 2 for dead code elimiation), limited to 10 as a sanity check.
@@ -276,6 +279,8 @@ class MixedModeVisitor : public ::tvm::relay::ExprVisitor {
  */
 class MixedModeMutator : public ::tvm::relay::ExprMutator {
  public:
+  using ::tvm::relay::ExprFunctor<Expr(const Expr&)>::VisitExpr_;
+
   MixedModeMutator(bool pre = false) : pre_{pre} {};
   Expr VisitExpr(const Expr& expr) final;
 
@@ -475,8 +480,19 @@ void ExpandDataflow(Expr expr, FCheckVisited fcheck_visited, FVisitLeaf fvisit_l
   auto fexpand_expr = [](const Expr& expr) {
     std::vector<Expr> result;
     if (const CallNode* op = expr.as<CallNode>()) {
-      for (auto it = op->args.rbegin(); it != op->args.rend(); ++it) {
-        result.push_back(*it);
+      if (op->op == Op::Get("call_lowered")) {
+        // Ignore the intermediate tuple since this is purely a calling-convention detail
+        const auto* tuple_args = op->args[1].as<TupleNode>();
+        ICHECK(tuple_args)
+            << "Expected second arg to call_lowered to be a Tuple of input arguments.";
+        for (auto it = tuple_args->fields.rbegin(); it != tuple_args->fields.rend(); ++it) {
+          result.push_back(*it);
+        }
+        result.push_back(op->args[0]);
+      } else {
+        for (auto it = op->args.rbegin(); it != op->args.rend(); ++it) {
+          result.push_back(*it);
+        }
       }
       result.push_back(op->op);
     } else if (const TupleNode* op = expr.as<TupleNode>()) {

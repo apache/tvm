@@ -82,6 +82,9 @@ import tvm._ffi
 from tvm.contrib import nvcc, cudnn
 from tvm.error import TVMError
 from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.relay.op.contrib import cmsisnn
+
+SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
 
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
@@ -432,9 +435,7 @@ def _get_targets(target_str=None):
 
 DEFAULT_TEST_TARGETS = [
     "llvm",
-    "llvm -device=arm_cpu",
     "cuda",
-    "cuda -model=unknown -libs=cudnn",
     "nvptx",
     "vulkan -from_device=0",
     "opencl",
@@ -442,6 +443,7 @@ DEFAULT_TEST_TARGETS = [
     "opencl -device=intel_graphics",
     "metal",
     "rocm",
+    "hexagon",
 ]
 
 
@@ -514,6 +516,17 @@ def _compose(args, decs):
             f = d(f)
         return f
     return decs
+
+
+def slow(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        if SKIP_SLOW_TESTS:
+            pytest.skip("Skipping slow test since RUN_SLOW_TESTS environment variables is 'true'")
+        else:
+            fn(*args, **kwargs)
+
+    return wrapper
 
 
 def uses_gpu(*args):
@@ -635,6 +648,49 @@ def requires_nvptx(*args):
     return _compose(args, _requires_nvptx)
 
 
+def requires_nvcc_version(major_version, minor_version=0, release_version=0):
+    """Mark a test as requiring at least a specific version of nvcc.
+
+    Unit test marked with this decorator will run only if the
+    installed version of NVCC is at least `(major_version,
+    minor_version, release_version)`.
+
+    This also marks the test as requiring a cuda support.
+
+    Parameters
+    ----------
+    major_version: int
+
+        The major version of the (major,minor,release) version tuple.
+
+    minor_version: int
+
+        The minor version of the (major,minor,release) version tuple.
+
+    release_version: int
+
+        The release version of the (major,minor,release) version tuple.
+
+    """
+
+    try:
+        nvcc_version = nvcc.get_cuda_version()
+    except RuntimeError:
+        nvcc_version = (0, 0, 0)
+
+    min_version = (major_version, minor_version, release_version)
+    version_str = ".".join(str(v) for v in min_version)
+    requires = [
+        pytest.mark.skipif(nvcc_version < min_version, reason=f"Requires NVCC >= {version_str}"),
+        *requires_cuda(),
+    ]
+
+    def inner(func):
+        return _compose([func], requires)
+
+    return inner
+
+
 def requires_cudagraph(*args):
     """Mark a test as requiring the CUDA Graph Feature
 
@@ -670,6 +726,18 @@ def requires_opencl(*args):
         *requires_gpu(),
     ]
     return _compose(args, _requires_opencl)
+
+
+def requires_corstone300(*args):
+    """Mark a test as requiring the corstone300 FVP
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_corstone300 = [pytest.mark.corstone300]
+    return _compose(args, _requires_corstone300)
 
 
 def requires_rocm(*args):
@@ -797,7 +865,7 @@ def requires_rpc(*args):
 
 
 def requires_ethosn(*args):
-    """Mark a test as requiring ethosn to run.
+    """Mark a test as requiring Arm(R) Ethos(TM)-N to run.
 
     Parameters
     ----------
@@ -809,13 +877,45 @@ def requires_ethosn(*args):
         pytest.mark.skipif(
             not ethosn_available(),
             reason=(
-                "Ethos-N support not enabled.  "
+                "Arm(R) Ethos(TM)-N support not enabled.  "
                 "Set USE_ETHOSN=ON in config.cmake to enable, "
                 "and ensure that hardware support is present."
             ),
         ),
     ]
     return _compose(args, marks)
+
+
+def requires_hexagon(*args):
+    """Mark a test as requiring Hexagon to run.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_hexagon = [
+        pytest.mark.hexagon,
+        pytest.mark.skipif(not device_enabled("hexagon"), reason="Hexagon support not enabled"),
+        *requires_llvm(),
+        pytest.mark.skipif(
+            tvm.target.codegen.llvm_version_major() < 7, reason="Hexagon requires LLVM 7 or later"
+        ),
+    ]
+    return _compose(args, _requires_hexagon)
+
+
+def requires_cmsisnn(*args):
+    """Mark a test as requiring the CMSIS NN library.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+
+    requirements = [pytest.mark.skipif(not cmsisnn.enabled(), reason="CMSIS NN not enabled")]
+    return _compose(args, requirements)
 
 
 def requires_package(*packages):

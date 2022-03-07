@@ -31,8 +31,12 @@
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/target/codegen.h>
+#include <tvm/target/virtual_device.h>
 #include <tvm/te/operation.h>
+#include <tvm/tir/usmp/utils.h>
 
+#include <iostream>
+#include <sstream>
 #include <string>
 #include <typeinfo>
 #include <unordered_map>
@@ -41,26 +45,91 @@
 #include <vector>
 
 #include "../../runtime/meta_data.h"
+#include "../../target/metadata.h"
 
 namespace tvm {
 namespace relay {
-namespace transform {
-Pass InlinePrimitives();
+
+namespace tec {
+class TECompiler;
 }
 
 namespace backend {
 using Pass = tvm::transform::Pass;
 
 /*!
- * \brief The static storage information produced by memory planning.
+ * \brief Structure that can be optionally used by the executor codegen
+ */
+class ExecutorCodegenMetadataNode : public Object {
+ public:
+  /*! \brief input information for the main function */
+  Array<tir::Var> inputs;
+  /*! \brief input tensor type information */
+  Array<TensorType> input_tensor_types;
+  /*! \brief output information for the main function */
+  Array<String> outputs;
+  /*! \brief output tensor type information */
+  Array<TensorType> output_tensor_types;
+  /*! \brief pool information for the main function */
+  Array<tir::Var> pools;
+  /*! \brief device contexts information for the main function */
+  Array<String> devices;
+  /*! \brief the executor to be used to run the model */
+  String executor = runtime::kTvmExecutorGraph;
+  /*! \brief The external API (packed or c) in use */
+  String interface_api;
+  /*! \brief The internal API (packed or unpacked) in use */
+  bool unpacked_api;
+  /*! \brief the input var names that correspond to pool_inputs */
+  Optional<Map<tir::Var, tir::usmp::AllocatedPoolInfo>> pool_inputs;
+
+  String mod_name = "";
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("inputs", &inputs);
+    v->Visit("input_tensor_types", &input_tensor_types);
+    v->Visit("outputs", &outputs);
+    v->Visit("output_tensor_types", &output_tensor_types);
+    v->Visit("pools", &pools);
+    v->Visit("devices", &devices);
+    v->Visit("executor", &executor);
+    v->Visit("unpacked_api", &unpacked_api);
+    v->Visit("pool_inputs", &pool_inputs);
+  }
+
+  static constexpr const char* _type_key = "MetadataObj";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ExecutorCodegenMetadataNode, Object);
+};
+
+/*!
+ * \brief Managed reference to ExecutorCodegenMetadataNode.
+ */
+class ExecutorCodegenMetadata : public ObjectRef {
+ public:
+  TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<TensorType> input_tensor_types,
+                                  Array<String> outputs, Array<TensorType> output_tensor_types,
+                                  Array<tir::Var> pools, Array<String> devices, String executor,
+                                  String mod_name, String interface_api = "packed",
+                                  bool unpacked_api = false,
+                                  Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
+                                      Map<tir::Var, tir::usmp::AllocatedPoolInfo>());
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ExecutorCodegenMetadata, ObjectRef,
+                                        ExecutorCodegenMetadataNode);
+};
+
+/*!
+ * \brief The static storage information for each Tensor in the result of a Relay expression
+ * (as per relay::FlattenTupleType).
  */
 class StorageInfoNode : public Object {
  public:
+  // TODO(mbs): Switch from struct-of-array to array-of-struct repr throughout.
   /*! \brief The set of storage ids where the expression is stored. */
   std::vector<int64_t> storage_ids;
-  /* \brief The type of "virtual devices" these expressions are stored on. */
-  std::vector<DLDeviceType> device_types;
-  /* \brief The sizes of each storage element. */
+  /* \brief The virtual devices these expressions are stored within. */
+  std::vector<VirtualDevice> virtual_devices;
+  /* \brief The sizes of each storage element, in bytes. */
   std::vector<int64_t> storage_sizes_in_bytes;
 
   // TODO(@jroesch): expose the fields
@@ -73,7 +142,7 @@ class StorageInfoNode : public Object {
 /*! \brief The storage information for a single expression. */
 class StorageInfo : public ObjectRef {
  public:
-  StorageInfo(std::vector<int64_t> storage_ids, std::vector<DLDeviceType> device_types,
+  StorageInfo(std::vector<int64_t> storage_ids, std::vector<VirtualDevice> virtual_devices,
               std::vector<int64_t> storage_sizes_in_bytes);
   TVM_DEFINE_OBJECT_REF_METHODS(StorageInfo, ObjectRef, StorageInfoNode);
 };
@@ -143,7 +212,18 @@ struct LoweredOutput {
   Array<tvm::runtime::Module> external_mods;
   Map<String, FunctionInfo> function_metadata;
   std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
-  runtime::Metadata metadata;
+  ExecutorCodegenMetadata metadata;
+};
+
+/*!
+ * \brief This class is needed to avoid a GCC 5 bug that prevents maps containing enums from being
+ compiled. If i386 GCC version is increased, we can remove it.
+ */
+struct EnumClassHash {
+  template <typename T>
+  std::size_t operator()(T t) const {
+    return static_cast<std::size_t>(t);
+  }
 };
 
 /*!
@@ -171,8 +251,10 @@ struct ConstantUpdater : public ExprVisitor {
  * \param func The function from which to get the constant params.
  * \param params The params to update with the constants.
  */
-inline void UpdateConstants(Function func,
+inline void UpdateConstants(BaseFunc func,
                             std::unordered_map<std::string, runtime::NDArray>* params) {
+  VLOG_CONTEXT << "UpdateConstants";
+  VLOG(1) << "updating constants for:" << std::endl << PrettyPrint(func);
   auto codegen = func->GetAttr<String>(attr::kCompiler);
   ICHECK(codegen.defined()) << "No external codegen is set";
   std::string codegen_name = codegen.value();
@@ -194,6 +276,9 @@ inline void UpdateConstants(Function func,
           << "External constant names must start with compiler name";
       (*params)[const_name] = it.second;
     }
+  }
+  for (const auto& pair : *params) {
+    VLOG(1) << "Constants: " << pair.first << " = " << PrettyPrint(pair.second);
   }
 }
 
@@ -282,6 +367,8 @@ inline std::string DType2String(const tvm::DataType dtype) {
     os << "int";
   } else if (dtype.is_uint()) {
     os << "uint";
+  } else if (dtype.is_bfloat16()) {
+    os << "bfloat";
   } else if ((*GetPackedFunc("runtime._datatype_get_type_registered"))(dtype.code())) {
     os << "custom["
        << (*GetPackedFunc("runtime._datatype_get_type_name"))(dtype.code()).operator std::string()
@@ -306,7 +393,7 @@ inline relay::Function BindParamsByName(
   for (auto arg : func->params) {
     const auto& name = arg->name_hint();
     if (name_dict.count(name)) {
-      repeat_var.insert(arg);
+      repeat_var.insert(name_dict[name]);
     } else {
       name_dict[name] = arg;
     }
@@ -369,7 +456,6 @@ inline bool IsOp(const CallNode* call, const std::string& op_name) {
  * "nn.relu"}
  * \return A CallNode corresponding to the root op, whose name is expected_op_names[0]
  */
-
 inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
                                    const std::vector<std::string>& expected_op_names) {
   ICHECK(current_call && depth >= 0 && static_cast<size_t>(depth) < expected_op_names.size() &&
@@ -383,6 +469,24 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
 
   const auto* next_call = current_call->args[0].as<CallNode>();
   return GetRootCall(next_call, depth - 1, expected_op_names);
+}
+
+/*!
+ * \brief Retrieve the "root" op nested inside a fused call, such as conv2d in relu(add(conv2d))
+ * Unlike the previous definition, it does not verify operator names of intermediate nodes. Instead,
+ * it recursively visit child nodes until it finds a call node with the given op_name.
+ * \param call A Relay call node.
+ * \param op_name The name of an op to look for, such as ""nn.conv2d".
+ * \return A CallNode corresponding to the root op with the given op_name
+ */
+inline const CallNode* GetRootCall(const CallNode* current_call, const std::string& op_name) {
+  if (current_call == nullptr) return nullptr;
+  if (IsOp(current_call, op_name)) return current_call;
+
+  ICHECK_GT(current_call->args.size(), 0);
+
+  const auto* next_call = current_call->args[0].as<CallNode>();
+  return GetRootCall(next_call, op_name);
 }
 
 /*!
@@ -407,11 +511,11 @@ inline bool IsAutoSchedulerEnabled() {
 }
 
 /*!
- * \brief Return whether the compile engine cache is disabled in the pass context.
+ * \brief Return whether the meta schedule is enabled in the pass context.
  */
-inline bool IsCompileEngineCacheDisabled() {
+inline bool IsMetaScheduleEnabled() {
   return transform::PassContext::Current()
-      ->GetConfig<Bool>("relay.backend.disable_compile_engine_cache", Bool(false))
+      ->GetConfig<Bool>("relay.backend.use_meta_schedule", Bool(false))
       .value();
 }
 
@@ -421,16 +525,16 @@ inline bool IsCompileEngineCacheDisabled() {
  * difference. This function unifies the shared optimization pass prefix between vm and graph
  * runtime, and returns the pass prefix given the backend type.
  *
- * \param targets The device type to `Target` mapping.
- * \param is_vm A boolean indicating if the passes are used for vm or graph runtime.
+ * \param is_homogenous True if all primitives are to be executed on the same device and target.
+ * \param is_vm True if passes are to be used for the vm executor.
  * \return An array of passes.
  */
-Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is_vm);
+Array<Pass> GetPassPrefix(bool is_homogenous, bool is_vm);
 
 /*! \brief Target hash function */
 struct TargetStrHash {
   /*!
-   * \brief Calculate the hash code of a Target based on the string value of the Target.
+   * \brief Calculate the hash code of a Target based on the string value of the Target KIND.
    Note that this hash should NOT be used in new usecases, equality of targets based on their
    value is not well-defined.
    This will be removed when maps from Targets to IRModules are removed from the codebase.
@@ -438,7 +542,8 @@ struct TargetStrHash {
    * \return String hash of the target
    */
   size_t operator()(const Target& target) const {
-    return String::HashBytes(target->str().c_str(), target->str().size());
+    std::string s(target->kind->name);
+    return String::HashBytes(s.c_str(), s.size());
   }
 };
 
@@ -480,6 +585,23 @@ TargetModuleMapToTargetStrModuleMap(Map<Target, IRModule> input_map);
  */
 Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
     std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> input_map);
+
+/*!
+ * \brief Call "weight update callback" to communicate op weights seen during Relay module
+ * lowering back to the auto scheduler.
+ * Op weights refer to the number of times each distinct op/workload appears in a given module.
+ * It is called "use_count" in TECompiler.
+ * \param IRModule after lowering by LowerTEPass.
+ */
+void UpdateAutoSchedulerOpWeights(const IRModule& module);
+
+/*!
+ * \brief Extract shape from expr to vector<int64_t>
+ *
+ * \param shape
+ * \return std::vector<int64_t>
+ */
+std::vector<int64_t> ShapeToJSON(tvm::Array<IndexExpr> shape);
 
 }  // namespace backend
 }  // namespace relay

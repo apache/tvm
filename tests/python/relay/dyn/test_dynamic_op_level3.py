@@ -19,11 +19,9 @@
 import numpy as np
 import pytest
 import tvm
-from tvm import te
-from tvm import relay
-from tvm.relay import create_executor, transform
-from tvm.relay.testing import check_grad, run_infer_type
 import tvm.testing
+from tvm import relay, te
+from tvm.relay.testing import check_grad, run_infer_type
 
 
 def verify_func(func, data, ref_res, target_device=tvm.testing.enabled_targets()):
@@ -42,7 +40,16 @@ def verify_func(func, data, ref_res, target_device=tvm.testing.enabled_targets()
                     tvm.testing.assert_allclose(op_result.numpy(), ref_result, rtol=1e-5)
             else:
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
-            relay.backend.compile_engine.get().clear()
+            relay.backend.te_compiler.get().clear()
+
+
+def check_on_vm(target, dev, args, expected_result, mod):
+    """
+    Check that evaluating `expr` applied to the arguments produces
+    `result` on Relay VM.
+    """
+    rts_result = relay.create_executor("vm", device=dev, target=target, mod=mod).evaluate()(*args)
+    tvm.testing.assert_allclose(expected_result, rts_result.numpy())
 
 
 @tvm.testing.uses_gpu
@@ -91,6 +98,51 @@ def test_dyn_shape_reshape():
 
     verify_reshape((2, 3, 4), (8, 3), (8, 3))
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
+
+
+def test_squeeze():
+    def verify_squeeze(shape, dtype, axis):
+        x = relay.var("x", relay.TensorType(shape, dtype))
+        assert axis is not None
+        np_axis = tuple(axis)
+        axis = relay.var("axis", relay.TensorType([len(axis)], "int64"))
+        squeeze = relay.squeeze(x, axis=axis)
+        func = relay.Function([x, axis], squeeze)
+        x_data = np.random.random_sample(shape).astype(dtype)
+        ref_res = np.squeeze(x_data, axis=np_axis)
+        verify_func(func, [x_data, np.array(np_axis).astype("int64")], ref_res)
+
+    verify_squeeze((1, 3, 1), "float32", [0])
+    verify_squeeze((1, 2, 1, 2, 1), "float32", [0, 2])
+
+
+@tvm.testing.uses_gpu
+def test_dyn_expand_dims():
+    def verify_expand_dims(
+        dshape, dtype, oshape, axis, num_newaxis, target_device=tvm.testing.enabled_targets()
+    ):
+        # Use 1 to avoid issues with invalid buffer sizes
+        x = relay.Var("x", relay.TensorType(dshape, dtype))
+        y = relay.var("axis", shape=[], dtype="int64")
+        z = relay.expand_dims(x, axis=y, num_newaxis=num_newaxis)
+        func = relay.Function([x, y], z)
+
+        data_np = np.random.uniform(size=dshape).astype(dtype)
+        axis_np = np.array(axis).astype("int64")
+        ref_res = data_np.reshape(oshape)
+        verify_func(func, [data_np, axis_np], ref_res, target_device=target_device)
+
+    for dtype in ["float16", "float32"]:
+        verify_expand_dims((2, 2), dtype, (2, 2, 1), 2, 1)
+        verify_expand_dims((2, 2), dtype, (2, 1, 2), 1, 1)
+        verify_expand_dims((2, 2), dtype, (1, 2, 2), 0, 1)
+
+        # TODO (AndrewZhaoLuo): investigate why runtimes in non-llvm are extremely slow
+        # for multiple new axis
+        llvm_target_only = [x for x in tvm.testing.enabled_targets() if "llvm" in x]
+        verify_expand_dims((2, 2), dtype, (2, 2, 1, 1), 2, 2, target_device=llvm_target_only)
+        verify_expand_dims((2, 2), dtype, (2, 1, 1, 1, 2), 1, 3, target_device=llvm_target_only)
+        verify_expand_dims((2, 2), dtype, (1, 1, 1, 1, 2, 2), 0, 4, target_device=llvm_target_only)
 
 
 @tvm.testing.uses_gpu
@@ -207,7 +259,8 @@ def test_dyn_sparse_to_dense():
     verify_sparse_to_dense(
         [0, 1, 4], [3.1, 3.1, 3.1], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1]
     )  # floats
-    verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])  # default value not specified
+    # default value not specified
+    verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])
 
 
 @pytest.mark.parametrize(
@@ -365,5 +418,59 @@ def test_sparse_fill_empty_rows(
     )
 
 
+def test_dyn_copy():
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+    mod = tvm.parser.fromtext(
+        """
+        #[version = "0.0.5"]
+        def @main(%x: Tensor[(?, 3), int64]) -> Tensor[(?, 3), int64] {
+          copy(%x)
+        }
+        """
+    )
+    x_data = np.random.rand(15, 3).astype("int64")
+    expected = x_data
+    check_on_vm(target, dev, [x_data], expected, mod)
+
+
+def test_dyn_copy_scalar():
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+    mod = tvm.parser.fromtext(
+        """
+        #[version = "0.0.5"]
+        def @main(%x: int32, %y: Tensor[(?), int32]) -> Tensor[(?), int32] {
+          %0 = copy(%x);
+          %1 = expand_dims(%0, axis=0);
+          %2 = (%y, %1);
+          concatenate(%2)
+        }
+        """
+    )
+    x_data = 3
+    y_data = np.random.rand(7).astype("int32")
+    expected = np.concatenate((y_data, np.expand_dims(x_data, axis=0)))
+    check_on_vm(target, dev, [x_data, y_data], expected, mod)
+
+
+def test_dyn_cast():
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+    mod = tvm.parser.fromtext(
+        """
+        #[version = "0.0.5"]
+        def @main(%x: Tensor[(?, 3), int64]) -> Tensor[(?, 3), int32] {
+          cast(%x, dtype="int32")
+        }
+        """
+    )
+    x_data = np.random.rand(15, 3).astype("int64")
+    expected = x_data.astype("int32")
+    check_on_vm(target, dev, [x_data], expected, mod)
+
+
 if __name__ == "__main__":
-    pytest.main([__file__])
+    import sys
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

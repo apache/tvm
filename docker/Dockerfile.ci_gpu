@@ -29,7 +29,7 @@ COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
 RUN bash /install/ubuntu1804_install_python.sh
 
 # Globally disable pip cache
-RUN pip config set global.cache-dir false
+RUN pip config set global.no-cache-dir false
 
 COPY install/ubuntu1804_install_llvm.sh /install/ubuntu1804_install_llvm.sh
 RUN bash /install/ubuntu1804_install_llvm.sh
@@ -90,12 +90,20 @@ RUN bash /install/ubuntu_install_vulkan.sh
 COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
 RUN bash /install/ubuntu_install_paddle.sh
 
+# OneFlow deps
+COPY install/ubuntu_install_oneflow.sh /install/ubuntu_install_oneflow.sh
+RUN bash /install/ubuntu_install_oneflow.sh
+
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
 RUN bash /install/ubuntu_install_rust.sh
 ENV RUSTUP_HOME /opt/rust
 ENV CARGO_HOME /opt/rust
 ENV PATH $PATH:$CARGO_HOME/bin
+
+# wasmtime
+COPY install/ubuntu_install_wasmtime.sh /install/ubuntu_install_wasmtime.sh
+RUN bash /install/ubuntu_install_wasmtime.sh
 
 # AutoTVM deps
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
@@ -112,6 +120,10 @@ RUN bash /install/ubuntu_install_universal.sh
 # PAPI profiling deps
 COPY install/ubuntu_install_papi.sh /install/ubuntu_install_papi.sh
 RUN bash /install/ubuntu_install_papi.sh "cuda rocm"
+
+# sccache
+COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
+RUN bash /install/ubuntu_install_sccache.sh
 
 # Environment variables
 ENV PATH=/usr/local/nvidia/bin:${PATH}

@@ -234,6 +234,9 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_fill_fragment)
 TIR_DEFINE_BUILTIN_FUNC(tvm_store_matrix_sync)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
+TIR_DEFINE_BUILTIN_FUNC(ptx_mma).set_attr<TCallEffectKind>("TCallEffectKind",
+                                                           Integer(CallEffectKind::kOpaque));
+
 TIR_DEFINE_BUILTIN_FUNC(vectorhigh)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
@@ -256,6 +259,9 @@ TIR_DEFINE_BUILTIN_FUNC(texture2d_store)
 TIR_DEFINE_BUILTIN_FUNC(texture2d_load)
     .set_attr<TVectorizable>("TVectorizable", true)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(mem_copy).set_attr<TCallEffectKind>("TCallEffectKind",
+                                                            Integer(CallEffectKind::kOpaque));
 
 }  // namespace builtin
 }  // namespace tir

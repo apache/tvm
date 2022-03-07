@@ -771,6 +771,8 @@ TVM_REGISTER_GLOBAL("relay.dataflow_pattern.DFPatternCallback")
     });
 
 Expr PatternRewriter::Rewrite(const Array<DFPatternCallback>& callbacks, const Expr& pre) {
+  VLOG_CONTEXT << "PatternRewriter";
+  VLOG(1) << "rewriting:" << std::endl << PrettyPrint(pre);
   auto post = pre;
   auto last = post;
   // rewrite the graph until it stops changing to make sure all rewrites are complete
@@ -789,7 +791,9 @@ Expr PatternRewriter::Rewrite(const Array<DFPatternCallback>& callbacks, const E
       groups_ = grouper.GroupMatches(callback_->pattern, post);
       gid_assignments_ = grouper.GetGIDAssignments();
       memo_.clear();
+      VLOG(1) << "pre rewritten:" << std::endl << PrettyPrint(pre);
       post = this->VisitExpr(post);
+      VLOG(1) << "post rewritten:" << std::endl << PrettyPrint(post);
       count++;
     }
     equal = (*structural_equal)(last, post, false, true);

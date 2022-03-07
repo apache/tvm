@@ -28,7 +28,7 @@ import tvm.testing
 
 _conv2d_nhwc_implement = {
     "generic": (topi.nn.conv2d_nhwc, topi.generic.schedule_conv2d_nhwc),
-    "gpu": (topi.cuda.conv2d_nhwc, topi.cuda.schedule_conv2d_nhwc),
+    "gpu": (topi.gpu.conv2d_nhwc, topi.gpu.schedule_conv2d_nhwc),
     "cpu": (topi.nn.conv2d_nhwc, topi.x86.schedule_conv2d_nhwc),
     "arm_cpu": (
         topi.arm_cpu.conv2d_nhwc_spatial_pack,

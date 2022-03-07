@@ -54,7 +54,7 @@ apt update
 apt-get -y build-dep qemu
 
 gpg --keyserver keyserver.ubuntu.com --recv-keys 0x3353C9CEF108B584
-cat <<EOF | gpg --dearmor >qemu-5.1.0.tar.xz.sig
+cat <<EOF | gpg --dearmor >${QEMU_SIG_FILE}
 -----BEGIN PGP ARMORED FILE-----
 Comment: Use "gpg --dearmor" for unpacking
 
@@ -68,7 +68,7 @@ p5ez/+2k4VAIwIQoP5DoO06waLBffvLIAdPPKYsx71K67OoGG2svc7duC/+5qf1x
 =hCS7
 -----END PGP ARMORED FILE-----
 EOF
-curl -OLs https://download.qemu.org/qemu-5.1.0.tar.xz
+curl -OLs https://download.qemu.org/${QEMU_TAR_FILE}
 gpg --verify ${QEMU_SIG_FILE}
 
 tar -xf ${QEMU_TAR_FILE}

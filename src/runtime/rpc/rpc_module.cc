@@ -320,17 +320,32 @@ std::shared_ptr<RPCSession> RPCModuleGetSession(Module mod) {
  * which leads to lower performance.
  */
 inline void CPUCacheFlushImpl(const char* addr, unsigned int len) {
-// TODO(FrozenGene): Support ARM.
-#if (defined(_M_X64) || defined(__x86_64__))
+#if (defined(_M_X64) || defined(__x86_64__) || defined(__aarch64__))
+
+#if defined(__aarch64__)
+  size_t ctr_el0 = 0;
+  asm volatile("mrs %0, ctr_el0" : "=r"(ctr_el0));
+  const size_t cache_line = 4 << ((ctr_el0 >> 16) & 15);
+#else
   const size_t cache_line = 64;
+#endif
+
   if (addr == nullptr || len <= 0) {
     return;
   }
 
   for (uintptr_t uptr = (uintptr_t)addr & ~(cache_line - 1); uptr < (uintptr_t)addr + len;
        uptr += cache_line) {
+#if defined(__aarch64__)
+    asm volatile("dc civac, %0\n\t" : : "r"(reinterpret_cast<const void*>(uptr)) : "memory");
+#else
     _mm_clflush(reinterpret_cast<const void*>(uptr));
+#endif
   }
+
+#if defined(__aarch64__)
+  asm volatile("dmb ishst" : : : "memory");
+#endif
 
 #endif
 }

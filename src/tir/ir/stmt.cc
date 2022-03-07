@@ -35,7 +35,14 @@ namespace tir {
 LetStmt::LetStmt(Var var, PrimExpr value, Stmt body, Span span) {
   ICHECK(value.defined());
   ICHECK(body.defined());
-  ICHECK_EQ(value.dtype(), var.dtype());
+  auto vdtype = value.dtype();
+  // It is still valid to bind a pointer type
+  // var to a value that is of type handle.
+  if (var->type_annotation.as<PointerTypeNode>()) {
+    ICHECK(vdtype.is_handle());
+  } else {
+    ICHECK_EQ(value.dtype(), var.dtype());
+  }
 
   ObjectPtr<LetStmtNode> node = make_object<LetStmtNode>();
   node->var = std::move(var);
@@ -234,6 +241,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // Store
 Store::Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate, Span span) {
+  LOG(FATAL) << "Unexpected use of deprecated Store node for buffer " << buffer_var->name_hint
+             << ".  Use BufferStore instead.";
   ICHECK(value.defined());
   ICHECK(index.defined());
   ICHECK(predicate.defined());
@@ -333,8 +342,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // Allocate
 Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, Span span) {
-  CHECK(IsPointerType(buffer_var->type_annotation, dtype))
+                   Stmt body, Map<String, ObjectRef> annotations, Span span) {
+  CHECK(IsPointerType(buffer_var->type_annotation, dtype) ||
+        (dtype.is_bool() && IsPointerType(buffer_var->type_annotation, DataType::Int(8))))
       << "The allocated data type (" << dtype
       << ") does not match the type annotation of the buffer " << buffer_var << " ("
       << buffer_var->type_annotation
@@ -354,29 +364,30 @@ Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, Prim
   node->extents = std::move(extents);
   node->condition = std::move(condition);
   node->body = std::move(body);
+  node->annotations = std::move(annotations);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
-int32_t AllocateNode::constant_allocation_size(const Array<PrimExpr>& extents) {
+int64_t AllocateNode::ConstantAllocationSize(const Array<PrimExpr>& extents) {
   int64_t result = 1;
   for (size_t i = 0; i < extents.size(); ++i) {
     if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
       result *= int_size->value;
-      if (result > std::numeric_limits<int32_t>::max()) {
+      if (result > std::numeric_limits<int64_t>::max()) {
         return 0;
       }
     } else {
       return 0;
     }
   }
-  return static_cast<int32_t>(result);
+  return static_cast<int64_t>(result);
 }
 
 TVM_REGISTER_GLOBAL("tir.Allocate")
     .set_body_typed([](Var buffer_var, DataType type, Array<PrimExpr> extents, PrimExpr condition,
-                       Stmt body, Span span) {
-      return Allocate(buffer_var, type, extents, condition, body, span);
+                       Stmt body, Map<String, ObjectRef> annotations, Span span) {
+      return Allocate(buffer_var, type, extents, condition, body, annotations, span);
     });
 
 TVM_REGISTER_NODE_TYPE(AllocateNode);
@@ -397,6 +408,79 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
         p->stream << " if ";
         p->Print(op->condition);
       }
+      p->stream << "\n";
+      p->Print(op->body);
+    });
+
+// Const
+// The constructor to create a IRNode with constant data
+// depending on the type of ObjectRef, it will either
+// create AllocateConstNode with irmod_storage_idx or data
+AllocateConst::AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> extents,
+                             ObjectRef data_or_idx, Stmt body, Span span) {
+  ICHECK(IsPointerType(buffer_var->type_annotation, dtype))
+      << "The allocated data type (" << dtype
+      << ") does not match the type annotation of the buffer " << buffer_var << " ("
+      << buffer_var->type_annotation
+      << "). The data type should be an element of the pointer type.";
+
+  for (size_t i = 0; i < extents.size(); ++i) {
+    ICHECK(extents[i].defined());
+    ICHECK(extents[i].dtype().is_scalar());
+  }
+  ICHECK(body.defined());
+  ICHECK(data_or_idx.defined());
+
+  ObjectPtr<AllocateConstNode> node = make_object<AllocateConstNode>();
+  node->buffer_var = std::move(buffer_var);
+  node->dtype = dtype;
+  node->extents = std::move(extents);
+  node->body = std::move(body);
+  node->span = std::move(span);
+  if (data_or_idx->IsInstance<runtime::NDArray::ContainerType>()) {
+    node->data = Optional<tvm::runtime::NDArray>(Downcast<runtime::NDArray>(data_or_idx));
+    node->irmod_storage_idx = Optional<Integer>();
+  } else if (data_or_idx->IsInstance<IntImmNode>()) {
+    node->data = Optional<tvm::runtime::NDArray>();
+    node->irmod_storage_idx = Optional<Integer>(Downcast<Integer>(data_or_idx));
+  } else {
+    LOG(FATAL) << "Data type not supported: " << data_or_idx->GetTypeKey();
+  }
+  data_ = std::move(node);
+}
+
+int64_t AllocateConstNode::ConstantAllocationSize(const Array<PrimExpr>& extents) {
+  int64_t result = 1;
+  for (size_t i = 0; i < extents.size(); ++i) {
+    if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
+      result *= int_size->value;
+      if (result > std::numeric_limits<int64_t>::max()) {
+        return 0;
+      }
+    } else {
+      return 0;
+    }
+  }
+  return static_cast<int64_t>(result);
+}
+TVM_REGISTER_GLOBAL("tir.AllocateConst")
+    .set_body_typed([](Var buffer_var, DataType dtype, Array<PrimExpr> extents,
+                       ObjectRef data_or_idx, Stmt body, Span span) {
+      return AllocateConst(buffer_var, dtype, extents, data_or_idx, body, span);
+    });
+
+TVM_REGISTER_NODE_TYPE(AllocateConstNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<AllocateConstNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const AllocateConstNode*>(node.get());
+      p->PrintIndent();
+      p->stream << "constant " << op->buffer_var << "[" << op->dtype;
+      for (size_t i = 0; i < op->extents.size(); ++i) {
+        p->stream << " * ";
+        p->Print(op->extents[i]);
+      }
+      p->stream << "]";
       p->stream << "\n";
       p->Print(op->body);
     });
@@ -587,6 +671,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // BufferStore
 BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices, Span span) {
+  ICHECK_EQ(buffer->shape.size(), indices.size())
+      << "Buffer " << buffer->name << " is " << buffer->shape.size()
+      << "-dimensional, cannot be indexed with the " << indices.size()
+      << "-dimensional indices provided.";
+
   ObjectPtr<BufferStoreNode> node = make_object<BufferStoreNode>();
   node->buffer = std::move(buffer);
   node->value = std::move(value);
@@ -679,7 +768,12 @@ BufferRegion BufferRegion::FullRegion(Buffer buffer) {
 BufferRegion BufferRegion::FromPoint(Buffer buffer, Array<PrimExpr> indices) {
   Array<Range> region;
   for (const PrimExpr& index : indices) {
-    region.push_back(Range::FromMinExtent(index, 1));
+    if (const RampNode* ramp_index = index.as<RampNode>()) {
+      region.push_back(
+          Range::FromMinExtent(ramp_index->base, ramp_index->stride * ramp_index->lanes));
+    } else {
+      region.push_back(Range::FromMinExtent(index, 1));
+    }
   }
   return BufferRegion(buffer, region);
 }

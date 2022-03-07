@@ -318,62 +318,6 @@ class ModulePass : public Pass {
   TVM_DEFINE_OBJECT_REF_METHODS(ModulePass, Pass, ModulePassNode);
 };
 
-/*!
- * \brief The SequentialNode contains a set of passes that transform Relay
- * programs from one AST to another semantically equivalent one.
- *
- * One example of this level of pass is that the pass manager needs to correctly
- * perform a host of optimizations with a given optimization level and disabled
- * passes.
- */
-class SequentialNode : public PassNode {
- public:
-  /* \brief The pass meta data.*/
-  PassInfo pass_info;
-
-  /*! \brief A list of passes that used to compose a sequential pass. */
-  tvm::Array<Pass> passes;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("pass_info", &pass_info);
-    v->Visit("passes", &passes);
-  }
-
-  /*!
-   * \brief Get the pass information/meta data.
-   */
-  PassInfo Info() const override { return pass_info; }
-
-  /*!
-   * \brief Resolve the pass dependency. It globs all required passes by
-   *        a given pass and executes them.
-   *
-   * \param mod The module that an optimization pass runs on.
-   *
-   * \return The updated module after resolving pass dependencies.
-   *
-   * TODO(zhiics) Build a dependency graph among the passes using provided
-   * metadata, i.e. required_passes. Likely, we can have a data structure, i.e.
-   * PassInfo, to store the relevant information including the parent passes.
-   */
-  void ResolveDependency(const IRModule& mod);
-
-  /*!
-   * \brief Perform optimizations on a series of passes. The aforementioned
-   *        typical pass manager jobs could be done by it. This function could
-   *        be overloaded to focus on different metrics, i.e. performance,
-   *        memory footprint, etc.
-   *
-   * \param mod The module that these passes are applied on.
-   * \param pass_ctx The context that these passes execute on.
-   *
-   * \return Return the updated module.
-   */
-  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
-
-  static constexpr const char* _type_key = "transform.Sequential";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SequentialNode, PassNode);
-};
 
 PassInfo::PassInfo(int opt_level, String name, tvm::Array<runtime::String> required) {
   auto pass_info = make_object<PassInfoNode>();
@@ -409,8 +353,9 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   const PassInfo& pass_info = Info();
   ICHECK(mod.defined()) << "The input module must be set.";
 
-  DLOG(INFO) << "Executing module pass : " << pass_info->name
-             << " with opt level: " << pass_info->opt_level;
+  VLOG_CONTEXT << pass_info->name;
+  VLOG(0) << "Executing module pass with opt level: " << pass_info->opt_level;
+  VLOG(1) << "Input module:" << std::endl << PrettyPrint(mod);
 
   mod = pass_func(std::move(mod), pass_ctx);
 
@@ -421,6 +366,8 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
 
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;
+
+  VLOG(1) << "Result module:" << std::endl << PrettyPrint(mod);
 
   return mod;
 }
@@ -473,7 +420,10 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   for (const Pass& pass : passes) {
     ICHECK(pass.defined()) << "Found undefined pass for optimization.";
     const PassInfo& pass_info = pass->Info();
-    if (!pass_ctx.PassEnabled(pass_info)) continue;
+    if (!pass_ctx.PassEnabled(pass_info)) {
+      VLOG(0) << "skipping disabled pass '" << pass_info->name << "'";
+      continue;
+    }
     // resolve dependencies
     for (const auto& it : pass_info->required) {
       mod = GetPass(it)(std::move(mod), pass_ctx);

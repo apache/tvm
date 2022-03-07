@@ -93,6 +93,8 @@ def schedule_batch_matmul(cfg, outs):
     def _schedule(cfg, op):
         C = op.output(0)
         A, B = s[C].op.input_tensors
+        if len(B.op.input_tensors) == 1 and B.op.input_tensors[0] == A:
+            s[B].compute_inline()
         _, M, N = get_const_tuple(C.shape)
         AA = s.cache_read(A, "shared", [C])
         AL = s.cache_read(AA, "local", [C])
@@ -336,6 +338,8 @@ _dp4a = dp4a("shared", "shared", "local")
 
 def _schedule_batch_matmul_int8(cfg, s, output):
     input_x, input_y = s[output].op.input_tensors
+    if len(input_y.op.input_tensors) == 1 and input_y.op.input_tensors[0] == input_x:
+        s[input_y].compute_inline()
 
     B, M, K = get_const_tuple(input_x.shape)
     _, N, _ = get_const_tuple(input_y.shape)

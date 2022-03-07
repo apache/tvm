@@ -177,7 +177,7 @@ class MatchBufferLower : public StmtExprMutator {
     Bind(buffer->data, source_buffer->data, buffer->name + ".data");
 
     // Step.2.2. Update element offset
-    // Note we create Load via vload and try to reuse index calculate.
+    // We use the ElemOffset method to avoid duplicating the index calculation.
     {
       Array<PrimExpr> indices;
       indices.reserve(source->region.size());
@@ -185,28 +185,43 @@ class MatchBufferLower : public StmtExprMutator {
         indices.push_back(range->min);
       }
 
-      Load load = Downcast<Load>(source_buffer.vload(indices, source_buffer->dtype));
-      Bind(buffer->elem_offset, load->index, buffer->name + ".elem_offset");
-      CHECK(analyzer_.CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
-          << "The source elem_offset " << buffer->elem_offset
-          << " does not satisfy the offset_factor " << buffer->offset_factor << ".";
+      Array<PrimExpr> buffer_start_indices = source_buffer->ElemOffset(indices);
+      if (buffer_start_indices.size() == 1) {
+        Bind(buffer->elem_offset, buffer_start_indices[0], buffer->name + ".elem_offset");
+        CHECK(analyzer_.CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
+            << "The source elem_offset " << buffer_start_indices[0]
+            << " does not satisfy the offset_factor " << buffer->offset_factor << ".";
+      } else {
+        // Non-zero elem_offset is ill-defined for non-flat memory.
+        // If needed in the future, will require `Array<PrimExpr>
+        // elem_offsets`, with one offset for each flattened index.
+        Bind(buffer->elem_offset, 0);
+      }
     }
 
     // Step 2.3. Check and update strides
     // Check if target buffer strides are defined
+    ICHECK(source->region.size() >= buffer->shape.size());
+    int offset = source->region.size() - buffer->shape.size();
     if (!buffer->strides.empty()) {
       ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
-      PrimExpr stride = make_const(DataType::Int(32), 1);
-      for (size_t i = buffer->shape.size(); i > 0; --i) {
-        const PrimExpr& shape = source_buffer->shape[i - 1];
-        Bind(buffer->strides[i - 1], stride, buffer->name + ".strides_" + std::to_string(i - 1));
-        stride *= shape;
+      if (source_buffer->strides.empty()) {
+        PrimExpr stride = make_const(DataType::Int(32), 1);
+        for (size_t i = buffer->shape.size(); i > 0; --i) {
+          const PrimExpr& shape = source_buffer->shape[i - 1 + offset];
+          Bind(buffer->strides[i - 1], stride, buffer->name + ".strides_" + std::to_string(i - 1));
+          stride *= shape;
+        }
+      } else {
+        ICHECK_EQ(buffer->shape.size() + offset, source_buffer->strides.size());
+        for (size_t i = buffer->shape.size(); i > 0; --i) {
+          const PrimExpr& stride = source_buffer->strides[i - 1 + offset];
+          Bind(buffer->strides[i - 1], stride, buffer->name + ".strides_" + std::to_string(i - 1));
+        }
       }
     }
 
     // Step 2.4. Check and update shape
-    ICHECK(source->region.size() >= buffer->shape.size());
-    size_t offset = source->region.size() - buffer->shape.size();
     for (size_t i = 0; i < buffer->shape.size(); ++i) {
       const Range& range = source->region[i + offset];
       Bind(buffer->shape[i], range->extent, buffer->name + ".shape_" + std::to_string(i));

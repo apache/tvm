@@ -17,6 +17,8 @@
 import tvm
 import tvm.testing
 from tvm import te
+from tvm.ir.module import IRModule
+from tvm.script import tir as T
 import numpy
 
 
@@ -434,7 +436,6 @@ def test_conv_tiling():
     oho, owo, ohi, owi = s[conv].tile(oh, ow, 16, 16)
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
@@ -538,6 +539,85 @@ def test_simple_rfactor():
     assert not tvm.ir.structural_equal(stmt1.body, stmt2.body)
 
 
+@T.prim_func
+def partitioned_concat(
+    A: T.Buffer[(16,), "float32"], B: T.Buffer[(16,), "float32"], C: T.Buffer[(32,), "float32"]
+) -> None:
+    T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+    T.preflattened_buffer(A, [16], data=A.data)
+    T.preflattened_buffer(B, [16], data=B.data)
+    T.preflattened_buffer(C, [32], data=C.data)
+    for i in T.serial(0, 16):
+        C[i] = A[i]
+    for i in T.serial(0, 16):
+        C[i + 16] = B[i + 16]
+
+
+def test_explicit_partition_hint():
+    A = te.placeholder((16,), name="A")
+    B = te.placeholder((16,), name="B")
+    C = te.compute((32,), lambda i: te.if_then_else(i < 16, A[i], B[i]), name="C")
+    s = te.create_schedule(C.op)
+    s.normalize()
+    s[C].pragma(s[C].op.axis[0], "loop_partition_hint")
+    mod = tvm.driver.build_module.schedule_to_module(s, [A, B, C], "main", None)
+    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
+        mod = tvm.tir.transform.StorageFlatten(64)(mod)
+        mod = tvm.tir.transform.LoopPartition()(mod)
+        mod = tvm.tir.transform.Simplify()(mod)
+    assert tvm.ir.structural_equal(mod["main"], partitioned_concat)
+
+
+@T.prim_func
+def partitioned_concat_3(
+    placeholder: T.Buffer[(50176,), "int8"],
+    placeholder_1: T.Buffer[(25088,), "int8"],
+    placeholder_2: T.Buffer[(25088,), "int8"],
+    T_concat: T.Buffer[(100352,), "int8"],
+) -> None:
+    T.preflattened_buffer(placeholder, [1, 64, 28, 28], "int8", data=placeholder.data)
+    T.preflattened_buffer(placeholder_1, [1, 32, 28, 28], "int8", data=placeholder_1.data)
+    T.preflattened_buffer(placeholder_2, [1, 32, 28, 28], "int8", data=placeholder_2.data)
+    T.preflattened_buffer(T_concat, [1, 128, 28, 28], "int8", data=T_concat.data)
+    for i1, i2, i3 in T.grid(64, 28, 28):
+        T_concat[i1 * 784 + i2 * 28 + i3] = placeholder[i1 * 784 + i2 * 28 + i3]
+    for i1, i2, i3 in T.grid(32, 28, 28):
+        T_concat[i1 * 784 + i2 * 28 + i3 + 50176] = placeholder_1[i1 * 784 + i2 * 28 + i3]
+    for i1, i2, i3 in T.grid(32, 28, 28):
+        T_concat[i1 * 784 + i2 * 28 + i3 + 75264] = placeholder_2[i1 * 784 + i2 * 28 + i3]
+
+
+@T.prim_func
+def concat_func_3(
+    placeholder: T.Buffer[(50176,), "int8"],
+    placeholder_1: T.Buffer[(25088,), "int8"],
+    placeholder_2: T.Buffer[(25088,), "int8"],
+    T_concat: T.Buffer[(100352,), "int8"],
+) -> None:
+    T.preflattened_buffer(placeholder, (1, 64, 28, 28), "int8", data=placeholder.data)
+    T.preflattened_buffer(placeholder_1, (1, 32, 28, 28), "int8", data=placeholder_1.data)
+    T.preflattened_buffer(placeholder_2, (1, 32, 28, 28), "int8", data=placeholder_2.data)
+    T.preflattened_buffer(T_concat, (1, 128, 28, 28), "int8", data=T_concat.data)
+    for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
+        for i2, i3 in T.grid(28, 28):
+            if 96 <= i1:
+                T_concat[i1 * 784 + i2 * 28 + i3] = placeholder_2[i1 * 784 + i2 * 28 + i3 - 75264]
+            if 64 <= i1 and i1 < 96:
+                T_concat[i1 * 784 + i2 * 28 + i3] = placeholder_1[i1 * 784 + i2 * 28 + i3 - 50176]
+            if i1 < 64:
+                T_concat[i1 * 784 + i2 * 28 + i3] = placeholder[i1 * 784 + i2 * 28 + i3]
+
+
+def test_condition_mutually_exclusive():
+    mod = IRModule.from_expr(concat_func_3)
+    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
+        mod = tvm.tir.transform.FlattenBuffer()(mod)
+        mod = tvm.tir.transform.LoopPartition()(mod)
+        mod = tvm.tir.transform.Simplify()(mod)
+        mod = tvm.tir.transform.RemoveNoOp()(mod)
+    assert tvm.ir.structural_equal(mod["main"], partitioned_concat_3)
+
+
 if __name__ == "__main__":
     test_basic()
     test_const_loop()
@@ -559,3 +639,5 @@ if __name__ == "__main__":
     test_double_splitting_with_indivisible_factors()
     test_multilevel_splitting_with_indivisble_factors()
     test_simple_rfactor()
+    test_explicit_partition_hint()
+    test_condition_mutually_exclusive()

@@ -15,5 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Backend codegen modules for relay."""
-from . import compile_engine
-from .contrib import cmsisnn
+from . import te_compiler
+from .executor import Executor
+from .runtime import Runtime

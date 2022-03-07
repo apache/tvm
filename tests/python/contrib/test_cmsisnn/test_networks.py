@@ -17,48 +17,24 @@
 
 """CMSIS-NN: testing with networks"""
 
-import platform
 import sys
-import os
-import pathlib
-import tvm
+
+import pytest
+import numpy as np
+
+import tvm.testing
 from tvm import relay
 from tvm.contrib.download import download_testdata
 from tvm.relay.op.contrib import cmsisnn
-import numpy as np
-import pytest
-import itertools
 
+from utils import skip_if_no_reference_system, get_range_for_dtype_str
 from tests.python.relay.aot.aot_test_utils import (
     AOTTestModel,
     AOT_CORSTONE300_RUNNER,
+    AOT_USMP_CORSTONE300_RUNNER,
     generate_ref_data,
     compile_and_run,
 )
-
-
-def get_range_for_dtype_str(dtype):
-    """
-    Produce the min,max for a give data type.
-
-    Parameters
-    ----------
-    dtype : str
-        a type string (e.g., int8)
-
-    Returns
-    -------
-    type_info.min : int
-        the minimum of the range
-    type_info.max : int
-        the maximum of the range
-    """
-
-    try:
-        type_info = np.iinfo(dtype)
-    except ValueError:
-        type_info = np.finfo(dtype)
-    return type_info.min, type_info.max
 
 
 def convert_to_relay(
@@ -99,21 +75,25 @@ def convert_to_relay(
     return mod, params
 
 
-@pytest.mark.skipif(
-    platform.machine() == "i686", reason="Reference system unavailable in i386 container"
-)
-def test_cnn_small():
+@skip_if_no_reference_system
+@tvm.testing.requires_package("tflite")
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("test_runner", [AOT_CORSTONE300_RUNNER, AOT_USMP_CORSTONE300_RUNNER])
+def test_cnn_small(test_runner):
     # download the model
-    base_url = "https://github.com/ARM-software/ML-zoo/raw/master/models/keyword_spotting/cnn_small/tflite_int8"
+    base_url = "https://github.com/ARM-software/ML-zoo/raw/48a22ee22325d15d2371a6df24eb7d67e21dcc97/models/keyword_spotting/cnn_small/tflite_int8"
     file_to_download = "cnn_s_quantized.tflite"
-    model_file = download_testdata("{}/{}".format(base_url, file_to_download), file_to_download)
+    file_saved = "cnn_s_quantized_15Dec2021.tflite"
+    model_file = download_testdata("{}/{}".format(base_url, file_to_download), file_saved)
 
     with open(model_file, "rb") as f:
         tflite_model_buf = f.read()
 
     input_shape = (1, 490)
-    in_min, in_max = get_range_for_dtype_str("int8")
-    input_data = np.random.randint(in_min, high=in_max, size=input_shape).astype(np.float32)
+    dtype = "int8"
+    in_min, in_max = get_range_for_dtype_str(dtype)
+    rng = np.random.default_rng(12345)
+    input_data = rng.integers(in_min, high=in_max, size=input_shape, dtype=dtype)
 
     orig_mod, params = convert_to_relay(tflite_model_buf, input_data, "input")
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
@@ -121,12 +101,17 @@ def test_cnn_small():
     # validate CMSIS-NN output against CPU output
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_CORSTONE300_RUNNER
     inputs = {"input": input_data}
     params = {}
     output_list = generate_ref_data(orig_mod["main"], inputs, params)
     compile_and_run(
-        AOTTestModel(module=cmsisnn_mod, inputs=inputs, outputs=output_list, params=params),
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=inputs,
+            outputs=output_list,
+            params=params,
+            output_tolerance=1,
+        ),
         test_runner,
         interface_api,
         use_unpacked_api,

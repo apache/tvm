@@ -417,19 +417,47 @@ class TestKeras:
         keras_model = keras.models.Model(data, z)
         verify_keras_frontend(keras_model)
 
+    def test_forward_lstm(self, keras):
+        data = keras.layers.Input(shape=(10, 32))
+        rnn_funcs = [
+            keras.layers.LSTM(16),
+            keras.layers.LSTM(16, return_sequences=True),
+            keras.layers.LSTM(16, return_sequences=True, use_bias=False),
+        ]
+        for rnn_func in rnn_funcs:
+            x = rnn_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, need_transpose=False)
+
     def test_forward_rnn(self, keras):
         data = keras.layers.Input(shape=(1, 32))
         rnn_funcs = [
             keras.layers.LSTM(
                 units=16, return_state=False, recurrent_activation="sigmoid", activation="tanh"
             ),
+            keras.layers.LSTM(
+                units=16,
+                return_state=False,
+                recurrent_activation="sigmoid",
+                activation="tanh",
+                use_bias=False,
+            ),
             keras.layers.SimpleRNN(units=16, return_state=False, activation="tanh"),
+            keras.layers.SimpleRNN(units=16, return_state=False, activation="tanh", use_bias=False),
             keras.layers.GRU(
                 units=16,
                 return_state=False,
                 recurrent_activation="sigmoid",
                 activation="tanh",
                 reset_after=False,
+            ),
+            keras.layers.GRU(
+                units=16,
+                return_state=False,
+                recurrent_activation="sigmoid",
+                activation="tanh",
+                reset_after=False,
+                use_bias=False,
             ),
         ]
         for rnn_func in rnn_funcs:
@@ -593,6 +621,41 @@ class TestKeras:
         )
         verify_keras_frontend(keras_model)
 
+    def test_forward_l2_normalize(self, keras):
+        data = keras.layers.Input(shape=(16, 12, 8))
+        K = keras.backend
+        l2_funcs = [
+            keras.layers.Lambda(lambda v: K.l2_normalize(v, axis=-2)),
+            keras.layers.Lambda(lambda v: K.l2_normalize(x=v, axis=-1)),
+            keras.layers.Lambda(lambda v: K.l2_normalize(axis=1, x=v)),
+            keras.layers.Lambda(lambda v: K.l2_normalize(v, 2)),
+            keras.layers.Lambda(lambda v: K.l2_normalize(v, axis=3)),
+            keras.layers.Lambda(lambda v: K.l2_normalize(v, axis=(2, 3))),
+            keras.layers.Lambda(lambda v: K.l2_normalize(v, (1, 2))),
+            keras.layers.Lambda(lambda v: K.l2_normalize(v, axis=[-2, -1])),
+            keras.layers.Lambda(lambda v: K.l2_normalize(v, [-3, -2])),
+        ]
+        for l2_func in l2_funcs:
+            x = l2_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, layout="NCHW")
+            verify_keras_frontend(keras_model, layout="NHWC")
+
+    def test_forward_time_distributed(self, keras):
+        conv2d_inputs = keras.Input(shape=(10, 128, 128, 3))
+        conv_2d_layer = keras.layers.Conv2D(64, (3, 3))
+        conv2d_model = keras.models.Model(
+            conv2d_inputs, keras.layers.TimeDistributed(conv_2d_layer)(conv2d_inputs)
+        )
+        verify_keras_frontend(conv2d_model, layout="NDHWC")
+
+        dense_inputs = keras.Input(shape=(5, 1))
+        dense_layer = keras.layers.Dense(1)
+        dense_model = keras.models.Model(
+            dense_inputs, keras.layers.TimeDistributed(dense_layer)(dense_inputs)
+        )
+        verify_keras_frontend(dense_model, need_transpose=False)
+
 
 if __name__ == "__main__":
     for k in [keras, tf_keras]:
@@ -605,6 +668,7 @@ if __name__ == "__main__":
         sut.test_forward_sequential(keras=k)
         sut.test_forward_pool(keras=k)
         sut.test_forward_conv(keras=k)
+        sut.test_forward_conv1d(keras=k)
         sut.test_forward_batch_norm(keras=k)
         sut.test_forward_upsample(keras=k, interpolation="nearest")
         sut.test_forward_upsample(keras=k, interpolation="bilinear")
@@ -613,6 +677,7 @@ if __name__ == "__main__":
         sut.test_forward_multi_inputs(keras=k)
         sut.test_forward_multi_outputs(keras=k)
         sut.test_forward_reuse_layers(keras=k)
+        sut.test_forward_lstm(keras=k)
         sut.test_forward_rnn(keras=k)
         sut.test_forward_vgg16(keras=k)
         sut.test_forward_vgg16(keras=k, layout="NHWC")
@@ -629,3 +694,5 @@ if __name__ == "__main__":
         sut.test_forward_zero_padding3d(keras=k)
         sut.test_forward_embedding(keras=k)
         sut.test_forward_repeat_vector(keras=k)
+        sut.test_forward_l2_normalize(keras=k)
+        sut.test_forward_time_distributed(keras=k)

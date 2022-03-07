@@ -65,7 +65,7 @@ class LetList {
    */
   Var Push(Var pv, Expr expr) {
     ICHECK(!used_);
-    ICHECK(WellFormed(expr));
+    ICHECK(WellFormed(expr)) << "expression:" << std::endl << PrettyPrint(expr);
     lets_.emplace_back(std::make_pair(pv, expr));
     return pv;
   }
@@ -79,7 +79,7 @@ class LetList {
    *
    * \return a Var that hold the inserted expr.
    */
-  Var Push(Expr expr, Type ty) { return Push(Var("x", ty), expr); }
+  Var Push(Expr expr, Type ty) { return Push(Var::GenSym(ty), expr); }
 
   /*!
    * \brief insert a binding.

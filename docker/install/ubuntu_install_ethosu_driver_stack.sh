@@ -20,11 +20,11 @@ set -e
 set -u
 set -o pipefail
 
-fvp_dir="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"
+fvp_dir="/opt/arm/FVP_Corstone_SSE-300"
 cmake_dir="/opt/arm/cmake"
 ethosu_dir="/opt/arm/ethosu"
-ethosu_driver_ver="21.05"
-cmsis_ver="5.7.0"
+ethosu_driver_ver="21.11"
+cmsis_ver="5.8.0"
 
 mkdir -p /opt/arm
 
@@ -56,9 +56,9 @@ apt-get install -y \
 # Download the FVP
 mkdir -p "$fvp_dir"
 cd "$tmpdir"
-curl -sL https://developer.arm.com/-/media/Arm%20Developer%20Community/Downloads/OSS/FVP/Corstone-300/MPS3/FVP_Corstone_SSE-300_Ethos-U55_11.14_24.tgz | tar -xz
-./FVP_Corstone_SSE-300_Ethos-U55.sh --i-agree-to-the-contained-eula --no-interactive -d "$fvp_dir"
-rm -rf FVP_Corstone_SSE-300_Ethos-U55.sh license_terms
+curl -sL https://developer.arm.com/-/media/Arm%20Developer%20Community/Downloads/OSS/FVP/Corstone-300/FVP_Corstone_SSE-300_11.15_24.tgz | tar -xz
+./FVP_Corstone_SSE-300.sh --i-agree-to-the-contained-eula --no-interactive -d "$fvp_dir"
+rm -rf FVP_Corstone_SSE-300.sh license_terms
 
 # Setup cmake 3.19.5
 mkdir -p "${cmake_dir}"
@@ -92,3 +92,13 @@ cd "${ethosu_dir}"
 git clone "https://github.com/ARM-software/CMSIS_5.git" cmsis
 cd cmsis
 git checkout -f tags/${cmsis_ver}
+
+# Build Driver
+mkdir ${ethosu_dir}/core_driver/build && cd ${ethosu_dir}/core_driver/build
+cmake -DCMAKE_TOOLCHAIN_FILE=${ethosu_dir}/core_platform/cmake/toolchain/arm-none-eabi-gcc.cmake -DETHOSU_LOG_SEVERITY=debug -DTARGET_CPU=cortex-m55 ..
+make
+
+# Build NN Library
+mkdir ${ethosu_dir}/cmsis/CMSIS/NN/build/ && cd ${ethosu_dir}/cmsis/CMSIS/NN/build/
+cmake .. -DCMAKE_TOOLCHAIN_FILE=${ethosu_dir}/core_platform/cmake/toolchain/arm-none-eabi-gcc.cmake -DTARGET_CPU=cortex-m55 -DBUILD_CMSIS_NN_FUNCTIONS=YES
+make

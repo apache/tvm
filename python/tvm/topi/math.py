@@ -713,7 +713,7 @@ def fast_exp(x):
 
 
 def fast_tanh(x):
-    """Take tanhonential of input x using fast_tanh implementation
+    """Take hyperbolic tangent of input x using fast_tanh implementation
 
     Parameters
     ----------

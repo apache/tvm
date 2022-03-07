@@ -60,7 +60,9 @@ class Tensor(DataProducer, _expr.ExprOp):
     def __call__(self, *indices):
         ndim = self.ndim
         if len(indices) != ndim:
-            raise ValueError("Need to provide %d index in tensor slice" % ndim)
+            raise ValueError(
+                "Need to provide %d index in tensor but %d was provided" % (ndim, len(indices))
+            )
         indices = convert_to_object(indices)
         args = []
         for x in indices:
@@ -84,11 +86,12 @@ class Tensor(DataProducer, _expr.ExprOp):
             if isinstance(other, _expr.ExprOp):
                 return _expr.EqualOp(self, other)
             return False
+        if self.same_as(other):
+            return True
         if self.ndim == 0 and other.ndim == 0:
             raise ValueError(
                 "Equal == comparison among rank-0 tensor is ambiguous, "
-                "use Tensor.equal for content expression equvalence, "
-                "use Tensor.same_as for exact reference comparison"
+                "use Tensor.equal for content expression equvalence."
             )
         return _ffi_api.TensorEqual(self, other)
 

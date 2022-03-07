@@ -120,7 +120,7 @@ def test_gemm_gpu(N, times, bn, num_block, num_thread):
 
     print(tvm.lower(s, [A, B, C], simple_mode=True))
 
-    f = tvm.build(s, [A, B, C], "opencl", target_host=target, name="gemm_gpu")
+    f = tvm.build(s, [A, B, C], tvm.target.Target("opencl", host=target), name="gemm_gpu")
     temp = utils.tempdir()
     path_dso = temp.relpath("gemm_gpu.so")
     f.export_library(path_dso, ndk.create_shared)

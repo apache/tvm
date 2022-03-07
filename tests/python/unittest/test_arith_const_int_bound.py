@@ -195,6 +195,14 @@ def test_floordiv_bound():
     assert bd.min_value == -9
     assert bd.max_value == 9
 
+    # Test handling unsigned integers well
+    x, y = te.var("x", dtype="uint32"), te.var("y", dtype="uint32")
+    analyzer.update(x, tvm.arith.ConstIntBound(1, 4), override=True)
+    analyzer.update(y, tvm.arith.ConstIntBound(0, 12), override=True)
+    bd = analyzer.const_int_bound(fld(x, y))
+    assert bd.min_value == 0
+    assert bd.max_value == 4
+
 
 def test_floormod_bound():
     analyzer = tvm.arith.Analyzer()

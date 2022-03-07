@@ -59,8 +59,6 @@ class InferTextureAccess : public StmtExprVisitor {
       var_access_map_[op->args[0].as<VarNode>()] |= kReadAccess;
     } else if (op->op.same_as(builtin::texture2d_store())) {
       var_access_map_[op->args[0].as<VarNode>()] |= kWriteAccess;
-    } else {
-      StmtExprVisitor::VisitExpr_(op);
     }
     StmtExprVisitor::VisitExpr_(op);
   }
@@ -176,6 +174,10 @@ void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     os << "void*";
     return;
   }
+  if (t.is_void()) {
+    os << "void";
+    return;
+  }
   if (t == DataType::Bool()) {
     os << "bool";
     return;
@@ -258,21 +260,22 @@ void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*
   }
 }
 
-void CodeGenOpenCL::PrintVecAddr(const VarNode* buffer, DataType t, PrimExpr base,
+void CodeGenOpenCL::PrintVecAddr(const BufferNode* buffer, DataType t, PrimExpr base,
                                  std::ostream& os) {  // NOLINT(*)
-  if (!HandleTypeMatch(buffer, t.element_of())) {
+  const VarNode* buffer_var = buffer->data.get();
+  if (!HandleTypeMatch(buffer_var, t.element_of())) {
     os << '(';
-    auto it = alloc_storage_scope_.find(buffer);
+    auto it = alloc_storage_scope_.find(buffer_var);
     if (it != alloc_storage_scope_.end()) {
       PrintStorageScope(it->second, os);
     }
     PrintType(t.element_of(), os);
     os << "*)";
   }
-  os << GetVarID(buffer) << " + ";
+  os << GetVarID(buffer_var) << " + ";
   PrintExpr(base, os);
 }
-std::string CodeGenOpenCL::GetVecLoad(DataType t, const VarNode* buffer, PrimExpr base) {
+std::string CodeGenOpenCL::GetVecLoad(DataType t, const BufferNode* buffer, PrimExpr base) {
   std::ostringstream os;
   os << "vload" << t.lanes() << "(0, ";
   PrintVecAddr(buffer, t, base, os);
@@ -280,7 +283,7 @@ std::string CodeGenOpenCL::GetVecLoad(DataType t, const VarNode* buffer, PrimExp
   return os.str();
 }
 
-void CodeGenOpenCL::PrintVecStore(const VarNode* buffer, DataType t, PrimExpr base,
+void CodeGenOpenCL::PrintVecStore(const BufferNode* buffer, DataType t, PrimExpr base,
                                   const std::string& value) {
   this->PrintIndent();
   stream << "vstore" << t.lanes() << "(" << value << ", 0, ";
@@ -339,13 +342,17 @@ std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType
 }
 
 void CodeGenOpenCL::VisitStmt_(const StoreNode* op) {
+  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+}
+
+void CodeGenOpenCL::VisitStmt_(const BufferStoreNode* op) {
   if (auto call = op->value.as<CallNode>()) {
     if (call->op.same_as(builtin::texture2d_load())) {
       need_texture_ssa_ = false;
       // If storing a texture load into a buffer, don't use an
       // intermediate local unless the buffer allocation is a
       // single element selected from the texture read.
-      auto it = allocation_size_.find(op->buffer_var.get());
+      auto it = allocation_size_.find(op->buffer->data.get());
       if (it != allocation_size_.end() && it->second == 1) {
         need_texture_ssa_ = true;
       }
@@ -366,24 +373,24 @@ void CodeGenOpenCL::VisitExpr_(const CastNode* op, std::ostream& os) {
 }
 
 void CodeGenOpenCL::VisitStmt_(const AllocateNode* op) {
-  allocation_size_.insert(
-      {op->buffer_var.get(), op->constant_allocation_size() * op->dtype.lanes()});
+  allocation_size_.insert({op->buffer_var.get(), op->ConstantAllocationSize() * op->dtype.lanes()});
   CodeGenC::VisitStmt_(op);
 }
 
 void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
   if (op->op.same_as(builtin::address_of())) {
     // Overload tvm_address_of to add storage scope (e.g. __global).
-    const LoadNode* load = op->args[0].as<LoadNode>();
+    const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
     ICHECK(op->args.size() == 1 && load);
+    ICHECK_EQ(load->indices.size(), 0) << "CodeGenOpenCL only supports flat memory allocations.";
     os << "((";
-    auto it = alloc_storage_scope_.find(load->buffer_var.get());
+    auto it = alloc_storage_scope_.find(load->buffer->data.get());
     if (it != alloc_storage_scope_.end()) {
       PrintStorageScope(it->second, os);
     }
     this->PrintType(load->dtype.element_of(), os);
-    os << " *)" << this->GetVarID(load->buffer_var.get()) << " + ";
-    this->PrintExpr(load->index, os);
+    os << " *)" << this->GetVarID(load->buffer->data.get()) << " + ";
+    this->PrintExpr(load->indices[0], os);
     os << ')';
   } else if (op->op.same_as(builtin::texture2d_store())) {
     auto* ptr_type = op->args[0].as<VarNode>()->type_annotation.as<PointerTypeNode>();
@@ -478,6 +485,31 @@ void CodeGenOpenCL::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // N
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
+}
+
+template <typename T>
+inline void PrintBinaryExpr(const T* op, const char* opstr, std::ostream& os, CodeGenOpenCL* p) {
+  if (op->dtype.lanes() == 1) {
+    os << opstr << "((";
+    p->PrintType(op->a->dtype, os);
+    os << ")";
+    p->PrintExpr(op->a, os);
+    os << ", (";
+    p->PrintType(op->b->dtype, os);
+    os << ")";
+    p->PrintExpr(op->b, os);
+    os << ')';
+  } else {
+    p->PrintVecBinaryOp(opstr, op->dtype, op->a, op->b, os);
+  }
+}
+
+void CodeGenOpenCL::VisitExpr_(const MinNode* op, std::ostream& os) {
+  PrintBinaryExpr(op, "min", os, this);
+}
+
+void CodeGenOpenCL::VisitExpr_(const MaxNode* op, std::ostream& os) {
+  PrintBinaryExpr(op, "max", os, this);
 }
 
 void CodeGenOpenCL::SetTextureScope(

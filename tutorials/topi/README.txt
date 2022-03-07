@@ -1,2 +1,0 @@
-TOPI: TVM Operator Inventory
-----------------------------

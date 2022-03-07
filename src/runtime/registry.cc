@@ -120,9 +120,9 @@ class EnvCAPIRegistry {
    * \brief Callback to check if signals have been sent to the process and
    *        if so invoke the registered signal handler in the frontend environment.
    *
-   *  When runnning TVM in another langugage(python), the signal handler
+   *  When running TVM in another language (Python), the signal handler
    *  may not be immediately executed, but instead the signal is marked
-   *  in the interpreter state(to ensure non-blocking of the signal handler).
+   *  in the interpreter state (to ensure non-blocking of the signal handler).
    *
    * \return 0 if no error happens, -1 if error happens.
    */
@@ -176,7 +176,7 @@ void EnvCheckSignals() { EnvCAPIRegistry::Global()->CheckSignals(); }
 }  // namespace runtime
 }  // namespace tvm
 
-/*! \brief entry to to easily hold returning information */
+/*! \brief entry to easily hold returning information */
 struct TVMFuncThreadLocalEntry {
   /*! \brief result holder for returning strings */
   std::vector<std::string> ret_vec_str;
@@ -189,8 +189,11 @@ typedef dmlc::ThreadLocalStore<TVMFuncThreadLocalEntry> TVMFuncThreadLocalStore;
 
 int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {
   API_BEGIN();
+  using tvm::runtime::GetRef;
+  using tvm::runtime::PackedFunc;
+  using tvm::runtime::PackedFuncObj;
   tvm::runtime::Registry::Register(name, override != 0)
-      .set_body(*static_cast<tvm::runtime::PackedFunc*>(f));
+      .set_body(GetRef<PackedFunc>(static_cast<PackedFuncObj*>(f)));
   API_END();
 }
 
@@ -198,7 +201,12 @@ int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
   API_BEGIN();
   const tvm::runtime::PackedFunc* fp = tvm::runtime::Registry::Get(name);
   if (fp != nullptr) {
-    *out = new tvm::runtime::PackedFunc(*fp);  // NOLINT(*)
+    tvm::runtime::TVMRetValue ret;
+    ret = *fp;
+    TVMValue val;
+    int type_code;
+    ret.MoveToCHost(&val, &type_code);
+    *out = val.v_handle;
   } else {
     *out = nullptr;
   }

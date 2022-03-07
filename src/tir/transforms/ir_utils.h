@@ -24,7 +24,9 @@
 #ifndef TVM_TIR_TRANSFORMS_IR_UTILS_H_
 #define TVM_TIR_TRANSFORMS_IR_UTILS_H_
 
+#include <tvm/arith/int_set.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/support/with.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
@@ -32,6 +34,7 @@
 
 #include <limits>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tvm {
@@ -100,9 +103,11 @@ inline PrimExpr TVMStructGet(DataType dtype, Var handle, int index,
  * \param offset the offset index.
  */
 inline PrimExpr AddressOffset(Var handle, DataType dtype, int offset) {
-  return Call(DataType::Handle(), builtin::address_of(),
-              {Load(dtype, handle, make_const(DataType::Int(32), offset * dtype.lanes()),
-                    const_true(dtype.lanes()))});
+  PrimExpr offset_expr = make_const(DataType::Int(32), offset * dtype.lanes());
+  Buffer dummy_buf(handle, dtype, {offset_expr + 1}, {}, 0, handle->name_hint, 0, 0, kDefault);
+  BufferLoad buf_load(dummy_buf, {offset_expr});
+
+  return Call(DataType::Handle(), builtin::address_of(), {buf_load});
 }
 
 /*!
@@ -116,8 +121,12 @@ inline PrimExpr AddressOffset(Var handle, DataType dtype, PrimExpr offset) {
     offset = offset * make_const(offset.dtype(), dtype.lanes());
     offset = Ramp(offset, make_const(offset.dtype(), 1), dtype.lanes());
   }
-  return Call(DataType::Handle(), builtin::address_of(),
-              {Load(dtype, handle, offset, const_true(dtype.lanes()))});
+
+  Buffer dummy_buf(handle, dtype.element_of(), {offset + 1}, {}, 0, handle->name_hint, 0, 0,
+                   kDefault);
+  BufferLoad buf_load(dummy_buf, {offset});
+
+  return Call(DataType::Handle(), builtin::address_of(), {buf_load});
 }
 
 /*!
@@ -223,6 +232,79 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
  * \return Whether or not the PrimFunc was created from a te schedule
  */
 Bool IsFromLegacyTESchedule(PrimFunc f);
+
+/*!
+ *\brief Context helper to update domain map within conditional scope.
+ *
+ * Assume the condition is `0 <= i && i < 9` and global domain of i is [0, 20], thus `bounds[i]` is
+ * [0, 8]. Then `With<ConditionalBoundsContext> ctx(condition, &relax_map, &hint_map, true)` step
+ *into scope where dom_map[i] is [0, 8] and `With<ConditionalBoundsContext> ctx(condition,
+ *&relax_map, &hint_map, false)` step into scope where dom_map[i] is [9, 20]
+ */
+class ConditionalBoundsContext {
+ private:
+  friend class With<ConditionalBoundsContext>;
+  /*!
+   * \brief Construct a condition bounds context.
+   * \param condition The condition holds on true branch.
+   * \param relax_map The domain map for relaxed vars to update.
+   * \param hint_map The domain map for free vars to update.
+   * \param is_true_branch Whether step into the branch where condition bounds holds.
+   */
+  ConditionalBoundsContext(const PrimExpr& condition,
+                           std::unordered_map<const VarNode*, arith::IntSet>* relax_map,
+                           std::unordered_map<const VarNode*, arith::IntSet>* hint_map,
+                           bool is_true_branch);
+  void EnterWithScope();
+  void ExitWithScope();
+
+  /*! \brief Helper to solve related variable's bound within conditional scope.*/
+  Map<Var, Range> GetVarBoundsFromCondition();
+
+  /*! \brief the condition holds on true branch. */
+  const PrimExpr& condition_;
+  /*! \brief domain map for relaxed vars to update */
+  std::unordered_map<const VarNode*, arith::IntSet>* relax_map_;
+  /*! \brief domain map for free vars to update */
+  std::unordered_map<const VarNode*, arith::IntSet>* hint_map_;
+  /*! \brief whether is on true branch */
+  bool is_true_branch_;
+  /*! \brief used to record and restore original var bounds */
+  std::unordered_map<const VarNode*, arith::IntSet> origin_map_;
+};
+
+// Information of tensor core fragment.
+struct FragmentInfo {
+  // fragment shape
+  int m, n, k;
+  // fragment layout (row-major or column-major)
+  std::string layout;
+  // scope of the fragment (wmma.matrix_a, wmma.matrix_b, or wmma.accumulator)
+  std::string scope;
+  FragmentInfo() = default;
+  FragmentInfo(int _m, int _n, int _k, const std::string& _layout, const std::string& _scope)
+      : m(_m), n(_n), k(_k), layout(_layout), scope(_scope) {}
+
+  int GetSize() const {
+    if (scope == "wmma.matrix_a") {
+      return m * k;
+    } else if (scope == "wmma.matrix_b") {
+      return n * k;
+    } else if (scope == "wmma.accumulator") {
+      return m * n;
+    } else {
+      ICHECK(0);
+      throw;
+    }
+  }
+};
+
+/*!
+ * \brief Extract information of tensor core fragment from the IR.
+ * \param stmt The stmt to visit.
+ * \return Map from buffer variables to the fragment info.
+ */
+std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt);
 
 }  // namespace tir
 }  // namespace tvm

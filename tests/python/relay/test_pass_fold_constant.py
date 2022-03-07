@@ -22,6 +22,11 @@ from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.testing import run_infer_type, create_workload
 
 
+def annot_expr(e):
+    """Returns e wrapped with an on_device annotation."""
+    return relay.op.annotation.on_device(e, tvm.cpu(), constrain_result=True)
+
+
 def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, tvm.transform.Pass)
 
@@ -75,7 +80,39 @@ def test_fold_const():
     with tvm.target.Target("cuda"):
         zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, zexpected)
+    tvm.ir.assert_structural_equal(zz, zexpected)
+
+
+def test_fold_const_with_on_device():
+    """Make sure on_device annotations don't get in the way of constant folding"""
+    c_data = np.array([1, 2, 3]).astype("float32")
+    t = relay.TensorType([1, 2, 3], "float32")
+
+    def before():
+        c = relay.const(c_data)
+        x = relay.var("x", t)
+        x.virtual_device_ = tvm.cpu()
+        y = relay.add(c, c)
+        y = relay.multiply(y, relay.const(2, "float32"))
+        y = relay.add(x, y)
+        z = relay.add(y, c)
+        f = relay.Function([x], z)
+        f.virtual_device_ = tvm.cpu()
+        return f
+
+    def expected():
+        x = relay.var("x", t)
+        x.virtual_device_ = tvm.cpu()
+        c_folded = (c_data + c_data) * 2
+        y = relay.add(x, relay.const(c_folded))
+        z = relay.add(y, relay.const(c_data))
+        f = relay.Function([x], z)
+        f.virtual_device_ = tvm.cpu()
+        return f
+
+    zz = run_opt_pass(before(), transform.FoldConstant())
+    zexpected = run_opt_pass(expected(), transform.InferType())
+    tvm.ir.assert_structural_equal(zz, zexpected)
 
 
 def test_fold_let():
@@ -101,7 +138,41 @@ def test_fold_let():
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, zexpected)
+    tvm.ir.assert_structural_equal(zz, zexpected)
+
+
+def test_fold_let_with_on_device():
+    """Make sure on_device annotations don't get in the way of constant folding,
+    and inlined constants bring their annotations with them."""
+    c_data = np.array(1).astype("float32")
+    t = relay.TensorType([1], "float32")
+
+    def before():
+        sb = relay.ScopeBuilder()
+        x = relay.var("x", t)
+        x.virtual_device_ = tvm.cpu()
+        t1 = sb.let("t1", annot_expr(relay.const(c_data)))
+        t2 = sb.let("t2", annot_expr(relay.add(t1, t1)))
+        t3 = sb.let("t3", annot_expr(relay.add(t2, x)))
+        sb.ret(t3)
+        f = relay.Function([x], sb.get())
+        f.virtual_device_ = tvm.cpu()
+        return f
+
+    def expected():
+        sb = relay.ScopeBuilder()
+        x = relay.var("x", t)
+        x.virtual_device_ = tvm.cpu()
+        c_folded = c_data + c_data
+        t3 = sb.let("t3", annot_expr(relay.add(annot_expr(relay.const(c_folded)), x)))
+        sb.ret(t3)
+        f = relay.Function([x], sb.get())
+        f.virtual_device_ = tvm.cpu()
+        return f
+
+    zz = run_opt_pass(before(), transform.FoldConstant())
+    zexpected = run_opt_pass(expected(), transform.InferType())
+    tvm.ir.assert_structural_equal(zz, zexpected)
 
 
 def test_fold_tuple():
@@ -124,7 +195,7 @@ def test_fold_tuple():
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, zexpected)
+    tvm.ir.assert_structural_equal(zz, zexpected)
 
 
 def test_fold_concat():
@@ -143,7 +214,7 @@ def test_fold_concat():
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, zexpected)
+    tvm.ir.assert_structural_equal(zz, zexpected)
 
 
 def test_fold_if():
@@ -164,7 +235,7 @@ def test_fold_if():
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, zexpected)
+    tvm.ir.assert_structural_equal(zz, zexpected)
 
     cond_data = np.array(0).astype("bool")
 
@@ -182,7 +253,7 @@ def test_fold_if():
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, zexpected)
+    tvm.ir.assert_structural_equal(zz, zexpected)
 
 
 def test_fold_shape_of():
@@ -204,7 +275,7 @@ def test_fold_shape_of():
     for dtype in ["int32", "float32"]:
         zz = run_opt_pass(before(dtype), transform.FoldConstant())
         zexpected = run_opt_pass(expected(dtype), transform.InferType())
-        assert tvm.ir.structural_equal(zz, zexpected)
+        tvm.ir.assert_structural_equal(zz, zexpected)
 
 
 def test_fold_ndarray_size():
@@ -227,7 +298,7 @@ def test_fold_ndarray_size():
     for dtype in ["int32", "float32"]:
         zz = run_opt_pass(before(dtype), transform.FoldConstant())
         zexpected = run_opt_pass(expected(dtype), transform.InferType())
-        assert tvm.ir.structural_equal(zz, zexpected)
+        tvm.ir.assert_structural_equal(zz, zexpected)
 
 
 def test_fold_batch_norm():
@@ -272,7 +343,7 @@ def test_fold_batch_norm():
         mod = remove_bn_pass(mod)
 
     expect = run_infer_type(expected())
-    assert tvm.ir.structural_equal(mod["main"], expect)
+    tvm.ir.assert_structural_equal(mod["main"], expect)
 
 
 def test_fold_dropout():
@@ -295,15 +366,11 @@ def test_fold_dropout():
     with tvm.transform.PassContext(opt_level=3):
         after_mod = passes(before_mod)
 
-    assert tvm.ir.structural_equal(run_infer_type(before_mod["main"]), after_mod["main"])
+    tvm.ir.assert_structural_equal(run_infer_type(before_mod["main"]), after_mod["main"])
 
 
 if __name__ == "__main__":
-    test_fold_const()
-    test_fold_let()
-    test_fold_tuple()
-    test_fold_concat()
-    test_fold_shape_of()
-    test_fold_batch_norm()
-    test_fold_ndarray_size()
-    test_fold_dropout()
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

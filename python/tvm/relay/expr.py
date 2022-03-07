@@ -549,6 +549,9 @@ class StorageInfo(Node):
     type of the "virtual devices" the expressions are stored on,
     and the sizes of each storage element."""
 
+    def __init__(self, sids, dev_types, sizes):
+        self.__init_handle_by_constructor__(_ffi_api.StorageInfo, sids, dev_types, sizes)
+
     @property
     def storage_ids(self):
         return _ffi_api.StorageInfoStorageIds(self)
@@ -560,3 +563,13 @@ class StorageInfo(Node):
     @property
     def storage_sizes(self):
         return _ffi_api.StorageInfoStorageSizes(self)
+
+
+@tvm._ffi.register_object("relay.StaticMemoryPlan")
+class StaticMemoryPlan(Node):
+    """StaticMemoryPlan
+
+    The result of static memory planning."""
+
+    def __init__(self, expr_to_storage_info):
+        self.__init_handle_by_constructor__(_ffi_api.StaticMemoryPlan, expr_to_storage_info)

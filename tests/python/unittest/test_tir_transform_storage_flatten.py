@@ -16,7 +16,8 @@
 # under the License.
 import tvm
 from tvm import te
-from tvm.script import ty
+from tvm.driver.build_module import schedule_to_module
+from tvm.script import tir as T
 from tvm.relay import GlobalVar
 
 
@@ -30,14 +31,10 @@ def test_flatten2():
     s = te.create_schedule(A2.op)
     xo, xi = s[A2].split(A2.op.axis[0], 8)
     s[A1].compute_at(s[A2], xo)
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name="A")
     A2b = tvm.tir.decl_buffer(A2.shape, A2.dtype, name="A2")
 
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([Ab, A2b], stmt, {A: Ab, A2: A2b})
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(s, [Ab, A2b], binds={A: Ab, A2: A2b})
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
 
@@ -70,12 +67,8 @@ def test_flatten_storage_align():
 
     s = te.create_schedule(A2.op)
     s[A1].storage_align(A1.op.axis[0], 2, 1)
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A2], stmt, None)
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(s, [A, A2])
     mod = tvm.transform.Sequential(
         [tvm.tir.transform.StorageFlatten(64), tvm.tir.transform.Simplify()]
     )(mod)
@@ -85,28 +78,25 @@ def test_flatten_storage_align():
 
 
 def test_flatten_double_buffer():
-    dtype = "int64"
-    n = 100
-    m = 4
-    tx = te.thread_axis("threadIdx.x")
-    ib = tvm.tir.ir_builder.create()
-    A = ib.pointer("float32", name="A")
-    C = ib.pointer("float32", name="C")
-    ib.scope_attr(tx, "thread_extent", 1)
-    with ib.for_range(0, n) as i:
-        B = ib.allocate("float32", m, name="B", scope="shared")
-        with ib.new_scope():
-            ib.scope_attr(B.asobject(), "double_buffer_scope", 1)
-            with ib.for_range(0, m) as j:
-                B[j] = A[i * 4 + j]
-        with ib.for_range(0, m) as j:
-            C[j] = B[j] + 1
+    @tvm.script.ir_module
+    class ModFromScript:
+        @T.prim_func
+        def main(A_param: T.handle, C_param: T.handle):
+            A = T.match_buffer(A_param, (400,), "float32", strides=[1])
+            C = T.match_buffer(C_param, (4,), "float32", strides=[1])
+            T.func_attr({"from_legacy_te_schedule": True})
+            threadIdx_x = T.env_thread("threadIdx.x")
+            T.launch_thread(threadIdx_x, 1)
+            for i in T.serial(0, 100):
+                B = T.allocate([4], "float32", scope="shared", strides=[1])
+                with T.attr(B.data, "double_buffer_scope", 1):
+                    for j in T.serial(0, 4):
+                        B[j] = A[4 * i + j]
 
-    stmt = ib.get()
+                for j in T.serial(0, 4):
+                    C[j] = B[j] + 1.0
 
-    mod = tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([A, C], stmt).with_attr("from_legacy_te_schedule", True)
-    )
+    mod = ModFromScript
 
     with tvm.transform.PassContext(config={"tir.InjectDoubleBuffer": {"split_loop": 2}}):
         mod = tvm.transform.Sequential(
@@ -119,10 +109,10 @@ def test_flatten_double_buffer():
 
     stmt = mod["main"].body
     assert isinstance(stmt.body, tvm.tir.Allocate)
-    assert stmt.body.extents[0].value == 2
+    assert list(stmt.body.extents) == [8]
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C], stmt).with_attr("global_symbol", "db"))
-    f = tvm.tir.transform.ThreadSync("shared")(mod)["db"]
+    mod = tvm.tir.transform.ThreadSync("shared")(mod)
+    f = mod["main"]
 
     count = [0]
 
@@ -134,10 +124,10 @@ def test_flatten_double_buffer():
     assert count[0] == 4
 
 
-@tvm.script.tir
-def tir_func(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, [2, 2])
-    B = tir.match_buffer(a, [2, 2])
+@T.prim_func
+def tir_func(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [2, 2])
+    B = T.match_buffer(a, [2, 2])
     A[0, 1] = B[1, 1]
 
 

@@ -176,6 +176,12 @@ def _dense_legalize(attrs, inputs, arg_types):
 
     x_ = relay.nn.pad(x, pad_width=((0, dm), (0, dk))) if dm or dk else x
     y_ = relay.nn.pad(y, pad_width=((0, dn), (0, dk))) if dn or dk else y
+
+    # If units is explicitly specified, it is used to compute the output shape.
+    # We need to update units after padding to prevent a type error.
+    if attrs["units"] is not None:
+        new_attrs["units"] = N + dn
+
     out_ = relay.nn.dense(x_, y_, **new_attrs)
     out = (
         relay.strided_slice(out_, begin=[0, 0], end=[x.value for x in output_tensor.shape])

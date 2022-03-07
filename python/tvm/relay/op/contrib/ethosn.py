@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument
-"""Arm(R) Ethos(TM) -N NPU supported operators."""
+"""Arm(R) Ethos(TM)-N NPU supported operators."""
 from enum import Enum
 
 import tvm.ir
@@ -46,7 +46,7 @@ def ethosn_available():
     return Available.SW_AND_HW if hw else Available.SW_ONLY
 
 
-def partition_for_ethosn(mod, params=None, **opts):
+def partition_for_ethosn77(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
     operators to Arm Ethos-N NPU.
 
@@ -61,6 +61,49 @@ def partition_for_ethosn(mod, params=None, **opts):
     -------
     ret : annotated and partitioned module.
     """
+    if opts:
+        tops = opts.get("tops", None)
+        ple_ratio = opts.get("ple_ratio", None)
+        sram_size = opts.get("sram_size", None)
+        if tops or ple_ratio or sram_size:
+            raise ValueError(
+                "Setting tops, ple_ratio or sram_size has no effect when targeting Ethos(TM)-N77"
+            )
+
+    if params:
+        mod["main"] = bind_params_by_name(mod["main"], params)
+
+    seq = tvm.transform.Sequential(
+        [
+            transform.InferType(),
+            transform.MergeComposite(pattern_table()),
+            transform.AnnotateTarget("ethos-n"),
+            transform.MergeCompilerRegions(),
+            transform.PartitionGraph(),
+        ]
+    )
+
+    return seq(mod)
+
+
+def partition_for_ethosn78(mod, params=None, **opts):
+    """Partition the graph greedily offloading supported
+    operators to Arm Ethos-N NPU.
+
+    Parameters
+    ----------
+    mod : Module
+        The module to run passes on.
+    params : Optional[Dict[str, NDArray]]
+        Constant input parameters.
+
+    Returns
+    -------
+    ret : annotated and partitioned module.
+    """
+    if not opts or opts.get("variant", "").lower() != "ethos-n78":
+        raise ValueError("When targeting Ethos(TM)-N78, -variant=Ethos-N78 should be set.")
+
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
 
@@ -114,6 +157,20 @@ def pattern_table():
         pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
         return pattern
 
+    def qnn_mean_pattern():
+        pattern = is_op("cast")(wildcard())
+        pattern = is_op("mean")(pattern)
+        pattern = is_op("qnn.requantize")(
+            pattern, is_constant(), is_constant(), is_constant(), is_constant()
+        )
+        return pattern
+
+    def qnn_tanh_pattern():
+        pattern = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+        pattern = is_op("tanh")(pattern)
+        pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
+        return pattern
+
     def check_conv2d(extract):
         """Check if a conv2d is supported by Ethos-N."""
         if not ethosn_available():
@@ -135,21 +192,34 @@ def pattern_table():
 
         return support.avg_pool2d(extract)
 
+    def check_mean(extract):
+        """Check if mean is supported by Ethos-N."""
+        if not ethosn_available():
+            return False
+
+        return support.mean(extract)
+
     def check_sigmoid(extract):
         """Check if a sigmoid is supported by Ethos-N."""
         if not ethosn_available():
             return False
 
-        if extract.attrs.out_dtype != "uint8":
+        return support.sigmoid(extract)
+
+    def check_tanh(extract):
+        """Check if tanh is supported by Ethos-N."""
+        if not ethosn_available():
             return False
 
-        return support.sigmoid(extract)
+        return support.tanh(extract)
 
     return [
         ("ethos-n.qnn_conv2d", qnn_conv_pattern(), check_conv2d),
         ("ethos-n.qnn_avg_pool2d", qnn_avg_pool2d_pattern(), check_avg_pool2d),
         ("ethos-n.qnn_sigmoid", qnn_sigmoid_pattern(), check_sigmoid),
         ("ethos-n.qnn_fc", qnn_fc_pattern(), check_fc),
+        ("ethos-n.qnn_mean", qnn_mean_pattern(), check_mean),
+        ("ethos-n.qnn_tanh", qnn_tanh_pattern(), check_tanh),
     ]
 
 

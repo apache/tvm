@@ -24,6 +24,10 @@
 #ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_EXECUTOR_LOAD_JSON_H_
 #define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_EXECUTOR_LOAD_JSON_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <ctype.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -99,5 +103,9 @@ tvm_crt_error_t JSONReader_Create(const char* is, JSONReader* reader);
  * \return kTvmErrorNoError on success.
  */
 tvm_crt_error_t JSONReader_Release(JSONReader* reader);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_EXECUTOR_LOAD_JSON_H_

@@ -121,6 +121,9 @@ class InstructionKindNode : public runtime::Object {
     // not visited: f_attrs_from_json
   }
 
+  /*! \brief Checks if the instruction kind is EnterPostproc */
+  bool IsPostproc() const;
+
   static constexpr const char* _type_key = "tir.InstructionKind";
   TVM_DECLARE_FINAL_OBJECT_INFO(InstructionKindNode, runtime::Object);
 };
