@@ -29,19 +29,19 @@ set -u
 export TVM_PATH=`pwd`
 export PYTHONPATH="${TVM_PATH}/python"
 
-BUILD_DIR="${TVM_PATH}/build"
-export TVM_PYTEST_RESULT_DIR="${BUILD_DIR}/pytest-results"
-rm -f "${BUILD_DIR}"/failed_tests
+export TVM_PYTEST_RESULT_DIR="${TVM_PATH}/build/pytest-results"
 mkdir -p "${TVM_PYTEST_RESULT_DIR}"
+pytest_errors=()
 
 # This ensures that all pytest invocations that are run through run_pytest will
 # complete and errors will be reported once Bash is done executing all scripts.
 function cleanup() {
-    if [ -f "${BUILD_DIR}"/failed_tests ]; then
-        echo "These pytest invocations failed."
-        echo "The results can be found in the Jenkins 'tests' tab or by scrolling up through the raw logs here."
+    if [ "${#pytest_errors[@]}" -gt 0 ]; then
+        echo "These pytest invocations failed, the results can be found in the Jenkins 'Tests' tab or by scrolling up through the raw logs here."
         echo ""
-        cat "${BUILD_DIR}"/failed_tests
+        for e in "${pytest_errors[@]}"; do
+            echo "  ${e}"
+        done
         exit 1
     fi
 }
@@ -64,6 +64,6 @@ function run_pytest() {
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${suite_name}.xml" \
            "--junit-prefix=${ffi_type}" \
            "$@")" ]; then
-        echo "  pytest run for ${suite_name} failed" >> "${BUILD_DIR}"/failed_tests
+        pytest_errors+=("${suite_name}")
     fi
 }
