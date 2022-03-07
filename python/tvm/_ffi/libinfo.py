@@ -17,10 +17,6 @@
 """Library information."""
 import sys
 import os
-from pathlib import Path
-
-
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
 def split_env_var(env_var, split):
@@ -72,10 +68,6 @@ def get_dll_directories():
     dll_path.append(os.path.join(ffi_dir, ".."))
     # Default cmake build directory
     dll_path.append(os.path.join(source_dir, "build"))
-
-    # Other possible build directories
-    dll_path += list(REPO_ROOT.glob("build-*"))
-
     dll_path.append(os.path.join(source_dir, "build", "Release"))
     # Default make build directory
     dll_path.append(os.path.join(source_dir, "lib"))

@@ -81,8 +81,8 @@ def cmd(commands: List[Any], **kwargs: Any):
     return proc
 
 
-def get_build_dir(type: str) -> str:
-    build_dir = REPO_ROOT / f"build-{type}"
+def get_build_dir(name: str) -> str:
+    build_dir = REPO_ROOT / f"build-{name}"
     return str(build_dir.relative_to(REPO_ROOT))
 
 
@@ -214,7 +214,8 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
     except KeyboardInterrupt:
         cmd(["docker", "stop", "--time", "1", name])
     finally:
-        script_file.unlink()
+        if os.getenv("DEBUG", "0") != "1":
+            script_file.unlink()
 
 
 def docs(
