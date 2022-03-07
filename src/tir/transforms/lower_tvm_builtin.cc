@@ -85,6 +85,8 @@ class StackSizeChecker : public StmtExprVisitor {
     } else if (op->op.same_as(builtin::tvm_stack_make_array())) {
       return MakeArray(op);
     } else if (op->op.same_as(builtin::mem_copy())) {
+      // The 3 arguments to mem_copy require 4 arguments to
+      // tvm_call_packed, so we cannot re-use MakeCallPacked here.
       return MakeMemCopy(op);
     } else {
       return StmtExprVisitor::VisitExpr_(op);
