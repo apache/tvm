@@ -1059,11 +1059,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // BufferLoad
 void BufferLoadNode::LegalizeDType() {
-  int index_lanes = 1;
-  for (const auto& index : indices) {
-    index_lanes *= index.dtype().lanes();
+  for (size_t i = 0; i < indices.size(); i++) {
+    int lanes = indices[i].dtype().lanes();
+    ICHECK((lanes == 1) || (i + 1 == indices.size()))
+        << "Only the last index of a buffer access may have multiple lanes.";
   }
 
+  int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
   int buffer_lanes = buffer->dtype.lanes();
 
   this->dtype = buffer->dtype.with_lanes(index_lanes * buffer_lanes);

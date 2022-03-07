@@ -676,6 +676,20 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
       << "-dimensional, cannot be indexed with the " << indices.size()
       << "-dimensional indices provided.";
 
+  for (size_t i = 0; i < indices.size(); i++) {
+    int lanes = indices[i].dtype().lanes();
+    ICHECK((lanes == 1) || (i + 1 == indices.size()))
+        << "Only the last index of a buffer access may have multiple lanes.";
+  }
+
+  int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
+  int buffer_lanes = buffer->dtype.lanes();
+
+  ICHECK_EQ(index_lanes * buffer_lanes, value.dtype().lanes())
+      << "Cannot store value with " << value.dtype().lanes() << ", expected value with "
+      << index_lanes * buffer_lanes << " (" << index_lanes << " index lanes * " << buffer_lanes
+      << " buffer element lanes)";
+
   ObjectPtr<BufferStoreNode> node = make_object<BufferStoreNode>();
   node->buffer = std::move(buffer);
   node->value = std::move(value);

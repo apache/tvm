@@ -1205,10 +1205,12 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       var_info.element_dtype = value_dtype.element_of();
     }
 
-    int index_lanes = 1;
-    for (const auto& index : indices) {
-      index_lanes *= index.dtype().lanes();
+    for (size_t i = 0; i < indices.size(); i++) {
+      int lanes = indices[i].dtype().lanes();
+      ICHECK((lanes == 1) || (i + 1 == indices.size()))
+          << "Only the last index of a buffer access may have multiple lanes.";
     }
+    int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
 
     DataType access_dtype = value_dtype;
 
