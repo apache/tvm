@@ -117,6 +117,12 @@ function(add_android_paths)
     ${HEXAGON_RPCMEM_ROOT}/inc
     ${HEXAGON_REMOTE_ROOT}
   )
+  target_include_directories(tvm_runtime_objs SYSTEM PUBLIC
+    ${HEXAGON_SDK_INCLUDES}
+    ${HEXAGON_RPCMEM_ROOT}/inc
+    ${HEXAGON_REMOTE_ROOT}
+  )
+  find_library(CDSPRPC_LIBRARY NAMES cdsprpc HINTS "${HEXAGON_REMOTE_ROOT}" NO_CMAKE_FIND_ROOT_PATH)
   link_directories(${HEXAGON_REMOTE_ROOT})
 endfunction()
 
@@ -172,6 +178,7 @@ if(USE_HEXAGON_DEVICE)
       "${TVMRT_SOURCE_DIR}/hexagon/android/*.cc"
       "${TVMRT_SOURCE_DIR}/hexagon/android/sim/*.cc"
     )
+    target_link_libraries(tvm PRIVATE "-lwrapper")
     target_link_libraries(tvm_runtime PRIVATE "-lwrapper")
 
     ExternalProject_Add(sim_dev
@@ -195,7 +202,8 @@ if(USE_HEXAGON_DEVICE)
       "${TVMRT_SOURCE_DIR}/hexagon/android/target/*.cc"
     )
     # Hexagon runtime uses __android_log_print, which is in liblog.
-    target_link_libraries(tvm_runtime PRIVATE dl log cdsprpc)
+    target_link_libraries(tvm PRIVATE dl log ${CDSPRPC_LIBRARY})
+    target_link_libraries(tvm_runtime PRIVATE dl log ${CDSPRPC_LIBRARY})
 
   elseif(BUILD_FOR_HEXAGON)
     invalid_device_value_for("Hexagon")
@@ -238,7 +246,8 @@ if(USE_HEXAGON_RPC)
     list(APPEND RUNTIME_HEXAGON_SRCS
       "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_stub.c"
     )
-    target_link_libraries(tvm_runtime PRIVATE cdsprpc)
+    target_link_libraries(tvm PRIVATE dl log ${CDSPRPC_LIBRARY})
+    target_link_libraries(tvm_runtime PRIVATE dl log ${CDSPRPC_LIBRARY})
 
   elseif(BUILD_FOR_HEXAGON)
     # Hexagon part
