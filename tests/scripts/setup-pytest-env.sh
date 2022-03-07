@@ -36,6 +36,7 @@ pytest_errors=()
 # This ensures that all pytest invocations that are run through run_pytest will
 # complete and errors will be reported once Bash is done executing all scripts.
 function cleanup() {
+    set +x
     if [ "${#pytest_errors[@]}" -gt 0 ]; then
         echo "These pytest invocations failed, the results can be found in the Jenkins 'Tests' tab or by scrolling up through the raw logs here."
         echo ""
@@ -44,6 +45,7 @@ function cleanup() {
         done
         exit 1
     fi
+    set -x
 }
 trap cleanup 0
 
@@ -59,11 +61,13 @@ function run_pytest() {
     fi
 
     suite_name="${test_suite_name}-${ffi_type}"
-    if ! [ "$(TVM_FFI=${ffi_type} python3 -m pytest \
+    exit_code=0
+    TVM_FFI=${ffi_type} python3 -m pytest \
            -o "junit_suite_name=${suite_name}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${suite_name}.xml" \
            "--junit-prefix=${ffi_type}" \
-           "$@")" ]; then
-        pytest_errors+=("${suite_name}")
+           "$@" || exit_code=$?
+    if [ "$exit_code" -ne "0" ]; then
+        pytest_errors+=("${suite_name}: $@")
     fi
 }
