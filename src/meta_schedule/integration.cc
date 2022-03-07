@@ -28,17 +28,24 @@ namespace meta_schedule {
 /**************** Utility functions ****************/
 
 template <class FunctionType>
-bool HasOnlyOneFunction(const IRModule& mod) {
+Optional<FunctionType> GetOnlyOneFunction(const IRModule& mod) {
   if (mod->functions.size() != 1) {
-    return false;
+    return NullOpt;
   }
   for (const auto& kv : mod->functions) {
     const BaseFunc& func = kv.second;
     if (!func->IsInstance<typename FunctionType::ContainerType>()) {
-      return false;
+      return NullOpt;
+    } else {
+      return Downcast<FunctionType>(func);
     }
   }
-  return true;
+  return NullOpt;
+}
+
+template <class FunctionType>
+bool HasOnlyOneFunction(const IRModule& mod) {
+  return GetOnlyOneFunction<FunctionType>(mod).defined();
 }
 
 /**************** ExtractedTask ****************/
@@ -129,14 +136,17 @@ Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRMod
   if (database->HasWorkload(prim_mod)) {
     Array<TuningRecord> records = database->GetTopK(database->CommitWorkload(prim_mod), 1);
     if (records.size() == 1) {
-      LOG(INFO) << "Applied history best for " << task_name << ".";
+      LOG(INFO) << "Applied history best for: " << task_name;
       tir::Schedule sch =
           tir::Schedule::Traced(records[0]->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
                                 /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
       records[0]->trace->ApplyToSchedule(sch, false);
-      return sch->mod();
+      tir::PrimFunc func = GetOnlyOneFunction<tir::PrimFunc>(sch->mod()).value();
+      LOG(INFO) << "\n" << tir::AsTVMScript(func);
+      return func;
     }
   }
+  LOG(WARNING) << "Cannot find workload: " << task_name << "\n" << tir::AsTVMScript(prim_mod);
   return NullOpt;
 }
 

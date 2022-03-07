@@ -20,13 +20,15 @@ from typing import Callable, Dict, List, Optional, Union
 
 from tvm._ffi import register_object
 from tvm.ir import IRModule, transform
-from tvm.relay import Any, Function as RelayFunc, vm
+from tvm.relay import Any
+from tvm.relay import Function as RelayFunc
+from tvm.relay import vm
 from tvm.runtime import NDArray, Object
 from tvm.target import Target
 from tvm.tir import PrimFunc
 
-from .database import Database
 from . import _ffi_api
+from .database import Database
 
 
 @register_object("meta_schedule.ExtractedTask")
@@ -202,10 +204,8 @@ def extract_task_from_relay(
     params: Optional[Dict[str, NDArray]] = None,
     *,
     opt_level: int = 3,
-    pass_config: Dict[str, Any] = {
-        "relay.backend.use_meta_schedule": True,
-    },
-    disabled_pass: List[str] = [],
+    pass_config: Optional[Dict[str, Any]] = None,
+    disabled_pass: Optional[List[str]] = None,
 ) -> List[ExtractedTask]:
     """Extract tuning tasks from a relay program.
 
@@ -219,9 +219,9 @@ def extract_task_from_relay(
         The associated parameters of the program
     opt_level : int
         The optimization level of the compiler
-    pass_config : Dict[str, Any]
+    pass_config : Optional[Dict[str, Any]]
         The pass config of the compiler
-    disabled_pass : List[str]
+    disabled_pass : Optional[List[str]]
         The list of disabled passes of the compiler
 
     Returns
@@ -247,6 +247,11 @@ def extract_task_from_relay(
         thread = threading.Thread(target=func)
         thread.start()
         thread.join()
+
+    if disabled_pass is None:
+        disabled_pass = []
+    if pass_config is None:
+        pass_config = {"relay.backend.use_meta_schedule": True}
 
     env = TaskExtraction()
     if isinstance(mod, RelayFunc):

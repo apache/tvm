@@ -53,37 +53,41 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 @tvm.script.ir_module
 class LoweredModule:
     @T.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    def main(
+        A: T.Buffer[(16384,), "float32"],
+        B: T.Buffer[(16384,), "float32"],
+        C: T.Buffer[(16384,), "float32"],
+    ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "from_legacy_te_schedule": True, "tir.noalias": True})
-        A = T.match_buffer(a, [128, 128])
-        B = T.match_buffer(b, [128, 128])
-        C = T.match_buffer(c, [128, 128])
+        T.preflattened_buffer(A, [128, 128], data=A.data)
+        T.preflattened_buffer(B, [128, 128], data=B.data)
+        T.preflattened_buffer(C, [128, 128], data=C.data)
         # body
         for x, y in T.grid(128, 128):
-            C.data[x * 128 + y] = 0.0
+            C[x * 128 + y] = 0.0
             for k in T.serial(0, 128):
-                C.data[x * 128 + y] = T.load("float32", C.data, x * 128 + y) + T.load(
-                    "float32", A.data, x * 128 + k
-                ) * T.load("float32", B.data, y * 128 + k)
+                C[x * 128 + y] = C[x * 128 + y] + A[x * 128 + k] * B[y * 128 + k]
 
 
 @tvm.script.ir_module
 class LoweredTIRModule:
     @T.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    def main(
+        A: T.Buffer[(16384,), "float32"],
+        B: T.Buffer[(16384,), "float32"],
+        C: T.Buffer[(16384,), "float32"],
+    ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = T.match_buffer(a, [128, 128])
-        B = T.match_buffer(b, [128, 128])
-        C = T.match_buffer(c, [128, 128])
+        T.preflattened_buffer(A, [128, 128], data=A.data)
+        T.preflattened_buffer(B, [128, 128], data=B.data)
+        T.preflattened_buffer(C, [128, 128], data=C.data)
         # body
         for x, y in T.grid(128, 128):
-            C.data[x * 128 + y] = 0.0
+            C[x * 128 + y] = 0.0
             for k in T.serial(0, 128):
-                C.data[x * 128 + y] = T.load("float32", C.data, x * 128 + y) + T.load(
-                    "float32", A.data, x * 128 + k
-                ) * T.load("float32", B.data, y * 128 + k)
+                C[x * 128 + y] = C[x * 128 + y] + A[x * 128 + k] * B[y * 128 + k]
 
 
 def test_lower_build_te_schedule():

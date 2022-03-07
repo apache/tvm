@@ -33,12 +33,13 @@
 #include <tvm/runtime/c_runtime_api.h>
 #ifdef __cplusplus
 #include <tvm/runtime/metadata_base.h>
-#endif
 #include <tvm/support/span.h>
+#endif
 
 // Version number recorded in emitted artifacts for runtime checking.
 #define TVM_METADATA_VERSION 1
 
+#ifdef __cplusplus
 namespace tvm {
 namespace runtime {
 namespace metadata {
@@ -51,7 +52,6 @@ static const constexpr int64_t kMetadataVersion = TVM_METADATA_VERSION;
 }  // namespace runtime
 }  // namespace tvm
 
-#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -75,6 +75,13 @@ struct TVMMetadata {
   const struct TVMTensorInfo* outputs;
   /*! \brief Number of elements in `outputs` array. */
   int64_t num_outputs;
+  /*! \brief Memory Pools needed by the AOT main function.
+   * The order of the elements is the same as in the arguments to run_model. That is to say,
+   * this array specifies the last `num_pools` arguments to run_model.
+   */
+  const struct TVMTensorInfo* pools;
+  /*! \brief Number of elements in `pools` array. */
+  int64_t num_pools;
   /*! \brief Name of the model, as passed to tvm.relay.build. */
   const char* mod_name;
 };
@@ -114,6 +121,8 @@ class MetadataNode : public MetadataBaseNode {
   ArrayAccessor<struct TVMTensorInfo, TensorInfo> inputs();
   inline int64_t num_outputs() const { return data_->num_outputs; }
   ArrayAccessor<struct TVMTensorInfo, TensorInfo> outputs();
+  inline int64_t num_pools() const { return data_->num_pools; }
+  ArrayAccessor<struct TVMTensorInfo, TensorInfo> pools();
   inline ::tvm::runtime::String mod_name() const { return ::tvm::runtime::String(data_->mod_name); }
   const struct ::TVMMetadata* data() const { return data_; }
   TVM_DECLARE_FINAL_OBJECT_INFO(MetadataNode, MetadataBaseNode);

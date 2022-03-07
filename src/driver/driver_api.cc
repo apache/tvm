@@ -275,6 +275,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.insert(pass_list.end(), user_lower_phase2.begin(), user_lower_phase2.end());
 
   // PHASE 3
+  pass_list.push_back(tir::transform::RenormalizeSplitPattern());
   pass_list.push_back(tir::transform::Simplify());
   pass_list.push_back(tir::transform::RemoveNoOp());
   pass_list.push_back(tir::transform::RewriteUnsafeSelect());

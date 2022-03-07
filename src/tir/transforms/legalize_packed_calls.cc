@@ -75,6 +75,12 @@ class PackedCallLegalizer : public StmtExprMutator {
             new_stmts.push_back(tir::Evaluate(
                 tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
                                {sid_array, 0, tir::builtin::kArrData, call->args[i]})));
+            new_stmts.push_back(tir::Evaluate(
+                tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
+                               {sid_array, 0, tir::builtin::kArrDeviceType, kDLCPU})));
+            new_stmts.push_back(tir::Evaluate(
+                tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
+                               {sid_array, 0, tir::builtin::kArrDeviceId, 0})));
             packed_args.push_back(sid_array);
           }
         }

@@ -24,7 +24,7 @@
  */
 
 // TODO(mbs): Revisit cpp unit test layout or setup include dir at root of src/
-#include "../../../src/relay/transforms/device_domains.h"
+#include "../../../../src/relay/transforms/device_domains.h"
 
 #include <gtest/gtest.h>
 #include <tvm/parser/parser.h>

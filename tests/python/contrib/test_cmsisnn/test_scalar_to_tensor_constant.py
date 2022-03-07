@@ -16,8 +16,8 @@
 # under the License.
 
 """CMSIS-NN integration tests: scalar_to_tensor_constant pass"""
-import itertools
-import math
+import sys
+
 import numpy as np
 import pytest
 import tvm
@@ -181,6 +181,39 @@ def test_two_tensor_constants():
     assert (
         check_for_constants.num_constants_ == 2
     ), "Scalar constant wasn't converted into tensor constant"
+
+
+@tvm.testing.requires_cmsisnn
+def test_non_cmsisnn_ext_func():
+    """Non CMSISNN functions should not be altered."""
+
+    def get_mod():
+        x1 = relay.var("x1", shape=None)
+        x2 = relay.var("x2", shape=None)
+        z1 = x1 + x2
+        lf = relay.Function([x1, x2], z1, relay.TensorType((), "float32"))
+        lf = set_composite_func_attr(lf, "cmsis-nn.qnn_add")
+
+        y0 = relay.expr.const(5, "float32")
+        y1 = relay.expr.const(3, "float32")
+        c0 = relay.Call(lf, [y0, y1])
+        ef = relay.Function([], c0, relay.TensorType((), "float32"))
+
+        ev = relay.GlobalVar("external_function")
+        ef = set_external_func_attr(ef, "foo", ev.name_hint)
+        c = relay.Call(ev, [])
+        mf = relay.Function([], c, relay.TensorType((), "float32"))
+        mv = relay.GlobalVar("main")
+
+        mod = tvm.IRModule()
+        mod[ev] = ef
+        mod[mv] = mf
+        mod = relay.transform.InferType()(mod)
+        return mod
+
+    expected = get_mod()["external_function"].body
+    actual = ScalarToTensorConstants()(get_mod())["external_function"].body
+    assert tvm.ir.structural_equal(expected, actual)
 
 
 if __name__ == "__main__":

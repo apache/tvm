@@ -35,7 +35,8 @@ def test_vectorize_loop():
 
     assert isinstance(stmt, tvm.tir.For)
     assert not isinstance(stmt.body, tvm.tir.For)
-    assert isinstance(stmt.body.index, tvm.tir.Ramp)
+    assert len(stmt.body.indices) == 1
+    assert isinstance(stmt.body.indices[0], tvm.tir.Ramp)
     assert isinstance(stmt.body.value, tvm.tir.Broadcast)
 
 
@@ -55,7 +56,8 @@ def test_vectorize_vector():
 
     assert isinstance(stmt, tvm.tir.For)
     assert not isinstance(stmt.body, tvm.tir.For)
-    assert isinstance(stmt.body.index, tvm.tir.Ramp)
+    assert len(stmt.body.indices) == 1
+    assert isinstance(stmt.body.indices[0], tvm.tir.Ramp)
     assert isinstance(stmt.body.value, tvm.tir.Broadcast)
 
 
@@ -76,7 +78,8 @@ def test_vectorize_with_if():
     stmt = tvm.tir.transform.VectorizeLoop()(mod)["main"].body
 
     assert isinstance(stmt, tvm.tir.IfThenElse)
-    assert isinstance(stmt.then_case.index, tvm.tir.Ramp)
+    assert len(stmt.then_case.indices) == 1
+    assert isinstance(stmt.then_case.indices[0], tvm.tir.Ramp)
     assert isinstance(stmt.then_case.value, tvm.tir.Add)
     assert stmt.then_case.value.dtype == "float32x4"
     assert isinstance(stmt.else_case, tvm.tir.For)

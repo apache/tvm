@@ -119,6 +119,10 @@ void CodeGenSourceBase::PrintType(DataType type, std::ostream& os) {  // NOLINT(
     os << "void*";
     return;
   }
+  if (type.is_void()) {
+    os << "void";
+    return;
+  }
   if (type.is_float()) {
     if (type.bits() == 32) {
       os << "float";

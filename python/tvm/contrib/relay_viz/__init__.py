@@ -27,6 +27,10 @@ from .terminal import (
     TermPlotter,
     TermVizParser,
 )
+from .dot import (
+    DotPlotter,
+    DotVizParser,
+)
 
 
 class RelayVisualizer:
@@ -69,12 +73,16 @@ class RelayVisualizer:
 
         node_to_id = {}
         # callback to generate an unique string-ID for nodes.
+        # node_count_offset ensure each node ID is still unique across subgraph.
+        node_count_offset = 0
+
         def traverse_expr(node):
             if node in node_to_id:
                 return
-            node_to_id[node] = str(len(node_to_id))
+            node_to_id[node] = str(len(node_to_id) + node_count_offset)
 
         for name in graph_names:
+            node_count_offset += len(node_to_id)
             node_to_id.clear()
             relay.analysis.post_order_visit(relay_mod[name], traverse_expr)
             graph = self._plotter.create_graph(name)

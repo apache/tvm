@@ -45,6 +45,7 @@
 #include <vector>
 
 #include "../../runtime/meta_data.h"
+#include "../../target/metadata.h"
 
 namespace tvm {
 namespace relay {
@@ -63,8 +64,12 @@ class ExecutorCodegenMetadataNode : public Object {
  public:
   /*! \brief input information for the main function */
   Array<tir::Var> inputs;
+  /*! \brief input tensor type information */
+  Array<TensorType> input_tensor_types;
   /*! \brief output information for the main function */
   Array<String> outputs;
+  /*! \brief output tensor type information */
+  Array<TensorType> output_tensor_types;
   /*! \brief pool information for the main function */
   Array<tir::Var> pools;
   /*! \brief device contexts information for the main function */
@@ -82,8 +87,10 @@ class ExecutorCodegenMetadataNode : public Object {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("inputs", &inputs);
-    v->Visit("pools", &pools);
+    v->Visit("input_tensor_types", &input_tensor_types);
     v->Visit("outputs", &outputs);
+    v->Visit("output_tensor_types", &output_tensor_types);
+    v->Visit("pools", &pools);
     v->Visit("devices", &devices);
     v->Visit("executor", &executor);
     v->Visit("unpacked_api", &unpacked_api);
@@ -99,8 +106,9 @@ class ExecutorCodegenMetadataNode : public Object {
  */
 class ExecutorCodegenMetadata : public ObjectRef {
  public:
-  TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<tir::Var> pools,
-                                  Array<String> devices, Array<String> outputs, String executor,
+  TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<TensorType> input_tensor_types,
+                                  Array<String> outputs, Array<TensorType> output_tensor_types,
+                                  Array<tir::Var> pools, Array<String> devices, String executor,
                                   String mod_name, String interface_api = "packed",
                                   bool unpacked_api = false,
                                   Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
@@ -586,6 +594,14 @@ Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
  * \param IRModule after lowering by LowerTEPass.
  */
 void UpdateAutoSchedulerOpWeights(const IRModule& module);
+
+/*!
+ * \brief Extract shape from expr to vector<int64_t>
+ *
+ * \param shape
+ * \return std::vector<int64_t>
+ */
+std::vector<int64_t> ShapeToJSON(tvm::Array<IndexExpr> shape);
 
 }  // namespace backend
 }  // namespace relay

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import sys
 import datetime
 import itertools
 import json
@@ -153,6 +154,20 @@ AOT_CORSTONE300_RUNNER = AOTTestRunner(
     },
 )
 
+AOT_USMP_CORSTONE300_RUNNER = AOTTestRunner(
+    makefile="corstone300",
+    prologue="""
+    uart_init();
+    """,
+    includes=["uart.h"],
+    pass_config={
+        "relay.ext.cmsisnn.options": {
+            "mcpu": "cortex-m55",
+        },
+        "tir.usmp.enable": True,
+    },
+)
+
 
 def mangle_name(mod_name, name):
     mod_name = mangle_module_name(mod_name)
@@ -225,35 +240,44 @@ def parametrize_aot_options(test):
     )(test)
 
 
-def subprocess_log_output(cmd, cwd, logfile):
+def subprocess_check_log_output(cmd, cwd, logfile):
     """
     This method runs a process and logs the output to both a log file and stdout
     """
     _LOG.info("Execute (%s): %s", cwd, cmd)
     cmd_base = cmd[0] if isinstance(cmd, (list, tuple)) else cmd.split(" ", 1)[0]
     proc = subprocess.Popen(
-        cmd, cwd=cwd, shell=True, bufsize=0, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        cmd,
+        cwd=cwd,
+        shell=True,
+        bufsize=0,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        encoding="utf-8",
     )
-    with open(logfile, "ab") as f:
-        f.write(
-            bytes(
-                "\n"
-                + "-" * 80
-                + f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Execute ({cwd}): {cmd}\n"
-                + "-" * 80,
-                "utf-8",
-            )
+    stdout = ""
+    with open(logfile, "a") as f:
+        msg = (
+            "\n"
+            + "-" * 80
+            + f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Execute ({cwd}): {cmd}\n"
+            + "-" * 80
         )
+        f.write(msg)
+        stdout += msg + "\n"
         while True:
             data = proc.stdout.readline()
-            _LOG.debug("%s: %s", cmd_base, str(data, "utf-8", "replace").rstrip("\n"))
+            stdout += data
+            _LOG.debug("%s: %s", cmd_base, data.rstrip("\n"))
             f.write(data)
 
             # process is done if there is no data and the result is valid
             if not data:  # EOF
                 break
 
-    return proc.wait()
+    proc.wait()
+    if proc.returncode != 0:
+        raise RuntimeError(f"Subprocess failed: {cmd}\nstdout:\n{stdout}")
 
 
 # TODO: Move to linker script with list of symbols rather than coding into source
@@ -812,16 +836,23 @@ def run_and_check(
     compile_command = f"{make_command} aot_test_runner"
     if verbose:
         print("Compile command:\n", compile_command)
-    ret = subprocess_log_output(compile_command, ".", compile_log_path)
-    assert ret == 0
+    subprocess_check_log_output(compile_command, ".", compile_log_path)
 
     # Verify that runs fine
     run_log_path = os.path.join(build_path, "test_run.log")
     run_command = f"{make_command} run"
     if verbose:
         print("Run command:\n", run_command)
-    ret = subprocess_log_output(run_command, build_path, run_log_path)
-    assert ret == 0
+
+    # TODO(lhutton1) This is a quick and dirty work around to help temporarily reduce
+    # the flakyness of the tests. Will remove once #10300 and #10314 are resolved.
+    try:
+        subprocess_check_log_output(run_command, build_path, run_log_path)
+    except RuntimeError as err:
+        print("Failed to run the module, having a second attempt...", file=sys.stderr)
+        print(err, file=sys.stderr)
+        subprocess_check_log_output(run_command, build_path, run_log_path)
+
     with open(run_log_path) as run_log:
         assert AOT_SUCCESS_TOKEN in run_log.read()
 

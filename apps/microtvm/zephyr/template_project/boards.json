@@ -1,11 +1,19 @@
 {
+    "b_u585i_iot02a": {
+        "board": "b_u585i_iot02a",
+        "model": "stm32u5xx",
+        "is_qemu": false,
+        "fpu": true,
+        "vid_hex": "0483",
+        "pid_hex": "374e"
+    },
     "mimxrt1050_evk": {
         "board": "mimxrt1050_evk",
         "model": "imxrt10xx",
         "is_qemu": false,
         "fpu": true,
-        "vid_hex": "",
-        "pid_hex": ""
+        "vid_hex": "1366",
+        "pid_hex": "0105"
     },
     "mps2_an521": {
         "board": "mps2_an521",

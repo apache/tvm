@@ -283,11 +283,11 @@ void print_metric(std::ostream& os, ObjectRef o) {
        << "\"" << Downcast<String>(o) << "\""
        << "}";
   } else if (const CountNode* n = o.as<CountNode>()) {
-    os << "{\"count\":" << std::to_string(n->value) << "}";
+    os << "{\"count\":" << n->value << "}";
   } else if (const DurationNode* n = o.as<DurationNode>()) {
-    os << "{\"microseconds\":" << std::to_string(n->microseconds) << "}";
+    os << "{\"microseconds\":" << std::setprecision(17) << std::fixed << n->microseconds << "}";
   } else if (const PercentNode* n = o.as<PercentNode>()) {
-    os << "{\"percent\":" << std::to_string(n->percent) << "}";
+    os << "{\"percent\":" << std::setprecision(17) << std::fixed << n->percent << "}";
   } else {
     LOG(FATAL) << "Unprintable type " << o->GetTypeKey();
   }

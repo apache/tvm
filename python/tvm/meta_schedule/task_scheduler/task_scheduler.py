@@ -16,7 +16,7 @@
 # under the License.
 """Auto-tuning Task Scheduler"""
 
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from tvm._ffi import register_object
 from tvm.meta_schedule.measure_callback.measure_callback import MeasureCallback
@@ -28,7 +28,6 @@ from ..database import Database
 from ..cost_model import CostModel
 from ..tune_context import TuneContext
 from .. import _ffi_api
-from ..utils import check_override
 
 
 @register_object("meta_schedule.TaskScheduler")
@@ -70,7 +69,17 @@ class TaskScheduler(Object):
         """
         return _ffi_api.TaskSchedulerNextTaskId(self)  # type: ignore # pylint: disable=no-member
 
-    def _initialize_task(self, task_id: int) -> None:
+    def join_running_task(self, task_id: int) -> None:
+        """Wait until the task is finished.
+
+        Parameters
+        ----------
+        task_id : int
+            The task id to be joined.
+        """
+        _ffi_api.TaskSchedulerJoinRunningTask(self, task_id)  # type: ignore # pylint: disable=no-member
+
+    def initialize_task(self, task_id: int) -> None:
         """Initialize modules of the given task.
 
         Parameters
@@ -80,7 +89,7 @@ class TaskScheduler(Object):
         """
         _ffi_api.TaskSchedulerInitializeTask(self, task_id)  # type: ignore # pylint: disable=no-member
 
-    def _set_task_stopped(self, task_id: int) -> None:
+    def set_task_stopped(self, task_id: int) -> None:
         """Set specific task to be stopped.
 
         Parameters
@@ -90,7 +99,7 @@ class TaskScheduler(Object):
         """
         _ffi_api.TaskSchedulerSetTaskStopped(self, task_id)  # type: ignore # pylint: disable=no-member
 
-    def _is_task_running(self, task_id: int) -> bool:
+    def is_task_running(self, task_id: int) -> bool:
         """Check whether the task is running.
 
         Parameters
@@ -105,20 +114,15 @@ class TaskScheduler(Object):
         """
         return _ffi_api.TaskSchedulerIsTaskRunning(self, task_id)  # type: ignore # pylint: disable=no-member
 
-    def _join_running_task(self, task_id: int) -> None:
-        """Wait until the task is finished.
-
-        Parameters
-        ----------
-        task_id : int
-            The task id to be joined.
-        """
-        _ffi_api.TaskSchedulerJoinRunningTask(self, task_id)  # type: ignore # pylint: disable=no-member
-
 
 @register_object("meta_schedule.PyTaskScheduler")
-class PyTaskScheduler(TaskScheduler):
-    """An abstract task scheduler with customized methods on the python-side."""
+class _PyTaskScheduler(TaskScheduler):
+    """
+    A TVM object task scheduler to support customization on the python side.
+    This is NOT the user facing class for function overloading inheritance.
+
+    See also: PyTaskScheduler
+    """
 
     def __init__(
         self,
@@ -128,56 +132,14 @@ class PyTaskScheduler(TaskScheduler):
         database: Database,
         cost_model: Optional[CostModel] = None,
         measure_callbacks: Optional[List[MeasureCallback]] = None,
+        f_tune: Callable = None,
+        f_initialize_task: Callable = None,
+        f_set_task_stopped: Callable = None,
+        f_is_task_running: Callable = None,
+        f_join_running_task: Callable = None,
+        f_next_task_id: Callable = None,
     ):
-        """Constructor.
-
-        Parameters
-        ----------
-        tasks: List[TuneContext]
-            The list of tune context to process.
-        builder: Builder
-            The builder of the scheduler.
-        runner: Runner
-            The runner of the scheduler.
-        database: Database
-            The database of the scheduler.
-        cost_model: Optional[CostModel]
-            The cost model of the scheduler.
-        measure_callbacks: List[MeasureCallback]
-            The list of measure callbacks of the scheduler.
-        """
-
-        @check_override(self.__class__, TaskScheduler, required=False)
-        def f_tune() -> None:
-            self.tune()
-
-        @check_override(self.__class__, TaskScheduler)
-        def f_next_task_id() -> int:
-            return self.next_task_id()
-
-        @check_override(
-            PyTaskScheduler, TaskScheduler, required=False, func_name="_initialize_task"
-        )
-        def f_initialize_task(task_id: int) -> None:
-            self._initialize_task(task_id)
-
-        @check_override(
-            PyTaskScheduler, TaskScheduler, required=False, func_name="_set_task_stopped"
-        )
-        def f_set_task_stopped(task_id: int) -> None:
-            self._set_task_stopped(task_id)
-
-        @check_override(
-            PyTaskScheduler, TaskScheduler, required=False, func_name="_is_task_running"
-        )
-        def f_is_task_running(task_id: int) -> bool:
-            return self._is_task_running(task_id)
-
-        @check_override(
-            PyTaskScheduler, TaskScheduler, required=False, func_name="_join_running_task"
-        )
-        def f_join_running_task(task_id: int) -> None:
-            self._join_running_task(task_id)
+        """Constructor."""
 
         self.__init_handle_by_constructor__(
             _ffi_api.TaskSchedulerPyTaskScheduler,  # type: ignore # pylint: disable=no-member
@@ -194,3 +156,112 @@ class PyTaskScheduler(TaskScheduler):
             f_join_running_task,
             f_next_task_id,
         )
+
+
+class PyTaskScheduler:
+    """
+    An abstract task scheduler with customized methods on the python-side.
+    This is the user facing class for function overloading inheritance.
+
+    Note: @derived_object is required for proper usage of any inherited class.
+    """
+
+    _tvm_metadata = {
+        "cls": _PyTaskScheduler,
+        "fields": [
+            "tasks",
+            "builder",
+            "runner",
+            "database",
+            "cost_model",
+            "measure_callbacks",
+        ],
+        "methods": [
+            "tune",
+            "initialize_task",
+            "set_task_stopped",
+            "is_task_running",
+            "join_running_task",
+            "next_task_id",
+        ],
+    }
+
+    def __init__(
+        self,
+        tasks: List[TuneContext],
+        builder: Builder,
+        runner: Runner,
+        database: Database,
+        cost_model: Optional[CostModel] = None,
+        measure_callbacks: Optional[List[MeasureCallback]] = None,
+    ):
+        self.tasks = tasks
+        self.builder = builder
+        self.runner = runner
+        self.database = database
+        self.cost_model = cost_model
+        self.measure_callbacks = measure_callbacks
+
+    def tune(self) -> None:
+        """Auto-tuning."""
+        # Using self._outer to replace the self pointer
+        _ffi_api.TaskSchedulerTune(self._outer())  # type: ignore # pylint: disable=no-member
+
+    def next_task_id(self) -> int:
+        """Fetch the next task id.
+
+        Returns
+        -------
+        next_task_id : int
+            The next task id.
+        """
+        raise NotImplementedError
+
+    def join_running_task(self, task_id: int) -> None:
+        """Wait until the task is finished.
+
+        Parameters
+        ----------
+        task_id : int
+            The task id to be joined.
+        """
+        # Using self._outer to replace the self pointer
+        _ffi_api.TaskSchedulerJoinRunningTask(self._outer(), task_id)  # type: ignore # pylint: disable=no-member
+
+    def initialize_task(self, task_id: int) -> None:
+        """Initialize modules of the given task.
+
+        Parameters
+        ----------
+        task_id : int
+            The task id to be initialized.
+        """
+        # Using self._outer to replace the self pointer
+        _ffi_api.TaskSchedulerInitializeTask(self._outer(), task_id)  # type: ignore # pylint: disable=no-member
+
+    def set_task_stopped(self, task_id: int) -> None:
+        """Set specific task to be stopped.
+
+        Parameters
+        ----------
+        task_id : int
+            The task id to be stopped.
+        """
+        # Using self._outer to replace the self pointer
+        _ffi_api.TaskSchedulerSetTaskStopped(self._outer(), task_id)  # type: ignore # pylint: disable=no-member
+
+    def is_task_running(self, task_id: int) -> bool:
+        """Check whether the task is running.
+
+        Parameters
+        ----------
+        task_id : int
+            The task id to be checked.
+
+        Returns
+        -------
+        running : bool
+            Whether the task is running.
+        """
+        # Using self._outer to replace the self pointer
+        return _ffi_api.TaskSchedulerIsTaskRunning(self._outer(), task_id)  # type: ignore # pylint: disable=no-member

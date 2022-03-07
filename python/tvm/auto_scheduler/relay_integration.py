@@ -329,9 +329,9 @@ def auto_schedule_topi(func_name, outs):
     """
 
     # pylint: disable=import-outside-toplevel
-    from tvm.auto_scheduler.measure import (
+    from tvm.auto_scheduler.measure import (  # lazily import to avoid recursive dependency
         prepare_input_map,
-    )  # lazily import to avoid recursive dependency
+    )
 
     io_tensors, has_layout_free, has_complex_op = traverse_to_get_io_tensors(outs)
     if not io_tensors:  # The compute includes dynamic shapes which are not supported yet.
@@ -482,4 +482,10 @@ def is_auto_scheduler_enabled():
     enabled: bool
         Whether the auto-scheduler is enabled
     """
-    return PassContext.current().config.get("relay.backend.use_auto_scheduler", False)
+    return PassContext.current().config.get(
+        "relay.backend.use_auto_scheduler",
+        False,
+    ) or PassContext.current().config.get(
+        "relay.backend.use_meta_schedule",
+        False,
+    )

@@ -32,6 +32,7 @@ from torch.nn import functional as F
 from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.contrib.nvcc import have_fp16
+from tvm.contrib import cudnn
 import pytest
 
 sys.setrecursionlimit(10000)
@@ -1067,6 +1068,7 @@ def test_forward_conv_transpose(
     verify_model(conv1d_transpose, conv1d_input_data)
 
 
+@tvm.testing.uses_gpu
 def test_forward_conv2d_transpose_group():
     # https://github.com/apache/tvm/issues/10223
 
@@ -1075,7 +1077,8 @@ def test_forward_conv2d_transpose_group():
             B, C, H, W = x.shape
             I, O, KH, KW = w.shape
 
-            # weight is different for each input in batch (this is why we want grouped conv transpose)
+            # weight is different for each input in batch (this is why we want grouped conv
+            # transpose)
             w = w.unsqueeze(0) * s.reshape(B, 1, 1, 1, 1)
             w = w.reshape(B * I, O, KH, KW)
             x = x.reshape(1, B * C, H, W)
@@ -1090,7 +1093,12 @@ def test_forward_conv2d_transpose_group():
     styles = torch.rand(b)
 
     # cuda not supported for group > 1 conv2d_transpose
-    verify_trace_model(ModulatedConvTranspose2D().eval(), [inputs, weights, styles], ["llvm"])
+    targets = ["llvm"]
+
+    if cudnn.exists():
+        targets.append("cuda -libs=cudnn")
+
+    verify_trace_model(ModulatedConvTranspose2D().eval(), [inputs, weights, styles], targets)
 
 
 def test_forward_deform_conv():
@@ -2306,7 +2314,7 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
     mod, params = relay.frontend.from_pytorch(input_model, input_shapes)
 
     for tgt in targets:
-        if not tvm.runtime.enabled(tgt):
+        if not tvm.testing.device_enabled(tgt):
             continue
         print("Running on target", tgt)
 

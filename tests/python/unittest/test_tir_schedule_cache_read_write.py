@@ -80,7 +80,7 @@ def opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(A[vi, vj])
             T.writes(D[vi, vj])
-            D.data[vi * 128 + vj] = T.load("float16", A.data, vi * 128 + vj)
+            D[vi, vj] = A[vi, vj]
     for i, j in T.grid(8, 8):
         with T.block("opaque"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -288,7 +288,7 @@ def cache_read_opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle)
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(A_global[vi, vj])
             T.writes(D[vi, vj])
-            D.data[vi * 128 + vj] = T.load("float16", A_global.data, vi * 128 + vj)
+            D[vi, vj] = A_global[vi, vj]
     for i, j in T.grid(8, 8):
         with T.block("opaque"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -518,7 +518,7 @@ def cache_write_opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(A[vi, vj])
             T.writes(D_global[vi, vj])
-            D_global.data[vi * 128 + vj] = T.load("float16", A.data, vi * 128 + vj)
+            D_global[vi, vj] = A[vi, vj]
     for i, j in T.grid(8, 8):
         with T.block("opaque"):
             vi, vj = T.axis.remap("SS", [i, j])

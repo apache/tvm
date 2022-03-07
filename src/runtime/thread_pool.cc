@@ -24,6 +24,7 @@
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -42,12 +43,13 @@
 #include <thread>
 #include <vector>
 
+#include "../support/utils.h"
 const constexpr int kL1CacheBytes = 64;
 
 namespace tvm {
 namespace runtime {
 namespace {
-
+using support::IsNumber;
 constexpr uint32_t kDefaultSpinCount = 300000;
 
 uint32_t GetSpinCount() {
@@ -317,10 +319,11 @@ class ThreadPool {
 
   static ThreadPool* ThreadLocal() { return dmlc::ThreadLocalStore<ThreadPool>::Get(); }
 
-  void UpdateWorkerConfiguration(threading::ThreadGroup::AffinityMode mode, int nthreads) {
+  void UpdateWorkerConfiguration(threading::ThreadGroup::AffinityMode mode, int nthreads,
+                                 const std::vector<unsigned int>& cpus) {
     // this will also reset the affinity of the ThreadGroup
     // may use less than the MaxConcurrency number of workers
-    num_workers_used_ = threads_->Configure(mode, nthreads, exclude_worker0_);
+    num_workers_used_ = threads_->Configure(mode, nthreads, exclude_worker0_, cpus);
     // if MaxConcurrency restricted the number of workers (e.g., due to
     // hyperthreading), respect the restriction
     num_workers_used_ = std::min(num_workers_, num_workers_used_);
@@ -369,17 +372,42 @@ class ThreadPool {
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
 };
 
+/*!
+ * \brief args[0] is the AffinityMode, args[1] is the number of threads.
+ *  args2 is a list of CPUs which is used to set the CPU affinity.
+ */
 TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRetValue* rv) {
   threading::ThreadGroup::AffinityMode mode =
       static_cast<threading::ThreadGroup::AffinityMode>(static_cast<int>(args[0]));
   int nthreads = args[1];
-  ThreadPool::ThreadLocal()->UpdateWorkerConfiguration(mode, nthreads);
+  std::vector<unsigned int> cpus;
+  if (args.num_args >= 3) {
+    Array<String> cpu_array = args[2];
+    for (auto cpu : cpu_array) {
+      ICHECK(IsNumber(cpu)) << "The CPU core information '" << cpu << "' is not a number.";
+      cpus.push_back(std::stoi(cpu));
+      std::cout << "cpu is " << cpu << std::endl;
+    }
+  }
+  threading::Configure(mode, nthreads, cpus);
 });
 
 namespace threading {
 void ResetThreadPool() { tvm::runtime::ThreadPool::ThreadLocal()->Reset(); }
+/*!
+ * \brief configure the CPU id affinity
+ * \param mode The preferred CPU type (1 = big, -1 = little, -2 = specify ,
+ *  -3 = kSpecifyOneCorePerThread, -3 = kSpecifyThreadShareAllCore).
+ * \param nthreads The number of threads to use (0 = use all).
+ * \param cpus cpus A list of CPUs is used to set the 'cpu affinity' for the worker threads.
+ *
+ */
+void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthreads,
+               std::vector<unsigned int> cpus) {
+  tvm::runtime::threading::SetMaxConcurrency(cpus.size());
+  tvm::runtime::ThreadPool::ThreadLocal()->UpdateWorkerConfiguration(mode, nthreads, cpus);
+}
 }  // namespace threading
-
 }  // namespace runtime
 }  // namespace tvm
 

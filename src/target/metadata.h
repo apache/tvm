@@ -71,6 +71,17 @@ class VisitableMetadataNode : public ::tvm::runtime::metadata::MetadataNode {
     v->Visit("outputs", &outputs_metadata_array);
     int64_t num_outputs_cpp = num_outputs();
     v->Visit("num_outputs", &num_outputs_cpp);
+    auto pools_array = Array<ObjectRef>();
+    auto pools_accessor = pools();
+    pools_array.reserve(num_pools());
+    for (int64_t i = 0; i < num_pools(); ++i) {
+      pools_array.push_back(::tvm::runtime::metadata::TensorInfo{pools_accessor[i]});
+    }
+    ::tvm::runtime::metadata::MetadataArray pools_metadata_array{
+        pools_array, ::tvm::runtime::metadata::MetadataTypeIndex::kMetadata, "TVMTensorInfo"};
+    v->Visit("pools", &pools_metadata_array);
+    int64_t num_pools_cpp = num_pools();
+    v->Visit("num_pools", &num_pools_cpp);
     ::std::string mod_name_cpp{data()->mod_name};
     v->Visit("mod_name", &mod_name_cpp);
   }
@@ -86,19 +97,22 @@ class VisitableMetadataNode : public ::tvm::runtime::metadata::MetadataNode {
 class InMemoryMetadataNode : public ::tvm::target::metadata::VisitableMetadataNode {
  public:
   InMemoryMetadataNode()
-      : InMemoryMetadataNode(0 /* version */, {} /* inputs */, {} /* outputs */,
+      : InMemoryMetadataNode(0 /* version */, {} /* inputs */, {} /* outputs */, {} /* pools */,
                              "" /* mod_name */) {}
   InMemoryMetadataNode(int64_t version,
                        const ::std::vector<::tvm::runtime::metadata::TensorInfo>& inputs,
                        const ::std::vector<::tvm::runtime::metadata::TensorInfo>& outputs,
+                       const ::std::vector<::tvm::runtime::metadata::TensorInfo>& pools,
                        const ::tvm::runtime::String mod_name)
       : VisitableMetadataNode{&storage_},
-        inputs_{new struct TVMTensorInfo[inputs.size()]()},
+        inputs_{new struct TVMTensorInfo[inputs.size()]},
         inputs_objs_{inputs},
-        outputs_{new struct TVMTensorInfo[outputs.size()]()},
+        outputs_{new struct TVMTensorInfo[outputs.size()]},
         outputs_objs_{outputs},
+        pools_{new struct TVMTensorInfo[pools.size()]},
+        pools_objs_{pools},
         mod_name_{mod_name},
-        storage_{version, nullptr, 0, nullptr, 0, mod_name_.c_str()} {
+        storage_{version, nullptr, 0, nullptr, 0, nullptr, 0, mod_name_.c_str()} {
     storage_.inputs = inputs_.get();
     storage_.num_inputs = inputs.size();
     for (unsigned int i = 0; i < inputs.size(); ++i) {
@@ -109,6 +123,11 @@ class InMemoryMetadataNode : public ::tvm::target::metadata::VisitableMetadataNo
     for (unsigned int i = 0; i < outputs.size(); ++i) {
       outputs_.get()[i] = *outputs[i]->data();
     }
+    storage_.pools = pools_.get();
+    storage_.num_pools = pools.size();
+    for (unsigned int i = 0; i < pools.size(); ++i) {
+      pools_.get()[i] = *pools[i]->data();
+    }
   }
 
  private:
@@ -116,6 +135,8 @@ class InMemoryMetadataNode : public ::tvm::target::metadata::VisitableMetadataNo
   std::vector<::tvm::runtime::metadata::TensorInfo> inputs_objs_;
   ::std::unique_ptr<struct TVMTensorInfo> outputs_;
   std::vector<::tvm::runtime::metadata::TensorInfo> outputs_objs_;
+  ::std::unique_ptr<struct TVMTensorInfo> pools_;
+  std::vector<::tvm::runtime::metadata::TensorInfo> pools_objs_;
   ::std::string mod_name_;
   struct ::TVMMetadata storage_;
 };
