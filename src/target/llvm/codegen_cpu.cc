@@ -606,7 +606,9 @@ void CodeGenCPU::UnpackClosureData(TypedPointer cdata, const Array<Var>& vfields
     llvm::Type* field_type = cdata.type->getStructElementType(i);
     llvm::Value* field_addr =
         builder_->CreateInBoundsGEP(cdata.type, cdata.addr, {ConstInt32(0), ConstInt32(i)});
-    (*vmap)[vfields[i].get()] = builder_->CreateLoad(field_type, field_addr);
+    llvm::Value* load = builder_->CreateLoad(field_type, field_addr);
+    load->setName(std::string(vfields[i]->name_hint));
+    (*vmap)[vfields[i].get()] = load;
   }
 }
 
@@ -633,6 +635,7 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
   builder_->SetInsertPoint(lambda_entry);
   auto it = f->arg_begin();
   llvm::Value* task_id = &(*it++);
+  task_id->setName("task_id");
   llvm::Value* penv = &(*it++);
   cdata.addr = builder_->CreatePointerCast(&(*it++), cdata.addr->getType());
   // setup new variable map, swap it with current var context.
@@ -643,9 +646,11 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
   par_env.task_id = Var("task_id", DataType::Int(32));
   par_env.num_task = Var("num_task", DataType::Int(32));
   new_vmap[par_env.task_id.get()] = task_id;
-  new_vmap[par_env.num_task.get()] = builder_->CreateLoad(
+  llvm::Value* num_task_value = builder_->CreateLoad(
       t_int32_,
       builder_->CreateInBoundsGEP(t_tvm_parallel_group_env_, penv, {ConstInt32(0), ConstInt32(1)}));
+  num_task_value->setName("num_task");
+  new_vmap[par_env.num_task.get()] = num_task_value;
   par_env.penv = penv;
   auto new_analyzer = std::make_unique<arith::Analyzer>();
   std::swap(function_, f);

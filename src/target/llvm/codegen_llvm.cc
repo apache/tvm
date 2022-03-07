@@ -148,6 +148,7 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
     llvm::Argument* v = &(*arg_it);
     const Var& var = f->params[i];
     var_map_[var.get()] = v;
+    v->setName(std::string(var->name_hint));
     if (is_restricted_) {
       if (var.dtype().is_handle() && !alias_var_set_.count(var.get())) {
         // set non alias.
