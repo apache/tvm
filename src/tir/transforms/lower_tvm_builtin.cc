@@ -554,10 +554,9 @@ class BuiltinLower : public StmtExprMutator {
     std::string fdevapi_prefix = "device_api.";
     fdevapi_prefix += runtime::DeviceName(device_type_.as<IntImmNode>()->value);
 
-    // TODO: cast?
-    PrimExpr size = call->args[0];
-    Call call_packed = Call(let->var.dtype(), builtin::tvm_call_packed(),
-                            {StringImm(fdevapi_prefix + ".AllocTexture"), size});
+    Call call_packed = Call(
+        let->var.dtype(), builtin::tvm_call_packed(),
+        {StringImm(fdevapi_prefix + ".AllocTexture"), cast(DataType::UInt(64), call->args[0])});
 
     Stmt alloca = LetStmt(let->var, call_packed, body);
 

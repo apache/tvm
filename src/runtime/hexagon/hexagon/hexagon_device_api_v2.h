@@ -82,6 +82,12 @@ class HexagonDeviceAPIv2 final : public DeviceAPI {
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                        Optional<String> mem_scope) final;
 
+  // TODO: comments
+  void* AllocVtcmWorkspace(Device dev, int ndim, const int64_t* shape, DLDataType dtype);
+
+  // TODO: comments
+  void FreeVtcmWorkspace(Device dev, void* ptr);
+
   /*!
    * \brief Copy data from one storage to another.
    * \note This API is designed to support special memory with shape dependent layout.

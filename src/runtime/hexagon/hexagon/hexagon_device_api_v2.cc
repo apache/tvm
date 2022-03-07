@@ -123,6 +123,13 @@ void HexagonDeviceAPIv2::FreeWorkspace(Device dev, void* data) {
   workspace_allocations_.erase(it);
 }
 
+void* HexagonDeviceAPIv2::AllocVtcmWorkspace(Device dev, int ndim, const int64_t* shape,
+                                             DLDataType dtype) {
+  return AllocDataSpace(dev, ndim, shape, dtype, String("global.vtcm"));
+}
+
+void HexagonDeviceAPIv2::FreeVtcmWorkspace(Device dev, void* ptr) { FreeDataSpace(dev, ptr); }
+
 void HexagonDeviceAPIv2::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   CHECK_EQ(from->byte_offset, 0);
   CHECK_EQ(to->byte_offset, 0);
@@ -170,8 +177,22 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVM
 std::map<void*, HexagonBuffer*> vtcmallocs;
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.AllocTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
-  int nbytes = args[0];
-  HexagonBuffer *hexbuf = new HexagonBuffer(nbytes, kHexagonAllocAlignment, String("global.vtcm"));
+  int64_t nbytes = args[0];
+  int64_t shape[1] = {nbytes};
+
+  // TODO: pass device as packed func arg
+  Device dev;
+  dev.device_type = static_cast<DLDeviceType>(kDLHexagon);
+
+  // TODO: pass dtype as packed func arg
+  DLDataType dtype;
+  dtype.bits = 8;
+  dtype.lanes = 1;
+
+  HexagonDeviceAPIv2* hexapi = HexagonDeviceAPIv2::Global();
+  HexagonBuffer* hexbuf =
+      reinterpret_cast<HexagonBuffer*>(hexapi->AllocVtcmWorkspace(dev, 1, shape, dtype));
+
   void* ptr = hexbuf->GetPointer()[0];
   vtcmallocs[ptr] = hexbuf;
   *rv = ptr;
@@ -179,7 +200,15 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.AllocTexture").set_body([](TVMArgs args,
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.FreeTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
   void* ptr = args[0];
-  delete vtcmallocs[ptr];
+  HexagonBuffer* hexbuf = vtcmallocs[ptr];
+  // delete hexbuf;
+
+  // TODO: pass device as packed func arg
+  Device dev;
+  dev.device_type = static_cast<DLDeviceType>(kDLHexagon);
+
+  HexagonDeviceAPIv2* hexapi = HexagonDeviceAPIv2::Global();
+  hexapi->FreeVtcmWorkspace(dev, hexbuf);
   *rv = static_cast<int32_t>(0);
 });
 
