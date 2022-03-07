@@ -128,7 +128,7 @@ def verify_batch_matmul_int8(x_batch, y_batch, M, N, K):
         f(a, b, c)
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
-    for device in ["cuda"]:
+    for device in ["cuda", "vulkan -from_device=0"]:
         check_device(device)
 
 
