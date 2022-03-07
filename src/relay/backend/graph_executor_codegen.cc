@@ -515,8 +515,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const FunctionNode* op) override {
-    // ICHECK(op->GetAttr<String>(attr::kCompiler).defined())
-    //     << "Only functions supported by custom codegen";
+    ICHECK(op->GetAttr<String>(attr::kCompiler).defined())
+        << "Only functions supported by custom codegen";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const RefCreateNode* op) override {
