@@ -38,6 +38,7 @@ class TempGit:
 
 
 def test_cc_reviewers(tmpdir_factory):
+    raise RuntimeError()
     reviewers_script = REPO_ROOT / "tests" / "scripts" / "github_cc_reviewers.py"
 
     def run(pr_body, expected_reviewers):
@@ -70,6 +71,7 @@ def test_cc_reviewers(tmpdir_factory):
 
 
 def test_update_branch(tmpdir_factory):
+    raise RuntimeError()
     update_script = REPO_ROOT / "tests" / "scripts" / "update_branch.py"
 
     def run(statuses, expected_rc, expected_output):

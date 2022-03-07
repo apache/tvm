@@ -29,10 +29,15 @@ if [ -z "${TVM_UNITTEST_TESTSUITE_NAME:-}" ]; then
     TVM_UNITTEST_TESTSUITE_NAME=python-unittest
 fi
 
-# First run minimal test on both ctypes and cython.
-run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test-0 tests/python/all-platform-minimal-test
-run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test-1 tests/python/all-platform-minimal-test
+run_pytest cython test1 tests/python/unittest/test_ci.py::test_cc_reviewers
+run_pytest cython test1 tests/python/unittest/test_ci.py::test_skip_globs
+run_pytest cython test1 tests/python/unittest/test_ci.py::test_github_tag_teams
+run_pytest cython test1 tests/python/unittest/test_ci.py::test_update_branch
+run_pytest cython test1 tests/python/unittest/test_ci.py::test_ping_reviewers
+# # First run minimal test on both ctypes and cython.
+# run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test-0 tests/python/all-platform-minimal-test
+# run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test-1 tests/python/all-platform-minimal-test
 
-# Then run all unittests on both ctypes and cython.
-run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-0 tests/python/unittest
-run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME}-1 tests/python/unittest
+# # Then run all unittests on both ctypes and cython.
+# run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-0 tests/python/unittest
+# run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME}-1 tests/python/unittest
