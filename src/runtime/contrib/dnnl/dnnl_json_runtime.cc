@@ -128,6 +128,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       // Blocking layout.
       {"NCW8c", tag::nCw8c},
       {"NCW16c", tag::nCw16c},
+      {"OIW16i16o", tag::OIw8i8o},
       {"OIW16i16o", tag::OIw16i16o},
       {"OWI8o", tag::Owi8o},
       {"OWI16o", tag::Owi16o},
@@ -154,6 +155,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       {"IODHW16i16o", tag::IOdhw16i16o},
       {"OIDHW8i8o", tag::OIdhw8i8o},
       {"IODHW8i8o", tag::any},
+      {"ODHWI8o", tag::Odhwi8o},
       {"ODHWI16o", tag::Odhwi16o},
   };
 
@@ -334,9 +336,14 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     std::string kernel_layout = node.GetAttr<std::vector<std::string>>("kernel_layout")[0];
 
     // Check layout.
-    if (layout_dict.find(data_layout) == layout_dict.end() ||
-        layout_dict.find(kernel_layout) == layout_dict.end()) {
-      LOG(FATAL) << "Unsupported layout for conv: " << data_layout << " " << kernel_layout;
+    if (layout_dict.find(data_layout) == layout_dict.end()) {
+      LOG(FATAL) << "Unsupported data layout for conv: " << data_layout;
+    }
+
+    if (layout_dict.find(kernel_layout) == layout_dict.end()) {
+      layout_dict.insert({kernel_layout, tag::any});
+      LOG(WARNING) << "Unregistered kernel layout for conv: " << data_layout
+                   << ", transfer to tag::any";
     }
 
     // Memory shapes.
@@ -452,9 +459,14 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     std::string kernel_layout = node.GetAttr<std::vector<std::string>>("kernel_layout")[0];
 
     // Check layout.
-    if (layout_dict.find(data_layout) == layout_dict.end() ||
-        layout_dict.find(kernel_layout) == layout_dict.end()) {
-      LOG(FATAL) << "Unsupported layout for deconv: " << data_layout << " " << kernel_layout;
+    if (layout_dict.find(data_layout) == layout_dict.end()) {
+      LOG(FATAL) << "Unsupported data layout for deconv: " << data_layout;
+    }
+
+    if (layout_dict.find(kernel_layout) == layout_dict.end()) {
+      layout_dict.insert({kernel_layout, tag::any});
+      LOG(WARNING) << "Unregistered kernel layout for deconv: " << data_layout
+                   << ", transfer to tag::any";
     }
 
     // Memory shapes.
