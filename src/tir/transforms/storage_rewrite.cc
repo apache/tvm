@@ -1207,7 +1207,11 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
 
     int index_lanes = 1;
     for (const auto& index : indices) {
-      index_lanes *= index.dtype().lanes();
+      int lanes = index.dtype().lanes();
+      if (lanes > 1) {
+        ICHECK_EQ(index_lanes, 1) << "Buffer indices may only include a single multi-lane index.";
+      }
+      index_lanes *= lanes;
     }
 
     DataType access_dtype = value_dtype;
