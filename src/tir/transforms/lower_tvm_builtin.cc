@@ -34,6 +34,17 @@
 namespace tvm {
 namespace tir {
 
+namespace {
+Call MakeMemCopyHelper(const CallNode* op, std::string packed_func_name) {
+  PrimExpr dst = op->args[0];
+  PrimExpr src = op->args[1];
+  PrimExpr size = op->args[2];
+
+  return Call(DataType::Int(32), builtin::tvm_call_packed(),
+              {StringImm(packed_func_name), dst, src, size});
+}
+}  // namespace
+
 class StackSizeChecker : public StmtExprVisitor {
  public:
   struct StackSizes {
@@ -73,10 +84,19 @@ class StackSizeChecker : public StmtExprVisitor {
       return MakeShape(op);
     } else if (op->op.same_as(builtin::tvm_stack_make_array())) {
       return MakeArray(op);
+    } else if (op->op.same_as(builtin::mem_copy())) {
+      return MakeMemCopy(op);
     } else {
       return StmtExprVisitor::VisitExpr_(op);
     }
   }
+
+  void MakeMemCopy(const CallNode* op) {
+    Call call_packed = MakeMemCopyHelper(op, "nonexistent_function");
+
+    return VisitExpr(call_packed);
+  }
+
   // call shape
   void MakeShape(const CallNode* op) {
     // if args.size() == 0, it is still valid and represents a scalar
@@ -346,15 +366,12 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   PrimExpr MakeMemCopy(const CallNode* op) {
-    PrimExpr dst = op->args[0];
-    PrimExpr src = op->args[1];
-    PrimExpr size = op->args[2];
+    std::stringstream packed_func_name;
+    packed_func_name << "device_api." << runtime::DeviceName(device_type_.as<IntImmNode>()->value)
+                     << ".mem_copy";
 
-    std::string fdevapi_prefix =
-        "device_api." + std::string(runtime::DeviceName(device_type_.as<IntImmNode>()->value));
+    Call call_packed = MakeMemCopyHelper(op, packed_func_name.str());
 
-    Call call_packed = Call(DataType::Int(32), builtin::tvm_call_packed(),
-                            {StringImm(fdevapi_prefix + ".mem_copy"), dst, src, size});
     return VisitExpr(call_packed);
   }
 
