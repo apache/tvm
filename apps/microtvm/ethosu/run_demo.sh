@@ -151,7 +151,6 @@ python3 -m tvm.driver.tvmc compile --target=ethos-u,cmsis-nn,c \
     --executor=aot \
     --executor-aot-interface-api=c \
     --executor-aot-unpacked-api=1 \
-    --executor-aot-unpacked-api=1 \
     --pass-config tir.usmp.enable=1 \
     --pass-config tir.usmp.algorithm=hill_climb \
     --pass-config tir.disable_storage_rewrite=1 \
