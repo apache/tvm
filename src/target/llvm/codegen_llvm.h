@@ -171,12 +171,14 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* VisitExpr_(const SelectNode* op) override;
   llvm::Value* VisitExpr_(const LetNode* op) override;
   llvm::Value* VisitExpr_(const LoadNode* op) override;
+  llvm::Value* VisitExpr_(const BufferLoadNode* op) override;
   llvm::Value* VisitExpr_(const CallNode* op) override;
   llvm::Value* VisitExpr_(const RampNode* op) override;
   llvm::Value* VisitExpr_(const ShuffleNode* op) override;
   llvm::Value* VisitExpr_(const BroadcastNode* op) override;
   // stmt
   void VisitStmt_(const StoreNode* op) override;
+  void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
@@ -319,6 +321,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // Get alignment given index.
   void GetAlignment(DataType t, const VarNode* buf_var, const PrimExpr& index, int* p_alignment,
                     int* p_native_bits);
+  // Returns whether the LLVM type has padding for alignment
+  bool HasAlignmentPadding(DataType dtype);
   // Get constant string
   llvm::Constant* GetConstString(const std::string& str);
   // do a scalarize call with f
@@ -338,7 +342,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateSub(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateMul(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateBroadcast(llvm::Value* value, int lanes);
-  TypedPointer CreateBufferPtr(DataType t, llvm::Value* buffer, llvm::Value* index);
+  TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
+                               llvm::Value* index, DataType value_dtype);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);

@@ -45,6 +45,9 @@ class PrimFunc(BaseFunc):
     buffer_map : Map[tvm.tir.Var, tvm.tir.Buffer]
         The buffer binding map.
 
+    preflattened_buffer_map : Optional[Map[tvm.tir.Var, tvm.tir.Buffer]]
+        The buffer binding map, prior to any flattening.
+
     attrs: Optional[tvm.Attrs]
         Attributes of the function, can be None
 
@@ -52,9 +55,20 @@ class PrimFunc(BaseFunc):
         The location of this itervar in the source code.
     """
 
-    def __init__(self, params, body, ret_type=None, buffer_map=None, attrs=None, span=None):
+    def __init__(
+        self,
+        params,
+        body,
+        ret_type=None,
+        buffer_map=None,
+        preflattened_buffer_map=None,
+        attrs=None,
+        span=None,
+    ):
+
         param_list = []
         buffer_map = {} if buffer_map is None else buffer_map
+        preflattened_buffer_map = {} if preflattened_buffer_map is None else preflattened_buffer_map
         for x in params:
             x = tvm.runtime.convert(x) if not isinstance(x, Object) else x
             if isinstance(x, Buffer):
@@ -67,8 +81,15 @@ class PrimFunc(BaseFunc):
                 raise TypeError("params can only contain Var or Buffer")
 
         self.__init_handle_by_constructor__(
-            _ffi_api.PrimFunc, param_list, body, ret_type, buffer_map, attrs, span  # type: ignore
-        )
+            _ffi_api.PrimFunc,
+            param_list,
+            body,
+            ret_type,
+            buffer_map,
+            preflattened_buffer_map,
+            attrs,
+            span,
+        )  # type: ignore
 
     def with_body(self, new_body, span=None):
         """Create a new PrimFunc with the same set signatures but a new body.
@@ -86,7 +107,15 @@ class PrimFunc(BaseFunc):
         new_func : PrimFunc
             The created new function.
         """
-        return PrimFunc(self.params, new_body, self.ret_type, self.buffer_map, self.attrs, span)
+        return PrimFunc(
+            self.params,
+            new_body,
+            self.ret_type,
+            self.buffer_map,
+            self.preflattened_buffer_map,
+            self.attrs,
+            span,
+        )
 
     def specialize(self, param_map: Mapping[Var, Union[PrimExpr, Buffer]]):
         """Specialize parameters of PrimFunc

@@ -1,0 +1,140 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file tvm/tir/index_map.h
+ * \brief Defines a remapping of buffer indices
+ *
+ * For use with tvm::tir::Buffer.
+ */
+#ifndef TVM_TIR_INDEX_MAP_H_
+#define TVM_TIR_INDEX_MAP_H_
+
+#include <tvm/ir/expr.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/object.h>
+#include <tvm/tir/var.h>
+
+namespace tvm {
+namespace tir {
+
+/*!
+ * \brief Defines a mapping between two representations of indices
+ * into a buffer.
+ *
+ * This is primarily used for layout transformations of Buffer
+ * objects.
+ */
+class IndexMapNode : public Object {
+ public:
+  /*! \brief Variables representing the indices prior to remapping.
+   *
+   * If initial_indices is empty, then final_indices should also be
+   * empty, and no mapping is applied.
+   */
+  Array<Var> initial_indices;
+
+  /*!
+   * \brief Expressions defining the indices after remapping.
+   *
+   * These expressions should only be in terms of the initial_indices,
+   * and must be expressible as an IterSumExpr.  The mapping from
+   * initial_indices to final_indices must be injective.
+   *
+   * If final_indices is empty, then initial_indices should also be
+   * empty, and the map is an identity function.
+   */
+  Array<PrimExpr> final_indices;
+
+  /*!
+   * \brief Default constructor
+   *
+   * Defines the mapping as an identity function, with initial_indices
+   * equal to the final indices.
+   */
+  IndexMapNode() {}
+
+  /*!
+   * \brief Map indices to the output space
+   *
+   * \param indices The indices in the input space.  Should contain
+   * one value for each variable in `initial_indices`.
+   *
+   * \returns The indices in the output space.  Contains one value for
+   * each expression in `final_indices`.
+   */
+  Array<PrimExpr> MapIndices(const Array<PrimExpr>& indices) const;
+
+  /*! \brief Map a memory range to the output space
+   *
+   * If contiguous memory locations in the input space are not
+   * necessarily contiguous in the output space (e.g. `lambda i:
+   * [8*(i%8) + (i//8)]`), then this will return the smallest range
+   * such that all valid indices are contained within the given range.
+   *
+   * \param ranges The ranges in the input space.  Should contain one
+   * value for each variable in `initial_indices`.
+   *
+   * \returns The ranges in the output space.  Contains one value for
+   * each expression in `final_indices`.
+   */
+  Array<Range> MapRanges(const Array<Range>& ranges) const;
+
+  /*! \brief Map a buffer shape to the output space
+   *
+   * \param shape The buffer shape in the input space.  Should contain
+   * one value for each variable in `initial_indices`.
+   *
+   * \returns The buffer shape in the output space.  Contains one
+   * value for each expression in `final_indices`.
+   */
+  Array<PrimExpr> MapShape(const Array<PrimExpr>& shape) const;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("initial_indices", &initial_indices);
+    v->Visit("final_indices", &final_indices);
+  }
+
+  TVM_DECLARE_FINAL_OBJECT_INFO(IndexMapNode, Object);
+};
+
+class IndexMap : public ObjectRef {
+ public:
+  IndexMap(Array<Var> initial_indices, Array<PrimExpr> final_indices);
+
+  /*! \brief Generate the inverse mapping.
+   *
+   * The range of the input indices is required in order to ensure
+   * that the transformation is bijective over the input domain.
+   *
+   * TODO(Lunderberg): Look into allowing non-bijective
+   * transformations.  If injective, the inverse mapping could still
+   * be generated with some predicate.  If non-injective, could
+   * simplify the implementation of other optimizations (e.g. double
+   * buffering as a map `lambda *indices: [buffer_loop%2, *indices]`).
+   */
+  IndexMap Inverse(Array<Range> initial_ranges) const;
+
+  TVM_DEFINE_OBJECT_REF_METHODS(IndexMap, ObjectRef, IndexMapNode);
+};
+
+}  // namespace tir
+}  // namespace tvm
+
+#endif  // TVM_TIR_INDEX_MAP_H_

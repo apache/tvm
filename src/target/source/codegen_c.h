@@ -126,6 +126,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // expression
   void VisitExpr_(const VarNode* op, std::ostream& os) override;        // NOLINT(*)
   void VisitExpr_(const LoadNode* op, std::ostream& os) override;       // NOLINT(*)
+  void VisitExpr_(const BufferLoadNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const LetNode* op, std::ostream& os) override;        // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) override;       // NOLINT(*)
   void VisitExpr_(const AddNode* op, std::ostream& os) override;        // NOLINT(*)
@@ -155,6 +156,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // statment
   void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const StoreNode* op) override;
+  void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
@@ -176,9 +178,9 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   virtual void PrintVecBinaryOp(const std::string& op, DataType op_type, PrimExpr lhs, PrimExpr rhs,
                                 std::ostream& os);  // NOLINT(*)
   // print vector load
-  virtual std::string GetVecLoad(DataType t, const VarNode* buffer, PrimExpr base);
+  virtual std::string GetVecLoad(DataType t, const BufferNode* buffer, PrimExpr base);
   // print vector store
-  virtual void PrintVecStore(const VarNode* buffer, DataType t, PrimExpr base,
+  virtual void PrintVecStore(const BufferNode* buffer, DataType t, PrimExpr base,
                              const std::string& value);  // NOLINT(*)
   // print load of single element
   virtual void PrintVecElemLoad(const std::string& vec, DataType t, int i,
@@ -201,7 +203,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // Print reference to struct location
   std::string GetStructRef(DataType t, const PrimExpr& buffer, const PrimExpr& index, int kind);
   // Print reference to a buffer as type t in index.
-  virtual std::string GetBufferRef(DataType t, const VarNode* buffer, PrimExpr index);
+  virtual std::string GetBufferRef(DataType t, const BufferNode* buffer, PrimExpr index);
 
   /*!
    * \brief Handle volatile loads.
@@ -211,7 +213,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * does not implement volatile member functions. CUDA codegen will cast
    * away volatile qualifier from CUDA __half types.
    */
-  virtual void HandleVolatileLoads(const std::string& value, const LoadNode* op, std::ostream& os) {
+  virtual void HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
+                                   std::ostream& os) {
     // By default, do nothing but print the loaded value.
     os << value;
   }

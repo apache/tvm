@@ -54,7 +54,7 @@ def test_remove_no_op():
     ret = tvm.tir.transform.RemoveNoOp()(mod)["main"].body
 
     assert isinstance(ret, tvm.tir.Evaluate)
-    store = tvm.tir.Store(Ab.data, tvm.tir.Load(dtype, Ab.data, i) + 1, i + 1)
+    store = tvm.tir.BufferStore(Ab, tvm.tir.BufferLoad(Ab, [i]) + 1, [i + 1])
     stmt2 = tvm.tir.SeqStmt([nop(), tvm.tir.SeqStmt([store, nop()])])
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt2))
