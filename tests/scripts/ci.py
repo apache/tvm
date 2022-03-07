@@ -27,10 +27,13 @@ import argparse
 import json
 import shutil
 import grp
+import string
+import random
 import subprocess
+import platform
 import textwrap
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple, Callable, Union
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT_DIR = REPO_ROOT / ".ci-py-scripts"
@@ -56,7 +59,7 @@ def print_color(color: str, msg: str, bold: bool, **kwargs: Any) -> None:
         print(msg, **kwargs)
 
 
-warnings = []
+warnings: List[str] = []
 
 
 def clean_exit(msg: str) -> None:
@@ -98,8 +101,8 @@ def check_docker():
                     " * run with 'sudo'\n"
                     " * add user to 'docker': sudo usermod -aG docker $(whoami), then log out and back in",
                 )
-        except KeyError as e:
-            warnings.append(f"Note: 'docker' group does not exist")
+        except KeyError:
+            warnings.append("Note: 'docker' group does not exist")
 
 
 def check_gpu():
@@ -118,7 +121,7 @@ def check_gpu():
         )
         stdout = proc.stdout.strip().strip(",")
         stdout = json.loads(stdout)
-    except (subprocess.CalledProcessError, json.decoder.JSONDecodeError) as e:
+    except (subprocess.CalledProcessError, json.decoder.JSONDecodeError):
         # Do nothing if any step failed
         return
 
@@ -129,9 +132,11 @@ def check_gpu():
     if not isinstance(stdout, list):
         return
 
-    products = [s.get("product", "").lower() for s in stdout]
+    products = [s.get("vendor", "").lower() for s in stdout]
     if not any("nvidia" in product for product in products):
-        warnings.append("nvidia GPU not found in 'lshw', maybe use --cpu flag?")
+        warnings.append(
+            "nvidia GPU not found in 'lshw', maybe use --cpu flag when running 'docs' command?"
+        )
 
 
 def check_build():
@@ -140,6 +145,12 @@ def check_build():
             "Existing build dir found may be interfering with the Docker "
             "build (you may need to remove it)"
         )
+
+
+def gen_name(s: str) -> str:
+    # random 4 letters
+    suffix = "".join([random.choice(string.ascii_lowercase) for i in range(5)])
+    return f"{s}-{suffix}"
 
 
 def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], interactive: bool):
@@ -153,7 +164,19 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
     """
     check_docker()
 
-    if os.getenv("USE_SCCACHE", "0") == "1":
+    # As sccache is added to these images these can be uncommented
+    sccache_images = {
+        # "ci_lint",
+        "ci_gpu",
+        "ci_cpu",
+        # "ci_wasm",
+        # "ci_i386",
+        "ci_qemu",
+        "ci_arm",
+        "ci_hexagon",
+    }
+
+    if image in sccache_images and os.getenv("USE_SCCACHE", "1") == "1":
         scripts = [
             "sccache --start-server",
         ] + scripts
@@ -163,11 +186,12 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
         env["SCCACHE_CACHE_SIZE"] = os.getenv("SCCACHE_CACHE_SIZE", "50G")
 
     docker_bash = REPO_ROOT / "docker" / "bash.sh"
+
     command = [docker_bash, "--name", name]
     if interactive:
         command.append("-i")
         command.append("-t")
-        scripts.append("bash")
+        scripts = ["interact() {", "  bash", "}", "trap interact 0", ""] + scripts
 
     for key, value in env.items():
         command.append("--env")
@@ -189,6 +213,8 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
         clean_exit(f"Error invoking Docker: {e}")
     except KeyboardInterrupt:
         cmd(["docker", "stop", "--time", "1", name])
+    finally:
+        script_file.unlink()
 
 
 def docs(
@@ -251,8 +277,8 @@ def docs(
 
     scripts = extra_setup + [
         config + f" {build_dir}",
-        f"./tests/scripts/task_build.sh {build_dir} -j{NPROC}",
-        "./tests/scripts/task_ci_setup.sh",
+        f"./tests/scripts/task_build.py --build-dir {build_dir}",
+        "python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0",
         "./tests/scripts/task_python_docs.sh",
     ]
 
@@ -265,7 +291,7 @@ def docs(
         "IS_LOCAL": "1",
     }
     check_build()
-    docker(name="ci-docs", image=image, scripts=scripts, env=env, interactive=False)
+    docker(name=gen_name("docs"), image=image, scripts=scripts, env=env, interactive=False)
 
 
 def serve_docs(directory: str = "_docs") -> None:
@@ -275,251 +301,108 @@ def serve_docs(directory: str = "_docs") -> None:
     arguments:
     directory -- Directory to serve from
     """
-    directory = Path(directory)
-    if not directory.exists():
+    directory_path = Path(directory)
+    if not directory_path.exists():
         clean_exit("Docs have not been built, run 'ci.py docs' first")
-    cmd([sys.executable, "-m", "http.server"], cwd=directory)
+    cmd([sys.executable, "-m", "http.server"], cwd=directory_path)
 
 
-def lint() -> None:
+def lint(interactive: bool = False) -> None:
     """
     Run CI's Sanity Check step
+
+    arguments:
+    interactive -- start a shell after running build / test scripts
     """
     docker(
         name="ci-lint",
         image="ci_lint",
         scripts=["./tests/scripts/task_lint.sh"],
         env={},
-        interactive=False,
-    )
-
-
-def cpu(
-    tests: Optional[List[str]] = None,
-    interactive: bool = False,
-    frontend: bool = False,
-    integration: bool = False,
-    unittest: bool = False,
-) -> None:
-    """
-    Run CPU build and test(s)
-
-    arguments:
-    tests -- pytest test IDs (e.g. tests/python or tests/python/a_file.py::a_test[param=1])
-    interactive -- start a shell after running build / test scripts
-    frontend -- run frontend tests
-    integration -- run integration tests
-    unittest -- run unit tests
-    """
-    scripts = [
-        f"./tests/scripts/task_config_build_cpu.sh {get_build_dir('cpu')}",
-        f"./tests/scripts/task_build.sh {get_build_dir('cpu')} -j{NPROC}",
-        "./tests/scripts/task_ci_setup.sh",
-    ]
-    if any([frontend, integration, unittest]) and tests is not None:
-        clean_exit("--frontend, --integration, and --unittest cannot be used with --tests")
-
-    if tests is not None:
-        scripts.append(f"python3 -m pytest {' '.join(tests)}")
-
-    if frontend:
-        scripts.append("./tests/scripts/task_python_frontend_cpu.sh")
-
-    if integration:
-        scripts.append("./tests/scripts/task_python_integration.sh")
-
-    if unittest:
-        scripts.append("./tests/scripts/task_python_unittest.sh")
-        scripts.append("./tests/scripts/task_python_vta_fsim.sh")
-        scripts.append("./tests/scripts/task_python_vta_tsim.sh")
-
-    docker(
-        name="ci-cpu",
-        image="ci_cpu",
-        scripts=scripts,
-        env={},
         interactive=interactive,
     )
 
 
-def gpu(
-    tests: Optional[List[str]] = None,
-    interactive: bool = False,
-    frontend: bool = False,
-    topi: bool = False,
-    unittest: bool = False,
-) -> None:
+Option = Tuple[str, List[str]]
+
+
+def generate_command(
+    name: str,
+    options: Dict[str, Option],
+    help: str,
+    precheck: Optional[Callable[[], None]] = None,
+):
     """
-    Run GPU build and test(s)
-
-    arguments:
-    tests -- pytest test IDs (e.g. tests/python or tests/python/a_file.py::a_test[param=1])
-    interactive -- start a shell after running build / test scripts
-    frontend -- run frontend tests
-    topi -- run topi tests
-    unittest -- run unit tests
+    Helper to generate CLIs that:
+    1. Build a with a config matching a specific CI Docker image (e.g. 'cpu')
+    2. Run tests (either a pre-defined set from scripts or manually via invoking
+       pytest)
+    3. (optional) Drop down into a terminal into the Docker container
     """
-    scripts = [
-        f"./tests/scripts/task_config_build_gpu.sh {get_build_dir('gpu')}",
-        f"./tests/scripts/task_build.sh {get_build_dir('gpu')} -j{NPROC}",
-        "./tests/scripts/task_ci_setup.sh",
-    ]
-    if any([frontend, topi, unittest]) and tests is not None:
-        clean_exit("--frontend, --topi, and --unittest cannot be used with --tests")
 
-    if tests is not None:
-        scripts.append(f"python3 -m pytest {' '.join(tests)}")
+    def fn(tests: Optional[List[str]], interactive: bool = False, **kwargs) -> None:
+        """
+        arguments:
+        tests -- pytest test IDs (e.g. tests/python or tests/python/a_file.py::a_test[param=1])
+        interactive -- start a shell after running build / test scripts
+        """
+        if precheck is not None:
+            precheck()
 
-    if frontend:
-        scripts.append("./tests/scripts/task_python_frontend.sh")
+        scripts = [
+            f"./tests/scripts/task_config_build_{name}.sh {get_build_dir(name)}",
+            f"./tests/scripts/task_build.py --build-dir {get_build_dir(name)}",
+            # This can be removed once https://github.com/apache/tvm/pull/10257
+            # is merged and added to the Docker images
+            "python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0",
+        ]
 
-    if topi:
-        scripts.append("./tests/scripts/task_python_topi.sh")
+        # Check that a test suite was not used alongside specific test names
+        if any(v for v in kwargs.values()) and tests is not None:
+            option_flags = ", ".join([f"--{k}" for k in options.keys()])
+            clean_exit(f"{option_flags} cannot be used with --tests")
 
-    if unittest:
-        scripts.append("./tests/scripts/task_java_unittest.sh")
-        scripts.append("./tests/scripts/task_python_unittest_gpuonly.sh")
-        scripts.append("./tests/scripts/task_python_integration_gpuonly.sh")
+        if tests is not None:
+            scripts.append(f"python3 -m pytest {' '.join(tests)}")
 
-    docker(
-        name="ci-gpu",
-        image="ci_gpu",
-        scripts=scripts,
-        env={},
-        interactive=interactive,
-    )
+        # Add named test suites
+        for option_name, (_, extra_scripts) in options.items():
+            if kwargs.get(option_name, False):
+                scripts += extra_scripts
+
+        docker(
+            name=gen_name(f"ci-{name}"),
+            image=f"ci_{name}",
+            scripts=scripts,
+            env={
+                # Need to specify the library path manually or else TVM can't
+                # determine which build directory to use (i.e. if there are
+                # multiple copies of libtvm.so laying around)
+                "TVM_DLL_PATH": str(REPO_ROOT / get_build_dir(name)),
+            },
+            interactive=interactive,
+        )
+
+    fn.__name__ = name
+
+    return fn, options, help
 
 
-def i386(
-    tests: Optional[List[str]] = None,
-    interactive: bool = False,
-    integration: bool = False,
-) -> None:
+def check_arm_qemu() -> None:
     """
-    Run i386 build and test(s)
-
-    arguments:
-    tests -- pytest test IDs (e.g. tests/python or tests/python/a_file.py::a_test[param=1])
-    interactive -- start a shell after running build / test scripts
-    integration -- run unit and integration tests
+    Check if a machine is ready to run an ARM Docker image
     """
-    scripts = [
-        f"./tests/scripts/task_config_build_i386.sh {get_build_dir('i386')}",
-        f"./tests/scripts/task_build.sh {get_build_dir('i386')} -j{NPROC}",
-        "./tests/scripts/task_ci_setup.sh",
-    ]
-    if integration and tests is not None:
-        clean_exit("--integration cannot be used with --tests")
+    machine = platform.machine().lower()
+    if "arm" in machine or "aarch64" in machine:
+        # No need to check anything if the machine runs ARM
+        return
 
-    if tests is not None:
-        scripts.append(f"python3 -m pytest {' '.join(tests)}")
-
-    if integration:
-        scripts.append("./tests/scripts/task_python_unittest.sh")
-        scripts.append("./tests/scripts/task_python_integration_i386only.sh")
-
-    docker(
-        name="ci-i386",
-        image="ci_i386",
-        scripts=scripts,
-        env={},
-        interactive=interactive,
-    )
-
-
-def wasm(
-    interactive: bool = False,
-) -> None:
-    """
-    Run WASM build and test(s)
-
-    arguments:
-    interactive -- start a shell after running build / test scripts
-    """
-    scripts = [
-        f"./tests/scripts/task_config_build_wasm.sh {get_build_dir('wasm')}",
-        f"./tests/scripts/task_build.sh {get_build_dir('wasm')} -j{NPROC}",
-        "./tests/scripts/task_web_wasm.sh",
-    ]
-
-    docker(
-        name="ci-wasm",
-        image="ci_wasm",
-        scripts=scripts,
-        env={},
-        interactive=interactive,
-    )
-
-
-def qemu(
-    interactive: bool = False,
-) -> None:
-    """
-    Run QEMU test(s)
-
-    arguments:
-    interactive -- start a shell after running build / test scripts
-    """
-    scripts = [
-        f"./tests/scripts/task_config_build_qemu.sh {get_build_dir('qemu')}",
-        f"./tests/scripts/task_build.sh {get_build_dir('qemu')} -j{NPROC}",
-        "./tests/scripts/task_python_microtvm.sh",
-        "./tests/scripts/task_demo_microtvm.sh",
-    ]
-
-    docker(
-        name="ci-qemu",
-        image="ci_qemu",
-        scripts=scripts,
-        env={},
-        interactive=interactive,
-    )
-
-
-def hexagon(
-    interactive: bool = False,
-) -> None:
-    """
-    Run Hexagon build and test(s)
-
-    arguments:
-    interactive -- start a shell after running build / test scripts
-    """
-    scripts = [
-        f"./tests/scripts/task_config_build_hexagon.sh {get_build_dir('hexagon')}",
-        f"./tests/scripts/task_build.sh {get_build_dir('hexagon')} -j{NPROC}",
-        "./tests/scripts/task_build_hexagon_api.sh",
-        "./tests/scripts/task_python_hexagon.sh",
-    ]
-
-    docker(
-        name="ci-hexagon",
-        image="ci_hexagon",
-        scripts=scripts,
-        env={},
-        interactive=interactive,
-    )
-
-
-def arm(
-    tests: Optional[List[str]] = None,
-    python: bool = False,
-    interactive: bool = False,
-) -> None:
-    """
-    Run ARM build and test(s) via QEMU (x86 only)
-
-    arguments:
-    tests -- pytest test IDs (e.g. tests/python or tests/python/a_file.py::a_test[param=1])
-    python -- run full Python tests
-    interactive -- start a shell after running build / test scripts
-    """
     binfmt = Path("/proc/sys/fs/binfmt_misc")
     if not binfmt.exists() or len(list(binfmt.glob("qemu-*"))) == 0:
         clean_exit(
             textwrap.dedent(
                 """
-        You must run a one-time setup to use ARM containers on x86:
+        You must run a one-time setup to use ARM containers on x86 via QEMU:
 
             sudo apt install -y sudo apt-get install qemu binfmt-support qemu-user-static
             docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
@@ -530,45 +413,17 @@ def arm(
             )
         )
 
-    scripts = [
-        f"./tests/scripts/task_config_build_arm.sh {get_build_dir('arm')}",
-        f"./tests/scripts/task_build.sh {get_build_dir('arm')} -j{NPROC}",
-        f"./tests/scripts/task_ci_setup.sh",
-    ]
-
-    if tests is not None:
-        scripts.append(f"python3 -m pytest {' '.join(tests)}")
-
-    if python:
-        scripts.append(f"./tests/scripts/task_python_unittest.sh")
-        scripts.append(f"./tests/scripts/task_python_arm_compute_library.sh")
-
-    docker(
-        name="ci-arm",
-        image="ci_arm",
-        scripts=scripts,
-        env={"USE_SCCACHE": "1"},
-        interactive=interactive,
-    )
-
-
-def arm_native(
-    interactive: bool = False,
-) -> None:
-    """
-    Run ARM build and test(s)
-
-    arguments:
-    interactive -- start a shell after running build / test scripts
-    """
-    clean_exit("ARM native builds not yet implemented")
-
 
 def cli_name(s: str) -> str:
     return s.replace("_", "-")
 
 
-def add_subparser(func, subparsers) -> Any:
+def add_subparser(
+    func: Callable,
+    subparsers: Any,
+    options: Optional[Dict[str, Option]] = None,
+    help: Optional[str] = None,
+) -> Any:
     """
     Utility function to make it so subparser commands can be defined locally
     as a function rather than directly via argparse and manually dispatched
@@ -584,6 +439,9 @@ def add_subparser(func, subparsers) -> Any:
     else:
         command_help, args_help = split
 
+    if help is not None:
+        command_help = help
+
     # Parse out the help text for each argument if present
     arg_help_texts = {}
     if args_help is not None:
@@ -597,7 +455,10 @@ def add_subparser(func, subparsers) -> Any:
     # Add each parameter to the subparser
     signature = inspect.signature(func)
     for name, value in signature.parameters.items():
-        kwargs = {"help": arg_help_texts[cli_name(name)]}
+        if name == "kwargs":
+            continue
+
+        kwargs: Dict[str, Union[str, bool]] = {"help": arg_help_texts[cli_name(name)]}
 
         arg_type = value.annotation
         is_optional = False
@@ -607,21 +468,124 @@ def add_subparser(func, subparsers) -> Any:
             arg_type = value.annotation.__args__[0]
 
         # Grab the default value if present
+        has_default = False
         if value.default is not value.empty:
             kwargs["default"] = value.default
+            has_default = True
 
         # Check if it should be a flag
         if arg_type is bool:
             kwargs["action"] = "store_true"
         else:
-            kwargs["required"] = not is_optional
+            kwargs["required"] = not is_optional and not has_default
 
         if str(arg_type).startswith("typing.List"):
             kwargs["nargs"] = "+"
 
         subparser.add_argument(f"--{cli_name(name)}", **kwargs)
 
+    if options is not None:
+        for option_name, (help, _) in options.items():
+            subparser.add_argument(f"--{cli_name(option_name)}", action="store_true", help=help)
+
     return subparser
+
+
+generated = [
+    generate_command(
+        name="gpu",
+        help="Run GPU build and test(s)",
+        options={
+            "topi": ("run topi tests", ["./tests/scripts/task_python_topi.sh"]),
+            "unittest": (
+                "run unit tests",
+                [
+                    "./tests/scripts/task_java_unittest.sh",
+                    "./tests/scripts/task_python_unittest_gpuonly.sh",
+                    "./tests/scripts/task_python_integration_gpuonly.sh",
+                ],
+            ),
+            "frontend": ("run frontend tests", ["./tests/scripts/task_python_frontend.sh"]),
+        },
+    ),
+    generate_command(
+        name="cpu",
+        help="Run CPU build and test(s)",
+        options={
+            "integration": (
+                "run integration tests",
+                ["./tests/scripts/task_python_integration.sh"],
+            ),
+            "unittest": (
+                "run unit tests",
+                [
+                    "./tests/scripts/task_python_unittest.sh",
+                    "./tests/scripts/task_python_vta_fsim.sh",
+                    "./tests/scripts/task_python_vta_tsim.sh",
+                ],
+            ),
+            "frontend": ("run frontend tests", ["./tests/scripts/task_python_frontend_cpu.sh"]),
+        },
+    ),
+    generate_command(
+        name="i386",
+        help="Run i386 build and test(s)",
+        options={
+            "integration": (
+                "run integration tests",
+                [
+                    "./tests/scripts/task_python_unittest.sh",
+                    "./tests/scripts/task_python_integration_i386only.sh",
+                ],
+            ),
+        },
+    ),
+    generate_command(
+        name="wasm",
+        help="Run WASM build and test(s)",
+        options={"test": ("run WASM tests", ["./tests/scripts/task_web_wasm.sh"])},
+    ),
+    generate_command(
+        name="qemu",
+        help="Run QEMU build and test(s)",
+        options={
+            "test": (
+                "run microTVM tests",
+                [
+                    "./tests/scripts/task_python_microtvm.sh",
+                    "./tests/scripts/task_demo_microtvm.sh",
+                ],
+            )
+        },
+    ),
+    generate_command(
+        name="hexagon",
+        help="Run Hexagon build and test(s)",
+        options={
+            "test": (
+                "run Hexagon API/Python tests",
+                [
+                    "./tests/scripts/task_build_hexagon_api.sh",
+                    "./tests/scripts/task_python_hexagon.sh",
+                ],
+            )
+        },
+    ),
+    generate_command(
+        name="arm",
+        help="Run ARM build and test(s) (native or via QEMU on x86)",
+        precheck=check_arm_qemu,
+        options={
+            "python": (
+                "run full Python tests",
+                [
+                    "./tests/scripts/task_python_unittest.sh",
+                    "./tests/scripts/task_python_arm_compute_library.sh",
+                ],
+            )
+        },
+    ),
+]
 
 
 def main():
@@ -633,17 +597,26 @@ def main():
     parser = argparse.ArgumentParser(description=description)
     subparsers = parser.add_subparsers(dest="command")
 
-    commands = [docs, serve_docs, lint, cpu, gpu, i386, wasm, qemu, hexagon, arm, arm_native]
-    subparser_functions = {cli_name(func.__name__): func for func in commands}
-    for func in subparser_functions.values():
+    commands = {}
+
+    # Add manually defined commands
+    for func in [docs, serve_docs, lint]:
         add_subparser(func, subparsers)
+        commands[cli_name(func.__name__)] = func
+
+    # Add generated commands
+    for func, options, help in generated:
+        add_subparser(func, subparsers, options, help)
+        commands[cli_name(func.__name__)] = func
 
     args = parser.parse_args()
+
     if args.command is None:
+        # Command not found in list, error out
         parser.print_help()
         exit(1)
 
-    func = subparser_functions[args.command]
+    func = commands[args.command]
 
     # Extract out the parsed args and invoke the relevant function
     kwargs = {k: getattr(args, k) for k in dir(args) if not k.startswith("_") and k != "command"}
