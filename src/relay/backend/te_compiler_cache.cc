@@ -131,7 +131,8 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
     for (Var param : relay_func->params) {
       Array<tvm::te::Tensor> inputs;
       for (const auto& ttype : FlattenTupleType(param->checked_type())) {
-        tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype);
+        tvm::te::Tensor tensor =
+            tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype, param->vid->name_hint);
         inputs.push_back(tensor);
         fn_inputs_.push_back(tensor);
       }
@@ -478,7 +479,8 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
       for (const auto& ttype : FlattenTupleType(param->checked_type())) {
         // Add data placeholder (in case we discover we need it below)
         Shape shape = GetShape(ttype->shape);
-        tvm::te::Tensor data_tensor = tvm::te::placeholder(shape, ttype->dtype);
+        tvm::te::Tensor data_tensor =
+            tvm::te::placeholder(shape, ttype->dtype, "data_" + param->vid->name_hint);
         data_inputs.push_back(data_tensor);
         // Add shape placeholder (in case we discover we need it below)
         int64_t ndim = shape.size();
@@ -486,7 +488,8 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
         if (ndim > 0) {
           sshape.push_back(tvm::Integer(ndim));
         }
-        tvm::te::Tensor shape_tensor = tvm::te::placeholder(sshape, DataType::Int(64));
+        tvm::te::Tensor shape_tensor =
+            tvm::te::placeholder(sshape, DataType::Int(64), "shape_" + param->vid->name_hint);
         shape_inputs.push_back(shape_tensor);
       }
       param_data_[param] = data_inputs;
