@@ -205,12 +205,52 @@ class DataTypeRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
-    PrimExpr value = this->VisitExpr(op->value);
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    BufferStore store = GetRef<BufferStore>(op);
+
+    auto value = this->VisitExpr(op->value);
+    auto indices = VisitIndices(op->indices);
+
+    if (!value.same_as(op->value) || !indices.same_as(op->indices)) {
+      auto writer = store.CopyOnWrite();
+      writer->value = value;
+      writer->indices = indices;
+    }
+
+    return std::move(store);
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    BufferLoad load = GetRef<BufferLoad>(op);
+
+    auto indices = VisitIndices(op->indices);
+
+    if (!indices.same_as(op->indices)) {
+      auto writer = load.CopyOnWrite();
+      writer->indices = indices;
+    }
+
+    return std::move(load);
+  }
+
+  Array<PrimExpr> VisitIndices(Array<PrimExpr> indices) {
     is_index_ = true;
-    PrimExpr index = this->VisitExpr(op->index);
+
+    auto fmutate = [this](const PrimExpr& index) { return this->VisitExpr(index); };
+    indices.MutateByApply(fmutate);
+
     is_index_ = false;
-    Stmt s = Store(op->buffer_var, op->value, index, op->predicate);
-    return StmtExprMutator::VisitStmt_(s.as<StoreNode>());
+
+    return indices;
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
@@ -278,14 +318,6 @@ class DataTypeRewriter : public StmtExprMutator {
       return vmap_[op];
     }
     return StmtExprMutator::VisitExpr_(op);
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    is_index_ = true;
-    PrimExpr index = this->VisitExpr(op->index);
-    is_index_ = false;
-    PrimExpr e = Load(op->dtype, op->buffer_var, index, op->predicate);
-    return StmtExprMutator::VisitExpr_(e.as<LoadNode>());
   }
 
   PrimExpr VisitExpr_(const IntImmNode* op) final {

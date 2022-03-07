@@ -34,16 +34,125 @@
 namespace tvm {
 namespace tir {
 
+class StackSizeChecker : public StmtExprVisitor {
+ public:
+  struct StackSizes {
+    // If a tvm_stack_make_shape call has no arguments, it is still
+    // valid and represents a scalar shape ().  Therefore, -1 is used
+    // to represent "no shape arguments exist", while 0 represents
+    // "shape arguments exist, all of which are size 0".
+    int64_t shape_stack{-1};
+    uint64_t array_stack{0};
+    uint64_t arg_stack{0};
+  };
+
+  static StackSizes Check(Stmt stmt) {
+    StackSizeChecker visitor;
+    visitor.VisitStmt(stmt);
+    return visitor.max_stack_;
+  }
+
+ private:
+  void VisitStmt_(const ForNode* op) final {
+    if (op->kind == ForKind::kParallel) {
+      // Parallel for loops have their own stack and allocations, so
+      // stop the recursion here.
+      return;
+    } else {
+      this->VisitStmt(op->body);
+    }
+  }
+  void VisitExpr_(const CallNode* op) final {
+    if (op->op.same_as(builtin::tvm_call_packed())) {
+      return MakeCallPacked(op, /* use_string_lookup */ true);
+    } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
+      return MakeCallPacked(op, /* use_string_lookup */ false);
+    } else if (op->op.same_as(builtin::tvm_call_trace_packed())) {
+      return MakeCallTracePacked(op);
+    } else if (op->op.same_as(builtin::tvm_stack_make_shape())) {
+      return MakeShape(op);
+    } else if (op->op.same_as(builtin::tvm_stack_make_array())) {
+      return MakeArray(op);
+    } else {
+      return StmtExprVisitor::VisitExpr_(op);
+    }
+  }
+  // call shape
+  void MakeShape(const CallNode* op) {
+    // if args.size() == 0, it is still valid and represents a scalar
+    // shape ().  Therefore, -1 is used to represent "no shape
+    // arguments exist", while 0 represents "shape arguments exist,
+    // all of which are size 0".
+    if (current_stack_.shape_stack == -1) {
+      current_stack_.shape_stack = 0;
+    }
+    current_stack_.shape_stack += op->args.size();
+    StmtExprVisitor::VisitExpr_(op);
+  }
+  // make array
+  void MakeArray(const CallNode* op) {
+    current_stack_.array_stack += 1;
+    StmtExprVisitor::VisitExpr_(op);
+  }
+  // call packed.
+  void MakeCallPacked(const CallNode* op, bool use_string_lookup) {
+    StackSizes restore_stack = current_stack_;
+
+    size_t arg_count = op->args.size();
+
+    // cpacked expects a resource_handle parameter
+    if (!use_string_lookup) {
+      arg_count--;
+    }
+
+    current_stack_.arg_stack += arg_count;
+    // Specially handle the buffer packed intrinsic
+    StmtExprVisitor::VisitExpr_(op);
+    // Record the amount of stack space needed, then reset the stack
+    // position to its previous location.
+    UpdateMaxStack();
+    current_stack_ = restore_stack;
+  }
+
+  void MakeCallTracePacked(const CallNode* op) {
+    StackSizes restore_stack = current_stack_;
+
+    size_t args_size = op->args.size();
+    ICHECK_GT(args_size, 0);
+    current_stack_.arg_stack += args_size;
+
+    StmtExprVisitor::VisitExpr_(op);
+    // Record the amount of stack space needed, then reset the stack
+    // position to its previous location.
+    UpdateMaxStack();
+    current_stack_ = restore_stack;
+
+    // However, the arguments to this CallNode remain on top of the
+    // stack, so we can use more than one packed function's arguments
+    // with the one stack.
+    current_stack_.arg_stack = restore_stack.arg_stack + args_size - 1;
+  }
+
+  void UpdateMaxStack() {
+    max_stack_.arg_stack = std::max(current_stack_.arg_stack, max_stack_.arg_stack);
+    max_stack_.shape_stack = std::max(current_stack_.shape_stack, max_stack_.shape_stack);
+    max_stack_.array_stack = std::max(current_stack_.array_stack, max_stack_.array_stack);
+  }
+
+  StackSizes current_stack_;
+  StackSizes max_stack_;
+};
+
 // Calculate the statistics of packed function.
 // These information are needed during codegen.
 class BuiltinLower : public StmtExprMutator {
  public:
   // Record stack frame for existing scope.
   struct AllocaScope {
-    Var stack_shape = Var("stack_shape", DataType::Handle());
+    Buffer stack_shape;
     Var stack_array = Var("stack_array", DataType::Handle());
     Var stack_value = Var("stack_value", DataType::Handle());
-    Var stack_tcode = Var("stack_tcode", DataType::Handle());
+    Buffer stack_tcode;
 
     int64_t max_shape_stack{-1};
     uint64_t max_array_stack{0};
@@ -58,21 +167,41 @@ class BuiltinLower : public StmtExprMutator {
 
   // Allcoate stack frames, only at parallel-for or root.
   Stmt VisitBodyAndRealizeAlloca(Stmt stmt) {
+    // Initial check to identify maximum stack sizes.  These are used
+    // to construct Buffer objects to hold the stack, which are then
+    // used when mutating.
+    auto max_sizes = StackSizeChecker::Check(stmt);
+
     alloca_scope_.emplace_back();
-    stmt = this->VisitStmt(stmt);
-    ICHECK(!alloca_scope_.empty());
     auto& scope = alloca_scope_.back();
-    if (scope.max_shape_stack != -1) {
-      stmt = LetStmt(scope.stack_shape, StackAlloca("shape", scope.max_shape_stack), stmt);
+
+    if (max_sizes.shape_stack != -1) {
+      scope.stack_shape = decl_buffer({IntImm(DataType::Int(64), max_sizes.shape_stack)},
+                                      DataType::Int(64), "stack_shape");
+      stmt = LetStmt(scope.stack_shape->data, StackAlloca("shape", max_sizes.shape_stack), stmt);
     }
 
-    if (scope.max_array_stack != 0) {
-      stmt = LetStmt(scope.stack_array, StackAlloca("array", scope.max_array_stack), stmt);
+    if (max_sizes.array_stack != 0) {
+      stmt = LetStmt(scope.stack_array, StackAlloca("array", max_sizes.array_stack), stmt);
     }
-    if (scope.max_arg_stack != 0) {
-      stmt = LetStmt(scope.stack_value, StackAlloca("arg_value", scope.max_arg_stack), stmt);
-      stmt = LetStmt(scope.stack_tcode, StackAlloca("arg_tcode", scope.max_arg_stack), stmt);
+
+    if (max_sizes.arg_stack != 0) {
+      scope.stack_tcode = decl_buffer({IntImm(DataType::UInt(64), max_sizes.arg_stack)},
+                                      DataType::Int(32), "stack_tcode");
+      stmt = LetStmt(scope.stack_value, StackAlloca("arg_value", max_sizes.arg_stack), stmt);
+
+      stmt = LetStmt(scope.stack_tcode->data, StackAlloca("arg_tcode", max_sizes.arg_stack), stmt);
     }
+
+    // Copy these values from the earlier search, for use in bounds
+    // checks.
+    scope.max_shape_stack = max_sizes.shape_stack;
+    scope.max_array_stack = max_sizes.array_stack;
+    scope.max_arg_stack = max_sizes.arg_stack;
+
+    stmt = this->VisitStmt(stmt);
+
+    ICHECK(!alloca_scope_.empty());
     alloca_scope_.pop_back();
 
     return stmt;
@@ -244,10 +373,10 @@ class BuiltinLower : public StmtExprMutator {
     op = expr.as<CallNode>();
     // no need to perform any store for a scalar shape
     for (size_t i = 0; i < op->args.size(); ++i) {
-      prep_seq.emplace_back(Store(scope.stack_shape, cast(DataType::Int(64), op->args[i]),
-                                  ConstInt32(stack_begin + i), const_true(1)));
+      prep_seq.emplace_back(BufferStore(scope.stack_shape, cast(DataType::Int(64), op->args[i]),
+                                        {ConstInt32(stack_begin + i)}));
     }
-    return AddressOffset(scope.stack_shape, DataType::Int(64), stack_begin);
+    return AddressOffset(scope.stack_shape->data, DataType::Int(64), stack_begin);
   }
   // make array
   PrimExpr MakeArray(const CallNode* op) {
@@ -328,17 +457,16 @@ class BuiltinLower : public StmtExprMutator {
         arg_tcode = kTVMStr;
       }
       if (IsArrayHandle(arg)) arg_tcode = kTVMDLTensorHandle;
-      prep_seq.emplace_back(
-          Store(scope.stack_tcode, ConstInt32(arg_tcode), stack_index, const_true(1)));
+      prep_seq.emplace_back(BufferStore(scope.stack_tcode, ConstInt32(arg_tcode), {stack_index}));
     }
-    // UPDATE stack value
-    scope.max_arg_stack = std::max(scope.run_arg_stack, scope.max_arg_stack);
-    scope.max_shape_stack = std::max(scope.run_shape_stack, scope.max_shape_stack);
-    scope.max_array_stack = std::max(scope.run_array_stack, scope.max_array_stack);
+    // Verify stack size matches earlier value.
+    ICHECK_LE(scope.run_arg_stack, scope.max_arg_stack);
+    ICHECK_LE(scope.run_shape_stack, scope.max_shape_stack);
+    ICHECK_LE(scope.run_array_stack, scope.max_array_stack);
     scope.run_shape_stack = restore_shape_stack;
     scope.run_array_stack = restore_array_stack;
     scope.run_arg_stack = arg_stack_begin;
-    Array<PrimExpr> packed_args = {op->args[0], scope.stack_value, scope.stack_tcode,
+    Array<PrimExpr> packed_args = {op->args[0], scope.stack_value, scope.stack_tcode->data,
                                    ConstInt32(arg_stack_begin),
                                    ConstInt32(arg_stack_begin + op->args.size() - 1)};
 
@@ -379,19 +507,18 @@ class BuiltinLower : public StmtExprMutator {
                                          builtin::kTVMValueContent, arg));
       int arg_tcode = api_type.code();
       ICHECK(!IsArrayHandle(arg)) << "Trace does not support Buffers";
-      prep_seq.emplace_back(
-          Store(scope.stack_tcode, ConstInt32(arg_tcode), stack_index, const_true(1)));
+      prep_seq.emplace_back(BufferStore(scope.stack_tcode, ConstInt32(arg_tcode), {stack_index}));
     }
-    // UPDATE stack value
-    scope.max_arg_stack = std::max(scope.run_arg_stack, scope.max_arg_stack);
-    scope.max_shape_stack = std::max(scope.run_shape_stack, scope.max_shape_stack);
-    scope.max_array_stack = std::max(scope.run_array_stack, scope.max_array_stack);
+    // Verify stack size matches earlier value.
+    ICHECK_LE(scope.run_arg_stack, scope.max_arg_stack);
+    ICHECK_LE(scope.run_shape_stack, scope.max_shape_stack);
+    ICHECK_LE(scope.run_array_stack, scope.max_array_stack);
     scope.run_shape_stack = restore_shape_stack;
     scope.run_array_stack = restore_array_stack;
     // Update the top of the stack, so we can use more than one
     // packed function's arguments with the one stack.
     scope.run_arg_stack = arg_stack_begin + args_size - 1;
-    Array<PrimExpr> packed_args = {op->args[0], scope.stack_value, scope.stack_tcode,
+    Array<PrimExpr> packed_args = {op->args[0], scope.stack_value, scope.stack_tcode->data,
                                    ConstInt32(arg_stack_begin),
                                    ConstInt32(arg_stack_begin + op->args.size() - 1),
                                    // Pass traced value.

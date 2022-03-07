@@ -810,11 +810,13 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
   llvm::Value* arg_value = builder_->CreateInBoundsGEP(
       t_tvm_value_, builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
       ConstInt32(begin));
-  TypedPointer arg_tcode = CreateBufferPtr(DataType::Int(32), stack_tcode, ConstInt32(begin));
+  TypedPointer arg_tcode =
+      CreateBufferPtr(stack_tcode, DataType::Int(32), ConstInt32(begin), DataType::Int(32));
   llvm::Value* ret_value = builder_->CreateInBoundsGEP(
       t_tvm_value_, builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
       ConstInt32(end));
-  TypedPointer ret_tcode = CreateBufferPtr(DataType::Int(32), stack_tcode, ConstInt32(end));
+  TypedPointer ret_tcode =
+      CreateBufferPtr(stack_tcode, DataType::Int(32), ConstInt32(end), DataType::Int(32));
 
 #if TVM_LLVM_VERSION >= 90
   auto call_callee = llvm::FunctionCallee(ftype_tvm_func_call_, RuntimeTVMFuncCall());

@@ -16,7 +16,7 @@
 # under the License.
 import pytest
 import tvm
-from tvm import te
+from tvm import te, ir
 import numpy as np
 
 
@@ -89,11 +89,18 @@ def test_ir():
 
 
 def test_ir2():
+    buf_size = te.var("size")
     x = te.var("n")
-    a = te.var("array", "handle")
-    st = tvm.tir.Store(a, x + 1, 1)
-    assert isinstance(st, tvm.tir.Store)
-    assert st.buffer_var == a
+
+    storage_type = ir.PrimType("int32")
+    handle_type = ir.PointerType(storage_type)
+    array = te.var("array", handle_type)
+    buf = tvm.tir.decl_buffer([buf_size], "int32", data=array)
+
+    st = tvm.tir.BufferStore(buf, x + 1, [1])
+    assert isinstance(st, tvm.tir.BufferStore)
+    assert st.buffer == buf
+    assert st.buffer.data == array
 
 
 def test_let():

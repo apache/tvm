@@ -171,6 +171,12 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     os << "void*";
     return;
   }
+
+  if (t.is_void()) {
+    os << "void";
+    return;
+  }
+
   bool fail = false;
   if (t.is_float()) {
     switch (t.bits()) {
@@ -1115,12 +1121,12 @@ int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode
   return 0;
 }
 
-void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const LoadNode* op,
+void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
                                       std::ostream& os) {
   // Cast away volatile qualifier for fp16 types. That is, only loads and
   // stores are volatile. The loaded objects are not marked as volatile.
   //
-  if ((op->dtype.is_float16() || op->dtype.is_bfloat16()) && IsVolatile(op->buffer_var.get())) {
+  if ((op->dtype.is_float16() || op->dtype.is_bfloat16()) && IsVolatile(op->buffer->data.get())) {
     os << "(";
     PrintType(op->dtype, os);
     os << ")(" << value << ")";
