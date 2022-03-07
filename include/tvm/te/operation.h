@@ -268,6 +268,7 @@ class ComputeOp : public Operation {
                     Array<IterVar> axis, Array<PrimExpr> body);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeOp, Operation, ComputeOpNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeOpNode);
 };
 
 /*!

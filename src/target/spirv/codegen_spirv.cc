@@ -412,22 +412,23 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const BroadcastNode* op) {
   return builder_->Concat(values);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const LoadNode* op) {
-  ICHECK(is_one(op->predicate));
+spirv::Value CodeGenSPIRV::VisitExpr_(const BufferLoadNode* op) {
+  ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
+  Var buffer_var = op->buffer->data;
+  PrimExpr prim_index = op->indices[0];
 
   DataType desired_read_type = op->dtype;
   if (desired_read_type == DataType::Bool()) {
     desired_read_type = boolean_storage_type_.with_lanes(desired_read_type.lanes());
   }
 
-  const VarNode* buffer_var = op->buffer_var.get();
-  auto it = storage_info_.find(buffer_var);
+  auto it = storage_info_.find(buffer_var.get());
   ICHECK(it != storage_info_.end());
   StorageInfo& info = it->second;
-  info.CheckContentType(desired_read_type, op->index.dtype().lanes());
+  info.CheckContentType(desired_read_type, prim_index.dtype().lanes());
 
   spirv::SType content_type = builder_->GetSType(info.element_type);
-  spirv::Value buffer = MakeValue(op->buffer_var);
+  spirv::Value buffer = MakeValue(buffer_var);
   spirv::SType ptr_type = builder_->GetPointerType(content_type, buffer.stype.storage_class);
 
   uint32_t mask = spv::MemoryAccessMaskNone;
@@ -438,7 +439,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LoadNode* op) {
   if (desired_read_type == info.element_type) {
     // Requested a single value from an array.  This may be a scalar load
     // or a vectorized load, based on the array element type.
-    spirv::Value index = MakeValue(op->index);
+    spirv::Value index = MakeValue(prim_index);
     spirv::Value ptr = builder_->StructArrayAccess(ptr_type, buffer, index);
     spirv::Value loaded = builder_->MakeValue(spv::OpLoad, content_type, ptr, mask);
     // OpTypeBool have no physical address/storage.  Here, cast from
@@ -457,13 +458,13 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LoadNode* op) {
       spirv::Value ptr = builder_->StructArrayAccess(ptr_type, buffer, index);
       values.emplace_back(builder_->MakeValue(spv::OpLoad, content_type, ptr, mask));
     };
-    this->Scalarize(op->index, f);
+    this->Scalarize(prim_index, f);
     return builder_->Concat(values);
 
   } else {
     LOG(FATAL) << "Cannot perform buffer access of buffer variable '" << buffer_var->name_hint
                << "' with element type " << info.element_type << " using index of type "
-               << op->index->dtype << " to produce output of type " << op->dtype;
+               << prim_index->dtype << " to produce output of type " << op->dtype;
     return spirv::Value();
   }
 }
@@ -483,15 +484,18 @@ void CodeGenSPIRV::Scalarize(const PrimExpr& e, std::function<void(int i, spirv:
   }
 }
 
-void CodeGenSPIRV::VisitStmt_(const StoreNode* op) {
-  ICHECK(is_one(op->predicate));
-  auto it = storage_info_.find(op->buffer_var.get());
+void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
+  ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
+  Var buffer_var = op->buffer->data;
+  PrimExpr prim_index = op->indices[0];
+
+  auto it = storage_info_.find(buffer_var.get());
   ICHECK(it != storage_info_.end());
   StorageInfo& info = it->second;
-  info.CheckContentType(op->value.dtype(), op->index.dtype().lanes());
+  info.CheckContentType(op->value.dtype(), prim_index.dtype().lanes());
 
   spirv::SType content_type = builder_->GetSType(info.element_type);
-  spirv::Value buffer = MakeValue(op->buffer_var);
+  spirv::Value buffer = MakeValue(buffer_var);
   spirv::Value value = MakeValue(op->value);
   spirv::SType ptr_type = builder_->GetPointerType(content_type, buffer.stype.storage_class);
 
@@ -505,7 +509,7 @@ void CodeGenSPIRV::VisitStmt_(const StoreNode* op) {
     // or a vectorized store, based on the array element type.
     ICHECK_EQ(info.element_type, op->value.dtype())
         << "Vulkan only allow one type access to the same buffer";
-    spirv::Value index = MakeValue(op->index);
+    spirv::Value index = MakeValue(prim_index);
     spirv::Value ptr = builder_->StructArrayAccess(ptr_type, buffer, index);
     builder_->MakeInst(spv::OpStore, ptr, value, mask);
 
@@ -517,12 +521,12 @@ void CodeGenSPIRV::VisitStmt_(const StoreNode* op) {
       spirv::Value ptr = builder_->StructArrayAccess(ptr_type, buffer, index);
       builder_->MakeInst(spv::OpStore, ptr, elem, mask);
     };
-    this->Scalarize(op->index, f);
+    this->Scalarize(prim_index, f);
 
   } else {
     LOG(FATAL) << "Cannot store value of type " << op->value.dtype() << " into buffer variable '"
-               << op->buffer_var->name_hint << "' with element type " << info.element_type
-               << " using index of type " << op->index->dtype;
+               << buffer_var->name_hint << "' with element type " << info.element_type
+               << " using index of type " << prim_index->dtype;
   }
 }
 

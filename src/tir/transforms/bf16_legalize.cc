@@ -199,11 +199,11 @@ class BF16LowerRewriter : public StmtExprMutator {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<BufferStoreNode>();
 
-    auto it = buffer_remap_.find(op->buffer);
-    if (it != buffer_remap_.end()) {
-      return BufferStore(it->second, op->value, op->indices);
-    } else {
+    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    if (new_buf.same_as(op->buffer)) {
       return ret;
+    } else {
+      return BufferStore(new_buf, op->value, op->indices);
     }
   }
 
@@ -229,50 +229,34 @@ class BF16LowerRewriter : public StmtExprMutator {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<BufferRealizeNode>();
 
-    auto it = buffer_remap_.find(op->buffer);
-    if (it != buffer_remap_.end()) {
-      return BufferRealize(it->second, op->bounds, op->condition, op->body);
-    } else {
+    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    if (new_buf.same_as(op->buffer)) {
       return ret;
+    } else {
+      return BufferRealize(new_buf, op->bounds, op->condition, op->body);
     }
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
-    // NOTE: we do not explicit recursivly mutate op->buffer_var
-    Stmt ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<StoreNode>();
-
-    auto it = var_remap_.find(op->buffer_var);
-    if (it != var_remap_.end()) {
-      return Store(it->second, op->value, op->index, op->predicate);
-    } else {
-      return ret;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     PrimExpr ret = StmtExprMutator::VisitExpr_(op);
     op = ret.as<BufferLoadNode>();
 
-    auto it = buffer_remap_.find(op->buffer);
-    if (it != buffer_remap_.end()) {
-      return BufferLoad(it->second, op->indices);
-    } else {
+    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    if (new_buf.same_as(op->buffer)) {
       return ret;
+    } else {
+      return BufferLoad(new_buf, op->indices);
     }
   }
 
   PrimExpr VisitExpr_(const LoadNode* op) final {
-    PrimExpr ret = StmtExprMutator::VisitExpr_(op);
-    op = ret.as<LoadNode>();
-
-    if (op->dtype.is_bfloat16()) {
-      auto it = var_remap_.find(op->buffer_var);
-      ICHECK(it != var_remap_.end()) << "bfloat* var needs to be remapped";
-      return Load(DataType::UInt(16, op->dtype.lanes()), it->second, op->index, op->predicate);
-    } else {
-      return ret;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
   PrimExpr VisitExpr_(const FloatImmNode* op) final {
@@ -284,9 +268,10 @@ class BF16LowerRewriter : public StmtExprMutator {
   }
 
   void AlterBuffers(PrimFuncNode* op) {
-    std::vector<std::pair<Var, Buffer>> changes;
+    Map<Var, Buffer> new_buffer_map;
 
     for (auto& itr : op->buffer_map) {
+      auto param_var = itr.first;
       auto oldbuf = itr.second;
       if (oldbuf->dtype.is_bfloat16()) {
         DataType dtype = DataType::UInt(16, oldbuf->dtype.lanes());
@@ -296,18 +281,69 @@ class BF16LowerRewriter : public StmtExprMutator {
                              oldbuf->buffer_type);
         buffer_remap_[oldbuf] = newbuf;
         var_remap_[oldbuf->data] = buffer_var;
-        changes.emplace_back(itr.first, newbuf);
+        new_buffer_map.Set(param_var, newbuf);
       } else {
-        changes.emplace_back(itr);
+        new_buffer_map.Set(param_var, oldbuf);
+      }
+    }
+
+    // Most passes do not change the preflattened buffer map, nor
+    // should they change it.  This is an exception, because the Var
+    // associated with the `BufferNode::data` in
+    // `PrimFunc::buffer_map` may be replaced, and the corresponding
+    // Var in the `PrimFunc::preflattened_buffer_map` must also be
+    // replaced.
+    Map<Var, Buffer> new_preflattened_buffer_map;
+    for (auto& itr : op->preflattened_buffer_map) {
+      auto param_var = itr.first;
+      auto oldbuf = itr.second;
+      if (oldbuf->dtype.is_bfloat16()) {
+        auto it = new_buffer_map.find(param_var);
+        ICHECK(it != new_buffer_map.end())
+            << "PrimFunc parameter " << param_var->name_hint
+            << " is associated with the pre-flattened buffer " << oldbuf->name
+            << ", but isn't associated with any post-flatten buffer.";
+        const Buffer& flatbuf = (*it).second;
+        DataType dtype = DataType::UInt(16, oldbuf->dtype.lanes());
+        auto newbuf = Buffer(flatbuf->data, dtype, oldbuf->shape, oldbuf->strides,
+                             oldbuf->elem_offset, oldbuf->name, oldbuf->data_alignment,
+                             oldbuf->offset_factor, oldbuf->buffer_type);
+        buffer_remap_[oldbuf] = newbuf;
+        new_preflattened_buffer_map.Set(param_var, newbuf);
+      } else {
+        new_preflattened_buffer_map.Set(param_var, oldbuf);
       }
     }
 
     if (buffer_remap_.size() != 0) {
-      op->buffer_map = Map<Var, Buffer>(changes.begin(), changes.end());
+      op->buffer_map = new_buffer_map;
+      op->preflattened_buffer_map = new_preflattened_buffer_map;
     }
   }
 
  private:
+  Buffer GetRemappedBuffer(Buffer buf) {
+    auto buf_it = buffer_remap_.find(buf);
+    if (buf_it != buffer_remap_.end()) {
+      return buf_it->second;
+    }
+
+    Buffer new_buf = buf;
+
+    auto var_it = var_remap_.find(buf->data);
+    if (var_it != var_remap_.end()) {
+      DataType dtype =
+          buf->dtype.is_bfloat16() ? DataType::UInt(16, buf->dtype.lanes()) : buf->dtype;
+      new_buf = Buffer(var_it->second, dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
+                       buf->data_alignment, buf->offset_factor, buf->buffer_type,
+                       buf->axis_separators, buf->span);
+    }
+
+    buffer_remap_[buf] = new_buf;
+
+    return new_buf;
+  }
+
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
   std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
 };

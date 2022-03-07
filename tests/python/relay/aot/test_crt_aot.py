@@ -766,24 +766,27 @@ def test_output_tensor_names():
             def tf_function(self, x):
                 # Use tf.nn API to create the model
                 tf_strides = [1, strides[0], strides[1], 1]
+                filter_shape = [kernel_shape[0], kernel_shape[1], 3, 3]
+                filter1 = tf.constant(
+                    np.arange(np.prod(filter_shape)).reshape(filter_shape),
+                    dtype=tf.float32,
+                )
                 op = tf.nn.conv2d(
                     x,
-                    filters=tf.constant(
-                        np.random.uniform(size=[kernel_shape[0], kernel_shape[1], 3, 3]),
-                        dtype=tf.float32,
-                    ),
+                    filters=filter1,
                     strides=tf_strides,
                     padding=padding,
                     dilations=dilation,
                 )
                 op = tf.nn.relu(op)
                 # Second convolution
+                filter2 = tf.constant(
+                    1000 + np.arange(np.prod(filter_shape)).reshape(filter_shape),
+                    dtype=tf.float32,
+                )
                 op2 = tf.nn.conv2d(
                     x,
-                    filters=tf.constant(
-                        np.random.uniform(size=(kernel_shape[0], kernel_shape[1], 3, 3)),
-                        dtype=tf.float32,
-                    ),
+                    filters=filter2,
                     strides=strides,
                     padding=padding,
                     data_format="NHWC",

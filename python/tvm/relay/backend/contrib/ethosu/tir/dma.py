@@ -41,12 +41,12 @@ def get_pad_params(stmt):
     """
     _, body = get_op_attrs(stmt)
     n, h, w, c, _, inner = get_outer_loops(body, "NHWC")
-    output_pointer = inner.buffer_var
+    output_pointer = inner.buffer.data
     pad = SerialPadding(top=0, left=0, bottom=0, right=0)
     if isinstance(inner.value, tvm.tir.Call):
-        input_pointer = inner.value.args[1].buffer_var
+        input_pointer = inner.value.args[1].buffer.data
     else:
-        input_pointer = inner.value.buffer_var
+        input_pointer = inner.value.buffer.data
         return pad, input_pointer, output_pointer
 
     padded_shape = [n.extent, h.extent, w.extent, c.extent]
@@ -94,10 +94,10 @@ def get_upscale_params(stmt):
     _, body = get_op_attrs(stmt)
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
     if isinstance(inner.value, tvm.tir.Call):
-        input_pointer = inner.value.args[1].buffer_var
+        input_pointer = inner.value.args[1].buffer.data
     else:
-        input_pointer = inner.value.buffer_var
-    output_pointer = inner.buffer_var
+        input_pointer = inner.value.buffer.data
+    output_pointer = inner.buffer.data
     return (input_pointer, output_pointer)
 
 
@@ -126,11 +126,11 @@ def get_convert_to_nhwc_params(stmt):
     # compute that is deemed uneccesary isn't removed by TVM.
     if attrs["layout"] == "NHCWB16":
         inner = inner.body
-        input_pointer = inner.value.b.buffer_var
+        input_pointer = inner.value.b.buffer.data
     else:
-        input_pointer = inner.value.buffer_var
+        input_pointer = inner.value.buffer.data
 
-    output_pointer = inner.buffer_var
+    output_pointer = inner.buffer.data
     return c.extent, input_pointer, output_pointer
 
 
@@ -154,13 +154,13 @@ def get_convert_to_nhcwb16_params(stmt):
     """
     attrs, body = get_op_attrs(stmt)
     _, _, _, c, b, inner = get_outer_loops(body, attrs["layout"])
-    output_pointer = inner.buffer_var
+    output_pointer = inner.buffer.data
     if isinstance(inner.value, tvm.tir.Call):
         cond = inner.value.args[0]
         out_channels = cond.b.value
-        input_pointer = inner.value.args[1].buffer_var
+        input_pointer = inner.value.args[1].buffer.data
     else:
-        input_pointer = inner.value.buffer_var
+        input_pointer = inner.value.buffer.data
         out_channels = c.extent * b.extent if attrs["layout"] == "NHCWB16" else c.extent
 
     return out_channels, input_pointer, output_pointer
@@ -186,12 +186,17 @@ def get_read_params(stmt):
     """
     attrs, body = get_op_attrs(stmt)
     _, h, w, c, _, inner = get_outer_loops(body, attrs["layout"])
-    input_pointer = inner.value.buffer_var
-    output_pointer = inner.buffer_var
+    input_pointer = inner.value.buffer.data
+    output_pointer = inner.buffer.data
+
+    # Needed for stride calculation, can replace with
+    # inner.value.buffer.strides in future.
+    assert len(inner.value.indices) == 1, "Ethos-U DMA expects flattened buffers"
     stride_vars = [h.loop_var, w.loop_var, c.loop_var]
-    strides = get_strides(inner.value.index, stride_vars)
-    base_address = get_base_address(inner.value.index)
-    data_type = inner.buffer_var.type_annotation.element_type.dtype
+    strides = get_strides(inner.value.indices[0], stride_vars)
+
+    base_address = [get_base_address(index) for index in inner.value.indices]
+    data_type = inner.buffer.data.type_annotation.element_type.dtype
     return (
         SerialFeatureMap(
             data_type=data_type,
@@ -201,7 +206,7 @@ def get_read_params(stmt):
             tile_height_0=h.extent,
             tile_height_1=0,
             tile_width_0=w.extent,
-            tile_address_0=tvm.tir.Load(data_type, inner.value.buffer_var, base_address),
+            tile_address_0=tvm.tir.BufferLoad(inner.value.buffer, base_address),
             tile_address_1=0,
             tile_address_2=0,
             tile_address_3=0,
@@ -237,12 +242,17 @@ def get_write_params(stmt):
     """
     attrs, body = get_op_attrs(stmt)
     _, h, w, c, _, inner = get_outer_loops(body, attrs["layout"])
-    input_pointer = inner.value.buffer_var
-    output_pointer = inner.buffer_var
+    input_pointer = inner.value.buffer.data
+    output_pointer = inner.buffer.data
+
+    # Needed for stride calculation, can replace with
+    # inner.value.buffer.strides in future.
+    assert len(inner.indices) == 1, "Ethos-U DMA expects flattened buffers"
     stride_vars = [h.loop_var, w.loop_var, c.loop_var]
-    strides = get_strides(inner.index, stride_vars)
-    base_address = get_base_address(inner.index)
-    data_type = inner.buffer_var.type_annotation.element_type.dtype
+    strides = get_strides(inner.indices[0], stride_vars)
+
+    base_address = [get_base_address(index) for index in inner.indices]
+    data_type = inner.buffer.data.type_annotation.element_type.dtype
     return (
         SerialFeatureMap(
             data_type=data_type,
@@ -252,7 +262,7 @@ def get_write_params(stmt):
             tile_height_0=h.extent,
             tile_height_1=0,
             tile_width_0=w.extent,
-            tile_address_0=tvm.tir.Load(data_type, inner.buffer_var, base_address),
+            tile_address_0=tvm.tir.BufferLoad(inner.buffer, base_address),
             tile_address_1=0,
             tile_address_2=0,
             tile_address_3=0,

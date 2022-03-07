@@ -77,12 +77,12 @@ def get_binary_elementwise_params(
 
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
     op = ignore_cast(inner.value)
-    input_pointer = ignore_cast(op.a).buffer_var
-    input_pointer1 = ignore_cast(op.b).buffer_var
+    input_pointer = ignore_cast(op.a).buffer.data
+    input_pointer1 = ignore_cast(op.b).buffer.data
 
     if reversed_operands:
         input_pointer, input_pointer1 = input_pointer1, input_pointer
-    output_pointer = inner.buffer_var
+    output_pointer = inner.buffer.data
     # Get feature map info
     serial_ifm, _ = get_ifm_params(input_pointer, producers)
     serial_ifm2, _ = get_ifm_params(input_pointer1, producers)
