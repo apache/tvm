@@ -189,6 +189,12 @@ class Target(Object):
         return list(self.attrs.get("mattr", []))
 
     @property
+    def supports_integer_dot_product(self):
+        if self.attrs.get("supports_integer_dot_product", []):
+            return bool(self.attrs["supports_integer_dot_product"])
+        return False
+
+    @property
     def libs(self):
         return list(self.attrs.get("libs", []))
 

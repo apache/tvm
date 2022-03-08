@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
 """Example code to do convolution."""
 
 import numpy as np
@@ -32,6 +33,7 @@ from tvm.topi.generic.conv2d import fallback_schedule_cpu_common_int8
 
 from common import Int8Fallback
 import tvm.testing
+import pytest
 
 
 def compile_conv2d_NHWC_gemm_int8_arm(
@@ -226,6 +228,7 @@ def verify_conv2d_NHWC_gemm_int8(
 
 
 def verify_conv2d_NCHWc_int8(
+    in_dtype,
     batch,
     in_channel,
     in_size,
@@ -246,12 +249,15 @@ def verify_conv2d_NCHWc_int8(
 
     in_height = in_width = in_size
 
-    A = te.placeholder((batch, in_channel, in_height, in_width), name="A", dtype="int8")
-    W = te.placeholder((num_filter, in_channel, kernel, kernel), name="W", dtype="int8")
+    A = te.placeholder((batch, in_channel, in_height, in_width), name="A", dtype=in_dtype)
+    W = te.placeholder((num_filter, in_channel, kernel, kernel), name="W", dtype=in_dtype)
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
     dtype = A.dtype
+    out_dtype = "int32" if in_dtype == "int8" else "uint32"
+    lo = -128 if in_dtype == "int8" else 0
+    hi = 127 if in_dtype == "int8" else 255
 
     def check_target(target, compute, schedule, oc_block_factor):
         dev = tvm.device(target, 0)
@@ -263,17 +269,19 @@ def verify_conv2d_NCHWc_int8(
             return
 
         bias = te.placeholder(
-            (num_filter // oc_block_factor, 1, 1, oc_block_factor), name="bias", dtype="int32"
+            (num_filter // oc_block_factor, 1, 1, oc_block_factor), name="bias", dtype=out_dtype
         )
         bias_shape = get_const_tuple(bias.shape)
 
         @memoize("topi.tests.test_topi_conv2d_int8.verify_conv2d_nchw")
         def get_ref_data():
-            a_np = np.random.randint(low=-128, high=127, size=a_shape).astype("int32")
-            w_np = np.random.randint(low=-128, high=128, size=w_shape).astype("int32")
-            b_np = np.random.uniform(size=bias_shape).astype("int32")
+            a_np = np.random.randint(low=lo, high=hi, size=a_shape).astype(out_dtype)
+            w_np = np.random.randint(low=lo, high=hi, size=w_shape).astype(out_dtype)
+            b_np = np.random.uniform(size=bias_shape).astype(out_dtype)
             dw_np = tvm.topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
-            c_np = tvm.topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding).astype("int32")
+            c_np = tvm.topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding).astype(
+                out_dtype
+            )
 
             # convert to NCHWc
             _, _, out_height, out_width = c_np.shape
@@ -282,7 +290,7 @@ def verify_conv2d_NCHWc_int8(
             ).transpose(0, 1, 3, 4, 2)
 
             if add_bias:
-                b_np = np.random.uniform(size=bias_shape).astype("int32")
+                b_np = np.random.uniform(size=bias_shape).astype(out_dtype)
                 c_np += b_np
             if add_relu:
                 c_np = np.maximum(c_np, 0)
@@ -301,7 +309,7 @@ def verify_conv2d_NCHWc_int8(
                 (dilation, dilation),
                 "NCHW",
                 "NCHW",
-                "int32",
+                out_dtype,
             )
             print(C.shape)
             print(bias.shape)
@@ -313,7 +321,7 @@ def verify_conv2d_NCHWc_int8(
 
         a = tvm.nd.array(a_np.astype(dtype), dev)
         w = tvm.nd.array(w_np.astype(dtype), dev)
-        b = tvm.nd.array(b_np.astype("int32"), dev)
+        b = tvm.nd.array(b_np.astype(out_dtype), dev)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
         if add_bias:
             tvm.build(
@@ -363,18 +371,31 @@ def verify_conv2d_NCHWc_int8(
             topi.cuda.schedule_conv2d_NCHWc_int8,
             4,
         ),
-        (
-            "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon",
-            topi.arm_cpu.conv2d_NCHWc_int8,
-            topi.arm_cpu.schedule_conv2d_NCHWc_int8,
-            8,
-        ),
+        # Disable on CI since it does not support spirv int8 dot product
+        # (
+        #     "vulkan -from_device=0",
+        #     lambda a, w, s, p, d, l, ol, o: topi.cuda.conv2d_NCHWc_int8(a, w, s, p, d, l, o),
+        #     topi.cuda.schedule_conv2d_NCHWc_int8,
+        #     4,
+        # ),
     ]
+
+    if in_dtype == "int8":
+        targets.append(
+            (
+                "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon",
+                topi.arm_cpu.conv2d_NCHWc_int8,
+                topi.arm_cpu.schedule_conv2d_NCHWc_int8,
+                8,
+            )
+        )
+
     for target, compute, schedule, oc_block_factor in targets:
         check_target(target, compute, schedule, oc_block_factor)
 
 
 def verify_conv2d_nchw_int8(
+    in_dtype,
     batch,
     in_channel,
     in_size,
@@ -395,9 +416,9 @@ def verify_conv2d_nchw_int8(
 
     in_height = in_width = in_size
 
-    A = te.placeholder((batch, in_channel, in_height, in_width), name="A", dtype="int8")
-    W = te.placeholder((num_filter, in_channel, kernel, kernel), name="W", dtype="int8")
-    bias = te.placeholder((num_filter, 1, 1), name="bias", dtype="int8")
+    A = te.placeholder((batch, in_channel, in_height, in_width), name="A", dtype=in_dtype)
+    W = te.placeholder((num_filter, in_channel, kernel, kernel), name="W", dtype=in_dtype)
+    bias = te.placeholder((num_filter, 1, 1), name="bias", dtype=in_dtype)
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -495,114 +516,118 @@ def verify_conv2d_nchw_int8(
         check_target(target)
 
 
-@tvm.testing.requires_cuda
-def test_conv2d_nchw():
+@pytest.mark.parametrize("in_dtype", ["int8", "uint8"])
+def test_conv2d_nchw(in_dtype):
     with Int8Fallback():
         # ResNet18 workloads where channels in / out are multiple of oc_block_factor
-        verify_conv2d_NCHWc_int8(1, 64, 56, 64, 3, 1, 1)
-        verify_conv2d_NCHWc_int8(1, 64, 56, 64, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 64, 56, 128, 3, 2, 1)
-        verify_conv2d_NCHWc_int8(1, 64, 56, 128, 1, 2, 0)
-        verify_conv2d_NCHWc_int8(1, 128, 28, 128, 3, 1, 1)
-        verify_conv2d_NCHWc_int8(1, 128, 28, 256, 3, 2, 1)
-        verify_conv2d_NCHWc_int8(1, 128, 28, 256, 1, 2, 0)
-        verify_conv2d_NCHWc_int8(1, 256, 14, 256, 3, 1, 1)
-        verify_conv2d_NCHWc_int8(1, 256, 14, 512, 3, 2, 1)
-        verify_conv2d_NCHWc_int8(1, 256, 14, 512, 1, 2, 0)
-        verify_conv2d_NCHWc_int8(1, 512, 7, 512, 3, 1, 1)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 56, 64, 3, 1, 1)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 56, 64, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 56, 128, 3, 2, 1)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 56, 128, 1, 2, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 128, 28, 128, 3, 1, 1)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 128, 28, 256, 3, 2, 1)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 128, 28, 256, 1, 2, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 256, 14, 256, 3, 1, 1)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 256, 14, 512, 3, 2, 1)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 256, 14, 512, 1, 2, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 512, 7, 512, 3, 1, 1)
 
         # bias, relu
-        verify_conv2d_NCHWc_int8(1, 64, 56, 64, 3, 1, 1, add_relu=True)
-        verify_conv2d_NCHWc_int8(1, 64, 56, 64, 3, 1, 1, add_bias=True)
-        verify_conv2d_NCHWc_int8(1, 64, 56, 64, 3, 1, 1, add_bias=True, add_relu=True)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 56, 64, 3, 1, 1, add_relu=True)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 56, 64, 3, 1, 1, add_bias=True)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 56, 64, 3, 1, 1, add_bias=True, add_relu=True)
 
         # dilation = 2
-        verify_conv2d_NCHWc_int8(1, 64, 56, 64, 3, 1, 1, dilation=2)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 56, 64, 3, 1, 1, dilation=2)
 
         # batch size
-        verify_conv2d_NCHWc_int8(4, 64, 56, 64, 3, 1, 1)
-        verify_conv2d_NCHWc_int8(9, 64, 56, 64, 3, 1, 1)
+        verify_conv2d_NCHWc_int8(in_dtype, 4, 64, 56, 64, 3, 1, 1)
+        verify_conv2d_NCHWc_int8(in_dtype, 9, 64, 56, 64, 3, 1, 1)
 
         # weird workloads
-        verify_conv2d_NCHWc_int8(4, 4, 4, 8, 4, 4, 4)
+        verify_conv2d_NCHWc_int8(in_dtype, 4, 4, 4, 8, 4, 4, 4)
 
         # inception v3 workloads where channels in / out are multiple of oc_block_factor
-        verify_conv2d_NCHWc_int8(1, 32, 149, 32, 3, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 32, 147, 64, 3, 1, 1)
-        verify_conv2d_NCHWc_int8(1, 64, 73, 80, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 80, 73, 192, 3, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 192, 35, 64, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 192, 35, 48, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 48, 35, 64, 5, 1, 2)
-        verify_conv2d_NCHWc_int8(1, 64, 35, 96, 3, 1, 1)
-        verify_conv2d_NCHWc_int8(1, 96, 35, 96, 3, 1, 1)
-        verify_conv2d_NCHWc_int8(1, 192, 35, 32, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 256, 35, 64, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 256, 35, 48, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 288, 35, 64, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 288, 35, 48, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 288, 35, 384, 3, 2, 0)
-        verify_conv2d_NCHWc_int8(1, 96, 35, 96, 3, 2, 0)
-        verify_conv2d_NCHWc_int8(1, 768, 17, 192, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 768, 17, 128, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 128, 17, 128, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 128, 17, 192, 7, 1, 3)
-        verify_conv2d_NCHWc_int8(1, 128, 17, 128, 7, 1, 3)
-        verify_conv2d_NCHWc_int8(1, 128, 17, 192, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 768, 17, 160, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 160, 17, 160, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 160, 17, 192, 7, 1, 3)
-        verify_conv2d_NCHWc_int8(1, 160, 17, 160, 7, 1, 3)
-        verify_conv2d_NCHWc_int8(1, 160, 17, 192, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 192, 17, 192, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 192, 17, 192, 7, 1, 3)
-        verify_conv2d_NCHWc_int8(1, 192, 17, 320, 3, 2, 0)
-        verify_conv2d_NCHWc_int8(1, 192, 17, 192, 3, 2, 0)
-        verify_conv2d_NCHWc_int8(1, 1280, 8, 320, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 1280, 8, 384, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 384, 8, 384, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 384, 8, 384, 3, 1, 1)
-        verify_conv2d_NCHWc_int8(1, 1280, 8, 448, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 448, 8, 384, 3, 1, 1)
-        verify_conv2d_NCHWc_int8(1, 1280, 8, 192, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 2048, 8, 320, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 2048, 8, 384, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 2048, 8, 448, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 2048, 8, 192, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 1024, 19, 88, 3, 1, 1)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 32, 149, 32, 3, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 32, 147, 64, 3, 1, 1)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 73, 80, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 80, 73, 192, 3, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 192, 35, 64, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 192, 35, 48, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 48, 35, 64, 5, 1, 2)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 35, 96, 3, 1, 1)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 96, 35, 96, 3, 1, 1)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 192, 35, 32, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 256, 35, 64, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 256, 35, 48, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 288, 35, 64, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 288, 35, 48, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 288, 35, 384, 3, 2, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 96, 35, 96, 3, 2, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 768, 17, 192, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 768, 17, 128, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 128, 17, 128, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 128, 17, 192, 7, 1, 3)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 128, 17, 128, 7, 1, 3)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 128, 17, 192, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 768, 17, 160, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 160, 17, 160, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 160, 17, 192, 7, 1, 3)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 160, 17, 160, 7, 1, 3)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 160, 17, 192, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 192, 17, 192, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 192, 17, 192, 7, 1, 3)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 192, 17, 320, 3, 2, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 192, 17, 192, 3, 2, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 1280, 8, 320, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 1280, 8, 384, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 384, 8, 384, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 384, 8, 384, 3, 1, 1)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 1280, 8, 448, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 448, 8, 384, 3, 1, 1)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 1280, 8, 192, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 2048, 8, 320, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 2048, 8, 384, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 2048, 8, 448, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 2048, 8, 192, 1, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 1024, 19, 88, 3, 1, 1)
 
         # batch > 1
-        verify_conv2d_NCHWc_int8(7, 32, 149, 32, 3, 1, 0)
-        verify_conv2d_NCHWc_int8(8, 32, 149, 32, 3, 1, 0)
-        verify_conv2d_NCHWc_int8(32, 32, 149, 32, 3, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 7, 32, 149, 32, 3, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 8, 32, 149, 32, 3, 1, 0)
+        verify_conv2d_NCHWc_int8(in_dtype, 32, 32, 149, 32, 3, 1, 0)
 
         # Asymmetric padding
-        verify_conv2d_NCHWc_int8(1, 32, 35, 64, 7, 2, (0, 0, 1, 1))
-        verify_conv2d_NCHWc_int8(1, 64, 8, 128, 3, 1, (3, 3, 2, 2))
-        verify_conv2d_NCHWc_int8(1, 64, 8, 64, 1, 1, (1, 2, 2, 1))
-        verify_conv2d_NCHWc_int8(1, 64, 17, 192, 1, 1, (1, 2))
-        verify_conv2d_NCHWc_int8(1, 64, 8, 64, 3, 1, (3, 1))
-        verify_conv2d_NCHWc_int8(1, 128, 8, 384, 3, 1, (0, 2))
-        verify_conv2d_NCHWc_int8(1, 64, 8, 64, 1, 1, "VALID")
-        verify_conv2d_NCHWc_int8(1, 392, 8, 64, 3, 1, "VALID")
-        verify_conv2d_NCHWc_int8(1, 512, 19, 64, 1, 1, "SAME")
-        verify_conv2d_NCHWc_int8(1, 64, 16, 32, 2, 1, "SAME")
-        verify_conv2d_NCHWc_int8(1, 64, 8, 64, 3, 1, (1, 2, 2, 1), add_relu=True)
-        verify_conv2d_NCHWc_int8(1, 64, 8, 64, 5, 2, (1, 3), add_bias=True)
-        verify_conv2d_NCHWc_int8(1, 64, 56, 64, 3, 1, "VALID", add_bias=True, add_relu=True)
-        verify_conv2d_NCHWc_int8(1, 64, 56, 64, 24, 1, "SAME", add_bias=True, add_relu=True)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 32, 35, 64, 7, 2, (0, 0, 1, 1))
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 8, 128, 3, 1, (3, 3, 2, 2))
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 8, 64, 1, 1, (1, 2, 2, 1))
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 17, 192, 1, 1, (1, 2))
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 8, 64, 3, 1, (3, 1))
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 128, 8, 384, 3, 1, (0, 2))
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 8, 64, 1, 1, "VALID")
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 392, 8, 64, 3, 1, "VALID")
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 512, 19, 64, 1, 1, "SAME")
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 16, 32, 2, 1, "SAME")
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 8, 64, 3, 1, (1, 2, 2, 1), add_relu=True)
+        verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 8, 64, 5, 2, (1, 3), add_bias=True)
+        verify_conv2d_NCHWc_int8(
+            in_dtype, 1, 64, 56, 64, 3, 1, "VALID", add_bias=True, add_relu=True
+        )
+        verify_conv2d_NCHWc_int8(
+            in_dtype, 1, 64, 56, 64, 24, 1, "SAME", add_bias=True, add_relu=True
+        )
 
         # Conv2d NCHW int8 schedule testing. Internally, it uses NCHWc schedule. So, just
         # performing basic testing - one test for all different scenarios - batch, dilation etc..
-        verify_conv2d_nchw_int8(1, 64, 56, 64, 3, 1, 1)
-        verify_conv2d_nchw_int8(1, 64, 56, 64, 3, 1, 1, add_relu=True)
-        verify_conv2d_nchw_int8(1, 64, 56, 64, 3, 1, 1, dilation=2)
-        verify_conv2d_nchw_int8(9, 64, 56, 64, 3, 1, 1)
-        verify_conv2d_nchw_int8(4, 4, 4, 4, 4, 4, 4)
-        verify_conv2d_nchw_int8(1, 32, 149, 32, 3, 1, 0)
-        verify_conv2d_nchw_int8(7, 32, 149, 32, 3, 1, 0)
-        verify_conv2d_nchw_int8(1, 32, 35, 64, 7, 2, (0, 0, 1, 1))
-        verify_conv2d_nchw_int8(1, 32, 35, 64, 7, 2, (0, 0, 2, 2))
+        verify_conv2d_nchw_int8(in_dtype, 1, 64, 56, 64, 3, 1, 1)
+        verify_conv2d_nchw_int8(in_dtype, 1, 64, 56, 64, 3, 1, 1, add_relu=True)
+        verify_conv2d_nchw_int8(in_dtype, 1, 64, 56, 64, 3, 1, 1, dilation=2)
+        verify_conv2d_nchw_int8(in_dtype, 9, 64, 56, 64, 3, 1, 1)
+        verify_conv2d_nchw_int8(in_dtype, 4, 4, 4, 4, 4, 4, 4)
+        verify_conv2d_nchw_int8(in_dtype, 1, 32, 149, 32, 3, 1, 0)
+        verify_conv2d_nchw_int8(in_dtype, 7, 32, 149, 32, 3, 1, 0)
+        verify_conv2d_nchw_int8(in_dtype, 1, 32, 35, 64, 7, 2, (0, 0, 1, 1))
+        verify_conv2d_nchw_int8(in_dtype, 1, 32, 35, 64, 7, 2, (0, 0, 2, 2))
 
 
 def test_conv2d_nhwc():
@@ -646,5 +671,4 @@ def test_conv2d_nhwc():
 
 
 if __name__ == "__main__":
-    test_conv2d_nchw()
-    test_conv2d_nhwc()
+    sys.exit(pytest.main(sys.argv))

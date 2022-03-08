@@ -81,6 +81,7 @@ struct VulkanDeviceProperties {
   bool supports_storage_buffer_storage_class{false};
   bool supports_push_descriptor{false};
   bool supports_dedicated_allocation{false};
+  bool supports_integer_dot_product{false};
   uint32_t supported_subgroup_operations{0};
   uint32_t max_num_threads{1};
   uint32_t thread_warp_size{1};
