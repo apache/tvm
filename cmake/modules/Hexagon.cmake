@@ -123,7 +123,6 @@ function(add_android_paths)
     ${HEXAGON_REMOTE_ROOT}
   )
   find_library(CDSPRPC_LIBRARY NAMES cdsprpc HINTS "${HEXAGON_REMOTE_ROOT}" NO_CMAKE_FIND_ROOT_PATH)
-  link_directories(${HEXAGON_REMOTE_ROOT})
 endfunction()
 
 function(add_hexagon_wrapper_paths)
@@ -133,7 +132,7 @@ function(add_hexagon_wrapper_paths)
   include_directories(SYSTEM
     "${HEXAGON_TOOLCHAIN}/include/iss"
   )
-  link_directories("${HEXAGON_TOOLCHAIN}/lib/iss")
+  find_library(WRAPPER_LIBRARY NAMES wrapper HINTS "${HEXAGON_TOOLCHAIN}/lib/iss" NO_CMAKE_FIND_ROOT_PATH)
 endfunction()
 
 # Common sources for TVM runtime with Hexagon support
@@ -178,8 +177,8 @@ if(USE_HEXAGON_DEVICE)
       "${TVMRT_SOURCE_DIR}/hexagon/android/*.cc"
       "${TVMRT_SOURCE_DIR}/hexagon/android/sim/*.cc"
     )
-    target_link_libraries(tvm PRIVATE "-lwrapper")
-    target_link_libraries(tvm_runtime PRIVATE "-lwrapper")
+    target_link_libraries(tvm PRIVATE "${WRAPPER_LIBRARY}")
+    target_link_libraries(tvm_runtime PRIVATE "${WRAPPER_LIBRARY}")
 
     ExternalProject_Add(sim_dev
       SOURCE_DIR "${TVMRT_SOURCE_DIR}/hexagon/android/sim/driver"
@@ -288,8 +287,8 @@ if(USE_HEXAGON_RPC)
       "${TVMRT_SOURCE_DIR}/hexagon/host/*.cc"
       "${TVMRT_SOURCE_DIR}/hexagon/rpc/simulator/session.cc"
     )
-    target_link_libraries(tvm PRIVATE "-lwrapper")
-    target_link_libraries(tvm_runtime PRIVATE "-lwrapper")
+    target_link_libraries(tvm PRIVATE "${WRAPPER_LIBRARY}")
+    target_link_libraries(tvm_runtime PRIVATE "${WRAPPER_LIBRARY}")
   endif()
 endif()   # USE_HEXAGON_RPC
 
