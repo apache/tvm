@@ -452,7 +452,8 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const BufferLoadNode* op) {
   if (desired_read_type == info.element_type) {
     // Requested a single value from an array.  This may be a scalar load
     // or a vectorized load, based on the array element type.
-    spirv::Value index = MakeValue(prim_index);
+    PrimExpr vec_index = analyzer_->Simplify(prim_index);
+    spirv::Value index = MakeValue(vec_index);
     spirv::Value ptr = builder_->StructArrayAccess(ptr_type, buffer, index);
     spirv::Value loaded = builder_->MakeValue(spv::OpLoad, content_type, ptr, mask);
     // OpTypeBool have no physical address/storage.  Here, cast from
