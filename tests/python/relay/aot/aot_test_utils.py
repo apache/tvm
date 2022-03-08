@@ -28,7 +28,6 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
-import contextlib
 from typing import Any, NamedTuple, Union, Optional, List, Dict
 
 import pytest
@@ -733,10 +732,8 @@ def run_and_check(
     This method uses the original test data and compiled runtime.Modules
     to run in the test runner to verify the results.
     """
-    tmpdir = tempfile.TemporaryDirectory() if test_dir is None else contextlib.surpress()
-    with tmpdir:
-        base_path = os.path.join(tmpdir.name, "test") if test_dir is None else test_dir
 
+    def run_and_check_body(base_path):
         cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
         # The calculated workspaces will not account for stack allocator tags used for debugging
         if debug_calculated_workspaces:
@@ -856,6 +853,12 @@ def run_and_check(
 
         with open(run_log_path) as run_log:
             assert AOT_SUCCESS_TOKEN in run_log.read()
+
+    if test_dir is None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_and_check_body(os.path.join(tmpdir, "test"))
+    else:
+        run_and_check_body(test_dir)
 
 
 def compile_and_run(
