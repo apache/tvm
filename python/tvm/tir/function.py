@@ -16,7 +16,8 @@
 # under the License.
 """Function data types."""
 
-from typing import Mapping, Union
+from typing import Callable, List, Mapping, Union
+import inspect
 
 import tvm._ffi
 import tvm.runtime
@@ -239,3 +240,40 @@ class TensorIntrin(Object):
             The TensorIntrin with the specified name.
         """
         return _ffi_api.TensorIntrinGet(name)  # pylint: type: ignore
+
+
+@tvm._ffi.register_object("tir.IndexMap")
+class IndexMap(Object):
+    """A mapping from multi-dimensional indices to another set of multi-dimensional indices
+
+    Parameters
+    ----------
+    initial_indices : List[Var]
+        Variables representing the indices prior to remapping.
+    final_indices : List[PrimExpr]
+        Expressions defining the indices after remapping.
+    """
+
+    initial_indices: List[Var]
+    final_indices: List[PrimExpr]
+
+    @staticmethod
+    def from_func(func: Callable) -> "IndexMap":
+        """Create an index map from a function
+
+        Parameters
+        ----------
+        func : Callable
+            The function to map from source indices to target indices
+        """
+
+        def wrap(args: List[Var]) -> List[PrimExpr]:
+            result = func(*args)
+            if isinstance(result, tuple):
+                return list(result)
+            if not isinstance(result, list):
+                result = [result]
+            return result
+
+        ndim = len(inspect.signature(func).parameters)
+        return _ffi_api.IndexMapFromFunc(ndim, wrap)  # type: ignore # pylint: disable=no-member
