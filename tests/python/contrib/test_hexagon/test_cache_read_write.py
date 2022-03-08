@@ -109,11 +109,6 @@ def test_cache_read_write(
     dso_binary = "test_binary.so"
     dso_binary_path = temp.relpath(dso_binary)
     func.save(dso_binary_path)
-    print("PRINT LLVM IR")
-    print(func.get_source("ll"))
-    for impmod in func.imported_modules:
-        print(impmod.get_source("ll"))
-    print("DONE")
 
     if not android_serial_number:
         pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
