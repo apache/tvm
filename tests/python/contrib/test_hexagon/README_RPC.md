@@ -33,21 +33,19 @@ When TVM’s RPC server on Android, `tvm_rpc_android_server`, invokes `hexagon_r
 
 ## Initialization: Setting up Android and establishing connection between x86 host and android
 
-What’s happening during the launcher initialization at [https://github.com/apache/tvm/blob/2b35cfd6ddb73afecd3f550f33881e1fdc7c3267/tests/python/contrib/test_hexagon/rpc/test_launcher.py#L98-L107](https://github.com/apache/tvm/blob/2b35cfd6ddb73afecd3f550f33881e1fdc7c3267/tests/python/contrib/test_hexagon/rpc/test_launcher.py#L98-L107) ?
+What’s happening during the launcher initialization at [https://github.com/apache/tvm/blob/7cfaa88e6c18edc0a41e1a984d3cb9d8659a1c2c/tests/python/contrib/test_hexagon/test_launcher.py#L71-L73](https://github.com/apache/tvm/blob/7cfaa88e6c18edc0a41e1a984d3cb9d8659a1c2c/tests/python/contrib/test_hexagon/test_launcher.py#L71-L73) ?
 
-```cpp
-launcher = HexagonLauncher(serial_number=android_serial_number)
-launcher.android_run_rpc(rpc_tracker_host=tvm_tracker_host, rpc_tracker_port=tvm_tracker_port)
-launcher.hexagon_setup()
-remote_kw = {...}
-launcher.hexagon_session_setup(remote_kw)
+```python
+launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
+launcher.upload(dso_binary_path, dso_binary)
+launcher.start_server()
 ```
 
-An important line is `launcher.android_run_rpc(...)` . Here, we send various files over android via `adb`, and initialize a RPC server via `tvm_rpc_android` binary (built from [https://github.com/apache/tvm/tree/main/apps/cpp_rpc](https://github.com/apache/tvm/tree/main/apps/cpp_rpc)):
+Here, we send various files over android via `adb`, and initialize a RPC server via `tvm_rpc_android` binary (built from [https://github.com/apache/tvm/tree/main/apps/cpp_rpc](https://github.com/apache/tvm/tree/main/apps/cpp_rpc)):
 
-[https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/python/tvm/contrib/hexagon/build.py#L172-L177](https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/python/tvm/contrib/hexagon/build.py#L172-L177)
+[https://github.com/apache/tvm/blob/0c0245ae2230fa07d3e4b8be490fc9c88965730c/python/tvm/contrib/hexagon/build.py#L373-L378](https://github.com/apache/tvm/blob/0c0245ae2230fa07d3e4b8be490fc9c88965730c/python/tvm/contrib/hexagon/build.py#L373-L378)
 
-```cpp
+```python
 subprocess.Popen(
     self._adb_device_sub_cmd + ["shell", f"cd {self._workspace} && ./android_bash.sh"],
     stdout=subprocess.PIPE,
@@ -58,15 +56,15 @@ subprocess.Popen(
 
 [https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/src/runtime/hexagon/rpc/android_bash.sh.template#L20](https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/src/runtime/hexagon/rpc/android_bash.sh.template#L20)
 
-```cpp
+```
 ./tvm_rpc_android server --port=<RPC_SERVER_PORT> --tracker=<RPC_TRACKER_HOST>:<RPC_TRACKER_PORT> --key=<HEXAGON_REMOTE_DEVICE_KEY>&
 ```
 
-When we do `with launcher.session as sess:` , a remote RPC session between x86 and android is established via this line:
+When we do `launcher.start_session()` , a remote RPC session between x86 and android is established via this line:
 
-[https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/python/tvm/contrib/hexagon/session.py#L54-L63](https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/python/tvm/contrib/hexagon/session.py#L54-L63)
+[https://github.com/apache/tvm/blob/0c0245ae2230fa07d3e4b8be490fc9c88965730c/python/tvm/contrib/hexagon/session.py#L57-L67](https://github.com/apache/tvm/blob/0c0245ae2230fa07d3e4b8be490fc9c88965730c/python/tvm/contrib/hexagon/session.py#L57-L67)
 
-```cpp
+```python
 self._rpc = tracker.request(
     ...
     session_constructor_args=[
