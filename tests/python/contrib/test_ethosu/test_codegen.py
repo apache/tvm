@@ -836,6 +836,19 @@ def test_tflite_slice(accel_type, ifm_shape, begin, size):
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shape, begin, end",
+    [([1, 1, 5, 8], [0, 0, 0, 0], [1, 1, 2, 3]), ([1, 3, 3], [0, 1, 2], [1, 2, 3])],
+)
+def test_tflite_strided_slice(accel_type, ifm_shape, begin, end):
+    @tf.function
+    def strided_slice_func(x):
+        return tf.strided_slice(x, begin, end)
+
+    _compare_tvm_with_tflite(strided_slice_func, [ifm_shape], accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("operator_type", ["ABS"])
 @pytest.mark.parametrize(
     "ifm_shape",
