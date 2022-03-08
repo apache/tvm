@@ -22,6 +22,7 @@
  * \brief Implementation of libtorch codegen.
  */
 
+#include <ATen/DLConvertor.h>
 #include <dlpack/dlpack.h>
 #include <torch/csrc/jit/api/compilation_unit.h>
 #include <torch/csrc/jit/serialization/import.h>
@@ -78,19 +79,18 @@ bool TorchOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       }
       shape.push_back(si->value);
     }
-    ICHECK(ty->dtype == DataType::Float(32))
-        << "only float supported";  // TODO(my_username): replace with lookup map
-    inputs.emplace_back(torch::randn(shape));
+    auto torchScalarType = at::toScalarType(ty->dtype);
+
+    inputs.emplace_back(torch::zeros(shape, at::TensorOptions().dtype(torchScalarType)));
   }
   auto res = mod.forward(inputs);
   auto res_t = res.toTensor();
   ICHECK((int)types.size() == num_inputs + 1) << "only single output supported";
-  ICHECK(res_t.dtype() == c10::kFloat);
   Array<PrimExpr> res_sizes;
   for (int d = 0; d < res_t.dim(); d++) {
     res_sizes.push_back(IntImm(DataType::Int(32), res_t.size(d)));
   }
-  reporter->Assign(types[num_inputs], TensorType(res_sizes, DataType::Float(32)));
+  reporter->Assign(types[num_inputs], TensorType(res_sizes, DataType(at::getDLDataType(res_t))));
   return true;
 }
 
