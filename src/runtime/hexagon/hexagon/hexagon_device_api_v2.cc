@@ -36,10 +36,6 @@
 #include "hexagon_buffer.h"
 #include "hexagon_common.h"
 
-#if defined(__hexagon__)
-#include "HAP_compute_res.h"
-#endif
-
 namespace tvm {
 namespace runtime {
 namespace hexagon {
@@ -201,7 +197,6 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.AllocTexture").set_body([](TVMArgs args,
 TVM_REGISTER_GLOBAL("device_api.hexagon.FreeTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
   void* ptr = args[0];
   HexagonBuffer* hexbuf = vtcmallocs[ptr];
-  // delete hexbuf;
 
   // TODO: pass device as packed func arg
   Device dev;
