@@ -101,8 +101,7 @@ def test_meta_schedule_tune_relay(
     mod, params, (input_name, _, _) = get_network(name=model_name, input_shape=input_shape)
     target = Target(target)
     with tempfile.TemporaryDirectory() as work_dir:
-        database = DummyDatabase()
-        rt_mod: tvm.runtime.Module = tune_relay(
+        rt_mod1: tvm.runtime.Module = tune_relay(
             mod=mod,
             params=params,
             target=target,
@@ -111,11 +110,11 @@ def test_meta_schedule_tune_relay(
                 num_trials_total=32,
             ),
             work_dir=work_dir,
-            database=database,
+            database=DummyDatabase(),
         )
         # Compile without meta-scheduler for correctness check
         with tvm.transform.PassContext(opt_level=0):
-            rt_mod2 = relay.build(mod, target=Target("llvm"), params=params)
+            rt_mod2 = relay.build(mod, target=target, params=params)
 
         def get_output(data, lib):
             module = graph_executor.GraphModule(lib["default"](dev))
@@ -124,8 +123,8 @@ def test_meta_schedule_tune_relay(
             return module.get_output(0).numpy()
 
         # Check correctness
-        actual_output = get_output(data, rt_mod)
-        expected_output = get_output(tvm.nd.array(data.numpy(), device=tvm.cpu()), rt_mod2)
+        actual_output = get_output(data, rt_mod1)
+        expected_output = get_output(data, rt_mod2)
         assert np.allclose(actual_output, expected_output, rtol=1e-4, atol=2e-4)
 
 
