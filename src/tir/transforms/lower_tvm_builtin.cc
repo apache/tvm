@@ -253,6 +253,8 @@ class BuiltinLower : public StmtExprMutator {
     if (const CallNode* call = op->value.as<CallNode>()) {
       if (call->op.same_as(builtin::texture2d_alloca())) {
         return StmtExprMutator::VisitStmt(MakeTextureAlloc(op, call));
+      } else if (call->op.same_as(builtin::vtcm_alloca())) {
+        return StmtExprMutator::VisitStmt(MakeVtcmAlloc(op, call));
       }
     }
     return StmtExprMutator::VisitStmt_(op);
@@ -546,6 +548,38 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   Stmt MakeTextureAlloc(const LetStmtNode* let, const CallNode* call) {
+    ICHECK(device_type_.defined()) << "Unknown device type in current IR";
+    ICHECK(device_id_.defined()) << "Unknown device id in current IR";
+    Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
+
+    Stmt body = SeqStmt(
+        {IfThenElse(Call(DataType::Bool(1), builtin::isnullptr(), {let->var}), throw_last_error),
+         let->body});
+    DataType dtype =
+        let->var->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>()->dtype;
+
+    std::string fdevapi_prefix = "device_api.";
+    fdevapi_prefix += runtime::DeviceName(device_type_.as<IntImmNode>()->value);
+    Call call_packed =
+        Call(let->var.dtype(), builtin::tvm_call_packed(),
+             {StringImm(fdevapi_prefix + ".AllocTexture"), cast(DataType::Int(32), device_type_),
+              cast(DataType::Int(32), device_id_), cast(DataType::UInt(64), call->args[0]),
+              cast(DataType::UInt(64), call->args[1]), IntImm(DataType::Int(32), dtype.code()),
+              IntImm(DataType::Int(32), dtype.bits())});
+
+    Stmt alloca = LetStmt(let->var, call_packed, body);
+
+    Call free_op =
+        Call(DataType::Int(32), builtin::tvm_call_packed(),
+             {StringImm(fdevapi_prefix + ".FreeTexture"), cast(DataType::Int(32), device_type_),
+              cast(DataType::Int(32), device_id_), let->var});
+
+    Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
+    body = SeqStmt({alloca, free_stmt});
+    return body;
+  }
+
+  Stmt MakeVtcmAlloc(const LetStmtNode* let, const CallNode* call) {
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
     Stmt body = SeqStmt(
         {IfThenElse(Call(DataType::Bool(1), builtin::isnullptr(), {let->var}), throw_last_error),
@@ -554,14 +588,14 @@ class BuiltinLower : public StmtExprMutator {
     std::string fdevapi_prefix = "device_api.";
     fdevapi_prefix += runtime::DeviceName(device_type_.as<IntImmNode>()->value);
 
-    Call call_packed = Call(
-        let->var.dtype(), builtin::tvm_call_packed(),
-        {StringImm(fdevapi_prefix + ".AllocTexture"), cast(DataType::UInt(64), call->args[0])});
+    Call call_packed =
+        Call(let->var.dtype(), builtin::tvm_call_packed(),
+             {StringImm(fdevapi_prefix + ".AllocVtcm"), cast(DataType::UInt(64), call->args[0])});
 
     Stmt alloca = LetStmt(let->var, call_packed, body);
 
     Call free_op = Call(DataType::Int(32), builtin::tvm_call_packed(),
-                        {StringImm(fdevapi_prefix + ".FreeTexture"), let->var});
+                        {StringImm(fdevapi_prefix + ".FreeVtcm"), let->var});
 
     Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
     body = SeqStmt({alloca, free_stmt});

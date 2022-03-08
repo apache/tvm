@@ -617,6 +617,8 @@ TVM_DLL Pass ExtractPrimFuncConstants();
  */
 TVM_DLL Pass RenormalizeSplitPattern();
 
+TVM_DLL Pass LowerVtcmAlloc();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

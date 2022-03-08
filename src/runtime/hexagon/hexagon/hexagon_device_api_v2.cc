@@ -172,7 +172,7 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVM
 
 std::map<void*, HexagonBuffer*> vtcmallocs;
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.AllocTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.hexagon.AllocVtcm").set_body([](TVMArgs args, TVMRetValue* rv) {
   int64_t nbytes = args[0];
   int64_t shape[1] = {nbytes};
 
@@ -194,7 +194,7 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.AllocTexture").set_body([](TVMArgs args,
   *rv = ptr;
 });
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.FreeTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.hexagon.FreeVtcm").set_body([](TVMArgs args, TVMRetValue* rv) {
   void* ptr = args[0];
   HexagonBuffer* hexbuf = vtcmallocs[ptr];
 
