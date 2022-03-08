@@ -207,6 +207,15 @@ SECTIONS
    */
   __etext = ALIGN (4);
 
+  .sram :
+  {
+    . = ALIGN(16);
+    *(.bss.ethosu_fast_memory);
+    . = ALIGN(16);
+    *(.data.tvm);
+    . = ALIGN(16);
+  } > SRAM AT > SRAM
+
   .data : AT (__etext)
   {
     __data_start__ = .;
@@ -241,13 +250,6 @@ SECTIONS
     __data_end__ = .;
 
   } > DTCM
-
-  .sram :
-  {
-    . = ALIGN(16);
-    *(.bss.ethosu_fast_memory);
-    . = ALIGN(16);
-  } > SRAM AT > SRAM
 
   .bss.NoInit :
   {
