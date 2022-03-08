@@ -632,13 +632,16 @@ TVM_DLL const Op& texture2d_store();
 TVM_DLL const Op& texture2d_load();
 
 /*!
+ * \brief Create a vtcm allocation
+ */
+TVM_DLL const Op& vtcm_alloca();
+
+/*!
  * \brief Copy 1d memory from source to destination
  * Same semantics as memcpy(destination, source, size)
  * Allows for device specific implementations e.g. direct memory access (DMA)
  */
 TVM_DLL const Op& mem_copy();
-
-TVM_DLL const Op& vtcm_alloca();
 
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {

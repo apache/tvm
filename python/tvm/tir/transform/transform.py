@@ -123,11 +123,6 @@ def TextureFlatten():
     return _ffi_api.TextureFlatten()  # type: ignore
 
 
-# TODO: comments
-def LowerVtcmAlloc():
-    return _ffi_api.LowerVtcmAlloc()
-
-
 def InjectCopyIntrin(pragma_key: str, fintrin):
     """Inject virtual thread loops.
 
