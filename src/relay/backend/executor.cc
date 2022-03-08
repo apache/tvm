@@ -25,6 +25,33 @@
 #include <tvm/relay/executor.h>
 
 #include "../../node/attr_registry.h"
+
+template <typename MapType>
+std::vector<typename MapType::key_type> getKeysFrom(const MapType& m) {
+  std::vector<typename MapType::key_type> keys;
+  keys.reserve(m.size());
+  for (const auto& kvp : m) {
+    keys.push_back(kvp.first);
+  }
+  return keys;
+}
+
+std::string printStringVector(const std::vector<std::string>& arg, const char* sep = ", ") {
+  std::stringstream os;
+  auto s = "";
+  for (const auto& elem : arg) {
+    os << s << elem;
+    s = sep;
+  }
+  return os.str();
+}
+
+template <typename MapType>
+std::string keysToStringFor(const MapType& m, const char* sep = ", ") {
+  const auto keys = getKeysFrom(m);
+  return printStringVector(keys);
+}
+
 namespace tvm {
 namespace relay {
 
@@ -48,7 +75,8 @@ Executor Executor::Create(String name, Map<String, ObjectRef> attrs) {
 
   for (const auto& kv : attrs) {
     if (!reg->key2vtype_.count(kv.first)) {
-      throw Error("Attribute \"" + kv.first + "\" is not available on this Executor");
+      throw Error("Executor \"" + name + "\": Attribute \"" + kv.first + "\" not in \"[" +
+                  keysToStringFor(reg->key2vtype_) + "]\".");
     }
     std::string expected_type = reg->key2vtype_.at(kv.first).type_key;
     std::string actual_type = kv.second->GetTypeKey();
