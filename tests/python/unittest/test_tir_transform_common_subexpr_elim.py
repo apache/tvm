@@ -45,7 +45,7 @@ def test_cse():
             2,
             tvm.tir.SeqStmt(
                 [
-                    tvm.tir.Store(buffer.data, z1 + z2, i1),
+                    tvm.tir.BufferStore(buffer, z1 + z2, [i1]),
                     tvm.tir.LetStmt(
                         x,
                         1,
@@ -56,7 +56,7 @@ def test_cse():
                                 a,
                                 (x + y) + (z1 + z2),
                                 tvm.tir.LetStmt(
-                                    b, (x + y) + z3, tvm.tir.Store(buffer.data, a + b, i2)
+                                    b, (x + y) + z3, tvm.tir.BufferStore(buffer, a + b, [i2])
                                 ),
                             ),
                         ),
@@ -96,7 +96,7 @@ def test_cse():
 
     body = body.body
 
-    assert isinstance(body[0], tvm.tir.Store)
+    assert isinstance(body[0], tvm.tir.BufferStore)
     assert isinstance(body[1], tvm.tir.LetStmt)
 
     body = body[1]
@@ -130,7 +130,7 @@ def test_cse():
     # Check that the replacement has been done correctly!
     assert tvm.ir.structural_equal(body.value, cse_var_2 + z3)
 
-    assert isinstance(body.body, tvm.tir.Store)
+    assert isinstance(body.body, tvm.tir.BufferStore)
 
 
 # First specific test for if nodes : Some duplicated computations appear only in one branch (here the Then branch), not in both branches.
@@ -160,9 +160,9 @@ def test_cse_ifNode_1():
         tvm.tir.IfThenElse(
             b,
             tvm.tir.SeqStmt(
-                [tvm.tir.Store(buffer.data, y + z, i1), tvm.tir.Store(buffer.data, y + z, i2)]
+                [tvm.tir.BufferStore(buffer, y + z, [i1]), tvm.tir.BufferStore(buffer, y + z, [i2])]
             ),
-            tvm.tir.Store(buffer.data, y, i3),
+            tvm.tir.BufferStore(buffer, y, [i3]),
         ),
     )
 
@@ -217,11 +217,11 @@ def test_cse_ifNode_2():
             b,
             tvm.tir.SeqStmt(
                 [
-                    tvm.tir.Store(buffer.data, y + z, i1),  # (y+z) is present in the Then branch
-                    tvm.tir.Store(buffer.data, y, i2),
+                    tvm.tir.BufferStore(buffer, y + z, [i1]),  # (y+z) is present in the Then branch
+                    tvm.tir.BufferStore(buffer, y, [i2]),
                 ]
             ),
-            tvm.tir.Store(buffer.data, y + z, i3),  # and also present in the Else branch
+            tvm.tir.BufferStore(buffer, y + z, [i3]),  # and also present in the Else branch
         ),
     )
 
@@ -258,9 +258,9 @@ def test_cse_cascade():
     # Mem[i3] = x+y
     body = tvm.tir.SeqStmt(
         [
-            tvm.tir.Store(buffer.data, (x + y) + z, i1),
-            tvm.tir.Store(buffer.data, (x + y) + z, i2),
-            tvm.tir.Store(buffer.data, (x + y), i3),
+            tvm.tir.BufferStore(buffer, (x + y) + z, [i1]),
+            tvm.tir.BufferStore(buffer, (x + y) + z, [i2]),
+            tvm.tir.BufferStore(buffer, (x + y), [i3]),
         ]
     )
 
@@ -292,9 +292,9 @@ def test_cse_cascade():
     body = body.body
 
     assert isinstance(body, tvm.tir.SeqStmt)
-    assert isinstance(body[0], tvm.tir.Store)
-    assert isinstance(body[1], tvm.tir.Store)
-    assert isinstance(body[2], tvm.tir.Store)
+    assert isinstance(body[0], tvm.tir.BufferStore)
+    assert isinstance(body[1], tvm.tir.BufferStore)
+    assert isinstance(body[2], tvm.tir.BufferStore)
 
     store1 = body[0]
     store2 = body[1]

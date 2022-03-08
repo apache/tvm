@@ -225,7 +225,7 @@ constexpr const double kMaxTime = 1e10;
 
 std::string GetTaskName(const TuneContext& task, int task_id) {
   std::ostringstream os;
-  os << '#' << task_id << ": " << task->task_name;
+  os << "Task #" << task_id << ": " << task->task_name;
   return os.str();
 }
 
@@ -240,7 +240,7 @@ double GetRunMs(const Array<FloatImm>& run_secs) {
 struct TaskInfo {
   std::string name;
   double flop = 0.0;
-  int trials = 0;
+  int trials = -1;
   int best_round = -1;
   double best_ms = kMaxTime;
   double best_gflops = 0.0;

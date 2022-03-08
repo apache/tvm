@@ -40,7 +40,7 @@ update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1
 #   $ pip download <package>==<version>
 #   $ pip hash --algorithm sha512 <package>.whl
 cat <<EOF > base-requirements.txt
-pip==22.0.3 --hash=sha512:12ca75130a1ce9807060a66dd2341afc7c7e663357ca4b937868dbc733634e11bae49ffff96acb0f5f3fb16cb14f680b9b6d185155a711c6098eda5cfbf2f8f5
-setuptools==60.9.1 --hash=sha512:24c21006f0650209e6a934a5366614e32a98fbdf11bc0e941419731aa3c8cb6d217e486608b4834b8f89c14dc36b3bafa30e795c87b58705be2b156f78acc3c5
+pip==19.3.1 --hash=sha256:6917c65fc3769ecdc61405d3dfd97afdedd75808d200b2838d7d961cebc0c2c7
+setuptools==58.4.0 --hash=sha256:e8b1d3127a0441fb99a130bcc3c2bf256c2d3ead3aba8fd400e5cbbaf788e036
 EOF
 pip3 install -r base-requirements.txt

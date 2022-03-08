@@ -30,33 +30,56 @@ find . -type f -path "*.pyc" | xargs rm -f
 # Rebuild cython
 make cython3
 
-echo "Running relay MXNet frontend test..."
-run_pytest cython python-frontend-mxnet tests/python/frontend/mxnet
+# These tests are sharded into two sections in order to increase parallelism in CI.
+# The split is purely based on balancing the runtime of each shard so they should
+# be about the same. This may need rebalancing in the future if this is no longer
+# the case.
+function shard1 {
+    echo "Running relay MXNet frontend test..."
+    run_pytest cython python-frontend-mxnet tests/python/frontend/mxnet
 
-echo "Running relay ONNX frontend test..."
-run_pytest cython python-frontend-onnx tests/python/frontend/onnx
+    echo "Running relay ONNX frontend test..."
+    run_pytest cython python-frontend-onnx tests/python/frontend/onnx
 
-echo "Running relay CoreML frontend test..."
-run_pytest cython python-frontend-coreml tests/python/frontend/coreml
+    echo "Running relay PyTorch frontend test..."
+    run_pytest cython python-frontend-pytorch tests/python/frontend/pytorch
+}
 
-echo "Running relay Tensorflow frontend test..."
-# Note: Tensorflow tests often have memory issues, so invoke each one separately
-TENSORFLOW_TESTS=$(./tests/scripts/pytest_ids.py --folder tests/python/frontend/tensorflow)
-i=0
-for node_id in $TENSORFLOW_TESTS; do
-    echo "$node_id"
-    run_pytest cython "python-frontend-tensorflow-$i" "$node_id"
-    i=$((i+1))
-done
+function shard2 {
+    echo "Running relay Tensorflow frontend test..."
+    # Note: Tensorflow tests often have memory issues, so invoke each one separately
+    TENSORFLOW_TESTS=$(./tests/scripts/pytest_ids.py --folder tests/python/frontend/tensorflow)
+    i=0
+    for node_id in $TENSORFLOW_TESTS; do
+        echo "$node_id"
+        run_pytest cython "python-frontend-tensorflow-$i" "$node_id"
+        i=$((i+1))
+    done
 
-echo "Running relay caffe2 frontend test..."
-run_pytest cython python-frontend-caffe2 tests/python/frontend/caffe2
+    echo "Running relay caffe2 frontend test..."
+    run_pytest cython python-frontend-caffe2 tests/python/frontend/caffe2
 
-echo "Running relay DarkNet frontend test..."
-run_pytest cython python-frontend-darknet tests/python/frontend/darknet
+    echo "Running relay DarkNet frontend test..."
+    run_pytest cython python-frontend-darknet tests/python/frontend/darknet
 
-echo "Running relay PyTorch frontend test..."
-run_pytest cython python-frontend-pytorch tests/python/frontend/pytorch
+    echo "Running relay PaddlePaddle frontend test..."
+    run_pytest cython python-frontend-paddlepaddle tests/python/frontend/paddlepaddle
 
-echo "Running relay PaddlePaddle frontend test..."
-run_pytest cython python-frontend-paddlepaddle tests/python/frontend/paddlepaddle
+    echo "Running relay CoreML frontend test..."
+    run_pytest cython python-frontend-coreml tests/python/frontend/coreml
+}
+
+
+if [ -z ${1+x} ]; then
+    # TODO: This case can be removed once https://github.com/apache/tvm/pull/10413
+    # is merged.
+    # No sharding set, run everything
+    shard1
+    shard2
+else
+    if [ "$1" == "1" ]; then
+        shard1
+    else
+        shard2
+    fi
+fi

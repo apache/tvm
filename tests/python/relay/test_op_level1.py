@@ -57,6 +57,10 @@ class TestUnaryOp:
         "sin": (tvm.relay.sin, np.sin),
         "tan": (tvm.relay.tan, np.tan),
         "atan": (tvm.relay.atan, np.arctan),
+        "ceil": (tvm.relay.ceil, np.ceil),
+        "floor": (tvm.relay.floor, np.floor),
+        "trunc": (tvm.relay.trunc, np.trunc),
+        "round": (tvm.relay.round, np.round),
     }
 
     dtype = tvm.testing.parameter("float16", "float32")

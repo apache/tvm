@@ -206,6 +206,7 @@ class ConstructNetworkVisitor : public MixedModeVisitor, private ErrorReportingP
   EthosnError MakeAdditionLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeSigmoidLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeMeanLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeTanhLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeConcatenateLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeSplitLayer(const Call& call, sl::TensorsAndId* outs);
   EthosnError MakeDepthToSpaceLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);

@@ -18,5 +18,5 @@
 
 set -e
 
-./tests/lint/git-black.sh -i HEAD~1
-./tests/lint/git-black.sh -i origin/main
+./tests/lint/git-black.sh HEAD~1
+./tests/lint/git-black.sh origin/main

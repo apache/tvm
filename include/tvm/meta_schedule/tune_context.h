@@ -82,6 +82,8 @@ class TuneContextNode : public runtime::Object {
     v->Visit("rand_state", &rand_state);
     v->Visit("num_threads", &num_threads);
     v->Visit("is_stopped", &is_stopped);
+    v->Visit("builder_results", &builder_results);
+    v->Visit("runner_futures", &runner_futures);
     v->Visit("measure_candidates", &measure_candidates);
   }
 

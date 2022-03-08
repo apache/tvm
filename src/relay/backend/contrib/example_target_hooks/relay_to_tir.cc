@@ -52,8 +52,8 @@ class ConvertAddToSubtract : public MixedModeMutator {
   }
 
  private:
-  tir::Load LoadIndex(const tir::Buffer& buffer, const PrimExpr& index) {
-    return tir::Load(DataType::Float(32), buffer->data, index, tir::const_true());
+  tir::BufferLoad LoadIndex(const tir::Buffer& buffer, const PrimExpr& index) {
+    return tir::BufferLoad(buffer, {index});
   }
 
   void ReplaceAddWithSubtractPrimFunc(const GlobalVar& new_global_var, const Function& func) {
@@ -71,7 +71,7 @@ class ConvertAddToSubtract : public MixedModeMutator {
 
     te::Var index("index", DataType::Int(32));
     tir::Sub indexed_sub = tir::Sub(LoadIndex(x_buffer, index), LoadIndex(y_buffer, index));
-    tir::Stmt math_body = tir::Store(out_buffer->data, indexed_sub, index, tir::const_true());
+    tir::Stmt math_body = tir::BufferStore(out_buffer, indexed_sub, {index});
     tir::Stmt math_loop = tir::For(index, 0, 8, tir::ForKind::kSerial, math_body);
 
     Map<tir::Var, tir::Buffer> buffer_map = {
@@ -81,7 +81,7 @@ class ConvertAddToSubtract : public MixedModeMutator {
     };
 
     tir::PrimFunc replacement_func = tir::PrimFunc({x_var, y_var, out_var}, math_loop, VoidType(),
-                                                   buffer_map, DictAttrs(dict_attrs));
+                                                   buffer_map, {}, DictAttrs(dict_attrs));
 
     // Switch to TIRToRuntime hook for testing
     Bool tir_to_runtime = func->GetAttr<Bool>("tir_to_runtime").value_or(Bool(false));

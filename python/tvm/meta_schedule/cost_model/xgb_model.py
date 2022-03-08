@@ -30,7 +30,7 @@ from ..cost_model import PyCostModel
 from ..feature_extractor import FeatureExtractor
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
-from ..utils import cpu_count
+from ..utils import cpu_count, derived_object
 from .metric import max_curve
 
 if TYPE_CHECKING:
@@ -236,6 +236,7 @@ class XGBConfig(NamedTuple):
     nthread: Optional[int] = None
 
 
+@derived_object
 class XGBModel(PyCostModel):
     """XGBoost model
 

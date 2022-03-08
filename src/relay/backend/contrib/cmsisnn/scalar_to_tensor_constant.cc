@@ -76,10 +76,6 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
     if (auto* glob_var_node = call->op.as<GlobalVarNode>()) {
       GlobalVar global_var = GetRef<GlobalVar>(glob_var_node);
       Function func = Downcast<Function>(mod_->Lookup(global_var));
-      auto compiler_name = func->GetAttr<String>(::tvm::relay::attr::kCompiler);
-      if (!compiler_name.defined() || compiler_name != "cmsis-nn") {
-        return final_call;
-      }
       auto new_body = VisitExpr(func->body);
       if (new_body.same_as(func->body)) {
         return final_call;
@@ -177,14 +173,22 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
 };
 
 IRModule ScalarToTensorConstant(const IRModule& mod) {
-  auto mutator = ScalarToTensorConstantMutator(mod);
-  Function main_func = Downcast<Function>(mod->Lookup("main"));
-  auto new_main_body = mutator.VisitExpr(main_func->body);
-  if (!new_main_body.same_as(main_func->body)) {
-    auto main_var = mod->GetGlobalVar("main");
-    auto new_main_func = Function(main_func->params, new_main_body, main_func->ret_type,
-                                  main_func->type_params, main_func->attrs);
-    mod->Update(main_var, new_main_func);
+  for (auto gv : mod->GetGlobalVars()) {
+    Function func = Downcast<Function>(mod->Lookup(gv));
+
+    // only mutate CMSIS-NN external functions
+    auto compiler_name = func->GetAttr<String>(attr::kCompiler);
+    if (!compiler_name.defined() || compiler_name != "cmsis-nn") {
+      continue;
+    }
+
+    auto mutator = ScalarToTensorConstantMutator(mod);
+    auto new_func_body = mutator.VisitExpr(func->body);
+    if (!new_func_body.same_as(func->body)) {
+      Function new_func =
+          Function(func->params, new_func_body, func->ret_type, func->type_params, func->attrs);
+      mod->Update(gv, new_func);
+    }
   }
   return mod;
 }

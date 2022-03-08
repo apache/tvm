@@ -15,5 +15,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
-cd $1 && cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo && make $2 && cd ..
+
+set -e
+set -u
+
+source tests/scripts/setup-pytest-env.sh
+
+make cython3
+
+export TVM_TRACKER_PORT=9190
+export TVM_TRACKER_HOST=0.0.0.0
+env PYTHONPATH=python python3 -m tvm.exec.rpc_tracker --host "${TVM_TRACKER_HOST}" --port "${TVM_TRACKER_PORT}" &
+TRACKER_PID=$!
+sleep 5   # Wait for tracker to bind
+
+# Temporary workaround for symbol visibility
+export HEXAGON_SHARED_LINK_FLAGS="-Lbuild/hexagon_api_output -lhexagon_rpc_sim"
+
+# HEXAGON_TOOLCHAIN is already set
+export HEXAGON_SDK_ROOT=${HEXAGON_SDK_PATH}
+export ANDROID_SERIAL_NUMBER=simulator
+run_pytest ctypes python-contrib-hexagon-simulator tests/python/contrib/test_hexagon/test_launcher.py
+
+kill ${TRACKER_PID}

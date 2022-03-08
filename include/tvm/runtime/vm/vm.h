@@ -93,7 +93,9 @@ struct VMFunction {
         params(std::move(params)),
         instructions(std::move(instructions)),
         register_file_size(register_file_size),
-        param_device_indexes(std::move(param_device_indexes)) {}
+        param_device_indexes(std::move(param_device_indexes)) {
+    ICHECK_EQ(params.size(), param_device_indexes.size());
+  }
 
   VMFunction() = default;
 
@@ -271,6 +273,15 @@ class VirtualMachine : public runtime::ModuleNode {
   void SetInput(std::string name, TVMArgs args, int offset);
 
   /*!
+   * \brief Set one input tensor with index or name to a function.
+   * \param name The function name.
+   * \param tag index or name of the input tensor .
+   * \param tensor the input tensor. If the tensor is not of the correct device for the function,
+   * they will be copied to the device.
+   */
+  void SetOneInput(std::string name, const TVMArgValue& tag, const TVMArgValue& tensor);
+
+  /*!
    * \brief Internal hook for profiling the start of an op.
    *
    * This hook is only called on certain ops that are likely to take a
@@ -285,6 +296,48 @@ class VirtualMachine : public runtime::ModuleNode {
    * \brief Internal hook for profiling the end of an op.
    */
   virtual void OpStopHook();
+
+ private:
+  /*!
+   * \brief Get index of input tensor from its name.
+   * \param func_name The function's name.
+   * \param input_name The input tensor name.
+   * \return The input tensor index.
+   */
+  int64_t GetInputIndexFromVMFunction(const std::string& func_name,
+                                      const std::string& input_name) const;
+
+  /*!
+   * \brief Get index of input tensor from its name.
+   * \param params parameter names.
+   * \param input_name The input tensor name.
+   * \return The input tensor index.
+   */
+  int64_t GetInputIndexFromName(const std::vector<std::string>& params,
+                                const std::string& input_name) const;
+
+  /*!
+   * \brief Check executable exists and get VM function from it.
+   * \param func_name The function's name.
+   * \return VM function.
+   */
+  const VMFunction& CheckAndGetVMFunction(const std::string& func_name) const;
+
+  /*!
+   * \brief Creats inputs_ field, if it exists check its size.
+   * \param func_name The function's name.
+   * \param size inputs_ field size.
+   * \return VM function.
+   */
+  void CreateInputsOrCheckSize(const std::string& func_name, size_t size);
+
+  /*!
+   * \brief Set one input tensor with given index to set of input tensors if need copy to given
+   * device. \param tensors the input tensors set (destination) \param tensor some tensor (not
+   * neccessary DLTensor). \param index The input tensor index. \param dev device to copy if need.
+   */
+  void SetInputTensorWithIndex(std::vector<ObjectRef>& tensors,  // NOLINT(*)
+                               const TVMArgValue& tensor, int index, Device dev);
 
  protected:
   /*! \brief The virtual machine's packed function table. */

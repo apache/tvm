@@ -56,7 +56,7 @@ void HexagonDeviceAPIv2::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* r
 // DataSpace: static allocations for Hexagon
 void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, int ndim, const int64_t* shape,
                                          DLDataType dtype, Optional<String> mem_scope) {
-  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon);
+  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
 
   // Forcing contiguous allocation, for now
   // TODO(Straw): Enable discontiguous allocation after RFC 39 lands
@@ -84,7 +84,9 @@ void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, size_t nbytes, size_t align
 }
 
 void HexagonDeviceAPIv2::FreeDataSpace(Device dev, void* ptr) {
-  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon);
+  bool is_valid_device = (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
+                         (DLDeviceType(dev.device_type) == kDLCPU);
+  CHECK(is_valid_device) << "dev.device_type: " << dev.device_type;
   auto* hexbuf = static_cast<HexagonBuffer*>(ptr);
   CHECK(hexbuf != nullptr);
   delete hexbuf;
@@ -97,7 +99,7 @@ struct HexagonWorkspacePool : public WorkspacePool {
 };
 
 void* HexagonDeviceAPIv2::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
-  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon);
+  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
   auto* hexbuf = static_cast<HexagonBuffer*>(
       dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->AllocWorkspace(dev, size));
 
@@ -109,7 +111,7 @@ void* HexagonDeviceAPIv2::AllocWorkspace(Device dev, size_t size, DLDataType typ
 }
 
 void HexagonDeviceAPIv2::FreeWorkspace(Device dev, void* data) {
-  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon);
+  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
   auto it = workspace_allocations_.find(data);
   CHECK(it != workspace_allocations_.end())
       << "Attempt made to free unknown or already freed workspace allocation";

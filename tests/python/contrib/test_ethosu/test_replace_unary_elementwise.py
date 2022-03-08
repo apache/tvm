@@ -33,8 +33,8 @@ def _get_unary_elementwise_args(call, include_buffers=False, remove_constants=Fa
     for i, arg in enumerate(args):
         if isinstance(arg, tvm.tir.expr.IntImm) or isinstance(arg, tvm.tir.expr.FloatImm):
             unary_elementwise_args.append(arg.value)
-        elif isinstance(arg, tvm.tir.expr.Load) and not include_buffers:
-            unary_elementwise_args.append(arg.index)
+        elif isinstance(arg, tvm.tir.expr.BufferLoad) and not include_buffers:
+            unary_elementwise_args.append(arg.indices[0])
         else:
             unary_elementwise_args.append(arg)
 

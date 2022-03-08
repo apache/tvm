@@ -216,7 +216,6 @@ bool TensorizeComparator::DefEqual(const Var& lhs, const Var& rhs) {
 bool TensorizeComparator::CompareAnnotation(const std::pair<String, ObjectRef>& lhs,
                                             const std::pair<String, ObjectRef>& rhs) {
   if (lhs.first != rhs.first) return false;
-  if (!lhs.second.same_as(rhs.second)) return false;
   return VisitExpr(Downcast<PrimExpr>(lhs.second), Downcast<PrimExpr>(rhs.second));
 }
 

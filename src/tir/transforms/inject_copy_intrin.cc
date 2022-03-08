@@ -69,9 +69,9 @@ class CopyIntrinInjector : public StmtMutator {
       loops.push_back(op);
       body = op->body;
     }
-    const StoreNode* store = body.as<StoreNode>();
+    auto store = body.as<BufferStoreNode>();
     if (store == nullptr) {
-      *error_info = "the 'StoreNode' of body is a nullptr.";
+      *error_info = "the body is not a 'BufferStoreNode'";
       return false;
     }
     // Expr sel_cond, sel_true_value, sel_false_value;
@@ -81,17 +81,17 @@ class CopyIntrinInjector : public StmtMutator {
                     select(sel_cond, sel_true_value, sel_false_value).Match(store->value);
 
     const CastNode* cast = store->value.as<CastNode>();
-    const LoadNode* load = store->value.as<LoadNode>();
+    auto load = store->value.as<BufferLoadNode>();
     if (0 == loops.size()) {
       ICHECK(!has_cond);
     }
     // for now only support true condition matching
     if (has_cond) {
-      load = sel_true_value.Eval().as<LoadNode>();
+      load = sel_true_value.Eval().as<BufferLoadNode>();
     }
     // cast can be part of the pattern
     if (cast != nullptr) {
-      load = cast->value.as<LoadNode>();
+      load = cast->value.as<BufferLoadNode>();
     }
     if (load == nullptr) {
       *error_info = "the 'LoadNode' of body is a nullptr.";
@@ -102,8 +102,17 @@ class CopyIntrinInjector : public StmtMutator {
     for (const ForNode* op : loops) {
       loop_vars.push_back(op->loop_var);
     }
-    Array<PrimExpr> store_strides = arith::DetectLinearEquation(store->index, loop_vars);
-    Array<PrimExpr> load_strides = arith::DetectLinearEquation(load->index, loop_vars);
+    // TODO(Lunderberg): Move this pass to be before
+    // StorageFlatten/FlattenBuffer.  That will simplify the
+    // implementation, since the pre-flattened indices/strides can be
+    // used directly.
+    ICHECK((store->indices.size() == 1) && (load->indices.size() == 1))
+        << "InjectDoubleBuffer expects flat 1-d buffers.  "
+        << "Has StorageFlatten (TE-based schedules) or "
+        << "FlattenBuffer (TIR-based schedules) been run?";
+
+    Array<PrimExpr> store_strides = arith::DetectLinearEquation(store->indices[0], loop_vars);
+    Array<PrimExpr> load_strides = arith::DetectLinearEquation(load->indices[0], loop_vars);
     if (load_strides.size() == 0 || store_strides.size() == 0) return false;
     Array<PrimExpr> dst_shape;
     const size_t loop_var_size = loop_vars.size();
@@ -160,10 +169,21 @@ class CopyIntrinInjector : public StmtMutator {
       src_strides.push_back(make_const(DataType::Int(32), 1));
       dst_strides.push_back(make_const(DataType::Int(32), 1));
     }
-    Buffer dst = Buffer(store->buffer_var, store->value.dtype(), dst_shape, dst_strides,
-                        store_strides[loop_var_size], store->buffer_var->name_hint, 0, 0, kDefault);
-    Buffer src = Buffer(load->buffer_var, load->dtype, src_shape, src_strides, src_elem_offset,
-                        load->buffer_var->name_hint, 0, 0, kDefault);
+    Buffer dst = store->buffer;
+    {
+      auto writer = dst.CopyOnWrite();
+      writer->shape = dst_shape;
+      writer->strides = dst_strides;
+      writer->elem_offset = store_strides[loop_var_size];
+    }
+
+    Buffer src = load->buffer;
+    {
+      auto writer = src.CopyOnWrite();
+      writer->shape = src_shape;
+      writer->strides = src_strides;
+      writer->elem_offset = src_elem_offset;
+    }
     *out = flower_copy_fromto_(src, dst, pad_before, pad_after, pad_value);
     if (!out->defined()) {
       *error_info = "flower function did not return correct stmt";

@@ -19,11 +19,11 @@
 """Conv2D operators"""
 from __future__ import absolute_import as _abs
 
-from collections import namedtuple
 import re
-from typing import Union, Sequence, Optional
-import numpy as np
+from collections import namedtuple
+from typing import Optional, Sequence, Union
 
+import numpy as np
 import tvm
 from tvm import auto_scheduler, te
 
@@ -323,6 +323,7 @@ def conv2d_nhwc(
         "NHWC",
         out_dtype,
         auto_scheduler_rewritten_layout,
+        auto_scheduler_should_rewrite_layout=True,
     )
 
 
@@ -714,6 +715,7 @@ def conv(
     order: str,
     out_dtype: Union[str, None] = None,
     auto_scheduler_rewritten_layout: Optional[str] = None,
+    auto_scheduler_should_rewrite_layout: bool = False,
 ):
     """Convolution operator in NCHW or NHWC layout.
 
@@ -751,6 +753,11 @@ def conv(
     out_dtype : str
         Elements are converted to this type before elementwise multiplication
         and summation.
+
+    auto_scheduler_should_rewrite_layout : bool
+        Should auto scheduler be allowed to rewrite the layout of the filter
+        tensor. Defaults to false. This can cause errors if used with grouped
+        convs.
 
     auto_scheduler_rewritten_layout: str
         Layout from autoscheduler's layout rewritting.
@@ -862,7 +869,7 @@ def conv(
         # tag is expected to be lowercase
         tag=f"{'group_' if groups > 1 else ''}conv{dim}d_{order.lower()}",
         name=f"{'group_' if groups > 1 else ''}conv{dim}d_{order.lower()}",
-        attrs={"layout_free_placeholders": [filt]},
+        attrs={"layout_free_placeholders": [filt]} if auto_scheduler_should_rewrite_layout else {},
         varargs_names=list(np.array(["nn", "ff", "yy", "xx", "zz"])[permutation_from]),
     )
     # if we used autoscheduler's changed layout we need to rewrite the ordering
@@ -1019,7 +1026,11 @@ def _conv2d_winograd_nhwc_impl(
 
     pad_extra = (nW - 1) * m + alpha - (H + pad_t + pad_b)
     data_pad = pad(
-        data, (0, pad_t, pad_l, 0), (0, pad_b + pad_extra, pad_r + pad_extra, 0), name="data_pad"
+        data,
+        (0, pad_t, pad_l, 0),
+        (0, pad_b + pad_extra, pad_r + pad_extra, 0),
+        name="data_pad",
+        attrs={"schedule_rule": "None"},
     )
 
     if not pre_computed:
@@ -1044,9 +1055,16 @@ def _conv2d_winograd_nhwc_impl(
             (p % nW) * m + nu
         ][ci],
         name="input_tile",
+        attrs={"schedule_rule": "None"},
     )
 
     # transform data
+    target = tvm.target.Target.current(allow_none=True)
+    if target is not None:
+        target_kind = "meta_schedule.winograd_data_pack." + target.kind.name
+    else:
+        target_kind = "None"
+
     r_a = te.reduce_axis((0, alpha), "r_a")
     r_b = te.reduce_axis((0, alpha), "r_b")
     data_pack = te.compute(
@@ -1055,7 +1073,10 @@ def _conv2d_winograd_nhwc_impl(
             input_tile[r_a][r_b][p][ci] * B[r_a][eps] * B[r_b][nu], axis=[r_a, r_b]
         ),
         name="data_pack",
-        attrs={"auto_scheduler_simplify_const_tensor_indices": ["eps", "nu", "r_a", "r_b"]},
+        attrs={
+            "auto_scheduler_simplify_const_tensor_indices": ["eps", "nu", "r_a", "r_b"],
+            "schedule_rule": target_kind,
+        },
         # the attrs are necessary hints for the auto-scheduler
     )
 
@@ -1082,7 +1103,10 @@ def _conv2d_winograd_nhwc_impl(
             bgemm[r_a][r_b][p][co] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]
         ),
         name="inverse",
-        attrs={"auto_scheduler_simplify_const_tensor_indices": ["vh", "vw", "r_a", "r_b"]},
+        attrs={
+            "auto_scheduler_simplify_const_tensor_indices": ["vh", "vw", "r_a", "r_b"],
+            "schedule_rule": "meta_schedule.winograd_inverse",
+        },
         # the attrs are necessary hints for the auto-scheduler
     )
 

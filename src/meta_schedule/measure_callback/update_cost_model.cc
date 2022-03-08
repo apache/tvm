@@ -33,7 +33,20 @@ class UpdateCostModelNode : public MeasureCallbackNode {
     ICHECK(task->measure_candidates.defined())  //
         << "Task's measure candidates must be present!";
     CostModel cost_model = task_scheduler->cost_model.value();
-    cost_model->Update(task, task->measure_candidates.value(), runner_results);
+    ICHECK_EQ(measure_candidates.size(), builder_results.size());
+    ICHECK_EQ(runner_results.size(), builder_results.size());
+    int n = builder_results.size();
+    Array<MeasureCandidate> pruned_candidate;
+    Array<RunnerResult> pruned_runner_result;
+    pruned_candidate.reserve(n);
+    pruned_runner_result.reserve(n);
+    for (int i = 0; i < n; i++) {
+      if (!builder_results[i]->error_msg.defined()) {
+        pruned_candidate.push_back(measure_candidates[i]);
+        pruned_runner_result.push_back(runner_results[i]);
+      }
+    }
+    cost_model->Update(task, pruned_candidate, pruned_runner_result);
   }
 
   static constexpr const char* _type_key = "meta_schedule.UpdateCostModel";
