@@ -92,15 +92,9 @@ endif()
 
 
 if(NOT USE_HEXAGON_DEVICE AND NOT USE_HEXAGON_RPC AND NOT BUILD_FOR_HEXAGON)
-  # If nothing related to Hexagon is enabled, add phony Hexagon codegen,
-  # and some stuff needed by cpptests (this part is a temporary workaround
-  # until e2e support for Hexagon is enabled).
   if(BUILD_FOR_HOST)
     list(APPEND COMPILER_SRCS src/target/opt/build_hexagon_off.cc)
   endif()
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_buffer.cc)
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_common.cc)
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_user_dma.cc)
   return()
 endif()
 
