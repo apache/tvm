@@ -112,10 +112,16 @@ class Allocate(WithScopeHandler):
             condition = tvm.runtime.convert(condition)
             scope = tvm.runtime.convert(scope)
 
+            # Currently, allocate nodes should only occur after buffer
+            # flattening has been applied.  This can be simplified in
+            # the future by having the AllocateNode hold a buffer
+            # object directly.
+            flattened = self.buffer.get_flattened_buffer()
+
             return tvm.tir.Allocate(
-                self.buffer_var,
-                dtype,
-                extents,
+                self.buffer.data,
+                flattened.dtype,
+                flattened.shape,
                 condition,
                 self.body,
                 annotations=annotations,
@@ -123,7 +129,7 @@ class Allocate(WithScopeHandler):
             )
 
         super().__init__(allocate, concise_scope=True, def_symbol=True)
-        self.buffer_var = None
+        self.buffer = None
 
     def enter_scope(
         self,
@@ -147,15 +153,20 @@ class Allocate(WithScopeHandler):
         else:
             raise Exception("Internal Bug")
 
-        def setup_buffer_var(
+        def setup_buffer(
             extents, dtype, scope, condition=True, annotations=None, span: Span = None
         ):
-            """Setup buffer var for a given type."""
-            buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype), scope)
-            self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)
+            """Setup buffer object for a given type."""
+            self.buffer = tvm.tir.decl_buffer(
+                shape=extents,
+                dtype=dtype,
+                name=name,
+                scope=scope,
+                span=span,
+            )
 
-        setup_buffer_var(*arg_list, span=tvm_span_from_synr(var_span))
-        context.update_symbol(name, self.buffer_var, node)
+        setup_buffer(*arg_list, span=tvm_span_from_synr(var_span))
+        context.update_symbol(name, self.buffer, node)
 
 
 @register
@@ -171,11 +182,11 @@ class AllocateConst(WithScopeHandler):
             for i in raw_data:
                 list_data.append(i.value)
             nd_data = tvm.nd.array(np.asarray(list_data, dtype=dtype))
-            n = tvm.tir.AllocateConst(self.buffer_var, dtype, shape, nd_data, self.body, span=span)
+            n = tvm.tir.AllocateConst(self.buffer.data, dtype, shape, nd_data, self.body, span=span)
             return n
 
         super().__init__(allocate_const, concise_scope=True, def_symbol=True)
-        self.buffer_var = None
+        self.buffer = None
 
     def enter_scope(
         self,
@@ -199,13 +210,17 @@ class AllocateConst(WithScopeHandler):
         else:
             raise Exception("Internal Bug")
 
-        def setup_buffer_var(data, dtype, shape, span: Span = None):
+        def setup_buffer(data, dtype, shape, span: Span = None):
             """Setup buffer var for a given type."""
-            buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype))
-            self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)
+            self.buffer = tvm.tir.decl_buffer(
+                shape=shape,
+                dtype=dtype,
+                name=name,
+                span=span,
+            )
 
-        setup_buffer_var(*arg_list, span=tvm_span_from_synr(var_span))
-        context.update_symbol(name, self.buffer_var, node)
+        setup_buffer(*arg_list, span=tvm_span_from_synr(var_span))
+        context.update_symbol(name, self.buffer, node)
 
 
 @register

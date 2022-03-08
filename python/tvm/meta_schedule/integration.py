@@ -204,10 +204,8 @@ def extract_task_from_relay(
     params: Optional[Dict[str, NDArray]] = None,
     *,
     opt_level: int = 3,
-    pass_config: Dict[str, Any] = {
-        "relay.backend.use_meta_schedule": True,
-    },
-    disabled_pass: List[str] = [],
+    pass_config: Optional[Dict[str, Any]] = None,
+    disabled_pass: Optional[List[str]] = None,
 ) -> List[ExtractedTask]:
     """Extract tuning tasks from a relay program.
 
@@ -221,9 +219,9 @@ def extract_task_from_relay(
         The associated parameters of the program
     opt_level : int
         The optimization level of the compiler
-    pass_config : Dict[str, Any]
+    pass_config : Optional[Dict[str, Any]]
         The pass config of the compiler
-    disabled_pass : List[str]
+    disabled_pass : Optional[List[str]]
         The list of disabled passes of the compiler
 
     Returns
@@ -249,6 +247,11 @@ def extract_task_from_relay(
         thread = threading.Thread(target=func)
         thread.start()
         thread.join()
+
+    if disabled_pass is None:
+        disabled_pass = []
+    if pass_config is None:
+        pass_config = {"relay.backend.use_meta_schedule": True}
 
     env = TaskExtraction()
     if isinstance(mod, RelayFunc):

@@ -51,7 +51,7 @@ def test_llvm_void_intrin():
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("uint8", name="A")
     # Create an intrinsic that returns void.
-    x = tvm.tir.call_llvm_intrin("", "llvm.va_start", tvm.tir.const(1, "uint32"), A)
+    x = tvm.tir.call_llvm_intrin("", "llvm.va_start", tvm.tir.const(1, "uint32"), A.asobject().data)
     ib.emit(x)
     body = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "main"))
@@ -672,13 +672,12 @@ def test_llvm_shuffle():
         def vectorizer(op):
             store = op.body
             idx = tvm.tir.Ramp(tvm.tir.const(0, "int32"), tvm.tir.const(1, "int32"), 8)
-            all_ones = tvm.tir.const(1, "int32x8")
             value = store.value
             b_idx = tvm.tir.Shuffle([idx], [tvm.tir.const(i, "int32") for i in range(7, -1, -1)])
-            new_a = tvm.tir.Load("int32x8", value.a.buffer_var, idx, all_ones)
-            new_b = tvm.tir.Load("int32x8", value.b.buffer_var, b_idx, all_ones)
+            new_a = tvm.tir.BufferLoad(value.a.buffer, [idx])
+            new_b = tvm.tir.BufferLoad(value.b.buffer, [b_idx])
             value = new_a + new_b
-            return tvm.tir.Store(store.buffer_var, new_a + new_b, idx, all_ones)
+            return tvm.tir.BufferStore(store.buffer, new_a + new_b, [idx])
 
         def _transform(f, *_):
             return f.with_body(
@@ -925,7 +924,7 @@ def test_raise_exception_during_codegen():
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i in T.parallel(4):
             for j in T.parallel(4):
-                T.store(B.data, i * 4 + j, T.load("float32", A.data, i * 4 + j) * 2.0)
+                B[i, j] = A[i, j] * 2.0
 
     with pytest.raises(tvm.TVMError) as e:
         tvm.build({"llvm": tvm.IRModule.from_expr(threadpool_nested_parallel_loop)})

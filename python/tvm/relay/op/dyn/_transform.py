@@ -170,7 +170,7 @@ def _onehot_shape_func(dshape, k, axis):
     out = output_tensor((ndim,), "int64")
     for i in const_range(axis):
         out[i] = int64(dshape[i])
-    out[axis] = int64(k[0])
+    out[axis] = int64(k[(0)])
     for j in const_range(axis + 1, ndim):
         out[j] = int64(dshape[j - 1])
     return out

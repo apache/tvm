@@ -24,40 +24,13 @@
 #include <tvm/relay/op.h>
 
 #include "common.h"
+#include "op_attrs.h"
 
 namespace tvm {
 namespace relay {
 namespace op {
 namespace contrib {
 namespace ethosu {
-
-/*! \brief Attributes used by the NPU identity operator */
-struct EthosuIdentityAttrs : public tvm::AttrsNode<EthosuIdentityAttrs> {
-  double ifm_scale;
-  int ifm_zero_point;
-  double ofm_scale;
-  int ofm_zero_point;
-  String activation;
-
-  TVM_DECLARE_ATTRS(EthosuIdentityAttrs, "relay.attrs.EthosuIdentityAttrs") {
-    TVM_ATTR_FIELD(ifm_scale).describe("The quantization scale for the Input Feature Map tensor.");
-    TVM_ATTR_FIELD(ifm_zero_point)
-        .describe("The quantization zero point for the Input Feature Map tensor.");
-    TVM_ATTR_FIELD(ofm_scale).describe("The quantization scale for the Output Feature Map tensor.");
-    TVM_ATTR_FIELD(ofm_zero_point)
-        .describe("The quantization zero point for the Output Feature Map tensor.");
-    TVM_ATTR_FIELD(activation)
-        .describe(
-            "The activation function to use. "
-            "'NONE' - no activation function. "
-            "'TANH' - tanh activation function. "
-            "'SIGMOID' - sigmoid activation function. "
-            "'LUT' - use a look-up table to perform the activation function.")
-        .set_default("NONE");
-  }
-};
-
-TVM_REGISTER_NODE_TYPE(EthosuIdentityAttrs);
 
 bool EthosuIdentityRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                        const TypeReporter& reporter) {

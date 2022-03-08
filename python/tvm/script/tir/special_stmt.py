@@ -865,6 +865,60 @@ class FuncAttr(SpecialStmt):
 
 
 @register
+class PreflattenedBufferMap(SpecialStmt):
+    """Special Stmt for declaring the PrimFunc::preflattened_buffer_map
+
+    Example
+    -------
+    .. code-block:: python
+         T.preflattened_buffer_map({})
+    """
+
+    def __init__(self):
+        def preflattened_buffer(
+            postflattened,
+            shape,
+            dtype="float32",
+            data=None,
+            strides=None,
+            elem_offset=None,
+            scope="global",
+            align=-1,
+            offset_factor=0,
+            buffer_type="default",
+            span=None,
+        ):
+
+            param = None
+            for key, value in self.context.func_buffer_map.items():
+                if value.same_as(postflattened):
+                    param = key
+
+            assert (
+                param is not None
+            ), f"Post-flatten buffer {postflattened.name} does not appear in the buffer map."
+
+            buffer_name: str = f"{postflattened.name}_preflatten"
+            preflattened = tvm.tir.decl_buffer(
+                shape,
+                dtype,
+                buffer_name,
+                data,
+                strides,
+                elem_offset,
+                scope,
+                align,
+                offset_factor,
+                buffer_type,
+                span=span,
+            )
+
+            self.context.func_preflattened_buffer_map[param] = preflattened
+
+        super().__init__(preflattened_buffer, def_symbol=False)
+
+
+@register
 class TargetAttrValue(SpecialStmt):
     """Special Stmt for target attr value.
     Example

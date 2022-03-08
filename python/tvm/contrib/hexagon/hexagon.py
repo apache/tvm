@@ -268,6 +268,7 @@ def ir_lower_vtcm_pass():
 
 def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: str, options=None):
     """Export Hexagon AOT module."""
+    options = options or []
     if not os.access(str(HEXAGON_CLANG_PLUS), os.X_OK):
         raise Exception(
             'The Clang++ "' + str(HEXAGON_CLANG_PLUS) + '" does not exist or is not executable.'
@@ -286,6 +287,7 @@ def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: st
     tvm_dir = pathlib.Path(os.path.dirname(os.path.realpath(__file__))) / ".." / ".." / ".." / ".."
     compute_arch = f"compute{hexagon_arch}"
     compile_options = [
+        f"-O3",
         f"-I{tvm_dir / 'include'}",
         f"-I{tvm_dir / '3rdparty' / 'dlpack' / 'include'}",
         f"-I{tvm_dir / '3rdparty' / 'dmlc-core' / 'include'}",
@@ -302,4 +304,4 @@ def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: st
     cross_compile = cc.cross_compiler(compile_func=hexagon_clang_plus())
     cross_compile.output_format = "o"
     c_files = [str(file) for file in files]
-    cross_compile(str(so_name), c_files, options=compile_options)
+    cross_compile(str(so_name), c_files, options=compile_options + options)

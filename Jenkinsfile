@@ -132,6 +132,18 @@ def cancel_previous_build() {
 }
 
 def should_skip_ci(pr_number) {
+  if (!env.BRANCH_NAME.startsWith('PR-')) {
+    // never skip CI on build sourced from a branch
+    return false
+  }
+  glob_skip_ci_code = sh (
+    returnStatus: true,
+    script: "./tests/scripts/git_skip_ci_globs.py",
+    label: 'Check if CI should be skipped due to changed files',
+  )
+  if (glob_skip_ci_code == 0) {
+    return true
+  }
   withCredentials([string(
     credentialsId: 'tvm-bot-jenkins-reader',
     variable: 'TOKEN',
@@ -143,7 +155,7 @@ def should_skip_ci(pr_number) {
       script: "./tests/scripts/git_skip_ci.py --pr '${pr_number}'",
       label: 'Check if CI should be skipped',
     )
-    }
+  }
   return git_skip_ci_code == 0
 }
 
@@ -429,6 +441,10 @@ stage('Build') {
             sh (
               script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
               label: 'Run Hexagon tests',
+            )
+            sh (
+              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon_simulator.sh",
+              label: 'Run Hexagon tests on simulator',
             )
           } finally {
             junit 'build/pytest-results/*.xml'

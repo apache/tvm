@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import os
 import pathlib
 import sys
 import pytest
@@ -31,9 +32,17 @@ import tvm.contrib.hexagon.hexagon as hexagon
 
 from .conftest import requires_hexagon_toolchain
 
+RPC_SERVER_PORT = 7070
+
+# NOTE on server ports:
+# These tests use different port numbers for the RPC server (7070 + ...).
+# The reason is that an RPC session cannot be gracefully closed without
+# triggering TIME_WAIT state on the server socket. This prevents another
+# server to bind to the same port until the wait time elapses.
+
 
 @requires_hexagon_toolchain
-def test_add(android_serial_number, tvm_tracker_host, tvm_tracker_port):
+def test_add(android_serial_number, tvm_tracker_host, tvm_tracker_port, adb_server_socket):
     dtype = "int8"
     A = tvm.te.placeholder((2,), dtype=dtype)
     B = tvm.te.placeholder((1,), dtype=dtype)
@@ -56,7 +65,8 @@ def test_add(android_serial_number, tvm_tracker_host, tvm_tracker_port):
     rpc_info = {
         "rpc_tracker_host": tvm_tracker_host,
         "rpc_tracker_port": tvm_tracker_port,
-        "rpc_server_port": 7070,
+        "rpc_server_port": RPC_SERVER_PORT + 0,  # See note at the beginning of the file
+        "adb_server_socket": adb_server_socket,
     }
     launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
@@ -70,14 +80,14 @@ def test_add(android_serial_number, tvm_tracker_host, tvm_tracker_port):
         assert (B_data.numpy() == np.array([4])).all()
         C_data = tvm.nd.array(np.array([0, 0], dtype=dtype), device=sess.device)
         assert (C_data.numpy() == np.array([0, 0])).all()
-
         mod["add"](A_data, B_data, C_data)
         assert (C_data.numpy() == np.array([6, 7])).all()
+
     launcher.stop_server()
 
 
 @requires_hexagon_toolchain
-def test_add_vtcm(android_serial_number, tvm_tracker_host, tvm_tracker_port):
+def test_add_vtcm(android_serial_number, tvm_tracker_host, tvm_tracker_port, adb_server_socket):
     dtype = "int8"
     A = tvm.te.placeholder((2,), dtype=dtype)
     B = tvm.te.placeholder((1,), dtype=dtype)
@@ -100,7 +110,8 @@ def test_add_vtcm(android_serial_number, tvm_tracker_host, tvm_tracker_port):
     rpc_info = {
         "rpc_tracker_host": tvm_tracker_host,
         "rpc_tracker_port": tvm_tracker_port,
-        "rpc_server_port": 7070,
+        "rpc_server_port": RPC_SERVER_PORT + 1,  # See note at the beginning of the file
+        "adb_server_socket": adb_server_socket,
     }
     launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
@@ -120,6 +131,7 @@ def test_add_vtcm(android_serial_number, tvm_tracker_host, tvm_tracker_port):
         mod["add"](A_data, B_data, C_data)
         result = C_data.numpy()
         assert (result == np.array([6, 7])).all()
+
     launcher.stop_server()
 
 
@@ -129,7 +141,9 @@ class TestMatMul:
     K = tvm.testing.parameter(32)
 
     @requires_hexagon_toolchain
-    def test_matmul(self, android_serial_number, tvm_tracker_host, tvm_tracker_port, M, N, K):
+    def test_matmul(
+        self, android_serial_number, tvm_tracker_host, tvm_tracker_port, adb_server_socket, M, N, K
+    ):
         X = te.placeholder((M, K), dtype="float32")
         Y = te.placeholder((K, N), dtype="float32")
         k1 = te.reduce_axis((0, K), name="k1")
@@ -152,7 +166,8 @@ class TestMatMul:
         rpc_info = {
             "rpc_tracker_host": tvm_tracker_host,
             "rpc_tracker_port": tvm_tracker_port,
-            "rpc_server_port": 7070,
+            "rpc_server_port": RPC_SERVER_PORT + 2,  # See note at the beginning of the file
+            "adb_server_socket": adb_server_socket,
         }
         launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
         launcher.upload(dso_binary_path, dso_binary)
@@ -168,7 +183,6 @@ class TestMatMul:
             yt = tvm.nd.array(y, device=sess.device)
             zt = tvm.nd.array(z, device=sess.device)
             mod(xt, yt, zt)
-
         launcher.stop_server()
 
         target_llvm = tvm.target.Target("llvm")
@@ -183,7 +197,9 @@ class TestMatMul:
 
 
 @requires_hexagon_toolchain
-def test_graph_executor(android_serial_number, tvm_tracker_host, tvm_tracker_port):
+def test_graph_executor(
+    android_serial_number, tvm_tracker_host, tvm_tracker_port, adb_server_socket
+):
     dtype = "float32"
     data = relay.var("data", relay.TensorType((1, 64, 64, 3), dtype))
     weight = relay.var("weight", relay.TensorType((5, 5, 3, 8), dtype))
@@ -228,7 +244,8 @@ def test_graph_executor(android_serial_number, tvm_tracker_host, tvm_tracker_por
     rpc_info = {
         "rpc_tracker_host": tvm_tracker_host,
         "rpc_tracker_port": tvm_tracker_port,
-        "rpc_server_port": 7070,
+        "rpc_server_port": RPC_SERVER_PORT + 3,  # See note at the beginning of the file
+        "adb_server_socket": adb_server_socket,
     }
     launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
@@ -239,7 +256,8 @@ def test_graph_executor(android_serial_number, tvm_tracker_host, tvm_tracker_por
         graph_mod.set_input(**params)
         graph_mod.run(**inputs)
         hexagon_output = graph_mod.get_output(0).numpy()
-        launcher.stop_server()
+
+    launcher.stop_server()
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):
@@ -258,7 +276,9 @@ def test_graph_executor(android_serial_number, tvm_tracker_host, tvm_tracker_por
 
 
 @requires_hexagon_toolchain
-def test_graph_executor_multiple_conv2d(tvm_tracker_host, tvm_tracker_port, android_serial_number):
+def test_graph_executor_multiple_conv2d(
+    tvm_tracker_host, tvm_tracker_port, android_serial_number, adb_server_socket
+):
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
@@ -311,7 +331,8 @@ def test_graph_executor_multiple_conv2d(tvm_tracker_host, tvm_tracker_port, andr
     rpc_info = {
         "rpc_tracker_host": tvm_tracker_host,
         "rpc_tracker_port": tvm_tracker_port,
-        "rpc_server_port": 7070,
+        "rpc_server_port": RPC_SERVER_PORT + 4,  # See note at the beginning of the file
+        "adb_server_socket": adb_server_socket,
     }
     launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
@@ -335,7 +356,8 @@ def test_graph_executor_multiple_conv2d(tvm_tracker_host, tvm_tracker_port, andr
         graph_mod.set_input(**params)
         graph_mod.run(**inputs)
         hexagon_output = graph_mod.get_output(0).numpy()
-        launcher.stop_server()
+
+    launcher.stop_server()
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):
@@ -353,8 +375,19 @@ def test_graph_executor_multiple_conv2d(tvm_tracker_host, tvm_tracker_port, andr
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 
+def _workaround_create_aot_shared():
+    # The C codegen uses TVM/RT functions directly. On Hexagon it should use
+    # functions pointers via __TVMxyz variables. This workaround makes the
+    # runtime symbols visible to the compiled shared library.
+    extra_link_flags = os.environ.get("HEXAGON_SHARED_LINK_FLAGS")
+    extra_options = str(extra_link_flags).split() if extra_link_flags else []
+    return lambda so_name, files, hexagon_arch, options: hexagon.create_aot_shared(
+        so_name, files, hexagon_arch, options=extra_options + options
+    )
+
+
 @requires_hexagon_toolchain
-def test_aot_executor(tvm_tracker_host, tvm_tracker_port, android_serial_number):
+def test_aot_executor(tvm_tracker_host, tvm_tracker_port, android_serial_number, adb_server_socket):
     dtype = "float32"
     input_shape = (1, 128, 128, 3)
     w_shape = (5, 5, 3, 8)
@@ -394,8 +427,12 @@ def test_aot_executor(tvm_tracker_host, tvm_tracker_port, android_serial_number)
             runtime=Runtime("cpp"),
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "c"}),
         )
+        # Uncomment this once the workaround is not needed.
+        # lowered.export_library(
+        #     dso_binary_path, fcompile=hexagon.create_aot_shared, hexagon_arch="v68"
+        # )
         lowered.export_library(
-            dso_binary_path, fcompile=hexagon.create_aot_shared, hexagon_arch="v68"
+            dso_binary_path, fcompile=_workaround_create_aot_shared(), hexagon_arch="v68"
         )
 
     if not android_serial_number:
@@ -404,7 +441,8 @@ def test_aot_executor(tvm_tracker_host, tvm_tracker_port, android_serial_number)
     rpc_info = {
         "rpc_tracker_host": tvm_tracker_host,
         "rpc_tracker_port": tvm_tracker_port,
-        "rpc_server_port": 7070,
+        "rpc_server_port": RPC_SERVER_PORT + 5,  # See note at the beginning of the file
+        "adb_server_socket": adb_server_socket,
     }
     launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
@@ -415,7 +453,8 @@ def test_aot_executor(tvm_tracker_host, tvm_tracker_port, android_serial_number)
         aot_mod.set_input(**inputs)
         aot_mod.run()
         hexagon_output = aot_mod.get_output(0).numpy()
-        launcher.stop_server()
+
+    launcher.stop_server()
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):
@@ -435,7 +474,9 @@ def test_aot_executor(tvm_tracker_host, tvm_tracker_port, android_serial_number)
 
 
 @requires_hexagon_toolchain
-def test_aot_executor_multiple_conv2d(tvm_tracker_host, tvm_tracker_port, android_serial_number):
+def test_aot_executor_multiple_conv2d(
+    tvm_tracker_host, tvm_tracker_port, android_serial_number, adb_server_socket
+):
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
@@ -491,8 +532,12 @@ def test_aot_executor_multiple_conv2d(tvm_tracker_host, tvm_tracker_port, androi
             runtime=Runtime("cpp"),
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "c"}),
         )
+        # Uncomment this once the workaround is not needed.
+        # lowered.export_library(
+        #     dso_binary_path, fcompile=hexagon.create_aot_shared, hexagon_arch="v68"
+        # )
         lowered.export_library(
-            dso_binary_path, fcompile=hexagon.create_aot_shared, hexagon_arch="v68"
+            dso_binary_path, fcompile=_workaround_create_aot_shared(), hexagon_arch="v68"
         )
 
     if not android_serial_number:
@@ -501,7 +546,8 @@ def test_aot_executor_multiple_conv2d(tvm_tracker_host, tvm_tracker_port, androi
     rpc_info = {
         "rpc_tracker_host": tvm_tracker_host,
         "rpc_tracker_port": tvm_tracker_port,
-        "rpc_server_port": 7070,
+        "rpc_server_port": RPC_SERVER_PORT + 6,  # See note at the beginning of the file
+        "adb_server_socket": adb_server_socket,
     }
     launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)
@@ -512,7 +558,8 @@ def test_aot_executor_multiple_conv2d(tvm_tracker_host, tvm_tracker_port, androi
         aot_mod.set_input(**inputs)
         aot_mod.run()
         hexagon_output = aot_mod.get_output(0).numpy()
-        launcher.stop_server()
+
+    launcher.stop_server()
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):
