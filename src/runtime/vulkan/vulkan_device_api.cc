@@ -236,6 +236,11 @@ void VulkanDeviceAPI::GetTargetProperty(Device dev, const std::string& property,
   if (property == "max_shared_memory_per_block") {
     *rv = int64_t(prop.max_shared_memory_per_block);
   }
+
+  if (property == "supports_integer_dot_product") {
+    *rv = prop.supports_integer_dot_product;
+  }
+
   if (property == "device_name") {
     *rv = prop.device_name;
   }

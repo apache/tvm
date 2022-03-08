@@ -26,6 +26,16 @@ endif()
 tvm_option(USE_CUDA "Build with CUDA" OFF)
 tvm_option(USE_OPENCL "Build with OpenCL" OFF)
 tvm_option(USE_VULKAN "Build with Vulkan" OFF)
+
+
+# Whether to use spirv-tools.and SPIRV-Headers from Khronos github or gitlab.
+#
+# Possible values:
+# - OFF: not to use
+# - /path/to/install: path to your khronis spirv-tools and SPIRV-Headers installation directory
+#
+tvm_option(USE_KHRONOS_SPIRV "Whether to use spirv-tools.and SPIRV-Headers from Khronos github or gitlab" OFF)
+tvm_option(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT "whether enable SPIRV_KHR_DOT_PRODUCT" OFF)
 tvm_option(USE_METAL "Build with Metal" OFF)
 tvm_option(USE_ROCM "Build with ROCM" OFF)
 tvm_option(ROCM_PATH "The path to rocm" /opt/rocm)
