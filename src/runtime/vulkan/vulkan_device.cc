@@ -132,6 +132,8 @@ VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
       device.HasExtension("VK_KHR_dedicated_allocation") &&
       !support::BoolEnvironmentVar("TVM_VULKAN_DISABLE_DEDICATED_ALLOCATION");
 
+  supports_integer_dot_product = device.HasExtension("VK_KHR_shader_integer_dot_product");
+
   // The check of VK_SHADER_STAGE_COMPUTE_BIT isn't technically
   // needed, since it will be set so long at least one queue has
   // VK_QUEUE_COMPUTE_BIT.  Including it to avoid potential future
@@ -410,18 +412,17 @@ uint32_t VulkanDevice::SelectComputeQueueFamily() const {
 
 std::vector<const char*> VulkanDevice::SelectEnabledExtensions() const {
   std::vector<const char*> required_extensions{};
-  std::vector<const char*> optional_extensions{
-      "VK_KHR_driver_properties",
-      "VK_KHR_storage_buffer_storage_class",
-      "VK_KHR_8bit_storage",
-      "VK_KHR_16bit_storage",
-      "VK_KHR_shader_float16_int8",
-      "VK_KHR_push_descriptor",
-      "VK_KHR_descriptor_update_template",
-      "VK_KHR_get_memory_requirements2",
-      "VK_KHR_dedicated_allocation",
-      "VK_KHR_spirv_1_4",
-  };
+  std::vector<const char*> optional_extensions{"VK_KHR_driver_properties",
+                                               "VK_KHR_storage_buffer_storage_class",
+                                               "VK_KHR_8bit_storage",
+                                               "VK_KHR_16bit_storage",
+                                               "VK_KHR_shader_float16_int8",
+                                               "VK_KHR_push_descriptor",
+                                               "VK_KHR_descriptor_update_template",
+                                               "VK_KHR_get_memory_requirements2",
+                                               "VK_KHR_dedicated_allocation",
+                                               "VK_KHR_spirv_1_4",
+                                               "VK_KHR_shader_integer_dot_product"};
 
   uint32_t device_extension_prop_count;
   VULKAN_CALL(vkEnumerateDeviceExtensionProperties(physical_device_, nullptr,
