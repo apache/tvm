@@ -24,4 +24,4 @@ source tests/scripts/setup-pytest-env.sh
 
 make cython3
 
-run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon/test_launcher.py
+run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon

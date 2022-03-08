@@ -35,6 +35,6 @@ export HEXAGON_SHARED_LINK_FLAGS="-Lbuild/hexagon_api_output -lhexagon_rpc_sim"
 # HEXAGON_TOOLCHAIN is already set
 export HEXAGON_SDK_ROOT=${HEXAGON_SDK_PATH}
 export ANDROID_SERIAL_NUMBER=simulator
-run_pytest ctypes python-contrib-hexagon-simulator tests/python/contrib/test_hexagon/test_launcher.py
+run_pytest ctypes python-contrib-hexagon-simulator tests/python/contrib/test_hexagon
 
 kill ${TRACKER_PID}
