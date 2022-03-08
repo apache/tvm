@@ -732,29 +732,33 @@ def deploy_docs() {
     script: '''
       set -eux
       rm -rf tvm-site
-      git clone -b asf-site --depth=1 https://github.com/apache/tvm-site
+      git clone -b $DOCS_DEPLOY_BRANCH --depth=1 https://github.com/apache/tvm-site
       cd tvm-site
       git status
-      git checkout -B asf-site
+      git checkout -B $DOCS_DEPLOY_BRANCH
 
       rm -rf tvm-site/docs
       mkdir -p tvm-site/docs
       tar xf ../docs.tgz -C tvm-site/docs
-      COMMIT=$(cat tvm-site/docs/shorthash)
+      COMMIT=$(cat tvm-site/docs/commit_hash)
       git add .
       git config user.name tvm-bot
       git config user.email 95660001+tvm-bot@users.noreply.github.com
-      git commit -m"Documentation update from $COMMIT"
+      git commit -m"deploying docs (apache/tvm@$COMMIT)"
       git status
     ''',
     label: 'Unpack docs and update tvm-site'
   )
 
-  withCredentials([sshUserPrivateKey(credentialsId: "tvm-bot-docs-key", keyFileVariable: 'keyfile')]) {
+  withCredentials([string(
+    credentialsId: 'docs-push-token',
+    variable: 'GITHUB_TOKEN',
+    )]) {
     sh(
       script: '''
-        git remote add deploy git@github.com:apache/tvm-site.git
-        GIT_SSH_COMMAND="ssh -i /tmp/test.key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no" git push deploy
+        cd tvm-site
+        git remote add deploy https://$GITHUB_TOKEN:x-oauth-basic@github.com/apache/tvm-site.git
+        git push deploy $DOCS_DEPLOY_BRANCH
       ''',
       label: 'Upload docs to apache/tvm-site'
     )
@@ -767,7 +771,7 @@ stage('Deploy') {
     node('CPU') {
       ws(per_exec_ws('tvm/deploy-docs')) {
         unpack_lib('docs', 'docs.tgz')
-        deploy_docs()
+        deploy_docs(env.DOCS_DEPLOY_BRANCH)
       }
     }
   }
