@@ -49,13 +49,7 @@ if __name__ == "__main__":
         print("pr title:", title)
         return title.startswith("[skip ci]")
 
-    if (
-        args.pr != "null"
-        and args.pr.strip() != ""
-        and branch != "main"
-        and log.startswith("[skip ci]")
-        and check_pr_title()
-    ):
+    if args.pr != "null" and args.pr.strip() != "" and branch != "main" and check_pr_title():
         print("Commit and PR start with '[skip ci]', skipping...")
         exit(0)
     else:
