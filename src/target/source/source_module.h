@@ -43,11 +43,13 @@ namespace codegen {
  * \param target the target the modules are compiled for.
  * \param runtime the runtime to code generate against
  * \param metadata Compiler-generated metadata exported to runtime.
+ * \param aot_metadata If supplied, metadata for the AOTExecutor module.
  * \return The wrapped module.
  */
 runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
                                                relay::Runtime runtime,
-                                               relay::backend::ExecutorCodegenMetadata metadata);
+                                               relay::backend::ExecutorCodegenMetadata metadata,
+                                               runtime::metadata::Metadata aot_metadata);
 
 /*!
  * \brief Create C++-runtime targeted metadata module for "c" backend.

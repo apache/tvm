@@ -1162,7 +1162,7 @@ void VMCompiler::Codegen() {
   }
 
   lib = codegen::CreateMetadataModule(params_, lib, ext_mods, config_->host_target,
-                                      Runtime::Create("cpp"),
+                                      Runtime::Create("cpp"), Executor::Create("graph"),  // DNS HACK
                                       relay::backend::ExecutorCodegenMetadata());
   exec_->SetLib(lib);
 }
