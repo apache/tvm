@@ -255,7 +255,7 @@ def get_per_store_feature_names(max_n_bufs: Optional[int] = None) -> List[str]:
     return _ffi_api.GetPerStoreFeatureNames(max_n_bufs or DEFAULT_MAX_N_BUFS)
 
 
-def primfunc_features(
+def features_from_primfunc(
     func: PrimFunc,
     cache_line_bytes: int = 64,
     max_n_bufs: Optional[int] = None,
@@ -292,7 +292,7 @@ def primfunc_features(
     ).numpy()
 
 
-def named_primfunc_features(
+def named_features_from_primfunc(
     func: PrimFunc,
     cache_line_bytes: int = 64,
     max_n_bufs: Optional[int] = None,
@@ -325,6 +325,6 @@ def named_primfunc_features(
         Mapping from feature name to features. One element per store into a
         unique buffer statement in `func`.
     """
-    features = primfunc_features(func, cache_line_bytes, max_n_bufs, log_scale)
+    features = features_from_primfunc(func, cache_line_bytes, max_n_bufs, log_scale)
     names = get_per_store_feature_names(max_n_bufs)
     return {name: features[:, i] for i, name in enumerate(names)}
