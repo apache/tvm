@@ -118,6 +118,7 @@ def adaptive_avgpool1d(expr, type_map):
     out = relay.op.cast(out, t.dtype)
     return [out, t]
 
+
 @register_fake_quantization_to_integer("nn.avg_pool2d")
 def avgpool2d(expr, type_map):
     """Rewrite a avgpool op"""
