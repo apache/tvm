@@ -136,13 +136,11 @@ Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRMod
   if (database->HasWorkload(prim_mod)) {
     Array<TuningRecord> records = database->GetTopK(database->CommitWorkload(prim_mod), 1);
     if (records.size() == 1) {
-      LOG(INFO) << "Applied history best for: " << task_name;
       tir::Schedule sch =
           tir::Schedule::Traced(records[0]->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
                                 /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
       records[0]->trace->ApplyToSchedule(sch, false);
       tir::PrimFunc func = GetOnlyOneFunction<tir::PrimFunc>(sch->mod()).value();
-      LOG(INFO) << "\n" << tir::AsTVMScript(func);
       return func;
     }
   }
