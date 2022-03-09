@@ -25,6 +25,7 @@
 
 #include "common_subexpr_elim_tools.h"
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir/transform.h>  // For the class Pass and the class PassContext
 #include <tvm/runtime/container/string.h>
 #include <tvm/tir/analysis.h>  // For the ExprDeepEqual analysis
@@ -727,7 +728,10 @@ bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b) {
   // For now, we just check the syntactic equality, but that could later become a semantic test,
   // for instance identifying computations modulo commutativity (like x+y and y+x), or modulo
   // associativity (like (x+y)+z and x+(y+z)), etc.
-  return EqualTerms(a, b);
+  arith::Analyzer analyser;
+  PrimExpr a_simplified = analyser.Simplify(a);
+  PrimExpr b_simplified = analyser.Simplify(b);
+  return EqualTerms(a_simplified, b_simplified);
 }
 
 /*!

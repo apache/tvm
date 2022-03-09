@@ -16,6 +16,55 @@
 # under the License.
 import tvm
 from tvm import te
+from tvm.script import tir as T
+
+@T.prim_func
+def func_distributivity(
+    i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
+) -> None:
+    B = T.buffer_decl((50,), "int32")
+    B[i1] = x * (y + z)
+    B[i2] = x * y + x * z
+
+
+@T.prim_func
+def func_distributivity_expected(
+    i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
+) -> None:
+    B = T.buffer_decl((50,), "int32")
+    cse_var_1 = T.var("int32")
+    with T.let(cse_var_1, x * (y + z)):
+        B[i1] = cse_var_1
+        B[i2] = cse_var_1
+
+@T.prim_func
+def func_associativity(
+    i1: T.int32, i2: T.int32, i3: T.int32, x: T.int32, y: T.int32, z: T.int32
+) -> None:
+    B = T.buffer_decl((50,), "int32")
+    B[i1] = (x+y) + z
+    B[i2] = (y + z) + x
+    B[i3] = (x+z)+y
+
+@T.prim_func
+def func_associativity_expected(
+    i1: T.int32, i2: T.int32, i3: T.int32, x: T.int32, y: T.int32, z: T.int32
+) -> None:
+    B = T.buffer_decl((50,), "int32")
+    cse_var_1 = T.var("int32")
+    with T.let(cse_var_1, x+(y+z)):
+        B[i1] = cse_var_1
+        B[i2] = cse_var_1
+        B[i3] = cse_var_1
+
+def _check(original, transformed):
+    func = original
+    mod = tvm.IRModule.from_expr(func)
+    print(mod)
+    mod = tvm.tir.transform.CommonSubexprElimTIR()(mod)
+    print(mod)
+    tvm.ir.assert_structural_equal(mod["main"], transformed)
+
 
 # A test program which gives the opportunity for the CSE pass to introduce two new variables, at two different levels
 def test_cse():
@@ -70,6 +119,8 @@ def test_cse():
     # We will check all of that underneath and more, making also sure that nothing else has been changed
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, z3], body))
+    print(mod)
+
     body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
 
     tvm.transform.PrintIR()(body)
@@ -167,6 +218,7 @@ def test_cse_ifNode_1():
     )
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, i3, y, z], body))
+    print(mod)
     body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
 
     tvm.transform.PrintIR()(body)
@@ -226,6 +278,7 @@ def test_cse_ifNode_2():
     )
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, i3, y, z], body))
+    print(mod)
     body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
 
     tvm.transform.PrintIR()(body)
@@ -243,6 +296,28 @@ def test_cse_ifNode_2():
 # Test commoning in cascade : after having introduced a big exp ((x+y)+z) into a new variable,
 # it will become possible to do another commoning for (x+y) which appears both in the new variable
 # and in the rest of the program.
+
+
+@T.prim_func
+def func_cse_cascade(
+    i1: T.int32, i2: T.int32, i3: T.int32, x: T.int32, y: T.int32, z: T.int32
+) -> None:
+    B = T.buffer_decl((50,), "int32")
+    B[i1] = (x + y) + z
+    B[i2] = (x + y) + z
+    B[i3] = x + y
+
+
+@T.prim_func
+def func_cse_cascade_expected(
+    i1: T.int32, i2: T.int32, i3: T.int32, x: T.int32, y: T.int32, z: T.int32
+) -> None:
+    B = T.buffer_decl((50,), "int32")
+    B[i1] = (x + y) + z
+    B[i2] = (x + y) + z
+    B[i3] = x + y
+
+
 def test_cse_cascade():
     i1 = te.var("i1")
     i2 = te.var("i2")
@@ -265,6 +340,7 @@ def test_cse_cascade():
     )
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, i3, x, y, z], body))
+    print(mod)
     body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
 
     tvm.transform.PrintIR()(body)
@@ -305,8 +381,20 @@ def test_cse_cascade():
     assert tvm.ir.structural_equal(store3.value, cse_var_2)
 
 
+
+
+
+def test_semantic_equiv_distributivity():
+    _check(func_distributivity, func_distributivity_expected)
+
+
+def test_semantic_equiv_associativity():
+    _check(func_associativity, func_associativity_expected)
+
+
 if __name__ == "__main__":
     test_cse()
     test_cse_ifNode_1()
     test_cse_ifNode_2()
     test_cse_cascade()
+    test_semantic_equiv()
