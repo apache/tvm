@@ -90,7 +90,6 @@ Operation ExternOpNode::ReplaceInputs(const Operation& self,
   ICHECK_EQ(self.operator->(), this);
   auto n = make_object<ExternOpNode>(*this);
   n->body = ReplaceTensor(this->body, rmap);
-  n->outputs = Array<Tensor>();
   for (size_t i = 0; i < n->inputs.size(); ++i) {
     Tensor t = n->inputs[i];
     if (rmap.count(t)) {
