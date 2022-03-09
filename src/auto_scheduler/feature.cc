@@ -335,25 +335,6 @@ class MathOpCounter : public StmtExprVisitor {
   OpAttrMap<TCallEffectKind> op_call_effect_ = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
 };
 
-// Determine the width of an indexing expression. For example, `Load(buf, 1)`
-// would have width 1, and `Load(buf, Ramp(0, 1, 10))` would have width 10.
-// We assume that vectorize expressions cannot be nested. i.e. `Ramp(0, 1, Broadcast(1, 10))` is not
-// allowed.
-struct IndexWidthVisitor : public ExprVisitor {
-  void VisitExpr_(const RampNode* node) { width = node->lanes; }
-
-  void VisitExpr_(const BroadcastNode* node) { width = node->lanes; }
-
-  uint64_t width{0};
-};
-
-// Finds the width of an indexing expression, see IndexWidthVisitor.
-uint64_t IndexWidth(const PrimExpr& expr) {
-  IndexWidthVisitor visitor;
-  visitor(expr);
-  return visitor.width;
-}
-
 // Extract all buffer accesses in an expr
 class BufferAccessExtractor : public StmtExprVisitor {
  public:
@@ -363,12 +344,6 @@ class BufferAccessExtractor : public StmtExprVisitor {
     BufferAccess& acc = buf_accesses[buf];
     acc.acc_type = acc_type;
     acc.indices.push_back(std::vector<PrimExpr>(indices.begin(), indices.end()));
-  }
-
-  void VisitExpr_(const LoadNode* op) final {
-    // TODO(tkonolige): handle predicated loads
-    AddAccess(op->buffer_var, {op->index});
-    StmtExprVisitor::VisitExpr_(op);
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
@@ -747,30 +722,6 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
     // Group 5: Outer scope related features
     ExtractAllocationFeature(node);
-  }
-
-  void VisitStmt_(const StoreNode* node) final {
-    MathOpCounter math_op_counter;
-    math_op_counter(node->value);
-    std::vector<float> mem_bytes_list;
-    std::vector<float> compute_ops_list;
-    double cur_compute_ops;
-
-    // TODO(tkonolige): handle predicated writes
-
-    // Group 1: Computation related features
-    ExtractComputationFeature(node->buffer_var, {node->index}, math_op_counter);
-
-    // Group 2: Buffer access related features (per buffer)
-    ExtractBufferAccessFeature(node->buffer_var, {node->index}, node->value, math_op_counter,
-                               &cur_compute_ops, &compute_ops_list, &mem_bytes_list);
-
-    // Group 3: Arithmetic intensity related features
-    ExtractArithmeticIntensityFeature(node->buffer_var, cur_compute_ops, compute_ops_list,
-                                      mem_bytes_list);
-
-    // Group 4: Allocation related features
-    ExtractOuterScopeFeature(node->buffer_var);
   }
 
   // Extract computation related features (group 1)
