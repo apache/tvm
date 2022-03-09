@@ -119,9 +119,9 @@ void HexagonDeviceAPIv2::FreeWorkspace(Device dev, void* data) {
   workspace_allocations_.erase(it);
 }
 
-void* HexagonDeviceAPIv2::AllocVtcmWorkspace(Device dev, int ndim, const int64_t* shape,
-                                             DLDataType dtype) {
-  return AllocDataSpace(dev, ndim, shape, dtype, String("global.vtcm"));
+void* HexagonDeviceAPIv2::AllocWorkspace(Device dev, int ndim, const int64_t* shape,
+                                         DLDataType dtype, Optional<String> mem_scope) {
+  return AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
 }
 
 void HexagonDeviceAPIv2::FreeVtcmWorkspace(Device dev, void* ptr) { FreeDataSpace(dev, ptr); }
@@ -170,50 +170,55 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVM
   *rv = static_cast<int32_t>(0);
 });
 
+// TODO: probably need a class here
 std::map<void*, HexagonBuffer*> vtcmallocs;
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.AllocVtcm").set_body([](TVMArgs args, TVMRetValue* rv) {
-  int device_type = args[0];
-  int device_id = args[1];
-  int nbytes = args[2];
-  // int height = args[3];
-  int dtype_code_hint = args[3];
-  int dtype_bits_hint = args[4];
+TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNdWithScope")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      int device_type = args[0];
+      int device_id = args[1];
+      int dtype_code_hint = args[2];
+      int dtype_bits_hint = args[3];
+      std::string scope = args[4];
+      const int order = args[5];
+      std::vector<int64_t> shape;
+      for (int i = 0; i < order; ++i) {
+        shape.push_back(args[6 + i]);
+      }
 
-  int64_t shape[1] = {nbytes};
+      Device dev;
+      dev.device_type = static_cast<DLDeviceType>(device_type);
+      dev.device_id = device_id;
 
-  Device dev;
-  dev.device_type = static_cast<DLDeviceType>(device_type);
-  dev.device_id = device_id;
+      DLDataType type_hint;
+      type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
+      type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
+      type_hint.lanes = 1;
 
-  DLDataType type_hint;
-  type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
-  type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
-  type_hint.lanes = 1;
+      HexagonDeviceAPIv2* hexapi = HexagonDeviceAPIv2::Global();
+      HexagonBuffer* hexbuf = reinterpret_cast<HexagonBuffer*>(
+          hexapi->AllocWorkspace(dev, order, shape.data(), type_hint, String(scope)));
 
-  HexagonDeviceAPIv2* hexapi = HexagonDeviceAPIv2::Global();
-  HexagonBuffer* hexbuf =
-      reinterpret_cast<HexagonBuffer*>(hexapi->AllocVtcmWorkspace(dev, 1, shape, type_hint));
+      void* ptr = hexbuf->GetPointer()[0];
+      vtcmallocs[ptr] = hexbuf;
+      *rv = ptr;
+    });
 
-  void* ptr = hexbuf->GetPointer()[0];
-  vtcmallocs[ptr] = hexbuf;
-  *rv = ptr;
-});
+TVM_REGISTER_GLOBAL("device_api.hexagon.FreeNdWithScope")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      int device_type = args[0];
+      int device_id = args[1];
+      void* ptr = args[2];
+      HexagonBuffer* hexbuf = vtcmallocs[ptr];
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.FreeVtcm").set_body([](TVMArgs args, TVMRetValue* rv) {
-  int device_type = args[0];
-  int device_id = args[1];
-  void* ptr = args[2];
-  HexagonBuffer* hexbuf = vtcmallocs[ptr];
+      Device dev;
+      dev.device_type = static_cast<DLDeviceType>(device_type);
+      dev.device_id = device_id;
 
-  Device dev;
-  dev.device_type = static_cast<DLDeviceType>(device_type);
-  dev.device_id = device_id;
-
-  HexagonDeviceAPIv2* hexapi = HexagonDeviceAPIv2::Global();
-  hexapi->FreeVtcmWorkspace(dev, hexbuf);
-  *rv = static_cast<int32_t>(0);
-});
+      HexagonDeviceAPIv2* hexapi = HexagonDeviceAPIv2::Global();
+      hexapi->FreeVtcmWorkspace(dev, hexbuf);
+      *rv = static_cast<int32_t>(0);
+    });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.v2").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = HexagonDeviceAPIv2::Global();

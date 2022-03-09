@@ -90,7 +90,8 @@ class HexagonDeviceAPIv2 final : public DeviceAPI {
    * \param dtype The element type.
    * \return The allocated HexagonBuffer pointer.
    */
-  void* AllocVtcmWorkspace(Device dev, int ndim, const int64_t* shape, DLDataType dtype);
+  void* AllocWorkspace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
+                       Optional<String> mem_scope);
 
   //! \brief Free the allocated Nd VTCM workspace.
   void FreeVtcmWorkspace(Device dev, void* ptr);

@@ -495,8 +495,8 @@ class BuiltinLower : public StmtExprMutator {
   Stmt MakeVtcmAlloc(const LetStmtNode* let, const CallNode* call) {
     ICHECK(device_type_.defined()) << "Unknown device type in current IR";
     ICHECK(device_id_.defined()) << "Unknown device id in current IR";
-
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
+
     Stmt body = SeqStmt(
         {IfThenElse(Call(DataType::Bool(1), builtin::isnullptr(), {let->var}), throw_last_error),
          let->body});
@@ -506,16 +506,27 @@ class BuiltinLower : public StmtExprMutator {
     std::string fdevapi_prefix = "device_api.";
     fdevapi_prefix += runtime::DeviceName(device_type_.as<IntImmNode>()->value);
 
-    Call call_packed =
-        Call(let->var.dtype(), builtin::tvm_call_packed(),
-             {StringImm(fdevapi_prefix + ".AllocVtcm"), cast(DataType::Int(32), device_type_),
-              cast(DataType::Int(32), device_id_), cast(DataType::UInt(64), call->args[0]),
-              IntImm(DataType::Int(32), dtype.code()), IntImm(DataType::Int(32), dtype.bits())});
+    // TODO: send from pass
+    std::string scope = "global.vtcm";
+
+    Array<PrimExpr> args = {StringImm(fdevapi_prefix + ".AllocNdWithScope"),
+                            cast(DataType::Int(32), device_type_),
+                            cast(DataType::Int(32), device_id_),
+                            IntImm(DataType::Int(32), dtype.code()),
+                            IntImm(DataType::Int(32), dtype.bits()),
+                            StringImm(scope),
+                            IntImm(DataType::UInt(64), call->args.size())};  // TODO: size 32 or 64?
+
+    for (size_t i = 0; i < call->args.size(); ++i) {
+      args.push_back(cast(DataType::UInt(64), call->args[i]));
+    }
+
+    Call call_packed = Call(let->var.dtype(), builtin::tvm_call_packed(), args);
     Stmt alloca = LetStmt(let->var, call_packed, body);
 
     Call free_op =
         Call(DataType::Int(32), builtin::tvm_call_packed(),
-             {StringImm(fdevapi_prefix + ".FreeVtcm"), cast(DataType::Int(32), device_type_),
+             {StringImm(fdevapi_prefix + ".FreeNdWithScope"), cast(DataType::Int(32), device_type_),
               cast(DataType::Int(32), device_id_), let->var});
 
     Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
