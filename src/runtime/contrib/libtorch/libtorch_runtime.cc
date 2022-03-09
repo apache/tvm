@@ -75,9 +75,6 @@ void run_torch_module(torch::jit::Module* module, TVMArgs args, TVMRetValue* rv)
   ICHECK(outputs.size() == 1) << "wrong number of args, can handle only one output";
   torch::Tensor res = module->forward(inputs).toTensor();
   outputs[0].copy_(res);  // too bad
-  // what to do about rv?
-  // NDArray res_array = NDArray::FromDLPack(at::toDLPack(res));
-  // *rv = res_array;
 }
 
 /*!
@@ -162,8 +159,6 @@ runtime::Module TorchRuntimeCreate(const String& symbol_name,
   auto n = make_object<TorchModuleNode>(symbol_name, mod);
   return runtime::Module(n);
 }
-
-TVM_REGISTER_GLOBAL("runtime.torch_runtime_create").set_body_typed(TorchRuntimeCreate);
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_torch")
     .set_body_typed(TorchModuleNode::LoadFromBinary);

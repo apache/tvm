@@ -32,6 +32,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
+#include <tvm/runtime/contrib/libtorch/libtorch_runtime.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/op.h>
@@ -127,17 +128,7 @@ runtime::Module TorchCompiler(const ObjectRef& ref) {
   ICHECK(op_name == "torch_op") << "Unsupported op: " << AsText(call->op, false) << "\n";
 
   const auto* attrs = call->attrs.as<TorchFunctionAttrs>();
-
-  // TensorRTJSONSerializer serializer(func_name, func);
-  // serializer.serialize();
-  // std::string graph_json = serializer.GetJSON();
-
-  const auto* pf = runtime::Registry::Get("runtime.torch_runtime_create");
-  ICHECK(pf != nullptr) << "Cannot find Torch runtime module create function.";
-  TVMByteArray serialized_function{attrs->serialized_function.c_str(),
-                                   attrs->serialized_function.length()};
-  runtime::Module lib = (*pf)(func_name, serialized_function);
-  return lib;
+  return tvm::runtime::contrib::TorchRuntimeCreate(func_name, attrs->serialized_function);
 }
 
 TVM_REGISTER_GLOBAL("relay.ext.torch").set_body_typed(TorchCompiler);
