@@ -271,7 +271,7 @@ def test_pipeline():
 
             # Prepare batch data for pipeline computation.
             datas = []
-            for i in range(1):
+            for i in range(5):
                 datas.append(np.full(dshape, 3 + i).astype("float32"))
 
             pipe_config = pipeline_executor.PipelineConfig()
@@ -403,7 +403,6 @@ def test_pipeline():
                 # Setting the timeout to 10 seconds.
                 assert statistic_time < 10
                 time.sleep(1)
-            break
 
 
 if __name__ == "__main__":
