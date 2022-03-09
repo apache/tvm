@@ -85,6 +85,9 @@ void TensorRTBuilder::AddInput(int nid, uint32_t entry_id, const JSONGraphNode& 
       shape.erase(shape.begin());
     }
     nvinfer1::Dims dims = VectorToTrtDims(shape);
+    ICHECK((dtypes[i].bits != 16 || dtypes[i].bits != 32))
+        << "Invalid input Tensor type. Float16 and Float32 are supported";
+
     auto tensor_dtype =
         (dtypes[i].bits == 16) ? nvinfer1::DataType::kHALF : nvinfer1::DataType::kFLOAT;
 
@@ -210,7 +213,8 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
 nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(const DLTensor* dptr,
                                                         DLDeviceType src_device) {
   ICHECK_EQ(dptr->device.device_type, src_device);
-
+  ICHECK((dptr->dtype.bits != 16 || dptr->dtype.bits != 32))
+      << "Invalid input Tensor type. Float16 and Float32 are supported";
   const auto trt_dtype = (static_cast<int>(dptr->dtype.bits) == 16) ? nvinfer1::DataType::kHALF
                                                                     : nvinfer1::DataType::kFLOAT;
 
@@ -253,7 +257,7 @@ void TensorRTBuilder::CleanUp() {
 #endif
   builder_->destroy();
   for (auto weight : trt_weights_) {
-    if (static_cast<int>(weight.type) <= 1) {
+    if (weight.type == nvinfer1::DataType::kFLOAT || weight.type == nvinfer1::DataType::kHALF) {
       delete[] static_cast<const float*>(weight.values);
     } else {
       delete[] static_cast<const uint16_t*>(weight.values);
