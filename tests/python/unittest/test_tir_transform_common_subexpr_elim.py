@@ -115,7 +115,6 @@ def test_cse():
     # We will check all of that underneath and more, making also sure that nothing else has been changed
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, z3], body))
-
     body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
 
     tvm.transform.PrintIR()(body)
@@ -289,8 +288,6 @@ def test_cse_ifNode_2():
 # Test commoning in cascade : after having introduced a big exp ((x+y)+z) into a new variable,
 # it will become possible to do another commoning for (x+y) which appears both in the new variable
 # and in the rest of the program.
-
-
 def test_cse_cascade():
     i1 = te.var("i1")
     i2 = te.var("i2")
@@ -313,7 +310,6 @@ def test_cse_cascade():
     )
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, i3, x, y, z], body))
-
     body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
 
     tvm.transform.PrintIR()(body)
