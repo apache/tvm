@@ -67,8 +67,13 @@ class BufferShapeLegalize : public StmtExprMutator {
 
       bound_analyzer(func->body);
 
+      auto pass = BufferShapeLegalize(func->buffer_map, &bound_analyzer);
+
       auto fptr = func.CopyOnWrite();
-      fptr->body = BufferShapeLegalize(fptr->buffer_map, &bound_analyzer)(std::move(fptr->body));
+      fptr->body = pass(std::move(fptr->body));
+      if (auto map = func->attrs.GetAttr<Map<Buffer, Array<IndexMap>>>("layout_transform_map")) {
+        func = WithAttr(std::move(func), "layout_transform_map", pass.UpdateIndexMap(map.value()));
+      }
       return func;
     };
     return transform::CreatePrimFuncPass(pass_func, 0, "tir.BufferShapeLegalize", {});
@@ -87,6 +92,19 @@ class BufferShapeLegalize : public StmtExprMutator {
       remap.in_scope = true;
       buf_map_[buf] = remap;
     }
+  }
+
+  Map<Buffer, Array<IndexMap>> UpdateIndexMap(const Map<Buffer, Array<IndexMap>>& orig) {
+    Map<Buffer, Array<IndexMap>> output;
+    for (const auto& kv : orig) {
+      auto it = buf_map_.find(kv.first);
+      if (it != buf_map_.end()) {
+        output.Set(it->second.remap_to, kv.second);
+      } else {
+        output.Set(kv.first, kv.second);
+      }
+    }
+    return output;
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
@@ -379,8 +397,13 @@ class BufferStrideLegalize : public StmtExprMutator {
 
       bound_analyzer(func->body);
 
+      auto pass = BufferStrideLegalize(func->buffer_map, &bound_analyzer);
+
       auto fptr = func.CopyOnWrite();
-      fptr->body = BufferStrideLegalize(fptr->buffer_map, &bound_analyzer)(std::move(fptr->body));
+      fptr->body = pass(std::move(fptr->body));
+      if (auto map = func->attrs.GetAttr<Map<Buffer, Array<IndexMap>>>("layout_transform_map")) {
+        func = WithAttr(std::move(func), "layout_transform_map", pass.UpdateIndexMap(map.value()));
+      }
       return func;
     };
     return transform::CreatePrimFuncPass(pass_func, 0, "tir.BufferStrideLegalize", {});
@@ -401,6 +424,19 @@ class BufferStrideLegalize : public StmtExprMutator {
       }
       updated_extern_buffer_map_.Set(kv.first, with_strides);
     }
+  }
+
+  Map<Buffer, Array<IndexMap>> UpdateIndexMap(const Map<Buffer, Array<IndexMap>>& orig) {
+    Map<Buffer, Array<IndexMap>> output;
+    for (const auto& kv : orig) {
+      auto it = buf_map_.find(kv.first);
+      if (it != buf_map_.end()) {
+        output.Set(it->second.remap_to, kv.second);
+      } else {
+        output.Set(kv.first, kv.second);
+      }
+    }
+    return output;
   }
 
   Map<Var, Buffer> UpdatedExternBufferMap() const { return updated_extern_buffer_map_; }
@@ -595,8 +631,13 @@ class ThreadScopePropagate : public StmtExprMutator {
  public:
   static transform::Pass Pass() {
     auto pass_func = [](PrimFunc func, IRModule m, transform::PassContext ctx) {
+      auto pass = ThreadScopePropagate(func->buffer_map);
+
       auto fptr = func.CopyOnWrite();
-      fptr->body = ThreadScopePropagate(fptr->buffer_map)(std::move(fptr->body));
+      fptr->body = pass(std::move(fptr->body));
+      if (auto map = func->attrs.GetAttr<Map<Buffer, Array<IndexMap>>>("layout_transform_map")) {
+        func = WithAttr(std::move(func), "layout_transform_map", pass.UpdateIndexMap(map.value()));
+      }
       return func;
     };
     return transform::CreatePrimFuncPass(pass_func, 0, "tir.ThreadScopePropagate", {});
@@ -608,6 +649,19 @@ class ThreadScopePropagate : public StmtExprMutator {
     for (auto kv : extern_buffer_map) {
       external_buffers_.insert(kv.second);
     }
+  }
+
+  Map<Buffer, Array<IndexMap>> UpdateIndexMap(const Map<Buffer, Array<IndexMap>>& orig) {
+    Map<Buffer, Array<IndexMap>> output;
+    for (const auto& kv : orig) {
+      auto it = buf_remap_.find(kv.first->data);
+      if (it != buf_remap_.end()) {
+        output.Set(it->second, kv.second);
+      } else {
+        output.Set(kv.first, kv.second);
+      }
+    }
+    return output;
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
@@ -761,8 +815,10 @@ class BufferBindUnwrapper : public StmtExprMutator {
 
       bound_analyzer(func->body);
 
+      auto pass = BufferBindUnwrapper(func->buffer_map, &bound_analyzer);
+
       auto fptr = func.CopyOnWrite();
-      fptr->body = BufferBindUnwrapper(fptr->buffer_map, &bound_analyzer)(std::move(fptr->body));
+      fptr->body = pass(std::move(fptr->body));
       return func;
     };
     return transform::CreatePrimFuncPass(pass_func, 0, "tir.BufferBindUnwrapper", {});
@@ -777,6 +833,20 @@ class BufferBindUnwrapper : public StmtExprMutator {
       e.external = true;
       buf_map_[kv.second.get()] = std::move(e);
     }
+  }
+
+  Map<Buffer, Array<IndexMap>> UpdateIndexMap(const Map<Buffer, Array<IndexMap>>& orig) {
+    Map<Buffer, Array<IndexMap>> output;
+    for (const auto& kv : orig) {
+      const BufferEntry& e = GetBufferEntry(kv.first);
+
+      if (e.remap) {
+        output.Set(e.remap->target, kv.second);
+      } else {
+        output.Set(kv.first, kv.second);
+      }
+    }
+    return output;
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
@@ -1357,7 +1427,8 @@ class StorageFlattener : public StmtExprMutator {
       }
 
       e.buffer = Buffer(op->buffer->data, op->buffer->dtype, op->buffer->shape, op->buffer->strides,
-                        PrimExpr(), op->buffer->name, align, 0, kDefault);
+                        PrimExpr(), op->buffer->name, align, 0, kDefault,
+                        op->buffer->axis_separators, op->buffer->span);
       e.flattened_buffer = e.buffer.GetFlattenedBuffer();
 
       // TODO(Lunderberg): Move the handling of boolean into a
