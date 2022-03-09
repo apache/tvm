@@ -267,6 +267,34 @@ def test_tensor_intrin():
     assert s[z].iter_var_attrs[xi].iter_type == tvm.te.schedule.IterVar.Tensorized
 
 
+def test_tensor_intrin_red():
+    # not keepdims
+    n = 16
+    x = te.placeholder((n,), name="x")
+    k = te.reduce_axis((0, n), "k")
+    z = te.compute((), lambda : te.sum(x[k], axis=k), name="z")
+
+    def intrin_func(ins, outs):
+        assert isinstance(ins[0], tvm.te.schedule.Buffer)
+        assert ins[0].shape[0].value == n
+        return tvm.tir.call_packed("vsum", ins[0].data, outs[0].data, ins[0].shape[0])
+
+    intrin = te.decl_tensor_intrin(z.op, intrin_func,
+        binds={
+            x : tvm.tir.decl_buffer(x.shape, x.dtype),
+            z : tvm.tir.decl_buffer(z.shape, z.dtype)
+        }
+    )
+    assert intrin.op == z.op
+    assert intrin.reduce_init is None
+    assert tuple(intrin.inputs) == tuple(z.op.input_tensors)
+    s = te.create_schedule(z.op)
+    xi = z.op.reduce_axis[0]
+    s[z].tensorize(xi, intrin)
+    assert s[z].iter_var_attrs[xi].tensor_intrin == intrin
+    assert s[z].iter_var_attrs[xi].iter_type == tvm.te.schedule.IterVar.Tensorized
+
+
 def test_tensor_intrin_scalar_params():
     n = te.size_var("n")
     x = te.placeholder((n,), name="x")
@@ -352,6 +380,7 @@ if __name__ == "__main__":
     test_singleton()
     test_pragma()
     test_tensor_intrin()
+    test_tensor_intrin_red()
     test_tensor_intrin_scalar_params()
     test_rfactor()
     test_schedule_create()

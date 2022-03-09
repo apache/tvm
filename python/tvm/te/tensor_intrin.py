@@ -126,11 +126,19 @@ def decl_tensor_intrin(
 
     default_buffer_params = {} if default_buffer_params is None else default_buffer_params
     for t in tensors:
-        buf = (
-            binds[t]
-            if t in binds
-            else tvm.tir.decl_buffer(t.shape, t.dtype, t.op.name, **default_buffer_params)
-        )
+        buf = None
+        if t.ndim == 0:
+            # Because the comparison among rank-0 tensor is ambiguous,
+            # we use the deep comparison `TensorEqual` here.
+            for other in binds.keys():
+                if _ffi_api.TensorEqual(t, other):
+                    buf = binds[other]
+        elif t in binds:
+            buf = binds[t]
+
+        if buf is None:
+            buf = tvm.tir.decl_buffer(t.shape, t.dtype, t.op.name, **default_buffer_params)
+
         binds_list.append(buf)
 
     if scalar_params:
