@@ -2475,18 +2475,18 @@ def test_tflite_fully_connected(
 
         # check IFM
         ifm = op.args[0].checked_type
-        assert [ifm.shape[2], ifm.shape[3]] == list(ifm_shape)
+        assert list(ifm.shape) == [1, 1] + list(ifm_shape)
         assert str(ifm.dtype) == dtype
 
         # check OFM
         ofm = op.checked_type
-        assert [ofm.shape[2], ofm.shape[3]] == [1, ofm_channels]
+        assert list(ofm.shape) == [1, 1, 1, ofm_channels]
         assert str(ofm.dtype) == dtype
 
         # check weights
         weights_ohwi = op.args[1].data.asnumpy()
         assert str(weights_ohwi.dtype) == dtype
-        assert list(weights_ohwi) == [ofm_channels, 1, 1, ifm_shape[1]]
+        assert list(weights_ohwi.shape) == [ofm_channels, 1, 1, ifm_shape[1]]
 
         # Check that scale_bias matches weight tensor
         assert list(op.args[2].checked_type.shape)[0] == ofm_channels
