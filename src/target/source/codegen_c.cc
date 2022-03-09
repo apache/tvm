@@ -528,7 +528,15 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (auto* ptr_op = op->op.as<OpNode>()) {
     auto call_op = GetRef<Op>(ptr_op);
 
-    if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
+    if (op->op.same_as(builtin::tvm_check_return())) {
+      const CallNode* call = op->args[2].as<CallNode>();
+      os << "if (";
+      VisitExpr_(call, os);
+      os << " != ";
+      PrintExpr(op->args[0], os);
+      os << " ) return ";
+      PrintExpr(op->args[1], os);
+    } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       ICHECK_GE(op->args.size(), 1U);
       auto func = Downcast<StringImm>(op->args[0]);
       this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), func->value, op->args, true, os);
@@ -971,7 +979,7 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
   std::string vid = this->PrintExpr(op->value);
   if (vid != "") {
     this->PrintIndent();
-    this->stream << "(void)" << vid << ";\n";
+    this->stream << vid << ";\n";
   }
 }
 
