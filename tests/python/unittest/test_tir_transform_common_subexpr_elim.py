@@ -291,9 +291,6 @@ def test_cse_ifNode_2():
 # and in the rest of the program.
 
 
-
-
-
 def test_cse_cascade():
     i1 = te.var("i1")
     i2 = te.var("i2")
@@ -316,7 +313,7 @@ def test_cse_cascade():
     )
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, i3, x, y, z], body))
-    
+
     body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
 
     tvm.transform.PrintIR()(body)
