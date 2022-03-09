@@ -2475,12 +2475,12 @@ def test_tflite_fully_connected(
 
         # check IFM
         ifm = op.args[0].checked_type
-        assert ifm.shape == [1, 1] + list(ifm_shape)
+        assert [ifm.shape[2], ifm.shape[3]] == list(ifm_shape)
         assert str(ifm.dtype) == dtype
 
         # check OFM
         ofm = op.checked_type
-        assert ofm.shape == [1, 1] + list(ofm_channels)
+        assert [ofm.shape[2], ofm.shape[3]] == [1, ofm_channels]
         assert str(ofm.dtype) == dtype
 
         # check weights
