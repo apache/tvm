@@ -28,6 +28,7 @@ if(USE_MICRO)
          "3rdparty/dlpack/include *.h -> include"
          "3rdparty/dmlc-core/include *.h -> include"
          "include/tvm/runtime c_*_api.h -> include/tvm/runtime"
+         "include/tvm/runtime metadata*.h -> include/tvm/runtime"
          "include/tvm/runtime/crt *.h -> include/tvm/runtime/crt"
          "src/runtime/crt Makefile -> ."
          "src/runtime/crt/include *.h -> include"
