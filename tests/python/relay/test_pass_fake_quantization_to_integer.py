@@ -39,6 +39,10 @@ def compare_fq_to_int(expr, args, allow_rounding_error=False):
         .numpy()
     )
 
+    print("arg", args[0][0][0][0])
+    print("result", result[0][0][0])
+    print("result_int", result_int[0][0][0])
+
     if allow_rounding_error:
         assert np.all(np.abs(result.astype("int32") - result_int.astype("int32")) <= 1)
     else:

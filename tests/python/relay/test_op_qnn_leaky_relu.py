@@ -24,15 +24,16 @@ def dequantize(data, scale, zp):
     return scale * (np.asarray(data) - zp)
 
 
-def generate_golden_output(dequantized_x, alpha):
-    output = np.multiply(dequantized_x, alpha)
-
+def generate_golden_output(dequantized_x, alpha, scale, zero_point):
+    prod = np.multiply(dequantized_x, alpha)
+    output = np.around(prod / scale + zero_point)
     return output
 
 
 def test_saturation():
     # Same params
     data_dtype = "uint8"
+    # data_dtype = "int32"
     scale = 0.125
     zero_point = 0
     alpha = 0.1
@@ -54,13 +55,19 @@ def test_saturation():
     func = mod["main"]
 
     x_data = np.array((255, 133, 0, 9)).reshape((1, 4))
+    print("x_data", x_data)
     x_dequantized = dequantize(x_data, scale, zero_point)
-    golden_output = generate_golden_output(x_dequantized, alpha)
+    print("x_dequantized", x_dequantized)
+    golden_output = generate_golden_output(x_dequantized, alpha, scale, zero_point)
+    print("golden_output", golden_output)
 
     op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(x_data)
+    print("qnn op output", op_res.numpy())
 
     np.testing.assert_equal(op_res.numpy(), np.uint8(golden_output))
 
+    # 1. fix rounding issues
+    # 2. fix int32 input type issue
 
 if __name__ == "__main__":
     test_saturation()

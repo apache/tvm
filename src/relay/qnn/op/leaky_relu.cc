@@ -36,8 +36,8 @@ bool QnnLeakyReluRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   ICHECK_EQ(types.size(), 4);
   const auto* x = types[0].as<TensorTypeNode>();
   if (x == nullptr) return false;
-  ICHECK(x->dtype == DataType::Int(8) || x->dtype == DataType::UInt(8))
-      << "Expected quantized leaky_relu type(int8, uint8) for input but was " << x->dtype;
+  // ICHECK(x->dtype == DataType::Int(8) || x->dtype == DataType::UInt(8))
+  //     << "Expected quantized leaky_relu type(int8, uint8) for input but was " << x->dtype;
   const auto* param = attrs.as<LeakyReluAttrs>();
   ICHECK(param != nullptr) << "LeakyReluAttrs cannot be nullptr.";
   // ICHECK(data->alpha == DataType::Float(32))
@@ -49,8 +49,13 @@ bool QnnLeakyReluRel(const Array<Type>& types, int num_inputs, const Attrs& attr
       return false;
     }
   }
-  ICHECK(IsScalarType(types[2], DataType::Float(32)));  // scale
-  ICHECK(IsScalarType(types[3], DataType::Int(32)));    // zero_point
+
+  for (size_t i = 0; i < 4; i++) {
+    std::cout << "type" << types[i] << "\n";
+  }
+
+  ICHECK(IsScalarType(types[1], DataType::Float(32)));  // scale
+  ICHECK(IsScalarType(types[2], DataType::Int(32)));    // zero_point
   // ICHECK(IsScalarType(types[3], DataType::Float(32)));  // output_scale
   // ICHECK(IsScalarType(types[4], DataType::Int(32)));    // output_zero_point
 
@@ -83,12 +88,17 @@ Expr MakeQuantizedLeakyRelu(Expr x, double alpha, Expr scale, Expr zero_point) {
  */
 Expr QnnLeakyReluCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                               const Array<tvm::relay::Type>& arg_types) {
+  std::cout << "Canonicalize\n";
   const auto int32_dtype = DataType::Int(32);
   // const auto float32_dtype = DataType::Float(32);
 
   ICHECK_EQ(new_args.size(), 3);
-  Expr quantized_data = new_args[0];
-  Expr input_zero_point = new_args[1];
+  std::cout << "new args" << new_args[0] << "\n";
+  Expr quantized_data = Cast(new_args[0], int32_dtype);
+  std::cout << "quantized data" << quantized_data << "\n";
+  std::cout << "new args2" << new_args[2] << "\n";
+  Expr input_zero_point = Cast(new_args[2], int32_dtype);
+  std::cout << "input_zero_point" << input_zero_point << "\n";
 
   const auto* q_attrs = attrs.as<LeakyReluAttrs>();
   auto alpha = q_attrs->alpha;
@@ -102,6 +112,7 @@ Expr QnnLeakyReluCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto scaled_z = FixedPointMultiply(input_zero_point, fixed_point_multiplier_z, shift_z);
 
   auto output = Add(prod, scaled_z);
+  std::cout << "DONEE\n";
   return Cast(output, int32_dtype);
 }
 
