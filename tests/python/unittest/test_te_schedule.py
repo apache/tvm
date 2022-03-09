@@ -272,18 +272,17 @@ def test_tensor_intrin_red():
     n = 16
     x = te.placeholder((n,), name="x")
     k = te.reduce_axis((0, n), "k")
-    z = te.compute((), lambda : te.sum(x[k], axis=k), name="z")
+    z = te.compute((), lambda: te.sum(x[k], axis=k), name="z")
 
     def intrin_func(ins, outs):
         assert isinstance(ins[0], tvm.te.schedule.Buffer)
         assert ins[0].shape[0].value == n
         return tvm.tir.call_packed("vsum", ins[0].data, outs[0].data, ins[0].shape[0])
 
-    intrin = te.decl_tensor_intrin(z.op, intrin_func,
-        binds={
-            x : tvm.tir.decl_buffer(x.shape, x.dtype),
-            z : tvm.tir.decl_buffer(z.shape, z.dtype)
-        }
+    intrin = te.decl_tensor_intrin(
+        z.op,
+        intrin_func,
+        binds={x: tvm.tir.decl_buffer(x.shape, x.dtype), z: tvm.tir.decl_buffer(z.shape, z.dtype)},
     )
     assert intrin.op == z.op
     assert intrin.reduce_init is None
