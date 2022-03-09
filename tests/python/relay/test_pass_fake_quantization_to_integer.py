@@ -26,9 +26,6 @@ def compare_fq_to_int(expr, args, allow_rounding_error=False):
     mod = tvm.IRModule.from_expr(expr)
     mod = tvm.relay.transform.InferType()(mod)
     mod_int = tvm.relay.transform.FakeQuantizationToInteger()(mod)
-
-    print("mod", mod)
-    print("mod_int", mod_int)
     assert not tvm.ir.structural_equal(mod, mod_int)
 
     result = (
