@@ -20,13 +20,16 @@ import pytest
 import tvm.relay
 from tvm.relay.op.contrib import torchop
 
+import_torch_error = None
+
 try:
     import torch
-except ImportError as _:
+except ImportError as e:
     torch = None
+    import_torch_error = str(e)
 
 
-@pytest.mark.skipif(torch is None, reason="PyTorch is not available")
+@pytest.mark.skipif(torch is None, reason=f"PyTorch is not available: {import_torch_error}")
 def test_backend():
     @torch.jit.script
     def script_fn(x, y):
