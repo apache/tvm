@@ -26,6 +26,9 @@ def compare_fq_to_int(expr, args, allow_rounding_error=False):
     mod = tvm.IRModule.from_expr(expr)
     mod = tvm.relay.transform.InferType()(mod)
     mod_int = tvm.relay.transform.FakeQuantizationToInteger()(mod)
+
+    print("mod", mod)
+    print("mod_int", mod_int)
     assert not tvm.ir.structural_equal(mod, mod_int)
 
     result = (
@@ -275,6 +278,19 @@ def test_fake_quantize_maxpool():
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
     compare_fq_to_int(op, [x_np])
+
+
+def test_fake_quantize_adaptive_avgpool1d():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+
+    zero = relay.const(0)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.op.nn.adaptive_avg_pool1d(x)
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+
+    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+
+    compare_fq_to_int(op, [x_np], True)
 
 
 def test_fake_quantize_avgpool():
