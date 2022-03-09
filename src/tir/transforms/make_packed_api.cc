@@ -209,7 +209,13 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
 
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
-    Var v_arg = Var("arg" + std::to_string(i), param->dtype);
+    std::string param_name;
+    if (param->name_hint.defined() && (!param->name_hint.empty())) {
+      param_name = "arg." + param->name_hint;
+    } else {
+      param_name = "arg" + std::to_string(i);
+    }
+    Var v_arg = Var(param_name, param->dtype);
 
     // Pluck the device API context out based on name
     if (param->name_hint == kDeviceContextVar) {
