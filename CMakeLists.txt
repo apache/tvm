@@ -613,7 +613,7 @@ if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   # once minimum CMake version is bumped up to 3.13 or above.
   target_link_libraries(tvm PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
   target_link_libraries(tvm_runtime PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_compile_definitions(tvm_allvisible PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
+  target_compile_definitions(tvm_allvisible PUBLIC "$<TARGET_PROPERTY:tvm,COMPILE_DEFINITONS>")
 endif()
 
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
