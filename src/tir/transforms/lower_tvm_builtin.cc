@@ -508,17 +508,16 @@ class BuiltinLower : public StmtExprMutator {
 
     // TODO: send from pass
     std::string scope = "global.vtcm";
-
     Array<PrimExpr> args = {StringImm(fdevapi_prefix + ".AllocNdWithScope"),
-                            cast(DataType::Int(32), device_type_),
-                            cast(DataType::Int(32), device_id_),
+                            device_type_,
+                            device_id_,
                             IntImm(DataType::Int(32), dtype.code()),
                             IntImm(DataType::Int(32), dtype.bits()),
-                            StringImm(scope),
-                            IntImm(DataType::UInt(64), call->args.size())};  // TODO: size 32 or 64?
+                            StringImm(scope)
+                          };
 
     for (size_t i = 0; i < call->args.size(); ++i) {
-      args.push_back(cast(DataType::UInt(64), call->args[i]));
+      args.push_back(call->args[i]);
     }
 
     Call call_packed = Call(let->var.dtype(), builtin::tvm_call_packed(), args);
@@ -526,8 +525,7 @@ class BuiltinLower : public StmtExprMutator {
 
     Call free_op =
         Call(DataType::Int(32), builtin::tvm_call_packed(),
-             {StringImm(fdevapi_prefix + ".FreeNdWithScope"), cast(DataType::Int(32), device_type_),
-              cast(DataType::Int(32), device_id_), let->var});
+             {StringImm(fdevapi_prefix + ".FreeNdWithScope"), device_type_, device_id_, let->var});
 
     Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
     body = SeqStmt({alloca, free_stmt});
