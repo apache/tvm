@@ -76,6 +76,8 @@ class CodeGenHexagon final : public CodeGenLLVM {
   llvm::FunctionType* ftype_tvm_api_set_last_error_{nullptr};
 
  private:
+  TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
+                               std::vector<llvm::Value*> indices, DataType value_dtype) final;
   TypedPointer CreateStructRefPtr(DataType t, llvm::Value* buf, llvm::Value* index, int kind);
 
   // Check if the call to packed function is successful
@@ -568,6 +570,31 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
   }
 
   return CodeGenLLVM::CreateIntrinsic(op);
+}
+
+CodeGenLLVM::TypedPointer CodeGenHexagon::CreateBufferPtr(llvm::Value* buffer_ptr,
+                                                          DataType buffer_element_dtype,
+                                                          std::vector<llvm::Value*> indices,
+                                                          DataType value_dtype) {
+  // Flat indices get delegated to the LLVM codegen.
+  if (indices.size() == 1) {
+    return CodeGenLLVM::CreateBufferPtr(buffer_ptr, buffer_element_dtype, indices, value_dtype);
+  }
+
+  ICHECK_EQ(indices.size(), 2) << "CodegenHexagon supports 1-d and 2-d physical buffers, received "
+                               << indices.size() << "-d buffer indices";
+
+  // Use the first index to identify the pointer.
+  DataType dtype_void_ptr = DataType::Handle();
+  CodeGenLLVM::TypedPointer buffer_chunk_ptr_ptr =
+      CodeGenLLVM::CreateBufferPtr(buffer_ptr, dtype_void_ptr, {indices[0]}, dtype_void_ptr);
+  llvm::Value* buffer_chunk_ptr =
+      builder_->CreateLoad(buffer_chunk_ptr_ptr.type, buffer_chunk_ptr_ptr.addr);
+
+  // Then delegate the CodeGenLLVM to find the value from the second
+  // index.
+  return CodeGenLLVM::CreateBufferPtr(buffer_chunk_ptr, buffer_element_dtype, {indices[1]},
+                                      value_dtype);
 }
 
 CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::Value* buf,
