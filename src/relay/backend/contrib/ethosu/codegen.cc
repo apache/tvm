@@ -38,6 +38,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../../op/contrib/ethosu/op_attrs.h"
 #include "../../../op/make_op.h"
 #include "utils.h"
 
@@ -99,6 +100,81 @@ tvm::transform::Pass RelayToTIR() {
       };
   return tvm::transform::CreateModulePass(pass_func, 0, "relay.contrib.ethos-u.RelayToTIR", {});
 }
+
+/*!
+ * \brief This mutator removes identity operations that are not necessary. Specifically, an
+ * identity operation can be removed when it is immediately followed by an NPU compute
+ * operation.
+ */
+class RemoveRedundantIdentities : public MixedModeMutator {
+ public:
+  Expr Rewrite_(const CallNode* pre, const Expr& post) override {
+    Call call = Downcast<Call>(post);
+
+    // only consider rewrite if current op is an NPU compute op.
+    if (!call->op->IsInstance<OpNode>()) {
+      return post;
+    }
+    const auto* op = call->op.as<OpNode>();
+    std::string op_name = op->name;
+    if (op_name.substr(0, 15) != "contrib.ethosu." || op_name == "contrib.ethosu.identity") {
+      return post;
+    }
+
+    // check if we can rewrite parent identity operations to current call.
+    bool needs_rewrite = false;
+    Array<Expr> new_args;
+    for (const auto& arg : call->args) {
+      if (const auto* parent_callnode = arg.as<CallNode>()) {
+        if (const auto* parent_op = parent_callnode->op.as<OpNode>()) {
+          Call parent_call = GetRef<Call>(parent_callnode);
+          if (parent_op->name == "contrib.ethosu.identity" && IdentityDoesNothing(parent_call)) {
+            needs_rewrite = true;
+            new_args.push_back(parent_call->args[0]);
+            continue;
+          }
+        }
+      }
+      new_args.push_back(arg);
+    }
+
+    if (needs_rewrite) {
+      return Call(call->op, new_args, call->attrs, call->type_args);
+    }
+    return post;
+  }
+
+ private:
+  bool IdentityDoesNothing(const Call& call) {
+    const auto* attrs = call->attrs.as<tvm::relay::op::contrib::ethosu::EthosuIdentityAttrs>();
+    bool does_not_requantize = attrs->ifm_scale == 1.0 && attrs->ifm_zero_point == 0 &&
+                               attrs->ofm_scale == 1.0 && attrs->ofm_zero_point == 0;
+    bool has_no_activation = attrs->activation == "NONE";
+    return does_not_requantize && has_no_activation;
+  }
+};
+
+/*!
+ * \brief A pass to remove redundant identity operations.
+ */
+tvm::transform::Pass IdentityOptimizer() {
+  runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
+      [=](IRModule mod, transform::PassContext ctx) {
+        for (auto gv : mod->GetGlobalVars()) {
+          Function main_func = Downcast<Function>(mod->Lookup(gv));
+          auto new_main_body = RemoveRedundantIdentities().VisitExpr(main_func->body);
+          if (!new_main_body.same_as(main_func->body)) {
+            Function new_main_func = WithFields(main_func, main_func->params, new_main_body);
+            mod->Update(gv, new_main_func);
+          }
+        }
+        return mod;
+      };
+  return tvm::transform::CreateModulePass(pass_func, 0,
+                                          "relay.backend.contrib.ethos-u.IdentityOptimizer", {});
+}
+
+TVM_REGISTER_GLOBAL("relay.ext.ethos-u.IdentityOptimizer").set_body_typed(IdentityOptimizer);
 
 /*!
  * \brief This function lowers the IRModule with PrimFunc

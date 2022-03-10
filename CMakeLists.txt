@@ -26,6 +26,16 @@ endif()
 tvm_option(USE_CUDA "Build with CUDA" OFF)
 tvm_option(USE_OPENCL "Build with OpenCL" OFF)
 tvm_option(USE_VULKAN "Build with Vulkan" OFF)
+
+
+# Whether to use spirv-tools.and SPIRV-Headers from Khronos github or gitlab.
+#
+# Possible values:
+# - OFF: not to use
+# - /path/to/install: path to your khronis spirv-tools and SPIRV-Headers installation directory
+#
+tvm_option(USE_KHRONOS_SPIRV "Whether to use spirv-tools.and SPIRV-Headers from Khronos github or gitlab" OFF)
+tvm_option(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT "whether enable SPIRV_KHR_DOT_PRODUCT" OFF)
 tvm_option(USE_METAL "Build with Metal" OFF)
 tvm_option(USE_ROCM "Build with ROCM" OFF)
 tvm_option(ROCM_PATH "The path to rocm" /opt/rocm)
@@ -79,6 +89,7 @@ tvm_option(USE_MIOPEN "Build with ROCM:MIOpen" OFF)
 tvm_option(USE_ROCBLAS "Build with ROCM:RoCBLAS" OFF)
 tvm_option(USE_SORT "Build with sort support" ON)
 tvm_option(USE_NNPACK "Build with nnpack support" OFF)
+tvm_option(USE_LIBTORCH "Build with libtorch support" OFF)
 tvm_option(USE_RANDOM "Build with random support" ON)
 tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime support" OFF)
 tvm_option(USE_CPP_RPC "Build CPP RPC" OFF)
@@ -455,6 +466,7 @@ include(cmake/modules/contrib/Posit.cmake)
 include(cmake/modules/contrib/MicroStandaloneRuntime.cmake)
 include(cmake/modules/contrib/Sort.cmake)
 include(cmake/modules/contrib/NNPack.cmake)
+include(cmake/modules/contrib/LibTorch.cmake)
 include(cmake/modules/contrib/HybridDump.cmake)
 include(cmake/modules/contrib/TFLite.cmake)
 include(cmake/modules/contrib/TF_TVMDSOOP.cmake)

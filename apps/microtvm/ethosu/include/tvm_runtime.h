@@ -27,11 +27,6 @@
 extern "C" {
 #endif
 
-#define WORKSPACE_SIZE (16384 * 1024)
-__attribute__((section("ethosu_scratch"))) static uint8_t g_aot_memory[WORKSPACE_SIZE];
-
-tvm_workspace_t app_workspace;
-
 void __attribute__((noreturn)) TVMPlatformAbort(tvm_crt_error_t error_code) {
   printf("TVMPlatformAbort: %d\n", error_code);
   printf("EXITTHESIM\n");
@@ -39,11 +34,11 @@ void __attribute__((noreturn)) TVMPlatformAbort(tvm_crt_error_t error_code) {
 }
 
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
-  return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
+  return kTvmErrorFunctionCallNotImplemented;
 }
 
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-  return StackMemoryManager_Free(&app_workspace, ptr);
+  return kTvmErrorFunctionCallNotImplemented;
 }
 
 void TVMLogf(const char* msg, ...) {

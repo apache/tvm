@@ -49,13 +49,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(HybridOpNode);
 
-int HybridOpNode::num_outputs() const { return static_cast<int>(symbolic_outputs.size()); }
+int HybridOpNode::num_outputs() const { return static_cast<int>(outputs.size()); }
 
 Array<IterVar> HybridOpNode::root_iter_vars() const { return this->axis; }
 
-DataType HybridOpNode::output_dtype(size_t i) const { return symbolic_outputs[i]->dtype; }
+DataType HybridOpNode::output_dtype(size_t i) const { return outputs[i]->dtype; }
 
-Array<PrimExpr> HybridOpNode::output_shape(size_t i) const { return symbolic_outputs[i]->shape; }
+Array<PrimExpr> HybridOpNode::output_shape(size_t i) const { return outputs[i]->shape; }
 
 HybridOp::HybridOp(std::string name, std::string tag, Map<String, ObjectRef> attrs,
                    Array<Tensor> inputs, Array<Tensor> outputs, Stmt body) {
@@ -67,7 +67,7 @@ HybridOp::HybridOp(std::string name, std::string tag, Map<String, ObjectRef> att
   n->tag = std::move(tag);
   n->attrs = std::move(attrs);
   n->inputs = std::move(inputs);
-  n->symbolic_outputs = std::move(outputs);
+  n->outputs = std::move(outputs);
   n->axis = te::GatherLoopVars(body);
   n->body = std::move(body);
   data_ = std::move(n);
@@ -104,7 +104,6 @@ Operation HybridOpNode::ReplaceInputs(const Operation& self,
   ICHECK_EQ(self.operator->(), this);
   auto n = make_object<HybridOpNode>(*this);
   n->body = te::ReplaceTensor(this->body, rmap);
-  n->outputs = Array<Tensor>();
   for (size_t i = 0; i < n->inputs.size(); ++i) {
     Tensor t = n->inputs[i];
     if (rmap.count(t)) {
@@ -167,7 +166,7 @@ Stmt HybridOpNode::BuildProvide(const Stage& stage,
   Stmt ret = AttrStmt(make_zero(DataType::Int(32)), tir::attr::extern_scope, 0, this->body);
   std::unordered_map<Tensor, Tensor> rmap;
   for (int i = 0; i < this->num_outputs(); ++i) {
-    rmap[symbolic_outputs[i]] = stage->op.output(i);
+    rmap[outputs[i]] = stage->op.output(i);
   }
   auto n = make_object<HybridOpNode>(*this);
   /* This is a story little bit complicated.

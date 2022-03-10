@@ -116,7 +116,7 @@ def test_cache_read_write(
     rpc_info = {
         "rpc_tracker_host": tvm_tracker_host,
         "rpc_tracker_port": tvm_tracker_port,
-        "rpc_server_port": 8080,
+        "rpc_server_port": 7070,
         "adb_server_socket": adb_server_socket,
     }
     launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)

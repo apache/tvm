@@ -385,6 +385,20 @@ TVM_DLL const Op& tvm_call_cpacked();
 TVM_DLL const Op& tvm_call_trace_packed();
 
 /*!
+ * \brief Checks the return value of another call is correct or returns a given value.
+ *
+ * \note  This is meant to serve a specific case for AOT code generator whilst this
+ *        cannot be fully represented in TIR.
+ *
+ *  Type tvm_check_return(expected, return_unexpected, nested_call) {
+ *     if (nested_call() != expected) {
+ *         return return_unexpected;
+ *     }
+ *  }
+ */
+TVM_DLL const Op& tvm_check_return();
+
+/*!
  * \brief See pesudo code
  *  Mark the content as thread local context, can get optimized
  *  by only call the call once at thread start.
@@ -595,6 +609,19 @@ TVM_DLL const Op& tvm_store_matrix_sync();
  *               Var accumulator, Expr c_index, bool saturate);
  */
 TVM_DLL const Op& ptx_mma();
+
+/*!
+ * \brief tvm intrinsic for sparse tensor core ptx instructions.
+ *
+ * void ptx_mma_sp(StringImm shape, StringImm A_layout, StringImm B_layout,
+ *                 StringImm A_dtype, StringImm B_dtype, StringImm C_dtype,
+ *                 Var multiplicand_a, Expr a_index,
+ *                 Var multiplicand_b, Expr b_index,
+ *                 Var accumulator, Expr c_index,
+ *                 Var metadata, Expr meta_index,
+ *                 Var sparse_selector, bool saturate);
+ */
+TVM_DLL const Op& ptx_mma_sp();
 
 // TODO(tvm-team) replace the usage of the vector operations by Shuffle.
 /*!

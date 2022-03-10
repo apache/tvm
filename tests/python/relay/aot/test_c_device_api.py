@@ -137,27 +137,37 @@ def test_device_api_hooks_unpacked_api(device_api_main_func):
     # Activate Device
     assert (
         str(main_func.body[0])
-        == "tir.call_extern(" + '"TVMDeviceEthosUActivate",' + " device_context_ethos_u)\n"
+        == "tir.tvm_check_return(0, -1, tir.call_extern("
+        + '"TVMDeviceEthosUActivate",'
+        + " device_context_ethos_u))\n"
     )
     # Open Device
     assert (
         str(main_func.body[1][0][0][0])
-        == "tir.call_extern(" + '"TVMDeviceEthosUOpen",' + " device_context_ethos_u)\n"
+        == "tir.tvm_check_return(0, -1, tir.call_extern("
+        + '"TVMDeviceEthosUOpen",'
+        + " device_context_ethos_u))\n"
     )
     # Device Call
     assert (
         str(main_func.body[1][0][0][1])
-        == 'tir.call_extern("tvmgen_default_ethos_u_main_0", x_int8_buffer_var, output_buffer_var, device_context_ethos_u)\n'
+        == "tir.tvm_check_return(0, -1, tir.call_extern("
+        + '"tvmgen_default_ethos_u_main_0",'
+        + " x_int8_buffer_var, output_buffer_var, device_context_ethos_u))\n"
     )
     # Close Device
     assert (
         str(main_func.body[1][0][0][2])
-        == "tir.call_extern(" + '"TVMDeviceEthosUClose",' + " device_context_ethos_u)\n"
+        == "tir.tvm_check_return(0, -1, tir.call_extern("
+        + '"TVMDeviceEthosUClose",'
+        + " device_context_ethos_u))\n"
     )
     # Deactivate Device
     assert (
         str(str(main_func.body[2]))
-        == "tir.call_extern(" + '"TVMDeviceEthosUDeactivate",' + " device_context_ethos_u)\n"
+        == "tir.tvm_check_return(0, -1, tir.call_extern("
+        + '"TVMDeviceEthosUDeactivate",'
+        + " device_context_ethos_u))\n"
     )
 
 
@@ -171,18 +181,18 @@ def test_device_api_hooks_packed_api(device_api_main_func):
     # Activate Device
     assert (
         str(main_func.body[0][0].value)
-        == "@tir.call_extern("
+        == "@tir.tvm_check_return(0, -1, tir.call_extern("
         + '"TVMDeviceEthosUActivate",'
         + " device_context_ethos_u: handle,"
-        + " dtype=int32)"
+        + " dtype=int32))"
     )
     # Open Device
     assert (
         str(main_func.body[1].body.body[0][0][0].value)
-        == "@tir.call_extern("
+        == "@tir.tvm_check_return(0, -1, tir.call_extern("
         + '"TVMDeviceEthosUOpen",'
         + " device_context_ethos_u: handle,"
-        + " dtype=int32)"
+        + " dtype=int32))"
     )
     # Device Call
     assert (
@@ -196,18 +206,18 @@ def test_device_api_hooks_packed_api(device_api_main_func):
     # Close Device
     assert (
         str(main_func.body[1].body.body[0][0][2].value)
-        == "@tir.call_extern("
+        == "@tir.tvm_check_return(0, -1, tir.call_extern("
         + '"TVMDeviceEthosUClose",'
         + " device_context_ethos_u: handle,"
-        + " dtype=int32)"
+        + " dtype=int32))"
     )
     # Deactivate Device
     assert (
         str(main_func.body[2][0].value)
-        == "@tir.call_extern("
+        == "@tir.tvm_check_return(0, -1, tir.call_extern("
         + '"TVMDeviceEthosUDeactivate",'
         + " device_context_ethos_u: handle,"
-        + " dtype=int32)"
+        + " dtype=int32))"
     )
 
 
@@ -217,7 +227,9 @@ def test_without_device_api_unpacked_api(non_device_api_main_func):
     main_func = non_device_api_main_func(interface_api="c", use_unpacked_api=True)
     assert (
         str(main_func.body)
-        == 'tir.call_extern("tvmgen_default_fused_multiply", x_buffer_var, y_buffer_var, output_buffer_var)\n'
+        == "tir.tvm_check_return(0, -1, tir.call_extern("
+        + '"tvmgen_default_fused_multiply",'
+        + " x_buffer_var, y_buffer_var, output_buffer_var))\n"
     )
 
 

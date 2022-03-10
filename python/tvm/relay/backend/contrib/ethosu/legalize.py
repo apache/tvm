@@ -986,12 +986,19 @@ class StridedSliceRewriter(DFPatternCallback):
     ) -> tvm.relay.Expr:
 
         slice_input = post.args[0]
+
+        # TODO(lhutton1) For an unknown reason compilation will fail for strides of 4
+        # dimensions, so we cannot use params.strides as this will sometimes give
+        # strides as [1, 1, 1, 1]. Since we only support strides of 1, hardcoding this
+        # value for now.
+        strides = [1]
+
         params = ethosu_patterns.StridedSliceParams(post.op.body)
         strided_slice = relay.op.strided_slice(
             slice_input,
             params.begin,
             params.end,
-            strides=params.strides,
+            strides=strides,
             axes=params.axes,
             slice_mode=params.slice_mode,
         )
