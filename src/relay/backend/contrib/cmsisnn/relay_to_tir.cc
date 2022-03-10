@@ -502,21 +502,34 @@ class RelayToTIRVisitor : public MixedModeMutator {
                             buffer_creator.GetBufferMap(), args);
   }
 
-  void EmitMul(const GlobalVar& global_var, const Expr& expr) {
-    const CallNode* clip_call = nullptr;
-    const CallNode* mul_call = nullptr;
-    const CallNode* final_call = expr.as<CallNode>();
+  struct BinaryElementwiseClipPattern {
+    Call binary_op;
+    Optional<Call> clip_op;
+  };
+
+  BinaryElementwiseClipPattern ParseBinaryElementwiseOpClipPattern(const Expr& expr) {
+    BinaryElementwiseClipPattern pattern;
+    Call final_call = GetRef<Call>(expr.as<CallNode>());
     const OpNode* final_op = final_call->op.as<OpNode>();
+    if (final_op->name == "clip") {
+      pattern.clip_op = final_call;
+      pattern.binary_op = GetRef<Call>(final_call->args[0].as<CallNode>());
+    } else {
+      pattern.binary_op = final_call;
+      pattern.clip_op = Optional<Call>{nullptr};
+    }
+    return pattern;
+  }
+
+  void EmitMul(const GlobalVar& global_var, const Expr& expr) {
     int32_t output_min = std::numeric_limits<int8_t>::min();
     int32_t output_max = std::numeric_limits<int8_t>::max();
-    if (final_op->name == "clip") {
-      clip_call = final_call;
-      mul_call = clip_call->args[0].as<CallNode>();
-      const ClipAttrs* clip_attrs = clip_call->attrs.as<ClipAttrs>();
+    const auto& pattern = ParseBinaryElementwiseOpClipPattern(expr);
+    Call mul_call = pattern.binary_op;
+    if (pattern.clip_op) {
+      const ClipAttrs* clip_attrs = pattern.clip_op.value()->attrs.as<ClipAttrs>();
       output_min = clip_attrs->a_min;
       output_max = clip_attrs->a_max;
-    } else {
-      mul_call = final_call;
     }
 
     const float input_0_scale = GetScalarFromConstant<float>(mul_call->args[2]);
@@ -560,20 +573,14 @@ class RelayToTIRVisitor : public MixedModeMutator {
   }
 
   void EmitAdd(const GlobalVar& global_var, const Expr& expr) {
-    const CallNode* clip_call = nullptr;
-    const CallNode* add_call = nullptr;
-    const CallNode* final_call = expr.as<CallNode>();
-    const OpNode* final_op = final_call->op.as<OpNode>();
     int32_t output_min = std::numeric_limits<int8_t>::min();
     int32_t output_max = std::numeric_limits<int8_t>::max();
-    if (final_op->name == "clip") {
-      clip_call = final_call;
-      add_call = clip_call->args[0].as<CallNode>();
-      const ClipAttrs* clip_attrs = clip_call->attrs.as<ClipAttrs>();
+    const auto& pattern = ParseBinaryElementwiseOpClipPattern(expr);
+    Call add_call = pattern.binary_op;
+    if (pattern.clip_op) {
+      const ClipAttrs* clip_attrs = pattern.clip_op.value()->attrs.as<ClipAttrs>();
       output_min = clip_attrs->a_min;
       output_max = clip_attrs->a_max;
-    } else {
-      add_call = final_call;
     }
 
     const float input_0_scale = GetScalarFromConstant<float>(add_call->args[2]);
