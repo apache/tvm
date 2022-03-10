@@ -90,7 +90,8 @@ class InterfaceCNode : public runtime::ModuleNode {
   }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
-    return PackedFunc(nullptr);
+    LOG(INFO) << "GetFunction is not implemented in InterfaceCNode";
+    return PackedFunc();
   }
 
  private:

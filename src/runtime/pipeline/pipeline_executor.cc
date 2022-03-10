@@ -86,7 +86,6 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc();
   }
-  return nullptr;
 }
 
 /*!

@@ -28,7 +28,9 @@
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 
+#include <algorithm>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../../support/str_escape.h"
@@ -75,6 +77,23 @@ void CodeGenCHost::AddFunction(const PrimFunc& f) {
     stream << "  return " << global_symbol.value()
            << "(args, arg_type_ids, num_args, out_ret_value, out_ret_tcode, resource_handle);\n";
     stream << "}\n";
+  }
+}
+
+void CodeGenCHost::AddFunctionsOrdered(
+    std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> functions) {
+  std::sort(functions.begin(), functions.end(),
+            [](std::pair<tvm::GlobalVar, tvm::BaseFunc> kv_a,
+               std::pair<tvm::GlobalVar, tvm::BaseFunc> kv_b) {
+              std::string name_hint_a = kv_a.first->name_hint;
+              std::string name_hint_b = kv_b.first->name_hint;
+              return name_hint_a < name_hint_b;
+            });
+
+  for (auto& kv : functions) {
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
+    AddFunction(f);
   }
 }
 
@@ -351,9 +370,10 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   Map<String, LinkedParam> linked_params;
   PrimFunc aot_executor_fn;
 
+  std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> funcs;
   for (auto kv : mod->functions) {
     // Make sure that the executor function is the last one to be code generated so that all the
-    // symbols are available to tvm_run_func
+    // symbols are available to __tvm_main__
     auto fun_name = std::string(kv.first->name_hint);
     bool is_aot_executor_fn = kv.second->GetAttr<Bool>("runner_function", Bool(false)).value();
 
@@ -361,12 +381,13 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
       aot_executor_fn = Downcast<PrimFunc>(kv.second);
       continue;
     }
-
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
-    auto f = Downcast<PrimFunc>(kv.second);
-    cg.AddFunction(f);
+    funcs.push_back(kv);
   }
 
+  // Add all functions except __tvm_main__
+  cg.AddFunctionsOrdered(funcs);
+
+  // Add __tvm_main__
   if (aot_executor_fn.defined()) {
     cg.AddFunction(aot_executor_fn);
   }
