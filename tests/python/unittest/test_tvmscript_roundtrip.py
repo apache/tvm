@@ -3161,7 +3161,12 @@ def llvm_intrin_call():
     def ctpop(A: T.Buffer[(16,), "uint8"], B: T.Buffer[(16,), "uint8"]) -> None:
         for i in range(0, 16):
             with T.block("A"):
-                vi = T.axis.remap("S", [i,])
+                vi = T.axis.remap(
+                    "S",
+                    [
+                        i,
+                    ],
+                )
                 B[vi] = T.call_llvm_pure_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.ctpop.i8"),
                     T.uint32(1),
