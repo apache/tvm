@@ -18,7 +18,6 @@
 """Operators used in TIR expression."""
 from typing import Any, Optional
 
-from py import builtin
 import tvm._ffi
 from tvm.ir.base import Span
 from tvm.runtime import convert, const
