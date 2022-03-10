@@ -38,6 +38,8 @@ namespace te {
 using namespace arith;
 using namespace tir;
 
+DataType LargerDataType(DataType a, DataType b) { return a.bits() > b.bits() ? a : b; }
+
 std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
                                              const std::unordered_map<IterVar, Range>& dom_map,
                                              size_t begin_iter_pos, bool new_loop_var,
@@ -66,6 +68,15 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
     }
 
     Range dom = dom_map.at(iv);
+
+    auto promote_to_dom_dtype = [&dom](PrimExpr e) {
+      DataType dtype = LargerDataType(dom->min.dtype(), dom->extent.dtype());
+      if (dtype != e.dtype()) {
+        return cast(dtype, e);
+      } else {
+        return e;
+      }
+    };
 
     // initialize the offset and loop_level
     Var var = bind_iv->var;
@@ -116,7 +127,7 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
         value_map[iv] = cast(var.dtype(), dom->min);
       } else if (is_zero(dom->min)) {
         nest[i + 1].emplace_back(For(var, 0, dom->extent, kind, no_op));
-        value_map[iv] = var;
+        value_map[iv] = promote_to_dom_dtype(var);
       } else {
         Var idx(bind_iv->var->name_hint + ".idx", bind_iv->var.dtype());
         nest[i + 1].emplace_back(For(idx, 0, dom->extent, kind, no_op));
@@ -139,7 +150,7 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
       ICHECK(is_positive_const(dom->extent));
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(AttrStmt(bind_iv, tir::attr::virtual_thread, dom->extent, no_op));
-      value_map[iv] = var;
+      value_map[iv] = promote_to_dom_dtype(var);
     } else if (bind_iv->thread_tag == "pipeline") {
       // pipeline marker.
       ICHECK(is_zero(dom->min));
@@ -157,17 +168,17 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
         value_map[iv] = dom->min;
       } else if (stage->scope == "") {
-        value_map[iv] = var;
+        value_map[iv] = promote_to_dom_dtype(var);
       } else {
         runtime::ThreadScope ts = runtime::ThreadScope::Create(bind_iv->thread_tag);
         runtime::StorageScope ss = runtime::StorageScope::Create(stage->scope);
         if (static_cast<int>(ss.rank) <= ts.rank) {
-          value_map[iv] = var;
+          value_map[iv] = promote_to_dom_dtype(var);
         } else if (stage->scope == "warp" && ts.rank == 1) {
           // To determine whether a thread index is inside or outside a warp, we need
           // to know the thread extent. We leave a warning for now.
           if (ts.dim_index == 0) {
-            value_map[iv] = var;
+            value_map[iv] = promote_to_dom_dtype(var);
           } else {
             LOG(WARNING)
                 << "WARNING: threadIdx.y or threadIdx.z accessing warp-scope memory detected. "
