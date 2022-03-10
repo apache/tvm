@@ -130,7 +130,7 @@ def store(
 def comm_reducer(lambda_io: Callable[[Any, Any], Any], identities: List[PrimExpr]) -> PrimExpr: ...
 def llvm_lookup_intrinsic_id(name: str) -> PrimExpr: ...
 def preflattened_buffer(
-    buf: Var,
+    buf: Buffer,
     shape: Sequence[PrimExpr],
     dtype: str = "float32",
     data: Optional[Ptr] = None,
