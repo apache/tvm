@@ -31,6 +31,7 @@ __forceinline__ __device__ IdxType __lower_bound(
     DType val,
     IdxType l,
     IdxType r) {
+  /* pre-condition: l < r and arr is sorted */
   IdxType low = l, high = r;
   /* loop-invariant: low <= mid < high, arr[l:low] < val, arr[high:r] >= val */
   while (low < high) {
