@@ -32,6 +32,7 @@
 #include <utility>
 #include <vector>
 
+#include "literal/cuda_binary_search.h"
 #include "literal/cuda_half_t.h"
 #include "ptx_mma.h"
 
@@ -131,6 +132,10 @@ std::string CodeGenCUDA::Finish() {
 
   if (need_mma_h_) {
     decl_stream << "#include <mma.h>\n";
+  }
+
+  if (need_binary_search_) {
+    decl_stream << _cuda_binary_search_def;
   }
 
   decl_stream << "\n#ifdef _WIN32\n";
@@ -803,6 +808,21 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref, a_offset, b_ref, b_offset,
         c_ref, c_offset, metadata, metadata_offset, sparse_selector, "", true, saturate);
     this->stream << asm_code;
+  } else if (op->op.same_as(builtin::searchsorted())) {
+    need_binary_search_ = true;
+    ICHECK_EQ(op->args.size(), 5U);
+    std::string side = Downcast<StringImm>(op->args[4])->value;
+    CHECK(side == "left" || side == "right")
+        << "Side must be left or right, got " << side << " instead.";
+    os << (side == "left" ? "__lower_bound(" : "__upper_bound(");
+    this->PrintExpr(op->args[0], os);
+    os << ", ";
+    this->PrintExpr(op->args[1], os);
+    os << ", ";
+    this->PrintExpr(op->args[2], os);
+    os << ", ";
+    this->PrintExpr(op->args[3], os);
+    os << ")";
   } else {
     CodeGenC::VisitExpr_(op, os);
   }

@@ -1088,6 +1088,10 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     // TODO(masahi): Support atomic for CPU backend
     LOG(FATAL) << "CPU backend does not support atomic add yet.";
     return nullptr;
+  } else if (op->op.same_as(builtin::searchsorted())) {
+    // TODO(zihao): Support searchsorted for LLVM backend
+    LOG(FATAL) << "LLVM backend does not support searchsorted yet.";
+    return nullptr;
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->op;
     return nullptr;

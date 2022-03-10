@@ -56,6 +56,7 @@ from .op import isnan, isfinite, isinf, copysign
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
 from .op import comm_reducer, min, max, sum
 from .op import q_multiply_shift
+from .op import searchsorted
 
 from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError
 

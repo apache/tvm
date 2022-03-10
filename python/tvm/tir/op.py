@@ -17,6 +17,8 @@
 # pylint: disable=redefined-builtin, invalid-name
 """Operators used in TIR expression."""
 from typing import Any, Optional
+
+from py import builtin
 import tvm._ffi
 from tvm.ir.base import Span
 from tvm.runtime import convert, const
@@ -1474,6 +1476,35 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
               """
     reducer.__doc__ = doc_str.format(name)
     return reducer
+
+
+def searchsorted(buf, val, offset_l, offset_r, side, span=None):
+    """Find index where elements should be inserted to maintain order.
+
+    Parameters
+    ----------
+    buf : Var
+        The pointer to 1-D buffer to perform the sort on. We assume that
+        buf[offset_l: offset_r] is sorted.
+    val : PrimExpr
+        The value to insert to buf.
+    offset_l : PrimExpr
+        The left bound (closed) of interval we perform the sort on.
+    offset_r : PrimExpr
+        The right bound (open) of interval we perform the sort on.
+    side : str
+        Could be either "left" or "right"
+        If set to "left", we return index i such that
+        buf[offset_l:i] < v <= buf[i:offset_r]
+        If set to 1(right), we return index i such that
+        buf[offset_l:i] <= v < buf[i:offset_r]
+
+    Returns
+    -------
+    index : PrimExpr
+        The satisfying index.
+    """
+    return call_intrin(offset_l.dtype, "tir.searchsorted", buf, val, offset_l, offset_r, side)
 
 
 # pylint: disable=unnecessary-lambda

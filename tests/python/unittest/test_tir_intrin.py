@@ -250,11 +250,60 @@ def test_fma():
     assert mod["test_tir_fma"].body.body.value.op.name == "tir.call_llvm_pure_intrin"
 
 
+@T.prim_func
+def searchsorted(
+    A: T.Buffer[(256,), "int32"],
+    B: T.Buffer[(1024,), "int32"],
+    C: T.Buffer[(1024,), "int32"],
+    D: T.Buffer[(1024,), "int32"],
+) -> None:
+    for i in T.serial(1024):
+        with T.block("search"):
+            vi = T.axis.spatial(1024, i)
+            T.reads(A[0:256], B[0:1024])
+            T.writes(C[0:1024], D[0:1024])
+            C[vi] = T.searchsorted(A.data, B[vi], 0, 256, "left", dtype="int32")
+            D[vi] = T.searchsorted(A.data, B[vi], 0, 256, "right", dtype="int32")
+
+
+def test_searchsorted():
+    sch = tir.Schedule(searchsorted)
+    b = sch.get_block("search")
+    (i,) = sch.get_loops(b)
+    io, ii = sch.split(i, [1, None])
+    sch.bind(io, "threadIdx.x")
+    sch.bind(ii, "blockIdx.x")
+    f = tvm.build(sch.mod["main"], target="cuda")
+    x = np.arange(-128, 128).astype(np.int32)
+    y = np.random.randint(-200, 200, size=1024).astype(np.int32)
+    a = np.zeros((1024,)).astype(np.int32)
+    b = np.zeros((1024,)).astype(np.int32)
+
+    # numpy results
+    np_a = np.searchsorted(x, y, side="left").astype(np.int32)
+    np_b = np.searchsorted(x, y, side="right").astype(np.int32)
+
+    # tvm results
+    dev = tvm.cuda(0)
+    x_array = tvm.nd.array(x, device=dev)
+    y_array = tvm.nd.array(y, device=dev)
+    a_array = tvm.nd.array(a, device=dev)
+    b_array = tvm.nd.array(b, device=dev)
+    f(x_array, y_array, a_array, b_array)
+    tvm_a = a_array.numpy()
+    tvm_b = b_array.numpy()
+
+    # verify result
+    tvm.testing.assert_allclose(np_a, tvm_a)
+    tvm.testing.assert_allclose(np_b, tvm_b)
+
+
 if __name__ == "__main__":
-    test_nearbyint()
-    test_unary_intrin()
-    test_round_intrinsics_on_int()
-    test_binary_intrin()
-    test_ldexp()
-    test_clz()
-    test_fma()
+    # test_nearbyint()
+    # test_unary_intrin()
+    # test_round_intrinsics_on_int()
+    # test_binary_intrin()
+    # test_ldexp()
+    # test_clz()
+    # test_fma()
+    test_searchsorted()

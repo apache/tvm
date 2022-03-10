@@ -629,6 +629,12 @@ TVM_DLL const Op& vectorcombine();
  * \brief atomic add instruction, corresponding e.g. to atomicAdd in CUDA
  */
 TVM_DLL const Op& atomic_add();
+
+/*!
+ * \brief Binary search over a sorted consecutive region of flattened buffer.
+ */
+TVM_DLL const Op& searchsorted();
+
 /*!
  * \brief Create a texture 2d memory allocation
  */
