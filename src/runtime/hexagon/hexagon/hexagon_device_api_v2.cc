@@ -175,23 +175,26 @@ std::map<void*, HexagonBuffer*> vtcmallocs;
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNdWithScope")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
-      HEXAGON_PRINT(ALWAYS, "STRAW:  In device_api.hexagon.AllocNdWithScope");
       int32_t device_type = args[0];
-      HEXAGON_PRINT(ALWAYS, "STRAW:    device type = %d", device_type);
       int32_t device_id = args[1];
-      HEXAGON_PRINT(ALWAYS, "STRAW:    device id = %d", device_id);
       int32_t dtype_code = args[2];
-      HEXAGON_PRINT(ALWAYS, "STRAW:    dtype code = %d", dtype_code);
       int32_t dtype_bits = args[3];
-      HEXAGON_PRINT(ALWAYS, "STRAW:    dtype bits = %d", dtype_bits);
       std::string scope = args[4];
-      HEXAGON_PRINT(ALWAYS, "STRAW:    scope = %s", scope.c_str());
       int64_t order = args[5];
-      HEXAGON_PRINT(ALWAYS, "STRAW:    order = %d", order);
       std::vector<int64_t> shape;
       for (int i = 0; i < order; ++i) {
-        HEXAGON_PRINT(ALWAYS, "STRAW:    dim = %d", args[6 + i]);
         shape.push_back(args[6 + i]);
+      }
+
+      HEXAGON_PRINT(ALWAYS, "STRAW:  In device_api.hexagon.AllocNdWithScope");
+      HEXAGON_PRINT(ALWAYS, "STRAW:    device type = %d", device_type);
+      HEXAGON_PRINT(ALWAYS, "STRAW:    device id = %d", device_id);
+      HEXAGON_PRINT(ALWAYS, "STRAW:    dtype code = %d", dtype_code);
+      HEXAGON_PRINT(ALWAYS, "STRAW:    dtype bits = %d", dtype_bits);
+      HEXAGON_PRINT(ALWAYS, "STRAW:    scope = %s", scope.c_str());
+      HEXAGON_PRINT(ALWAYS, "STRAW:    order = %d", order);
+      for (int i = 0; i < order; ++i) {
+        HEXAGON_PRINT(ALWAYS, "STRAW:      dim = %d", shape[i]);
       }
 
       Device dev;

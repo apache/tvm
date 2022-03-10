@@ -500,20 +500,18 @@ class BuiltinLower : public StmtExprMutator {
     Stmt body = SeqStmt(
         {IfThenElse(Call(DataType::Bool(1), builtin::isnullptr(), {let->var}), throw_last_error),
          let->body});
+
     DataType dtype =
         let->var->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>()->dtype;
 
     std::string fdevapi_prefix = "device_api.";
     fdevapi_prefix += runtime::DeviceName(device_type_.as<IntImmNode>()->value);
 
-    // TODO: send from pass
-    std::string scope = "global.vtcm";
     Array<PrimExpr> args = {StringImm(fdevapi_prefix + ".AllocNdWithScope"),
                             device_type_,
                             device_id_,
                             IntImm(DataType::Int(32), dtype.code()),
                             IntImm(DataType::Int(32), dtype.bits()),
-                            StringImm(scope)
                           };
 
     for (size_t i = 0; i < call->args.size(); ++i) {

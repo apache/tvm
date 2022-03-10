@@ -43,6 +43,7 @@ class VtcmAllocator : public StmtExprMutator {
 
     if (IsVtcmStorage(storage_scope)) {
       Array<PrimExpr> args;
+      args.push_back(StringImm(storage_scope));
       args.push_back(IntImm(DataType::Int(64), op->extents.size()));
       for (size_t i = 0; i < op->extents.size(); ++i) {
         args.push_back(op->extents[i]);
