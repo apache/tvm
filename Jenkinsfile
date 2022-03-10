@@ -579,6 +579,10 @@ stage('Test') {
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
                 label: 'Run test_arm_compute_lib test',
               )
+              sh (
+                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_topi.sh",
+                label: 'Run TOPI tests',
+              )
             // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
             }
           } finally {
