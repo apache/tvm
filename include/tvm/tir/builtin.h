@@ -617,9 +617,9 @@ TVM_DLL const Op& vectorcombine();
  */
 TVM_DLL const Op& atomic_add();
 /*!
- * \brief Create a texture 2d memory allocation
+ * \brief Create an Nd memory allocation
  */
-TVM_DLL const Op& texture2d_alloca();
+TVM_DLL const Op& ndmemalloc();
 
 /*!
  * \brief Store to texture 2d memory
@@ -630,11 +630,6 @@ TVM_DLL const Op& texture2d_store();
  * \brief Load from texture 2d memory
  */
 TVM_DLL const Op& texture2d_load();
-
-/*!
- * \brief Create a vtcm allocation
- */
-TVM_DLL const Op& vtcm_alloca();
 
 /*!
  * \brief Copy 1d memory from source to destination

@@ -157,10 +157,8 @@ class BuiltinLower : public StmtExprMutator {
 
   Stmt VisitStmt_(const LetStmtNode* op) final {
     if (const CallNode* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(builtin::texture2d_alloca())) {
-        return StmtExprMutator::VisitStmt(MakeTextureAlloc(op, call));
-      } else if (call->op.same_as(builtin::vtcm_alloca())) {
-        return StmtExprMutator::VisitStmt(MakeVtcmAlloc(op, call));
+      if (call->op.same_as(builtin::ndmemalloc())) {
+        return StmtExprMutator::VisitStmt(MakeNdMemAlloc(op, call));
       }
     }
     return StmtExprMutator::VisitStmt_(op);
@@ -492,7 +490,7 @@ class BuiltinLower : public StmtExprMutator {
     return body;
   }
 
-  Stmt MakeVtcmAlloc(const LetStmtNode* let, const CallNode* call) {
+  Stmt MakeNdMemAlloc(const LetStmtNode* let, const CallNode* call) {
     ICHECK(device_type_.defined()) << "Unknown device type in current IR";
     ICHECK(device_id_.defined()) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));

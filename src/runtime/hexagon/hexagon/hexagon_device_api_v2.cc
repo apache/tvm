@@ -177,11 +177,12 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNdWithScope")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
       int32_t device_type = args[0];
       int32_t device_id = args[1];
-      int32_t dtype_code = args[2];
-      int32_t dtype_bits = args[3];
-      std::string scope = args[4];
-      int64_t order = args[5];
+      int32_t dtype_code_hint = args[2];
+      int32_t dtype_bits_hint = args[3];
+      std::string scope = args[4]; // TODO: check scope = vtcm
+      int64_t order = args[5]; // TODO: check no overflow
       std::vector<int64_t> shape;
+      // TODO: coallesce to 1d for now?
       for (int i = 0; i < order; ++i) {
         shape.push_back(args[6 + i]);
       }
@@ -189,8 +190,8 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNdWithScope")
       HEXAGON_PRINT(ALWAYS, "STRAW:  In device_api.hexagon.AllocNdWithScope");
       HEXAGON_PRINT(ALWAYS, "STRAW:    device type = %d", device_type);
       HEXAGON_PRINT(ALWAYS, "STRAW:    device id = %d", device_id);
-      HEXAGON_PRINT(ALWAYS, "STRAW:    dtype code = %d", dtype_code);
-      HEXAGON_PRINT(ALWAYS, "STRAW:    dtype bits = %d", dtype_bits);
+      HEXAGON_PRINT(ALWAYS, "STRAW:    dtype code = %d", dtype_code_hint);
+      HEXAGON_PRINT(ALWAYS, "STRAW:    dtype bits = %d", dtype_bits_hint);
       HEXAGON_PRINT(ALWAYS, "STRAW:    scope = %s", scope.c_str());
       HEXAGON_PRINT(ALWAYS, "STRAW:    order = %d", order);
       for (int i = 0; i < order; ++i) {
@@ -201,20 +202,21 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNdWithScope")
       dev.device_type = static_cast<DLDeviceType>(device_type);
       dev.device_id = device_id;
 
-      DLDataType dtype;
-      dtype.code = static_cast<decltype(dtype.code)>(dtype_code);
-      dtype.bits = static_cast<decltype(dtype.bits)>(dtype_bits);
-      dtype.lanes = 1;
+      DLDataType type_hint;
+      type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
+      type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
+      type_hint.lanes = 1;
 
       HexagonDeviceAPIv2* hexapi = HexagonDeviceAPIv2::Global();
       HexagonBuffer* hexbuf = reinterpret_cast<HexagonBuffer*>(
-          hexapi->AllocWorkspace(dev, order, shape.data(), dtype, String(scope)));
+          hexapi->AllocWorkspace(dev, order, shape.data(), type_hint, String(scope)));
 
       void* ptr = hexbuf->GetPointer()[0];
       vtcmallocs[ptr] = hexbuf;
       *rv = ptr;
     });
 
+// TODO: no scope
 TVM_REGISTER_GLOBAL("device_api.hexagon.FreeNdWithScope")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
       int device_type = args[0];

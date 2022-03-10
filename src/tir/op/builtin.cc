@@ -249,7 +249,7 @@ TIR_DEFINE_BUILTIN_FUNC(vectorcombine)
 TIR_DEFINE_BUILTIN_FUNC(atomic_add)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(texture2d_alloca)
+TIR_DEFINE_BUILTIN_FUNC(ndmemalloc)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 TIR_DEFINE_BUILTIN_FUNC(texture2d_store)
@@ -262,9 +262,6 @@ TIR_DEFINE_BUILTIN_FUNC(texture2d_load)
 
 TIR_DEFINE_BUILTIN_FUNC(mem_copy).set_attr<TCallEffectKind>("TCallEffectKind",
                                                             Integer(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(vtcm_alloca)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 }  // namespace builtin
 }  // namespace tir

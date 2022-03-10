@@ -115,8 +115,8 @@ class TextureFlattener : public TextureLoweringBase {
       size_t axis = DefaultTextureLayoutSeparator(op->bounds.size(), storage_scope);
       auto texture =
           ApplyTexture2DFlattening<PrimExpr>(ShapeFromRange{op->bounds}, op->bounds.size(), axis);
-      Array<PrimExpr> args = {texture.width, texture.height};
-      stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::texture2d_alloca(), args), body);
+      Array<PrimExpr> args = {StringImm(storage_scope), 2, texture.width, texture.height};
+      stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::ndmemalloc(), args), body);
     }
 
     return stmt;

@@ -49,7 +49,7 @@ class VtcmAllocator : public StmtExprMutator {
         args.push_back(op->extents[i]);
       }
       stmt = LetStmt(op->buffer_var,
-                     Call(op->buffer_var.dtype(), builtin::vtcm_alloca(), args), body);
+                     Call(op->buffer_var.dtype(), builtin::ndmemalloc(), args), body);
     }
 
     return stmt;
