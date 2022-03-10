@@ -676,7 +676,7 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
       << "-dimensional, cannot be indexed with the " << indices.size()
       << "-dimensional indices provided.";
 
-  for (int i = 0; i < int(indices.size()) - 1; i++) {
+  for (int i = 0; i < static_cast<int>(indices.size()) - 1; i++) {
     ICHECK(indices[i].dtype().is_scalar())
         << "Only the last index of a buffer access may be a vector type.";
   }
