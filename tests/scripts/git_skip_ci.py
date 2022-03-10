@@ -50,7 +50,7 @@ if __name__ == "__main__":
         return title.startswith("[skip ci]")
 
     if args.pr != "null" and args.pr.strip() != "" and branch != "main" and check_pr_title():
-        print("Commit and PR start with '[skip ci]', skipping...")
+        print("PR title starts with '[skip ci]', skipping...")
         exit(0)
     else:
         print(f"Not skipping CI:\nargs.pr: {args.pr}\nbranch: {branch}\ncommit: {log}")
