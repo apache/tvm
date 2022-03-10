@@ -251,3 +251,8 @@ _docs/
 jvm/target
 .config/configstore/
 .ci-py-scripts/
+
+# Generated Hexagon files
+src/runtime/hexagon/rpc/hexagon_rpc.h
+src/runtime/hexagon/rpc/hexagon_rpc_skel.c
+src/runtime/hexagon/rpc/hexagon_rpc_stub.c
