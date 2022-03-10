@@ -33,6 +33,7 @@ from tvm.relay.op.contrib import tensorrt
 from tvm.contrib import graph_executor, utils
 from tvm.runtime.vm import VirtualMachine
 
+from tvm.relay import Any, GlobalVar
 from tvm.relay.transform import FirstOrderGradient, InferType
 from tvm.relay.transform.transform import ToMixedPrecision
 
@@ -88,7 +89,7 @@ def set_func_attr(func, compile_name, symbol_name):
     return func
 
 
-def run_and_verify_func(config, target="cuda", run_module=True, data_type="float16"):
+def run_and_verify_func(config, target="cuda", run_module=True, data_type="float32"):
     """Test a Relay func by compiling, running, and comparing TVM and TRT outputs.
 
     Parameters
@@ -277,6 +278,9 @@ def test_tensorrt_not_compatible(run_module):
                 results = func(x_data)
 
 
+@pytest.mark.xfail(
+    reason=("Currently failing test.  See tracking issue https://github.com/apache/tvm/issues/8901")
+)
 def test_tensorrt_serialize_graph_executor(run_module):
     import mxnet as mx
     from mxnet.gluon.model_zoo.vision import get_model
@@ -331,6 +335,9 @@ def test_tensorrt_serialize_graph_executor(run_module):
         assert_result_dict_holds(result_dict)
 
 
+@pytest.mark.xfail(
+    reason=("Currently failing test.  See tracking issue https://github.com/apache/tvm/issues/8901")
+)
 def test_tensorrt_serialize_vm(run_module):
     import mxnet as mx
     from mxnet.gluon.model_zoo.vision import get_model
@@ -473,12 +480,7 @@ def test_conv2d_nhwc(run_module):
         x = relay.var("x", shape=(x_shape), dtype="float32")
         kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
         out = relay.nn.conv2d(
-            x,
-            kernel,
-            channels=16,
-            kernel_size=(3, 3),
-            data_layout="NHWC",
-            kernel_layout="HWIO",
+            x, kernel, channels=16, kernel_size=(3, 3), data_layout="NHWC", kernel_layout="HWIO"
         )
         f = relay.Function([x, kernel], out)
         return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
@@ -571,8 +573,8 @@ def test_batch_matmul(run_module):
 
 def test_bias_add(run_module):
     def get_graph(x_shape=(1, 16), channels=16):
-        x = relay.var("x", shape=(x_shape), dtype="float16")
-        bias = relay.var("bias", shape=(channels,), dtype="float16")
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        bias = relay.var("bias", shape=(channels,), dtype="float32")
         out = relay.nn.bias_add(x, bias)
         f = relay.Function([x, bias], out)
         return f, {"x": x_shape, "bias": (channels,)}, ["bias"]
@@ -602,13 +604,7 @@ def test_pool2d(run_module):
                 count_include_pad=count_include_pad,
             )
         else:
-            out = op(
-                x,
-                pool_size=pool_size,
-                strides=strides,
-                padding=padding,
-                ceil_mode=ceil_mode,
-            )
+            out = op(x, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode)
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 
@@ -726,11 +722,7 @@ def test_split(run_module):
 
 def test_conv2d_transpose(run_module):
     def get_graph(
-        x_shape=(1, 32, 8, 8),
-        k_shape=(32, 16, 3, 3),
-        groups=1,
-        padding=(0, 0),
-        strides=(1, 1),
+        x_shape=(1, 32, 8, 8), k_shape=(32, 16, 3, 3), groups=1, padding=(0, 0), strides=(1, 1)
     ):
         x = relay.var("x", shape=(x_shape), dtype="float32")
         kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
@@ -1009,24 +1001,10 @@ def test_layer_norm(run_module):
         gamma = relay.var("gamma", shape=(param_shape), dtype="float32")
         beta = relay.var("beta", shape=(param_shape), dtype="float32")
         out = relay.nn.layer_norm(
-            x,
-            gamma=gamma,
-            beta=beta,
-            axis=axis,
-            epsilon=epsilon,
-            center=True,
-            scale=True,
+            x, gamma=gamma, beta=beta, axis=axis, epsilon=epsilon, center=True, scale=True
         )
         f = relay.Function([x, gamma, beta], out)
-        return (
-            f,
-            {
-                "x": x_shape,
-                "beta": param_shape,
-                "gamma": param_shape,
-            },
-            ["beta", "gamma"],
-        )
+        return (f, {"x": x_shape, "beta": param_shape, "gamma": param_shape}, ["beta", "gamma"])
 
     run_and_verify_func(get_graph((1, 32, 8, 8), (32,)), run_module=run_module)
     run_and_verify_func(
@@ -1170,20 +1148,9 @@ def test_strided_slice(run_module):
     def get_graph(x_shape, begin, end, strides=None, slice_mode="size"):
         x = relay.var("x", shape=(x_shape), dtype="float32")
         if strides:
-            out = relay.strided_slice(
-                x,
-                begin,
-                end,
-                strides,
-                slice_mode=slice_mode,
-            )
+            out = relay.strided_slice(x, begin, end, strides, slice_mode=slice_mode)
         else:
-            out = relay.strided_slice(
-                x,
-                begin,
-                end,
-                slice_mode=slice_mode,
-            )
+            out = relay.strided_slice(x, begin, end, slice_mode=slice_mode)
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 
@@ -1292,13 +1259,7 @@ def test_pool3d(run_module):
                 count_include_pad=count_include_pad,
             )
         else:
-            out = op(
-                x,
-                pool_size=pool_size,
-                strides=strides,
-                padding=padding,
-                ceil_mode=ceil_mode,
-            )
+            out = op(x, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode)
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 

@@ -226,6 +226,8 @@ class TensorRTJSONSerializer : public backend::contrib::JSONSerializer {
     tensorrt_version_attr.emplace_back(tensorrt_version);
     use_implicit_batch_attr.emplace_back(use_implicit_batch);
     max_workspace_size_attr.emplace_back(max_workspace_size);
+    use_fp16_attr.emplace_back(use_fp16);
+    use_uint8_attr.emplace_back(use_uint8);
     node->SetAttr("tensorrt_version", tensorrt_version_attr);
     node->SetAttr("use_implicit_batch", use_implicit_batch_attr);
     node->SetAttr("max_workspace_size", max_workspace_size_attr);

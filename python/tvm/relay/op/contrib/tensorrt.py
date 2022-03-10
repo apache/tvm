@@ -211,11 +211,7 @@ def check_dynamism(args, op_name):
         elif isinstance(arg, Tuple):
             return check_dynamism(arg.fields, op_name)
         else:
-            logger.info(
-                "Arg not supported in TensorRT for %s with type %s",
-                op_name,
-                type(arg),
-            )
+            logger.info("Arg not supported in TensorRT for %s with type %s", op_name, type(arg))
             return True
     return False
 
@@ -596,8 +592,8 @@ def concatenate_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if concatenate is supported by TensorRT."""
 
     attrs, args = expr.attrs, expr.args
-    if not is_supported_trt_dtype(args):
-        return False
+    if any([x.dtype not in supported_types for x in args[0].checked_type.fields]):
+        logger.info("Only float16 and float32 inputs are supported for TensorRT.")
     if not get_tensorrt_use_implicit_batch_mode():
         return True
     if int(attrs.axis) == 0:
@@ -987,11 +983,8 @@ def is_valid_subgraph(params, body):
         if len(input_batch_sizes) > 1 and len(set(input_batch_sizes)) != 1:
             logger.info("tensorrt: inputs have different batch sizes")
             return False
-    if (
-        get_tensorrt_remove_no_mac_subgraphs()
-        and not IsComputeIntensiveGraph().is_graph_compute_intensive(body)
-    ):
-        return False
+    if get_tensorrt_remove_no_mac_subgraphs():
+        return IsComputeIntensiveGraph().is_graph_compute_intensive(body)
     return True
 
 
