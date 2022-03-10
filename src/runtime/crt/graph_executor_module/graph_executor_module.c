@@ -100,6 +100,21 @@ int32_t TVMGraphExecutorModule_GetInput(TVMValue* args, int* tcodes, int nargs,
   return 0;
 }
 
+int32_t TVMGraphExecutorModule_GetInputIndex(TVMValue* args, int* tcodes, int nargs,
+                                             TVMValue* ret_values, int* ret_tcodes,
+                                             void* resource_handle) {
+
+  int index = TVMGraphExecutor_GetInputIndex(graph_executor.executor, args[0].v_str);
+
+  if (index < 0) {
+    return kTvmErrorGraphModuleNoSuchInput;
+  }
+
+  ret_values[0].v_int64 = index;
+  ret_tcodes[0] = kTVMArgInt;
+  return 0;
+}
+
 int32_t TVMGraphExecutorModule_GetNumInputs(TVMValue* args, int* tcodes, int nargs,
                                             TVMValue* ret_values, int* ret_tcodes,
                                             void* resource_handle) {
@@ -202,14 +217,22 @@ int32_t TVMGraphExecutorModule_NotImplemented(TVMValue* args, int* tcodes, int n
 }
 
 static const TVMBackendPackedCFunc graph_executor_registry_funcs[] = {
-    &TVMGraphExecutorModule_GetInput,      &TVMGraphExecutorModule_GetNumInputs,
-    &TVMGraphExecutorModule_GetNumOutputs, &TVMGraphExecutorModule_GetOutput,
-    &TVMGraphExecutorModule_LoadParams,    &TVMGraphExecutorModule_Run,
-    &TVMGraphExecutorModule_SetInput,      &TVMGraphExecutorModule_NotImplemented,
+    &TVMGraphExecutorModule_GetInput,      
+    &TVMGraphExecutorModule_GetInputIndex,
+    &TVMGraphExecutorModule_NotImplemented,    // get_input_info
+    &TVMGraphExecutorModule_GetNumInputs,
+    &TVMGraphExecutorModule_GetNumOutputs,
+    &TVMGraphExecutorModule_GetOutput,
+    &TVMGraphExecutorModule_LoadParams,
+    &TVMGraphExecutorModule_Run,
+    &TVMGraphExecutorModule_SetInput,
+    &TVMGraphExecutorModule_NotImplemented,    // share_params
 };
 
 static const TVMFuncRegistry graph_executor_registry = {
     "\x08get_input\0"
+    "get_input_index\0"
+    "get_input_info\0"
     "get_num_inputs\0"
     "get_num_outputs\0"
     "get_output\0"
