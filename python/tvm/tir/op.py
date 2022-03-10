@@ -1504,7 +1504,7 @@ def searchsorted(buf, val, offset_l, offset_r, side, span=None):
     index : PrimExpr
         The satisfying index.
     """
-    return call_intrin(offset_l.dtype, "tir.searchsorted", buf, val, offset_l, offset_r, side)
+    return call_intrin(offset_l.dtype, "tir.searchsorted", buf, val, offset_l, offset_r, side, span)
 
 
 # pylint: disable=unnecessary-lambda
