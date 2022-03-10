@@ -1314,8 +1314,6 @@ void CodeGenLLVM::BufferAccessHelper(
     alignment = value_dtype.bits() / 8;
   }
 
-  std::vector<llvm::Instruction*> instructions;
-
   llvm::Value* cached_vector_index = nullptr;
   for (int i = 0; i < index.dtype().lanes(); ++i) {
     llvm::Value* index_value;
