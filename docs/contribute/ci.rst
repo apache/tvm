@@ -169,7 +169,7 @@ and help in mounting your current directory.
     # the tvm directory is automatically mounted
     # example: build tvm (note: this will overrwrite build/)
     $ ./tests/scripts/task_config_build_cpu.sh
-    $ ./tests/scripts/task_build.sh build -j32
+    $ ./tests/scripts/task_build.py --build-dir build --num-executors 32
 
 
 Reporting Issues

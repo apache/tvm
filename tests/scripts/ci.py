@@ -238,7 +238,7 @@ def docs(
 
     scripts = extra_setup + [
         config,
-        f"./tests/scripts/task_build.sh build -j{NPROC}",
+        f"./tests/scripts/task_build.py --build-dir build --num-executors {NPROC}",
         "./tests/scripts/task_ci_setup.sh",
         "./tests/scripts/task_python_docs.sh",
     ]
