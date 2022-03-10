@@ -76,7 +76,8 @@ class BuiltinLower : public StmtExprMutator {
   StackSizes GetMaxStack(Stmt stmt) {
     BuiltinLower precheck;
     precheck.is_precheck_ = true;
-    precheck.VisitBodyAndRealizeAlloca(stmt);
+    precheck.device_id_ = this->device_id_;
+    precheck.device_type_ = this->device_type_;
 
     precheck.alloca_scope_.emplace_back();
     auto& scope = precheck.alloca_scope_.back();
@@ -87,7 +88,7 @@ class BuiltinLower : public StmtExprMutator {
 
     precheck.VisitStmt(stmt);
 
-    ICHECK_EQ(alloca_scope_.size(), 1);
+    ICHECK_EQ(precheck.alloca_scope_.size(), 1);
     return precheck.alloca_scope_[0].max_sizes;
   }
 
