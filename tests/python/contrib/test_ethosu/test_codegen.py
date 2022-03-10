@@ -1176,5 +1176,35 @@ def test_tflite_leaky_relu(accel_type, ifm_shape, alpha):
     _compare_tvm_with_tflite(leaky_relu_func, [ifm_shape], accel_type)
 
 
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("ifm_shape", [(1, 14), (1, 151)])
+@pytest.mark.parametrize("ofm_channels", [32, 64])
+@pytest.mark.parametrize("use_bias", [True, False])
+@pytest.mark.parametrize("activation_function", ["RELU", "NONE"])
+def test_tflite_fully_connected(
+    accel_type,
+    ifm_shape,
+    ofm_channels,
+    use_bias,
+    activation_function,
+):
+    @tf.function
+    def fully_connected(x):
+        bias_shape = ofm_channels
+        bias = tf.constant(np.random.uniform(size=bias_shape), dtype=tf.float32)
+        w = tf.constant(
+            np.random.uniform(size=[ifm_shape[1], ofm_channels]),
+            dtype=tf.float32,
+        )
+        x = tf.matmul(x, w)
+        if use_bias:
+            x = tf.nn.bias_add(x, bias)
+        if activation_function:
+            x = tf.nn.relu(x)
+        return x
+
+    _compare_tvm_with_tflite(fully_connected, [ifm_shape], accel_type)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
