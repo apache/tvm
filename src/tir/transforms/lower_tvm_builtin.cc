@@ -34,7 +34,9 @@
 namespace tvm {
 namespace tir {
 
-class StackSizeChecker : public StmtExprVisitor {
+// Calculate the statistics of packed function.
+// These information are needed during codegen.
+class BuiltinLower : public StmtExprMutator {
  public:
   struct StackSizes {
     // If a tvm_stack_make_shape call has no arguments, it is still
@@ -46,107 +48,6 @@ class StackSizeChecker : public StmtExprVisitor {
     uint64_t arg_stack{0};
   };
 
-  static StackSizes Check(Stmt stmt) {
-    StackSizeChecker visitor;
-    visitor.VisitStmt(stmt);
-    return visitor.max_stack_;
-  }
-
- private:
-  void VisitStmt_(const ForNode* op) final {
-    if (op->kind == ForKind::kParallel) {
-      // Parallel for loops have their own stack and allocations, so
-      // stop the recursion here.
-      return;
-    } else {
-      this->VisitStmt(op->body);
-    }
-  }
-  void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::tvm_call_packed())) {
-      return MakeCallPacked(op, /* use_string_lookup */ true);
-    } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
-      return MakeCallPacked(op, /* use_string_lookup */ false);
-    } else if (op->op.same_as(builtin::tvm_call_trace_packed())) {
-      return MakeCallTracePacked(op);
-    } else if (op->op.same_as(builtin::tvm_stack_make_shape())) {
-      return MakeShape(op);
-    } else if (op->op.same_as(builtin::tvm_stack_make_array())) {
-      return MakeArray(op);
-    } else {
-      return StmtExprVisitor::VisitExpr_(op);
-    }
-  }
-  // call shape
-  void MakeShape(const CallNode* op) {
-    // if args.size() == 0, it is still valid and represents a scalar
-    // shape ().  Therefore, -1 is used to represent "no shape
-    // arguments exist", while 0 represents "shape arguments exist,
-    // all of which are size 0".
-    if (current_stack_.shape_stack == -1) {
-      current_stack_.shape_stack = 0;
-    }
-    current_stack_.shape_stack += op->args.size();
-    StmtExprVisitor::VisitExpr_(op);
-  }
-  // make array
-  void MakeArray(const CallNode* op) {
-    current_stack_.array_stack += 1;
-    StmtExprVisitor::VisitExpr_(op);
-  }
-  // call packed.
-  void MakeCallPacked(const CallNode* op, bool use_string_lookup) {
-    StackSizes restore_stack = current_stack_;
-
-    size_t arg_count = op->args.size();
-
-    // cpacked expects a resource_handle parameter
-    if (!use_string_lookup) {
-      arg_count--;
-    }
-
-    current_stack_.arg_stack += arg_count;
-    // Specially handle the buffer packed intrinsic
-    StmtExprVisitor::VisitExpr_(op);
-    // Record the amount of stack space needed, then reset the stack
-    // position to its previous location.
-    UpdateMaxStack();
-    current_stack_ = restore_stack;
-  }
-
-  void MakeCallTracePacked(const CallNode* op) {
-    StackSizes restore_stack = current_stack_;
-
-    size_t args_size = op->args.size();
-    ICHECK_GT(args_size, 0);
-    current_stack_.arg_stack += args_size;
-
-    StmtExprVisitor::VisitExpr_(op);
-    // Record the amount of stack space needed, then reset the stack
-    // position to its previous location.
-    UpdateMaxStack();
-    current_stack_ = restore_stack;
-
-    // However, the arguments to this CallNode remain on top of the
-    // stack, so we can use more than one packed function's arguments
-    // with the one stack.
-    current_stack_.arg_stack = restore_stack.arg_stack + args_size - 1;
-  }
-
-  void UpdateMaxStack() {
-    max_stack_.arg_stack = std::max(current_stack_.arg_stack, max_stack_.arg_stack);
-    max_stack_.shape_stack = std::max(current_stack_.shape_stack, max_stack_.shape_stack);
-    max_stack_.array_stack = std::max(current_stack_.array_stack, max_stack_.array_stack);
-  }
-
-  StackSizes current_stack_;
-  StackSizes max_stack_;
-};
-
-// Calculate the statistics of packed function.
-// These information are needed during codegen.
-class BuiltinLower : public StmtExprMutator {
- public:
   // Record stack frame for existing scope.
   struct AllocaScope {
     Buffer stack_shape;
@@ -154,50 +55,78 @@ class BuiltinLower : public StmtExprMutator {
     Var stack_value = Var("stack_value", DataType::Handle());
     Buffer stack_tcode;
 
-    int64_t max_shape_stack{-1};
-    uint64_t max_array_stack{0};
-    uint64_t max_arg_stack{0};
+    StackSizes max_sizes;
+    StackSizes run_sizes;
 
-    int64_t run_shape_stack{-1};
-    uint64_t run_array_stack{0};
-    uint64_t run_arg_stack{0};
+    void UpdateMax() {
+      max_sizes.shape_stack = std::max(max_sizes.shape_stack, run_sizes.shape_stack);
+      max_sizes.array_stack = std::max(max_sizes.array_stack, run_sizes.array_stack);
+      max_sizes.arg_stack = std::max(max_sizes.arg_stack, run_sizes.arg_stack);
+    }
+
+    void AssertMaxIsValid() const {
+      ICHECK((max_sizes.shape_stack >= run_sizes.shape_stack) ||
+             (max_sizes.array_stack >= run_sizes.array_stack) ||
+             (max_sizes.arg_stack >= run_sizes.arg_stack));
+    }
   };
 
   Stmt Build(Stmt stmt) { return this->VisitBodyAndRealizeAlloca(stmt); }
 
+  StackSizes GetMaxStack(Stmt stmt) {
+    BuiltinLower precheck;
+    precheck.is_precheck_ = true;
+    precheck.device_id_ = this->device_id_;
+    precheck.device_type_ = this->device_type_;
+
+    precheck.alloca_scope_.emplace_back();
+    auto& scope = precheck.alloca_scope_.back();
+    scope.stack_shape =
+        decl_buffer({IntImm(DataType::Int(64), 0)}, DataType::Int(64), "stack_shape");
+    scope.stack_tcode =
+        decl_buffer({IntImm(DataType::UInt(64), 0)}, DataType::Int(32), "stack_tcode");
+
+    precheck.VisitStmt(stmt);
+
+    ICHECK_EQ(precheck.alloca_scope_.size(), 1);
+    return precheck.alloca_scope_[0].max_sizes;
+  }
+
   // Allcoate stack frames, only at parallel-for or root.
   Stmt VisitBodyAndRealizeAlloca(Stmt stmt) {
-    // Initial check to identify maximum stack sizes.  These are used
-    // to construct Buffer objects to hold the stack, which are then
-    // used when mutating.
-    auto max_sizes = StackSizeChecker::Check(stmt);
+    // Only perform the precheck up to the point where we would add a
+    // new scope.
+    if (is_precheck_) {
+      return stmt;
+    }
 
     alloca_scope_.emplace_back();
     auto& scope = alloca_scope_.back();
 
-    if (max_sizes.shape_stack != -1) {
-      scope.stack_shape = decl_buffer({IntImm(DataType::Int(64), max_sizes.shape_stack)},
+    // Initial check to identify maximum stack sizes.  These are used
+    // to construct Buffer objects to hold the stack, which are then
+    // used when mutating.
+    scope.max_sizes = GetMaxStack(stmt);
+
+    if (scope.max_sizes.shape_stack != -1) {
+      scope.stack_shape = decl_buffer({IntImm(DataType::Int(64), scope.max_sizes.shape_stack)},
                                       DataType::Int(64), "stack_shape");
-      stmt = LetStmt(scope.stack_shape->data, StackAlloca("shape", max_sizes.shape_stack), stmt);
+      stmt =
+          LetStmt(scope.stack_shape->data, StackAlloca("shape", scope.max_sizes.shape_stack), stmt);
     }
 
-    if (max_sizes.array_stack != 0) {
-      stmt = LetStmt(scope.stack_array, StackAlloca("array", max_sizes.array_stack), stmt);
+    if (scope.max_sizes.array_stack != 0) {
+      stmt = LetStmt(scope.stack_array, StackAlloca("array", scope.max_sizes.array_stack), stmt);
     }
 
-    if (max_sizes.arg_stack != 0) {
-      scope.stack_tcode = decl_buffer({IntImm(DataType::UInt(64), max_sizes.arg_stack)},
+    if (scope.max_sizes.arg_stack != 0) {
+      scope.stack_tcode = decl_buffer({IntImm(DataType::UInt(64), scope.max_sizes.arg_stack)},
                                       DataType::Int(32), "stack_tcode");
-      stmt = LetStmt(scope.stack_value, StackAlloca("arg_value", max_sizes.arg_stack), stmt);
+      stmt = LetStmt(scope.stack_value, StackAlloca("arg_value", scope.max_sizes.arg_stack), stmt);
 
-      stmt = LetStmt(scope.stack_tcode->data, StackAlloca("arg_tcode", max_sizes.arg_stack), stmt);
+      stmt = LetStmt(scope.stack_tcode->data, StackAlloca("arg_tcode", scope.max_sizes.arg_stack),
+                     stmt);
     }
-
-    // Copy these values from the earlier search, for use in bounds
-    // checks.
-    scope.max_shape_stack = max_sizes.shape_stack;
-    scope.max_array_stack = max_sizes.array_stack;
-    scope.max_arg_stack = max_sizes.arg_stack;
 
     stmt = this->VisitStmt(stmt);
 
@@ -213,8 +142,8 @@ class BuiltinLower : public StmtExprMutator {
 
     auto stmt = StmtExprMutator::VisitStmt(s);
     auto& scope = alloca_scope_.back();
-    ICHECK_EQ(scope.run_shape_stack, -1);
-    ICHECK_EQ(scope.run_array_stack, 0);
+    ICHECK_EQ(scope.run_sizes.shape_stack, -1);
+    ICHECK_EQ(scope.run_sizes.array_stack, 0);
 
     auto prep_seq = std::move(prep_seq_stack_.back());
     prep_seq_stack_.pop_back();
@@ -364,11 +293,11 @@ class BuiltinLower : public StmtExprMutator {
     ICHECK(!alloca_scope_.empty());
     auto& scope = alloca_scope_.back();
     auto& prep_seq = prep_seq_stack_.back();
-    if (scope.run_shape_stack == -1) {
-      scope.run_shape_stack = 0;
+    if (scope.run_sizes.shape_stack == -1) {
+      scope.run_sizes.shape_stack = 0;
     }
-    int64_t stack_begin = scope.run_shape_stack;
-    scope.run_shape_stack += op->args.size();
+    int64_t stack_begin = scope.run_sizes.shape_stack;
+    scope.run_sizes.shape_stack += op->args.size();
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
     // no need to perform any store for a scalar shape
@@ -384,8 +313,8 @@ class BuiltinLower : public StmtExprMutator {
     auto& scope = alloca_scope_.back();
     auto& prep_seq = prep_seq_stack_.back();
 
-    size_t idx = scope.run_array_stack;
-    scope.run_array_stack += 1;
+    size_t idx = scope.run_sizes.array_stack;
+    scope.run_sizes.array_stack += 1;
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
 
@@ -426,9 +355,9 @@ class BuiltinLower : public StmtExprMutator {
     auto& scope = alloca_scope_.back();
     auto& prep_seq = prep_seq_stack_.back();
 
-    int64_t restore_shape_stack = scope.run_shape_stack;
-    size_t restore_array_stack = scope.run_array_stack;
-    size_t arg_stack_begin = scope.run_arg_stack;
+    int64_t restore_shape_stack = scope.run_sizes.shape_stack;
+    size_t restore_array_stack = scope.run_sizes.array_stack;
+    size_t arg_stack_begin = scope.run_sizes.arg_stack;
 
     size_t arg_count = op->args.size();
 
@@ -437,7 +366,7 @@ class BuiltinLower : public StmtExprMutator {
       arg_count--;
     }
 
-    scope.run_arg_stack += arg_count;
+    scope.run_sizes.arg_stack += arg_count;
     // Specially handle the buffer packed intrinsic
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
@@ -460,12 +389,14 @@ class BuiltinLower : public StmtExprMutator {
       prep_seq.emplace_back(BufferStore(scope.stack_tcode, ConstInt32(arg_tcode), {stack_index}));
     }
     // Verify stack size matches earlier value.
-    ICHECK_LE(scope.run_arg_stack, scope.max_arg_stack);
-    ICHECK_LE(scope.run_shape_stack, scope.max_shape_stack);
-    ICHECK_LE(scope.run_array_stack, scope.max_array_stack);
-    scope.run_shape_stack = restore_shape_stack;
-    scope.run_array_stack = restore_array_stack;
-    scope.run_arg_stack = arg_stack_begin;
+    if (is_precheck_) {
+      scope.UpdateMax();
+    } else {
+      scope.AssertMaxIsValid();
+    }
+    scope.run_sizes.shape_stack = restore_shape_stack;
+    scope.run_sizes.array_stack = restore_array_stack;
+    scope.run_sizes.arg_stack = arg_stack_begin;
     Array<PrimExpr> packed_args = {op->args[0], scope.stack_value, scope.stack_tcode->data,
                                    ConstInt32(arg_stack_begin),
                                    ConstInt32(arg_stack_begin + op->args.size() - 1)};
@@ -486,10 +417,10 @@ class BuiltinLower : public StmtExprMutator {
     auto& scope = alloca_scope_.back();
     auto& prep_seq = prep_seq_stack_.back();
 
-    int64_t restore_shape_stack = scope.run_shape_stack;
-    size_t restore_array_stack = scope.run_array_stack;
-    size_t arg_stack_begin = scope.run_arg_stack;
-    scope.run_arg_stack += op->args.size();
+    int64_t restore_shape_stack = scope.run_sizes.shape_stack;
+    size_t restore_array_stack = scope.run_sizes.array_stack;
+    size_t arg_stack_begin = scope.run_sizes.arg_stack;
+    scope.run_sizes.arg_stack += op->args.size();
     size_t args_size = op->args.size();
     ICHECK_GT(args_size, 0);
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
@@ -510,14 +441,16 @@ class BuiltinLower : public StmtExprMutator {
       prep_seq.emplace_back(BufferStore(scope.stack_tcode, ConstInt32(arg_tcode), {stack_index}));
     }
     // Verify stack size matches earlier value.
-    ICHECK_LE(scope.run_arg_stack, scope.max_arg_stack);
-    ICHECK_LE(scope.run_shape_stack, scope.max_shape_stack);
-    ICHECK_LE(scope.run_array_stack, scope.max_array_stack);
-    scope.run_shape_stack = restore_shape_stack;
-    scope.run_array_stack = restore_array_stack;
+    if (is_precheck_) {
+      scope.UpdateMax();
+    } else {
+      scope.AssertMaxIsValid();
+    }
+    scope.run_sizes.shape_stack = restore_shape_stack;
+    scope.run_sizes.array_stack = restore_array_stack;
     // Update the top of the stack, so we can use more than one
     // packed function's arguments with the one stack.
-    scope.run_arg_stack = arg_stack_begin + args_size - 1;
+    scope.run_sizes.arg_stack = arg_stack_begin + args_size - 1;
     Array<PrimExpr> packed_args = {op->args[0], scope.stack_value, scope.stack_tcode->data,
                                    ConstInt32(arg_stack_begin),
                                    ConstInt32(arg_stack_begin + op->args.size() - 1),
@@ -574,6 +507,8 @@ class BuiltinLower : public StmtExprMutator {
   std::vector<std::vector<Stmt>> prep_seq_stack_;
   PrimExpr device_type_;
   PrimExpr device_id_;
+
+  bool is_precheck_{false};
 
   // Record all stack frames.
   std::vector<AllocaScope> alloca_scope_;
