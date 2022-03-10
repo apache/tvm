@@ -98,7 +98,7 @@ def two_elementwise_transformed_output_buffer(a: T.handle, c: T.handle) -> None:
 def test_two_elementwise_transform_intermediate_buffer():
     sch = tir.Schedule(two_elementwise, debug_mask="all")
     block = sch.get_block("B")
-    sch.transform_layout(block, 0, False, lambda m, n: m // 16, n // 16, m % 16, n % 16)
+    sch.transform_layout(block, 0, True, lambda m, n: (m // 16, n // 16, m % 16, n % 16))
     tvm.ir.assert_structural_equal(two_elementwise_transformed_intermediate_buffer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 
@@ -106,8 +106,7 @@ def test_two_elementwise_transform_intermediate_buffer():
 def test_two_elementwise_transform_input_buffer():
     sch = tir.Schedule(two_elementwise, debug_mask="all")
     block = sch.get_block("B")
-    sch.transform_layout(block, 0, True, packed_index_map_func)
-    print(sch.mod["main"].script())
+    sch.transform_layout(block, 0, False, packed_index_map_func)
     tvm.ir.assert_structural_equal(two_elementwise_transformed_input_buffer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 
@@ -115,7 +114,7 @@ def test_two_elementwise_transform_input_buffer():
 def test_two_elementwise_transform_output_buffer():
     sch = tir.Schedule(two_elementwise, debug_mask="all")
     block = sch.get_block("C")
-    sch.transform_layout(block, 0, False, packed_index_map_func)
+    sch.transform_layout(block, 0, True, packed_index_map_func)
     tvm.ir.assert_structural_equal(two_elementwise_transformed_output_buffer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 
