@@ -2114,6 +2114,7 @@ class Schedule(Object):
 
     ########## Schedule: Layout transformation ##########
 
+    @type_checked
     def transform_layout(
         self,
         block: BlockRV,
@@ -2132,6 +2133,7 @@ class Schedule(Object):
             Whether the buffer_index is the index of the block's write region
         index_map : Union[IndexMap, Callable]
             The transformation to apply
+
         Examples
         --------
         Before transform_layout, in TensorIR, the IR is:
