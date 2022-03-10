@@ -299,11 +299,11 @@ def test_searchsorted():
 
 
 if __name__ == "__main__":
-    # test_nearbyint()
-    # test_unary_intrin()
-    # test_round_intrinsics_on_int()
-    # test_binary_intrin()
-    # test_ldexp()
-    # test_clz()
-    # test_fma()
+    test_nearbyint()
+    test_unary_intrin()
+    test_round_intrinsics_on_int()
+    test_binary_intrin()
+    test_ldexp()
+    test_clz()
+    test_fma()
     test_searchsorted()
