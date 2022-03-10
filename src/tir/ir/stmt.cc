@@ -676,10 +676,9 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
       << "-dimensional, cannot be indexed with the " << indices.size()
       << "-dimensional indices provided.";
 
-  for (size_t i = 0; i < indices.size(); i++) {
-    int lanes = indices[i].dtype().lanes();
-    ICHECK((lanes == 1) || (i + 1 == indices.size()))
-        << "Only the last index of a buffer access may have multiple lanes.";
+  for (int i = 0; i < int(indices.size()) - 1; i++) {
+    ICHECK(indices[i].dtype().is_scalar())
+        << "Only the last index of a buffer access may be a vector type.";
   }
 
   int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
