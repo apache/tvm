@@ -116,7 +116,8 @@ class TextureFlattener : public TextureLoweringBase {
       auto texture =
           ApplyTexture2DFlattening<PrimExpr>(ShapeFromRange{op->bounds}, op->bounds.size(), axis);
       Array<PrimExpr> args = {StringImm(storage_scope), 2, texture.width, texture.height};
-      stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::ndmemalloc(), args), body);
+      stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::nd_mem_alloc_with_scope(), args),
+                     body);
     }
 
     return stmt;

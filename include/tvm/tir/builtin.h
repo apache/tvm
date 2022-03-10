@@ -617,9 +617,9 @@ TVM_DLL const Op& vectorcombine();
  */
 TVM_DLL const Op& atomic_add();
 /*!
- * \brief Create an Nd memory allocation
+ * \brief Create an Nd memory allocation with storage scope
  */
-TVM_DLL const Op& ndmemalloc();
+TVM_DLL const Op& nd_mem_alloc_with_scope();
 
 /*!
  * \brief Store to texture 2d memory

@@ -26,9 +26,7 @@
 namespace tvm {
 namespace tir {
 
-inline bool IsVtcmStorage(std::string scope) {
-  return scope.find("vtcm") != std::string::npos;
-}
+inline bool IsVtcmStorage(std::string scope) { return scope.find("vtcm") != std::string::npos; }
 
 class VtcmAllocator : public StmtExprMutator {
  public:
@@ -49,7 +47,7 @@ class VtcmAllocator : public StmtExprMutator {
         args.push_back(op->extents[i]);
       }
       stmt = LetStmt(op->buffer_var,
-                     Call(op->buffer_var.dtype(), builtin::ndmemalloc(), args), body);
+                     Call(op->buffer_var.dtype(), builtin::nd_mem_alloc_with_scope(), args), body);
     }
 
     return stmt;

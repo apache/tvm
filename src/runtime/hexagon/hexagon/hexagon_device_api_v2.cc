@@ -119,8 +119,8 @@ void HexagonDeviceAPIv2::FreeWorkspace(Device dev, void* data) {
   workspace_allocations_.erase(it);
 }
 
-void* HexagonDeviceAPIv2::AllocWorkspace(Device dev, int ndim, const int64_t* shape,
-                                         DLDataType dtype, Optional<String> mem_scope) {
+void* HexagonDeviceAPIv2::AllocVtcmWorkspace(Device dev, int ndim, const int64_t* shape,
+                                             DLDataType dtype, Optional<String> mem_scope) {
   return AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
 }
 
@@ -179,8 +179,8 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNdWithScope")
       int32_t device_id = args[1];
       int32_t dtype_code_hint = args[2];
       int32_t dtype_bits_hint = args[3];
-      std::string scope = args[4]; // TODO: check scope = vtcm
-      int64_t order = args[5]; // TODO: check no overflow
+      std::string scope = args[4];  // TODO: check scope = vtcm
+      int64_t order = args[5];      // TODO: check no overflow
       std::vector<int64_t> shape;
       // TODO: coallesce to 1d for now?
       for (int i = 0; i < order; ++i) {
@@ -209,7 +209,7 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNdWithScope")
 
       HexagonDeviceAPIv2* hexapi = HexagonDeviceAPIv2::Global();
       HexagonBuffer* hexbuf = reinterpret_cast<HexagonBuffer*>(
-          hexapi->AllocWorkspace(dev, order, shape.data(), type_hint, String(scope)));
+          hexapi->AllocVtcmWorkspace(dev, order, shape.data(), type_hint, String(scope)));
 
       void* ptr = hexbuf->GetPointer()[0];
       vtcmallocs[ptr] = hexbuf;
@@ -219,9 +219,10 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNdWithScope")
 // TODO: no scope
 TVM_REGISTER_GLOBAL("device_api.hexagon.FreeNdWithScope")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
-      int device_type = args[0];
-      int device_id = args[1];
-      void* ptr = args[2];
+      int32_t device_type = args[0];
+      int32_t device_id = args[1];
+      std::string scope = args[2];  // TODO: check scope = vtcm
+      void* ptr = args[3];
       HexagonBuffer* hexbuf = vtcmallocs[ptr];
 
       Device dev;
