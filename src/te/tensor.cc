@@ -34,7 +34,9 @@ IterVar thread_axis(Range dom, std::string tag) {
   return IterVar(dom, Var(tag), kThreadIndex, tag);
 }
 
-IterVar reduce_axis(Range dom, std::string name) { return IterVar(dom, Var(name), kCommReduce); }
+IterVar reduce_axis(Range dom, std::string name) {
+  return IterVar(dom, Var(name, dom->extent.dtype()), kCommReduce);
+}
 
 Var var(std::string name_hint, DataType t) { return Var(name_hint, t); }
 

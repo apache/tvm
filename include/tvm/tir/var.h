@@ -241,6 +241,8 @@ enum IterVarType : int {
 /*!
  * \brief An iteration variable representing an iteration
  *  over a one dimensional interval.
+ *
+ *  The dtype of the extent of the `dom` of the IterVar must match the dtype of the internal Var.
  */
 class IterVarNode : public Object {
  public:
@@ -293,6 +295,8 @@ class IterVarNode : public Object {
 /*!
  * \brief Iteration Variable,
  *  represents an iteration over an integer interval.
+ *
+ *  The dtype of the extent of the `dom` of the IterVar must match the dtype of the internal Var.
  */
 class IterVar : public ObjectRef {
  public:
