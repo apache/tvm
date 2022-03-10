@@ -3444,6 +3444,35 @@ class Scan(OnnxOpConverter):
         return outputs
 
 
+class LinearRegressor(OnnxOpConverter):
+    """Operator converter for LinearRegressor."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        data = inputs[0]
+        coefficients = attr.get("coefficients", 0)
+        data_shape = infer_shape(data)
+        targets = attr.get("targets", 1)
+        coefficients = _expr.const(list(coefficients), dtype="float32")
+        coefficients_shape = infer_shape(coefficients)
+
+        coefficients = _op.reshape(coefficients, (targets, coefficients_shape[0] // targets))
+        if coefficients_shape[0] // targets < data_shape[-1]:
+            data = _op.split(data, [coefficients_shape[0] // targets], -1)[0]
+
+        mm_out = _op.nn.dense(data, coefficients)
+
+        if "intercepts" in attr:
+            intercepts = attr.get("intercepts", 0)
+            intercepts = _expr.const(list(intercepts), dtype="float32")
+
+            if targets == 1:
+                return _op.nn.bias_add(mm_out, intercepts, axis=-1)
+            return get_relay_op("add")(mm_out, intercepts)
+
+        return mm_out
+
+
 class NonMaxSuppression(OnnxOpConverter):
     """Operator converter for NonMaxSuppression."""
 
@@ -4770,6 +4799,8 @@ def _get_convert_map(opset):
         "Adam": Adam.get_converter(opset),
         "Momentum": Momentum.get_converter(opset),
         "Scan": Scan.get_converter(opset),
+        # ML
+        "LinearRegressor": LinearRegressor.get_converter(opset),
     }
 
 
