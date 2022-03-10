@@ -233,9 +233,9 @@ def test_skip_ci(tmpdir_factory):
             ["commit", "--allow-empty", "--message", "[skip ci] commit 1"],
             ["commit", "--allow-empty", "--message", "commit 2"],
         ],
-        should_skip=False,
+        should_skip=True,
         pr_title="[skip ci] test",
-        why="ci should not be skipped on a branch without [skip ci] in the last commit",
+        why="ci should not be skipped with [skip ci] in the PR title",
     )
 
     test(
@@ -244,9 +244,9 @@ def test_skip_ci(tmpdir_factory):
             ["commit", "--allow-empty", "--message", "[skip ci] commit 1"],
             ["commit", "--allow-empty", "--message", "commit 2"],
         ],
-        should_skip=False,
+        should_skip=True,
         pr_title="[skip ci] test",
-        why="ci should not be skipped on a branch without [skip ci] in the last commit",
+        why="ci should not be skipped with [skip ci] in the PR title",
     )
 
     test(
@@ -257,9 +257,9 @@ def test_skip_ci(tmpdir_factory):
             ["commit", "--allow-empty", "--message", "commit 3"],
             ["commit", "--allow-empty", "--message", "commit 4"],
         ],
-        should_skip=False,
+        should_skip=True,
         pr_title="[skip ci] test",
-        why="ci should not be skipped on a branch without [skip ci] in the last commit",
+        why="ci should not be skipped with [skip ci] in the PR title",
     )
 
 
