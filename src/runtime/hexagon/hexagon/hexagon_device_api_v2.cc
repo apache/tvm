@@ -170,69 +170,62 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVM
   *rv = static_cast<int32_t>(0);
 });
 
-// TODO: probably need a class here
 std::map<void*, HexagonBuffer*> vtcmallocs;
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNdWithScope")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      int32_t device_type = args[0];
-      int32_t device_id = args[1];
-      int32_t dtype_code_hint = args[2];
-      int32_t dtype_bits_hint = args[3];
-      std::string scope = args[4];  // TODO: check scope = vtcm
-      int64_t order = args[5];      // TODO: check no overflow
-      std::vector<int64_t> shape;
-      // TODO: coallesce to 1d for now?
-      for (int i = 0; i < order; ++i) {
-        shape.push_back(args[6 + i]);
-      }
+TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNd").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int32_t device_type = args[0];
+  int32_t device_id = args[1];
+  int32_t dtype_code_hint = args[2];
+  int32_t dtype_bits_hint = args[3];
+  std::string scope = args[4];
+  CHECK(scope.find("vtcm") != std::string::npos);
+  int64_t ndim = args[5];
+  // Forcing contiguous allocation, for now
+  // TODO(Straw): Enable discontiguous allocation after RFC 39 lands
+  CHECK_EQ(ndim, 1);
+  std::vector<int64_t> shape;
+  for (int i = 0; i < ndim; ++i) {
+    shape.push_back(args[6 + i]);
+  }
 
-      HEXAGON_PRINT(ALWAYS, "STRAW:  In device_api.hexagon.AllocNdWithScope");
-      HEXAGON_PRINT(ALWAYS, "STRAW:    device type = %d", device_type);
-      HEXAGON_PRINT(ALWAYS, "STRAW:    device id = %d", device_id);
-      HEXAGON_PRINT(ALWAYS, "STRAW:    dtype code = %d", dtype_code_hint);
-      HEXAGON_PRINT(ALWAYS, "STRAW:    dtype bits = %d", dtype_bits_hint);
-      HEXAGON_PRINT(ALWAYS, "STRAW:    scope = %s", scope.c_str());
-      HEXAGON_PRINT(ALWAYS, "STRAW:    order = %d", order);
-      for (int i = 0; i < order; ++i) {
-        HEXAGON_PRINT(ALWAYS, "STRAW:      dim = %d", shape[i]);
-      }
+  Device dev;
+  dev.device_type = static_cast<DLDeviceType>(device_type);
+  dev.device_id = device_id;
 
-      Device dev;
-      dev.device_type = static_cast<DLDeviceType>(device_type);
-      dev.device_id = device_id;
+  DLDataType type_hint;
+  type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
+  type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
+  type_hint.lanes = 1;
 
-      DLDataType type_hint;
-      type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
-      type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
-      type_hint.lanes = 1;
+  HexagonDeviceAPIv2* hexapi = HexagonDeviceAPIv2::Global();
+  HexagonBuffer* hexbuf = reinterpret_cast<HexagonBuffer*>(
+      hexapi->AllocVtcmWorkspace(dev, ndim, shape.data(), type_hint, String(scope)));
 
-      HexagonDeviceAPIv2* hexapi = HexagonDeviceAPIv2::Global();
-      HexagonBuffer* hexbuf = reinterpret_cast<HexagonBuffer*>(
-          hexapi->AllocVtcmWorkspace(dev, order, shape.data(), type_hint, String(scope)));
+  // Assumes a single contiguous allocation
+  // TODO(Straw): Enable discontiguous allocation after RFC 39 lands
+  void* ptr = hexbuf->GetPointer()[0];
+  vtcmallocs[ptr] = hexbuf;
+  *rv = ptr;
+});
 
-      void* ptr = hexbuf->GetPointer()[0];
-      vtcmallocs[ptr] = hexbuf;
-      *rv = ptr;
-    });
+TVM_REGISTER_GLOBAL("device_api.hexagon.FreeNd").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int32_t device_type = args[0];
+  int32_t device_id = args[1];
+  std::string scope = args[2];
+  CHECK(scope.find("vtcm") != std::string::npos);
+  void* ptr = args[3];
+  CHECK(vtcmallocs.find(ptr) != vtcmallocs.end());
 
-// TODO: no scope
-TVM_REGISTER_GLOBAL("device_api.hexagon.FreeNdWithScope")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      int32_t device_type = args[0];
-      int32_t device_id = args[1];
-      std::string scope = args[2];  // TODO: check scope = vtcm
-      void* ptr = args[3];
-      HexagonBuffer* hexbuf = vtcmallocs[ptr];
+  HexagonBuffer* hexbuf = vtcmallocs[ptr];
 
-      Device dev;
-      dev.device_type = static_cast<DLDeviceType>(device_type);
-      dev.device_id = device_id;
+  Device dev;
+  dev.device_type = static_cast<DLDeviceType>(device_type);
+  dev.device_id = device_id;
 
-      HexagonDeviceAPIv2* hexapi = HexagonDeviceAPIv2::Global();
-      hexapi->FreeVtcmWorkspace(dev, hexbuf);
-      *rv = static_cast<int32_t>(0);
-    });
+  HexagonDeviceAPIv2* hexapi = HexagonDeviceAPIv2::Global();
+  hexapi->FreeVtcmWorkspace(dev, hexbuf);
+  *rv = static_cast<int32_t>(0);
+});
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.v2").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = HexagonDeviceAPIv2::Global();

@@ -17,12 +17,16 @@
  * under the License.
  */
 
+
 #ifndef TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_DEVICE_API_V2_H_
 #define TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_DEVICE_API_V2_H_
 
 #include <tvm/runtime/device_api.h>
 
 #include <unordered_map>
+#include <map>
+#include <vector>
+#include <string>
 
 namespace tvm {
 namespace runtime {

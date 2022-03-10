@@ -438,44 +438,45 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
   initialized_ = true;
 }
 
-TVM_REGISTER_GLOBAL("device_api.opencl.AllocNdWithScope")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      int32_t device_type = args[0];
-      int32_t device_id = args[1];
-      int32_t dtype_code_hint = args[2];
-      int32_t dtype_bits_hint = args[3];
-      std::string scope = args[4];  // TODO: check scope = texture
-      int64_t order = args[5];      // TODO: check order = 2
-      int64_t width = args[6];
-      int64_t height = args[7];
+TVM_REGISTER_GLOBAL("device_api.opencl.AllocNd").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int32_t device_type = args[0];
+  int32_t device_id = args[1];
+  int32_t dtype_code_hint = args[2];
+  int32_t dtype_bits_hint = args[3];
+  std::string scope = args[4];
+  CHECK(scope.find("texture") != std::string::npos);
+  int64_t ndim = args[5];
+  CHECK_EQ(ndim, 2);
+  int64_t width = args[6];
+  int64_t height = args[7];
 
-      Device dev;
-      dev.device_type = static_cast<DLDeviceType>(device_type);
-      dev.device_id = device_id;
+  Device dev;
+  dev.device_type = static_cast<DLDeviceType>(device_type);
+  dev.device_id = device_id;
 
-      DLDataType type_hint;
-      type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
-      type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
-      type_hint.lanes = 1;
+  DLDataType type_hint;
+  type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
+  type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
+  type_hint.lanes = 1;
 
-      OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
-      *rv = ptr->AllocTextureWorkspace(dev, static_cast<size_t>(width), static_cast<size_t>(height),
-                                       type_hint);
-    });
+  OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
+  *rv = ptr->AllocTextureWorkspace(dev, static_cast<size_t>(width), static_cast<size_t>(height),
+                                   type_hint);
+});
 
-TVM_REGISTER_GLOBAL("device_api.opencl.FreeNdWithScope")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      int32_t device_type = args[0];
-      int32_t device_id = args[1];
-      std::string scope = args[2];  // TODO: check scope = texture
-      void* data = args[3];
-      OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
-      Device dev;
-      dev.device_type = static_cast<DLDeviceType>(device_type);
-      dev.device_id = device_id;
-      ptr->FreeTextureWorkspace(dev, data);
-      *rv = static_cast<int32_t>(0);
-    });
+TVM_REGISTER_GLOBAL("device_api.opencl.FreeNd").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int32_t device_type = args[0];
+  int32_t device_id = args[1];
+  std::string scope = args[2];
+  CHECK(scope.find("texture") != std::string::npos);
+  void* data = args[3];
+  OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
+  Device dev;
+  dev.device_type = static_cast<DLDeviceType>(device_type);
+  dev.device_id = device_id;
+  ptr->FreeTextureWorkspace(dev, data);
+  *rv = static_cast<int32_t>(0);
+});
 
 TVM_REGISTER_GLOBAL("device_api.opencl").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = OpenCLWorkspace::Global();
