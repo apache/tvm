@@ -359,7 +359,7 @@ done
 # Use nvidia-docker for GPU container.  If nvidia-docker is not
 # available, fall back to using "--gpus all" flag, requires docker
 # version 19.03 or higher.
-if [ "$USE_GPU" == "true" ] && [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* || "${DOCKER_IMAGE_NAME}" == *"cuda"* ]]; then
+if [[ "$USE_GPU" == "true" ]] && [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* || "${DOCKER_IMAGE_NAME}" == *"cuda"* ]]; then
     if type nvidia-docker 1> /dev/null 2> /dev/null; then
         DOCKER_BINARY=nvidia-docker
     else

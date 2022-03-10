@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument("--sccache-bucket", required=False, help="sccache bucket name")
     parser.add_argument("--num-executors", required=True, help="number of Jenkins executors")
     parser.add_argument("--build-dir", default="build", help="build folder")
-    parser.add_argument("--target", help="optional build target")
+    parser.add_argument("--cmake-target", help="optional build target")
     args = parser.parse_args()
 
     env = {"VTA_HW_PATH": str(Path(os.getcwd()) / "3rdparty" / "vta-hw")}
@@ -72,8 +72,8 @@ if __name__ == "__main__":
 
     sh.run("cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
     target = ""
-    if args.target:
-        target = args.target
+    if args.cmake_target:
+        target = args.cmake_target
     sh.run(f"cmake --build . -- {target} VERBOSE=1 -j{num_cpus}", cwd=build_dir)
 
     if use_sccache:
