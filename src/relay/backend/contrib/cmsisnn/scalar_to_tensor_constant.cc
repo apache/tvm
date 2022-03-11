@@ -67,7 +67,7 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
     Expr final_call = post;
     call = post.as<CallNode>();
 
-    // Substitute scalar variable with a tensor variable in qnn.add and qnn.mul ops
+    // Substitute scalar variable with a tensor variable.
     if (call->op.as<OpNode>()) {
       final_call = ReplaceScalarWithTensorVariable(GetRef<Call>(call));
     }
@@ -94,12 +94,30 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
     return final_call;
   }
 
-  // Replaces scalar variable with a tensor variable with same shape as that of the neibouring
+  // Checks if expr can undergo scalar to tensor replacement
+  bool WorthyOfScalarToTensorReplacement(const Expr& expr) {
+    if (const CallNode* call = expr.as<CallNode>()) {
+      if (const OpNode* opnode = call->op.as<OpNode>()) {
+        if (opnode->name == "qnn.add" || opnode->name == "qnn.mul") {
+          return true;
+        }
+      }
+    }
+    if (const FunctionNode* func = expr.as<FunctionNode>()) {
+      auto func_name = func->GetAttr<String>(attr::kComposite);
+      if (func_name.defined() &&
+          (func_name == "cmsis-nn.qnn_add" || func_name == "cmsis-nn.qnn_mul")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Replaces scalar variable with a tensor variable with same shape as that of the neighbouring
   // operand tensor in a binary op (add or multiply supported via CMSIS-NN path). This applies only
   // to 1st and 2nd arguments of the ops.
   Call ReplaceScalarWithTensorVariable(Call call) {
-    const OpNode* opnode = call->op.as<OpNode>();
-    if (opnode == nullptr || (opnode->name != "qnn.add" && opnode->name != "qnn.mul")) {
+    if (!WorthyOfScalarToTensorReplacement(call)) {
       return call;
     }
     Array<Expr> new_args(call->args);
@@ -124,13 +142,11 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
     return Call(call->op, new_args, call->attrs, {});
   }
 
-  // Replaces scalar constant with a tensor constant with same shape as that of the neibouring
+  // Replaces scalar constant with a tensor constant with same shape as that of the neighbouring
   // operand tensor in a binary op (add or multiply supported via CMSIS-NN path). This applies only
   // to 1st and 2nd arguments of the ops.
   Call ReplaceScalarWithTensorConstant(Call call, Function func) {
-    auto func_name = func->GetAttr<String>(attr::kComposite);
-    if (!func_name.defined() ||
-        (func_name != "cmsis-nn.qnn_add" && func_name != "cmsis-nn.qnn_mul")) {
+    if (!WorthyOfScalarToTensorReplacement(func)) {
       return call;
     }
     Array<Expr> new_args(call->args);
