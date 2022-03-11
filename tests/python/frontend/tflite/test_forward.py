@@ -2051,7 +2051,10 @@ def test_all_unary_elemwise():
     # ceil and cos come with TFLite 1.14.0.post1 fbs schema
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         _test_forward_unary_elemwise(_test_ceil)
-        _test_forward_unary_elemwise(_test_cos, quant_dtype=np.int8)
+        if tf.__version__ < LooseVersion("2.6.1"):
+            _test_forward_unary_elemwise(_test_cos, quantized=False)
+        else:
+            _test_forward_unary_elemwise(_test_cos, quant_dtype=np.int8)
         _test_forward_unary_elemwise(_test_round)
         # This fails with TF and Tflite 1.15.2, this could not have been tested
         # in CI or anywhere else. The failure mode is that we see a backtrace
