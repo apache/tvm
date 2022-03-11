@@ -32,7 +32,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
-#include <tvm/runtime/contrib/libtorch/libtorch_runtime.h>
+#include <tvm/runtime/contrib/libtorch_runtime.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/op.h>
