@@ -26,7 +26,6 @@ from tvm.relay import Any, const
 from tvm.relay import Function as RelayFunc
 from tvm.runtime import NDArray, Object
 from tvm.target import Target
-from tvm.tir import PrimFunc
 
 from . import _ffi_api
 from .database import Database
