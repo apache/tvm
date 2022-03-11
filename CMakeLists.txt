@@ -67,6 +67,7 @@ tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack t
 tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
 tvm_option(USE_PAPI "Use Performance Application Programming Interface (PAPI) to read performance counters" OFF)
 tvm_option(USE_GTEST "Use GoogleTest for C++ sanity tests" AUTO)
+tvm_option(USE_CUSTOM_LOGGING "Use user-defined custom logging, tvm::runtime::detail::LogFatalImpl and tvm::runtime::detail::LogMessageImpl must be implemented" OFF)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -612,7 +613,8 @@ if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   # once minimum CMake version is bumped up to 3.13 or above.
   target_link_libraries(tvm PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
   target_link_libraries(tvm_runtime PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_compile_definitions(tvm_allvisible PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
+  target_compile_definitions(tvm_allvisible PUBLIC $<TARGET_PROPERTY:tvm,INTERFACE_COMPILE_DEFINITONS>)
+  target_compile_definitions(tvm_allvisible PRIVATE $<TARGET_PROPERTY:tvm,COMPILE_DEFINITONS>)
 endif()
 
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
@@ -625,6 +627,8 @@ if(GTEST_FOUND)
   target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main pthread dl)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
+  # For some reason, compile definitions are not propagated correctly, so we manually add them here
+  target_compile_definitions(cpptest PUBLIC $<TARGET_PROPERTY:tvm,INTERFACE_COMPILE_DEFINITIONS>)
   gtest_discover_tests(cpptest)
 endif()
 
