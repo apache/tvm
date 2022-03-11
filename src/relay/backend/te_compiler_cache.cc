@@ -224,7 +224,7 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
 
     LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(call_node), inputs, target_);
     Array<te::Tensor> outputs = lowered_out->outputs;
-    anchor_implementation_ = lowered_out->implementation;
+    op_implementations_[op.operator->()] = lowered_out->implementation;
 
     if (outputs.size() != 1) {
       const auto* tuple_type = call_node->checked_type().as<TupleTypeNode>();
@@ -276,8 +276,8 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
   Array<tvm::te::Tensor> fn_inputs_;
   Array<te::Operation> scalars_;
   std::unordered_map<const ConstantNode*, te::Tensor> constant_tensors_;
+  std::unordered_map<const OpNode*, OpImplementation> op_implementations_;
   std::string candidate_name_;
-  OpImplementation anchor_implementation_;
 
  private:
   tvm::Target target_;
@@ -300,7 +300,6 @@ class ScheduleBuilder : public ExprVisitor {
   }
 
   CachedFunc Create(const Function& relay_func, std::function<std::string(std::string)> renamer) {
-    LOG(INFO) << relay_func;
     LowerToTECompute lower_te_compute(target_);
     Array<te::Tensor> outputs = lower_te_compute.Lower(relay_func, renamer);
     Array<te::Tensor> fn_inputs = lower_te_compute.fn_inputs_;
@@ -350,11 +349,9 @@ class ScheduleBuilder : public ExprVisitor {
 
       // Use TOPI schedule if user specificed, or the function has no auto_scheduler schedule.
       if (!schedule.defined() && !prim_func.defined()) {
-        ICHECK(lower_te_compute.anchor_implementation_.defined());
-	LOG(INFO) << lower_te_compute.candidate_name_;
-	LOG(INFO) << anchor_attrs_;
-        schedule =
-            lower_te_compute.anchor_implementation_.Schedule(anchor_attrs_, tensor_outs, target_);
+        auto anchor_impl = lower_te_compute.op_implementations_.find(anchor_op_.operator->());
+        ICHECK(anchor_impl != lower_te_compute.op_implementations_.end());
+        schedule = anchor_impl->second.Schedule(anchor_attrs_, tensor_outs, target_);
       }
       if (schedule.defined()) {
         for (const auto& scalar : lower_te_compute.scalars_) {
