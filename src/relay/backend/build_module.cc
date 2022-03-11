@@ -333,14 +333,7 @@ class RelayBuildModule : public runtime::ModuleNode {
   IRModule OptimizeImpl(IRModule relay_module) {
     ICHECK(relay_module.defined()) << "The IRModule must be defined for the Relay compiler.";
 
-    if (!params_.empty()) {
-      ICHECK(relay_module->ContainGlobalVar("main")) << "Missing the main entry function";
-      GlobalVar main_glb_var = relay_module->GetGlobalVar("main");
-      Function main_func = Downcast<Function>(relay_module->Lookup(main_glb_var));
-      auto new_main = BindParamsByName(main_func, params_);
-      IRModuleNode* relay_module_ptr = relay_module.CopyOnWrite();
-      relay_module_ptr->Update(main_glb_var, new_main);
-    }
+    backend::BindParamsInModule(relay_module, params_);
 
     Array<Pass> pass_seqs = GetPassPrefix(
         /*is_homogenous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/false);

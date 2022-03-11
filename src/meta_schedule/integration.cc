@@ -26,9 +26,8 @@ namespace tvm {
 namespace meta_schedule {
 
 /**************** Utility functions ****************/
-
-template <class FunctionType>
-Optional<FunctionType> GetOnlyOneFunction(const IRModule& mod) {
+template <class FunctionType, class RetType, class Callback>
+Optional<RetType> GetOnlyOneFunctionCommon(const IRModule& mod, Callback on_found) {
   if (mod->functions.size() != 1) {
     return NullOpt;
   }
@@ -37,10 +36,21 @@ Optional<FunctionType> GetOnlyOneFunction(const IRModule& mod) {
     if (!func->IsInstance<typename FunctionType::ContainerType>()) {
       return NullOpt;
     } else {
-      return Downcast<FunctionType>(func);
+      return on_found(kv);
     }
   }
   return NullOpt;
+}
+
+template <class FunctionType>
+Optional<GlobalVar> GetOnlyOneFunctionKey(const IRModule& mod) {
+  return GetOnlyOneFunctionCommon<FunctionType, GlobalVar>(mod, [](auto kv) { return kv.first; });
+}
+
+template <class FunctionType>
+Optional<FunctionType> GetOnlyOneFunction(const IRModule& mod) {
+  return GetOnlyOneFunctionCommon<FunctionType, FunctionType>(
+      mod, [](auto kv) { return Downcast<FunctionType>(kv.second); });
 }
 
 template <class FunctionType>
@@ -86,31 +96,13 @@ void MetaScheduleContext::ExitWithScope() {
   ctx = NullOpt;
 }
 
-Optional<ObjectRef> MetaScheduleContext::QueryInsideWithScope(
-    runtime::String task_name, IRModule mod, Target target, Optional<Array<IRModule>> dispatched) {
+IRModule MetaScheduleContext::QueryInsideWithScope(runtime::String task_name, IRModule mod,
+                                                   Target target,
+                                                   Optional<Array<IRModule>> dispatched) {
   if (Optional<MetaScheduleContext> ctx = MetaScheduleContext::Current()) {
     return ctx.value()->Query(task_name, mod, target, dispatched);
   }
-  return NullOpt;
-}
-
-/**************** TaskExtraction ****************/
-
-TaskExtraction::TaskExtraction() {
-  ObjectPtr<TaskExtractionNode> n = make_object<TaskExtractionNode>();
-  n->tasks = Array<ExtractedTask>();
-  data_ = n;
-}
-
-Optional<ObjectRef> TaskExtractionNode::Query(runtime::String task_name, IRModule mod,
-                                              Target target, Optional<Array<IRModule>> dispatched) {
-  ICHECK(dispatched.defined());
-  ICHECK_EQ(dispatched.value().size(), 1);
-  IRModule prim_mod = dispatched.value()[0];
-  ICHECK(HasOnlyOneFunction<tir::PrimFunc>(prim_mod)) << prim_mod;
-  ICHECK(HasOnlyOneFunction<relay::Function>(mod)) << mod;
-  tasks.push_back(ExtractedTask(task_name, mod, target, {prim_mod}));
-  return NullOpt;
+  return IRModule{nullptr};
 }
 
 /**************** ApplyHistoryBest ****************/
@@ -121,14 +113,18 @@ ApplyHistoryBest::ApplyHistoryBest(Database database) {
   data_ = n;
 }
 
-Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod,
-                                                Target target,
-                                                Optional<Array<IRModule>> dispatched) {
+IRModule ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod, Target target,
+                                     Optional<Array<IRModule>> dispatched) {
   ICHECK(dispatched.defined());
   ICHECK_EQ(dispatched.value().size(), 1);
   ICHECK(HasOnlyOneFunction<relay::Function>(mod)) << mod;
   IRModule prim_mod = dispatched.value()[0];
   ICHECK(HasOnlyOneFunction<tir::PrimFunc>(prim_mod)) << prim_mod;
+  // TODO(masahi): parse_mod below replaces the orginal function key with "main".
+  // This is necessary because some scheduling primitives requires the PrimFunc key be "main".
+  // If we can remove this restriction, there would no need for GetOnlyOneFunction* calls below
+  // and we can directly return sch->mod().
+  auto gv = GetOnlyOneFunctionKey<tir::PrimFunc>(prim_mod).value();
   // Unify func name to make sure it can be found in database
   const auto* parse_mod_func = runtime::Registry::Get("tvm.meta_schedule.tune.parse_mod");
   ICHECK(parse_mod_func) << "Parse mod function not defined!";
@@ -141,11 +137,11 @@ Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRMod
                                 /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
       records[0]->trace->ApplyToSchedule(sch, false);
       tir::PrimFunc func = GetOnlyOneFunction<tir::PrimFunc>(sch->mod()).value();
-      return func;
+      return IRModule({{gv, func}});
     }
   }
   LOG(WARNING) << "Cannot find workload: " << task_name << "\n" << tir::AsTVMScript(prim_mod);
-  return NullOpt;
+  return IRModule{nullptr};
 }
 
 /**************** FFI ****************/
@@ -158,7 +154,6 @@ class MetaScheduleContextInternal {
 
 TVM_REGISTER_NODE_TYPE(ExtractedTaskNode);
 TVM_REGISTER_OBJECT_TYPE(MetaScheduleContextNode);
-TVM_REGISTER_NODE_TYPE(TaskExtractionNode);
 TVM_REGISTER_NODE_TYPE(ApplyHistoryBestNode);
 
 TVM_REGISTER_GLOBAL("meta_schedule.ExtractedTask")
@@ -176,9 +171,6 @@ TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextQueryInsideWithScope")
     .set_body_typed(MetaScheduleContext::QueryInsideWithScope);
 TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextQuery")
     .set_body_method<MetaScheduleContext>(&MetaScheduleContextNode::Query);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskExtraction").set_body_typed([]() -> TaskExtraction {
-  return TaskExtraction();
-});
 TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBest")
     .set_body_typed([](Database database) -> ApplyHistoryBest {
       return ApplyHistoryBest(database);

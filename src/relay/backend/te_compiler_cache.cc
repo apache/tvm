@@ -47,6 +47,7 @@
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
 #include "../transforms/pass_utils.h"
+#include "tvm/runtime/object.h"
 #include "utils.h"
 
 namespace tvm {
@@ -335,15 +336,14 @@ class ScheduleBuilder : public ExprVisitor {
         }
       }
       if (backend::IsMetaScheduleEnabled()) {
-        prim_func = tir::CreatePrimFunc(Concat(fn_inputs, tensor_outs));
-        Optional<ObjectRef> opt_mod_or_base_func =
-            meta_schedule::MetaScheduleContext::QueryInsideWithScope(
-                prim_fn_var->name_hint, IRModule({{prim_fn_var, relay_func}}), target_,
-                Array<IRModule>{IRModule({{prim_fn_var, prim_func}})});
-        if (const auto* result = opt_mod_or_base_func.as<tir::PrimFuncNode>()) {
-          prim_func = GetRef<tir::PrimFunc>(result);
-        } else {
-          prim_func = tir::PrimFunc(nullptr);
+        auto relay_mod = IRModule({{prim_fn_var, relay_func}});
+        auto tir_mod =
+            IRModule({{prim_fn_var, tir::CreatePrimFunc(Concat(fn_inputs, tensor_outs))}});
+        IRModule scheduled_mod = meta_schedule::MetaScheduleContext::QueryInsideWithScope(
+            prim_fn_var->name_hint, relay_mod, target_, Array<IRModule>{tir_mod});
+        if (scheduled_mod.defined()) {
+          ICHECK_EQ(scheduled_mod->functions.count(prim_fn_var), 1);
+          prim_func = Downcast<tir::PrimFunc>(scheduled_mod->functions[prim_fn_var]);
         }
       }
 
@@ -752,6 +752,24 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
 CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,
                         std::function<std::string(std::string)> renamer) {
   return MakeShapeFunc().Create(prim_func, target, renamer);
+}
+
+std::pair<Array<te::Tensor>, std::string> LowerTECompute(const Function& source_func, Target target,
+                                                         bool return_inputs) {
+  LowerToTECompute lower_te_compute(target);
+  auto outputs = lower_te_compute.Lower(source_func, [&](std::string name) { return name; });
+  // Following ScheduleBuilder, remove placeholder ops from outputs.
+  tvm::Array<te::Tensor> tensor_outs;
+  for (const auto& tensor : outputs) {
+    if (!tensor->op.as<te::PlaceholderOpNode>()) {
+      tensor_outs.push_back(tensor);
+    }
+  }
+  if (return_inputs) {
+    return std::make_pair(Concat(lower_te_compute.fn_inputs_, tensor_outs),
+                          lower_te_compute.candidate_name_);
+  }
+  return std::make_pair(tensor_outs, lower_te_compute.candidate_name_);
 }
 
 /*!

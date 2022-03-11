@@ -92,7 +92,7 @@ class MetaScheduleContextNode : public runtime::Object {
    *         3) relay::Function if `mod` should be dispatched to BYOC workflow
    *         4) IRModule for unified dispatch
    */
-  virtual Optional<ObjectRef> Query(runtime::String task_name, IRModule mod, Target target,
+  virtual IRModule Query(runtime::String task_name, IRModule mod, Target target,
                                     Optional<Array<IRModule>> dispatched) = 0;
 
   static constexpr const char* _type_key = "meta_schedule.MetaScheduleContext";
@@ -129,7 +129,7 @@ class MetaScheduleContext : public runtime::ObjectRef {
    *         3) relay::Function if `mod` should be dispatched to BYOC workflow
    *         4) IRModule for unified dispatch
    */
-  static Optional<ObjectRef> QueryInsideWithScope(runtime::String task_name, IRModule mod,
+  static IRModule QueryInsideWithScope(runtime::String task_name, IRModule mod,
                                                   Target target,
                                                   Optional<Array<IRModule>> dispatched);
 
@@ -143,38 +143,6 @@ class MetaScheduleContext : public runtime::ObjectRef {
   void EnterWithScope();
   /*! \brief Exiting the scope of the context manager */
   void ExitWithScope();
-};
-
-/**************** TaskExtraction ****************/
-
-/*!
- * \brief An integration context for task extraction
- */
-class TaskExtractionNode : public MetaScheduleContextNode {
- public:
-  /*! \brief The extracted tasks */
-  Array<ExtractedTask> tasks{nullptr};
-
-  void VisitAttrs(AttrVisitor* v) { v->Visit("tasks", &tasks); }
-
-  // Inherited from base class
-  Optional<ObjectRef> Query(runtime::String task_name, IRModule mod, Target target,
-                            Optional<Array<IRModule>> dispatched) final;
-
-  static constexpr const char* _type_key = "meta_schedule.TaskExtraction";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TaskExtractionNode, MetaScheduleContextNode);
-};
-
-/*!
- * \brief Managed reference to TaskExtractionNode
- * \sa TaskExtractionNode
- */
-class TaskExtraction : public MetaScheduleContext {
- public:
-  /*! \brief The path to a cache file storing extracted tasks */
-  TaskExtraction();
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TaskExtraction, MetaScheduleContext,
-                                                    TaskExtractionNode);
 };
 
 /**************** ApplyHistoryBest ****************/
@@ -193,7 +161,7 @@ class ApplyHistoryBestNode : public MetaScheduleContextNode {
   }
 
   // Inherited from base class
-  Optional<ObjectRef> Query(runtime::String task_name, IRModule mod, Target target,
+  IRModule Query(runtime::String task_name, IRModule mod, Target target,
                             Optional<Array<IRModule>> dispatched) final;
 
   static constexpr const char* _type_key = "meta_schedule.ApplyHistoryBest";

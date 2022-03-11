@@ -18,9 +18,12 @@
 from contextlib import contextmanager
 from typing import Callable, Dict, List, Optional, Union
 
-from tvm._ffi import register_object
+import numpy as np
+import tvm.runtime.ndarray as nd
+
+from tvm._ffi import register_object, get_global_func
 from tvm.ir import IRModule, transform
-from tvm.relay import Any
+from tvm.relay import Any, const
 from tvm.relay import Function as RelayFunc
 from tvm.relay import vm
 from tvm.runtime import NDArray, Object
@@ -176,17 +179,6 @@ class MetaScheduleContext(Object):
         _ffi_api.MetaScheduleContextExitScope(self)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("meta_schedule.TaskExtraction")
-class TaskExtraction(MetaScheduleContext):
-    """An integration context for task extraction"""
-
-    tasks: List[ExtractedTask]
-    """The extracted tasks"""
-
-    def __init__(self) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.TaskExtraction)  # type: ignore # pylint: disable=no-member
-
-
 @register_object("meta_schedule.ApplyHistoryBest")
 class ApplyHistoryBest(MetaScheduleContext):
     """An integration context that allows application of historically best record from database"""
@@ -230,45 +222,30 @@ def extract_task_from_relay(
         The tasks extracted from this network
     """
 
-    @contextmanager
-    def _autotvm_silencer():
-        from tvm import autotvm  # pylint: disable=import-outside-toplevel
+    extract_task_func = get_global_func("relay.backend.MetaScheduleExtractTask")
+    assert extract_task_func
 
-        silent = autotvm.GLOBAL_SCOPE.silent
-        autotvm.GLOBAL_SCOPE.silent = True
-        try:
-            yield
-        finally:
-            autotvm.GLOBAL_SCOPE.silent = silent
+    target = Target(target) if isinstance(target, str) else target
 
-    def _thread_run(func: Callable[[], None]) -> None:
-        import threading  # pylint: disable=import-outside-toplevel
-
-        thread = threading.Thread(target=func)
-        thread.start()
-        thread.join()
+    relay_params = {}
+    for name, param in params.items():
+        if isinstance(param, np.ndarray):
+            param = nd.array(param)
+        relay_params[name] = const(param)
 
     if disabled_pass is None:
         disabled_pass = []
-    if pass_config is None:
-        pass_config = {"relay.backend.use_meta_schedule": True}
 
-    env = TaskExtraction()
     if isinstance(mod, RelayFunc):
         mod = IRModule.from_expr(mod)
     if not isinstance(target, Target):
         target = Target(target)
 
-    def _func():
-        with env, _autotvm_silencer(), transform.PassContext(
-            config=pass_config,
-            disabled_pass=disabled_pass,
-            opt_level=opt_level,
-        ):
-            compiler = vm.VMCompiler()
-            if params:
-                compiler.set_params(params)
-            compiler.lower(mod, target)
-
-    _thread_run(_func)
-    return env.tasks
+    with target, transform.PassContext(
+        opt_level=opt_level,
+        config=pass_config,
+        disabled_pass=disabled_pass,
+    ):
+        tasks = extract_task_func(mod, target, relay_params)
+        # Tasks are extracted via post order visit, return the reversed list.
+        return list(reversed(tasks))
