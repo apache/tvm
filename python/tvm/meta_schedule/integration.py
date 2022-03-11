@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta schedule integration with high-level IR"""
-from contextlib import contextmanager
-from typing import Callable, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import tvm.runtime.ndarray as nd
@@ -25,7 +24,6 @@ from tvm._ffi import register_object, get_global_func
 from tvm.ir import IRModule, transform
 from tvm.relay import Any, const
 from tvm.relay import Function as RelayFunc
-from tvm.relay import vm
 from tvm.runtime import NDArray, Object
 from tvm.target import Target
 from tvm.tir import PrimFunc
