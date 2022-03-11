@@ -360,7 +360,8 @@ def test_fake_quantize_reshape():
 
     compare_fq_to_int(op, [x_np])
 
-def test_fake_quantize_resize_bilinear():
+
+def test_fake_quantize_image_resize_bilinear():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 
     zero = relay.const(0)
