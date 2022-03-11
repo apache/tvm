@@ -23,7 +23,6 @@
 #include <dmlc/json.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/spsc_queue.h>
 
 #include <atomic>
 #include <condition_variable>
@@ -35,6 +34,8 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+#include "spsc_queue.h"
 namespace tvm {
 namespace runtime {
 #define GLOBAL_MODULE_INDEX -1
@@ -128,7 +129,7 @@ class DataNotify {
   /*!\brief Whether the thread should exit or not.*/
   std::atomic<bool> exit_state_{false};
   /*!
-   * \brief The 'ModuleInterfaceID' of a interface which is going to receive the notification
+   * \brief The 'ModuleInterfaceID' of an interface which is going to receive the notification
    *  and data.
    */
   ModuleInterfaceID notification_source_;
@@ -235,7 +236,7 @@ class QueueData {
   int device_id_;
 };
 /*!
- * \brief All binding information of a output interface.
+ * \brief All binding information of an output interface.
  */
 class ConfigBindings {
  public:
@@ -362,7 +363,7 @@ class ConfigOutputBindings {
     return ret;
   }
   /*!
-   * \brief Create a output binding map from JSONReader.
+   * \brief Create an output binding map from JSONReader.
    * \param reader Json reader.
    */
   void Load(dmlc::JSONReader* reader) {
@@ -515,7 +516,7 @@ struct InputConnectionConfig {
     return input_connection[key];
   }
   /*!
-   * \brief Create a input connection config from JSONReader.
+   * \brief Create an input connection config from JSONReader.
    * \param reader Json reader.
    */
   void Load(dmlc::JSONReader* reader) {
@@ -879,7 +880,7 @@ class BackendRuntime {
     StartWorkThread();
   }
   /*!
-   * \brief Notifying a input is ready.
+   * \brief Notifying an input is ready.
    * \param input_index The index of 'input interface' which is ready for data.
    */
   void ParentNotify(int input_index) {
@@ -898,7 +899,7 @@ class BackendRuntime {
     return CreateNDArrayFromDLTensor(const_cast<DLTensor*>(data.operator->()));
   }
   /*!
-   * \brief Generate the ID of a input queue.
+   * \brief Generate the ID of an input queue.
    * \param runtime_index The index of backend runtime.
    * \param interface_index The index of the interface.
    * \param type The type of the interface.

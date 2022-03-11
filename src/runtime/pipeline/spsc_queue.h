@@ -16,18 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_RUNTIME_SPSC_QUEUE_H_
-#define TVM_RUNTIME_SPSC_QUEUE_H_
+#ifndef TVM_RUNTIME_PIPELINE_SPSC_QUEUE_H_
+#define TVM_RUNTIME_PIPELINE_SPSC_QUEUE_H_
 #include <cstddef>
 #include <thread>
-#define read_barrier() std::atomic_thread_fence(std::memory_order_acquire)
-#define write_barrier() std::atomic_thread_fence(std::memory_order_release)
 /*!\brief A single producer and single consumer lock free queue.
  */
 template <typename SlotType, typename IDType = int, int QueueLength = 1024>
 class SPSCLockFreeQueue {
  public:
   explicit SPSCLockFreeQueue(IDType id) : id_(id) {}
+  /*A read barrier enforcing the CPU to performe the reads before this barrier.*/
+  inline void read_barrier() { std::atomic_thread_fence(std::memory_order_acquire); }
+  /*A write barrier enforcing the CPU to performe the writes before this barrier.*/
+  inline void write_barrier() { std::atomic_thread_fence(std::memory_order_release); }
   /*!\brief Checking whether the queue is full.*/
   bool Full() {
     read_barrier();
@@ -78,4 +80,4 @@ class SPSCLockFreeQueue {
   /*!\brief The ID of the queue.*/
   IDType id_;
 };
-#endif  // TVM_RUNTIME_SPSC_QUEUE_H_
+#endif  // TVM_RUNTIME_PIPELINE_SPSC_QUEUE_H_
