@@ -148,12 +148,16 @@ void PassDownDomain(const Stage& stage, std::unordered_map<IterVar, Range>* p_st
       };
       if (r->factor.defined()) {
         Update(p_state, r->inner,
-               Range::FromMinExtent(0, resolve_min_extent_for_split(r->inner, r->factor)), actx);
+               Range::FromMinExtent(0, cast(range_parent->extent.dtype(),
+                                            resolve_min_extent_for_split(r->inner, r->factor))),
+               actx);
         Update(p_state, r->outer,
                Range::FromMinExtent(0, ceil_div(range_parent->extent, r->factor)), actx);
       } else {
         Update(p_state, r->outer,
-               Range::FromMinExtent(0, resolve_min_extent_for_split(r->outer, r->nparts)), actx);
+               Range::FromMinExtent(0, cast(range_parent->extent.dtype(),
+                                            resolve_min_extent_for_split(r->outer, r->nparts))),
+               actx);
         Update(p_state, r->inner,
                Range::FromMinExtent(0, ceil_div(range_parent->extent, r->nparts)), actx);
       }

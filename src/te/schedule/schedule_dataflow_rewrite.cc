@@ -789,21 +789,18 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor, const IterVar& axis, int f
   n->name = compute_op->name + ".rf";
   {
     // axis relacement.
-    auto iv_node = make_object<IterVarNode>();
-    iv_node->dom = dom_map.at(axis);
-    ICHECK(is_zero(iv_node->dom->min)) << "Can only factor reduction domain starting from 0";
-    iv_node->var = axis->var;
-    iv_node->iter_type = kDataPar;
+    IterVar iv(dom_map.at(axis), axis->var, kDataPar);
+    ICHECK(is_zero(iv->dom->min)) << "Can only factor reduction domain starting from 0";
 
     const int size = compute_op->axis.size();
     for (int idx = 0; idx < size; ++idx) {
       if (factor_axis_pos == idx) {
-        n->axis.push_back(IterVar(iv_node));
+        n->axis.push_back(iv);
       }
       n->axis.push_back(compute_op->axis[idx]);
     }
     if (factor_axis_pos == size) {
-      n->axis.push_back(IterVar(iv_node));
+      n->axis.push_back(iv);
     }
   }
   // predicate generation, copy not touched axis.
@@ -832,9 +829,8 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor, const IterVar& axis, int f
   for (IterVar iv : reduce_stage->leaf_iter_vars) {
     if (touch_map.count(iv) && !iv.same_as(axis)) {
       ICHECK_EQ(iv->iter_type, kCommReduce);
-      auto ncpy = make_object<IterVarNode>(*iv.operator->());
-      ncpy->dom = dom_map.at(iv);
-      n->reduce_axis.push_back(IterVar(ncpy));
+      IterVar ncpy(dom_map.at(iv), iv->var, iv->iter_type, iv->thread_tag, iv->span);
+      n->reduce_axis.push_back(ncpy);
     }
   }
   VarReplacer replacer(vsub);

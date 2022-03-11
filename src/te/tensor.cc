@@ -31,7 +31,8 @@ namespace tvm {
 namespace te {
 
 IterVar thread_axis(Range dom, std::string tag) {
-  return IterVar(dom, Var(tag), kThreadIndex, tag);
+  return IterVar(dom, Var(tag, dom.defined() ? dom->extent.dtype() : DataType::Int(32)),
+                 kThreadIndex, tag);
 }
 
 IterVar reduce_axis(Range dom, std::string name) {

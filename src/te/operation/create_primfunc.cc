@@ -96,12 +96,10 @@ BlockRealize GenerateBlockFromTensor(const te::ComputeOp& compute_op, const te::
       Var new_var(iter_var->var->name_hint, iter_var->var->dtype);
       var_map[iter_var->var.get()] = new_var;
 
-      IterVarNode* iter_var_node = iter_var.CopyOnWrite();
       const PrimExpr& dom_min = analyzer->Simplify(iter_var->dom->min);
       const PrimExpr& dom_extent = analyzer->Simplify(iter_var->dom->extent);
-      iter_var_node->dom = Range::FromMinExtent(dom_min, dom_extent);
-      iter_var_node->var = new_var;
-      iter_vars.push_back(iter_var);
+      iter_vars.push_back(IterVar(Range::FromMinExtent(dom_min, dom_extent), new_var,
+                                  iter_var->iter_type, iter_var->thread_tag, iter_var->span));
     }
   };
   f_push_block_vars(compute_op->axis);
