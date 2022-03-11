@@ -62,6 +62,10 @@ def _has_torch():
 requires_torch = pytest.mark.skipif(not _has_torch(), reason="torch is not installed")
 
 
+def test_meta_schedule_integration_no_current():
+    assert MetaScheduleContext.current() is None
+
+
 @requires_torch
 def test_meta_schedule_integration_extract_from_resnet():
     mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
@@ -69,24 +73,24 @@ def test_meta_schedule_integration_extract_from_resnet():
     expected_task_names = [
         "fused_" + s
         for s in [
-            "nn_conv2d_add_2",
-            "nn_conv2d_add_1",
-            "nn_conv2d_add",
-            "nn_conv2d_add_nn_relu_7",
             "nn_max_pool2d",
-            "nn_conv2d_add_nn_relu_6",
-            "nn_conv2d_add_add_nn_relu_3",
-            "nn_conv2d_add_nn_relu_5",
-            "nn_conv2d_add_nn_relu_4",
-            "nn_conv2d_add_add_nn_relu_2",
-            "nn_conv2d_add_nn_relu_3",
-            "nn_conv2d_add_nn_relu_2",
-            "nn_conv2d_add_add_nn_relu_1",
-            "nn_conv2d_add_nn_relu_1",
-            "nn_conv2d_add_nn_relu",
-            "nn_conv2d_add_add_nn_relu",
             "nn_adaptive_avg_pool2d",
-            "nn_contrib_dense_pack_add",
+            "nn_dense_add",
+            "nn_conv2d_add",
+            "nn_conv2d_add_1",
+            "nn_conv2d_add_2",
+            "nn_conv2d_add_add_nn_relu",
+            "nn_conv2d_add_add_nn_relu_1",
+            "nn_conv2d_add_nn_relu",
+            "nn_conv2d_add_nn_relu_1",
+            "nn_conv2d_add_nn_relu_2",
+            "nn_conv2d_add_nn_relu_3",
+            "nn_conv2d_add_nn_relu_4",
+            "nn_conv2d_add_nn_relu_5",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_add_nn_relu",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_add_nn_relu_1",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu_1",
             # The two tasks below are purely spatial and are ruled out by AutoScheduler
             "layout_transform",
             "layout_transform_reshape_squeeze",

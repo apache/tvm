@@ -233,6 +233,8 @@ def extract_task_from_relay(
 
     if disabled_pass is None:
         disabled_pass = []
+    if pass_config is None:
+        pass_config = {"relay.backend.use_meta_schedule": True}
 
     if isinstance(mod, RelayFunc):
         mod = IRModule.from_expr(mod)
