@@ -246,6 +246,7 @@ if(USE_HEXAGON_RPC)
       "${TVMRT_SOURCE_DIR}/rpc/rpc_module.cc"
       "${TVMRT_SOURCE_DIR}/rpc/rpc_endpoint.cc"
       "${TVMRT_SOURCE_DIR}/rpc/rpc_session.cc"
+      # TODO(masahi): Remove rpc_local_session.cc after verifying that things work without it
       "${TVMRT_SOURCE_DIR}/rpc/rpc_local_session.cc"
     )
     # Add the hardware-specific RPC code into the skel library.

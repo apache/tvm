@@ -3156,6 +3156,27 @@ def func_T_ptr_allocate():
     return func_T_ptr_allocate
 
 
+def llvm_intrin_call():
+    @T.prim_func
+    def ctpop(A: T.Buffer[(16,), "uint8"], B: T.Buffer[(16,), "uint8"]) -> None:
+        for i in range(0, 16):
+            with T.block("A"):
+                vi = T.axis.remap(
+                    "S",
+                    [
+                        i,
+                    ],
+                )
+                B[vi] = T.call_llvm_pure_intrin(
+                    T.llvm_lookup_intrinsic_id("llvm.ctpop.i8"),
+                    T.uint32(1),
+                    A[vi],
+                    dtype="uint8",
+                )
+
+    return ctpop
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3186,6 +3207,7 @@ ir_generator = tvm.testing.parameter(
     func_root_attr,
     func_T_ptr_let_statement,
     func_T_ptr_allocate,
+    llvm_intrin_call,
 )
 
 

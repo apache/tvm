@@ -21,7 +21,7 @@ set -u
 set -o pipefail
 
 # install libraries for python package on ubuntu
-pip3 install \
+pip3 install --upgrade \
     attrs \
     cloudpickle \
     cython \

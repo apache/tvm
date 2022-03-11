@@ -1584,6 +1584,92 @@ class LegalizeSqueeze:
         pass
 
 
+class FullyConnectedRewriter(DFPatternCallback):
+    """Legalize Fully Connected (with bias and clip) to an NPU operator"""
+
+    def __init__(self):
+        super().__init__(require_type=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.FullyConnectedParams.composite_name})
+        )(wildcard())
+
+    def callback(self, pre, post, node_map):
+        params = ethosu_patterns.FullyConnectedParams(post.op.body)
+        params.ifm.tensor = post.args[0]
+
+        # IFM reshapes
+        ifm = post.args[0]
+        if len(params.ifm.shape) != 4 or not params.ifm.shape[1] == params.ifm.shape[2] == 1:
+            ifm = relay.reshape(ifm, (1, 1, 1, params.ifm.shape[-1]))
+
+        # Weight transformations
+        weights_values = params.weights.values
+        weights_values_ohwi = np.expand_dims(weights_values, axis=(1, 2))
+        if params.activation:
+            activation = "CLIP"
+            clip_min = int(params.activation.attrs.a_min)
+            clip_max = int(params.activation.attrs.a_max)
+        else:
+            activation = "NONE"
+            clip_min = 0
+            clip_max = 0
+        bias_values = (
+            params.biases.tensor.data.asnumpy()
+            if params.biases
+            else np.zeros((params.ofm.shape[-1]))
+        )
+        scale_bias = vela_api.pack_biases(
+            biases=bias_values,
+            ifm_scale=params.ifm.q_params.scale_f32,
+            ifm_dtype=np.dtype(params.ifm.dtype),
+            weight_scales=params.weights.q_params.scale_f32,
+            ofm_scale=params.ofm.q_params.scale_f32,
+            is_activation_tanh_or_sigmoid=False,
+        )
+        ethosu_fc = ethosu_ops.ethosu_conv2d(
+            ifm=ifm,
+            weight=relay.const(weights_values_ohwi, params.weights.values.dtype),
+            scale_bias=relay.const(scale_bias, "uint8"),
+            lut=relay.const([], dtype="int8"),
+            ifm_scale=float(params.ifm.q_params.scale_f32),
+            ifm_zero_point=int(params.ifm.q_params.zero_point),
+            weight_zero_point=int(params.weights.q_params.zero_point),
+            ofm_scale=float(params.ofm.q_params.scale_f32),
+            ofm_zero_point=int(params.ofm.q_params.zero_point),
+            kernel_shape=[1, 1],
+            ofm_channels=params.weights.shape[0],
+            strides=(1, 1),
+            padding=(0, 0, 0, 0),
+            dilation=(1, 1),
+            activation=activation,
+            clip_min=clip_min,
+            clip_max=clip_max,
+            upscale="NONE",
+            ifm_layout="NHWC",
+            ofm_layout="NHWC",
+        )
+
+        if len(params.ofm.shape) != 4 or not params.ofm.shape[1] == params.ofm.shape[2] == 1:
+            ethosu_fc = relay.reshape(ethosu_fc, params.ofm.shape)
+        return ethosu_fc
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeFullyConnected:
+    """This is the pass that wraps the FullyConnectedRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(FullyConnectedRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
 @ir.transform.module_pass(opt_level=1)
 class LegalizeEthosU:
     """This is the pass to call graph-rewrites to perform graph transformation
@@ -1621,6 +1707,7 @@ class LegalizeEthosU:
         mod = LegalizeSqueeze()(mod)
         mod = LegalizeReshape()(mod)
         mod = LegalizeStridedSlice()(mod)
+        mod = LegalizeFullyConnected()(mod)
         mod = LegalizeNoOps()(mod)
         return mod
 

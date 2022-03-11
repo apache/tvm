@@ -17,6 +17,7 @@
 import numpy as np
 import tvm
 from tvm import relay
+from tvm.relay.backend import Executor
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.testing import run_infer_type, create_workload
@@ -367,6 +368,24 @@ def test_fold_dropout():
         after_mod = passes(before_mod)
 
     tvm.ir.assert_structural_equal(run_infer_type(before_mod["main"]), after_mod["main"])
+
+
+def test_pass_link_params():
+    """
+    This test checks ensures that proper executor is passed to interpreter instance
+    The test will fail if FoldConstant does not override the executor due to "int8"
+    is not supported in ScheduleBuilder
+    """
+
+    def expr():
+        z = relay.const(10, dtype="int8")
+        return relay.cast(z, dtype="int32")
+
+    mod = tvm.IRModule.from_expr(expr())
+    mod = tvm.relay.transform.InferType()(mod)
+    # Add executor with link-params
+    mod = mod.with_attr("executor", Executor("aot", {"link-params": True}))
+    mod = tvm.relay.transform.FoldConstant()(mod)
 
 
 if __name__ == "__main__":

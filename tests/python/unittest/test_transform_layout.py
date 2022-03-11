@@ -222,28 +222,54 @@ class TestCompareAgainstExplicitReshape:
 
 class Test2DPhysicalLayout:
     transform_A = tvm.testing.parameter(
-        by_dict={
-            "2d_A": True,
-            "1d_A": False,
-        }
+        "1d_A",
+        "2d_A",
+        "2d_rev_A",
     )
     transform_B = tvm.testing.parameter(
-        by_dict={
-            "2d_B": True,
-            "1d_B": False,
-        }
+        "1d_B",
+        "2d_B",
+        "2d_rev_B",
     )
 
     @staticmethod
-    def extract_loop_vars(stmt):
-        output = []
+    def extract_logical_indices(stmt):
+        output = {}
 
+        # Since the for loops can be reordered by the layout
+        # transformation, identify the loop corresponding to each
+        # pre-transformation axis based on the iteration extent.
         def callback(node):
             if isinstance(node, tvm.tir.For):
-                output.append(node.loop_var)
+                output[node.loop_var] = node.extent.value
 
         post_order_visit(stmt, callback)
-        return output[::-1]
+        return sorted(output, key=output.get)
+
+    def get_transform(self, name):
+        name = name[:-2]
+        if name == "1d":
+            return None
+        elif name == "2d":
+            return lambda i, j, k: [i, j, te.AXIS_SEPARATOR, k]
+        elif name == "2d_rev":
+            return lambda i, j, k: [k, j, te.AXIS_SEPARATOR, i]
+        else:
+            raise ValueError(f"Unknown transformation: {name}")
+
+    def transform_indices(self, name, logical_shape, logical_index_vars):
+        name = name[:-2]
+
+        i, j, k = logical_index_vars
+
+        if name == "1d":
+            return [i * (logical_shape[1] * logical_shape[2]) + j * logical_shape[2] + k]
+        elif name == "2d":
+            return [i * logical_shape[1] + j, k]
+        elif name == "2d_rev":
+            return [k * logical_shape[1] + j, i]
+        else:
+            raise ValueError(f"Unknown transformation: {name}")
 
     def test_2d_physical(self, dtype, transform_A, transform_B):
         logical_shape = (2, 3, 4)
@@ -252,11 +278,13 @@ class Test2DPhysicalLayout:
 
         s = te.create_schedule(B.op)
 
-        if transform_A:
-            s[A].transform_layout(lambda i, j, k: [i, j, te.AXIS_SEPARATOR, k])
+        func = self.get_transform(transform_A)
+        if func:
+            s[A].transform_layout(func)
 
-        if transform_B:
-            s[B].transform_layout(lambda i, j, k: [i, j, te.AXIS_SEPARATOR, k])
+        func = self.get_transform(transform_B)
+        if func:
+            s[B].transform_layout(func)
 
         # If the two buffers are accessed with the same indices, CSE
         # will replace them with a Let binding.  Since this makes it
@@ -265,17 +293,17 @@ class Test2DPhysicalLayout:
         with tvm.transform.PassContext(disabled_pass=["tir.CommonSubexprElimTIR"]):
             mod = tvm.lower(s, [A, B])
 
-        i, j, k = self.extract_loop_vars(mod["main"].body)
-        indices_1d = [i * (logical_shape[1] * logical_shape[2]) + j * logical_shape[2] + k]
-        indices_2d = [i * logical_shape[1] + j, k]
+        logical_index_vars = self.extract_logical_indices(mod["main"].body)
+        expected_indices_A = self.transform_indices(transform_A, logical_shape, logical_index_vars)
+        expected_indices_B = self.transform_indices(transform_B, logical_shape, logical_index_vars)
 
         def callback(node):
             if type(node) in [tvm.tir.BufferLoad, tvm.tir.BufferStore]:
                 name = node.buffer.name
                 if name == "A":
-                    expected_indices = indices_2d if transform_A else indices_1d
+                    expected_indices = expected_indices_A
                 elif name == "B":
-                    expected_indices = indices_2d if transform_B else indices_1d
+                    expected_indices = expected_indices_B
                 else:
                     raise RuntimeError(f"Unexpected buffer: {name}")
 

@@ -322,9 +322,13 @@ class TECompilerImpl : public TECompilerNode {
     });
 
     if (value->cached_func->prim_func.defined()) {
-      VLOG(1) << "already have PrimFunc";
-      value->cached_func->funcs->Add(value->cached_func->prim_fn_var,
-                                     value->cached_func->prim_func.value());
+      VLOG(1) << "Lowering PrimFunc";
+      IRModule lowered = tvm::LowerPrimFunc(value->cached_func->prim_func.value(),
+                                            value->cached_func->prim_fn_var->name_hint, false);
+      ICHECK_EQ(lowered->functions.size(), 1);
+      for (const auto& kv : lowered->functions) {
+        value->cached_func->funcs->Add(value->cached_func->prim_fn_var, kv.second);
+      }
     } else {
       // NOTE: array will copy on write.
       Array<te::Tensor> all_args = Array<te::Tensor>(value->cached_func->inputs);

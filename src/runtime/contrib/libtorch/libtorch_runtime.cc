@@ -27,6 +27,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/contrib/libtorch_runtime.h>
 
 #include <ATen/dlpack.h>
 #include <ATen/DLConvertor.h>

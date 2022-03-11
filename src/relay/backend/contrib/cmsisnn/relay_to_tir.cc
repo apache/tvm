@@ -169,14 +169,12 @@ class RelayToTIRVisitor : public MixedModeMutator {
     int32_t out_channels = qnn::get_const_int(conv2d_attrs->channels);
     int32_t groups = conv2d_attrs->groups;
     std::string kernel_layout = conv2d_attrs->kernel_layout.c_str();
-    int32_t clip_min, clip_max;
+    int32_t clip_min = std::numeric_limits<int8_t>::min();
+    int32_t clip_max = std::numeric_limits<int8_t>::max();
     if (clip_call) {
       const ClipAttrs* clip_attrs = clip_call->attrs.as<ClipAttrs>();
       clip_min = clip_attrs->a_min;
       clip_max = clip_attrs->a_max;
-    } else {
-      clip_min = -128;
-      clip_max = 127;
     }
 
     tvm::Array<PrimExpr> scalar_args = {ToArg(input_offset), ToArg(output_offset), ToArg(stride_w),
@@ -504,8 +502,35 @@ class RelayToTIRVisitor : public MixedModeMutator {
                             buffer_creator.GetBufferMap(), args);
   }
 
+  struct BinaryElementwiseClipPattern {
+    Call binary_op;
+    Optional<Call> clip_op;
+  };
+
+  BinaryElementwiseClipPattern ParseBinaryElementwiseOpClipPattern(const Expr& expr) {
+    BinaryElementwiseClipPattern pattern;
+    Call final_call = GetRef<Call>(expr.as<CallNode>());
+    const OpNode* final_op = final_call->op.as<OpNode>();
+    if (final_op->name == "clip") {
+      pattern.clip_op = final_call;
+      pattern.binary_op = GetRef<Call>(final_call->args[0].as<CallNode>());
+    } else {
+      pattern.binary_op = final_call;
+      pattern.clip_op = Optional<Call>{nullptr};
+    }
+    return pattern;
+  }
+
   void EmitMul(const GlobalVar& global_var, const Expr& expr) {
-    auto* mul_call = expr.as<CallNode>();
+    int32_t output_min = std::numeric_limits<int8_t>::min();
+    int32_t output_max = std::numeric_limits<int8_t>::max();
+    const auto& pattern = ParseBinaryElementwiseOpClipPattern(expr);
+    Call mul_call = pattern.binary_op;
+    if (pattern.clip_op) {
+      const ClipAttrs* clip_attrs = pattern.clip_op.value()->attrs.as<ClipAttrs>();
+      output_min = clip_attrs->a_min;
+      output_max = clip_attrs->a_max;
+    }
 
     const float input_0_scale = GetScalarFromConstant<float>(mul_call->args[2]);
     const int32_t input_0_zero_point = GetScalarFromConstant<int32_t>(mul_call->args[3]);
@@ -538,8 +563,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
         ToArg(output_zero_point),
         ToArg(output_multiplier),
         ToArg(output_shift),
-        ToArg(std::numeric_limits<int8_t>::min()),
-        ToArg(std::numeric_limits<int8_t>::max()),
+        ToArg(output_min),
+        ToArg(output_max),
         tensor_size,
     };
 
@@ -548,7 +573,15 @@ class RelayToTIRVisitor : public MixedModeMutator {
   }
 
   void EmitAdd(const GlobalVar& global_var, const Expr& expr) {
-    auto* add_call = expr.as<CallNode>();
+    int32_t output_min = std::numeric_limits<int8_t>::min();
+    int32_t output_max = std::numeric_limits<int8_t>::max();
+    const auto& pattern = ParseBinaryElementwiseOpClipPattern(expr);
+    Call add_call = pattern.binary_op;
+    if (pattern.clip_op) {
+      const ClipAttrs* clip_attrs = pattern.clip_op.value()->attrs.as<ClipAttrs>();
+      output_min = clip_attrs->a_min;
+      output_max = clip_attrs->a_max;
+    }
 
     const float input_0_scale = GetScalarFromConstant<float>(add_call->args[2]);
     const int32_t input_0_zero_point = GetScalarFromConstant<int32_t>(add_call->args[3]);
@@ -605,8 +638,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
         ToArg(output_zero_point),
         ToArg(output_multiplier),
         ToArg(output_shift),
-        ToArg(std::numeric_limits<int8_t>::min()),
-        ToArg(std::numeric_limits<int8_t>::max()),
+        ToArg(output_min),
+        ToArg(output_max),
         tensor_size,
     };
 

@@ -256,6 +256,9 @@ class AxisSeparatorsAttrUnwrapper : StmtExprMutator {
       auto pass = AxisSeparatorsAttrUnwrapper(axis_separators_map);
       write_ptr->buffer_map = pass.UpdateExternBufferMap(func->buffer_map);
       write_ptr->body = pass(func->body);
+      if (auto map = func->attrs.GetAttr<Map<Buffer, Array<IndexMap>>>("layout_transform_map")) {
+        func = WithAttr(std::move(func), "layout_transform_map", pass.UpdateIndexMap(map.value()));
+      }
     }
 
     return func;
@@ -268,6 +271,14 @@ class AxisSeparatorsAttrUnwrapper : StmtExprMutator {
     Map<Var, Buffer> output;
     for (const auto& kv : orig) {
       output.Set(kv.first, GetRemappedBuffer(kv.second));
+    }
+    return output;
+  }
+
+  Map<Buffer, Array<IndexMap>> UpdateIndexMap(const Map<Buffer, Array<IndexMap>>& orig) {
+    Map<Buffer, Array<IndexMap>> output;
+    for (const auto& kv : orig) {
+      output.Set(GetRemappedBuffer(kv.first), kv.second);
     }
     return output;
   }

@@ -129,6 +129,20 @@ class DequantizeArgs(Enum):
     IFM_ZERO_POINT = 2
 
 
+class QDenseArgs(Enum):
+    """
+    This is a helper enum to access the correct index of
+    qnn.dense arguments
+    """
+
+    IFM = 0
+    WEIGHTS = 1
+    IFM_ZERO_POINT = 2
+    WEIGHTS_ZERO_POINT = 3
+    IFM_SCALE = 4
+    WEIGHTS_SCALE = 5
+
+
 def is_composite_func(func: relay.Function, name: str) -> bool:
     """
     This method checks whether the call is to
