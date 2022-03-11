@@ -300,6 +300,7 @@ class ScheduleBuilder : public ExprVisitor {
   }
 
   CachedFunc Create(const Function& relay_func, std::function<std::string(std::string)> renamer) {
+    LOG(INFO) << relay_func;
     LowerToTECompute lower_te_compute(target_);
     Array<te::Tensor> outputs = lower_te_compute.Lower(relay_func, renamer);
     Array<te::Tensor> fn_inputs = lower_te_compute.fn_inputs_;
@@ -350,6 +351,8 @@ class ScheduleBuilder : public ExprVisitor {
       // Use TOPI schedule if user specificed, or the function has no auto_scheduler schedule.
       if (!schedule.defined() && !prim_func.defined()) {
         ICHECK(lower_te_compute.anchor_implementation_.defined());
+	LOG(INFO) << lower_te_compute.candidate_name_;
+	LOG(INFO) << anchor_attrs_;
         schedule =
             lower_te_compute.anchor_implementation_.Schedule(anchor_attrs_, tensor_outs, target_);
       }
@@ -371,6 +374,10 @@ class ScheduleBuilder : public ExprVisitor {
 
     ICHECK(call_node->op.as<OpNode>()) << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
+
+    for (Expr arg : call_node->args) {
+      VisitExpr(arg);
+    }
 
     int op_pattern = fpattern[op];
     if (!use_auto_scheduler_ && op_pattern >= kCommReduce) {
