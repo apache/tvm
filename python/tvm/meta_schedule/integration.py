@@ -78,7 +78,7 @@ class MetaScheduleContext(Object):
         mod: IRModule,
         target: Target,
         dispatched: Optional[List[IRModule]],
-    ) -> Union[IRModule, RelayFunc, PrimFunc, None]:
+    ) -> IRModule:
         """The entry point of the integration
 
         Parameters
@@ -94,12 +94,9 @@ class MetaScheduleContext(Object):
 
         Returns
         -------
-        result : Union[IRModule, RelayFunc, PrimFunc, None]
-            There are different types of the output:
-            1) NullOpt if there is no feedback hint;
-            2) tir::PrimFunc if `mod` should be lowered to a PrimFunc;
-            3) relay::Function if `mod` should be dispatched to BYOC workflow;
-            4) IRModule for unified dispatch
+        result : IRModule
+            Currently we only have to return tir::PrimFunc, but we wrap it under IRModule for
+            more general future use
         """
         return _ffi_api.MetaScheduleContextQuery(  # type: ignore # pylint: disable=no-member
             self,
@@ -127,7 +124,7 @@ class MetaScheduleContext(Object):
         mod: IRModule,
         target: Target,
         dispatched: Optional[List[IRModule]],
-    ) -> Union[IRModule, RelayFunc, PrimFunc, None]:
+    ) -> IRModule:
         """The entry point of the integration workflow. The compilation process of the high-level
         IR should call this method for task extraction and for feedback hints
 
@@ -138,7 +135,7 @@ class MetaScheduleContext(Object):
             def query_inside_with_scope(task_name, mod, dispatched):
                 ctx = MetaScheduleContext.current()
                 assert ctx is not None
-                ctx.query(task_name, mod, target, dispatched)
+                mod = ctx.query(task_name, mod, target, dispatched)
 
         Parameters
         ----------
@@ -153,12 +150,9 @@ class MetaScheduleContext(Object):
 
         Returns
         -------
-        result : Union[IRModule, RelayFunc, PrimFunc, None]
-            There are different types of the output:
-            1) NullOpt if there is no feedback hint;
-            2) tir::PrimFunc if `mod` should be lowered to a PrimFunc;
-            3) relay::Function if `mod` should be dispatched to BYOC workflow;
-            4) IRModule for unified dispatch
+        result : IRModule
+            Currently we only have to return tir::PrimFunc, but we wrap it under IRModule for
+            more general future use
         """
         return _ffi_api.MetaScheduleContextQueryInsideWithScope(  # type: ignore # pylint: disable=no-member
             task_name,
