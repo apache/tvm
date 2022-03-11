@@ -34,12 +34,11 @@ class VtcmAllocator : public StmtExprMutator {
   VtcmAllocator() {}
 
   Stmt VisitStmt_(const AllocateNode* op) final {
-    Stmt body = this->VisitStmt(op->body);
     std::string storage_scope = GetStorageScope(op->buffer_var);
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<AllocateNode>();
 
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     if (IsVtcmStorage(storage_scope)) {
+      Stmt body = this->VisitStmt(op->body);
       Array<PrimExpr> args;
       args.push_back(StringImm(storage_scope));
       args.push_back(IntImm(DataType::Int(64), op->extents.size()));
