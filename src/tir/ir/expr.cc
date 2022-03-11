@@ -1059,11 +1059,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // BufferLoad
 void BufferLoadNode::LegalizeDType() {
-  int index_lanes = 1;
-  for (const auto& index : indices) {
-    index_lanes *= index.dtype().lanes();
+  for (int i = 0; i < static_cast<int>(indices.size()) - 1; i++) {
+    ICHECK(indices[i].dtype().is_scalar())
+        << "Only the last index of a buffer access may be a vector type.";
   }
 
+  int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
   int buffer_lanes = buffer->dtype.lanes();
 
   this->dtype = buffer->dtype.with_lanes(index_lanes * buffer_lanes);
