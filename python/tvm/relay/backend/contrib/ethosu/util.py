@@ -143,6 +143,11 @@ class QDenseArgs(Enum):
     WEIGHTS_SCALE = 5
 
 
+def is_npu_func(func: relay.Function) -> bool:
+    """Check if the given function is an NPU function."""
+    return func.attrs and "Compiler" in func.attrs and func.attrs["Compiler"] == "ethos-u"
+
+
 def is_composite_func(func: relay.Function, name: str) -> bool:
     """
     This method checks whether the call is to
@@ -313,3 +318,37 @@ class CompilationArtifact(Object):
             encoded_constants,
             base_addresses,
         )
+
+
+def npu_pass(opt_level: int, name: str = ""):
+    """
+    A utility decorator that wraps a given class as an NPU module pass. That is,
+    a pass that behaves like a module pass but only traverses NPU external
+    functions. How NPU functions are mutated is defined by `transform_npu_function`.
+
+    Parameters
+    ----------
+    opt_level: int
+        Optimization level for the module pass.
+    name: str, optional
+        Name for the module pass.
+
+    Returns
+    -------
+    decorator
+        The npu_pass decorator.
+    """
+
+    def decorator(npu_pass_class):
+        @tvm.ir.transform.module_pass(name=name, opt_level=opt_level)
+        class ModulePassWrapper:
+            def transform_module(self, mod: tvm.ir.IRModule, _) -> tvm.ir.IRModule:
+                npu_functions = filter(lambda x: is_npu_func(x[1]), mod.functions.items())
+                for global_var, func in npu_functions:
+                    func = npu_pass_class().transform_npu_function(global_var, func)
+                    mod.update_func(global_var, func)
+                return mod
+
+        return ModulePassWrapper
+
+    return decorator
