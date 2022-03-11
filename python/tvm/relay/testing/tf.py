@@ -249,7 +249,7 @@ def get_workload_official(model_url, model_sub_path, retries=5):
             else:
                 raise RuntimeError("Could not decompress the file: " + model_path)
             return os.path.join(dir_path, model_sub_path)
-        except Exception as err:
+        except (EOFError, RuntimeError) as err:
             error = err
             print(f"Raised : {str(error)}, current attempt : {current_attempt_idx} ...")
     raise error
