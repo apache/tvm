@@ -19,10 +19,15 @@
     values from testing parameters """
 
 import os
+import random
+import socket
+from typing import Optional
+
 import pytest
 
 import tvm
-from tvm import rpc
+import tvm.rpc.tracker
+from tvm.contrib.hexagon.build import HexagonLauncher
 
 HEXAGON_TOOLCHAIN = "HEXAGON_TOOLCHAIN"
 TVM_TRACKER_HOST = "TVM_TRACKER_HOST"
@@ -59,8 +64,13 @@ def requires_hexagon_toolchain(*args):
 
 
 @tvm.testing.fixture
-def android_serial_number() -> str:
-    return os.getenv(ANDROID_SERIAL_NUMBER, default=None)
+def android_serial_number() -> Optional[str]:
+    serial = os.getenv(ANDROID_SERIAL_NUMBER, default="")
+    # Setting ANDROID_SERIAL_NUMBER to an empty string should be
+    # equivalent to having it unset.
+    if not serial.strip():
+        serial = None
+    return serial
 
 
 @tvm.testing.fixture
@@ -75,9 +85,86 @@ def tvm_tracker_port() -> int:
     return port
 
 
+# NOTE on server ports:
+# These tests use different port numbers for the RPC server (7070 + ...).
+# The reason is that an RPC session cannot be gracefully closed without
+# triggering TIME_WAIT state on the server socket. This prevents another
+# server to bind to the same port until the wait time elapses.
+
+# rpc_port_min = 1024  # Lowest unprivileged port
+rpc_port_min = 2000  # Well above the privileged ports (1024 or lower)
+rpc_port_max = 9000  # Below the search range end (port_end=9199) of RPC server
+previous_port = [None]
+
+
+@tvm.testing.fixture
+def rpc_server_port() -> int:
+    print(rpc_port_min)
+
+    # https://stackoverflow.com/a/52872579/2689797
+    def is_port_in_use(port: int) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            return s.connect_ex(("localhost", port)) == 0
+
+    if previous_port[0] is None:
+        port = random.randint(rpc_port_min, rpc_port_max)
+    else:
+        port = previous_port[0] + 1
+
+    while is_port_in_use(port):
+        port = port + 1 if port < rpc_port_max else rpc_port_min
+
+    previous_port[0] = port
+    return port
+
+
 @tvm.testing.fixture
 def adb_server_socket() -> str:
     return os.getenv(ADB_SERVER_SOCKET, default="tcp:5037")
+
+
+@tvm.testing.fixture
+def tvm_tracker(tvm_tracker_port):
+    tracker = tvm.rpc.tracker.Tracker("127.0.0.1", tvm_tracker_port)
+    try:
+        yield tracker
+    finally:
+        tracker.terminate()
+
+
+@tvm.testing.fixture
+def rpc_info(tvm_tracker, rpc_server_port, adb_server_socket):
+    return {
+        "rpc_tracker_host": tvm_tracker.host,
+        "rpc_tracker_port": tvm_tracker.port,
+        "rpc_server_port": rpc_server_port,
+        "adb_server_socket": adb_server_socket,
+    }
+
+
+@tvm.testing.fixture
+def hexagon_launcher(android_serial_number, tvm_tracker, rpc_server_port, adb_server_socket):
+    if android_serial_number is None:
+        yield None
+    else:
+        rpc_info = {
+            "rpc_tracker_host": tvm_tracker.host,
+            "rpc_tracker_port": tvm_tracker.port,
+            "rpc_server_port": rpc_server_port,
+            "adb_server_socket": adb_server_socket,
+        }
+        launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
+        launcher.start_server()
+        try:
+            yield launcher
+        finally:
+            launcher.stop_server()
+
+
+@tvm.testing.fixture
+def hexagon_session(hexagon_launcher):
+    with hexagon_launcher.start_session() as session:
+        yield session
 
 
 # If the execution aborts while an RPC server is running, the python
