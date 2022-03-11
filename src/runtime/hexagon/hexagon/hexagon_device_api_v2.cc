@@ -59,7 +59,7 @@ void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, int ndim, const int64_t* sh
   CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
 
   // Forcing contiguous allocation, for now
-  // TODO(Straw): Enable discontiguous allocation after RFC 39 lands
+  // TODO(Straw): Enable discontiguous allocation
   size_t nallocs = 1;
   size_t nbytes = 1;
   for (int i = 0; i < ndim; ++i) {
@@ -104,7 +104,7 @@ void* HexagonDeviceAPIv2::AllocWorkspace(Device dev, size_t size, DLDataType typ
       dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->AllocWorkspace(dev, size));
 
   // Assumes a single contiguous allocation
-  // TODO(Straw): Enable discontiguous allocation after RFC 39 lands
+  // TODO(Straw): Enable discontiguous allocation
   void* ptr = hexbuf->GetPointer()[0];
   workspace_allocations_.insert({ptr, hexbuf});
   return ptr;
@@ -121,10 +121,17 @@ void HexagonDeviceAPIv2::FreeWorkspace(Device dev, void* data) {
 
 void* HexagonDeviceAPIv2::AllocVtcmWorkspace(Device dev, int ndim, const int64_t* shape,
                                              DLDataType dtype, Optional<String> mem_scope) {
+  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
+  // Forcing contiguous allocation, for now
+  // TODO(Straw): Enable discontiguous allocation
+  CHECK_EQ(ndim, 1);
   return AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
 }
 
-void HexagonDeviceAPIv2::FreeVtcmWorkspace(Device dev, void* ptr) { FreeDataSpace(dev, ptr); }
+void HexagonDeviceAPIv2::FreeVtcmWorkspace(Device dev, void* ptr) {
+  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
+  FreeDataSpace(dev, ptr);
+}
 
 void HexagonDeviceAPIv2::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   CHECK_EQ(from->byte_offset, 0);
@@ -181,7 +188,7 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNd").set_body([](TVMArgs args, TVMR
   CHECK(scope.find("vtcm") != std::string::npos);
   int64_t ndim = args[5];
   // Forcing contiguous allocation, for now
-  // TODO(Straw): Enable discontiguous allocation after RFC 39 lands
+  // TODO(Straw): Enable discontiguous allocation
   CHECK_EQ(ndim, 1);
   std::vector<int64_t> shape;
   for (int i = 0; i < ndim; ++i) {
@@ -202,7 +209,7 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNd").set_body([](TVMArgs args, TVMR
       hexapi->AllocVtcmWorkspace(dev, ndim, shape.data(), type_hint, String(scope)));
 
   // Assumes a single contiguous allocation
-  // TODO(Straw): Enable discontiguous allocation after RFC 39 lands
+  // TODO(Straw): Enable discontiguous allocation
   void* ptr = hexbuf->GetPointer()[0];
   vtcmallocs[ptr] = hexbuf;
   *rv = ptr;
