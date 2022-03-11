@@ -28,11 +28,13 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/op_strategy.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
+#include <tvm/tir/function.h>
 #include <tvm/topi/tags.h>
 
 #include <functional>
@@ -45,8 +47,6 @@
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
 #include "../transforms/pass_utils.h"
-#include "tvm/relay/op_strategy.h"
-#include "tvm/tir/function.h"
 #include "utils.h"
 
 namespace tvm {
@@ -138,6 +138,7 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
     Array<te::Tensor> outputs = this->VisitExpr(relay_func->body);
 
     candidate_name_ = readable_name_stream_.str();
+
     constexpr static size_t kMaxFuncNameLength = 80;
     // WARNING: Please make sure to also update TVM_CRT_MAX_STRLEN_FUNCTION_NAME
     //          whenever the value of kMaxFuncNameLength changes
@@ -291,7 +292,7 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
 int LowerToTECompute::const_index = 0;
 
 // Construct a schedule for a given Relay primitive function and target.
-class ScheduleBuilder : ExprVisitor {
+class ScheduleBuilder : public ExprVisitor {
  public:
   explicit ScheduleBuilder(Target target) : target_(target) {
     // Whether to use auto_scheduler schedule.
