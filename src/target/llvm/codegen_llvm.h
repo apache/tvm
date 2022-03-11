@@ -259,7 +259,37 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   virtual void InitPassManagerBuilder(llvm::PassManagerBuilder* builder);
   // Scalarize by iterating elements of e.
   // f is a callback that takes index and v.
-  virtual void Scalarize(const PrimExpr& e, std::function<void(int i, llvm::Value* v)> f);
+  void Scalarize(const PrimExpr& e, std::function<void(int i, llvm::Value* v)> f);
+
+  /* \brief Helper function for handling buffer access
+   *
+   * \param buffer The buffer being accessed
+   *
+   * \param index The index at which the buffer is being accessed.
+   *
+   * \param value_dtype The datatype to be read from (BufferLoad) or
+   * written to (BufferStore) the buffer.
+   *
+   * \param make_instruction A callback function that generates that
+   * actual call.
+   *
+   *       - buffer_ptr: A typed pointer to the element being accessed
+   *
+   *       - subelement_i: The index of a vectorized type to be
+   *         stored/loaded.  If -1, indicates that the entire type,
+   *         vector or scalar, should be written.
+   *
+   *       - alignment: The alignment to be used for the read/write.
+   *
+   *       - is_volatile: Whether the read/write should be volatile.
+   *
+   *       - Should return the generated expression.
+   */
+  void BufferAccessHelper(
+      Buffer buffer, PrimExpr index, DataType value_dtype,
+      std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i, int alignment,
+                                       bool is_volatile)>
+          make_instruction);
   // Initialize target
   virtual void InitTarget(llvm::TargetMachine* tm);
   // Add module startup function if needed.
