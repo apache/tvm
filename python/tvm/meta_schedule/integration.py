@@ -17,7 +17,7 @@
 """Meta schedule integration with high-level IR"""
 from typing import Dict, List, Optional, Union
 
-import numpy as np
+import numpy as np  # type: ignore
 import tvm.runtime.ndarray as nd
 
 from tvm._ffi import register_object, get_global_func
