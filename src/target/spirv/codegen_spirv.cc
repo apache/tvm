@@ -428,7 +428,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const BroadcastNode* op) {
 spirv::Value CodeGenSPIRV::VisitExpr_(const BufferLoadNode* op) {
   ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
   Var buffer_var = op->buffer->data;
-  PrimExpr prim_index = op->indices[0];
+  PrimExpr prim_index = analyzer_->Simplify(op->buffer->elem_offset + op->indices[0]);
 
   DataType desired_read_type = op->dtype;
   if (desired_read_type == DataType::Bool()) {
@@ -501,7 +501,7 @@ void CodeGenSPIRV::Scalarize(const PrimExpr& e, std::function<void(int i, spirv:
 void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
   ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
   Var buffer_var = op->buffer->data;
-  PrimExpr prim_index = op->indices[0];
+  PrimExpr prim_index = analyzer_->Simplify(op->buffer->elem_offset + op->indices[0]);
 
   auto it = storage_info_.find(buffer_var.get());
   ICHECK(it != storage_info_.end());

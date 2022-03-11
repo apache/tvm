@@ -17,6 +17,7 @@
 import tvm
 from tvm import te
 from tvm.driver.build_module import schedule_to_module
+from tvm.script import tir as T
 
 
 def test_storage_share():
@@ -185,35 +186,44 @@ def test_inplace_rule():
 
 
 def test_storage_combine():
-    n = 8
-    A = te.placeholder((4,), name="A")
-    num_stage = 5
-    B = A
-    stages = []
-    for t in range(num_stage):
-        B = te.compute((n,), lambda i: B[i] + B[0] + (t + 1), name="A%d" % t)
-        stages.append(B)
+    @T.prim_func
+    def before_rewrite(A: T.Buffer[(4,), "float32"], A4: T.Buffer[(8,), "float32"]) -> None:
+        A0 = T.allocate([8], "float32", "global:tag")
+        for i in T.serial(8):
+            A0[i] = A[i] + A[0] + T.float32(1)
+        A1 = T.allocate([8], "float32", "global:tag")
+        for i in T.serial(8):
+            A1[i] = A0[i] + A0[0] + T.float32(2)
+        A2 = T.allocate([8], "float32", "global:tag")
+        for i in T.serial(8):
+            A2[i] = A1[i] + A1[0] + T.float32(3)
+        A3 = T.allocate([8], "float32", "global:tag")
+        for i in T.serial(8):
+            A3[i] = A2[i] + A2[0] + T.float32(4)
+        for i in T.serial(8):
+            A4[i] = A3[i] + A3[0] + T.float32(5)
 
-    s = te.create_schedule(B.op)
-    for S in stages[:-1]:
-        s[S].set_scope("global:tag")
+    @T.prim_func
+    def after_rewrite(A: T.Buffer[(4,), "float32"], A4: T.Buffer[(8,), "float32"]) -> None:
+        A0 = T.allocate([16], "float32", "global:tag")
+        A0_1 = T.buffer_decl([8], dtype="float32", data=A0.data, scope="global:tag")
+        A0_2 = T.buffer_decl([8], dtype="float32", data=A0.data, elem_offset=8, scope="global:tag")
+        A0_3 = T.buffer_decl([8], dtype="float32", data=A0.data, scope="global:tag")
+        A0_4 = T.buffer_decl([8], dtype="float32", data=A0.data, elem_offset=8, scope="global:tag")
+        for i in T.serial(8):
+            A0_1[i] = A[i] + A[0] + T.float32(1)
+        for i in T.serial(8):
+            A0_2[i] = A0_1[i] + A0_1[0] + T.float32(2)
+        for i in T.serial(8):
+            A0_3[i] = A0_2[i] + A0_2[0] + T.float32(3)
+        for i in T.serial(8):
+            A0_4[i] = A0_3[i] + A0_3[0] + T.float32(4)
+        for i in T.serial(8):
+            A4[i] = A0_4[i] + A0_4[0] + T.float32(5)
 
-    mod = schedule_to_module(s, [A, B])
-    mod = tvm.tir.transform.StorageFlatten(64)(mod)
-
-    mod = tvm.tir.transform.Simplify()(mod)
-    mod = tvm.tir.transform.StorageRewrite()(mod)
-    stmt = mod["main"].body
-
-    num_alloc = [0]
-
-    def verify(n):
-        if isinstance(n, tvm.tir.Allocate):
-            num_alloc[0] += 1
-            assert n.extents[0].value == 16
-
-    tvm.tir.stmt_functor.post_order_visit(stmt, verify)
-    assert num_alloc[0] == 1
+    mod = tvm.tir.transform.StorageRewrite()(tvm.IRModule.from_expr(before_rewrite))
+    mod = tvm.tir.transform.RemoveNoOp()(mod)
+    tvm.ir.assert_structural_equal(mod["main"], after_rewrite)
 
 
 def test_storage_combine_with_vectorization():

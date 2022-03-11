@@ -24,6 +24,7 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_OPENCL_H_
 #define TVM_TARGET_SOURCE_CODEGEN_OPENCL_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/target/codegen.h>
 
 #include <string>
@@ -85,6 +86,8 @@ class CodeGenOpenCL final : public CodeGenC {
   // Mapping from buffer to allocation size.
   // Useful to track when a scalar store of a vectorized texture load is required.
   std::unordered_map<const Object*, size_t> allocation_size_;
+  // analyzer
+  arith::Analyzer analyzer_;
 };
 
 }  // namespace codegen

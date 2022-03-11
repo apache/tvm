@@ -147,7 +147,7 @@ void CodeGenStackVM::VisitExpr_(const BufferLoadNode* op) {
   ICHECK_EQ(op->indices.size(), 1) << "StackVM expects flat 1-d buffers.  "
                                    << "Has StorageFlatten (TE-based schedules) or "
                                    << "FlattenBuffer (TIR-based schedules) been run?";
-  auto index = op->indices[0];
+  auto index = analyzer_.Simplify(op->buffer->elem_offset + op->indices[0]);
 
   this->Push(op->buffer->data);
   StackVM::OpCode code = StackVM::GetLoad(op->dtype);
@@ -170,7 +170,7 @@ void CodeGenStackVM::VisitStmt_(const BufferStoreNode* op) {
   ICHECK_EQ(op->indices.size(), 1) << "StackVM expects flat 1-d buffers.  "
                                    << "Has StorageFlatten (TE-based schedules) or "
                                    << "FlattenBuffer (TIR-based schedules) been run?";
-  auto index = op->indices[0];
+  auto index = analyzer_.Simplify(op->buffer->elem_offset + op->indices[0]);
 
   this->Push(op->buffer->data);
   StackVM::OpCode code = StackVM::GetStore(op->value.dtype());
@@ -195,10 +195,11 @@ void CodeGenStackVM::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::address_of())) {
     const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
     ICHECK(op->args.size() == 1 && load);
-    ICHECK_EQ(load->indices.size(), 0) << "CodeGenStackVM only supports flat memory allocations.";
+    ICHECK_EQ(load->indices.size(), 1) << "CodeGenStackVM only supports flat memory allocations.";
+    PrimExpr index = analyzer_.Simplify(load->buffer->elem_offset + load->indices[0]);
 
     this->PushOp(StackVM::LOAD_HEAP, GetVarID(load->buffer->data.get()));
-    this->Push(load->indices[0]);
+    this->Push(index);
     this->PushOp(StackVM::PUSH_I64, load->dtype.element_of().bytes());
     this->PushOp(StackVM::MUL_I64);
     this->PushOp(StackVM::ADDR_ADD);

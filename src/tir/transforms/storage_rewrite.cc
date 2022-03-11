@@ -406,35 +406,11 @@ class StoragePlanRewriter : public StmtExprMutator {
   Node VisitBufferAccess(Node node) {
     auto it = alloc_map_.find(node->buffer->data.get());
     if (it != alloc_map_.end()) {
-      Buffer buf = RemapBuffer(node->buffer, it->second->alloc_var);
-
-      Array<PrimExpr> indices = node->indices;
-      indices.Set(indices.size() - 1,
-                  RemapIndex(node->buffer->dtype, indices[indices.size() - 1], it->second));
-
+      Buffer buf = RemapBuffer(node->buffer, it->second->alloc_var, it->second);
       auto writer = node.CopyOnWrite();
       writer->buffer = buf;
-      writer->indices = indices;
     }
     return node;
-  }
-
-  Buffer RemapBuffer(Buffer buf, Var new_backing_array) {
-    auto key = buf.get();
-    auto it = buffer_remap_.find(key);
-    if (it != buffer_remap_.end()) {
-      ICHECK_EQ(it->second->data.get(), new_backing_array.get())
-          << "Cannot remap buffer " << buf->name << " to use backing array "
-          << new_backing_array->name_hint << ", previously used backing array "
-          << it->second->data->name_hint;
-      return it->second;
-    }
-
-    Buffer remapped = Buffer(new_backing_array, buf->dtype, buf->shape, buf->strides,
-                             buf->elem_offset, new_backing_array->name_hint, buf->data_alignment,
-                             buf->offset_factor, buf->buffer_type, buf->axis_separators, buf->span);
-    buffer_remap_[key] = remapped;
-    return remapped;
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -577,12 +553,30 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
     return MergeNest(nest, body);
   }
-  // Remap the index
-  PrimExpr RemapIndex(DataType dtype, PrimExpr index, StorageEntry* e) {
-    if (e->bits_offset == 0) return index;
-    uint64_t elem_bits = dtype.bits();
-    ICHECK_EQ(e->bits_offset % elem_bits, 0U);
-    return make_const(index.dtype(), e->bits_offset / elem_bits) + index;
+  // Remap the buffer
+  Buffer RemapBuffer(Buffer buf, Var new_backing_array, const StorageEntry* e) {
+    auto key = buf.get();
+    auto it = buffer_remap_.find(key);
+    if (it != buffer_remap_.end()) {
+      ICHECK_EQ(it->second->data.get(), new_backing_array.get())
+          << "Cannot remap buffer " << buf->name << " to use backing array "
+          << new_backing_array->name_hint << ", previously used backing array "
+          << it->second->data->name_hint;
+      return it->second;
+    }
+
+    PrimExpr elem_offset = buf->elem_offset;
+    if (e->bits_offset != 0) {
+      uint64_t elem_bits = buf->dtype.bits();
+      ICHECK_EQ(e->bits_offset % elem_bits, 0U);
+      elem_offset += make_const(elem_offset.dtype(), e->bits_offset / elem_bits);
+    }
+
+    Buffer remapped = Buffer(new_backing_array, buf->dtype, buf->shape, buf->strides, elem_offset,
+                             new_backing_array->name_hint, buf->data_alignment, buf->offset_factor,
+                             buf->buffer_type, buf->axis_separators, buf->span);
+    buffer_remap_[key] = remapped;
+    return remapped;
   }
   // Prepare the new allocations
   void PrepareNewAlloc() {

@@ -577,7 +577,8 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
       ICHECK(op->args.size() == 1 && load);
       ICHECK_EQ(load->indices.size(), 1) << "CodeGenC only supports flat memory allocations.";
-      os << "(&(" << GetBufferRef(load->dtype, load->buffer.get(), load->indices[0]) << "))";
+      PrimExpr index = analyzer_.Simplify(load->buffer->elem_offset + load->indices[0]);
+      os << "(&(" << GetBufferRef(load->dtype, load->buffer.get(), index) << "))";
     } else if (op->op.same_as(builtin::tvm_struct_get())) {
       ICHECK_EQ(op->args.size(), 3U);
       os << GetStructRef(op->dtype, op->args[0], op->args[1], op->args[2].as<IntImmNode>()->value);
@@ -669,7 +670,7 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
   ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
 
   DataType value_dtype = op->dtype;
-  PrimExpr index = op->indices[0];
+  PrimExpr index = analyzer_.Simplify(op->buffer->elem_offset + op->indices[0]);
   Var buffer_var = op->buffer->data;
   DataType element_dtype = op->buffer->dtype;
 
@@ -684,7 +685,7 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
     if (arith::ramp(base, 1, op->dtype.lanes()).Match(index)) {
       const RampNode* ramp = index.as<RampNode>();
       ICHECK(ramp);
-      arith::ModularSet me = arith::Analyzer().modular_set(ramp->base);
+      arith::ModularSet me = analyzer_.modular_set(ramp->base);
       // The condition: {k * coeff + base} divisible by the alignment for any k
       if (me->coeff % op->dtype.lanes() == 0 && me->base % op->dtype.lanes() == 0) {
         can_vector_load = true;
@@ -733,7 +734,7 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
 
   DataType value_dtype = op->value.dtype();
   DataType element_dtype = op->buffer->dtype;
-  PrimExpr index_expr = op->indices[0];
+  PrimExpr index_expr = analyzer_.Simplify(op->buffer->elem_offset + op->indices[0]);
   Var buffer_var = op->buffer->data;
 
   if (value_dtype.lanes() == element_dtype.lanes()) {

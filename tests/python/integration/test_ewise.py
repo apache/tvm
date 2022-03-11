@@ -14,11 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import tempfile
 import tvm
 from tvm import te
 from tvm.contrib import nvcc
 import numpy as np
-import time
+from tvm.script import tir as T
 import tvm.testing
 
 
@@ -301,6 +302,51 @@ def try_warp_memory():
     check_device("cuda")
 
 
+@tvm.testing.requires_llvm
+def test_aliased_buffer_on_different_offsets():
+    @T.prim_func
+    def func_with_aliased_buffers(X: T.Buffer[(128,), "int32"], Y: T.Buffer[(2048,), "int8"]):
+        T.func_attr({"global_symbol": "func_with_aliased_buffers"})
+        Y1 = T.buffer_decl([128], "int32", Y.data, elem_offset=0)
+        Y2 = T.buffer_decl([128], "int32", Y.data, elem_offset=128)
+        Y3 = T.buffer_decl([128], "int32", Y.data, elem_offset=256)
+        Y4 = T.buffer_decl([128], "int32")
+        with T.let(Y4.data, T.address_of(Y3[128], dtype="handle")):
+            for i in range(128):
+                Y1[i] = X[i] + 1
+            for i in range(128):
+                Y2[i] = X[i] - 1
+            for i in range(128):
+                Y3[i] = X[i] * 2
+            for i in range(128):
+                Y4[i] = X[i] * (-2)
+
+    def check_target(target, dev):
+        if target != "c" and not tvm.testing.device_enabled(target):
+            print("skip because %s is not enabled.." % target)
+            return
+        f = tvm.build({target: tvm.IRModule.from_expr(func_with_aliased_buffers)}, target=target)
+        x = tvm.nd.array((np.random.uniform(-256, 256, 128)).astype("int32"), dev)
+        y = tvm.nd.array(np.zeros([2048], dtype="int8"), dev)
+        if target == "c":
+            with tempfile.NamedTemporaryFile(suffix="temp.so") as libfile:
+                f.export_library(libfile.name)
+                f = tvm.runtime.load_module(libfile.name)
+        f["func_with_aliased_buffers"](x, y)
+        y1 = y.numpy()[:512].view("int32")
+        y2 = y.numpy()[512:1024].view("int32")
+        y3 = y.numpy()[1024:1536].view("int32")
+        y4 = y.numpy()[1536:].view("int32")
+        tvm.testing.assert_allclose(x.numpy() + 1, y1, rtol=1e-6)
+        tvm.testing.assert_allclose(x.numpy() - 1, y2, rtol=1e-6)
+        tvm.testing.assert_allclose(x.numpy() * 2, y3, rtol=1e-6)
+        tvm.testing.assert_allclose(x.numpy() * -2, y4, rtol=1e-6)
+
+    check_target("llvm", tvm.cpu())
+    check_target("c", tvm.cpu())
+    check_target("stackvm", tvm.cpu())
+
+
 if __name__ == "__main__":
     test_exp()
     try_warp_memory()
@@ -309,3 +355,4 @@ if __name__ == "__main__":
     test_log_pow_llvm()
     test_popcount()
     test_fmod()
+    test_aliased_buffer_on_different_offsets()

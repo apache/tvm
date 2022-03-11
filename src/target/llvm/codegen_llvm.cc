@@ -1009,7 +1009,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
     ICHECK(op->args.size() == 1 && load);
     ICHECK_EQ(load->indices.size(), 1) << "LLVM only supports flat memory allocations.";
-    PrimExpr index = load->indices[0];
+    PrimExpr index = analyzer_->Simplify(load->buffer->elem_offset + load->indices[0]);
     if (const RampNode* r = index.as<RampNode>()) {
       index = r->base;
     }
@@ -1301,6 +1301,7 @@ void CodeGenLLVM::BufferAccessHelper(
   }
 
   PrimExpr last_index = indices[indices.size() - 1];
+
   ICHECK_EQ(value_dtype.lanes(), last_index.dtype().lanes() * buffer_element_dtype.lanes());
 
   bool is_volatile = volatile_buf_.count(buffer->data.get());
@@ -1355,8 +1356,15 @@ void CodeGenLLVM::BufferAccessHelper(
     std::vector<llvm::Value*> all_index_values = earlier_index_values;
     all_index_values.push_back(last_index_value);
 
+    llvm::Value* buffer_data_begin = MakeValue(buffer->data);
+    if (!analyzer_->CanProveEqual(buffer->elem_offset, 0)) {
+      buffer_data_begin = CreateBufferPtr(buffer_data_begin, buffer_element_dtype,
+                                          {MakeValue(buffer->elem_offset)}, buffer_element_dtype)
+                              .addr;
+    }
+
     TypedPointer buffer_ptr =
-        CreateBufferPtr(MakeValue(buffer->data), buffer_element_dtype, all_index_values,
+        CreateBufferPtr(buffer_data_begin, buffer_element_dtype, all_index_values,
                         value_dtype.with_lanes(value_dtype.lanes() / last_index.dtype().lanes()));
     auto instruction = make_instruction(buffer_ptr, subelement_i, alignment, is_volatile);
     AddAliasInfo(instruction, buffer->data.get(), last_index);
