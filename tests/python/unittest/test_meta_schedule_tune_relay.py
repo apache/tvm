@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=missing-docstring
 import logging
-from multiprocessing.sharedctypes import Value
 import tempfile
 from typing import List
 from os import path as osp
@@ -26,7 +25,6 @@ import tvm
 from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.ir import IRModule
-from tvm.tir.schedule.schedule import Schedule
 from tvm.tir.schedule.trace import Trace
 from tvm.meta_schedule import ReplayTraceConfig
 from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload, JSONDatabase
