@@ -318,8 +318,8 @@ int CheckReductionBlockErrorCode(const ScheduleState& self, const StmtSRef& bloc
       bool has_reduction = false;
       bool all_complete_reduction = true;
       for (const StmtSRef& child_block_sref : child_block_srefs) {
-        int complete_code = CheckCompleteBlockErrorCode(self, child_block_sref, scope_root_sref);
-        int reduction_code = CheckReductionBlockErrorCode(self, child_block_sref, scope_root_sref);
+        int complete_code = CheckCompleteBlockErrorCode(self, child_block_sref, block_sref);
+        int reduction_code = CheckReductionBlockErrorCode(self, child_block_sref, block_sref);
         if (complete_code != 0 && reduction_code != 0) {
           all_complete_reduction = false;
           break;
@@ -1498,7 +1498,14 @@ bool ReductionIterNotIndexOutputBuffer(const Block& block) {
     if (!store) {
       return true;
     }
-    ICHECK(buffer_written.count(store->buffer.get()))
+    // whether the buffer is allocated inside block.
+    bool is_block_allocated_buf = false;
+    for (const Buffer& alloc_buf : block->alloc_buffers) {
+      if (store->buffer == alloc_buf) {
+        return true;
+      }
+    }
+    ICHECK(buffer_written.count(store->buffer.get()) || is_block_allocated_buf)
         << "ValueError: The buffer \"" << store->buffer
         << "\" is written in the block but is not in the block's signature";
     for (const PrimExpr& index : store->indices) {

@@ -377,9 +377,9 @@ def nested_block_bind_after_cache_read(
     for i in T.serial(16):
         with T.block("outer"):
             vi = T.axis.spatial(16, i)
+            T.reads(B[vi], A[vi, 0:16])
+            T.writes(B[vi])
             A_shared = T.alloc_buffer([1, 16], dtype="float32", scope="shared")
-            T.reads(B[vi], A[vi, 0:16], A_shared[0, 0:16])
-            T.writes(B[vi], A_shared[0, 0:16])
             for ax0, ax1 in T.grid(1, 16):
                 with T.block("A_shared"):
                     v0 = T.axis.spatial(16, vi + ax0)
@@ -404,9 +404,9 @@ def thread_bound_nested_block_after_cache_read(
     for i in T.thread_binding(16, thread="blockIdx.x"):
         with T.block("outer"):
             vi = T.axis.spatial(16, i)
+            T.reads(B[vi], A[vi, 0:16])
+            T.writes(B[vi])
             A_shared = T.alloc_buffer([1, 16], dtype="float32", scope="shared")
-            T.reads(B[vi], A[vi, 0:16], A_shared[0, 0:16])
-            T.writes(B[vi], A_shared[0, 0:16])
             for ax0, ax1 in T.grid(1, 16):
                 with T.block("A_shared"):
                     v0 = T.axis.spatial(16, vi + ax0)
@@ -582,6 +582,7 @@ def test_nexted_block_bind_after_cache_read():
     (j,) = s.get_loops(block_inner)
     s.bind(i, "blockIdx.x")
     s.bind(j, "threadIdx.x")
+    print(s.mod["main"].script())
     tvm.ir.assert_structural_equal(s.mod["main"], thread_bound_nested_block_after_cache_read)
     verify_trace_roundtrip(s, mod=nested_block_bind_after_cache_read)
 
