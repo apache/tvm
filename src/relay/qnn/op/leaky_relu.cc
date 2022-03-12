@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file src/relay/qnn/op/rsqrt.cc
- * \brief QNN rsqrt operator.
+ * \file src/relay/qnn/op/leaky_relu.cc
+ * \brief QNN leaky relu operator.
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/op_attr_types.h>
@@ -31,7 +31,7 @@ namespace relay {
 namespace qnn {
 
 bool QnnLeakyReluRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                 const TypeReporter& reporter) {
+                     const TypeReporter& reporter) {
   // Expected Types: data, scale, zero_point
   ICHECK_EQ(types.size(), 4);
   const auto* x = types[0].as<TensorTypeNode>();
@@ -61,7 +61,7 @@ bool QnnLeakyReluRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   return IdentityRel(tensor_types, 2, attrs, reporter);
 }
 
-// Positional relay function to create quantized rsqrt operator used by frontend FFI.
+// Positional relay function to create quantized leaky relu operator used by frontend FFI.
 Expr MakeQuantizedLeakyRelu(Expr x, double alpha, Expr scale, Expr zero_point) {
   auto attrs = make_object<LeakyReluAttrs>();
   attrs->alpha = alpha;

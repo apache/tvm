@@ -1051,6 +1051,7 @@ def batch_matmul(x, y, x_zero_point, y_zero_point, x_scale, y_scale, out_dtype="
 reg.register_pattern("qnn.quantize", OpPattern.OPAQUE)
 reg.register_pattern("qnn.dequantize", OpPattern.OPAQUE)
 
+
 def leaky_relu(x, alpha, scale, zero_point):
     """Quantized leaky relu.
 
@@ -1075,6 +1076,4 @@ def leaky_relu(x, alpha, scale, zero_point):
         alpha,
         scale,
         zero_point,
-        # output_scale,
-        # output_zero_point,
     )
