@@ -2137,7 +2137,9 @@ class Schedule(Object):
         Examples
         --------
         Before transform_layout, in TensorIR, the IR is:
+
         .. code-block:: python
+
             @T.prim_func
             def before_transform_layout(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128), "float32")
@@ -2151,14 +2153,20 @@ class Schedule(Object):
                     with T.block("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
+
         Create the schedule and do transform_layout:
+
         .. code-block:: python
+
             sch = tir.Schedule(before_storage_align)
             sch.transform_layout(sch.get_block("B"), buffer_index=0, is_write_index=True,
                                  index_map=lambda m, n: (m // 16, n // 16, m % 16, n % 16))
             print(sch.mod["main"].script())
+
         After applying transform_layout, the IR becomes:
+
         .. code-block:: python
+
             @T.prim_func
             def two_elementwise_transformed_intermediate_buffer(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128), "float32")
@@ -2172,6 +2180,7 @@ class Schedule(Object):
                     with T.block("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi // 16, vj // 16, vi % 16, vj % 16] + 1.0
+
         """
         if callable(index_map):
             index_map = IndexMap.from_func(index_map)
