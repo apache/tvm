@@ -328,9 +328,7 @@ int CheckReductionBlockErrorCode(const ScheduleState& self, const StmtSRef& bloc
           has_reduction = true;
         }
       }
-      if (has_reduction && all_complete_reduction) {
-        return 0;
-      } else {
+      if (!has_reduction || !all_complete_reduction) {
         return 1;
       }
     }
