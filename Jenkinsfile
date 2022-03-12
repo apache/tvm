@@ -223,7 +223,6 @@ def make(docker_type, path, make_flag) {
     try {
       cmake_build(docker_type, path, make_flag)
       // always run cpp test when build
-      cpp_unittest(docker_type)
     } catch (hudson.AbortException ae) {
       // script exited due to user abort, directly throw instead of retry
       if (ae.getMessage().contains('script returned exit code 143')) {
@@ -235,7 +234,6 @@ def make(docker_type, path, make_flag) {
         label: 'Clear old cmake workspace',
       )
       cmake_build(docker_type, path, make_flag)
-      cpp_unittest(docker_type)
     }
   }
 }
@@ -288,7 +286,7 @@ def cmake_build(image, path, make_flag) {
 
 def cpp_unittest(image) {
   sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_cpp_unittest.sh",
+    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_cpp_unittest.sh",
     label: 'Build and run C++ tests',
   )
 }
@@ -299,15 +297,16 @@ stage('Build') {
   }
   parallel 'BUILD: GPU': {
     if (!skip_ci) {
-      node('GPUBUILD') {
+      node('CPU') {
         ws(per_exec_ws('tvm/build-gpu')) {
           init_git()
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh"
-          make(ci_gpu, 'build', '-j2')
+          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh"
+          make("${ci_gpu} --no-gpu", 'build', '-j2')
           pack_lib('gpu', tvm_multilib)
           // compiler test
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh"
-          make(ci_gpu, 'build2', '-j2')
+          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh"
+          make("${ci_gpu} --no-gpu", 'build2', '-j2')
+          pack_lib('gpu2', tvm_multilib)
         }
       }
     }
@@ -345,6 +344,7 @@ stage('Build') {
             label: 'Create WASM cmake config',
           )
           make(ci_wasm, 'build', '-j2')
+          cpp_unittest(ci_wasm)
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_wasm)
             sh (
@@ -403,6 +403,7 @@ stage('Build') {
           )
           try {
             make(ci_qemu, 'build', '-j2')
+            cpp_unittest(ci_qemu)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_qemu)
               sh (
@@ -434,6 +435,7 @@ stage('Build') {
           )
           try {
             make(ci_hexagon, 'build', '-j2')
+            cpp_unittest(ci_hexagon)
             sh (
               script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
               label: 'Build Hexagon API',
@@ -467,9 +469,13 @@ stage('Test') {
         ws(per_exec_ws('tvm/ut-python-gpu')) {
           try {
             init_git()
+            unpack_lib('gpu2', tvm_multilib)
+            cpp_unittest(ci_gpu)
+
             unpack_lib('gpu', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_gpu)
+              cpp_unittest(ci_gpu)
               sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
                 label: 'Run Java unit tests',
@@ -524,6 +530,7 @@ stage('Test') {
             unpack_lib('cpu', tvm_multilib_tsim)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_cpu)
+              cpp_unittest(ci_cpu)
               python_unittest(ci_cpu)
               fsim_test(ci_cpu)
               sh (
@@ -549,6 +556,7 @@ stage('Test') {
             unpack_lib('i386', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_i386)
+              cpp_unittest(ci_i386)
               python_unittest(ci_i386)
               sh (
                 script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
@@ -574,6 +582,7 @@ stage('Test') {
             unpack_lib('arm', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_arm)
+              cpp_unittest(ci_arm)
               python_unittest(ci_arm)
               sh (
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
