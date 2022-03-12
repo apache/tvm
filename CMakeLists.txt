@@ -446,7 +446,7 @@ include(cmake/modules/StandaloneCrt.cmake)
 include(cmake/modules/Zephyr.cmake)
 include(cmake/modules/Arduino.cmake)
 include(cmake/modules/CUDA.cmake)
-include(cmake/modules/Hexagon.cmake)
+include(cmake/modules/Hexagon.cmake) # This must come before logging.cmake
 include(cmake/modules/OpenCL.cmake)
 include(cmake/modules/OpenMP.cmake)
 include(cmake/modules/Vulkan.cmake)
