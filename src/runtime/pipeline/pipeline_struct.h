@@ -128,10 +128,7 @@ class DataNotify {
   bool data_ready_ = false;
   /*!\brief Whether the thread should exit or not.*/
   std::atomic<bool> exit_state_{false};
-  /*!
-   * \brief The 'ModuleInterfaceID' of an interface which is going to receive the notification
-   *  and data.
-   */
+  /*!\brief The 'ModuleInterfaceID' of an interface which sent this notification.*/
   ModuleInterfaceID notification_source_;
 
  public:
