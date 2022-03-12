@@ -948,7 +948,7 @@ def InjectALUIntrin():
                     nest_size += 1
                 # Get the src/dst arguments
                 dst_var = loop_body.buffer.data
-                dst_idx = loop_body.indices[0]
+                dst_idx = loop_body.buffer.elem_offset + loop_body.indices[0]
                 # Derive loop variables and extents
                 tmp_body = stmt.body
                 indices = []
@@ -1008,19 +1008,23 @@ def InjectALUIntrin():
                 imm_val = None
                 if isinstance(rhs, tvm.tir.IntImm):
                     assert lhs.buffer.data.same_as(dst_var)
-                    src_coeff = tvm.arith.detect_linear_equation(lhs.indices[0], indices)
+                    lhs_index = lhs.buffer.elem_offset + lhs.indices[0]
+                    src_coeff = tvm.arith.detect_linear_equation(lhs_index, indices)
                     use_imm = True
                     imm_val = rhs
                 if isinstance(lhs, tvm.tir.IntImm):
                     assert rhs.buffer.data.same_as(dst_var)
-                    src_coeff = tvm.arith.detect_linear_equation(rhs.indices[0], indices)
+                    rhs_index = rhs.buffer.elem_offset + rhs.indices[0]
+                    src_coeff = tvm.arith.detect_linear_equation(rhs_index, indices)
                     use_imm = True
                     imm_val = lhs
                 if imm_val is None:
                     imm_val = 0
+                    lhs_index = lhs.buffer.elem_offset + lhs.indices[0]
+                    rhs_index = rhs.buffer.elem_offset + rhs.indices[0]
                     assert lhs.buffer.data.same_as(dst_var) and rhs.buffer.data.same_as(dst_var)
-                    src_lhs_coeff = tvm.arith.detect_linear_equation(lhs.indices[0], indices)
-                    src_rhs_coeff = tvm.arith.detect_linear_equation(rhs.indices[0], indices)
+                    src_lhs_coeff = tvm.arith.detect_linear_equation(lhs_index, indices)
+                    src_rhs_coeff = tvm.arith.detect_linear_equation(rhs_index, indices)
                     # Determine which side has the same coefficients
                     lhs_equal = True
                     rhs_equal = True
