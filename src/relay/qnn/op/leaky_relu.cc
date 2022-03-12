@@ -78,6 +78,17 @@ Expr MakeQuantizedLeakyRelu(Expr x, double alpha, Expr scale, Expr zero_point) {
  */
 Expr QnnLeakyReluCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                               const Array<tvm::relay::Type>& arg_types) {
+  // We rely on fixed point arithmetic to preserve the precision of multiplication
+  // by a small alpha value < 1.
+  //
+  // We assume the same scale and zero point for alpha and the input tensor.
+  // Let T = s(q_t - z) where q_t is the input arg[0]
+  // Then, the quantized value of alpha * T is:
+  // q(a * T, s, z) = [(a * T) / s] + z = a * s(q_t - z) / s + z = a * (q_t - z) + z
+  // = a * q_t + (1 - a) * z
+  //
+  // We return the quantized value of alpha * T for all values q_t < input_zero_point.
+
   ICHECK_EQ(new_args.size(), 3);
   Expr quantized_data = Cast(new_args[0], DataType::Int(32));
   Expr input_zero_point = Cast(new_args[2], DataType::Int(32));

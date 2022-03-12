@@ -34,7 +34,7 @@ def generate_golden_output(x_data, dequantized_x, alpha, scale, zero_point):
 
 def test_qnn_leaky_relu():
     data_dtype = "uint8"
-    scale = 10
+    scale = 0.125
     zero_point = 60
     alpha = 0.9
 
