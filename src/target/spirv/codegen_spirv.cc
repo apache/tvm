@@ -293,7 +293,6 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LetNode* op) {
     let_binding_[op->var] = op;
   }
   var_map_[op->var.get()] = MakeValue(op->value);
-  analyzer_->Bind(op->var, op->value);
   return MakeValue(op->body);
 }
 
@@ -716,7 +715,6 @@ void CodeGenSPIRV::VisitStmt_(const LetStmtNode* op) {
   ICHECK(!var_map_.count(op->var.get()));
   ICHECK(!op->var.dtype().is_handle());
   var_map_[op->var.get()] = MakeValue(op->value);
-  analyzer_->Bind(op->var, op->value);
   this->VisitStmt(op->body);
 }
 

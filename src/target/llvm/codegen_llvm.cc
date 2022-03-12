@@ -1261,7 +1261,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LetNode* op) {
   auto var_value = MakeValue(op->value);
   var_map_[op->var.get()] = var_value;
   var_value->setName(op->var->name_hint.c_str());
-  analyzer_->Bind(op->var, op->value);
   return MakeValue(op->body);
 }
 
@@ -1640,7 +1639,6 @@ void CodeGenLLVM::VisitStmt_(const LetStmtNode* op) {
   llvm::Value* value = MakeValue(op->value);
   value->setName(v->name_hint.c_str());
   var_map_[v] = value;
-  analyzer_->Bind(op->var, op->value);
   if (alloc_storage_info_.count(v) && alloc_storage_info_[v].alignment > 1) {
     builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(v),
                                         alloc_storage_info_[v].alignment);
