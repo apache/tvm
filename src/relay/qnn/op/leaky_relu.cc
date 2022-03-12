@@ -32,16 +32,14 @@ namespace qnn {
 
 bool QnnLeakyReluRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
-  // Expected Types: data, alpha, scale, zero_point
+  // Expected Types: data, scale, zero_point
   ICHECK_EQ(types.size(), 4);
   const auto* x = types[0].as<TensorTypeNode>();
   if (x == nullptr) return false;
-  // ICHECK(x->dtype == DataType::Int(8) || x->dtype == DataType::UInt(8))
-  //     << "Expected quantized leaky_relu type(int8, uint8) for input but was " << x->dtype;
+  ICHECK(x->dtype == DataType::Int(8) || x->dtype == DataType::UInt(8))
+      << "Expected quantized leaky_relu type(int8, uint8) for input but was " << x->dtype;
   const auto* param = attrs.as<LeakyReluAttrs>();
   ICHECK(param != nullptr) << "LeakyReluAttrs cannot be nullptr.";
-  // ICHECK(data->alpha == DataType::Float(32))
-  //     << "Expected quantized dense type(int8, uint8) for input but was " << data->dtype;
 
   // Check the types of scale and zero points.
   for (size_t i = 1; i < 3; ++i) {
@@ -50,20 +48,12 @@ bool QnnLeakyReluRel(const Array<Type>& types, int num_inputs, const Attrs& attr
     }
   }
 
-  for (size_t i = 0; i < 4; i++) {
-    std::cout << "type" << types[i] << "\n";
-  }
-
   ICHECK(IsScalarType(types[1], DataType::Float(32)));  // scale
   ICHECK(IsScalarType(types[2], DataType::Int(32)));    // zero_point
-  // ICHECK(IsScalarType(types[3], DataType::Float(32)));  // output_scale
-  // ICHECK(IsScalarType(types[4], DataType::Int(32)));    // output_zero_point
 
   // Assign types for scale and zero points.
   reporter->Assign(types[1], TensorType({}, DataType::Float(32)));  // scale
   reporter->Assign(types[2], TensorType({}, DataType::Int(32)));    // zero_point
-  // reporter->Assign(types[3], TensorType({}, DataType::Float(32)));  // output_scale
-  // reporter->Assign(types[4], TensorType({}, DataType::Int(32)));    // output_zero_point
 
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // IdentityRel infer type function.
@@ -80,25 +70,17 @@ Expr MakeQuantizedLeakyRelu(Expr x, double alpha, Expr scale, Expr zero_point) {
 }
 
 /*
- * \brief Canonicalizes the QNN rsqrt op.
+ * \brief Canonicalizes the QNN leaky relu op.
  * \param attrs The empty attribute.
  * \param new_args The new mutated args to the call node.
  * \param arg_types The types of input and output.
- * \return The sequence of Relay ops for add op.
+ * \return The sequence of Relay ops for leaky relu op.
  */
 Expr QnnLeakyReluCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                               const Array<tvm::relay::Type>& arg_types) {
-  std::cout << "Canonicalize\n";
-  const auto int32_dtype = DataType::Int(32);
-  // const auto float32_dtype = DataType::Float(32);
-
   ICHECK_EQ(new_args.size(), 3);
-  std::cout << "new args" << new_args[0] << "\n";
-  Expr quantized_data = Cast(new_args[0], int32_dtype);
-  std::cout << "quantized data" << quantized_data << "\n";
-  std::cout << "new args2" << new_args[2] << "\n";
-  Expr input_zero_point = Cast(new_args[2], int32_dtype);
-  std::cout << "input_zero_point" << input_zero_point << "\n";
+  Expr quantized_data = Cast(new_args[0], DataType::Int(32));
+  Expr input_zero_point = Cast(new_args[2], DataType::Int(32));
 
   const auto* q_attrs = attrs.as<LeakyReluAttrs>();
   auto alpha = q_attrs->alpha;
@@ -111,9 +93,11 @@ Expr QnnLeakyReluCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   std::tie(fixed_point_multiplier_z, shift_z) = GetFixedPointMultiplierShift(1 - alpha);
   auto scaled_z = FixedPointMultiply(input_zero_point, fixed_point_multiplier_z, shift_z);
 
-  auto output = Add(prod, scaled_z);
-  std::cout << "DONEE\n";
-  return Cast(output, int32_dtype);
+  auto add = Add(prod, scaled_z);
+  auto output = Where(Less(quantized_data, input_zero_point), add, quantized_data);
+
+  const auto* input_type = arg_types[0].as<TensorTypeNode>();
+  return ConvertDtype(output, input_type->dtype);
 }
 
 RELAY_REGISTER_OP("qnn.leaky_relu")
@@ -123,9 +107,6 @@ RELAY_REGISTER_OP("qnn.leaky_relu")
     .add_argument("data", "Quantized Tensor", "The input data.")
     .add_argument("scale", "Tensor", "The quantization scale of the input tensor.")
     .add_argument("zero_point", "Tensor", "The quantization zero_point of the input tensor.")
-    // .add_argument("output_scale", "Tensor", "The quantization scale of the output tensor.")
-    // .add_argument("output_zero_point", "Tensor",
-    //               "The quantization zero_point of the output tensor.")
     .set_support_level(11)
     .add_type_rel("QLeakyRelu", QnnLeakyReluRel)
     .set_attr<TNonComputational>("TNonComputational", true)
