@@ -281,7 +281,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // deep comparison of PrimExpr
   ExprDeepEqual deep_equal_;
   // binding of let variables. Enables duplicate var defs that map to same value
-  std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
+  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> let_binding_;
   // analyzer
   arith::Analyzer analyzer_;
 };

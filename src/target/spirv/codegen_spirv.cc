@@ -287,10 +287,10 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const SelectNode* op) {
 spirv::Value CodeGenSPIRV::VisitExpr_(const LetNode* op) {
   auto it = let_binding_.find(op->var);
   if (it != let_binding_.end()) {
-    ICHECK(deep_equal_(it->second->value, op->value))
+    ICHECK(deep_equal_(it->second, op->value))
         << "Let cannot bind the same var to two different values";
   } else {
-    let_binding_[op->var] = op;
+    let_binding_[op->var] = op->value;
   }
   var_map_[op->var.get()] = MakeValue(op->value);
   return MakeValue(op->body);

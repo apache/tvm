@@ -787,10 +787,10 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
 void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
   auto it = let_binding_.find(op->var);
   if (it != let_binding_.end()) {
-    ICHECK(deep_equal_(it->second->value, op->value))
+    ICHECK(deep_equal_(it->second, op->value))
         << "Let cannot bind the same var to two different values";
   } else {
-    let_binding_[op->var] = op;
+    let_binding_[op->var] = op->value;
   }
   std::string value = PrintExpr(op->value);
   var_idmap_[op->var.get()] = value;
