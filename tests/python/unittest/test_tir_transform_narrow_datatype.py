@@ -18,6 +18,7 @@ import tvm
 from tvm import te, relay
 from tvm.driver.build_module import schedule_to_module
 from tvm.tir import const
+from tvm.script import tir as T
 
 
 def lower_stmt(params, stmt, target_bits):
@@ -277,6 +278,25 @@ def test_ramp_dtype_consistency():
     lower_sch(s, [A], 32, extra_passes=[tvm.tir.transform.VectorizeLoop()])
 
 
+def test_narrow_buffer_elemoffset():
+    @T.prim_func
+    def func_before():
+        X = T.buffer_decl([128], elem_offset=T.int64(1000))
+        Y = T.buffer_decl([128], elem_offset=T.int64(100))
+        for i in range(128):
+            Y[i] = X[i] + 1.0
+
+    @T.prim_func
+    def func_after():
+        X = T.buffer_decl([128], elem_offset=T.int32(1000))
+        Y = T.buffer_decl([128], elem_offset=T.int32(100))
+        for i in range(128):
+            Y[i] = X[i] + 1.0
+
+    mod = tvm.tir.transform.NarrowDataType(32)(tvm.IRModule.from_expr(func_before))
+    tvm.ir.assert_structural_equal(mod["main"], func_after)
+
+
 if __name__ == "__main__":
     test_basic()
     test_thread_axis()
@@ -286,3 +306,4 @@ if __name__ == "__main__":
     test_relay_basic()
     test_relay_take()
     test_ramp_dtype_consistency()
+    test_narrow_buffer_elemoffset()

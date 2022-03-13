@@ -167,6 +167,16 @@ class DataTypeVisitor final : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
   }
 
+  void VisitExpr_(const BufferLoadNode* op) {
+    VisitExpr(op->buffer->elem_offset);
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitStmt_(const BufferStoreNode* op) {
+    VisitExpr(op->buffer->elem_offset);
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
   // the narrowed datatype of Var and IntImm
   std::unordered_map<const PrimExprNode*, DataType> vmap;
 
@@ -217,11 +227,13 @@ class DataTypeRewriter : public StmtExprMutator {
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore store = GetRef<BufferStore>(op);
 
+    auto buffer = VisitBuffer(op->buffer);
     auto value = this->VisitExpr(op->value);
     auto indices = VisitIndices(op->indices);
 
-    if (!value.same_as(op->value) || !indices.same_as(op->indices)) {
+    if (!buffer.same_as(op->buffer) || !value.same_as(op->value) || !indices.same_as(op->indices)) {
       auto writer = store.CopyOnWrite();
+      writer->buffer = buffer;
       writer->value = value;
       writer->indices = indices;
     }
@@ -232,10 +244,12 @@ class DataTypeRewriter : public StmtExprMutator {
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     BufferLoad load = GetRef<BufferLoad>(op);
 
+    auto buffer = VisitBuffer(op->buffer);
     auto indices = VisitIndices(op->indices);
 
-    if (!indices.same_as(op->indices)) {
+    if (!buffer.same_as(op->buffer) || !indices.same_as(op->indices)) {
       auto writer = load.CopyOnWrite();
+      writer->buffer = buffer;
       writer->indices = indices;
     }
 
@@ -251,6 +265,22 @@ class DataTypeRewriter : public StmtExprMutator {
     is_index_ = false;
 
     return indices;
+  }
+
+  Buffer VisitBuffer(Buffer buffer) {
+    auto it = buffer_remap_.find(buffer.get());
+    if (it != buffer_remap_.end()) {
+      return it->second;
+    }
+    is_index_ = true;
+    PrimExpr elem_offset = VisitExpr(buffer->elem_offset);
+    is_index_ = false;
+    if (!elem_offset.same_as(buffer->elem_offset)) {
+      auto n = buffer.CopyOnWrite();
+      n->elem_offset = elem_offset;
+    }
+    buffer_remap_.insert(it, {buffer.get(), buffer});
+    return buffer;
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
@@ -381,6 +411,8 @@ class DataTypeRewriter : public StmtExprMutator {
   // a map from Var before rewrite to that after rewrite,
   // ensures one old Var maps to exactly one new Var
   std::unordered_map<const VarNode*, Var> vmap_;
+  // buffer remapping dict
+  std::unordered_map<const BufferNode*, Buffer> buffer_remap_;
   // a map from IterVar before rewrite to that after rewrite,
   // ensures one old IterVar maps to exactly one new IterVar
   std::unordered_map<const IterVarNode*, IterVar> ivmap_;
