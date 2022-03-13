@@ -836,7 +836,7 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
     b, i = get_const_tuple(data.shape)
     o, _ = get_const_tuple(weights.shape)
     if (
-        target.kind.name == "cuda"
+        target.kind.name in ["cuda", "vulkan"]
         and data.dtype == "int8"
         and weights.dtype == "int8"
         and out_type.dtype == "int32"
