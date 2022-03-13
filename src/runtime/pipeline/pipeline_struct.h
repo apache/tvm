@@ -134,7 +134,7 @@ class DataNotify {
  public:
   /*!
    * \brief Constructing the DataNotify class.
-   * \param source_interface_id The id of a runtime interface which sent out the data
+   * \param source_interface_id The id of a runtime interface which is sending out the data
    *  notification.
    */
   explicit DataNotify(ModuleInterfaceID source_interface_id) {
@@ -142,7 +142,7 @@ class DataNotify {
   }
   /*!
    * \brief Getting the notification target.
-   * \return The ID of the interface which sent out the nofication.
+   * \return The ID of the interface which is sending out the notification.
    */
   ModuleInterfaceID GetNotifySource(void) { return notification_source_; }
   /*!
@@ -697,7 +697,7 @@ class BackendRuntime {
           break;
         }
       }
-      VLOG(1) << "Data forwardin from runtime(" << source_interface_id.runtime_idx << ").output("
+      VLOG(1) << "Data forwarding from runtime(" << source_interface_id.runtime_idx << ").output("
               << source_interface_id.runtime_interface_idx << ") to runtime(" << runtime_idx_
               << ").input(" << target_input_interface_index << ")";
       notifys.erase(notify);
@@ -753,8 +753,8 @@ class BackendRuntime {
         // a STOP state.
         while (!forward_queue->Push<NDArray>(output)) {
           if (PipelineIsStop()) {
-            LOG(INFO) << "The forwarding queue pushing is stopped due to the pipeline state "
-                      << "is changed into stop.";
+            LOG(INFO) << "The forwarding process is stopped after the pipeline status is changed"
+                      << " into stop.";
             return false;
           }
         }
@@ -768,7 +768,7 @@ class BackendRuntime {
    *\param input_index The input index of the 'current runtime'.
    *\param parent_idx The index of 'parent runtime' which will send the notification.
    *\param parent_output_idx The output index of the 'parent runtime' which will send
-   * the nofication.
+   * the notification.
    */
   void CreateParentsNotify(int input_index, int parent_idx, int parent_output_idx) {
     if (parents_notify_.find(input_index) != parents_notify_.end()) {
