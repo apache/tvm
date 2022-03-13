@@ -3177,6 +3177,31 @@ def llvm_intrin_call():
     return ctpop
 
 
+def parse_bufferslice_as_range_bound():
+    @T.prim_func
+    def segment_sum(
+        A_ptr: T.handle, B_ptr: T.handle, indptr_ptr: T.handle, n: T.int32, m: T.int32
+    ) -> None:
+        A = T.match_buffer(A_ptr, [m], dtype="float32")
+        B = T.match_buffer(B_ptr, [n], dtype="float32")
+        indptr = T.match_buffer(indptr_ptr, [n + 1], dtype="int32")
+        for i in T.serial(n):
+            with T.block("outer"):
+                vi = T.axis.spatial(n, i)
+                T.reads(indptr[i : i + 2], B[vi], A[indptr[i] : indptr[i + 1]])
+                T.writes(B[vi])
+                for j in T.serial(indptr[i], indptr[i + 1]):
+                    with T.block("inner"):
+                        vj = T.axis.reduce(m, j)
+                        T.reads(B[vi], A[vj])
+                        T.writes(B[vi])
+                        with T.init():
+                            B[vi] = T.float32(0)
+                        B[vi] = B[vi] + A[vj]
+
+    return segment_sum
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3208,6 +3233,7 @@ ir_generator = tvm.testing.parameter(
     func_T_ptr_let_statement,
     func_T_ptr_allocate,
     llvm_intrin_call,
+    parse_bufferslice_as_range_bound,
 )
 
 
@@ -3215,32 +3241,6 @@ def test_roundtrip(ir_generator):
     original = ir_generator()
     after_roundtrip = tvm.script.from_source(original.script(show_meta=True))
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)
-
-
-@T.prim_func
-def segment_sum(
-    A_ptr: T.handle, B_ptr: T.handle, indptr_ptr: T.handle, n: T.int32, m: T.int32
-) -> None:
-    A = T.match_buffer(A_ptr, [m], dtype="float32")
-    B = T.match_buffer(B_ptr, [n], dtype="float32")
-    indptr = T.match_buffer(indptr_ptr, [n + 1], dtype="int32")
-    for i in T.serial(n):
-        with T.block("outer"):
-            vi = T.axis.spatial(n, i)
-            T.reads(indptr[i : i + 2], B[vi], A[indptr[i] : indptr[i + 1]])
-            T.writes(B[vi])
-            for j in T.serial(indptr[i], indptr[i + 1]):
-                with T.block("inner"):
-                    vj = T.axis.reduce(m, j)
-                    T.reads(B[vi], A[vj])
-                    T.writes(B[vi])
-                    with T.init():
-                        B[vi] = T.float32(0)
-                    B[vi] = B[vi] + A[vj]
-
-
-def test_parse_bufferslice_as_range_bound():
-    tvm.ir.assert_structural_equal(segment_sum, tvm.script.from_source(segment_sum.script()))
 
 
 if __name__ == "__main__":
