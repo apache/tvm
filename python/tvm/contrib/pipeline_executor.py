@@ -125,9 +125,9 @@ class PipelineModule(object):
         self._get_input_pipeline_map = self.module["get_input_pipeline_map"]
         self._get_pipe_execute_count = self.module["get_execute_count"]
 
-    def run(self, sync=False):
+    def run(self):
         """Run the pipeline executor."""
-        self._run(sync)
+        self._run()
 
     def get_input_pipeline_map(self, name):
         """Using the "name" to get the corresponding subgraph index and also get the "input name"
