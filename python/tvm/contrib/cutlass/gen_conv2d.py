@@ -134,15 +134,9 @@ def enumerate_conv2d_operators(
                 B = TensorDescription(element_b, LayoutType.TensorNHWC, alignment)
                 C = TensorDescription(element_c, LayoutType.TensorNHWC, alignment)
 
-                if element_c == DataType.s32:
-                    if tile.threadblock_shape[1] >= 128:
-                        C.alignment = 16
-                    else:
-                        C.alignment = 8
-
-                    if A.alignment == 1:
-                        tile.threadblock_shape[0] = min(tile.threadblock_shape[0], 128)
-                        tile.threadblock_shape[1] = min(tile.threadblock_shape[1], 128)
+                if element_c == DataType.s32 and A.alignment == 1:
+                    tile.threadblock_shape[0] = min(tile.threadblock_shape[0], 128)
+                    tile.threadblock_shape[1] = min(tile.threadblock_shape[1], 128)
 
                 op = Conv2dOperation(
                     conv_kind,

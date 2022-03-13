@@ -88,15 +88,9 @@ def enumerate_gemm_operators(
             B = TensorDescription(element_b, LayoutType.ColumnMajor, alignment)
             C = TensorDescription(element_c, LayoutType.RowMajor, alignment)
 
-            if element_c == DataType.s32:
-                if tile_description.threadblock_shape[1] >= 128:
-                    C.alignment = 16
-                else:
-                    C.alignment = 8
-
-                if A.alignment == 1:
-                    tile_description.threadblock_shape[0] = min(tile_description.threadblock_shape[0], 128)
-                    tile_description.threadblock_shape[1] = min(tile_description.threadblock_shape[1], 128)
+            if element_c == DataType.s32 and A.alignment == 1:
+                tile_description.threadblock_shape[0] = min(tile_description.threadblock_shape[0], 128)
+                tile_description.threadblock_shape[1] = min(tile_description.threadblock_shape[1], 128)
 
             op = GemmOperation(
                 tile_description.minimum_compute_capability,

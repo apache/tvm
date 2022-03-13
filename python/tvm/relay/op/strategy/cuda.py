@@ -885,7 +885,6 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
                     and o % 8 == 0
                 )
             ):
-                print("Add tensorcore")
                 strategy.add_implementation(
                     wrap_compute_dense(topi.cuda.dense_tensorcore),
                     wrap_topi_schedule(topi.cuda.schedule_dense_tensorcore),
