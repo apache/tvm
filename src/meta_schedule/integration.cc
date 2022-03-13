@@ -140,7 +140,8 @@ IRModule ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod, Ta
       return IRModule({{gv, func}});
     }
   }
-  LOG(WARNING) << "Cannot find workload: " << task_name << "\n" << tir::AsTVMScript(prim_mod);
+  LOG(WARNING) << "Cannot find workload: " << task_name;
+  DLOG(INFO) << tir::AsTVMScript(prim_mod);
   return IRModule{nullptr};
 }
 

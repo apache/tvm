@@ -46,14 +46,14 @@ Array<ExtractedTask> ExtractTask(IRModule mod, Target target, Map<String, Consta
   auto opt_mod = seq(std::move(mod));
 
   Array<ExtractedTask> tasks;
-  std::unordered_set<tec::CCacheKey> cache_;
+  std::unordered_set<tec::CCacheKey> cache;
   std::unordered_map<std::string, int> name_map;
 
-  PostOrderVisit(opt_mod->Lookup("main"), [target, &tasks, &cache_, &name_map](const Expr& exp) {
+  PostOrderVisit(opt_mod->Lookup("main"), [target, &tasks, &cache, &name_map](const Expr& exp) {
     if (exp->IsInstance<FunctionNode>()) {
       Function relay_func = Downcast<Function>(exp);
       tec::CCacheKey cache_key(relay_func, target);
-      if (relay_func->HasNonzeroAttr(attr::kPrimitive) && cache_.find(cache_key) == cache_.end()) {
+      if (relay_func->HasNonzeroAttr(attr::kPrimitive) && cache.find(cache_key) == cache.end()) {
         Array<te::Tensor> outputs;
         std::string fused_name;
         std::tie(outputs, fused_name) =
@@ -64,7 +64,7 @@ Array<ExtractedTask> ExtractTask(IRModule mod, Target target, Map<String, Consta
         auto tir_mod = IRModule({{prim_fn_var, prim_func}});
         auto task_name = tec::GetUniqueName(fused_name, &name_map);
         tasks.push_back(ExtractedTask(task_name, relay_mod, target, {tir_mod}));
-        cache_.insert(cache_key);
+        cache.insert(cache_key);
       }
     }
   });
