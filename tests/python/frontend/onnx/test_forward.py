@@ -590,7 +590,7 @@ def test_flatten(target, dev):
         verify_with_ort(model, [in_shape], target=target, dev=dev)
 
     verify_flatten((1, 3, 4, 4), 1, (1, 48))
-    verify_flatten((1), 1, (1, 1))
+    verify_flatten((1,), 1, (1, 1))
 
 
 @tvm.testing.parametrize_targets
