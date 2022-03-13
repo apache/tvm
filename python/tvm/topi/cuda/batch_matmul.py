@@ -229,7 +229,7 @@ def batch_matmul_cublas(
         b, k, n = get_const_tuple(y.shape)
     if all([isinstance(s, int) for s in [b, m, n, k]]):
         cfg.add_flop(b * m * k * n * 2)
-    return cublas.batch_matmul(x, y, transa=transpose_a, transb=transpose_b)
+    return cublas.batch_matmul(x, y, transa=transpose_a, transb=transpose_b, dtype=out_dtype)
 
 
 @autotvm.register_topi_schedule("batch_matmul_cublas.cuda")
