@@ -3089,6 +3089,9 @@ def func_with_target_spec_by_config():
                         "kind": "cuda",
                         "tag": "",
                         "keys": ["cuda", "gpu"],
+                        "host": T.target(
+                            {"kind": "llvm", "tag": "", "keys": ["cpu"], "link-params": False}
+                        ),
                     }
                 )
             }
