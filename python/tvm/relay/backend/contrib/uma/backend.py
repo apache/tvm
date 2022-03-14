@@ -21,9 +21,9 @@ import tvm
 from abc import abstractmethod
 from typing import List, Dict, Callable, Optional
 
-from tvm.relay.backend.contrib.uma.partitioner import UMAPartitioner
-from tvm.relay.backend.contrib.uma.lower import UMALower
-from tvm.relay.backend.contrib.uma.codegen import UMACodegen
+from tvm.relay.backend.contrib.uma.api.partitioner import UMAPartitioner
+from tvm.relay.backend.contrib.uma.api.lower import UMALower
+from tvm.relay.backend.contrib.uma.api.codegen import UMACodegen
 
 class UMABackend(object):
     def __init__(self, variant: str = "") -> None:
