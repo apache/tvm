@@ -18,11 +18,11 @@
 import sys
 from typing import Callable, List
 
-from numpy.testing import assert_allclose
 import pytest
-
 import tvm
-from tvm import meta_schedule as ms, te, tir
+from numpy.testing import assert_allclose
+from tvm import meta_schedule as ms
+from tvm import te, tir
 from tvm.script import tir as T
 
 N_FEATURES = 164
@@ -46,6 +46,34 @@ def matmul(
             with T.init():
                 C[i, j] = T.float32(0)
             C[i, j] = C[i, j] + A[i, k] * B[k, j]
+
+
+# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
+# fmt: off
+
+# from tvm.script import tir as T
+@tvm.script.ir_module
+class LayoutTransform:
+    @T.prim_func
+    def main(placeholder: T.Buffer[(1, 16, 7, 7, 32), "float32"], placeholder_1: T.Buffer[(25088,), "float32"], T_layout_trans: T.Buffer[(1, 1, 7, 7, 512), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        # body
+        # with T.block("root")
+        for i0_i1_i2_i3_i4_fused in T.parallel(25088, annotations={"pragma_auto_unroll_max_step":64, "pragma_unroll_explicit":1}):
+            with T.block("T_layout_trans_1"):
+                ax0 = T.axis.spatial(1, 0)
+                ax1 = T.axis.spatial(1, 0)
+                ax2 = T.axis.spatial(7, i0_i1_i2_i3_i4_fused // 3584)
+                ax3 = T.axis.spatial(7, i0_i1_i2_i3_i4_fused % 3584 // 512)
+                ax4 = T.axis.spatial(512, i0_i1_i2_i3_i4_fused % 512)
+                T.reads(placeholder[0, (ax4 * 49 + ax2 * 7 + ax3) % 25088 // 1568, (ax2 * 7 + ax3) % 49 // 7, ax3 % 7, (ax4 * 49 + ax2 * 7 + ax3) % 1568 // 49], placeholder_1[(ax4 * 49 + ax2 * 7 + ax3) % 25088])
+                T.writes(T_layout_trans[ax0, ax1, ax2, ax3, ax4])
+                T_layout_trans[ax0, ax1, ax2, ax3, ax4] = T.if_then_else(ax0 < 1 and ax1 * 512 + ax4 < 512 and ax2 < 7 and ax3 < 7, T.Select(T.float32(0) < T.if_then_else(0 < 1 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 < 512 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7 < 7 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7 < 7, placeholder[0, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 // 32, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 % 32], T.float32(0), dtype="float32"), T.if_then_else(0 < 1 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 < 512 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7 < 7 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7 < 7, placeholder[0, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 // 32, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 % 32], T.float32(0), dtype="float32"), T.if_then_else(0 < 1 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 < 512 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7 < 7 and ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7 < 7, placeholder[0, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 // 32, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 49 // 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 7, ((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088 % 25088 // 49 % 32], T.float32(0), dtype="float32") * placeholder_1[((ax1 * 512 + ax4) * 49 + ax2 * 7 + ax3) % 25088]), T.float32(0), dtype="float32")
+
+
+# fmt: on
+# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 
 
 def _make_context(target) -> ms.TuneContext:
@@ -1548,6 +1576,14 @@ def test_gpu():
         ],
         rtol=1e-5,
         atol=1e-5,
+    )
+
+
+def test_cpu_layout_transform():
+    extractor = ms.feature_extractor.PerStoreFeature()
+    (feature,) = extractor.extract_from(
+        _make_context(tvm.target.Target("llvm")),
+        candidates=[_make_candidate(lambda: tir.Schedule(LayoutTransform))],
     )
 
 
