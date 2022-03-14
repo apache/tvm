@@ -169,6 +169,8 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
               return make_const(dtype, static_cast<const int16_t*>(data)[0]);
             } else if (dtype == DataType::Int(8)) {
               return make_const(dtype, static_cast<const int8_t*>(data)[0]);
+            } else if (dtype == DataType::UInt(8) || dtype == DataType::Bool()) {
+              return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
             } else if (dtype == DataType::Int(32)) {
               return make_const(dtype, static_cast<const int32_t*>(data)[0]);
             } else if (dtype == DataType::Int(64)) {
@@ -177,8 +179,6 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
               return make_const(dtype, static_cast<const float*>(data)[0]);
             } else if (dtype == DataType::Float(64)) {
               return make_const(dtype, static_cast<const double*>(data)[0]);
-            } else if (dtype == DataType::Bool()) {
-              return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
             } else {
               LOG(FATAL) << dtype << " not handled";
               return tvm::PrimExpr();
