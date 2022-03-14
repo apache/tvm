@@ -166,6 +166,7 @@ mv docs/doxygen/html _docs/reference/api/doxygen
 mv jvm/core/target/site/apidocs _docs/reference/api/javadoc
 # mv rust/target/doc _docs/api/rust
 mv web/dist/docs _docs/reference/api/typedoc
+git rev-parse HEAD > _docs/commit_hash
 
 if [ "$IS_LOCAL" != "1" ]; then
     echo "Start creating the docs tarball.."

@@ -709,6 +709,7 @@ stage('Test') {
             )
           }
           pack_lib('docs', 'docs.tgz')
+          archiveArtifacts(artifacts: 'docs.tgz', fingerprint: true)
         }
       }
     }
@@ -733,13 +734,52 @@ stage('Build packages') {
 }
 */
 
+def deploy_docs() {
+  // Note: This code must stay in the Jenkinsfile to ensure that it runs
+  // from a trusted context only
+  sh(
+    script: '''
+      set -eux
+      rm -rf tvm-site
+      git clone -b $DOCS_DEPLOY_BRANCH --depth=1 https://github.com/apache/tvm-site
+      cd tvm-site
+      git status
+      git checkout -B $DOCS_DEPLOY_BRANCH
+
+      rm -rf tvm-site/docs
+      mkdir -p tvm-site/docs
+      tar xf ../docs.tgz -C tvm-site/docs
+      COMMIT=$(cat tvm-site/docs/commit_hash)
+      git add .
+      git config user.name tvm-bot
+      git config user.email 95660001+tvm-bot@users.noreply.github.com
+      git commit -m"deploying docs (apache/tvm@$COMMIT)"
+      git status
+    ''',
+    label: 'Unpack docs and update tvm-site'
+  )
+
+  withCredentials([string(
+    credentialsId: 'docs-push-token',
+    variable: 'GITHUB_TOKEN',
+    )]) {
+    sh(
+      script: '''
+        cd tvm-site
+        git remote add deploy https://$GITHUB_TOKEN:x-oauth-basic@github.com/apache/tvm-site.git
+        git push deploy $DOCS_DEPLOY_BRANCH
+      ''',
+      label: 'Upload docs to apache/tvm-site'
+    )
+  }
+}
+
 stage('Deploy') {
-  node('doc') {
-    ws(per_exec_ws('tvm/deploy-docs')) {
-      if (env.BRANCH_NAME == 'main') {
+  if (env.BRANCH_NAME == 'main' && env.DOCS_DEPLOY_ENABLED == 'yes') {
+    node('CPU') {
+      ws(per_exec_ws('tvm/deploy-docs')) {
         unpack_lib('docs', 'docs.tgz')
-        sh 'cp docs.tgz /var/docs/docs.tgz'
-        sh 'tar xf docs.tgz -C /var/docs'
+        deploy_docs()
       }
     }
   }
