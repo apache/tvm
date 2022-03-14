@@ -120,8 +120,14 @@ def verify_batch_matmul(Ashape, Bshape, Cshape, in_dtype, out_dtype, rtol=1e-5):
 
     dev = tvm.cuda(0)
     f = tvm.build(s, [A, B, C], "cuda")
-    a = tvm.nd.array(np.random.uniform(size=Ashape).astype(A.dtype), dev)
-    b = tvm.nd.array(np.random.uniform(size=Bshape).astype(B.dtype), dev)
+
+    if "int" in in_dtype:
+        a = tvm.nd.array(np.random.uniform(1, 10, size=Ashape).astype(in_dtype), dev)
+        b = tvm.nd.array(np.random.uniform(1, 10, size=Bshape).astype(in_dtype), dev)
+    else:
+        a = tvm.nd.array(np.random.uniform(size=Ashape).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=Bshape).astype(B.dtype), dev)
+
     c = tvm.nd.array(np.zeros(Cshape, dtype=C.dtype), dev)
     f(a, b, c)
     tvm.testing.assert_allclose(
@@ -160,6 +166,8 @@ def test_batch_matmul():
     verify_batch_matmul(
         (16, 1024, 128), (1, 128, 236), (16, 1024, 236), "float16", "float16", rtol=1e-2
     )
+
+    verify_batch_matmul((16, 1024, 128), (16, 128, 236), (16, 1024, 236), "int8", "int32")
 
 
 if __name__ == "__main__":
