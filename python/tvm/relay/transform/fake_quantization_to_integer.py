@@ -370,7 +370,7 @@ def mean(expr, type_map):
     """Rewrite a mean op"""
     arg = expr.args[0]
     t = type_map[arg]
-    
+
     arg = relay.op.cast(arg, "int32")
     out = relay.op.mean(arg, **expr.attrs)
     out = relay.op.cast(out, t.dtype)
