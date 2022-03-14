@@ -65,17 +65,6 @@ working_scope = tvm.testing.parameter(
 
 
 @tvm.testing.fixture
-def param_validity_check(target_host, input_layout, working_layout, output_layout, working_scope):
-    is_hexagon = target_host.kind.name == "hexagon"
-
-    uses_2d_memory = "nchw-8h8w32c" in [input_layout, working_layout, output_layout]
-    if uses_2d_memory and not is_hexagon:
-        return pytest.raises(tvm.TVMError)
-
-    return contextlib.nullcontext()
-
-
-@tvm.testing.fixture
 def target_host(target):
     target = tvm.target.Target(target)
 
@@ -256,14 +245,17 @@ class TestElementWise:
 
     @requires_hexagon_toolchain
     def test_build(self, schedule_args, target_host, input_layout, working_layout, output_layout):
-        context = contextlib.nullcontext()
+        # contextlib.nullcontext wasn't added until python3.7, and the
+        # CI currently runs on python3.6.  Therefore, using ExitStack
+        # to manage an optional context instead.
+        stack = contextlib.ExitStack()
 
-        is_hexagon = target_host.kind.name == "hexagon"
-        uses_2d_memory = "nchw-8h8w32c" in [input_layout, working_layout, output_layout]
-        if uses_2d_memory and not is_hexagon:
-            context = pytest.raises(tvm.TVMError)
+        with stack:
+            is_hexagon = target_host.kind.name == "hexagon"
+            uses_2d_memory = "nchw-8h8w32c" in [input_layout, working_layout, output_layout]
+            if uses_2d_memory and not is_hexagon:
+                stack.enter_context(pytest.raises(tvm.TVMError))
 
-        with context:
             tvm.build(*schedule_args, target=target_host)
 
 
