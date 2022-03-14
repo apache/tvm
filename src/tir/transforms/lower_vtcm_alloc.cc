@@ -26,7 +26,9 @@
 namespace tvm {
 namespace tir {
 
-inline bool IsVtcmStorage(std::string scope) { return scope.find("vtcm") != std::string::npos; }
+inline bool IsVtcmStorage(std::string scope) {
+  return scope.find("global.vtcm") != std::string::npos;
+}
 
 class VtcmAllocator : public StmtExprMutator {
  public:
@@ -40,9 +42,7 @@ class VtcmAllocator : public StmtExprMutator {
       Array<PrimExpr> args;
       args.push_back(StringImm(storage_scope));
       args.push_back(IntImm(DataType::Int(64), op->extents.size()));
-      for (size_t i = 0; i < op->extents.size(); ++i) {
-        args.push_back(op->extents[i]);
-      }
+      args.push_back(Call(DataType::Handle(), builtin::tvm_stack_make_shape(), op->extents));
       return LetStmt(op->buffer_var,
                      Call(op->buffer_var.dtype(), builtin::nd_mem_alloc_with_scope(), args), body);
     }

@@ -447,8 +447,9 @@ TVM_REGISTER_GLOBAL("device_api.opencl.AllocNd").set_body([](TVMArgs args, TVMRe
   CHECK(scope.find("texture") != std::string::npos);
   int64_t ndim = args[5];
   CHECK_EQ(ndim, 2);
-  int64_t width = args[6];
-  int64_t height = args[7];
+  int64_t* shape = static_cast<int64_t*>(static_cast<void*>(args[6]));
+  int64_t width = shape[0];
+  int64_t height = shape[1];
 
   Device dev;
   dev.device_type = static_cast<DLDeviceType>(device_type);

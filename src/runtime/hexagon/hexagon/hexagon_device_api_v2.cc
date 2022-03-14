@@ -185,15 +185,12 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNd").set_body([](TVMArgs args, TVMR
   int32_t dtype_code_hint = args[2];
   int32_t dtype_bits_hint = args[3];
   std::string scope = args[4];
-  CHECK(scope.find("vtcm") != std::string::npos);
+  CHECK(scope.find("global.vtcm") != std::string::npos);
   int64_t ndim = args[5];
   // Forcing contiguous allocation, for now
   // TODO(Straw): Enable discontiguous allocation
   CHECK_EQ(ndim, 1);
-  std::vector<int64_t> shape;
-  for (int i = 0; i < ndim; ++i) {
-    shape.push_back(args[6 + i]);
-  }
+  int64_t* shape = static_cast<int64_t*>(static_cast<void*>(args[6]));
 
   Device dev;
   dev.device_type = static_cast<DLDeviceType>(device_type);
@@ -206,7 +203,7 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNd").set_body([](TVMArgs args, TVMR
 
   HexagonDeviceAPIv2* hexapi = HexagonDeviceAPIv2::Global();
   HexagonBuffer* hexbuf = reinterpret_cast<HexagonBuffer*>(
-      hexapi->AllocVtcmWorkspace(dev, ndim, shape.data(), type_hint, String(scope)));
+      hexapi->AllocVtcmWorkspace(dev, ndim, shape, type_hint, String(scope)));
 
   // Assumes a single contiguous allocation
   // TODO(Straw): Enable discontiguous allocation
