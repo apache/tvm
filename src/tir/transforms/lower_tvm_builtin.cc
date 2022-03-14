@@ -158,8 +158,8 @@ class BuiltinLower : public StmtExprMutator {
 
   Stmt VisitStmt_(const LetStmtNode* op) final {
     if (const CallNode* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(builtin::texture2d_alloca())) {
-        return StmtExprMutator::VisitStmt(MakeTextureAlloc(op, call));
+      if (call->op.same_as(builtin::nd_mem_alloc_with_scope())) {
+        return StmtExprMutator::VisitStmt(MakeNdMemAllocWithScope(op, call));
       }
     }
     return StmtExprMutator::VisitStmt_(op);
@@ -459,7 +459,7 @@ class BuiltinLower : public StmtExprMutator {
     return Call(op->dtype, builtin::tvm_call_trace_packed_lowered(), packed_args);
   }
 
-  Stmt MakeTextureAlloc(const LetStmtNode* let, const CallNode* call) {
+  Stmt MakeNdMemAllocWithScope(const LetStmtNode* let, const CallNode* call) {
     ICHECK(device_type_.defined()) << "Unknown device type in current IR";
     ICHECK(device_id_.defined()) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
@@ -467,24 +467,32 @@ class BuiltinLower : public StmtExprMutator {
     Stmt body = SeqStmt(
         {IfThenElse(Call(DataType::Bool(1), builtin::isnullptr(), {let->var}), throw_last_error),
          let->body});
+
     DataType dtype =
         let->var->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>()->dtype;
 
     std::string fdevapi_prefix = "device_api.";
     fdevapi_prefix += runtime::DeviceName(device_type_.as<IntImmNode>()->value);
-    Call call_packed =
-        Call(let->var.dtype(), builtin::tvm_call_packed(),
-             {StringImm(fdevapi_prefix + ".AllocTexture"), cast(DataType::Int(32), device_type_),
-              cast(DataType::Int(32), device_id_), cast(DataType::UInt(64), call->args[0]),
-              cast(DataType::UInt(64), call->args[1]), IntImm(DataType::Int(32), dtype.code()),
-              IntImm(DataType::Int(32), dtype.bits())});
 
+    Array<PrimExpr> args = {
+        StringImm(fdevapi_prefix + ".AllocNd"),
+        device_type_,
+        device_id_,
+        IntImm(DataType::Int(32), dtype.code()),
+        IntImm(DataType::Int(32), dtype.bits()),
+    };
+
+    for (size_t i = 0; i < call->args.size(); ++i) {
+      args.push_back(call->args[i]);
+    }
+
+    Call call_packed = Call(let->var.dtype(), builtin::tvm_call_packed(), args);
     Stmt alloca = LetStmt(let->var, call_packed, body);
 
-    Call free_op =
-        Call(DataType::Int(32), builtin::tvm_call_packed(),
-             {StringImm(fdevapi_prefix + ".FreeTexture"), cast(DataType::Int(32), device_type_),
-              cast(DataType::Int(32), device_id_), let->var});
+    PrimExpr storage_scope = call->args[0];
+    Call free_op = Call(
+        DataType::Int(32), builtin::tvm_call_packed(),
+        {StringImm(fdevapi_prefix + ".FreeNd"), device_type_, device_id_, storage_scope, let->var});
 
     Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
     body = SeqStmt({alloca, free_stmt});
