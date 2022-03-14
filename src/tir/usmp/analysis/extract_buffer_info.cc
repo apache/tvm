@@ -75,8 +75,8 @@ class BufferInfoExtractor : public StmtExprVisitor {
   void VisitStmt_(const AllocateNode* op) override;
   void VisitExpr_(const CallNode* op) override;
   void VisitExpr_(const VarNode* op) override;
-  void VisitExpr_(const LoadNode* op) override;
-  void VisitStmt_(const StoreNode* op) override;
+  void VisitExpr_(const BufferLoadNode* op) override;
+  void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
 
   void UpdateAliases(const Array<PrimExpr>& args, const PrimFunc& func);
@@ -310,13 +310,13 @@ void BufferInfoExtractor::VisitStmt_(const ForNode* op) {
   scope_stack_.pop();
 }
 
-void BufferInfoExtractor::VisitExpr_(const LoadNode* op) {
-  this->VisitExpr(op->buffer_var);
+void BufferInfoExtractor::VisitExpr_(const BufferLoadNode* op) {
+  this->VisitExpr(op->buffer->data);
   StmtExprVisitor::VisitExpr_(op);
 }
 
-void BufferInfoExtractor::VisitStmt_(const StoreNode* op) {
-  this->VisitExpr(op->buffer_var);
+void BufferInfoExtractor::VisitStmt_(const BufferStoreNode* op) {
+  this->VisitExpr(op->buffer->data);
   StmtExprVisitor::VisitStmt_(op);
 }
 

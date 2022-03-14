@@ -1571,11 +1571,15 @@ inline te::Tensor DynamicArange(const te::Tensor& start, const te::Tensor& stop,
                                 const te::Tensor& step, tvm::DataType dtype,
                                 std::string name = "T_arange_dynamic",
                                 std::string tag = topi::kInjective) {
+  ICHECK_EQ(start.ndim(), 0);
+  ICHECK_EQ(stop.ndim(), 0);
+  ICHECK_EQ(step.ndim(), 0);
   tvm::PrimExpr num_elem = tvm::tir::Var("num_elem");
   return te::compute(
       {num_elem},
       [&](const Array<tvm::tir::Var>& indices) {
-        return tvm::cast(dtype, start[0] + step[0] * indices[0]);
+        Array<PrimExpr> empty_indices;
+        return tvm::cast(dtype, start(empty_indices) + step(empty_indices) * indices[0]);
       },
       name, tag);
 }

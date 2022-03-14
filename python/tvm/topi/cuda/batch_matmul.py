@@ -368,7 +368,16 @@ def _schedule_batch_matmul_int8(cfg, s, output):
     ko, ki = s[batch_matmul_cache].split(ko, factor=4)
     ko, kt = cfg["tile_k"].apply(s, batch_matmul_cache, ko)
     # dp4a tensorize
-    s[batch_matmul_cache].tensorize(ki, _dp4a)
+
+    target = tvm.target.Target.current(allow_none=False)
+    do_tensorize = True
+
+    if "vulkan" in target.keys:
+        do_tensorize = "+dotprod" in target.mattr or target.supports_integer_dot_product
+
+    if do_tensorize:
+        dtypes = (input_x.dtype, input_y.dtype)
+        s[batch_matmul_cache].tensorize(ki, dp4a("shared", "shared", "local", dtypes))
 
     # tile axis
     f, m, n = batch_matmul_op.axis

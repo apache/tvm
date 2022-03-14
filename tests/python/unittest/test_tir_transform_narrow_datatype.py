@@ -51,9 +51,9 @@ def lower_sch(sch, args, target_bits, extra_passes=None):
 def test_basic():
     def check(m, n, target_bits, target_dtype):
         ib = tvm.tir.ir_builder.create()
-        Ab = tvm.tir.decl_buffer((m, n), name="A")
+        Ab = tvm.tir.decl_buffer([m * n], name="A")
         A = ib.buffer_ptr(Ab)
-        Bb = tvm.tir.decl_buffer((m, n), name="B")
+        Bb = tvm.tir.decl_buffer([m * n], name="B")
         B = ib.buffer_ptr(Bb)
         with ib.for_range(0, m, name="i") as i:
             with ib.for_range(0, n, name="j") as j:
@@ -83,9 +83,9 @@ def test_basic():
 def test_thread_axis():
     def check(m, n, target_bits, target_dtype):
         ib = tvm.tir.ir_builder.create()
-        Ab = tvm.tir.decl_buffer((m, n), name="A")
+        Ab = tvm.tir.decl_buffer([m * n], name="A")
         A = ib.buffer_ptr(Ab)
-        Bb = tvm.tir.decl_buffer((m, n), name="B")
+        Bb = tvm.tir.decl_buffer([m * n], name="B")
         B = ib.buffer_ptr(Bb)
         bx = te.thread_axis("blockIdx.x")
         tx = te.thread_axis("threadIdx.x")
@@ -168,9 +168,9 @@ def test_slice():
     def check(m, n, target_bits, target_dtype):
         # The index may overflow in B, while not in A
         ib = tvm.tir.ir_builder.create()
-        Ab = tvm.tir.decl_buffer((m, n), name="A")
+        Ab = tvm.tir.decl_buffer([m * n], name="A")
         A = ib.buffer_ptr(Ab)
-        Bb = tvm.tir.decl_buffer((m, n * 2), name="B")
+        Bb = tvm.tir.decl_buffer([m * n * 2], name="B")
         B = ib.buffer_ptr(Bb)
         with ib.for_range(0, m, name="i") as i:
             with ib.for_range(0, n, name="j") as j:
@@ -242,7 +242,7 @@ def test_relay_take():
         func = mod["main"]
         z = engine.lower(func, "llvm")
         stmt = lower_sch(z.schedule, tuple(z.inputs) + tuple(z.outputs), 32)
-        assert stmt.value.index.dtype == target_dtype
+        assert stmt.value.indices[0].dtype == target_dtype
 
     check(
         (const(2 ** 16, "int64"), const(2 ** 15 + 1, "int64")),

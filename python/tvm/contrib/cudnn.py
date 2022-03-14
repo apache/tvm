@@ -741,18 +741,22 @@ def conv_backward_data(
         tensor_format, pad, stride, dilation, dy.shape, w.shape, output_padding, groups
     )
 
-    algo = conv_backward_data_find_algo(
-        tensor_format,
-        pad,
-        stride,
-        dilation,
-        list(dy.shape),
-        list(w.shape),
-        dx_shape,
-        dy.dtype,
-        conv_dtype,
-        groups,
-    )
+    if exists():
+        # When cudnn exists, find the backward data algo
+        algo = conv_backward_data_find_algo(
+            tensor_format,
+            pad,
+            stride,
+            dilation,
+            list(dy.shape),
+            list(w.shape),
+            dx_shape,
+            dy.dtype,
+            conv_dtype,
+            groups,
+        )
+    else:
+        algo = 1
 
     return te.extern(
         dx_shape,

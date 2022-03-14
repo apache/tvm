@@ -233,9 +233,9 @@ def test_skip_ci(tmpdir_factory):
             ["commit", "--allow-empty", "--message", "[skip ci] commit 1"],
             ["commit", "--allow-empty", "--message", "commit 2"],
         ],
-        should_skip=False,
+        should_skip=True,
         pr_title="[skip ci] test",
-        why="ci should not be skipped on a branch without [skip ci] in the last commit",
+        why="ci should not be skipped with [skip ci] in the PR title",
     )
 
     test(
@@ -244,9 +244,9 @@ def test_skip_ci(tmpdir_factory):
             ["commit", "--allow-empty", "--message", "[skip ci] commit 1"],
             ["commit", "--allow-empty", "--message", "commit 2"],
         ],
-        should_skip=False,
+        should_skip=True,
         pr_title="[skip ci] test",
-        why="ci should not be skipped on a branch without [skip ci] in the last commit",
+        why="ci should not be skipped with [skip ci] in the PR title",
     )
 
     test(
@@ -257,10 +257,45 @@ def test_skip_ci(tmpdir_factory):
             ["commit", "--allow-empty", "--message", "commit 3"],
             ["commit", "--allow-empty", "--message", "commit 4"],
         ],
-        should_skip=False,
+        should_skip=True,
         pr_title="[skip ci] test",
-        why="ci should not be skipped on a branch without [skip ci] in the last commit",
+        why="ci should not be skipped with [skip ci] in the PR title",
     )
+
+
+def test_skip_globs(tmpdir_factory):
+    script = REPO_ROOT / "tests" / "scripts" / "git_skip_ci_globs.py"
+
+    def run(files, should_skip):
+        git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+        # Jenkins git is too old and doesn't have 'git init --initial-branch'
+        git.run("init")
+        git.run("checkout", "-b", "main")
+        git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+
+        proc = subprocess.run(
+            [
+                str(script),
+                "--files",
+                ",".join(files),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+            cwd=git.cwd,
+        )
+
+        if should_skip:
+            assert proc.returncode == 0
+        else:
+            assert proc.returncode == 1
+
+    run([], should_skip=True)
+    run(["README.md"], should_skip=True)
+    run(["test.c"], should_skip=False)
+    run(["test.c", "README.md"], should_skip=False)
+    run(["src/autotvm/feature_visitor.cc", "README.md"], should_skip=False)
+    run([".asf.yaml", "docs/README.md"], should_skip=True)
 
 
 def test_ping_reviewers(tmpdir_factory):

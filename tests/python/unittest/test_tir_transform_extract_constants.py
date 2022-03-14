@@ -28,7 +28,7 @@ class Module4:
         B = T.alloc_buffer((10), "int32")
         K = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
         for x in T.serial(0, 10):
-            B[x] = A[x] + T.load("int32", K, x)
+            B[x] = A[x] + K[x]
 
     @T.prim_func
     def constant2(a: T.handle) -> None:
@@ -36,7 +36,7 @@ class Module4:
         B = T.alloc_buffer((10), "int32")
         K = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
         for x in T.serial(0, 10):
-            B[x] = A[x] + T.load("int32", K, x)
+            B[x] = A[x] + K[x]
 
     @T.prim_func
     def constant3(a: T.handle) -> None:
@@ -44,7 +44,7 @@ class Module4:
         B = T.alloc_buffer((10), "int32")
         K = T.allocate_const([1, 2, 3, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
         for x in T.serial(0, 10):
-            B[x] = A[x] + T.load("int32", K, x)
+            B[x] = A[x] + K[x]
 
 
 def test_const_extraction():

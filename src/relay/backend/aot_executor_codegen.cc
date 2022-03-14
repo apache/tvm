@@ -279,7 +279,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    * \param num the number to convert
    * \return PrimExpr representing num
    */
-  inline PrimExpr ConstInt32(size_t num) {
+  inline PrimExpr ConstInt32(int32_t num) {
     ICHECK_LE(num, std::numeric_limits<int>::max());
     return tir::make_const(DataType::Int(32), static_cast<int>(num));
   }
@@ -333,6 +333,19 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     args->insert(args->end(), sids.begin(), sids.end());
   }
 
+  /*
+   * Wraps a call_extern with a tvm_check_return annotation if required otherwise
+   * returns the passed Call
+   */
+  tir::Call AddCheckReturn(tir::Call existing_call) {
+    if (use_unpacked_api_) {
+      Array<PrimExpr> args = {ConstInt32(0), ConstInt32(-1), existing_call};
+      return tir::Call(DataType::Int(32), tir::builtin::tvm_check_return(), args);
+    }
+
+    return existing_call;
+  }
+
   /*!
    * brief Create a function call
    * \param call_lowered_props The lowered function and the arguments to call it with
@@ -343,6 +356,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     std::string func_name = call_lowered_props.lowered_func->name_hint;
     tvm::Array<PrimExpr> args{tvm::tir::StringImm(func_name)};
     std::vector<tir::Stmt> create_func_call_stmts;
+
     // Pack the inputs
     for (const Expr& arg : call_lowered_props.arguments) {
       if (params_by_expr_.find(arg) != params_by_expr_.end()) {
@@ -394,7 +408,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       tir::Var context = device_contexts_.Get(global_var).value();
       args.push_back(context);
 
-      tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
+      tir::Evaluate func_call(
+          AddCheckReturn(tvm::tir::Call(DataType::Int(32), calling_pattern, args)));
       create_func_call_stmts.push_back(tir::SeqStmt({
           GenerateDeviceHook(context, "Open"),
           func_call,
@@ -407,7 +422,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       create_func_call_stmts.push_back(func_call);
     } else {
       // call_extern calling convention without context
-      tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
+      tir::Evaluate func_call(
+          AddCheckReturn(tvm::tir::Call(DataType::Int(32), calling_pattern, args)));
       create_func_call_stmts.push_back(func_call);
     }
 
@@ -423,15 +439,17 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    */
   void CopyToOutput(PrimExpr out, PrimExpr in, bool pack_input, size_t size) {
     // Define intermediate DLTensor to load/store the data
-    auto tmp0 = te::Var("tmp0", DataType::Handle());
-    auto tmp1 = te::Var("tmp1", DataType::Handle());
+    tir::Buffer tmp_read =
+        tir::decl_buffer({IntImm(DataType::UInt(64), size)}, DataType::UInt(8), "tmp_read");
+    tir::Buffer tmp_write =
+        tir::decl_buffer({IntImm(DataType::UInt(64), size)}, DataType::UInt(8), "tmp_write");
     te::Var loop_idx("i", DataType::Int(32));
-    auto retval_i = tir::Load(DataType::UInt(8), tmp0, loop_idx, tir::const_true());
+    auto retval_i = tir::BufferLoad(tmp_read, {loop_idx});
     // Copy the variable from the input to the output
     tir::Stmt copy =
         tir::For(loop_idx, 0, ConstInt32(size), tir::ForKind::kSerial,
-                 tir::Store(tmp1, tir::Let(tmp0, in, retval_i), loop_idx, tir::const_true()));
-    stmts_.push_back(tir::LetStmt(tmp1, out, copy));
+                 tir::BufferStore(tmp_write, tir::Let(tmp_read->data, in, retval_i), {loop_idx}));
+    stmts_.push_back(tir::LetStmt(tmp_write->data, out, copy));
   }
 
   /*
@@ -480,8 +498,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       Array<String> sections = {"Device", device_name, hook};
       String device_hook_name = ToCFunctionStyle(PrefixName(sections));
 
-      tir::Evaluate device_hook(tvm::tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(),
-                                               {tvm::tir::StringImm(device_hook_name), context}));
+      tir::Evaluate device_hook(
+          AddCheckReturn(tvm::tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(),
+                                        {tvm::tir::StringImm(device_hook_name), context})));
       device_hooks.push_back(device_hook);
     }
     return tir::SeqStmt(device_hooks);
@@ -501,8 +520,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     Array<String> sections = {"Device", device_name, hook};
     String device_hook = ToCFunctionStyle(PrefixName(sections));
 
-    return tir::Evaluate(tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(),
-                                   {tvm::tir::StringImm(device_hook), context}));
+    return tir::Evaluate(
+        AddCheckReturn(tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(),
+                                 {tvm::tir::StringImm(device_hook), context})));
   }
 
   /*!
@@ -689,7 +709,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     tir::Stmt final_body = tir::SeqStmt({device_activations, body, device_deactivations});
 
     // Make the PrimFunc
-    return tir::PrimFunc(main_signature_, final_body, VoidType(), main_buffer_map_,
+    return tir::PrimFunc(main_signature_, final_body, VoidType(), main_buffer_map_, {},
                          DictAttrs(dict_attrs));
   }
 

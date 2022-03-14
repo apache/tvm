@@ -319,12 +319,6 @@ def test_complete_alloc_buffer():
     tvm.ir.assert_structural_equal(alloc_buffer_func, expect_alloc_buffer_func)
 
 
-@T.prim_func
-def load_var() -> None:
-    d = T.var("float32")
-    d[1] = d[1]
-
-
 if __name__ == "__main__":
     test_complete_matmul()
     test_complete_matmul_original()

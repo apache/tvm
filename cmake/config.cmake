@@ -81,6 +81,17 @@ set(USE_METAL OFF)
 # - /path/to/vulkan-sdk: use specific path to vulkan-sdk
 set(USE_VULKAN OFF)
 
+# Whether to use spirv-tools.and SPIRV-Headers from Khronos github or gitlab.
+#
+# Possible values:
+# - OFF: not to use
+# - /path/to/install: path to your khronis spirv-tools and SPIRV-Headers installation directory
+#
+set(USE_KHRONOS_SPIRV OFF)
+
+# whether enable SPIRV_KHR_DOT_PRODUCT
+set(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT OFF)
+
 # Whether enable OpenGL runtime
 set(USE_OPENGL OFF)
 
@@ -364,3 +375,8 @@ set(USE_CUTLASS OFF)
 
 # Enable to show a summary of TVM options
 set(SUMMARIZE OFF)
+
+# Whether to use LibTorch as backend
+# To enable pass the path to the root libtorch (or PyTorch) directory
+# OFF or /path/to/torch/
+set(USE_LIBTORCH OFF)

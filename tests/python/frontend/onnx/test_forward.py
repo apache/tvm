@@ -6275,6 +6275,49 @@ def test_scan(target, dev):
     verify_scan(input_shapes, output_shapes, 3, [-4, -1, -2], [1] * 3, [-3, -2], [1] * 2, 9)
 
 
+@tvm.testing.parametrize_targets
+def test_LinearRegressor(target, dev):
+    def verify_LinearRegressor(a_shape, c_shape, i_shape, targets=1, batch=1):
+        a_array = np.random.uniform(size=a_shape).astype("float32")
+        out_shape = (batch, targets)
+
+        coefficients = np.random.uniform(size=c_shape).astype("float32")
+        intercepts = np.random.uniform(size=i_shape).astype("float32")
+
+        mul_node = helper.make_node(
+            "LinearRegressor",
+            ["a"],
+            ["out"],
+            coefficients=coefficients,
+            intercepts=intercepts,
+            targets=targets,
+            domain="ai.onnx.ml",
+        )
+
+        graph = helper.make_graph(
+            [mul_node],
+            "LinearRegressor_test",
+            inputs=[
+                helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, out_shape)],
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="LinearRegressor_test",
+            opset_imports=[
+                onnx.helper.make_opsetid("ai.onnx.ml", 1),
+            ],
+        )
+        verify_with_ort_with_inputs(model, [a_array], target=target, dev=dev)
+
+    verify_LinearRegressor((1, 3), (3), (1))
+    verify_LinearRegressor((2, 10), (10), (1), batch=2)
+    verify_LinearRegressor((1, 3), (30), (10), targets=10)
+    verify_LinearRegressor((10, 3), (30), (10), targets=10, batch=10)
+    verify_LinearRegressor((1, 4), (3), (1))
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -6371,3 +6414,4 @@ if __name__ == "__main__":
     test_random_uniform_like()
     test_random_normal()
     test_random_normal_like()
+    test_LinearRegressor()

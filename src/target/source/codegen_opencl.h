@@ -47,11 +47,11 @@ class CodeGenOpenCL final : public CodeGenC {
   void PrintStorageSync(const CallNode* op) final;                           // NOLINT(*)
   void PrintType(DataType t, std::ostream& os) final;                        // NOLINT(*)
   void PrintType(const Type& type, std::ostream& os) final;                  // NOLINT(*)
-  std::string GetVecLoad(DataType t, const VarNode* buffer, PrimExpr base) final;
-  void PrintVecStore(const VarNode* buffer, DataType t, PrimExpr base,
+  std::string GetVecLoad(DataType t, const BufferNode* buffer, PrimExpr base) final;
+  void PrintVecStore(const BufferNode* buffer, DataType t, PrimExpr base,
                      const std::string& value) final;  // NOLINT(*)
   // the address of load/store
-  void PrintVecAddr(const VarNode* buffer, DataType t, PrimExpr base,
+  void PrintVecAddr(const BufferNode* buffer, DataType t, PrimExpr base,
                     std::ostream& os);                                           // NOLINT(*)
   void PrintRestrict(const Var& v, std::ostream& os) final;                      // NOLINT(*)
   std::string CastFromTo(std::string value, DataType from, DataType target);     // NOLINT(*)
@@ -64,6 +64,7 @@ class CodeGenOpenCL final : public CodeGenC {
   void VisitExpr_(const CastNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
   void VisitStmt_(const StoreNode* op) final;                        // NOLINT(*)
+  void VisitStmt_(const BufferStoreNode* op) final;                  // NOLINT(*)
 
   // overload min and max to avoid ambiguous call errors
   void VisitExpr_(const MinNode* op, std::ostream& os) final;

@@ -766,24 +766,27 @@ def test_output_tensor_names():
             def tf_function(self, x):
                 # Use tf.nn API to create the model
                 tf_strides = [1, strides[0], strides[1], 1]
+                filter_shape = [kernel_shape[0], kernel_shape[1], 3, 3]
+                filter1 = tf.constant(
+                    np.arange(np.prod(filter_shape)).reshape(filter_shape),
+                    dtype=tf.float32,
+                )
                 op = tf.nn.conv2d(
                     x,
-                    filters=tf.constant(
-                        np.random.uniform(size=[kernel_shape[0], kernel_shape[1], 3, 3]),
-                        dtype=tf.float32,
-                    ),
+                    filters=filter1,
                     strides=tf_strides,
                     padding=padding,
                     dilations=dilation,
                 )
                 op = tf.nn.relu(op)
                 # Second convolution
+                filter2 = tf.constant(
+                    1000 + np.arange(np.prod(filter_shape)).reshape(filter_shape),
+                    dtype=tf.float32,
+                )
                 op2 = tf.nn.conv2d(
                     x,
-                    filters=tf.constant(
-                        np.random.uniform(size=(kernel_shape[0], kernel_shape[1], 3, 3)),
-                        dtype=tf.float32,
-                    ),
+                    filters=filter2,
                     strides=strides,
                     padding=padding,
                     data_format="NHWC",
@@ -915,6 +918,37 @@ def test_workspace_calculation_cmsis_nn():
         lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
     mlf_memory_map = mlf._build_function_memory_map(lib.function_metadata)
     assert mlf_memory_map["main"][0]["workspace_size_bytes"] == 9904
+
+
+def test_aot_codegen_checks_returns():
+    """This test checks whether AoT lowering creates calls that check the return value correctly"""
+    x = relay.var("x", shape=(1, 10))
+    y = relay.var("y", shape=(1, 10))
+    z = relay.add(x, y)
+    func = relay.Function([x, y], z)
+
+    compiled_test_mods = compile_models(
+        models=AOTTestModel(module=IRModule.from_expr(func), inputs=None, outputs=None),
+        interface_api="c",
+        use_unpacked_api=True,
+    )
+    source = compiled_test_mods[0].executor_factory.lib.imported_modules[0].get_source()
+
+    main_ir_module = compiled_test_mods[0].executor_factory.lowered_ir_mods.items()[0][1]
+    main_func = main_ir_module["__tvm_main__"]
+
+    # Check operator call is wrapped properly
+    assert (
+        str(main_func.body[1])
+        == "tir.tvm_check_return(0, -1, tir.call_extern("
+        + '"tvmgen_default_fused_add",'
+        + " x_buffer_var, y_buffer_var, output_buffer_var))\n"
+    )
+    # TODO(Mousius) - Create a better place for C codegen tests
+    assert (
+        "if (tvmgen_default_fused_add(x_buffer_var, y_buffer_var, output_buffer_var) != 0 ) return -1;"
+        in source
+    )
 
 
 if __name__ == "__main__":

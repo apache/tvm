@@ -153,7 +153,7 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads([])
             T.writes([A[0:16, 0:16]])
-            T.store(A.data, vi * 16 + vj, 1)
+            A[vi, vj] = 1
     for i, j in T.grid(16, 16):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -171,7 +171,7 @@ def opaque_access_reorder(a: T.handle, b: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads([])
             T.writes([A[0:16, 0:16]])
-            T.store(A.data, vi * 16 + vj, 1)
+            A[vi, vj] = 1
     for j, i in T.grid(16, 16):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])

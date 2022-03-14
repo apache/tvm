@@ -456,13 +456,9 @@ class CacheReadRewriter : public StmtExprMutator {
     return ExprMutator::VisitExpr_(load);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* load) final {
-    if (load->buffer_var.same_as(info_->read_buffer->data)) {
-      ObjectPtr<LoadNode> n = make_object<LoadNode>(*load);
-      n->buffer_var = info_->write_buffer->data;
-      return PrimExpr(n);
-    }
-    return ExprMutator::VisitExpr_(load);
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
@@ -575,22 +571,14 @@ class CacheWriteRewriter : public StmtExprMutator {
     return ExprMutator::VisitExpr_(load);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* load) final {
-    if (load->buffer_var.same_as(info_->write_buffer->data)) {
-      ObjectPtr<LoadNode> n = make_object<LoadNode>(*load);
-      n->buffer_var = info_->read_buffer->data;
-      return PrimExpr(n);
-    }
-    return ExprMutator::VisitExpr_(load);
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
-  Stmt VisitStmt_(const StoreNode* store) final {
-    if (store->buffer_var.same_as(info_->write_buffer->data)) {
-      ObjectPtr<StoreNode> n = make_object<StoreNode>(*store);
-      n->buffer_var = info_->read_buffer->data;
-      return Stmt(n);
-    }
-    return StmtMutator::VisitStmt_(store);
+  Stmt VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {

@@ -99,13 +99,11 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   void VisitExpr_(const VarNode* op) final { VisitBufferVar(GetRef<Var>(op)); }
 
   void VisitExpr_(const LoadNode* op) final {
-    StmtExprVisitor::VisitExpr_(op);
-    VisitBufferVar(op->buffer_var);
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
 
   void VisitStmt_(const StoreNode* op) final {
-    StmtExprVisitor::VisitStmt_(op);
-    VisitBufferVar(op->buffer_var);
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
   }
 
   void VisitStmt_(const ForNode* op) final {
@@ -217,7 +215,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
           continue;
         }
         auto dom_it = dom_map_.find(v);
-        ICHECK(dom_it != dom_map_.end());
+        ICHECK(dom_it != dom_map_.end())
+            << "Could not find domain for loop variable " << v->name_hint;
         non_relaxed[i] = dom_it->second;
         dom_map_.erase(dom_it);
       }

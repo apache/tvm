@@ -16,9 +16,9 @@
 # under the License.
 """RPC Runner"""
 import concurrent.futures
-from contextlib import contextmanager
 import logging
 import os.path as osp
+from contextlib import contextmanager
 from typing import Callable, List, Optional, Union
 
 from tvm.contrib.popen_pool import PopenPoolExecutor
@@ -31,14 +31,13 @@ from ..utils import (
     get_global_func_with_default_on_worker,
 )
 from .config import EvaluatorConfig, RPCConfig
-from .runner import PyRunner, RunnerFuture, PyRunnerFuture, RunnerInput, RunnerResult
+from .runner import PyRunner, PyRunnerFuture, RunnerFuture, RunnerInput, RunnerResult
 from .utils import (
-    T_ARGUMENT_LIST,
     T_ARG_INFO_JSON_OBJ_LIST,
+    T_ARGUMENT_LIST,
     alloc_argument_common,
     run_evaluator_common,
 )
-
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -118,7 +117,7 @@ class RPCRunnerFuture(PyRunnerFuture):
     def result(self) -> RunnerResult:
         try:
             run_secs: List[float] = self.future.result()
-        except TimeoutError as exception:
+        except TimeoutError:
             return RunnerResult(
                 None,
                 error_msg=f"RPCRunner: Timeout, killed after {self.timeout_sec} seconds",

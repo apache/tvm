@@ -30,6 +30,17 @@
 # The sub modules should be ordered first by depth.
 # Making sure we append new sub-module rules after exisiting modules rules.
 
+###############################################################################
+#                               IMPORTANT NOTE
+# This file is intentionally not named CODEOWNERS to avoid getting picked up
+# by GitHub's code owners -> review mechanism. For details see
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+# and https://github.com/apache/tvm-rfcs/pull/58
+#
+# This file is kept to allow manual inspection of who is responsible for
+# different segments of the codebase.
+###############################################################################
+
 ##############################
 # Top-level Fallbacks
 ##############################

@@ -171,6 +171,12 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     os << "void*";
     return;
   }
+
+  if (t.is_void()) {
+    os << "void";
+    return;
+  }
+
   bool fail = false;
   if (t.is_float()) {
     switch (t.bits()) {
@@ -738,7 +744,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // arg 10: C accumulator
     // arg 11: C accumulator index
     // arg 12: saturate
-    ICHECK_EQ(op->args.size(), 13U);
+    // arg 13: (optional) 1-bit operator (xor or and)
+    ICHECK(op->args.size() == 13U || op->args.size() == 14U);
     std::string shape = Downcast<StringImm>(op->args[0])->value;
     std::string A_layout = Downcast<StringImm>(op->args[1])->value;
     std::string B_layout = Downcast<StringImm>(op->args[2])->value;
@@ -751,10 +758,50 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string b_bias = this->PrintExpr(op->args[9]);
     std::string c_ref = this->PrintExpr(op->args[10]);
     std::string c_bias = this->PrintExpr(op->args[11]);
-    bool saturate = (Downcast<IntImm>(op->args[12])->value != 0);
-    std::string asm_code = PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype,
-                                            a_ref, a_bias, b_ref, b_bias, c_ref, c_bias, saturate);
+    bool saturate = Downcast<Bool>(op->args[12])->value;
+    std::string bit_op = op->args.size() > 13 ? Downcast<StringImm>(op->args[13])->value : "";
+    std::string asm_code =
+        PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref, a_bias, b_ref,
+                         b_bias, c_ref, c_bias, "", "", "", bit_op, false, saturate);
 
+    this->stream << asm_code;
+  } else if (op->op.same_as(builtin::ptx_mma_sp())) {
+    // arg 0: shape: mXnXkX
+    // arg 1: A layout: row/col
+    // arg 2: B layout: row/col
+    // arg 3: A precision: fp16, fp32, ...
+    // arg 4: B precision: fp16, fp32, ...
+    // arg 5: C precision: fp16, fp32, ...
+    // arg 6: A multiplicand
+    // arg 7: A multiplicand index
+    // arg 8: B multiplicand
+    // arg 9: B multiplicand index
+    // arg 10: C accumulator
+    // arg 11: C accumulator index
+    // arg 12: metadata
+    // arg 13: metadata index
+    // arg 14: sparse_selector
+    // arg 15: saturate
+    ICHECK_EQ(op->args.size(), 16U);
+    std::string shape = Downcast<StringImm>(op->args[0])->value;
+    std::string A_layout = Downcast<StringImm>(op->args[1])->value;
+    std::string B_layout = Downcast<StringImm>(op->args[2])->value;
+    std::string A_dtype = Downcast<StringImm>(op->args[3])->value;
+    std::string B_dtype = Downcast<StringImm>(op->args[4])->value;
+    std::string C_dtype = Downcast<StringImm>(op->args[5])->value;
+    std::string a_ref = this->PrintExpr(op->args[6]);
+    std::string a_offset = this->PrintExpr(op->args[7]);
+    std::string b_ref = this->PrintExpr(op->args[8]);
+    std::string b_offset = this->PrintExpr(op->args[9]);
+    std::string c_ref = this->PrintExpr(op->args[10]);
+    std::string c_offset = this->PrintExpr(op->args[11]);
+    std::string metadata = this->PrintExpr(op->args[12]);
+    std::string metadata_offset = this->PrintExpr(op->args[13]);
+    std::string sparse_selector = this->PrintExpr(op->args[14]);
+    bool saturate = Downcast<Bool>(op->args[15])->value;
+    std::string asm_code = PrintMMAAssembly(
+        shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref, a_offset, b_ref, b_offset,
+        c_ref, c_offset, metadata, metadata_offset, sparse_selector, "", true, saturate);
     this->stream << asm_code;
   } else {
     CodeGenC::VisitExpr_(op, os);
@@ -1115,12 +1162,12 @@ int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode
   return 0;
 }
 
-void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const LoadNode* op,
+void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
                                       std::ostream& os) {
   // Cast away volatile qualifier for fp16 types. That is, only loads and
   // stores are volatile. The loaded objects are not marked as volatile.
   //
-  if ((op->dtype.is_float16() || op->dtype.is_bfloat16()) && IsVolatile(op->buffer_var.get())) {
+  if ((op->dtype.is_float16() || op->dtype.is_bfloat16()) && IsVolatile(op->buffer->data.get())) {
     os << "(";
     PrintType(op->dtype, os);
     os << ")(" << value << ")";

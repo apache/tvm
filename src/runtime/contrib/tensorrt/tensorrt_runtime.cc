@@ -72,7 +72,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
         use_implicit_batch_(true),
         max_workspace_size_(size_t(1) << 30),
         max_batch_size_(-1),
-        multi_engine_mode_(false) {
+        multi_engine_mode_(false),
+        use_fp16_(false) {
     const bool use_int8 = dmlc::GetEnv("TVM_TENSORRT_USE_INT8", false);
     multi_engine_mode_ = dmlc::GetEnv("TVM_TENSORRT_MULTI_ENGINE", false);
     num_calibration_batches_remaining_ = dmlc::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
@@ -304,7 +305,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
   }
 
   void BuildEngineFromJson(int batch_size) {
-    const bool use_fp16 = dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false);
+    const bool use_fp16 = dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false) || use_fp16_;
     TensorRTBuilder builder(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
                             use_fp16, batch_size, calibrator_.get());
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
@@ -492,6 +493,9 @@ class TensorRTRuntime : public JSONRuntimeBase {
    * encountered. Multi-engine mode should give better performance, at a cost of higher memory usage
    * and more time spent building engines. */
   bool multi_engine_mode_;
+
+  /*! \brief Use auto-conversion to fp16 */
+  bool use_fp16_;
 };
 
 runtime::Module TensorRTRuntimeCreate(const String& symbol_name, const String& graph_json,

@@ -122,9 +122,9 @@ def analyze_scratch_memory_acesses(mod: tvm.IRModule, candidate_regions_for_scra
         if isinstance(stmt, tvm.tir.stmt.LetStmt):
             call_address_of = stmt.value
             load = call_address_of.args[0]
-            pool_var = load.buffer_var
+            pool_var = load.buffer.data
             scratch_region_map[stmt.var] = RegionOffset(
-                region=pool_var_region_map[pool_var], offset=int(load.index)
+                region=pool_var_region_map[pool_var], offset=int(load.indices[0])
             )
 
     tvm.tir.stmt_functor.post_order_visit(primfunc.body, analyze_pool_access)
@@ -334,6 +334,8 @@ def extract_buffer_info(
     primfunc = mod.functions.items()[0][1]
 
     for param, const_data in param_dict.items():
+        if isinstance(param, tvm.tir.Buffer):
+            param = param.data
         buffer_info[param] = BufferInfo(
             const_data, const_data.shape, const_data.dtype, BufferType.constant
         )
@@ -385,6 +387,7 @@ def assign_addresses(buffer_info, npu_ops, scratch_region_map):
         This is the dictionary obtained via calling extract_buffer_info.
         The key is the buffer name to BufferInfo
     npu_ops : list
+        A list of Vela NpuOps with tir.BufferLoads for addresses
         A list of Vela NpuOps with tir.Loads for addresses
     scratch_region_map : Dict[tvm.tir.Var, RegionOffset]
         A buffer_var to region and offset map.
@@ -397,14 +400,13 @@ def assign_addresses(buffer_info, npu_ops, scratch_region_map):
     """
 
     def replace_npu_fm_with_address(npu_fm):
-        assert isinstance(npu_fm.tiles.addresses[0], tvm.tir.Load)
+        assert isinstance(npu_fm.tiles.addresses[0], tvm.tir.BufferLoad)
         # We currently does not support tiles
         # Change this when tiles are needed
         # (i.e. when using rolling buffers)
         assert npu_fm.tiles.addresses[1:] == [0, 0, 0]
         npu_fm.tiles.addresses[1:] = [0, 0, 0]
-        buffer = npu_fm.tiles.addresses[0].buffer_var
-
+        buffer = npu_fm.tiles.addresses[0].buffer.data
         if buffer in scratch_region_map.keys():
             address = scratch_region_map[buffer].offset
             region = scratch_region_map[buffer].region
@@ -412,8 +414,10 @@ def assign_addresses(buffer_info, npu_ops, scratch_region_map):
             assert buffer in buffer_addresses.keys()
             address, buffer_type = buffer_addresses[buffer]
             region = _get_region(buffer_type)
-
-        index = npu_fm.tiles.addresses[0].index * (
+        assert (
+            len(npu_fm.tiles.addresses[0].indices) == 1
+        ), "Ethos-U translation expects flattened buffers"
+        index = npu_fm.tiles.addresses[0].indices[0] * (
             np.iinfo(np.dtype(npu_fm.tiles.addresses[0])).bits // 8
         )
         npu_fm.tiles.addresses[0] = address + int(index)
@@ -421,10 +425,11 @@ def assign_addresses(buffer_info, npu_ops, scratch_region_map):
         return npu_fm
 
     def replace_npu_address_range_with_address(npu_addr_range):
-        assert isinstance(npu_addr_range.address, tvm.tir.Load)
-        buffer = npu_addr_range.address.buffer_var
+        assert isinstance(npu_addr_range.address, tvm.tir.BufferLoad)
+        buffer = npu_addr_range.address.buffer.data
         index = int(
-            npu_addr_range.address.index * (np.iinfo(np.dtype(npu_addr_range.address)).bits // 8)
+            npu_addr_range.address.indices[0]
+            * (np.iinfo(np.dtype(npu_addr_range.address)).bits // 8)
         )
         if buffer in scratch_region_map.keys():
             return vapi.NpuAddressRange(
@@ -446,11 +451,11 @@ def assign_addresses(buffer_info, npu_ops, scratch_region_map):
     def classify_io(buffer):
         for _npu_op in npu_ops:
             if issubclass(type(_npu_op), vapi.NpuBlockOperation):
-                if _npu_op.ifm and _npu_op.ifm.tiles.addresses[0].buffer_var == buffer:
+                if _npu_op.ifm and _npu_op.ifm.tiles.addresses[0].buffer.data == buffer:
                     return BufferType.input
-                if _npu_op.ifm2 and _npu_op.ifm2.tiles.addresses[0].buffer_var == buffer:
+                if _npu_op.ifm2 and _npu_op.ifm2.tiles.addresses[0].buffer.data == buffer:
                     return BufferType.input
-                if _npu_op.ofm and _npu_op.ofm.tiles.addresses[0].buffer_var == buffer:
+                if _npu_op.ofm and _npu_op.ofm.tiles.addresses[0].buffer.data == buffer:
                     return BufferType.output
 
         raise ValueError(f"Unused IO : {buffer} in tir module.")

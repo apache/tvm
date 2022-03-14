@@ -63,7 +63,9 @@ def intrin_mem_copy(shape, dtype, dst_scope, src_scope):
 
 
 @requires_hexagon_toolchain
-def test_cache_read_write(android_serial_number, tvm_tracker_host, tvm_tracker_port):
+def test_cache_read_write(
+    android_serial_number, tvm_tracker_host, tvm_tracker_port, adb_server_socket
+):
     size = 128
     outer_shape = (size,)
     factor = 16
@@ -115,6 +117,7 @@ def test_cache_read_write(android_serial_number, tvm_tracker_host, tvm_tracker_p
         "rpc_tracker_host": tvm_tracker_host,
         "rpc_tracker_port": tvm_tracker_port,
         "rpc_server_port": 7070,
+        "adb_server_socket": adb_server_socket,
     }
     launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     launcher.upload(dso_binary_path, dso_binary)

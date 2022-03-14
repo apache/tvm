@@ -102,10 +102,8 @@ class ThreadBindingUnifier : public StmtExprMutator {
           << "` should have the same extent. However, there are two loops with extent "
           << new_iter_var->dom->extent << " and " << dom->extent << ", which are not equal";
     } else {
-      ObjectPtr<IterVarNode> p_new_iter_var = make_object<IterVarNode>(*old_iter_var.get());
-      p_new_iter_var->var = Var(thread_tag);
-      p_new_iter_var->dom = dom;
-      new_iter_var = IterVar(p_new_iter_var);
+      new_iter_var = IterVar(dom, Var(thread_tag, dom->extent.dtype()), old_iter_var->iter_type,
+                             old_iter_var->thread_tag);
       thread_tag2iter_var_map_.Set(thread_tag, new_iter_var);
       launch_threads_.push_back(new_iter_var);
     }

@@ -80,7 +80,8 @@ def unschedulable_func(a: T.handle, c: T.handle) -> None:
             T.writes(C[i, 0:16])
             B = T.alloc_buffer((16, 16), "float32")
             for j in range(0, 16):
-                T.store(B.data, i * 16 + j, A[i, j] + 1.0)
+                T.evaluate(T.call_extern("dummy_extern_function", B.data, dtype="int32"))
+                B[i, j] = A[i, j] + 1.0
             for j in range(0, 16):
                 C[i, j] = B[i, j] * 2.0
 
@@ -251,7 +252,7 @@ def complex_func(a: T.handle, c: T.handle, n: T.int32) -> None:
                     for k in range(4, 8):
                         D[k, j] = 1.0
                     for k in range(2, 4):
-                        T.store(B.data, j, A[i, j] + D[k, j])
+                        B[i, j] = A[i, j] + D[k, j]
             for j in range(3, 5):
                 with T.block() as []:
                     T.reads(B[i, j])
@@ -281,7 +282,7 @@ def compacted_complex_func(a: T.handle, c: T.handle, n: T.int32) -> None:
                     for k in range(4, 8):
                         D[k - 2, 0] = 1.0
                     for k in range(2, 4):
-                        T.store(B.data, j, A[i, j] + D[k - 2, 0])
+                        B[0, j] = A[i, j] + D[k - 2, 0]
             for j in range(3, 5):
                 with T.block() as []:
                     T.reads(B[0, j])
@@ -476,13 +477,15 @@ def opaque_access_annotated_func(a: T.handle) -> None:
                 # no annotation, opaque access will cover full region
                 T.reads([])
                 T.writes([])
-                T.store(B.data, i, "float32", A[i])
+                T.evaluate(T.call_extern("opaque_extern_function", A.data, B.data, dtype="int32"))
+                B[i] = A[i]
             with T.block():
                 # treat opaque access only access annotated regions, even if
                 # they are not compatible with actual buffer accesses.
                 T.reads([B[i]])
                 T.writes([C[i : i + 9]])
-                T.store(C.data, i, T.load("float32", B.data, i))
+                T.evaluate(T.call_extern("opaque_extern_function", B.data, C.data, dtype="int32"))
+                C[i] = B[i]
 
 
 @T.prim_func
@@ -496,13 +499,15 @@ def compacted_opaque_access_annotated_func(a: T.handle) -> None:
                 # no annotation, opaque access will cover full region
                 T.reads([])
                 T.writes([])
-                T.store(B.data, i, "float32", A[i])
+                T.evaluate(T.call_extern("opaque_extern_function", A.data, B.data, dtype="int32"))
+                B[i] = A[i]
             with T.block():
                 # treat opaque access only access annotated regions, even if
                 # they are not compatible with actual buffer accesses.
                 T.reads([B[i]])
                 T.writes([C[i : i + 9]])
-                T.store(C.data, i, T.load("float32", B.data, i))
+                T.evaluate(T.call_extern("opaque_extern_function", B.data, C.data, dtype="int32"))
+                C[i] = B[i]
 
 
 @T.prim_func

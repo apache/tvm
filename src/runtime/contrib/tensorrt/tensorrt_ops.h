@@ -76,7 +76,7 @@ struct TensorRTOpInput {
   std::vector<int> weight_shape;
 
   explicit TensorRTOpInput(nvinfer1::ITensor* tensor)
-      : tensor(tensor), weight({nvinfer1::DataType::kFLOAT, nullptr, 0}), type(kTensor) {}
+      : tensor(tensor), weight({tensor->getType(), nullptr, 0}), type(kTensor) {}
   TensorRTOpInput(nvinfer1::Weights weight, const std::vector<int>& shape)
       : tensor(nullptr), weight(weight), type(kWeight), weight_shape(shape) {}
 };

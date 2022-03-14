@@ -106,6 +106,18 @@ register_unary_identity("nn.batch_flatten")
 register_unary_identity("nn.depth_to_space")
 register_unary_identity("max")
 register_unary_identity("min")
+register_unary_identity("image.resize2d")
+
+
+@register_fake_quantization_to_integer("nn.adaptive_avg_pool1d")
+def adaptive_avgpool1d(expr, type_map):
+    """Rewrite an adaptive avgpool op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+    arg = relay.op.cast(arg, "int32")
+    out = relay.op.nn.adaptive_avg_pool1d(arg)
+    out = relay.op.cast(out, t.dtype)
+    return [out, t]
 
 
 @register_fake_quantization_to_integer("nn.avg_pool2d")
