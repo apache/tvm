@@ -322,9 +322,8 @@ class BlockizedBindingExtractor {
         outer_iter_vars.push_back(outer_var);
         PrimExpr base = is_one(division[i][0]->extent) ? 0 : outer_var * division[i][1]->extent;
         // create iter var for the inner block
-        IterVar new_iter = iter_var;
-        auto* new_iter_node = new_iter.CopyOnWrite();
-        new_iter_node->dom = Range::FromMinExtent(0, division[i][1]->extent);
+        IterVar new_iter(Range::FromMinExtent(0, division[i][1]->extent), Var(iter_var->var),
+                         iter_var->iter_type, iter_var->thread_tag, iter_var->span);
         inner_iter_dom_map.Set(new_iter->var, arith::IntSet::FromRange(new_iter->dom));
         analyzer->Bind(new_iter->var, new_iter->dom);
         inner_iter_vars.push_back(new_iter);

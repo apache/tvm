@@ -246,9 +246,11 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
       ret[iv] = iv->dom;
     }
   }
-  for (auto& p : ret) {
-    ret[p.first] =
-        Range::FromMinExtent(analyzer.Simplify(p.second->min), analyzer.Simplify(p.second->extent));
+  for (auto it = ret.begin(); it != ret.end(); it++) {
+    it->second = Range::FromMinExtent(
+        analyzer.Simplify(it->second->min),
+        // The range associated with each itervar must have the same dtype as it
+        cast(it->first->var.dtype(), analyzer.Simplify(it->second->extent)));
   }
   return Map<IterVar, Range>(ret.begin(), ret.end());
 }
