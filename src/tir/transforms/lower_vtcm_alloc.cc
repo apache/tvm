@@ -43,9 +43,10 @@ class VtcmAllocator : public StmtExprMutator {
       for (size_t i = 0; i < op->extents.size(); ++i) {
         args.push_back(op->extents[i]);
       }
-      return LetStmt(op->buffer_var, Call(op->buffer_var.dtype(), builtin::nd_mem_alloc_with_scope(), args), body);
+      return LetStmt(op->buffer_var,
+                     Call(op->buffer_var.dtype(), builtin::nd_mem_alloc_with_scope(), args), body);
     }
-    return  StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::VisitStmt_(op);
   }
 
  protected:
