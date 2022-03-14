@@ -98,10 +98,6 @@ def find_lib_path(name=None, search_path=None, optional=False):
     use_runtime = os.environ.get("TVM_USE_RUNTIME_LIB", False)
     dll_path = get_dll_directories()
 
-    manual_dll_path = os.getenv("TVM_DLL_PATH")
-    if manual_dll_path is not None:
-        dll_path = [manual_dll_path] + dll_path
-
     if search_path is not None:
         if isinstance(search_path, list):
             dll_path = dll_path + search_path

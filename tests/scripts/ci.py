@@ -132,8 +132,8 @@ def check_gpu():
     if not isinstance(stdout, list):
         return
 
-    products = [s.get("vendor", "").lower() for s in stdout]
-    if not any("nvidia" in product for product in products):
+    vendors = [s.get("vendor", "").lower() for s in stdout]
+    if not any("nvidia" in vendor for vendor in vendors):
         warnings.append(
             "nvidia GPU not found in 'lshw', maybe use --cpu flag when running 'docs' command?"
         )
@@ -379,7 +379,7 @@ def generate_command(
                 # Need to specify the library path manually or else TVM can't
                 # determine which build directory to use (i.e. if there are
                 # multiple copies of libtvm.so laying around)
-                "TVM_DLL_PATH": str(REPO_ROOT / get_build_dir(name)),
+                "TVM_LIBRARY_PATH": str(REPO_ROOT / get_build_dir(name)),
             },
             interactive=interactive,
         )
