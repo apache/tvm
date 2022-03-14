@@ -257,23 +257,29 @@ class IndexMap(Object):
     initial_indices: List[Var]
     final_indices: List[PrimExpr]
 
+    def __init__(self, initial_indices, final_indices):
+        self.__init_handle_by_constructor__(_ffi_api.IndexMap, initial_indices, final_indices)
+
     @staticmethod
-    def from_func(func: Callable) -> "IndexMap":
+    def from_func(mapping_function: Callable):
         """Create an index map from a function
 
         Parameters
         ----------
-        func : Callable
+        mapping_function : Callable
             The function to map from source indices to target indices
         """
-
-        def wrap(args: List[Var]) -> List[PrimExpr]:
-            result = func(*args)
-            if isinstance(result, tuple):
-                return list(result)
-            if not isinstance(result, list):
-                result = [result]
-            return result
-
-        ndim = len(inspect.signature(func).parameters)
-        return _ffi_api.IndexMapFromFunc(ndim, wrap)  # type: ignore # pylint: disable=no-member
+        params = inspect.signature(mapping_function).parameters
+        default_index_dtype = "int32"
+        args = []
+        for name, param in params.items():
+            if param.kind in [
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            ]:
+                print(name)
+                args.append(tvm.tir.Var(name, default_index_dtype))
+            else:
+                raise ValueError("transform_layout mapping may not have *args or **kwargs")
+        final_indices = mapping_function(*args)
+        return IndexMap(args, final_indices)

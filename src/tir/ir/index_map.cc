@@ -189,7 +189,7 @@ String IndexMapNode::ToPythonString() const {
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IndexMapNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const IndexMapNode*>(node.get());
-      p->stream << "index_map(" << op->initial_indices << ", " << op->final_indices << ")";
+      p->stream << "index_map(" << op->ToPythonString() << ")";
     });
 
 TVM_REGISTER_NODE_TYPE(IndexMapNode);

@@ -27,15 +27,14 @@ from tvm.tir.schedule.testing import verify_trace_roundtrip
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
+
 def packed_index_map_func(m, n):
     return m // 16, n // 16, m % 16, n % 16
 
 
 @T.prim_func
-def two_elementwise(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
+def two_elementwise(A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]) -> None:
     B = T.alloc_buffer((128, 128), "float32")
-    C = T.match_buffer(c, (128, 128), "float32")
     for i, j in T.grid(128, 128):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -47,10 +46,10 @@ def two_elementwise(a: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
-def two_elementwise_transformed_intermediate_buffer(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
+def two_elementwise_transformed_intermediate_buffer(
+    A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]
+) -> None:
     B = T.alloc_buffer((8, 8, 16, 16), "float32")
-    C = T.match_buffer(c, (128, 128), "float32")
     for i, j in T.grid(128, 128):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -62,10 +61,10 @@ def two_elementwise_transformed_intermediate_buffer(a: T.handle, c: T.handle) ->
 
 
 @T.prim_func
-def two_elementwise_transformed_input_buffer(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (8, 8, 16, 16), "float32")
+def two_elementwise_transformed_input_buffer(
+    A: T.Buffer[(8, 8, 16, 16), "float32"], C: T.Buffer[(128, 128), "float32"]
+) -> None:
     B = T.alloc_buffer((128, 128), "float32")
-    C = T.match_buffer(c, (128, 128), "float32")
     for i, j in T.grid(128, 128):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -77,10 +76,10 @@ def two_elementwise_transformed_input_buffer(a: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
-def two_elementwise_transformed_output_buffer(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
+def two_elementwise_transformed_output_buffer(
+    A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(8, 8, 16, 16), "float32"]
+) -> None:
     B = T.alloc_buffer((128, 128), "float32")
-    C = T.match_buffer(c, (8, 8, 16, 16), "float32")
     for i, j in T.grid(128, 128):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
