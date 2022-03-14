@@ -791,7 +791,7 @@ llvm::Constant* CodeGenLLVM::GetConstString(const std::string& str) {
 
 CodeGenLLVM::TypedPointer CodeGenLLVM::CreateBufferPtr(llvm::Value* buffer_ptr,
                                                        DataType buffer_element_dtype,
-                                                       std::vector<llvm::Value*> indices,
+                                                       llvm::ArrayRef<llvm::Value*> indices,
                                                        DataType value_dtype) {
   ICHECK_EQ(indices.size(), 1) << "CodeGenLLVM requires all buffers to be flat 1-d buffers.";
   llvm::Value* index = indices[0];

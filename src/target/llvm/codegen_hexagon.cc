@@ -77,7 +77,7 @@ class CodeGenHexagon final : public CodeGenLLVM {
 
  private:
   TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
-                               std::vector<llvm::Value*> indices, DataType value_dtype) final;
+                               llvm::ArrayRef<llvm::Value*> indices, DataType value_dtype) final;
   TypedPointer CreateStructRefPtr(DataType t, llvm::Value* buf, llvm::Value* index, int kind);
 
   // Check if the call to packed function is successful
@@ -574,7 +574,7 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
 
 CodeGenLLVM::TypedPointer CodeGenHexagon::CreateBufferPtr(llvm::Value* buffer_ptr,
                                                           DataType buffer_element_dtype,
-                                                          std::vector<llvm::Value*> indices,
+                                                          llvm::ArrayRef<llvm::Value*> indices,
                                                           DataType value_dtype) {
   // Flat indices get delegated to the LLVM codegen.
   if (indices.size() == 1) {
