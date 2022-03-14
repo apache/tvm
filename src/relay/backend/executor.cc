@@ -26,7 +26,7 @@
 
 #include "../../node/attr_registry.h"
 
-template <typename MapType>
+template <typename MapType> 
 std::vector<typename MapType::key_type> getKeysFrom(const MapType& m) {
   std::vector<typename MapType::key_type> keys;
   keys.reserve(m.size());
