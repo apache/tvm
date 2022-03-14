@@ -438,13 +438,19 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
   initialized_ = true;
 }
 
-TVM_REGISTER_GLOBAL("device_api.opencl.AllocTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
-  int device_type = args[0];
-  int device_id = args[1];
-  int width = args[2];
-  int height = args[3];
-  int dtype_code_hint = args[4];
-  int dtype_bits_hint = args[5];
+TVM_REGISTER_GLOBAL("device_api.opencl.AllocNd").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int32_t device_type = args[0];
+  int32_t device_id = args[1];
+  int32_t dtype_code_hint = args[2];
+  int32_t dtype_bits_hint = args[3];
+  std::string scope = args[4];
+  CHECK(scope.find("texture") != std::string::npos);
+  int64_t ndim = args[5];
+  CHECK_EQ(ndim, 2);
+  int64_t* shape = static_cast<int64_t*>(static_cast<void*>(args[6]));
+  int64_t width = shape[0];
+  int64_t height = shape[1];
+
   Device dev;
   dev.device_type = static_cast<DLDeviceType>(device_type);
   dev.device_id = device_id;
@@ -459,10 +465,12 @@ TVM_REGISTER_GLOBAL("device_api.opencl.AllocTexture").set_body([](TVMArgs args, 
                                    type_hint);
 });
 
-TVM_REGISTER_GLOBAL("device_api.opencl.FreeTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
-  int device_type = args[0];
-  int device_id = args[1];
-  void* data = args[2];
+TVM_REGISTER_GLOBAL("device_api.opencl.FreeNd").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int32_t device_type = args[0];
+  int32_t device_id = args[1];
+  std::string scope = args[2];
+  CHECK(scope.find("texture") != std::string::npos);
+  void* data = args[3];
   OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
   Device dev;
   dev.device_type = static_cast<DLDeviceType>(device_type);
