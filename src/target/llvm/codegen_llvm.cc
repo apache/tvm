@@ -1284,6 +1284,10 @@ void CodeGenLLVM::BufferAccessHelper(
         make_instruction) {
   DataType buffer_element_dtype = buffer->dtype;
 
+  ICHECK_GE(indices.size(), 1)
+      << "Buffer " << buffer->name << " is accessed with no indices.  "
+      << "0-d scalar buffers are expected to be flattened to 1-d buffers prior to codegen.";
+
   // Only the last index is allowed to be multi-lane.  All earlier
   // indices must be scalar.  This only matters for subclasses of
   // CodeGenLLVM, because the default implementation of GetBufferPtr
@@ -1296,11 +1300,7 @@ void CodeGenLLVM::BufferAccessHelper(
     earlier_index_values.push_back(MakeValue(indices[i]));
   }
 
-  ICHECK_GE(indices.size(), 1)
-      << "Buffer " << buffer->name << " is accessed with no indices.  "
-      << "0-d scalar buffers are expected to be flattened to 1-d buffers prior to codegen.";
   PrimExpr last_index = indices[indices.size() - 1];
-
   ICHECK_EQ(value_dtype.lanes(), last_index.dtype().lanes() * buffer_element_dtype.lanes());
 
   bool is_volatile = volatile_buf_.count(buffer->data.get());
