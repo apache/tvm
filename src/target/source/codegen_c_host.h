@@ -44,7 +44,8 @@ class CodeGenCHost : public CodeGenC {
   void InitGlobalContext();
   void AddFunction(const PrimFunc& f);
   /*!
-   * \brief Add functions from the (unordered) range to the current module in a deterministic order.
+   * \brief Add functions from the (unordered) range to the current module in a deterministic
+   * order. This helps with debugging.
    *
    * \param functions A vector of unordered range of current module.
    */
