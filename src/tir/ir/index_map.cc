@@ -199,7 +199,5 @@ TVM_REGISTER_GLOBAL("tir.IndexMap")
       return IndexMap(initial_indices, final_indices);
     });
 
-TVM_REGISTER_GLOBAL("tir.IndexMapFromFunc").set_body_typed(IndexMap::FromFunc);
-
 }  // namespace tir
 }  // namespace tvm
