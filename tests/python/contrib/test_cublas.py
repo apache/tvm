@@ -169,6 +169,7 @@ def test_batch_matmul():
 
     verify_batch_matmul((16, 1024, 128), (16, 128, 236), (16, 1024, 236), "int8", "int32")
 
+
 if __name__ == "__main__":
     test_matmul_add()
     test_batch_matmul()

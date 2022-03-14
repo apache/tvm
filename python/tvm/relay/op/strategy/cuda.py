@@ -872,18 +872,8 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
                         or (i % 16 == 0 and b % 32 == 0 and o % 8 == 0)
                     )
                 )
-                or (
-                    data.dtype in ["int4", "uint4"]
-                    and i % 32 == 0
-                    and b % 8 == 0
-                    and o % 8 == 0
-                )
-                or (
-                    data.dtype in ["int1", "uint1"]
-                    and i % 128 == 0
-                    and b % 8 == 0
-                    and o % 8 == 0
-                )
+                or (data.dtype in ["int4", "uint4"] and i % 32 == 0 and b % 8 == 0 and o % 8 == 0)
+                or (data.dtype in ["int1", "uint1"] and i % 128 == 0 and b % 8 == 0 and o % 8 == 0)
             ):
                 strategy.add_implementation(
                     wrap_compute_dense(topi.cuda.dense_tensorcore),

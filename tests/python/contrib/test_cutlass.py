@@ -742,7 +742,7 @@ def test_conv2d():
         rtol=1e-5,
         ref_target="llvm",
         data_dtype="uint8",
-        weight_dtype="int8"
+        weight_dtype="int8",
     )
 
 
