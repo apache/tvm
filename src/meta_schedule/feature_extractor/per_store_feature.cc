@@ -249,7 +249,23 @@ Pass SimplifyForFeatureExtraction() {
     static Stmt Run(Stmt stmt) { return Simplifier()(std::move(stmt)); }
 
    private:
-    PrimExpr VisitExpr_(const SelectNode* node) final { return make_const(node->dtype, 1.0); }
+    static bool HasBufferLoad(const PrimExpr& expr) {
+      bool found = false;
+      PostOrderVisit(expr, [&found](const ObjectRef& node) {
+        if (node->IsInstance<BufferLoadNode>()) {
+          found = true;
+        }
+      });
+      return found;
+    }
+
+    PrimExpr VisitExpr_(const SelectNode* node) final {
+      if (HasBufferLoad(node->true_value) || HasBufferLoad(node->false_value) ||
+          HasBufferLoad(node->condition)) {
+        return GetRef<Select>(node);
+      }
+      return make_const(node->dtype, 1.0);
+    }
 
     PrimExpr VisitExpr_(const VarNode* var) final {
       if (unit_vars_.count(GetRef<Var>(var))) {
