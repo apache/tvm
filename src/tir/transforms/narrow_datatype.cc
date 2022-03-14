@@ -267,20 +267,21 @@ class DataTypeRewriter : public StmtExprMutator {
     return indices;
   }
 
-  Buffer VisitBuffer(Buffer buffer) {
-    auto it = buffer_remap_.find(buffer.get());
+  Buffer VisitBuffer(const Buffer& origin_buffer) {
+    auto it = buffer_remap_.find(origin_buffer);
     if (it != buffer_remap_.end()) {
       return it->second;
     }
     is_index_ = true;
-    PrimExpr elem_offset = VisitExpr(buffer->elem_offset);
+    PrimExpr elem_offset = VisitExpr(origin_buffer->elem_offset);
     is_index_ = false;
-    if (!elem_offset.same_as(buffer->elem_offset)) {
-      auto n = buffer.CopyOnWrite();
+    Buffer updated_buffer = origin_buffer;
+    if (!elem_offset.same_as(origin_buffer->elem_offset)) {
+      auto n = updated_buffer.CopyOnWrite();
       n->elem_offset = elem_offset;
     }
-    buffer_remap_.insert(it, {buffer.get(), buffer});
-    return buffer;
+    buffer_remap_.insert(it, {origin_buffer, updated_buffer});
+    return updated_buffer;
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
@@ -405,14 +406,15 @@ class DataTypeRewriter : public StmtExprMutator {
   PrimExpr VisitExpr_(const GENode* op) final;
   PrimExpr VisitExpr_(const CallNode* op) final;
 
+  // buffer remapping dict
+  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
+
  private:
   // the internal visitor to deduce the narrowed dtype
   DataTypeVisitor visitor_;
   // a map from Var before rewrite to that after rewrite,
   // ensures one old Var maps to exactly one new Var
   std::unordered_map<const VarNode*, Var> vmap_;
-  // buffer remapping dict
-  std::unordered_map<const BufferNode*, Buffer> buffer_remap_;
   // a map from IterVar before rewrite to that after rewrite,
   // ensures one old IterVar maps to exactly one new IterVar
   std::unordered_map<const IterVarNode*, IterVar> ivmap_;
@@ -481,7 +483,17 @@ namespace transform {
 Pass NarrowDataType(int target_bits) {
   auto pass_func = [target_bits](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = DataTypeRewriter(target_bits)(std::move(n->body));
+    DataTypeRewriter rewriter(target_bits);
+    n->body = rewriter(std::move(n->body));
+    for (const Var& param : f->params) {
+      auto it = n->buffer_map.find(param);
+      if (it != n->buffer_map.end()) {
+        auto remap_it = rewriter.buffer_remap_.find((*it).second);
+        if (remap_it != rewriter.buffer_remap_.end()) {
+          n->buffer_map.Set(param, remap_it->second);
+        }
+      }
+    }
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.NarrowDataType", {});

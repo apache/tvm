@@ -200,7 +200,7 @@ PoolAllocationToOffsetConverter::ScopeInfo PoolAllocationToOffsetConverter::Upda
 
     int pool_size = all_pools_sizes_[pool_info];
     String buffer_var_name = pool_ref_name + "_buffer_var";
-    si.buffer_map.Set(pool_var, Buffer(buffer_var, elem_dtype, {pool_size}, {1}, 1, buffer_var_name,
+    si.buffer_map.Set(pool_var, Buffer(buffer_var, elem_dtype, {pool_size}, {1}, 0, buffer_var_name,
                                        16, 1, BufferType::kDefault));
   }
   if (resource_handle) {
