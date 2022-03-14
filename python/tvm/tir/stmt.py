@@ -349,17 +349,17 @@ class AllocateConst(Stmt):
     buffer_var : Var
         The buffer variable.
 
-    data : NDarray
-        The data associated with the constant
-
     dtype : str
         The data type of the buffer.
 
     extents : list of Expr
         The extents of the allocate
 
-    condition : PrimExpr
-        The condition.
+    data_or_idx : Union[NDArray, int]
+        If an NDArray, this is the const data associated with the
+        constant.  If an integer, this is the index into the
+        "Constants" attribute of the `IRModule` that contains the
+        `AllocateConst`.
 
     body : Stmt
         The body statement.
@@ -368,9 +368,9 @@ class AllocateConst(Stmt):
         The location of this itervar in the source code.
     """
 
-    def __init__(self, buffer_var, dtype, extents, condition, body, span=None):
+    def __init__(self, buffer_var, dtype, extents, data_or_idx, body, span=None):
         self.__init_handle_by_constructor__(
-            _ffi_api.AllocateConst, buffer_var, dtype, extents, condition, body, span
+            _ffi_api.AllocateConst, buffer_var, dtype, extents, data_or_idx, body, span
         )
 
 
