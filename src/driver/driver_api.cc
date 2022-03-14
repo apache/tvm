@@ -442,7 +442,8 @@ std::pair<IRModule, IRModule> SplitMixedModule(IRModule mod_mixed, const Target&
   return {host_mod, device_mod};
 }
 
-runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& target_host_arg) {
+runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
+                             const Target& target_host_arg) {
   auto pass_ctx = transform::PassContext::Current();
 
   std::vector<runtime::Module> device_modules;
@@ -515,10 +516,17 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
   return mhost;
 }
 
-TVM_REGISTER_GLOBAL("driver.build")
+TVM_REGISTER_GLOBAL("driver.tir_to_runtime")
     .set_body_typed([](const Map<Target, IRModule>& inputs_arg, Target host_target) {
-      return build(inputs_arg, host_target);
+      return TIRToRuntime(inputs_arg, host_target);
     });
+
+// Build for heterogeneous execution when targets are specified as
+// objects.  This wrapper around the internal API is maintained for
+// backwards compatibility.
+runtime::Module build(const Map<Target, IRModule>& input, const Target& target_host) {
+  return TIRToRuntime(input, target_host);
+}
 
 // Build for heterogeneous execution when target is a string.
 runtime::Module build(const Map<String, IRModule>& inputs_arg, const Target& target_host_arg) {
@@ -533,7 +541,7 @@ runtime::Module build(const Map<String, IRModule>& inputs_arg, const Target& tar
     }
     updated_inputs.Set(target, it.second);
   }
-  return build(updated_inputs, target_host);
+  return TIRToRuntime(updated_inputs, target_host);
 }
 
 // Build for homogeneous execution.
@@ -543,7 +551,7 @@ runtime::Module build(const IRModule& funcs, const Target& target_arg,
   CheckAndUpdateHostConsistency(&target, &target_host);
   // More maps of target and target host
   Map<Target, IRModule> inputs = {{target, funcs}};
-  return build(inputs, target_host);
+  return TIRToRuntime(inputs, target_host);
 }
 
 transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) {
