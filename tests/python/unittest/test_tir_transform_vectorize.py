@@ -88,8 +88,7 @@ def test_vectorize_with_if():
 def test_vectorize_with_if_cond_int64():
     m = te.size_var("m", dtype="int64")
     A = te.placeholder((m,), name="A", dtype="float32")
-    B = te.compute((m,), lambda i: te.if_then_else(
-        i < 2, A[i], A[i] * 2), name="B")
+    B = te.compute((m,), lambda i: te.if_then_else(i < 2, A[i], A[i] * 2), name="B")
     s = te.create_schedule(B.op)
     x, y = s[B].split(B.op.axis[0], factor=4)
     s[B].vectorize(y)
