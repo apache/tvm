@@ -164,8 +164,11 @@ def hexagon_launcher(android_serial_number, tvm_tracker, rpc_server_port, adb_se
 
 @tvm.testing.fixture
 def hexagon_session(hexagon_launcher):
-    with hexagon_launcher.start_session() as session:
-        yield session
+    if hexagon_launcher is None:
+        yield None
+    else:
+        with hexagon_launcher.start_session() as session:
+            yield session
 
 
 # If the execution aborts while an RPC server is running, the python
