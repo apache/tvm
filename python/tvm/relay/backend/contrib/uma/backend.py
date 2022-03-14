@@ -25,7 +25,6 @@ from tvm.relay.backend.contrib.uma.partitioner import UMAPartitioner
 from tvm.relay.backend.contrib.uma.lower import UMALower
 from tvm.relay.backend.contrib.uma.codegen import UMACodegen
 
-
 class UMABackend(object):
     def __init__(self, variant: str = "") -> None:
         self.variant = variant
@@ -91,6 +90,10 @@ class UMABackend(object):
     # Backend functions
     ############################################################################
     def register(self) -> None:
+
+        registration_func = tvm.get_global_func("relay.backend.contrib.uma.RegisterTarget")
+        registration_func(self.target_name)
+
         self._relay_to_relay.register()
         self._relay_to_tir.register()
         self._tir_to_runtime.register()

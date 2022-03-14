@@ -37,11 +37,20 @@ namespace uma {
 }  // namespace contrib
 }  // namespace relay
 
-TVM_REGISTER_TARGET_KIND("ultra_trail", kDLCPU)
-    .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::uma::RelayToTIR("ultra_trail"))
-    .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::uma::TIRToRuntime);
-
-TVM_REGISTER_TARGET_KIND("rb_npu", kDLCPU)
-    .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::uma::RelayToTIR("rb_npu"));
+TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
+    .set_body_typed([](String target_name){
+        ::tvm::TargetKindRegEntry::RegisterOrGet(target_name)
+        .set_name()
+        .set_device_type(kDLCPU)
+        .add_attr_option<Array<String>>("keys")
+        .add_attr_option<String>("tag")
+        .add_attr_option<String>("device")
+        .add_attr_option<String>("model")
+        .add_attr_option<Array<String>>("libs")
+        .add_attr_option<Target>("host")
+        .add_attr_option<Integer>("from_device")
+        .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::uma::RelayToTIR(target_name))
+        .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::uma::TIRToRuntime);
+    });
 
 }  // namespace tvm
