@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,import-outside-toplevel
+# type: ignore
 """Model loader for TLCBench."""
 import os
 import logging
