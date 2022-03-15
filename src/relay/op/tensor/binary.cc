@@ -76,6 +76,11 @@ RELAY_REGISTER_BINARY_OP("divide")
     .set_support_level(1)
     .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::divide));
 
+RELAY_REGISTER_BINARY_OP("trunc_divide")
+    .describe("Elementwise trunc divide with broadcasting")
+    .set_support_level(1)
+    .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::trunc_divide));
+
 RELAY_REGISTER_BINARY_OP("floor_divide")
     .describe("Elementwise floor divide with broadcasting")
     .set_support_level(1)
@@ -100,6 +105,11 @@ RELAY_REGISTER_BINARY_OP("floor_mod")
     .describe("Elementwise floor mod with broadcasting")
     .set_support_level(1)
     .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::floor_mod));
+
+RELAY_REGISTER_BINARY_OP("trunc_mod")
+    .describe("Elementwise trunc mod with broadcasting")
+    .set_support_level(1)
+    .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::trunc_mod));
 
 RELAY_REGISTER_BINARY_OP("logical_and")
     .describe("Elementwise logical AND with broadcasting")
