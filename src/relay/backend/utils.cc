@@ -29,6 +29,7 @@
 #include <tvm/relay/qnn/transform.h>
 
 #include "te_compiler.h"
+#include "tvm/runtime/ndarray.h"
 
 namespace tvm {
 namespace relay {
@@ -350,10 +351,10 @@ void BindParamsInModule(IRModule mod,
   }
 }
 
-void BindParamsInModule(IRModule mod, Map<String, Constant> params) {
+void BindParamsInModule(IRModule mod, Map<String, runtime::NDArray> params) {
   std::unordered_map<std::string, runtime::NDArray> params_tmp;
   for (const auto& kv : params) {
-    params_tmp[kv.first] = kv.second->data;
+    params_tmp[kv.first] = kv.second;
   }
   BindParamsInModule(mod, params_tmp);
 }

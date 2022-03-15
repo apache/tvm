@@ -22,7 +22,7 @@ import tvm.runtime.ndarray as nd
 
 from tvm._ffi import register_object, get_global_func
 from tvm.ir import IRModule, transform
-from tvm.relay import Any, const
+from tvm.relay import Any
 from tvm.relay import Function as RelayFunc
 from tvm.runtime import NDArray, Object
 from tvm.target import Target
@@ -222,7 +222,6 @@ def extract_task_from_relay(
     for name, param in params.items():
         if isinstance(param, np.ndarray):
             param = nd.array(param)
-        relay_params[name] = const(param)
 
     if disabled_pass is None:
         disabled_pass = []

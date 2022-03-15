@@ -25,6 +25,7 @@
 
 #include "../../te/operation/create_primfunc.h"
 #include "te_compiler_cache.h"
+#include "tvm/runtime/ndarray.h"
 #include "utils.h"
 
 namespace tvm {
@@ -35,7 +36,8 @@ namespace metaschedule {
 
 using meta_schedule::ExtractedTask;
 
-Array<ExtractedTask> ExtractTask(IRModule mod, Target target, Map<String, Constant> params) {
+Array<ExtractedTask> ExtractTask(IRModule mod, Target target,
+                                 Map<String, runtime::NDArray> params) {
   backend::BindParamsInModule(mod, params);
 
   // is_vm=true for backward compatibility
@@ -75,7 +77,7 @@ Array<ExtractedTask> ExtractTask(IRModule mod, Target target, Map<String, Consta
 }  // namespace metaschedule
 
 TVM_REGISTER_GLOBAL("relay.backend.MetaScheduleExtractTask")
-    .set_body_typed([](IRModule mod, Target target, Map<String, Constant> params) {
+    .set_body_typed([](IRModule mod, Target target, Map<String, runtime::NDArray> params) {
       return metaschedule::ExtractTask(mod, target, params);
     });
 

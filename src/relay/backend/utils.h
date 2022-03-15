@@ -46,6 +46,7 @@
 
 #include "../../runtime/meta_data.h"
 #include "../../target/metadata.h"
+#include "tvm/runtime/ndarray.h"
 
 namespace tvm {
 namespace relay {
@@ -397,7 +398,7 @@ relay::Function BindParamsByName(relay::Function func,
 void BindParamsInModule(IRModule mod,
                         const std::unordered_map<std::string, runtime::NDArray>& params);
 
-void BindParamsInModule(IRModule mod, Map<String, Constant> params);
+void BindParamsInModule(IRModule mod, Map<String, runtime::NDArray> params);
 
 /*!
  * \brief Extract the shape from a Relay tensor type.
