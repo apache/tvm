@@ -22,7 +22,7 @@ import tvm.testing
 from tvm import te
 from tvm.contrib import utils
 from tvm.contrib.hexagon.build import HexagonLauncher
-import tvm.contrib.hexagon.hexagon as hexagon
+import tvm.contrib.hexagon as hexagon
 
 from .conftest import requires_hexagon_toolchain
 
