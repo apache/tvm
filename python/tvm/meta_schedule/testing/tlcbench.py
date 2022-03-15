@@ -63,6 +63,10 @@ def deserialize_relay(json_path, params_path):
 
 
 def load_quantized_bert_base(batch_size=1, seq_len=384):
+    """
+    Load the quantized bert-base model from TLCBench, possibly downloading it from github
+    and caching the converted int8 QNN module to disk.
+    """
     url = "https://github.com/tlc-pack/TLCBench/raw/main/models/bert-base-qat.onnx"
     log.info("Downloading quantized bert-base model.")
     onnx_path = download_testdata(url, "bert-base-qat.onnx", module="tlcbench")
