@@ -61,9 +61,9 @@ Array<ExtractedTask> ExtractTask(IRModule mod, Target target,
         std::tie(inputs_outputs, fused_name) =
             tec::LowerTECompute(relay_func, target, /*return_inputs=*/true);
         auto prim_func = tir::CreatePrimFunc(inputs_outputs);
-        auto prim_fn_var = GlobalVar(fused_name);
-        auto relay_mod = IRModule({{prim_fn_var, relay_func}});
-        auto tir_mod = IRModule({{prim_fn_var, prim_func}});
+        GlobalVar prim_fn_var(fused_name);
+        IRModule relay_mod({{prim_fn_var, relay_func}});
+        IRModule tir_mod({{prim_fn_var, prim_func}});
         auto task_name = tec::GetUniqueName(fused_name, &name_map);
         tasks.push_back(ExtractedTask(task_name, relay_mod, target, {tir_mod}));
         cache.insert(cache_key);
