@@ -277,6 +277,19 @@ def test_fake_quantize_maxpool():
     compare_fq_to_int(op, [x_np])
 
 
+def test_fake_quantize_adaptive_avgpool1d():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+
+    zero = relay.const(0)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.op.nn.adaptive_avg_pool1d(x)
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+
+    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+
+    compare_fq_to_int(op, [x_np], True)
+
+
 def test_fake_quantize_avgpool():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 
@@ -346,6 +359,19 @@ def test_fake_quantize_reshape():
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
     compare_fq_to_int(op, [x_np])
+
+
+def test_fake_quantize_image_resize_bilinear():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+
+    zero = relay.const(0)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.image.resize2d(x, size=[4, 4], method="linear")
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+
+    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+
+    compare_fq_to_int(op, [x_np], allow_rounding_error=True)
 
 
 def test_fake_quantize_expand_dims():
@@ -523,6 +549,18 @@ def test_fake_quantize_relu_per_channel():
     x_np = np.random.randint(0, 255, size=[1, 3, 224, 224], dtype="uint8")
 
     compare_fq_to_int(op, [x_np])
+
+
+def test_fake_quantize_leaky_relu():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="uint8")
+
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(114))
+    op = relay.op.nn.leaky_relu(x, 0.1)
+    op = relay.qnn.op.quantize(op, relay.const(2.0), relay.const(114), out_dtype="uint8")
+
+    x_np = np.random.randint(0, 255, size=[1, 3, 224, 224], dtype="uint8")
+
+    compare_fq_to_int(op, [x_np], True)
 
 
 @pytest.mark.parametrize(

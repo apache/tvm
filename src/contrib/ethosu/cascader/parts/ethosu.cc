@@ -57,7 +57,8 @@ const std::vector<int64_t> EthosuPartNode::GetBytesRead(const std::vector<int>& 
   for (const auto& input_block_config : input_block_configs) {
     std::map<std::vector<int>, int> input_blocks = CountStripes(input_block_config, false);
     for (const auto& block : input_blocks) {
-      bytes_per_input[i] += mul_reduce(block.first) * block.second;
+      bytes_per_input[i] +=
+          mul_reduce(block.first) * block.second * input_tensors_[i]->GetDataType().bytes();
     }
     i++;
   }
@@ -136,7 +137,7 @@ const PerformanceInfo EthosuPartNode::GetPerformanceInfo(const StripeConfig& out
     total_cycles = (block_compute_cycles * num_blocks) + block_output_cycles;
   }
 
-  PerformanceInfo info(total_cycles, read_bytes, write_bytes);
+  PerformanceInfo info(total_cycles, read_bytes, write_bytes, block_config);
   return info;
 }
 

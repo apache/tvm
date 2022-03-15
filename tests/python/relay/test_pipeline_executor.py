@@ -17,6 +17,7 @@
 
 import pytest
 import os
+import time
 import numpy as np
 import tvm
 import tvm.testing

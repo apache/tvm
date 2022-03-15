@@ -142,6 +142,7 @@ if(BUILD_FOR_HEXAGON)
   include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_QURT_INCLUDES})
 
   list(APPEND RUNTIME_HEXAGON_SRCS ${RUNTIME_HEXAGON_COMMON_SRCS})
+  set(USE_CUSTOM_LOGGING ON) # To use a custom logger
 endif()
 
 
@@ -246,6 +247,7 @@ if(USE_HEXAGON_RPC)
       "${TVMRT_SOURCE_DIR}/rpc/rpc_module.cc"
       "${TVMRT_SOURCE_DIR}/rpc/rpc_endpoint.cc"
       "${TVMRT_SOURCE_DIR}/rpc/rpc_session.cc"
+      # TODO(masahi): Remove rpc_local_session.cc after verifying that things work without it
       "${TVMRT_SOURCE_DIR}/rpc/rpc_local_session.cc"
     )
     # Add the hardware-specific RPC code into the skel library.

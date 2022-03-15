@@ -146,6 +146,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 // IterVar
 IterVar::IterVar(Range dom, Var var, IterVarType t, String thread_tag, Span span) {
   ObjectPtr<IterVarNode> n = make_object<IterVarNode>();
+  if (dom.defined() && dom->extent.defined()) {
+    CHECK_EQ(dom->extent.dtype(), var.dtype())
+        << "The dtype of the extent of an IterVar (" << dom->extent.dtype()
+        << ") must match its associated Var's dtype (" << var.dtype() << ")";
+  }
   n->dom = dom;
   n->var = var;
   n->iter_type = t;
@@ -1059,11 +1064,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // BufferLoad
 void BufferLoadNode::LegalizeDType() {
-  int index_lanes = 1;
-  for (const auto& index : indices) {
-    index_lanes *= index.dtype().lanes();
+  for (int i = 0; i < static_cast<int>(indices.size()) - 1; i++) {
+    ICHECK(indices[i].dtype().is_scalar())
+        << "Only the last index of a buffer access may be a vector type.";
   }
 
+  int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
   int buffer_lanes = buffer->dtype.lanes();
 
   this->dtype = buffer->dtype.with_lanes(index_lanes * buffer_lanes);

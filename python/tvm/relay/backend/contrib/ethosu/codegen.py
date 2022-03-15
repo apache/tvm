@@ -31,6 +31,8 @@ from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 from tvm.relay.backend.contrib.ethosu.op import op_attrs
 from tvm.relay.backend.contrib.ethosu import op
 
+from . import _ffi_api
+
 
 class OptimizeLUTs(ExprMutator):
     """A pass to merge an identity operator with a LUT based activation function with
@@ -299,6 +301,17 @@ class LayoutOptimizer:
         pass
 
 
+def IdentityOptimizer():  # pylint: disable=invalid-name
+    """Pass that removes redundant identities
+
+    Return
+    ------
+    Pass
+        The module pass.
+    """
+    return _ffi_api.IdentityOptimizer()
+
+
 @tvm._ffi.register_func("relay.ext.ethos-u.constant_updater")
 def constant_updater(expr, symbol):  # pylint: disable=unused-argument
     """
@@ -330,6 +343,7 @@ def relay_to_tir_func(ext_func: relay.Function) -> tvm.tir.PrimFunc:
     mod["main"] = ext_func
     mod = LegalizeEthosU()(mod)
     mod = LUTsOptimizer()(mod)
+    mod = IdentityOptimizer()(mod)
     mod = LayoutOptimizer()(mod)
     mod = relay.transform.InferType()(mod)
     # We are currently using copy_constants scheduler In the long run,

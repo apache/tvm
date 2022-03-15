@@ -106,6 +106,18 @@ register_unary_identity("nn.batch_flatten")
 register_unary_identity("nn.depth_to_space")
 register_unary_identity("max")
 register_unary_identity("min")
+register_unary_identity("image.resize2d")
+
+
+@register_fake_quantization_to_integer("nn.adaptive_avg_pool1d")
+def adaptive_avgpool1d(expr, type_map):
+    """Rewrite an adaptive avgpool op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+    arg = relay.op.cast(arg, "int32")
+    out = relay.op.nn.adaptive_avg_pool1d(arg)
+    out = relay.op.cast(out, t.dtype)
+    return [out, t]
 
 
 @register_fake_quantization_to_integer("nn.avg_pool2d")
@@ -332,6 +344,16 @@ def relu(expr, type_map):
         z_p = relay.op.reshape(relay.op.broadcast_to(z_p, scale_shape), b_shape)
     zero = relay.op.cast(z_p, t.dtype)
     return [relay.op.maximum(arg, fold_constant(zero)), t]
+
+
+@register_fake_quantization_to_integer("nn.leaky_relu")
+def leaky_relu(expr, type_map):
+    """Rewrite a leaky relu op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+    alpha = expr.attrs.alpha
+    output = relay.qnn.op.leaky_relu(expr, alpha, t.scale, t.zero_point)
+    return [output, t]
 
 
 @register_fake_quantization_to_integer("nn.pad")
