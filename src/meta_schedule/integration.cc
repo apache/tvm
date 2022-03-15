@@ -21,6 +21,7 @@
 #include <tvm/tir/function.h>
 
 #include "./utils.h"
+#include "tvm/runtime/container/optional.h"
 
 namespace tvm {
 namespace meta_schedule {
@@ -96,13 +97,13 @@ void MetaScheduleContext::ExitWithScope() {
   ctx = NullOpt;
 }
 
-IRModule MetaScheduleContext::QueryInsideWithScope(runtime::String task_name, IRModule mod,
-                                                   Target target,
-                                                   Optional<Array<IRModule>> dispatched) {
+Optional<IRModule> MetaScheduleContext::QueryInsideWithScope(runtime::String task_name,
+                                                             IRModule mod, Target target,
+                                                             Optional<Array<IRModule>> dispatched) {
   if (Optional<MetaScheduleContext> ctx = MetaScheduleContext::Current()) {
     return ctx.value()->Query(task_name, mod, target, dispatched);
   }
-  return IRModule{nullptr};
+  return NullOpt;
 }
 
 /**************** ApplyHistoryBest ****************/
@@ -113,8 +114,9 @@ ApplyHistoryBest::ApplyHistoryBest(Database database) {
   data_ = n;
 }
 
-IRModule ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod, Target target,
-                                     Optional<Array<IRModule>> dispatched) {
+Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod,
+                                               Target target,
+                                               Optional<Array<IRModule>> dispatched) {
   ICHECK(dispatched.defined());
   ICHECK_EQ(dispatched.value().size(), 1);
   ICHECK(HasOnlyOneFunction<relay::Function>(mod)) << mod;
@@ -149,7 +151,7 @@ IRModule ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod, Ta
   }
   LOG(WARNING) << "Cannot find workload: " << task_name;
   DLOG(INFO) << tir::AsTVMScript(prim_mod);
-  return IRModule{nullptr};
+  return NullOpt;
 }
 
 /**************** FFI ****************/

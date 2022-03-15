@@ -337,11 +337,11 @@ class ScheduleBuilder : public ExprVisitor {
       if (backend::IsMetaScheduleEnabled()) {
         IRModule relay_mod({{prim_fn_var, relay_func}});
         IRModule tir_mod({{prim_fn_var, tir::CreatePrimFunc(Concat(fn_inputs, tensor_outs))}});
-        IRModule scheduled_mod = meta_schedule::MetaScheduleContext::QueryInsideWithScope(
+        Optional<IRModule> scheduled_mod = meta_schedule::MetaScheduleContext::QueryInsideWithScope(
             prim_fn_var->name_hint, relay_mod, target_, Array<IRModule>{tir_mod});
-        if (scheduled_mod.defined()) {
-          ICHECK_EQ(scheduled_mod->functions.count(prim_fn_var), 1);
-          prim_func = Downcast<tir::PrimFunc>(scheduled_mod->functions[prim_fn_var]);
+        if (scheduled_mod) {
+          ICHECK_EQ(scheduled_mod.value()->functions.count(prim_fn_var), 1);
+          prim_func = Downcast<tir::PrimFunc>(scheduled_mod.value()->functions[prim_fn_var]);
         }
       }
 
