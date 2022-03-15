@@ -120,15 +120,21 @@ IRModule ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod, Ta
   ICHECK(HasOnlyOneFunction<relay::Function>(mod)) << mod;
   IRModule prim_mod = dispatched.value()[0];
   ICHECK(HasOnlyOneFunction<tir::PrimFunc>(prim_mod)) << prim_mod;
+
   // TODO(masahi): parse_mod below replaces the orginal function key with "main".
-  // This is necessary because some scheduling primitives requires the PrimFunc key be "main".
-  // If we can remove this restriction, there would no need for GetOnlyOneFunction* calls below
-  // and we can directly return sch->mod().
+  // This is necessary because, in practice, most use of the scheduling primitive "get_block"
+  // assumes that the function name is "main".
+  // If we do not have this requirement, we can remove the call to parse_mod and
+  // GetOnlyOneFunction* calls below and instead we can directly return sch->mod().
+
+  // Keep the original func name to be returned later.
   GlobalVar gv = GetOnlyOneFunctionKey<tir::PrimFunc>(prim_mod).value();
+
   // Unify func name to make sure it can be found in database
   const auto* parse_mod_func = runtime::Registry::Get("tvm.meta_schedule.tune.parse_mod");
   ICHECK(parse_mod_func) << "Parse mod function not defined!";
   prim_mod = (*parse_mod_func)(prim_mod);
+
   if (database->HasWorkload(prim_mod)) {
     Array<TuningRecord> records = database->GetTopK(database->CommitWorkload(prim_mod), 1);
     if (records.size() == 1) {
@@ -137,6 +143,7 @@ IRModule ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod, Ta
                                 /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
       records[0]->trace->ApplyToSchedule(sch, false);
       tir::PrimFunc func = GetOnlyOneFunction<tir::PrimFunc>(sch->mod()).value();
+      // Make sure we return the updated PrimFunc paired with the original func name.
       return IRModule({{gv, func}});
     }
   }

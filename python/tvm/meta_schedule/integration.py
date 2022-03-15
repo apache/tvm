@@ -222,6 +222,7 @@ def extract_task_from_relay(
     for name, param in params.items():
         if isinstance(param, np.ndarray):
             param = nd.array(param)
+        relay_params[name] = param
 
     if disabled_pass is None:
         disabled_pass = []
