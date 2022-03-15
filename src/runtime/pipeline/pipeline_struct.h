@@ -23,6 +23,7 @@
 #include <dmlc/json.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/threading_backend.h>
 
 #include <atomic>
 #include <condition_variable>
@@ -307,10 +308,11 @@ class ConfigBindings {
 /*!
  * \brief The binding information of all outputs of a module.
  */
-class ConfigOutputBindings {
+class ConfigRuntime {
  public:
-  ConfigOutputBindings& operator=(const ConfigOutputBindings& output) {
+  ConfigRuntime& operator=(const ConfigRuntime& output) {
     output_binding_map_ = output.GetOutBindings();
+    cpu_affinity_ = output.GetCPUAffinity();
     return *this;
   }
 
@@ -318,6 +320,16 @@ class ConfigOutputBindings {
     ICHECK(output_binding_map_.find(key) != output_binding_map_.end());
     return output_binding_map_[key];
   }
+  /*!
+   * \brief Store the CPU affinity settings.
+   * \param cpu_affinity The CPU affinity settings in the text form.
+   */
+  void StoreCPUAffinity(std::string cpu_affinity) { cpu_affinity_ = cpu_affinity; }
+  /*!
+   * \brief Getting the setting of the cpu affinity.
+   * \param Returning the cpu affinity in text form.
+   */
+  std::string GetCPUAffinity() const { return cpu_affinity_; }
   /*!
    * \brief Enumerating the output configuration.
    * \param parse_function The callback function is used to parse the binding configeration.
@@ -330,7 +342,7 @@ class ConfigOutputBindings {
   /*!brief Return the variable "output_binding_map_".*/
   std::unordered_map<int, ConfigBindings> GetOutBindings() const { return output_binding_map_; }
   /*!
-   *\brief This function is used to verify whether ConfigOutputBindings is successfully loaded.
+   *\brief This function is used to verify whether ConfigRuntime is successfully loaded.
    *\return Return true to indicate that this class has not been successfully loaded.
    */
   bool Empty() { return output_binding_map_.empty(); }
@@ -387,6 +399,8 @@ class ConfigOutputBindings {
  private:
   /*!\brief The map of output binding, 'int' is the output interface index.*/
   std::unordered_map<int, ConfigBindings> output_binding_map_;
+  /*!\brief The cpu affinity setting for the tvm thread pool.*/
+  std::string cpu_affinity_;
 };
 
 /*!
@@ -394,9 +408,18 @@ class ConfigOutputBindings {
  */
 class ConfigPipelineExecution {
  public:
-  ConfigOutputBindings& operator[](int key) {
+  ConfigRuntime& operator[](int key) {
     ICHECK(config_.find(key) != config_.end());
     return config_[key];
+  }
+  /**/
+  std::string GetCPUAffinity(int runtime_idx) {
+    auto config = config_.find(runtime_idx);
+    if (config == config_.end()) {
+      LOG(FATAL) << "Do not finding the runtime " << runtime_idx;
+    }
+    auto config_runtime = config->second;
+    return config_runtime.GetCPUAffinity();
   }
   /*!
    * \brief Enumerating the binding configuration for a specified runtime.
@@ -439,7 +462,7 @@ class ConfigPipelineExecution {
   /*
    *!\brief Parsing the configuration.
    */
-  void ParseConfiguration(const std::unordered_map<int, ConfigOutputBindings>& config) {
+  void ParseConfiguration(const std::unordered_map<int, ConfigRuntime>& config) {
     if (config.empty()) {
       LOG(FATAL) << "The Configuration loading not finish yet.";
     }
@@ -465,8 +488,9 @@ class ConfigPipelineExecution {
       std::string key;
       reader->BeginObject();
       int mod_idx = -1;
-      ConfigOutputBindings output;
+      ConfigRuntime output;
       std::string dev;
+      std::string cpu_affinity;
       while (reader->NextObjectItem(&key)) {
         if (key == "mod_idx") {
           reader->Read(&mod_idx);
@@ -474,6 +498,8 @@ class ConfigPipelineExecution {
           reader->Read(&dev);
         } else if (key == "output") {
           reader->Read(&output);
+        } else if (key == "cpu_affinity") {
+          reader->Read(&cpu_affinity);
         } else {
           LOG(FATAL) << "do not support key " << key;
         }
@@ -481,7 +507,9 @@ class ConfigPipelineExecution {
       ICHECK(mod_idx >= 0) << "Invalid mod_idx value " << mod_idx;
       // Check if the output is successfully read.
       ICHECK(!output.Empty()) << "Invalid output binding result.";
-      // Build the mapping of mod_idx and "ConfigOutputBindings".
+      // Store the cpu affinity into the 'ConfigRuntime' structure.
+      output.StoreCPUAffinity(cpu_affinity);
+      // Build the mapping of mod_idx and "ConfigRuntime".
       config_[mod_idx] = output;
     }
     // Doing the configuration parsing after the loading finished.
@@ -493,7 +521,7 @@ class ConfigPipelineExecution {
    *!\brief The key is the module index, this variable records all module pipeline configuration
    * information.
    */
-  std::unordered_map<int, ConfigOutputBindings> config_;
+  std::unordered_map<int, ConfigRuntime> config_;
   /*
    *\brief The key is the global output index, and the map is including global outputs index and
    * the module outputs pair.
@@ -600,6 +628,8 @@ class BackendRuntime {
  private:
   /*!\brief The index of runtime indicates the runtime position in the pipeline.*/
   int runtime_idx_;
+  /*!*/
+  std::string cpu_affinity_ = "";
   /*!\brief The Runtime module of a backend graph executor.*/
   Module module_;
   /*\brief The thread is associated with the current runtime*/
@@ -641,9 +671,11 @@ class BackendRuntime {
     SetPipelineState(RUNNING);
     if (runtime_idx_ == 0) {
       this->CreateParentsNotify(0, GLOBAL_MODULE_INDEX, 0);
+      this->SetCPUAffinity();
     } else {
       // Only launching the worker thread for the runtimes after the first runtime.
       thread_ = std::thread([&]() {
+        this->SetCPUAffinity();
         while (!this->WaitAndLoadPipelineData()) {
           if (!this->RunPipeline()) {
             break;
@@ -819,6 +851,20 @@ class BackendRuntime {
 
     TVMArrayCopyFromTo(from, to, nullptr);
   }
+  /*!\brief Setting the cpu affinity for the tvm threads pool in the current BackendRuntime.*/
+  void SetCPUAffinity(void) {
+    if (cpu_affinity_.empty()) {
+      return;
+    }
+    auto affinity_mode = tvm::runtime::threading::ThreadGroup::kSpecifyThreadShareAllCore;
+    std::istringstream istr(cpu_affinity_);
+    std::string affinity;
+    std::vector<unsigned int> cpus;
+    while (getline(istr, affinity, ',')) {
+      cpus.push_back(std::stoi(affinity));
+    }
+    tvm::runtime::threading::Configure(affinity_mode, 0, cpus);
+  }
 
  public:
   BackendRuntime(Module mod, int mod_idx) {
@@ -852,6 +898,7 @@ class BackendRuntime {
    */
   void InitializePipeline(ConfigPipelineExecution config,
                           std::vector<std::shared_ptr<BackendRuntime>>* runtimes) {
+    cpu_affinity_ = config.GetCPUAffinity(runtime_idx_);
     // Getting the 'binding configuration' for each runtime.
     config.VisitRuntimeOutputConfig(
         [&](int output_idx, int child_idx, std::string child_input_name) {
