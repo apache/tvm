@@ -567,7 +567,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
         p->stream << ", ";
         p->Print(s);
       }
-      p->stream << ')';
     });
 
 // Sub-class RewriteSimplifier::Impl to take benefit of
