@@ -123,12 +123,6 @@ Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModu
   IRModule prim_mod = dispatched.value()[0];
   ICHECK(HasOnlyOneFunction<tir::PrimFunc>(prim_mod)) << prim_mod;
 
-  // TODO(masahi): parse_mod below replaces the original function key with "main".
-  // This is necessary because, in practice, most uses of the scheduling primitive "get_block"
-  // assume that the function name is "main".
-  // If we do not have this requirement, we can remove the call to parse_mod and
-  // GetOnlyOneFunction* calls below and instead we can directly return sch->mod().
-
   // Keep the original func name to be returned later.
   GlobalVar gv = GetOnlyOneFunctionKey<tir::PrimFunc>(prim_mod).value();
 
