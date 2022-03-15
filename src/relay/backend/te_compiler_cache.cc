@@ -336,9 +336,8 @@ class ScheduleBuilder : public ExprVisitor {
         }
       }
       if (backend::IsMetaScheduleEnabled()) {
-        auto relay_mod = IRModule({{prim_fn_var, relay_func}});
-        auto tir_mod =
-            IRModule({{prim_fn_var, tir::CreatePrimFunc(Concat(fn_inputs, tensor_outs))}});
+        IRModule relay_mod({{prim_fn_var, relay_func}});
+        IRModule tir_mod({{prim_fn_var, tir::CreatePrimFunc(Concat(fn_inputs, tensor_outs))}});
         IRModule scheduled_mod = meta_schedule::MetaScheduleContext::QueryInsideWithScope(
             prim_fn_var->name_hint, relay_mod, target_, Array<IRModule>{tir_mod});
         if (scheduled_mod.defined()) {
@@ -757,7 +756,7 @@ CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,
 std::pair<Array<te::Tensor>, std::string> LowerTECompute(const Function& source_func, Target target,
                                                          bool return_inputs) {
   LowerToTECompute lower_te_compute(target);
-  auto outputs = lower_te_compute.Lower(source_func, [&](std::string name) { return name; });
+  Array<te::Tensor> outputs = lower_te_compute.Lower(source_func, [&](std::string name) { return name; });
   // Following ScheduleBuilder, remove placeholder ops from outputs.
   tvm::Array<te::Tensor> tensor_outs;
   for (const auto& tensor : outputs) {

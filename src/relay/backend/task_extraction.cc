@@ -54,10 +54,10 @@ Array<ExtractedTask> ExtractTask(IRModule mod, Target target, Map<String, Consta
       Function relay_func = Downcast<Function>(exp);
       tec::CCacheKey cache_key(relay_func, target);
       if (relay_func->HasNonzeroAttr(attr::kPrimitive) && cache.find(cache_key) == cache.end()) {
-        Array<te::Tensor> outputs;
+        Array<te::Tensor> inputs_outputs;
         std::string fused_name;
-        std::tie(outputs, fused_name) =
-            tec::LowerTECompute(relay_func, target, /*return_inputs*/ true);
+        std::tie(inputs_outputs, fused_name) =
+            tec::LowerTECompute(relay_func, target, /*return_inputs=*/true);
         auto prim_func = tir::CreatePrimFunc(outputs);
         auto prim_fn_var = GlobalVar(fused_name);
         auto relay_mod = IRModule({{prim_fn_var, relay_func}});

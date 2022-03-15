@@ -124,7 +124,7 @@ IRModule ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod, Ta
   // This is necessary because some scheduling primitives requires the PrimFunc key be "main".
   // If we can remove this restriction, there would no need for GetOnlyOneFunction* calls below
   // and we can directly return sch->mod().
-  auto gv = GetOnlyOneFunctionKey<tir::PrimFunc>(prim_mod).value();
+  GlobalVar gv = GetOnlyOneFunctionKey<tir::PrimFunc>(prim_mod).value();
   // Unify func name to make sure it can be found in database
   const auto* parse_mod_func = runtime::Registry::Get("tvm.meta_schedule.tune.parse_mod");
   ICHECK(parse_mod_func) << "Parse mod function not defined!";
