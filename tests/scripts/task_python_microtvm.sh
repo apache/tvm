@@ -28,11 +28,6 @@ make cython3
 run_pytest ctypes python-microtvm-zephyr-qemu_x86 tests/micro/zephyr --zephyr-board=qemu_x86
 run_pytest ctypes python-microtvm-zephyr-qemu_riscv32 tests/micro/zephyr --zephyr-board=qemu_riscv32
 run_pytest ctypes python-microtvm-zephyr-qemu_riscv64 tests/micro/zephyr --zephyr-board=qemu_riscv64
-run_pytest ctypes python-microtvm-zephyr-mps3_an547 tests/micro/zephyr --zephyr-board=mps3_an547
-
-# Temporarily removing mps2_an512 from CI due to issue 8728:
-# https://github.com/apache/tvm/issues/8728
-# run_pytest ctypes python-microtvm-zephyr tests/micro/zephyr --zephyr-board=mps2_an521
 
 # Arduino
 run_pytest ctypes python-microtvm-arduino apps/microtvm/arduino/template_project/tests
