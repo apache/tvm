@@ -18,7 +18,7 @@
 
 import tvm
 
-from abc import abstractmethod
+from abc import abstractmethod, abstractproperty
 from typing import List, Dict, Callable, Optional
 
 from tvm.relay.backend.contrib.uma.api.partitioner import UMAPartitioner
@@ -33,8 +33,7 @@ class UMABackend(object):
         self._relay_to_tir = UMALower(self.target_name)
         self._tir_to_runtime = UMACodegen(self.target_name)
 
-    @property
-    @abstractmethod
+    @abstractproperty
     def target_name(self) -> str:
         """Name of the hardware target.
 
@@ -43,6 +42,7 @@ class UMABackend(object):
         out : str
             The hardware target name.
         """
+        ...
 
     ############################################################################
     # Relay to Relay function registration
