@@ -741,19 +741,15 @@ def deploy_docs() {
     script: '''
       set -eux
       rm -rf tvm-site
-      git clone -b $DOCS_DEPLOY_BRANCH --depth=1 https://github.com/apache/tvm-site
+      git clone --depth=1 https://github.com/apache/tvm-site
       cd tvm-site
-      git status
-      git checkout -B $DOCS_DEPLOY_BRANCH
+      bash scripts/task_unpack_docs.sh ../docs.tgz $DOCS_DEPLOY_BRANCH
 
-      rm -rf tvm-site/docs docs
-      mkdir -p docs
-      tar xf ../docs.tgz -C docs
-      COMMIT=$(cat docs/commit_hash)
+      SOURCE_COMMIT=$(cat docs/commit_hash)
       git add .
       git config user.name tvm-bot
       git config user.email 95660001+tvm-bot@users.noreply.github.com
-      git commit -m"deploying docs (apache/tvm@$COMMIT)"
+      git commit -m"deploying docs (apache/tvm@$SOURCE_COMMIT)"
       git status
     ''',
     label: 'Unpack docs and update tvm-site'
