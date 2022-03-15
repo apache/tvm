@@ -19,8 +19,9 @@
 set -e
 set -u
 
-mkdir -p build
-cd build
+BUILD_DIR=$1
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
 cp ../cmake/config.cmake .
 
 echo set\(USE_CUBLAS ON\) >> config.cmake

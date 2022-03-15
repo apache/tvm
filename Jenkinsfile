@@ -300,11 +300,11 @@ stage('Build') {
       node('CPU') {
         ws(per_exec_ws('tvm/build-gpu')) {
           init_git()
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh"
+          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
           make("${ci_gpu} --no-gpu", 'build', '-j2')
           pack_lib('gpu', tvm_multilib)
           // compiler test
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh"
+          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
           make("${ci_gpu} --no-gpu", 'build2', '-j2')
           pack_lib('gpu2', tvm_multilib)
         }
@@ -317,7 +317,7 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-cpu')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh",
+            script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
             label: 'Create CPU cmake config',
           )
           make(ci_cpu, 'build', '-j2')
@@ -340,7 +340,7 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-wasm')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh",
+            script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
             label: 'Create WASM cmake config',
           )
           make(ci_wasm, 'build', '-j2')
@@ -364,7 +364,7 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-i386')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh",
+            script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build",
             label: 'Create i386 cmake config',
           )
           make(ci_i386, 'build', '-j2')
@@ -381,7 +381,7 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-arm')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh",
+            script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",
             label: 'Create ARM cmake config',
           )
           make(ci_arm, 'build', '-j4')
@@ -398,7 +398,7 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-qemu')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh",
+            script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh build",
             label: 'Create QEMU cmake config',
           )
           try {
@@ -430,7 +430,7 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-hexagon')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh",
+            script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
             label: 'Create Hexagon cmake config',
           )
           try {
