@@ -340,6 +340,7 @@ MICRO_SUPPORTED_MODELS = {
     "esp32": [],
     "imxrt10xx": ["-mcpu=cortex-m7"],
     "mps2_an521": ["-mcpu=cortex-m33"],
+    "mps3_an547": ["-mcpu=cortex-m55"],
     "nrf52840": ["-mcpu=cortex-m4"],
     "nrf5340dk": ["-mcpu=cortex-m33"],
     "sam3x8e": ["-mcpu=cortex-m3"],
