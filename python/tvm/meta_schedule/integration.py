@@ -77,7 +77,7 @@ class MetaScheduleContext(Object):
         mod: IRModule,
         target: Target,
         dispatched: Optional[List[IRModule]],
-    ) -> IRModule:
+    ) -> Union[IRModule, None]:
         """The entry point of the integration
 
         Parameters
@@ -93,9 +93,9 @@ class MetaScheduleContext(Object):
 
         Returns
         -------
-        result : IRModule
+        result : IRModule or None
             Currently we only have to return tir::PrimFunc, but we wrap it under IRModule for
-            more general future use
+            more general future use. None is returned if there is no feedback hint.
         """
         return _ffi_api.MetaScheduleContextQuery(  # type: ignore # pylint: disable=no-member
             self,
@@ -123,7 +123,7 @@ class MetaScheduleContext(Object):
         mod: IRModule,
         target: Target,
         dispatched: Optional[List[IRModule]],
-    ) -> IRModule:
+    ) -> Union[IRModule, None]:
         """The entry point of the integration workflow. The compilation process of the high-level
         IR should call this method for task extraction and for feedback hints
 
@@ -149,9 +149,9 @@ class MetaScheduleContext(Object):
 
         Returns
         -------
-        result : IRModule
+        result : IRModule or None
             Currently we only have to return tir::PrimFunc, but we wrap it under IRModule for
-            more general future use
+            more general future use. None is returned if there is no feedback hint.
         """
         return _ffi_api.MetaScheduleContextQueryInsideWithScope(  # type: ignore # pylint: disable=no-member
             task_name,
