@@ -1,0 +1,83 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Model loader for TLCBench."""
+import os
+import logging
+import tvm
+from tvm import relay
+from tvm.error import TVMError
+from tvm.contrib.download import download_testdata
+
+
+log = logging.getLogger("tlcbench")
+
+
+def convert_to_qnn(onnx_path, json_path, params_path, batch_size, seq_len):
+    import onnx
+
+    onnx_model = onnx.load(onnx_path)
+
+    shape_dict = {
+        "input_ids": (batch_size, seq_len),
+        "segment_ids": (batch_size, seq_len),
+        "input_mask": (batch_size, seq_len),
+    }
+
+    log.info("Converting te ONNX model to Relay and running the FQ2I pass, it may take a while...")
+    mod, params = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
+
+    seq = tvm.transform.Sequential(
+        [relay.transform.InferType(), relay.transform.FakeQuantizationToInteger(use_qat=True)]
+    )
+    mod = seq(mod)
+
+    with open(json_path, "w") as fo:
+        fo.write(tvm.ir.save_json(mod))
+
+    with open(params_path, "wb") as fo:
+        fo.write(relay.save_param_dict(params))
+
+
+def deserialize_relay(json_path, params_path):
+    with open(json_path, "r") as fi:
+        mod = tvm.ir.load_json(fi.read())
+
+    with open(params_path, "rb") as fi:
+        params = relay.load_param_dict(fi.read())
+
+    return mod, params
+
+
+def load_quantized_bert_base(batch_size=1, seq_len=384):
+    url = "https://github.com/tlc-pack/TLCBench/raw/main/models/bert-base-qat.onnx"
+    log.info("Downloading quantized bert-base model.")
+    onnx_path = download_testdata(url, "bert-base-qat.onnx", module="tlcbench")
+    data_dir = os.path.dirname(onnx_path)
+
+    json_path = os.path.join(data_dir, "bert_base_int8.json")
+    params_path = os.path.join(data_dir, "bert_base_int8.params")
+
+    if not os.path.exists(json_path) or not os.path.exists(params_path):
+        convert_to_qnn(onnx_path, json_path, params_path, batch_size, seq_len)
+
+    try:
+        return deserialize_relay(json_path, params_path)
+    except TVMError:
+        # A serialized Relay json file may become invalid after TVM bump
+        # Update the serialized model and try loading again
+        convert_to_qnn(onnx_path, json_path, params_path, batch_size, seq_len)
+        return deserialize_relay(json_path, params_path)
