@@ -113,7 +113,7 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
         "nucleo_l4r5zi",
         "nrf5340dk_nrf5340_cpuapp",
     ]:
-        pytest.skip(msg="Platform does not support ARM v7m SIMD extenion.")
+        pytest.skip(msg="Platform does not support ARM v7m SIMD extension.")
 
     model = test_utils.ZEPHYR_BOARDS[board]
 
@@ -181,6 +181,7 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
     # Time performance measurements on QEMU emulator are always equal to zero.
     if board not in [
         "mps2_an521",
+        "mps3_an547",
     ]:
         assert time_no_simd > time_simd
 

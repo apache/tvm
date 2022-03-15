@@ -96,7 +96,7 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
 @tvm.testing.requires_micro
 def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
     """Testing QEMU make fail."""
-    if board not in ["qemu_x86", "mps2_an521"]:
+    if board not in ["qemu_x86", "mps2_an521", "mps3_an547"]:
         pytest.skip(msg="Only for QEMU targets.")
 
     model = test_utils.ZEPHYR_BOARDS[board]
