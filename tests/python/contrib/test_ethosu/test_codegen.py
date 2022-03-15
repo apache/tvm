@@ -965,7 +965,6 @@ def test_tflite_concat(shapes, axis, accel_type):
     _compare_tvm_with_tflite(concat_func, shapes, accel_type, output_tolerance=1)
 
 
-@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10300")
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 def test_tflite_sigmoid(accel_type):
     ifm_shape = [1, 135, 41, 6]
@@ -1030,7 +1029,6 @@ def test_ethosu_requantize(accel_type, ifm_shape, ifm_scale, ifm_zp, ofm_scale, 
     _compare_ethosu_with_reference(ethosu_mod, input_data, output_data, accel_type)
 
 
-@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10300")
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("ifm_shape,axis", [((2,), 0), ((1, 3, 3), 2)])
 def test_tflite_expand_dims(accel_type, ifm_shape, axis):
@@ -1070,7 +1068,6 @@ def test_tflite_resize2d_nearest_neighbor(accel_type, ifm_shape, size):
     _compare_tvm_with_tflite(resize_model, [ifm_shape], accel_type)
 
 
-@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10300")
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize(
     "ifm_shape,size,align_corners",
@@ -1095,7 +1092,6 @@ def test_tflite_resize2d_bilinear(accel_type, ifm_shape, size, align_corners):
     _compare_tvm_with_tflite(resize_model, [ifm_shape], accel_type, output_tolerance=1)
 
 
-@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10300")
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize(
     "ifm_shape,ofm_shape,kernel_shape,padding",
@@ -1135,7 +1131,6 @@ def test_tflite_transpose_convolution(
     _compare_tvm_with_tflite(conv2d_transpose, [ifm_shape], accel_type=accel_type)
 
 
-@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10300")
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize(
     "ifm_shapes,axis",
@@ -1170,7 +1165,6 @@ def test_tflite_unpack(accel_type, ifm_shape, axis):
     _compare_tvm_with_tflite(unpack_func, [ifm_shape], accel_type)
 
 
-@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10300")
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("ifm_shape", [(1, 15, 15, 3), (1, 8, 9, 1)])
 @pytest.mark.parametrize("alpha", [0.2, 0.634])
@@ -1180,6 +1174,36 @@ def test_tflite_leaky_relu(accel_type, ifm_shape, alpha):
         return tf.nn.leaky_relu(x, alpha=alpha)
 
     _compare_tvm_with_tflite(leaky_relu_func, [ifm_shape], accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("ifm_shape", [(1, 14), (1, 151)])
+@pytest.mark.parametrize("ofm_channels", [32, 64])
+@pytest.mark.parametrize("use_bias", [True, False])
+@pytest.mark.parametrize("activation_function", ["RELU", "NONE"])
+def test_tflite_fully_connected(
+    accel_type,
+    ifm_shape,
+    ofm_channels,
+    use_bias,
+    activation_function,
+):
+    @tf.function
+    def fully_connected(x):
+        bias_shape = ofm_channels
+        bias = tf.constant(np.random.uniform(size=bias_shape), dtype=tf.float32)
+        w = tf.constant(
+            np.random.uniform(size=[ifm_shape[1], ofm_channels]),
+            dtype=tf.float32,
+        )
+        x = tf.matmul(x, w)
+        if use_bias:
+            x = tf.nn.bias_add(x, bias)
+        if activation_function:
+            x = tf.nn.relu(x)
+        return x
+
+    _compare_tvm_with_tflite(fully_connected, [ifm_shape], accel_type)
 
 
 if __name__ == "__main__":

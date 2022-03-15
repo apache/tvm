@@ -21,13 +21,13 @@ set -u
 set -o pipefail
 
 # install libraries for python package on ubuntu
-pip3 install \
+pip3 install --upgrade \
     attrs \
     cloudpickle \
     cython \
     decorator \
     mypy \
-    numpy \
+    numpy~=1.19.5 \
     orderedset \
     packaging \
     Pillow \

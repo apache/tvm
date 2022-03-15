@@ -17,10 +17,15 @@
 # under the License.
 
 # Zephyr insists on running qemu with a -pidfile option, but that option doesn't appear to
-# work given the way we've configured docker (the underlying filesystem doesn't suppor the
+# work given the way we've configured docker (the underlying filesystem doesn't support the
 # file locking it needs to). This script strips any -pidfile option, then invokes qemu.
 
 ARGS=( "$(basename $0)" )
+
+if [ "${QEMU_BIN_PATH}"  != "" ]; then
+    ARGS=${QEMU_BIN_PATH}/${ARGS}
+fi
+
 while [ "$#" -gt 0 ]; do
     if [ "$1" == "-pidfile" ]; then
         shift

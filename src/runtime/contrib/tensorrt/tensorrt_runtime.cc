@@ -72,7 +72,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
         use_implicit_batch_(true),
         max_workspace_size_(size_t(1) << 30),
         max_batch_size_(-1),
-        multi_engine_mode_(false) {
+        multi_engine_mode_(false),
+        use_fp16_(false) {
     const bool use_int8 = dmlc::GetEnv("TVM_TENSORRT_USE_INT8", false);
     multi_engine_mode_ = dmlc::GetEnv("TVM_TENSORRT_MULTI_ENGINE", false);
     num_calibration_batches_remaining_ = dmlc::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
@@ -106,8 +107,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
     ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     LoadGlobalAttributes();
-    if (GetCachedEnginesFromDisk()) return;
     SetupConstants(consts);
+    GetCachedEnginesFromDisk();
   }
 
   void LoadGlobalAttributes() {
@@ -304,7 +305,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
   }
 
   void BuildEngineFromJson(int batch_size) {
-    const bool use_fp16 = dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false);
+    const bool use_fp16 = dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false) || use_fp16_;
     TensorRTBuilder builder(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
                             use_fp16, batch_size, calibrator_.get());
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
@@ -365,10 +366,11 @@ class TensorRTRuntime : public JSONRuntimeBase {
     std::istringstream is(serialized_meta);
     dmlc::JSONReader reader(&is);
     dmlc::JSONObjectReadHelper helper;
+    int batch_size;
     helper.DeclareField("inputs", &engine_and_context.inputs);
     helper.DeclareField("outputs", &engine_and_context.outputs);
+    helper.DeclareField("batch_size", &batch_size);
     helper.ReadAllFields(&reader);
-    const int batch_size = GetBatchSize();
     trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = engine_and_context;
     LOG(INFO) << "finished saving engine and context ... ";
     return true;
@@ -398,6 +400,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
                                trt_engine_cache_[std::make_pair(symbol_name_, batch_size)].inputs);
     writer.WriteObjectKeyValue("outputs",
                                trt_engine_cache_[std::make_pair(symbol_name_, batch_size)].outputs);
+    writer.WriteObjectKeyValue("batch_size", batch_size);
     writer.EndObject();
     std::string meta_path = cache_dir + "/" + key + ".meta";
     SaveBinaryToFile(meta_path, os.str());
@@ -492,6 +495,9 @@ class TensorRTRuntime : public JSONRuntimeBase {
    * encountered. Multi-engine mode should give better performance, at a cost of higher memory usage
    * and more time spent building engines. */
   bool multi_engine_mode_;
+
+  /*! \brief Use auto-conversion to fp16 */
+  bool use_fp16_;
 };
 
 runtime::Module TensorRTRuntimeCreate(const String& symbol_name, const String& graph_json,

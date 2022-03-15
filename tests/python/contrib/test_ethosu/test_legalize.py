@@ -2421,5 +2421,108 @@ def test_tflite_leaky_relu(ifm_shape, alpha):
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
+@pytest.mark.parametrize("ifm_shape", [(1, 14), (1, 151)])
+@pytest.mark.parametrize("ofm_channels", [32, 64])
+@pytest.mark.parametrize("use_bias", [True, False])
+@pytest.mark.parametrize("activation_function", ["RELU", "NONE"])
+def test_tflite_fully_connected(
+    ifm_shape,
+    ofm_channels,
+    use_bias,
+    activation_function,
+):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def fully_connected(self, x):
+                bias_shape = ofm_channels
+                bias = tf.constant(np.random.uniform(size=bias_shape), dtype=tf.float32)
+                w = tf.constant(
+                    np.random.uniform(size=[ifm_shape[1], ofm_channels]),
+                    dtype=tf.float32,
+                )
+                x = tf.matmul(x, w)
+                if use_bias:
+                    x = tf.nn.bias_add(x, bias)
+                if activation_function:
+                    x = tf.nn.relu(x)
+                return x
+
+        model = Model()
+        concrete_func = model.fully_connected.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    def verify(ext_func):
+        op = ext_func.body.args[0]
+        ofm_channels = op.attrs.ofm_channels
+
+        # check IFM
+        ifm = op.args[0].checked_type
+        assert list(ifm.shape) == [1, 1] + list(ifm_shape)
+        assert str(ifm.dtype) == dtype
+
+        # check OFM
+        ofm = op.checked_type
+        assert list(ofm.shape) == [1, 1, 1, ofm_channels]
+        assert str(ofm.dtype) == dtype
+
+        # check weights
+        weights_ohwi = op.args[1].data.asnumpy()
+        assert str(weights_ohwi.dtype) == dtype
+        assert list(weights_ohwi.shape) == [ofm_channels, 1, 1, ifm_shape[1]]
+
+        # Check that scale_bias matches weight tensor
+        assert list(op.args[2].checked_type.shape)[0] == ofm_channels
+
+        assert list(op.attrs.padding) == [0, 0, 0, 0]
+        assert list(op.attrs.strides) == [1, 1]
+        assert list(op.attrs.dilation) == [1, 1]
+        if activation_function == "RELU":
+            assert str(op.attrs.activation) == "CLIP"
+
+    fc_pattern_table = [
+        (
+            ethosu.FullyConnectedParams.composite_name,
+            ethosu.qnn_fc_pattern(),
+            lambda pat: ethosu.FullyConnectedParams(pat).is_valid(),
+        )
+    ]
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, fc_params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+
+    mod["main"] = bind_params_by_name(mod["main"], fc_params)
+    mod = partition_ethosu_by_table(mod, fc_pattern_table)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.FullyConnectedRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

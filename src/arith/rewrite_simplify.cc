@@ -84,6 +84,9 @@ RewriteSimplifier::Impl::CompareResult RewriteSimplifier::Impl::TryCompare(const
     }
   }
   ConstIntBound dbound = analyzer_->const_int_bound(diff);
+  if (dbound->min_value == val && dbound->max_value == val) {
+    return kEQ;
+  }
   if (dbound->min_value > val) {
     return kGT;
   }
@@ -819,6 +822,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     // Rules involving 3-operands.
     TVM_TRY_REWRITE_IF(floordiv(x * c1 + y + z, c2), x * floordiv(c1, c2) + floordiv(y + z, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
+    TVM_TRY_REWRITE_IF(floordiv(x * c1 + y + z, c2), floordiv(x, floordiv(c2, c1)),
+                       c1.Eval()->value > 0 && c2.Eval()->value > 0 &&
+                           c2.Eval()->value % c1.Eval()->value == 0 &&
+                           CanProveEqual(floordiv(y.Eval() + z.Eval(), c1.Eval()), 0));
 
     TVM_TRY_REWRITE_IF(floordiv(x * c1 - y + z, c2), x * floordiv(c1, c2) + floordiv(z - y, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
@@ -915,6 +922,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
 
     TVM_TRY_REWRITE_IF(floormod(x * c1 + y, c2), floormod(y, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
+
+    TVM_TRY_REWRITE_IF(floormod(x * c1 + y, c2), floormod(x, floordiv(c2, c1)) * c1 + y,
+                       c1.Eval()->value > 0 && c2.Eval()->value > 0 &&
+                           c2.Eval()->value % c1.Eval()->value == 0 &&
+                           analyzer_->CanProveLess(y.Eval(), c1.Eval()->value));
 
     TVM_TRY_REWRITE_IF(floormod(x + c1, c2), floormod(x, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);

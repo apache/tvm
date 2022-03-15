@@ -35,7 +35,7 @@ def test_ethosu_part():
     )
     subkernels = 3
 
-    valid_block_configs = [cs.BlockConfig([1, 2, 4, 16], 15000, 7500)]
+    valid_block_configs = [cs.BlockConfig([1, 2, 4, 16], [1, 2, 4, 16], 15000, 7500)]
 
     part = EthosuPart(
         te_subgraph,

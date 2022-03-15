@@ -21,6 +21,7 @@ from typing import List, Any
 
 import tvm.tir
 from ..registry import register
+from ...target import codegen
 from ..utils import get_param_list, tvm_span_from_synr
 
 
@@ -234,3 +235,9 @@ def comm_reducer(lambda_io, identities, span):
         lambda_output = (lambda_output,)
 
     return tvm.tir.CommReducer(x, y, lambda_output, identities, span)
+
+
+@register
+def llvm_lookup_intrinsic_id(name, span):
+    # pylint: disable=unused-argument
+    return codegen.llvm_lookup_intrinsic_id(name)

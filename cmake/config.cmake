@@ -375,3 +375,8 @@ set(USE_CUTLASS OFF)
 
 # Enable to show a summary of TVM options
 set(SUMMARIZE OFF)
+
+# Whether to use LibTorch as backend
+# To enable pass the path to the root libtorch (or PyTorch) directory
+# OFF or /path/to/torch/
+set(USE_LIBTORCH OFF)
