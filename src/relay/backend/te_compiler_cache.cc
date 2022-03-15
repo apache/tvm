@@ -47,7 +47,6 @@
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
 #include "../transforms/pass_utils.h"
-#include "tvm/runtime/object.h"
 #include "utils.h"
 
 namespace tvm {
@@ -756,7 +755,8 @@ CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,
 std::pair<Array<te::Tensor>, std::string> LowerTECompute(const Function& source_func, Target target,
                                                          bool return_inputs) {
   LowerToTECompute lower_te_compute(target);
-  Array<te::Tensor> outputs = lower_te_compute.Lower(source_func, [&](std::string name) { return name; });
+  Array<te::Tensor> outputs =
+      lower_te_compute.Lower(source_func, [](std::string name) { return name; });
   // Following ScheduleBuilder, remove placeholder ops from outputs.
   tvm::Array<te::Tensor> tensor_outs;
   for (const auto& tensor : outputs) {
