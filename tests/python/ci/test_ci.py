@@ -15,16 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pathlib
 import subprocess
 import sys
 import json
 import textwrap
-import tempfile
-
 import pytest
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent
+from test_utils import REPO_ROOT
 
 
 class TempGit:

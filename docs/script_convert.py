@@ -24,35 +24,40 @@ BASH_MULTILINE_COMMENT_START = ": '"
 BASH_MULTILINE_COMMENT_END = "'"
 
 
-def convert(args: argparse.Namespace):
-    src_path = pathlib.Path(args.script)
-    des_path = src_path.parent / f"{src_path.stem}.py"
+def bash_to_python(src_path: pathlib.Path, dest_path: pathlib.Path):
+    """Convert a bash script file to a Python format compatible with Sphinx doc."""
     with open(src_path, "r") as src_f:
-        with open(des_path, "w") as des_f:
+        with open(dest_path, "w") as dest_f:
             line = src_f.readline()
             bash_block = []
             bash_detected = False
             bash_ignore_detected = False
+            new_line_required = False
             while line:
                 line = line.strip("\n").strip("\r")
                 if bash_detected:
                     if line == BASH:
                         # write the bash block to destination
+                        if new_line_required:
+                            dest_f.write("\n")
                         python_code = "# .. code-block:: bash\n#\n"
                         for bash_line in bash_block:
                             python_code += f"#\t  {bash_line}\n"
-                        python_code += "#\n"
-                        des_f.write(python_code)
+                        python_code += "#"
+                        dest_f.write(python_code)
 
                         bash_detected = False
                         bash_block = []
+                        new_line_required = True
                     else:
                         # add new bash command line
                         bash_block.append(line)
                 elif bash_ignore_detected:
                     if line == BASH_IGNORE:
                         bash_ignore_detected = False
+                        new_line_required = True
                     else:
+                        new_line_required = False
                         pass
                 else:
                     if line == BASH:
@@ -60,16 +65,30 @@ def convert(args: argparse.Namespace):
                     elif line == BASH_IGNORE:
                         bash_ignore_detected = True
                     elif line in [BASH_MULTILINE_COMMENT_START, BASH_MULTILINE_COMMENT_END]:
-                        des_f.write('"""\n')
+                        if new_line_required:
+                            dest_f.write("\n")
+                        dest_f.write('"""')
+                        new_line_required = True
                     else:
-                        des_f.write(f"{line}\n")
+                        if new_line_required:
+                            dest_f.write("\n")
+                        dest_f.write(f"{line}")
+                        new_line_required = True
 
                 line = src_f.readline()
+            if new_line_required:
+                dest_f.write("\n")
+
+
+def convert():
+    parser = argparse.ArgumentParser(description="Convert tutorial script to Python.")
+    parser.add_argument("script", type=str, help="Path to script file.")
+    args = parser.parse_args()
+
+    src_path = pathlib.Path(args.script)
+    dest_path = src_path.parent / f"{src_path.stem}.py"
+    bash_to_python(src_path, dest_path)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Convert tutorial script to Python.")
-    parser.add_argument("script", type=str, help="Path to script file.")
-
-    args = parser.parse_args()
-    convert(args)
+    convert()
