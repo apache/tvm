@@ -80,7 +80,7 @@ def bash_to_python(src_path: pathlib.Path, dest_path: pathlib.Path):
                 dest_f.write("\n")
 
 
-def convert():
+def main():
     parser = argparse.ArgumentParser(description="Convert tutorial script to Python.")
     parser.add_argument("script", type=str, help="Path to script file.")
     args = parser.parse_args()
@@ -91,4 +91,4 @@ def convert():
 
 
 if __name__ == "__main__":
-    convert()
+    main()
