@@ -106,17 +106,20 @@ endif()
 
 
 function(add_android_paths)
-  if(NOT DEFINED HEXAGON_SDK_INCLUDES OR
-     NOT DEFINED HEXAGON_RPCMEM_ROOT OR
-     NOT DEFINED HEXAGON_REMOTE_ROOT)
-    message(FATAL_ERROR "This function must be called after find_hexagon_sdk_root")
-  endif()
-  include_directories(SYSTEM
-    ${HEXAGON_SDK_INCLUDES}
-    ${HEXAGON_RPCMEM_ROOT}/inc
-    ${HEXAGON_REMOTE_ROOT}
+  get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
+    SDK_INCLUDE SDK_INCLUDE_DIRS
+    DSPRPC_LIB  DSPRPC_LIB_DIRS
+    RPCMEM_ROOT RPCMEM_ROOT_DIR
   )
-  link_directories(${HEXAGON_REMOTE_ROOT})
+  if(NOT SDK_INCLUDE_DIRS OR NOT DSPRPC_LIB_DIRS OR NOT RPCMEM_ROOT_DIR)
+    message(WARNING "Could not locate some Hexagon SDK components")
+  endif()
+
+  include_directories(SYSTEM
+    ${SDK_INCLUDE_DIRS}
+    "${RPCMEM_ROOT_DIR}/inc"
+  )
+  link_directories(${DSPRPC_LIB_DIRS})
 endfunction()
 
 function(add_hexagon_wrapper_paths)
@@ -137,9 +140,16 @@ file_glob_append(RUNTIME_HEXAGON_COMMON_SRCS
 
 
 if(BUILD_FOR_HEXAGON)
-  find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
+  get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
+    SDK_INCLUDE   SDK_INCLUDE_DIRS
+    QURT_INCLUDE  QURT_INCLUDE_DIRS
+  )
+  if(NOT SDK_INCLUDE_DIRS OR NOT QURT_INCLUDE_DIRS)
+    message(WARNING "Could not locate some Hexagon SDK components")
+  endif()
+
   # Add SDK and QuRT includes when building for Hexagon.
-  include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_QURT_INCLUDES})
+  include_directories(SYSTEM ${SDK_INCLUDE_DIRS} ${QURT_INCLUDE_DIRS})
 
   list(APPEND RUNTIME_HEXAGON_SRCS ${RUNTIME_HEXAGON_COMMON_SRCS})
   set(USE_CUSTOM_LOGGING ON) # To use a custom logger
@@ -181,7 +191,6 @@ if(USE_HEXAGON_DEVICE)
     if(NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
       invalid_device_value_for("Android")
     endif()
-    find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
     find_hexagon_toolchain()
     add_android_paths()
     file_glob_append(RUNTIME_HEXAGON_SRCS
@@ -199,8 +208,11 @@ endif()   # USE_HEXAGON_DEVICE
 
 if(USE_HEXAGON_RPC)
   function(build_rpc_idl)
-    set(QAIC_EXE "${HEXAGON_QAIC_EXE}")
-    foreach(INCDIR IN LISTS HEXAGON_SDK_INCLUDES HEXAGON_REMOTE_ROOT)
+    get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
+      SDK_INCLUDE   SDK_INCLUDE_DIRS
+      QAIC_EXE      QAIC_EXE_PATH
+    )
+    foreach(INCDIR IN LISTS SDK_INCLUDE_DIRS)
       list(APPEND QAIC_FLAGS "-I${INCDIR}")
     endforeach()
 
@@ -210,7 +222,8 @@ if(USE_HEXAGON_RPC)
         "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_skel.c"
         "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_stub.c"
       COMMAND
-        ${QAIC_EXE} ${QAIC_FLAGS} "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc.idl"
+        ${QAIC_EXE_PATH} ${QAIC_FLAGS}
+          "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc.idl"
           -o "${TVMRT_SOURCE_DIR}/hexagon/rpc"
       MAIN_DEPENDENCY "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc.idl"
     )
@@ -220,7 +233,6 @@ if(USE_HEXAGON_RPC)
 
   if(BUILD_FOR_ANDROID)
     # Android part
-    find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
     add_android_paths()
     build_rpc_idl()
     file_glob_append(RUNTIME_HEXAGON_SRCS
@@ -236,7 +248,6 @@ if(USE_HEXAGON_RPC)
 
   elseif(BUILD_FOR_HEXAGON)
     # Hexagon part
-    find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
     find_hexagon_toolchain()
     build_rpc_idl()
 

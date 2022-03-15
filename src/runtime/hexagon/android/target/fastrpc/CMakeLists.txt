@@ -26,13 +26,22 @@ endif()
 include(../../../../../../cmake/utils/Utils.cmake)
 include(../../../../../../cmake/modules/HexagonSDK.cmake)
 
-find_hexagon_sdk_root("${HEXAGON_SDK_ROOT}" "${HEXAGON_ARCH}")
+get_hexagon_sdk_property("${HEXAGON_SDK_ROOT}" "${HEXAGON_ARCH}"
+  SDK_INCLUDE  SDK_INCLUDE_DIRS
+  QURT_INCLUDE QURT_INCLUDE_DIRS
+  DSPRPC_LIB   DSPRPC_LIB_DIRS
+  RPCMEM_ROOT  RPCMEM_ROOT_DIR
+  QAIC_EXE     QAIC_EXE_PATH
+)
+if(NOT SDK_INCLUDE_DIRS OR NOT QURT_INCLUDE_DIRS OR NOT DSPRPC_LIB_DIRS OR
+   NOT RPCMEM_ROOT_DIR OR NOT QAIC_EXE_PATH)
+  message(WARNING "Could not locate some Hexagon SDK components")
+endif()
 
 include_directories(include)
-include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_REMOTE_ROOT})
+include_directories(SYSTEM ${SDK_INCLUDE_DIRS})
 
-set(QAIC_EXE "${HEXAGON_QAIC_EXE}")
-foreach(INCDIR IN LISTS HEXAGON_SDK_INCLUDES HEXAGON_REMOTE_ROOT)
+foreach(INCDIR IN LISTS SDK_INCLUDE_DIRS)
   list(APPEND QAIC_FLAGS "-I${INCDIR}")
 endforeach()
 
@@ -51,7 +60,7 @@ set(TVM_REMOTE_ND_STUB_C "tvm_remote_nd_stub.c")
 add_custom_command(
   OUTPUT ${TVM_REMOTE_ND_SKEL_C} ${TVM_REMOTE_ND_STUB_C}
          "${FASTRPC_SRC}/include/${TVM_REMOTE_ND_H}"
-  COMMAND ${QAIC_EXE} ${QAIC_FLAGS}
+  COMMAND ${QAIC_EXE_PATH} ${QAIC_FLAGS}
           "${FASTRPC_SRC}/include/${TVM_REMOTE_ND_IDL}"
   COMMAND ${CMAKE_COMMAND} -E rename "${TVM_REMOTE_ND_H}"
           "${FASTRPC_SRC}/include/${TVM_REMOTE_ND_H}"
@@ -70,7 +79,7 @@ set(TVM_REMOTE_D_STUB_C "tvm_remote_stub.c")
 add_custom_command(
   OUTPUT ${TVM_REMOTE_D_SKEL_C} ${TVM_REMOTE_D_STUB_C}
          "${FASTRPC_SRC}/include/${TVM_REMOTE_D_H}"
-  COMMAND ${QAIC_EXE} ${QAIC_FLAGS}
+  COMMAND ${QAIC_EXE_PATH} ${QAIC_FLAGS}
           "${FASTRPC_SRC}/include/${TVM_REMOTE_D_IDL}"
   COMMAND ${CMAKE_COMMAND} -E rename "${TVM_REMOTE_D_H}"
           "${FASTRPC_SRC}/include/${TVM_REMOTE_D_H}"
@@ -81,7 +90,7 @@ add_custom_command(
 if("${FASTRPC_LIBS}" STREQUAL "SKEL")
   # Skel libraries.
   #
-  include_directories(SYSTEM ${HEXAGON_QURT_INCLUDES})
+  include_directories(SYSTEM ${QURT_INCLUDE_DIRS})
 
   # Extra compile flags (both C and C++).
   set(EXTRA_COMP_FLAGS
@@ -110,19 +119,19 @@ if("${FASTRPC_LIBS}" STREQUAL "SKEL")
   )
   add_library(tvm_remote_nd_skel SHARED
     "${FASTRPC_SRC}/include/${TVM_REMOTE_ND_H}"
-    ${TVM_REMOTE_ND_SKEL_C}
-    ${SKEL_ND_SRCS}
+    "${TVM_REMOTE_ND_SKEL_C}"
+    "${SKEL_ND_SRCS}"
   )
 
   set(SKEL_D_SRCS
     # Also includes src/tvm_remote_nd_imp.cc
-    ${SKEL_ND_SRCS}
+    "${SKEL_ND_SRCS}"
     "src/tvm_remote_imp.cc"
   )
   add_library(tvm_remote_skel SHARED
     "${FASTRPC_SRC}/include/${TVM_REMOTE_D_H}"
-    ${TVM_REMOTE_D_SKEL_C}
-    ${SKEL_D_SRCS}
+    "${TVM_REMOTE_D_SKEL_C}"
+    "${SKEL_D_SRCS}"
   )
 
   # Separate shared library with __wrap_pthread_create.
@@ -141,19 +150,22 @@ else()
   # Stub libraries.
   #
   include_directories(SYSTEM
-    ${HEXAGON_SDK_INCLUDES}
-    "${HEXAGON_RPCMEM_ROOT}/inc"
+    ${SDK_INCLUDE_DIRS}
+    "${RPCMEM_ROOT_DIR}/inc"
   )
-  link_directories(${HEXAGON_REMOTE_ROOT})
+  link_directories(${DSPRPC_LIB_DIRS})
 
+  if(RPCMEM_ROOT_DIR)
+    set(RPCMEM_ANDROID_C "${RPCMEM_ROOT_DIR}/src/rpcmem_android.c")
+  endif()
   add_library(tvm_remote_nd_stub SHARED
     "${FASTRPC_SRC}/include/${TVM_REMOTE_ND_H}"
-    "${HEXAGON_RPCMEM_ROOT}/src/rpcmem_android.c"
+    "${RPCMEM_ANDROID_C}"
     "${TVM_REMOTE_ND_STUB_C}"
   )
   add_library(tvm_remote_stub SHARED
     "${FASTRPC_SRC}/include/${TVM_REMOTE_D_H}"
-    "${HEXAGON_RPCMEM_ROOT}/src/rpcmem_android.c"
+    "${RPCMEM_ANDROID_C}"
     "${TVM_REMOTE_D_STUB_C}"
   )
   target_link_libraries(tvm_remote_nd_stub adsprpc)
