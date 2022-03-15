@@ -33,7 +33,7 @@ from tvm.tir.stmt_functor import post_order_visit
 from .conftest import requires_hexagon_toolchain
 
 # Needed to register the link_shared packedfunc.
-import tvm.contrib.hexagon.hexagon
+import tvm.contrib.hexagon
 
 
 dtype = tvm.testing.parameter("int8")
