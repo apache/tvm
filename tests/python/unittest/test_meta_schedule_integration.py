@@ -32,6 +32,8 @@ from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir import Schedule
+from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
+from tvm.meta_schedule.tune import extract_task_from_relay
 
 # pylint: disable=no-member,line-too-long,too-many-nested-blocks,unbalanced-tuple-unpacking,no-self-argument,missing-docstring,invalid-name
 
@@ -152,6 +154,21 @@ def test_meta_schedule_integration_apply_history_best():
     )
     mod = env.query(task_name="mock-task", mod=mod, target=target, dispatched=[MockModule])
     assert tvm.ir.structural_equal(mod, workload.mod)
+
+
+@pytest.mark.skip("Too slow on CI")
+def extract_task_qbert():
+    mod, params, _ = load_quantized_bert_base(batch_size=1, seq_len=128)
+    target = "llvm"
+    extracted_tasks = extract_task_from_relay(mod, target, params)
+    tune_tasks = list(
+        filter(
+            lambda task: "dense" in task.task_name or "batch_matmul" in task.task_name,
+            extracted_tasks,
+        )
+    )
+    # three int8 dense, two int8 bmm, and one fp32 dense
+    assert len(tune_tasks) == 6
 
 
 if __name__ == "__main__":
