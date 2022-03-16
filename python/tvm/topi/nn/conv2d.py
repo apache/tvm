@@ -537,6 +537,7 @@ def conv2d_NCHWc_int8(
             ),
             name="conv2d_NCHWc_int8",
             tag="conv2d_NCHWc_int8",
+            attrs={"schedule_rule": "meta_schedule.conv2d_NCHWc_int8"},
         )
     # for int8 group conv support
     ic_chunk = in_channel // ic_bn
@@ -559,6 +560,7 @@ def conv2d_NCHWc_int8(
         ),
         name="conv2d_NCHWc_int8",
         tag="conv2d_NCHWc_int8",
+        attrs={"schedule_rule": "meta_schedule.conv2d_NCHWc_int8"},
     )
 
 

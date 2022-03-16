@@ -16,13 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-
-python3 3rdparty/dmlc-core/scripts/lint.py vta cpp vta/include vta/src
-python3 3rdparty/dmlc-core/scripts/lint.py tvm cpp \
-	include src \
-	examples/extension/src examples/graph_executor/src \
-	tests/cpp tests/crt \
-	--exclude_path  "src/runtime/hexagon/rpc/hexagon_rpc.h" \
-			"src/runtime/hexagon/rpc/hexagon_rpc_skel.c" \
-			"src/runtime/hexagon/rpc/hexagon_rpc_stub.c"
+SCRIPTS_DIR=$(dirname "${BASH_SOURCE[0]}")
+TVM_DIR=$(cd "${SCRIPTS_DIR}" && git rev-parse --show-toplevel)
+python3 "${TVM_DIR}/docs/script_convert.py" "${TVM_DIR}/gallery/how_to/work_with_microtvm/micro_tvmc.sh"

@@ -510,6 +510,7 @@ class PipelineConfig(object):
             self.target = None
             self.name = None
             self.dev = None
+            self.cpu_affinity = ""
             self.idx = None
             self.mod = mod
             self.input_params = InferType()(mod)["main"].params
@@ -685,6 +686,7 @@ class PipelineConfig(object):
                 output_conf.append(output)
 
             mconf["mod_idx"] = module.idx
+            mconf["cpu_affinity"] = module.cpu_affinity
             mconf["output"] = output_conf
 
             module_connection[mod] = {

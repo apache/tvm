@@ -31,11 +31,14 @@ pip3 install --upgrade \
     orderedset \
     packaging \
     Pillow \
+    psutil \
     pytest \
+    tlcpack-sphinx-addon==0.2.1 \
     pytest-profiling \
     pytest-xdist \
     requests \
     scipy \
     synr==0.6.0 \
+    junitparser==2.4.2 \
     six \
     tornado

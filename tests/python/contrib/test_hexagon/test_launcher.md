@@ -43,7 +43,7 @@ cd build
 cmake -DUSE_ANDROID_TOOLCHAIN="path to `android-ndk/build/cmake/android.toolchain.cmake` file" \
         -DANDROID_PLATFORM=android-28 \
         -DANDROID_ABI=arm64-v8a \
-        -DUSE_HEXAGON_ARCH=v65|v66|v68 \
+        -DUSE_HEXAGON_ARCH=v65|v66|v68|v69 \
         -DUSE_HEXAGON_SDK="path to Hexagon SDK" \
         -DUSE_HEXAGON_TOOLCHAIN="path to Hexagon toolchain `Tools` sub-directory which explained above" \
         -DUSE_OUTPUT_BINARY_DIR="path to `build/hexagon_api_output` which is a sub-directory of `tvm`" ..
@@ -62,7 +62,7 @@ cmake -DUSE_LLVM="path to `llvm/bin/llvm-config`" \
         -DCMAKE_CXX_COMPILER="path to `clang++` executable" \
         -DCMAKE_CXX_FLAGS='-stdlib=libc++' \
         -DUSE_HEXAGON_SDK="path to Hexagon SDK" \
-        -DUSE_HEXAGON_ARCH="choose from v65|v66|v68" \
+        -DUSE_HEXAGON_ARCH="choose from v65|v66|v68|v69" \
         -DUSE_HEXAGON_DEVICE=sim ..
 ```
 
