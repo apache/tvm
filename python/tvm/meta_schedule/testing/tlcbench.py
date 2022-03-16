@@ -45,17 +45,13 @@ def _convert(args):
         fo.write(relay.save_param_dict(params))
 
 
-def convert_to_qnn(onnx_path, json_path, params_path, batch_size, seq_len):
+def convert_to_qnn(onnx_path, json_path, params_path, input_info):
     """Run the ONNX frontend and the FQ2I pass. The output is serialized to disk."""
     import onnx
 
     onnx_model = onnx.load(onnx_path)
 
-    shape_dict = {
-        "input_ids": (batch_size, seq_len),
-        "segment_ids": (batch_size, seq_len),
-        "input_mask": (batch_size, seq_len),
-    }
+    shape_dict = dict(input_info)
 
     log.info("Converting te ONNX model to Relay and running the FQ2I pass, it may take a while...")
 
@@ -77,6 +73,24 @@ def load_quantized_bert_base(batch_size=1, seq_len=384):
     """
     Load the quantized bert-base model from TLCBench, possibly downloading it from github
     and caching the converted int8 QNN module to disk.
+
+    In addition to returing the relay module and its parameters, it also returns input name
+    and shape information, which can be used at the deployment time as follows:
+
+    ```
+    mod, params, input_info = load_quantized_bert_base()
+
+    ...
+
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    for name, shape in input_info:
+        arr = np.random.uniform(1, 10, size=shape).astype("int64")
+        runtime.set_input(name, arr)
+
+    runtime.run()
+    ```
+
     """
     url = "https://github.com/tlc-pack/TLCBench/raw/main/models/bert-base-qat.onnx"
     log.info("Downloading quantized bert-base model.")
@@ -86,13 +100,25 @@ def load_quantized_bert_base(batch_size=1, seq_len=384):
     json_path = os.path.join(data_dir, "bert_base_int8.json")
     params_path = os.path.join(data_dir, "bert_base_int8.params")
 
-    if not os.path.exists(json_path) or not os.path.exists(params_path):
-        convert_to_qnn(onnx_path, json_path, params_path, batch_size, seq_len)
+    # Input names and order encoded in the ONNX model
+    input_info = [
+        ("input_ids", (batch_size, seq_len)),
+        ("segment_ids", (batch_size, seq_len)),
+        ("input_mask", (batch_size, seq_len)),
+    ]
 
-    try:
-        return deserialize_relay(json_path, params_path)
-    except TVMError:
-        # A serialized Relay json file may become invalid after TVM bump
-        # Update the serialized model and try loading again
-        convert_to_qnn(onnx_path, json_path, params_path, batch_size, seq_len)
-        return deserialize_relay(json_path, params_path)
+    if not os.path.exists(json_path) or not os.path.exists(params_path):
+        convert_to_qnn(onnx_path, json_path, params_path, input_info)
+
+    def deserialize():
+        try:
+            return deserialize_relay(json_path, params_path)
+        except TVMError:
+            # A serialized Relay json file may become invalid after TVM bump
+            # Update the serialized model and try loading again
+            convert_to_qnn(onnx_path, json_path, params_path, input_info)
+            return deserialize_relay(json_path, params_path)
+
+    mod, params = deserialize()
+
+    return mod, params, input_info

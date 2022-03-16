@@ -158,7 +158,7 @@ def test_meta_schedule_integration_apply_history_best():
 
 @pytest.mark.skip("Too slow on CI")
 def extract_task_qbert():
-    mod, params = load_quantized_bert_base(batch_size=1, seq_len=128)
+    mod, params, _ = load_quantized_bert_base(batch_size=1, seq_len=128)
     target = "llvm"
     extracted_tasks = extract_task_from_relay(mod, target, params)
     tune_tasks = list(
