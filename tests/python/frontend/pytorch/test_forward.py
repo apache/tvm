@@ -1621,10 +1621,7 @@ def test_forward_dense():
     verify_model(Dense2().float().eval(), input_data=input_data)
 
     trace = torch.jit.trace(Dense1(), [input_data])
-    mod, params = relay.frontend.from_pytorch(
-        trace,
-        [("input", input_shape)],
-    )
+    mod, params = relay.frontend.from_pytorch(trace, [("input", input_shape)],)
     assert not any([op.name == "multiply" for op in list_ops(mod["main"])])
 
 
@@ -2053,11 +2050,7 @@ def test_forward_roi_align():
 
         def forward(self, *args):
             return torchvision.ops.roi_align(
-                args[0],
-                args[1],
-                self.output_sizes,
-                self.spatial_scale,
-                self.sampling_ratio,
+                args[0], args[1], self.output_sizes, self.spatial_scale, self.sampling_ratio,
             )
 
     in_data = torch.Tensor(np.random.uniform(size=(1, 8, 100, 100)))
@@ -4232,7 +4225,7 @@ def test_shift():
         return x >> y
 
     x = torch.tensor([39, 128, 99, 228, 63, 17], dtype=torch.int32)
-    y = torch.tensor([3, 2, 7, 4, 5,  9], dtype=torch.int32)
+    y = torch.tensor([3, 2, 7, 4, 5, 9], dtype=torch.int32)
 
     for test_fn in [test_lshift, test_rshift]:
         verify_model(test_fn, [x, y])
