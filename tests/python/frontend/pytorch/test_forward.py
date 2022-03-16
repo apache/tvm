@@ -4238,7 +4238,7 @@ def test_shift():
         verify_model(test_fn, [x, y])
 
         
-@tvm.testing.uses_gpu        
+@tvm.testing.uses_gpu
 def test_mod():
     def test_fmod(x, y):
         return torch.fmod(x, y)
