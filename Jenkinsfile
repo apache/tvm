@@ -775,7 +775,7 @@ def deploy_docs() {
 }
 
 stage('Deploy') {
-  if (env.BRANCH_NAME == 'main' && env.DOCS_DEPLOY_ENABLED == 'yes') {
+  if (env.BRANCH_NAME == 'PR-10634' && env.DOCS_DEPLOY_ENABLED == 'yes') {
     node('CPU') {
       ws(per_exec_ws('tvm/deploy-docs')) {
         unpack_lib('docs', 'docs.tgz')
