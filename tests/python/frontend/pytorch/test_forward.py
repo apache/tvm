@@ -4237,7 +4237,7 @@ def test_shift():
     for test_fn in [test_lshift, test_rshift]:
         verify_model(test_fn, [x, y])
 
-        
+
 @tvm.testing.uses_gpu
 def test_mod():
     def test_fmod(x, y):

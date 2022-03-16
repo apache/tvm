@@ -24,12 +24,12 @@ from tvm.contrib import cblas, mkl
 from .. import generic, nn
 from ..transform import layout_transform
 from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor
-from .utils import target_has_vnni
 from .dense import dense_vnni_schedule
 from .injective import schedule_injective_from_existing
 
 
-def batch_matmul_vnni_compute(cfg, x, y):
+@autotvm.register_topi_compute("batch_matmul_vnni.x86")
+def batch_matmul_vnni_compute(cfg, x, y, *_):
     """Compute for uint8 x int8 -> int32 batch_matmul"""
     batch, m, k = x.shape
     packed_y_layout = "BNK16n4k"
@@ -118,19 +118,6 @@ def batch_matmul(
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
-    mcpu = tvm.target.Target.current().mcpu
-
-    if (
-        not transpose_a
-        and transpose_b
-        and target_has_vnni(mcpu)
-        and tensor_a.dtype == "uint8"
-        and tensor_b.dtype == "int8"
-        and tensor_b.shape[-2] % 16 == 0
-        and tensor_b.shape[-1] % 4 == 0
-    ):
-        return batch_matmul_vnni_compute(cfg, tensor_a, tensor_b)
-
     if cfg.is_fallback:
         if transpose_a:
             _, K, M = get_const_tuple(tensor_a.shape)
@@ -171,10 +158,7 @@ def schedule_batch_matmul(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if "batch_matmul_vnni" in op.tag:
-            layout_trans = op.input_tensors[1]
-            batch_matmul_vnni_schedule(cfg, s, op.output(0), outs[0], layout_trans)
-        elif "batch_matmul" in op.tag:
+        if "batch_matmul" in op.tag:
             C = op.output(0)
             A, B = op.input_tensors
             if len(B.op.input_tensors) == 1 and B.op.input_tensors[0] == A:
@@ -212,6 +196,20 @@ def schedule_batch_matmul(cfg, outs):
             s[Crf].fuse(y, x)
             s[Crf].vectorize(s[Crf].op.axis[0])
             s[O].pragma(bxyo, "auto_unroll_max_step", 16)
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
+@autotvm.register_topi_schedule("batch_matmul_vnni.x86")
+def schedule_batch_matmul_vnni(cfg, outs):
+    """Schedule for batch_matmul_vnni"""
+    s = te.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        if "batch_matmul_vnni" in op.tag:
+            layout_trans = op.input_tensors[1]
+            batch_matmul_vnni_schedule(cfg, s, op.output(0), outs[0], layout_trans)
 
     traverse_inline(s, outs[0].op, _callback)
     return s

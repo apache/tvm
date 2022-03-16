@@ -326,18 +326,19 @@ class TrackerSession(object):
 
         res = ""
         res += "Server List\n"
-        res += "----------------------------\n"
-        res += "server-address\tkey\n"
-        res += "----------------------------\n"
-        for item in data["server_info"]:
+        res += "------------------------------\n"
+        res += "server-address           key\n"
+        res += "------------------------------\n"
+        sorted_server = sorted(data["server_info"], key=lambda x: x["key"])
+        for item in sorted_server:
             addr = item["addr"]
-            res += str(addr[0]) + ":" + str(addr[1]) + "\t"
+            res += "%21s    " % ":".join(addr)
             res += item["key"] + "\n"
             key = item["key"].split(":")[1]  # 'server:rasp3b` -> 'rasp3b'
             if key not in total_ct:
                 total_ct[key] = 0
             total_ct[key] += 1
-        res += "----------------------------\n"
+        res += "------------------------------\n"
         res += "\n"
 
         # compute max length of device key
