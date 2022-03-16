@@ -332,7 +332,7 @@ class TrackerSession(object):
         sorted_server = sorted(data["server_info"], key=lambda x: x["key"])
         for item in sorted_server:
             addr = item["addr"]
-            res += "%21s    " % ':'.join(addr)
+            res += "%21s    " % ":".join(addr)
             res += item["key"] + "\n"
             key = item["key"].split(":")[1]  # 'server:rasp3b` -> 'rasp3b'
             if key not in total_ct:
