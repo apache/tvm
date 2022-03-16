@@ -97,8 +97,8 @@ def load_quantized_bert_base(batch_size=1, seq_len=384):
     onnx_path = download_testdata(url, "bert-base-qat.onnx", module="tlcbench")
     data_dir = os.path.dirname(onnx_path)
 
-    json_path = os.path.join(data_dir, "bert_base_int8.json")
-    params_path = os.path.join(data_dir, "bert_base_int8.params")
+    json_path = os.path.join(data_dir, "bert_base_int8_b%d_s%d.json" % (batch_size, seq_len))
+    params_path = os.path.join(data_dir, "bert_base_int8_b%d_s%d.params" % (batch_size, seq_len))
 
     # Input names and order encoded in the ONNX model
     input_info = [
