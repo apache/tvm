@@ -24,6 +24,7 @@ import tvm.testing
 from tvm import relay
 from tvm.relay import transform
 from tvm.contrib import graph_executor, pipeline_executor
+from tvm._ffi import get_global_func
 
 
 def get_mannual_mod():
@@ -79,6 +80,7 @@ def get_manual_conf(mods, target):
     # is for mod2 input.
     pipe_config1 = {
         "mod_idx": 0,
+        "cpu_affinity": "0",
         "output": [
             {"output_idx": 0, "dependencies": [{"mod_idx": 1, "input_name": "data_0"}]},
             {"output_idx": 1, "dependencies": [{"mod_idx": 2, "input_name": "data_0"}]},
@@ -97,6 +99,7 @@ def get_manual_conf(mods, target):
 
     pipe_config2 = {
         "mod_idx": 1,
+        "cpu_affinity": "0",
         "output": [
             {"output_idx": 0, "dependencies": [{"mod_idx": 2, "input_name": "data_1"}]},
         ],
@@ -113,6 +116,7 @@ def get_manual_conf(mods, target):
 
     pipe_config3 = {
         "mod_idx": 2,
+        "cpu_affinity": "0",
         "output": [{"output_idx": 0, "dependencies": [{"global_output_index": 1}]}],
     }
     mod_config[mods[2]] = {
@@ -203,6 +207,13 @@ def run_modules(
     return final_output
 
 
+def reset_cpu_affinity(affinity):
+    # Restore the CPU affinity into the default value.
+    config_threadpool = get_global_func("runtime.config_threadpool")
+    config_threadpool(-2, 0)
+    os.sched_setaffinity(0, affinity)
+
+
 def test_pipe_runtime_error_check():
     # This function is used to trigger runtime error by applying wrong logic.
     if pipeline_executor.pipeline_executor_enabled():
@@ -266,6 +277,7 @@ def test_pipeline():
     if pipeline_executor.pipeline_executor_enabled():
         target_list = tvm.testing.enabled_targets()
         for target in target_list:
+            affinity = os.sched_getaffinity(0)
             # Get the three pipeline modules here.
             (mod1, mod2, mod3), dshape = get_mannual_mod()
 
@@ -320,12 +332,15 @@ def test_pipeline():
             # Set other parameters.
             pipe_config[mod1].target = target[0]
             pipe_config[mod1].dev = target[1]
+            pipe_config[mod1].cpu_affinity = "0"
 
             pipe_config[mod2].target = "llvm"
             pipe_config[mod2].dev = tvm.cpu(0)
+            pipe_config[mod2].cpu_affinity = "0"
 
             pipe_config[mod3].target = "llvm"
             pipe_config[mod3].dev = tvm.cpu(0)
+            pipe_config[mod3].cpu_affinity = "0"
             # Checking the configuration of modules dependency.
             mconfig = pipe_config.get_config()
             assert mconfig["module_connection"] == get_manual_conf([mod1, mod2, mod3], target)
@@ -403,6 +418,9 @@ def test_pipeline():
                 # Setting the timeout to 10 seconds.
                 assert statistic_time < 10
                 time.sleep(1)
+
+            # Reset the cpu affinity after a test.
+            reset_cpu_affinity(affinity)
 
 
 if __name__ == "__main__":

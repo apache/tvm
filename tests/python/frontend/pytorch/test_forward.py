@@ -4205,5 +4205,18 @@ def test_list_tuple():
     relay.frontend.from_pytorch(script_module, [("x", x.shape)])
 
 
+@tvm.testing.uses_gpu
+def test_mod():
+    def test_fmod(x, y):
+        return torch.fmod(x, y)
+
+    def test_remainder(x, y):
+        return torch.fmod(x, y)
+
+    for test_fn in [test_fmod, test_remainder]:
+        verify_model(test_fn, [torch.tensor([-3.0, -2, -1, 1, 2, 3]), torch.tensor(2)])
+        verify_model(test_fn, [torch.tensor([1, 2, 3, 4, 5]), torch.tensor(-1.5)])
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
