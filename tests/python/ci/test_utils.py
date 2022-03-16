@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,45 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euxo pipefail
+import pathlib
 
-cleanup()
-{
-  rm -rf /tmp/$$.*
-}
-trap cleanup 0
-
-
-echo "Convert scripts to Python..."
-tests/scripts/task_convert_scripts_to_python.sh
-
-echo "Checking file types..."
-python3 tests/lint/check_file_type.py
-
-echo "Checking ASF license headers..."
-tests/lint/check_asf_header.sh --local
-
-echo "Linting the C++ code..."
-tests/lint/cpplint.sh
-
-echo "clang-format check..."
-tests/lint/clang_format.sh
-
-echo "Rust check..."
-tests/lint/rust_format.sh
-
-echo "black check..."
-tests/lint/python_format.sh
-
-echo "Linting the Python code..."
-tests/lint/pylint.sh
-tests/lint/flake8.sh
-
-echo "Linting the JNI code..."
-tests/lint/jnilint.sh
-
-echo "Checking C++ documentation..."
-tests/lint/cppdocs.sh
-
-echo "Type checking with MyPy ..."
-tests/scripts/task_mypy.sh
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent
