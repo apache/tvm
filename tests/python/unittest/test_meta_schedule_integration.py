@@ -33,7 +33,7 @@ from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir import Schedule
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
-from tvm.meta_schedule.tune import extract_task_from_relay
+from tvm.meta_schedule.tune import extract_task_from_relay, Parse
 
 # pylint: disable=no-member,line-too-long,too-many-nested-blocks,unbalanced-tuple-unpacking,no-self-argument,missing-docstring,invalid-name
 
@@ -159,7 +159,7 @@ def test_meta_schedule_integration_apply_history_best():
 @pytest.mark.skip("Too slow on CI")
 def extract_task_qbert():
     mod, params, _ = load_quantized_bert_base(batch_size=1, seq_len=128)
-    target = "llvm"
+    target = "llvm -mcpu=cascadelake"
     extracted_tasks = extract_task_from_relay(mod, target, params)
     tune_tasks = list(
         filter(
@@ -169,6 +169,21 @@ def extract_task_qbert():
     )
     # three int8 dense, two int8 bmm, and one fp32 dense
     assert len(tune_tasks) == 6
+
+    for task in tune_tasks:
+        relay_func = list(task.mod.functions.values())[0]
+        out_type = relay_func.body.checked_type
+
+        if out_type.dtype == "float32":
+            continue
+
+        mod = Parse._mod(task.dispatched[0])
+        sch = tvm.tir.Schedule(mod)
+        block = sch.get_block("compute")
+        annotations = sch.get(block).annotations
+
+        assert "schedule_rule" in annotations
+        assert "vnni" in annotations["schedule_rule"]
 
 
 if __name__ == "__main__":
