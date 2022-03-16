@@ -31,6 +31,7 @@ pip3 install --upgrade \
     orderedset \
     packaging \
     Pillow \
+    psutil \
     pytest \
     pytest-profiling \
     pytest-xdist \

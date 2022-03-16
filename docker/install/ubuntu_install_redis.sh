@@ -22,5 +22,4 @@ set -o pipefail
 
 apt-get update && apt-get install -y redis-server
 pip3 install \
-    psutil \
     xgboost==1.4.2
