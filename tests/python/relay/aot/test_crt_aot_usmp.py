@@ -18,16 +18,23 @@
 
 from collections import OrderedDict
 import re
-
+import textwrap
 import numpy as np
 import pytest
 
 import tvm
 from tvm import relay
+from tvm.relay import testing  # pylint: disable=W0611
 from tvm.relay import transform
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.backend import Executor, Runtime
-from tvm import WorkspaceMemoryPools, WorkspacePoolInfo, PoolInfoProperties
+from tvm import (
+    WorkspaceMemoryPools,
+    ConstantMemoryPools,
+    WorkspacePoolInfo,
+    ConstantPoolInfo,
+    PoolInfoProperties,
+)
 from tvm.micro import model_library_format as mlf
 from tvm.micro.testing.aot_test_utils import parametrize_aot_options
 from tvm.testing.aot import (
@@ -333,12 +340,21 @@ def test_tflite_model_u1_usecase(model_url, usmp_algo, workspace_size, constant_
     )
 
 
-def _get_workspace_size_define_macro(pool_name: str, model_name="default") -> str:
+def _get_pool_size_define_macro(pool_name: str, model_name="default") -> str:
     """This function converts pool names to compiler generated
-    workspace pool size macros"""
+    pool size macros"""
 
     prefix = "TVMGEN_" + model_name.upper() + "_"
-    postfix = "_WORKSPACE_POOL_SIZE"
+    postfix = "_POOL_SIZE_BYTES"
+    return prefix + pool_name.upper() + postfix
+
+
+def _get_pool_data_define_macro(pool_name: str, model_name="default") -> str:
+    """This function converts pool names to compiler generated
+    pool data macros"""
+
+    prefix = "TVMGEN_" + model_name.upper() + "_"
+    postfix = "_POOL_DATA"
     return prefix + pool_name.upper() + postfix
 
 
@@ -369,7 +385,7 @@ def test_tflite_model_u3_usecase_single_external_pool(model_url, usmp_algo):
         pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": usmp_algo},
         prologue=f"""
         __attribute__((section(".data.tvm"), aligned(16)))
-        static uint8_t {pool_name}[{_get_workspace_size_define_macro(pool_name)}];
+        static uint8_t {pool_name}[{_get_pool_size_define_macro(pool_name)}];
         """,
     )
 
@@ -386,6 +402,170 @@ def test_tflite_model_u3_usecase_single_external_pool(model_url, usmp_algo):
         use_unpacked_api=use_unpacked_api,
         pass_config=test_runner.pass_config,
         workspace_memory_pools=workspace_memory_pools,
+        target=target,
+    )
+
+    for compiled_model in compiled_test_mods:
+        _check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+
+    run_and_check(
+        models=compiled_test_mods,
+        runner=test_runner,
+        interface_api=interface_api,
+    )
+
+
+@pytest.mark.parametrize(
+    "usmp_algo",
+    [("greedy_by_size"), ("hill_climb")],
+)
+def test_tflite_model_u3_usecase_conv2d_var_cons(usmp_algo):
+    """This checks for inference using workspace and constant pools placed in the application"""
+
+    relay_model = textwrap.dedent(
+        """\
+        #[version = "0.0.5"]
+        def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(3, 3, 5, 5), int8]) {
+            %1 = nn.conv2d(
+                 %data,
+                 %weight,
+                 padding=[2, 2],
+                 channels=3,
+                 kernel_size=[5, 5],
+                 data_layout="NCHW",
+                 kernel_layout="OIHW",
+                 out_dtype="int32");
+            %2 = cast(nn.max_pool2d(%1, pool_size=[3, 3]), dtype="int8");
+            %3 = nn.conv2d(
+                 %2,
+                 %weight,
+                 padding=[2, 2],
+                 channels=3,
+                 kernel_size=[5, 5],
+                 data_layout="NCHW",
+                 kernel_layout="OIHW",
+                 out_dtype="int32");
+            %4 = nn.max_pool2d(%3, pool_size=[3, 3]);
+            %4
+        }
+    """
+    )
+    mod = tvm.parser.fromtext(relay_model)
+
+    main_func = mod["main"]
+    shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
+    type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
+
+    weight_data = np.random.randint(1, 255, shape_dict["weight"]).astype(type_dict["weight"])
+    input_data = np.ones(shape_dict["data"]).astype(type_dict["data"])
+    params = {"weight": weight_data}
+    inputs = {"data": input_data}
+
+    use_unpacked_api = True
+    interface_api = "c"
+
+    target = tvm.target.Target("c")
+    workspace_mem_pools = WorkspaceMemoryPools(
+        [
+            WorkspacePoolInfo(
+                "my_memory_pool_1", [target], PoolInfoProperties(size_hint_bytes=8500000)
+            ),
+        ]
+    )
+
+    constant_mem_pools = ConstantMemoryPools(
+        [
+            ConstantPoolInfo("my_const_pool_1", [target], []),
+        ]
+    )
+
+    test_runner = AOTTestRunner(
+        pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": usmp_algo},
+        prologue=f"""
+        __attribute__((section(".bss.noinit"), aligned(TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)))
+        static uint8_t my_memory_pool_1[{_get_pool_size_define_macro("my_memory_pool_1")}];
+        __attribute__((section(".rodata.tvm"), aligned(TVM_RUNTIME_CONST_ALLOC_ALIGNMENT_BYTES)))
+        static uint8_t my_const_pool_1[{_get_pool_size_define_macro("my_const_pool_1")}] = {{ {_get_pool_data_define_macro("my_const_pool_1")} }};
+        """,
+    )
+
+    output_list = generate_ref_data(mod, inputs, params)
+
+    compiled_test_mods = compile_models(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        interface_api=interface_api,
+        use_unpacked_api=use_unpacked_api,
+        pass_config=test_runner.pass_config,
+        workspace_memory_pools=workspace_mem_pools,
+        constant_memory_pools=constant_mem_pools,
+        target=target,
+    )
+
+    for compiled_model in compiled_test_mods:
+        _check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+
+    run_and_check(
+        models=compiled_test_mods,
+        runner=test_runner,
+        interface_api=interface_api,
+    )
+
+
+@pytest.mark.parametrize(
+    "model_url, usmp_algo",
+    [
+        (MOBILENET_V1_URL, "greedy_by_size"),
+    ],
+)
+def test_tflite_model_u3_usecase_var_cons_ext_pools(model_url, usmp_algo):
+    """This checks for inference using one external workspace and one external constant
+    pools placed in the application"""
+    pytest.importorskip("tflite")
+
+    import tvm.relay.testing.tf as tf_testing  # pylint: disable=import-outside-toplevel
+
+    use_unpacked_api = True
+    interface_api = "c"
+
+    target = tvm.target.Target("c")
+    workspace_mem_pools = WorkspaceMemoryPools(
+        [
+            WorkspacePoolInfo(
+                "my_memory_pool_1", [target], PoolInfoProperties(size_hint_bytes=8500000)
+            ),
+        ]
+    )
+
+    constant_mem_pools = ConstantMemoryPools(
+        [
+            ConstantPoolInfo("my_const_pool_1", [target], []),
+        ]
+    )
+
+    test_runner = AOTTestRunner(
+        pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": usmp_algo},
+        prologue=f"""
+        __attribute__((section(".bss.noinit"), aligned(TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)))
+        static uint8_t my_memory_pool_1[{_get_pool_size_define_macro("my_memory_pool_1")}];
+        __attribute__((section(".rodata.tvm"), aligned(TVM_RUNTIME_CONST_ALLOC_ALIGNMENT_BYTES)))
+        static uint8_t my_const_pool_1[{_get_pool_size_define_macro("my_const_pool_1")}] = {{ {_get_pool_data_define_macro("my_const_pool_1")} }};
+        """,
+    )
+
+    tflite_model_file = tf_testing.get_workload_official(
+        model_url[0],
+        model_url[1],
+    )
+    mod, inputs, params = create_relay_module_and_inputs_from_tflite_file(tflite_model_file)
+    output_list = generate_ref_data(mod, inputs, params)
+
+    compiled_test_mods = compile_models(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        interface_api=interface_api,
+        use_unpacked_api=use_unpacked_api,
+        pass_config=test_runner.pass_config,
+        workspace_memory_pools=workspace_mem_pools,
+        constant_memory_pools=constant_mem_pools,
         target=target,
     )
 
@@ -427,9 +607,9 @@ def test_tflite_model_u3_usecase_two_external_pools(model_url, usmp_algo):
         pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": usmp_algo},
         prologue=f"""
         __attribute__((section(".data.tvm"), aligned(16)))
-        static uint8_t my_memory_pool_1[{_get_workspace_size_define_macro("my_memory_pool_1")}];
+        static uint8_t my_memory_pool_1[{_get_pool_size_define_macro("my_memory_pool_1")}];
         __attribute__((section(".data.tvm"), aligned(16)))
-        static uint8_t my_memory_pool_2[{_get_workspace_size_define_macro("my_memory_pool_2")}];
+        static uint8_t my_memory_pool_2[{_get_pool_size_define_macro("my_memory_pool_2")}];
         """,
     )
 
@@ -481,7 +661,7 @@ def test_two_models_with_a_single_external_pool(model_urls, usmp_algo):
         prologue=f"""
         #define MAX(A, B) ((A > B) ? A : B)
         __attribute__((section(".data.tvm"), aligned(16)))
-        static uint8_t my_memory_pool[MAX({_get_workspace_size_define_macro("my_memory_pool", "mod1")},{_get_workspace_size_define_macro("my_memory_pool", "mod2")})];
+        static uint8_t my_memory_pool[MAX({_get_pool_size_define_macro("my_memory_pool", "mod1")},{_get_pool_size_define_macro("my_memory_pool", "mod2")})];
         """,
     )
 
@@ -562,7 +742,7 @@ def test_tflite_model_u4_usecase_single_external_pool(model_url, usmp_algo):
         prologue=f"""
         #include <string.h>
         __attribute__((section(".data.tvm"), aligned(16)))
-        static uint8_t {pool_name}[{_get_workspace_size_define_macro(pool_name)}];
+        static uint8_t {pool_name}[{_get_pool_size_define_macro(pool_name)}];
         struct {_add_module_prefix("workspace_pools")} {_add_module_prefix("workspace_pools")} = {{
             .{pool_name} = {pool_name}
         }};
@@ -635,9 +815,9 @@ def test_tflite_model_u4_usecase_two_external_pools(model_url, usmp_algo):
         prologue=f"""
         #include <string.h>
         __attribute__((section(".data.tvm"), aligned(16)))
-        static uint8_t my_memory_pool_1[{_get_workspace_size_define_macro("my_memory_pool_1")}];
+        static uint8_t my_memory_pool_1[{_get_pool_size_define_macro("my_memory_pool_1")}];
         __attribute__((section(".data.tvm"), aligned(16)))
-        static uint8_t my_memory_pool_2[{_get_workspace_size_define_macro("my_memory_pool_2")}];
+        static uint8_t my_memory_pool_2[{_get_pool_size_define_macro("my_memory_pool_2")}];
         struct {_add_module_prefix("workspace_pools")} {_add_module_prefix("workspace_pools")} = {{
             .my_memory_pool_1 = my_memory_pool_1,
             .my_memory_pool_2 = my_memory_pool_2,
