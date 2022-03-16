@@ -47,6 +47,7 @@ def batch_matmul_vnni_compute(cfg, x, y):
             axis=ak,
         ),
         tag="batch_matmul_vnni",
+        attrs={"schedule_rule": "meta_schedule.batch_matmul_vnni"},
     )
 
     _, a_y, _ = z.op.axis

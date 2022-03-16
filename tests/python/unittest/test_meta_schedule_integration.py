@@ -26,7 +26,6 @@ from tvm.meta_schedule.integration import (
     ApplyHistoryBest,
     ExtractedTask,
     MetaScheduleContext,
-    TaskExtraction,
 )
 from tvm.meta_schedule.testing.relay_workload import get_network
 from tvm.meta_schedule.utils import derived_object
@@ -63,53 +62,8 @@ def _has_torch():
 requires_torch = pytest.mark.skipif(not _has_torch(), reason="torch is not installed")
 
 
-def _check_mock_task(tasks: List[ExtractedTask], mod: IRModule):
-    (task,) = tasks
-    assert isinstance(task, ExtractedTask)
-    assert task.task_name == "mock-task"
-    tvm.ir.assert_structural_equal(task.mod, mod)
-    (tir_mod,) = task.dispatched
-    tvm.ir.assert_structural_equal(tir_mod, MockModule)
-
-
-@requires_torch
-def test_meta_schedule_integration_task_extraction_query():
-    mod, _, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
-    env = TaskExtraction()
-    env.query(task_name="mock-task", mod=mod, target=Target("llvm"), dispatched=[MockModule])
-    _check_mock_task(env.tasks, mod)
-
-
-def test_meta_schedule_integration_current():
-    env = TaskExtraction()
-    with env:
-        assert MetaScheduleContext.current() == env
-
-
 def test_meta_schedule_integration_no_current():
     assert MetaScheduleContext.current() is None
-
-
-def test_meta_schedule_integration_multiple_current():
-    env = TaskExtraction()
-    with env:
-        with pytest.raises(ValueError):
-            with env:
-                ...
-
-
-@requires_torch
-def test_meta_schedule_integration_query_inside_with_scope():
-    mod, _, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
-    env = TaskExtraction()
-    with env:
-        MetaScheduleContext.query_inside_with_scope(
-            task_name="mock-task",
-            mod=mod,
-            target=Target("llvm"),
-            dispatched=[MockModule],
-        )
-    _check_mock_task(env.tasks, mod)
 
 
 @requires_torch
@@ -117,7 +71,7 @@ def test_meta_schedule_integration_extract_from_resnet():
     mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     extracted_tasks = ms.integration.extract_task_from_relay(mod, target="llvm", params=params)
     expected_task_names = [
-        "vm_mod_fused_" + s
+        "fused_" + s
         for s in [
             "nn_max_pool2d",
             "nn_adaptive_avg_pool2d",
@@ -197,7 +151,6 @@ def test_meta_schedule_integration_apply_history_best():
         TuningRecord(Schedule(MockModule).trace, [1.0], workload, target, [])
     )
     mod = env.query(task_name="mock-task", mod=mod, target=target, dispatched=[MockModule])
-    mod = IRModule({"main": mod})
     assert tvm.ir.structural_equal(mod, workload.mod)
 
 
