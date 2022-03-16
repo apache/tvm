@@ -30,7 +30,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="List pytest nodeids for a folder")
     parser.add_argument("--sccache-bucket", required=False, help="sccache bucket name")
-    parser.add_argument("--num-executors", required=True, help="number of Jenkins executors")
+    parser.add_argument(
+        "--num-executors", required=False, default=1, help="number of Jenkins executors"
+    )
     parser.add_argument("--build-dir", default="build", help="build folder")
     parser.add_argument("--cmake-target", help="optional build target")
     args = parser.parse_args()

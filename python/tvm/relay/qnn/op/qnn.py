@@ -1050,3 +1050,30 @@ def batch_matmul(x, y, x_zero_point, y_zero_point, x_scale, y_scale, out_dtype="
 # register fuse pattern for qnn ops
 reg.register_pattern("qnn.quantize", OpPattern.OPAQUE)
 reg.register_pattern("qnn.dequantize", OpPattern.OPAQUE)
+
+
+def leaky_relu(x, alpha, scale, zero_point):
+    """Quantized leaky relu.
+
+    Parameters
+    ----------
+    x : relay.Expr
+        The quantized input tensor.
+    alpha: double
+        The alpha value.
+    scale: relay.Expr
+        The scale of the quantized expr.
+    zero_point: relay.Expr
+       The zero point of quantized expr.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.leaky_relu(
+        x,
+        alpha,
+        scale,
+        zero_point,
+    )

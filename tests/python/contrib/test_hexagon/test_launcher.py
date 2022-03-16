@@ -28,7 +28,7 @@ from tvm import relay
 from tvm.relay.backend import Executor, Runtime
 from tvm.contrib import utils, ndk
 from tvm.contrib.hexagon.build import HexagonLauncher
-import tvm.contrib.hexagon.hexagon as hexagon
+import tvm.contrib.hexagon as hexagon
 
 from .conftest import requires_hexagon_toolchain
 

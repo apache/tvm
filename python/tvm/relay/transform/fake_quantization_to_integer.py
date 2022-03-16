@@ -346,6 +346,16 @@ def relu(expr, type_map):
     return [relay.op.maximum(arg, fold_constant(zero)), t]
 
 
+@register_fake_quantization_to_integer("nn.leaky_relu")
+def leaky_relu(expr, type_map):
+    """Rewrite a leaky relu op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+    alpha = expr.attrs.alpha
+    output = relay.qnn.op.leaky_relu(expr, alpha, t.scale, t.zero_point)
+    return [output, t]
+
+
 @register_fake_quantization_to_integer("nn.pad")
 def pad(expr, type_map):
     """Rewite an nn.pad op"""
@@ -374,6 +384,18 @@ def pad(expr, type_map):
         pad_value = relay.qnn.op.quantize(pad_value, t.scale, t.zero_point)
 
     out = relay.op.nn.pad(arg, pad_value=pad_value, **expr.attrs)
+    return [out, t]
+
+
+@register_fake_quantization_to_integer("mean")
+def mean(expr, type_map):
+    """Rewrite a mean op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+
+    arg = relay.op.cast(arg, "int32")
+    out = relay.op.mean(arg, **expr.attrs)
+    out = relay.op.cast(out, t.dtype)
     return [out, t]
 
 

@@ -1764,7 +1764,13 @@ Doc TVMScriptPrinter::PrintTarget(const TargetNode* target) {
     if (it != config.begin()) {
       res << ", ";
     }
-    res << "\"" << (*it).first << "\":" << Print((*it).second);
+    res << "\"" << (*it).first << "\":";
+    if ((*it).first == "host") {
+      ICHECK(target->host.defined());
+      res << PrintTarget(target->GetHost().value().get());
+    } else {
+      res << Print((*it).second);
+    }
   }
   res << "})";
   return res;

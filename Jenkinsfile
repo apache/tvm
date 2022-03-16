@@ -132,7 +132,7 @@ def cancel_previous_build() {
 }
 
 def should_skip_ci(pr_number) {
-  if (!env.BRANCH_NAME.startsWith('PR-')) {
+  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
     // never skip CI on build sourced from a branch
     return false
   }
@@ -300,11 +300,11 @@ stage('Build') {
       node('CPU') {
         ws(per_exec_ws('tvm/build-gpu')) {
           init_git()
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh"
+          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
           make("${ci_gpu} --no-gpu", 'build', '-j2')
           pack_lib('gpu', tvm_multilib)
           // compiler test
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh"
+          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
           make("${ci_gpu} --no-gpu", 'build2', '-j2')
           pack_lib('gpu2', tvm_multilib)
         }
@@ -317,7 +317,7 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-cpu')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh",
+            script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
             label: 'Create CPU cmake config',
           )
           make(ci_cpu, 'build', '-j2')
@@ -340,7 +340,7 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-wasm')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh",
+            script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
             label: 'Create WASM cmake config',
           )
           make(ci_wasm, 'build', '-j2')
@@ -364,7 +364,7 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-i386')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh",
+            script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build",
             label: 'Create i386 cmake config',
           )
           make(ci_i386, 'build', '-j2')
@@ -381,7 +381,7 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-arm')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh",
+            script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",
             label: 'Create ARM cmake config',
           )
           make(ci_arm, 'build', '-j4')
@@ -398,7 +398,7 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-qemu')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh",
+            script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh build",
             label: 'Create QEMU cmake config',
           )
           try {
@@ -430,7 +430,7 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-hexagon')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh",
+            script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
             label: 'Create Hexagon cmake config',
           )
           try {
@@ -709,6 +709,7 @@ stage('Test') {
             )
           }
           pack_lib('docs', 'docs.tgz')
+          archiveArtifacts(artifacts: 'docs.tgz', fingerprint: true)
         }
       }
     }
@@ -733,13 +734,52 @@ stage('Build packages') {
 }
 */
 
+def deploy_docs() {
+  // Note: This code must stay in the Jenkinsfile to ensure that it runs
+  // from a trusted context only
+  sh(
+    script: '''
+      set -eux
+      rm -rf tvm-site
+      git clone -b $DOCS_DEPLOY_BRANCH --depth=1 https://github.com/apache/tvm-site
+      cd tvm-site
+      git status
+      git checkout -B $DOCS_DEPLOY_BRANCH
+
+      rm -rf tvm-site/docs
+      mkdir -p tvm-site/docs
+      tar xf ../docs.tgz -C tvm-site/docs
+      COMMIT=$(cat tvm-site/docs/commit_hash)
+      git add .
+      git config user.name tvm-bot
+      git config user.email 95660001+tvm-bot@users.noreply.github.com
+      git commit -m"deploying docs (apache/tvm@$COMMIT)"
+      git status
+    ''',
+    label: 'Unpack docs and update tvm-site'
+  )
+
+  withCredentials([string(
+    credentialsId: 'docs-push-token',
+    variable: 'GITHUB_TOKEN',
+    )]) {
+    sh(
+      script: '''
+        cd tvm-site
+        git remote add deploy https://$GITHUB_TOKEN:x-oauth-basic@github.com/apache/tvm-site.git
+        git push deploy $DOCS_DEPLOY_BRANCH
+      ''',
+      label: 'Upload docs to apache/tvm-site'
+    )
+  }
+}
+
 stage('Deploy') {
-  node('doc') {
-    ws(per_exec_ws('tvm/deploy-docs')) {
-      if (env.BRANCH_NAME == 'main') {
+  if (env.BRANCH_NAME == 'main' && env.DOCS_DEPLOY_ENABLED == 'yes') {
+    node('CPU') {
+      ws(per_exec_ws('tvm/deploy-docs')) {
         unpack_lib('docs', 'docs.tgz')
-        sh 'cp docs.tgz /var/docs/docs.tgz'
-        sh 'tar xf docs.tgz -C /var/docs'
+        deploy_docs()
       }
     }
   }

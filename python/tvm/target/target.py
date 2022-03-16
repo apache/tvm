@@ -340,6 +340,7 @@ MICRO_SUPPORTED_MODELS = {
     "esp32": [],
     "imxrt10xx": ["-mcpu=cortex-m7"],
     "mps2_an521": ["-mcpu=cortex-m33"],
+    "mps3_an547": ["-mcpu=cortex-m55"],
     "nrf52840": ["-mcpu=cortex-m4"],
     "nrf5340dk": ["-mcpu=cortex-m33"],
     "sam3x8e": ["-mcpu=cortex-m3"],
@@ -546,7 +547,7 @@ def hexagon(cpu_ver="v66", **kwargs):
     # llvm -mtriple=hexagon -mcpu=hexagonv66 -mattr=+hvxv66,+hvx-length128b
 
     # Check for valid codegen cpu
-    valid_hex = ["v60", "v62", "v65", "v66", "v67", "v67t", "v68"]
+    valid_hex = ["v65", "v66", "v67", "v67t", "v68", "v69"]
     try:
         cpu_ver = cpu_ver[cpu_ver.index("v") :].lower()
         assert cpu_ver in valid_hex
