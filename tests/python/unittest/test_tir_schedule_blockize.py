@@ -202,6 +202,7 @@ def test_blockize_init_loops():
     s = tir.Schedule(rowsum, debug_mask="all")
     k, _ = s.get_loops(s.get_block("B"))
     s.blockize(k)
+    print(s.mod["main"].script(), rowsum_blockized.script())
     tvm.ir.assert_structural_equal(s.mod["main"], rowsum_blockized)
     verify_trace_roundtrip(sch=s, mod=rowsum)
 

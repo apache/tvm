@@ -330,7 +330,14 @@ Array<Array<BufferRegion>> GetBlockAccessRegion(const Block& block,
   detector(block);
   Array<BufferRegion> writes = detector.CollectWrites();
   std::unordered_set<const BufferNode*> excluded_buffers;
-  if (block->init.defined()) {
+  // exclude write buffers from read regions for reductions.
+  bool has_reduction_var = false;
+  for (const IterVar var: block->iter_vars) {
+    if (var->iter_type == kCommReduce) {
+      has_reduction_var = true;
+    }
+  }
+  if (has_reduction_var || block->init.defined()) {
     for (const BufferRegion& write_access : writes) {
       excluded_buffers.insert(write_access->buffer.get());
     }
