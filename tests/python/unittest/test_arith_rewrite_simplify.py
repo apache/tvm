@@ -566,6 +566,7 @@ def test_floormod_index_simplify():
 
     ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 31), override=True)
     ck.verify(flm(x * 32 + y, 64), flm(x, 2) * 32 + y)
+    ck.verify(flm(x * 32 - y, 64), flm(x * 32 - y, 64))
 
 
 def test_min_index_simplify():
