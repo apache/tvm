@@ -25,7 +25,7 @@ from tvm.error import TVMError
 from tvm.contrib.download import download_testdata
 
 
-log = logging.getLogger("tlcbench")
+log = logging.getLogger(__name__)
 
 
 def convert_to_qnn(onnx_path, json_path, params_path, batch_size, seq_len):
