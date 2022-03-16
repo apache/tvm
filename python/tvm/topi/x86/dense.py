@@ -296,6 +296,7 @@ def dense_vnni_compute(cfg, X, packed_w, bias=None):
             axis=ak,
         ),
         tag="dense_vnni",
+        attrs={"schedule_rule": "meta_schedule.dense_vnni"},
     )
 
     if bias is not None:
