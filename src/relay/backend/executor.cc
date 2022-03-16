@@ -70,7 +70,7 @@ using ExecutorRegistry = AttrRegistry<ExecutorRegEntry, Executor>;
 Executor Executor::Create(String name, Map<String, ObjectRef> attrs) {
   const ExecutorRegEntry* reg = ExecutorRegistry::Global()->Get(name);
   if (reg == nullptr) {
-    throw Error("Executor \"" + name + "\" is not defined");
+    throw Error("Executor \"" + name + "\" is not defined.");
   }
 
   for (const auto& kv : attrs) {
@@ -101,7 +101,7 @@ Map<String, String> Executor::ListExecutorOptions(const String& name) {
   Map<String, String> options;
   const ExecutorRegEntry* reg = ExecutorRegistry::Global()->Get(name);
   if (reg == nullptr) {
-    throw Error("Executor \"" + name + "\" is not defined");
+    throw Error("Executor \"" + name + "\" is not defined.");
   }
   for (const auto& kv : reg->key2vtype_) {
     options.Set(kv.first, kv.second.type_key);
