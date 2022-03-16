@@ -547,7 +547,7 @@ def hexagon(cpu_ver="v66", **kwargs):
     # llvm -mtriple=hexagon -mcpu=hexagonv66 -mattr=+hvxv66,+hvx-length128b
 
     # Check for valid codegen cpu
-    valid_hex = ["v60", "v62", "v65", "v66", "v67", "v67t", "v68"]
+    valid_hex = ["v65", "v66", "v67", "v67t", "v68", "v69"]
     try:
         cpu_ver = cpu_ver[cpu_ver.index("v") :].lower()
         assert cpu_ver in valid_hex
