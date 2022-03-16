@@ -56,7 +56,7 @@ class MeasureResult(namedtuple("MeasureResult", ["costs", "error_no", "all_cost"
     def __repr__(self):
         error_no_str = (
             str(self.error_no)
-            if self.error_no not in MeasureErrorNo
+            if not isinstance(self.error_no, (MeasureErrorNo, int))
             else str(MeasureErrorNo(self.error_no))
         )
         return (
