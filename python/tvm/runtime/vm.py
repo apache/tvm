@@ -30,6 +30,15 @@ from .object import Object
 from . import _ffi_api, container
 from ..rpc.base import RPC_SESS_MASK
 
+def _gettype(arg):
+    if isinstance(arg, np.float16):
+        return "float16"
+    elif isinstance(arg, (_base.integer_types, bool)):
+        return "int32"
+    elif isinstance(arg, (float, np.float32)):
+        return "float32"
+    else:
+        raise TypeError("Unsupported type: %s" % (type(arg)))
 
 def _convert(arg, cargs):
     if isinstance(arg, Object):
@@ -45,7 +54,7 @@ def _convert(arg, cargs):
             _convert(field, field_args)
         cargs.append(container.tuple_object(field_args))
     elif isinstance(arg, (_base.numeric_types, bool)):
-        dtype = "int32" if isinstance(arg, (_base.integer_types, bool)) else "float32"
+        dtype = _gettype(arg)
         value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
         cargs.append(value)
     elif isinstance(arg, str):
