@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name,import-outside-toplevel
 # type: ignore
 """Model loader for TLCBench."""
+import multiprocessing
 import os
 import logging
 import tvm
@@ -26,6 +27,22 @@ from tvm.contrib.download import download_testdata
 
 
 log = logging.getLogger(__name__)
+
+
+def _convert(args):
+    onnx_model, shape_dict, json_path, params_path = args
+    mod, params = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
+
+    seq = tvm.transform.Sequential(
+        [relay.transform.InferType(), relay.transform.FakeQuantizationToInteger(use_qat=True)]
+    )
+    mod = seq(mod)
+
+    with open(json_path, "w") as fo:
+        fo.write(tvm.ir.save_json(mod))
+
+    with open(params_path, "wb") as fo:
+        fo.write(relay.save_param_dict(params))
 
 
 def convert_to_qnn(onnx_path, json_path, params_path, batch_size, seq_len):
@@ -41,18 +58,9 @@ def convert_to_qnn(onnx_path, json_path, params_path, batch_size, seq_len):
     }
 
     log.info("Converting te ONNX model to Relay and running the FQ2I pass, it may take a while...")
-    mod, params = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
 
-    seq = tvm.transform.Sequential(
-        [relay.transform.InferType(), relay.transform.FakeQuantizationToInteger(use_qat=True)]
-    )
-    mod = seq(mod)
-
-    with open(json_path, "w") as fo:
-        fo.write(tvm.ir.save_json(mod))
-
-    with open(params_path, "wb") as fo:
-        fo.write(relay.save_param_dict(params))
+    with multiprocessing.Pool(processes=1) as pool:
+        pool.map(_convert, [(onnx_model, shape_dict, json_path, params_path)])
 
 
 def deserialize_relay(json_path, params_path):
