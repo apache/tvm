@@ -23,6 +23,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/executor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/op.h>
@@ -254,8 +255,13 @@ class ConstantFolder : public MixedModeMutator {
     // needed for both execution and creation(due to JIT)
     With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
 
-    Map<String, ObjectRef> dict =
-        (module_->attrs.defined()) ? module_->attrs->dict : Map<String, ObjectRef>();
+    Map<String, ObjectRef> dict = (module_->attrs.defined())
+                                      ? Map<String, ObjectRef>(module_->attrs.CopyOnWrite()->dict)
+                                      : Map<String, ObjectRef>();
+
+    // always use graph executor with no link-params
+    dict.Set(tvm::attr::kExecutor,
+             relay::Executor::Create("graph", {{"link-params", Bool(false)}}));
     Expr result = ObjectToExpr(Eval(expr, module_->type_definitions, module_->Imports(),
                                     eval_cpu_dev_, eval_cpu_target_, dict));
     VLOG(1) << "Evaluated to constant:" << std::endl << PrettyPrint(result);

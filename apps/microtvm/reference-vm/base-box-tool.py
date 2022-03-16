@@ -22,6 +22,7 @@ from ast import arg
 import copy
 import json
 import logging
+import pathlib
 import os
 import re
 import shlex
@@ -273,19 +274,34 @@ def generate_packer_config(platform, file_path, providers):
 
 
 def build_command(args):
+    this_dir = pathlib.Path(THIS_DIR)
+    base_box_dir = this_dir / args.platform / "base-box"
+
     generate_packer_config(
         args.platform,
-        os.path.join(THIS_DIR, args.platform, "base-box", PACKER_FILE_NAME),
+        os.path.join(base_box_dir, PACKER_FILE_NAME),
         args.provider or ALL_PROVIDERS,
     )
     env = copy.copy(os.environ)
-    packer_args = ["packer", "build"]
+    packer_args = ["packer", "build", "-force"]
     env["PACKER_LOG"] = "1"
     env["PACKER_LOG_PATH"] = "packer.log"
     if args.debug_packer:
         packer_args += ["-debug"]
 
     packer_args += [PACKER_FILE_NAME]
+
+    box_package_exists = False
+    if not args.force:
+        box_package_dirs = [(base_box_dir / f"output-packer-{p}") for p in args.provider]
+        for box_package_dir in box_package_dirs:
+            if box_package_dir.exists():
+                print(f"A box package {box_package_dir} already exists. Refusing to overwrite it!")
+                box_package_exists = True
+
+    if box_package_exists:
+        sys.exit("One or more box packages exist (see list above). To rebuild use '--force'")
+
     subprocess.check_call(
         packer_args, cwd=os.path.join(THIS_DIR, args.platform, "base-box"), env=env
     )
@@ -525,6 +541,11 @@ def parse_args():
         "--debug-packer",
         action="store_true",
         help=("Run packer in debug mode, and write log to the base-box directory."),
+    )
+    parser_build.add_argument(
+        "--force",
+        action="store_true",
+        help=("Force rebuilding a base box from scratch if one already exists."),
     )
 
     # Options for test subcommand

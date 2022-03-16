@@ -1537,6 +1537,110 @@ def squeeze_pattern():
     return is_op("squeeze")(wildcard())
 
 
+class FullyConnectedParams:
+    """
+    This class will parse a call to an ethos-u.fully_connected composite
+    function and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.fully_connected"
+
+    @requires_vela
+    def __init__(self, func_body):
+        from tvm.relay.backend.contrib.ethosu.util import QDenseArgs  # type: ignore
+        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
+        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+
+        self.activation = None
+        if str(func_body.op) == "clip":
+            self.activation = func_body
+            requantize_op = self.activation.args[0]
+        else:
+            requantize_op = func_body
+
+        call = requantize_op.args[0]
+        if str(requantize_op.args[0].op) == "nn.bias_add":
+            bias_add = call
+            qnn_dense = call.args[0]
+        else:
+            bias_add = None
+            qnn_dense = call
+
+        # weights & biases are params as they should be constant
+        self.weights = TensorParams(
+            qnn_dense.args[QDenseArgs.WEIGHTS.value],
+            None,
+            qnn_dense.args[QDenseArgs.WEIGHTS_SCALE.value],
+            qnn_dense.args[QDenseArgs.WEIGHTS_ZERO_POINT.value],
+        )
+        self.biases = (
+            TensorParams(
+                bias_add.args[BiasAddArgs.BIASES.value],
+                None,
+                requantize_op.args[RequantArgs.IFM_SCALE.value],
+                requantize_op.args[RequantArgs.IFM_ZERO_POINT.value],
+            )
+            if bias_add
+            else None
+        )
+        self.ifm = TensorParams(
+            qnn_dense.args[QDenseArgs.IFM.value],
+            None,
+            qnn_dense.args[QDenseArgs.IFM_SCALE.value],
+            qnn_dense.args[QDenseArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            func_body,
+            None,
+            requantize_op.args[RequantArgs.OFM_SCALE.value],
+            requantize_op.args[RequantArgs.OFM_ZERO_POINT.value],
+        )
+
+    def is_valid(self) -> bool:
+        """
+        Checks whether Fully Connected has compatible attributes with HW
+        """
+
+        def check_weights_fc(weights):
+            """Checks whether weight tensor is compatible with HW"""
+            weights_limit = 127 * 65536
+            # A saturation upper bound check for accumulators
+            weights.values = weights.values - weights.q_params.zero_point
+            axis = 1
+            sum_weights = np.amax(np.sum(np.absolute(weights.values), axis=axis))
+            if not sum_weights <= weights_limit:
+                return False
+            return True
+
+        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
+            return False
+        if not check_weights_fc(self.weights):
+            return False
+        if not check_bias(self.biases):
+            return False
+        if not check_batch_size(self.ifm):
+            return False
+        # Check input shape
+        if not len(self.ifm.shape) == 2:
+            return False
+        # Check output shape
+        if not len(self.ofm.shape) == 2:
+            return False
+        return True
+
+
+def qnn_fc_pattern():
+    dense = is_op("qnn.dense")(
+        wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    optional_bias_add = is_op("nn.bias_add")(dense, is_constant())
+    req = is_op("qnn.requantize")(
+        dense | optional_bias_add, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    optional_clip = req.optional(is_op("clip"))
+    return optional_clip
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -1554,6 +1658,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             QnnConv2DTransposeParams.composite_name,
             qnn_conv2d_transpose_pattern(),
             lambda pat: QnnConv2DTransposeParams(pat).is_valid(),
+        ),
+        (
+            FullyConnectedParams.composite_name,
+            qnn_fc_pattern(),
+            lambda pat: FullyConnectedParams(pat).is_valid(),
         ),
         (
             MaxPool2DParams.composite_name,

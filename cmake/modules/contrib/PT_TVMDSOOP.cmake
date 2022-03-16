@@ -16,12 +16,9 @@
 # under the License.
 
 if(NOT USE_PT_TVMDSOOP STREQUAL "OFF")
-  find_package(Python3 COMPONENTS Interpreter Development)
-  include_directories(${Python3_INCLUDE_DIRS})
+  find_package(PythonInterp REQUIRED)
 
-  message(STATUS "Python3_INCLUDE_DIRS: ${Python3_INCLUDE_DIRS}")
-
-  execute_process(COMMAND ${Python3_EXECUTABLE} -c "import torch; print(torch.__path__[0].strip())"
+  execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "import torch; print(torch.__path__[0].strip())"
     OUTPUT_VARIABLE PT_PATH
     RESULT_VARIABLE PT_STATUS)
   if (NOT ${PT_STATUS} EQUAL 0)
@@ -29,6 +26,7 @@ if(NOT USE_PT_TVMDSOOP STREQUAL "OFF")
   endif()
 
   string(REGEX REPLACE "\n" "" PT_PATH "${PT_PATH}")
+  message(STATUS "PyTorch path: ${PT_PATH}")
 
   set(PT_COMPILE_FLAGS_STR "-I${PT_PATH}/include -D_GLIBCXX_USE_CXX11_ABI=0")
   set(PT_LINK_FLAGS_STR "-L${PT_PATH}/lib -l:libtorch.so -l:libtorch_python.so")
@@ -54,6 +52,7 @@ if(NOT USE_PT_TVMDSOOP STREQUAL "OFF")
 
   target_compile_options(${LIBRARY_NAME} PUBLIC ${PTTVM_COMPILE_FLAGS} ${PT_COMPILE_FLAGS})
   target_link_libraries(${LIBRARY_NAME} PUBLIC ${PTTVM_LINK_FLAGS} ${PT_LINK_FLAGS})
+  target_compile_definitions(${LIBRARY_NAME} PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 
 endif()
 

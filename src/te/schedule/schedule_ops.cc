@@ -339,15 +339,9 @@ class SchedulePostProc : public StmtExprMutator {
  private:
   void AddReplace(Tensor src, Tensor dst, Tensor repl_realize = Tensor(),
                   Operation repl_op = Operation()) {
-    if (!src.same_as(dst)) {
-      replace_buffer_[src] = dst;
-    }
-    if (!src.same_as(repl_realize)) {
-      replace_realize_[src] = repl_realize;
-    }
-    if (!src->op.same_as(repl_op)) {
-      replace_op_[src->op.get()] = repl_op;
-    }
+    replace_buffer_[src] = dst;
+    replace_realize_[src] = repl_realize;
+    replace_op_[src->op.get()] = repl_op;
   }
   // The thread extent scope.
   std::unordered_map<const Object*, PrimExpr> thread_extent_scope_;

@@ -24,109 +24,13 @@
 #include <tvm/relay/op.h>
 
 #include "common.h"
+#include "op_attrs.h"
 
 namespace tvm {
 namespace relay {
 namespace op {
 namespace contrib {
 namespace ethosu {
-
-/*! \brief Attributes used by the Ethos(TM)-U NPU binary elementwise operators */
-struct EthosuBinaryElementwiseAttrs : public tvm::AttrsNode<EthosuBinaryElementwiseAttrs> {
-  String operator_type;
-  double ifm_scale;
-  int ifm_zero_point;
-  double ifm2_scale;
-  int ifm2_zero_point;
-  double ofm_scale;
-  int ofm_zero_point;
-  IndexExpr ifm_channels;
-  IndexExpr ifm2_channels;
-  bool reversed_operands;
-  String activation;
-  int clip_min;
-  int clip_max;
-  String rounding_mode;
-  String ifm_layout;
-  String ifm2_layout;
-  String ofm_layout;
-  String ofm_dtype;
-
-  TVM_DECLARE_ATTRS(EthosuBinaryElementwiseAttrs, "relay.attrs.EthosuBinaryElementwiseAttrs") {
-    TVM_ATTR_FIELD(operator_type)
-        .describe(
-            "The type of the binary elementwise operator."
-            "'ADD'"
-            "'SUB'"
-            "'MUL'"
-            "'MIN'"
-            "'MAX'"
-            "'SHR'"
-            "'SHL'");
-    TVM_ATTR_FIELD(ifm_scale).describe("The quantization scale for the Input Feature Map tensor.");
-    TVM_ATTR_FIELD(ifm_zero_point)
-        .describe("The quantization zero point for the Input Feature Map tensor.");
-    TVM_ATTR_FIELD(ifm2_scale)
-        .describe("The quantization scale for the Input Feature Map tensor 2.");
-    TVM_ATTR_FIELD(ifm2_zero_point)
-        .describe("The quantization zero point for the Input Feature Map tensor 2.");
-    TVM_ATTR_FIELD(ofm_scale).describe("The quantization scale for the Output Feature Map tensor.");
-    TVM_ATTR_FIELD(ofm_zero_point)
-        .describe("The quantization zero point for the Output Feature Map tensor.");
-    TVM_ATTR_FIELD(ifm_channels).describe("The number of the Input Feature Map channels.");
-    TVM_ATTR_FIELD(ifm2_channels).describe("The number of the Input Feature Map 2 channels.");
-    TVM_ATTR_FIELD(reversed_operands)
-        .describe("True if IFM2 is the first operand and IFM is the second operand.")
-        .set_default(false);
-    TVM_ATTR_FIELD(activation)
-        .describe(
-            "The activation function to use. "
-            "'NONE' - no activation function. "
-            "'CLIP' - clip the output between clip_min and clip_max. "
-            "'TANH' - tanh activation function. "
-            "'SIGMOID' - sigmoid activation function. "
-            "'LUT' - use a look-up table to perform the activation function."
-            "Available activations for activation type:"
-            "{int8, uint8}: 'NONE', 'CLIP', 'TANH', 'SIGMOID', 'LUT'"
-            "{int32}: 'NONE'")
-        .set_default("NONE");
-    TVM_ATTR_FIELD(clip_min)
-        .describe("The minimum clipping value if activation = 'CLIP'.")
-        .set_default(0);
-    TVM_ATTR_FIELD(clip_max)
-        .describe("The maximum clipping value if activation = 'CLIP'.")
-        .set_default(0);
-    TVM_ATTR_FIELD(rounding_mode)
-        .describe(
-            "The rounding mode to apply to the Output Feature Map tensor. "
-            "'TFL' - Tensorflow Lite rounding scheme. "
-            "'TRUNCATE' - Truncate towards zero."
-            "'NATURAL' - Round to nearest value, with x.5 rounded up towards +infinity.")
-        .set_default("TFL");
-    TVM_ATTR_FIELD(ifm_layout)
-        .describe("The layout of the Input Feature Map tensor. Can be 'NHWC' or 'NHCWB16'.")
-        .set_default("NHWC");
-    TVM_ATTR_FIELD(ifm2_layout)
-        .describe("The layout of the Input Feature Map tensor 2. Can be 'NHWC' or 'NHCWB16'.")
-        .set_default("NHWC");
-    TVM_ATTR_FIELD(ofm_layout)
-        .describe("The layout of the Output Feature Map tensor. Can be 'NHWC' or 'NHCWB16'.")
-        .set_default("NHWC");
-    TVM_ATTR_FIELD(ofm_dtype).describe(
-        "The Output Feature Map tensor type."
-        "MUL, ADD, SUB {IFM}->{OFM}:"
-        "  {uint8, int8 int32} -> {uint8, int8, int32}, any pairing"
-        "MAX, MIN:"
-        "  IFM and OFM must be of the same type, one of:"
-        "  {int8, uint8}"
-        "SHR {IFM}->{OFM}:"
-        "  {int32}->{int8, uint8, int32}, any pairing"
-        "SHL:"
-        "  {int32}->{int32} only");
-  }
-};
-
-TVM_REGISTER_NODE_TYPE(EthosuBinaryElementwiseAttrs);
 
 bool EthosuBinaryElementwiseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                                 const TypeReporter& reporter) {

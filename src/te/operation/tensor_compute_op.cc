@@ -85,7 +85,6 @@ Operation TensorComputeOpNode::ReplaceInputs(const Operation& self,
                                              const std::unordered_map<Tensor, Tensor>& rmap) const {
   ICHECK_EQ(self.operator->(), this);
   auto n = make_object<TensorComputeOpNode>(*this);
-  n->outputs = Array<Tensor>();
   auto intrin = make_object<TensorIntrinNode>(*(this->intrin.operator->()));
   intrin->body = ReplaceTensor(this->intrin->body, rmap);
   if (intrin->reduce_init.defined()) {

@@ -49,8 +49,6 @@ int main(void) {
   uart_init();
   // NPU
   EthosuInit();
-  // TVM Memory Manager
-  StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
 
   // Queue for inferences
   xQueue = xQueueCreate(mainQUEUE_LENGTH, sizeof(uint8_t*));

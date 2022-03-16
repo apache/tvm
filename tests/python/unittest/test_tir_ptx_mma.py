@@ -1311,6 +1311,7 @@ def gemm_mma_m16n8k256_row_col_b1b1s32(a: T.handle, b: T.handle, c: T.handle):
             Accum.data,
             0,
             False,
+            "xor",
             dtype="int32",
         )
     )

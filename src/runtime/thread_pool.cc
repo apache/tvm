@@ -386,7 +386,6 @@ TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRe
     for (auto cpu : cpu_array) {
       ICHECK(IsNumber(cpu)) << "The CPU core information '" << cpu << "' is not a number.";
       cpus.push_back(std::stoi(cpu));
-      std::cout << "cpu is " << cpu << std::endl;
     }
   }
   threading::Configure(mode, nthreads, cpus);
