@@ -746,10 +746,10 @@ def deploy_docs() {
       git status
       git checkout -B $DOCS_DEPLOY_BRANCH
 
-      rm -rf tvm-site/docs
-      mkdir -p tvm-site/docs
-      tar xf ../docs.tgz -C tvm-site/docs
-      COMMIT=$(cat tvm-site/docs/commit_hash)
+      rm -rf docs
+      mkdir -p docs
+      tar xf ../docs.tgz -C docs
+      COMMIT=$(cat docs/commit_hash)
       git add .
       git config user.name tvm-bot
       git config user.email 95660001+tvm-bot@users.noreply.github.com
