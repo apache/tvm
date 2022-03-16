@@ -356,6 +356,10 @@ Array<Array<BufferRegion>> GetBlockReadWriteRegion(const Block& block,
     }
   }
   Array<BufferRegion> reads = detector.CollectReads(&excluded_buffers);
+  for (const BufferRegion& opaque_access : opaques) {
+    reads.push_back(opaque_access);
+    writes.push_back(opaque_access);
+  }
   return {reads, writes};
 }
 
