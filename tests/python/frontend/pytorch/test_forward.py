@@ -362,27 +362,6 @@ def test_forward_multiply():
 
 
 @tvm.testing.uses_gpu
-def test_forward_elemwise():
-    class FMod(Module):
-        def forward(self, *args):
-            return torch.fmod(*args)
-
-    class Remainder(Module):
-        def forward(self, *args):
-            return torch.remainder(*args)
-
-    input_data0 = torch.tensor([-3.0, -2, -1, 1, 2, 3])
-    input_data1 = torch.tensor(2)
-    verify_model(FMod(), input_data=[input_data0, input_data1])
-    verify_model(Remainder(), input_data=[input_data0, input_data1])
-
-    input_data0 = torch.tensor([1, 2, 3, 4, 5])
-    input_data1 = torch.tensor(-1.5)
-    verify_model(FMod(), input_data=[input_data0, input_data1])
-    verify_model(Remainder(), input_data=[input_data0, input_data1])
-
-
-@tvm.testing.uses_gpu
 def test_min_max():
     class Max(Module):
         def forward(self, inp):
@@ -4224,6 +4203,19 @@ def test_list_tuple():
     x = torch.rand([4, 4, 16, 32]).float()
     script_module = torch.jit.trace(List_tuple(), x, strict=False).eval()
     relay.frontend.from_pytorch(script_module, [("x", x.shape)])
+
+
+@tvm.testing.uses_gpu
+def test_mod():
+    def test_fmod(x, y):
+        return torch.fmod(x, y)
+
+    def test_remainder(x, y):
+        return torch.fmod(x, y)
+
+    for test_fn in [test_fmod, test_remainder]:
+        verify_model(test_fn, [torch.tensor([-3.0, -2, -1, 1, 2, 3]), torch.tensor(2)])
+        verify_model(test_fn, [torch.tensor([1, 2, 3, 4, 5]), torch.tensor(-1.5)])
 
 
 if __name__ == "__main__":
