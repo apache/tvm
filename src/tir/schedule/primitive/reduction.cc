@@ -826,9 +826,8 @@ class WriteBackBlockCreator : public BaseBlockCreator {
   }
 
   void CreateReadWriteRegions() final {
-    read_regions_.push_back(CreateRegion(wb_lhs_));
     read_regions_.push_back(CreateRegion(wb_rhs_));
-    write_regions_.push_back(read_regions_[0]);
+    write_regions_.push_back(CreateRegion(wb_lhs_));
   }
 
   static BufferRegion CreateRegion(const BufferLoad& load) {
