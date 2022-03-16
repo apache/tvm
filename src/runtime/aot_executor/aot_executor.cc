@@ -132,7 +132,6 @@ PackedFunc AotExecutor::GetFunction(const std::string& name,
       *rv = this->GetInputIndex(args[0].operator String());
     });
   } else {
-    LOG(INFO) << "Unknown packed function: " << name;
     return PackedFunc();
   }
 }

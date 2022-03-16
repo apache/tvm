@@ -103,7 +103,6 @@ class CSourceModuleNode : public runtime::ModuleNode {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->func_names_; });
     } else {
-      LOG(INFO) << "Unknown packed function: " << name;
       return PackedFunc(nullptr);
     }
   }
@@ -172,7 +171,6 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
   std::string GetFormat() { return fmt_; }
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
-    LOG(INFO) << "GetFunction is not implemented in CSourceCrtMetadataModuleNode";
     return PackedFunc();
   }
 

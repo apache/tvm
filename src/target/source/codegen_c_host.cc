@@ -80,23 +80,6 @@ void CodeGenCHost::AddFunction(const PrimFunc& f) {
   }
 }
 
-void CodeGenCHost::AddFunctionsOrdered(
-    std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> functions) {
-  std::sort(functions.begin(), functions.end(),
-            [](std::pair<tvm::GlobalVar, tvm::BaseFunc> kv_a,
-               std::pair<tvm::GlobalVar, tvm::BaseFunc> kv_b) {
-              std::string name_hint_a = kv_a.first->name_hint;
-              std::string name_hint_b = kv_b.first->name_hint;
-              return name_hint_a < name_hint_b;
-            });
-
-  for (auto& kv : functions) {
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
-    auto f = Downcast<PrimFunc>(kv.second);
-    AddFunction(f);
-  }
-}
-
 void CodeGenCHost::PrintFuncPrefix() {  // NOLINT(*)
   stream << "#ifdef __cplusplus\n"
          << "extern \"C\"\n"
@@ -388,8 +371,21 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
     funcs.push_back(kv);
   }
 
+  // Sort functions
+  std::sort(funcs.begin(), funcs.end(),
+            [](std::pair<tvm::GlobalVar, tvm::BaseFunc> kv_a,
+               std::pair<tvm::GlobalVar, tvm::BaseFunc> kv_b) {
+              std::string name_hint_a = kv_a.first->name_hint;
+              std::string name_hint_b = kv_b.first->name_hint;
+              return name_hint_a < name_hint_b;
+            });
+
   // Add all functions except __tvm_main__
-  cg.AddFunctionsOrdered(funcs);
+  for (auto& kv : funcs) {
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
+    cg.AddFunction(f);
+  }
 
   // Add __tvm_main__
   if (aot_executor_fn.defined()) {

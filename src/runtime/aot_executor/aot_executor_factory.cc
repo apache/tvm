@@ -60,7 +60,6 @@ PackedFunc AotExecutorFactory::GetFunction(
       *rv = Module(exec);
     });
   } else {
-    LOG(INFO) << "Unknown packed function: " << name;
     return PackedFunc();
   }
 }
