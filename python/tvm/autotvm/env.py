@@ -28,6 +28,7 @@ class AutotvmGlobalScope(object):
 
         self.in_tuning = False
         self.silent = False
+        self.tune_subgraph = False
 
     def deep_copy(self, global_scope):
         """Deep copy from another instance of AutotvmGlobalScope."""
@@ -35,6 +36,7 @@ class AutotvmGlobalScope(object):
 
         self.in_tuning = global_scope.in_tuning
         self.silent = global_scope.silent
+        self.tune_subgraph = global_scope.tune_subgraph
 
 
 GLOBAL_SCOPE = AutotvmGlobalScope()

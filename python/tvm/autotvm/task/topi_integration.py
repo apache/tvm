@@ -31,6 +31,8 @@ import functools
 import tvm.te._ffi_api
 from tvm.target import Target
 from tvm.te import tensor
+from tvm.autotvm.env import GLOBAL_SCOPE
+from tvm import runtime
 
 from .task import (
     args_to_workload,
@@ -38,6 +40,9 @@ from .task import (
     DispatchContext,
     _register_task_compute,
     _register_task_schedule,
+    _register_subgraph_task_schedule,
+    _getCompute,
+    deserialize_args,
 )
 
 
@@ -75,18 +80,20 @@ class TaskExtractEnv:
         self.task_collection = []
         self.wanted_relay_ops = wanted_relay_ops
 
-    def add_task(self, task_name, args):
+    def add_task(self, task_name, args, subgraph_name=None):
         """Add AutoTVM task
 
         Parameters
         ----------
         task_name: str
             AutoTVM task name.
+        subgraph_name: str
+            Subgraph name
 
         args: tuple
             Arguments to the TOPI function.
         """
-        key = (task_name, serialize_args(args))
+        key = (task_name, subgraph_name, serialize_args(args))
         if self.allow_duplicate or key not in self.task_collection:
             self.task_collection.append(key)
 
@@ -157,7 +164,8 @@ def register_topi_compute(task_name, func=None):
             """wrapper function for topi compute"""
             assert not kwargs, "Do not support kwargs in template function call"
             task_env = TaskExtractEnv.current
-            if task_env is not None and task_env.tracing:
+            # adding task in build phase is for subgraph to find tuable op lists
+            if task_env is not None and (task_env.tracing or GLOBAL_SCOPE.tune_subgraph):
                 task_env.add_task(task_name, args)
             workload = args_to_workload(args, task_name)
             tgt = Target.current()
@@ -231,7 +239,12 @@ def register_topi_schedule(task_name, func=None):
         @_register_task_schedule(task_name)
         def wrapper(outs, *args, **kwargs):
             """wrapper function for topi schedule"""
-            workload = get_workload(outs, task_name)
+            task_env = TaskExtractEnv.current
+            if GLOBAL_SCOPE.tune_subgraph and task_env is not None and not task_env.tracing:
+                # get workload of subgraph
+                workload = get_workload_post_order(outs)
+            else:
+                workload = get_workload(outs, task_name)
             if workload is None:
                 raise RuntimeError(
                     f"Cannot find TOPI workload {task_name}. "
@@ -239,6 +252,10 @@ def register_topi_schedule(task_name, func=None):
                 )
             tgt = Target.current()
             cfg = DispatchContext.current.query(tgt, workload)
+            if GLOBAL_SCOPE.tune_subgraph and isinstance(cfg, tvm.autotvm.task.space.FallbackConfigEntity) and len(cfg) == 1:
+                # get fallback config for subgraph workload
+                workload = get_workload(outs, task_name)
+                cfg = DispatchContext.current.query(tgt, workload)
             return topi_schedule(cfg, outs, *args, **kwargs)
 
         return wrapper
@@ -246,6 +263,93 @@ def register_topi_schedule(task_name, func=None):
     if func:
         return _decorate(func)
     return _decorate
+
+
+def register_topi_subgraph(best_impl_name, args, subgraph_name, outputs):
+    """Register a tunable template for a subgraph.
+
+    The registration adds subgraph as a tunable task to autotvm tasks. It uses subgraph_name and args as workload and 
+    stores this "workload" to its final ComputeOp, which can be used to reconstruct "workload" in 
+    the following topi_schedule call. Then it wrap the outputs which attatch the "workload" as the subgraph's 
+    topi compute. At last it employs the schedule corresponding to the anchor implementation as the subgraph's
+    schedule.
+
+    Parameters
+    ----------
+    best_impl_name: str
+        The anchor implementation name of the subgraph
+
+    args: tuple
+        Arguments to the subgraph.
+
+    subgraph_name: str
+        The name of the subgraph
+
+    outputs: list[tensor]
+        The outputs of the subgraph
+
+    Returns
+    -------
+    outs: list[tensor]
+        The subgraph's outputs with workload attached to the last op.
+
+    """
+    task_env = TaskExtractEnv.current
+    if task_env is not None and task_env.tracing:
+        task_env.add_task(best_impl_name, args, subgraph_name=subgraph_name)
+    # attach subgraph workload to return op
+    subgraph_workload = args_to_workload(args, subgraph_name)
+    node = outputs[0]
+    op = node.op
+    attrs = {}
+    for k, v in node.op.attrs.items():
+        attrs[k] = v
+    attrs["workload"] = subgraph_workload
+    if isinstance(op, tensor.ComputeOp):
+        op = tvm.te._ffi_api.ComputeOp(op.name, op.tag, attrs, op.axis, op.body)
+    elif isinstance(op, tensor.ExternOp):
+        op = tvm.te._ffi_api.ExternOp(
+            op.name,
+            op.tag,
+            attrs,
+            op.inputs,
+            op.input_placeholders,
+            op.output_placeholders,
+            op.body,
+        )
+    else:
+        raise RuntimeError("Unsupported op type: " + str(type(op)))
+    if isinstance(node, tensor.Tensor):
+        outs = [op.output(0)]
+    else:
+        outs = [op.output(i) for i in range(len(node))]
+
+    # get workload of anchor op
+    workload = get_workload(outs, best_impl_name)
+    if workload is None:
+        raise RuntimeError(
+            f"Cannot find TOPI workload {best_impl_name}. "
+            "Is it registered with `register_topi_compute`?"
+        )
+    ancor_op_args = get_args_from_workload(workload)
+
+    if task_env is not None and task_env.tracing:
+        @_register_task_compute(subgraph_name)
+        def wrapper(*args, **kwargs):
+            """return outputs of the subgraph"""
+            # get anchor op's config space by running fcompute
+            fcompute = _getCompute(best_impl_name)
+            fcompute(*ancor_op_args, **kwargs)
+
+            # update subgraph's config space by anchor op's
+            tgt = Target.current()
+            cfg = DispatchContext.current.query(tgt, workload)
+            DispatchContext.current.update(tgt, subgraph_workload, cfg)
+            return outs
+
+        # best_impl_name is the schedule name
+        _register_subgraph_task_schedule(subgraph_name, best_impl_name)
+    return outs
 
 
 def get_workload(outs, task_name=None):
@@ -267,3 +371,29 @@ def get_workload(outs, task_name=None):
 
     outs = [outs] if isinstance(outs, tensor.Tensor) else outs
     return traverse(outs)
+
+
+def get_workload_post_order(outs):
+    """Retrieve the workload from outputs by post order"""
+    
+    def traverse(t):
+        op = t.op
+        if "workload" in op.attrs:
+            wkl = args_to_workload(op.attrs["workload"])
+            return wkl
+
+        for x in t.op.input_tensors:
+            if isinstance(x.op, tensor.ComputeOp):
+                wkl = traverse(x)
+                if wkl:
+                    return wkl
+        return None
+
+    outs = [outs] if isinstance(outs, tensor.Tensor) else outs
+    for t in outs:
+        return traverse(t)
+
+def get_args_from_workload(wkl):
+    if isinstance(wkl[0], runtime.container.String):
+        wkl = wkl[1:]
+    return deserialize_args(wkl)

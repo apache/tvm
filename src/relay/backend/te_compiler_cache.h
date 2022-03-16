@@ -57,10 +57,12 @@ struct LoweredOutputNode : public Object {
   tvm::Array<te::Tensor> outputs;
   /*! \brief The implementation used to compute the output */
   OpImplementation implementation;
-
+  /*! \brief The actual implementation name */
+  String actual_impl_name;
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("outputs", &outputs);
     v->Visit("implementation", &implementation);
+    v->Visit("actual_impl_name", &actual_impl_name);
   }
   static constexpr const char* _type_key = "relay.LoweredOutput";
   TVM_DECLARE_FINAL_OBJECT_INFO(LoweredOutputNode, Object);
@@ -68,7 +70,7 @@ struct LoweredOutputNode : public Object {
 
 class LoweredOutput : public ObjectRef {
  public:
-  TVM_DLL LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl);
+    TVM_DLL LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl, String actual_impl_name);
 
   TVM_DEFINE_OBJECT_REF_METHODS(LoweredOutput, ObjectRef, LoweredOutputNode);
 };

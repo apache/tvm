@@ -30,11 +30,14 @@ from tvm.ir import container
 from tvm.target import Target
 from tvm.te import placeholder, tensor
 from tvm.tir import expr
-
+from tvm.te.tensor import ComputeOp, PlaceholderOp
+import re
+import hashlib
 
 from ..utils import get_const_int, get_const_tuple
 from .dispatcher import ApplyConfig, DispatchContext
 from .space import ConfigSpace
+from tvm.autotvm.env import GLOBAL_SCOPE
 
 
 def _lookup_task(name):
@@ -47,6 +50,104 @@ def _lookup_task(name):
         task = MissingTask(name)
     return task
 
+
+def _getCompute(name):
+    """get compute by given name.
+
+    Parameters
+    ----------
+    name: name of compute
+    """
+    task = _lookup_task(name)
+    return task.fcompute
+
+
+def format_subgraph_task_name(name, args):
+    if re.match(r'\w+\d+$', name):
+        # remove number of reduplicative subgraph name like '_1'
+        name = re.sub(r'[_]\d+$', '', name)
+    str_args = format_args(args).encode("utf-8")
+    hash_key = hashlib.md5(str_args).hexdigest()
+    return name + '_' + hash_key
+
+
+def format_args(args):
+    """format arguments of a topi function to a string
+
+    Parameters
+    ----------
+    args: list of hashable or Tensor
+    """
+
+    def _encode(x):
+        if isinstance(x, tensor.Tensor):
+            ret = ""
+            for s in get_const_tuple(x.shape):
+                ret = ret + str(s)
+            return ret + x.dtype
+        if isinstance(x, (tuple, list, container.Array)):
+            ret = ""
+            for a in x:
+                ret = ret + _encode(a)
+            return ret
+        if isinstance(x, (str, int, float, expr.Var, expr.Any)):
+            return str(x)
+        if isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
+            return str(x.value)
+        if isinstance(x, runtime.container.String):
+            return str(x)
+        if x is None:
+            return None
+        raise RuntimeError(
+            'Do not support type "%s" in argument. Consider to use'
+            "primitive types or tvm.tir.Var only" % type(x)
+        )
+
+    ret = ""
+    for t in args:
+        ret = ret + _encode(t)
+    return ret
+
+
+def _traverse_to_get_io_tensors(outs):
+    """Traverse from a list of output tensors to get input/output tensors.
+
+    Parameters
+    ----------
+    outs: List[Tensor]
+        The output tensors
+
+    Returns
+    -------
+    io_tensors: List[Tensor]
+        The input and output tensors with static shape
+    """
+    inputs = []
+    visited = set()
+
+    def traverse(t):
+        # We cannot directly add tensors to the set, because the comparison of
+        # two tensors with ndim=0 is ambiguous.
+        assert t.handle is not None
+        if t.handle.value in visited:
+            return
+        if isinstance(t.op, PlaceholderOp):
+            inputs.append(t)
+        elif isinstance(t.op, ComputeOp):
+            for x in t.op.input_tensors:
+                traverse(x)
+        visited.add(t.handle.value)
+
+    for t in outs:
+        traverse(t)
+
+    io_tensors = inputs + list(outs)
+    for tensor in io_tensors:
+        # Reject the compute if any of its I/O tensors has dynamic shape.
+        if any([not isinstance(v, int) for v in get_const_tuple(tensor.shape)]):
+            return []
+
+    return io_tensors
 
 def serialize_args(args):
     """serialize arguments of a topi function to a hashable tuple.
@@ -244,8 +345,12 @@ class TaskTemplate(object):
     def _default_func(self, *args, **kwargs):
         assert callable(self.fcompute) and callable(self.fschedule)
         out = self.fcompute(*args, **kwargs)
-        arg_bufs = [out] + self._get_inputs(out)
-        s = self.fschedule([out])
+        if GLOBAL_SCOPE.current.tune_subgraph:
+            arg_bufs = _traverse_to_get_io_tensors(out)
+            s = self.fschedule(out)
+        else:
+            arg_bufs = [out] + self._get_inputs(out)
+            s = self.fschedule([out])
         return s, arg_bufs
 
     @staticmethod
@@ -377,6 +482,22 @@ def _register_customized_task(name, func=None):
     if func:
         return _do_reg(func)
     return _do_reg
+
+def _register_subgraph_task_schedule(name, schedule_name):
+    """Register the schedule corresponding to the anchor implementation as 
+    the subgraph's schedule
+
+    Parameters
+    ----------
+    name: str
+        The subgraph task name
+    schedule_name: str
+        The task schedule name
+    """
+    if name not in TASK_TABLE:
+        TASK_TABLE[name] = TaskTemplate()
+    tmpl = TASK_TABLE[name]
+    tmpl.fschedule = TASK_TABLE[schedule_name].fschedule
 
 
 def template(task_name, func=None):

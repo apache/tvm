@@ -84,6 +84,7 @@ class OpImplementation : public ObjectRef {
                                 const Target& target);
 
   TVM_DEFINE_OBJECT_REF_METHODS(OpImplementation, ObjectRef, OpImplementationNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(OpImplementationNode);
 };
 
 /*!

@@ -29,6 +29,7 @@ from ..backend.utils import mangle_module_name
 from .. import function as _function
 from .. import ty as _ty
 from . import _backend
+from tvm.autotvm.env import GLOBAL_SCOPE
 
 logger = logging.getLogger("te_compiler")
 autotvm_logger = logging.getLogger("autotvm")
@@ -40,8 +41,8 @@ _first_warning = True
 class LoweredOutput(Object):
     """Lowered output"""
 
-    def __init__(self, outputs, implement):
-        self.__init_handle_by_constructor__(_backend._make_LoweredOutput, outputs, implement)
+    def __init__(self, outputs, implement, actual_impl_name):
+        self.__init_handle_by_constructor__(_backend._make_LoweredOutput, outputs, implement, actual_impl_name)
 
 
 @tvm._ffi.register_object("relay.CCacheKey")
@@ -225,7 +226,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
             op.name,
             best_cfg.cost,
         )
-        return best_autotvm_impl, outputs[best_autotvm_impl]
+        return best_autotvm_impl, outputs[best_autotvm_impl], best_autotvm_impl.name
 
     # Use the implementation with highest plevel
     if workloads[best_plevel_impl] is not None:
@@ -255,7 +256,16 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         op.name,
         best_plevel_impl.plevel,
     )
-    return best_plevel_impl, outputs[best_plevel_impl]
+    if GLOBAL_SCOPE.tune_subgraph:
+        # In some cases, one strategy's compute may call another compute. 
+        # So the impl name need to match with actual compute.
+        if workloads[best_plevel_impl]:
+            workload = workloads[best_plevel_impl]
+            if best_plevel_impl.name != "injective.cpu" and best_plevel_impl.name != workload[0]:
+                best_plevel_impl.name = workload[0]
+    # value changed in python side will not effect C++ side, 
+    # so here need to pass new name to C++
+    return best_plevel_impl, outputs[best_plevel_impl], best_plevel_impl.name
 
 
 def get_shape(shape):
@@ -310,17 +320,17 @@ def lower_call(call, inputs, target):
             reenable_tracing = True
 
     if not is_dyn:
-        best_impl, outputs = select_implementation(op, call.attrs, inputs, ret_type, target)
+        best_impl, outputs, actual_impl_name = select_implementation(op, call.attrs, inputs, ret_type, target)
     else:
         # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes.
-        best_impl, outputs = select_implementation(
+        best_impl, outputs, actual_impl_name = select_implementation(
             op, call.attrs, inputs, ret_type, target, use_autotvm=False
         )
 
     # re-enable AutoTVM tracing
     if reenable_tracing:
         env.tracing = True
-    return LoweredOutput(outputs, best_impl)
+    return LoweredOutput(outputs, best_impl, actual_impl_name)
 
 
 @tvm._ffi.register_object("relay.TECompiler")

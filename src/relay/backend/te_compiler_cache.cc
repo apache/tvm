@@ -58,10 +58,11 @@ TVM_REGISTER_NODE_TYPE(CachedFuncNode);
 TVM_REGISTER_NODE_TYPE(CCacheKeyNode);
 TVM_REGISTER_NODE_TYPE(CCacheValueNode);
 
-LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl) {
+LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl, String actual_impl_name) {
   auto n = make_object<LoweredOutputNode>();
   n->outputs = std::move(outputs);
   n->implementation = std::move(impl);
+  n->actual_impl_name = std::move(actual_impl_name);
   data_ = std::move(n);
 }
 
@@ -225,6 +226,7 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
     LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(call_node), inputs, target_);
     Array<te::Tensor> outputs = lowered_out->outputs;
     op_implementations_[op.operator->()] = lowered_out->implementation;
+    op_implementations_[op.operator->()].CopyOnWrite()->name = lowered_out->actual_impl_name;
 
     if (outputs.size() != 1) {
       const auto* tuple_type = call_node->checked_type().as<TupleTypeNode>();
@@ -303,6 +305,9 @@ class ScheduleBuilder : public ExprVisitor {
     LowerToTECompute lower_te_compute(target_);
     Array<te::Tensor> outputs = lower_te_compute.Lower(relay_func, renamer);
     Array<te::Tensor> fn_inputs = lower_te_compute.fn_inputs_;
+    const auto *fn_tune_subgraph = runtime::Registry::Get("auto_tvm.relay_integration.is_tune_subgraph");
+    ICHECK(fn_tune_subgraph != nullptr)
+              << "auto_tvm.relay_integration.fn_tune_subgraph is not registered";
     VisitExpr(relay_func->body);
 
     // TODO(mbs): This should be the definitive global by which the PrimFunc is known and
@@ -351,6 +356,19 @@ class ScheduleBuilder : public ExprVisitor {
       if (!schedule.defined() && !prim_func.defined()) {
         auto anchor_impl = lower_te_compute.op_implementations_.find(anchor_op_.operator->());
         ICHECK(anchor_impl != lower_te_compute.op_implementations_.end());
+        if ((*fn_tune_subgraph)()) {
+          const auto* fauto_tvm =
+              runtime::Registry::Get("auto_tvm.relay_integration.register_subgraph_task");
+          ICHECK(fauto_tvm != nullptr)
+              << "auto_tvm.relay_integration.register_subgraph_task is not registered";
+          outputs = (*fauto_tvm)(prim_fn_var->name_hint, tensor_outs, anchor_impl->second->name);
+          tensor_outs.clear();
+          for (const auto& tensor : outputs) {
+            if (!tensor->op.as<te::PlaceholderOpNode>()) {
+              tensor_outs.push_back(tensor);
+            }
+          }
+        }
         schedule = anchor_impl->second.Schedule(anchor_attrs_, tensor_outs, target_);
       }
       if (schedule.defined()) {
