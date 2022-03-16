@@ -30,6 +30,7 @@ from tvm.relay.testing import byoc
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.backend import Executor, Runtime
 from tvm import WorkspaceMemoryPools, PoolInfo
+from tvm.micro import model_library_format as mlf
 from aot_test_utils import (
     AOTTestModel,
     AOTTestRunner,
@@ -250,15 +251,16 @@ def test_tflite_model_u1_usecase(model_url, usmp_algo, workspace_size):
     for compiled_model in compiled_test_mods:
         check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
 
-    # Checking the workspace size
-    assert (
-        sum(
-            compiled_model.executor_factory.function_metadata[
-                "__tvm_main__"
-            ].workspace_sizes.values()
-        )
-        == workspace_size
+    # Checking the workspace size reported in model library format
+    mlf_memory_map = mlf._build_function_memory_map(
+        compiled_test_mods[0].executor_factory.function_metadata
     )
+    assert mlf_memory_map["main"][0]["workspace_size_bytes"] == workspace_size
+    # That should match to workspace size that will be codegen'd to the entry point.
+    allocated_pool_info = list(
+        dict(compiled_test_mods[0].executor_factory.executor_codegen_metadata.pool_inputs).values()
+    )[0]
+    assert allocated_pool_info.allocated_size == workspace_size
 
     run_and_check(
         models=compiled_test_mods,
