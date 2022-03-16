@@ -865,9 +865,9 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   std::string so_name(o_name, 0, o_name.size() - 1);
   so_name += "so";
 
-  const auto* f = tvm::runtime::Registry::Get("tvm.contrib.hexagon.hexagon.link_shared");
-  ICHECK(f != nullptr) << "tvm.contrib.hexagon.hexagon.link_shared does not to exist, "
-                          "do import tvm.contrib.hexagon.hexagon";
+  const auto* f = tvm::runtime::Registry::Get("tvm.contrib.hexagon.link_shared");
+  ICHECK(f != nullptr) << "tvm.contrib.hexagon.link_shared does not to exist, "
+                          "do import tvm.contrib.hexagon";
 
   Array<PrimExpr> o_names = {StringImm(o_name)};
   int rc = (*f)(so_name, o_names);
