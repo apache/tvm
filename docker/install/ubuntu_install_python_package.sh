@@ -27,10 +27,11 @@ pip3 install --upgrade \
     cython \
     decorator \
     mypy \
-    numpy \
+    numpy~=1.19.5 \
     orderedset \
     packaging \
     Pillow \
+    psutil \
     pytest \
     pytest-profiling \
     pytest-xdist \

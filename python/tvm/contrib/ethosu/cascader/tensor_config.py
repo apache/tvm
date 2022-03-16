@@ -58,9 +58,25 @@ class MemoryRegion(Object):
 
     """
 
-    def __init__(self, name: str, size: int, read_bandwidth: int, write_bandwidth: int):
+    def __init__(
+        self,
+        name: str,
+        size: int,
+        read_bandwidth: int,
+        write_bandwidth: int,
+        read_latency: int = 0,
+        write_latency: int = 0,
+        burst_length: int = 1,
+    ):
         self.__init_handle_by_constructor__(
-            _ffi_api.MemoryRegion, name, size, read_bandwidth, write_bandwidth
+            _ffi_api.MemoryRegion,
+            name,
+            size,
+            read_bandwidth,
+            write_bandwidth,
+            read_latency,
+            write_latency,
+            burst_length,
         )
 
 

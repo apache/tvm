@@ -265,7 +265,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *
    * \param buffer The buffer being accessed
    *
-   * \param index The index at which the buffer is being accessed.
+   * \param indices The indices at which the buffer is being accessed.
    *
    * \param value_dtype The datatype to be read from (BufferLoad) or
    * written to (BufferStore) the buffer.
@@ -286,7 +286,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *       - Should return the generated expression.
    */
   void BufferAccessHelper(
-      Buffer buffer, PrimExpr index, DataType value_dtype,
+      Buffer buffer, Array<PrimExpr> indices, DataType value_dtype,
       std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i, int alignment,
                                        bool is_volatile)>
           make_instruction);
@@ -372,8 +372,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateSub(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateMul(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateBroadcast(llvm::Value* value, int lanes);
-  TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
-                               llvm::Value* index, DataType value_dtype);
+  virtual TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
+                                       llvm::ArrayRef<llvm::Value*> indices, DataType value_dtype);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);

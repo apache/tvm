@@ -23,6 +23,15 @@
         "vid_hex": "",
         "pid_hex": ""
     },
+    "mps3_an547": {
+        "board": "mps3_an547",
+        "model": "mps3_an547",
+        "is_qemu": true,
+        "fpu": false,
+        "note": "FPU is supported by mps3_an547, but full support for FPU+MVE is only available from QEMU v6.2.0 (not present in any zephyr-sdk yet), hence FPU is left disabled.",
+        "vid_hex": "",
+        "pid_hex": ""
+    },
     "nrf5340dk_nrf5340_cpuapp": {
         "board": "nrf5340dk_nrf5340_cpuapp",
         "model": "nrf5340dk",

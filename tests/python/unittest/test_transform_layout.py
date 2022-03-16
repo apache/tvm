@@ -522,5 +522,22 @@ class TestTransformCache:
             tvm.testing.assert_allclose(b.numpy(), b_np)
 
 
+def test_transform_with_reduction():
+    # To trigger this failure mode, the computation must use a
+    # reduction axis,
+    A = te.placeholder([16, 32, 64], dtype="float32", name="A")
+    k = te.reduce_axis((0, A.shape[-1]), name="k")
+    B = te.compute(A.shape[:-1], lambda i, j: te.sum(A[i, j, k], axis=[k]))
+    s = te.create_schedule(B.op)
+
+    # And the output of the computation must have a layout
+    # transformation applied.
+    s[B].transform_layout(lambda i, j: [j, i])
+
+    # When present, the failure occurred during tvm.lower, during the
+    # call to `tvm::te::PassDownBitMaskOr`.
+    tvm.lower(s, [A, B])
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main(sys.argv))

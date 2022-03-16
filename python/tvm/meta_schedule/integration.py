@@ -15,17 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta schedule integration with high-level IR"""
-from contextlib import contextmanager
-from typing import Callable, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
-from tvm._ffi import register_object
+import numpy as np  # type: ignore
+import tvm.runtime.ndarray as nd
+
+from tvm._ffi import register_object, get_global_func
 from tvm.ir import IRModule, transform
 from tvm.relay import Any
 from tvm.relay import Function as RelayFunc
-from tvm.relay import vm
 from tvm.runtime import NDArray, Object
 from tvm.target import Target
-from tvm.tir import PrimFunc
 
 from . import _ffi_api
 from .database import Database
@@ -77,7 +77,7 @@ class MetaScheduleContext(Object):
         mod: IRModule,
         target: Target,
         dispatched: Optional[List[IRModule]],
-    ) -> Union[IRModule, RelayFunc, PrimFunc, None]:
+    ) -> Union[IRModule, None]:
         """The entry point of the integration
 
         Parameters
@@ -93,12 +93,9 @@ class MetaScheduleContext(Object):
 
         Returns
         -------
-        result : Union[IRModule, RelayFunc, PrimFunc, None]
-            There are different types of the output:
-            1) NullOpt if there is no feedback hint;
-            2) tir::PrimFunc if `mod` should be lowered to a PrimFunc;
-            3) relay::Function if `mod` should be dispatched to BYOC workflow;
-            4) IRModule for unified dispatch
+        result : IRModule or None
+            Currently we only have to return tir::PrimFunc, but we wrap it under IRModule for
+            more general future use. None is returned if there is no feedback hint.
         """
         return _ffi_api.MetaScheduleContextQuery(  # type: ignore # pylint: disable=no-member
             self,
@@ -126,7 +123,7 @@ class MetaScheduleContext(Object):
         mod: IRModule,
         target: Target,
         dispatched: Optional[List[IRModule]],
-    ) -> Union[IRModule, RelayFunc, PrimFunc, None]:
+    ) -> Union[IRModule, None]:
         """The entry point of the integration workflow. The compilation process of the high-level
         IR should call this method for task extraction and for feedback hints
 
@@ -137,7 +134,7 @@ class MetaScheduleContext(Object):
             def query_inside_with_scope(task_name, mod, dispatched):
                 ctx = MetaScheduleContext.current()
                 assert ctx is not None
-                ctx.query(task_name, mod, target, dispatched)
+                mod = ctx.query(task_name, mod, target, dispatched)
 
         Parameters
         ----------
@@ -152,12 +149,9 @@ class MetaScheduleContext(Object):
 
         Returns
         -------
-        result : Union[IRModule, RelayFunc, PrimFunc, None]
-            There are different types of the output:
-            1) NullOpt if there is no feedback hint;
-            2) tir::PrimFunc if `mod` should be lowered to a PrimFunc;
-            3) relay::Function if `mod` should be dispatched to BYOC workflow;
-            4) IRModule for unified dispatch
+        result : IRModule or None
+            Currently we only have to return tir::PrimFunc, but we wrap it under IRModule for
+            more general future use. None is returned if there is no feedback hint.
         """
         return _ffi_api.MetaScheduleContextQueryInsideWithScope(  # type: ignore # pylint: disable=no-member
             task_name,
@@ -174,17 +168,6 @@ class MetaScheduleContext(Object):
     def __exit__(self, ptype, value, trace) -> None:
         """Exiting the scope of the context manager"""
         _ffi_api.MetaScheduleContextExitScope(self)  # type: ignore # pylint: disable=no-member
-
-
-@register_object("meta_schedule.TaskExtraction")
-class TaskExtraction(MetaScheduleContext):
-    """An integration context for task extraction"""
-
-    tasks: List[ExtractedTask]
-    """The extracted tasks"""
-
-    def __init__(self) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.TaskExtraction)  # type: ignore # pylint: disable=no-member
 
 
 @register_object("meta_schedule.ApplyHistoryBest")
@@ -230,45 +213,32 @@ def extract_task_from_relay(
         The tasks extracted from this network
     """
 
-    @contextmanager
-    def _autotvm_silencer():
-        from tvm import autotvm  # pylint: disable=import-outside-toplevel
+    extract_task_func = get_global_func("relay.backend.MetaScheduleExtractTask")
+    assert extract_task_func
 
-        silent = autotvm.GLOBAL_SCOPE.silent
-        autotvm.GLOBAL_SCOPE.silent = True
-        try:
-            yield
-        finally:
-            autotvm.GLOBAL_SCOPE.silent = silent
+    target = Target(target) if isinstance(target, str) else target
 
-    def _thread_run(func: Callable[[], None]) -> None:
-        import threading  # pylint: disable=import-outside-toplevel
-
-        thread = threading.Thread(target=func)
-        thread.start()
-        thread.join()
+    relay_params = {}
+    for name, param in params.items():
+        if isinstance(param, np.ndarray):
+            param = nd.array(param)
+        relay_params[name] = param
 
     if disabled_pass is None:
         disabled_pass = []
     if pass_config is None:
         pass_config = {"relay.backend.use_meta_schedule": True}
 
-    env = TaskExtraction()
     if isinstance(mod, RelayFunc):
         mod = IRModule.from_expr(mod)
     if not isinstance(target, Target):
         target = Target(target)
 
-    def _func():
-        with env, _autotvm_silencer(), transform.PassContext(
-            config=pass_config,
-            disabled_pass=disabled_pass,
-            opt_level=opt_level,
-        ):
-            compiler = vm.VMCompiler()
-            if params:
-                compiler.set_params(params)
-            compiler.lower(mod, target)
-
-    _thread_run(_func)
-    return env.tasks
+    with target, transform.PassContext(
+        opt_level=opt_level,
+        config=pass_config,
+        disabled_pass=disabled_pass,
+    ):
+        tasks = extract_task_func(mod, target, relay_params)
+        # Tasks are extracted via post order visit, return the reversed list.
+        return list(reversed(tasks))

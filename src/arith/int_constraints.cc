@@ -49,13 +49,13 @@ Array<PrimExpr> AsConditions(const Array<Var>& variables, const Map<Var, IntGrou
     const auto& bnds = bounds[v];
     PrimExpr lhs = bnds->coef * v;
     for (const PrimExpr& rhs : bnds->equal) {
-      res.push_back(tir::EQ(lhs, rhs));
+      res.push_back(lhs == rhs);
     }
     for (const PrimExpr& rhs : bnds->lower) {
-      res.push_back(tir::GE(lhs, rhs));
+      res.push_back(lhs >= rhs);
     }
     for (const PrimExpr& rhs : bnds->upper) {
-      res.push_back(tir::LE(lhs, rhs));
+      res.push_back(lhs <= rhs);
     }
   }
   for (const PrimExpr& e : relations) {
