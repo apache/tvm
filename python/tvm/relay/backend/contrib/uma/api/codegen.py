@@ -19,11 +19,16 @@
 import tvm
 
 from typing import Callable
+from .utils import check_config
 
 
 class UMACodegen(object):
     def __init__(self, target_name: str) -> None:
         self.target_name = target_name
+        self.config = {}
+
+    def _register_config(self, config: dict) -> None:
+        self.config.update(check_config(config, self.config))
 
     def _register_codegen(self, fmt: str = "c", **kwargs) -> None:
         if fmt == "c":

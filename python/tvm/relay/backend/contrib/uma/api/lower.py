@@ -21,12 +21,13 @@ from tvm import relay, te, tir
 
 from typing import List, Tuple, Callable, Optional
 
-from .utils import extract_constants
+from .utils import extract_constants, check_config
 
 
 class UMALower(object):
     def __init__(self, target_name: str) -> None:
         self.target_name = target_name
+        self.config = {}
 
         self._operator_strategies: List[
             Tuple[
@@ -40,6 +41,9 @@ class UMALower(object):
         ] = []
         self._tir_schedules: List[Callable[[tvm.tir.Schedule], tvm.tir.Schedule]] = []
         self._tir_passes: List[Tuple[int, tvm.tir.transform.PrimFuncPass]] = []
+
+    def _register_config(self, config: dict) -> None:
+        self.config.update(check_config(config, self.config))
 
     def _lower_relay_to_tir(self, relay_prim_func: relay.Function) -> tvm.tir.PrimFunc:
         """Lower a Relay primitive function to a S-TIR primitive function.

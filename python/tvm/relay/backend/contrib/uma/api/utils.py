@@ -20,6 +20,12 @@ import tvm
 from tvm import relay
 from tvm.relay.expr_functor import ExprMutator
 
+from enum import Enum
+
+
+##############################
+# Extract constants workaround
+##############################
 class ExtractConstants(ExprMutator):
     """The actual mutator pass to extract the constants from a function and replace them with
     Vars so the function can be lowered to a TE graph. Additionally returns all the values of
@@ -27,7 +33,7 @@ class ExtractConstants(ExprMutator):
 
     def __init__(self):
         super().__init__()
-        self.constants = {} 
+        self.constants = {}
         self.const_vars = []
 
     def visit_constant(self, const):
@@ -70,3 +76,20 @@ def extract_constants(func):
         func.attrs["global_symbol"]
     ]
     return new_func, consts
+
+
+###################################
+# API configuration parameter check
+###################################
+class UMAConfigStatus(Enum):
+    UNSUPPORTED = 0
+    DEPRECATED = 1
+
+def check_config(new_config, ref_config):
+    for param in new_config.keys():
+        status = ref_config.get(param, UMAConfigStatus.UNSUPPORTED)
+        if status == UMAConfigStatus.UNSUPPORTED:
+            raise KeyError(f"\"{param}\" is not a supported UMA configuration parameter.")
+        elif status == UMAConfigStatus.DEPRECATED:
+            raise DeprecationWarning(f"{param} is deprecated.")
+    return new_config

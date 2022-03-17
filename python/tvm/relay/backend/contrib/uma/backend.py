@@ -25,6 +25,7 @@ from tvm.relay.backend.contrib.uma.api.partitioner import UMAPartitioner
 from tvm.relay.backend.contrib.uma.api.lower import UMALower
 from tvm.relay.backend.contrib.uma.api.codegen import UMACodegen
 
+
 class UMABackend(object):
     def __init__(self, variant: str = "") -> None:
         self.variant = variant
@@ -43,6 +44,14 @@ class UMABackend(object):
             The hardware target name.
         """
         ...
+
+    ############################################################################
+    # Configuration registration
+    ############################################################################
+    def _register_config(self, config: dict) -> None:
+        self._relay_to_relay._register_config(config.get("UMAPartitioner", {}))
+        self._relay_to_tir._register_config(config.get("UMALower", {}))
+        self._tir_to_runtime._register_config(config.get("UMACodegen", {}))
 
     ############################################################################
     # Relay to Relay function registration
