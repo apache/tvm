@@ -26,8 +26,6 @@ from tvm.ir import IRModule
 from tvm.meta_schedule import TuneContext
 from tvm.meta_schedule.builder import LocalBuilder
 from tvm.meta_schedule.cost_model import RandomModel
-from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
-from tvm.meta_schedule.mutator.mutator import PyMutator
 from tvm.meta_schedule.runner import LocalRunner, RunnerResult
 from tvm.meta_schedule.search_strategy import (
     EvolutionarySearch,
@@ -38,6 +36,7 @@ from tvm.meta_schedule.search_strategy import (
 from tvm.meta_schedule.space_generator import ScheduleFn
 from tvm.meta_schedule.task_scheduler import RoundRobin
 from tvm.meta_schedule.utils import derived_object
+from tvm.meta_schedule.testing import DummyDatabase, DummyMutator
 from tvm.script import tir as T
 from tvm.tir.schedule import Schedule, Trace
 
@@ -117,56 +116,6 @@ def test_meta_schedule_replay_func(TestClass: SearchStrategy):  # pylint: disabl
 
 
 def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name]
-    @derived_object
-    class DummyMutator(PyMutator):
-        """Dummy Mutator for testing"""
-
-        def initialize_with_tune_context(self, context: "TuneContext") -> None:
-            pass
-
-        def apply(self, trace: Trace, _) -> Optional[Trace]:
-            return Trace(trace.insts, {})
-
-    @derived_object
-    class DummyDatabase(PyDatabase):
-        """Dummy Database for testing"""
-
-        def __init__(self):
-            super().__init__()
-            self.records = []
-            self.workload_reg = []
-
-        def has_workload(self, mod: IRModule) -> bool:
-            for workload in self.workload_reg:
-                if tvm.ir.structural_equal(workload.mod, mod):
-                    return True
-            return False
-
-        def commit_tuning_record(self, record: TuningRecord) -> None:
-            self.records.append(record)
-
-        def commit_workload(self, mod: IRModule) -> Workload:
-            for workload in self.workload_reg:
-                if tvm.ir.structural_equal(workload.mod, mod):
-                    return workload
-            workload = Workload(mod)
-            self.workload_reg.append(workload)
-            return workload
-
-        def get_top_k(self, workload: Workload, top_k: int) -> List[TuningRecord]:
-            return list(
-                filter(
-                    lambda x: x.workload == workload,
-                    sorted(self.records, key=lambda x: sum(x.run_secs) / len(x.run_secs)),
-                )
-            )[: int(top_k)]
-
-        def __len__(self) -> int:
-            return len(self.records)
-
-        def print_results(self) -> None:
-            print("\n".join([str(r) for r in self.records]))
-
     num_trials_per_iter = 10
     num_trials_total = 100
 
