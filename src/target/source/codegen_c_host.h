@@ -66,8 +66,6 @@ class CodeGenCHost : public CodeGenC {
   struct FunctionInfo {
     /* \brief function name */
     std::string func_name;
-    /* packed name of the function */
-    std::string func_name_packed;
     /* number of arguments required by the function */
     int64_t num_args;
     /* \brief name of resource_handle to pass */
@@ -81,7 +79,8 @@ class CodeGenCHost : public CodeGenC {
   /*! \brief whether to emit asserts in the resulting C code */
   bool emit_asserts_;
 
-  FunctionInfo GetFunctionInfo(const CallNode* op, bool has_resource_handle = false);
+  FunctionInfo GetFunctionInfo(const CallNode* op, bool has_resource_handle);
+  std::string GetPackedName(const CallNode* op);
   void PrintGetFuncFromBackend(const std::string& func_name, const std::string& packed_func_name);
   void PrintFuncCall(const std::string& packed_func_name, int num_args);
   void PrintFuncCallC(const std::string& packed_func_name, int num_args,
