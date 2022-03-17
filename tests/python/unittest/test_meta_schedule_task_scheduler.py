@@ -114,6 +114,7 @@ def _schedule_batch_matmul(sch: Schedule):
     t_0, t_1 = sch.split(loop=t, factors=[2, 512])
     sch.reorder(i_0, j_0, i_1, j_1, k_0, i_2, j_2, k_1, i_3, j_3, t_0, t_1)
 
+
 @derived_object
 class MyTaskScheduler(PyTaskScheduler):
     done = set()

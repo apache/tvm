@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""Testing utilitiy functions in meta schedule"""
 from typing import List, Optional
-from random import random
+import random
 
 import tvm
-from tvm.meta_schedule import TuneContext
+
+from tvm.meta_schedule import TuneContext  # pylint: disable=unused-import
 from tvm.meta_schedule.utils import derived_object
 from tvm.meta_schedule.mutator.mutator import PyMutator
 from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
@@ -34,17 +35,19 @@ from tvm.meta_schedule.runner import (
 from tvm.ir import IRModule
 from tvm.tir.schedule import Trace
 
+
 @derived_object
 class DummyDatabase(PyDatabase):
     """
     An in-memory database based on python list for testing.
     """
+
     def __init__(self):
         super().__init__()
         self.records = []
         self.workload_reg = []
 
-    def has_workload(self, mod: IRModule) -> Workload:
+    def has_workload(self, mod: IRModule) -> bool:
         for workload in self.workload_reg:
             if tvm.ir.structural_equal(workload.mod, mod):
                 return True
@@ -73,7 +76,8 @@ class DummyDatabase(PyDatabase):
         return len(self.records)
 
     def print_results(self) -> None:
-        print("\n".join([str(r) for r in self.records])) 
+        print("\n".join([str(r) for r in self.records]))
+
 
 @derived_object
 class DummyRunnerFuture(PyRunnerFuture):
@@ -81,7 +85,8 @@ class DummyRunnerFuture(PyRunnerFuture):
         return True
 
     def result(self) -> RunnerResult:
-        return RunnerResult([random.uniform(5, 30) for _ in range(random.randint(1, 10))], None)
+        run_secs = [random.uniform(5, 30) for _ in range(random.randint(1, 10))]
+        return RunnerResult(run_secs, None)
 
 
 @derived_object
@@ -93,7 +98,8 @@ class DummyBuilder(PyBuilder):
 @derived_object
 class DummyRunner(PyRunner):
     def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
-        return [DummyRunnerFuture() for _ in runner_inputs]
+        return [DummyRunnerFuture() for _ in runner_inputs]  # type: ignore
+
 
 @derived_object
 class DummyMutator(PyMutator):
