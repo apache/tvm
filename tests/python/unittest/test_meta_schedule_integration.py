@@ -32,6 +32,7 @@ from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir import Schedule
+from tvm.meta_schedule.testing import DummyDatabase
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
 from tvm.meta_schedule.tune import extract_task_from_relay, Parse
 
@@ -106,44 +107,6 @@ def test_meta_schedule_integration_extract_from_resnet():
 
 @requires_torch
 def test_meta_schedule_integration_apply_history_best():
-    @derived_object
-    class DummyDatabase(PyDatabase):
-        def __init__(self):
-            super().__init__()
-            self.records = []
-            self.workload_reg = []
-
-        def has_workload(self, mod: IRModule) -> Workload:
-            for workload in self.workload_reg:
-                if tvm.ir.structural_equal(workload.mod, mod):
-                    return True
-            return False
-
-        def commit_tuning_record(self, record: TuningRecord) -> None:
-            self.records.append(record)
-
-        def commit_workload(self, mod: IRModule) -> Workload:
-            for workload in self.workload_reg:
-                if tvm.ir.structural_equal(workload.mod, mod):
-                    return workload
-            workload = Workload(mod)
-            self.workload_reg.append(workload)
-            return workload
-
-        def get_top_k(self, workload: Workload, top_k: int) -> List[TuningRecord]:
-            return list(
-                filter(
-                    lambda x: x.workload == workload,
-                    sorted(self.records, key=lambda x: sum(x.run_secs) / len(x.run_secs)),
-                )
-            )[: int(top_k)]
-
-        def __len__(self) -> int:
-            return len(self.records)
-
-        def print_results(self) -> None:
-            print("\n".join([str(r) for r in self.records]))
-
     mod, _, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     database = DummyDatabase()
     env = ApplyHistoryBest(database)
