@@ -158,9 +158,9 @@ def test_deterministic_cse():
     x = te.var("x")
     result = te.var("result")
 
-    rand_ints = sorted([random.randint(1, 10) for i in range(NUM_TERMS)])
-    inc1 = [(x + rand_ints[i]) for i in range(NUM_TERMS)]
-    inc2 = [(x + rand_ints[i]) for i in range(NUM_TERMS)]
+    offsets = sorted([i + 1 for i in range(NUM_TERMS)])
+    inc1 = [(x + offsets[i]) for i in range(NUM_TERMS)]
+    inc2 = [(x + offsets[i]) for i in range(NUM_TERMS)]
 
     expression = x
     for add in inc1 + inc2:
@@ -171,7 +171,6 @@ def test_deterministic_cse():
     initial_hash = None
     for _ in range(REPEATS):
         body = tvm.tir.transform.CommonSubexprElimTIR()(mod)["main"]
-        print(body)
 
         # Hash and ensure serialize json is the same every time
         json_val = save_json(body)
