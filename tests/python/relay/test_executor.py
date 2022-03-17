@@ -44,12 +44,15 @@ def test_attr_check():
 
 
 def test_create_executor_not_found():
-    with pytest.raises(TVMError, match="Executor \"woof\" is not defined."):
+    with pytest.raises(TVMError, match='Executor "woof" is not defined.'):
         Executor("woof", {})
 
 
 def test_create_executor_attr_not_found():
-    with pytest.raises(TVMError, match="TVMError: Executor \"aot\": Attribute \"woof\" not in \"\[workspace-byte-alignment, unpacked-api, interface-api, link-params\]\"."):
+    with pytest.raises(
+        TVMError,
+        match='TVMError: Executor "aot": Attribute "woof" not in "\[workspace-byte-alignment, unpacked-api, interface-api, link-params\]".',
+    ):
         Executor("aot", {"woof": "bark"})
 
 
