@@ -748,8 +748,26 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   // We do this reservation even if it might reserve slightly more space than is needed in the end
   result.reserve(table.size());
 
-  // For each element in the hashtable
+  // Traverse through keys in a sorted order to maintain deterministic behavior
+  // We do this by comparing the string repr of each PrimExpr to get a determinstic ordering
+  std::vector<PrimExpr> table_keys;
+  table_keys.reserve(table.size());
   for (auto elem : table) {
+    table_keys.push_back(elem.first);
+  }
+  sort(table_keys.begin(), table_keys.end(), [](PrimExpr a, PrimExpr b) {
+    std::stringstream a_stream;
+    std::stringstream b_stream;
+    a_stream << a;
+    b_stream << b;
+    return a_stream.str().compare(b_stream.str()) < 0;
+  });
+
+  // For each element in the hashtable
+  for (PrimExpr key : table_keys) {
+    size_t value = table.find(key)->second;
+    std::pair<PrimExpr, size_t> elem = {key, value};
+
     // We try to see if a semantically equivalent term is already in the resulting vector
     auto it_found = std::find_if(result.begin(), result.end(),
                                  [elem](std::pair<PrimExpr, size_t> already_seen) {
@@ -763,7 +781,6 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
       result.push_back(elem);
     }
   }
-
   return result;
 }
 
