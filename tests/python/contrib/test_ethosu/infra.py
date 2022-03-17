@@ -23,7 +23,6 @@ This class include methods to parse the custom operator to extract
 the command stream and perform an equivalency check for single operator
 test cases.
 """
-from distutils.version import LooseVersion
 from typing import List
 
 import os
@@ -202,14 +201,10 @@ def generate_ref_data_tflite(model):
     """
     expected_output_data = {}
 
-    # older versions of TFLite don't give access to reference kernels
-    if tf.__version__ < LooseVersion("2.5.0"):
-        interpreter = tf.lite.Interpreter(model_content=model)
-    else:
-        interpreter = tf.lite.Interpreter(
-            model_content=model,
-            experimental_op_resolver_type=tf.lite.experimental.OpResolverType.BUILTIN_REF,
-        )
+    interpreter = tf.lite.Interpreter(
+        model_content=model,
+        experimental_op_resolver_type=tf.lite.experimental.OpResolverType.BUILTIN_REF,
+    )
 
     interpreter.allocate_tensors()
 
@@ -230,8 +225,12 @@ def generate_ref_data_tflite(model):
         )
         for input_detail in input_details
     }
-    for index, value in enumerate(input_data.values()):
-        interpreter.set_tensor(index, value)
+    input_index = {input_detail["name"]: input_detail["index"] for input_detail in input_details}
+
+    for input_name in input_data.keys():
+        data = input_data[input_name]
+        index = input_index[input_name]
+        interpreter.set_tensor(index, data)
     interpreter.invoke()
 
     expected_output_data = {
