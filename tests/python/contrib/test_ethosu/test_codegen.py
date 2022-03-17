@@ -926,7 +926,6 @@ def test_ethosu_section_name():
     )
 
 
-@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10487")
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 def test_ethosu_clz(accel_type):
     np.random.seed(0)
