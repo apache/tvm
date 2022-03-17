@@ -66,6 +66,8 @@ $(notdir $(1)): $${BUILD_DIR}/lib$(notdir $(1)).a
 endef
 
 LIBS = \
+	src/runtime/crt/aot_executor \
+	src/runtime/crt/aot_executor_module \
 	src/runtime/crt/common \
 	src/runtime/crt/graph_executor \
 	src/runtime/crt/graph_executor_module \

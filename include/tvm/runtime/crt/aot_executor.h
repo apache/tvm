@@ -18,25 +18,19 @@
  */
 
 /*!
- * \file graph_executor_module.h
- * \brief Tiny graph executor that can run graph containing only tvm PackedFunc.
+ * \file aot_executor.h
+ * \brief AoT Executor
  */
-#ifndef TVM_RUNTIME_CRT_GRAPH_EXECUTOR_MODULE_H_
-#define TVM_RUNTIME_CRT_GRAPH_EXECUTOR_MODULE_H_
+#ifndef TVM_RUNTIME_CRT_AOT_EXECUTOR_H_
+#define TVM_RUNTIME_CRT_AOT_EXECUTOR_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <tvm/runtime/crt/error_codes.h>
-
-/*!
- * \brief Register the "tvm.graph_executor.create" constructor PackedFunc.
- */
-tvm_crt_error_t TVMGraphExecutorModule_Register();
 
 #ifdef __cplusplus
 }  // extern "C"
 #endif
 
-#endif  // TVM_RUNTIME_CRT_GRAPH_EXECUTOR_MODULE_H_
+#endif  // TVM_RUNTIME_CRT_AOT_EXECUTOR_H_

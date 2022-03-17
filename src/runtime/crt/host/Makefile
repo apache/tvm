@@ -36,7 +36,13 @@ endif
 
 PWD = $(shell pwd)
 BUILD_DIR = build
-CRT_LIB_NAMES = microtvm_rpc_server microtvm_rpc_common graph_executor_module graph_executor common memory 
+
+CRT_LIB_NAMES = \
+	microtvm_rpc_server microtvm_rpc_common \
+	aot_executor aot_executor_module \
+	graph_executor_module graph_executor \
+	common memory
+
 CRT_LIBS = $(patsubst %, $(BUILD_DIR)/crt/lib%.a, $(CRT_LIB_NAMES))
 
 CRT_INCLUDES = $(glob crt/include/**)

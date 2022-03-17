@@ -17,26 +17,9 @@
  * under the License.
  */
 
-/*!
- * \file graph_executor_module.h
- * \brief Tiny graph executor that can run graph containing only tvm PackedFunc.
- */
-#ifndef TVM_RUNTIME_CRT_GRAPH_EXECUTOR_MODULE_H_
-#define TVM_RUNTIME_CRT_GRAPH_EXECUTOR_MODULE_H_
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <tvm/runtime/crt/error_codes.h>
+// LINT_C_FILE
 
 /*!
- * \brief Register the "tvm.graph_executor.create" constructor PackedFunc.
+ * \file aot_executor.c
+ * \brief implement AoT executor in C
  */
-tvm_crt_error_t TVMGraphExecutorModule_Register();
-
-#ifdef __cplusplus
-}  // extern "C"
-#endif
-
-#endif  // TVM_RUNTIME_CRT_GRAPH_EXECUTOR_MODULE_H_
