@@ -345,7 +345,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     if (layout_dict.find(kernel_layout) == layout_dict.end()) {
       layout_dict.insert({kernel_layout, tag::any});
-      LOG(WARNING) << "Unregistered kernel layout for conv: " << data_layout
+      LOG(WARNING) << "Unregistered kernel layout for conv: " << kernel_layout
                    << ", transfer to tag::any";
     }
 

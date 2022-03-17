@@ -121,7 +121,7 @@ def test_fold_fwd_simple():
 def test_fold_fwd_dual_path():
     """scale axis being consumed by two consumers"""
 
-    def before(x, conv_weight, in_bias, in_scale, channels, blocking):
+    def before(x, conv_weight, in_bias, in_scale, channels, groups, blocking):
         args = [x, conv_weight, in_bias]
         x = relay.multiply(in_scale, x)
         x = relay.nn.relu(x)
@@ -133,7 +133,7 @@ def test_fold_fwd_dual_path():
             kernel_size=(3, 3),
             data_layout="NHWC{}c".format(blocking[0]) if blocking else "NHWC",
             kernel_layout="HWIO1i{}o".format(blocking[1]) if blocking else "HWIO",
-            groups=channels,
+            groups=groups,
             padding=(1, 1),
         )
         y2 = relay.nn.conv2d(
@@ -143,13 +143,13 @@ def test_fold_fwd_dual_path():
             kernel_size=(3, 3),
             data_layout="NHWC{}c".format(blocking[0]) if blocking else "NHWC",
             kernel_layout="HWIO1i{}o".format(blocking[1]) if blocking else "HWIO",
-            groups=channels,
+            groups=groups,
             padding=(1, 1),
         )
         z = relay.add(y1, y2)
         return relay.Function(args, z)
 
-    def expected(x, conv_weight, in_bias, in_scale, channels, blocking):
+    def expected(x, conv_weight, in_bias, in_scale, channels, groups, blocking):
         args = [x, conv_weight, in_bias]
         x = relay.nn.relu(x)
         if blocking:
@@ -171,7 +171,7 @@ def test_fold_fwd_dual_path():
             kernel_size=(3, 3),
             data_layout="NHWC{}c".format(blocking[0]) if blocking else "NHWC",
             kernel_layout="HWIO1i{}o".format(blocking[1]) if blocking else "HWIO",
-            groups=channels,
+            groups=groups,
             padding=(1, 1),
         )
         if blocking:
@@ -185,13 +185,13 @@ def test_fold_fwd_dual_path():
             kernel_size=(3, 3),
             data_layout="NHWC{}c".format(blocking[0]) if blocking else "NHWC",
             kernel_layout="HWIO1i{}o".format(blocking[1]) if blocking else "HWIO",
-            groups=channels,
+            groups=groups,
             padding=(1, 1),
         )
         z = relay.add(y1, y2)
         return relay.Function(args, z)
 
-    def check(dshape, channels, blocking):
+    def check(dshape, channels, groups, blocking):
         x = relay.var("x", shape=dshape)
         if blocking:
             in_channels = dshape[3] * dshape[4]
@@ -201,7 +201,8 @@ def test_fold_fwd_dual_path():
             in_scale = relay.const(_get_positive_scale((in_channels // blocking[0], blocking[0])))
         else:
             in_channels = dshape[-1]
-            wshape = (3, 3, 1, channels)  # HWIO
+            wshape = (3, 3, in_channels // groups, channels)  # HWIO
+            print("wshape", wshape)
             weight = relay.var("weight", shape=wshape)
             in_bias = relay.var("in_bias", shape=(in_channels,))
             in_scale = relay.const(
@@ -210,20 +211,24 @@ def test_fold_fwd_dual_path():
                 )
             )
 
-        # test depthwise
-        assert in_channels == channels
-
-        y1 = before(x, weight, in_bias, in_scale, channels, blocking)
+        y1 = before(x, weight, in_bias, in_scale, channels, groups, blocking)
+        print("y1", y1)
         y1 = run_opt_pass(y1, transform.InferType())
+        print("y1", y1)
         y1_folded = run_opt_pass(y1, transform.ForwardFoldScaleAxis())
+        print("y1_folded", y1_folded)
         type_dict = {x.name_hint: x.checked_type for x in y1.params}
         weight = relay.var("weight", type_dict["weight"])
-        y1_expected = expected(x, weight, in_bias, in_scale, channels, blocking)
+        y1_expected = expected(x, weight, in_bias, in_scale, channels, groups, blocking)
+        print("y1_expected", y1_expected)
         y1_expected = run_opt_pass(y1_expected, transform.InferType())
+        print("y1_expected",y1_expected)
         assert tvm.ir.structural_equal(y1_folded, y1_expected)
 
-    check((2, 4, 10, 3), 3, None)
-    check((2, 4, 10, 2, 2), 4, (2, 2))
+    # check((2, 4, 10, 3), 3, 3, None)  # test depthwise conv
+    check((2, 4, 10, 16), 16, 8, None)  # test group conv
+    # check((2, 4, 10, 4, 4), 16, 16, (4, 4))  # test depthwise conv
+    # check((2, 4, 10, 4, 4), 16, 8, (4, 4))  # test group conv
 
 
 def test_fold_fwd_fail():
@@ -1029,17 +1034,18 @@ def test_fold_bwd_bias_add():
 
 
 if __name__ == "__main__":
-    test_fold_fwd_simple()
+    # test_fold_fwd_simple()
     test_fold_fwd_dual_path()
-    test_fold_fwd_fail()
-    test_fold_fwd_relu_fail()
-    test_fold_fwd_negative_scale()
-    test_fold_fwd_dense()
-    test_fold_bwd_simple()
-    test_fold_bwd_dual_path()
-    test_fold_bwd_dual_consumer()
-    test_fold_bwd_fail()
-    test_fold_bwd_relu_fail()
-    test_fold_bwd_negative_scale()
-    test_fold_bwd_dense()
-    test_fold_bwd_bias_add()
+    # test_fold_fwd_fail()
+    # test_fold_fwd_relu_fail()
+    # test_fold_fwd_negative_scale()
+    # test_fold_fwd_dense()
+    # test_fold_bwd_simple()
+    # test_fold_bwd_dual_path()
+    # test_fold_bwd_dual_consumer()
+    # test_fold_bwd_fail()
+    # test_fold_bwd_relu_fail()
+    # test_fold_bwd_negative_scale()
+    # test_fold_bwd_dense()
+    # test_fold_bwd_bias_add()
+    print("done!")
