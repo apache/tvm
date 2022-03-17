@@ -21,6 +21,6 @@ set -u
 set -o pipefail
 
 pip3 install \
-    "h5py<3.0" \
-    keras==2.4.3 \
-    tensorflow==2.4.2
+    "h5py==3.1.0" \
+    keras==2.6 \
+    tensorflow==2.6.2
