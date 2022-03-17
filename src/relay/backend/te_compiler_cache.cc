@@ -306,10 +306,10 @@ class ScheduleBuilder : public ExprVisitor {
     LowerToTECompute lower_te_compute(target_);
     Array<te::Tensor> outputs = lower_te_compute.Lower(relay_func, renamer);
     Array<te::Tensor> fn_inputs = lower_te_compute.fn_inputs_;
-    const auto *fn_tune_subgraph =
-          runtime::Registry::Get("auto_tvm.relay_integration.is_tune_subgraph");
+    const auto* fn_tune_subgraph =
+        runtime::Registry::Get("auto_tvm.relay_integration.is_tune_subgraph");
     ICHECK(fn_tune_subgraph != nullptr)
-              << "auto_tvm.relay_integration.fn_tune_subgraph is not registered";
+        << "auto_tvm.relay_integration.fn_tune_subgraph is not registered";
     VisitExpr(relay_func->body);
 
     // TODO(mbs): This should be the definitive global by which the PrimFunc is known and

@@ -70,8 +70,8 @@ struct LoweredOutputNode : public Object {
 
 class LoweredOutput : public ObjectRef {
  public:
-    TVM_DLL LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl,
-                          String actual_impl_name);
+  TVM_DLL LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl,
+                        String actual_impl_name);
 
   TVM_DEFINE_OBJECT_REF_METHODS(LoweredOutput, ObjectRef, LoweredOutputNode);
 };
