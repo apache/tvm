@@ -17,26 +17,25 @@
  * under the License.
  */
 
-/*!
- * \file graph_executor_module.h
- * \brief Tiny graph executor that can run graph containing only tvm PackedFunc.
- */
-#ifndef TVM_RUNTIME_CRT_GRAPH_EXECUTOR_MODULE_H_
-#define TVM_RUNTIME_CRT_GRAPH_EXECUTOR_MODULE_H_
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <tvm/runtime/crt/error_codes.h>
+// LINT_C_FILE
 
 /*!
- * \brief Register the "tvm.graph_executor.create" constructor PackedFunc.
+ * \file aot_executor_module.c
+ * \brief wrap aot_executor into a TVMModule for use with RPC.
  */
-tvm_crt_error_t TVMGraphExecutorModule_Register();
 
-#ifdef __cplusplus
-}  // extern "C"
-#endif
+#include <tvm/runtime/crt/func_registry.h>
+#include <tvm/runtime/crt/aot_executor.h>
+#include <tvm/runtime/crt/aot_executor_module.h>
+#include <tvm/runtime/crt/module.h>
 
-#endif  // TVM_RUNTIME_CRT_GRAPH_EXECUTOR_MODULE_H_
+int32_t TVMAotExecutorModule_Create(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
+                                      int* ret_tcodes, void* resource_handle) {
+
+  return kTvmErrorNoError;
+}
+
+tvm_crt_error_t TVMAotExecutorModule_Register() {
+
+  return TVMFuncRegisterGlobal("tvm.aot_executor.create", &TVMAotExecutorModule_Create, 0);
+}
