@@ -320,11 +320,26 @@ class CompilationArtifact(Object):
         )
 
 
-def npu_pass(opt_level: int, name: str = ""):
+def create_npu_function_pass(opt_level: int, name: str = ""):
     """
-    A utility decorator that wraps a given class as an NPU module pass. That is,
-    a pass that behaves like a module pass but only traverses NPU external
-    functions. How NPU functions are mutated is defined by `transform_npu_function`.
+    A utility decorator that wraps a given class as an NPU function pass. That is,
+    a pass that behaves like a function pass and only traverses NPU external
+    functions. How each NPU function is mutated is defined by the
+    `transform_npu_function(global_variable, relay_function)` function which should
+    be created in the class that is to be decorated. See the example below.
+
+    Example
+    -------
+    This small example demonstrates a pass over NPU functions that performs no
+    mutation.
+
+    @create_npu_function_pass(opt_level=1)
+    class MyPass:
+        def transform_npu_function(global_var, func):
+            return func
+
+    mod = tvm.IRModule()
+    mod = MyPass()(mod)
 
     Parameters
     ----------
@@ -342,10 +357,17 @@ def npu_pass(opt_level: int, name: str = ""):
     def decorator(npu_pass_class):
         @tvm.ir.transform.module_pass(name=name, opt_level=opt_level)
         class ModulePassWrapper:
+            """The wrapper for the NPU pass."""
+
+            def __init__(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
+
             def transform_module(self, mod: tvm.ir.IRModule, _) -> tvm.ir.IRModule:
                 npu_functions = filter(lambda x: is_npu_func(x[1]), mod.functions.items())
                 for global_var, func in npu_functions:
-                    func = npu_pass_class().transform_npu_function(global_var, func)
+                    npu_pass = npu_pass_class(*self.args, **self.kwargs)
+                    func = npu_pass.transform_npu_function(global_var, func)
                     mod.update_func(global_var, func)
                 return mod
 

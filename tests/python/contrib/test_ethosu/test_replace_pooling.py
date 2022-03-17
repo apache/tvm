@@ -22,7 +22,7 @@ import tvm
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir import spec
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
 from .infra import make_ethosu_pooling, get_pooling_args
 
 
@@ -181,7 +181,7 @@ def test_pooling_single(
     )
     func = relay.Function(relay.analysis.free_vars(pooling), pooling)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = lower_to_tir(func)
+    mod, _ = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):
@@ -241,7 +241,7 @@ def test_correct_stride_with_multiple_pooling():
     )
     func = relay.Function(relay.analysis.free_vars(op), op)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = lower_to_tir(func)
+    mod, _ = _lower_to_tir(func)
 
     data = []
 

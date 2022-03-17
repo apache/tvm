@@ -21,7 +21,7 @@ import tvm
 from tvm.script import tir as T
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
 from tvm.relay.backend.contrib.ethosu.tir.scheduler import total_cascader
 from .infra import make_ethosu_conv2d, get_convolutional_args
 
@@ -316,7 +316,7 @@ def test_conv2d_single(trial):
         [(1, 2, 12, 9, 16), 182, 67, (1, 3), (6, 3), (2, 2), (1, 1), "CLIP", "NHCWB16", "NHCWB16"],
     ]
     func = _get_func(*trial)
-    mod, _ = lower_to_tir(func)
+    mod, _ = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):
@@ -593,7 +593,7 @@ def test_conv2d_double_cascade(trial):
     reference_mod = trial[0]
     params = trial[1:]
     func = _get_func(*params[:-1])
-    mod, _ = lower_to_tir(func, cascader=total_cascader(params[-1]))
+    mod, _ = _lower_to_tir(func, cascader=total_cascader(params[-1]))
     script = mod.script(show_meta=True)
     mod = tvm.script.from_source(script)
     tvm.ir.assert_structural_equal(mod["main"], reference_mod["main"], True)
@@ -652,7 +652,7 @@ def test_conv2d_inline_copy(trial):
     reference_mod = trial[0]
     params = trial[1:]
     func = _get_func(*params)
-    mod, _ = lower_to_tir(func)
+    mod, _ = _lower_to_tir(func)
     script = mod.script(show_meta=True)
     mod = tvm.script.from_source(script)
     tvm.ir.assert_structural_equal(mod["main"], reference_mod["main"], True)
@@ -755,7 +755,7 @@ def test_conv2d_inline_reshape(trial):
     reference_mod = trial[0]
     params = trial[1:]
     func = _get_func(*params)
-    mod, _ = lower_to_tir(func, cascader=total_cascader((1, 4, 6, 16)))
+    mod, _ = _lower_to_tir(func, cascader=total_cascader((1, 4, 6, 16)))
     script = mod.script(show_meta=True)
     mod = tvm.script.from_source(script)
     tvm.ir.assert_structural_equal(mod["main"], reference_mod["main"], True)
@@ -775,7 +775,7 @@ def test_conv2d_big_pad():
         return func
 
     func = _get_func()
-    mod, _ = lower_to_tir(func, cascader=total_cascader((1, 4, 4, 16)))
+    mod, _ = _lower_to_tir(func, cascader=total_cascader((1, 4, 4, 16)))
 
 
 if __name__ == "__main__":

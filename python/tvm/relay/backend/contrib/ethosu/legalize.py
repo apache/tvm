@@ -1252,7 +1252,7 @@ class FullyConnectedRewriter(DFPatternCallback):
         return ethosu_fc
 
 
-@util.npu_pass(opt_level=1)
+@util.create_npu_function_pass(opt_level=1)
 class LegalizeEthosU:
     """This is the pass to call graph-rewrites to perform graph transformation
     in a way such that the operations are replaced with hardware/codegen supported

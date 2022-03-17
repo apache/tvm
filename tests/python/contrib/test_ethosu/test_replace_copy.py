@@ -21,7 +21,7 @@ import tvm
 from tvm.script import tir as T
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
 from tvm.relay.backend.contrib.ethosu.tir.scheduler import copy_constants, Convolution2DCompute
 
 from .infra import make_ethosu_conv2d
@@ -65,7 +65,7 @@ def test_copy():
         return func
 
     func = _get_func()
-    mod, _ = lower_to_tir(func, cascader=copy_constants())
+    mod, _ = _lower_to_tir(func, cascader=copy_constants())
 
     script = mod.script(show_meta=True)
     test_mod = tvm.script.from_source(script)
@@ -129,7 +129,7 @@ def test_weight_stream():
         return func
 
     func = _get_func()
-    mod, _ = lower_to_tir(func, cascader=_cascader)
+    mod, _ = _lower_to_tir(func, cascader=_cascader)
 
     script = mod.script(show_meta=True)
     test_mod = tvm.script.from_source(script)

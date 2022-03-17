@@ -19,7 +19,7 @@ from collections import defaultdict
 
 import tvm
 from tvm import relay
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import LowerToTIR
 from tvm.relay.backend.contrib.ethosu.tir.scheduler import copy_constants
 from tvm.relay.backend.contrib.ethosu.legalize import LegalizeEthosU
 from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator
@@ -111,7 +111,7 @@ class OptimizeLUTs(ExprMutator):
         return new_call
 
 
-@util.npu_pass(opt_level=1)
+@util.create_npu_function_pass(opt_level=1)
 class LUTsOptimizer:
     """Register LUTsOptimizer as a relay pass."""
 
@@ -265,7 +265,7 @@ class LayoutOptimization(ExprMutator):
         return super().visit_call(call)
 
 
-@util.npu_pass(opt_level=1)
+@util.create_npu_function_pass(opt_level=1)
 class LayoutOptimizer:
     """Register LayoutOptimizer as a Relay pass."""
 
@@ -318,32 +318,6 @@ def OutlineCompilerFunctions(compiler_name):  # pylint: disable=invalid-name
     return _ffi_api.OutlineCompilerFunctions(compiler_name)
 
 
-@util.npu_pass(opt_level=1)
-class RelayToTIR:
-    """Register RelayToTIR pass."""
-
-    def transform_npu_function(self, _, func: relay.Function) -> relay.Function:
-        """Lower NPU functions to TIR."""
-        # We are currently using copy_constants scheduler In the long run,
-        # this should be a single intelligent and a composite scheduler
-        # that can perform scheduling based on user inputs such as
-        # scratch memory size.
-        tir_mod, const_dict = lower_to_tir(func, copy_constants())
-
-        for param in const_dict.keys():
-            const_dict[param] = tvm.nd.array(const_dict[param])
-
-        compiler_name = "ethos-u"
-        primfunc = tir_mod["main"]
-        primfunc = primfunc.with_attr("global_symbol", func.attrs["global_symbol"])
-        primfunc = primfunc.with_attr("ethos-u.constants", const_dict)
-        primfunc = primfunc.with_attr("target", tvm.target.Target(compiler_name))
-        return primfunc
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
 @tvm._ffi.register_func("relay.ext.ethos-u.constant_updater")
 def constant_updater(expr, symbol):  # pylint: disable=unused-argument
     """
@@ -381,7 +355,12 @@ def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
         gv: "ethos-u" for gv, _ in filter(lambda x: util.is_npu_func(x[1]), mod.functions.items())
     }
     mod = mod.with_attr("device_contexts", device_contexts)
-    mod = RelayToTIR()(mod)
+
+    # We are currently using copy_constants scheduler In the long run,
+    # this should be a single intelligent and a composite scheduler
+    # that can perform scheduling based on user inputs such as
+    # scratch memory size.
+    mod = LowerToTIR(copy_constants)(mod)
 
     return mod
 
