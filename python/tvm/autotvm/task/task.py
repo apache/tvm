@@ -63,12 +63,12 @@ def _getCompute(name):
 
 
 def format_subgraph_task_name(name, args):
-    if re.match(r'\w+\d+$', name):
+    if re.match(r"\w+\d+$", name):
         # remove number of reduplicative subgraph name like '_1'
-        name = re.sub(r'[_]\d+$', '', name)
+        name = re.sub(r"[_]\d+$", "", name)
     str_args = format_args(args).encode("utf-8")
     hash_key = hashlib.md5(str_args).hexdigest()
-    return name + '_' + hash_key
+    return name + "_" + hash_key
 
 
 def format_args(args):
@@ -148,6 +148,7 @@ def _traverse_to_get_io_tensors(outs):
             return []
 
     return io_tensors
+
 
 def serialize_args(args):
     """serialize arguments of a topi function to a hashable tuple.
@@ -483,8 +484,9 @@ def _register_customized_task(name, func=None):
         return _do_reg(func)
     return _do_reg
 
+
 def _register_subgraph_task_schedule(name, schedule_name):
-    """Register the schedule corresponding to the anchor implementation as 
+    """Register the schedule corresponding to the anchor implementation as
     the subgraph's schedule
 
     Parameters

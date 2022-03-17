@@ -54,9 +54,13 @@ def _lower(mod, target, params, opt_level=3):
 
     # Alter op layout code has been written expecting that tuning is applied
     # without it, so we disable AlterOpLayout to maintain that behavior.
-    # If tuning by subgraph we need EliminateCommonSubexpr, otherwise the subgraphs generated in the task extracting 
+    # If tuning by subgraph we need EliminateCommonSubexpr, otherwise the subgraphs generated in the task extracting
     # phase may be different from those generated in the building phase.
-    with tvm.transform.PassContext(opt_level=opt_level, disabled_pass={"AlterOpLayout"}, required_pass=["EliminateCommonSubexpr"] if GLOBAL_SCOPE.tune_subgraph else []):
+    with tvm.transform.PassContext(
+        opt_level=opt_level,
+        disabled_pass={"AlterOpLayout"},
+        required_pass=["EliminateCommonSubexpr"] if GLOBAL_SCOPE.tune_subgraph else [],
+    ):
         compiler = relay.vm.VMCompiler()
         if params:
             compiler.set_params(params)
@@ -181,7 +185,7 @@ def is_tune_subgraph():
 @tvm._ffi.register_func("auto_tvm.relay_integration.register_subgraph_task")
 def register_subgraph_task(subgraph_name, outs, best_impl_name):
     """In task extracting phase this function registers subgraph as tunable autotvm
-    task and warp returning outputs with "workload" attached as subgraph's topi compute. 
+    task and warp returning outputs with "workload" attached as subgraph's topi compute.
     In building phase it attaches "workload" to outputs and returns them to te_compiler_cache.
 
     Parameters
@@ -204,16 +208,18 @@ def register_subgraph_task(subgraph_name, outs, best_impl_name):
     if GLOBAL_SCOPE.tune_subgraph:
         # use inputs+outs as identifier of subgraph task
         args = _traverse_to_get_io_tensors(outs)
-        if env is not None and env.tracing and best_impl_name in tunable_op_list: # extract task phase
+        if (
+            env is not None and env.tracing and best_impl_name in tunable_op_list
+        ):  # extract task phase
             # remove vm compiler prefix
-            subgraph_name = re.sub(r'vm_mod_', '', subgraph_name)
+            subgraph_name = re.sub(r"vm_mod_", "", subgraph_name)
             subgraph_name = format_subgraph_task_name(subgraph_name, args)
             if subgraph_name not in g_registered_subgraphs_extracted:
                 g_registered_subgraphs_extracted.append(subgraph_name)
                 return register_topi_subgraph(best_impl_name, args, subgraph_name, outs)
         elif best_impl_name in tunable_op_list:  # build phase
             # remove codegen prefix
-            subgraph_name = re.sub(r'tvmgen_default_', '', subgraph_name)
+            subgraph_name = re.sub(r"tvmgen_default_", "", subgraph_name)
             subgraph_name = format_subgraph_task_name(subgraph_name, args)
             return register_topi_subgraph(best_impl_name, args, subgraph_name, outs)
     return outs

@@ -252,7 +252,11 @@ def register_topi_schedule(task_name, func=None):
                 )
             tgt = Target.current()
             cfg = DispatchContext.current.query(tgt, workload)
-            if GLOBAL_SCOPE.tune_subgraph and isinstance(cfg, tvm.autotvm.task.space.FallbackConfigEntity) and len(cfg) == 1:
+            if (
+                GLOBAL_SCOPE.tune_subgraph
+                and isinstance(cfg, tvm.autotvm.task.space.FallbackConfigEntity)
+                and len(cfg) == 1
+            ):
                 # get fallback config for subgraph workload
                 workload = get_workload(outs, task_name)
                 cfg = DispatchContext.current.query(tgt, workload)
@@ -268,9 +272,9 @@ def register_topi_schedule(task_name, func=None):
 def register_topi_subgraph(best_impl_name, args, subgraph_name, outputs):
     """Register a tunable template for a subgraph.
 
-    The registration adds subgraph as a tunable task to autotvm tasks. It uses subgraph_name and args as workload and 
-    stores this "workload" to its final ComputeOp, which can be used to reconstruct "workload" in 
-    the following topi_schedule call. Then it wrap the outputs which attatch the "workload" as the subgraph's 
+    The registration adds subgraph as a tunable task to autotvm tasks. It uses subgraph_name and args as workload and
+    stores this "workload" to its final ComputeOp, which can be used to reconstruct "workload" in
+    the following topi_schedule call. Then it wrap the outputs which attatch the "workload" as the subgraph's
     topi compute. At last it employs the schedule corresponding to the anchor implementation as the subgraph's
     schedule.
 
@@ -334,6 +338,7 @@ def register_topi_subgraph(best_impl_name, args, subgraph_name, outputs):
     ancor_op_args = get_args_from_workload(workload)
 
     if task_env is not None and task_env.tracing:
+
         @_register_task_compute(subgraph_name)
         def wrapper(*args, **kwargs):
             """return outputs of the subgraph"""
@@ -375,7 +380,7 @@ def get_workload(outs, task_name=None):
 
 def get_workload_post_order(outs):
     """Retrieve the workload from outputs by post order"""
-    
+
     def traverse(t):
         op = t.op
         if "workload" in op.attrs:
@@ -392,6 +397,7 @@ def get_workload_post_order(outs):
     outs = [outs] if isinstance(outs, tensor.Tensor) else outs
     for t in outs:
         return traverse(t)
+
 
 def get_args_from_workload(wkl):
     if isinstance(wkl[0], runtime.container.String):

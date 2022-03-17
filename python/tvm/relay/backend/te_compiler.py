@@ -42,7 +42,9 @@ class LoweredOutput(Object):
     """Lowered output"""
 
     def __init__(self, outputs, implement, actual_impl_name):
-        self.__init_handle_by_constructor__(_backend._make_LoweredOutput, outputs, implement, actual_impl_name)
+        self.__init_handle_by_constructor__(
+            _backend._make_LoweredOutput, outputs, implement, actual_impl_name
+        )
 
 
 @tvm._ffi.register_object("relay.CCacheKey")
@@ -257,13 +259,13 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         best_plevel_impl.plevel,
     )
     if GLOBAL_SCOPE.tune_subgraph:
-        # In some cases, one strategy's compute may call another compute. 
+        # In some cases, one strategy's compute may call another compute.
         # So the impl name need to match with actual compute.
         if workloads[best_plevel_impl]:
             workload = workloads[best_plevel_impl]
             if best_plevel_impl.name != "injective.cpu" and best_plevel_impl.name != workload[0]:
                 best_plevel_impl.name = workload[0]
-    # value changed in python side will not effect C++ side, 
+    # value changed in python side will not effect C++ side,
     # so here need to pass new name to C++
     return best_plevel_impl, outputs[best_plevel_impl], best_plevel_impl.name
 
@@ -320,7 +322,9 @@ def lower_call(call, inputs, target):
             reenable_tracing = True
 
     if not is_dyn:
-        best_impl, outputs, actual_impl_name = select_implementation(op, call.attrs, inputs, ret_type, target)
+        best_impl, outputs, actual_impl_name = select_implementation(
+            op, call.attrs, inputs, ret_type, target
+        )
     else:
         # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes.
         best_impl, outputs, actual_impl_name = select_implementation(

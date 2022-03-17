@@ -24,6 +24,7 @@ import os
 import tvm.contrib.graph_executor as runtime
 import numpy as np
 
+
 def get_network(name, batch_size):
     """Get the symbol definition and random weight of a network"""
     input_shape = (batch_size, 3, 224, 224)
@@ -93,6 +94,7 @@ def tune_tasks(
     # pick best records to a cache file
     autotvm.record.pick_best(tmp_log_file, log_filename)
 
+
 def test_tune_subgraphs():
     target = "llvm"
     conv2d = relay.op.get("nn.conv2d")
@@ -121,9 +123,7 @@ def test_tune_subgraphs():
             "early_stopping": None,
             "measure_option": autotvm.measure_option(
                 builder=autotvm.LocalBuilder(),
-                runner=autotvm.LocalRunner(
-                    number=1, repeat=10, min_repeat_ms=0
-                ),
+                runner=autotvm.LocalRunner(number=1, repeat=10, min_repeat_ms=0),
             ),
         }
         # run tuning tasks
@@ -132,8 +132,7 @@ def test_tune_subgraphs():
     with autotvm.apply_history_best(log_file):
         print("Compile...")
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-            lib = relay.build_module.build(
-                mod, target=target, params=params)
+            lib = relay.build_module.build(mod, target=target, params=params)
         dev = tvm.cpu()
         module = runtime.GraphModule(lib["default"](dev))
         data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
@@ -141,6 +140,7 @@ def test_tune_subgraphs():
         # evaluate
         print("Evaluate inference time cost...")
         print(module.benchmark(dev, number=100, repeat=3))
-                
+
+
 if __name__ == "__main__":
     test_tune_subgraphs()
