@@ -30,9 +30,6 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="List pytest nodeids for a folder")
     parser.add_argument("--sccache-bucket", required=False, help="sccache bucket name")
-    parser.add_argument(
-        "--num-executors", required=False, default=1, help="number of Jenkins executors"
-    )
     parser.add_argument("--build-dir", default="build", help="build folder")
     parser.add_argument("--cmake-target", help="optional build target")
     args = parser.parse_args()
@@ -66,7 +63,11 @@ if __name__ == "__main__":
         logging.info("===== sccache stats =====")
         sh.run("sccache --show-stats")
 
-    executors = int(args.num_executors)
+    if "CI" in os.environ:
+        executors = int(os.environ["CI_NUM_EXECUTORS"])
+    else:
+        executors = int(os.environ.get("CI_NUM_EXECUTORS", 1))
+
     nproc = multiprocessing.cpu_count()
 
     available_cpus = nproc // executors

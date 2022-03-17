@@ -32,7 +32,6 @@ export OMP_NUM_THREADS=1
 
 # Build cpptest suite
 python3 tests/scripts/task_build.py \
-    --num-executors "${CI_NUM_EXECUTORS}" \
     --sccache-bucket tvm-sccache-prod \
     --cmake-target cpptest
 
