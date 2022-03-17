@@ -464,7 +464,8 @@ TVM_REGISTER_GLOBAL("relay.backend._make_CCacheKey")
     });
 
 TVM_REGISTER_GLOBAL("relay.backend._make_LoweredOutput")
-    .set_body_typed([](tvm::Array<te::Tensor> outputs, OpImplementation impl, String actual_impl_name) { 
+    .set_body_typed([](tvm::Array<te::Tensor> outputs, OpImplementation impl,
+                       String actual_impl_name) {
       return LoweredOutput(outputs, impl, actual_impl_name);
     });
 

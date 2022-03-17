@@ -58,7 +58,8 @@ TVM_REGISTER_NODE_TYPE(CachedFuncNode);
 TVM_REGISTER_NODE_TYPE(CCacheKeyNode);
 TVM_REGISTER_NODE_TYPE(CCacheValueNode);
 
-LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl, String actual_impl_name) {
+LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl, 
+                             String actual_impl_name) {
   auto n = make_object<LoweredOutputNode>();
   n->outputs = std::move(outputs);
   n->implementation = std::move(impl);
@@ -305,7 +306,8 @@ class ScheduleBuilder : public ExprVisitor {
     LowerToTECompute lower_te_compute(target_);
     Array<te::Tensor> outputs = lower_te_compute.Lower(relay_func, renamer);
     Array<te::Tensor> fn_inputs = lower_te_compute.fn_inputs_;
-    const auto *fn_tune_subgraph = runtime::Registry::Get("auto_tvm.relay_integration.is_tune_subgraph");
+    const auto *fn_tune_subgraph = 
+          runtime::Registry::Get("auto_tvm.relay_integration.is_tune_subgraph");
     ICHECK(fn_tune_subgraph != nullptr)
               << "auto_tvm.relay_integration.fn_tune_subgraph is not registered";
     VisitExpr(relay_func->body);
