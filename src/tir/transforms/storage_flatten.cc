@@ -1489,10 +1489,6 @@ class StorageFlattener : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const PrefetchNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<PrefetchNode>();
-    ICHECK(op != nullptr);
-
     const BufferEntry& e = GetBufferEntry(op->buffer);
 
     ICHECK(e.in_scope) << "Cannot prefetch " << op->buffer << ", out of scope.";
@@ -1524,6 +1520,8 @@ class StorageFlattener : public StmtExprMutator {
       vars.push_back(Var("prefetch." + func_name + "." + std::to_string(i), DataType::Int(32)));
       args.push_back(vars.back() + op->bounds[i]->min);
     }
+
+    Stmt stmt = GetRef<Stmt>(op);
     for (int i = starts; i >= 0; --i) {
       if (i < starts) {
         stmt = For(vars[i], 0, op->bounds[i]->extent, ForKind::kSerial, stmt);
@@ -1536,7 +1534,7 @@ class StorageFlattener : public StmtExprMutator {
         stmt = For(vars[i], 0, extent, ForKind::kSerial, stmt);
       }
     }
-    return stmt;
+    return this->VisitStmt(stmt);
   }
 
   PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
