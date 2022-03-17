@@ -101,6 +101,14 @@ TEST(CCodegen, FunctionOrder) {
 
   // add schedules in reverse order
   Map<tvm::Target, IRModule> inputs = {{target, lowered_s2}, {target, lowered_s1}};
+  std::vector<std::string> schedule_names;
+  for (auto const& module : inputs) {
+    for (auto const& func : module.second->functions) {
+      schedule_names.push_back(func.first->name_hint);
+    }
+  }
+  EXPECT_THAT(schedule_names, ElementsAre(StrEq("op_2"), StrEq("op_1")));
+
   auto module = build(inputs, Target());
   Array<String> func_array = module->GetFunction("get_func_names", false)();
   std::vector<std::string> functions{func_array.begin(), func_array.end()};
