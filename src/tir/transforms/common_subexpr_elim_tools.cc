@@ -751,11 +751,8 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
 
   // Traverse through map in a sorted order on keys to maintain deterministic behavior
   // We do this by comparing the string repr of each PrimExpr to get a determinstic ordering
-  std::vector<std::pair<PrimExpr, size_t>> sorted_map_items;
-  sorted_map_items.reserve(table.size());
-  for (auto elem : table) {
-    sorted_map_items.push_back(elem);
-  }
+  std::vector<std::pair<PrimExpr, size_t>> sorted_map_items(table.begin(), table.end());
+
   sort(sorted_map_items.begin(), sorted_map_items.end(),
        [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
          std::stringstream a_stream;
