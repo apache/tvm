@@ -16,6 +16,7 @@
 # under the License.
 
 from collections import OrderedDict
+from distutils import file_util
 import re
 import sys
 import os
@@ -211,24 +212,30 @@ def test_packed_global_variables():
     t = tarfile.open(tar_file)
     t.extractall(base_path)
 
-    with open(
-        pathlib.Path(base_path) / "codegen" / "host" / "src" / f"{model.name}_lib1.c", "r"
-    ) as lib1_f:
-        lib1 = lib1_f.readlines()
+    file_list = []
+    for path in (pathlib.Path(base_path) / "codegen" / "host" / "src").iterdir():
+        if path.is_file():
+            file_list.append(path)
+    assert len(file_list) > 0
 
-    tvmgen_names = []
-    tvmgen_funcs = []
-    for line in lib1:
-        for item in line.split(" "):
-            if item.startswith("tvmgen_default"):
-                # collect any variable names start with tvmgen_default
-                tvmgen_names.append(item)
-                # collect all function names start with tvmgen_default
-                tvmgen_funcs += re.findall(r"(?<=).*(?=\()", item)
+    for path in file_list:
+        with open(path, "r") as lib_f:
+            lib1 = lib_f.readlines()
 
-    # check if any function name has a packed variable name
-    for func in tvmgen_funcs:
-        assert f"{func}_packed" not in tvmgen_names
+        tvmgen_names = []
+        tvmgen_funcs = []
+        for line in lib1:
+            for item in line.split(" "):
+                # Find all names starting with tvmgen_default
+                if item.startswith("tvmgen_default"):
+                    # Collect any name starting with tvmgen_default
+                    tvmgen_names.append(item)
+                    # Collect all functions starting with tvmgen_default
+                    tvmgen_funcs += re.findall(r"(?<=).*(?=\()", item)
+
+        # Check if any function name has a packed variable name in all items that start with tvmgen_default
+        for func in tvmgen_funcs:
+            assert f"{func}_packed" not in tvmgen_names
 
 
 @parametrize_aot_options
