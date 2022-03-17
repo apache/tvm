@@ -28,11 +28,6 @@ class UltraTrailBackend(UMABackend):
     def __init__(self):
         super(UltraTrailBackend, self).__init__()
 
-        ############################################################################
-        # Configuration registration
-        ############################################################################
-        self._register_config({"UMAPartitioner": {"enable_MergeCompilerRegion": True}})
-
         #######################################################################
         # Relay to Relay function registration
         #######################################################################

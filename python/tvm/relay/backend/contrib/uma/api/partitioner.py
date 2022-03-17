@@ -22,20 +22,18 @@ from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.op.contrib.register import register_pattern_table
 
 from typing import Dict, List, Tuple, Optional
-from .utils import check_config
 
 
 class UMAPartitioner(object):
-    def __init__(self, target_name: str, variant: str = "") -> None:
-        self.variant = variant
+    def __init__(
+        self, target_name: str, variant: str = "", merge_compiler_regions: bool = True
+    ) -> None:
         self.target_name = target_name
-        self.config = {"enable_MergeCompilerRegion": True}
+        self.variant = variant
+        self.merge_compiler_regions = merge_compiler_regions
 
         self._relay_passes: List[Tuple[int, tvm.transform.Pass]] = []
         self._patterns: List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, List[str]]] = []
-
-    def _register_config(self, config: dict) -> None:
-        self.config.update(check_config(config, self.config))
 
     def _pattern_table(self):
         return [
@@ -70,7 +68,7 @@ class UMAPartitioner(object):
         mod = tvm.transform.Sequential([p[1] for p in self._relay_passes if p[0] == 0])(mod)
         mod = relay.transform.MergeComposite(self._pattern_table())(mod)
         mod = relay.transform.AnnotateTarget(self.target_name)(mod)
-        if self.config["enable_MergeCompilerRegion"]:
+        if self.merge_compiler_regions:
             mod = relay.transform.MergeCompilerRegions()(mod)
         mod = relay.transform.InferType()(mod)
         mod = relay.transform.PartitionGraph()(mod)

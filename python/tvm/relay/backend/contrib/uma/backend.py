@@ -18,7 +18,7 @@
 
 import tvm
 
-from abc import abstractmethod, abstractproperty
+from abc import abstractmethod
 from typing import List, Dict, Callable, Optional
 
 from tvm.relay.backend.contrib.uma.api.partitioner import UMAPartitioner
@@ -27,14 +27,13 @@ from tvm.relay.backend.contrib.uma.api.codegen import UMACodegen
 
 
 class UMABackend(object):
-    def __init__(self, variant: str = "") -> None:
-        self.variant = variant
-
-        self._relay_to_relay = UMAPartitioner(self.target_name, self.variant)
+    def __init__(self, variant: str = "", merge_compiler_region: bool = True) -> None:
+        self._relay_to_relay = UMAPartitioner(self.target_name, variant, merge_compiler_region)
         self._relay_to_tir = UMALower(self.target_name)
         self._tir_to_runtime = UMACodegen(self.target_name)
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def target_name(self) -> str:
         """Name of the hardware target.
 
@@ -44,14 +43,6 @@ class UMABackend(object):
             The hardware target name.
         """
         ...
-
-    ############################################################################
-    # Configuration registration
-    ############################################################################
-    def _register_config(self, config: dict) -> None:
-        self._relay_to_relay._register_config(config.get("UMAPartitioner", {}))
-        self._relay_to_tir._register_config(config.get("UMALower", {}))
-        self._tir_to_runtime._register_config(config.get("UMACodegen", {}))
 
     ############################################################################
     # Relay to Relay function registration

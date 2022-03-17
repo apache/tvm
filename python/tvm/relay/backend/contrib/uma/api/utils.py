@@ -76,20 +76,3 @@ def extract_constants(func):
         func.attrs["global_symbol"]
     ]
     return new_func, consts
-
-
-###################################
-# API configuration parameter check
-###################################
-class UMAConfigStatus(Enum):
-    UNSUPPORTED = 0
-    DEPRECATED = 1
-
-def check_config(new_config, ref_config):
-    for param in new_config.keys():
-        status = ref_config.get(param, UMAConfigStatus.UNSUPPORTED)
-        if status == UMAConfigStatus.UNSUPPORTED:
-            raise KeyError(f"\"{param}\" is not a supported UMA configuration parameter.")
-        elif status == UMAConfigStatus.DEPRECATED:
-            raise DeprecationWarning(f"{param} is deprecated.")
-    return new_config
