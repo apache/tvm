@@ -131,7 +131,7 @@ def schedule_conv_NCHWc_cpu_common_int8(
     int32_lanes=16,
     int8_elems=4,
     intrin=None,
-    inline_fused=False,
+    inline_fused=True,
 ):
     """
     Defines the schedule for INT8 for Intel and ARM machines
