@@ -68,6 +68,7 @@ import ctypes
 import functools
 import logging
 import os
+import platform
 import sys
 import time
 import pickle
@@ -543,6 +544,22 @@ def uses_gpu(*args):
     """
     _uses_gpu = [pytest.mark.gpu]
     return _compose(args, _uses_gpu)
+
+
+def requires_x86(*args):
+    """Mark a test as requiring the x86 Architecture to run.
+
+    Tests with this mark will not be run unless on an x86 platform.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_x86 = [
+        pytest.mark.skipif(platform.machine() != "x86_64", reason="x86 Architecture Required"),
+    ]
+    return _compose(args, _requires_x86)
 
 
 def requires_gpu(*args):
