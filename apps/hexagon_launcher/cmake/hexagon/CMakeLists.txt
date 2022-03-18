@@ -19,19 +19,37 @@ cmake_minimum_required(VERSION 3.2)
 project(HexagonLauncherRPCSkel C CXX)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/../HexagonLauncher.cmake")
+# From the include above get
+#   SDK_INCLUDE_DIRS
+#   QAIC_EXE_PATH
+# and
+#   QAIC_FLAGS
+#   LAUNCHER_SRC
+#   LAUNCHER_RPC_IDL
+#   LAUNCHER_RPC_H
+#   LAUNCHER_RPC_SKEL_C
+#   LAUNCHER_RPC_STUB_C
 
 add_custom_command(
   OUTPUT ${LAUNCHER_RPC_SKEL_C} ${LAUNCHER_RPC_H}
-  COMMAND ${QAIC_EXE} ${QAIC_FLAGS} "${LAUNCHER_SRC}/${LAUNCHER_RPC_IDL}"
+  COMMAND ${QAIC_EXE_PATH} ${QAIC_FLAGS} "${LAUNCHER_SRC}/${LAUNCHER_RPC_IDL}"
   MAIN_DEPENDENCY "${LAUNCHER_SRC}/${LAUNCHER_RPC_IDL}"
 )
 
+get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
+  QURT_INCLUDE QURT_INCLUDE_DIRS
+  QURT_LIB     QURT_LIB_DIRS
+)
+if(NOT QURT_INCLUDE_DIRS OR NOT QURT_LIB_DIRS)
+  message(WARNING "Could not locate some Hexagon SDK components")
+endif()
+
 include_directories(SYSTEM
-  ${HEXAGON_QURT_INCLUDES}
+  ${QURT_INCLUDE_DIRS}
   ${CMAKE_CURRENT_BINARY_DIR}   # Output of qaic will go here
 )
 
-link_directories(${HEXAGON_QURT_LIBS})
+link_directories(${QURT_LIB_DIRS})
 
 add_definitions(-D_MACH_I32=int)
 add_definitions(-DDMLC_CXX11_THREAD_LOCAL=0)

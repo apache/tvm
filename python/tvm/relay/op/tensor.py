@@ -611,6 +611,24 @@ def floor_divide(lhs, rhs):
     return _make.floor_divide(lhs, rhs)
 
 
+def trunc_divide(lhs, rhs):
+    """Trunc division with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.trunc_divide(lhs, rhs)
+
+
 def power(lhs, rhs):
     """Power with numpy-style broadcasting.
 
@@ -663,6 +681,24 @@ def floor_mod(lhs, rhs):
         The computed result.
     """
     return _make.floor_mod(lhs, rhs)
+
+
+def trunc_mod(lhs, rhs):
+    """Trunc mod with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.trunc_mod(lhs, rhs)
 
 
 def logical_and(lhs, rhs):

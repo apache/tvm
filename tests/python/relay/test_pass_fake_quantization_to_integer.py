@@ -535,6 +535,18 @@ def test_fake_quantize_relu():
     compare_fq_to_int(op, [x_np])
 
 
+def test_fake_quantize_mean():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="uint8")
+
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(114))
+    op = relay.op.mean(x)
+    op = relay.qnn.op.quantize(op, relay.const(2.0), relay.const(114), out_dtype="uint8")
+
+    x_np = np.random.randint(0, 255, size=[1, 3, 224, 224], dtype="uint8")
+
+    compare_fq_to_int(op, [x_np], allow_rounding_error=True)
+
+
 def test_fake_quantize_relu_per_channel():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="uint8")
 

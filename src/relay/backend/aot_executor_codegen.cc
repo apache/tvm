@@ -780,8 +780,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     Integer workspace_byte_alignment =
         executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
     IRModule lowered_mod = mod->ShallowCopy();
-    function_metadata_ = CalculateWorkspaceSizes(lowered_mod, function_metadata_);
     lowered_mod = tir::transform::UnifiedStaticMemoryPlanner()(lowered_mod);
+    function_metadata_ = CalculateWorkspaceSizes(lowered_mod, function_metadata_);
     Optional<Array<tir::usmp::AllocatedPoolInfo>> allocated_pool_infos =
         lowered_mod->GetAttr<Array<tir::usmp::AllocatedPoolInfo>>(tvm::attr::kPoolArgs);
     backend::FunctionInfo main_func_info =

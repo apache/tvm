@@ -24,7 +24,7 @@ set -o pipefail
 apt-get update && apt-get install -y --no-install-recommends \
         git make google-mock libgtest-dev cmake wget unzip libtinfo-dev libz-dev \
         libcurl4-openssl-dev libssl-dev libopenblas-dev g++ sudo \
-        apt-transport-https graphviz pkg-config curl
+        apt-transport-https graphviz pkg-config curl ninja-build parallel
 
 if [[ -d /usr/src/googletest ]]; then
   # Single package source (Ubuntu 18.04)

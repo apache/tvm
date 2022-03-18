@@ -387,6 +387,18 @@ def pad(expr, type_map):
     return [out, t]
 
 
+@register_fake_quantization_to_integer("mean")
+def mean(expr, type_map):
+    """Rewrite a mean op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+
+    arg = relay.op.cast(arg, "int32")
+    out = relay.op.mean(arg, **expr.attrs)
+    out = relay.op.cast(out, t.dtype)
+    return [out, t]
+
+
 def get_binary_types(expr, type_map):
     """Get Affine types of a binary op's inputs and unify them"""
     ##Support the case where one input is quantized and the other is a constant float
