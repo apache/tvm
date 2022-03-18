@@ -249,6 +249,20 @@ class NDArray(NDArrayBase):
             return self._copyto(res)
         raise ValueError("Unsupported target type %s" % str(type(target)))
 
+    def create_view(self, shape):
+        shape_imm = []
+        for s in shape:
+            if isinstance(s, tvm.tir.IntImm):
+                shape_imm.append(s.value)
+            else:
+                shape_imm.append(int(s))
+        arr = np.array(shape_imm, "int64")
+        ptr = arr.ctypes.data_as(ctypes.POINTER(ctypes.c_int64))
+        shape_ptr = ctypes.cast(ptr, ctypes.c_void_p)
+        ndim = len(shape_imm)
+        arr = _ffi_api.TVMArrayCreateView(self, shape_ptr, ndim)
+        return arr
+
 
 def device(dev_type, dev_id=0):
     """Construct a TVM device with given device type and id.
