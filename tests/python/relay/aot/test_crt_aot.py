@@ -16,13 +16,12 @@
 # under the License.
 
 from collections import OrderedDict
-from distutils import file_util
+import platform
 import re
 import sys
 import os
 import tarfile
 import pathlib
-import re
 
 import numpy as np
 import pytest
@@ -820,6 +819,10 @@ def test_constants_alignment(constants_byte_alignment):
     assert f'__attribute__((section(".rodata.tvm"), aligned({constants_byte_alignment})))' in source
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_output_tensor_names():
     """Test that the output names generated match those in the model"""
     pytest.importorskip("tflite")
