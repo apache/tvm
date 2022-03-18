@@ -109,16 +109,12 @@ TEST(CCodegen, FunctionOrder) {
   inputs.Set(Target("c -keys=cpu -link-params=0"), BuildLowered("op_2", target));
   inputs.Set(Target("c -keys=cpu -link-params=0"), BuildLowered("op_1", target));
 
-  uint32_t counter = 9;
-  while (IsSorted(inputs)) {
+  for (uint32_t counter = 99; IsSorted(inputs) && counter > 0; counter--) {
     std::string op_name = "op_" + std::to_string(counter);
     inputs.Set(Target("c -keys=cpu -link-params=0"), BuildLowered(op_name, target));
-
-    counter -= 1;
-    if (counter == 0) {
-      counter = 9;
-    }
   }
+
+  EXPECT_FALSE(IsSorted(inputs));
 
   auto module = build(inputs, Target());
   Array<String> func_array = module->GetFunction("get_func_names", false)();
