@@ -647,6 +647,14 @@ class RelayToTIRVisitor : public MixedModeMutator {
                             buffer_creator.GetBufferMap(), args);
   }
 
+  // Removes kCompiler attribute from the partitioned functions that are not supported by this
+  // RelayToTIR
+  Call CallToFuncWithoutCompilerAttr(GlobalVar new_global_var, Call call, Function func) {
+    Function new_func = WithoutAttr(std::move(func), attr::kCompiler);
+    ir_module_->Update(new_global_var, new_func);
+    return Call(new_global_var, call->args, call->attrs, call->type_args, call->span);
+  }
+
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     if (const CallNode* call = post.as<CallNode>()) {
       auto* func = call->op.as<FunctionNode>();
@@ -657,11 +665,21 @@ class RelayToTIRVisitor : public MixedModeMutator {
       auto codegen_name = func->GetAttr<String>(attr::kCompiler);
       if (codegen_name.defined() && codegen_name == "cmsis-nn") {
         const CallNode* inner_call = func->body.as<CallNode>();
-        const FunctionNode* composite_func = inner_call->op.as<FunctionNode>();
-        auto comp_name = composite_func->GetAttr<String>(attr::kComposite);
-        auto func_name = func->GetAttr<String>(::tvm::attr::kGlobalSymbol);
+        auto global_func_name = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+        GlobalVar new_global_var(global_func_name.value());
 
-        GlobalVar new_global_var(func_name.value());
+        if (!inner_call) {
+          return CallToFuncWithoutCompilerAttr(new_global_var, GetRef<Call>(call),
+                                               GetRef<Function>(func));
+        }
+
+        const FunctionNode* composite_func = inner_call->op.as<FunctionNode>();
+        if (!composite_func) {
+          return CallToFuncWithoutCompilerAttr(new_global_var, GetRef<Call>(call),
+                                               GetRef<Function>(func));
+        }
+
+        auto comp_name = composite_func->GetAttr<String>(attr::kComposite);
         new_global_var->checked_type_ = composite_func->checked_type();
 
         if (comp_name == "cmsis-nn.qnn_softmax") {

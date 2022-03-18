@@ -167,6 +167,8 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
           [&](const Array<tvm::tir::Var>&) {
             if (dtype == DataType::Int(16)) {
               return make_const(dtype, static_cast<const int16_t*>(data)[0]);
+            } else if (dtype == DataType::Int(8)) {
+              return make_const(dtype, static_cast<const int8_t*>(data)[0]);
             } else if (dtype == DataType::Int(32)) {
               return make_const(dtype, static_cast<const int32_t*>(data)[0]);
             } else if (dtype == DataType::Int(64)) {
