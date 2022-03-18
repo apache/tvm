@@ -244,6 +244,9 @@ if __name__ == "__main__":
     to_cc = [teams.get(t, []) for t in tags]
     to_cc = list(set(item for sublist in to_cc for item in sublist))
     to_cc = [user for user in to_cc if user != author]
+    existing_tags = list(set(re.findall(r"@[a-zA-Z0-9]+\w", body)))
+    existing_tags = set(tag.replace("@", "") for tag in existing_tags)
+    to_cc = [user for user in to_cc if user not in existing_tags]
     print("Users to cc based on labels", to_cc)
 
     # Create the new PR/issue body
