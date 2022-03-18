@@ -15,4 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Hexagon APIs."""
-from .hexagon import ir_lower_vtcm_pass
+
+from .tools import *
+from .transform import *

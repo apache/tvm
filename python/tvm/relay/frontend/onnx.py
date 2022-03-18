@@ -1138,7 +1138,7 @@ class Flatten(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get("axis", 1)
-        ishape = _op.shape_of(inputs[0])
+        ishape = shape_of(inputs[0])
         ndim = infer_shape(ishape)[0]
         if axis < 0:
             axis = axis + ndim
@@ -1148,7 +1148,7 @@ class Flatten(OnnxOpConverter):
         else:
             pre_shape = _op.prod(_op.strided_slice(ishape, [0], [axis], [1]), keepdims=True)
             post_shape = _op.prod(_op.strided_slice(ishape, [axis], [ndim], [1]), keepdims=True)
-            newshape = _op.concatenate([pre_shape, post_shape], axis=0)
+            newshape = fold_constant(_op.concatenate([pre_shape, post_shape], axis=0))
             out = _op.reshape(inputs[0], newshape)
         return out
 

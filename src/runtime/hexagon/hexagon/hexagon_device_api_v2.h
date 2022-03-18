@@ -22,7 +22,10 @@
 
 #include <tvm/runtime/device_api.h>
 
+#include <map>
+#include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -81,6 +84,20 @@ class HexagonDeviceAPIv2 final : public DeviceAPI {
    */
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                        Optional<String> mem_scope) final;
+
+  /*!
+   * \brief Allocate an Nd VTCM workspace.
+   * \param dev The device to perform the operation.
+   * \param ndim The number of dimensions of allocated tensor.
+   * \param shape The shape of allocated tensor.
+   * \param dtype The element type.
+   * \return The allocated HexagonBuffer pointer.
+   */
+  void* AllocVtcmWorkspace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
+                           Optional<String> mem_scope);
+
+  //! \brief Free the allocated Nd VTCM workspace.
+  void FreeVtcmWorkspace(Device dev, void* ptr);
 
   /*!
    * \brief Copy data from one storage to another.

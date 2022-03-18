@@ -515,6 +515,10 @@ class Handler(server.ProjectAPIHandler):
         if options.get("west_cmd"):
             cmake_args.append(f"-DWEST={options['west_cmd']}")
 
+        if self._is_qemu(options):
+            # Some boards support more than one emulator, so ensure QEMU is set.
+            cmake_args.append(f"-DEMU_PLATFORM=qemu")
+
         cmake_args.append(f"-DBOARD:STRING={options['zephyr_board']}")
 
         check_call(cmake_args, cwd=BUILD_DIR)
@@ -527,7 +531,7 @@ class Handler(server.ProjectAPIHandler):
     # A list of all zephyr_board values which are known to launch using QEMU. Many platforms which
     # launch through QEMU by default include "qemu" in their name. However, not all do. This list
     # includes those tested platforms which do not include qemu.
-    _KNOWN_QEMU_ZEPHYR_BOARDS = ("mps2_an521",)
+    _KNOWN_QEMU_ZEPHYR_BOARDS = ("mps2_an521", "mps3_an547")
 
     @classmethod
     def _is_qemu(cls, options):

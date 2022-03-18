@@ -16,20 +16,27 @@
 # under the License.
 
 from collections import OrderedDict
+from distutils import file_util
 import re
 import sys
+import os
+import tarfile
+import pathlib
+import re
 
 import numpy as np
 import pytest
 
 import tvm
 from tvm import relay, TVMError
+from tvm.contrib import utils
 from tvm.ir.module import IRModule
 from tvm.relay import testing, transform
 from tvm.relay.testing import byoc
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.backend import Executor, Runtime
 from tvm.micro import model_library_format as mlf
+from tvm.micro import export_model_library_format
 from aot_test_utils import (
     AOTTestModel,
     AOT_DEFAULT_RUNNER,
@@ -160,6 +167,75 @@ def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_sha
         interface_api,
         use_unpacked_api,
     )
+
+
+def test_packed_global_variables():
+    """Check packed global variables in codegen output."""
+    dtype = "float32"
+    ishape = (1, 32, 14, 14)
+    wshape = (32, 32, 3, 3)
+    interface_api = "packed"
+    use_unpacked_api = False
+
+    data0 = relay.var("data", shape=ishape, dtype=dtype)
+    weight0 = relay.var("weight", shape=wshape, dtype=dtype)
+    out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1), groups=1)
+    main_f = relay.Function([data0, weight0], out)
+    mod = tvm.IRModule()
+    mod["main"] = main_f
+    mod = transform.InferType()(mod)
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+    w1_data = np.random.uniform(0, 1, wshape).astype(dtype)
+
+    inputs = OrderedDict([("data", i_data), ("weight", w1_data)])
+
+    output_list = generate_ref_data(mod, inputs)
+    compiled_models_list = compile_models(
+        models=AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
+        interface_api=interface_api,
+        use_unpacked_api=use_unpacked_api,
+        workspace_byte_alignment=8,
+        enable_op_fusion=True,
+        pass_config=AOT_DEFAULT_RUNNER.pass_config,
+        use_runtime_executor=True,
+        target=tvm.target.Target("c"),
+    )
+    compiled_model = compiled_models_list[0]
+
+    tmp_path = utils.tempdir()
+    base_path = tmp_path.temp_dir
+
+    model = compiled_model.model
+    tar_file = os.path.join(base_path, f"{model.name}.tar")
+    export_model_library_format(compiled_model.executor_factory, tar_file)
+    t = tarfile.open(tar_file)
+    t.extractall(base_path)
+
+    file_list = []
+    for path in (pathlib.Path(base_path) / "codegen" / "host" / "src").iterdir():
+        if path.is_file():
+            file_list.append(path)
+    assert len(file_list) > 0
+
+    for path in file_list:
+        with open(path, "r") as lib_f:
+            lib1 = lib_f.readlines()
+
+        tvmgen_names = []
+        tvmgen_funcs = []
+        for line in lib1:
+            for item in line.split(" "):
+                # Find all names starting with tvmgen_default
+                if item.startswith("tvmgen_default"):
+                    # Collect any name starting with tvmgen_default
+                    tvmgen_names.append(item)
+                    # Collect all functions starting with tvmgen_default
+                    tvmgen_funcs += re.findall(r"(?<=).*(?=\()", item)
+
+        # Check if any function name has a packed variable name in all items that start with tvmgen_default
+        for func in tvmgen_funcs:
+            assert f"{func}_packed" not in tvmgen_names
 
 
 @parametrize_aot_options

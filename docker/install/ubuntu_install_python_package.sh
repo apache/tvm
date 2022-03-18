@@ -27,15 +27,18 @@ pip3 install --upgrade \
     cython \
     decorator \
     mypy \
-    numpy \
+    numpy~=1.19.5 \
     orderedset \
     packaging \
     Pillow \
+    psutil \
     pytest \
+    tlcpack-sphinx-addon==0.2.1 \
     pytest-profiling \
     pytest-xdist \
     requests \
     scipy \
     synr==0.6.0 \
+    junitparser==2.4.2 \
     six \
     tornado

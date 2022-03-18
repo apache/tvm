@@ -57,6 +57,12 @@ def test_flatten_prefetch():
     assert isinstance(stmt.body, tvm.tir.For)
     assert stmt.body.extent.value == 2
 
+    def assert_flat_loads(stmt):
+        if isinstance(stmt, tvm.tir.BufferLoad):
+            assert len(stmt.indices) == 1, "All prefetch indices should be flattened"
+
+    tvm.tir.stmt_functor.post_order_visit(stmt, assert_flat_loads)
+
 
 def test_flatten_storage_align():
     m = 8
