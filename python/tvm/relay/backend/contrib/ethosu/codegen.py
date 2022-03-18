@@ -341,7 +341,7 @@ def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
 
     Returns
     -------
-    mod : tvm.ir.TRModule
+    mod : tvm.ir.IRModule
         The Relay module with scheduled NPU external functions.
     """
     mod = OutlineCompilerFunctions("ethos-u")(mod)

@@ -335,7 +335,7 @@ def create_npu_function_pass(opt_level: int, name: str = ""):
 
     @create_npu_function_pass(opt_level=1)
     class MyPass:
-        def transform_npu_function(global_var, func):
+        def transform_npu_function(self, global_var, func):
             return func
 
     mod = tvm.IRModule()
