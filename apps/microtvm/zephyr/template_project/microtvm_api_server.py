@@ -746,17 +746,15 @@ class ZephyrQemuTransport:
         os.mkfifo(self.write_pipe)
         os.mkfifo(self.read_pipe)
 
-        if "gdbserver_port" in self.options:
-            if "env" in self.kwargs:
-                self.kwargs["env"] = copy.copy(self.kwargs["env"])
-            else:
-                self.kwargs["env"] = os.environ.copy()
-
-            self.kwargs["env"]["TVM_QEMU_GDBSERVER_PORT"] = str(self.options["gdbserver_port"])
+        env = None
+        if self.options.get("gdbserver_port"):
+            env = os.environ.copy()
+            env["TVM_QEMU_GDBSERVER_PORT"] = self.options["gdbserver_port"]
 
         self.proc = subprocess.Popen(
             ["make", "run", f"QEMU_PIPE={self.pipe}"],
             cwd=BUILD_DIR,
+            env=env,
             stdout=subprocess.PIPE,
         )
         self._wait_for_qemu()
