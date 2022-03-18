@@ -131,37 +131,60 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
   }
 
   // Step 5. Create block body.
+  String block_name{nullptr};
   Optional<Stmt> init = NullOpt;
   Stmt body;
   if (const auto* reduce = expr_body.as<ReduceNode>()) {
     // Case 1. Reduce compute
+    block_name = compute_op->name;
+    int n_buffers = buffers.size();
+
     Array<PrimExpr> lhs;
     Array<PrimExpr> rhs;
+    lhs.reserve(n_buffers);
+    rhs.reserve(n_buffers);
 
-    for (size_t i = 0; i < buffers.size(); i++) {
+    for (int i = 0; i < n_buffers; ++i) {
       const PrimExpr& left = BufferLoad(buffers[i], indices);
-      const PrimExpr& right = Substitute(info->transformer(reduce->source[i]), var_map);
+      const PrimExpr& right =
+          analyzer->Simplify(Substitute(info->transformer(reduce->source[i]), var_map));
       lhs.push_back(left);
       rhs.push_back(right);
-
-      ICHECK(left->dtype == right->dtype);
+      ICHECK_EQ(left->dtype, right->dtype);
     }
 
+    Array<Var> temp_vars;
     Array<Stmt> body_stmts;
     Array<Stmt> init_stmts;
+    temp_vars.reserve(n_buffers);
+    body_stmts.reserve(n_buffers);
+    init_stmts.reserve(n_buffers);
 
-    for (size_t i = 0; i < buffers.size(); i++) {
+    for (int i = 0; i < n_buffers; ++i) {
       const Buffer& buffer = buffers[i];
-      body_stmts.push_back(
-          BufferStore(buffer, reduce->combiner.get()->operator()(lhs, rhs)[i], indices));
       init_stmts.push_back(BufferStore(buffer, reduce->combiner->identity_element[i], indices));
+      PrimExpr value{nullptr};
+      if (n_buffers > 1) {
+        temp_vars.push_back(Var("v_" + buffer->name, lhs[i].dtype()));
+        value = temp_vars.back();
+      } else {
+        value = reduce->combiner.get()->operator()(lhs, rhs)[i];
+      }
+      body_stmts.push_back(BufferStore(buffer, value, indices));
     }
 
-    body = SeqStmt::Flatten(body_stmts);
     init = SeqStmt::Flatten(init_stmts);
+    body = SeqStmt::Flatten(body_stmts);
+    if (n_buffers > 1) {
+      for (int i = n_buffers - 1; i >= 0; --i) {
+        PrimExpr value = reduce->combiner.get()->operator()(lhs, rhs)[i];
+        body = LetStmt(temp_vars[i], std::move(value), std::move(body));
+      }
+    }
   } else {
     // Case 2. Data parallel compute
     ICHECK_EQ(tensors.size(), 1);
+    block_name = info->GetUniqueName(tensors[0]->GetNameHint());
     const PrimExpr& compute_body = Substitute(info->transformer(expr_body), var_map);
     body = BufferStore(info->tensor2buffers[tensors[0]], analyzer->Simplify(compute_body), indices);
   }
@@ -197,7 +220,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
                       Block(/*iter_vars=*/std::move(iter_vars),
                             /*reads=*/{},
                             /*writes=*/{},
-                            /*name_hint=*/info->GetUniqueName(tensors[0]->GetNameHint()),
+                            /*name_hint=*/block_name,
                             /*body=*/std::move(body),
                             /*init=*/std::move(init),
                             /*alloc_buffers=*/{},
