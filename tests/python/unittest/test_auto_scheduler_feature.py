@@ -220,12 +220,15 @@ def tir_matmul(
 
 
 def test_primfunc():
-    features = auto_scheduler.feature.named_features_from_primfunc(tir_matmul)
+    # Lower tir function so all passes get applied
+    f = tvm.lower(tir_matmul)
+    features = auto_scheduler.feature.named_features_from_primfunc(f["main"])
     assert features["float_mad"].shape == (1,)
     # featurization does not handle multiple-add right now, so they are split out
     assert abs(features["float_addsub"][0] - 128 * 128 * 128) < 10
     assert abs(features["float_mul"][0] - 128 * 128 * 128) < 10
-    assert abs(features["B0.unique_bytes"][0] - 128 * 128 * 4) < 10  # 4 bytes per float32
+    for i in range(0,3):
+        assert abs(features[f"B{i}.unique_bytes"][0] - 128 * 128 * 4) < 10  # 4 bytes per float32
 
 
 if __name__ == "__main__":
