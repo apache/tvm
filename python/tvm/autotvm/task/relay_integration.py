@@ -28,10 +28,10 @@ import re
 import tvm
 from tvm.autotvm.task.dispatcher import DispatchContext, FallbackContext
 from tvm.target import Target
-from .task import create, format_subgraph_task_name, _traverse_to_get_io_tensors
-from .topi_integration import TaskExtractEnv
 from tvm.autotvm.env import GLOBAL_SCOPE
 from tvm.autotvm.task.topi_integration import register_topi_subgraph
+from .task import create, format_subgraph_task_name, _traverse_to_get_io_tensors
+from .topi_integration import TaskExtractEnv
 
 logger = logging.getLogger("autotvm")
 g_registered_subgraphs_extracted = []
@@ -54,8 +54,8 @@ def _lower(mod, target, params, opt_level=3):
 
     # Alter op layout code has been written expecting that tuning is applied
     # without it, so we disable AlterOpLayout to maintain that behavior.
-    # If tuning by subgraph we need EliminateCommonSubexpr, otherwise the subgraphs generated in the task extracting
-    # phase may be different from those generated in the building phase.
+    # If tuning by subgraph we need EliminateCommonSubexpr, otherwise the subgraphs generated
+    # in the task extracting phase may be different from those generated in the building phase.
     with tvm.transform.PassContext(
         opt_level=opt_level,
         disabled_pass={"AlterOpLayout"},
@@ -163,7 +163,7 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
     for task_name, subgraph_name, args in env.get_tasks():
         try:
             if GLOBAL_SCOPE.tune_subgraph:
-                if subgraph_name != None:
+                if subgraph_name is not None:
                     # If tuning subgraph, use subgraph_name as task_name
                     tsk = create(subgraph_name, args, target=target)
                 else:

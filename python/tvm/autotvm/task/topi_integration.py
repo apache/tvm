@@ -41,7 +41,7 @@ from .task import (
     _register_task_compute,
     _register_task_schedule,
     _register_subgraph_task_schedule,
-    _getCompute,
+    getCompute,
     deserialize_args,
 )
 
@@ -272,11 +272,11 @@ def register_topi_schedule(task_name, func=None):
 def register_topi_subgraph(best_impl_name, args, subgraph_name, outputs):
     """Register a tunable template for a subgraph.
 
-    The registration adds subgraph as a tunable task to autotvm tasks. It uses subgraph_name and args as workload and
-    stores this "workload" to its final ComputeOp, which can be used to reconstruct "workload" in
-    the following topi_schedule call. Then it wrap the outputs which attatch the "workload" as the subgraph's
-    topi compute. At last it employs the schedule corresponding to the anchor implementation as the subgraph's
-    schedule.
+    The registration adds subgraph as a tunable task to autotvm tasks. It uses subgraph_name and
+    args as workload and stores this "workload" to its final ComputeOp, which can be used to
+    reconstruct "workload" in the following topi_schedule call. Then it wrap the outputs which
+    attatch the "workload" as the subgraph's topi compute. At last it employs the schedule
+    corresponding to the anchor implementation as the subgraph's schedule.
 
     Parameters
     ----------
@@ -343,7 +343,7 @@ def register_topi_subgraph(best_impl_name, args, subgraph_name, outputs):
         def wrapper(*args, **kwargs):
             """return outputs of the subgraph"""
             # get anchor op's config space by running fcompute
-            fcompute = _getCompute(best_impl_name)
+            fcompute = getCompute(best_impl_name)
             fcompute(*ancor_op_args, **kwargs)
 
             # update subgraph's config space by anchor op's

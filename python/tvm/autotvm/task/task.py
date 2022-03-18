@@ -22,7 +22,8 @@ func is a state-less function, or a string that
 registers the standard task.
 """
 import functools
-
+import re
+import hashlib
 import numpy as np
 
 from tvm import runtime
@@ -31,13 +32,11 @@ from tvm.target import Target
 from tvm.te import placeholder, tensor
 from tvm.tir import expr
 from tvm.te.tensor import ComputeOp, PlaceholderOp
-import re
-import hashlib
 
+from tvm.autotvm.env import GLOBAL_SCOPE
 from ..utils import get_const_int, get_const_tuple
 from .dispatcher import ApplyConfig, DispatchContext
 from .space import ConfigSpace
-from tvm.autotvm.env import GLOBAL_SCOPE
 
 
 def _lookup_task(name):
@@ -51,7 +50,7 @@ def _lookup_task(name):
     return task
 
 
-def _getCompute(name):
+def getCompute(name):
     """get compute by given name.
 
     Parameters
@@ -142,9 +141,9 @@ def _traverse_to_get_io_tensors(outs):
         traverse(t)
 
     io_tensors = inputs + list(outs)
-    for tensor in io_tensors:
+    for t in io_tensors:
         # Reject the compute if any of its I/O tensors has dynamic shape.
-        if any([not isinstance(v, int) for v in get_const_tuple(tensor.shape)]):
+        if any([not isinstance(v, int) for v in get_const_tuple(t.shape)]):
             return []
 
     return io_tensors

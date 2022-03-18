@@ -25,11 +25,11 @@ from tvm.ir.transform import PassContext
 from tvm.runtime import Object
 from tvm.support import libinfo
 from tvm.target import Target
+from tvm.autotvm.env import GLOBAL_SCOPE
 from ..backend.utils import mangle_module_name
 from .. import function as _function
 from .. import ty as _ty
 from . import _backend
-from tvm.autotvm.env import GLOBAL_SCOPE
 
 logger = logging.getLogger("te_compiler")
 autotvm_logger = logging.getLogger("autotvm")
