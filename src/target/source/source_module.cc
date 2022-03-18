@@ -171,7 +171,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
   std::string GetFormat() { return fmt_; }
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
-    return PackedFunc(nullptr);
+    return PackedFunc();
   }
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {

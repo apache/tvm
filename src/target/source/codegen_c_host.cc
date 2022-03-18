@@ -28,7 +28,9 @@
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 
+#include <algorithm>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../../support/str_escape.h"
@@ -362,9 +364,10 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   Map<String, LinkedParam> linked_params;
   PrimFunc aot_executor_fn;
 
+  std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> funcs;
   for (auto kv : mod->functions) {
     // Make sure that the executor function is the last one to be code generated so that all the
-    // symbols are available to tvm_run_func
+    // symbols are available to __tvm_main__
     auto fun_name = std::string(kv.first->name_hint);
     bool is_aot_executor_fn = kv.second->GetAttr<Bool>("runner_function", Bool(false)).value();
 
@@ -372,12 +375,26 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
       aot_executor_fn = Downcast<PrimFunc>(kv.second);
       continue;
     }
+    funcs.push_back(kv);
+  }
 
+  // Sort functions
+  std::sort(funcs.begin(), funcs.end(),
+            [](std::pair<tvm::GlobalVar, tvm::BaseFunc> kv_a,
+               std::pair<tvm::GlobalVar, tvm::BaseFunc> kv_b) {
+              std::string name_hint_a = kv_a.first->name_hint;
+              std::string name_hint_b = kv_b.first->name_hint;
+              return name_hint_a < name_hint_b;
+            });
+
+  // Add all functions except __tvm_main__
+  for (auto& kv : funcs) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     cg.AddFunction(f);
   }
 
+  // Add __tvm_main__
   if (aot_executor_fn.defined()) {
     cg.AddFunction(aot_executor_fn);
   }
