@@ -44,6 +44,7 @@ apt-get update && apt-get install -y --no-install-recommends \
     sudo \
     unzip \
     wget \
+    systemd-coredump
 
 
 # Get Ubuntu version
@@ -65,3 +66,7 @@ else
   cd /usr/src/gtest && cmake CMakeLists.txt && make && cp -v *.a /usr/lib
   cd /usr/src/gmock && cmake CMakeLists.txt && make && cp -v *.a /usr/lib
 fi
+
+# Collect core dumps to /tmp
+sysctl -w kernel.core_pattern=/tmp/core-%e.%p.%h.%t
+ulimit -c unlimited

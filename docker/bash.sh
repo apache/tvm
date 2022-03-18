@@ -85,6 +85,10 @@ Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
 
     Do not use GPU device drivers even if using an CUDA Docker image
 
+--no-login
+
+    Do not use a login shell to mimic the invoking user inside the container
+
 --dry-run
 
     Print the docker command to be run, but do not execute it.
@@ -131,6 +135,7 @@ USE_NET_HOST=false
 USE_GPU=true
 DOCKER_IMAGE_NAME=
 COMMAND=bash
+USE_LOGIN_SHELL=true
 MOUNT_DIRS=( )
 CONTAINER_NAME=
 
@@ -212,6 +217,11 @@ while (( $# )); do
 
         --dry-run)
             DRY_RUN=true
+            shift
+            ;;
+
+        --no-login)
+            USE_LOGIN_SHELL=false
             shift
             ;;
 
@@ -298,6 +308,7 @@ fi
 DOCKER_FLAGS+=( --workdir "${REPO_MOUNT_POINT}" )
 DOCKER_MOUNT+=( --volume "${REPO_DIR}":"${REPO_MOUNT_POINT}"
                 --volume "${SCRIPT_DIR}":/docker
+                --volume /usr/share/apport:/usr/share/apport
               )
 
 # Set up CI-specific environment variables
@@ -450,6 +461,10 @@ echo ""
 
 echo Running \'${COMMAND[@]+"${COMMAND[@]}"}\' inside ${DOCKER_IMAGE_NAME}...
 
+if [ "$USE_LOGIN_SHELL" == "true" ]; then
+    COMMAND=( bash --login /docker/with_the_same_user "${COMMAND[@]}" )
+fi
+
 
 DOCKER_CMD=(${DOCKER_BINARY} run
             ${DOCKER_FLAGS[@]+"${DOCKER_FLAGS[@]}"}
@@ -457,10 +472,9 @@ DOCKER_CMD=(${DOCKER_BINARY} run
             ${DOCKER_MOUNT[@]+"${DOCKER_MOUNT[@]}"}
             ${DOCKER_DEVICES[@]+"${DOCKER_DEVICES[@]}"}
             "${DOCKER_IMAGE_NAME}"
-            bash --login /docker/with_the_same_user
             ${COMMAND[@]+"${COMMAND[@]}"}
            )
-
+echo ${DOCKER_CMD[@]+"${DOCKER_CMD[@]}"}
 if ${DRY_RUN}; then
     echo ${DOCKER_CMD[@]+"${DOCKER_CMD[@]}"}
 else

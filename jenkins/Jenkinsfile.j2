@@ -229,6 +229,8 @@ stage('Sanity Check') {
           script: './tests/scripts/git_change_docs.sh',
           label: 'Check for docs only changes',
         )
+        sh "sysctl kernel.core_pattern"
+        sh "exit 1"
         skip_ci = should_skip_ci(env.CHANGE_ID)
         skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
         rebuild_docker_images = sh (

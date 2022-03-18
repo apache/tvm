@@ -195,6 +195,8 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
         command.append("-t")
         scripts = ["interact() {", "  bash", "}", "trap interact 0", ""] + scripts
 
+    command.append("--no-login")
+
     for key, value in env.items():
         command.append("--env")
         command.append(f"{key}={value}")
@@ -388,6 +390,7 @@ def generate_command(
 
         if tests is not None:
             scripts.append(f"python3 -m pytest {' '.join(tests)}")
+        scripts.append("ulimit -c")
 
         # Add named test suites
         for option_name, (_, extra_scripts) in options.items():

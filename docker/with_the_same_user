@@ -23,7 +23,7 @@
 # outside of container.  Do not run this manually. It does not make sense. It is
 # intended to be called by ci_build.sh only.
 
-set -e
+set -ex
 
 COMMAND=("$@")
 
@@ -55,7 +55,9 @@ if [[ ! -z $CUDA_VISIBLE_DEVICES ]]; then
 else
     CUDA_ENV=""
 fi
-
+ulimit -c
+pwd
+ls /
 sudo -u "#${CI_BUILD_UID}" --preserve-env \
 ${CUDA_ENV} \
 PATH=${PATH} \
@@ -64,4 +66,4 @@ LD_LIBRARY_PATH=${LD_LIBRARY_PATH} \
 PYTHONPATH=${PYTHONPATH} \
 CI_IMAGE_NAME=${CI_IMAGE_NAME} \
 HOME=${CI_BUILD_HOME} \
-"${COMMAND[@]}"
+prlimit core=10000 "${COMMAND[@]}"

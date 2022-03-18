@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-04-19T10:04:53.134656
+// Generated at 2022-04-19T12:22:30.391438
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -232,6 +232,8 @@ stage('Sanity Check') {
           script: './tests/scripts/git_change_docs.sh',
           label: 'Check for docs only changes',
         )
+        sh "sysctl kernel.core_pattern"
+        sh "exit 1"
         skip_ci = should_skip_ci(env.CHANGE_ID)
         skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
         rebuild_docker_images = sh (
