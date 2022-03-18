@@ -129,15 +129,15 @@ def analyze_scratch_memory_acesses(mod: tvm.IRModule, candidate_regions_for_scra
 
     tvm.tir.stmt_functor.post_order_visit(primfunc.body, analyze_pool_access)
 
-    tvmbaw_region = None
+    dynamic_allocation_region = None
     if len(candidate_regions_for_scratch) > 0:
-        tvmbaw_region = candidate_regions_for_scratch.pop()
-        tvmbaw_size = 0
+        dynamic_allocation_region = candidate_regions_for_scratch.pop()
+        dynamic_allocation_size = 0
 
         # If there are tir.Allocate remaining by now, they need to be serviced via
-        # TVMBAW calls.
+        # dynamic_allocation calls.
         def analyze_remaining_allocates(stmt):
-            nonlocal tvmbaw_size
+            nonlocal dynamic_allocation_size
             if isinstance(stmt, tvm.tir.stmt.Allocate):
                 allocate = stmt
                 pointer_type = allocate.buffer_var.type_annotation
@@ -147,18 +147,18 @@ def analyze_scratch_memory_acesses(mod: tvm.IRModule, candidate_regions_for_scra
                     size_in_bytes = int(dtype_bytes * np.prod(list(allocate.extents)))
                     # Every memory address the NPU access have to be 16 byte aligned
                     size_in_bytes = util.round_up(size_in_bytes, 16)
-                    address = tvmbaw_size
-                    tvmbaw_size += size_in_bytes
+                    address = dynamic_allocation_size
+                    dynamic_allocation_size += size_in_bytes
                     scratch_region_map[allocate.buffer_var] = RegionOffset(
-                        region=tvmbaw_region, offset=address
+                        region=dynamic_allocation_region, offset=address
                     )
 
         tvm.tir.stmt_functor.post_order_visit(primfunc.body, analyze_remaining_allocates)
 
     return (
         scratch_region_map,
-        tvmbaw_size,
-        tvmbaw_region,
+        dynamic_allocation_size,
+        dynamic_allocation_region,
     )
 
 
@@ -209,8 +209,8 @@ def translate(tir_module, params):
     candidate_regions_for_scratch = [5, 2, 1]
     (
         scratch_region_map,
-        tvmbaw_workspace_size,
-        tvmbaw_region,
+        dynamic_allocation_size,
+        dynamic_allocation_region,
     ) = analyze_scratch_memory_acesses(tir_module, candidate_regions_for_scratch)
     buffer_info = extract_buffer_info(tir_module, params)
     call_extern_list = extract_call_extern_list(tir_module)
@@ -219,13 +219,13 @@ def translate(tir_module, params):
         _npu_ops.append(translate_ethosu_tir_call_extern(call_extern))
     _npu_ops, constant_data = assign_addresses(buffer_info, _npu_ops, scratch_region_map)
     base_addresses = extract_param_base_addresses(tir_module, buffer_info, scratch_region_map)
-    if tvmbaw_workspace_size:
+    if dynamic_allocation_size:
         base_addresses.append(
             util.BaseAddress(
-                name="tvmbaw",
+                name="dynamic_allocation",
                 primfunc_param_idx=None,
-                region=tvmbaw_region,
-                size=tvmbaw_workspace_size,
+                region=dynamic_allocation_region,
+                size=dynamic_allocation_size,
                 is_runtime_allocation=True,
             )
         )
