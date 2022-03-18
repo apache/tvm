@@ -449,7 +449,7 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
   }
 
   ICHECK_GT(current_call->args.size(), 0);
-  int valid_node_idx = 0;
+  size_t valid_node_idx = 0;
   while (valid_node_idx < current_call->args.size() &&
          current_call->args[valid_node_idx].as<VarNode>()) {
     valid_node_idx++;
