@@ -41,7 +41,7 @@ from .task import (
     _register_task_compute,
     _register_task_schedule,
     _register_subgraph_task_schedule,
-    getCompute,
+    _get_compute,
     deserialize_args,
 )
 
@@ -343,7 +343,7 @@ def register_topi_subgraph(best_impl_name, args, subgraph_name, outputs):
         def wrapper(*args, **kwargs):
             """return outputs of the subgraph"""
             # get anchor op's config space by running fcompute
-            fcompute = getCompute(best_impl_name)
+            fcompute = _get_compute(best_impl_name)
             fcompute(*ancor_op_args, **kwargs)
 
             # update subgraph's config space by anchor op's

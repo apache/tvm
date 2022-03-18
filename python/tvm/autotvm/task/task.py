@@ -50,7 +50,7 @@ def _lookup_task(name):
     return task
 
 
-def getCompute(name):
+def _get_compute(name):
     """get compute by given name.
 
     Parameters
