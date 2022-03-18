@@ -460,7 +460,7 @@ def test_ethosu_pooling(
             op = tf.nn.relu(op)
         return op
 
-    _compare_tvm_with_tflite(pooling, [ifm_shape], accel_type)
+    _compare_tvm_with_tflite(pooling, [ifm_shape], accel_type, print_cmm=True)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)

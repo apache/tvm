@@ -147,6 +147,7 @@ def test_unary_elementwise_single(
             clip_max=100 if activation == "CLIP" else 0,
         ),
         rounding_mode=rounding_mode,
+        block_config=spec.SerialBlockConfig(0, 0, 0),
     )
 
     assert data[0] == ["ethosu_unary_elementwise"] + list(serial_unary_elementwise)
