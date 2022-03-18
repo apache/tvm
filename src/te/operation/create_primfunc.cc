@@ -165,7 +165,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
       init_stmts.push_back(BufferStore(buffer, reduce->combiner->identity_element[i], indices));
       PrimExpr value{nullptr};
       if (n_buffers > 1) {
-        temp_vars.push_back(Var("v_" + buffer->name, lhs[i].dtype()));
+        temp_vars.push_back(Var("v_" + buffer->name, PrimType(lhs[i].dtype())));
         value = temp_vars.back();
       } else {
         value = reduce->combiner.get()->operator()(lhs, rhs)[i];
