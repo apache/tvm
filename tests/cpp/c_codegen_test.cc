@@ -60,14 +60,9 @@ TEST(CCodegen, MainFunctionOrder) {
   ICHECK(functions.back().compare(tvm_module_main) == 0);
 }
 
-TEST(CCodegen, FunctionOrder) {
-  using testing::_;
-  using testing::ElementsAre;
-  using testing::StrEq;
+auto BuildLowered(std::string op_name, tvm::Target target) {
   using namespace tvm;
   using namespace tvm::te;
-
-  auto target = Target("c -keys=cpu -link-params=0");
 
   // The shape of input tensors.
   const int n = 4;
@@ -76,38 +71,54 @@ TEST(CCodegen, FunctionOrder) {
   auto A = placeholder(shape, DataType::Float(32), "A");
   auto B = placeholder(shape, DataType::Float(32), "B");
 
-  auto op_1 = compute(
-      A->shape, [&A, &B](PrimExpr i) { return A[i] + B[i]; }, "op_1");
+  auto op = compute(
+      A->shape, [&A, &B](PrimExpr i) { return A[i] + B[i]; }, op_name);
 
-  auto op_2 = compute(
-      A->shape, [&A, &B](PrimExpr i) { return A[i] - B[i]; }, "op_2");
-
-  auto fcreate_s1 = [=]() {
+  auto fcreate_s = [=]() {
     With<Target> llvm_scope(target);
-    return create_schedule({op_1->op});
+    return create_schedule({op->op});
   };
 
-  auto fcreate_s2 = [=]() {
-    With<Target> llvm_scope(target);
-    return create_schedule({op_2->op});
-  };
-
-  auto args1 = Array<Tensor>({A, B, op_1});
-  auto args2 = Array<Tensor>({A, B, op_2});
-
+  auto args = Array<Tensor>({A, B, op});
   std::unordered_map<Tensor, Buffer> binds;
-  auto lowered_s1 = LowerSchedule(fcreate_s1(), args1, "op_1", binds);
-  auto lowered_s2 = LowerSchedule(fcreate_s2(), args2, "op_2", binds);
+  auto lowered_s = LowerSchedule(fcreate_s(), args, op_name, binds);
+  return lowered_s;
+}
 
-  // add schedules in reverse order
-  Map<tvm::Target, IRModule> inputs = {{target, lowered_s2}, {target, lowered_s1}};
+bool IsSorted(tvm::Map<tvm::Target, tvm::IRModule> inputs) {
   std::vector<std::string> schedule_names;
   for (auto const& module : inputs) {
     for (auto const& func : module.second->functions) {
       schedule_names.push_back(func.first->name_hint);
     }
   }
-  EXPECT_THAT(schedule_names, ElementsAre(StrEq("op_2"), StrEq("op_1")));
+  return std::is_sorted(schedule_names.begin(), schedule_names.end());
+}
+
+TEST(CCodegen, FunctionOrder) {
+  using testing::_;
+  using testing::ElementsAre;
+  using testing::StrEq;
+  using namespace tvm;
+  using namespace tvm::te;
+
+  Target target = Target("c -keys=cpu -link-params=0");
+
+  // add schedules in reverse order
+  Map<tvm::Target, IRModule> inputs;
+  inputs.Set(Target("c -keys=cpu -link-params=0"), BuildLowered("op_2", target));
+  inputs.Set(Target("c -keys=cpu -link-params=0"), BuildLowered("op_1", target));
+
+  uint32_t counter = 9;
+  while (IsSorted(inputs)) {
+    std::string op_name = "op_" + std::to_string(counter);
+    inputs.Set(Target("c -keys=cpu -link-params=0"), BuildLowered(op_name, target));
+
+    counter -= 1;
+    if (counter == 0) {
+      counter = 9;
+    }
+  }
 
   auto module = build(inputs, Target());
   Array<String> func_array = module->GetFunction("get_func_names", false)();
