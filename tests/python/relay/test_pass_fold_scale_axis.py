@@ -121,7 +121,7 @@ def test_fold_fwd_simple():
 def test_fold_fwd_dual_path():
     """scale axis being consumed by two consumers"""
 
-    def before(x, conv_weight, in_bias, in_scale, channels, groups, blocking):
+    def before(x, conv_weight, in_bias, in_scale, channels, blocking):
         args = [x, conv_weight, in_bias]
         x = relay.multiply(in_scale, x)
         x = relay.nn.relu(x)
@@ -133,7 +133,7 @@ def test_fold_fwd_dual_path():
             kernel_size=(3, 3),
             data_layout="NHWC{}c".format(blocking[0]) if blocking else "NHWC",
             kernel_layout="HWIO1i{}o".format(blocking[1]) if blocking else "HWIO",
-            groups=groups,
+            groups=channels,
             padding=(1, 1),
         )
         y2 = relay.nn.conv2d(
@@ -143,13 +143,13 @@ def test_fold_fwd_dual_path():
             kernel_size=(3, 3),
             data_layout="NHWC{}c".format(blocking[0]) if blocking else "NHWC",
             kernel_layout="HWIO1i{}o".format(blocking[1]) if blocking else "HWIO",
-            groups=groups,
+            groups=channels,
             padding=(1, 1),
         )
         z = relay.add(y1, y2)
         return relay.Function(args, z)
 
-    def expected(x, conv_weight, in_bias, in_scale, channels, groups, blocking):
+    def expected(x, conv_weight, in_bias, in_scale, channels, blocking):
         args = [x, conv_weight, in_bias]
         x = relay.nn.relu(x)
         if blocking:
@@ -171,7 +171,7 @@ def test_fold_fwd_dual_path():
             kernel_size=(3, 3),
             data_layout="NHWC{}c".format(blocking[0]) if blocking else "NHWC",
             kernel_layout="HWIO1i{}o".format(blocking[1]) if blocking else "HWIO",
-            groups=groups,
+            groups=channels,
             padding=(1, 1),
         )
         if blocking:
@@ -185,13 +185,13 @@ def test_fold_fwd_dual_path():
             kernel_size=(3, 3),
             data_layout="NHWC{}c".format(blocking[0]) if blocking else "NHWC",
             kernel_layout="HWIO1i{}o".format(blocking[1]) if blocking else "HWIO",
-            groups=groups,
+            groups=channels,
             padding=(1, 1),
         )
         z = relay.add(y1, y2)
         return relay.Function(args, z)
 
-    def check(dshape, channels, groups, blocking):
+    def check(dshape, channels, blocking):
         x = relay.var("x", shape=dshape)
         if blocking:
             in_channels = dshape[3] * dshape[4]
@@ -201,8 +201,7 @@ def test_fold_fwd_dual_path():
             in_scale = relay.const(_get_positive_scale((in_channels // blocking[0], blocking[0])))
         else:
             in_channels = dshape[-1]
-            wshape = (3, 3, in_channels // groups, channels)  # HWIO
-            print("wshape", wshape)
+            wshape = (3, 3, 1, channels)  # HWIO
             weight = relay.var("weight", shape=wshape)
             in_bias = relay.var("in_bias", shape=(in_channels,))
             in_scale = relay.const(
@@ -211,24 +210,20 @@ def test_fold_fwd_dual_path():
                 )
             )
 
-        y1 = before(x, weight, in_bias, in_scale, channels, groups, blocking)
-        print("y1", y1)
+        # test depthwise
+        assert in_channels == channels
+
+        y1 = before(x, weight, in_bias, in_scale, channels, blocking)
         y1 = run_opt_pass(y1, transform.InferType())
-        print("y1", y1)
         y1_folded = run_opt_pass(y1, transform.ForwardFoldScaleAxis())
-        print("y1_folded", y1_folded)
         type_dict = {x.name_hint: x.checked_type for x in y1.params}
         weight = relay.var("weight", type_dict["weight"])
-        y1_expected = expected(x, weight, in_bias, in_scale, channels, groups, blocking)
-        print("y1_expected", y1_expected)
+        y1_expected = expected(x, weight, in_bias, in_scale, channels, blocking)
         y1_expected = run_opt_pass(y1_expected, transform.InferType())
-        print("y1_expected",y1_expected)
         assert tvm.ir.structural_equal(y1_folded, y1_expected)
 
-    # check((2, 4, 10, 3), 3, 3, None)  # test depthwise conv
-    check((2, 4, 10, 16), 16, 8, None)  # test group conv
-    # check((2, 4, 10, 4, 4), 16, 16, (4, 4))  # test depthwise conv
-    # check((2, 4, 10, 4, 4), 16, 8, (4, 4))  # test group conv
+    check((2, 4, 10, 3), 3, None)
+    check((2, 4, 10, 2, 2), 4, (2, 2))
 
 
 def test_fold_fwd_fail():
@@ -1033,19 +1028,196 @@ def test_fold_bwd_bias_add():
     check((2, 4, 10, 10), 4)
 
 
+def test_fold_fwd_conv3d():
+    """Conv3d testcase."""
+
+    def before(x, conv_weight, in_bias, in_scale, channels, blocking):
+        args = [x, conv_weight, in_bias]
+        x = relay.multiply(x, in_scale)
+        x = relay.nn.relu(x)
+        x = relay.add(x, in_bias)
+        y = relay.nn.conv3d(
+            x,
+            conv_weight,
+            channels=channels,
+            kernel_size=(3, 3, 3),
+            padding=(1, 1, 1),
+            data_layout="NCDHW{}c".format(blocking[0]) if blocking else "NCDHW",
+            kernel_layout="OIDHW2i{}o".format(blocking[1]) if blocking else "OIDHW",
+        )
+
+        return relay.Function(args, y)
+
+    def expected(x, conv_weight, in_bias, in_scale, in_channels, channels, blocking):
+        # use a fixed order of args so alpha equal check can pass
+        args = [x, conv_weight, in_bias]
+        if blocking:
+            squeezed_scale = relay.squeeze(in_scale, axis=[0, 2, 3, 4])
+            x = relay.nn.relu(x)
+            in_bias = relay.divide(
+                in_bias,
+                relay.reshape(
+                    squeezed_scale, (1, in_channels // blocking[0], 1, 1, 1, blocking[0])
+                ),
+            )  # NCHWc
+            x = relay.add(x, in_bias)
+            conv_weight = relay.multiply(
+                conv_weight, relay.reshape(squeezed_scale, (1, in_channels // 2, 1, 1, 1, 2, 1))
+            )  # OIHWio
+        else:
+            squeezed_scale = relay.squeeze(in_scale, axis=[1, 2, 3])
+            x = relay.nn.relu(x)
+            in_bias = relay.divide(
+                in_bias, relay.expand_dims(squeezed_scale, axis=1, num_newaxis=3)
+            )
+            x = relay.add(x, in_bias)
+            conv_weight = relay.multiply(
+                conv_weight, relay.expand_dims(squeezed_scale, axis=1, num_newaxis=3)
+            )
+
+        y = relay.nn.conv3d(
+            x,
+            conv_weight,
+            channels=channels,
+            kernel_size=(3, 3, 3),
+            padding=(1, 1, 1),
+            data_layout="NCDHW{}c".format(blocking[0]) if blocking else "NCDHW",
+            kernel_layout="OIDHW2i{}o".format(blocking[1]) if blocking else "OIDHW",
+        )
+        return relay.Function(args, y)
+
+    def check(shape, channels, blocking):
+        x = relay.var("x", shape=shape)
+        weight = relay.var("weight")
+        if blocking:
+            in_channels = shape[1] * shape[-1]
+            in_bias = relay.var(
+                "in_bias", shape=(1, in_channels // blocking[0], 1, 1, 1, blocking[0])
+            )
+            in_scale = relay.const(
+                _get_positive_scale((1, in_channels // blocking[0], 1, 1, 1, blocking[0]))
+            )
+        else:
+            in_channels = shape[1]
+            in_bias = relay.var("in_bias", shape=(in_channels, 1, 1, 1))
+            in_scale = relay.const(_get_positive_scale((in_channels, 1, 1, 1)))
+        y1 = before(x, weight, in_bias, in_scale, channels, blocking)
+        y1 = run_opt_pass(y1, transform.InferType())
+        type_dict = {x.name_hint: x.checked_type for x in y1.params}
+        weight = relay.var("weight", type_dict["weight"])
+        y1_folded = run_opt_pass(y1, transform.ForwardFoldScaleAxis())
+        y1_expected = expected(x, weight, in_bias, in_scale, in_channels, channels, blocking)
+
+        y1_folded = run_opt_pass(y1_folded, transform.InferType())
+        y1_expected = run_opt_pass(y1_expected, transform.InferType())
+        assert tvm.ir.structural_equal(y1_folded, y1_expected)
+
+    check((2, 4, 10, 10, 10), 2, None)
+    check((2, 2, 10, 10, 10, 2), 8, (2, 4))
+
+
+def test_fold_bwd_conv3d():
+    """Conv3d testcase."""
+
+    def before(x, conv_weight, out_bias, out_scale, in_channels, channels, blocking):
+        args = [x, conv_weight, out_bias]
+        if blocking:
+            out_bias = relay.reshape(out_bias, (1, channels // blocking[1], 1, 1, 1, blocking[1]))
+        else:
+            out_bias = relay.expand_dims(out_bias, axis=1, num_newaxis=3)
+        y = relay.nn.conv3d(
+            x,
+            conv_weight,
+            channels=channels,
+            kernel_size=(3, 3, 3),
+            padding=(1, 1, 1),
+            data_layout="NCDHW{}c".format(blocking[0]) if blocking else "NCDHW",
+            kernel_layout="OIDHW1i{}o".format(blocking[1]) if blocking else "OIDHW",
+        )
+        y = relay.add(y, out_bias)
+        y = relay.nn.relu(y)
+        if blocking:
+            out_scale = relay.reshape(out_scale, (1, channels // blocking[1], 1, 1, 1, blocking[1]))
+        y = relay.multiply(y, out_scale)
+        return relay.Function(args, y)
+
+    def expected(x, conv_weight, out_bias, out_scale, in_channels, channels, blocking):
+        # use a fixed order of args so alpha equal check can pass
+        args = [x, conv_weight, out_bias]
+        if blocking:
+            out_bias = relay.reshape(out_bias, (1, channels // blocking[1], 1, 1, 1, blocking[1]))
+            out_scale = relay.reshape(out_scale, (1, channels // blocking[1], 1, 1, 1, blocking[1]))
+            squeezed_scale = relay.squeeze(out_scale, axis=[0, 2, 3, 4])
+            conv_weight = relay.multiply(
+                conv_weight,
+                relay.reshape(
+                    squeezed_scale, (channels // blocking[1], 1, 1, 1, 1, 1, blocking[1])
+                ),
+            )
+        else:
+            out_bias = relay.expand_dims(out_bias, axis=1, num_newaxis=3)
+            squeezed_scale = relay.squeeze(out_scale, axis=[1, 2, 3])
+            conv_weight = relay.multiply(
+                conv_weight, relay.expand_dims(squeezed_scale, axis=1, num_newaxis=4)
+            )
+
+        y = relay.nn.conv3d(
+            x,
+            conv_weight,
+            channels=channels,
+            kernel_size=(3, 3, 3),
+            padding=(1, 1, 1),
+            data_layout="NCDHW{}c".format(blocking[0]) if blocking else "NCDHW",
+            kernel_layout="OIDHW1i{}o".format(blocking[1]) if blocking else "OIDHW",
+        )
+        if blocking:
+            out_bias = relay.multiply(
+                out_bias,
+                relay.reshape(squeezed_scale, (1, channels // blocking[1], 1, 1, 1, blocking[1])),
+            )
+        else:
+            out_bias = relay.multiply(
+                out_bias, relay.expand_dims(squeezed_scale, axis=1, num_newaxis=3)
+            )
+        y = relay.add(y, out_bias)
+        y = relay.nn.relu(y)
+        return relay.Function(args, y)
+
+    def check(shape, in_channels, channels, blocking):
+        x = relay.var("x", shape=shape)
+        weight = relay.var("weight")
+        out_bias = relay.var("out_bias", shape=(channels,))
+        if blocking:
+            out_scale = relay.const(_get_positive_scale((channels,)))
+        else:
+            out_scale = relay.const(_get_positive_scale((channels, 1, 1, 1)))
+        y1 = before(x, weight, out_bias, out_scale, in_channels, channels, blocking)
+        y1 = run_opt_pass(y1, transform.InferType())
+        type_dict = {x.name_hint: x.checked_type for x in y1.params}
+        weight = relay.var("weight", type_dict["weight"])
+        y1_folded = run_opt_pass(y1, transform.BackwardFoldScaleAxis())
+        y1_expected = expected(x, weight, out_bias, out_scale, in_channels, channels, blocking)
+        y1_expected = run_opt_pass(y1_expected, transform.InferType())
+        assert tvm.ir.structural_equal(y1_folded, y1_expected)
+
+    check((2, 4, 10, 10, 10), 4, 8, None)
+    check((2, 2, 10, 10, 10, 16), 32, 64, (16, 16))
+
+
 if __name__ == "__main__":
-    # test_fold_fwd_simple()
+    test_fold_fwd_simple()
     test_fold_fwd_dual_path()
-    # test_fold_fwd_fail()
-    # test_fold_fwd_relu_fail()
-    # test_fold_fwd_negative_scale()
-    # test_fold_fwd_dense()
-    # test_fold_bwd_simple()
-    # test_fold_bwd_dual_path()
-    # test_fold_bwd_dual_consumer()
-    # test_fold_bwd_fail()
-    # test_fold_bwd_relu_fail()
-    # test_fold_bwd_negative_scale()
-    # test_fold_bwd_dense()
-    # test_fold_bwd_bias_add()
-    print("done!")
+    test_fold_fwd_fail()
+    test_fold_fwd_relu_fail()
+    test_fold_fwd_negative_scale()
+    test_fold_fwd_dense()
+    test_fold_bwd_simple()
+    test_fold_bwd_dual_path()
+    test_fold_bwd_dual_consumer()
+    test_fold_bwd_fail()
+    test_fold_bwd_relu_fail()
+    test_fold_bwd_negative_scale()
+    test_fold_bwd_dense()
+    test_fold_bwd_bias_add()
+    test_fold_fwd_conv3d()
+    test_fold_bwd_conv3d()
