@@ -28,8 +28,9 @@ import numpy as np
 
 import tvm
 from tvm import rpc
+from tvm.runtime import vm
 from tvm.autotvm.measure import request_remote
-from tvm.contrib import graph_executor as runtime
+from tvm.contrib import graph_executor
 from tvm.contrib.debugger import debug_executor
 from . import TVMCException
 from .arguments import TVMCSuppressedArgumentParser
@@ -530,58 +531,64 @@ def run_module(
             assert device == "cpu"
             dev = session.cpu()
 
-        # TODO(gromero): Adjust for micro targets.
-        if profile:
-            logger.debug("Creating runtime with profiling enabled.")
-            module = debug_executor.create(tvmc_package.graph, lib, dev, dump_root="./prof")
+        if tvmc_package.use_vm:
+            exe = vm.VirtualMachine(tvmc_package.graph, device)
+            inputs_dict = make_inputs_dict(shape_dict, dtype_dict, inputs, fill_mode)
+            outputs = exe.invoke("main", inputs_dict.values())
+            times = exe.benchmark(dev, inputs_dict.values(), func_name="main", repeat=repeat, number=number, end_to_end=end_to_end)
         else:
-            if device == "micro":
-                logger.debug("Creating runtime (micro) with profiling disabled.")
-                module = tvm.micro.create_local_graph_executor(tvmc_package.graph, lib, dev)
+            # TODO(gromero): Adjust for micro targets.
+            if profile:
+                logger.debug("Creating runtime with profiling enabled.")
+                module = debug_executor.create(tvmc_package.graph, lib, dev, dump_root="./prof")
             else:
-                logger.debug("Creating runtime with profiling disabled.")
-                module = runtime.create(tvmc_package.graph, lib, dev)
+                if device == "micro":
+                    logger.debug("Creating runtime (micro) with profiling disabled.")
+                    module = tvm.micro.create_local_graph_executor(tvmc_package.graph, lib, dev)
+                else:
+                    logger.debug("Creating runtime with profiling disabled.")
+                    module = graph_executor.create(tvmc_package.graph, lib, dev)
 
-        logger.debug("Loading params into the runtime module.")
-        module.load_params(tvmc_package.params)
+            logger.debug("Loading params into the runtime module.")
+            module.load_params(tvmc_package.params)
 
-        logger.debug("Collecting graph input shape and type:")
-        shape_dict, dtype_dict = module.get_input_info()
-        logger.debug("Graph input shape: %s", shape_dict)
-        logger.debug("Graph input type: %s", dtype_dict)
+            logger.debug("Collecting graph input shape and type:")
+            shape_dict, dtype_dict = module.get_input_info()
+            logger.debug("Graph input shape: %s", shape_dict)
+            logger.debug("Graph input type: %s", dtype_dict)
 
-        inputs_dict = make_inputs_dict(shape_dict, dtype_dict, inputs, fill_mode)
+            inputs_dict = make_inputs_dict(shape_dict, dtype_dict, inputs, fill_mode)
 
-        logger.debug("Setting inputs to the module.")
-        module.set_input(**inputs_dict)
+            logger.debug("Setting inputs to the module.")
+            module.set_input(**inputs_dict)
 
-        # Run must be called explicitly if profiling
-        if profile:
-            logger.info("Running the module with profiling enabled.")
-            report = module.profile()
-            # This print is intentional
-            print(report)
+            # Run must be called explicitly if profiling
+            if profile:
+                logger.info("Running the module with profiling enabled.")
+                report = module.profile()
+                # This print is intentional
+                print(report)
 
-        if device == "micro":
-            # TODO(gromero): Fix time_evaluator() for micro targets. Once it's
-            # fixed module.benchmark() can be used instead and this if/else can
-            # be removed.
-            module.run()
-            times = []
-        else:
-            # Call the benchmarking function of the executor.
-            # Optionally measure e2e data transfers from the
-            # CPU to device memory overheads (e.g. PCIE
-            # overheads if the device is a discrete GPU).
-            if end_to_end:
-                dev = session.cpu()
-            times = module.benchmark(dev, number=number, repeat=repeat, end_to_end=end_to_end)
+            if device == "micro":
+                # TODO(gromero): Fix time_evaluator() for micro targets. Once it's
+                # fixed module.benchmark() can be used instead and this if/else can
+                # be removed.
+                module.run()
+                times = []
+            else:
+                # Call the benchmarking function of the executor.
+                # Optionally measure e2e data transfers from the
+                # CPU to device memory overheads (e.g. PCIE
+                # overheads if the device is a discrete GPU).
+                if end_to_end:
+                    dev = session.cpu()
+                times = module.benchmark(dev, number=number, repeat=repeat, end_to_end=end_to_end)
 
-        logger.debug("Collecting the output tensors.")
-        num_outputs = module.get_num_outputs()
-        outputs = {}
-        for i in range(num_outputs):
-            output_name = "output_{}".format(i)
-            outputs[output_name] = module.get_output(i).numpy()
+            logger.debug("Collecting the output tensors.")
+            num_outputs = module.get_num_outputs()
+            outputs = {}
+            for i in range(num_outputs):
+                output_name = "output_{}".format(i)
+                outputs[output_name] = module.get_output(i).numpy()
 
         return TVMCResult(outputs, times)

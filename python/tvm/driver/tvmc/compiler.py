@@ -196,6 +196,7 @@ def compile_model(
     disabled_pass: Optional[str] = None,
     pass_context_configs: Optional[List[str]] = None,
     additional_target_options: Optional[Dict[str, Dict[str, Any]]] = None,
+    use_vm: bool = False,
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -286,8 +287,13 @@ def compile_model(
                     opt_level=opt_level, config=config, disabled_pass=disabled_pass
                 ):
                     logger.debug("building relay graph with autoscheduler")
-                    graph_module = relay.build(
-                        mod, target=tvm_target, executor=executor, runtime=runtime, params=params
+                    graph_module = build(
+                        mod,
+                        tvm_target=tvm_target,
+                        executor=executor,
+                        runtime=runtime,
+                        params=params,
+                        use_vm=use_vm
                     )
         else:
             with autotvm.apply_history_best(tuning_records):
@@ -295,16 +301,27 @@ def compile_model(
                     opt_level=opt_level, config=config, disabled_pass=disabled_pass
                 ):
                     logger.debug("building relay graph with tuning records")
-                    graph_module = relay.build(
-                        mod, target=tvm_target, executor=executor, runtime=runtime, params=params
+                    # TODO: replace with vm.compile
+                    graph_module = build(
+                        mod,
+                        tvm_target=tvm_target,
+                        executor=executor,
+                        runtime=runtime,
+                        params=params,
+                        use_vm=use_vm
                     )
     else:
         with tvm.transform.PassContext(
             opt_level=opt_level, config=config, disabled_pass=disabled_pass
         ):
             logger.debug("building relay graph (no tuning records provided)")
-            graph_module = relay.build(
-                mod, target=tvm_target, executor=executor, runtime=runtime, params=params
+            graph_module = build(
+                mod,
+                tvm_target=tvm_target,
+                executor=executor,
+                runtime=runtime,
+                params=params,
+                use_vm=use_vm
             )
 
     # Generate output dump files with sources
@@ -333,7 +350,23 @@ def compile_model(
     if dumps:
         save_dumps(package_path, dumps)
 
-    return TVMCPackage(package_path)
+    return TVMCPackage(package_path, use_vm=use_vm)
+
+
+def build(
+    mod: tvm.IRModule,
+    tvm_target: str, 
+    executor: Executor,
+    runtime: Runtime,
+    params: Dict[str, tvm.nd.NDArray],
+    use_vm: bool
+):
+    if use_vm:
+        return relay.vm.compile(mod, target=tvm_target, params=params)
+    else:
+        return relay.build(
+            mod, target=tvm_target, executor=executor, runtime=runtime, params=params
+        )
 
 
 def save_dumps(module_name: str, dumps: Dict[str, str], dump_root: str = "."):

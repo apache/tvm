@@ -314,12 +314,16 @@ class TVMCPackage(object):
 
     project_dir : Path, str
         If given and loading a MLF file, the path to the project directory that contains the file.
+
+    use_vm : bool
+        Whether the graph module was compiled with vm or not.
     """
 
-    def __init__(self, package_path: str, project_dir: Optional[Union[Path, str]] = None):
+    def __init__(self, package_path: str, project_dir: Optional[Union[Path, str]] = None, use_vm: bool = False):
         self._tmp_dir = utils.tempdir()
         self.package_path = package_path
         self.import_package(self.package_path)
+        self.use_vm = use_vm
 
         if project_dir and self.type != "mlf":
             raise TVMCException("Setting 'project_dir' is only allowed when importing a MLF.!")
