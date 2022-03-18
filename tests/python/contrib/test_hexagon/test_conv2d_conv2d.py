@@ -165,6 +165,7 @@ class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
     @pytest.mark.skipif(
         platform.processor() == "i686", reason="Test known to be flaky on i386 machines"
     )
+    @pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10665")
     def test_conv2d(
         self,
         batch,
