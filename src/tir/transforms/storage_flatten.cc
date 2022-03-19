@@ -525,10 +525,14 @@ class BufferStrideLegalize : public StmtExprMutator {
       return AttrStmt(Array<ObjectRef>{source_with_strides, target_with_strides}, op->attr_key,
                       op->value, body, op->span);
     } else if (op->attr_key == attr::double_buffer_scope) {
-      auto buffer = Downcast<tir::Buffer>(op->node);
-      Buffer buffer_with_strides = WithStrides(buffer);
-      Stmt body = this->VisitStmt(op->body);
-      return AttrStmt(buffer_with_strides, op->attr_key, op->value, body, op->span);
+      if (op->node.as<tir::BufferNode>()) {
+        auto buffer = Downcast<tir::Buffer>(op->node);
+        Buffer buffer_with_strides = WithStrides(buffer);
+        Stmt body = this->VisitStmt(op->body);
+        return AttrStmt(buffer_with_strides, op->attr_key, op->value, body, op->span);
+      } else {
+        return StmtExprMutator::VisitStmt_(op);
+      }
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
