@@ -1644,6 +1644,7 @@ def test_upsampling3d():
     _test_upsampling3d("NDHWC", "trilinear", "align_corners")
 
 
+@tvm.testing.requires_x86
 @pytest.mark.skipif(tvm.target.codegen.llvm_version_major() < 8, reason="Requires LLVM 8")
 class TestConv2DInt8Intrinsics:
     supported_targets = [
