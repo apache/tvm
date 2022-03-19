@@ -1498,6 +1498,7 @@ def test_conv2d_strided_slice_packed_to_unpacked():
         b = run_opt_pass(expected(), transform.InferType())
         assert tvm.ir.structural_equal(a, b)
 
+
 def test_conv2d_strided_slice_arbitrary_stride():
     """Test rewriting strided_slice with arbitrary stride"""
 
