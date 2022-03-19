@@ -132,13 +132,13 @@ def test_select_implementation():
         )
 
     with TempOpAttr("nn.conv2d", "FTVMStrategy", _tmp_strategy):
-        impl, _ = _select_impl((1, 8, 7, 7), (32, 8, 3, 3))
+        impl, _, _ = _select_impl((1, 8, 7, 7), (32, 8, 3, 3))
         assert impl.name == "conv2d_2"
-        impl, _ = _select_impl((1, 8, 7, 7), (32, 8, 3, 3), True)
+        impl, _, _ = _select_impl((1, 8, 7, 7), (32, 8, 3, 3), True)
         assert impl.name == "conv2d_2"
-        impl, _ = _select_impl((1, 16, 7, 7), (32, 16, 3, 3))
+        impl, _, _ = _select_impl((1, 16, 7, 7), (32, 16, 3, 3))
         assert impl.name == "conv2d_3"
-        impl, _ = _select_impl((1, 16, 7, 7), (32, 16, 3, 3), True)
+        impl, _, _ = _select_impl((1, 16, 7, 7), (32, 16, 3, 3), True)
         assert impl.name == "conv2d_3"
 
         # add autotvm record
@@ -147,18 +147,18 @@ def test_select_implementation():
         records.append(_create_record("test/conv2d_1", (1, 16, 7, 7), (32, 16, 3, 3), target, 1.0))
         with target:
             with autotvm.apply_history_best(records):
-                impl, _ = _select_impl((1, 8, 7, 7), (32, 8, 3, 3), True)
+                impl, _, _ = _select_impl((1, 8, 7, 7), (32, 8, 3, 3), True)
                 assert impl.name == "conv2d_1"
-                impl, _ = _select_impl((1, 16, 7, 7), (32, 16, 3, 3), True)
+                impl, _, _ = _select_impl((1, 16, 7, 7), (32, 16, 3, 3), True)
                 assert impl.name == "conv2d_1"
 
         records.append(_create_record("test/conv2d_2", (1, 8, 7, 7), (32, 8, 3, 3), target, 0.2))
         records.append(_create_record("test/conv2d_1", (1, 16, 7, 7), (32, 16, 3, 3), target, 1.2))
         with target:
             with autotvm.apply_history_best(records):
-                impl, _ = _select_impl((1, 8, 7, 7), (32, 8, 3, 3), True)
+                impl, _, _ = _select_impl((1, 8, 7, 7), (32, 8, 3, 3), True)
                 assert impl.name == "conv2d_2"
-                impl, _ = _select_impl((1, 16, 7, 7), (32, 16, 3, 3), True)
+                impl, _, _ = _select_impl((1, 16, 7, 7), (32, 16, 3, 3), True)
                 assert impl.name == "conv2d_1"
 
 

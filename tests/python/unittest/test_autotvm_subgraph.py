@@ -119,7 +119,7 @@ def test_tune_subgraphs():
         tuning_option = {
             "log_filename": log_file,
             "tuner": "ga",
-            "n_trial": 2000,
+            "n_trial": 10,
             "early_stopping": None,
             "measure_option": autotvm.measure_option(
                 builder=autotvm.LocalBuilder(),
@@ -131,6 +131,8 @@ def test_tune_subgraphs():
     # compile kernels with history best records
     with autotvm.apply_history_best(log_file):
         print("Compile...")
+        # should disable pass "AlterOpLayout", otherwise workload of subgraph may be
+        # different from task extraction phase
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
             lib = relay.build_module.build(mod, target=target, params=params)
         dev = tvm.cpu()

@@ -241,7 +241,8 @@ def register_topi_schedule(task_name, func=None):
             """wrapper function for topi schedule"""
             task_env = TaskExtractEnv.current
             if GLOBAL_SCOPE.tune_subgraph and task_env is not None and not task_env.tracing:
-                # get workload of subgraph
+                # get subgraph's workload which is attached to the last op, because the anchor op
+                # has attached workload too, so we should get by post order
                 workload = get_workload_post_order(outs)
             else:
                 workload = get_workload(outs, task_name)

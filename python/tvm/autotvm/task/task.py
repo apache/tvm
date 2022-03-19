@@ -64,48 +64,11 @@ def _get_compute(name):
 def format_subgraph_task_name(name, args):
     if re.match(r"\w+\d+$", name):
         # remove number of reduplicative subgraph name like '_1'
-        name = re.sub(r"[_]\d+$", "", name)
-    str_args = format_args(args).encode("utf-8")
+        name = re.sub(r"_\d+$", "", name)
+    serialized_args = serialize_args(args)
+    str_args = str(serialized_args).encode("utf-8")
     hash_key = hashlib.md5(str_args).hexdigest()
     return name + "_" + hash_key
-
-
-def format_args(args):
-    """format arguments of a topi function to a string
-
-    Parameters
-    ----------
-    args: list of hashable or Tensor
-    """
-
-    def _encode(x):
-        if isinstance(x, tensor.Tensor):
-            ret = ""
-            for s in get_const_tuple(x.shape):
-                ret = ret + str(s)
-            return ret + x.dtype
-        if isinstance(x, (tuple, list, container.Array)):
-            ret = ""
-            for a in x:
-                ret = ret + _encode(a)
-            return ret
-        if isinstance(x, (str, int, float, expr.Var, expr.Any)):
-            return str(x)
-        if isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
-            return str(x.value)
-        if isinstance(x, runtime.container.String):
-            return str(x)
-        if x is None:
-            return None
-        raise RuntimeError(
-            'Do not support type "%s" in argument. Consider to use'
-            "primitive types or tvm.tir.Var only" % type(x)
-        )
-
-    ret = ""
-    for t in args:
-        ret = ret + _encode(t)
-    return ret
 
 
 def _traverse_to_get_io_tensors(outs):
@@ -140,9 +103,10 @@ def _traverse_to_get_io_tensors(outs):
     for t in outs:
         traverse(t)
 
-    io_tensors = inputs + list(outs)
+    io_tensors = list(outs) + inputs
     for t in io_tensors:
         # Reject the compute if any of its I/O tensors has dynamic shape.
+        # FIXME: How to handle dynamic shape?
         if any([not isinstance(v, int) for v in get_const_tuple(t.shape)]):
             return []
 

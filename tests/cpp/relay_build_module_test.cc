@@ -73,7 +73,12 @@ TVM_REGISTER_GLOBAL("relay.backend.lower_call")
       if (!f) {
         LOG(FATAL) << "relay.backend._make_LoweredOutput is not registered";
       }
-      return (*f)(outs, impl);
+      return (*f)(outs, impl, impl->name);
+    });
+
+TVM_REGISTER_GLOBAL("auto_tvm.relay_integration.is_tune_subgraph")
+    .set_body_typed([]() {
+      return false;
     });
 
 TEST(Relay, BuildModule) {

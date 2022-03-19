@@ -212,14 +212,14 @@ def register_subgraph_task(subgraph_name, outs, best_impl_name):
             env is not None and env.tracing and best_impl_name in tunable_op_list
         ):  # extract task phase
             # remove vm compiler prefix
-            subgraph_name = re.sub(r"vm_mod_", "", subgraph_name)
+            subgraph_name = re.sub(r"^vm_mod_", "", subgraph_name)
             subgraph_name = format_subgraph_task_name(subgraph_name, args)
             if subgraph_name not in g_registered_subgraphs_extracted:
                 g_registered_subgraphs_extracted.append(subgraph_name)
                 return register_topi_subgraph(best_impl_name, args, subgraph_name, outs)
         elif best_impl_name in tunable_op_list:  # build phase
             # remove codegen prefix
-            subgraph_name = re.sub(r"tvmgen_default_", "", subgraph_name)
+            subgraph_name = re.sub(r"^tvmgen_default_", "", subgraph_name)
             subgraph_name = format_subgraph_task_name(subgraph_name, args)
             return register_topi_subgraph(best_impl_name, args, subgraph_name, outs)
     return outs
