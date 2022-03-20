@@ -31,6 +31,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -416,7 +417,7 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    * \return The created executor.
    */
   std::pair<std::function<void()>, std::shared_ptr<OpArgs>> CreateTVMOp(
-      const TVMOpParam& attrs, const std::vector<DLTensor>& args);
+      uint32_t nid,const TVMOpParam& attrs, const std::vector<DLTensor>& args);
   // Get node entry index.
   uint32_t entry_id(uint32_t nid, uint32_t index) const { return node_row_ptr_[nid] + index; }
   // Get node entry index.
@@ -433,6 +434,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   std::unordered_map<std::string, uint32_t> input_map_;
   /*! \brief Map of output names to output indices. */
   std::unordered_map<std::string, uint32_t> output_map_;
+  /*! \brief Map of node id to corresponding argument memory location of op arguments */
+  std::unordered_map<uint32_t,std::shared_ptr<GraphExecutor::OpArgs>> op_mem_location_map_;
   /*! \brief Used for quick node input DLTensor* lookup given an input eid. */
   std::vector<std::vector<DLTensor*>> input_dltensors_;
   /*! \brief Used for quick node output DLTensor* lookup given an output eid. */

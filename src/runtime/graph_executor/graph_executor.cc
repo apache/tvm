@@ -460,7 +460,7 @@ void GraphExecutor::SetupOpExecs() {
     ICHECK(inode.op_type == "tvm_op") << "Can only take tvm_op as op";
 
     std::shared_ptr<OpArgs> op_args = nullptr;
-    std::tie(op_execs_[nid], op_args) = CreateTVMOp(inode.param, args);
+    std::tie(op_execs_[nid], op_args) = CreateTVMOp(nid,inode.param, args);
 
     for (size_t i = 0; i < inode.inputs.size(); i++) {
       uint32_t input_eid = this->entry_id(inode.inputs[i]);
@@ -488,7 +488,7 @@ void GraphExecutor::SetupOpExecs() {
 }
 
 std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs> >
-GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>& args) {
+GraphExecutor::CreateTVMOp(uint32_t nid,const TVMOpParam& param, const std::vector<DLTensor>& args) {
   std::shared_ptr<GraphExecutor::OpArgs> arg_ptr = std::make_shared<GraphExecutor::OpArgs>();
   // setup address.
   arg_ptr->args = args;
@@ -508,6 +508,8 @@ GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>&
       t->shape = &(arg_ptr->shape_data[i]);
     }
   }
+  // set up the memory location map
+  op_mem_location_map_[nid] = arg_ptr;
 
   if (param.func_name == "__nop") {
     return {[]() {}, arg_ptr};
@@ -515,7 +517,8 @@ GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>&
     // Perform cross device data copy.
     // Directly copy data from the input to the output.
     // TODO(mbs): device_copy cleanup.
-    auto fexec = [arg_ptr]() {
+    auto fexec = [nid,this]() {
+      auto arg_ptr = this->op_mem_location_map_[nid];
       DLTensor* from = static_cast<DLTensor*>(arg_ptr->arg_values[0].v_handle);
       DLTensor* to = static_cast<DLTensor*>(arg_ptr->arg_values[1].v_handle);
       TVM_CCALL(TVMArrayCopyFromTo(from, to, nullptr));
@@ -528,8 +531,9 @@ GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>&
   tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, true);
   ICHECK(pf != nullptr) << "no such function in module: " << param.func_name;
 
-  auto fexec = [arg_ptr, pf]() {
+  auto fexec = [pf,nid,this]() {
     TVMRetValue rv;
+    auto arg_ptr = this->op_mem_location_map_[nid];
     TVMArgs targs(arg_ptr->arg_values.data(), arg_ptr->arg_tcodes.data(),
                   static_cast<int>(arg_ptr->arg_values.size()));
     pf.CallPacked(targs, &rv);
