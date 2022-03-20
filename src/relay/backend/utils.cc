@@ -227,14 +227,20 @@ Array<Pass> GetPassPrefix(bool is_homegeneous, bool is_vm) {
     pass_seqs.push_back(transform::EtaExpand(
         /* expand_constructor */ true, /* expand_global_var */ false));
   } else {
+    // DynamicToStatic runs FoldConstant, which affects SimplifyExpr below.
+    // Task extraction uses the is_vm=true branch, meaning SimplifyExpr sees different
+    // inputs from the ones when invoked via relay.build(...).
+    // This causes workload lookups in ApplyHistoryBest to fail if the lookup depends on
+    // the structual hash of the input relay module (e.g. MetaScheduler).
+    // TODO(masahi): Either remove DynamicToStatic below or always run it
+
     // Convert Dynamic ops to static versions
     pass_seqs.push_back(transform::DynamicToStatic());
   }
 
   PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
     Expr expr = args[0];
-    if (expr.as<CallNode>()) {
-      auto call_node = expr.as<CallNode>();
+    if (auto* call_node = expr.as<CallNode>()) {
       auto op_node = call_node->op.as<OpNode>();
       if (op_node->name == "cast") {
         auto attrs = call_node->attrs.as<CastAttrs>();
