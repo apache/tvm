@@ -49,7 +49,8 @@ Optional<Integer> ParseThreadBinding(const Schedule& sch, const Instruction& ins
  * \param vector_lane The number of vector lane in vectorized cooperative fetching
  * \return NullOpt if parsing fails; Otherwise, the annotated block
  */
-Optional<BlockRV> ParseAnnotate(const Schedule& sch, const Instruction& inst, int* vector_lane) {
+Optional<BlockRV> ParseAnnotate(const Schedule& sch, const Instruction& inst,
+                                int64_t* vector_lane) {
   static InstructionKind inst_kind_annotate = InstructionKind::Get("Annotate");
   if (!inst->kind.same_as(inst_kind_annotate)) {
     return NullOpt;
@@ -87,55 +88,66 @@ class RewriteCooperativeFetchNode : public PostprocNode {
 
 bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
   tir::Trace trace = sch->trace().value();
-  int thread_extent_x = -1;
-  int thread_extent_y = -1;
-  int vector_lane = -1;
+  int64_t thread_extent_x = -1;
+  int64_t thread_extent_y = -1;
+  int64_t vector_lane = 1;
   std::vector<std::function<void()>> tasks;
   for (const tir::Instruction& inst : trace->insts) {
     if (Optional<Integer> new_thread_extent = tir::ParseThreadBinding(sch, inst, "threadIdx.x")) {
       thread_extent_x = new_thread_extent.value()->value;
-    } else if (Optional<Integer> new_thread_extent =
-                   tir::ParseThreadBinding(sch, inst, "threadIdx.y")) {
-      thread_extent_y = new_thread_extent.value()->value;
-    } else if (Optional<tir::BlockRV> block_rv = tir::ParseAnnotate(sch, inst, &vector_lane)) {
-      ICHECK_NE(thread_extent_x, -1);
-      if (vector_lane > 1) {
-        tasks.push_back([thread_extent_x, thread_extent_y, vector_lane, sch,
-                         block = block_rv.value()]() -> void {
-          tir::LoopRV fused = sch->GetLoops(block).back();
-          if (thread_extent_y == -1) {
-            Array<tir::LoopRV> split = sch->Split(fused, {NullOpt,                   //
-                                                          Integer(thread_extent_x),  //
-                                                          Integer(vector_lane)});
-            sch->Vectorize(split[2]);
-            sch->Bind(split[1], "threadIdx.x");
-          } else {
-            Array<tir::LoopRV> split = sch->Split(fused, {NullOpt,                   //
-                                                          Integer(thread_extent_y),  //
-                                                          Integer(thread_extent_x),  //
-                                                          Integer(vector_lane)});
-            sch->Vectorize(split[3]);
-            sch->Bind(split[2], "threadIdx.x");
-            sch->Bind(split[1], "threadIdx.y");
-          }
-        });
-      } else {
-        tasks.push_back(
-            [thread_extent_x, thread_extent_y, sch, block = block_rv.value()]() -> void {
-              tir::LoopRV fused = sch->GetLoops(block).back();
-              if (thread_extent_y == -1) {
-                Array<tir::LoopRV> split = sch->Split(fused, {NullOpt, Integer(thread_extent_x)});
-                sch->Bind(split[1], "threadIdx.x");
-              } else {
-                Array<tir::LoopRV> split = sch->Split(fused, {NullOpt,                   //
-                                                              Integer(thread_extent_y),  //
-                                                              Integer(thread_extent_x)});
-                sch->Bind(split[2], "threadIdx.x");
-                sch->Bind(split[1], "threadIdx.y");
-              }
-            });
-      }
+      continue;
     }
+    if (Optional<Integer> new_thread_extent = tir::ParseThreadBinding(sch, inst, "threadIdx.y")) {
+      thread_extent_y = new_thread_extent.value()->value;
+      continue;
+    }
+    Optional<tir::BlockRV> opt_block_rv = tir::ParseAnnotate(sch, inst, &vector_lane);
+    if (!opt_block_rv.defined()) {
+      continue;
+    }
+    auto task = [thread_extent_x, thread_extent_y, vector_lane, sch,
+                 block = opt_block_rv.value()]() mutable -> void {
+      sch->Unannotate(block, tir::attr::meta_schedule_cooperative_fetch);
+      tir::LoopRV fused = sch->GetLoops(block).back();
+      int64_t fused_extent = -1;
+      if (const int64_t* extent = tir::GetLoopIntExtent(sch->Get(fused).get())) {
+        fused_extent = *extent;
+      } else {
+        return;
+      }
+      if (fused_extent % vector_lane != 0) {
+        vector_lane = 1;
+      }
+      if (thread_extent_y != -1) {
+        if (vector_lane > 1) {
+          Array<tir::LoopRV> split = sch->Split(fused, {NullOpt,                   //
+                                                        Integer(thread_extent_y),  //
+                                                        Integer(thread_extent_x),  //
+                                                        Integer(vector_lane)});
+          sch->Vectorize(split[3]);
+          sch->Bind(split[2], "threadIdx.x");
+          sch->Bind(split[1], "threadIdx.y");
+        } else {
+          Array<tir::LoopRV> split = sch->Split(fused, {NullOpt,                   //
+                                                        Integer(thread_extent_y),  //
+                                                        Integer(thread_extent_x)});
+          sch->Bind(split[2], "threadIdx.x");
+          sch->Bind(split[1], "threadIdx.y");
+        }
+      } else {
+        if (vector_lane > 1) {
+          Array<tir::LoopRV> split = sch->Split(fused, {NullOpt,                   //
+                                                        Integer(thread_extent_x),  //
+                                                        Integer(vector_lane)});
+          sch->Vectorize(split[2]);
+          sch->Bind(split[1], "threadIdx.x");
+        } else {
+          Array<tir::LoopRV> split = sch->Split(fused, {NullOpt, Integer(thread_extent_x)});
+          sch->Bind(split[1], "threadIdx.x");
+        }
+      }
+    };
+    tasks.push_back(task);
   }
   for (auto&& task : tasks) {
     task();

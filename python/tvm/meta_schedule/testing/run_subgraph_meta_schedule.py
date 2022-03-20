@@ -63,19 +63,19 @@ def _parse_args():
         type=str,
         required=True,
     )
+    args.add_argument(
+        "--rpc-workers",
+        type=int,
+        required=True,
+    )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
-    if parsed.target.attrs.get("mtriple", None) == "aarch64-linux-gnu":
-        parsed.alloc_repeat = 3
-    else:
-        parsed.alloc_repeat = 1
     parsed.rpc_config = ms.runner.RPCConfig(
         tracker_host=parsed.rpc_host,
         tracker_port=parsed.rpc_port,
         tracker_key=parsed.rpc_key,
-        session_timeout_sec=30,
+        session_timeout_sec=60,
     )
-    parsed.rpc_workers = parsed.rpc_config.count_num_servers(allow_missing=False)
     return parsed
 
 
@@ -85,6 +85,7 @@ ARGS = _parse_args()
 
 
 def main():
+    alloc_repeat = 1
     runner = ms.runner.RPCRunner(
         rpc_config=ARGS.rpc_config,
         evaluator_config=ms.runner.EvaluatorConfig(
@@ -93,7 +94,7 @@ def main():
             min_repeat_ms=100,
             enable_cpu_cache_flush=False,
         ),
-        alloc_repeat=ARGS.alloc_repeat,
+        alloc_repeat=alloc_repeat,
         max_workers=ARGS.rpc_workers,
     )
     sch: Optional[tir.Schedule] = ms.tune_tir(

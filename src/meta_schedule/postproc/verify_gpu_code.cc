@@ -22,6 +22,7 @@
 
 namespace tvm {
 namespace tir {
+
 class ThreadExtentChecker : private StmtVisitor {
  public:
   static bool Check(const Stmt& stmt) {
@@ -35,24 +36,24 @@ class ThreadExtentChecker : private StmtVisitor {
 
  private:
   void VisitStmt_(const ForNode* loop) {
-    if (IsThreadIdx(GetThreadScope(loop))) {
-      const std::string& thread_tag = loop->thread_binding.value()->thread_tag;
+    runtime::ThreadScope thread_scope = GetThreadScope(loop);
+    if (IsThreadIdx(thread_scope)) {
       if (const int64_t* p_ext = GetLoopIntExtent(loop)) {
-        auto it = thread_tag2extent_.find(thread_tag);
-        bool new_thread = it == thread_tag2extent_.end();
-        if (new_thread) {
-          thread_extent_product *= *p_ext;
-          thread_tag2extent_[thread_tag] = *p_ext;
+        int64_t ext = *p_ext;
+        if (thread_scope.dim_index == 0) {
+          std::swap(thread_idx_x, ext);
+          StmtVisitor::VisitStmt_(loop);
+          std::swap(thread_idx_x, ext);
+        } else if (thread_scope.dim_index == 1) {
+          std::swap(thread_idx_y, ext);
+          StmtVisitor::VisitStmt_(loop);
+          std::swap(thread_idx_y, ext);
+        } else if (thread_scope.dim_index == 2) {
+          std::swap(thread_idx_z, ext);
+          StmtVisitor::VisitStmt_(loop);
+          std::swap(thread_idx_z, ext);
         } else {
-          CHECK_EQ(it->second, *p_ext)
-              << "ValueError: All loops that are bound to `" << thread_tag
-              << "` should have the same extent. However, there are two loops with extent "
-              << it->second << " and " << p_ext << ", which are not equal";
-        }
-        StmtVisitor::VisitStmt_(loop);
-        if (new_thread) {
-          thread_extent_product /= *p_ext;
-          thread_tag2extent_.erase(thread_tag);
+          StmtVisitor::VisitStmt_(loop);
         }
         return;
       } else {
@@ -69,6 +70,7 @@ class ThreadExtentChecker : private StmtVisitor {
               GetAnn<Integer>(block, attr::meta_schedule_thread_extent_high_inclusive)) {
         int64_t low = low_inclusive.value()->value;
         int64_t high = high_inclusive.value()->value;
+        int64_t thread_extent_product = thread_idx_x * thread_idx_y * thread_idx_z;
         if (!(low <= thread_extent_product && thread_extent_product <= high)) {
           throw dmlc::Error("Thread extent");
         }
@@ -77,12 +79,15 @@ class ThreadExtentChecker : private StmtVisitor {
     StmtVisitor::VisitStmt_(block);
   }
 
-  int64_t thread_extent_product = 1;
-
-  /*! \brief A mapping from a thread tag to its thread extent */
-  std::unordered_map<std::string, int64_t> thread_tag2extent_;
+  int64_t thread_idx_x = 1;
+  int64_t thread_idx_y = 1;
+  int64_t thread_idx_z = 1;
 };
+
 }  // namespace tir
+}  // namespace tvm
+
+namespace tvm {
 namespace meta_schedule {
 
 /*! \brief Extract attribute from a target. */
@@ -105,9 +110,9 @@ class VerifyGPUCodeNode : public PostprocNode {
     Target target = context->target.value();
     this->target_constraints_ = Map<String, PrimExpr>{
         {"max_shared_memory_per_block", Extract(target, "max_shared_memory_per_block")},
-        {"max_threads_per_block", Extract(target, "max_threads_per_block")},
         {"max_vthread", Integer(8)},
-        {"max_vector_bytes", Integer(16)}};
+        {"max_vector_bytes", Integer(16)},
+    };
   }
 
   bool Verify(const IRModule& mod) const {
@@ -150,14 +155,12 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tir::transform::BF16Legalize());
           pass_list.push_back(tir::transform::NarrowDataType(32));
           pass_list.push_back(tir::transform::Simplify());
-
           // Phase 2
           pass_list.push_back(tir::transform::VectorizeLoop(true));
           pass_list.push_back(tir::transform::InjectVirtualThread());
           pass_list.push_back(tir::transform::InjectDoubleBuffer());
           pass_list.push_back(tir::transform::StorageRewrite());
           pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
-
           // Convert Function to IRModule
           transform::PassContext pass_ctx = transform::PassContext::Current();
           tir::PrimFunc f = WithAttr(GetRef<tir::PrimFunc>(prim_func), "global_symbol",

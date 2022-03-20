@@ -20,7 +20,6 @@ import os
 
 import tvm
 from tvm import auto_scheduler
-from tvm.meta_schedule.runner import RPCConfig
 from tvm.meta_schedule.testing.te_workload import CONFIGS
 
 
@@ -57,18 +56,17 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
+        "--rpc-workers",
+        type=int,
+        required=True,
+    )
+    args.add_argument(
         "--log-dir",
         type=str,
         required=True,
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
-    parsed.rpc_workers = RPCConfig(
-        tracker_host=parsed.rpc_host,
-        tracker_port=parsed.rpc_port,
-        tracker_key=parsed.rpc_key,
-        session_timeout_sec=30,
-    ).count_num_servers(allow_missing=True)
     return parsed
 
 
@@ -93,6 +91,7 @@ def main():
             cache_line_bytes=64,
             max_shared_memory_per_block=int(ARGS.target.attrs["max_shared_memory_per_block"]),
             max_threads_per_block=int(ARGS.target.attrs["max_threads_per_block"]),
+            max_local_memory_per_block=12345678,
             max_vthread_extent=8,
             warp_size=32,
         )
