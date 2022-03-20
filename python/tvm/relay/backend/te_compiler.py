@@ -192,7 +192,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
             best_plevel_impl.plevel,
         )
         outs = best_plevel_impl.compute(attrs, inputs, out_type)
-        return best_plevel_impl, outs
+        return best_plevel_impl, outs, best_plevel_impl.name
 
     # Otherwise, try autotvm templates
     outputs = {}
