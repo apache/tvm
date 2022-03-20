@@ -76,10 +76,9 @@ TVM_REGISTER_GLOBAL("relay.backend.lower_call")
       return (*f)(outs, impl, impl->name);
     });
 
-TVM_REGISTER_GLOBAL("auto_tvm.relay_integration.is_tune_subgraph")
-    .set_body_typed([]() {
-      return false;
-    });
+TVM_REGISTER_GLOBAL("auto_tvm.relay_integration.is_tune_subgraph").set_body_typed([]() {
+  return false;
+});
 
 TEST(Relay, BuildModule) {
   auto tensor_type = relay::TensorType({2, 3}, DataType::Float(32));
