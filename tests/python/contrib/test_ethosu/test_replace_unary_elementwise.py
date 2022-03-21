@@ -22,7 +22,7 @@ import tvm.script
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir import spec
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
 from .infra import make_ethosu_unary_elementwise
 
 
@@ -69,7 +69,7 @@ def test_unary_elementwise_single(
     )
     func = relay.Function(relay.analysis.free_vars(unary_elementwise), unary_elementwise)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = lower_to_tir(func)
+    mod, _ = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):

@@ -34,7 +34,7 @@ from tvm.relay.backend.contrib.ethosu.tir.scheduler import (
 from tvm.relay.backend.contrib.ethosu.tir.compiler import (
     lower_to_te,
     extract_constants,
-    lower_to_tir,
+    _lower_to_tir,
 )
 from .infra import (
     AttachType,
@@ -216,7 +216,7 @@ def test_schedule_diamond_graph():
     func = relay.Function(relay.analysis.free_vars(add), add)
     func = run_opt_pass(func, relay.transform.InferType())
 
-    test_mod, _ = lower_to_tir(func, copy_constants())
+    test_mod, _ = _lower_to_tir(func, copy_constants())
     reference_mod = DiamondGraphTir
 
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)

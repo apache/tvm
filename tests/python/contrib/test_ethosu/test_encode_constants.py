@@ -22,7 +22,7 @@ import tvm
 from tvm import relay
 from tvm.script import tir as T
 from tvm.relay.testing import run_opt_pass
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
 from tvm.relay.backend.contrib.ethosu.tir.scheduler import Convolution2DCompute
 from tvm.relay.backend.contrib.ethosu.tir.scheduler import copy_constants
 from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator
@@ -96,7 +96,7 @@ def test_weight_stream_only():
         return func
 
     func = _get_func()
-    mod, consts = lower_to_tir(func, cascader=_planner)
+    mod, consts = _lower_to_tir(func, cascader=_planner)
     script = mod.script(show_meta=True)
     test_mod = tvm.script.from_source(script)
     reference_mod = WeightStreamOnly
@@ -159,7 +159,7 @@ def test_re_read_weights():
         return func
 
     func = _get_func()
-    mod, consts = lower_to_tir(func, cascader=_cascader)
+    mod, consts = _lower_to_tir(func, cascader=_cascader)
     script = mod.script(show_meta=True)
     test_mod = tvm.script.from_source(script)
     reference_mod = RereadWeights
@@ -217,7 +217,7 @@ def test_direct_read_only():
         return func
 
     func = _get_func()
-    mod, consts = lower_to_tir(func)
+    mod, consts = _lower_to_tir(func)
 
     script = mod.script(show_meta=True)
     test_mod = tvm.script.from_source(script)
@@ -306,7 +306,7 @@ def test_mixed_read():
         return func
 
     func = _get_func()
-    mod, consts = lower_to_tir(func, cascader=_planner)
+    mod, consts = _lower_to_tir(func, cascader=_planner)
 
     script = mod.script(show_meta=True)
     test_mod = tvm.script.from_source(script)
@@ -353,7 +353,7 @@ def test_constant_as_input():
         func = run_opt_pass(func, relay.transform.InferType())
         return func
 
-    tir_mod, params = lower_to_tir(get_graph(), copy_constants())
+    tir_mod, params = _lower_to_tir(get_graph(), copy_constants())
 
     # Check tile address for the scalar constant input hasn't been
     # overwritten.
