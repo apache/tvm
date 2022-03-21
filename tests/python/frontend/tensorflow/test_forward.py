@@ -5572,7 +5572,7 @@ def _test_unique(n, dtype, is_dyn):
         if is_dyn:
             compare_tf_with_tvm(np_data, "in_data:0", ["Unique:0", "Unique:1"], mode="vm")
         else:
-            compare_tf_with_tvm(None, "", ["Unique:0", "Unique:1"])
+            compare_tf_with_tvm(np_data, "", ["Unique:0", "Unique:1"], mode="vm")
 
 
 def test_forward_unique():
@@ -5607,7 +5607,10 @@ def _test_unique_with_counts(n, dtype, is_dyn):
             )
         else:
             compare_tf_with_tvm(
-                None, "", ["UniqueWithCounts:0", "UniqueWithCounts:1", "UniqueWithCounts:2"]
+                np_data,
+                "",
+                ["UniqueWithCounts:0", "UniqueWithCounts:1", "UniqueWithCounts:2"],
+                mode="vm",
             )
 
 
