@@ -242,12 +242,12 @@ Array<Pass> GetPassPrefix(bool is_homegeneous, bool is_vm) {
     *rv = false;
   });
   pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
-  pass_seqs.push_back(transform::SimplifyExpr());
   pass_seqs.push_back(transform::CombineParallelConv2D(3));
   pass_seqs.push_back(transform::CombineParallelDense(3));
   pass_seqs.push_back(transform::CombineParallelBatchMatmul(3));
   pass_seqs.push_back(transform::FoldConstant());
   pass_seqs.push_back(transform::FoldScaleAxis());
+  pass_seqs.push_back(transform::SimplifyExpr());
   pass_seqs.push_back(transform::CanonicalizeCast());
   pass_seqs.push_back(transform::CanonicalizeOps());
 
