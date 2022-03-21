@@ -464,7 +464,9 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
         )
     else:
         strategy.add_implementation(
-            wrap_compute_dense(topi.nn.dense, need_auto_scheduler_layout=is_auto_scheduler_enabled()),
+            wrap_compute_dense(
+                topi.nn.dense, need_auto_scheduler_layout=is_auto_scheduler_enabled()
+            ),
             wrap_topi_schedule(topi.generic.schedule_dense),
             name="dense.generic",
         )
