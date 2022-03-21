@@ -73,11 +73,6 @@ def android_serial_number() -> Optional[str]:
     return serial
 
 
-@tvm.testing.fixture
-def tvm_tracker_host() -> str:
-    return os.getenv(TVM_TRACKER_HOST, default=None)
-
-
 # NOTE on server ports:
 # These tests use different port numbers for the RPC server (7070 + ...).
 # The reason is that an RPC session cannot be gracefully closed without
@@ -108,19 +103,58 @@ def get_free_port():
 
 
 @pytest.fixture(scope="session")
-def tvm_tracker_port() -> int:
-    port = os.getenv(TVM_TRACKER_PORT, default=None)
-    port = int(port) if port else get_free_port()
-    return port
+def _tracker_info() -> (str, int):
+    env_tracker_host = os.getenv(TVM_TRACKER_HOST, default="")
+    env_tracker_port = os.getenv(TVM_TRACKER_PORT, default="")
+
+    if env_tracker_host or env_tracker_port:
+        # A tracker is already running, and we should connect to it
+        # when running tests.
+        assert env_tracker_host, "TVM_TRACKER_PORT is defined, but TVM_TRACKER_HOST is not"
+        assert env_tracker_port, "TVM_TRACKER_HOST is defined, but TVM_TRACKER_PORT is not"
+        env_tracker_port = int(env_tracker_port)
+
+        try:
+            tvm.rpc.connect_tracker(env_tracker_host, env_tracker_port)
+        except RuntimeError as exc:
+            message = (
+                "Could not connect to external tracker "
+                "specified by $TVM_TRACKER_HOST and $TVM_TRACKER_PORT "
+                f"({env_tracker_host}:{env_tracker_port})"
+            )
+            raise RuntimeError(message) from exc
+
+        yield (env_tracker_host, env_tracker_port)
+
+    else:
+        # No tracker is provided to the tests, so we should start one
+        # for the tests to use.
+        tracker = tvm.rpc.tracker.Tracker("127.0.0.1", get_free_port())
+        try:
+            yield (tracker.host, tracker.port)
+        finally:
+            tracker.terminate()
 
 
 @pytest.fixture(scope="session")
-def tvm_tracker(tvm_tracker_port):
-    tracker = tvm.rpc.tracker.Tracker("127.0.0.1", tvm_tracker_port)
-    try:
-        yield tracker
-    finally:
-        tracker.terminate()
+def tvm_tracker_host(_tracker_info) -> str:
+    host, port = _tracker_info
+    return host
+
+
+@pytest.fixture(scope="session")
+def tvm_tracker_port(_tracker_info) -> int:
+    host, port = _tracker_info
+    return port
+
+
+# @pytest.fixture(scope="session")
+# def tvm_tracker(tvm_tracker_port):
+#     tracker = tvm.rpc.tracker.Tracker("127.0.0.1", tvm_tracker_port)
+#     try:
+#         yield tracker
+#     finally:
+#         tracker.terminate()
 
 
 @tvm.testing.fixture
@@ -134,23 +168,15 @@ def adb_server_socket() -> str:
 
 
 @tvm.testing.fixture
-def rpc_info(tvm_tracker, rpc_server_port, adb_server_socket):
-    return {
-        "rpc_tracker_host": tvm_tracker.host,
-        "rpc_tracker_port": tvm_tracker.port,
-        "rpc_server_port": rpc_server_port,
-        "adb_server_socket": adb_server_socket,
-    }
-
-
-@tvm.testing.fixture
-def hexagon_launcher(android_serial_number, tvm_tracker, rpc_server_port, adb_server_socket):
+def hexagon_launcher(
+    android_serial_number, tvm_tracker_host, tvm_tracker_port, rpc_server_port, adb_server_socket
+):
     if android_serial_number is None:
         yield None
     else:
         rpc_info = {
-            "rpc_tracker_host": tvm_tracker.host,
-            "rpc_tracker_port": tvm_tracker.port,
+            "rpc_tracker_host": tvm_tracker_host,
+            "rpc_tracker_port": tvm_tracker_port,
             "rpc_server_port": rpc_server_port,
             "adb_server_socket": adb_server_socket,
         }
