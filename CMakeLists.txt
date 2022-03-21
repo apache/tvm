@@ -4,6 +4,7 @@ project(tvm C CXX)
 # Utility functions
 include(cmake/utils/Utils.cmake)
 include(cmake/utils/Summary.cmake)
+include(cmake/utils/Linker.cmake)
 include(cmake/utils/FindCUDA.cmake)
 include(cmake/utils/FindOpenCL.cmake)
 include(cmake/utils/FindVulkan.cmake)
@@ -67,9 +68,8 @@ tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack t
 tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
 tvm_option(USE_PAPI "Use Performance Application Programming Interface (PAPI) to read performance counters" OFF)
 tvm_option(USE_GTEST "Use GoogleTest for C++ sanity tests" AUTO)
-tvm_option(USE_LLD "Use LLD to link code if 'lld' executable is found" AUTO)
-tvm_option(USE_MOLD "Use mold to link code if 'mold' executable is found" AUTO)
 tvm_option(USE_CUSTOM_LOGGING "Use user-defined custom logging, tvm::runtime::detail::LogFatalImpl and tvm::runtime::detail::LogMessageImpl must be implemented" OFF)
+tvm_option(USE_ALTERNATIVE_LINKER "Use 'mold' or 'lld' if found when invoking compiler to link artifact" AUTO)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -738,37 +738,6 @@ if(BUILD_FOR_HEXAGON)
   endif()
 endif()
 
-
-if ((CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
-  if(USE_LLD)
-    find_program(LLD_PATH "lld")
-    if(LLD_PATH)
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fuse-ld=${LLD_PATH}")
-      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fuse-ld=${LLD_PATH}")
-    else()
-      if(USE_LLD STREQUAL "AUTO")
-        message(STATUS "Not using lld linker, executable was not found")
-      elseif(USE_LLD MATCHES ${IS_TRUE_PATTERN})
-        message(FATAL_ERROR "Could not find 'lld' executable but USE_LLD was set to ON")
-      endif()
-    endif()
-  endif()
-
-  if(USE_MOLD)
-    find_program(MOLD_PATH "mold")
-    if(MOLD_PATH)
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fuse-ld=${MOLD_PATH}")
-      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fuse-ld=${MOLD_PATH}")
-    else()
-      if(USE_MOLD STREQUAL "AUTO")
-        message(STATUS "Not using mold linker, executable was not found")
-      elseif(USE_MOLD MATCHES ${IS_TRUE_PATTERN})
-        message(FATAL_ERROR "Could not find 'mold' executable but USE_MOLD was set to ON")
-      endif()
-    endif()
-  endif()
-endif()
-
 #Caches the build.
 #Note that ccache-3.x doesn't support nvcc well, so CUDA kernels may never hit the cache and still
 #need to be re-compiled every time. Using ccache 4.0+ can resolve this issue.
@@ -797,6 +766,8 @@ if(USE_CCACHE) # True for AUTO, ON, /path/to/ccache
   # Set the flag for ccache
   set(CXX_COMPILER_LAUNCHER PATH_TO_CCACHE)
 endif(USE_CCACHE)
+
+find_and_set_linker(${USE_ALTERNATIVE_LINKER})
 
 if(${SUMMARIZE})
   print_summary()
