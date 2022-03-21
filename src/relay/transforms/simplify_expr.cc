@@ -708,7 +708,7 @@ Pass SimplifyExpr() {
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(SimplifyExpr(f, m));
       };
-  return CreateFunctionPass(pass_func, 0, "SimplifyExpr", {"InferType"});
+  return CreateFunctionPass(pass_func, 0, "SimplifyExpr", {"InferType", "FoldConstant"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.SimplifyExpr").set_body_typed(SimplifyExpr);
