@@ -146,3 +146,5 @@ def test_tune_subgraphs():
 
 if __name__ == "__main__":
     test_tune_subgraphs()
+    # set to False to avoid CI checking failure
+    GLOBAL_SCOPE.tune_subgraph = False
