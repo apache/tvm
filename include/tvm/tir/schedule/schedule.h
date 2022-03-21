@@ -37,6 +37,14 @@ enum class ScheduleErrorRenderLevel : int32_t {
   kNone = 2,
 };
 
+/*! \brief Type of buffer index */
+enum class BufferIndexType : int32_t {
+  /*! \brief Index of a read buffer */
+  kRead = 0,
+  /*! \brief Index of a written buffer */
+  kWrite = 1,
+};
+
 /**************** Random variable: BlockRV ****************/
 
 /*! \brief A random variable that evaluates to a TensorIR block */
@@ -531,11 +539,11 @@ class ScheduleNode : public runtime::Object {
    * 'match_buffer').
    * \param block_rv The block that accesses the target buffer.
    * \param buffer_index The index of the buffer in block's read or write region.
-   * \param is_write_index Whether the buffer_index is the index of the block's write region.
+   * \param buffer_index_type The type of the buffer index, kRead or kWrite.
    * \param index_map The transformation to apply.
    */
-  virtual void TransformLayout(const BlockRV& block_rv, int buffer_index, bool is_write_index,
-                               const IndexMap& index_map) = 0;
+  virtual void TransformLayout(const BlockRV& block_rv, int buffer_index,
+                               BufferIndexType buffer_index_type, const IndexMap& index_map) = 0;
 
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */

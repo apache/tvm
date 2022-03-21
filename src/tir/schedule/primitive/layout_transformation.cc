@@ -126,10 +126,9 @@ class BufferIsSubregionError : public ScheduleError {
 };
 
 void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-                     bool is_write_index, const IndexMap& index_map) {
+                     BufferIndexType buffer_index_type, const IndexMap& index_map) {
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_ptr, block_sref);
-  Buffer old_buffer = GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index,
-                                         /*is_write=*/is_write_index);
+  Buffer old_buffer = GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, buffer_index_type == BufferIndexType::kRead ? false : true);
   Optional<StmtSRef> defining_site_sref;
   bool is_alloc;
   std::tie(defining_site_sref, is_alloc) = GetBufferDefiningSite(block_sref, old_buffer);
@@ -196,16 +195,16 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, Integer buffer_index,
-                                      Bool is_write_index, IndexMap index_map) {
-    return sch->TransformLayout(block_rv, buffer_index, is_write_index, index_map);
+                                      Integer buffer_index_type, IndexMap index_map) {
+    return sch->TransformLayout(block_rv, buffer_index, static_cast<BufferIndexType>(buffer_index_type->value), index_map);
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block_rv, Integer buffer_index,
-                                 Bool is_write_index, IndexMap index_map) {
+                                 Integer buffer_index_type, IndexMap index_map) {
     PythonAPICall py("transform_layout");
     py.Input("block", block_rv);
     py.Input("buffer_index", buffer_index);
-    py.Input("is_write_index", is_write_index);
+    py.Input("buffer_index_type", buffer_index_type);
     py.Input("index_map", index_map->ToPythonString());
     return py.Str();
   }

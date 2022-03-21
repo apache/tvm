@@ -425,11 +425,11 @@ TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const String& 
  * \param self The state of the schedule
  * \param block_sref The block sref that accesses the target buffer.
  * \param buffer_index The index of the buffer in block's read or write region.
- * \param is_write_index Whether the buffer_index is the index of the block's write region.
+ * \param buffer_index_type The type of the buffer index, kRead or kWrite.
  * \param index_map The transformation to apply.
  */
 TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-                             bool is_write_index, const IndexMap& index_map);
+                             BufferIndexType buffer_index_type, const IndexMap& index_map);
 
 /******** Schedule: Misc ********/
 

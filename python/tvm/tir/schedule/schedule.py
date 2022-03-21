@@ -28,6 +28,7 @@ from . import _ffi_api
 from .state import ScheduleState, StmtSRef, _parse_debug_mask, _parse_mod
 from .trace import Trace
 from ._type_checker import type_checked
+import enum
 
 
 @register_error
@@ -70,6 +71,13 @@ _ERROR_RENDER_LEVEL: Dict[str, int] = {
     "fast": 1,
     "none": 2,
 }
+
+
+class BufferType(enum.IntEnum):
+    """Type of buffer in access regions of a block"""
+
+    READ = 0
+    WRITE = 1
 
 
 def _parse_error_render_level(error_render_level: str) -> int:
@@ -2119,7 +2127,7 @@ class Schedule(Object):
         self,
         block: BlockRV,
         buffer_index: int,
-        is_write_index: bool,
+        buffer_type: BufferType,
         index_map: Union[IndexMap, Callable],
     ) -> None:
         """Apply a transformation represented by IndexMap to buffer
@@ -2129,8 +2137,8 @@ class Schedule(Object):
             The block that accesses the target buffer
         buffer_index: int
             The index of the buffer in block's read or write region
-        is_write_index : bool
-            Whether the buffer_index is the index of the block's write region
+        buffer_type : BufferType
+            Type of the buffer, READ or WRITE.
         index_map : Union[IndexMap, Callable]
             The transformation to apply
 
@@ -2159,7 +2167,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_storage_align)
-            sch.transform_layout(sch.get_block("B"), buffer_index=0, is_write_index=True,
+            sch.transform_layout(sch.get_block("B"), buffer_index=0, BufferType.WRITE,
                                  index_map=lambda m, n: (m // 16, n // 16, m % 16, n % 16))
             print(sch.mod["main"].script())
 
@@ -2185,7 +2193,7 @@ class Schedule(Object):
         if callable(index_map):
             index_map = IndexMap.from_func(index_map)
         _ffi_api.ScheduleTransformLayout(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index, is_write_index, index_map
+            self, block, buffer_index, buffer_type, index_map
         )
 
     ########## Schedule: Misc ##########

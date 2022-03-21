@@ -96,7 +96,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void Annotate(const BlockRV& block_rv, const String& ann_key, const ObjectRef& ann_val) override;
   void Unannotate(const BlockRV& block_rv, const String& ann_key) override;
   /******** Schedule: Layout transformation ********/
-  void TransformLayout(const BlockRV& block_rv, int buffer_index, bool is_write_index,
+  void TransformLayout(const BlockRV& block_rv, int buffer_index, BufferIndexType buffer_index_type,
                        const IndexMap& index_map) override;
   /******** Schedule: Misc ********/
   void EnterPostproc() final;

@@ -19,6 +19,6 @@
 
 from .block_scope import BlockScope, Dependency, DepKind, StmtSRef
 from .instruction import Instruction, InstructionKind
-from .schedule import BlockRV, ExprRV, LoopRV, Schedule, ScheduleError
+from .schedule import BlockRV, ExprRV, LoopRV, Schedule, ScheduleError, BufferType
 from .state import ScheduleDebugMask, ScheduleState
 from .trace import Trace
