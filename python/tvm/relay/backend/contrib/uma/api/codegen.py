@@ -32,13 +32,12 @@ class UMACodegen(object):
             raise RuntimeError(f'Unsupported codegen format "{fmt}"')
 
     def _register_c_codegen(
-        self, includes: Callable, constants: Callable, replace_call_extern: Callable
+        self,
+        includes: Callable[[], str],
+        replace_call_extern: Callable[[tvm.ir.container.Array], str],
     ) -> None:
         tvm._ffi.register_func(
             "relay.ext.uma.codegen_c_includes_{}".format(self.target_name), includes
-        )
-        tvm._ffi.register_func(
-            "relay.ext.uma.codegen_c_constants_{}".format(self.target_name), constants
         )
         tvm._ffi.register_func(
             "relay.ext.uma.codegen_c_replace_call_extern_{}".format(self.target_name),

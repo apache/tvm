@@ -35,12 +35,14 @@ namespace uma {
 
 class UMACodegen : public codegen::CodeGenCHost {
  public:
-  void Init(bool output_ssa, bool emit_asserts, std::string target_str) {
-    auto includes_pf = tvm::runtime::Registry::Get("relay.ext.uma.codegen_c_includes_" + target_str);
+  UMACodegen(String target_str) : target_str_(target_str) {}
+
+  void Init(bool output_ssa, bool emit_asserts) {
+    auto includes_pf = tvm::runtime::Registry::Get("relay.ext.uma.codegen_c_includes_" + target_str_);
     ICHECK(includes_pf);
     String includes = (*includes_pf)();
     decl_stream << includes;
-    CodeGenCHost::Init(output_ssa, emit_asserts, target_str);
+    CodeGenCHost::Init(output_ssa, emit_asserts, target_str_);
   }
 
   /*!
@@ -49,14 +51,38 @@ class UMACodegen : public codegen::CodeGenCHost {
    * \return string of code that offloads a subgraph to the Cortex-M
    */
   void AddFunction(const PrimFunc& prim_func) { CodeGenC::AddFunction(prim_func); }
+
+ private:
+  String target_str_;
+
+  using codegen::CodeGenCHost::VisitStmt_;
+
+  /*!  * \brief Emits target specific APIs for every call_extern */
+  void VisitExpr_(const CallNode* op, std::ostream& os) final {
+    if (!op->op.same_as(builtin::call_extern())) {
+      CodeGenCHost::VisitExpr_(op, os);
+      return;
+    }
+    auto replace_call_extern_pf = tvm::runtime::Registry::Get("relay.ext.uma.codegen_c_replace_call_extern_" + target_str_);
+    if (replace_call_extern_pf == nullptr) {
+      CodeGenCHost::VisitExpr_(op, os);
+    } else {
+      // TODO:
+      // - funtion type (void) still gets printed before CallNode if extern call is wrapped in EvaluateNode
+      // - VarNode arguments might have "wrong" name_hints. The correct variable name is determined in C++ through GetVarID
+      String api_string = (*replace_call_extern_pf)(op->args);
+      os << api_string;
+    }
+    return;
+  }
 };
 
 runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
-  UMACodegen codegen;
+  UMACodegen codegen (target->str());
   Array<String> function_names;
-  codegen.Init(output_ssa, emit_asserts, target->str());
+  codegen.Init(output_ssa, emit_asserts);
   for (auto kv : mod->functions) {
     auto prim_func = Downcast<PrimFunc>(kv.second);
     auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);

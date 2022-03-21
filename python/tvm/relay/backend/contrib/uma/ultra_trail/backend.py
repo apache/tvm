@@ -21,7 +21,7 @@ from .strategies import *
 from .schedules import *
 from .passes import *
 from .patterns import *
-from .codegen import gen_includes
+from .codegen import *
 
 
 class UltraTrailBackend(UMABackend):
@@ -50,7 +50,7 @@ class UltraTrailBackend(UMABackend):
         # TIR to runtime function registration
         #######################################################################
         self._register_codegen(
-            fmt="c", includes=gen_includes, constants=None, replace_call_extern=None
+            fmt="c", includes=gen_includes, replace_call_extern=gen_replace_call_extern
         )
 
     @property

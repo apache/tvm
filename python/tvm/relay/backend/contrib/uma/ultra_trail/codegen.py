@@ -16,6 +16,8 @@
 # under the License.
 """UMA codegen for the UltraTrail accelerator"""
 
+import tvm
+
 
 def gen_includes() -> str:
     includes = ""
@@ -23,3 +25,7 @@ def gen_includes() -> str:
     includes += "#include <archi.h>\n"
     includes += "#include <hal.h>\n"
     return includes
+
+
+def gen_replace_call_extern(args: tvm.ir.container.Array) -> str:
+    return "my_custom_api_function({}, {}, {})".format(*args)
