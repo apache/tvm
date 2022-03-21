@@ -857,7 +857,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
         local_analyzer.Bind(for_loop_stack_.at(j)->loop_var,
                             Range::FromMinExtent(for_loop_stack_.at(j)->min, 1));
       }
-      for (int j = i; j < for_loop_stack_.size(); j++) {
+      for (int j = i; j < static_cast<int>(for_loop_stack_.size()); j++) {
         local_analyzer.Bind(
             for_loop_stack_.at(j)->loop_var,
             Range::FromMinExtent(for_loop_stack_.at(j)->min, for_loop_stack_.at(j)->extent));
