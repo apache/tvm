@@ -235,7 +235,12 @@ AnnotationPosType GetAnnotationPosEncoding(const Var& var, const Array<PrimExpr>
 
 // Return the maximum extent of a for loop
 int64_t GetLoopExtent(const ForNode* node, const Analyzer& ana) {
-  return ana.const_int_bound(node->extent)->max_value;
+  int64_t bound = ana.const_int_bound(node->extent)->max_value;
+  if (bound == ConstIntBound::kPosInf) {
+    return 1;  // Analyzer could not determine a valid bound, use 1 instead.
+  } else {
+    return bound;
+  }
 }
 
 // Count math ops in an expr

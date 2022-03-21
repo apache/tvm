@@ -227,7 +227,7 @@ def test_primfunc():
     # featurization does not handle multiple-add right now, so they are split out
     assert abs(features["float_addsub"][0] - 128 * 128 * 128) < 10
     assert abs(features["float_mul"][0] - 128 * 128 * 128) < 10
-    for i in range(0,3):
+    for i in range(0, 3):
         assert abs(features[f"B{i}.unique_bytes"][0] - 128 * 128 * 4) < 10  # 4 bytes per float32
 
 
