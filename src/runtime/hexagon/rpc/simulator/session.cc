@@ -214,6 +214,11 @@ class SimulatorRPCChannel final : public RPCChannel {
     std::string runmain;    // Path to run_main_on_hexagon.
   };
 
+  struct Message_ {
+    Message msg;
+    std::string str() const;
+  };
+
   Message SendMsg(Message msg);
   Message SendMsg(uint32_t code, uint32_t len, uint32_t va);
   void ReadFromProcess(void* host_dst, HEX_VA_t src, size_t len);
@@ -461,6 +466,27 @@ std::string SimulatorRPCChannel::Cpu_::str() const {
   return default_cpu_;
 }
 
+std::string SimulatorRPCChannel::Message_::str() const {
+  switch (msg.code) {
+    case Message::kNone:
+      return "kNone";
+    case Message::kAck:
+      return "kAck";
+    case Message::kTerminate:
+      return "kTerminate";
+    case Message::kReceiveStart:
+      return "kReceiveStart";
+    case Message::kReceiveEnd:
+      return "kReceiveEnd";
+    case Message::kSendStart:
+      return "kSendStart";
+    case Message::kSendEnd:
+      return "kSendEnd";
+    default:
+      break;
+  }
+}
+
 SimulatorRPCChannel::SDKInfo_::SDKInfo_(const std::string& sdk_root, const std::string& cpu)
     : root(sdk_root) {
   // For v69 chips, still look for v68 in the directory names.
@@ -524,6 +550,7 @@ SimulatorRPCChannel::SimulatorRPCChannel(int stack_size, std::string args) {
   const auto* api_v2 = tvm::runtime::Registry::Get("device_api.hexagon.v2");
   ICHECK(api_v2 != nullptr);
   tvm::runtime::Registry::Register("device_api.hexagon", true).set_body(*api_v2);
+  tvm::runtime::Registry::Register("device_api.cpu", true).set_body(*api_v2);
 
   const char* sdk_root_env = std::getenv("HEXAGON_SDK_ROOT");
   ICHECK(sdk_root_env != nullptr) << "Please set HEXAGON_SDK_ROOT";
@@ -651,8 +678,13 @@ Message SimulatorRPCChannel::SendMsg(Message msg) {
     HEX_4u_t result;
 
     core = sim_->Run(&result);
-    ICHECK_EQ(core, HEX_CORE_BREAKPOINT);
+    Core_ core_ = {core};
+    ICHECK_EQ(core, HEX_CORE_BREAKPOINT)
+        << "Expecting HEX_CORE_BREAKPOINT, received: " << core_.str();
   };
+
+  Message_ msg_ = {msg};
+  LOG(INFO) << "Sending message: " << msg_.str();
 
   WriteToProcess(message_buffer_v_, &msg, sizeof msg);
   run();

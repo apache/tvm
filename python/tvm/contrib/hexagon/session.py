@@ -60,10 +60,10 @@ class Session:
         rpc_receive_buffer_size_bytes: int = 2 * 1024 * 1024,
     ):
         self._launcher = launcher
-        self._session_name = session_name
-        self._remote_stack_size_bytes = remote_stack_size_bytes
-        self._rpc_receive_buffer_size_bytes = rpc_receive_buffer_size_bytes
-        self._remote_kw = remote_kw
+        self._session_name: str = session_name
+        self._remote_stack_size_bytes: int = remote_stack_size_bytes
+        self._rpc_receive_buffer_size_bytes: int = rpc_receive_buffer_size_bytes
+        self._remote_kw: dict = remote_kw
         self._rpc = None
         self.device = None
 
@@ -86,7 +86,12 @@ class Session:
                     self._rpc_receive_buffer_size_bytes,
                 ],
             )
-            self.device = self._rpc.hexagon(0)
+            if self._session_name == "cpu-rpc":
+                self.device = self._rpc.cpu(0)
+            elif self._session_name == "hexagon-rpc":
+                self.device = self._rpc.hexagon(0)
+            else:
+                raise RuntimeError(f"Incorrect session name: {self._session_name}")
             return self
 
         except RuntimeError as exception:
@@ -286,6 +291,11 @@ class Session:
             for target in module.target.values()
             if "hexagon" in target.keys
         )
+        assert len(module.target.values()) == 1
+
+        for target in module.target.values():
+            target_kind = str(target).split()[0]
+
         assert hexagon_arch, "No hexagon target architecture found"
         assert len(hexagon_arch) == 1, f"Inconsistent hexagon architecture found, {hexagon_arch}"
         hexagon_arch = hexagon_arch.pop()
@@ -295,11 +305,19 @@ class Session:
             binary_name = "test_binary.so"
             binary_path = temp_dir / binary_name
 
-            module.export_library(
-                str(binary_path),
-                fcompile=hexagon.create_aot_shared,
-                hexagon_arch=hexagon_arch,
-            )
+            if target_kind == "hexagon":
+                module.export_library(
+                    str(binary_path),
+                    fcompile=hexagon.create_aot_shared,
+                    hexagon_arch=hexagon_arch,
+                )
+            elif target_kind == "llvm":
+                module.export_library(
+                    str(binary_path),
+                    cc=hexagon.hexagon_clang_plus(),
+                )
+            else:
+                raise ValueError("Incorrect Target kind.")
 
             self.upload(binary_path, binary_name)
 

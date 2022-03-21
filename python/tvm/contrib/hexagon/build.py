@@ -182,7 +182,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         assert self._workspace
         self._copy_to_remote(local_path, os.path.join(str(self._workspace), remote_filename))
 
-    def start_session(self) -> Session:
+    def start_session(self, name="hexagon-rpc") -> Session:
         """Connect to the RPC server.
 
         Returns
@@ -197,7 +197,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
             "timeout": 0,
             "key": self._device_key,
         }
-        return Session(self, hexagon_remote_kw)
+        return Session(self, hexagon_remote_kw, session_name=name)
 
     def load_module(self, module: Union[str, pathlib.Path, tvm.runtime.Module], session: Session):
         """Load TVM module.
