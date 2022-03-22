@@ -223,8 +223,8 @@ PrimFunc PoolAllocationToOffsetConverter::CreatePrimFuncWithPoolParams(
     if (emit_tvmscript_printable_) {
       original_attrs = DictAttrs();
     }
-    PrimFunc ret = PrimFunc(si.params, new_body, original_primfunc->ret_type, si.buffer_map, {},
-                            original_attrs);
+    PrimFunc ret = PrimFunc(si.params, new_body, original_primfunc->ret_type, si.buffer_map,
+                            si.buffer_map, original_attrs);
     if (!emit_tvmscript_printable_) {
       ret = WithAttr(ret, tvm::attr::kPoolArgs, si.allocated_pool_params);
     }
