@@ -810,7 +810,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 // Call
 Call::Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, Span span) {
   for (size_t i = 0; i < args.size(); ++i) {
-    ICHECK(args[i].defined());
+    ICHECK(args[i].defined()) << "arg " << i << " is not defined()";
   }
 
   ObjectPtr<CallNode> node = make_object<CallNode>();
