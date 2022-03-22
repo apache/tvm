@@ -3205,6 +3205,56 @@ def parse_bufferslice_as_range_bound():
     return segment_sum
 
 
+def decompose_reduction_read_write():
+    @T.prim_func
+    def decomposed_gemm(
+        A: T.Buffer[(16, 16), "float32"],
+        B: T.Buffer[(16, 16), "float32"],
+        C: T.Buffer[(16, 16), "float32"],
+    ):
+        for i, j in T.grid(4, 4):
+            for ii, jj in T.grid(4, 4):
+                with T.block("init"):
+                    vi = T.axis.S(16, i * 4 + ii)
+                    vj = T.axis.S(16, j * 4 + jj)
+                    T.reads()
+                    T.writes(C[vi, vj])
+                    C[vi, vj] = 0
+            for k, ii, jj in T.grid(16, 4, 4):
+                with T.block("update"):
+                    vi = T.axis.S(16, i * 4 + ii)
+                    vj = T.axis.S(16, j * 4 + jj)
+                    vk = T.axis.R(16, k)
+                    T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
+                    T.writes(C[vi, vj])
+                    C[vi, vj] += A[vi, vk] * B[vj, vk]
+
+    return decomposed_gemm
+
+
+def reduction_read_write():
+    @T.prim_func
+    def gemm(
+        A: T.Buffer[(16, 16), "float32"],
+        B: T.Buffer[(16, 16), "float32"],
+        C: T.Buffer[(16, 16), "float32"],
+    ):
+        for i, j, k, ii, jj in T.grid(4, 4, 16, 4, 4):
+            with T.block("update"):
+                vi = T.axis.S(16, i * 4 + ii)
+                vj = T.axis.S(16, j * 4 + jj)
+                vk = T.axis.R(16, k)
+                T.reads(A[vi, vk], B[vj, vk])
+                T.writes(C[vi, vj])
+                with T.init():
+                    T.reads([])
+                    T.writes(C[vi, vj])
+                    C[vi, vj] = 0
+                C[vi, vj] += A[vi, vk] * B[vj, vk]
+
+    return gemm
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3237,6 +3287,8 @@ ir_generator = tvm.testing.parameter(
     func_T_ptr_allocate,
     llvm_intrin_call,
     parse_bufferslice_as_range_bound,
+    reduction_read_write,
+    decompose_reduction_read_write,
 )
 
 
