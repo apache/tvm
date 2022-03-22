@@ -3191,6 +3191,7 @@ def _test_broadcast_args(in_shape_1, in_shape_2):
         compare_tf_with_tvm(None, "", "BroadcastArgs:0", opt_level=0)
 
 
+@tvm.testing.slow
 def test_forward_broadcast_args():
     """Resize Bilinear"""
 
@@ -3234,6 +3235,7 @@ def _test_broadcast_to_from_tensor(in_shape):
         compare_tf_with_tvm(data, "Placeholder:0", "BroadcastTo:0")
 
 
+@tvm.testing.slow
 def test_forward_broadcast_to():
     """Resize Bilinear"""
 

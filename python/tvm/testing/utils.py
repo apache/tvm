@@ -523,7 +523,7 @@ def slow(fn):
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
         if SKIP_SLOW_TESTS:
-            pytest.skip("Skipping slow test since RUN_SLOW_TESTS environment variables is 'true'")
+            pytest.skip("Skipping slow test since the SKIP_SLOW_TESTS environment variable is set")
         else:
             fn(*args, **kwargs)
 

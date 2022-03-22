@@ -83,6 +83,7 @@ tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
 
 // command to start a docker container
 docker_run = 'docker/bash.sh'
+docker_run_test = 'docker/bash.sh --env SKIP_SLOW_TESTS'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 240
@@ -402,9 +403,6 @@ def cpp_unittest(image) {
 }
 
 stage('Build') {
-  environment {
-    SKIP_SLOW_TESTS = "${skip_slow_tests}"
-  }
   parallel 'BUILD: GPU': {
     if (!skip_ci) {
       node('CPU') {
@@ -587,15 +585,15 @@ stage('Test') {
               ci_setup(ci_gpu)
               cpp_unittest(ci_gpu)
               sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
+                script: "${docker_run_test} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
                 label: 'Run Java unit tests',
               )
               sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
+                script: "${docker_run_test} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
                 label: 'Run Python GPU unit tests',
               )
               sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
+                script: "${docker_run_test} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
                 label: 'Run Python GPU integration tests',
               )
             }
@@ -618,7 +616,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_cpu)
               sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                script: "${docker_run_test} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
                 label: 'Run CPU integration tests',
               )
             }
@@ -644,7 +642,7 @@ stage('Test') {
               python_unittest(ci_cpu)
               fsim_test(ci_cpu)
               sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
+                script: "${docker_run_test} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
                 label: 'Run VTA tests in TSIM',
               )
             }
@@ -669,7 +667,7 @@ stage('Test') {
               cpp_unittest(ci_i386)
               python_unittest(ci_i386)
               sh (
-                script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
+                script: "${docker_run_test} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
                 label: 'Run i386 integration tests',
               )
               fsim_test(ci_i386)
@@ -695,11 +693,11 @@ stage('Test') {
               cpp_unittest(ci_arm)
               python_unittest(ci_arm)
               sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
+                script: "${docker_run_test} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
                 label: 'Run test_arm_compute_lib test',
               )
               sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_topi.sh",
+                script: "${docker_run_test} ${ci_arm} ./tests/scripts/task_python_topi.sh",
                 label: 'Run TOPI tests',
               )
             // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
@@ -723,7 +721,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_gpu)
               sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh",
+                script: "${docker_run_test} ${ci_gpu} ./tests/scripts/task_python_topi.sh",
                 label: 'Run TOPI tests',
               )
             }
@@ -746,7 +744,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_gpu)
               sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh 1",
+                script: "${docker_run_test} ${ci_gpu} ./tests/scripts/task_python_frontend.sh 1",
                 label: 'Run Python frontend tests (shard 1)',
               )
             }
@@ -769,7 +767,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_gpu)
               sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh 2",
+                script: "${docker_run_test} ${ci_gpu} ./tests/scripts/task_python_frontend.sh 2",
                 label: 'Run Python frontend tests (shard 2)',
               )
             }
@@ -792,7 +790,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_cpu)
               sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh",
+                script: "${docker_run_test} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh",
                 label: 'Run Python frontend tests',
               )
             }
@@ -814,7 +812,7 @@ stage('Test') {
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_gpu)
             sh (
-              script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh",
+              script: "${docker_run_test} ${ci_gpu} ./tests/scripts/task_python_docs.sh",
               label: 'Build docs',
             )
           }

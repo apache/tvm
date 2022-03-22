@@ -241,6 +241,7 @@ def verify_upsampling3d(
         check_target(target, dev)
 
 
+@tvm.testing.slow
 @tvm.testing.uses_gpu
 def test_upsampling3d():
     # nearest_neighbor - NCDHW
