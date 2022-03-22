@@ -128,7 +128,9 @@ class BufferIsSubregionError : public ScheduleError {
 void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                      BufferIndexType buffer_index_type, const IndexMap& index_map) {
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_ptr, block_sref);
-  Buffer old_buffer = GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, buffer_index_type == BufferIndexType::kRead ? false : true);
+  Buffer old_buffer =
+      GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index,
+                         buffer_index_type == BufferIndexType::kRead ? false : true);
   Optional<StmtSRef> defining_site_sref;
   bool is_alloc;
   std::tie(defining_site_sref, is_alloc) = GetBufferDefiningSite(block_sref, old_buffer);
@@ -196,7 +198,8 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
 
   static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, Integer buffer_index,
                                       Integer buffer_index_type, IndexMap index_map) {
-    return sch->TransformLayout(block_rv, buffer_index, static_cast<BufferIndexType>(buffer_index_type->value), index_map);
+    return sch->TransformLayout(block_rv, buffer_index,
+                                static_cast<BufferIndexType>(buffer_index_type->value), index_map);
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block_rv, Integer buffer_index,
