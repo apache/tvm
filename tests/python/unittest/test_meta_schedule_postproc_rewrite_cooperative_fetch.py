@@ -72,7 +72,6 @@ class AfterRewrite0:
                                     v1 = T.axis.spatial(512, (ax0_ax1_fused_0 * 8 + ax0_ax1_fused_1) % 512)
                                     T.reads([A[v0, v1]])
                                     T.writes([A_shared[v0, v1]])
-                                    T.block_attr({"meta_schedule.cooperative_fetch":1})
                                     A_shared[v0, v1] = A[v0, v1]
                         for ax0_ax1_fused_0 in T.serial(0, 1024):
                             for ax0_ax1_fused_1 in T.thread_binding(0, 8, thread="threadIdx.x"):
@@ -82,7 +81,6 @@ class AfterRewrite0:
                                         v1 = T.axis.spatial(512, i0_0_i1_0_fused * 32 + (ax0_ax1_fused_0 * 16 + ax0_ax1_fused_1 * 2 + ax0_ax1_fused_2) % 32)
                                         T.reads([B[v0, v1]])
                                         T.writes([B_shared[v0, v1]])
-                                        T.block_attr({"meta_schedule.cooperative_fetch":2})
                                         B_shared[v0, v1] = B[v0, v1]
                         for i2_1, i0_3, i1_3, i2_2, i0_4, i1_4 in T.grid(16, 2, 2, 32, 16, 2):
                             with T.block("C"):

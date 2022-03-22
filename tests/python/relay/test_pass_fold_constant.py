@@ -17,14 +17,10 @@
 import numpy as np
 import tvm
 from tvm import relay
+from tvm.relay.backend import Executor
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.testing import run_infer_type, create_workload
-
-
-def annot_func(f):
-    """Returns f with arg/result device attributes for the argument and result."""
-    return relay.op.annotation.function_on_device(f, [tvm.cpu()], tvm.cpu())
 
 
 def annot_expr(e):
@@ -96,20 +92,24 @@ def test_fold_const_with_on_device():
     def before():
         c = relay.const(c_data)
         x = relay.var("x", t)
+        x.virtual_device_ = tvm.cpu()
         y = relay.add(c, c)
         y = relay.multiply(y, relay.const(2, "float32"))
         y = relay.add(x, y)
         z = relay.add(y, c)
         f = relay.Function([x], z)
-        return annot_func(f)
+        f.virtual_device_ = tvm.cpu()
+        return f
 
     def expected():
         x = relay.var("x", t)
+        x.virtual_device_ = tvm.cpu()
         c_folded = (c_data + c_data) * 2
         y = relay.add(x, relay.const(c_folded))
         z = relay.add(y, relay.const(c_data))
         f = relay.Function([x], z)
-        return annot_func(f)
+        f.virtual_device_ = tvm.cpu()
+        return f
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
@@ -151,21 +151,25 @@ def test_fold_let_with_on_device():
     def before():
         sb = relay.ScopeBuilder()
         x = relay.var("x", t)
+        x.virtual_device_ = tvm.cpu()
         t1 = sb.let("t1", annot_expr(relay.const(c_data)))
         t2 = sb.let("t2", annot_expr(relay.add(t1, t1)))
         t3 = sb.let("t3", annot_expr(relay.add(t2, x)))
         sb.ret(t3)
         f = relay.Function([x], sb.get())
-        return annot_func(f)
+        f.virtual_device_ = tvm.cpu()
+        return f
 
     def expected():
         sb = relay.ScopeBuilder()
         x = relay.var("x", t)
+        x.virtual_device_ = tvm.cpu()
         c_folded = c_data + c_data
         t3 = sb.let("t3", annot_expr(relay.add(annot_expr(relay.const(c_folded)), x)))
         sb.ret(t3)
         f = relay.Function([x], sb.get())
-        return annot_func(f)
+        f.virtual_device_ = tvm.cpu()
+        return f
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
@@ -364,6 +368,24 @@ def test_fold_dropout():
         after_mod = passes(before_mod)
 
     tvm.ir.assert_structural_equal(run_infer_type(before_mod["main"]), after_mod["main"])
+
+
+def test_pass_link_params():
+    """
+    This test checks ensures that proper executor is passed to interpreter instance
+    The test will fail if FoldConstant does not override the executor due to "int8"
+    is not supported in ScheduleBuilder
+    """
+
+    def expr():
+        z = relay.const(10, dtype="int8")
+        return relay.cast(z, dtype="int32")
+
+    mod = tvm.IRModule.from_expr(expr())
+    mod = tvm.relay.transform.InferType()(mod)
+    # Add executor with link-params
+    mod = mod.with_attr("executor", Executor("aot", {"link-params": True}))
+    mod = tvm.relay.transform.FoldConstant()(mod)
 
 
 if __name__ == "__main__":

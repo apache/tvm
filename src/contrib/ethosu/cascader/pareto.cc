@@ -29,6 +29,8 @@
 
 #include "common.h"
 #include "plan.h"
+#include "proposal.h"
+#include "tensor_config.h"
 
 namespace tvm {
 namespace contrib {
@@ -104,6 +106,31 @@ std::vector<Plan> ParetoCullPlans(std::vector<Plan> plans, size_t max_plans) {
     return optimal_plans;
   }
   return ThinVector(optimal_plans, max_plans);
+}
+
+std::vector<Proposal> ParetoCullProposals(std::vector<Proposal> proposals, size_t max_proposals) {
+  std::sort(proposals.begin(), proposals.end(), [](const Proposal& a, const Proposal& b) -> bool {
+    return a->GetMemoryUsage() < b->GetMemoryUsage();
+  });
+  std::vector<std::array<float, 2>> costs;
+  for (const auto& proposal : proposals) {
+    std::array<float, 2> cost = {static_cast<float>(proposal->GetMemoryUsage()),
+                                 static_cast<float>(proposal->GetCycles())};
+    costs.emplace_back(cost);
+  }
+  std::vector<bool> is_optimal = GetParetoFrontier<2>(costs);
+  std::vector<Proposal> optimal_proposals;
+  size_t i = 0;
+  for (bool optimal : is_optimal) {
+    if (optimal) {
+      optimal_proposals.push_back(proposals[i]);
+    }
+    i++;
+  }
+  if (optimal_proposals.size() <= max_proposals) {
+    return optimal_proposals;
+  }
+  return ThinVector(optimal_proposals, max_proposals);
 }
 
 TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.GetParetoFrontier")

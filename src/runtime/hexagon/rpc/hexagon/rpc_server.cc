@@ -43,7 +43,10 @@ extern "C" {
 // TODO(mehrdadh): make this configurable.
 #define TVM_HEXAGON_RPC_BUFF_SIZE_BYTES 2 * 1024 * 1024
 
+// TODO(csulivan,adstraw,kparzysz-quic) This should be set on a TVM-wide basis.
+#if defined(__hexagon__)
 #define TVM_LOG_CUSTOMIZE 1
+#endif
 
 namespace tvm {
 namespace runtime {

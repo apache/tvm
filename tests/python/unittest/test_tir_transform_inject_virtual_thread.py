@@ -17,8 +17,10 @@
 import tvm
 from tvm import te
 
+vthread_name = tvm.testing.parameter("vthread", "cthread")
 
-def test_vthread():
+
+def test_vthread(vthread_name):
     dtype = "int64"
     n = 100
     m = 4
@@ -35,7 +37,7 @@ def test_vthread():
             ib.scope_attr(ty, "virtual_thread", nthread)
             B = ib.allocate("float32", m, name="B", scope="shared")
             B[i] = A[i * nthread + tx]
-            bbuffer = tvm.tir.decl_buffer((m,), dtype=B.dtype, data=B.asobject())
+            bbuffer = B.asobject()
             ib.emit(
                 tvm.tir.call_extern(
                     "int32",
@@ -47,20 +49,19 @@ def test_vthread():
             C[i * nthread + tx] = B[i] + 1
         return ib.get()
 
+    if vthread_name == "vthread":
+        B_expected_alloc = m * nthread
+    elif vthread_name == "cthread":
+        B_expected_alloc = m * nthread * nthread
+
     stmt = tvm.tir.transform.InjectVirtualThread()(
-        tvm.IRModule.from_expr(tvm.tir.PrimFunc([], get_vthread("vthread")))
+        tvm.IRModule.from_expr(tvm.tir.PrimFunc([], get_vthread(vthread_name)))
     )["main"]
 
-    assert stmt.body.body.extents[0].value == 2
-
-    stmt = tvm.tir.transform.InjectVirtualThread()(
-        tvm.IRModule.from_expr(tvm.tir.PrimFunc([], get_vthread("cthread")))
-    )["main"]
-
-    assert len(stmt.body.body.extents) == 3
+    assert list(stmt.body.body.extents) == [B_expected_alloc]
 
 
-def test_vthread_extern():
+def test_vthread_extern(vthread_name):
     dtype = "int64"
     n = 100
     m = 4
@@ -76,9 +77,9 @@ def test_vthread_extern():
             A = ib.allocate("float32", m, name="A", scope="shared")
             B = ib.allocate("float32", m, name="B", scope="shared")
             C = ib.allocate("float32", m, name="C", scope="shared")
-            cbuffer = tvm.tir.decl_buffer((m,), dtype=C.dtype, data=C.asobject())
-            abuffer = tvm.tir.decl_buffer((m,), dtype=A.dtype, data=A.asobject())
-            bbuffer = tvm.tir.decl_buffer((m,), dtype=B.dtype, data=B.asobject())
+            abuffer = A.asobject()
+            bbuffer = B.asobject()
+            cbuffer = C.asobject()
             A[tx] = tx + 1.0
             B[ty] = ty + 1.0
             ib.emit(
@@ -92,13 +93,19 @@ def test_vthread_extern():
             )
         return ib.get()
 
+    if vthread_name == "vthread":
+        A_expected_alloc = m * nthread
+    elif vthread_name == "cthread":
+        A_expected_alloc = m * nthread * nthread
+
+    C_expected_alloc = m * nthread * nthread
+
     stmt = tvm.tir.transform.InjectVirtualThread()(
-        tvm.IRModule.from_expr(tvm.tir.PrimFunc([], get_vthread("cthread")))
+        tvm.IRModule.from_expr(tvm.tir.PrimFunc([], get_vthread(vthread_name)))
     )["main"]
 
-    assert stmt.body.body.extents[0].value == 2
-    assert stmt.body.body.body.body.extents[0].value == 2
-    assert len(stmt.body.body.body.body.extents) == 3
+    assert list(stmt.body.body.extents) == [A_expected_alloc]
+    assert list(stmt.body.body.body.body.extents) == [C_expected_alloc]
 
 
 def test_vthread_if_then_else():

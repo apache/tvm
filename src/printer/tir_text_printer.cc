@@ -223,6 +223,9 @@ Doc TIRTextPrinter::BufferNode2Doc(const BufferNode* buf, Doc doc) {
   if (!is_zero(buf->elem_offset)) {
     doc << ", elem_offset=" << Print(buf->elem_offset);
   }
+  if (buf->axis_separators.size()) {
+    doc << ", axis_separators=" << Print(buf->axis_separators);
+  }
   if (GetRef<Buffer>(buf).scope() != "global") {
     doc << ", scope=" << Doc::StrLiteral(GetRef<Buffer>(buf).scope());
   }
@@ -511,6 +514,19 @@ Doc TIRTextPrinter::VisitStmt_(const AllocateNode* op) {
   if (!is_one(op->condition)) {
     doc << " if " << Print(op->condition);
   }
+  if (op->body->IsInstance<SeqStmtNode>()) {
+    doc << PrintBody(op->body);
+  } else {
+    doc << ";" << Doc::NewLine() << Print(op->body);
+  }
+  return doc;
+}
+
+Doc TIRTextPrinter::VisitStmt_(const AllocateConstNode* op) {
+  Doc doc;
+  doc << "constant(" << Print(op->buffer_var) << ", " << PrintDType(op->dtype) << ", "
+      << Print(op->extents) << ")";
+
   if (op->body->IsInstance<SeqStmtNode>()) {
     doc << PrintBody(op->body);
   } else {

@@ -64,6 +64,10 @@ def generate_c_interface_header(
     return metadata_header
 
 
+# List of type_key for modules which are ephemeral and do not need to be exported.
+EPHEMERAL_MODULE_TYPE_KEYS = ("metadata_module",)
+
+
 def _populate_codegen_dir(mod, codegen_dir: str, module_name: str = None):
     """Populate the codegen sub-directory as part of a Model Library Format export.
 
@@ -79,6 +83,11 @@ def _populate_codegen_dir(mod, codegen_dir: str, module_name: str = None):
     """
     dso_modules = mod._collect_dso_modules()
     non_dso_modules = mod._collect_from_import_tree(lambda m: m not in dso_modules)
+
+    # Filter ephemeral modules which cannot be exported.
+    dso_modules = [m for m in dso_modules if m.type_key not in EPHEMERAL_MODULE_TYPE_KEYS]
+    non_dso_modules = [m for m in non_dso_modules if m.type_key not in EPHEMERAL_MODULE_TYPE_KEYS]
+
     if non_dso_modules:
         raise UnsupportedInModelLibraryFormatError(
             f"Don't know how to export non-c or non-llvm modules; found: {non_dso_modules!r}"

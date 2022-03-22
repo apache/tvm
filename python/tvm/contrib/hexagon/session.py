@@ -17,6 +17,9 @@
 
 """Defines a Session class for Hexagon devices."""
 
+import os
+import pathlib
+from typing import Union
 from tvm import rpc as _rpc
 
 
@@ -59,6 +62,7 @@ class Session:
                     "tvm.contrib.hexagon.create_hexagon_session",
                     self._session_name,
                     self._remote_stack_size_bytes,
+                    os.environ.get("HEXAGON_SIM_ARGS", ""),
                 ],
             )
             self.device = self._rpc.hexagon(0)
@@ -70,6 +74,6 @@ class Session:
     def __exit__(self, exc_type, exc_value, exc_traceback):
         pass
 
-    def load_module(self, path: str):
-        assert isinstance(path, str), f"Invalid path type, {type(path)} != str"
-        return self._rpc.get_function("tvm.hexagon.load_module")(path)
+    def load_module(self, path: Union[str, pathlib.Path]):
+        assert isinstance(path, (str, pathlib.Path)), "Invalid path type:" + str(type(path))
+        return self._rpc.get_function("tvm.hexagon.load_module")(str(path))

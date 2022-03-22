@@ -32,12 +32,36 @@
 namespace tvm {
 namespace codegen {
 
+/*!
+ * \brief Print MMA assembly string given parameters.
+ * \param shape The shape string mMnNkK
+ * \param A_layout The layout of multiplicand A, can be either "row" or "col".
+ * \param B_layout The layout of multiplicand B, can be either "row" or "col".
+ * \param A_dtype The data type of multiplicand A.
+ * \param B_dtype The data type of multiplicand B.
+ * \param C_dtype The data type of multiplicand C.
+ * \param a_ref Pointer to buffer A.
+ * \param a_offset The offset of element in A.
+ * \param b_ref Pointer to buffer B.
+ * \param b_offset The offset of element in B.
+ * \param c_ref Pointer to buffer C.
+ * \param c_offset The offset of element in C.
+ * \param metadata Pointer to metadata buffer (only used for sparse mma).
+ * \param metadata_offset The offset of element in metadata.
+ * \param sparsity_selector The sparsity selector in sparse mma.
+ * \param bit_op The bit operator used in 1-bit mma, can be either "xor" or "and".
+ * \param sparse Whether it's sparse mma or not.
+ * \param saturate Whether saturate output or not.
+ */
 std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layout,
                              const std::string& B_layout, const std::string& A_dtype,
                              const std::string& B_dtype, const std::string& C_dtype,
-                             const std::string& a_ref, const std::string& a_bias,
-                             const std::string& b_ref, const std::string& b_bias,
-                             const std::string& c_ref, const std::string& c_bias, bool saturate);
+                             const std::string& a_ref, const std::string& a_offset,
+                             const std::string& b_ref, const std::string& b_offset,
+                             const std::string& c_ref, const std::string& c_offset,
+                             const std::string& metadata, const std::string& metadata_offset,
+                             const std::string& sparsity_selector, const std::string& bit_op,
+                             bool sparse, bool saturate);
 
 }  // namespace codegen
 }  // namespace tvm

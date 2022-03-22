@@ -576,22 +576,21 @@ def test_squeeze(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_flatten(target, dev):
+    def verify_flatten(in_shape, axis, ref_shape):
+        flatten_node = helper.make_node("Flatten", ["in"], ["out"], axis=axis)
 
-    in_shape = (1, 3, 4, 4)
-    axis = 1
-    ref_shape = (1, 48)
+        graph = helper.make_graph(
+            [flatten_node],
+            "flatten_test",
+            inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(ref_shape))],
+        )
 
-    flatten_node = helper.make_node("Flatten", ["in"], ["out"], axis=axis)
+        model = helper.make_model(graph, producer_name="flatten_test")
+        verify_with_ort(model, [in_shape], target=target, dev=dev)
 
-    graph = helper.make_graph(
-        [flatten_node],
-        "flatten_test",
-        inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
-        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(ref_shape))],
-    )
-
-    model = helper.make_model(graph, producer_name="flatten_test")
-    verify_with_ort(model, [in_shape], target=target, dev=dev)
+    verify_flatten((1, 3, 4, 4), 1, (1, 48))
+    verify_flatten((1,), 1, (1, 1))
 
 
 @tvm.testing.parametrize_targets
@@ -5408,6 +5407,7 @@ def test_qlinearconv(target, dev):
         dilations,
         auto_pad="NOTSET",
         bias=False,
+        per_channel_quantization=False,
     ):
 
         x_array = np.random.randint(low=0, high=255, size=x_shape).astype("uint8")
@@ -5416,8 +5416,6 @@ def test_qlinearconv(target, dev):
         initializer = [
             helper.make_tensor("x_scale", TensorProto.FLOAT, (), [np.random.rand()]),
             helper.make_tensor("x_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]),
-            helper.make_tensor("w_scale", TensorProto.FLOAT, (), [np.random.rand()]),
-            helper.make_tensor("w_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]),
             helper.make_tensor("y_scale", TensorProto.FLOAT, (), [np.random.rand()]),
             helper.make_tensor("y_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]),
         ]
@@ -5437,6 +5435,28 @@ def test_qlinearconv(target, dev):
             "y_zero_point",
         ]
         input_values = [x_array, w_array]
+
+        if per_channel_quantization:
+            w_scale_array = np.random.random(w_shape[0]).astype("float32")
+            w_zero_point_array = np.random.randint(0, 255, size=w_shape[0]).astype("uint8")
+
+            initializer.append(
+                helper.make_tensor("w_scale", TensorProto.FLOAT, [w_shape[0]], w_scale_array)
+            )
+            initializer.append(
+                helper.make_tensor(
+                    "w_zero_point", TensorProto.UINT8, [w_shape[0]], w_zero_point_array
+                )
+            )
+        else:
+            initializer.append(
+                helper.make_tensor("w_scale", TensorProto.FLOAT, (), [np.random.rand()])
+            )
+            initializer.append(
+                helper.make_tensor(
+                    "w_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]
+                )
+            )
 
         if bias is True:
             b_shape = w_shape[0:1]
@@ -5576,6 +5596,17 @@ def test_qlinearconv(target, dev):
         repeat(3, D),
         repeat(1, D),
         repeat(2, D),
+    )
+    # Convolution with per channel quantization
+    verify_qlinearconv(
+        (1, 1) + repeat(5, D),
+        (1, 1) + repeat(3, D),
+        (1, 1) + repeat(3, D),
+        None,
+        repeat(3, D),
+        repeat(1, D),
+        repeat(1, D),
+        per_channel_quantization=True,
     )
 
 
@@ -6243,6 +6274,49 @@ def test_scan(target, dev):
     verify_scan(input_shapes, output_shapes, 3, [-4, -1, -2], [1] * 3, [-3, -2], [1] * 2, 9)
 
 
+@tvm.testing.parametrize_targets
+def test_LinearRegressor(target, dev):
+    def verify_LinearRegressor(a_shape, c_shape, i_shape, targets=1, batch=1):
+        a_array = np.random.uniform(size=a_shape).astype("float32")
+        out_shape = (batch, targets)
+
+        coefficients = np.random.uniform(size=c_shape).astype("float32")
+        intercepts = np.random.uniform(size=i_shape).astype("float32")
+
+        mul_node = helper.make_node(
+            "LinearRegressor",
+            ["a"],
+            ["out"],
+            coefficients=coefficients,
+            intercepts=intercepts,
+            targets=targets,
+            domain="ai.onnx.ml",
+        )
+
+        graph = helper.make_graph(
+            [mul_node],
+            "LinearRegressor_test",
+            inputs=[
+                helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, out_shape)],
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="LinearRegressor_test",
+            opset_imports=[
+                onnx.helper.make_opsetid("ai.onnx.ml", 1),
+            ],
+        )
+        verify_with_ort_with_inputs(model, [a_array], target=target, dev=dev)
+
+    verify_LinearRegressor((1, 3), (3), (1))
+    verify_LinearRegressor((2, 10), (10), (1), batch=2)
+    verify_LinearRegressor((1, 3), (30), (10), targets=10)
+    verify_LinearRegressor((10, 3), (30), (10), targets=10, batch=10)
+    verify_LinearRegressor((1, 4), (3), (1))
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -6339,3 +6413,4 @@ if __name__ == "__main__":
     test_random_uniform_like()
     test_random_normal()
     test_random_normal_like()
+    test_LinearRegressor()

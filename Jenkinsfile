@@ -45,13 +45,14 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = "tlcpack/ci-lint:v0.68"
-ci_gpu = "tlcpack/ci-gpu:v0.81"
-ci_cpu = "tlcpack/ci-cpu:v0.81"
-ci_wasm = "tlcpack/ci-wasm:v0.71"
-ci_i386 = "tlcpack/ci-i386:v0.74"
-ci_qemu = "tlcpack/ci-qemu:v0.10"
-ci_arm = "tlcpack/ci-arm:v0.07"
+ci_lint = 'tlcpack/ci-lint:v0.69'
+ci_gpu = 'tlcpack/ci-gpu:v0.82'
+ci_cpu = 'tlcpack/ci-cpu:v0.82'
+ci_wasm = 'tlcpack/ci-wasm:v0.72'
+ci_i386 = 'tlcpack/ci-i386:v0.75'
+ci_qemu = 'tlcpack/ci-qemu:v0.11'
+ci_arm = 'tlcpack/ci-arm:v0.08'
+ci_hexagon = 'tlcpack/ci-hexagon:v0.02'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -82,8 +83,10 @@ tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
 
 // command to start a docker container
 docker_run = 'docker/bash.sh'
+docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 240
+rebuild_docker_images = false
 
 def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
@@ -104,6 +107,21 @@ def init_git() {
   }
 }
 
+def should_skip_slow_tests(pr_number) {
+  withCredentials([string(
+    credentialsId: 'tvm-bot-jenkins-reader',
+    variable: 'GITHUB_TOKEN',
+  )]) {
+    // Exit code of 1 means run slow tests, exit code of 0 means skip slow tests
+    result = sh (
+      returnStatus: true,
+      script: "./tests/scripts/should_run_slow_tests.py --pr '${pr_number}'",
+      label: 'Check if CI should run slow tests',
+    )
+  }
+  return result == 0
+}
+
 def cancel_previous_build() {
   // cancel previous build if it is not on main.
   if (env.BRANCH_NAME != 'main') {
@@ -116,6 +134,18 @@ def cancel_previous_build() {
 }
 
 def should_skip_ci(pr_number) {
+  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
+    // never skip CI on build sourced from a branch
+    return false
+  }
+  glob_skip_ci_code = sh (
+    returnStatus: true,
+    script: "./tests/scripts/git_skip_ci_globs.py",
+    label: 'Check if CI should be skipped due to changed files',
+  )
+  if (glob_skip_ci_code == 0) {
+    return true
+  }
   withCredentials([string(
     credentialsId: 'tvm-bot-jenkins-reader',
     variable: 'TOKEN',
@@ -127,8 +157,16 @@ def should_skip_ci(pr_number) {
       script: "./tests/scripts/git_skip_ci.py --pr '${pr_number}'",
       label: 'Check if CI should be skipped',
     )
-    }
+  }
   return git_skip_ci_code == 0
+}
+
+// skips builds from branch indexing; sourced from https://www.jvt.me/posts/2020/02/23/jenkins-multibranch-skip-branch-index/
+// execute this before anything else, including requesting any time on an agent
+if (currentBuild.getBuildCauses().toString().contains('BranchIndexingCause')) {
+  print "INFO: Build skipped due to trigger being Branch Indexing"
+  currentBuild.result = 'ABORTED' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
+  return
 }
 
 cancel_previous_build()
@@ -168,6 +206,17 @@ stage('Sanity Check') {
           label: 'Check for docs only changes',
         )
         skip_ci = should_skip_ci(env.CHANGE_ID)
+        skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
+        rebuild_docker_images = sh (
+          returnStatus: true,
+          script: './tests/scripts/git_change_docker.sh',
+          label: 'Check for any docker changes',
+        )
+        if (rebuild_docker_images) {
+          // Exit before linting so we can use the newly created Docker images
+          // to run the lint
+          return
+        }
         sh (
           script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
           label: 'Run lint',
@@ -175,6 +224,105 @@ stage('Sanity Check') {
       }
     }
   }
+}
+
+def build_image(image_name) {
+  hash = sh(
+    returnStdout: true,
+    script: 'git log -1 --format=\'%h\''
+  ).trim()
+  def full_name = "${image_name}:${env.BRANCH_NAME}-${hash}"
+  sh(
+    script: "${docker_build} ${image_name} --spec ${full_name}",
+    label: 'Building docker image'
+  )
+  sh(
+    script: "docker rmi ${full_name}",
+    label: 'Removing docker image'
+  )
+  sh "echo NYI: Uploading docker image to registry..."
+}
+
+if (rebuild_docker_images) {
+  stage('Docker Image Build') {
+    // TODO in a follow up PR: Upload to ECR, find tag and use in
+    // subsequent builds
+    parallel 'ci-lint': {
+      node('CPU') {
+        timeout(time: max_time, unit: 'MINUTES') {
+          init_git()
+          build_image('ci_lint')
+        }
+      }
+    }, 'ci-cpu': {
+      node('CPU') {
+        timeout(time: max_time, unit: 'MINUTES') {
+          init_git()
+          build_image('ci_cpu')
+        }
+      }
+    }, 'ci-gpu': {
+      node('GPU') {
+        timeout(time: max_time, unit: 'MINUTES') {
+          init_git()
+          build_image('ci_gpu')
+        }
+      }
+    }, 'ci-qemu': {
+      node('CPU') {
+        timeout(time: max_time, unit: 'MINUTES') {
+          init_git()
+          build_image('ci_qemu')
+        }
+      }
+    }, 'ci-i386': {
+      node('CPU') {
+        timeout(time: max_time, unit: 'MINUTES') {
+          init_git()
+          build_image('ci_i386')
+        }
+      }
+    }, 'ci-arm': {
+      node('ARM') {
+        timeout(time: max_time, unit: 'MINUTES') {
+          init_git()
+          build_image('ci_arm')
+        }
+      }
+    }, 'ci-wasm': {
+      node('CPU') {
+        timeout(time: max_time, unit: 'MINUTES') {
+          init_git()
+          build_image('ci_wasm')
+        }
+      }
+    }, 'ci-hexagon': {
+      node('CPU') {
+        timeout(time: max_time, unit: 'MINUTES') {
+          init_git()
+          build_image('ci_hexagon')
+        }
+      }
+    }
+  }
+  // // TODO: Once we are able to use the built images, enable this step
+  // // If the docker images changed, we need to run the image build before the lint
+  // // can run since it requires a base docker image. Most of the time the images
+  // // aren't build though so it's faster to use the same node that checks for
+  // // docker changes to run the lint in the usual case.
+  // stage('Sanity Check (re-run)') {
+  //   timeout(time: max_time, unit: 'MINUTES') {
+  //     node('CPU') {
+  //       ws(per_exec_ws('tvm/sanity')) {
+  //         init_git()
+  //         sh (
+  //           script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
+  //           label: 'Run lint',
+  //         )
+  //       }
+  //     }
+  //   }
+  // }
 }
 
 // Run make. First try to do an incremental make from a previous workspace in hope to
@@ -185,7 +333,6 @@ def make(docker_type, path, make_flag) {
     try {
       cmake_build(docker_type, path, make_flag)
       // always run cpp test when build
-      cpp_unittest(docker_type)
     } catch (hudson.AbortException ae) {
       // script exited due to user abort, directly throw instead of retry
       if (ae.getMessage().contains('script returned exit code 143')) {
@@ -197,7 +344,6 @@ def make(docker_type, path, make_flag) {
         label: 'Clear old cmake workspace',
       )
       cmake_build(docker_type, path, make_flag)
-      cpp_unittest(docker_type)
     }
   }
 }
@@ -237,36 +383,40 @@ def python_unittest(image) {
 def fsim_test(image) {
   sh (
     script: "${docker_run} ${image} ./tests/scripts/task_python_vta_fsim.sh",
-    label: 'Run VTA tests in FSIM ',
+    label: 'Run VTA tests in FSIM',
   )
 }
 
 def cmake_build(image, path, make_flag) {
   sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_build.sh ${path} ${make_flag}",
+    script: "${docker_run} ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod",
     label: 'Run cmake build',
   )
 }
 
 def cpp_unittest(image) {
   sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_cpp_unittest.sh",
+    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_cpp_unittest.sh",
     label: 'Build and run C++ tests',
   )
 }
 
 stage('Build') {
+  environment {
+    SKIP_SLOW_TESTS = "${skip_slow_tests}"
+  }
   parallel 'BUILD: GPU': {
     if (!skip_ci) {
-      node('GPUBUILD') {
+      node('CPU') {
         ws(per_exec_ws('tvm/build-gpu')) {
           init_git()
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh"
-          make(ci_gpu, 'build', '-j2')
+          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
+          make("${ci_gpu} --no-gpu", 'build', '-j2')
           pack_lib('gpu', tvm_multilib)
           // compiler test
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh"
-          make(ci_gpu, 'build2', '-j2')
+          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
+          make("${ci_gpu} --no-gpu", 'build2', '-j2')
+          pack_lib('gpu2', tvm_multilib)
         }
       }
     }
@@ -277,7 +427,7 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-cpu')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh",
+            script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
             label: 'Create CPU cmake config',
           )
           make(ci_cpu, 'build', '-j2')
@@ -286,7 +436,7 @@ stage('Build') {
             ci_setup(ci_cpu)
             // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
             // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-            sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: "Rust build and test")
+            sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
           }
         }
       }
@@ -300,10 +450,11 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-wasm')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh",
+            script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
             label: 'Create WASM cmake config',
           )
           make(ci_wasm, 'build', '-j2')
+          cpp_unittest(ci_wasm)
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_wasm)
             sh (
@@ -323,7 +474,7 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-i386')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh",
+            script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build",
             label: 'Create i386 cmake config',
           )
           make(ci_i386, 'build', '-j2')
@@ -340,7 +491,7 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-arm')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh",
+            script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",
             label: 'Create ARM cmake config',
           )
           make(ci_arm, 'build', '-j4')
@@ -357,11 +508,12 @@ stage('Build') {
         ws(per_exec_ws('tvm/build-qemu')) {
           init_git()
           sh (
-            script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh",
+            script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh build",
             label: 'Create QEMU cmake config',
           )
           try {
             make(ci_qemu, 'build', '-j2')
+            cpp_unittest(ci_qemu)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_qemu)
               sh (
@@ -381,19 +533,59 @@ stage('Build') {
      } else {
       Utils.markStageSkippedForConditional('BUILD: QEMU')
     }
+  },
+  'BUILD: Hexagon': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU') {
+        ws(per_exec_ws('tvm/build-hexagon')) {
+          init_git()
+          sh (
+            script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
+            label: 'Create Hexagon cmake config',
+          )
+          try {
+            make(ci_hexagon, 'build', '-j2')
+            cpp_unittest(ci_hexagon)
+            sh (
+              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
+              label: 'Build Hexagon API',
+            )
+            sh (
+              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+              label: 'Run Hexagon tests',
+            )
+            sh (
+              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon_simulator.sh",
+              label: 'Run Hexagon tests on simulator',
+            )
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+     } else {
+      Utils.markStageSkippedForConditional('BUILD: Hexagon')
+    }
   }
 }
 
 stage('Test') {
+  environment {
+    SKIP_SLOW_TESTS = "${skip_slow_tests}"
+  }
   parallel 'unittest: GPU': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('TensorCore') {
         ws(per_exec_ws('tvm/ut-python-gpu')) {
           try {
             init_git()
+            unpack_lib('gpu2', tvm_multilib)
+            cpp_unittest(ci_gpu)
+
             unpack_lib('gpu', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_gpu)
+              cpp_unittest(ci_gpu)
               sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
                 label: 'Run Java unit tests',
@@ -442,17 +634,18 @@ stage('Test') {
   'unittest: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
-        ws(per_exec_ws("tvm/ut-python-cpu")) {
+        ws(per_exec_ws('tvm/ut-python-cpu')) {
           try {
             init_git()
             unpack_lib('cpu', tvm_multilib_tsim)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_cpu)
+              cpp_unittest(ci_cpu)
               python_unittest(ci_cpu)
               fsim_test(ci_cpu)
               sh (
                 script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
-                label: "Run VTA tests in TSIM",
+                label: 'Run VTA tests in TSIM',
               )
             }
           } finally {
@@ -473,6 +666,7 @@ stage('Test') {
             unpack_lib('i386', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_i386)
+              cpp_unittest(ci_i386)
               python_unittest(ci_i386)
               sh (
                 script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
@@ -498,10 +692,15 @@ stage('Test') {
             unpack_lib('arm', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_arm)
+              cpp_unittest(ci_arm)
               python_unittest(ci_arm)
               sh (
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
                 label: 'Run test_arm_compute_lib test',
+              )
+              sh (
+                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_topi.sh",
+                label: 'Run TOPI tests',
               )
             // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
             }
@@ -537,7 +736,7 @@ stage('Test') {
       Utils.markStageSkippedForConditional('topi: GPU')
     }
   },
-  'frontend: GPU': {
+  'frontend: GPU 1': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('GPU') {
         ws(per_exec_ws('tvm/frontend-python-gpu')) {
@@ -547,8 +746,8 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_gpu)
               sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh",
-                label: 'Run Python frontend tests',
+                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh 1",
+                label: 'Run Python frontend tests (shard 1)',
               )
             }
           } finally {
@@ -557,7 +756,30 @@ stage('Test') {
         }
       }
      } else {
-      Utils.markStageSkippedForConditional('frontend: GPU')
+      Utils.markStageSkippedForConditional('frontend: GPU 1')
+    }
+  },
+  'frontend: GPU 2': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('GPU') {
+        ws(per_exec_ws('tvm/frontend-python-gpu')) {
+          try {
+            init_git()
+            unpack_lib('gpu', tvm_multilib)
+            timeout(time: max_time, unit: 'MINUTES') {
+              ci_setup(ci_gpu)
+              sh (
+                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh 2",
+                label: 'Run Python frontend tests (shard 2)',
+              )
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+     } else {
+      Utils.markStageSkippedForConditional('frontend: GPU 2')
     }
   },
   'frontend: CPU': {
@@ -597,6 +819,7 @@ stage('Test') {
             )
           }
           pack_lib('docs', 'docs.tgz')
+          archiveArtifacts(artifacts: 'docs.tgz', fingerprint: true)
         }
       }
     }
@@ -621,13 +844,52 @@ stage('Build packages') {
 }
 */
 
+def deploy_docs() {
+  // Note: This code must stay in the Jenkinsfile to ensure that it runs
+  // from a trusted context only
+  sh(
+    script: '''
+      set -eux
+      rm -rf tvm-site
+      git clone -b $DOCS_DEPLOY_BRANCH --depth=1 https://github.com/apache/tvm-site
+      cd tvm-site
+      git status
+      git checkout -B $DOCS_DEPLOY_BRANCH
+
+      rm -rf docs
+      mkdir -p docs
+      tar xf ../docs.tgz -C docs
+      COMMIT=$(cat docs/commit_hash)
+      git add .
+      git config user.name tvm-bot
+      git config user.email 95660001+tvm-bot@users.noreply.github.com
+      git commit -m"deploying docs (apache/tvm@$COMMIT)"
+      git status
+    ''',
+    label: 'Unpack docs and update tvm-site'
+  )
+
+  withCredentials([string(
+    credentialsId: 'docs-push-token',
+    variable: 'GITHUB_TOKEN',
+    )]) {
+    sh(
+      script: '''
+        cd tvm-site
+        git remote add deploy https://$GITHUB_TOKEN:x-oauth-basic@github.com/apache/tvm-site.git
+        git push deploy $DOCS_DEPLOY_BRANCH
+      ''',
+      label: 'Upload docs to apache/tvm-site'
+    )
+  }
+}
+
 stage('Deploy') {
-  node('doc') {
-    ws(per_exec_ws('tvm/deploy-docs')) {
-      if (env.BRANCH_NAME == 'main') {
+  if (env.BRANCH_NAME == 'main' && env.DOCS_DEPLOY_ENABLED == 'yes') {
+    node('CPU') {
+      ws(per_exec_ws('tvm/deploy-docs')) {
         unpack_lib('docs', 'docs.tgz')
-        sh 'cp docs.tgz /var/docs/docs.tgz'
-        sh 'tar xf docs.tgz -C /var/docs'
+        deploy_docs()
       }
     }
   }

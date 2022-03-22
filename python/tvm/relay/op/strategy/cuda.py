@@ -145,7 +145,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
             if (
-                target.kind.name == "cuda"
+                (target.kind.name in ["cuda", "vulkan"])
                 and data.dtype in ("int8", "uint8")
                 and kernel.dtype in ("int8", "uint8")
             ):
@@ -296,7 +296,11 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     "Unsupported shape for conv2d HWNC.\
                                     Need to satisfy tensor core schedule."
                 )
-        elif target.kind.name == "cuda" and layout == "NCHW4c" and data.dtype in ["int8", "uint8"]:
+        elif (
+            (target.kind.name in ["cuda", "vulkan"])
+            and layout == "NCHW4c"
+            and data.dtype in ["int8", "uint8"]
+        ):
             assert kernel_layout == "OIHW4o4i"
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.cuda.conv2d_NCHWc_int8, True),
@@ -372,7 +376,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             ic_chunk = in_channels // 4
 
             if (
-                target.kind.name == "cuda"
+                (target.kind.name in ["cuda", "vulkan"])
                 and data.dtype in ["int8", "uint8"]
                 and kernel.dtype in ["int8", "uint8"]
                 and channels % groups == 0
@@ -590,13 +594,12 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
     dilation = get_const_tuple(attrs.dilation)
     groups = attrs.groups
     assert dilation == (1, 1), "not support dilate now"
-    assert groups == 1, "only support groups == 1 when targetting cuda/gpu"
     strategy = _op.OpStrategy()
     num_strategies = 0
 
     if layout == "NCHW":
         strategy.add_implementation(
-            wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_nchw),
+            wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_nchw, has_groups=True),
             wrap_topi_schedule(topi.cuda.schedule_conv2d_transpose_nchw),
             name="conv2d_transpose_nchw.cuda",
         )
@@ -611,7 +614,9 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
         )
     ):
         strategy.add_implementation(
-            wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_cudnn, add_layout=True),
+            wrap_compute_conv2d_transpose(
+                topi.cuda.conv2d_transpose_cudnn, add_layout=True, has_groups=True
+            ),
             wrap_topi_schedule(topi.generic.schedule_extern),
             name="conv2d_transpose.cudnn.cuda",
             plevel=25,
@@ -619,7 +624,10 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
         num_strategies += 1
 
     # TODO(masahi): Support conv2d_transpose NHWC for non-cudnn path.
-    assert num_strategies > 0, "Unsupported conv2d_transpose workload, layout = %s" % layout
+    assert num_strategies > 0, "Unsupported conv2d_transpose workload, layout = %s, groups = %d" % (
+        layout,
+        groups,
+    )
     return strategy
 
 
@@ -828,7 +836,7 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
     b, i = get_const_tuple(data.shape)
     o, _ = get_const_tuple(weights.shape)
     if (
-        target.kind.name == "cuda"
+        target.kind.name in ["cuda", "vulkan"]
         and data.dtype == "int8"
         and weights.dtype == "int8"
         and out_type.dtype == "int32"
@@ -852,36 +860,28 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
                 name="dense_large_batch.gpu",
                 plevel=5,
             )
-        if target.kind.name == "cuda":
-            if nvcc.have_tensorcore(target=target):
-                if (
-                    (
-                        data.dtype in ["float16", "int8", "uint8"]
-                        and (
-                            (i % 16 == 0 and b % 16 == 0 and o % 16 == 0)
-                            or (i % 16 == 0 and b % 8 == 0 and o % 32 == 0)
-                            or (i % 16 == 0 and b % 32 == 0 and o % 8 == 0)
-                        )
+
+    if target.kind.name == "cuda":
+        if nvcc.have_tensorcore(target=target):
+            if (
+                (
+                    data.dtype in ["float16", "int8", "uint8"]
+                    and (
+                        (i % 16 == 0 and b % 16 == 0 and o % 16 == 0)
+                        or (i % 16 == 0 and b % 8 == 0 and o % 32 == 0)
+                        or (i % 16 == 0 and b % 32 == 0 and o % 8 == 0)
                     )
-                    or (
-                        data.dtype in ["int4", "uint4"]
-                        and i % 32 == 0
-                        and b % 8 == 0
-                        and o % 8 == 0
-                    )
-                    or (
-                        data.dtype in ["int1", "uint1"]
-                        and i % 128 == 0
-                        and b % 8 == 0
-                        and o % 8 == 0
-                    )
-                ):
-                    strategy.add_implementation(
-                        wrap_compute_dense(topi.cuda.dense_tensorcore),
-                        wrap_topi_schedule(topi.cuda.schedule_dense_tensorcore),
-                        name="dense_tensorcore.cuda",
-                        plevel=20,
-                    )
+                )
+                or (data.dtype in ["int4", "uint4"] and i % 32 == 0 and b % 8 == 0 and o % 8 == 0)
+                or (data.dtype in ["int1", "uint1"] and i % 128 == 0 and b % 8 == 0 and o % 8 == 0)
+            ):
+                strategy.add_implementation(
+                    wrap_compute_dense(topi.cuda.dense_tensorcore),
+                    wrap_topi_schedule(topi.cuda.schedule_dense_tensorcore),
+                    name="dense_tensorcore.cuda",
+                    plevel=20,
+                )
+
     if target.kind.name == "cuda" and "cublas" in target.libs:
         strategy.add_implementation(
             wrap_compute_dense(topi.cuda.dense_cublas),
@@ -919,10 +919,10 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
         )
     if target.kind.name == "cuda" and "cublas" in target.libs:
         strategy.add_implementation(
-            wrap_compute_batch_matmul(topi.cuda.batch_matmul_cublas),
+            wrap_compute_batch_matmul(topi.cuda.batch_matmul_cublas, need_out_dtype=True),
             wrap_topi_schedule(topi.generic.schedule_extern),
             name="batch_matmul_cublas.cuda",
-            plevel=15,
+            plevel=30,
         )
     if (
         target.kind.name == "cuda"

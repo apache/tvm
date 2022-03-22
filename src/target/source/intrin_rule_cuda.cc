@@ -40,8 +40,15 @@ struct CUDAMath {
           return name;
         case 32:
           return name + 'f';
-        case 16:
-          return 'h' + name;
+        case 16: {
+          if (name == "fabs") {
+            return "__habs";
+          } else if (name == "round") {
+            return "hrint";
+          } else {
+            return "h" + name;
+          }
+        }
         default:
           return "";
       }

@@ -509,6 +509,9 @@ void DLDatatypePrint(std::ostream& os, const DLDataType& dtype) {
     case kDLFloat:
       os << "float";
       break;
+    case kDLBfloat:
+      os << "bfloat";
+      break;
   }
 
   os << int(dtype.bits);

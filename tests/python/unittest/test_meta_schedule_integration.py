@@ -18,29 +18,31 @@ import sys
 from typing import List
 
 import pytest
-
 import tvm
 from tvm import meta_schedule as ms
 from tvm.ir.module import IRModule
-from tvm.tir import Schedule
-from tvm.target import Target
-from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
+from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
 from tvm.meta_schedule.integration import (
+    ApplyHistoryBest,
     ExtractedTask,
     MetaScheduleContext,
-    TaskExtraction,
-    ApplyHistoryBest,
 )
-from tvm.meta_schedule.testing import get_network
+from tvm.meta_schedule.testing.relay_workload import get_network
+from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
+from tvm.target import Target
+from tvm.tir import Schedule
+from tvm.meta_schedule.testing import DummyDatabase
+from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
+from tvm.meta_schedule.tune import extract_task_from_relay, Parse
 
-# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring,unbalanced-tuple-unpacking
+# pylint: disable=no-member,line-too-long,too-many-nested-blocks,unbalanced-tuple-unpacking,no-self-argument,missing-docstring,invalid-name
 
 
 @tvm.script.ir_module
 class MockModule:
     @T.prim_func
-    def main(a: T.handle, b: T.handle) -> None:  # pylint: disable=no-self-argument
+    def main(a: T.handle, b: T.handle) -> None:  # type: ignore
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
@@ -50,121 +52,62 @@ class MockModule:
                 B[vi] = A[vi]
 
 
-# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring,unbalanced-tuple-unpacking
+# pylint: enable=no-member,line-too-long,too-many-nested-blocks,unbalanced-tuple-unpacking,no-self-argument
 
 
-def _check_mock_task(tasks: List[ExtractedTask], mod: IRModule):
-    (task,) = tasks
-    assert isinstance(task, ExtractedTask)
-    assert task.task_name == "mock-task"
-    tvm.ir.assert_structural_equal(task.mod, mod)
-    (tir_mod,) = task.dispatched
-    tvm.ir.assert_structural_equal(tir_mod, MockModule)
+def _has_torch():
+    import importlib.util  # pylint: disable=unused-import,import-outside-toplevel
+
+    spec = importlib.util.find_spec("torch")
+    return spec is not None
 
 
-def test_meta_schedule_integration_task_extraction_query():
-    mod, _, _, _ = get_network(
-        name="resnet-18",
-        batch_size=1,
-        layout="NHWC",
-        dtype="float32",
-    )
-    env = TaskExtraction()
-    env.query(task_name="mock-task", mod=mod, target=Target("llvm"), dispatched=[MockModule])
-    _check_mock_task(env.tasks, mod)
-
-
-def test_meta_schedule_integration_current():
-    env = TaskExtraction()
-    with env:
-        assert MetaScheduleContext.current() == env
+requires_torch = pytest.mark.skipif(not _has_torch(), reason="torch is not installed")
 
 
 def test_meta_schedule_integration_no_current():
     assert MetaScheduleContext.current() is None
 
 
-def test_meta_schedule_integration_multiple_current():
-    env = TaskExtraction()
-    with env:
-        with pytest.raises(ValueError):
-            with env:
-                ...
-
-
-def test_meta_schedule_integration_query_inside_with_scope():
-    mod, _, _, _ = get_network(
-        name="resnet-18",
-        batch_size=1,
-        layout="NHWC",
-        dtype="float32",
-    )
-    env = TaskExtraction()
-    with env:
-        MetaScheduleContext.query_inside_with_scope(
-            task_name="mock-task",
-            mod=mod,
-            target=Target("llvm"),
-            dispatched=[MockModule],
-        )
-    _check_mock_task(env.tasks, mod)
-
-
+@requires_torch
 def test_meta_schedule_integration_extract_from_resnet():
-    mod, params, _, _ = get_network(
-        name="resnet-18",
-        batch_size=1,
-        layout="NHWC",
-        dtype="float32",
-    )
+    mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     extracted_tasks = ms.integration.extract_task_from_relay(mod, target="llvm", params=params)
-    assert len(extracted_tasks) == 30
+    expected_task_names = [
+        "fused_" + s
+        for s in [
+            "nn_max_pool2d",
+            "nn_adaptive_avg_pool2d",
+            "nn_dense_add",
+            "nn_conv2d_add",
+            "nn_conv2d_add_1",
+            "nn_conv2d_add_2",
+            "nn_conv2d_add_add_nn_relu",
+            "nn_conv2d_add_add_nn_relu_1",
+            "nn_conv2d_add_nn_relu",
+            "nn_conv2d_add_nn_relu_1",
+            "nn_conv2d_add_nn_relu_2",
+            "nn_conv2d_add_nn_relu_3",
+            "nn_conv2d_add_nn_relu_4",
+            "nn_conv2d_add_nn_relu_5",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_add_nn_relu",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_add_nn_relu_1",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu_1",
+            # The two tasks below are purely spatial and are ruled out by AutoScheduler
+            "layout_transform",
+            "layout_transform_reshape_squeeze",
+        ]
+    ]
+
+    assert len(extracted_tasks) == 20
+    for t in extracted_tasks:
+        assert t.task_name in expected_task_names, t.task_name
 
 
+@requires_torch
 def test_meta_schedule_integration_apply_history_best():
-    class DummyDatabase(PyDatabase):
-        def __init__(self):
-            super().__init__()
-            self.records = []
-            self.workload_reg = []
-
-        def has_workload(self, mod: IRModule) -> Workload:
-            for workload in self.workload_reg:
-                if tvm.ir.structural_equal(workload.mod, mod):
-                    return True
-            return False
-
-        def commit_tuning_record(self, record: TuningRecord) -> None:
-            self.records.append(record)
-
-        def commit_workload(self, mod: IRModule) -> Workload:
-            for workload in self.workload_reg:
-                if tvm.ir.structural_equal(workload.mod, mod):
-                    return workload
-            workload = Workload(mod)
-            self.workload_reg.append(workload)
-            return workload
-
-        def get_top_k(self, workload: Workload, top_k: int) -> List[TuningRecord]:
-            return list(
-                filter(
-                    lambda x: x.workload == workload,
-                    sorted(self.records, key=lambda x: sum(x.run_secs) / len(x.run_secs)),
-                )
-            )[: int(top_k)]
-
-        def __len__(self) -> int:
-            return len(self.records)
-
-        def print_results(self) -> None:
-            print("\n".join([str(r) for r in self.records]))
-
-    mod, _, _, _ = get_network(
-        name="resnet-18",
-        batch_size=1,
-        layout="NHWC",
-        dtype="float32",
-    )
+    mod, _, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     database = DummyDatabase()
     env = ApplyHistoryBest(database)
     target = Target("llvm")
@@ -174,6 +117,36 @@ def test_meta_schedule_integration_apply_history_best():
     )
     mod = env.query(task_name="mock-task", mod=mod, target=target, dispatched=[MockModule])
     assert tvm.ir.structural_equal(mod, workload.mod)
+
+
+@pytest.mark.skip("Too slow on CI")
+def extract_task_qbert():
+    mod, params, _ = load_quantized_bert_base(batch_size=1, seq_len=128)
+    target = "llvm -mcpu=cascadelake"
+    extracted_tasks = extract_task_from_relay(mod, target, params)
+    tune_tasks = list(
+        filter(
+            lambda task: "dense" in task.task_name or "batch_matmul" in task.task_name,
+            extracted_tasks,
+        )
+    )
+    # three int8 dense, two int8 bmm, and one fp32 dense
+    assert len(tune_tasks) == 6
+
+    for task in tune_tasks:
+        relay_func = list(task.mod.functions.values())[0]
+        out_type = relay_func.body.checked_type
+
+        if out_type.dtype == "float32":
+            continue
+
+        mod = Parse._mod(task.dispatched[0])
+        sch = tvm.tir.Schedule(mod)
+        block = sch.get_block("compute")
+        annotations = sch.get(block).annotations
+
+        assert "schedule_rule" in annotations
+        assert "vnni" in annotations["schedule_rule"]
 
 
 if __name__ == "__main__":

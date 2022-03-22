@@ -14,8 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import hashlib
+
 import tvm
 from tvm import te
+from tvm.ir.base import save_json
+from tvm.ir.module import IRModule
+
 
 # A test program which gives the opportunity for the CSE pass to introduce two new variables, at two different levels
 def test_cse():
@@ -45,7 +50,7 @@ def test_cse():
             2,
             tvm.tir.SeqStmt(
                 [
-                    tvm.tir.Store(buffer.data, z1 + z2, i1),
+                    tvm.tir.BufferStore(buffer, z1 + z2, [i1]),
                     tvm.tir.LetStmt(
                         x,
                         1,
@@ -56,7 +61,7 @@ def test_cse():
                                 a,
                                 (x + y) + (z1 + z2),
                                 tvm.tir.LetStmt(
-                                    b, (x + y) + z3, tvm.tir.Store(buffer.data, a + b, i2)
+                                    b, (x + y) + z3, tvm.tir.BufferStore(buffer, a + b, [i2])
                                 ),
                             ),
                         ),
@@ -96,7 +101,7 @@ def test_cse():
 
     body = body.body
 
-    assert isinstance(body[0], tvm.tir.Store)
+    assert isinstance(body[0], tvm.tir.BufferStore)
     assert isinstance(body[1], tvm.tir.LetStmt)
 
     body = body[1]
@@ -130,7 +135,50 @@ def test_cse():
     # Check that the replacement has been done correctly!
     assert tvm.ir.structural_equal(body.value, cse_var_2 + z3)
 
-    assert isinstance(body.body, tvm.tir.Store)
+    assert isinstance(body.body, tvm.tir.BufferStore)
+
+
+def test_deterministic_cse():
+    import random
+
+    """Test deterministic allocation of CSE vars
+
+    We expect something like
+
+        result = (x + 1) + (x + 2) + (x + 3) + (x + 1) + (x + 2) + (x + 3)
+            -->
+        cse_var_3 = (x + 1)
+        cse_var_2 = (x + 2)
+        cse_var_1 = (x + 3)
+        result = cse_var_3 + cse_var_2 + cse_var_1 + cse_var_3 + cse_var_2 + cse_var_1
+    """
+    NUM_TERMS = 10
+    REPEATS = 10
+
+    x = te.var("x")
+    result = te.var("result")
+
+    offsets = sorted([i + 1 for i in range(NUM_TERMS)])
+    inc1 = [(x + offsets[i]) for i in range(NUM_TERMS)]
+    inc2 = [(x + offsets[i]) for i in range(NUM_TERMS)]
+
+    expression = x
+    for add in inc1 + inc2:
+        expression = expression + add
+    let_stmt = tvm.tir.LetStmt(result, expression, tvm.tir.Evaluate(result))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([x], let_stmt))
+
+    initial_hash = None
+    for _ in range(REPEATS):
+        body = tvm.tir.transform.CommonSubexprElimTIR()(mod)["main"]
+
+        # Hash and ensure serialize json is the same every time
+        json_val = save_json(body)
+        json_hash = hashlib.sha256(json_val.encode()).hexdigest()
+
+        if initial_hash is None:
+            initial_hash = json_hash
+        assert json_hash == initial_hash
 
 
 # First specific test for if nodes : Some duplicated computations appear only in one branch (here the Then branch), not in both branches.
@@ -160,9 +208,9 @@ def test_cse_ifNode_1():
         tvm.tir.IfThenElse(
             b,
             tvm.tir.SeqStmt(
-                [tvm.tir.Store(buffer.data, y + z, i1), tvm.tir.Store(buffer.data, y + z, i2)]
+                [tvm.tir.BufferStore(buffer, y + z, [i1]), tvm.tir.BufferStore(buffer, y + z, [i2])]
             ),
-            tvm.tir.Store(buffer.data, y, i3),
+            tvm.tir.BufferStore(buffer, y, [i3]),
         ),
     )
 
@@ -217,11 +265,11 @@ def test_cse_ifNode_2():
             b,
             tvm.tir.SeqStmt(
                 [
-                    tvm.tir.Store(buffer.data, y + z, i1),  # (y+z) is present in the Then branch
-                    tvm.tir.Store(buffer.data, y, i2),
+                    tvm.tir.BufferStore(buffer, y + z, [i1]),  # (y+z) is present in the Then branch
+                    tvm.tir.BufferStore(buffer, y, [i2]),
                 ]
             ),
-            tvm.tir.Store(buffer.data, y + z, i3),  # and also present in the Else branch
+            tvm.tir.BufferStore(buffer, y + z, [i3]),  # and also present in the Else branch
         ),
     )
 
@@ -258,9 +306,9 @@ def test_cse_cascade():
     # Mem[i3] = x+y
     body = tvm.tir.SeqStmt(
         [
-            tvm.tir.Store(buffer.data, (x + y) + z, i1),
-            tvm.tir.Store(buffer.data, (x + y) + z, i2),
-            tvm.tir.Store(buffer.data, (x + y), i3),
+            tvm.tir.BufferStore(buffer, (x + y) + z, [i1]),
+            tvm.tir.BufferStore(buffer, (x + y) + z, [i2]),
+            tvm.tir.BufferStore(buffer, (x + y), [i3]),
         ]
     )
 
@@ -292,9 +340,9 @@ def test_cse_cascade():
     body = body.body
 
     assert isinstance(body, tvm.tir.SeqStmt)
-    assert isinstance(body[0], tvm.tir.Store)
-    assert isinstance(body[1], tvm.tir.Store)
-    assert isinstance(body[2], tvm.tir.Store)
+    assert isinstance(body[0], tvm.tir.BufferStore)
+    assert isinstance(body[1], tvm.tir.BufferStore)
+    assert isinstance(body[2], tvm.tir.BufferStore)
 
     store1 = body[0]
     store2 = body[1]

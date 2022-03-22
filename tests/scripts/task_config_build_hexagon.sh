@@ -19,13 +19,19 @@
 set -e
 set -u
 
-mkdir -p build
-cd build
+BUILD_DIR=$1
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
 cp ../cmake/config.cmake .
 
+echo set\(USE_SORT ON\) >> config.cmake
+echo set\(USE_RPC ON\) >> config.cmake
+echo set\(USE_MICRO ON\) >> config.cmake
+echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
 echo set\(USE_LLVM "${CLANG_LLVM_HOME}/bin/llvm-config"\) >> config.cmake
-echo set\(USE_CPP_RPC ON\) >> config.cmake
 echo set\(CMAKE_CXX_COMPILER "${CLANG_LLVM_HOME}/bin/clang++"\) >> config.cmake
 echo set\(USE_HEXAGON_SDK "${HEXAGON_SDK_PATH}"\) >> config.cmake
 echo set\(USE_HEXAGON_ARCH "v68"\) >> config.cmake
 echo set\(USE_HEXAGON_DEVICE "sim"\) >> config.cmake
+echo set\(USE_CCACHE OFF\) >> config.cmake
+echo set\(SUMMARIZE ON\) >> config.cmake

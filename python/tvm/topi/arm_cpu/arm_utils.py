@@ -64,6 +64,12 @@ def is_aarch64_arm():
     return "aarch64" in target.attrs.get("mtriple", "")
 
 
+def is_neon_available():
+    """Check if neon instructions are available"""
+    target = tvm.target.Target.current(allow_none=False)
+    return "+neon" in target.mattr
+
+
 def get_tiling_B_interleaved_t(interleave_A):
     """Compute the tiling information for matrix B', where B'
     is the transposed and interleaved version of matrix B in C=A*B.

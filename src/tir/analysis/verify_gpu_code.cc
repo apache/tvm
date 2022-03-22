@@ -63,10 +63,10 @@ class GPUCodeVerifier : public StmtExprVisitor {
     auto scope = GetPtrStorageScope(op->buffer_var);
     // visit an allocation of a buffer in shared memory, record its size
     if (scope == "local") {
-      size_t size = static_cast<size_t>(op->constant_allocation_size());
+      size_t size = static_cast<size_t>(op->ConstantAllocationSize());
       local_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
     } else if (scope == "shared") {
-      size_t size = static_cast<size_t>(op->constant_allocation_size());
+      size_t size = static_cast<size_t>(op->ConstantAllocationSize());
       shared_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
     }
     if (op->dtype.lanes() > 1) {
@@ -184,7 +184,15 @@ class GPUCodeVerifier : public StmtExprVisitor {
     StmtVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const LoadNode* op) {
+  void VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+  }
+
+  void VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+  }
+
+  void VisitExpr_(const BufferLoadNode* op) {
     if (op->dtype.lanes() > 1) {
       if (static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {
         std::stringstream s;
@@ -197,7 +205,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
     ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitStmt_(const StoreNode* op) {
+  void VisitStmt_(const BufferStoreNode* op) {
     if (op->value->dtype.lanes() > 1) {
       if (static_cast<size_t>(op->value->dtype.lanes() * op->value->dtype.bytes()) >
           max_vector_bytes_) {

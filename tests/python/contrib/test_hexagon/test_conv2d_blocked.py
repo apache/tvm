@@ -139,9 +139,7 @@ class BaseConv2d:
 
 class TestConv2dPackedFilter(BaseConv2d):
     @tvm.testing.parametrize_targets("llvm")
-    @pytest.mark.skipif(
-        platform.processor() == "i686", reason="Test known to be flaky on i386 machines"
-    )
+    @tvm.testing.skip_if_32bit(reason="Test known to be flaky on i386 machines")
     def test_conv2d(
         self,
         batch,

@@ -42,7 +42,7 @@ class PoolInfoAssigner : public StmtExprMutator {
  public:
   explicit PoolInfoAssigner(const IRModule& module) {
     PrimFunc main_func =
-        Downcast<PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
+        Downcast<PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_module_main));
     ICHECK(main_func.defined()) << "main function is not in the module";
     Optional<Target> target_host = main_func->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target_host) << "main function does not have a target attr";
@@ -79,7 +79,7 @@ class PoolInfoAssigner : public StmtExprMutator {
 PoolInfo PoolInfoAssigner::CreateDefaultMemoryPool(const tvm::IRModule& module) {
   Map<Target, String> target_access;
   tir::PrimFunc tir_main_func =
-      Downcast<tir::PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
+      Downcast<tir::PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_module_main));
   Target target_host = tir_main_func->GetAttr<Target>(tvm::attr::kTarget).value();
   for (const auto& kv : module->functions) {
     BaseFunc func = kv.second;
@@ -110,8 +110,8 @@ IRModule PoolInfoAssigner::operator()() {
     if (kv.second->IsInstance<PrimFuncNode>()) {
       func_ = Downcast<PrimFunc>(kv.second);
       Stmt body = this->VisitStmt(func_->body);
-      PrimFunc new_prim_func =
-          PrimFunc(func_->params, body, func_->ret_type, func_->buffer_map, func_->attrs);
+      PrimFunc new_prim_func = PrimFunc(func_->params, body, func_->ret_type, func_->buffer_map,
+                                        func_->preflattened_buffer_map, func_->attrs);
       mod_->Update(gv, new_prim_func);
     }
   }

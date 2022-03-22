@@ -46,6 +46,8 @@ struct TensorRTCompilerConfigNode : public tvm::AttrsNode<TensorRTCompilerConfig
   bool use_implicit_batch;
   size_t max_workspace_size;
   bool remove_no_mac_subgraphs;
+  bool use_fp16;
+  bool use_uint8;
 
   TVM_DECLARE_ATTRS(TensorRTCompilerConfigNode, "ext.attrs.TensorRTCompilerConfigNode") {
     TVM_ATTR_FIELD(tensorrt_version)
@@ -54,6 +56,8 @@ struct TensorRTCompilerConfigNode : public tvm::AttrsNode<TensorRTCompilerConfig
     TVM_ATTR_FIELD(use_implicit_batch).set_default(true);
     TVM_ATTR_FIELD(max_workspace_size).set_default(size_t(1) << 30);
     TVM_ATTR_FIELD(remove_no_mac_subgraphs).set_default(false);
+    TVM_ATTR_FIELD(use_fp16).set_default(false);
+    TVM_ATTR_FIELD(use_uint8).set_default(false);
   }
 };
 
@@ -215,13 +219,20 @@ class TensorRTJSONSerializer : public backend::contrib::JSONSerializer {
                                                  std::to_string(cfg.value()->tensorrt_version[2])};
     std::vector<std::string> use_implicit_batch = {std::to_string(cfg.value()->use_implicit_batch)};
     std::vector<std::string> max_workspace_size = {std::to_string(cfg.value()->max_workspace_size)};
-    std::vector<dmlc::any> tensorrt_version_attr, use_implicit_batch_attr, max_workspace_size_attr;
+    std::vector<std::string> use_fp16 = {std::to_string(cfg.value()->use_fp16)};
+    std::vector<std::string> use_uint8 = {std::to_string(cfg.value()->use_uint8)};
+    std::vector<dmlc::any> tensorrt_version_attr, use_implicit_batch_attr, max_workspace_size_attr,
+        use_fp16_attr, use_uint8_attr;
     tensorrt_version_attr.emplace_back(tensorrt_version);
     use_implicit_batch_attr.emplace_back(use_implicit_batch);
     max_workspace_size_attr.emplace_back(max_workspace_size);
+    use_fp16_attr.emplace_back(use_fp16);
+    use_uint8_attr.emplace_back(use_uint8);
     node->SetAttr("tensorrt_version", tensorrt_version_attr);
     node->SetAttr("use_implicit_batch", use_implicit_batch_attr);
     node->SetAttr("max_workspace_size", max_workspace_size_attr);
+    node->SetAttr("use_fp16", use_fp16_attr);
+    node->SetAttr("use_uint8", use_uint8_attr);
   }
 };
 

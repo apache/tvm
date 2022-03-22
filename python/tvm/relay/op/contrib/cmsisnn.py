@@ -213,7 +213,7 @@ def pattern_table():
 
     def binary_op_pattern(op):
         """Matches QNN binary operation"""
-        return is_op(f"qnn.{op}")(
+        pattern = is_op(f"qnn.{op}")(
             wildcard(),
             wildcard(),
             is_constant(),
@@ -223,11 +223,16 @@ def pattern_table():
             is_constant(),
             is_constant(),
         )
+        return pattern.optional(is_op("clip"))
 
     def check_qnn_binary_op(pattern):
-        """Check if multiply is supported by CMSIS-NN."""
-        arg0 = pattern.args[0]
-        arg1 = pattern.args[1]
+        """Check if binary op is supported by CMSIS-NN."""
+        binary_op = pattern
+        if str(pattern.op.name) == "clip":
+            binary_op = pattern.args[0]
+
+        arg0 = binary_op.args[0]
+        arg1 = binary_op.args[1]
         both_args_scalar = False
         if (
             isinstance(arg0, tvm.relay.expr.Constant)

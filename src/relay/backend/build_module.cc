@@ -333,14 +333,7 @@ class RelayBuildModule : public runtime::ModuleNode {
   IRModule OptimizeImpl(IRModule relay_module) {
     ICHECK(relay_module.defined()) << "The IRModule must be defined for the Relay compiler.";
 
-    if (!params_.empty()) {
-      ICHECK(relay_module->ContainGlobalVar("main")) << "Missing the main entry function";
-      GlobalVar main_glb_var = relay_module->GetGlobalVar("main");
-      Function main_func = Downcast<Function>(relay_module->Lookup(main_glb_var));
-      auto new_main = BindParamsByName(main_func, params_);
-      IRModuleNode* relay_module_ptr = relay_module.CopyOnWrite();
-      relay_module_ptr->Update(main_glb_var, new_main);
-    }
+    backend::BindParamsInModule(relay_module, params_);
 
     Array<Pass> pass_seqs = GetPassPrefix(
         /*is_homogenous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/false);
@@ -409,7 +402,9 @@ class RelayBuildModule : public runtime::ModuleNode {
    */
   void BuildRelay(IRModule relay_module, const String& mod_name) {
     // Relay IRModule -> IRModule optimizations.
-    relay_module = OptimizeImpl(std::move(relay_module));
+    IRModule module = WithAttrs(
+        relay_module, {{tvm::attr::kExecutor, executor_}, {tvm::attr::kRuntime, runtime_}});
+    relay_module = OptimizeImpl(std::move(module));
 
     // Get the updated function and new IRModule to build.
     // Instead of recreating the IRModule, we should look at the differences between this and the
@@ -437,31 +432,6 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     const Target& host_target = config_->host_virtual_device->target;
     const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
-
-    // Generate a placeholder function that attaches linked params as its arguments.
-    Bool should_link_params = func_module->ShouldLinkParameters();
-    if (should_link_params) {
-      CHECK(pf != nullptr) << "Unable to link-params with no target_host and no llvm codegen.";
-      auto param_ids = executor_codegen_->GetParamIds();
-      auto link_params = Map<String, tir::LinkedParam>();
-      for (auto param : ret_.params) {
-        link_params.Set(param.first, tir::LinkedParam(param_ids[param.first], param.second));
-      }
-
-      Map<String, ObjectRef> dict;
-      dict.Set(tvm::tir::attr::kLinkedParams, link_params);
-      dict.Set(tvm::attr::kGlobalSymbol, String(::tvm::runtime::symbol::tvm_lookup_linked_param));
-      DictAttrs attrs{dict};
-      auto prim = tir::PrimFunc(Array<tir::Var>(), tir::SeqStmt(Array<tir::Stmt>()), VoidType(),
-                                Map<tir::Var, tir::Buffer>(), attrs);
-      if (lowered_funcs.find(host_target) == lowered_funcs.end()) {
-        lowered_funcs.Set(host_target,
-                          IRModule(Map<GlobalVar, BaseFunc>({}), {}, {}, {}, func_module->attrs));
-      }
-      lowered_funcs[host_target]->Add(GlobalVar(::tvm::runtime::symbol::tvm_lookup_linked_param),
-                                      prim);
-    }
-
     // When there is no lowered_funcs due to reasons such as optimization.
     if (lowered_funcs.size() == 0) {
       if (host_target->kind->name == "llvm") {

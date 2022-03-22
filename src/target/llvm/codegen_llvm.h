@@ -171,16 +171,19 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* VisitExpr_(const SelectNode* op) override;
   llvm::Value* VisitExpr_(const LetNode* op) override;
   llvm::Value* VisitExpr_(const LoadNode* op) override;
+  llvm::Value* VisitExpr_(const BufferLoadNode* op) override;
   llvm::Value* VisitExpr_(const CallNode* op) override;
   llvm::Value* VisitExpr_(const RampNode* op) override;
   llvm::Value* VisitExpr_(const ShuffleNode* op) override;
   llvm::Value* VisitExpr_(const BroadcastNode* op) override;
   // stmt
   void VisitStmt_(const StoreNode* op) override;
+  void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const AllocateNode* op) override;
+  void VisitStmt_(const AllocateConstNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const AssertStmtNode* op) override;
   void VisitStmt_(const LetStmtNode* op) override;
@@ -256,7 +259,37 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   virtual void InitPassManagerBuilder(llvm::PassManagerBuilder* builder);
   // Scalarize by iterating elements of e.
   // f is a callback that takes index and v.
-  virtual void Scalarize(const PrimExpr& e, std::function<void(int i, llvm::Value* v)> f);
+  void Scalarize(const PrimExpr& e, std::function<void(int i, llvm::Value* v)> f);
+
+  /* \brief Helper function for handling buffer access
+   *
+   * \param buffer The buffer being accessed
+   *
+   * \param indices The indices at which the buffer is being accessed.
+   *
+   * \param value_dtype The datatype to be read from (BufferLoad) or
+   * written to (BufferStore) the buffer.
+   *
+   * \param make_instruction A callback function that generates that
+   * actual call.
+   *
+   *       - buffer_ptr: A typed pointer to the element being accessed
+   *
+   *       - subelement_i: The index of a vectorized type to be
+   *         stored/loaded.  If -1, indicates that the entire type,
+   *         vector or scalar, should be written.
+   *
+   *       - alignment: The alignment to be used for the read/write.
+   *
+   *       - is_volatile: Whether the read/write should be volatile.
+   *
+   *       - Should return the generated expression.
+   */
+  void BufferAccessHelper(
+      Buffer buffer, Array<PrimExpr> indices, DataType value_dtype,
+      std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i, int alignment,
+                                       bool is_volatile)>
+          make_instruction);
   // Initialize target
   virtual void InitTarget(llvm::TargetMachine* tm);
   // Add module startup function if needed.
@@ -318,6 +351,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // Get alignment given index.
   void GetAlignment(DataType t, const VarNode* buf_var, const PrimExpr& index, int* p_alignment,
                     int* p_native_bits);
+  // Returns whether the LLVM type has padding for alignment
+  bool HasAlignmentPadding(DataType dtype);
   // Get constant string
   llvm::Constant* GetConstString(const std::string& str);
   // do a scalarize call with f
@@ -337,7 +372,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateSub(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateMul(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateBroadcast(llvm::Value* value, int lanes);
-  TypedPointer CreateBufferPtr(DataType t, llvm::Value* buffer, llvm::Value* index);
+  virtual TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
+                                       llvm::ArrayRef<llvm::Value*> indices, DataType value_dtype);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);

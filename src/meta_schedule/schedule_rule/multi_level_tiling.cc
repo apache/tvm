@@ -230,12 +230,19 @@ inline std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const
   if (config.req == ReuseType::kNoReuse) {
     return {std::move(state)};
   }
+  std::vector<int> levels = config.levels;
+  ReuseType req = config.req;
+  if (Optional<Array<Integer>> ann = tir::GetAnn<Array<Integer>>(
+          state.sch->GetSRef(state.block_rv), "meta_schedule.write_cache_level")) {
+    req = ReuseType::kMustReuse;
+    levels = std::vector<int>(ann.value().begin(), ann.value().end());
+  }
   std::vector<State> results;
-  if (config.req == ReuseType::kMayReuse) {
+  if (req == ReuseType::kMayReuse) {
     // Case 1. If the write cache is already there, we don't need to add another.
     Array<BlockRV> consumer_rvs = state.sch->GetConsumers(state.block_rv);
     if (consumer_rvs.size() == 1 && IsWriteCache(state.sch->GetSRef(consumer_rvs[0]))) {
-      for (int level : config.levels) {
+      for (int level : levels) {
         State new_state = state;
         new_state.sch = state.sch->Copy();
         new_state.sch->Seed(state.sch->ForkSeed());
@@ -256,7 +263,7 @@ inline std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const
   // Case 3. Add one write cache
   BlockRV write_cache = state.sch->CacheWrite(/*block_rv=*/state.block_rv, /*read_buffer_index=*/0,
                                               /*storage_scope=*/config.scope);
-  for (int level : config.levels) {
+  for (int level : levels) {
     State new_state = state;
     new_state.sch = state.sch->Copy();
     new_state.sch->Seed(state.sch->ForkSeed());

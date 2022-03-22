@@ -31,6 +31,7 @@ from tvm.relay.op.contrib import cmsisnn
 from utils import (
     skip_if_no_reference_system,
     make_module,
+    make_qnn_relu,
     get_range_for_dtype_str,
     assert_partitioned_function,
     assert_no_external_function,
@@ -38,6 +39,7 @@ from utils import (
 from tests.python.relay.aot.aot_test_utils import (
     AOTTestModel,
     AOT_CORSTONE300_RUNNER,
+    AOT_USMP_CORSTONE300_RUNNER,
     generate_ref_data,
     compile_and_run,
 )
@@ -70,11 +72,12 @@ def make_model(
     input_0_zero_point,
     input_1_scale,
     input_1_zero_point,
+    relu_type="NONE",
     out_scale=1.0 / 256,
     out_zero_point=-128,
 ):
     """Create a Relay Function / network model"""
-    return op(
+    binary_op = op(
         input_0,
         input_1,
         relay.const(input_0_scale, "float32"),
@@ -84,11 +87,13 @@ def make_model(
         relay.const(out_scale, "float32"),
         relay.const(out_zero_point, "int32"),
     )
+    return make_qnn_relu(binary_op, relu_type, out_scale, out_zero_point, "int8")
 
 
 @skip_if_no_reference_system
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
+@pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
 @pytest.mark.parametrize(
     [
         "input_0_scale",
@@ -98,10 +103,12 @@ def make_model(
     ],
     [[0.256, 33, 0.256, 33], [0.0128, -64, 0.0128, -64], [0.0128, -64, 0.256, 33]],
 )
-def test_op_int8(op, input_0_scale, input_0_zero_point, input_1_scale, input_1_zero_point):
+def test_op_int8(
+    op, relu_type, input_0_scale, input_0_zero_point, input_1_scale, input_1_zero_point
+):
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_CORSTONE300_RUNNER
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     dtype = "int8"
     shape = [1, 16, 16, 3]
@@ -113,6 +120,7 @@ def test_op_int8(op, input_0_scale, input_0_zero_point, input_1_scale, input_1_z
         input_0_zero_point,
         input_1_scale,
         input_1_zero_point,
+        relu_type,
     )
     orig_mod = make_module(model)
 
@@ -174,7 +182,7 @@ def parameterize_for_constant_inputs(test):
 def test_constant_input_int8(op, input_0, input_1):
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_CORSTONE300_RUNNER
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     dtype = "int8"
     shape = [1, 16, 16, 3]

@@ -17,7 +17,10 @@
  * under the License.
  */
 
+// TODO(csulivan,adstraw,kparzysz-quic) This should be set on a TVM-wide basis.
+#if defined(__hexagon__)
 #define TVM_LOG_CUSTOMIZE 1
+#endif
 
 #include "hexagon_buffer.h"
 
@@ -37,7 +40,7 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-int hexagon_user_dma_1d_sync(void* src, void* dst, uint32_t length);
+int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length);
 
 struct Allocation {
   Allocation(size_t allocation_nbytes, size_t alignment)

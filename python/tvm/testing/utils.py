@@ -68,6 +68,7 @@ import ctypes
 import functools
 import logging
 import os
+import platform
 import sys
 import time
 import pickle
@@ -83,6 +84,8 @@ from tvm.contrib import nvcc, cudnn
 from tvm.error import TVMError
 from tvm.relay.op.contrib.ethosn import ethosn_available
 from tvm.relay.op.contrib import cmsisnn
+
+SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
 
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
@@ -516,6 +519,17 @@ def _compose(args, decs):
     return decs
 
 
+def slow(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        if SKIP_SLOW_TESTS:
+            pytest.skip("Skipping slow test since RUN_SLOW_TESTS environment variables is 'true'")
+        else:
+            fn(*args, **kwargs)
+
+    return wrapper
+
+
 def uses_gpu(*args):
     """Mark to differentiate tests that use the GPU in some capacity.
 
@@ -530,6 +544,22 @@ def uses_gpu(*args):
     """
     _uses_gpu = [pytest.mark.gpu]
     return _compose(args, _uses_gpu)
+
+
+def requires_x86(*args):
+    """Mark a test as requiring the x86 Architecture to run.
+
+    Tests with this mark will not be run unless on an x86 platform.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_x86 = [
+        pytest.mark.skipif(platform.machine() != "x86_64", reason="x86 Architecture Required"),
+    ]
+    return _compose(args, _requires_x86)
 
 
 def requires_gpu(*args):
@@ -676,6 +706,16 @@ def requires_nvcc_version(major_version, minor_version=0, release_version=0):
         return _compose([func], requires)
 
     return inner
+
+
+def skip_if_32bit(reason):
+    def decorator(*args):
+        if "32bit" in platform.architecture()[0]:
+            return _compose(args, [pytest.mark.skip(reason=reason)])
+
+        return _compose(args, [])
+
+    return decorator
 
 
 def requires_cudagraph(*args):

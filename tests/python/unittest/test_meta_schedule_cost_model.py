@@ -32,6 +32,7 @@ from tvm.meta_schedule.runner import RunnerResult
 from tvm.meta_schedule.cost_model import XGBModel
 from tvm.meta_schedule.search_strategy import MeasureCandidate
 from tvm.meta_schedule.tune_context import TuneContext
+from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.tir.schedule.schedule import Schedule
 
@@ -56,6 +57,7 @@ class Matmul:
 
 
 def test_meta_schedule_cost_model():
+    @derived_object
     class FancyCostModel(PyCostModel):
         def load(self, path: str) -> None:
             pass
@@ -78,11 +80,14 @@ def test_meta_schedule_cost_model():
     model.save("fancy_test_location")
     model.load("fancy_test_location")
     model.update(TuneContext(), [], [])
-    results = model.predict(TuneContext, [MeasureCandidate(Schedule(mod=Matmul), [])])
+    results = model.predict(
+        TuneContext(), [MeasureCandidate(Schedule(mod=Matmul), []) for _ in range(10)]
+    )
     assert results.shape == (10,)
 
 
 def test_meta_schedule_cost_model_as_string():
+    @derived_object
     class NotSoFancyCostModel(PyCostModel):
         def load(self, path: str) -> None:
             pass
@@ -102,7 +107,7 @@ def test_meta_schedule_cost_model_as_string():
             return np.random.rand(10)
 
     cost_model = NotSoFancyCostModel()
-    pattern = re.compile(r"NotSoFancyCostModel\(0x[a-f|0-9]*\)")
+    pattern = re.compile(r"meta_schedule.NotSoFancyCostModel\(0x[a-f|0-9]*\)")
     assert pattern.match(str(cost_model))
 
 

@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -28,6 +29,7 @@
 #include <tvm/relay/qnn/transform.h>
 
 #include "te_compiler.h"
+#include "tvm/runtime/ndarray.h"
 
 namespace tvm {
 namespace relay {
@@ -139,6 +141,7 @@ int64_t CalculateRelayExprSizeBytes(const Type& expr_type) {
     return size;
   }
   auto tensor_type = expr_type.as<TensorTypeNode>();
+  ICHECK(tensor_type);
   auto shape = tensor_type->shape;
   int num_of_elements = 1;
   for (const auto& dim_index_expr : shape) {
@@ -179,14 +182,17 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 ExecutorCodegenMetadata::ExecutorCodegenMetadata(
-    Array<tir::Var> inputs, Array<tir::Var> pools, Array<String> devices, Array<String> outputs,
+    Array<tir::Var> inputs, Array<TensorType> input_tensor_types, Array<String> outputs,
+    Array<TensorType> output_tensor_types, Array<tir::Var> pools, Array<String> devices,
     String executor, String mod_name, String interface_api, bool unpacked_api,
     Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs) {
   auto n = make_object<ExecutorCodegenMetadataNode>();
   n->inputs = inputs;
+  n->input_tensor_types = input_tensor_types;
+  n->outputs = outputs;
+  n->output_tensor_types = output_tensor_types;
   n->pools = pools;
   n->devices = devices;
-  n->outputs = outputs;
   n->executor = executor;
   n->interface_api = interface_api;
   n->unpacked_api = unpacked_api;
@@ -221,14 +227,20 @@ Array<Pass> GetPassPrefix(bool is_homegeneous, bool is_vm) {
     pass_seqs.push_back(transform::EtaExpand(
         /* expand_constructor */ true, /* expand_global_var */ false));
   } else {
+    // DynamicToStatic runs FoldConstant, which affects SimplifyExpr below.
+    // Task extraction uses the is_vm=true branch, meaning SimplifyExpr sees different
+    // inputs from the ones when invoked via relay.build(...).
+    // This causes workload lookups in ApplyHistoryBest to fail if the lookup depends on
+    // the structual hash of the input relay module (e.g. MetaScheduler).
+    // TODO(masahi): Either remove DynamicToStatic below or always run it
+
     // Convert Dynamic ops to static versions
     pass_seqs.push_back(transform::DynamicToStatic());
   }
 
   PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
     Expr expr = args[0];
-    if (expr.as<CallNode>()) {
-      auto call_node = expr.as<CallNode>();
+    if (auto* call_node = expr.as<CallNode>()) {
       auto op_node = call_node->op.as<OpNode>();
       if (op_node->name == "cast") {
         auto attrs = call_node->attrs.as<CastAttrs>();
@@ -292,6 +304,65 @@ void UpdateAutoSchedulerOpWeights(const IRModule& module) {
       module->GetAttr<Map<String, Integer>>("op_weights", Map<String, Integer>()).value();
 
   (*te_compiler_update_weights)(weight_map);
+}
+
+std::vector<int64_t> ShapeToJSON(tvm::Array<IndexExpr> shape) {
+  std::vector<int64_t> ret;
+  for (IndexExpr dim : shape) {
+    const int64_t* pval = tir::as_const_int(dim);
+    ret.push_back(*pval);
+  }
+  return ret;
+}
+
+relay::Function BindParamsByName(relay::Function func,
+                                 const std::unordered_map<std::string, runtime::NDArray>& params) {
+  std::unordered_map<std::string, relay::Var> name_dict;
+  std::unordered_set<relay::Var, ObjectPtrHash, ObjectPtrEqual> repeat_var;
+  for (auto arg : func->params) {
+    const auto& name = arg->name_hint();
+    if (name_dict.count(name)) {
+      repeat_var.insert(name_dict[name]);
+    } else {
+      name_dict[name] = arg;
+    }
+  }
+
+  std::unordered_map<relay::Var, Expr, ObjectPtrHash, ObjectPtrEqual> bind_dict;
+  for (auto& kv : params) {
+    if (name_dict.count(kv.first) == 0) {
+      continue;
+    }
+    auto arg = name_dict.at(kv.first);
+    if (repeat_var.count(arg)) {
+      LOG(FATAL) << "Multiple args in the function have name " << kv.first;
+    }
+    bind_dict[arg] = Constant(kv.second);
+  }
+  Expr bound_expr = relay::Bind(func, bind_dict);
+  Function ret = Downcast<Function>(bound_expr);
+  ICHECK(ret.defined()) << "The returning type is expected to be a Relay Function."
+                        << "\n";
+  return ret;
+}
+
+void BindParamsInModule(IRModule mod,
+                        const std::unordered_map<std::string, runtime::NDArray>& params) {
+  if (!params.empty()) {
+    BaseFunc base_func = mod->Lookup("main");
+    ICHECK(base_func->IsInstance<FunctionNode>());
+    auto f = relay::backend::BindParamsByName(Downcast<Function>(base_func), params);
+    auto gvar = mod->GetGlobalVar("main");
+    mod->Add(gvar, f);
+  }
+}
+
+void BindParamsInModule(IRModule mod, Map<String, runtime::NDArray> params) {
+  std::unordered_map<std::string, runtime::NDArray> params_tmp;
+  for (const auto& kv : params) {
+    params_tmp[kv.first] = kv.second;
+  }
+  BindParamsInModule(mod, params_tmp);
 }
 
 }  // namespace backend

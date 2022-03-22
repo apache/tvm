@@ -207,12 +207,13 @@ def load_from_file(filename):
     input: autotvm.measure.MeasureInput
     result: autotvm.measure.MeasureResult
     """
-    for row in open(filename):
-        if row and not row.startswith("#"):
-            ret = decode(row)
-            if ret is None:
-                continue
-            yield ret
+    with open(filename) as f:
+        for row in f:
+            if row and not row.startswith("#"):
+                ret = decode(row)
+                if ret is None:
+                    continue
+                yield ret
 
 
 def split_workload(in_file, clean=True):

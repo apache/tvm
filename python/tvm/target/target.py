@@ -189,6 +189,12 @@ class Target(Object):
         return list(self.attrs.get("mattr", []))
 
     @property
+    def supports_integer_dot_product(self):
+        if self.attrs.get("supports_integer_dot_product", []):
+            return bool(self.attrs["supports_integer_dot_product"])
+        return False
+
+    @property
     def libs(self):
         return list(self.attrs.get("libs", []))
 
@@ -334,11 +340,13 @@ MICRO_SUPPORTED_MODELS = {
     "esp32": [],
     "imxrt10xx": ["-mcpu=cortex-m7"],
     "mps2_an521": ["-mcpu=cortex-m33"],
+    "mps3_an547": ["-mcpu=cortex-m55"],
     "nrf52840": ["-mcpu=cortex-m4"],
     "nrf5340dk": ["-mcpu=cortex-m33"],
     "sam3x8e": ["-mcpu=cortex-m3"],
     "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
     "stm32l4r5zi": ["-mcpu=cortex-m4"],
+    "stm32u5xx": ["-mcpu=cortex-m33"],
     "zynq_mp_r5": ["-mcpu=cortex-r5"],
 }
 
@@ -526,8 +534,14 @@ def hexagon(cpu_ver="v66", **kwargs):
         error if invalid. Does not affect codegen.
     llvm_options : str or list of str (default: None)
         User defined compiler arguments.
+    use_qfloat : bool (default: True for cpu_ver >= v68, False otherwise)
+        Whether to use QFloat HVX instructions.
+    use_ieee_fp : bool (default: False)
+        Whether to use IEEE HVX instructions
     link_params : bool (default: False)
         Whether to link graph parameters into the LLVM module.
+
+    Note: Floating point support in HVX requires LLVM 14+.
     """
 
     # Some of the target parameters correspond to target kind attributes
@@ -538,8 +552,13 @@ def hexagon(cpu_ver="v66", **kwargs):
     # Example compiler arguments
     # llvm -mtriple=hexagon -mcpu=hexagonv66 -mattr=+hvxv66,+hvx-length128b
 
+    def get_arch_version(cpu_ver):
+        m = re.match(r"v([0-9]+).*", cpu_ver)
+        assert m
+        return int(m.group(1))
+
     # Check for valid codegen cpu
-    valid_hex = ["v60", "v62", "v65", "v66", "v67", "v67t", "v68"]
+    valid_hex = ["v65", "v66", "v67", "v67t", "v68", "v69"]
     try:
         cpu_ver = cpu_ver[cpu_ver.index("v") :].lower()
         assert cpu_ver in valid_hex
@@ -548,10 +567,13 @@ def hexagon(cpu_ver="v66", **kwargs):
         raise ValueError(msg.format(cpu_ver, valid_hex)) from None
 
     # Target configuration:
+    arch_version = get_arch_version(cpu_ver)
     config = {
         "hvx": 128,
         "sim_options": None,
         "llvm_options": None,
+        "use_qfloat": arch_version >= 68,
+        "use_ieee_fp": False,
         "link_params": False,
     }
     config.update(kwargs)
@@ -576,6 +598,10 @@ def hexagon(cpu_ver="v66", **kwargs):
         # Process the options that affect target features and return the
         # target feature string.
         def create_target_features(config):
+            features = {
+                "use_qfloat": "hvx-qfloat",
+                "use_ieee_fp": "hvx-ieee-fp",
+            }
             tfs = []
             if config["hvx"] > 0:
                 valid_hvx = [0, 64, 128]
@@ -584,6 +610,11 @@ def hexagon(cpu_ver="v66", **kwargs):
                 tfs += ["+hvx" + cpu_ver, "+hvx-length" + str(config["hvx"]) + "b"]
             else:
                 tfs += ["-hvx"]
+            # All the additional features happen to only apply to v68+.
+            # Don't bother applying them (even with '-') to lower versions.
+            if arch_version >= 68:
+                tfs += ["-+"[config[f]] + features[f] for f in features]
+
             return "-mattr=" + ",".join(tfs) if tfs else ""
 
         return target + mcpu + " " + create_target_features(config)
