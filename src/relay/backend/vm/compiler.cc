@@ -46,6 +46,7 @@
 #include <tuple>
 #include <vector>
 
+#include "../../../driver/internal_driver_api.h"
 #include "../../../target/metadata_module.h"
 #include "../../../target/source/codegen_source_base.h"
 #include "../../op/annotation/annotation.h"
@@ -1151,7 +1152,7 @@ void VMCompiler::Codegen() {
     LOG(INFO) << "All lowered functions have been build by BYOC -- generating an empty TVM module";
     lib = codegen::CSourceModuleCreate(";", "", Array<String>{});
   } else {
-    lib = tvm::build(per_tvm_target_modules, config_->host_target);
+    lib = tvm::TIRToRuntime(per_tvm_target_modules, config_->host_target);
   }
 
   lib = codegen::CreateMetadataModule(params_, lib, ext_mods, config_->host_target,
