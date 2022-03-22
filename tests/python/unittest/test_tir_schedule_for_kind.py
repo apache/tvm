@@ -541,7 +541,6 @@ def test_vectorize_init():
     _, _, ii_0, jj_0 = s.get_loops(init_blk)
     _, _, k_1, ii_1, jj_1 = s.get_loops(upd_blk)
     s.vectorize(jj_0)
-    print(s.mod["main"].script())
     tvm.ir.assert_structural_equal(s.mod["main"], decomposed_gemm_parallelize_init)
     verify_trace_roundtrip(s, mod=decomposed_gemm)
 
@@ -554,7 +553,6 @@ def test_scatter_parallelize():
     (i_1,) = s.get_loops(last)
     s.parallel(i_0)
     s.parallel(i_1)
-    print(s.mod["main"].script())
     tvm.ir.assert_structural_equal(s.mod["main"], scatter_compute_parallelize)
     verify_trace_roundtrip(s, mod=scatter_compute)
 
