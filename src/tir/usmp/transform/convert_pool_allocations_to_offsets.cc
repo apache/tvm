@@ -200,8 +200,11 @@ PoolAllocationToOffsetConverter::ScopeInfo PoolAllocationToOffsetConverter::Upda
 
     int pool_size = all_pools_sizes_[pool_info];
     String buffer_var_name = pool_ref_name + "_buffer_var";
-    si.buffer_map.Set(pool_var, Buffer(buffer_var, elem_dtype, {pool_size}, {1}, 1, buffer_var_name,
-                                       16, 1, BufferType::kDefault));
+    si.buffer_map.Set(pool_var,
+                      Buffer(buffer_var /* data */, elem_dtype /* dtype */, {pool_size} /* shape */,
+                             {1} /* strides */, 0 /* elem_offset */, buffer_var_name /* name */,
+                             16 /* data_alignment */, 1 /* offset_factor */,
+                             BufferType::kDefault /* buffer-type */));
   }
   if (resource_handle) {
     si.params.push_back(resource_handle.value());
