@@ -22,6 +22,7 @@ import logging
 from tvm import relay, topi
 from ....target import arm_isa
 from ....topi.generic import conv2d as conv2d_generic
+from ....auto_scheduler import is_auto_scheduler_enabled
 from .generic import *
 from .. import op as _op
 
@@ -463,7 +464,9 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
         )
     else:
         strategy.add_implementation(
-            wrap_compute_dense(topi.nn.dense),
+            wrap_compute_dense(
+                topi.nn.dense, need_auto_scheduler_layout=is_auto_scheduler_enabled()
+            ),
             wrap_topi_schedule(topi.generic.schedule_dense),
             name="dense.generic",
         )

@@ -259,3 +259,7 @@ src/runtime/hexagon/rpc/hexagon_rpc_stub.c
 
 # Local tvm-site checkout
 tvm-site/
+
+# Generated docs files
+gallery/how_to/work_with_microtvm/micro_tvmc.py
+

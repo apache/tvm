@@ -460,7 +460,7 @@ def test_ethosu_pooling(
             op = tf.nn.relu(op)
         return op
 
-    _compare_tvm_with_tflite(pooling, [ifm_shape], accel_type)
+    _compare_tvm_with_tflite(pooling, [ifm_shape], accel_type, print_cmm=True)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -926,7 +926,6 @@ def test_ethosu_section_name():
     )
 
 
-@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10487")
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 def test_ethosu_clz(accel_type):
     np.random.seed(0)

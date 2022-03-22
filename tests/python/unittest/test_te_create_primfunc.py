@@ -359,6 +359,108 @@ def test_tensor_attr():
     tvm.ir.assert_structural_equal(func, rt_func)
 
 
+def te_argmax_idx_val():
+    def f_combine(x, y):
+        lhs = tvm.tir.Select((x[1] >= y[1]), x[0], y[0])
+        rhs = tvm.tir.Select((x[1] >= y[1]), x[1], y[1])
+        return lhs, rhs
+
+    def f_identity(dtype0: tvm.DataType, dtype1: tvm.DataType):
+        return tvm.tir.const(-1, dtype0), tvm.te.min_value(dtype1)
+
+    argmax = te.comm_reducer(f_combine, f_identity, name="argmax")
+
+    m = te.var("m")
+    n = te.var("n")
+    idx = te.placeholder((m, n), name="idx", dtype="int32")
+    val = te.placeholder((m, n), name="val", dtype="float32")
+    k = te.reduce_axis((0, n), "k")
+    max_idx, max_val = te.compute(
+        (m,), lambda i: argmax((idx[i, k], val[i, k]), axis=k), name="argmax"
+    )
+    return [idx, val, max_idx, max_val]
+
+
+@T.prim_func
+def tir_argmax_idx_val(
+    var_idx: T.handle, var_val: T.handle, var_argmax_v0: T.handle, var_argmax_v1: T.handle
+) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    m = T.var("int32")
+    n = T.var("int32")
+    idx = T.match_buffer(var_idx, [m, n], dtype="int32")
+    val = T.match_buffer(var_val, [m, n], dtype="float32")
+    argmax_v0 = T.match_buffer(var_argmax_v0, [m], dtype="int32")
+    argmax_v1 = T.match_buffer(var_argmax_v1, [m], dtype="float32")
+    for i0, i1 in T.grid(m, n):
+        with T.block("argmax"):
+            i, k = T.axis.remap("SR", [i0, i1])
+            T.reads(argmax_v1[i], val[i, k], argmax_v0[i], idx[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = T.int32(-1)
+                argmax_v1[i] = T.min_value("float32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = v_argmax_v1
+
+
+def te_argmax_val_idx():
+    def f_combine(x, y):
+        lhs = tvm.tir.Select((x[0] >= y[0]), x[0], y[0])
+        rhs = tvm.tir.Select((x[0] >= y[0]), x[1], y[1])
+        return lhs, rhs
+
+    def f_identity(dtype0: tvm.DataType, dtype1: tvm.DataType):
+        return tvm.te.min_value(dtype0), tvm.tir.const(-1, dtype1)
+
+    argmax = te.comm_reducer(f_combine, f_identity, name="argmax")
+
+    m = te.var("m")
+    n = te.var("n")
+    val = te.placeholder((m, n), name="val", dtype="float32")
+    idx = te.placeholder((m, n), name="idx", dtype="int32")
+    k = te.reduce_axis((0, n), "k")
+    max_val, max_idx = te.compute(
+        (m,), lambda i: argmax((val[i, k], idx[i, k]), axis=k), name="argmax"
+    )
+    return [val, idx, max_val, max_idx]
+
+
+@T.prim_func
+def tir_argmax_val_idx(
+    var_val: T.handle, var_idx: T.handle, var_argmax_v0: T.handle, var_argmax_v1: T.handle
+) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    m = T.var("int32")
+    n = T.var("int32")
+    val = T.match_buffer(var_val, [m, n], dtype="float32")
+    idx = T.match_buffer(var_idx, [m, n], dtype="int32")
+    argmax_v0 = T.match_buffer(var_argmax_v0, [m], dtype="float32")
+    argmax_v1 = T.match_buffer(var_argmax_v1, [m], dtype="int32")
+    for i0, i1 in T.grid(m, n):
+        with T.block("argmax"):
+            i, k = T.axis.remap("SR", [i0, i1])
+            T.reads(argmax_v0[i], val[i, k], argmax_v1[i], idx[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = T.min_value("float32")
+                argmax_v1[i] = T.int32(-1)
+            v_argmax_v0: T.float32 = T.Select(argmax_v0[i] >= val[i, k], argmax_v0[i], val[i, k])
+            v_argmax_v1: T.int32 = T.Select(argmax_v0[i] >= val[i, k], argmax_v1[i], idx[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = v_argmax_v1
+
+
+def test_argmax_idx_val():
+    _check_workload(te_argmax_idx_val, tir_argmax_idx_val)
+
+
+def test_argmax_val_idx():
+    _check_workload(te_argmax_val_idx, tir_argmax_val_idx)
+
+
 if __name__ == "__main__":
     test_unique_name()
     test_matmul()
@@ -371,3 +473,5 @@ if __name__ == "__main__":
     test_constant()
     test_select_simplify()
     test_tensor_attr()
+    test_argmax_idx_val()
+    test_argmax_val_idx()
