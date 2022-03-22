@@ -17,6 +17,7 @@
 """Test layout rewrite support for whole neural networks"""
 import sys
 import tempfile
+import pytest
 
 import numpy as np
 
@@ -187,6 +188,8 @@ def test_conv2d(target, dev):
 
 
 def test_conv2d_winograd(target, dev):
+    if target == "cuda":
+        pytest.skip(reason="See https://github.com/apache/tvm/issues/10707")
     mod, data, weight = get_relay_conv2d(outc=128, kh=3, kw=3)
     tune_and_check(mod, data, weight, target, dev)
 
