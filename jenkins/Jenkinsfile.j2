@@ -341,24 +341,24 @@ if (rebuild_docker_images) {
       }
     }
   }
-  // // TODO: Once we are able to use the built images, enable this step
-  // // If the docker images changed, we need to run the image build before the lint
-  // // can run since it requires a base docker image. Most of the time the images
-  // // aren't build though so it's faster to use the same node that checks for
-  // // docker changes to run the lint in the usual case.
-  // stage('Sanity Check (re-run)') {
-  //   timeout(time: max_time, unit: 'MINUTES') {
-  //     node('CPU') {
-  //       ws({{ m.per_exec_ws('tvm/sanity') }}) {
-  //         init_git()
-  //         sh (
-  //           script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
-  //           label: 'Run lint',
-  //         )
-  //       }
-  //     }
-  //   }
-  // }
+  // TODO: Once we are able to use the built images, enable this step
+  // If the docker images changed, we need to run the image build before the lint
+  // can run since it requires a base docker image. Most of the time the images
+  // aren't build though so it's faster to use the same node that checks for
+  // docker changes to run the lint in the usual case.
+  stage('Sanity Check (re-run)') {
+    timeout(time: max_time, unit: 'MINUTES') {
+      node('CPU') {
+        ws({{ m.per_exec_ws('tvm/sanity') }}) {
+          init_git()
+          sh (
+            script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
+            label: 'Run lint',
+          )
+        }
+      }
+    }
+  }
 }
 
 // Run make. First try to do an incremental make from a previous workspace in hope to

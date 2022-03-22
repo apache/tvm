@@ -344,24 +344,24 @@ if (rebuild_docker_images) {
       }
     }
   }
-  // // TODO: Once we are able to use the built images, enable this step
-  // // If the docker images changed, we need to run the image build before the lint
-  // // can run since it requires a base docker image. Most of the time the images
-  // // aren't build though so it's faster to use the same node that checks for
-  // // docker changes to run the lint in the usual case.
-  // stage('Sanity Check (re-run)') {
-  //   timeout(time: max_time, unit: 'MINUTES') {
-  //     node('CPU') {
-  //       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/sanity") {
-  //         init_git()
-  //         sh (
-  //           script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
-  //           label: 'Run lint',
-  //         )
-  //       }
-  //     }
-  //   }
-  // }
+  // TODO: Once we are able to use the built images, enable this step
+  // If the docker images changed, we need to run the image build before the lint
+  // can run since it requires a base docker image. Most of the time the images
+  // aren't build though so it's faster to use the same node that checks for
+  // docker changes to run the lint in the usual case.
+  stage('Sanity Check (re-run)') {
+    timeout(time: max_time, unit: 'MINUTES') {
+      node('CPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/sanity") {
+          init_git()
+          sh (
+            script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
+            label: 'Run lint',
+          )
+        }
+      }
+    }
+  }
 }
 
 // Run make. First try to do an incremental make from a previous workspace in hope to
@@ -722,7 +722,7 @@ stage('Test') {
       Utils.markStageSkippedForConditional('python3: i386')
     }
   },
-  'python3: aarch64': {
+  'python3: arm': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('ARM') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
@@ -741,10 +741,7 @@ stage('Test') {
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_topi.sh",
                 label: 'Run TOPI tests',
               )
-              sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh",
-                label: 'Run CPU integration tests',
-              )
+            // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
             }
           } finally {
             junit 'build/pytest-results/*.xml'
