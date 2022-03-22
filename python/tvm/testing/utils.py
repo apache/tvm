@@ -708,6 +708,16 @@ def requires_nvcc_version(major_version, minor_version=0, release_version=0):
     return inner
 
 
+def skip_if_32bit(reason):
+    def decorator(*args):
+        if "32bit" in platform.architecture()[0]:
+            return _compose(args, [pytest.mark.skip(reason=reason)])
+
+        return _compose(args, [])
+
+    return decorator
+
+
 def requires_cudagraph(*args):
     """Mark a test as requiring the CUDA Graph Feature
 
