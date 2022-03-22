@@ -156,12 +156,10 @@ bool IsDominantBlock(const BlockScope& scope, const StmtSRef& block_sref) {
   const std::unordered_map<Buffer, Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual>& buffer_writers =
       scope->buffer_writers;
   for (const BufferRegion& write_region : block->writes) {
-    ICHECK(buffer_writers.count(write_region->buffer))
-        << "InternalError: buffer \"" << write_region->buffer->name
-        << "\" does not exist in the current scope, when querying block:\n"
-        << GetRef<Block>(block);
-    if (buffer_writers.at(write_region->buffer).size() != 1) {
-      return false;
+    if (buffer_writers.count(write_region->buffer)) {
+      if (buffer_writers.at(write_region->buffer).size() != 1) {
+        return false;
+      }
     }
   }
   return true;
@@ -395,6 +393,7 @@ void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subt
   for (const StmtSRef& block_sref : child_block_srefs) {
     // Local complete: complete block under the subtree.
     // Local reduction: reduction block under the subtree.
+    const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
     if (!IsCompleteBlock(self, block_sref, block_sref) &&
         !IsReductionBlock(self, block_sref, block_sref)) {
       const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
