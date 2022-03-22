@@ -732,9 +732,12 @@ class MetadataSerializer : public AttrVisitor {
     }
 
     // Finally, emit overall struct.
-    code_ << "const struct TVMMetadata " << metadata::kMetadataGlobalSymbol << " = {" << std::endl;
+    address_.push_back(metadata::kMetadataGlobalSymbol);
+    code_ << "const struct TVMMetadata " << metadata::address_from_parts(address_) << " = {"
+          << std::endl;
     Visit(nullptr, &metadata);
     code_ << "};" << std::endl;
+    address_.pop_back();
   }
 
   std::string GetOutput() { return decl_.str() + code_.str(); }
