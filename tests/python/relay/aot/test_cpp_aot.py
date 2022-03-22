@@ -120,7 +120,7 @@ def test_conv2d(enable_usmp, target_kind):
     assert (runner.get_output(0).asnumpy() == list(ref_outputs.values())[0]).all()
 
 
-def test_mobilenet():
+def test_mobilenet(target_kind):
     ir_mod, params = testing.mobilenet.get_workload(batch_size=1)
     data_shape = [int(x) for x in ir_mod["main"].checked_type.arg_types[0].shape]
     data = np.random.uniform(size=data_shape).astype("float32")
@@ -131,7 +131,7 @@ def test_mobilenet():
         mod = tvm.relay.build(
             ir_mod,
             params=params,
-            target="c",
+            target=target_kind,
             executor=backend.Executor("aot", {"interface-api": "packed"}),
         )
 
