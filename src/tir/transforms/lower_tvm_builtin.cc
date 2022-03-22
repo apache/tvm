@@ -436,8 +436,14 @@ class BuiltinLower : public StmtExprMutator {
 
     // cpacked call resource_handle
     if (!use_string_lookup) {
-      tir::Var resource_handle = Downcast<Var>(op->args[arg_count]);
-      packed_args.push_back(StringImm(resource_handle->name_hint));
+      PrimExpr last_arg = op->args[arg_count];
+      const VarNode* var_node = last_arg.as<VarNode>();
+      if (var_node != nullptr) {
+        tir::Var resource_handle = GetRef<Var>(var_node);
+        packed_args.push_back(StringImm(resource_handle->name_hint));
+      } else {
+        packed_args.push_back(last_arg);
+      }
     }
 
     auto builtin_call = use_string_lookup ? builtin::tvm_call_packed_lowered()
