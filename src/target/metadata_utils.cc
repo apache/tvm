@@ -25,8 +25,9 @@
 
 namespace tvm {
 namespace codegen {
+namespace metadata {
 
-MetadataQueuer::MetadataQueuer(std::vector<QueueItem>* queue) : queue_{queue} {}
+DiscoverArraysVisitor::DiscoverArraysVisitor(std::vector<DiscoveredArray>* queue) : queue_{queue} {}
 
 std::string address_from_parts(const std::vector<std::string>& parts) {
   std::stringstream ss;
@@ -39,28 +40,25 @@ std::string address_from_parts(const std::vector<std::string>& parts) {
   return ss.str();
 }
 
-void MetadataQueuer::Visit(const char* key, double* value) {}
-void MetadataQueuer::Visit(const char* key, int64_t* value) {}
-void MetadataQueuer::Visit(const char* key, uint64_t* value) {}
-void MetadataQueuer::Visit(const char* key, int* value) {}
-void MetadataQueuer::Visit(const char* key, bool* value) {}
-void MetadataQueuer::Visit(const char* key, std::string* value) {}
-void MetadataQueuer::Visit(const char* key, DataType* value) {}
-void MetadataQueuer::Visit(const char* key, runtime::NDArray* value) {}
-void MetadataQueuer::Visit(const char* key, void** value) {}
+void DiscoverArraysVisitor::Visit(const char* key, double* value) {}
+void DiscoverArraysVisitor::Visit(const char* key, int64_t* value) {}
+void DiscoverArraysVisitor::Visit(const char* key, uint64_t* value) {}
+void DiscoverArraysVisitor::Visit(const char* key, int* value) {}
+void DiscoverArraysVisitor::Visit(const char* key, bool* value) {}
+void DiscoverArraysVisitor::Visit(const char* key, std::string* value) {}
+void DiscoverArraysVisitor::Visit(const char* key, DataType* value) {}
+void DiscoverArraysVisitor::Visit(const char* key, runtime::NDArray* value) {}
+void DiscoverArraysVisitor::Visit(const char* key, void** value) {}
 
-void MetadataQueuer::Visit(const char* key, ObjectRef* value) {
+void DiscoverArraysVisitor::Visit(const char* key, ObjectRef* value) {
   address_parts_.push_back(key);
   if (value->as<runtime::metadata::MetadataBaseNode>() != nullptr) {
     auto metadata = Downcast<runtime::metadata::MetadataBase>(*value);
     const runtime::metadata::MetadataArrayNode* arr =
         value->as<runtime::metadata::MetadataArrayNode>();
-    std::cout << "Is array? " << arr << std::endl;
     if (arr != nullptr) {
       for (unsigned int i = 0; i < arr->array.size(); i++) {
         ObjectRef o = arr->array[i];
-        std::cout << "queue-visiting array element " << i << ": " << o->type_index() << " ("
-                  << o.operator->() << ")" << std::endl;
         if (o.as<runtime::metadata::MetadataBaseNode>() != nullptr) {
           std::stringstream ss;
           ss << i;
@@ -70,15 +68,88 @@ void MetadataQueuer::Visit(const char* key, ObjectRef* value) {
           address_parts_.pop_back();
         }
       }
+
+      queue_->push_back(std::make_tuple(address_from_parts(address_parts_),
+                                        Downcast<runtime::metadata::MetadataArray>(metadata)));
     } else {
       ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
     }
-
-    queue_->push_back(std::make_tuple(address_from_parts(address_parts_),
-                                      Downcast<runtime::metadata::MetadataBase>(*value)));
   }
   address_parts_.pop_back();
 }
 
+void DiscoverComplexTypesVisitor::Visit(const char* key, double* value) {}
+void DiscoverComplexTypesVisitor::Visit(const char* key, int64_t* value) {}
+void DiscoverComplexTypesVisitor::Visit(const char* key, uint64_t* value) {}
+void DiscoverComplexTypesVisitor::Visit(const char* key, int* value) {}
+void DiscoverComplexTypesVisitor::Visit(const char* key, bool* value) {}
+void DiscoverComplexTypesVisitor::Visit(const char* key, std::string* value) {}
+void DiscoverComplexTypesVisitor::Visit(const char* key, DataType* value) {}
+void DiscoverComplexTypesVisitor::Visit(const char* key, runtime::NDArray* value) {}
+void DiscoverComplexTypesVisitor::Visit(const char* key, void** value) {}
+
+bool DiscoverComplexTypesVisitor::DiscoverType(std::string type_key) {
+  VLOG(2) << "DiscoverType " << type_key;
+  auto position_it = type_key_to_position_.find(type_key);
+  if (position_it != type_key_to_position_.end()) {
+    return false;
+  }
+
+  queue_->emplace_back(tvm::runtime::metadata::MetadataBase());
+  type_key_to_position_[type_key] = queue_->size() - 1;
+  return true;
+}
+
+void DiscoverComplexTypesVisitor::DiscoverInstance(runtime::metadata::MetadataBase md) {
+  auto position_it = type_key_to_position_.find(md->GetTypeKey());
+  ICHECK(position_it != type_key_to_position_.end())
+      << "DiscoverInstance requires that DiscoverType has already been called: type_key="
+      << md->GetTypeKey();
+
+  int queue_position = (*position_it).second;
+  if (!(*queue_)[queue_position].defined() && md.defined()) {
+    VLOG(2) << "DiscoverInstance  " << md->GetTypeKey() << ":" << md;
+    (*queue_)[queue_position] = md;
+  }
+}
+
+void DiscoverComplexTypesVisitor::Visit(const char* key, ObjectRef* value) {
+  ICHECK_NOTNULL(value->as<runtime::metadata::MetadataBaseNode>());
+
+  auto metadata = Downcast<runtime::metadata::MetadataBase>(*value);
+  const runtime::metadata::MetadataArrayNode* arr =
+      value->as<runtime::metadata::MetadataArrayNode>();
+
+  if (arr == nullptr) {
+    VLOG(2) << "No array, object-traversing " << metadata->GetTypeKey();
+    ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
+    DiscoverType(metadata->GetTypeKey());
+    DiscoverInstance(metadata);
+    return;
+  }
+
+  if (arr->kind != tvm::runtime::metadata::MetadataKind::kMetadata) {
+    return;
+  }
+
+  bool needs_instance = DiscoverType(arr->type_key);
+  for (unsigned int i = 0; i < arr->array.size(); i++) {
+    tvm::runtime::metadata::MetadataBase o =
+        Downcast<tvm::runtime::metadata::MetadataBase>(arr->array[i]);
+    if (needs_instance) {
+      DiscoverInstance(o);
+      needs_instance = false;
+    }
+    ReflectionVTable::Global()->VisitAttrs(o.operator->(), this);
+  }
+}
+
+void DiscoverComplexTypesVisitor::Discover(runtime::metadata::MetadataBase metadata) {
+  ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
+  DiscoverType(metadata->GetTypeKey());
+  DiscoverInstance(metadata);
+}
+
+}  // namespace metadata
 }  // namespace codegen
 }  // namespace tvm
