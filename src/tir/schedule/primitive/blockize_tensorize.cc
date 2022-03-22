@@ -496,6 +496,12 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
   Block new_block = Downcast<Block>(replacer(block));
 
   // Step 6: Generate the inner block.
+  bool outer_reduction = false;  // whether there are outer reduction iter vars.
+  for (const IterVar& iter_var : extractor.outer_iter_vars) {
+    if (iter_var->iter_type == kCommReduce) {
+      outer_reduction = true;
+    }
+  }
   BlockRealizeNode* inner_block_realize = block_realize.CopyOnWrite();
   inner_block_realize->iter_values = extractor.inner_bindings;
   inner_block_realize->predicate = inner_pred;
@@ -503,6 +509,20 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
   BlockNode* inner_block = inner_block_realize->block.CopyOnWrite();
   inner_block->iter_vars = extractor.inner_iter_vars;
   inner_block->init = NullOpt;
+  /* Add write regions to read regions if
+   * 1. there are outer reduction iter vars.
+   * 2. the init block is defined for current block.
+   */
+  if (outer_reduction && block->init.defined()) {
+    Array<BufferRegion> new_reads;
+    for (const BufferRegion& write_access : inner_block->writes) {
+      new_reads.push_back(write_access);
+    }
+    for (const BufferRegion& read_access : inner_block->reads) {
+      new_reads.push_back(read_access);
+    }
+    inner_block->reads = std::move(new_reads);
+  }
   block_sref_reuse.Set(block, inner_block_realize->block);
 
   // Step 6: Generate the outer block.

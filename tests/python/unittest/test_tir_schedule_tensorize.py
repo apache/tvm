@@ -33,7 +33,7 @@ def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
 
     with T.block("root"):
-        T.reads(A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
+        T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
         T.writes(C[0 : 16, 0 : 16])
         for i, j, k in T.grid(16, 16, 16):
             with T.block("update"):
@@ -48,7 +48,7 @@ def mma_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
 
     with T.block("root"):
-        T.reads(A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
+        T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
         T.writes(C[0 : 16, 0 : 16])
         T.evaluate(
             T.tvm_mma_sync(
@@ -72,7 +72,7 @@ def dot_product_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, ())
 
     with T.block("root"):
-        T.reads(A[0 : 4], B[0 : 4])
+        T.reads(C[()], A[0 : 4], B[0 : 4])
         T.writes(C[()])
         for i in range(0, 4):
             with T.block("update"):
@@ -87,7 +87,7 @@ def dot_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (), offset_factor=1)
 
     with T.block("root"):
-        T.reads(A[0 : 4], B[0 : 4])
+        T.reads(C[()], A[0 : 4], B[0 : 4])
         T.writes(C[()])
         T.evaluate(
             T.call_extern(
@@ -111,6 +111,7 @@ def outer_product_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
 
     with T.block("root"):
         T.reads(
+            C[0 : 16, 0 : 16],
             A[0 : 16, 0 : 1],
             B[0 : 16, 0 : 1],
         )
@@ -129,6 +130,7 @@ def outer_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
 
     with T.block("root"):
         T.reads(
+            C[0 : 16, 0 : 16],
             A[0 : 16, 0 : 1],
             B[0 : 16, 0 : 1],
         )
@@ -178,6 +180,7 @@ def tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
                 vi, vj, vk = T.axis.remap("SSR", [i_outer, j_outer, k_outer])
                 T.reads(
                     [
+                        C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                         A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                         B[vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     ]
@@ -250,6 +253,7 @@ def tensorized_batch_matmul_mma(
             with T.block("update"):
                 vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
                 T.reads(
+                    C[vn : vn + 1, vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                     A[vn : vn + 1, vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     B[vn : vn + 1, vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                 )
@@ -303,7 +307,7 @@ def tensorized_batch_matmul_dot_product(
         with T.block("blockized_update"):
             vn, vi, vj, vko = T.axis.remap("SSSR", [n, i, j, k_0])
             T.reads(
-                A[vn, vi, vko * 4 : vko * 4 + 4], B[vn, vj, vko * 4 : vko * 4 + 4]
+                C[vn, vi, vj], A[vn, vi, vko * 4 : vko * 4 + 4], B[vn, vj, vko * 4 : vko * 4 + 4]
             )
             T.writes(C[vn, vi, vj])
             A_1 = T.match_buffer(
@@ -343,6 +347,7 @@ def tensorized_batch_matmul_outer_product(
         with T.block("blockized_update"):
             vn, vio, vjo, vk = T.axis.remap("SSSR", [n, i_0, j_0, k])
             T.reads(
+                C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16],
                 A[vn, vio * 16 : vio * 16 + 16, vk],
                 B[vn, vjo * 16 : vjo * 16 + 16, vk],
             )
@@ -367,7 +372,7 @@ def annotated_mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
 
     with T.block("root"):
-        T.reads(A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
+        T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
         T.writes(C[0 : 16, 0 : 16])
         for i, j, k in T.grid(16, 16, 16):
             with T.block("update"):
@@ -409,6 +414,7 @@ def annotated_tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
                 vi, vj, vk = T.axis.remap("SSR", [i_outer, j_outer, k_outer])
                 T.reads(
                     [
+                        C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                         A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                         B[vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     ]

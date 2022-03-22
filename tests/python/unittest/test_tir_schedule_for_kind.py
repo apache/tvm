@@ -562,7 +562,6 @@ def test_nexted_block_bind_after_cache_read():
     (j,) = s.get_loops(block_inner)
     s.bind(i, "blockIdx.x")
     s.bind(j, "threadIdx.x")
-    print(s.mod["main"].script())
     tvm.ir.assert_structural_equal(s.mod["main"], thread_bound_nested_block_after_cache_read)
     verify_trace_roundtrip(s, mod=nested_block_bind_after_cache_read)
 
