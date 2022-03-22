@@ -128,6 +128,7 @@ def _create_serial_pooling(
         ),
         rounding_mode=rounding_mode,
         upscale=upscale,
+        block_config=spec.SerialBlockConfig(0, 0, 0),
     )
 
 

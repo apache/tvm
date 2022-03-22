@@ -177,6 +177,7 @@ def test_binary_elementwise_single(
             clip_max=100 if activation == "CLIP" else 0,
         ),
         rounding_mode=rounding_mode,
+        block_config=spec.SerialBlockConfig(0, 0, 0),
     )
 
     assert data[0] == ["ethosu_binary_elementwise"] + list(serial_binary_elementwise)
@@ -333,6 +334,7 @@ def test_shift_binary_elementwise_single(
             clip_max=0,
         ),
         rounding_mode=rounding_mode,
+        block_config=spec.SerialBlockConfig(0, 0, 0),
     )
 
     assert data[0] == ["ethosu_binary_elementwise"] + list(serial_binary_elementwise)
