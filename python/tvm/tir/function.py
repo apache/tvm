@@ -16,7 +16,7 @@
 # under the License.
 """Function data types."""
 
-from typing import Callable, List, Mapping, Union
+from typing import Callable, List, Mapping, Optional, Union
 import inspect
 
 import tvm._ffi
@@ -261,7 +261,7 @@ class IndexMap(Object):
         self.__init_handle_by_constructor__(_ffi_api.IndexMap, initial_indices, final_indices)
 
     @staticmethod
-    def from_func(mapping_function: Callable):
+    def from_func(mapping_function: Callable, ndim: Optional[int] = None):
         """Create an index map from a function
 
         Parameters
@@ -272,14 +272,26 @@ class IndexMap(Object):
         params = inspect.signature(mapping_function).parameters
         default_index_dtype = "int32"
         args = []
+        var_arg_name = None
         for name, param in params.items():
             if param.kind in [
                 inspect.Parameter.POSITIONAL_ONLY,
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
             ]:
-                print(name)
                 args.append(tvm.tir.Var(name, default_index_dtype))
+            elif param.kind == inspect.Parameter.VAR_POSITIONAL:
+                var_arg_name = name
             else:
                 raise ValueError("transform_layout mapping may not have *args or **kwargs")
+
+        # Now that all the named arguments have been collected,
+        # everything that remains should go to the *args, if
+        # specified.
+        if var_arg_name is not None:
+            assert ndim is not None, "ndim must be specified when *args is used"
+            num_var_args = ndim - len(args)
+            for i in range(num_var_args):
+                args.append(tvm.tir.Var(f"{var_arg_name}_{i}", default_index_dtype))
+
         final_indices = mapping_function(*args)
         return IndexMap(args, final_indices)
