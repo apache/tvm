@@ -384,9 +384,12 @@ class BuiltinLower : public StmtExprMutator {
                                        make_const(DataType::UInt(16), dtype.lanes())));
     // set byte offset
     int data_bytes = GetVectorBytes(dtype);
-    PrimExpr byte_offset = op->args[5];
-    if (!is_zero(byte_offset)) {
-      byte_offset = byte_offset * make_const(byte_offset.dtype(), data_bytes);
+    PrimExpr elem_offset = op->args[5];
+    PrimExpr byte_offset;
+    if (!is_zero(elem_offset)) {
+      byte_offset = elem_offset * make_const(elem_offset.dtype(), data_bytes);
+    } else {
+      byte_offset = elem_offset;
     }
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrByteOffset,
                                        cast(DataType::UInt(64), byte_offset)));
@@ -582,6 +585,7 @@ Pass LowerTVMBuiltin() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = BuiltinLower().Build(n->body);
+    VLOG(2) << "LowerTVMBuiltin: " << f;
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerTVMBuiltin", {});
