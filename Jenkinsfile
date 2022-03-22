@@ -234,19 +234,56 @@ def build_image(image_name) {
   def full_name = "${image_name}:${env.BRANCH_NAME}-${hash}"
   sh(
     script: "${docker_build} ${image_name} --spec ${full_name}",
-    label: 'Building docker image'
+    label: 'Build docker image'
   )
+  aws_account_id = sh(
+    returnStdout: true,
+    script: 'aws sts get-caller-identity | grep Account | cut -f4 -d\\"',
+    label: 'Get AWS ID'
+  ).trim()
+
+  try {
+    // Use a credential so Jenkins knows to scrub the AWS account ID which is nice
+    // (but so we don't have to rely it being hardcoded in Jenkins)
+    withCredentials([string(
+      credentialsId: 'aws-account-id',
+      variable: '_ACCOUNT_ID_DO_NOT_USE',
+      )]) {
+      withEnv([
+        "AWS_ACCOUNT_ID=${aws_account_id}",
+        'AWS_DEFAULT_REGION=us-west-2']) {
+        sh(
+          script: '''
+            set -x
+            aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+          ''',
+          label: 'Log in to ECR'
+        )
+        sh(
+          script: """
+            set -x
+            docker tag ${full_name} \$AWS_ACCOUNT_ID.dkr.ecr.\$AWS_DEFAULT_REGION.amazonaws.com/${full_name}
+            docker push \$AWS_ACCOUNT_ID.dkr.ecr.\$AWS_DEFAULT_REGION.amazonaws.com/${full_name}
+          """,
+          label: 'Upload image to ECR'
+        )
+      }
+    }
+  } finally {
+    sh(
+      script: 'rm -f ~/.docker/config.json',
+      label: 'Clean up login credentials'
+    )
+  }
   sh(
     script: "docker rmi ${full_name}",
-    label: 'Removing docker image'
+    label: 'Remove docker image'
   )
-  sh "echo NYI: Uploading docker image to registry..."
 }
 
 if (rebuild_docker_images) {
   stage('Docker Image Build') {
-    // TODO in a follow up PR: Upload to ECR, find tag and use in
-    // subsequent builds
+    // TODO in a follow up PR: Find ecr tag and use in subsequent builds
     parallel 'ci-lint': {
       node('CPU') {
         timeout(time: max_time, unit: 'MINUTES') {
