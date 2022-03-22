@@ -468,5 +468,18 @@ def test_vectorize_after_decompose():
     verify_trace_roundtrip(s, mod=decomposed_gemm)
 
 
+def test_compact_data_flow_local_complete_reduction():
+    s = tir.Schedule(decomposed_gemm, debug_mask="all")
+    init_blk = s.get_block("init")
+    upd_blk = s.get_block("update")
+    ii_0, jj_0 = s.get_loops(init_blk)
+    k_1, ii_1, jj_1 = s.get_child_blocks(upd_blk) 
+    s.vectorize(jj_0)
+    s.bind(jj_1, "threadIdx.x")
+    print(s.mod["main"].script())
+    tvm.ir.assert_structural_equal(s.mod["main"], decomposed_gemm_double_bound) 
+    verify_trace_roundtrip(s, mod=decomposed_gemm)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

@@ -207,14 +207,14 @@ int CheckCompleteBlockErrorCode(const ScheduleState& self, const StmtSRef& block
 
 static const char* kCompleteBlockDefinition = R"(Definition of a complete block:
 1) All block vars are data parallel
-2) Dominant: the block is the only writer of its output, dominating the reader of its output buffers
+2) Dominant: the block is the only writer of its output, dominating the reader of its output buffers under the given scope.
 3) No overlap between the buffers the block reads and writes)";
 
 static const char* kReductionBlockDefinition = R"(Definition of a reduction block:
 1) The block has the `init` statement
 2) All the block bindings are quasi-affine expressions
 3) All block vars are either data parallel block vars or reduction block vars
-4) Dominant: the block is the only writer of its output, dominating the reader of its output buffers
+4) Dominant: the block is the only writer of its output, dominating the reader of its output buffers under the given scope.
 5) The reduction block vars are not used to index the output buffers)";
 
 bool IsCompleteBlock(const ScheduleState& self, const StmtSRef& block_sref,
@@ -363,8 +363,7 @@ void CheckCompleteOrReductionBlock(const ScheduleState& self, const StmtSRef& bl
                                          reduction_block_error_code);
 }
 
-void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subtree_root,
-                                 const StmtSRef& scope_root_sref) {
+void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subtree_root) {
   class NotCompactDataFlowError : public ScheduleError {
    public:
     explicit NotCompactDataFlowError(IRModule mod, Stmt subtree_root, Block violate_block)
@@ -375,12 +374,14 @@ void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subt
     }
     String FastErrorString() const final {
       return "ScheduleError: The queried subtree root in SRef tree does not have compact dataflow, "
-             "because some of its child block on SRef tree is neither a complete block nor a "
+             "because some of its child block on SRef tree is neither a local complete block nor a "
+             "local "
              "reduction block";
     }
     String DetailRenderTemplate() const final {
       return "The queried subtree root {0} in SRef tree does not have compact dataflow, because "
-             "its child block {1} on SRef tree is neither a complete block nor a reduction block";
+             "its child block {1} on SRef tree is neither a local complete block nor a local "
+             "reduction block";
     }
     IRModule mod() const final { return mod_; }
     Array<ObjectRef> LocationsOfInterest() const final { return {subtree_root_, violate_block_}; }
@@ -392,8 +393,10 @@ void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subt
 
   Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, subtree_root);
   for (const StmtSRef& block_sref : child_block_srefs) {
-    if (!IsCompleteBlock(self, block_sref, scope_root_sref) &&
-        !IsReductionBlock(self, block_sref, scope_root_sref)) {
+    // Local complete: complete block under the subtree.
+    // Local reduction: reduction block under the subtree.
+    if (!IsCompleteBlock(self, block_sref, block_sref) &&
+        !IsReductionBlock(self, block_sref, block_sref)) {
       const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
       throw NotCompactDataFlowError(self->mod, GetRef<Stmt>(subtree_root->stmt),
                                     GetRef<Block>(block));
