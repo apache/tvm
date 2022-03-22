@@ -222,6 +222,8 @@ def docs(
     tutorial_pattern: Optional[str] = None,
     full: bool = False,
     cpu: bool = False,
+    interactive: bool = False,
+    skip_build: bool = False,
 ) -> None:
     """
     Build the documentation from gallery/ and docs/. By default this builds only
@@ -232,6 +234,8 @@ def docs(
     precheck -- Run Sphinx precheck script
     tutorial-pattern -- Regex for which tutorials to execute when building docs (can also be set via TVM_TUTORIAL_EXEC_PATTERN)
     cpu -- Run with the ci-cpu image and use CMake defaults for building TVM (if no GPUs are available)
+    skip_build -- skip build and setup scripts
+    interactive -- start a shell after running build / test scripts
     """
     config = "./tests/scripts/task_config_build_gpu.sh"
     build_dir = get_build_dir("gpu")
@@ -280,8 +284,12 @@ def docs(
         config + f" {build_dir}",
         f"./tests/scripts/task_build.py --build-dir {build_dir}",
         "python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0",
-        "./tests/scripts/task_python_docs.sh",
     ]
+
+    if skip_build:
+        scripts = []
+
+    scripts.append("./tests/scripts/task_python_docs.sh")
 
     if tutorial_pattern is None:
         tutorial_pattern = os.getenv("TVM_TUTORIAL_EXEC_PATTERN", ".py" if full else "none")
@@ -290,9 +298,10 @@ def docs(
         "TVM_TUTORIAL_EXEC_PATTERN": tutorial_pattern,
         "PYTHON_DOCS_ONLY": "0" if full else "1",
         "IS_LOCAL": "1",
+        "TVM_LIBRARY_PATH": str(REPO_ROOT / build_dir),
     }
     check_build()
-    docker(name=gen_name("docs"), image=image, scripts=scripts, env=env, interactive=False)
+    docker(name=gen_name("docs"), image=image, scripts=scripts, env=env, interactive=interactive)
 
 
 def serve_docs(directory: str = "_docs") -> None:
@@ -316,7 +325,7 @@ def lint(interactive: bool = False) -> None:
     interactive -- start a shell after running build / test scripts
     """
     docker(
-        name="ci-lint",
+        name=gen_name(f"ci-lint"),
         image="ci_lint",
         scripts=["./tests/scripts/task_lint.sh"],
         env={},
@@ -341,22 +350,28 @@ def generate_command(
     3. (optional) Drop down into a terminal into the Docker container
     """
 
-    def fn(tests: Optional[List[str]], interactive: bool = False, **kwargs) -> None:
+    def fn(
+        tests: Optional[List[str]], skip_build: bool = False, interactive: bool = False, **kwargs
+    ) -> None:
         """
         arguments:
         tests -- pytest test IDs (e.g. tests/python or tests/python/a_file.py::a_test[param=1])
+        skip_build -- skip build and setup scripts
         interactive -- start a shell after running build / test scripts
         """
         if precheck is not None:
             precheck()
 
-        scripts = [
-            f"./tests/scripts/task_config_build_{name}.sh {get_build_dir(name)}",
-            f"./tests/scripts/task_build.py --build-dir {get_build_dir(name)}",
-            # This can be removed once https://github.com/apache/tvm/pull/10257
-            # is merged and added to the Docker images
-            "python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0",
-        ]
+        if skip_build:
+            scripts = []
+        else:
+            scripts = [
+                f"./tests/scripts/task_config_build_{name}.sh {get_build_dir(name)}",
+                f"./tests/scripts/task_build.py --build-dir {get_build_dir(name)}",
+                # This can be removed once https://github.com/apache/tvm/pull/10257
+                # is merged and added to the Docker images
+                "python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0",
+            ]
 
         # Check that a test suite was not used alongside specific test names
         if any(v for v in kwargs.values()) and tests is not None:
@@ -449,9 +464,11 @@ def add_subparser(
         for line in args_help.split("\n"):
             line = line.strip()
             name, help_text = [t.strip() for t in line.split(" -- ")]
-            arg_help_texts[name] = help_text
+            arg_help_texts[cli_name(name)] = help_text
 
     subparser = subparsers.add_parser(cli_name(func.__name__), help=command_help)
+
+    seen_prefixes = set()
 
     # Add each parameter to the subparser
     signature = inspect.signature(func)
@@ -459,7 +476,8 @@ def add_subparser(
         if name == "kwargs":
             continue
 
-        kwargs: Dict[str, Union[str, bool]] = {"help": arg_help_texts[cli_name(name)]}
+        arg_cli_name = cli_name(name)
+        kwargs: Dict[str, Union[str, bool]] = {"help": arg_help_texts[arg_cli_name]}
 
         arg_type = value.annotation
         is_optional = False
@@ -483,11 +501,22 @@ def add_subparser(
         if str(arg_type).startswith("typing.List"):
             kwargs["nargs"] = "+"
 
-        subparser.add_argument(f"--{cli_name(name)}", **kwargs)
+        if arg_cli_name[0] not in seen_prefixes:
+            subparser.add_argument(f"-{arg_cli_name[0]}", f"--{arg_cli_name}", **kwargs)
+            seen_prefixes.add(arg_cli_name[0])
+        else:
+            subparser.add_argument(f"--{arg_cli_name}", **kwargs)
 
     if options is not None:
         for option_name, (help, _) in options.items():
-            subparser.add_argument(f"--{cli_name(option_name)}", action="store_true", help=help)
+            option_cli_name = cli_name(option_name)
+            if option_cli_name[0] not in seen_prefixes:
+                subparser.add_argument(
+                    f"-{option_cli_name[0]}", f"--{option_cli_name}", action="store_true", help=help
+                )
+                seen_prefixes.add(option_cli_name[0])
+            else:
+                subparser.add_argument(f"--{option_cli_name}", action="store_true", help=help)
 
     return subparser
 
