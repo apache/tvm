@@ -109,11 +109,14 @@ class BuiltinLower : public StmtExprMutator {
     precheck.device_type_ = this->device_type_;
 
     precheck.alloca_scope_.emplace_back();
-    auto& scope = precheck.alloca_scope_.back();
-    scope.stack_shape =
-        decl_buffer({IntImm(DataType::Int(64), 0)}, DataType::Int(64), "stack_shape");
-    scope.stack_tcode =
-        decl_buffer({IntImm(DataType::UInt(64), 0)}, DataType::Int(32), "stack_tcode");
+    {
+      // NOTE: this scope reference is invalid after any mutation is applied to alloca_scope_.
+      auto& scope = precheck.alloca_scope_.back();
+      scope.stack_shape =
+          decl_buffer({IntImm(DataType::Int(64), 0)}, DataType::Int(64), "stack_shape");
+      scope.stack_tcode =
+          decl_buffer({IntImm(DataType::UInt(64), 0)}, DataType::Int(32), "stack_tcode");
+    }
 
     precheck.VisitStmt(stmt);
 
@@ -130,31 +133,35 @@ class BuiltinLower : public StmtExprMutator {
     }
 
     alloca_scope_.emplace_back();
-    auto& scope = alloca_scope_.back();
+    {
+      // NOTE: this scope reference is invalid after any mutation is applied to alloca_scope_.
+      auto& scope = alloca_scope_.back();
 
-    // Initial check to identify maximum stack sizes.  These are used
-    // to construct Buffer objects to hold the stack, which are then
-    // used when mutating.
-    scope.max_sizes = GetMaxStack(stmt);
+      // Initial check to identify maximum stack sizes.  These are used
+      // to construct Buffer objects to hold the stack, which are then
+      // used when mutating.
+      scope.max_sizes = GetMaxStack(stmt);
 
-    if (scope.max_sizes.shape_stack != -1) {
-      scope.stack_shape = decl_buffer({IntImm(DataType::Int(64), scope.max_sizes.shape_stack)},
-                                      DataType::Int(64), "stack_shape");
-      stmt =
-          LetStmt(scope.stack_shape->data, StackAlloca("shape", scope.max_sizes.shape_stack), stmt);
-    }
+      if (scope.max_sizes.shape_stack != -1) {
+        scope.stack_shape = decl_buffer({IntImm(DataType::Int(64), scope.max_sizes.shape_stack)},
+                                        DataType::Int(64), "stack_shape");
+        stmt = LetStmt(scope.stack_shape->data, StackAlloca("shape", scope.max_sizes.shape_stack),
+                       stmt);
+      }
 
-    if (scope.max_sizes.array_stack != 0) {
-      stmt = LetStmt(scope.stack_array, StackAlloca("array", scope.max_sizes.array_stack), stmt);
-    }
+      if (scope.max_sizes.array_stack != 0) {
+        stmt = LetStmt(scope.stack_array, StackAlloca("array", scope.max_sizes.array_stack), stmt);
+      }
 
-    if (scope.max_sizes.arg_stack != 0) {
-      scope.stack_tcode = decl_buffer({IntImm(DataType::UInt(64), scope.max_sizes.arg_stack)},
-                                      DataType::Int(32), "stack_tcode");
-      stmt = LetStmt(scope.stack_value, StackAlloca("arg_value", scope.max_sizes.arg_stack), stmt);
+      if (scope.max_sizes.arg_stack != 0) {
+        scope.stack_tcode = decl_buffer({IntImm(DataType::UInt(64), scope.max_sizes.arg_stack)},
+                                        DataType::Int(32), "stack_tcode");
+        stmt =
+            LetStmt(scope.stack_value, StackAlloca("arg_value", scope.max_sizes.arg_stack), stmt);
 
-      stmt = LetStmt(scope.stack_tcode->data, StackAlloca("arg_tcode", scope.max_sizes.arg_stack),
-                     stmt);
+        stmt = LetStmt(scope.stack_tcode->data, StackAlloca("arg_tcode", scope.max_sizes.arg_stack),
+                       stmt);
+      }
     }
 
     stmt = this->VisitStmt(stmt);
@@ -169,14 +176,22 @@ class BuiltinLower : public StmtExprMutator {
     // allocate space to hold prepare stmts before s
     prep_seq_stack_.emplace_back(std::vector<Stmt>());
 
+    auto scope_size = alloca_scope_.size();
     auto stmt = StmtExprMutator::VisitStmt(s);
-    auto& scope = alloca_scope_.back();
-    // This invariant asserts the assumption that
-    // make_stack_shape only happens within a call_packed.
-    // We could relax this in the future if we want to
-    // introduce root scope as a separate scope
-    ICHECK_EQ(scope.run_sizes.shape_stack, -1);
-    ICHECK_EQ(scope.run_sizes.array_stack, 0);
+    {
+      // NOTE: this scope reference is invalid after any mutation is applied to alloca_scope_.
+      auto& scope = alloca_scope_.back();
+      // This invariant asserts the assumption that
+      // make_stack_shape only happens within a call_packed.
+      // We could relax this in the future if we want to
+      // introduce root scope as a separate scope
+      ICHECK_EQ(alloca_scope_.size(), scope_size)
+          << "alloca_scope_ length is different before and after recursion";
+      ICHECK_EQ(scope.run_sizes.shape_stack, -1)
+          << "Expect no tvm_stack_make_shape outside of CallNodes";
+      ICHECK_EQ(scope.run_sizes.array_stack, 0)
+          << "Expect no tvm_stack_make_array outside of CallNodes";
+    }
 
     auto prep_seq = std::move(prep_seq_stack_.back());
     prep_seq_stack_.pop_back();
