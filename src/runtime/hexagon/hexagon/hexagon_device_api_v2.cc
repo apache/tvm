@@ -30,6 +30,7 @@
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include <cstdlib>
@@ -179,6 +180,21 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVM
 
   *rv = static_cast<int32_t>(0);
 });
+
+class HexagonTimerNode : public TimerNode {
+ public:
+  virtual void Start() {}
+  virtual void Stop() {}
+  virtual int64_t SyncAndGetElapsedNanos() { return 0; }
+  virtual ~HexagonTimerNode() {}
+
+  static constexpr const char* _type_key = "HexagonTimerNode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(HexagonTimerNode, TimerNode);
+
+ private:
+};
+
+TVM_REGISTER_OBJECT_TYPE(HexagonTimerNode);
 
 std::map<void*, HexagonBuffer*> vtcmallocs;
 
