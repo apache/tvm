@@ -40,6 +40,11 @@
 #include "hexagon_buffer.h"
 #include "hexagon_common.h"
 
+#if defined(__hexagon__)
+#include "HAP_perf.h"
+#endif
+
+
 namespace tvm {
 namespace runtime {
 namespace hexagon {
@@ -181,21 +186,6 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVM
   *rv = static_cast<int32_t>(0);
 });
 
-class HexagonTimerNode : public TimerNode {
- public:
-  virtual void Start() {}
-  virtual void Stop() {}
-  virtual int64_t SyncAndGetElapsedNanos() { return 0; }
-  virtual ~HexagonTimerNode() {}
-
-  static constexpr const char* _type_key = "HexagonTimerNode";
-  TVM_DECLARE_FINAL_OBJECT_INFO(HexagonTimerNode, TimerNode);
-
- private:
-};
-
-TVM_REGISTER_OBJECT_TYPE(HexagonTimerNode);
-
 std::map<void*, HexagonBuffer*> vtcmallocs;
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNd").set_body([](TVMArgs args, TVMRetValue* rv) {
@@ -254,6 +244,27 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.v2").set_body([](TVMArgs args, TVMRetVal
   DeviceAPI* ptr = HexagonDeviceAPIv2::Global();
   *rv = static_cast<void*>(ptr);
 });
+
+#if defined(__hexagon__)
+class HexagonTimerNode : public TimerNode {
+ public:
+  virtual void Start() {}
+  virtual void Stop() {}
+  virtual int64_t SyncAndGetElapsedNanos() { return 0; }
+  virtual ~HexagonTimerNode() {}
+
+  static constexpr const char* _type_key = "HexagonTimerNode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(HexagonTimerNode, TimerNode);
+
+ private:
+};
+
+TVM_REGISTER_OBJECT_TYPE(HexagonTimerNode);
+
+TVM_REGISTER_GLOBAL("profiling.timer.hexagon").set_body_typed([](Device dev) {
+  return Timer(make_object<HexagonTimerNode>());
+});
+#endif
 
 }  // namespace hexagon
 }  // namespace runtime
