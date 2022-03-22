@@ -110,6 +110,7 @@ class VerifyGPUCodeNode : public PostprocNode {
     Target target = context->target.value();
     this->target_constraints_ = Map<String, PrimExpr>{
         {"max_shared_memory_per_block", Extract(target, "max_shared_memory_per_block")},
+        {"max_threads_per_block", Extract(target, "max_threads_per_block")},
         {"max_vthread", Integer(8)},
         {"max_vector_bytes", Integer(16)},
     };
