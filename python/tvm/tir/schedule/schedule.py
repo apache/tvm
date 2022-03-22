@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """The TensorIR schedule class"""
+import enum
 from typing import Callable, Dict, List, Optional, Union
 
 from tvm._ffi import register_object as _register_object
@@ -28,7 +29,6 @@ from . import _ffi_api
 from .state import ScheduleState, StmtSRef, _parse_debug_mask, _parse_mod
 from .trace import Trace
 from ._type_checker import type_checked
-import enum
 
 
 @register_error
