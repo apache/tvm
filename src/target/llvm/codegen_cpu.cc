@@ -75,7 +75,9 @@ void CodeGenCPU::Init(const std::string& module_name, llvm::TargetMachine* tm,
   //                                      TVMValue* out_ret_value, int* out_ret_tcode,
   //                                      void* resource_handle);
   ftype_tvm_backend_packed_c_func_ = llvm::FunctionType::get(
-      t_int_, {t_void_p_, t_void_p_, t_int_, t_void_p_, t_void_p_, t_void_p_}, false);
+      t_int_,
+      {t_void_p_, t_int_->getPointerTo(), t_int_, t_void_p_, t_int_->getPointerTo(), t_void_p_},
+      false);
   t_tvm_crt_func_registry_ = llvm::StructType::create(
       {t_char_->getPointerTo(), ftype_tvm_backend_packed_c_func_->getPointerTo()});
   t_tvm_crt_module_ = llvm::StructType::create({t_tvm_crt_func_registry_->getPointerTo()});
@@ -850,10 +852,10 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
     nargs -= 1;
     call_args.insert(call_args.end(), {
                                           builder_->CreateBitCast(arg_value, t_void_p_),
-                                          builder_->CreateBitCast(arg_tcode.addr, t_void_p_),
+                                          arg_tcode.addr,
                                           ConstInt32(nargs),
                                           builder_->CreateBitCast(ret_value, t_void_p_),
-                                          builder_->CreateBitCast(ret_tcode.addr, t_void_p_),
+                                          ret_tcode.addr,
                                       });
     call_args.push_back(llvm::ConstantPointerNull::get(t_void_p_));
   }
