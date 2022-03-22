@@ -44,7 +44,6 @@
 #include "HAP_perf.h"
 #endif
 
-
 namespace tvm {
 namespace runtime {
 namespace hexagon {
@@ -248,15 +247,16 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.v2").set_body([](TVMArgs args, TVMRetVal
 #if defined(__hexagon__)
 class HexagonTimerNode : public TimerNode {
  public:
-  virtual void Start() {}
-  virtual void Stop() {}
-  virtual int64_t SyncAndGetElapsedNanos() { return 0; }
+  virtual void Start() { start = HAP_perf_get_time_us(); }
+  virtual void Stop() { end = HAP_perf_get_time_us(); }
+  virtual int64_t SyncAndGetElapsedNanos() { return (end - start) * 1e3; }
   virtual ~HexagonTimerNode() {}
 
   static constexpr const char* _type_key = "HexagonTimerNode";
   TVM_DECLARE_FINAL_OBJECT_INFO(HexagonTimerNode, TimerNode);
 
  private:
+  uint64_t start, end;
 };
 
 TVM_REGISTER_OBJECT_TYPE(HexagonTimerNode);
