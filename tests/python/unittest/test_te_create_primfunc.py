@@ -395,7 +395,7 @@ def tir_argmax_idx_val(
     for i0, i1 in T.grid(m, n):
         with T.block("argmax"):
             i, k = T.axis.remap("SR", [i0, i1])
-            T.reads(argmax_v1[i], val[i, k], argmax_v0[i], idx[i, k])
+            T.reads(val[i, k], idx[i, k])
             T.writes(argmax_v0[i], argmax_v1[i])
             with T.init():
                 argmax_v0[i] = T.int32(-1)
@@ -442,7 +442,7 @@ def tir_argmax_val_idx(
     for i0, i1 in T.grid(m, n):
         with T.block("argmax"):
             i, k = T.axis.remap("SR", [i0, i1])
-            T.reads(argmax_v0[i], val[i, k], argmax_v1[i], idx[i, k])
+            T.reads(val[i, k], idx[i, k])
             T.writes(argmax_v0[i], argmax_v1[i])
             with T.init():
                 argmax_v0[i] = T.min_value("float32")
