@@ -27,6 +27,7 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include <sstream>
 
@@ -38,6 +39,15 @@ IndexMap::IndexMap(Array<Var> initial_indices, Array<PrimExpr> final_indices) {
   n->initial_indices = std::move(initial_indices);
   n->final_indices = std::move(final_indices);
   data_ = std::move(n);
+}
+
+IndexMap IndexMap::FromFunc(int ndim, runtime::TypedPackedFunc<Array<PrimExpr>(Array<Var>)> func) {
+  Array<Var> initial_indices;
+  initial_indices.reserve(ndim);
+  for (int i = 0; i < ndim; ++i) {
+    initial_indices.push_back(Var("i" + std::to_string(i), DataType::Int(32)));
+  }
+  return IndexMap(initial_indices, func(initial_indices));
 }
 
 IndexMap IndexMap::Inverse(Array<Range> initial_ranges) const {
@@ -142,13 +152,52 @@ Array<PrimExpr> IndexMapNode::MapShape(const Array<PrimExpr>& shape) const {
   return output;
 }
 
+String IndexMapNode::ToPythonString() const {
+  std::unordered_set<std::string> used_names;
+  Map<Var, PrimExpr> var_remap;
+  for (const Var& initial_index : initial_indices) {
+    if (used_names.count(initial_index->name_hint)) {
+      std::string new_name = initial_index->name_hint + std::to_string(used_names.size());
+      used_names.insert(new_name);
+      var_remap.Set(initial_index, Var(new_name));
+    } else {
+      used_names.insert(initial_index->name_hint);
+    }
+  }
+  std::ostringstream oss;
+  oss << "lambda ";
+  for (size_t i = 0; i < initial_indices.size(); ++i) {
+    if (i != 0) {
+      oss << ", ";
+    }
+    auto it = var_remap.find(initial_indices[i]);
+    if (it != var_remap.end()) {
+      oss << (*it).second;
+    } else {
+      oss << initial_indices[i];
+    }
+  }
+  oss << ": (";
+  for (size_t i = 0; i < final_indices.size(); ++i) {
+    oss << Substitute(final_indices[i], var_remap);
+    oss << ", ";
+  }
+  oss << ")";
+  return String(oss.str());
+}
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IndexMapNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const IndexMapNode*>(node.get());
-      p->stream << "index_map(" << op->initial_indices << ", " << op->final_indices << ")";
+      p->stream << "index_map(" << op->ToPythonString() << ")";
     });
 
 TVM_REGISTER_NODE_TYPE(IndexMapNode);
+
+TVM_REGISTER_GLOBAL("tir.IndexMap")
+    .set_body_typed([](Array<Var> initial_indices, Array<PrimExpr> final_indices) {
+      return IndexMap(initial_indices, final_indices);
+    });
 
 }  // namespace tir
 }  // namespace tvm

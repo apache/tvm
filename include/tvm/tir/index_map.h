@@ -106,10 +106,18 @@ class IndexMapNode : public Object {
    */
   Array<PrimExpr> MapShape(const Array<PrimExpr>& shape) const;
 
+  /*!
+   * \brief Convert to string representation in Python.
+   * \return The stringified lambda expression in Python.
+   */
+  String ToPythonString() const;
+
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("initial_indices", &initial_indices);
     v->Visit("final_indices", &final_indices);
   }
+
+  static constexpr const char* _type_key = "tir.IndexMap";
 
   TVM_DECLARE_FINAL_OBJECT_INFO(IndexMapNode, Object);
 };
@@ -117,6 +125,14 @@ class IndexMapNode : public Object {
 class IndexMap : public ObjectRef {
  public:
   IndexMap(Array<Var> initial_indices, Array<PrimExpr> final_indices);
+
+  /*!
+   * \brief Create an index map from a packed function
+   * \param ndim The number of dimensions
+   * \param func The function to be applied
+   * \return The created index map
+   */
+  static IndexMap FromFunc(int ndim, runtime::TypedPackedFunc<Array<PrimExpr>(Array<Var>)> func);
 
   /*! \brief Generate the inverse mapping.
    *
