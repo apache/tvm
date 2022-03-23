@@ -1492,10 +1492,7 @@ class Squeeze(OnnxOpConverter):
             if not ishape:  # scalar
                 return inputs[0]
 
-            axis = []
-            for i in range(len(ishape)):
-                if ishape[i] == 1:
-                    axis.append(i)
+            axis = [i for i in range(len(ishape)) if ishape[i] == 1]
             axis = _op.const(axis)
 
         dtype = infer_type(axis).checked_type.dtype
