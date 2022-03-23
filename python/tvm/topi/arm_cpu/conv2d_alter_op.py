@@ -344,6 +344,11 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
     if topi_tmpl == "conv2d_NCHWc_int8.arm_cpu":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
+        batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
+        out_channel, _, kh, kw = get_const_tuple(kernel_tensor.shape)
+
+        n_elems = 8
+
         if cfg.is_fallback:
             _get_default_config_int8(
                 cfg,
@@ -355,13 +360,14 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
                 out_dtype,
                 False,
                 data_layout,
-                int32_lanes=32,
+                int32_lanes=4,
             )
 
-        batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
-        out_channel, channel_multiplier, kh, kw = get_const_tuple(kernel_tensor.shape)
         ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
-        n_elems = 8
+
+        if cfg.is_fallback:
+            # ic_bn needs to be devided by n_elems below
+            ic_bn = max(ic_bn, n_elems)
 
         # update new attrs
         new_attrs["channels"] = out_channel

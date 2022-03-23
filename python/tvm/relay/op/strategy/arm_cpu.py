@@ -96,7 +96,10 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     plevel=10,
                 )
 
-                if topi.arm_cpu.is_int8_hw_support(data.dtype, kernel.dtype):
+                if (
+                    topi.arm_cpu.is_int8_hw_support(data.dtype, kernel.dtype)
+                    and kernel.shape[1] >= 64
+                ):
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_int8),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_int8),
