@@ -586,8 +586,7 @@ class TVMScriptParser(Transformer):
                     )
                 ast_var = node.lhs[0]
 
-                if node.ty is None:
-                    assert hasattr(value, "dtype")
+                if node.ty is None and hasattr(value, "dtype"):
                     var_ty = value.dtype
                 else:
                     var_ty = self.parse_type(node.ty, ast_var)
