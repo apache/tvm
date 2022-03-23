@@ -418,6 +418,13 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    */
   std::pair<std::function<void()>, std::shared_ptr<OpArgs>> CreateTVMOp(
       uint32_t nid,const TVMOpParam& attrs, const std::vector<DLTensor>& args);
+  /*!
+    * \brief update input and output tensors according to the op_args
+    * @param nid current node id
+    * @param op_args operator arguments information
+    * @return
+   */
+  void UpdateInputOutputTensors(const std::unordered_set<uint32_t>& input_node_eids,const std::unordered_set<uint32_t>& output_node_eids,uint32_t nid,std::shared_ptr<GraphExecutor::OpArgs> op_args);
   // Get node entry index.
   uint32_t entry_id(uint32_t nid, uint32_t index) const { return node_row_ptr_[nid] + index; }
   // Get node entry index.

@@ -462,31 +462,35 @@ void GraphExecutor::SetupOpExecs() {
     std::shared_ptr<OpArgs> op_args = nullptr;
     std::tie(op_execs_[nid], op_args) = CreateTVMOp(nid,inode.param, args);
 
-    for (size_t i = 0; i < inode.inputs.size(); i++) {
-      uint32_t input_eid = this->entry_id(inode.inputs[i]);
-      // check if op input is model input
-      if (input_node_eids.count(input_eid) > 0) {
-        input_dltensors_[input_eid].push_back(
-            static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
-      }
-      // check if any model output is the input of the op
-      if (output_node_eids.count(input_eid) > 0) {
-        both_output_opinput_dltensors_[input_eid].push_back(
-            static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
-      }
-    }
-
-    for (uint32_t i = inode.inputs.size(); i < inode.inputs.size() + inode.param.num_outputs; ++i) {
-      uint32_t output_eid = this->entry_id(nid, i - inode.inputs.size());
-      // check if op output is model output
-      if (output_node_eids.count(output_eid) > 0) {
-        output_dltensors_[output_eid].push_back(
-            static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
-      }
-    }
+   this->UpdateInputOutputTensors(input_node_eids,output_node_eids,nid,op_args);
   }
 }
 
+void GraphExecutor::UpdateInputOutputTensors(const std::unordered_set<uint32_t>& input_node_eids,const std::unordered_set<uint32_t>& output_node_eids,uint32_t nid,std::shared_ptr<GraphExecutor::OpArgs> op_args){
+  const auto& inode = nodes_[nid];
+  for (size_t i = 0; i < inode.inputs.size(); i++) {
+    uint32_t input_eid = this->entry_id(inode.inputs[i]);
+    // check if op input is model input
+    if (input_node_eids.count(input_eid) > 0) {
+      input_dltensors_[input_eid].push_back(
+          static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
+    }
+    // check if any model output is the input of the op
+    if (output_node_eids.count(input_eid) > 0) {
+      both_output_opinput_dltensors_[input_eid].push_back(
+          static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
+    }
+  }
+
+  for (uint32_t i = inode.inputs.size(); i < inode.inputs.size() + inode.param.num_outputs; ++i) {
+    uint32_t output_eid = this->entry_id(nid, i - inode.inputs.size());
+    // check if op output is model output
+    if (output_node_eids.count(output_eid) > 0) {
+      output_dltensors_[output_eid].push_back(
+          static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
+    }
+  }
+}
 std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs> >
 GraphExecutor::CreateTVMOp(uint32_t nid,const TVMOpParam& param, const std::vector<DLTensor>& args) {
   std::shared_ptr<GraphExecutor::OpArgs> arg_ptr = std::make_shared<GraphExecutor::OpArgs>();
