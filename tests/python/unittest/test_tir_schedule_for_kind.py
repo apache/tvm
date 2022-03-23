@@ -330,6 +330,72 @@ def decomposed_gemm_after_vectorize(
                     C[vi, vj] = local[vi, vj]
 
 
+@T.prim_func
+def decomposed_gemm_parallelize_init(
+    A: T.Buffer[(16, 16), "float32"],
+    B: T.Buffer[(16, 16), "float32"],
+    C: T.Buffer[(16, 16), "float32"],
+) -> None:
+    local = T.alloc_buffer([16, 16], dtype="float32")
+    for i, j in T.grid(4, 4):
+        for ii in T.serial(4):
+            for jj in T.vectorized(4):
+                with T.block("init"):
+                    vi = T.axis.spatial(16, i * 4 + ii)
+                    vj = T.axis.spatial(16, j * 4 + jj)
+                    T.reads()
+                    T.writes(local[vi, vj])
+                    local[vi, vj] = 0
+        for k, ii, jj in T.grid(16, 4, 4):
+            with T.block("update"):
+                vi = T.axis.spatial(16, i * 4 + ii)
+                vj = T.axis.spatial(16, j * 4 + jj)
+                vk = T.axis.reduce(16, k)
+                T.reads(local[vi, vj], A[vi, vk], B[vj, vk])
+                T.writes(local[vi, vj])
+                local[vi, vj] = local[vi, vj] + A[vi, vk] * B[vj, vk]
+        for ii, jj in T.grid(4, 4):
+            with T.block("C"):
+                vi = T.axis.spatial(16, i * 4 + ii)
+                vj = T.axis.spatial(16, j * 4 + jj)
+                T.reads(local[vi, vj])
+                T.writes(C[vi, vj])
+                C[vi, vj] = local[vi, vj]
+
+
+@T.prim_func
+def scatter_compute(A: T.Buffer[(16,), "float32"], B: T.Buffer[(16,), "float32"]):
+    for i in T.grid(8):
+        with T.block("first_half"):
+            vi = T.axis.spatial(16, 8 + i)
+            B[vi] = A[vi - 8]
+
+    for i in T.grid(8):
+        with T.block("last_half"):
+            vi = T.axis.spatial(16, i)
+            B[vi] = A[vi + 8]
+
+
+@T.prim_func
+def scatter_compute_parallelize(
+    A: T.Buffer[(16,), "float32"], B: T.Buffer[(16,), "float32"]
+) -> None:
+    # body
+    # with T.block("root")
+    for i in T.parallel(8):
+        with T.block("first_half"):
+            vi = T.axis.spatial(16, 8 + i)
+            T.reads(A[vi - 8])
+            T.writes(B[vi])
+            B[vi] = A[vi - 8]
+    for i in T.parallel(8):
+        with T.block("last_half"):
+            vi = T.axis.spatial(16, i)
+            T.reads(A[vi + 8])
+            T.writes(B[vi])
+            B[vi] = A[vi + 8]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable
 
 
@@ -466,6 +532,29 @@ def test_vectorize_after_decompose():
     s.vectorize(jj)
     tvm.ir.assert_structural_equal(s.mod["main"], decomposed_gemm_after_vectorize)
     verify_trace_roundtrip(s, mod=decomposed_gemm)
+
+
+def test_vectorize_init():
+    s = tir.Schedule(decomposed_gemm, debug_mask="all")
+    init_blk = s.get_block("init")
+    upd_blk = s.get_block("update")
+    _, _, ii_0, jj_0 = s.get_loops(init_blk)
+    _, _, k_1, ii_1, jj_1 = s.get_loops(upd_blk)
+    s.vectorize(jj_0)
+    tvm.ir.assert_structural_equal(s.mod["main"], decomposed_gemm_parallelize_init)
+    verify_trace_roundtrip(s, mod=decomposed_gemm)
+
+
+def test_scatter_parallelize():
+    s = tir.Schedule(scatter_compute, debug_mask="all")
+    first = s.get_block("first_half")
+    last = s.get_block("last_half")
+    (i_0,) = s.get_loops(first)
+    (i_1,) = s.get_loops(last)
+    s.parallel(i_0)
+    s.parallel(i_1)
+    tvm.ir.assert_structural_equal(s.mod["main"], scatter_compute_parallelize)
+    verify_trace_roundtrip(s, mod=scatter_compute)
 
 
 if __name__ == "__main__":
