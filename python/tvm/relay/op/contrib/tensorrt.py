@@ -430,12 +430,8 @@ def conv1d_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
-def conv2d_pattern():
-    conv2d = is_op("nn.conv2d")(wildcard(), wildcard())
-    return conv2d
-
-
-def check_conv2d(pattern):
+@_register_external_dynamic_check_func("nn.conv2d")
+def conv2d_annotate_fn(pattern):
     attrs, args = pattern.attrs, pattern.args
     if not is_supported_trt_dtype(args):
         return False
@@ -502,11 +498,6 @@ def check_squeeze(pattern):
     return True
 
 
-def batch_mul_pattern():
-    """Create the pattern for squeeze."""
-    return is_op("nn.batch_matmul")(wildcard(), wildcard())
-
-
 def check_batch_matmul(pattern):
     # attrs, args = pattern.attrs, pattern.args
     args = pattern.args
@@ -540,19 +531,17 @@ def binary_op_pattern(op):
 @register_pattern_table("tensorrt")
 def pattern_table():
     return [
-        ("tensorrt.nn.conv2d", conv2d_pattern(), check_conv2d),
+        ("tensorrt.nn.conv2d", binary_op_pattern("nn.conv2d")),
         ("tensorrt.squeeze", binary_op_pattern("squeeze"), check_squeeze),
         ("tensorrt.add", binary_op_pattern("add"), check_add),
         ("tensorrt.nn.dense", unary_op_pattern("nn.dense")),
         ("tensorrt.bias_add", binary_op_pattern("nn.bias_add")),
         ("tensorrt.nn.batch_matmul", binary_op_pattern("nn.batch_matmul")),
-        ("tensorrt.substract", binary_op_pattern("substract")),
         ("tensorrt.divide", binary_op_pattern("divide")),
         ("tensorrt.multiply", binary_op_pattern("multiply")),
         ("tensorrt.split", unary_op_pattern("split")),
         ("tensorrt.reshape", unary_op_pattern("reshape")),
         ("tensorrt.nn.relu", unary_op_pattern("nn.relu")),
-        ("tensorrt.nn.leaky.relu", unary_op_pattern("nn.leaky.relu")),
         ("tensorrt.nn.pad", unary_op_pattern("nn.pad")),
         ("tensorrt.sigmoid", unary_op_pattern("sigmoid")),
         ("tensorrt.tanh", unary_op_pattern("tanh")),
