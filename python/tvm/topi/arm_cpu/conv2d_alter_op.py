@@ -27,6 +27,7 @@ from tvm import autotvm
 from ..nn import conv2d_alter_layout, conv2d_legalize
 from ..utils import get_const_tuple
 from ..x86.conv2d import _get_default_config as _get_x86_default_config
+from ..x86.conv2d_int8 import _get_default_config_int8
 from .conv2d_int8 import is_int8_hw_support
 from .arm_utils import get_tiling_B_interleaved_t
 from ..generic.conv2d import conv2d_alter_int8_common
@@ -101,9 +102,9 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         # we then assume it's not necessary to alter this op.
         return None
     cfg = dispatch_ctx.query(target, workload)
-    if cfg.is_fallback:  # if is fallback, clear query cache and return None
-        autotvm.task.clear_fallback_cache(target, workload)
-        return None
+    # if cfg.is_fallback:  # if is fallback, clear query cache and return None
+    #     autotvm.task.clear_fallback_cache(target, workload)
+    #     return None
 
     topi_tmpl = workload[0]
     new_attrs = {k: attrs[k] for k in attrs.keys()}
@@ -357,6 +358,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
                 out_dtype,
                 False,
                 data_layout,
+                int32_lanes=32
             )
 
         batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)

@@ -93,6 +93,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_spatial_pack),
                     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_spatial_pack),
                     name="conv2d_nchw_spatial_pack.arm_cpu",
+                    plevel=10,
                 )
 
                 if topi.arm_cpu.is_int8_hw_support(data.dtype, kernel.dtype):
@@ -100,6 +101,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                         wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_int8),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_int8),
                         name="conv2d_nchw_int8.arm_cpu",
+                        plevel=15,
                     )
                 else:
                     strategy.add_implementation(
