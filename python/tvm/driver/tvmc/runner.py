@@ -509,8 +509,12 @@ def run_module(
         # must be already flashed into the micro target before one tries
         # to run it. Hence skip model upload for micro targets.
         if device != "micro":
-            session.upload(tvmc_package.lib_path)
-            lib = session.load_module(tvmc_package.lib_name)
+            if tvmc_package.use_vm:
+                session.upload(tvmc_package.lib_path)
+                rexec = session.load_module(tvmc_package.lib_name)
+            else:
+                session.upload(tvmc_package.lib_path)
+                lib = session.load_module(tvmc_package.lib_name)
 
         # TODO expand to other supported devices, as listed in tvm.rpc.client (@leandron)
         logger.debug("Device is %s.", device)
@@ -532,10 +536,17 @@ def run_module(
             dev = session.cpu()
 
         if tvmc_package.use_vm:
-            exe = vm.VirtualMachine(tvmc_package.graph, device)
-            inputs_dict = make_inputs_dict(shape_dict, dtype_dict, inputs, fill_mode)
-            outputs = exe.invoke("main", inputs_dict.values())
-            times = exe.benchmark(dev, inputs_dict.values(), func_name="main", repeat=repeat, number=number, end_to_end=end_to_end)
+            exe = vm.VirtualMachine(rexec, dev)
+            input_tensor = tvm.nd.array(inputs, dev)
+            exe.set_input("main", input_tensor)
+            exe.invoke_stateful("main")
+            times = exe.benchmark(dev, input_tensor, func_name="main", repeat=repeat, number=number, end_to_end=end_to_end)
+            outputs = exe.get_outputs()
+            outputs_dict = {}
+            for i in range(len(outputs)):
+                output_name = "output_{}".format(i)
+                outputs_dict[output_name] = outputs[i]
+            outputs = outputs_dict
         else:
             # TODO(gromero): Adjust for micro targets.
             if profile:

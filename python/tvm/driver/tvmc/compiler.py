@@ -28,6 +28,7 @@ from tvm import relay
 from tvm.driver.tvmc.registry import generate_registry_args, reconstruct_registry_entity
 from tvm.target import Target
 from tvm.relay.backend import Executor, Runtime
+from tvm.contrib import utils
 
 from . import composite_target, frontends
 from .model import TVMCModel, TVMCPackage
@@ -244,7 +245,8 @@ def compile_model(
         PassContext.
     additional_target_options: Optional[Dict[str, Dict[str, Any]]]
         Additional target options in a dictionary to combine with initial Target arguments
-
+    use_vm: bool
+        Whether to use the VM to compile the model as opposed to the graph executor
 
     Returns
     -------
@@ -331,7 +333,10 @@ def compile_model(
         dump_code = [dump_code]
     dumps = {}
     for source_type in dump_code:
-        lib = graph_module.get_lib()
+        if use_vm:
+            _, lib = graph_module.save()
+        else:
+            lib = graph_module.get_lib()
         # TODO lib.get_source call have inconsistent behavior for unsupported
         #      formats (@leandron).
         source = str(mod) if source_type == "relay" else lib.get_source(source_type)
@@ -344,6 +349,7 @@ def compile_model(
         cross,
         cross_options,
         output_format,
+        use_vm=use_vm
     )
 
     # Write dumps to file.
@@ -362,8 +368,10 @@ def build(
     use_vm: bool
 ):
     if use_vm:
+        logger.debug("building with vm compile")
         return relay.vm.compile(mod, target=tvm_target, params=params)
     else:
+        logger.debug("building with relay build")
         return relay.build(
             mod, target=tvm_target, executor=executor, runtime=runtime, params=params
         )

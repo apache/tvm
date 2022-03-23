@@ -48,19 +48,26 @@ def test_save_dumps(tmpdir_factory):
 
 # End to end tests for compilation
 
-
-def verify_compile_tflite_module(model, shape_dict=None):
-    pytest.importorskip("tflite")
-    tvmc_model = tvmc.load(model, shape_dict=shape_dict)
-    tvmc_package = tvmc.compile(tvmc_model, target="llvm", dump_code="ll", desired_layout="NCHW")
-    dumps_path = tvmc_package.package_path + ".ll"
-
+def verify_tvmc_package(tvmc_package, dumps_path, use_vm=False):
     # check for output types
     assert type(tvmc_package) is TVMCPackage
-    assert type(tvmc_package.graph) is str
-    assert type(tvmc_package.lib_path) is str
-    assert type(tvmc_package.params) is bytearray
     assert os.path.exists(dumps_path)
+    assert type(tvmc_package.lib_path) is str
+
+    if use_vm:
+        assert tvmc_package.graph is None
+        assert tvmc_package.params is None
+    else:
+        assert type(tvmc_package.graph) is str
+        assert type(tvmc_package.params) is bytearray
+
+
+def verify_compile_tflite_module(model, shape_dict=None, use_vm=False):
+    pytest.importorskip("tflite")
+    tvmc_model = tvmc.load(model, shape_dict=shape_dict)
+    tvmc_package = tvmc.compile(tvmc_model, target="llvm", dump_code="ll", desired_layout="NCHW", use_vm=use_vm)
+    dumps_path = tvmc_package.package_path + ".ll"
+    verify_tvmc_package(tvmc_package, dumps_path, use_vm=use_vm)
 
 
 def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
@@ -72,6 +79,17 @@ def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
     shape_string = "input:[1,224,224,3]"
     shape_dict = tvmc.shape_parser.parse_shape_string(shape_string)
     verify_compile_tflite_module(tflite_mobilenet_v1_1_quant, shape_dict)
+
+
+def test_compile_tflite_module_use_vm(tflite_mobilenet_v1_1_quant):
+    # some CI environments wont offer tflite, so skip in case it is not present
+    pytest.importorskip("tflite")
+    # Check default compilation.
+    verify_compile_tflite_module(tflite_mobilenet_v1_1_quant)
+    # Check with manual shape override
+    shape_string = "input:[1,224,224,3]"
+    shape_dict = tvmc.shape_parser.parse_shape_string(shape_string)
+    verify_compile_tflite_module(tflite_mobilenet_v1_1_quant, shape_dict, use_vm=True)
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
@@ -198,19 +216,13 @@ def test_cross_compile_options_aarch64_keras_module(keras_resnet50):
     assert os.path.exists(dumps_path)
 
 
-def verify_compile_onnx_module(model, shape_dict=None):
+def verify_compile_onnx_module(model, shape_dict=None, use_vm=False):
     # some CI environments wont offer onnx, so skip in case it is not present
     pytest.importorskip("onnx")
     tvmc_model = tvmc.load(model, shape_dict=shape_dict)
-    tvmc_package = tvmc.compile(tvmc_model, target="llvm", dump_code="ll")
+    tvmc_package = tvmc.compile(tvmc_model, target="llvm", dump_code="ll", use_vm=use_vm)
     dumps_path = tvmc_package.package_path + ".ll"
-
-    # check for output types
-    assert type(tvmc_package) is TVMCPackage
-    assert type(tvmc_package.graph) is str
-    assert type(tvmc_package.lib_path) is str
-    assert type(tvmc_package.params) is bytearray
-    assert os.path.exists(dumps_path)
+    verify_tvmc_package(tvmc_package, dumps_path, use_vm=use_vm)
 
 
 def test_compile_onnx_module(onnx_resnet50):
@@ -220,6 +232,15 @@ def test_compile_onnx_module(onnx_resnet50):
     shape_string = "data:[1,3,200,200]"
     shape_dict = tvmc.shape_parser.parse_shape_string(shape_string)
     verify_compile_onnx_module(onnx_resnet50, shape_dict)
+
+
+def test_compile_onnx_module_use_vm(onnx_resnet50):
+    # Test default compilation
+    verify_compile_onnx_module(onnx_resnet50, use_vm=True)
+    # Test with manual shape dict
+    shape_string = "data:[1,3,200,200]"
+    shape_dict = tvmc.shape_parser.parse_shape_string(shape_string)
+    verify_compile_onnx_module(onnx_resnet50, shape_dict, use_vm=True)
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.

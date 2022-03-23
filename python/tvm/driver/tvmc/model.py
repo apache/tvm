@@ -182,6 +182,27 @@ class TVMCModel(object):
         """
         return self._tmp_dir.relpath("model_package.tar")
 
+    def export_vm_format(
+        self,
+        vm_exec: tvm.runtime.vm.Executable,
+        package_path: Optional[str] = None,
+        lib_format: str = "so",
+    ):
+        # TODO: write some docs
+        lib_name = "lib." + lib_format
+        temp = self._tmp_dir
+        if package_path is None:
+            package_path = self.default_package_path()
+
+        path_lib = temp.relpath(lib_name)
+        vm_exec.mod.export_library(path_lib)
+        self.lib_path = path_lib
+        # Package up all the temp files into a tar file.
+        with tarfile.open(package_path, "w") as tar:
+            tar.add(path_lib, lib_name)
+        
+        return package_path
+
     def export_classic_format(
         self,
         executor_factory: GraphExecutorFactoryModule,
@@ -248,11 +269,12 @@ class TVMCModel(object):
 
     def export_package(
         self,
-        executor_factory: GraphExecutorFactoryModule,
+        executor_factory: Union[GraphExecutorFactoryModule, tvm.runtime.vm.Executable],
         package_path: Optional[str] = None,
         cross: Optional[Union[str, Callable]] = None,
         cross_options: Optional[str] = None,
         output_format: str = "so",
+        use_vm: bool = False,
     ):
         """Save this TVMCModel to file.
         Parameters
@@ -281,7 +303,9 @@ class TVMCModel(object):
         if output_format == "mlf" and cross:
             raise TVMCException("Specifying the MLF output and a cross compiler is not supported.")
 
-        if output_format in ["so", "tar"]:
+        if use_vm:
+            package_path = self.export_vm_format(executor_factory, package_path, output_format)
+        elif output_format in ["so", "tar"]:
             package_path = self.export_classic_format(
                 executor_factory, package_path, cross, cross_options, output_format
             )
@@ -322,8 +346,8 @@ class TVMCPackage(object):
     def __init__(self, package_path: str, project_dir: Optional[Union[Path, str]] = None, use_vm: bool = False):
         self._tmp_dir = utils.tempdir()
         self.package_path = package_path
-        self.import_package(self.package_path)
         self.use_vm = use_vm
+        self.import_package(self.package_path)
 
         if project_dir and self.type != "mlf":
             raise TVMCException("Setting 'project_dir' is only allowed when importing a MLF.!")
@@ -341,7 +365,21 @@ class TVMCPackage(object):
         t = tarfile.open(package_path)
         t.extractall(temp.relpath("."))
 
-        if os.path.exists(temp.relpath("metadata.json")):
+        if self.use_vm:
+            self.type = "vm"
+            graph = None
+            params = None
+            lib_name_so = "lib.so"
+            lib_name_tar = "lib.tar"
+            if os.path.exists(temp.relpath(lib_name_so)):
+                self.lib_name = lib_name_so
+            elif os.path.exists(temp.relpath(lib_name_tar)):
+                self.lib_name = lib_name_tar
+            else:
+                raise TVMCException("Couldn't find exported library in the package.")     
+
+            self.lib_path = temp.relpath(self.lib_name)  
+        elif os.path.exists(temp.relpath("metadata.json")):
             # Model Library Format (MLF)
             self.lib_name = None
             self.lib_path = None
@@ -370,8 +408,11 @@ class TVMCPackage(object):
 
             self.type = "classic"
 
-        with open(params, "rb") as param_file:
-            self.params = bytearray(param_file.read())
+        if params is not None:
+            with open(params, "rb") as param_file:
+                self.params = bytearray(param_file.read())
+        else:
+            self.params = None
 
         if graph is not None:
             with open(graph) as graph_file:
