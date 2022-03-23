@@ -431,6 +431,38 @@ inline void ReorderAndFuseReductionLoops(const tir::Schedule& sch, const tir::Bl
   }
 }
 
+/******** Helper functions for enum conversion ********/
+
+/*!
+ * \brief Convert String to BufferIndexType
+ * \param str The string representation of BufferIndexType
+ * \return The converted BufferIndexType
+ */
+inline BufferIndexType Str2BufferIndexType(const String& str) {
+  if (str == "read") {
+    return BufferIndexType::kRead;
+  } else if (str == "write") {
+    return BufferIndexType::kWrite;
+  } else {
+    LOG(FATAL) << "ValueError: Unknown BufferIndexType: " << str;
+    throw;
+  }
+}
+
+/*!
+ * \brief Convert BufferIndexType to String
+ * \param buffer_index_type The BufferIndexType value to convert
+ * \return The string representation of BufferIndexType
+ */
+inline String BufferIndexType2Str(BufferIndexType buffer_index_type) {
+  if (buffer_index_type == BufferIndexType::kRead) {
+    return "read";
+  } else {
+    ICHECK(buffer_index_type == BufferIndexType::kWrite);
+    return "write";
+  }
+}
+
 }  // namespace tir
 }  // namespace tvm
 
