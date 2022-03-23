@@ -47,7 +47,7 @@ class UnsupportedInModelLibraryFormatError(Exception):
 
 
 def generate_c_interface_header(
-    module_name, inputs, outputs, pools, devices, workspace_size, include_path
+    module_name, inputs, outputs, pools, io_pool_allocations, devices, workspace_size, include_path
 ):
     """Generate C Interface header to be included in MLF"""
     mangled_name = to_c_variable_style(prefix_generated_name(module_name))
@@ -55,7 +55,7 @@ def generate_c_interface_header(
 
     interface_c_create = tvm._ffi.get_global_func("runtime.InterfaceCCreate")
     interface_c_module = interface_c_create(
-        module_name, inputs, outputs, pools, devices, workspace_size
+        module_name, inputs, outputs, pools, io_pool_allocations, devices, workspace_size
     )
 
     with open(metadata_header, "w") as header_file:
@@ -281,22 +281,17 @@ def _convert_tuple_to_outputs(ret_type, offset=0):
 
 
 def _get_inputs_and_outputs_from_module(mod):
-    main_func = _get_main_relay_func(mod)
-    inputs = [argument.name_hint for argument in main_func.params]
-
-    if "output_tensor_names" in main_func.attrs:
-        outputs = main_func.attrs["output_tensor_names"]
-    else:
-        if isinstance(main_func.ret_type, TupleType):
-            outputs = _convert_tuple_to_outputs(main_func.ret_type)
-        else:
-            outputs = ["output"]
-
+    inputs = [str(input_var.name) for input_var in mod.executor_codegen_metadata.inputs]
+    outputs = list(mod.executor_codegen_metadata.outputs)
     return inputs, outputs
 
 
 def _get_pools_from_module(mod):
     return list(dict(mod.executor_codegen_metadata.pool_inputs).values())
+
+
+def _get_io_pool_allocation_from_module(mod):
+    return dict(mod.executor_codegen_metadata.io_pool_allocations)
 
 
 def _should_generate_interface_header(mod):
@@ -369,9 +364,17 @@ def _export_graph_model_library_format(
         inputs, outputs = _get_inputs_and_outputs_from_module(mod)
         devices = mod.get_devices()
         pools = _get_pools_from_module(mod)
+        io_pool_allocations = _get_io_pool_allocation_from_module(mod)
         workspace_size = int(metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"])
         generate_c_interface_header(
-            mod.libmod_name, inputs, outputs, pools, devices, workspace_size, include_path
+            mod.libmod_name,
+            inputs,
+            outputs,
+            pools,
+            io_pool_allocations,
+            devices,
+            workspace_size,
+            include_path,
         )
 
     parameters_dir = tempdir / "parameters"

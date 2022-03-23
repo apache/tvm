@@ -185,7 +185,8 @@ ExecutorCodegenMetadata::ExecutorCodegenMetadata(
     Array<tir::Var> inputs, Array<TensorType> input_tensor_types, Array<String> outputs,
     Array<TensorType> output_tensor_types, Array<tir::Var> pools, Array<String> devices,
     String executor, String mod_name, String interface_api, bool unpacked_api,
-    Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs) {
+    Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs,
+    Map<String, tir::usmp::PoolAllocation> io_pool_allocations) {
   auto n = make_object<ExecutorCodegenMetadataNode>();
   n->inputs = inputs;
   n->input_tensor_types = input_tensor_types;
@@ -198,6 +199,7 @@ ExecutorCodegenMetadata::ExecutorCodegenMetadata(
   n->unpacked_api = unpacked_api;
   n->mod_name = mod_name;
   n->pool_inputs = pool_inputs;
+  n->io_pool_allocations = io_pool_allocations;
   data_ = std::move(n);
 }
 

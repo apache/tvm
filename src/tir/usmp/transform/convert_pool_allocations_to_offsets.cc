@@ -168,7 +168,8 @@ class PoolAllocationToOffsetConverter : public StmtExprMutator {
 };
 
 Optional<Var> PoolAllocationToOffsetConverter::GetResourceHandle(const PrimFunc& func) {
-  if (func->buffer_map.find(func->params.back()) == func->buffer_map.end()) {
+  if (!func->params.empty() &&
+      func->buffer_map.find(func->params.back()) == func->buffer_map.end()) {
     return func->params.back();
   }
   return Optional<Var>();
