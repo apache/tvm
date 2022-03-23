@@ -831,7 +831,7 @@ llvm::Value* CodeGenLLVM::GetVarValue(const VarNode* v) const {
 }
 
 void CodeGenLLVM::CreatePrintf(const std::string& format,
-                               const std::vector<llvm::Value*> format_args) {
+                               llvm::ArrayRef<llvm::Value*> format_args) {
   llvm::Function* func_printf = module_->getFunction("printf");
   if (func_printf == nullptr) {
     llvm::FunctionType* ftype = llvm::FunctionType::get(t_int32_, true);
@@ -850,9 +850,7 @@ void CodeGenLLVM::CreatePrintf(const std::string& format,
   str->setName("printf_format_str");
 
   std::vector<llvm::Value*> printf_args = {str};
-  for (auto arg : format_args) {
-    printf_args.push_back(arg);
-  }
+  printf_args.insert(printf_args.end(), format_args.begin(), format_args.end());
   builder_->CreateCall(func_printf, printf_args);
 
   // Call fflush() immediately, as this utility is intended for debug
