@@ -102,9 +102,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         # we then assume it's not necessary to alter this op.
         return None
     cfg = dispatch_ctx.query(target, workload)
-    # if cfg.is_fallback:  # if is fallback, clear query cache and return None
-    #     autotvm.task.clear_fallback_cache(target, workload)
-    #     return None
 
     topi_tmpl = workload[0]
     new_attrs = {k: attrs[k] for k in attrs.keys()}
