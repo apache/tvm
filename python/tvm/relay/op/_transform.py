@@ -417,6 +417,7 @@ def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
             assert infer_idx < 0, "One and only one dim can be inferred"
             out[dst_idx] = int64(1)
             infer_idx = i
+            src_idx += 1
             dst_idx += 1
         elif newshape[i] == -2:
             copy = True
