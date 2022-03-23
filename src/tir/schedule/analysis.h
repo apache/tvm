@@ -396,6 +396,16 @@ struct ProducerConsumerSplit {
  */
 Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, bool is_write);
 
+/*!
+ * \brief Find the defining site of the buffer in the given block and its ancestors
+ * \param block_sref The block sref
+ * \param buffer The buffer
+ * \return The defining site of the buffer and whether the buffer is allocated (otherwise the
+ *         buffer is from match_buffer).
+ */
+std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
+                                                          const Buffer& buffer);
+
 /******** Reduction Block Related ********/
 
 /*!
