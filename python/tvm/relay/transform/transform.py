@@ -543,7 +543,10 @@ def MergeComposite(pattern_table):
     for tup in pattern_table:
         if len(tup) == 2:
             pattern_name, pattern = tup
-            check = lambda extract: True
+
+            def check(extract):
+                return True
+
         elif len(tup) == 3:
             pattern_name, pattern, check = tup
 
@@ -787,6 +790,19 @@ def Inline():
         The registered pass that performs inlining for a Relay IR module.
     """
     return _ffi_api.Inline()
+
+
+def UnmergeComposites():
+    """Perform inlining on the given Relay IR module. The global functions that
+    are marked as `inline` should be always inlined. A cost model will be
+    needed in the future to decide if it is profitable to inline the function.
+
+    Returns
+    -------
+    ret: tvm.transform.Pass
+        The registered pass that performs inlining for a Relay IR module.
+    """
+    return _ffi_api.UnmergeComposites()
 
 
 def gradient(expr, mod=None, mode="higher_order"):

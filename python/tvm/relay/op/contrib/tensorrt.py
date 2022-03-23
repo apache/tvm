@@ -24,8 +24,10 @@ from tvm import relay
 from tvm.ir import Op
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.dataflow_pattern import is_op, wildcard
 from tvm.relay.expr import Call, Constant, GlobalVar, Tuple, TupleGetItem, Var
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
+from tvm.relay.op.contrib.register import register_pattern_table
 
 logger = logging.getLogger("TensorRT")
 supported_types = ["float32", "float16"]
@@ -39,7 +41,8 @@ def is_supported_trt_dtype(args):
         True if supported, False if not.
     """
     if not all([x.checked_type.dtype in supported_types for x in args]):
-        logger.info("Only float32 and float16 inputs are supported for TensorRT BYOC.")
+        logger.info(
+            "Only float32 and float16 inputs are supported for TensorRT BYOC.")
         return False
     return True
 
@@ -51,7 +54,8 @@ def is_tensorrt_runtime_enabled():
     ret: bool
         True if present, False if not.
     """
-    check_enabled = tvm.get_global_func("relay.op.is_tensorrt_runtime_enabled", True)
+    check_enabled = tvm.get_global_func(
+        "relay.op.is_tensorrt_runtime_enabled", True)
     if check_enabled:
         return check_enabled()
     return False
@@ -150,7 +154,8 @@ def partition_for_tensorrt(
         assert isinstance(version, tuple) and len(version) == 3
         config["tensorrt_version"] = version
     else:
-        linked_version = tuple(tvm.get_global_func("relay.op.get_tensorrt_version")())
+        linked_version = tuple(tvm.get_global_func(
+            "relay.op.get_tensorrt_version")())
         if not linked_version:
             logger.warning(
                 "TVM was not built against TensorRT and no version was provided to "
@@ -175,14 +180,18 @@ def partition_for_tensorrt(
                 }
             ),
             transform.FoldConstant(),
+            transform.MergeComposite(pattern_table()),
+            # transform.AnnotateTarget(["tensorrt"], include_non_call_ops=True),
             transform.AnnotateTarget("tensorrt"),
             transform.MergeCompilerRegions(),
             transform.PartitionGraph(),
+            transform.UnmergeComposites(),
             transform.InferType(),
         ]
     )
     with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
         mod = seq(mod)
+        print(mod)
         mod = prune_tensorrt_subgraphs(mod)
     return mod, config
 
@@ -211,13 +220,14 @@ def check_dynamism(args, op_name):
         elif isinstance(arg, Tuple):
             return check_dynamism(arg.fields, op_name)
         else:
-            logger.info("Arg not supported in TensorRT for %s with type %s", op_name, type(arg))
+            logger.info(
+                "Arg not supported in TensorRT for %s with type %s", op_name, type(arg))
             return True
     return False
 
 
 def _register_external_op_helper_with_checker(op_name, checker):
-    @tvm.ir.register_op_attr(op_name, "target.tensorrt")
+    @ tvm.ir.register_op_attr(op_name, "target.tensorrt")
     def _func_wrapper(expr):
         attrs, args = expr.attrs, expr.args
         # ops with dynamic shapes are offloaded to VM
@@ -237,7 +247,8 @@ def _register_external_op_helper_with_checker(op_name, checker):
             # have been excluded because they occur in PT MaskRCNN model. The long term solution is
             # to switch to explicit batch mode after performance regressions are solved.
             if all(
-                [list(map(int, shape)) in [[300, 64, 7, 7], [300, 1, 1, 1]] for shape in shapes]
+                [list(map(int, shape)) in [[300, 64, 7, 7], [300, 1, 1, 1]]
+                 for shape in shapes]
             ):
                 return False
         return checker(attrs, args, op_name)
@@ -314,7 +325,8 @@ def trt_version_annotate_fn(version):
     def _func_wrapper(attrs, args, op_name):
         if get_tensorrt_version() < version:
             logger.info(
-                "%s: requires TensorRT version %s or higher.", op_name, ".".join(map(str, version))
+                "%s: requires TensorRT version %s or higher.", op_name, ".".join(
+                    map(str, version))
             )
             return False
         return True
@@ -322,12 +334,18 @@ def trt_version_annotate_fn(version):
     return _func_wrapper
 
 
-_register_external_op_helper_with_checker("nn.leaky_relu", trt_version_annotate_fn((5, 1, 5)))
-_register_external_op_helper_with_checker("sin", trt_version_annotate_fn((5, 1, 5)))
-_register_external_op_helper_with_checker("cos", trt_version_annotate_fn((5, 1, 5)))
-_register_external_op_helper_with_checker("atan", trt_version_annotate_fn((5, 1, 5)))
-_register_external_op_helper_with_checker("ceil", trt_version_annotate_fn((5, 1, 5)))
-_register_external_op_helper_with_checker("erf", trt_version_annotate_fn((7, 0, 0)))
+_register_external_op_helper_with_checker(
+    "nn.leaky_relu", trt_version_annotate_fn((5, 1, 5)))
+_register_external_op_helper_with_checker(
+    "sin", trt_version_annotate_fn((5, 1, 5)))
+_register_external_op_helper_with_checker(
+    "cos", trt_version_annotate_fn((5, 1, 5)))
+_register_external_op_helper_with_checker(
+    "atan", trt_version_annotate_fn((5, 1, 5)))
+_register_external_op_helper_with_checker(
+    "ceil", trt_version_annotate_fn((5, 1, 5)))
+_register_external_op_helper_with_checker(
+    "erf", trt_version_annotate_fn((7, 0, 0)))
 
 
 @_register_external_dynamic_check_func("add")
@@ -338,7 +356,8 @@ def add_annotate_fn(expr):  # pylint: disable=unused-variable
     if not is_supported_trt_dtype(args):
         return False
     shapes = [
-        [int(x) if not isinstance(x, tvm.tir.expr.Any) else -1 for x in arg.checked_type.shape]
+        [int(x) if not isinstance(x, tvm.tir.expr.Any)
+         else -1 for x in arg.checked_type.shape]
         for arg in args
     ]
 
@@ -368,13 +387,15 @@ def batch_norm_annotate_fn(expr):  # pylint: disable=unused-variable
     if not is_supported_trt_dtype(args):
         return False
     if len(args[0].checked_type.shape) == 5 and get_tensorrt_version() < (6, 0, 1):
-        logger.info("nn.batch_norm: TensorRT 6.0.1 or higher is required for rank 5 inputs.")
+        logger.info(
+            "nn.batch_norm: TensorRT 6.0.1 or higher is required for rank 5 inputs.")
         return False
     if len(args[0].checked_type.shape) > 5:
         logger.info("nn.batch_norm: Input rank must be 5 or less.")
         return False
     if int(attrs.axis) not in (1, 3):
-        logger.info("nn.batch_norm: axis is %d but must be 1 or 3.", int(attrs.axis))
+        logger.info("nn.batch_norm: axis is %d but must be 1 or 3.",
+                    int(attrs.axis))
         return False
     return True
 
@@ -400,31 +421,102 @@ def conv1d_annotate_fn(expr):  # pylint: disable=unused-variable
     if not is_supported_trt_dtype(args):
         return False
     if attrs.data_layout != "NCW":
-        logger.info("nn.conv1d: data_layout is %s but must be NCW.", attrs.data_layout)
+        logger.info("nn.conv1d: data_layout is %s but must be NCW.",
+                    attrs.data_layout)
         return False
     if attrs.kernel_layout != "OIW":
-        logger.info("nn.conv1d: kernel_layout is %s but must be OIW.", attrs.kernel_layout)
+        logger.info("nn.conv1d: kernel_layout is %s but must be OIW.",
+                    attrs.kernel_layout)
         return False
     return True
 
 
-@_register_external_dynamic_check_func("nn.conv2d")
-def conv2d_annotate_fn(expr):  # pylint: disable=unused-variable
-    """Check if nn.conv2d is supported by TensorRT."""
+def conv2d_pattern():
+    conv2d = is_op("nn.conv2d")(wildcard(), wildcard())
+    return conv2d
 
-    attrs, args = expr.attrs, expr.args
+
+def check_conv2d(pattern):
+    attrs, args = pattern.attrs, pattern.args
     if not is_supported_trt_dtype(args):
         return False
     if attrs.data_layout != "NCHW":
-        logger.info("nn.conv2d: data_layout is %s but must be NCHW.", attrs.data_layout)
+        logger.info(
+            "nn.conv2d: data_layout is %s but must be NCHW.", attrs.data_layout)
         return False
     if attrs.kernel_layout != "OIHW":
-        logger.info("nn.conv2d: kernel_layout is %s but must be OIHW.", attrs.kernel_layout)
+        logger.info(
+            "nn.conv2d: kernel_layout is %s but must be OIHW.", attrs.kernel_layout)
         return False
     if attrs.out_layout and attrs.out_layout != "NCHW":
-        logger.info("nn.conv2d: out_layout is %s but must be NCHW.", attrs.out_layout)
+        logger.info(
+            "nn.conv2d: out_layout is %s but must be NCHW.", attrs.out_layout)
         return False
     return True
+
+
+def add_pattern():
+    pat = is_op("add")(wildcard(), wildcard())
+    return pat
+
+
+def check_add(pattern):  # pylint: disable=unused-variable
+    """Check if add is supported by TensorRT."""
+
+    args = pattern.args
+    if not is_supported_trt_dtype(args):
+        return False
+    shapes = [
+        [int(x) if not isinstance(x, tvm.tir.expr.Any)
+         else -1 for x in arg.checked_type.shape]
+        for arg in args
+    ]
+
+    # Scalars require explicit batch mode.
+    if get_tensorrt_use_implicit_batch_mode() and any([len(shape) < 1 for shape in shapes]):
+        return False
+
+    if (
+        not get_tensorrt_use_implicit_batch_mode()
+        and (isinstance(args[0], Constant) or isinstance(args[1], Constant))
+        and len(shapes[0]) > 0
+        and len(shapes[1]) > 0
+        and shapes[0][0] == shapes[1][0]
+        and shapes[0][0] != 1
+        and (len(shapes[0]) > 3 or len(shapes[1]) > 3)
+    ):
+        logger.info("add: bug in TRT with adding batched constants.")
+        return False
+    return True
+
+
+def squeeze_pattern():
+    """Create the pattern for squeeze."""
+    return is_op("squeeze")(wildcard())
+
+
+def check_squeeze(pattern):
+    attrs, args = pattern.attrs, pattern.args
+    if not is_supported_trt_dtype(args):
+        return False
+    if not attrs.axis:
+        logger.info("squeeze: must explicitly set axis.")
+        return False
+    if get_tensorrt_use_implicit_batch_mode() and any([axis == 0 for axis in map(int, attrs.axis)]):
+        logger.info("squeeze: can't modify batch dimension.")
+        return False
+    return True
+
+
+def batch_mul_pattern():
+    """Create the pattern for squeeze."""
+    return is_op("nn.batch_matmul")(wildcard(), wildcard())
+
+
+@register_pattern_table("tensorrt")
+def pattern_table():
+    return [("tensorrt.nn.conv2d", conv2d_pattern(), check_conv2d), ("tensorrt.squeeze", squeeze_pattern(), check_squeeze),
+            ("tensorrt.add", add_pattern(), check_add), ("tensorrt.nn.batch_matmul", batch_mul_pattern())]
 
 
 @_register_external_dynamic_check_func("nn.dense")
@@ -437,7 +529,8 @@ def dense_annotate_fn(expr):  # pylint: disable=unused-variable
     input_rank = len(args[0].checked_type.shape)
     weight_rank = len(args[1].checked_type.shape)
     if input_rank not in (2, 3, 4):
-        logger.info("nn.dense: input has rank %d but must be 2, 3 or 4.", input_rank)
+        logger.info(
+            "nn.dense: input has rank %d but must be 2, 3 or 4.", input_rank)
         return False
     if weight_rank != 2:
         logger.info("nn.dense: weight has rank %d but must be 2.", weight_rank)
@@ -445,7 +538,7 @@ def dense_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
-@_register_external_dynamic_check_func("nn.batch_matmul")
+@_register_external_dynamic_check_func("tensorrt.nn.batch_matmul")
 def batch_matmul_annotate_fn(expr):
     """Check if dense is supported by TensorRT."""
 
@@ -482,7 +575,8 @@ def bias_add_annotate_fn(expr):  # pylint: disable=unused-variable
         return False
     input_rank = len(args[0].checked_type.shape)
     if input_rank not in (2, 3, 4):
-        logger.info("nn.bias_add: input rank is %d but must be 2, 3 or 4.", input_rank)
+        logger.info(
+            "nn.bias_add: input rank is %d but must be 2, 3 or 4.", input_rank)
         return False
     return True
 
@@ -495,10 +589,12 @@ def max_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     if not is_supported_trt_dtype(args):
         return False
     if attrs.layout != "NCHW":
-        logger.info("nn.max_pool2d: layout is %s but must be NCHW.", attrs.layout)
+        logger.info(
+            "nn.max_pool2d: layout is %s but must be NCHW.", attrs.layout)
         return False
     if attrs.ceil_mode and get_tensorrt_version() < (5, 1, 5):
-        logger.info("nn.avg_pool2d: ceil_mode=True requires TensorRT 5.1.5 or greater.")
+        logger.info(
+            "nn.avg_pool2d: ceil_mode=True requires TensorRT 5.1.5 or greater.")
         return False
     return True
 
@@ -511,7 +607,8 @@ def avg_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     if not is_supported_trt_dtype(args):
         return False
     if attrs.layout != "NCHW":
-        logger.info("nn.avg_pool2d: layout is %d but must be NCHW.", attrs.layout)
+        logger.info(
+            "nn.avg_pool2d: layout is %d but must be NCHW.", attrs.layout)
         return False
     if (
         attrs.count_include_pad
@@ -527,7 +624,8 @@ def avg_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
         )
         return False
     if attrs.ceil_mode and get_tensorrt_version() < (5, 1, 5):
-        logger.info("nn.avg_pool2d: ceil_mode=True requires TensorRT 5.1.5 or greater.")
+        logger.info(
+            "nn.avg_pool2d: ceil_mode=True requires TensorRT 5.1.5 or greater.")
         return False
     return True
 
@@ -540,7 +638,8 @@ def global_max_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     if not is_supported_trt_dtype(args):
         return False
     if attrs.layout != "NCHW":
-        logger.info("nn.global_max_pool2d: layout is %s but must be NCHW.", attrs.layout)
+        logger.info(
+            "nn.global_max_pool2d: layout is %s but must be NCHW.", attrs.layout)
         return False
     return True
 
@@ -553,7 +652,8 @@ def global_avg_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     if not is_supported_trt_dtype(args):
         return False
     if attrs.layout != "NCHW":
-        logger.info("nn.global_avg_pool2d: layout is %s but must be NCHW.", attrs.layout)
+        logger.info(
+            "nn.global_avg_pool2d: layout is %s but must be NCHW.", attrs.layout)
         return False
     return True
 
@@ -593,7 +693,8 @@ def concatenate_annotate_fn(expr):  # pylint: disable=unused-variable
 
     attrs, args = expr.attrs, expr.args
     if any([x.dtype not in supported_types for x in args[0].checked_type.fields]):
-        logger.info("Only float16 and float32 inputs are supported for TensorRT.")
+        logger.info(
+            "Only float16 and float32 inputs are supported for TensorRT.")
     if not get_tensorrt_use_implicit_batch_mode():
         return True
     if int(attrs.axis) == 0:
@@ -602,7 +703,8 @@ def concatenate_annotate_fn(expr):  # pylint: disable=unused-variable
     if isinstance(args[0], Tuple):
         for tuple_input in args[0].fields:
             if isinstance(tuple_input, Constant):
-                logger.info("concatenate: can't concatenate tensors with constants.")
+                logger.info(
+                    "concatenate: can't concatenate tensors with constants.")
                 return False
     return True
 
@@ -628,7 +730,8 @@ def conv2d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
     if not is_supported_trt_dtype(args):
         return False
     if attrs.data_layout != "NCHW":
-        logger.info("nn.conv2d_transpose: data_layout is %s but must be NCHW.", attrs.data_layout)
+        logger.info(
+            "nn.conv2d_transpose: data_layout is %s but must be NCHW.", attrs.data_layout)
         return False
     if attrs.kernel_layout != "OIHW":
         logger.info(
@@ -636,7 +739,8 @@ def conv2d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
         )
         return False
     if attrs.out_layout and attrs.out_layout != "NCHW":
-        logger.info("nn.conv2d_transpose: out_layout is %s but must be NCHW.", attrs.out_layout)
+        logger.info(
+            "nn.conv2d_transpose: out_layout is %s but must be NCHW.", attrs.out_layout)
         return False
     if attrs.dilation and any([rate != 1 for rate in map(int, attrs.dilation)]):
         logger.info("nn.conv2d_transpose: dilation rate must be 1.")
@@ -725,7 +829,8 @@ def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
         # Resolve -1.
         for i, value in enumerate(new_shape):
             if value == -1:
-                new_shape[i] = original_volume // np.prod([x for x in new_shape if x != -1])
+                new_shape[i] = original_volume // np.prod(
+                    [x for x in new_shape if x != -1])
         # Remove batch dimension and see if volumes match
         if shape[0] != new_shape[0]:
             logger.info("reshape: can't modify batch dimension.")
@@ -744,7 +849,8 @@ def pad_annotate_fn(expr):  # pylint: disable=unused-variable
     assert isinstance(pad_value, relay.Constant)
     pad_value = pad_value.data.numpy().item()
     if attrs.pad_mode != "constant":
-        logger.info("nn.pad: pad mode is %s but must be constant.", attrs.pad_mode)
+        logger.info("nn.pad: pad mode is %s but must be constant.",
+                    attrs.pad_mode)
         return False
     if pad_value > 0.0:
         logger.info("nn.pad: pad value is %f but must be 0.0.", pad_value)
@@ -771,7 +877,8 @@ def strided_slice_annotate_fn(expr):  # pylint: disable=unused-variable
     if not trt_version_annotate_fn((5, 1, 5))(attrs, args, "strided_slice"):
         return False
     if get_tensorrt_use_implicit_batch_mode():
-        batch_dim_begin_modified = attrs.begin[0] is not None and int(attrs.begin[0]) != 0
+        batch_dim_begin_modified = attrs.begin[0] is not None and int(
+            attrs.begin[0]) != 0
         batch_dim_end_modified = (
             attrs.end[0] is not None
             and int(attrs.end[0]) != -1
@@ -844,13 +951,16 @@ def conv3d_annotate_fn(expr):  # pylint: disable=unused-variable
     if not trt_version_annotate_fn((6, 0, 1))(attrs, args, "nn.conv3d"):
         return False
     if attrs.data_layout != "NCDHW":
-        logger.info("nn.conv3d: data_layout is %s but must be NCDHW.", attrs.data_layout)
+        logger.info(
+            "nn.conv3d: data_layout is %s but must be NCDHW.", attrs.data_layout)
         return False
     if attrs.kernel_layout != "OIDHW":
-        logger.info("nn.conv3d: kernel_layout is %s but must be OIDHW.", attrs.kernel_layout)
+        logger.info(
+            "nn.conv3d: kernel_layout is %s but must be OIDHW.", attrs.kernel_layout)
         return False
     if attrs.out_layout and attrs.out_layout != "NCDHW":
-        logger.info("nn.conv3d: out_layout is %s but must be NCDHW.", attrs.out_layout)
+        logger.info(
+            "nn.conv3d: out_layout is %s but must be NCDHW.", attrs.out_layout)
         return False
     return True
 
@@ -865,7 +975,8 @@ def max_pool_3d_annotate_fn(expr):  # pylint: disable=unused-variable
     if not trt_version_annotate_fn((6, 0, 1))(attrs, args, "nn.max_pool3d"):
         return False
     if attrs.layout != "NCDHW":
-        logger.info("nn.max_pool3d: layout is %s but must be NCDHW.", attrs.layout)
+        logger.info(
+            "nn.max_pool3d: layout is %s but must be NCDHW.", attrs.layout)
         return False
     return True
 
@@ -880,7 +991,8 @@ def avg_pool_3d_annotate_fn(expr):  # pylint: disable=unused-variable
     if not trt_version_annotate_fn((6, 0, 1))(attrs, args, "nn.avg_pool3d"):
         return False
     if attrs.layout != "NCDHW":
-        logger.info("nn.avg_pool3d: layout is %s but must be NCDHW.", attrs.layout)
+        logger.info(
+            "nn.avg_pool3d: layout is %s but must be NCDHW.", attrs.layout)
         return False
     return True
 
@@ -895,7 +1007,8 @@ def conv3d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
     if not trt_version_annotate_fn((6, 0, 1))(attrs, args, "nn.conv3d_transpose"):
         return False
     if attrs.data_layout != "NCDHW":
-        logger.info("nn.conv3d_transpose: data_layout is %s but must be NCDHW.", attrs.data_layout)
+        logger.info(
+            "nn.conv3d_transpose: data_layout is %s but must be NCDHW.", attrs.data_layout)
         return False
     if attrs.kernel_layout != "OIDHW":
         logger.info(
@@ -903,7 +1016,8 @@ def conv3d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
         )
         return False
     if attrs.out_layout and attrs.out_layout != "NCDHW":
-        logger.info("nn.conv3d_transpose: out_layout is %s but must be NCDHW.", attrs.out_layout)
+        logger.info(
+            "nn.conv3d_transpose: out_layout is %s but must be NCDHW.", attrs.out_layout)
         return False
     if attrs.dilation and any([rate != 1 for rate in map(int, attrs.dilation)]):
         logger.info("nn.conv3d_transpose: dilation rate must be 1.")
@@ -1033,7 +1147,8 @@ def prune_tensorrt_subgraphs(mod):
             subgraphs_to_remove.append(name)
     # Create new pruned module
     new_mod = tvm.IRModule(mod.functions, mod.type_definitions)
-    new_mod["main"] = SubgraphRemover(subgraphs_to_remove, mod, new_mod).visit(mod["main"])
+    new_mod["main"] = SubgraphRemover(
+        subgraphs_to_remove, mod, new_mod).visit(mod["main"])
     new_mod = transform.RemoveUnusedFunctions()(new_mod)
     return new_mod
 
