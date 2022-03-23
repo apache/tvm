@@ -144,6 +144,19 @@ ScopeBlockLoopInfo GetScopeBlockLoopInfo(const Block& scope_block) {
 }
 
 /*!
+ * \brief Check whether the given sref_a is higher than or equal to sref_b.
+ */
+void CheckSRefHigherOrEqual(const StmtSRef& sref_a, const StmtSRef& sref_b) {
+  const StmtSRefNode* p = sref_b.get();
+  for (; p != nullptr; p = p->parent) {
+    if (p == sref_a.get()) {
+      return;
+    }
+  }
+  CHECK(false) << "Expect StmtSRef " << sref_a << "to be higher than or equal to " << sref_b;
+}
+
+/*!
  * \brief Check the dominant property of a block:
  * the block is the only writer of its output, dominating the reader of its output buffers under the
  * given root scope.
@@ -155,6 +168,7 @@ ScopeBlockLoopInfo GetScopeBlockLoopInfo(const Block& scope_block) {
 bool IsDominantBlock(const ScheduleState& self, const StmtSRef& scope_root_sref,
                      const StmtSRef& block_sref) {
   std::unordered_map<Buffer, Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual> buffer_writers;
+  CheckSRefHigherOrEqual(scope_root_sref, block_sref);
   const BlockNode* maybe_root_block = scope_root_sref->StmtAs<BlockNode>();
   if (maybe_root_block) {
     BlockScope scope = self->GetBlockScope(scope_root_sref);
@@ -220,14 +234,26 @@ int CheckCompleteBlockErrorCode(const ScheduleState& self, const StmtSRef& block
 
 static const char* kCompleteBlockDefinition = R"(Definition of a complete block:
 1) All block vars are data parallel
-2) Dominant: the block is the only writer of its output, dominating the reader of its output buffers under the given scope.
+2) Dominant: the block is the only writer of its output, dominating the reader of its output buffers
 3) No overlap between the buffers the block reads and writes)";
 
 static const char* kReductionBlockDefinition = R"(Definition of a reduction block:
 1) The block has the `init` statement
 2) All the block bindings are quasi-affine expressions
 3) All block vars are either data parallel block vars or reduction block vars
-4) Dominant: the block is the only writer of its output, dominating the reader of its output buffers under the given scope.
+4) Dominant: the block is the only writer of its output, dominating the reader of its output buffers
+5) The reduction block vars are not used to index the output buffers)";
+
+static const char* kLocalCompleteBlockDefinition = R"(Definition of a local complete block:
+1) All block vars are data parallel
+2) Local Dominant: the block is the only writer of its output, dominating the reader of its output buffers under a given subtree
+3) No overlap between the buffers the block reads and writes)";
+
+static const char* kLocalReductionBlockDefinition = R"(Definition of a reduction block:
+1) The block has the `init` statement
+2) All the block bindings are quasi-affine expressions
+3) All block vars are either data parallel block vars or reduction block vars
+4) Local Dominant: the block is the only writer of its output, dominating the reader of its output buffers under a given subtree
 5) The reduction block vars are not used to index the output buffers)";
 
 bool IsCompleteBlock(const ScheduleState& self, const StmtSRef& block_sref,
@@ -378,22 +404,32 @@ void CheckCompleteOrReductionBlock(const ScheduleState& self, const StmtSRef& bl
 void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subtree_root) {
   class NotCompactDataFlowError : public ScheduleError {
    public:
-    explicit NotCompactDataFlowError(IRModule mod, Stmt subtree_root, Block violate_block)
+    explicit NotCompactDataFlowError(IRModule mod, Stmt subtree_root, Block violate_block,
+                                     int local_complete_block_code, int local_reduction_block_code)
         : mod_(std::move(mod)),
           subtree_root_(std::move(subtree_root)),
-          violate_block_(std::move(violate_block)) {
+          violate_block_(std::move(violate_block)),
+          local_complete_block_code_(local_complete_block_code),
+          local_reduction_block_code_(local_reduction_block_code) {
       ICHECK(subtree_root_->IsInstance<BlockNode>() || subtree_root_->IsInstance<ForNode>());
     }
     String FastErrorString() const final {
       return "ScheduleError: The queried subtree root in SRef tree does not have compact dataflow, "
              "because some of its child block on SRef tree is neither a local complete block nor a "
-             "local "
-             "reduction block";
+             "local reduction block.";
     }
     String DetailRenderTemplate() const final {
-      return "The queried subtree root {0} in SRef tree does not have compact dataflow, because "
-             "its child block {1} on SRef tree is neither a local complete block nor a local "
-             "reduction block";
+      std::ostringstream os;
+      os << "The queried subtree root {0} in SRef tree does not have compact dataflow, because "
+            "its child block {1} on SRef tree is neither a local complete block nor a local "
+            "reduction block.\n";
+      os << "It violates condition #" << local_complete_block_code_
+         << " as a local complete block.\n";
+      os << kLocalCompleteBlockDefinition << "\n";
+      os << "It violates condition #" << local_reduction_block_code_
+         << " as a local reduction block.\n";
+      os << kLocalReductionBlockDefinition << "\n";
+      return os.str();
     }
     IRModule mod() const final { return mod_; }
     Array<ObjectRef> LocationsOfInterest() const final { return {subtree_root_, violate_block_}; }
@@ -401,18 +437,19 @@ void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subt
     IRModule mod_;
     Stmt subtree_root_;
     Block violate_block_;
+    int local_complete_block_code_;
+    int local_reduction_block_code_;
   };
 
   Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, subtree_root);
   for (const StmtSRef& block_sref : child_block_srefs) {
-    // Local complete: complete block under the subtree.
-    // Local reduction: reduction block under the subtree.
-    const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
-    if (!IsCompleteBlock(self, block_sref, subtree_root) &&
-        !IsReductionBlock(self, block_sref, subtree_root)) {
+    int local_complete_block_code = CheckCompleteBlockErrorCode(self, block_sref, subtree_root),
+        local_reduction_block_code = CheckReductionBlockErrorCode(self, block_sref, subtree_root);
+    if (local_complete_block_code != 0 && local_reduction_block_code != 0) {
       const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
       throw NotCompactDataFlowError(self->mod, GetRef<Stmt>(subtree_root->stmt),
-                                    GetRef<Block>(block));
+                                    GetRef<Block>(block), local_complete_block_code,
+                                    local_reduction_block_code);
     }
   }
 }
