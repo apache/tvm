@@ -249,7 +249,7 @@ class NDArray(NDArrayBase):
             return self._copyto(res)
         raise ValueError("Unsupported target type %s" % str(type(target)))
 
-    def create_view(self, shape):
+    def _create_view(self, shape):
         """Create a view into an existing array.
 
         The view shares the same allocation and datatype as the
@@ -258,6 +258,11 @@ class NDArray(NDArrayBase):
         the physical shape of an allocation and the logical shape of
         the tensor it represents may need to be independently
         specified.
+
+        Warning: This function should not be used outside of low-level
+        manipulations, as it breaks non-aliasing assumptions made by
+        TVM.  This function may also be removed/replaced in the
+        future.
 
         Parameters
         ----------
