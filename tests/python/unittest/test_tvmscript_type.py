@@ -194,16 +194,16 @@ def dot_product_intrin_vnni(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.reads(C[0:16], A[0:4], B[0:16, 0:4])
         T.writes(C[0:16])
 
-        A_u8x4 = A.vload([0], "uint8x4")
+        A_u8x4 = A.vload([0], "uint8x4")  # type: ignore
         A_i32 = T.reinterpret(A_u8x4, dtype="int32")
 
-        B_i8x64 = B.vload([0, 0], dtype="int8x64")
+        B_i8x64 = B.vload([0, 0], dtype="int8x64")  # type: ignore
         B_i32x16 = T.reinterpret(B_i8x64, dtype="int32x16")
 
-        C[T.ramp(T.int32(0), 1, 16)] += T.call_llvm_pure_intrin(
+        C[T.ramp(T.int32(0), 1, 16)] += T.call_llvm_pure_intrin(  # type: ignore
             T.llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512"),
             T.uint32(0),
-            T.int32x16(0),
+            T.int32x16(0),  # type: ignore
             T.broadcast(A_i32, 16),
             B_i32x16,
             dtype="int32x16",
