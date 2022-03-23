@@ -261,23 +261,15 @@ class NDArray(NDArrayBase):
 
         Parameters
         ----------
-        shape: Sequence[Union[tir.IntImm, int]]
+        shape: Union[tvm.runtime.ShapeTuple, Sequence[typing.SupportsInt]]
 
             The shape of the view.
-
         """
-        shape_imm = []
-        for s in shape:
-            if isinstance(s, tvm.tir.IntImm):
-                shape_imm.append(s.value)
-            else:
-                shape_imm.append(int(s))
-        arr = np.array(shape_imm, "int64")
-        ptr = arr.ctypes.data_as(ctypes.POINTER(ctypes.c_int64))
-        shape_ptr = ctypes.cast(ptr, ctypes.c_void_p)
-        ndim = len(shape_imm)
-        arr = _ffi_api.TVMArrayCreateView(self, shape_ptr, ndim)
-        return arr
+
+        if not isinstance(shape, tvm.runtime.ShapeTuple):
+            shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
+
+        return _ffi_api.TVMArrayCreateView(self, shape)
 
 
 def device(dev_type, dev_id=0):

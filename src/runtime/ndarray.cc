@@ -293,13 +293,9 @@ TVM_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body([](TVMArgs args, 
   *ret = ndarray;
 });
 
-TVM_REGISTER_GLOBAL("runtime.TVMArrayCreateView").set_body([](TVMArgs args, TVMRetValue* ret) {
-  NDArray arr = args[0];
-  int64_t* shape_ptr = static_cast<int64_t*>(static_cast<void*>(args[1]));
-  int ndim = args[2];
-  ShapeTuple shape(shape_ptr, shape_ptr + ndim);
+TVM_REGISTER_GLOBAL("runtime.TVMArrayCreateView").set_body_typed([](NDArray arr, ShapeTuple shape) {
   NDArray view = arr.CreateView(shape, arr->dtype);
-  *ret = view;
+  return view;
 });
 
 int TVMArrayFree(TVMArrayHandle handle) {
