@@ -520,280 +520,57 @@ def check_batch_matmul(pattern):
     return True
 
 
-def dense_pattern():
-    """Create the pattern for nn.dense."""
-    return is_op("nn.dense")(wildcard(), wildcard())
-
-
-def nn_layer_norm_pattern():
-    """Create the pattern for nn.layer_norm."""
-    return is_op("nn.layer_norm")(wildcard(), wildcard())
-
-
-def nn_bias_add_pattern():
-    """Create the pattern for nn.bias_add."""
-    return is_op("nn.bias_add")(wildcard(), wildcard())
-
-
-def nn_max_pool2d_pattern():
-    """Create the pattern for nn.max_pool2d."""
-    return is_op("nn.max_pool2d")(wildcard(), wildcard())
-
-
-def nn_avg_pool2d_pattern():
-    """Create the pattern for nn.avg_pool2d."""
-    return is_op("nn.avg_pool2d")(wildcard(), wildcard())
-
-
-def nn_global_max_pool2d_pattern():
-    """Create the pattern for nn.global_max_pool2d."""
-    return is_op("nn.global_max_pool2d")(wildcard(), wildcard())
-
-
-def nn_global_avg_pool2d_pattern():
-    """Create the pattern for nn.global_avg_pool2d."""
-    return is_op("nn.global_avg_pool2d")(wildcard(), wildcard())
-
-
-def squeeze_pattern():
-    """Create the pattern for squeeze."""
-    return is_op("squeeze")(wildcard())
-
-
-def expand_dims_pattern():
-    """Create the pattern for expand_dims."""
-    return is_op("expand_dims")(wildcard())
-
-
-def split_pattern():
-    """Create the pattern for split."""
-    return is_op("split")(wildcard())
-
-
-def concatenate_pattern():
-    """Create the pattern for concatenate."""
-    return is_op("concatenate")(wildcard())
-
-
-def transpose_pattern():
-    """Create the pattern for transpose."""
-    return is_op("transpose")(wildcard())
-
-
-def nn_conv2d_transpose_pattern():
-    """Create the pattern for nn.conv2d_transpose."""
-    return is_op("nn.conv2d_transpose")(wildcard())
-
-
-def layout_transform_pattern():
-    """Create the pattern for nn.layout_transform."""
-    return is_op("layout_transform")(wildcard())
-
-
-def reshape_pattern():
-    """Create the pattern for reshape."""
-    return is_op("reshape")(wildcard())
-
-
-def reshape_pattern():
-    """Create the pattern for reshape."""
-    return is_op("reshape")(wildcard())
-
-
-def nn_pad_pattern():
-    """Create the pattern for nn.pad."""
-    return is_op("nn.pad")(wildcard())
-
-
-def strided_slice_pattern():
-    """Create the pattern for strided_slice."""
-    return is_op("strided_slice")(wildcard())
-
-
-def nn_adaptive_max_pool2d_pattern():
-    """Create the pattern for nn.adaptive_max_pool2d."""
-    return is_op("nn.adaptive_max_pool2d")(wildcard(), wildcard())
-
-
-def nn_adaptive_avg_pool2d_pattern():
-    """Create the pattern for nn.adaptive_avg_pool2d."""
-    return is_op("nn.adaptive_avg_pool2d")(wildcard())
-
-
-def nn_conv3d_pattern():
-    """Create the pattern for nn.conv3d."""
-    return is_op("nn.conv3d")(wildcard())
-
-
-def nn_max_pool3d_pattern():
-    """Create the pattern for nn.max_pool3d."""
-    return is_op("nn.max_pool3d")(wildcard())
-
-
-def nn_avg_pool3d_pattern():
-    """Create the pattern for nn.avg_pool3d."""
-    return is_op("nn.avg_pool3d")(wildcard())
-
-
-def nn_conv3d_transpose_pattern():
-    """Create the pattern for nn.conv3d_transpose."""
-    return is_op("nn.conv3d_transpose")(wildcard())
-
-
-def nn_conv1d_pattern():
-    """Create the pattern for nn.conv1d."""
-    return is_op("nn.conv1d")(wildcard())
-
-
-def nn_softmax_pattern():
-    """Create the pattern for nn.softmax."""
-    return is_op("nn.softmax")(wildcard())
-
-
-def nn_batch_norm_pattern():
-    """Create the pattern for nn.batch_norm."""
-    return is_op("nn.batch_norm")(wildcard(), wildcard())
-
-
-def nn_relu_pattern():
-    """Create the pattern for nn.relu."""
-    return is_op("nn.relu")(wildcard())
-
-
-def sigmoid_pattern():
-    """Create the pattern for sigmoid."""
-    return is_op("sigmoid")(wildcard())
-
-
-def tanh_pattern():
-    """Create the pattern for tanh."""
-    return is_op("tanh")(wildcard())
-
-
-def power_pattern():
-    """Create the pattern for power."""
-    return is_op("power")(wildcard())
-
-
-def maximum_pattern():
-    """Create the pattern for maximum."""
-    return is_op("maximum")(wildcard())
-
-
-def minimum_pattern():
-    """Create the pattern for minimum."""
-    return is_op("minimum")(wildcard())
-
-
-def exp_pattern():
-    """Create the pattern for exp."""
-    return is_op("exp")(wildcard())
-
-
-def log_pattern():
-    """Create the pattern for log."""
-    return is_op("log")(wildcard())
-
-
-def abs_pattern():
-    """Create the pattern for abs."""
-    return is_op("abs")(wildcard())
-
-
-def sqrt_pattern():
-    """Create the pattern for sqrt."""
-    return is_op("sqrt")(wildcard())
-
-
-def negative_pattern():
-    """Create the pattern for negative."""
-    return is_op("negative")(wildcard())
-
-
-def nn_batch_flatten_pattern():
-    """Create the pattern for nn.batch_flatten."""
-    return is_op("nn.batch_flatten")(wildcard())
-
-
-def clip_pattern():
-    """Create the pattern for clip."""
-    return is_op("clip")(wildcard())
-
-
-def subtract_pattern():
-    """Create the pattern for subtract."""
-    return is_op("subtract")(wildcard(), wildcard())
-
-
-def multiply_pattern():
-    """Create the pattern for multiply."""
-    return is_op("multiply")(wildcard(), wildcard())
-
-
-def divide_pattern():
-    """Create the pattern for divide."""
-    return is_op("divide")(wildcard(), wildcard())
-
-
-def sum_pattern():
-    """Create the pattern for sum."""
-    return is_op("sum")(wildcard(), wildcard())
-
-
-def prod_pattern():
-    """Create the pattern for prod."""
-    return is_op("prod")(wildcard(), wildcard())
-
-
-def max_pattern():
-    """Create the pattern for max."""
-    return is_op("max")(wildcard(), wildcard())
-
-
-def mix_pattern():
-    """Create the pattern for min."""
-    return is_op("min")(wildcard(), wildcard())
-
-
-def clip_pattern():
-    """Create the pattern for clip."""
-    return is_op("clip")(wildcard())
-
-
-def sin_pattern():
-    """Create the pattern for sin."""
-    return is_op("sin")(wildcard())
-
-
-def cos_pattern():
-    """Create the pattern for cos."""
-    return is_op("cos")(wildcard())
-
-
-def atan_pattern():
-    """Create the pattern for atan."""
-    return is_op("atan")(wildcard())
-
-
-def ceil_pattern():
-    """Create the pattern for ceil."""
-    return is_op("ceil")(wildcard())
-
-
-def erf_pattern():
-    """Create the pattern for erf."""
-    return is_op("erf")(wildcard())
-
-
-def nn_leaky_relu_pattern():
-    """Create the pattern for nn.leaky_relu."""
-    return is_op("nn.leaky_relu")(wildcard())
+def unary_op_pattern(op):
+    """Matches unary operation"""
+    pattern = is_op(op)(
+        wildcard()
+    )
+    return pattern
+
+
+def binary_op_pattern(op):
+    """Matches binary operation"""
+    pattern = is_op(op)(
+        wildcard(),
+        wildcard()
+    )
+    return pattern
 
 
 @register_pattern_table("tensorrt")
 def pattern_table():
-    return [("tensorrt.nn.conv2d", conv2d_pattern(), check_conv2d), ("tensorrt.squeeze", squeeze_pattern(), check_squeeze),
-            ("tensorrt.add", add_pattern(), check_add), ("tensorrt.nn.batch_matmul", batch_mul_pattern(), check_batch_matmul), ("tensorrt.nn.dense", dense_pattern())]
+    return [
+        ("tensorrt.nn.conv2d", conv2d_pattern(), check_conv2d),
+        ("tensorrt.squeeze", binary_op_pattern("squeeze"), check_squeeze),
+        ("tensorrt.add", binary_op_pattern("add"), check_add),
+        ("tensorrt.nn.dense", unary_op_pattern("nn.dense")),
+        ("tensorrt.bias_add", binary_op_pattern("nn.bias_add")),
+        ("tensorrt.nn.batch_matmul", binary_op_pattern("nn.batch_matmul")),
+        ("tensorrt.substract", binary_op_pattern("substract")),
+        ("tensorrt.divide", binary_op_pattern("divide")),
+        ("tensorrt.multiply", binary_op_pattern("multiply")),
+        ("tensorrt.split", unary_op_pattern("split")),
+        ("tensorrt.reshape", unary_op_pattern("reshape")),
+        ("tensorrt.nn.relu", unary_op_pattern("nn.relu")),
+        ("tensorrt.nn.leaky.relu", unary_op_pattern("nn.leaky.relu")),
+        ("tensorrt.nn.pad", unary_op_pattern("nn.pad")),
+        ("tensorrt.sigmoid", unary_op_pattern("sigmoid")),
+        ("tensorrt.tanh", unary_op_pattern("tanh")),
+        ("tensorrt.exp", unary_op_pattern("exp")),
+        ("tensorrt.log", unary_op_pattern("log")),
+        ("tensorrt.sqrt", unary_op_pattern("sqrt")),
+        ("tensorrt.abs", unary_op_pattern("abs")),
+        ("tensorrt.negative", unary_op_pattern("negative")),
+        ("tensorrt.sin", unary_op_pattern("sin")),
+        ("tensorrt.cos", unary_op_pattern("cos")),
+        ("tensorrt.atan", unary_op_pattern("atan")),
+        ("tensorrt.ceil", unary_op_pattern("ceil")),
+        ("tensorrt.floor", unary_op_pattern("floor")),
+        ("tensorrt.erf", unary_op_pattern("erf")),
+        ("tensorrt.nn.softmax", unary_op_pattern("nn.softmax")),
+        ("tensorrt.nn.layer_norm", unary_op_pattern("nn.layer_norm")),
+        ("tensorrt.nn.max_pool2d", unary_op_pattern("nn.max_pool2d")),
+    ]
 
 
 @_register_external_dynamic_check_func("nn.dense")
