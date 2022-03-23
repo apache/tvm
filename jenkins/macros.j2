@@ -1,0 +1,73 @@
+{% macro per_exec_ws(folder) -%}
+  "workspace/exec_${env.EXECUTOR_NUMBER}/tvm/{{ folder.lower().replace(":", "").replace(" ", "-") }}"
+{%- endmacro -%}
+
+
+{% macro ci_step(node, ws_name, indent=0) %}
+  {% filter indent(width=indent) %}
+  timeout(time: max_time, unit: 'MINUTES') {
+    node('{{ node }}') {
+      ws({{ per_exec_ws(ws_name) }}) {
+        init_git()
+{{ caller() }}
+      }
+    }
+  }
+  {% endfilter %}
+{% endmacro %}
+
+{% macro ci_job(name, node, indent=0, condition=0) %}
+{% if condition == 0 %}
+  {% filter indent(width=indent) %}
+    '{{ name }}': timeout(time: max_time, unit: 'MINUTES') {
+      node('{{ node }}') {
+        ws({{ per_exec_ws(name) }}) {
+          init_git()
+    {{ caller() | indent(width=4) }}
+        }
+      }
+    },
+  {% endfilter %}
+{% else %}
+  {% filter indent(width=indent) %}
+    '{{ name }}': {
+      if ({{ condition }}) {
+        timeout(time: max_time, unit: 'MINUTES') {
+          node('{{ node }}') {
+            ws({{ per_exec_ws(name) }}) {
+              init_git()
+        {{ caller() | indent(width=8) }}
+            }
+          }
+        }
+      } else {
+        Utils.markStageSkippedForConditional'({{ name }}')
+      }
+    },
+  {% endfilter %}
+{% endif %}
+{% endmacro %}
+
+
+{% macro ci_test(name, node, indent=0, condition=0) %}
+{% filter indent(width=indent) %}
+  '{{ name }}': {
+    if ({{ 'true' if condition == 0 else condition }}) {
+      timeout(time: max_time, unit: 'MINUTES') {
+        node('{{ node }}') {
+          ws({{ per_exec_ws(name) }}) {
+            try {
+              init_git()
+        {{ caller() | indent(width=8) }}
+            } finally {
+              junit 'build/pytest-results/*.xml'
+            }
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('{{ name }}')
+    }
+  },
+{% endfilter %}
+{% endmacro %}

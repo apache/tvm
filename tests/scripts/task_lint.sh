@@ -28,6 +28,10 @@ trap cleanup 0
 echo "Convert scripts to Python..."
 tests/scripts/task_convert_scripts_to_python.sh
 
+if ! python3 jenkins/generate.py --check; then
+  echo "Jenkinsfile did not match the generated version, run 'python3 jenkins/generate.py' to fix"
+fi
+
 echo "Checking file types..."
 python3 tests/lint/check_file_type.py
 

@@ -1,0 +1,3 @@
+{% macro per_exec_ws(folder) -%}
+  "workspace/exec_${env.EXECUTOR_NUMBER}/{{ folder }}"
+{%- endmacro -%}
