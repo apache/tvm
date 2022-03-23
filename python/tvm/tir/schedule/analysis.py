@@ -32,7 +32,7 @@ def suggest_index_map(
     predicate: PrimExpr,
 ) -> Optional[IndexMap]:
     """Provided the access pattern to a buffer, suggest one of the possible layout
-    transformation to minimize the locality of the access pattern.
+    transformation to maximize the locality of the access pattern.
 
     Parameters
     ----------
