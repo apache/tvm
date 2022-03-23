@@ -831,7 +831,7 @@ llvm::Value* CodeGenLLVM::GetVarValue(const VarNode* v) const {
 }
 
 void CodeGenLLVM::CreatePrintf(const std::string& format,
-                               const llvm::ArrayRef<llvm::Value*>& format_args) {
+                               llvm::ArrayRef<llvm::Value*> format_args) {
   llvm::Function* func_printf = module_->getFunction("printf");
   if (func_printf == nullptr) {
     llvm::FunctionType* ftype = llvm::FunctionType::get(t_int32_, true);

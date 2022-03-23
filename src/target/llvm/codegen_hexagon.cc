@@ -69,8 +69,7 @@ class CodeGenHexagon final : public CodeGenLLVM {
   llvm::Module* GetModulePtr() const { return module_.get(); }
 
  protected:
-  void CreatePrintf(const std::string& format,
-                    const llvm::ArrayRef<llvm::Value*>& format_args) final;
+  void CreatePrintf(const std::string& format, llvm::ArrayRef<llvm::Value*> format_args) final;
 
   // meta data
   llvm::MDNode* md_tbaa_ctx_ptr_{nullptr};
@@ -576,7 +575,7 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
 }
 
 void CodeGenHexagon::CreatePrintf(const std::string& format,
-                                  const llvm::ArrayRef<llvm::Value*>& format_args) {
+                                  llvm::ArrayRef<llvm::Value*> format_args) {
   // This function generates LLVM instructions to call HAP_debug_v2,
   // as if the FARF macro in `HAP_farf.h` were called as
   // FARF(ALWAYS, format, format_args[0], format_args[1], ...)
