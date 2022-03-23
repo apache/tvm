@@ -69,7 +69,8 @@ class CodeGenHexagon final : public CodeGenLLVM {
   llvm::Module* GetModulePtr() const { return module_.get(); }
 
  protected:
-  void CreatePrintf(const std::string& format, const std::vector<llvm::Value*> format_args) final;
+  void CreatePrintf(const std::string& format,
+                    const llvm::ArrayRef<llvm::Value*>& format_args) final;
 
   // meta data
   llvm::MDNode* md_tbaa_ctx_ptr_{nullptr};
@@ -575,7 +576,7 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
 }
 
 void CodeGenHexagon::CreatePrintf(const std::string& format,
-                                  const std::vector<llvm::Value*> format_args) {
+                                  const llvm::ArrayRef<llvm::Value*>& format_args) {
   // This function generates LLVM instructions to call HAP_debug_v2,
   // as if the FARF macro in `HAP_farf.h` were called as
   // FARF(ALWAYS, format, format_args[0], format_args[1], ...)
@@ -588,25 +589,17 @@ void CodeGenHexagon::CreatePrintf(const std::string& format,
     func = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, func_name, module_.get());
   }
 
-  llvm::Value* format_str = builder_->CreateGlobalStringPtr(format + "\0");
-  format_str->setName("printf_format_str");
+  llvm::Value* format_str = builder_->CreateGlobalStringPtr(format, "printf_format_str");
 
   // The value of FARF_ALWAYS_LEVEL, defined as HAP_LEVEL_HIGH
   llvm::Value* level = ConstInt32(2);
-  level->setName("farf_always_level");
 
-  // There is no such filename for this print statement
-  llvm::Value* filename = builder_->CreateGlobalStringPtr("generated-LLVM-code");
-  filename->setName("dummy_filename");
-
-  // There is no such line number for this print statement
+  // There is no such filename/line number for this print statement
+  llvm::Value* filename = builder_->CreateGlobalStringPtr("generated-LLVM-code", "dummy_filename");
   llvm::Value* line_number = ConstInt32(1);
-  line_number->setName("dummy_line_number");
 
   std::vector<llvm::Value*> func_args = {level, filename, line_number, format_str};
-  for (auto arg : format_args) {
-    func_args.push_back(arg);
-  }
+  func_args.insert(func_args.end(), format_args.begin(), format_args.end());
 
   builder_->CreateCall(func, func_args);
 }
