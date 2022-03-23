@@ -97,6 +97,9 @@ class HexagonBuffer {
   //! \brief Return pointer to allocations.
   void** GetPointer();
 
+  //! \brief Return number of allocations.
+  size_t GetNumAllocs() { return nallocs_; }
+
   //! \brief Memory scopes managed by a Hexagon Buffer.
   enum class StorageScope {
     //! \brief System DDR corresponding to global storage.
