@@ -229,9 +229,9 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnannotate")
 /******** (FFI) Layout transformation ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTransformLayout")
     .set_body_typed([](Schedule self, const BlockRV& block_rv, int buffer_index,
-                       const String& buffer_index_type, const IndexMap& index_map) {
+                       int buffer_index_type, const IndexMap& index_map) {
       return self->TransformLayout(block_rv, buffer_index,
-                                   Str2BufferIndexType(buffer_index_type), index_map);
+                                   static_cast<BufferIndexType>(buffer_index_type), index_map);
     });
 
 /******** (FFI) Misc ********/

@@ -2184,8 +2184,10 @@ class Schedule(Object):
         """
         if callable(index_map):
             index_map = IndexMap.from_func(index_map)
+        assert buffer_index_type in ["read", "write"], "Invalid buffer_index_type"
+        buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
         _ffi_api.ScheduleTransformLayout(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index, buffer_index_type, index_map
+            self, block, buffer_index, buffer_index_type_enum, index_map
         )
 
     ########## Schedule: Misc ##########
