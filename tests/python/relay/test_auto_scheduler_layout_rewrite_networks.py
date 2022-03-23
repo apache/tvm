@@ -182,28 +182,32 @@ def tune_and_check(mod, data, weight, target, dev):
         tvm.testing.assert_allclose(actual_output, expected_output, rtol=1e-4, atol=2e-4)
 
 
+# layout rewriting only works on CPU targets
+@tvm.testing.parametrize_targets("llvm", "llvm -device=arm_cpu")
 def test_conv2d(target, dev):
     mod, data, weight = get_relay_conv2d(kh=1, kw=1)
     tune_and_check(mod, data, weight, target, dev)
 
 
+@tvm.testing.parametrize_targets("llvm", "llvm -device=arm_cpu")
 def test_conv2d_winograd(target, dev):
-    if target == "cuda":
-        pytest.skip(reason="See https://github.com/apache/tvm/issues/10707")
     mod, data, weight = get_relay_conv2d(outc=128, kh=3, kw=3)
     tune_and_check(mod, data, weight, target, dev)
 
 
+@tvm.testing.parametrize_targets("llvm", "llvm -device=arm_cpu")
 def test_conv3d(target, dev):
     mod, data, weight = get_relay_conv3d()
     tune_and_check(mod, data, weight, target, dev)
 
 
+@tvm.testing.parametrize_targets("llvm", "llvm -device=arm_cpu")
 def test_dense(target, dev):
     mod, data, weight = get_relay_dense()
     tune_and_check(mod, data, weight, target, dev)
 
 
+@tvm.testing.parametrize_targets("llvm", "llvm -device=arm_cpu")
 def test_batch_matmul(target, dev):
     mod, data, weight = get_relay_batchmm()
     tune_and_check(mod, data, weight, target, dev)
