@@ -5133,7 +5133,7 @@ class GraphProto:
 
 
 def from_onnx(
-    model, shape=None, dtype="float32", opset=None, freeze_params=False, convert_config=None
+    model, shape=None, dtype="float32", opset=None, freeze_params=True, convert_config=None
 ):
     """Convert a ONNX model into an equivalent Relay Function.
 
@@ -5223,4 +5223,8 @@ def from_onnx(
     # Use the graph proto as a scope so that ops can access other nodes if needed.
     with g:
         mod, params = g.from_onnx(graph, opset)
+
+    if freeze_params:
+        mod = relay.transform.DynamicToStatic()(mod)
+
     return mod, params
