@@ -593,7 +593,16 @@ def conv2d_transpose(
 
 
 def add(
-    lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point, output_scale, output_zero_point
+    lhs,
+    rhs,
+    lhs_scale,
+    lhs_zero_point,
+    rhs_scale,
+    rhs_zero_point,
+    output_scale,
+    output_zero_point,
+    lhs_axis=-1,
+    rhs_axis=-1,
 ):
     """Quantized addition with numpy-style broadcasting.
 
@@ -623,6 +632,12 @@ def add(
     output_zero_point: relay.Expr
        The zero point of output quantized expr.
 
+    lhs_axis: int
+        The channel axis for lhs quantization. Default value is -1.
+
+    rhs_axis: int
+        The channel axis for rhs quantization. Default value is -1.
+
     Returns
     -------
     result : relay.Expr
@@ -638,6 +653,8 @@ def add(
         rhs_zero_point,
         output_scale,
         output_zero_point,
+        lhs_axis,
+        rhs_axis,
     )
 
 
@@ -702,7 +719,16 @@ def dense(
 
 
 def mul(
-    lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point, output_scale, output_zero_point
+    lhs,
+    rhs,
+    lhs_scale,
+    lhs_zero_point,
+    rhs_scale,
+    rhs_zero_point,
+    output_scale,
+    output_zero_point,
+    lhs_axis=-1,
+    rhs_axis=-1,
 ):
     """Quantized multiplication with numpy-style broadcasting.
 
@@ -732,6 +758,12 @@ def mul(
     output_zero_point: relay.Expr
        The zero point of output quantized expr.
 
+    lhs_axis: int
+        The channel axis for lhs quantization. Default value is -1.
+
+    rhs_axis: int
+        The channel axis for rhs quantization. Default value is -1.
+
     Returns
     -------
     result : relay.Expr
@@ -747,6 +779,8 @@ def mul(
         rhs_zero_point,
         output_scale,
         output_zero_point,
+        lhs_axis,
+        rhs_axis,
     )
 
 
@@ -961,7 +995,16 @@ def sigmoid(x, scale, zero_point, output_scale, output_zero_point):
 
 
 def subtract(
-    lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point, output_scale, output_zero_point
+    lhs,
+    rhs,
+    lhs_scale,
+    lhs_zero_point,
+    rhs_scale,
+    rhs_zero_point,
+    output_scale,
+    output_zero_point,
+    lhs_axis=-1,
+    rhs_axis=-1,
 ):
     """Quantized subtraction with numpy-style broadcasting.
 
@@ -991,6 +1034,12 @@ def subtract(
     output_zero_point: relay.Expr
        The zero point of output quantized expr.
 
+    lhs_axis: int
+        The channel axis for lhs quantization. Default value is -1.
+
+    rhs_axis: int
+        The channel axis for rhs quantization. Default value is -1.
+
     Returns
     -------
     result : relay.Expr
@@ -1006,6 +1055,8 @@ def subtract(
         rhs_zero_point,
         output_scale,
         output_zero_point,
+        lhs_axis,
+        rhs_axis,
     )
 
 
