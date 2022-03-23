@@ -509,12 +509,8 @@ def run_module(
         # must be already flashed into the micro target before one tries
         # to run it. Hence skip model upload for micro targets.
         if device != "micro":
-            if tvmc_package.use_vm:
-                session.upload(tvmc_package.lib_path)
-                rexec = session.load_module(tvmc_package.lib_name)
-            else:
-                session.upload(tvmc_package.lib_path)
-                lib = session.load_module(tvmc_package.lib_name)
+            session.upload(tvmc_package.lib_path)
+            lib = session.load_module(tvmc_package.lib_name)
 
         # TODO expand to other supported devices, as listed in tvm.rpc.client (@leandron)
         logger.debug("Device is %s.", device)
@@ -536,17 +532,28 @@ def run_module(
             dev = session.cpu()
 
         if tvmc_package.use_vm:
-            exe = vm.VirtualMachine(rexec, dev)
-            input_tensor = tvm.nd.array(inputs, dev)
-            exe.set_input("main", input_tensor)
+            assert inputs is not None and isinstance(
+                inputs, dict
+            ), "vm runner requires inputs to be provided as a dict"
+            exe = vm.VirtualMachine(lib, dev)
+            input_tensor = {}
+            for e, i in inputs.items():
+                input_tensor[e] = tvm.nd.array(i, dev)
+            exe.set_input("main", **input_tensor)
             exe.invoke_stateful("main")
-            times = exe.benchmark(dev, input_tensor, func_name="main", repeat=repeat, number=number, end_to_end=end_to_end)
-            outputs = exe.get_outputs()
-            outputs_dict = {}
-            for i in range(len(outputs)):
+            times = exe.benchmark(
+                dev,
+                **input_tensor,
+                func_name="main",
+                repeat=repeat,
+                number=number,
+                end_to_end=end_to_end,
+            )
+            exe_outputs = exe.get_outputs()
+            outputs = {}
+            for i, val in enumerate(exe_outputs):
                 output_name = "output_{}".format(i)
-                outputs_dict[output_name] = outputs[i]
-            outputs = outputs_dict
+                outputs[output_name] = val
         else:
             # TODO(gromero): Adjust for micro targets.
             if profile:

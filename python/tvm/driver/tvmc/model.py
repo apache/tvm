@@ -188,7 +188,22 @@ class TVMCModel(object):
         package_path: Optional[str] = None,
         lib_format: str = "so",
     ):
-        # TODO: write some docs
+        """Save this TVMCModel compiled via vm to file.
+        Parameters
+        ----------
+        vm_exec : vm.Executable
+            The VM Executable containing compiled the compiled artifacts needed to run this model.
+        package_path : str, None
+            Where the model should be saved. Note that it will be packaged as a .tar file.
+            If not provided, the package will be saved to a generically named file in tmp.
+        lib_format : str
+            How to export the modules function library. Must be one of "so" or "tar".
+
+        Returns
+        -------
+        package_path : str
+            The path that the package was saved to.
+        """
         lib_name = "lib." + lib_format
         temp = self._tmp_dir
         if package_path is None:
@@ -200,7 +215,7 @@ class TVMCModel(object):
         # Package up all the temp files into a tar file.
         with tarfile.open(package_path, "w") as tar:
             tar.add(path_lib, lib_name)
-        
+
         return package_path
 
     def export_classic_format(
@@ -343,7 +358,12 @@ class TVMCPackage(object):
         Whether the graph module was compiled with vm or not.
     """
 
-    def __init__(self, package_path: str, project_dir: Optional[Union[Path, str]] = None, use_vm: bool = False):
+    def __init__(
+        self,
+        package_path: str,
+        project_dir: Optional[Union[Path, str]] = None,
+        use_vm: bool = False,
+    ):
         self._tmp_dir = utils.tempdir()
         self.package_path = package_path
         self.use_vm = use_vm
@@ -376,9 +396,9 @@ class TVMCPackage(object):
             elif os.path.exists(temp.relpath(lib_name_tar)):
                 self.lib_name = lib_name_tar
             else:
-                raise TVMCException("Couldn't find exported library in the package.")     
+                raise TVMCException("Couldn't find exported library in the package.")
 
-            self.lib_path = temp.relpath(self.lib_name)  
+            self.lib_path = temp.relpath(self.lib_name)
         elif os.path.exists(temp.relpath("metadata.json")):
             # Model Library Format (MLF)
             self.lib_name = None

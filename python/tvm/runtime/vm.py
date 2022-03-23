@@ -441,7 +441,6 @@ class VirtualMachine(object):
                     idx = func_params.index(k)
                     new_args[idx] = kwargs[k]
                     cnt += 1
-            breakpoint()
             assert len(args) + cnt == len(func_params)
             idx = 0
             for i, arg in enumerate(new_args):

@@ -23,7 +23,7 @@ from os import path
 from tvm.driver import tvmc
 from tvm.driver.tvmc.model import TVMCModel, TVMCPackage, TVMCResult
 from tvm.runtime.module import BenchmarkResult
-from tvm import nd
+
 
 def test_tvmc_workflow(keras_simple):
     pytest.importorskip("tensorflow")
@@ -46,11 +46,12 @@ def test_tvmc_workflow_use_vm(keras_simple):
 
     tvmc_model = tvmc.load(keras_simple)
     tuning_records = tvmc.tune(tvmc_model, target="llvm", enable_autoscheduler=True, trials=2)
-    tvmc_package = tvmc.compile(tvmc_model, tuning_records=tuning_records, target="llvm", use_vm=True)
+    tvmc_package = tvmc.compile(
+        tvmc_model, tuning_records=tuning_records, target="llvm", use_vm=True
+    )
 
-    np_input = np.random.uniform(size=(1, 32, 32, 3)).astype("float32")
-    # input_tensor = nd.array(np_input)
-    result = tvmc.run(tvmc_package, device="cpu", end_to_end=True, inputs=np_input)
+    input_dict = {"input_2": np.random.uniform(size=(1, 32, 32, 3)).astype("float32")}
+    result = tvmc.run(tvmc_package, device="cpu", end_to_end=True, inputs=input_dict)
 
     assert type(tvmc_model) is TVMCModel
     assert type(tvmc_package) is TVMCPackage
