@@ -60,6 +60,14 @@ class DoubleBufferDetector : public StmtExprVisitor {
     }
   }
 
+  void VisitExpr_(const CallNode* op) final {
+    // do not visit var in tvm_access_ptr
+    if (op->op.same_as(builtin::tvm_access_ptr())) {
+      return;
+    }
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
   void VisitExpr_(const VarNode* op) final {
     if (touched_.count(op)) {
       touched_.erase(op);
@@ -241,6 +249,34 @@ class DoubleBufferInjector : public StmtExprMutator {
 
     buf_remap_[key] = buf;
     return buf;
+  }
+
+  PrimExpr VisitExpr_(const CallNode* op) final {
+    if (op->op.same_as(builtin::tvm_access_ptr())) {
+      const VarNode* buf = op->args[1].as<VarNode>();
+      auto it = dbuffer_info_.find(buf);
+      if (it != dbuffer_info_.end()) {
+        const StorageEntry& e = it->second;
+        ICHECK(e.stride.defined());
+        ICHECK(e.switch_read_var.defined());
+        Array<PrimExpr> args;
+        // dtype
+        args.push_back(op->args[0]);
+        // data
+        args.push_back(op->args[1]);
+        // offset
+        args.push_back(e.switch_read_var * e.stride + op->args[2]);
+        // extent
+        args.push_back(op->args[3]);
+        // rw_mask
+        args.push_back(op->args[4]);
+        return Call(op->dtype, op->op, args);
+      } else {
+        return GetRef<PrimExpr>(op);
+      }
+    } else {
+      return StmtExprMutator::VisitExpr_(op);
+    }
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
