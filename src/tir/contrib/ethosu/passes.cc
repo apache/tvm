@@ -36,12 +36,15 @@ namespace ethosu {
  * \brief This mutator moves allocates to the top of the body of the main
  * function.
  *
+ * Note: This pass can currently only be run in conjunction with the
+ * LowerToTIR() pass as it expects a single primitive function called
+ * "main" that is being offloaded to the NPU.
+ *
  * For example,
  *               allocate {
- *                   extern_call(...) {
- *                       allocate {
- *     Before:               extern_call(...)
- *                       }
+ *                   extern_call(...)
+ *                   allocate {
+ *     Before:           extern_call(...)
  *                   }
  *               }
  *
@@ -56,9 +59,7 @@ class HoistAllocatesMutator : public StmtExprMutator {
  public:
   HoistAllocatesMutator() {}
 
-  IRModule operator()(IRModule mod) {
-    GlobalVar gv = mod->GetGlobalVar("main");
-    PrimFunc main_func = Downcast<PrimFunc>(mod->Lookup(gv));
+  PrimFunc operator()(PrimFunc main_func) {
     Stmt new_main_func_body = this->VisitStmt(main_func->body);
 
     // Write all allocates that were removed in reverse order
@@ -76,8 +77,7 @@ class HoistAllocatesMutator : public StmtExprMutator {
     PrimFunc new_main_func =
         PrimFunc(main_func->params, new_main_func_body, main_func->ret_type, main_func->buffer_map,
                  main_func->preflattened_buffer_map, main_func->attrs);
-    mod->Update(gv, new_main_func);
-    return mod;
+    return new_main_func;
   }
 
  private:
@@ -107,10 +107,14 @@ class HoistAllocatesMutator : public StmtExprMutator {
  * \return tvm::transform::Pass
  */
 tvm::transform::Pass HoistAllocates() {
-  auto pass_func = [=](IRModule mod, tvm::transform::PassContext ctx) {
-    return HoistAllocatesMutator()(mod);
+  auto pass_func = [=](PrimFunc f, IRModule mod, tvm::transform::PassContext ctx) {
+    ICHECK(mod->GetGlobalVars().size() == 1 && mod->ContainGlobalVar("main"))
+        << "Expected a single primitive function called 'main'. Please run the HoistAllocates pass "
+           "in conjunction with the LowerToTIR() pass.";
+    return HoistAllocatesMutator()(f);
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "tir.contrib.ethos-u.HoistAllocates", {});
+  return tvm::tir::transform::CreatePrimFuncPass(pass_func, 0, "tir.contrib.ethos-u.HoistAllocates",
+                                                 {});
 }
 
 TVM_REGISTER_GLOBAL("tir.contrib.ethos-u.HoistAllocates").set_body_typed(HoistAllocates);

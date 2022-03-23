@@ -202,3 +202,41 @@ def test_outer_seq_stmt():
     allocate_info = ExtractAllocateInfo()(mod)
     mod = HoistAllocates()(mod)
     CheckAllocates(allocate_info)(mod)
+
+
+def test_multiple_prim_funcs():
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def main():
+            T.evaluate(0)
+
+        @T.prim_func
+        def abc():
+            T.evaluate(0)
+
+    mod = Module
+
+    err_rgx = (
+        r"Expected a single primitive function called 'main'. "
+        r"Please run the HoistAllocates pass in conjunction with the LowerToTIR\(\) pass."
+    )
+    with pytest.raises(tvm.TVMError, match=err_rgx):
+        mod = HoistAllocates()(mod)
+
+
+def test_no_main_prim_func():
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def abs():
+            T.evaluate(0)
+
+    mod = Module
+
+    err_rgx = (
+        r"Expected a single primitive function called 'main'. "
+        r"Please run the HoistAllocates pass in conjunction with the LowerToTIR\(\) pass."
+    )
+    with pytest.raises(tvm.TVMError, match=err_rgx):
+        mod = HoistAllocates()(mod)
