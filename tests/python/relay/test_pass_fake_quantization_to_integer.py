@@ -611,6 +611,7 @@ def test_fake_quantize_binary_per_channel(operator):
             rhs_axis = lhs_axis  # TODO: Support different axes for per-channel quantized multiply
         else:
             out_scale = relay.const(0.1)
+
         x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
         x = relay.qnn.op.dequantize(x, relay.const(lhs_scale), relay.const(lhs_zp), axis=lhs_axis)
 
@@ -618,10 +619,6 @@ def test_fake_quantize_binary_per_channel(operator):
         y = relay.qnn.op.dequantize(y, relay.const(rhs_scale), relay.const(rhs_zp), axis=rhs_axis)
 
         op = operator(x, y)
-        if operator == relay.op.multiply:
-            out_scale = relay.const(2.0)
-        else:
-            out_scale = relay.const(0.1)
 
         op = relay.qnn.op.quantize(op, out_scale, relay.const(out_zp), out_dtype="int8")
         x_np = np.random.randint(-25, 25, size=[1, 3, 224, 224], dtype="int8")

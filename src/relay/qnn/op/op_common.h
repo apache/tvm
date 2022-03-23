@@ -261,8 +261,8 @@ static inline bool QnnBroadcastRel(const Array<Type>& types, int num_inputs, con
   auto lhs_rank = static_cast<int>(lhs_data->shape.size());
   auto rhs_rank = static_cast<int>(rhs_data->shape.size());
 
-  lhs_axis = (lhs_axis < 0) ? ((lhs_rank > 0) ? lhs_data->shape.size() + lhs_axis : 0) : lhs_axis;
-  rhs_axis = (rhs_axis < 0) ? ((rhs_rank > 0) ? rhs_data->shape.size() + rhs_axis : 0) : rhs_axis;
+  lhs_axis = (lhs_axis < 0) ? ((lhs_rank > 0) ? lhs_rank + lhs_axis : 0) : lhs_axis;
+  rhs_axis = (rhs_axis < 0) ? ((rhs_rank > 0) ? rhs_rank + rhs_axis : 0) : rhs_axis;
 
   // If zero point and scale are scalar then axis doesn't matter.
   bool lhs_scale_is_scalar = (types[2].as<TensorTypeNode>())->shape.size() == 0;
@@ -349,7 +349,6 @@ static inline bool QnnBroadcastRel(const Array<Type>& types, int num_inputs, con
       .add_argument("lhs_axis", "Tensor", "The channel quantization of the lhs tensor.")           \
       .add_argument("rhs_axis", "Tensor", "The channel quantization of the rhs tensor.")           \
       .add_type_rel("QnnBroadcast", QnnBroadcastRel)                                               \
-      .set_attr<TOpPattern>("TOpPattern", kOpaque)                                                 \
       .set_attr<TNonComputational>("TNonComputational", true)                                      \
       .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnBinaryBroadcastLayout)
 
