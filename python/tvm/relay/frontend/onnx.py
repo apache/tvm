@@ -1489,9 +1489,9 @@ class Squeeze(OnnxOpConverter):
 
         if axis is None:
             # If axes is not provided, all the single dimensions will be removed from the shape.
-            if not ishape: # scalar
+            if not ishape:  # scalar
                 return inputs[0]
-            
+
             axis = []
             for i in range(len(ishape)):
                 if ishape[i] == 1:

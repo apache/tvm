@@ -571,10 +571,10 @@ def test_squeeze(target, dev):
         model = helper.make_model(graph, producer_name="squeeze_test")
         x = np.random.uniform(size=in_shape).astype("float32")
         verify_with_ort_with_inputs(model, [x], [out_shape], target=target, dev=dev, opset=11)
-    
+
     test_squeeze_once((1, 3, 1, 3, 1, 1), (3, 3), [0, 2, 4, 5])
-    test_squeeze_once((1, 3, 1, 3, 1, 1), (3, 3)) # empty axis.
-    test_squeeze_once((), ()) # scalar testing.
+    test_squeeze_once((1, 3, 1, 3, 1, 1), (3, 3))  # empty axis.
+    test_squeeze_once((), ())  # scalar testing.
 
 
 @tvm.testing.parametrize_targets
