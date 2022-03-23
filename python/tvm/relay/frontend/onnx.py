@@ -1846,9 +1846,9 @@ class HardSwish(OnnxOpConverter):
 
     @classmethod
     def _impl_v14(cls, inputs, attr, params):
-        alpha = attr.get("alpha", 1/6)
+        alpha = attr.get("alpha", 1 / 6)
         beta = attr.get("beta", 0.5)
-        transformX = (inputs[0] * _expr.const(alpha) + _expr.const(beta))
+        transformX = inputs[0] * _expr.const(alpha) + _expr.const(beta)
         attr = {"a_min": 0, "a_max": 1}
         return inputs[0] * AttrCvt("clip")([transformX], attr)
 
