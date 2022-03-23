@@ -250,6 +250,22 @@ class NDArray(NDArrayBase):
         raise ValueError("Unsupported target type %s" % str(type(target)))
 
     def create_view(self, shape):
+        """Create a view into an existing array.
+
+        The view shares the same allocation and datatype as the
+        existing array, but can have a different array shape.  This is
+        useful for runtimes that support non-flat memory, where both
+        the physical shape of an allocation and the logical shape of
+        the tensor it represents may need to be independently
+        specified.
+
+        Parameters
+        ----------
+        shape: Sequence[Union[tir.IntImm, int]]
+
+            The shape of the view.
+
+        """
         shape_imm = []
         for s in shape:
             if isinstance(s, tvm.tir.IntImm):
