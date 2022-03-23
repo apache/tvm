@@ -28,6 +28,9 @@ trap cleanup 0
 echo "Convert scripts to Python..."
 tests/scripts/task_convert_scripts_to_python.sh
 
+echo "Check Jenkinsfile generation"
+python3 jenkins/generate.py --check
+
 echo "Checking file types..."
 python3 tests/lint/check_file_type.py
 
