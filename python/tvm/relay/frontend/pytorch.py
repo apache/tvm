@@ -254,6 +254,20 @@ class PyTorchOpConverter:
     # Operator implementations
     def make_elemwise(self, name):
         def elemwise(inputs, input_types):
+            if name == "divide":
+                # https://pytorch.org/docs/stable/generated/torch.div.html#torch.div
+                # None - default behavior. Performs no rounding and, if both input and
+                # other are integer types, promotes the inputs to the default scalar type.
+                if all(["int" in input_type for input_type in input_types[:2]]):
+                    input_types[:2] = ["float32"] * 2
+                    cast_inputs = []
+                    for inp in inputs[:2]:
+                        if np.isscalar(inp):
+                            cast_inputs.append(_expr.const(inp, dtype="float32"))
+                        else:
+                            cast_inputs.append(_op.cast(inp, "float32"))
+                    inputs[:2] = cast_inputs
+
             data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
             return get_relay_op(name)(data0, data1)
 
