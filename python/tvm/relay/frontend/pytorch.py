@@ -641,7 +641,7 @@ class PyTorchOpConverter:
                 tmp.append(_op.cast(_op.expand_dims(dim, axis=0), "int64"))
             size = _op.concatenate(tmp, axis=0)
 
-        out = _op.full(_expr.const(fill_value), size, dtype=dtype)
+        out = _op.full(_expr.const(fill_value, dtype=dtype), size, dtype=dtype)
         if need_reshape:
             out = _op.reshape(out, new_shape)
         return out

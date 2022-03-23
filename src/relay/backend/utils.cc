@@ -226,16 +226,6 @@ Array<Pass> GetPassPrefix(bool is_homegeneous, bool is_vm) {
     // eta expand to support constructors in argument position
     pass_seqs.push_back(transform::EtaExpand(
         /* expand_constructor */ true, /* expand_global_var */ false));
-  } else {
-    // DynamicToStatic runs FoldConstant, which affects SimplifyExpr below.
-    // Task extraction uses the is_vm=true branch, meaning SimplifyExpr sees different
-    // inputs from the ones when invoked via relay.build(...).
-    // This causes workload lookups in ApplyHistoryBest to fail if the lookup depends on
-    // the structual hash of the input relay module (e.g. MetaScheduler).
-    // TODO(masahi): Either remove DynamicToStatic below or always run it
-
-    // Convert Dynamic ops to static versions
-    pass_seqs.push_back(transform::DynamicToStatic());
   }
 
   PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
@@ -252,12 +242,12 @@ Array<Pass> GetPassPrefix(bool is_homegeneous, bool is_vm) {
     *rv = false;
   });
   pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
-  pass_seqs.push_back(transform::SimplifyExpr());
   pass_seqs.push_back(transform::CombineParallelConv2D(3));
   pass_seqs.push_back(transform::CombineParallelDense(3));
   pass_seqs.push_back(transform::CombineParallelBatchMatmul(3));
   pass_seqs.push_back(transform::FoldConstant());
   pass_seqs.push_back(transform::FoldScaleAxis());
+  pass_seqs.push_back(transform::SimplifyExpr());
   pass_seqs.push_back(transform::CanonicalizeCast());
   pass_seqs.push_back(transform::CanonicalizeOps());
 

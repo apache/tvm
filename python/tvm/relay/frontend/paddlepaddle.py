@@ -1281,7 +1281,7 @@ def convert_prelu(g, op, block):
             shape = _op.strided_slice(shape_of(x), [0], [1])
         else:
             shape = _op.strided_slice(shape_of(x), [1], [2])
-        alpha = _op.broadcast_to(alpha, shape)
+        alpha = _op.broadcast_to(alpha, fold_constant(shape))
     out = _op.nn.prelu(x, alpha, axis)
     g.add_node(op.output("Out")[0], out)
 
