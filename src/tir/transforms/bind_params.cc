@@ -82,7 +82,6 @@ class ParamsCollector : public StmtExprVisitor {
  private:
   std::vector<const tir::VarNode*> constant_list_;
   Map<tir::Var, runtime::NDArray> constant_map_;
-  bool first_for_ = true;
 };
 
 namespace transform {
