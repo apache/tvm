@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring,invalid-name,pointless-string-statement
 from tvm.script import tir as T
+from tvm.script.registry import register
 
 """
 This prim func include necessary buffer types that need to be checked
@@ -175,6 +176,38 @@ def different_access_indices(a: T.handle, b: T.handle) -> None:
                 with T.init():
                     B[vj, vi] = T.exp(B[vj, vi], dtype="float32")
                 B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
+
+
+@register
+def int32x16(imm, span):
+    return imm.astype("int32x16", span)
+
+
+# Test assignment statements work without type annotation
+@T.prim_func
+def dot_product_intrin_vnni(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (4,), "uint8", offset_factor=1)
+    B = T.match_buffer(b, (16, 4), "int8", offset_factor=1)
+    C = T.match_buffer(c, (16,), "int32", offset_factor=1)
+
+    with T.block("root"):
+        T.reads(C[0:16], A[0:4], B[0:16, 0:4])
+        T.writes(C[0:16])
+
+        A_u8x4 = A.vload([0], "uint8x4")  # type: ignore
+        A_i32 = T.reinterpret(A_u8x4, dtype="int32")
+
+        B_i8x64 = B.vload([0, 0], dtype="int8x64")  # type: ignore
+        B_i32x16 = T.reinterpret(B_i8x64, dtype="int32x16")
+
+        C[T.ramp(T.int32(0), 1, 16)] += T.call_llvm_pure_intrin(  # type: ignore
+            T.llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512"),
+            T.uint32(0),
+            T.int32x16(0),  # type: ignore
+            T.broadcast(A_i32, 16),
+            B_i32x16,
+            dtype="int32x16",
+        )
 
 
 # Not running any test as we only want to type-check here
