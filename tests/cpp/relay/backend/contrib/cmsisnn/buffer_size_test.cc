@@ -98,37 +98,37 @@ TEST(CMSISNNConv2dBufferSize, Conv1xN) {
 }
 
 // Test disabled, see https://github.com/apache/tvm/issues/10748
-// TEST(CMSISNNConv2dBufferSize, Default) {
-//   int32_t any = fake_parameters(gen);
+TEST(DISABLED_CMSISNNConv2dBufferSize, Default) {
+  int32_t any = fake_parameters(gen);
 
-//   int32_t input_c = fake_parameters(gen);
-//   int32_t filter_w = fake_parameters(gen);
-//   int32_t filter_h = fake_parameters(gen);
-//   int32_t calculated_buffer = (2 * input_c * filter_w * filter_h) * (int32_t)sizeof(int16_t);
+  int32_t input_c = fake_parameters(gen);
+  int32_t filter_w = fake_parameters(gen);
+  int32_t filter_h = fake_parameters(gen);
+  int32_t calculated_buffer = (2 * input_c * filter_w * filter_h) * (int32_t)sizeof(int16_t);
 
-//   auto conv2d = [=](CMSISNNFlags flags, int32_t output_w) {
-//     return Conv2dBufferSize(flags, any, any, 1, 1, input_c, 1, output_w, any, any, filter_w,
-//                             filter_h);
-//   };
+  auto conv2d = [=](CMSISNNFlags flags, int32_t output_w) {
+    return Conv2dBufferSize(flags, any, any, 1, 1, input_c, 1, output_w, any, any, filter_w,
+                            filter_h);
+  };
 
-//   ASSERT_EQ(conv2d(kNoExt, 4), 0);
-//   ASSERT_EQ(conv2d(kNoExt, 8), 0);
-//   ASSERT_EQ(conv2d(kNoExt, 12), 0);
-//   ASSERT_EQ(conv2d(kNoExt, 16), 0);
-//   ASSERT_EQ(conv2d(kNoExt, 32), 0);
+  ASSERT_EQ(conv2d(kNoExt, 4), 0);
+  ASSERT_EQ(conv2d(kNoExt, 8), 0);
+  ASSERT_EQ(conv2d(kNoExt, 12), 0);
+  ASSERT_EQ(conv2d(kNoExt, 16), 0);
+  ASSERT_EQ(conv2d(kNoExt, 32), 0);
 
-//   ASSERT_EQ(conv2d(kHasDSP, 4), calculated_buffer);
-//   ASSERT_EQ(conv2d(kHasDSP, 8), calculated_buffer);
-//   ASSERT_EQ(conv2d(kHasDSP, 12), calculated_buffer);
-//   ASSERT_EQ(conv2d(kHasDSP, 16), calculated_buffer);
-//   ASSERT_EQ(conv2d(kHasDSP, 32), calculated_buffer);
+  ASSERT_EQ(conv2d(kHasDSP, 4), calculated_buffer);
+  ASSERT_EQ(conv2d(kHasDSP, 8), calculated_buffer);
+  ASSERT_EQ(conv2d(kHasDSP, 12), calculated_buffer);
+  ASSERT_EQ(conv2d(kHasDSP, 16), calculated_buffer);
+  ASSERT_EQ(conv2d(kHasDSP, 32), calculated_buffer);
 
-//   ASSERT_EQ(conv2d(kHasMVE, 4), calculated_buffer);
-//   ASSERT_EQ(conv2d(kHasMVE, 8), calculated_buffer);
-//   ASSERT_EQ(conv2d(kHasMVE, 12), calculated_buffer);
-//   ASSERT_EQ(conv2d(kHasMVE, 16), calculated_buffer);
-//   ASSERT_EQ(conv2d(kHasMVE, 32), calculated_buffer);
-// }
+  ASSERT_EQ(conv2d(kHasMVE, 4), calculated_buffer);
+  ASSERT_EQ(conv2d(kHasMVE, 8), calculated_buffer);
+  ASSERT_EQ(conv2d(kHasMVE, 12), calculated_buffer);
+  ASSERT_EQ(conv2d(kHasMVE, 16), calculated_buffer);
+  ASSERT_EQ(conv2d(kHasMVE, 32), calculated_buffer);
+}
 
 TEST(CMSISNNDepthwiseConv2dBufferSize, UnEvenChannels) {
   int32_t filter_w = fake_parameters(gen);
