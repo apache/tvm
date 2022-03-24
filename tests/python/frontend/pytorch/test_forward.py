@@ -3309,8 +3309,13 @@ def test_forward_unary():
         def forward(self, *args):
             return torch.log1p(args[0])
 
+    class Square(Module):
+        def forward(self, *args):
+            return torch.square(args[0])
+
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
+    verify_model(Square().float().eval(), input_data=input_data)
     verify_model(Sqrt1().float().eval(), input_data=input_data)
     verify_model(RSqrt1().float().eval(), input_data=input_data)
     verify_model(Ceil1().float().eval(), input_data=input_data)
