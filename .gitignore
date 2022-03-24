@@ -65,7 +65,6 @@ instance/
 # Sphinx documentation
 docs/_build/
 docs/_staging/
-gallery/how_to/work_with_microtvm/micro_tvmc.py
 
 # PyBuilder
 /target/
