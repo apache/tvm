@@ -862,6 +862,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
 #if TVM_LLVM_VERSION >= 90
   auto call_callee = llvm::FunctionCallee(callee_ftype, callee_value);
 #else
+  (void)callee_ftype;  // use callee_ftype to avoid unused variable warning when using older LLVM.
   auto call_callee = callee_value;
 #endif
   llvm::Value* call = builder_->CreateCall(call_callee, call_args);
