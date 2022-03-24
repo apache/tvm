@@ -388,12 +388,16 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
     if layout == "NHWC" and data.dtype in ["int8", "uint8"]:
         strategy.add_implementation(
             wrap_compute_conv2d_gemm(native_compute),
-            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_native),
+            wrap_topi_schedule(
+                topi.arm_cpu.schedule_conv2d_NHWC_quantized_native_without_transform
+            ),
             name="conv2d_NHWC_quantized_native_without_transform.arm_cpu",
         )
         strategy.add_implementation(
             wrap_compute_conv2d_gemm(interleaved_compute),
-            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved),
+            wrap_topi_schedule(
+                topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved_without_transform
+            ),
             name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
         )
     else:
