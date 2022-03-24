@@ -197,7 +197,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         }
         return Session(self, hexagon_remote_kw)
 
-    def load_module(self, module: Union[str, pathlib.Path], session: Session):
+    def load_module(self, module: Union[str, pathlib.Path, tvm.runtime.Module], session: Session):
         """Load TVM module.
 
         Parameters

@@ -91,7 +91,7 @@ class Session:
         """
         self._launcher.upload(local_path, remote_filename)
 
-    def load_module(self, module: Union[str, pathlib.Path, tvm.IRModule]):
+    def load_module(self, module: Union[str, pathlib.Path, tvm.runtime.Module]):
         """Load TVM module.
 
         Parameters
