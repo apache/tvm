@@ -249,6 +249,33 @@ class NDArray(NDArrayBase):
             return self._copyto(res)
         raise ValueError("Unsupported target type %s" % str(type(target)))
 
+    def _create_view(self, shape):
+        """Create a view into an existing array.
+
+        The view shares the same allocation and datatype as the
+        existing array, but can have a different array shape.  This is
+        useful for runtimes that support non-flat memory, where both
+        the physical shape of an allocation and the logical shape of
+        the tensor it represents may need to be independently
+        specified.
+
+        Warning: This function should not be used outside of low-level
+        manipulations, as it breaks non-aliasing assumptions made by
+        TVM.  This function may also be removed/replaced in the
+        future.
+
+        Parameters
+        ----------
+        shape: Union[tvm.runtime.ShapeTuple, Sequence[typing.SupportsInt]]
+
+            The shape of the view.
+        """
+
+        if not isinstance(shape, tvm.runtime.ShapeTuple):
+            shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
+
+        return _ffi_api.TVMArrayCreateView(self, shape)
+
 
 def device(dev_type, dev_id=0):
     """Construct a TVM device with given device type and id.
