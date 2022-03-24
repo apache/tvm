@@ -31,11 +31,18 @@ class Session:
 
     Parameters
     ----------
+    launcher : HexagonLauncherRPC
+        The launcher from which this session was started.
+
     remote_kw : dict
         Remote configs for RPC tracker.
 
     session_name : str
         Hexagon RPC session name.
+
+    remote_stack_size_bytes : int
+        The stack size of the remote device, to be passed to
+        tvm.contrib.hexagon.create_hexagon_session.
     """
 
     def __init__(
