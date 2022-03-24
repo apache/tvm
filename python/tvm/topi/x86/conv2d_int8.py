@@ -43,7 +43,7 @@ def _get_default_config_int8(
     out_dtype,
     is_depthwise=False,
     layout="NCHW",
-    int32_lanes=16,
+    int32_lanes=4,
 ):
     """
     Get default schedule config for the workload
@@ -172,6 +172,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
             padding,
             dilation,
             out_dtype,
+            int32_lanes=16,
         )
 
     # Pack data if raw 4-D data is provided.
