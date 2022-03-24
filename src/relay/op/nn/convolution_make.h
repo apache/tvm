@@ -143,7 +143,28 @@ inline Expr MakeDeformableConv(Expr data, Expr offset, Expr weight, Array<IndexE
   const Op& op = Op::Get(op_name);
   return Call(op, {data, offset, weight}, Attrs{attrs}, {});
 }
-
+template <typename T>
+inline Expr MakeDeformableV2Conv(Expr data, Expr offset, Expr mask, Expr weight, Array<IndexExpr> strides,
+                               Array<IndexExpr> padding, Array<IndexExpr> dilation,
+                               int deformable_groups, int groups, int channels,
+                               Array<IndexExpr> kernel_size, std::string data_layout,
+                               std::string kernel_layout, std::string out_layout,
+                               DataType out_dtype, std::string op_name) {
+  auto attrs = make_object<T>();
+  attrs->strides = strides;
+  attrs->padding = padding;
+  attrs->dilation = dilation;
+  attrs->deformable_groups = deformable_groups;
+  attrs->groups = groups;
+  attrs->channels = channels;
+  attrs->kernel_size = kernel_size;
+  attrs->data_layout = data_layout;
+  attrs->kernel_layout = kernel_layout;
+  attrs->out_layout = out_layout;
+  attrs->out_dtype = out_dtype;
+  const Op& op = Op::Get(op_name);
+  return Call(op, {data, offset, mask, weight}, Attrs{attrs}, {});
+}
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_OP_NN_CONVOLUTION_MAKE_H_

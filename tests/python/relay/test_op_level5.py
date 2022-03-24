@@ -1148,6 +1148,170 @@ class TestDeformableConv2D:
         )
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
+class TestDeformableV2Conv2D:
+    batch, in_channel, size, out_channel, deformable_groups = tvm.testing.parameters(
+        (1, 4, 16, 4, 4),
+        (2, 4, 16, 4, 1),
+    )
+    kernel_size = tvm.testing.parameter((3, 3))
+    groups = tvm.testing.parameter(1, 2)
+    layout = tvm.testing.parameter("NCHW", "NHWC")
+    dtype = tvm.testing.parameter("float32")
+
+    @tvm.testing.fixture
+    def data_shape(self, layout, batch, in_channel, size):
+        if layout == "NCHW":
+            return (batch, in_channel, size, size)
+        elif layout == "NHWC":
+            return (batch, size, size, in_channel)
+
+    @tvm.testing.fixture
+    def kernel_shape(self, layout, in_channel, out_channel, groups, kernel_size):
+        if layout == "NCHW":
+            return (out_channel, in_channel // groups, kernel_size[0], kernel_size[1])
+        elif layout == "NHWC":
+            return (kernel_size[0], kernel_size[1], in_channel // groups, out_channel)
+
+    @tvm.testing.fixture
+    def out_shape(self, layout, batch, out_channel, size):
+        if layout == "NCHW":
+            return (batch, out_channel, size, size)
+        elif layout == "NHWC":
+            return (batch, size, size, out_channel)
+
+    @tvm.testing.fixture
+    def offset_shape(self, layout, batch, kernel_size, deformable_groups, out_shape):
+        if layout == "NCHW":
+            return (
+                batch,
+                2 * kernel_size[0] * kernel_size[1] * deformable_groups,
+                out_shape[2],
+                out_shape[3],
+            )
+        elif layout == "NHWC":
+            return (
+                batch,
+                out_shape[1],
+                out_shape[2],
+                2 * kernel_size[0] * kernel_size[1] * deformable_groups,
+            )
+    def mask_shape(self, layout, batch, kernel_size, deformable_groups, out_shape):
+        if layout == "NCHW":
+            return (
+                batch,
+                kernel_size[0] * kernel_size[1] * deformable_groups,
+                out_shape[2],
+                out_shape[3],
+            )
+        elif layout == "NHWC":
+            return (
+                batch,
+                out_shape[1],
+                out_shape[2],
+                kernel_size[0] * kernel_size[1] * deformable_groups,
+            )
+    @tvm.testing.fixture
+    def kernel_layout(self, layout):
+        return {"NCHW": "OIHW", "NHWC": "HWIO"}[layout]
+
+    @tvm.testing.fixture
+    def relay_setup(
+        self,
+        dtype,
+        data_shape,
+        layout,
+        kernel_layout,
+        kernel_size,
+        deformable_groups,
+        groups,
+        out_channel,
+    ):
+        data = relay.var("data", shape=data_shape, dtype=dtype)
+        offset = relay.var("offset", dtype=dtype)
+        mask = relay.var("mask", dtype=dtype)
+        kernel = relay.var("kernel", dtype=dtype)
+        expr = relay.nn.deformableV2_conv2d(
+            data,
+            offset,
+            mask,
+            weight,
+            kernel,
+            strides=(1, 1),
+            padding=(1, 1),
+            dilation=(1, 1),
+            data_layout=layout,
+            kernel_layout=kernel_layout,
+            kernel_size=kernel_size,
+            deformable_groups=deformable_groups,
+            groups=groups,
+            channels=out_channel,
+        )
+        func = relay.Function([data, offset, mask, kernel], expr)
+        return expr, func
+
+    def test_infer_type(self, relay_setup, out_shape, offset_shape, mask_shape, kernel_shape):
+        expr, func = relay_setup
+        yy = run_infer_type(expr)
+        assert yy.checked_type == relay.TensorType(out_shape), yy.checked_type
+        assert yy.args[1].checked_type == relay.TensorType(offset_shape), yy.args[1].checked_type
+        assert yy.args[2].checked_type == relay.TensorType(mask_shape), yy.args[1].checked_type
+        assert yy.args[3].checked_type == relay.TensorType(kernel_shape), yy.args[2].checked_type
+
+    # The reference python implementation only supports groups==1.
+    @pytest.mark.parametrize("groups", [1])
+    def test_run(
+        self,
+        target,
+        dev,
+        dtype,
+        executor_kind,
+        data_shape,
+        offset_shape,
+        mask_shape,
+        kernel_shape,
+        relay_setup,
+        deformable_groups,
+        groups,
+        layout,
+    ):
+        target = tvm.target.Target(target)
+        if layout == "NHWC" and target.kind.name != "llvm":
+            pytest.xfail("Can only run NHWC layout on llvm")
+
+        expr, func = relay_setup
+        data = np.random.uniform(size=data_shape).astype(dtype)
+        offset = np.random.uniform(size=offset_shape).astype(dtype)
+        mask = np.random.uniform(size=mask_shape).astype(dtype)
+        kernel = np.random.uniform(size=kernel_shape).astype(dtype)
+        if layout == "NCHW":
+            ref_res = tvm.topi.testing.deformableV2_conv2d_nchw_python(
+                data,
+                offset,
+                mask,
+                kernel,
+                stride=(1, 1),
+                padding=(1, 1),
+                dilation=(1, 1),
+                deformable_groups=deformable_groups,
+                groups=groups,
+            )
+        else:
+            ref_res = tvm.topi.testing.deformableV2_conv2d_nhwc_python(
+                data,
+                offset,
+                mask,
+                kernel,
+                stride=(1, 1),
+                padding=(1, 1),
+                dilation=(1, 1),
+                deformable_groups=deformable_groups,
+                groups=groups,
+            )
+
+        op_res1 = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            data, offset,mask, kernel
+        )
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 @tvm.testing.uses_gpu
 def test_depth_to_space():
@@ -1392,24 +1556,20 @@ def test_affine_grid():
 
 @tvm.testing.uses_gpu
 def test_grid_sample():
-    def verify_grid_sample(data_shape, grid_shape, padding_mode="zeros"):
+    def verify_grid_sample(data_shape, grid_shape):
         dtype = "float32"
         batch, channel, _, _ = data_shape
         _, _, out_height, out_width = grid_shape
         data = relay.var("data", relay.ty.TensorType(data_shape, dtype))
         grid = relay.var("grid", relay.ty.TensorType(grid_shape, dtype))
-        y = relay.image.grid_sample(
-            data, grid, method="bilinear", layout="NCHW", padding_mode=padding_mode
-        )
+        y = relay.image.grid_sample(data, grid, method="bilinear", layout="NCHW")
         yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType((batch, channel, out_height, out_width), dtype)
         func = relay.Function([data, grid], y)
 
         data_np = np.random.uniform(size=data_shape).astype(dtype)
         grid_np = np.random.uniform(size=grid_shape, low=-1.5, high=1.5).astype(dtype)
-        ref_res = tvm.topi.testing.grid_sample_nchw_python(
-            data_np, grid_np, method="bilinear", padding_mode=padding_mode
-        )
+        ref_res = tvm.topi.testing.grid_sample_nchw_python(data_np, grid_np, method="bilinear")
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
@@ -1420,8 +1580,6 @@ def test_grid_sample():
 
     verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8))
     verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32))
-    verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8), "border")
-    verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32), "border")
 
 
 @tvm.testing.uses_gpu

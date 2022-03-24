@@ -32,6 +32,7 @@ from .conv2d_transpose_python import conv2d_transpose_nchw_python, conv2d_transp
 from .conv1d_transpose_ncw_python import conv1d_transpose_ncw_python
 from .correlation_nchw_python import correlation_nchw_python
 from .deformable_conv2d_python import deformable_conv2d_nchw_python, deformable_conv2d_nhwc_python
+from .deformableV2_conv2d_python import deformableV2_conv2d_nchw_python, deformableV2_conv2d_nhwc_python
 from .depthwise_conv2d_python import (
     depthwise_conv2d_python_nchw,
     depthwise_conv2d_python_nhwc,

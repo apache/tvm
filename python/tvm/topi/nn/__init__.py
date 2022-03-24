@@ -24,6 +24,7 @@ from .conv2d import *
 from .conv3d import *
 from .correlation import *
 from .deformable_conv2d import *
+from .deformableV2_conv2d import *
 from .depthwise_conv2d import *
 from .elemwise import *
 from .dilate import *

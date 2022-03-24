@@ -444,6 +444,57 @@ def deformable_conv2d_strategy(attrs, inputs, out_type, target):
         raise RuntimeError("Layout %s is not supported in deformable conv2d" % layout)
     return strategy
 
+# deformableV2_conv2d
+def wrap_compute_deformableV2_conv2d(topi_compute):
+    """wrap deformable_conv2d topi compute"""
+
+    def _compute_deformableV2_conv2d(attrs, inputs, out_dtype):
+        padding = get_const_tuple(attrs.padding)
+        strides = get_const_tuple(attrs.strides)
+        dilation = get_const_tuple(attrs.dilation)
+        deformable_groups = attrs.deformable_groups
+        groups = attrs.groups
+        out_dtype = attrs.out_dtype
+        out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
+        out = topi_compute(
+            inputs[0],
+            inputs[1],  # offset
+            inputs[2],  # mask
+            inputs[3],
+            strides,
+            padding,
+            dilation,
+            deformable_groups,
+            groups,
+            out_dtype,
+        )
+        return [out]
+
+    return _compute_deformableV2_conv2d
+
+
+@override_native_generic_func("deformableV2_conv2d_strategy")
+def deformableV2_conv2d_strategy(attrs, inputs, out_type, target):
+    """deformableV2_conv2d generic strategy"""
+    layout = attrs.data_layout
+    strategy = _op.OpStrategy()
+
+    if layout == "NCHW":
+        strategy.add_implementation(
+            wrap_compute_deformableV2_conv2d(topi.nn.deformableV2_conv2d_nchw),
+            wrap_topi_schedule(topi.generic.schedule_deformableV2_conv2d_nchw),
+            name="deformableV2_conv2d_nchw.generic",
+        )
+    elif layout == "NHWC":
+        # This implementation should never be picked by autotvm
+        strategy.add_implementation(
+            wrap_compute_deformableV2_conv2d(topi.nn.deformableV2_conv2d_nhwc),
+            naive_schedule,
+            name="deformableV2_conv2d_nhwc.generic",
+        )
+    else:
+        raise RuntimeError("Layout %s is not supported in deformableV2 conv2d" % layout)
+    return strategy
 
 # conv2d_transpose
 def wrap_compute_conv2d_transpose(topi_compute, has_groups=False, add_layout=False):
@@ -545,8 +596,10 @@ def wrap_compute_conv3d(topi_compute, need_layout=False, need_auto_scheduler_lay
         (dilation_d, dilation_h, dilation_w) = dilation
         if dilation_d < 1 or dilation_h < 1 or dilation_w < 1:
             raise ValueError("Dilation should be positive value")
+        if groups != 1:
+            raise ValueError("Not support arbitrary group number for conv3d")
 
-        args = [inputs[0], inputs[1], strides, padding, dilation, groups]
+        args = [inputs[0], inputs[1], strides, padding, dilation]
         if need_layout:
             args.append(layout)
         args.append(out_dtype)
