@@ -152,8 +152,8 @@ def extract_task_qbert():
 
 
 def extract_task_arm_conv2d_nchwc():
-    data_shape = (1, 32, 128, 128)
-    weight_shape = (32, 32, 1, 1)
+    data_shape = (1, 64, 128, 128)
+    weight_shape = (32, 64, 1, 1)
     bias_shape = (weight_shape[0],)
     padding = (1, 1)
 
@@ -192,7 +192,7 @@ def extract_task_arm_conv2d_nchwc():
     out_type = relay_func.body.checked_type
 
     # Check that the output is in NCHWc layout
-    assert list(out_type.shape) == [1, 1, 130, 130, 32]
+    assert list(out_type.shape) == [1, 8, 130, 130, 4]
 
 
 if __name__ == "__main__":
