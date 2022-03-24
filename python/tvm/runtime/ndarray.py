@@ -332,7 +332,7 @@ def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):
 
     Parameters
     ----------
-    shape : tuple of int
+    shape : Union[tvm.runtime.ShapeTuple, Sequence[typing.SupportsInt]]
         The shape of the array.
 
     dtype : type or str
@@ -349,18 +349,10 @@ def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):
     arr : tvm.nd.NDArray
         The array tvm supported.
     """
-    shape_imm = []
-    for s in shape:
-        if isinstance(s, tvm.tir.IntImm):
-            shape_imm.append(s.value)
-        else:
-            shape_imm.append(int(s))
-    arr = np.array(shape_imm, "int64")
-    ptr = arr.ctypes.data_as(ctypes.POINTER(ctypes.c_int64))
-    shape_ptr = ctypes.cast(ptr, ctypes.c_void_p)
-    ndim = len(shape_imm)
+    if not isinstance(shape, tvm.runtime.ShapeTuple):
+        shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
     dtype = DataType(dtype)
-    arr = _ffi_api.TVMArrayAllocWithScope(shape_ptr, ndim, dtype, device, mem_scope)
+    arr = _ffi_api.TVMArrayAllocWithScope(shape, dtype, device, mem_scope)
     return arr
 
 

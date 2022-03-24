@@ -282,16 +282,7 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
   API_END();
 }
 
-TVM_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body([](TVMArgs args, TVMRetValue* ret) {
-  int64_t* shape_ptr = static_cast<int64_t*>(static_cast<void*>(args[0]));
-  int ndim = args[1];
-  ShapeTuple shape(shape_ptr, shape_ptr + ndim);
-  DataType dtype = args[2];
-  tvm::Device dev = args[3];
-  Optional<String> mem_scope = args[4];
-  auto ndarray = NDArray::Empty(shape, dtype, dev, mem_scope);
-  *ret = ndarray;
-});
+TVM_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body_typed(NDArray::Empty);
 
 TVM_REGISTER_GLOBAL("runtime.TVMArrayCreateView").set_body_typed([](NDArray arr, ShapeTuple shape) {
   NDArray view = arr.CreateView(shape, arr->dtype);
