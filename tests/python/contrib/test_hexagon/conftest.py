@@ -81,7 +81,7 @@ def android_serial_number() -> Optional[str]:
 
 listen_port_min = 2000  # Well above the privileged ports (1024 or lower)
 listen_port_max = 9000  # Below the search range end (port_end=9199) of RPC server
-previous_port = [None]
+previous_port = None
 
 
 def get_free_port():
@@ -90,15 +90,16 @@ def get_free_port():
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             return s.connect_ex(("localhost", port)) == 0
 
-    if previous_port[0] is None:
+    global previous_port
+    if previous_port is None:
         port = random.randint(listen_port_min, listen_port_max)
     else:
-        port = previous_port[0] + 1
+        port = previous_port + 1
 
     while is_port_in_use(port):
         port = port + 1 if port < listen_port_max else listen_port_min
 
-    previous_port[0] = port
+    previous_port = port
     return port
 
 
