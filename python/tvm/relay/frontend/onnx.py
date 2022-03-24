@@ -3720,8 +3720,8 @@ class QLinearConv(OnnxOpConverter):
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
                 # Warning: Convolution does not yet support dynamic shapes,
                 # one will need to run dynamic_to_static on this model after import
-                zp = fold_constant(x_zero_point), "Zero point expected to be a constant"
-                assert isinstance(zp, relay.Constant)
+                zp = fold_constant(x_zero_point)
+                assert isinstance(zp, relay.Constant), "Zero point expected to be a constant"
                 data = autopad(
                     data,
                     attr.get("strides", [1] * (ndim - 2)),
