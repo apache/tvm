@@ -15,7 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Support infra of TVM."""
+import json
+import textwrap
 import ctypes
+import os
+import tvm
+import sys
 import tvm._ffi
 from .runtime.module import Module
 from . import get_global_func
@@ -37,6 +42,23 @@ def libinfo():
     else:
         return {}
     return dict(lib_info.items())
+
+
+def describe():
+    info = [(k, v) for k, v in libinfo().items()]
+    info = {k: v for k, v in sorted(info, key=lambda x: x[0])}
+    print("Python Environment")
+    sys_version = sys.version.replace("\n", " ")
+    uname = os.uname()
+    uname = f"{uname.sysname} {uname.release} {uname.version} {uname.machine}"
+    lines = [
+        f"TVM version    = {tvm.__version__}",
+        f"Python version = {sys_version} ({sys.maxsize.bit_length() + 1} bit)",
+        f"os.uname()     = {uname}",
+    ]
+    print(textwrap.indent("\n".join(lines), prefix="  "))
+    print("CMake Options:")
+    print(textwrap.indent(json.dumps(info, indent=2), prefix="  "))
 
 
 class FrontendTestModule(Module):

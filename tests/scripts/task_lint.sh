@@ -31,6 +31,9 @@ tests/scripts/task_convert_scripts_to_python.sh
 echo "Checking file types..."
 python3 tests/lint/check_file_type.py
 
+echo "Checking CMake <-> LibInfo options mirroring"
+python3 tests/lint/check_cmake_options.py
+
 echo "Checking ASF license headers..."
 tests/lint/check_asf_header.sh --local
 
