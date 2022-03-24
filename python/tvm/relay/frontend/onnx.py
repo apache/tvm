@@ -1484,11 +1484,21 @@ class Squeeze(OnnxOpConverter):
 
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
+        ishape = infer_shape(inputs[0])
         axis = inputs[1]
+
+        if axis is None:
+            # If axes is not provided, all the single dimensions will be removed from the shape.
+            if not ishape:  # scalar
+                return inputs[0]
+
+            axis = [i for i in range(len(ishape)) if ishape[i] == 1]
+            axis = _op.const(axis)
+
         dtype = infer_type(axis).checked_type.dtype
 
         if isinstance(axis, _expr.Constant):
-            constant_axes = list(inputs[1].data.numpy())
+            constant_axes = list(axis.data.numpy())
             constant_axes = list(map(int, constant_axes))
             return _op.squeeze(inputs[0], constant_axes)
 
