@@ -293,6 +293,11 @@ TVM_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body([](TVMArgs args, 
   *ret = ndarray;
 });
 
+TVM_REGISTER_GLOBAL("runtime.TVMArrayCreateView").set_body_typed([](NDArray arr, ShapeTuple shape) {
+  NDArray view = arr.CreateView(shape, arr->dtype);
+  return view;
+});
+
 int TVMArrayFree(TVMArrayHandle handle) {
   API_BEGIN();
   NDArray::Internal::FFIDecRef(handle);
