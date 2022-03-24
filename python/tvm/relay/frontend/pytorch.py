@@ -307,6 +307,10 @@ class PyTorchOpConverter:
         one = _expr.const(1, dtype=dtype)
         return _op.log(inputs[0] + one)
 
+    def square(self, inputs, input_types):
+        (dtype,) = input_types
+        return _op.power(inputs[0], _expr.const(2, dtype))
+
     def arange(self, inputs, input_types):
         def _get_value(val, dtype):
             # dtype is a tvm dtype
@@ -3093,6 +3097,7 @@ class PyTorchOpConverter:
             "aten::sign": self.make_unary("sign"),
             "aten::sqrt": self.make_unary("sqrt"),
             "aten::rsqrt": self.make_unary("rsqrt"),
+            "aten::square": self.square,
             "aten::ceil": self.make_unary("ceil"),
             "aten::floor": self.make_unary("floor"),
             "aten::round": self.make_unary("round"),
