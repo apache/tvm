@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import tvm.testing
+
 import pytest
 
 import tvm.relay
@@ -28,7 +30,7 @@ except ImportError as e:
     torch = None
     import_torch_error = str(e)
 
-
+@tvm.testing.requires_gpu
 @pytest.mark.skipif(torch is None, reason=f"PyTorch is not available: {import_torch_error}")
 def test_backend():
     @torch.jit.script
