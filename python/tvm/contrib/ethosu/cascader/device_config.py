@@ -439,6 +439,23 @@ class EthosuDeviceConfig:
 
         return part_kernel_first_utilization > depth_first_utilization or ifm_channels <= 8
 
+    def _get_input_banks(self, input_block_shape, input_bytewidth):
+        input_bytes = input_block_shape.area() * self._align(
+            input_block_shape.depth * input_bytewidth, 8
+        )
+        input_banks = _round_up_div(input_bytes, self._bank_size_bytes) * 2
+        input_banks = _round_up(input_banks, self._input_granularity)
+
+        return input_banks
+
+    def _get_accumulator_banks(self, output_block_shape, acc_bytewidth, depth):
+        acc_depth = _round_up(min(output_block_shape.depth, depth), 8)
+        acc_bytes = output_block_shape.area() * self._align(acc_depth, 8) * acc_bytewidth
+        acc_banks = _round_up_div(acc_bytes, self._bank_size_bytes) * 2
+        acc_banks = _round_up(acc_banks, self._accumulator_granularity[acc_bytewidth])
+
+        return acc_banks
+
     def get_elementwise_block_config(
         self,
         ifm_propagator: Propagator,
@@ -533,16 +550,9 @@ class EthosuDeviceConfig:
             input2_block.round_up(self._input_micro_block)
 
             # Banks required for input block
-            input_bytes = input_block.area() * self._align(input_block.depth * input_bytewidth, 8)
-            input_banks = _round_up_div(input_bytes, self._bank_size_bytes) * 2
-            input_banks = _round_up(input_banks, self._input_granularity)
-
+            input_banks = self._get_input_banks(input_block, input_bytewidth)
             # Banks required for input2 block
-            input2_bytes = input2_block.area() * self._align(
-                input2_block.depth * input_bytewidth, 8
-            )
-            input2_banks = _round_up_div(input2_bytes, self._bank_size_bytes) * 2
-            input2_banks = _round_up(input2_banks, self._input_granularity)
+            input2_banks = self._get_input_banks(input2_block, input_bytewidth)
 
             # Check whether or not both IFMs fit into SHRAM
             if (input_banks + input2_banks) <= banks_available:
@@ -560,6 +570,29 @@ class EthosuDeviceConfig:
             output_block[split_axis] = _round_up_div(output_block[split_axis], 2)
 
         return block_config
+
+    def _get_subkernel_propagator(
+        self, op_attrs, ifm_propagator, input_layout, output_layout, depth
+    ):
+        op_type = op_attrs.get("op")
+        stride_h = int(op_attrs.get("stride_h", 1))
+        stride_w = int(op_attrs.get("stride_w", 1))
+        transform = ifm_propagator.transform
+
+        if input_layout == "NHCWB16":
+            transform[1][-1] = min(transform[1][-1], self._subkernel_limits[0] - stride_h)
+            transform[3][-1] = min(transform[3][-1], self._subkernel_limits[1] - stride_w)
+        else:
+            transform[1][-1] = min(transform[1][-1], self._subkernel_limits[0] - stride_h)
+            transform[2][-1] = min(transform[2][-1], self._subkernel_limits[1] - stride_w)
+
+        if op_type in ("ethosu_pooling", "ethosu_depthwise_conv2d"):
+            if output_layout == "NHCWB16" and input_layout == "NHWC":
+                transform[3][-1] = depth
+            elif output_layout == "NHCWB16" and input_layout == "NHCWB16":
+                transform[2][-1] = depth // 16
+
+        return Propagator(transform, ifm_propagator.offset)
 
     def get_valid_block_configs(
         self,
@@ -612,32 +645,12 @@ class EthosuDeviceConfig:
         op_type = op_attrs.get("op")
         op_str = op_attrs.get("op_str")
         activation = op_attrs.get("activation", "NONE")
-        stride_h = int(op_attrs.get("stride_h", 1))
-        stride_w = int(op_attrs.get("stride_w", 1))
         upscaling_factor = 1 if op_attrs.get("upscale", "NONE") == "NONE" else 2
 
-        subkernel_transform = ifm_propagator.transform
         if output_layout == "NHCWB16":
             output_shape = _Shape([1, ofm_shape[1], ofm_shape[3], ofm_channels])
         else:
             output_shape = _Shape(ofm_shape)
-
-        if input_layout == "NHCWB16":
-            subkernel_transform[1][-1] = min(
-                subkernel_transform[1][-1], self._subkernel_limits[0] - stride_h
-            )
-            subkernel_transform[3][-1] = min(
-                subkernel_transform[3][-1], self._subkernel_limits[1] - stride_w
-            )
-        else:
-            subkernel_transform[1][-1] = min(
-                subkernel_transform[1][-1], self._subkernel_limits[0] - stride_h
-            )
-            subkernel_transform[2][-1] = min(
-                subkernel_transform[2][-1], self._subkernel_limits[1] - stride_w
-            )
-
-        subkernel_propagator = Propagator(subkernel_transform, ifm_propagator.offset)
 
         # Define search space
         max_height = min(output_shape.height, self._max_block_shape.height)
@@ -655,7 +668,7 @@ class EthosuDeviceConfig:
         if activation == "LUT" and not self._lut_reserved:
             banks_available -= 2
 
-        # Input block depth has additional limitations for Operators that require full input depth
+        # Input block depth has additional limitations for operators that require full input depth
         input_block_depth = 0
         is_partkernel = self.is_partkernel(op_type, ifm_channels, ifm_dtype, kernel_h * kernel_w)
         if op_type == "ethosu_conv2d":
@@ -668,6 +681,10 @@ class EthosuDeviceConfig:
             if (depth < output_shape.depth) and (depth % self._split_depth != 0):
                 # Block depth has to be less than full depth or a multiple of the split depth
                 continue
+
+            subkernel_propagator = self._get_subkernel_propagator(
+                op_attrs, ifm_propagator, input_layout, output_layout, depth
+            )
 
             for width in range(min_width, max_width + min_width, min_width):
                 for height in range(min_height, max_height + min_height, min_height):
@@ -709,19 +726,11 @@ class EthosuDeviceConfig:
                         input_block_shape.depth = input_block_depth
 
                     # Banks required for input block
-                    input_bytes = input_block_shape.area() * self._align(
-                        input_block_shape.depth * input_bytewidth, 8
-                    )
-                    input_banks = _round_up_div(input_bytes, self._bank_size_bytes) * 2
-                    input_banks = _round_up(input_banks, self._input_granularity)
-
+                    input_banks = self._get_input_banks(input_block_shape, input_bytewidth)
                     # Banks required for accumulation
-                    acc_depth = _round_up(min(output_block_shape.depth, ofm_channels), 8)
-                    acc_bytes = (
-                        output_block_shape.area() * self._align(acc_depth, 8) * acc_bytewidth
+                    acc_banks = self._get_accumulator_banks(
+                        output_block_shape, acc_bytewidth, depth
                     )
-                    acc_banks = _round_up_div(acc_bytes, self._bank_size_bytes) * 2
-                    acc_banks = _round_up(acc_banks, self._accumulator_granularity[acc_bytewidth])
 
                     if (input_banks + acc_banks) <= banks_available:
                         output_cycles = self._get_output_cycles(

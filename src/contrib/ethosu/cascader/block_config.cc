@@ -37,6 +37,8 @@ void BlockConfigNode::VisitAttrs(AttrVisitor* v) {
   v->Visit("_input_shape", &tmp_arr);
   tmp_arr = make_array(output_shape_);
   v->Visit("_output_shape", &tmp_arr);
+  v->Visit("_compute_cycles", &compute_cycles_);
+  v->Visit("_output_cycles", &output_cycles_);
 }
 
 BlockConfig::BlockConfig(const std::vector<int>& input_shape, const std::vector<int>& output_shape,
@@ -44,8 +46,8 @@ BlockConfig::BlockConfig(const std::vector<int>& input_shape, const std::vector<
   auto n = make_object<BlockConfigNode>();
   n->input_shape_ = std::move(input_shape);
   n->output_shape_ = std::move(output_shape);
-  n->compute_cycles_ = compute_cycles;
-  n->output_cycles_ = output_cycles;
+  n->compute_cycles_ = std::move(compute_cycles);
+  n->output_cycles_ = std::move(output_cycles);
   data_ = std::move(n);
 }
 

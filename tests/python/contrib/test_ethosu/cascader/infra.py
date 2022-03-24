@@ -64,7 +64,15 @@ if ethosu_enabled:
         return te_graph, consts
 
     def make_matrices(
-        op_type, kernel, stride, padding, ifm_layout, ofm_layout, dilation=(1, 1), ifm_channels=1
+        op_type,
+        kernel,
+        stride,
+        padding,
+        ifm_layout,
+        ofm_layout,
+        dilation=(1, 1),
+        ifm_channels=1,
+        ofm_channels=1,
     ):
         kernel_h, kernel_w = kernel
         stride_h, stride_w = stride
@@ -83,7 +91,7 @@ if ethosu_enabled:
             [1, 0, 0, 0, 0, 0],
             [0, 1, 0, 0, 0, 0],
             [0, 0, 0, 1, 0, 0],
-            [0, 0, 16, 0, 1, -16],
+            [0, 0, 0, 0, 0, ofm_channels],
             [0, 0, 0, 0, 0, 1],
         ]
         if op_type == "ethosu_conv2d":
