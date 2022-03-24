@@ -30,6 +30,7 @@ except ImportError as e:
     torch = None
     import_torch_error = str(e)
 
+
 @tvm.testing.requires_gpu
 @pytest.mark.skipif(torch is None, reason=f"PyTorch is not available: {import_torch_error}")
 def test_backend():
