@@ -350,7 +350,7 @@ def test_aot_executor(hexagon_launcher, hexagon_session):
             params=params,
             target=tvm.target.Target(target_hexagon, host="c"),
             runtime=Runtime("cpp"),
-            executor=Executor("aot", {"unpacked-api": False, "interface-api": "c"}),
+            executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )
         # Uncomment this once the workaround is not needed.
         # lowered.export_library(
@@ -442,7 +442,7 @@ def test_aot_executor_multiple_conv2d(hexagon_launcher, hexagon_session):
             params=params,
             target=tvm.target.Target(target_hexagon, host="c"),
             runtime=Runtime("cpp"),
-            executor=Executor("aot", {"unpacked-api": False, "interface-api": "c"}),
+            executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )
         # Uncomment this once the workaround is not needed.
         # lowered.export_library(
