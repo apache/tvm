@@ -4205,5 +4205,51 @@ def test_list_tuple():
     relay.frontend.from_pytorch(script_module, [("x", x.shape)])
 
 
+@tvm.testing.uses_gpu
+def test_binary_bitwise():
+    def test_ior(x, y):
+        return x.__ior__(y)
+
+    def test_iand(x, y):
+        return x.__iand__(y)
+
+    def test_ixor(x, y):
+        return x.__ixor__(y)
+
+    x = torch.tensor([7, 49, 16, 1, 2, 3], dtype=torch.uint8)
+    y = torch.tensor([39, 128, 99, 228, 63, 17], dtype=torch.uint8)
+
+    for test_fn in [test_ior, test_iand, test_ixor]:
+        verify_model(test_fn, [x, y])
+
+
+@tvm.testing.uses_gpu
+def test_shift():
+    def test_lshift(x, y):
+        return x << y
+
+    def test_rshift(x, y):
+        return x >> y
+
+    x = torch.tensor([39, 128, 99, 228, 63, 17], dtype=torch.int32)
+    y = torch.tensor([3, 2, 7, 4, 5, 9], dtype=torch.int32)
+
+    for test_fn in [test_lshift, test_rshift]:
+        verify_model(test_fn, [x, y])
+
+
+@tvm.testing.uses_gpu
+def test_mod():
+    def test_fmod(x, y):
+        return torch.fmod(x, y)
+
+    def test_remainder(x, y):
+        return torch.fmod(x, y)
+
+    for test_fn in [test_fmod, test_remainder]:
+        verify_model(test_fn, [torch.tensor([-3.0, -2, -1, 1, 2, 3]), torch.tensor(2)])
+        verify_model(test_fn, [torch.tensor([1, 2, 3, 4, 5]), torch.tensor(-1.5)])
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

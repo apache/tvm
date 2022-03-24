@@ -46,6 +46,7 @@
 #include <tuple>
 #include <vector>
 
+#include "../../../driver/internal_driver_api.h"
 #include "../../../target/metadata_module.h"
 #include "../../../target/source/codegen_source_base.h"
 #include "../../op/annotation/annotation.h"
@@ -1034,14 +1035,7 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetMap& targets,
 
 IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   VLOG_CONTEXT << "VM Optimize";
-  if (params_.size()) {
-    BaseFunc base_func = mod->Lookup("main");
-    ICHECK(base_func->IsInstance<FunctionNode>())
-        << "VM compiler expects to compile relay::Function";
-    auto f = relay::backend::BindParamsByName(Downcast<Function>(base_func), params_);
-    auto gvar = mod->GetGlobalVar("main");
-    mod->Add(gvar, f);
-  }
+  backend::BindParamsInModule(mod, params_);
 
   Array<Pass> pass_seqs = relay::backend::GetPassPrefix(
       /*is_homogenous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/true);
@@ -1158,7 +1152,7 @@ void VMCompiler::Codegen() {
     LOG(INFO) << "All lowered functions have been build by BYOC -- generating an empty TVM module";
     lib = codegen::CSourceModuleCreate(";", "", Array<String>{});
   } else {
-    lib = tvm::build(per_tvm_target_modules, config_->host_target);
+    lib = tvm::TIRToRuntime(per_tvm_target_modules, config_->host_target);
   }
 
   lib = codegen::CreateMetadataModule(params_, lib, ext_mods, config_->host_target,

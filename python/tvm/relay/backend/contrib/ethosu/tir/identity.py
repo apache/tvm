@@ -18,7 +18,14 @@
 """Extract information from the identity operator in TIR."""
 from typing import Dict, Tuple
 import tvm
-from .spec import SerialKernel, SerialActivation, SerialPooling, SerialPadding, SerialFeatureMap
+from .spec import (
+    SerialBlockConfig,
+    SerialKernel,
+    SerialActivation,
+    SerialPooling,
+    SerialPadding,
+    SerialFeatureMap,
+)
 from .utils import get_op_attrs, get_base_address, get_strides, get_loads
 
 
@@ -164,6 +171,7 @@ def get_identity_params(
             activation=serial_activation,
             upscale="NONE",
             rounding_mode="TFL",
+            block_config=SerialBlockConfig(0, 0, 0),
         ),
         output_pointer,
         replace_pointer,

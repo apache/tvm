@@ -4,6 +4,7 @@ project(tvm C CXX)
 # Utility functions
 include(cmake/utils/Utils.cmake)
 include(cmake/utils/Summary.cmake)
+include(cmake/utils/Linker.cmake)
 include(cmake/utils/FindCUDA.cmake)
 include(cmake/utils/FindOpenCL.cmake)
 include(cmake/utils/FindVulkan.cmake)
@@ -68,6 +69,7 @@ tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
 tvm_option(USE_PAPI "Use Performance Application Programming Interface (PAPI) to read performance counters" OFF)
 tvm_option(USE_GTEST "Use GoogleTest for C++ sanity tests" AUTO)
 tvm_option(USE_CUSTOM_LOGGING "Use user-defined custom logging, tvm::runtime::detail::LogFatalImpl and tvm::runtime::detail::LogMessageImpl must be implemented" OFF)
+tvm_option(USE_ALTERNATIVE_LINKER "Use 'mold' or 'lld' if found when invoking compiler to link artifact" AUTO)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -446,7 +448,7 @@ include(cmake/modules/StandaloneCrt.cmake)
 include(cmake/modules/Zephyr.cmake)
 include(cmake/modules/Arduino.cmake)
 include(cmake/modules/CUDA.cmake)
-include(cmake/modules/Hexagon.cmake)
+include(cmake/modules/Hexagon.cmake) # This must come before logging.cmake
 include(cmake/modules/OpenCL.cmake)
 include(cmake/modules/OpenMP.cmake)
 include(cmake/modules/Vulkan.cmake)
@@ -764,6 +766,8 @@ if(USE_CCACHE) # True for AUTO, ON, /path/to/ccache
   # Set the flag for ccache
   set(CXX_COMPILER_LAUNCHER PATH_TO_CCACHE)
 endif(USE_CCACHE)
+
+find_and_set_linker(${USE_ALTERNATIVE_LINKER})
 
 if(${SUMMARIZE})
   print_summary()

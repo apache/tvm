@@ -14,8 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import hashlib
+
 import tvm
 from tvm import te
+from tvm.ir.base import save_json
+from tvm.ir.module import IRModule
+
 
 # A test program which gives the opportunity for the CSE pass to introduce two new variables, at two different levels
 def test_cse():
@@ -131,6 +136,49 @@ def test_cse():
     assert tvm.ir.structural_equal(body.value, cse_var_2 + z3)
 
     assert isinstance(body.body, tvm.tir.BufferStore)
+
+
+def test_deterministic_cse():
+    import random
+
+    """Test deterministic allocation of CSE vars
+
+    We expect something like
+
+        result = (x + 1) + (x + 2) + (x + 3) + (x + 1) + (x + 2) + (x + 3)
+            -->
+        cse_var_3 = (x + 1)
+        cse_var_2 = (x + 2)
+        cse_var_1 = (x + 3)
+        result = cse_var_3 + cse_var_2 + cse_var_1 + cse_var_3 + cse_var_2 + cse_var_1
+    """
+    NUM_TERMS = 10
+    REPEATS = 10
+
+    x = te.var("x")
+    result = te.var("result")
+
+    offsets = sorted([i + 1 for i in range(NUM_TERMS)])
+    inc1 = [(x + offsets[i]) for i in range(NUM_TERMS)]
+    inc2 = [(x + offsets[i]) for i in range(NUM_TERMS)]
+
+    expression = x
+    for add in inc1 + inc2:
+        expression = expression + add
+    let_stmt = tvm.tir.LetStmt(result, expression, tvm.tir.Evaluate(result))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([x], let_stmt))
+
+    initial_hash = None
+    for _ in range(REPEATS):
+        body = tvm.tir.transform.CommonSubexprElimTIR()(mod)["main"]
+
+        # Hash and ensure serialize json is the same every time
+        json_val = save_json(body)
+        json_hash = hashlib.sha256(json_val.encode()).hexdigest()
+
+        if initial_hash is None:
+            initial_hash = json_hash
+        assert json_hash == initial_hash
 
 
 # First specific test for if nodes : Some duplicated computations appear only in one branch (here the Then branch), not in both branches.

@@ -29,6 +29,7 @@
 #include <tvm/relay/qnn/transform.h>
 
 #include "te_compiler.h"
+#include "tvm/runtime/ndarray.h"
 
 namespace tvm {
 namespace relay {
@@ -225,15 +226,11 @@ Array<Pass> GetPassPrefix(bool is_homegeneous, bool is_vm) {
     // eta expand to support constructors in argument position
     pass_seqs.push_back(transform::EtaExpand(
         /* expand_constructor */ true, /* expand_global_var */ false));
-  } else {
-    // Convert Dynamic ops to static versions
-    pass_seqs.push_back(transform::DynamicToStatic());
   }
 
   PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
     Expr expr = args[0];
-    if (expr.as<CallNode>()) {
-      auto call_node = expr.as<CallNode>();
+    if (auto* call_node = expr.as<CallNode>()) {
       auto op_node = call_node->op.as<OpNode>();
       if (op_node->name == "cast") {
         auto attrs = call_node->attrs.as<CastAttrs>();
@@ -245,12 +242,12 @@ Array<Pass> GetPassPrefix(bool is_homegeneous, bool is_vm) {
     *rv = false;
   });
   pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
-  pass_seqs.push_back(transform::SimplifyExpr());
   pass_seqs.push_back(transform::CombineParallelConv2D(3));
   pass_seqs.push_back(transform::CombineParallelDense(3));
   pass_seqs.push_back(transform::CombineParallelBatchMatmul(3));
   pass_seqs.push_back(transform::FoldConstant());
   pass_seqs.push_back(transform::FoldScaleAxis());
+  pass_seqs.push_back(transform::SimplifyExpr());
   pass_seqs.push_back(transform::CanonicalizeCast());
   pass_seqs.push_back(transform::CanonicalizeOps());
 
@@ -306,6 +303,56 @@ std::vector<int64_t> ShapeToJSON(tvm::Array<IndexExpr> shape) {
     ret.push_back(*pval);
   }
   return ret;
+}
+
+relay::Function BindParamsByName(relay::Function func,
+                                 const std::unordered_map<std::string, runtime::NDArray>& params) {
+  std::unordered_map<std::string, relay::Var> name_dict;
+  std::unordered_set<relay::Var, ObjectPtrHash, ObjectPtrEqual> repeat_var;
+  for (auto arg : func->params) {
+    const auto& name = arg->name_hint();
+    if (name_dict.count(name)) {
+      repeat_var.insert(name_dict[name]);
+    } else {
+      name_dict[name] = arg;
+    }
+  }
+
+  std::unordered_map<relay::Var, Expr, ObjectPtrHash, ObjectPtrEqual> bind_dict;
+  for (auto& kv : params) {
+    if (name_dict.count(kv.first) == 0) {
+      continue;
+    }
+    auto arg = name_dict.at(kv.first);
+    if (repeat_var.count(arg)) {
+      LOG(FATAL) << "Multiple args in the function have name " << kv.first;
+    }
+    bind_dict[arg] = Constant(kv.second);
+  }
+  Expr bound_expr = relay::Bind(func, bind_dict);
+  Function ret = Downcast<Function>(bound_expr);
+  ICHECK(ret.defined()) << "The returning type is expected to be a Relay Function."
+                        << "\n";
+  return ret;
+}
+
+void BindParamsInModule(IRModule mod,
+                        const std::unordered_map<std::string, runtime::NDArray>& params) {
+  if (!params.empty()) {
+    BaseFunc base_func = mod->Lookup("main");
+    ICHECK(base_func->IsInstance<FunctionNode>());
+    auto f = relay::backend::BindParamsByName(Downcast<Function>(base_func), params);
+    auto gvar = mod->GetGlobalVar("main");
+    mod->Add(gvar, f);
+  }
+}
+
+void BindParamsInModule(IRModule mod, Map<String, runtime::NDArray> params) {
+  std::unordered_map<std::string, runtime::NDArray> params_tmp;
+  for (const auto& kv : params) {
+    params_tmp[kv.first] = kv.second;
+  }
+  BindParamsInModule(mod, params_tmp);
 }
 
 }  // namespace backend

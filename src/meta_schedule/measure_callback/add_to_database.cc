@@ -36,12 +36,15 @@ class AddToDatabaseNode : public MeasureCallbackNode {
     for (int i = 0; i < n; ++i) {
       RunnerResult result = runner_results[i];
       MeasureCandidate candidate = measure_candidates[i];
-      if (result->error_msg.defined()) {
-        continue;
+      Array<FloatImm> run_secs{nullptr};
+      if (result->run_secs.defined()) {
+        run_secs = result->run_secs.value();
+      } else {
+        run_secs = Array<FloatImm>{FloatImm(DataType::Float(32), 1e10)};
       }
       database->CommitTuningRecord(TuningRecord(
           /*trace=*/candidate->sch->trace().value(),
-          /*run_secs=*/result->run_secs.value(),
+          /*run_secs=*/run_secs,
           /*workload=*/workload,
           /*target=*/target,
           /*args_info=*/candidate->args_info));

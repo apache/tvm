@@ -551,7 +551,7 @@ class EthosuDeviceConfig:
                 )
                 output_cycles *= reduce(lambda a, b: a * b, output_block, 1)
                 output_cycles = int(math.ceil(output_cycles))
-                block_config.append(BlockConfig(output_block, 0, output_cycles))
+                block_config.append(BlockConfig(output_block, output_block, 0, output_cycles))
                 break
 
             if output_block[split_axis] == 1:
@@ -738,9 +738,10 @@ class EthosuDeviceConfig:
                             ifm_channels,
                             is_partkernel,
                         )
-                        valid_block_configs.append(
-                            BlockConfig(output_block, compute_cycles, output_cycles)
+                        block_config = BlockConfig(
+                            input_block_shape.as_list(), output_block, compute_cycles, output_cycles
                         )
+                        valid_block_configs.append(block_config)
                     else:
                         # Block config does not fit into SHRAM
                         # Any Block config that is strictly larger than this one will also fail

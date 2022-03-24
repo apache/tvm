@@ -15,13 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """The TensorIR schedule class"""
-from typing import Dict, List, Optional, Union
+import enum
+from typing import Callable, Dict, List, Optional, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import IRModule, PrimExpr
 from tvm.runtime import Object, String
 from tvm.tir import Block, FloatImm, For, IntImm, PrimFunc
+from ..function import IndexMap
 
 from . import _ffi_api
 from .state import ScheduleState, StmtSRef, _parse_debug_mask, _parse_mod
@@ -69,6 +71,13 @@ _ERROR_RENDER_LEVEL: Dict[str, int] = {
     "fast": 1,
     "none": 2,
 }
+
+
+class BufferType(enum.IntEnum):
+    """Type of buffer in access regions of a block"""
+
+    READ = 0
+    WRITE = 1
 
 
 def _parse_error_render_level(error_render_level: str) -> int:
@@ -2109,6 +2118,82 @@ class Schedule(Object):
         """
         _ffi_api.ScheduleUnannotate(  # type: ignore # pylint: disable=no-member
             self, block_or_loop, ann_key
+        )
+
+    ########## Schedule: Layout transformation ##########
+
+    @type_checked
+    def transform_layout(
+        self,
+        block: BlockRV,
+        buffer_index: int,
+        buffer_type: BufferType,
+        index_map: Union[IndexMap, Callable],
+    ) -> None:
+        """Apply a transformation represented by IndexMap to buffer
+        Parameters
+        ----------
+        block_rv : BlockRV
+            The block that accesses the target buffer
+        buffer_index: int
+            The index of the buffer in block's read or write region
+        buffer_type : BufferType
+            Type of the buffer, READ or WRITE.
+        index_map : Union[IndexMap, Callable]
+            The transformation to apply
+
+        Examples
+        --------
+        Before transform_layout, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_transform_layout(a: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128), "float32")
+                B = T.alloc_buffer((128, 128), "float32")
+                C = T.match_buffer(c, (128, 128), "float32")
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do transform_layout:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_storage_align)
+            sch.transform_layout(sch.get_block("B"), buffer_index=0, BufferType.WRITE,
+                                 index_map=lambda m, n: (m // 16, n // 16, m % 16, n % 16))
+            print(sch.mod["main"].script())
+
+        After applying transform_layout, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def two_elementwise_transformed_intermediate_buffer(a: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128), "float32")
+                B = T.alloc_buffer((8, 8, 16, 16), "float32")
+                C = T.match_buffer(c, (128, 128), "float32")
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi // 16, vj // 16, vi % 16, vj % 16] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi // 16, vj // 16, vi % 16, vj % 16] + 1.0
+
+        """
+        if callable(index_map):
+            index_map = IndexMap.from_func(index_map)
+        _ffi_api.ScheduleTransformLayout(  # type: ignore # pylint: disable=no-member
+            self, block, buffer_index, buffer_type, index_map
         )
 
     ########## Schedule: Misc ##########

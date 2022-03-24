@@ -254,6 +254,20 @@ class PyTorchOpConverter:
     # Operator implementations
     def make_elemwise(self, name):
         def elemwise(inputs, input_types):
+            if name == "divide":
+                # https://pytorch.org/docs/stable/generated/torch.div.html#torch.div
+                # None - default behavior. Performs no rounding and, if both input and
+                # other are integer types, promotes the inputs to the default scalar type.
+                if all(["int" in input_type for input_type in input_types[:2]]):
+                    input_types[:2] = ["float32"] * 2
+                    cast_inputs = []
+                    for inp in inputs[:2]:
+                        if np.isscalar(inp):
+                            cast_inputs.append(_expr.const(inp, dtype="float32"))
+                        else:
+                            cast_inputs.append(_op.cast(inp, "float32"))
+                    inputs[:2] = cast_inputs
+
             data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
             return get_relay_op(name)(data0, data1)
 
@@ -641,7 +655,7 @@ class PyTorchOpConverter:
                 tmp.append(_op.cast(_op.expand_dims(dim, axis=0), "int64"))
             size = _op.concatenate(tmp, axis=0)
 
-        out = _op.full(_expr.const(fill_value), size, dtype=dtype)
+        out = _op.full(_expr.const(fill_value, dtype=dtype), size, dtype=dtype)
         if need_reshape:
             out = _op.reshape(out, new_shape)
         return out
@@ -2948,6 +2962,8 @@ class PyTorchOpConverter:
             "aten::div": self.make_elemwise("divide"),
             "aten::floor_divide": self.make_elemwise("floor_divide"),
             "aten::true_divide": self.make_elemwise("divide"),
+            "aten::fmod": self.make_elemwise("trunc_mod"),
+            "aten::remainder": self.make_elemwise("floor_mod"),
             "aten::addcdiv": self.addcdiv,
             "aten::addcmul": self.addcmul,
             "aten::ones": self.ones,
@@ -3161,6 +3177,11 @@ class PyTorchOpConverter:
             "aten::dot": self.dot,
             "aten::mv": self.mv,
             "aten::grid_sampler": self.grid_sampler,
+            "aten::__ior__": self.make_elemwise("bitwise_or"),
+            "aten::__iand__": self.make_elemwise("bitwise_and"),
+            "aten::__ixor__": self.make_elemwise("bitwise_xor"),
+            "aten::__lshift__": self.make_elemwise("left_shift"),
+            "aten::__rshift__": self.make_elemwise("right_shift"),
         }
 
     def update_convert_map(self, custom_map):

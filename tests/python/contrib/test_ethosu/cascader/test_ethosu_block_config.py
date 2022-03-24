@@ -318,6 +318,15 @@ def test_best_block_config(
         block_configs,
         1,
     )
+    # Add tensors
+    input_tensor = cs.Tensor(in_shape, "int8")
+    part.set_input(0, input_tensor)
+    if op_type in ("ethosu_conv2d", "ethosu_depthwise_conv2d"):
+        weight_tensor = cs.Tensor([ofm_channels, kernel[0], kernel[1], ifm_channels], "int8")
+        part.set_input(1, weight_tensor)
+
+    output_tensor = cs.Tensor(out_shape, "int8")
+    part.set_output(output_tensor)
 
     order = [1, 2, 3, 4] if layouts[1] == "NHCWB16" else [1, 2, 4, 3, 0]
     stripes = [1] * len(output_quantum)

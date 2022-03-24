@@ -37,6 +37,7 @@
 #include <functional>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 #include "../transforms/infer_layout_utils.h"
 
@@ -203,6 +204,16 @@ class CCacheValue : public ObjectRef {
 };
 
 Array<IndexExpr> GetShape(const Array<IndexExpr>& shape);
+
+/*!
+ * \brief Lowers Relay primitive Function to TE Compute
+ * \param source_func The primitive function to be lowered.
+ * \param target The target we want to create schedule for.
+ * \param return_inputs If true, prepend input tensors to the output array of tensors.
+ * \return Pair of schedule and fused function name.
+ */
+std::pair<Array<te::Tensor>, std::string> LowerTECompute(const Function& source_func, Target target,
+                                                         bool return_inputs = true);
 
 /*!
  * \brief Create schedule for target.

@@ -69,6 +69,8 @@ class CodeGenHexagon final : public CodeGenLLVM {
   llvm::Module* GetModulePtr() const { return module_.get(); }
 
  protected:
+  void CreatePrintf(const std::string& format, llvm::ArrayRef<llvm::Value*> format_args) final;
+
   // meta data
   llvm::MDNode* md_tbaa_ctx_ptr_{nullptr};
   llvm::FunctionType* ftype_tvm_func_call_{nullptr};
@@ -76,6 +78,8 @@ class CodeGenHexagon final : public CodeGenLLVM {
   llvm::FunctionType* ftype_tvm_api_set_last_error_{nullptr};
 
  private:
+  TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
+                               llvm::ArrayRef<llvm::Value*> indices, DataType value_dtype) final;
   TypedPointer CreateStructRefPtr(DataType t, llvm::Value* buf, llvm::Value* index, int kind);
 
   // Check if the call to packed function is successful
@@ -320,12 +324,12 @@ CodeGenHexagon::PackedCall CodeGenHexagon::MakeCallPackedLowered(const Array<Pri
       t_tvm_value_, builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
       ConstInt32(begin));
   TypedPointer arg_tcode =
-      CreateBufferPtr(stack_tcode, DataType::Int(32), ConstInt32(begin), DataType::Int(32));
+      CreateBufferPtr(stack_tcode, DataType::Int(32), {ConstInt32(begin)}, DataType::Int(32));
   llvm::Value* ret_value = builder_->CreateInBoundsGEP(
       t_tvm_value_, builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
       ConstInt32(end));
   TypedPointer ret_tcode =
-      CreateBufferPtr(stack_tcode, DataType::Int(32), ConstInt32(end), DataType::Int(32));
+      CreateBufferPtr(stack_tcode, DataType::Int(32), {ConstInt32(end)}, DataType::Int(32));
 
 #if TVM_LLVM_VERSION >= 90
   auto call_callee = llvm::FunctionCallee(ftype_tvm_func_call_, RuntimeTVMFuncCall());
@@ -568,6 +572,60 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
   }
 
   return CodeGenLLVM::CreateIntrinsic(op);
+}
+
+void CodeGenHexagon::CreatePrintf(const std::string& format,
+                                  llvm::ArrayRef<llvm::Value*> format_args) {
+  // This function generates LLVM instructions to call HAP_debug_v2,
+  // as if the FARF macro in `HAP_farf.h` were called as
+  // FARF(ALWAYS, format, format_args[0], format_args[1], ...)
+  std::string func_name = "HAP_debug_v2";
+
+  llvm::Function* func = module_->getFunction(func_name);
+  if (func == nullptr) {
+    llvm::FunctionType* ftype = llvm::FunctionType::get(
+        t_void_, {t_int32_, t_char_->getPointerTo(), t_int32_, t_char_->getPointerTo()}, true);
+    func = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, func_name, module_.get());
+  }
+
+  llvm::Value* format_str = builder_->CreateGlobalStringPtr(format, "printf_format_str");
+
+  // The value of FARF_ALWAYS_LEVEL, defined as HAP_LEVEL_HIGH
+  llvm::Value* level = ConstInt32(2);
+
+  // There is no such filename/line number for this print statement
+  llvm::Value* filename = builder_->CreateGlobalStringPtr("generated-LLVM-code", "dummy_filename");
+  llvm::Value* line_number = ConstInt32(1);
+
+  std::vector<llvm::Value*> func_args = {level, filename, line_number, format_str};
+  func_args.insert(func_args.end(), format_args.begin(), format_args.end());
+
+  builder_->CreateCall(func, func_args);
+}
+
+CodeGenLLVM::TypedPointer CodeGenHexagon::CreateBufferPtr(llvm::Value* buffer_ptr,
+                                                          DataType buffer_element_dtype,
+                                                          llvm::ArrayRef<llvm::Value*> indices,
+                                                          DataType value_dtype) {
+  // Flat indices get delegated to the LLVM codegen.
+  if (indices.size() == 1) {
+    return CodeGenLLVM::CreateBufferPtr(buffer_ptr, buffer_element_dtype, indices, value_dtype);
+  }
+
+  ICHECK_EQ(indices.size(), 2) << "CodegenHexagon supports 1-d and 2-d physical buffers, received "
+                               << indices.size() << "-d buffer indices";
+
+  // Use the first index to identify the pointer.
+  DataType dtype_void_ptr = DataType::Handle();
+  CodeGenLLVM::TypedPointer buffer_chunk_ptr_ptr =
+      CodeGenLLVM::CreateBufferPtr(buffer_ptr, dtype_void_ptr, {indices[0]}, dtype_void_ptr);
+  llvm::Value* buffer_chunk_ptr =
+      builder_->CreateLoad(buffer_chunk_ptr_ptr.type, buffer_chunk_ptr_ptr.addr);
+
+  // Then delegate the CodeGenLLVM to find the value from the second
+  // index.
+  return CodeGenLLVM::CreateBufferPtr(buffer_chunk_ptr, buffer_element_dtype, {indices[1]},
+                                      value_dtype);
 }
 
 CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::Value* buf,
@@ -838,9 +896,9 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   std::string so_name(o_name, 0, o_name.size() - 1);
   so_name += "so";
 
-  const auto* f = tvm::runtime::Registry::Get("tvm.contrib.hexagon.hexagon.link_shared");
-  ICHECK(f != nullptr) << "tvm.contrib.hexagon.hexagon.link_shared does not to exist, "
-                          "do import tvm.contrib.hexagon.hexagon";
+  const auto* f = tvm::runtime::Registry::Get("tvm.contrib.hexagon.link_shared");
+  ICHECK(f != nullptr) << "tvm.contrib.hexagon.link_shared does not to exist, "
+                          "do import tvm.contrib.hexagon";
 
   Array<PrimExpr> o_names = {StringImm(o_name)};
   int rc = (*f)(so_name, o_names);

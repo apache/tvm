@@ -370,8 +370,8 @@ def verify_conv2d_backward_filter(data_dtype, conv_dtype, tensor_format=0, tol=1
 @tvm.testing.requires_gpu
 @requires_cudnn
 def test_conv2d_backward_filter():
-    verify_conv2d_backward_filter("float32", "float32", tensor_format=0, tol=1e-4)
-    verify_conv2d_backward_filter("float32", "float32", tensor_format=1, tol=1e-4)
+    verify_conv2d_backward_filter("float32", "float32", tensor_format=0, tol=1e-2)
+    verify_conv2d_backward_filter("float32", "float32", tensor_format=1, tol=1e-2)
 
 
 test_kwargs_default_2d = {

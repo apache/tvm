@@ -448,7 +448,7 @@ std::vector<IterVar> GatherLoopVars(Stmt stmt) {
   PostOrderVisit(stmt, [&res_](const ObjectRef& node) {
     if (const ForNode* op = node.as<ForNode>()) {
       Var loop_var(op->loop_var);
-      Range dom = Range::FromMinExtent(op->min, op->extent);
+      Range dom = Range::FromMinExtent(op->min, cast(loop_var.dtype(), op->extent));
       res_.push_back(IterVar(dom, loop_var, ForKindToIterVarType(op->kind)));
     }
   });

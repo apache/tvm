@@ -68,6 +68,7 @@ import ctypes
 import functools
 import logging
 import os
+import platform
 import sys
 import time
 import pickle
@@ -545,6 +546,22 @@ def uses_gpu(*args):
     return _compose(args, _uses_gpu)
 
 
+def requires_x86(*args):
+    """Mark a test as requiring the x86 Architecture to run.
+
+    Tests with this mark will not be run unless on an x86 platform.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_x86 = [
+        pytest.mark.skipif(platform.machine() != "x86_64", reason="x86 Architecture Required"),
+    ]
+    return _compose(args, _requires_x86)
+
+
 def requires_gpu(*args):
     """Mark a test as requiring a GPU to run.
 
@@ -689,6 +706,16 @@ def requires_nvcc_version(major_version, minor_version=0, release_version=0):
         return _compose([func], requires)
 
     return inner
+
+
+def skip_if_32bit(reason):
+    def decorator(*args):
+        if "32bit" in platform.architecture()[0]:
+            return _compose(args, [pytest.mark.skip(reason=reason)])
+
+        return _compose(args, [])
+
+    return decorator
 
 
 def requires_cudagraph(*args):

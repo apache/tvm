@@ -307,7 +307,7 @@ set(USE_HEXAGON_PROXY_RPC OFF)
 # compiling _by_ TVM). This applies to components like the TVM runtime, but is
 # also used to select correct include/library paths from the Hexagon SDK when
 # building offloading runtime for Android.
-# Valid values are v60, v62, v65, v66, v68.
+# Valid values are v65, v66, v68, v69.
 set(USE_HEXAGON_ARCH "v66")
 
 # Whether to use ONNX codegen

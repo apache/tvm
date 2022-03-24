@@ -713,7 +713,7 @@ def gemm_acc_4x4_int8_int8_int32(dtype):
 
         void gemm_acc_4x4_int8_int8_int32(int8 A[4][4], int8 B[4][4], int32 C[4][4]){
             for (int i = 0; i < 4; i++){
-                for (int j = 0; i < 4; i++){
+                for (int j = 0; j < 4; j++){
                     for (int k = 0; k < 4; k++){
                         C[i][j] += A[i][k] * B[j][k]
                     }
@@ -840,7 +840,7 @@ def gemm_acc_nx16_int8_int8_int32(dtype, rows):
 
         void mmla_nx16_int8_int8_int32(int8 A[n][16], int8 B[4][16][4], int32 output[n][16]){
             for (int i = 0; i < n; i++){
-                for (int j = 0; i < 16; i++){
+                for (int j = 0; j < 16; j++){
                     for (int k = 0; k < 16; k++){
                         out[i][j] += A[i][k] * B[k//4][j][k%4]
                     }
@@ -1058,7 +1058,7 @@ def gemm_acc_2x2_int8_int8_int32(dtype):
 
         void mmla_2x2_int8_int8_int32(int8 A[2][8], int8 B[2][8], int32 C[2][2]){
             for (int i = 0; i < 2; i++){
-                for (int j = 0; i < 2; i++){
+                for (int j = 0; j < 2; j++){
                     for (int k = 0; k < 8; k++){
                         C[i][j] += A[i][k] * B[j][k]
                     }

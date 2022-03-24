@@ -54,7 +54,6 @@ def get_tvm_output_with_vm(
     dev,
     opset=None,
     freeze_params=False,
-    convert_to_static=False,
     convert_config=None,
 ):
     """Generic function to execute and get tvm output with vm executor"""
@@ -68,9 +67,6 @@ def get_tvm_output_with_vm(
         freeze_params=freeze_params,
         convert_config=convert_config,
     )
-
-    if convert_to_static:
-        mod = relay.transform.DynamicToStatic()(mod)
 
     result = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(
         *input_data, **params
@@ -154,7 +150,6 @@ def verify_with_ort_with_inputs(
     use_vm=False,
     opset=None,
     freeze_params=False,
-    convert_to_static=False,
     dtype="float32",
     rtol=1e-5,
     atol=1e-5,
@@ -174,7 +169,6 @@ def verify_with_ort_with_inputs(
             dev,
             opset=opset,
             freeze_params=freeze_params,
-            convert_to_static=convert_to_static,
             convert_config=convert_config,
         )
     else:
@@ -211,7 +205,6 @@ def verify_with_ort(
     use_vm=False,
     opset=None,
     freeze_params=False,
-    convert_to_static=False,
     dtype="float32",
     rtol=1e-5,
     atol=1e-5,
@@ -226,7 +219,6 @@ def verify_with_ort(
         use_vm=use_vm,
         opset=opset,
         freeze_params=freeze_params,
-        convert_to_static=convert_to_static,
         dtype=dtype,
         rtol=rtol,
         atol=atol,
@@ -579,22 +571,21 @@ def test_squeeze(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_flatten(target, dev):
+    def verify_flatten(in_shape, axis, ref_shape):
+        flatten_node = helper.make_node("Flatten", ["in"], ["out"], axis=axis)
 
-    in_shape = (1, 3, 4, 4)
-    axis = 1
-    ref_shape = (1, 48)
+        graph = helper.make_graph(
+            [flatten_node],
+            "flatten_test",
+            inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(ref_shape))],
+        )
 
-    flatten_node = helper.make_node("Flatten", ["in"], ["out"], axis=axis)
+        model = helper.make_model(graph, producer_name="flatten_test")
+        verify_with_ort(model, [in_shape], target=target, dev=dev)
 
-    graph = helper.make_graph(
-        [flatten_node],
-        "flatten_test",
-        inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
-        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(ref_shape))],
-    )
-
-    model = helper.make_model(graph, producer_name="flatten_test")
-    verify_with_ort(model, [in_shape], target=target, dev=dev)
+    verify_flatten((1, 3, 4, 4), 1, (1, 48))
+    verify_flatten((1,), 1, (1, 1))
 
 
 @tvm.testing.parametrize_targets
@@ -2225,7 +2216,6 @@ def test_prelu(target, dev):
             [x_shape, a_shape],
             out_shape=[list(x_shape)],
             use_vm=True,
-            convert_to_static=True,
             target=target,
             dev=dev,
         )
@@ -2709,7 +2699,6 @@ def test_conv(target, dev):
             [x_shape, w_shape],
             [y_shape],
             use_vm=True,
-            convert_to_static=True,
             target=target,
             dev=dev,
         )
@@ -2863,9 +2852,7 @@ def test_convtranspose(target, dev):
 
         model = helper.make_model(graph, producer_name="convtranspose_pad_test")
 
-        verify_with_ort(
-            model, [x_shape, w_shape], use_vm=True, convert_to_static=True, target=target, dev=dev
-        )
+        verify_with_ort(model, [x_shape, w_shape], use_vm=True, target=target, dev=dev)
 
     def verify_convtranspose(x_shape, w_shape, y_shape, p, group=1):
         node = onnx.helper.make_node(
@@ -3046,7 +3033,6 @@ def test_pooling(target, dev):
             [x_shape],
             [out_shape],
             use_vm=False,
-            convert_to_static=True,
             target=target,
             dev=dev,
         )
@@ -3160,7 +3146,6 @@ def test_global_pooling(target, dev):
             [x_shape],
             [out_shape],
             use_vm=False,
-            convert_to_static=True,
             target=target,
             dev=dev,
         )
@@ -3492,7 +3477,6 @@ def test_lppool(target, dev):
             [x_shape],
             [out_shape],
             use_vm=True,
-            convert_to_static=True,
             target=target,
             dev=dev,
         )
@@ -3596,9 +3580,7 @@ def verify_global_lppool(x_shape, p, out_shape, target, dev):
     )
 
     model = helper.make_model(graph, producer_name="global_lppool_test")
-    verify_with_ort(
-        model, [x_shape], out_shape, use_vm=True, convert_to_static=True, target=target, dev=dev
-    )
+    verify_with_ort(model, [x_shape], out_shape, use_vm=True, target=target, dev=dev)
 
 
 @tvm.testing.parametrize_targets
@@ -4680,7 +4662,6 @@ def test_loop(target, dev):
             input_vals,
             use_vm=True,
             freeze_params=True,
-            convert_to_static=True,
             opset=11,
             target=target,
             dev=dev,
@@ -5276,7 +5257,6 @@ def test_aten(target, dev):
             onnx_model,
             tvm_inputs,
             freeze_params=True,
-            convert_to_static=True,
             target=target,
             dev=dev,
         )
@@ -5320,9 +5300,7 @@ def test_index_put(target, dev):
         onnx_model = _convert_to_onnx(model, dummy_data)
         torch_out = model(dummy_data)
 
-        tvm_out = get_tvm_output_with_vm(
-            onnx_model, tvm_inputs, target, dev, freeze_params=True, convert_to_static=True
-        )
+        tvm_out = get_tvm_output_with_vm(onnx_model, tvm_inputs, target, dev, freeze_params=True)
         tvm.testing.assert_allclose(torch_out.numpy(), tvm_out)
 
     shape = (3, 5)
@@ -5351,9 +5329,7 @@ def test_index_put(target, dev):
         onnx_model = _convert_to_onnx(model, dummy_data)
         torch_out = model(dummy_data)
 
-        tvm_out = get_tvm_output_with_vm(
-            onnx_model, tvm_inputs, target, dev, freeze_params=True, convert_to_static=True
-        )
+        tvm_out = get_tvm_output_with_vm(onnx_model, tvm_inputs, target, dev, freeze_params=True)
         tvm.testing.assert_allclose(torch_out.numpy(), tvm_out)
 
     verify_index_put_slice((3, 3), (2, 2), False)
