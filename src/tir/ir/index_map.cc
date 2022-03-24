@@ -126,9 +126,11 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges) const {
   }
 
   Array<Range> output;
+  arith::Analyzer analyzer;
   for (const auto& final_index : final_indices) {
     auto int_set = arith::EvalSet(final_index, dom_map);
-    output.push_back(Range::FromMinExtent(int_set.min(), int_set.max() - int_set.min() + 1));
+    output.push_back(Range::FromMinExtent(analyzer.Simplify(int_set.min()),
+                                          analyzer.Simplify(int_set.max() - int_set.min() + 1)));
   }
 
   return output;
