@@ -543,10 +543,7 @@ def MergeComposite(pattern_table):
     for tup in pattern_table:
         if len(tup) == 2:
             pattern_name, pattern = tup
-
-            def check(extract):
-                return True
-
+            check = lambda extract: True
         elif len(tup) == 3:
             pattern_name, pattern, check = tup
 
@@ -792,17 +789,22 @@ def Inline():
     return _ffi_api.Inline()
 
 
-def UnmergeComposites():
-    """Perform inlining on the given Relay IR module. The global functions that
-    are marked as `inline` should be always inlined. A cost model will be
-    needed in the future to decide if it is profitable to inline the function.
+def InlineComposites(target):
+    """Perform inlining on the given Relay IR module. The functions originate
+    from the MergeComposite pass based on an input pattern table will fold back
+    to main. Currently, this is used for the TRT BYOC which expects a single
+    primitive function to operate on.
 
+    Parameters
+    ----------
+    target: str
+        The byoc target for which ops need to fold back to primitive function.
     Returns
     -------
     ret: tvm.transform.Pass
         The registered pass that performs inlining for a Relay IR module.
     """
-    return _ffi_api.UnmergeComposites()
+    return _ffi_api.InlineComposites(target)
 
 
 def gradient(expr, mod=None, mode="higher_order"):
