@@ -395,6 +395,16 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
         }
         t->Stop();
         int64_t t_nanos = t->SyncAndGetElapsedNanos();
+
+        if ((min_repeat_ms > 0) && (t_nanos == 0)) {
+          // We're almost certainly caught in an infinite loop, perahsp because something
+          // in the timing mechanism isn't working as expected.
+          LOG(FATAL) << __FILE__ << ":" << __LINE__ << ": "
+                     << "Time evaluation will be stuck in an infinite loop: "
+                     << "min_repeat_ms=" << min_repeat_ms
+                     << ", but the function of interest supposedly has a running time of 0ns.";
+        }
+
         duration_ms = t_nanos / 1e6;
       } while (duration_ms < min_repeat_ms);
 
