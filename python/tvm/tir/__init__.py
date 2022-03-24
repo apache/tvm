@@ -57,7 +57,7 @@ from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
 from .op import comm_reducer, min, max, sum
 from .op import q_multiply_shift
 
-from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError, BufferType
+from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError
 
 from . import schedule
 from . import ir_builder
