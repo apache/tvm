@@ -57,9 +57,7 @@ class RelayToTIRMutator : public MixedModeMutator {
     Function main_func = Downcast<Function>(ir_module_->Lookup(main_global_var));
 
     // Copy everything across and mutate the body
-    Function mutated_main =
-        Function(main_func->params, VisitExpr(main_func->body), main_func->ret_type,
-                 main_func->type_params, main_func->attrs, main_func->span);
+    Function mutated_main = WithFields(main_func, main_func->params, VisitExpr(main_func->body));
 
     ir_module_->Update(main_global_var, mutated_main);
 
