@@ -66,7 +66,7 @@ enum InterfaceType {
   INPUT = 0,
   OUTPUT,
 };
-/*!\The state of the pipeline.*/
+/*!\brief The state of the pipeline.*/
 enum PipelineState {
   STOPPED = 0,
   RUNNING,
@@ -179,6 +179,14 @@ class DataNotify {
 /*!\brief The container used to store the forwarding data of the pipeline.*/
 class QueueData {
  public:
+  explicit QueueData(DLTensor* data) {
+    if (data_ == data) {
+      LOG(FATAL) << "The value of 'data'(" << data << ") is the same as 'data_'(" << data_ << ")";
+    }
+    data_ = data;
+    SetAsDataOwner(false);
+  }
+  QueueData() { SetAsDataOwner(true); }
   /*!\brief Doing a deep copy for the 'QueueData' structure.*/
   QueueData& operator=(const QueueData& data) {
     CreateCopyFrom(data.GetDLData());
@@ -200,26 +208,26 @@ class QueueData {
     }
     size_t fromLen = tvm::runtime::GetDataSize(*from);
     size_t toLen = data_ ? tvm::runtime::GetDataSize(*data_) : 0;
-    if (!(device_type_ == from->device.device_type && device_id_ == from->device.device_id) ||
-        fromLen != toLen) {
-      if (data_) {
-        TVMArrayFree(data_);
-        data_ = nullptr;
+    if (fromLen != toLen) {
+      // If this container ownes the variable 'data_', then recreating the 'data_' variable.
+      if (IsDataOwner()) {
+        if (data_) {
+          TVMArrayFree(data_);
+          data_ = nullptr;
+        }
+        TVMArrayAlloc(from->shape, from->ndim, from->dtype.code, from->dtype.bits,
+                      from->dtype.lanes, from->device.device_type, from->device.device_id, &data_);
+      } else {
+        LOG(FATAL) << "The 'from' data is not matched with the  'data_'.";
       }
-      TVMArrayAlloc(from->shape, from->ndim, from->dtype.code, from->dtype.bits, from->dtype.lanes,
-                    from->device.device_type, from->device.device_id, &data_);
     }
     TVMArrayCopyFromTo(const_cast<DLTensor*>(from), data_, nullptr);
-    device_type_ = from->device.device_type;
-    device_id_ = from->device.device_id;
     return data_;
   }
   /*!\brief Return a pointer to the 'DLTensor' data.*/
   DLTensor* GetDLData() const { return data_; }
-  const int DeviceType() { return device_type_; }
-  const int DeviceID() { return device_id_; }
   ~QueueData() {
-    if (data_) {
+    if (IsDataOwner() && data_) {
       TVMArrayFree(data_);
       data_ = nullptr;
     }
@@ -228,10 +236,12 @@ class QueueData {
  private:
   /*!\brief Pointer to the forwarding data.*/
   DLTensor* data_ = nullptr;
-  /*!\brief The type of device which generated the QueueData container.*/
-  int device_type_;
-  /*!\brief The id of device which generated the data in this container.*/
-  int device_id_;
+  /*!\brief Whether this container is the owner of the 'data_'.*/
+  bool is_data_owner_ = false;
+  /*!\brief Set the current container as the owner of the 'data_'.*/
+  void SetAsDataOwner(bool is_owner) { is_data_owner_ = is_owner; }
+  /*!Check whether the current container is the owner of the 'data_'.*/
+  bool IsDataOwner() const { return is_data_owner_; }
 };
 /*!
  * \brief All binding information of an output interface.
@@ -252,6 +262,9 @@ class ConfigBindings {
   void VisitOutput(BindingConfigParseFunc parse_function, int output_idx) {
     for (auto output : bindings_) {
       parse_function(output_idx, output.first, output.second);
+    }
+    if (IsGlobalOutput()) {
+      parse_function(output_idx, GLOBAL_MODULE_INDEX, std::to_string(global_output_index_));
     }
   }
   /*!
@@ -412,7 +425,7 @@ class ConfigPipelineExecution {
     ICHECK(config_.find(key) != config_.end());
     return config_[key];
   }
-  /**/
+  /*Get the cpu affinity settings.*/
   std::string GetCPUAffinity(int runtime_idx) {
     auto config = config_.find(runtime_idx);
     if (config == config_.end()) {
@@ -617,18 +630,130 @@ struct ParamConnectionConfig {
  * interfaces of backend cores.
  */
 using ForwardQueue = SPSCLockFreeQueue<QueueData, ModuleInterfaceID>;
+using ForwardQueueMap =
+    std::unordered_map<ModuleInterfaceID, std::shared_ptr<ForwardQueue>, ModuleIDHash>;
+/*!\brief The basic class for runtime.*/
+class BasicRuntime {
+  using ModuleInputPairList = std::vector<std::pair<std::shared_ptr<BasicRuntime>, int>>;
+
+ public:
+  explicit BasicRuntime(int runtime_idx) : runtime_idx_(runtime_idx) {}
+  /*!\brief Return the index of the current module.*/
+  int GetModuleIndex() { return runtime_idx_; }
+  /*!
+   *\brief Creating a parent notification.
+   *\param input_index The input index of the 'current runtime'.
+   *\param parent_idx The index of 'parent runtime' which will send the notification.
+   *\param parent_output_idx The output index of the 'parent runtime' which will send
+   * the notification.
+   */
+  virtual void CreateParentsNotify(int input_index, int parent_idx, int parent_output_idx) {}
+  /*!
+   * \brief Notifying an input is ready.
+   * \param input_index The index of 'input interface' which is ready for data.
+   */
+  virtual void ParentNotify(int input_index) {}
+
+ protected:
+  /*!\brief The index of runtime indicates the runtime position in the pipeline.*/
+  int runtime_idx_;
+  /*!\brief A list of runtime which depends on the current runtime.*/
+  std::unordered_map<int, ModuleInputPairList> children_;
+  /*!
+   * \brief A list of SPSC input queues in which the input interface will poll the data sent from
+   *  other backend cores.
+   */
+  std::unordered_map<int, std::shared_ptr<ForwardQueue>> input_queue_;
+
+  /*!
+   * \brief A list of SPSC output queues in which the output interface will push the data to
+   *  other backend cores.
+   */
+  std::unordered_map<int, ForwardQueueMap> output_queue_;
+  /*!
+   * \brief Generate the ID of an input queue.
+   * \param runtime_index The index of backend runtime.
+   * \param interface_index The index of the interface.
+   * \param type The type of the interface.
+   */
+  ModuleInterfaceID GenerateQueueID(int runtime_index, int interface_index, InterfaceType type) {
+    return ModuleInterfaceID(runtime_index, interface_index, type);
+  }
+  /*!
+   * \brief Creating a forwarding queue for the pair of an output interface and an input interface.
+   * \param output_idx The index of an output interface which will send the forwarding data.
+   * \param child_runtime The backend runtime which owns the input interface.
+   * \param input_index The index of an input interface which will receive the forwarding data.
+   */
+  void CreateForwardingQueue(int output_idx, std::shared_ptr<BasicRuntime> child_runtime,
+                             int input_index) {
+    auto queue_id = GenerateQueueID(child_runtime->GetModuleIndex(), input_index, INPUT);
+    // The forwarding queue map of a specified output interface.
+    auto& queue_map = output_queue_[output_idx];
+    if (queue_map.find(queue_id) != queue_map.end()) {
+      LOG(FATAL) << "The queue " << queue_id.runtime_idx << "." << queue_id.runtime_interface_idx
+                 << " is already created!";
+      return;
+    }
+    auto queue = std::make_shared<ForwardQueue>(queue_id);
+    queue_map[queue_id] = queue;
+    // Use the created queue as the consumer queue for the input interface of this forwarding
+    // pair.
+    child_runtime->AppendInputQueue(input_index, queue);
+  }
+  /*!
+   * \brief Setting  the consumer queue for the input interface.
+   * \param input_index The index of the input interface.
+   * \param queue The consumer queue.
+   */
+  void AppendInputQueue(int input_index, std::shared_ptr<ForwardQueue> queue) {
+    input_queue_[input_index] = queue;
+  }
+};
+/*!
+ * \brief This global runtime represents the pipeline executor and exposes the input and output
+ *  interface.
+ */
+class GlobalRuntime : public BasicRuntime {
+ public:
+  explicit GlobalRuntime(int runtime_idx) : BasicRuntime(runtime_idx) {}
+  /*!\brief Whether the output data is ready.*/
+  bool DataIsReady(bool wait_data) {
+    bool data_ready = true;
+    for (auto queue_pair : input_queue_) {
+      auto queue = queue_pair.second;
+      if (queue->Empty()) {
+        data_ready = false;
+        break;
+      }
+    }
+    if (!data_ready && wait_data) {
+      // TODO(huajsj): Waitting the data ready message.
+    }
+    return data_ready;
+  }
+  /*!\brief Get the output data.*/
+  bool GetOutput(Array<NDArray>* outputs, bool wait_data = false) {
+    if (!DataIsReady(wait_data)) {
+      return false;
+    }
+    for (auto queue_pair : input_queue_) {
+      auto output_index = queue_pair.first;
+      auto queue = queue_pair.second;
+      QueueData data(const_cast<DLTensor*>(((*outputs)[output_index]).operator->()));
+      if (!queue->Poll<QueueData>(&data)) {
+        LOG(FATAL) << "There is no data in the data queue, it should not happen!";
+      }
+    }
+    return true;
+  }
+};
 /*
  *!\brief Backend Runtime.
  */
-class BackendRuntime {
-  using ModuleInputPairList = std::vector<std::pair<std::shared_ptr<BackendRuntime>, int>>;
-  using ForwardQueueMap =
-      std::unordered_map<ModuleInterfaceID, std::shared_ptr<ForwardQueue>, ModuleIDHash>;
-
+class BackendRuntime : public BasicRuntime {
  private:
-  /*!\brief The index of runtime indicates the runtime position in the pipeline.*/
-  int runtime_idx_;
-  /*!*/
+  /*!The cpu affinity settings for this runtime.*/
   std::string cpu_affinity_ = "";
   /*!\brief The Runtime module of a backend graph executor.*/
   Module module_;
@@ -636,22 +761,10 @@ class BackendRuntime {
   std::thread thread_;
   /*!\brief The state of the pipeline.*/
   std::atomic<PipelineState> pipeline_state_{STOPPED};
-  /*!\brief A list of runtime which depends on the current runtime.*/
-  std::unordered_map<int, ModuleInputPairList> children_;
   /*!\brief A map including the runtime input index and the notification data structure.*/
   std::unordered_map<int, std::shared_ptr<DataNotify>> parents_notify_;
   /*!\brief The execution count of the 'RunPipeline' function. */
   uint32_t pipeline_execution_count_ = 0;
-  /*!
-   * \brief A list of SPSC input queues in which the input interface will poll the data sent from
-   *  other backend cores.
-   */
-  std::unordered_map<int, std::shared_ptr<ForwardQueue>> input_queue_;
-  /*!
-   * \brief A list of SPSC output queues in which the output interface will push the data to
-   *  other backend cores.
-   */
-  std::unordered_map<int, ForwardQueueMap> output_queue_;
   /*!
    *\brief In order to transfer data from one backend runtime to another, we need a local
    * tensor variable as a medium. "input_tensor_local_copy_" is a map including
@@ -719,19 +832,14 @@ class BackendRuntime {
       if ((exit_notify = notify->second->GetExitState())) break;
       // Getting the source which sends this notification.
       auto target_input_interface_index = notify->first;
-      auto source_interface_id = notify->second->GetNotifySource();
       // Loading the binding data.
       while (!this->LoadBindingData(target_input_interface_index)) {
         // Waiting for the notification.
         if (!notify->second->Wait()) {
-          VLOG(1) << "runtime index:" << runtime_idx_ << " receive exit notify.";
           exit_notify = true;
           break;
         }
       }
-      VLOG(1) << "Data forwarding from runtime(" << source_interface_id.runtime_idx << ").output("
-              << source_interface_id.runtime_interface_idx << ") to runtime(" << runtime_idx_
-              << ").input(" << target_input_interface_index << ")";
       notifys.erase(notify);
     }
     return exit_notify;
@@ -796,22 +904,6 @@ class BackendRuntime {
     return true;
   }
   /*!
-   *\brief Creating a parent notification.
-   *\param input_index The input index of the 'current runtime'.
-   *\param parent_idx The index of 'parent runtime' which will send the notification.
-   *\param parent_output_idx The output index of the 'parent runtime' which will send
-   * the notification.
-   */
-  void CreateParentsNotify(int input_index, int parent_idx, int parent_output_idx) {
-    if (parents_notify_.find(input_index) != parents_notify_.end()) {
-      LOG(FATAL) << "The notification associated with the input interface " << input_index
-                 << " in runtime " << runtime_idx_ << " already been created!";
-      return;
-    }
-    parents_notify_[input_index] =
-        std::make_shared<DataNotify>(ModuleInterfaceID(parent_idx, parent_output_idx, OUTPUT));
-  }
-  /*!
    * \brief Copying from a given tensor and using 'CPU' as the device.
    */
   inline DLTensor* CopyDLTensorToCPU(const DLTensor* from) {
@@ -867,9 +959,7 @@ class BackendRuntime {
   }
 
  public:
-  BackendRuntime(Module mod, int mod_idx) {
-    module_ = mod;
-    runtime_idx_ = mod_idx;
+  BackendRuntime(Module mod, int mod_idx) : BasicRuntime(mod_idx), module_(mod) {
     get_input_index_ = module_.GetFunction("get_input_index");
     get_num_output_ = module_.GetFunction("get_num_outputs");
     get_num_inputs_ = module_.GetFunction("get_num_inputs");
@@ -884,8 +974,22 @@ class BackendRuntime {
     }
     StopPipeline();
   }
-  /*!brief Getting the runtime index*/
-  int GetIndex() const { return runtime_idx_; }
+  /*!
+   *\brief Creating a parent notification.
+   *\param input_index The input index of the 'current runtime'.
+   *\param parent_idx The index of 'parent runtime' which will send the notification.
+   *\param parent_output_idx The output index of the 'parent runtime' which will send
+   * the notification.
+   */
+  void CreateParentsNotify(int input_index, int parent_idx, int parent_output_idx) {
+    if (parents_notify_.find(input_index) != parents_notify_.end()) {
+      LOG(FATAL) << "The notification associated with the input interface " << input_index
+                 << " in runtime " << runtime_idx_ << " already been created!";
+      return;
+    }
+    parents_notify_[input_index] =
+        std::make_shared<DataNotify>(ModuleInterfaceID(parent_idx, parent_output_idx, OUTPUT));
+  }
   /*!
    * \brief Getting the times of using pipeline function.
    * \return The times of using pipeline function.
@@ -897,21 +1001,31 @@ class BackendRuntime {
    * \param runtimes A list of BackendRuntime.
    */
   void InitializePipeline(ConfigPipelineExecution config,
-                          std::vector<std::shared_ptr<BackendRuntime>>* runtimes) {
-    cpu_affinity_ = config.GetCPUAffinity(runtime_idx_);
+                          std::vector<std::shared_ptr<BackendRuntime>>* runtimes,
+                          std::shared_ptr<GlobalRuntime> global_runtime) {
     // Getting the 'binding configuration' for each runtime.
     config.VisitRuntimeOutputConfig(
         [&](int output_idx, int child_idx, std::string child_input_name) {
-          int runtime_idx_max = runtimes->size();
-          if (child_idx < 0 || child_idx >= runtime_idx_max) {
-            LOG(FATAL) << "The runtime index " << child_idx << " is out of the range.";
+          std::shared_ptr<BasicRuntime> child_runtime = nullptr;
+          int input_index;
+          if (GLOBAL_MODULE_INDEX == child_idx) {
+            int global_output_index = std::stoi(child_input_name);
+            input_index = global_output_index;
+            child_runtime = global_runtime;
+          } else {
+            int runtime_idx_max = runtimes->size();
+            if (child_idx < 0 || child_idx >= runtime_idx_max) {
+              LOG(FATAL) << "The runtime index " << child_idx << " is out of the range.";
+            }
+            auto runtime = runtimes->at(child_idx);
+            ICHECK(runtime->GetModuleIndex() == child_idx);
+            input_index = runtime->GetInputIndex(child_input_name);
+            if (input_index < 0) {
+              LOG(FATAL) << "Can not find the input " << input_index << "in runtime " << child_idx;
+            }
+            child_runtime = runtime;
           }
-          auto child_runtime = runtimes->at(child_idx);
-          ICHECK(child_runtime->GetModuleIndex() == child_idx);
-          int input_index = child_runtime->GetInputIndex(child_input_name);
-          if (input_index < 0) {
-            LOG(FATAL) << "Can not find the input " << input_index << "in runtime " << child_idx;
-          }
+          ICHECK(child_runtime != nullptr);
           children_[output_idx].push_back(std::make_pair(child_runtime, input_index));
           child_runtime->CreateParentsNotify(input_index, runtime_idx_, output_idx);
           VLOG(1) << " parent_idx.output:" << runtime_idx_ << "." << output_idx
@@ -935,54 +1049,12 @@ class BackendRuntime {
       return;
     }
     notify->second->Notify();
-    VLOG(1) << "Notification at runtime_index.input_index:" << runtime_idx_ << "." << input_index;
   }
   /*!\brief Creating a NDArray containing same shape and data type with a module output. */
   NDArray CreateFromOutput(int idx) {
     NDArray data = get_output_(idx);
     return CreateNDArrayFromDLTensor(const_cast<DLTensor*>(data.operator->()));
   }
-  /*!
-   * \brief Generate the ID of an input queue.
-   * \param runtime_index The index of backend runtime.
-   * \param interface_index The index of the interface.
-   * \param type The type of the interface.
-   */
-  ModuleInterfaceID GenerateQueueID(int runtime_index, int interface_index, InterfaceType type) {
-    return ModuleInterfaceID(runtime_index, interface_index, type);
-  }
-  /*!
-   * \brief Creating a forwarding queue for the pair of an output interface and an input interface.
-   * \param output_idx The index of an output interface which will send the forwarding data.
-   * \param child_runtime The backend runtime which owns the input interface.
-   * \param input_index The index of an input interface which will receive the forwarding data.
-   */
-  void CreateForwardingQueue(int output_idx, std::shared_ptr<BackendRuntime> child_runtime,
-                             int input_index) {
-    auto queue_id = GenerateQueueID(child_runtime->GetModuleIndex(), input_index, INPUT);
-    // The forwarding queue map of a specified output interface.
-    auto& queue_map = output_queue_[output_idx];
-    if (queue_map.find(queue_id) != queue_map.end()) {
-      LOG(FATAL) << "The queue " << queue_id.runtime_idx << "." << queue_id.runtime_interface_idx
-                 << " is already created!";
-      return;
-    }
-    auto queue = std::make_shared<ForwardQueue>(queue_id);
-    queue_map[queue_id] = queue;
-    // Use the created queue as the consumer queue for the input interface of this forwarding
-    // pair.
-    child_runtime->AppendInputQueue(input_index, queue);
-  }
-  /*!
-   * \brief Setting  the consumer queue for the input interface.
-   * \param input_index The index of the input interface.
-   * \param queue The consumer queue.
-   */
-  void AppendInputQueue(int input_index, std::shared_ptr<ForwardQueue> queue) {
-    input_queue_[input_index] = queue;
-  }
-  /*!\brief Return the index of the current module.*/
-  int GetModuleIndex() { return runtime_idx_; }
   /*!\brief Return the number of output*/
   int NumOutputs() const { return get_num_output_(); }
   /*!\brief Return the number of input*/
