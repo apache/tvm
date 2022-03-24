@@ -148,6 +148,9 @@ if(BUILD_FOR_HEXAGON)
     message(WARNING "Could not locate some Hexagon SDK components")
   endif()
 
+  # Set the compiler arch flag.
+  add_definitions("-m${USE_HEXAGON_ARCH}")
+
   # Add SDK and QuRT includes when building for Hexagon.
   include_directories(SYSTEM ${SDK_INCLUDE_DIRS} ${QURT_INCLUDE_DIRS})
 
