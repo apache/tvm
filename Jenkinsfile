@@ -100,6 +100,10 @@ def init_git() {
     script: './tests/scripts/task_show_node_info.sh',
     label: 'Show executor node info',
   )
+  sh (
+    script: 'git fetch origin main && git merge origin/main',
+    label: 'Merge to origin/main'
+  )
   retry(5) {
     timeout(time: 2, unit: 'MINUTES') {
       sh (script: 'git submodule update --init -f', label: 'Update git submodules')
