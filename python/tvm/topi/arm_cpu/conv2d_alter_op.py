@@ -400,6 +400,12 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         return relay.nn.contrib_conv2d_nchwc(*inputs, **new_attrs)
 
     if topi_tmpl == "conv2d_NHWC_quantized_interleaved.arm_cpu":
+        # TODO(masahi): This schedule can easily result in a tensorization error
+        # if used in the fallback mode
+        if cfg.is_fallback:  # if is fallback, clear query cache and return None
+            autotvm.task.clear_fallback_cache(target, workload)
+            return None
+
         assert data_layout == "NHWC" and kernel_layout == "HWIO"
         KH, KW, _, OC = get_const_tuple(kernel.shape)
         new_workload_name = "conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu"
@@ -416,6 +422,12 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
             inputs[0], new_kernel_expr, **new_attrs
         )
     if topi_tmpl == "conv2d_NHWC_quantized_native.arm_cpu":
+        # TODO(masahi): This schedule can easily result in a tensorization error
+        # if used in the fallback mode
+        if cfg.is_fallback:  # if is fallback, clear query cache and return None
+            autotvm.task.clear_fallback_cache(target, workload)
+            return None
+
         assert data_layout == "NHWC" and kernel_layout == "HWIO"
         KH, KW, _, OC = get_const_tuple(kernel.shape)
         new_workload_name = "conv2d_NHWC_quantized_native_without_transform.arm_cpu"
