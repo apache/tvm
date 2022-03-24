@@ -19,8 +19,7 @@ from typing import Dict, List, Optional, Union
 
 import numpy as np  # type: ignore
 import tvm.runtime.ndarray as nd
-
-from tvm._ffi import register_object, get_global_func
+from tvm._ffi import get_global_func, register_object
 from tvm.ir import IRModule, transform
 from tvm.relay import Any
 from tvm.relay import Function as RelayFunc
@@ -29,6 +28,7 @@ from tvm.target import Target
 
 from . import _ffi_api
 from .database import Database
+from .utils import autotvm_silencer
 
 
 @register_object("meta_schedule.ExtractedTask")
@@ -234,7 +234,7 @@ def extract_task_from_relay(
     if not isinstance(target, Target):
         target = Target(target)
 
-    with target, transform.PassContext(
+    with autotvm_silencer(), target, transform.PassContext(
         opt_level=opt_level,
         config=pass_config,
         disabled_pass=disabled_pass,
