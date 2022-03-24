@@ -19,8 +19,9 @@ import json
 import textwrap
 import ctypes
 import os
-import tvm
 import sys
+
+import tvm
 import tvm._ffi
 from .runtime.module import Module
 from . import get_global_func
@@ -45,8 +46,11 @@ def libinfo():
 
 
 def describe():
-    info = [(k, v) for k, v in libinfo().items()]
-    info = {k: v for k, v in sorted(info, key=lambda x: x[0])}
+    """
+    Print out information about TVM and the current Python environment
+    """
+    info = list((k, v) for k, v in libinfo().items())
+    info = dict(sorted(info, key=lambda x: x[0]))
     print("Python Environment")
     sys_version = sys.version.replace("\n", " ")
     uname = os.uname()
