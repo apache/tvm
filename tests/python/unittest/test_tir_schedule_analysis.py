@@ -50,8 +50,8 @@ def _make_loops(loop_vars: List[Var], extents: List[int]) -> List[For]:
 
 
 def _assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
-    iters_1 = map1.apply(map2.src_iters)
-    iters_2 = map2.tgt_iters
+    iters_1 = map1.map_indices(map2.initial_indices)
+    iters_2 = map2.final_indices
     assert len(iters_1) == len(iters_2)
     for iter1, iter2 in zip(iters_1, iters_2):
         assert expr_deep_equal(iter1, iter2)
