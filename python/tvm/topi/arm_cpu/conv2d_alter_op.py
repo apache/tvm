@@ -366,7 +366,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
 
         if cfg.is_fallback:
-            # ic_bn needs to be devided by n_elems below
+            # ic_bn needs to be divided by n_elems below
             ic_bn = max(ic_bn, n_elems)
 
         # update new attrs
