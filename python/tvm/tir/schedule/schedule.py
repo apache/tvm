@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """The TensorIR schedule class"""
-import enum
 from typing import Callable, Dict, List, Optional, Union
 
 from tvm._ffi import register_object as _register_object
@@ -71,13 +70,6 @@ _ERROR_RENDER_LEVEL: Dict[str, int] = {
     "fast": 1,
     "none": 2,
 }
-
-
-class BufferType(enum.IntEnum):
-    """Type of buffer in access regions of a block"""
-
-    READ = 0
-    WRITE = 1
 
 
 def _parse_error_render_level(error_render_level: str) -> int:
@@ -2127,7 +2119,7 @@ class Schedule(Object):
         self,
         block: BlockRV,
         buffer_index: int,
-        buffer_type: BufferType,
+        buffer_index_type: str,
         index_map: Union[IndexMap, Callable],
     ) -> None:
         """Apply a transformation represented by IndexMap to buffer
@@ -2137,8 +2129,8 @@ class Schedule(Object):
             The block that accesses the target buffer
         buffer_index: int
             The index of the buffer in block's read or write region
-        buffer_type : BufferType
-            Type of the buffer, READ or WRITE.
+        buffer_index_type : str
+            Type of the buffer index, "read" or "write"
         index_map : Union[IndexMap, Callable]
             The transformation to apply
 
@@ -2167,7 +2159,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_storage_align)
-            sch.transform_layout(sch.get_block("B"), buffer_index=0, BufferType.WRITE,
+            sch.transform_layout(sch.get_block("B"), buffer_index=0, "write",
                                  index_map=lambda m, n: (m // 16, n // 16, m % 16, n % 16))
             print(sch.mod["main"].script())
 
@@ -2192,8 +2184,10 @@ class Schedule(Object):
         """
         if callable(index_map):
             index_map = IndexMap.from_func(index_map)
+        assert buffer_index_type in ["read", "write"], "Invalid buffer_index_type"
+        buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
         _ffi_api.ScheduleTransformLayout(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index, buffer_type, index_map
+            self, block, buffer_index, buffer_index_type_enum, index_map
         )
 
     ########## Schedule: Misc ##########
