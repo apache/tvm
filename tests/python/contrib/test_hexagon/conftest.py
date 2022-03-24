@@ -149,15 +149,6 @@ def tvm_tracker_port(_tracker_info) -> int:
     return port
 
 
-# @pytest.fixture(scope="session")
-# def tvm_tracker(tvm_tracker_port):
-#     tracker = tvm.rpc.tracker.Tracker("127.0.0.1", tvm_tracker_port)
-#     try:
-#         yield tracker
-#     finally:
-#         tracker.terminate()
-
-
 @tvm.testing.fixture
 def rpc_server_port() -> int:
     return get_free_port()
@@ -169,12 +160,16 @@ def adb_server_socket() -> str:
 
 
 @tvm.testing.fixture
-def hexagon_launcher(
-    android_serial_number, tvm_tracker_host, tvm_tracker_port, rpc_server_port, adb_server_socket
-):
+def hexagon_launcher(request, android_serial_number, rpc_server_port, adb_server_socket):
     if android_serial_number is None:
         yield None
     else:
+        # Requesting these fixtures sets up a local tracker, if one
+        # hasn't been provided to us.  Delaying the evaluation of
+        # these fixtures avoids starting a tracker unless necessary.
+        tvm_tracker_host = request.getfixturevalue("tvm_tracker_host")
+        tvm_tracker_port = request.getfixturevalue("tvm_tracker_port")
+
         rpc_info = {
             "rpc_tracker_host": tvm_tracker_host,
             "rpc_tracker_port": tvm_tracker_port,
