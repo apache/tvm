@@ -5043,7 +5043,6 @@ unsupported_onnx_tests = [
     "test_dropout_default_mask_ratio",
     "test_dropout_default_ratio",
     "test_gru_batchwise",
-    "test_hardswish",
     "test_identity_sequence",
     "test_if_seq",
     "test_loop11",

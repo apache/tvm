@@ -1841,6 +1841,18 @@ class HardSigmoid(OnnxOpConverter):
         return AttrCvt("clip")([transformX], attr)
 
 
+class HardSwish(OnnxOpConverter):
+    """Operator converter for HardSwish."""
+
+    @classmethod
+    def _impl_v14(cls, inputs, attr, params):
+        alpha = attr.get("alpha", 1 / 6)
+        beta = attr.get("beta", 0.5)
+        transformX = inputs[0] * _expr.const(alpha) + _expr.const(beta)
+        attr = {"a_min": 0, "a_max": 1}
+        return inputs[0] * AttrCvt("clip")([transformX], attr)
+
+
 class Reduce(OnnxOpConverter):
     """Operator converter for reduce ops."""
 
@@ -4676,6 +4688,7 @@ def _get_convert_map(opset):
         "PRelu": Prelu.get_converter(opset),
         "Sigmoid": Renamer("sigmoid"),
         "HardSigmoid": HardSigmoid.get_converter(opset),
+        "HardSwish": HardSwish.get_converter(opset),
         "Max": Maximum.get_converter(opset),
         "Min": Minimum.get_converter(opset),
         "Sum": Sum.get_converter(opset),
