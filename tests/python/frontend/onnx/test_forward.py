@@ -558,7 +558,7 @@ def test_range(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_squeeze(target, dev):
-    def test_squeeze_once(in_shape, out_shape, axes=[]):
+    def test_squeeze_once(in_shape, out_shape, axes=None):
         y = helper.make_node("Squeeze", ["in"], ["out"], axes=axes)
 
         graph = helper.make_graph(
