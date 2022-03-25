@@ -719,7 +719,7 @@ stage('Test') {
       Utils.markStageSkippedForConditional('python3: i386')
     }
   },
-  'python3: arm': {
+  'python3: aarch64': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('ARM') {
         ws({{ m.per_exec_ws('tvm/ut-python-arm') }}) {
@@ -738,7 +738,10 @@ stage('Test') {
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_topi.sh",
                 label: 'Run TOPI tests',
               )
-            // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
+              sh (
+                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh",
+                label: 'Run CPU integration tests',
+              )
             }
           } finally {
             junit 'build/pytest-results/*.xml'
