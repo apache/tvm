@@ -390,6 +390,7 @@ def test_compile_tflite_module_with_external_codegen_ethos_n77(tflite_mobilenet_
     assert os.path.exists(dumps_path)
 
 
+@tvm.testing.requires_cmsisnn
 def test_compile_tflite_module_with_external_codegen_cmsisnn(
     tmpdir_factory, tflite_cnn_s_quantized
 ):
