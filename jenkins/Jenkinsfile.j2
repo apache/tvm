@@ -45,6 +45,8 @@
 // 'python3 jenkins/generate.py'
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
+{% import 'jenkins/macros.j2' as m with context -%}
+
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = 'tlcpack/ci-lint:v0.69'
 ci_gpu = 'tlcpack/ci-gpu:v0.82'
@@ -61,14 +63,9 @@ ci_hexagon = 'tlcpack/ci-hexagon:v0.02'
 // over default values above.
 properties([
   parameters([
-    string(name: 'ci_arm_param', defaultValue: ''),
-    string(name: 'ci_cpu_param', defaultValue: ''),
-    string(name: 'ci_gpu_param', defaultValue: ''),
-    string(name: 'ci_hexagon_param', defaultValue: ''),
-    string(name: 'ci_i386_param', defaultValue: ''),
-    string(name: 'ci_lint_param', defaultValue: ''),
-    string(name: 'ci_qemu_param', defaultValue: ''),
-    string(name: 'ci_wasm_param', defaultValue: ''),
+  {% for image in images %}
+    string(name: '{{ image.name }}_param', defaultValue: ''),
+  {% endfor %}
   ])
 ])
 
@@ -200,7 +197,7 @@ stage('Prepare') {
 stage('Sanity Check') {
   timeout(time: max_time, unit: 'MINUTES') {
     node('CPU') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/sanity") {
+      ws({{ m.per_exec_ws('tvm/sanity') }}) {
         init_git()
         is_docs_only_build = sh (
           returnStatus: true,
@@ -352,7 +349,7 @@ if (rebuild_docker_images) {
   // stage('Sanity Check (re-run)') {
   //   timeout(time: max_time, unit: 'MINUTES') {
   //     node('CPU') {
-  //       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/sanity") {
+  //       ws({{ m.per_exec_ws('tvm/sanity') }}) {
   //         init_git()
   //         sh (
   //           script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
@@ -447,7 +444,7 @@ stage('Build') {
   parallel 'BUILD: GPU': {
     if (!skip_ci) {
       node('CPU') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-gpu") {
+        ws({{ m.per_exec_ws('tvm/build-gpu') }}) {
           init_git()
           sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
           make("${ci_gpu} --no-gpu", 'build', '-j2')
@@ -463,7 +460,7 @@ stage('Build') {
   'BUILD: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cpu") {
+        ws({{ m.per_exec_ws('tvm/build-cpu') }}) {
           init_git()
           sh (
             script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
@@ -486,7 +483,7 @@ stage('Build') {
   'BUILD: WASM': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-wasm") {
+        ws({{ m.per_exec_ws('tvm/build-wasm') }}) {
           init_git()
           sh (
             script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
@@ -510,7 +507,7 @@ stage('Build') {
   'BUILD: i386': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-i386") {
+        ws({{ m.per_exec_ws('tvm/build-i386') }}) {
           init_git()
           sh (
             script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build",
@@ -527,7 +524,7 @@ stage('Build') {
   'BUILD: arm': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('ARM') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-arm") {
+        ws({{ m.per_exec_ws('tvm/build-arm') }}) {
           init_git()
           sh (
             script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",
@@ -544,7 +541,7 @@ stage('Build') {
   'BUILD: QEMU': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-qemu") {
+        ws({{ m.per_exec_ws('tvm/build-qemu') }}) {
           init_git()
           sh (
             script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh build",
@@ -576,7 +573,7 @@ stage('Build') {
   'BUILD: Hexagon': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-hexagon") {
+        ws({{ m.per_exec_ws('tvm/build-hexagon') }}) {
           init_git()
           sh (
             script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
@@ -615,7 +612,7 @@ stage('Test') {
   parallel 'unittest: GPU': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('TensorCore') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-gpu") {
+        ws({{ m.per_exec_ws('tvm/ut-python-gpu') }}) {
           try {
             init_git()
             unpack_lib('gpu2', tvm_multilib)
@@ -650,7 +647,7 @@ stage('Test') {
   'integration: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-cpu") {
+        ws({{ m.per_exec_ws('tvm/ut-python-cpu') }}) {
           try {
             init_git()
             unpack_lib('cpu', tvm_multilib_tsim)
@@ -673,7 +670,7 @@ stage('Test') {
   'unittest: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-cpu") {
+        ws({{ m.per_exec_ws('tvm/ut-python-cpu') }}) {
           try {
             init_git()
             unpack_lib('cpu', tvm_multilib_tsim)
@@ -699,7 +696,7 @@ stage('Test') {
   'python3: i386': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-i386") {
+        ws({{ m.per_exec_ws('tvm/ut-python-i386') }}) {
           try {
             init_git()
             unpack_lib('i386', tvm_multilib)
@@ -722,10 +719,10 @@ stage('Test') {
       Utils.markStageSkippedForConditional('python3: i386')
     }
   },
-  'python3: aarch64': {
+  'python3: arm': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('ARM') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
+        ws({{ m.per_exec_ws('tvm/ut-python-arm') }}) {
           try {
             init_git()
             unpack_lib('arm', tvm_multilib)
@@ -741,10 +738,7 @@ stage('Test') {
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_topi.sh",
                 label: 'Run TOPI tests',
               )
-              sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh",
-                label: 'Run CPU integration tests',
-              )
+            // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
             }
           } finally {
             junit 'build/pytest-results/*.xml'
@@ -758,7 +752,7 @@ stage('Test') {
   'topi: GPU': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('GPU') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
+        ws({{ m.per_exec_ws('tvm/topi-python-gpu') }}) {
           try {
             init_git()
             unpack_lib('gpu', tvm_multilib)
@@ -781,7 +775,7 @@ stage('Test') {
   'frontend: GPU 1': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('GPU') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
+        ws({{ m.per_exec_ws('tvm/frontend-python-gpu') }}) {
           try {
             init_git()
             unpack_lib('gpu', tvm_multilib)
@@ -804,7 +798,7 @@ stage('Test') {
   'frontend: GPU 2': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('GPU') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
+        ws({{ m.per_exec_ws('tvm/frontend-python-gpu') }}) {
           try {
             init_git()
             unpack_lib('gpu', tvm_multilib)
@@ -827,7 +821,7 @@ stage('Test') {
   'frontend: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-cpu") {
+        ws({{ m.per_exec_ws('tvm/frontend-python-cpu') }}) {
           try {
             init_git()
             unpack_lib('cpu', tvm_multilib)
@@ -850,7 +844,7 @@ stage('Test') {
   'docs: GPU': {
     if (!skip_ci) {
       node('TensorCore') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/docs-python-gpu") {
+        ws({{ m.per_exec_ws('tvm/docs-python-gpu') }}) {
           init_git()
           unpack_lib('gpu', tvm_multilib)
           timeout(time: max_time, unit: 'MINUTES') {
@@ -929,7 +923,7 @@ def deploy_docs() {
 stage('Deploy') {
   if (env.BRANCH_NAME == 'main' && env.DOCS_DEPLOY_ENABLED == 'yes') {
     node('CPU') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docs") {
+      ws({{ m.per_exec_ws('tvm/deploy-docs') }}) {
         unpack_lib('docs', 'docs.tgz')
         deploy_docs()
       }
