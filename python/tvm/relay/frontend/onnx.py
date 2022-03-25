@@ -1940,6 +1940,9 @@ class ReduceSumSquare(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if not infer_shape(inputs[0]):  # promote scalar to 1-D tensor
+            inputs[0] = _op.expand_dims(inputs[0], axis=0)
+
         if "axes" in attr:
             axis = attr.get("axes", 0)
         else:
@@ -1956,6 +1959,9 @@ class ReduceL1(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if not infer_shape(inputs[0]):  # promote scalar to 1-D tensor
+            inputs[0] = _op.expand_dims(inputs[0], axis=0)
+
         if "axes" in attr:
             axis = attr.get("axes", 0)
         else:
@@ -1972,6 +1978,9 @@ class ReduceL2(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if not infer_shape(inputs[0]):  # promote scalar to 1-D tensor
+            inputs[0] = _op.expand_dims(inputs[0], axis=0)
+
         if "axes" in attr:
             axis = attr.get("axes", 0)
         else:
@@ -1989,6 +1998,9 @@ class ReduceLogSum(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if not infer_shape(inputs[0]):  # promote scalar to 1-D tensor
+            inputs[0] = _op.expand_dims(inputs[0], axis=0)
+
         if "axes" in attr:
             axis = attr.get("axes", 0)
         else:
