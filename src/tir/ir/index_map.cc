@@ -201,5 +201,7 @@ TVM_REGISTER_GLOBAL("tir.IndexMap")
       return IndexMap(initial_indices, final_indices);
     });
 
+TVM_REGISTER_GLOBAL("tir.IndexMapMapIndices").set_body_method<IndexMap>(&IndexMapNode::MapIndices);
+
 }  // namespace tir
 }  // namespace tvm

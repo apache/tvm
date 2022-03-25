@@ -42,7 +42,7 @@ from .stmt import ProducerRealize, SeqStmt
 from .stmt import IfThenElse, Evaluate, Prefetch, stmt_seq, stmt_list
 from .stmt import BufferRegion, MatchBufferRegion, Block, BlockRealize
 
-from .function import PrimFunc, TensorIntrin
+from .function import PrimFunc, TensorIntrin, IndexMap
 
 from .op import call_packed, call_intrin, call_pure_extern, call_extern
 from .op import call_llvm_intrin, call_llvm_pure_intrin, ret, all, any, min_value, max_value, trace
