@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -43,7 +44,8 @@ namespace codegen {
 
 CodeGenCHost::CodeGenCHost() { module_name_ = GetUniqueName("__tvm_module_ctx"); }
 
-void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_str) {
+void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_str,
+                        const std::unordered_set<std::string>& devices) {
   emit_asserts_ = emit_asserts;
   declared_globals_.clear();
   decl_stream << "// tvm target: " << target_str << "\n";
@@ -51,6 +53,16 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_s
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "#include <math.h>\n";
+  if (devices.find("ethos-u") != devices.end()) {
+    decl_stream << "#include <tvm_ethosu_runtime.h>\n";
+  }
+  if (devices.find("cmsis-nn") != devices.end()) {
+    decl_stream << "#include <stdio.h>\n";
+    decl_stream << "#include <stdlib.h>\n";
+    decl_stream << "#include <dlpack/dlpack.h>\n";
+    decl_stream << "#include <arm_nnfunctions.h>\n";
+    decl_stream << "#include <arm_nn_types.h>\n";
+  }
   CodeGenC::Init(output_ssa);
 }
 
@@ -358,8 +370,18 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   bool emit_asserts = false;
+
+  std::unordered_set<std::string> devices;
+  if (mod->GetAttr<Map<GlobalVar, String>>("device_contexts") != nullptr) {
+    Map<GlobalVar, String> device_contexts =
+        mod->GetAttr<Map<GlobalVar, String>>("device_contexts").value();
+    for (auto const& context : device_contexts) {
+      devices.insert(context.second.data());
+    }
+  }
+
   CodeGenCHost cg;
-  cg.Init(output_ssa, emit_asserts, target->str());
+  cg.Init(output_ssa, emit_asserts, target->str(), devices);
   cg.SetConstantsByteAlignment(target->GetAttr<Integer>("constants-byte-alignment").value_or(16));
   Map<String, LinkedParam> linked_params;
   PrimFunc aot_executor_fn;
