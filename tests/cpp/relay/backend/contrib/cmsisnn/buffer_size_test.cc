@@ -37,7 +37,7 @@ namespace cmsisnn {
 
 static std::random_device rd;
 static std::mt19937 gen(rd());
-static std::uniform_int_distribution<> fake_parameters(1, 100);
+static std::uniform_int_distribution<> fake_parameters(2, 100);
 
 class CMSISNNCalculatedBufferSize : public testing::TestWithParam<std::array<int32_t, 3>> {};
 
@@ -97,8 +97,7 @@ TEST(CMSISNNConv2dBufferSize, Conv1xN) {
   ASSERT_EQ(conv2d_1xn(kHasMVE, 32), 0);
 }
 
-// Test disabled, see https://github.com/apache/tvm/issues/10748
-TEST(DISABLED_CMSISNNConv2dBufferSize, Default) {
+TEST(CMSISNNConv2dBufferSize, Default) {
   int32_t any = fake_parameters(gen);
 
   int32_t input_c = fake_parameters(gen);
