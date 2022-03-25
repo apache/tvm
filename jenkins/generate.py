@@ -22,7 +22,6 @@ import difflib
 import textwrap
 
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 JENKINSFILE_TEMPLATE = REPO_ROOT / "jenkins" / "Jenkinsfile.j2"
 JENKINSFILE = REPO_ROOT / "Jenkinsfile"
@@ -30,14 +29,38 @@ JENKINSFILE = REPO_ROOT / "Jenkinsfile"
 
 data = {
     "images": [
-        { "name": "ci_arm", "platform": "ARM", },
-        { "name": "ci_cpu", "platform": "CPU", },
-        { "name": "ci_gpu", "platform": "CPU", },
-        { "name": "ci_hexagon", "platform": "CPU", },
-        { "name": "ci_i386", "platform": "CPU", },
-        { "name": "ci_lint", "platform": "CPU", },
-        { "name": "ci_qemu", "platform": "CPU", },
-        { "name": "ci_wasm", "platform": "CPU", },
+        {
+            "name": "ci_arm",
+            "platform": "ARM",
+        },
+        {
+            "name": "ci_cpu",
+            "platform": "CPU",
+        },
+        {
+            "name": "ci_gpu",
+            "platform": "CPU",
+        },
+        {
+            "name": "ci_hexagon",
+            "platform": "CPU",
+        },
+        {
+            "name": "ci_i386",
+            "platform": "CPU",
+        },
+        {
+            "name": "ci_lint",
+            "platform": "CPU",
+        },
+        {
+            "name": "ci_qemu",
+            "platform": "CPU",
+        },
+        {
+            "name": "ci_wasm",
+            "platform": "CPU",
+        },
     ]
 }
 
@@ -61,29 +84,36 @@ if __name__ == "__main__":
     template = environment.get_template(str(JENKINSFILE_TEMPLATE.relative_to(REPO_ROOT)))
     new_content = template.render(**data)
 
-    diff = ''.join(difflib.unified_diff(content.splitlines(keepends=True), new_content.splitlines(keepends=True)))
+    diff = "".join(
+        difflib.unified_diff(
+            content.splitlines(keepends=True), new_content.splitlines(keepends=True)
+        )
+    )
     if args.check:
-        if len(diff) == 0:
+        if not diff:
             print("Success, the newly generated Jenkinsfile matched the one on disk")
             exit(0)
         else:
-            print(textwrap.dedent("""
+            print(
+                textwrap.dedent(
+                    """
                 Newly generated Jenkinsfile did not match the one on disk! If you have made
-                edits to the Jenkinsfile, move them to 'jenkins/Jenkinsfile.j2'
-
-                Regenerate the Jenkinsfile from the template with
+                edits to the Jenkinsfile, move them to 'jenkins/Jenkinsfile.j2' and
+                regenerate the Jenkinsfile from the template with
                 
                     python3 -m pip install -r jenkins/requirements.txt
                     python3 jenkins/generate.py
                 
                 Diffed changes:
-            """).strip())
+            """
+                ).strip()
+            )
             print(diff)
             exit(1)
     else:
         with open(JENKINSFILE, "w") as f:
             f.write(new_content)
-        if len(diff) == 0:
+        if not diff:
             print(f"Wrote output to {JENKINSFILE.relative_to(REPO_ROOT)}, no changes made")
         else:
             print(f"Wrote output to {JENKINSFILE.relative_to(REPO_ROOT)}, changes:")
