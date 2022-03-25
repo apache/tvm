@@ -79,7 +79,7 @@ def test_ethosu_conv2d_single(
 @pytest.mark.parametrize("kernel_shape", [(3, 2), (1, 3)])
 @pytest.mark.parametrize("strides, dilation", [((1, 1), (2, 1)), ((3, 2), (1, 1))])
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
-@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES + ["ethos-u65-512"])
 @pytest.mark.parametrize("activation", ["NONE", "RELU"])
 def test_ethosu_conv2d_double(
     ifm_shape,

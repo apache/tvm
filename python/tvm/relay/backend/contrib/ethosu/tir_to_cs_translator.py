@@ -441,7 +441,7 @@ def assign_addresses(buffer_info, npu_ops, scratch_region_map):
             )
         assert buffer in buffer_addresses.keys(), f"searching for buffer : {buffer}, but not found"
         address, buffer_type = buffer_addresses[buffer]
-        address = address + int(npu_addr_range.address.index.value)
+        address = address + int(npu_addr_range.address.indices[0].value)
         return vapi.NpuAddressRange(_get_region(buffer_type), address, npu_addr_range.length)
 
     def replace_tir_loads(npu_object):

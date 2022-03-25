@@ -228,20 +228,33 @@ def DivideConstants(const_dict):
 
     def _visit(stmt):
         new_args = []
+        # We don't want to divide the constant that will be executed on two cores in parallel
+        is_u65_conv2d = (
+            vela_api.get_accelerator_config() == vapi.NpuAccelerator.Ethos_U65_512
+            and stmt.args[0] == "ethosu_conv2d"
+        )
         for i, arg in enumerate(stmt.args):
             if isinstance(arg, tvm.tir.expr.BufferLoad):
                 # If we're trying to load a buffer that maps to a constant
                 if arg.buffer.data in buffer_to_const:
                     const = buffer_to_const[arg.buffer.data]
-
-                    assert len(arg.indices) == 1, "Ethos-U passes expects flattened buffers"
+                    flattened_const_shape = np.prod(const.shape)
 
                     offset = int(arg.indices[0])
                     # Note by convention the arg after a constant read is the length of the read
                     length = int(stmt.args[i + 1])
                     # If it's anything other than a full read, create a new buffer
-                    if offset != 0 or len(const) != length:
-                        new_consts.append(const[offset : offset + length])
+                    if (offset != 0 or flattened_const_shape != length) and not is_u65_conv2d:
+                        out_channels = const.shape[0]
+                        offset_channels = int((offset * out_channels) / flattened_const_shape)
+                        length_channels = int((length * out_channels) / flattened_const_shape)
+                        # split the constant up across channels
+                        split_const = np.split(const, out_channels, axis=0)
+                        # create a new const out of the channels we want to keep
+                        new_const = np.concatenate(
+                            split_const[offset_channels : offset_channels + length_channels], axis=0
+                        )
+                        new_consts.append(new_const)
                         new_buffer = tvm.tir.decl_buffer(
                             (length,), arg.dtype, scope=arg.buffer.scope()
                         )
@@ -257,8 +270,8 @@ def DivideConstants(const_dict):
     def _ftransform(f, mod, ctx):
         for i, param in enumerate(f.params):
             if i in const_dict:
-                buffer_to_const[param] = const_dict[i].flatten()
-                buffer_to_const[f.buffer_map[param].data] = const_dict[i].flatten()
+                buffer_to_const[param] = const_dict[i]
+                buffer_to_const[f.buffer_map[param].data] = const_dict[i]
 
         new_body = tvm.tir.stmt_functor.ir_transform(f.body, _visit, None, ["tir.Call"])
         # Both the params and buffer map need updating for the newly introduced buffers
@@ -312,7 +325,6 @@ def EncodeConstants(const_dict):
 
     """
     new_const_dict = {}
-    buffer_to_offset = {}
 
     def collect_encoding_definitions(stmt, old_buffer_to_const):
         # Map from copy destination to copy source.
@@ -341,7 +353,7 @@ def EncodeConstants(const_dict):
             value = np.frombuffer(value_bytes, dtype="uint8")
             return value
 
-        def _declare_constant_buffer(old_buffer, encoded_constants):
+        def _declare_constant_buffer(old_buffer, encoded_constants, split_idx):
             """Create a new buffer and add the old buffer and its pointer to the
             rewriting maps."""
             new_buffer = tvm.tir.decl_buffer(
@@ -356,22 +368,22 @@ def EncodeConstants(const_dict):
                     "old_buffer": old_buffer,
                     "new_buffer": new_buffer,
                     "encoded_constants": encoded_constants,
+                    "split_idx": split_idx,
                 }
             )
 
         def _encode_weights_or_bias(buffer1, buffer2, stmt, encode_func):
             """Encode the weights or align the bias either for one or two cores,
             depending on the variant."""
-            #assert ptr1 in pointer_to_buffer
-            #buffer = pointer_to_buffer[ptr1]
             constant = old_buffer_to_const[buffer1]
 
             # If we have just one core, encode the whole constant
             if buffer2 is None:
                 new_const = encode_func(stmt, constant)
-                return new_const, len(new_const)
+                return new_const, None
 
-            # Assume OHWI
+            # Assume that the constant tensor has not been flattened yet
+            assert len(constant.shape) != 1
             channels = constant.shape[0]
             split_const = np.split(constant, channels, axis=0)
 
@@ -379,7 +391,7 @@ def EncodeConstants(const_dict):
             const_to_encode = np.concatenate(const_list, axis=0)
 
             new_const = encode_func(stmt, const_to_encode)
-            new_const_length = len(new_const)
+            split_idx = len(new_const)
 
             # Encode half of the constant separately for the other core if it exists
             assert buffer1.same_as(buffer2)
@@ -389,7 +401,7 @@ def EncodeConstants(const_dict):
             new_const2 = encode_func(stmt, const2_to_encode)
             new_const = np.append(new_const, new_const2).astype("uint8")
 
-            return new_const, new_const_length
+            return new_const, split_idx
 
         def _visit(stmt):
             if isinstance(stmt, tvm.tir.Call):
@@ -405,51 +417,50 @@ def EncodeConstants(const_dict):
                     copied_buffers.append({"source": read_buffer, "dest": write_buffer})
                     copy_map[write_buffer] = read_buffer
 
-            ops_with_weights = {
-                "ethosu_conv2d": tirtocs.translate_ethosu_conv2d,
-                "ethosu_depthwise_conv2d": tirtocs.translate_ethosu_depthwise_conv2d,
-            }
-            if op in ops_with_weights.keys():
-                npu_op, _ = ops_with_weights[op](stmt)
+                ops_with_weights = {
+                    "ethosu_conv2d": tirtocs.translate_ethosu_conv2d,
+                    "ethosu_depthwise_conv2d": tirtocs.translate_ethosu_depthwise_conv2d,
+                }
+                if op in ops_with_weights:
+                    npu_op, _ = ops_with_weights[op](stmt)
 
-                # Encode the weights
-                weights_buffer = npu_op.weights[0].address.buffer
-                if weights_buffer in copy_map:
-                    weights_buffer = copy_map[weights_buffer]
-                weights2_buffer = (
-                    npu_op.weights[1].address.buffer
-                    if accel_config == vapi.NpuAccelerator.Ethos_U65_512
-                    else None
-                )
-                if weights2_buffer in copy_map:
-                    weights2_buffer = copy_map[weights2_buffer]
+                    # Encode the weights
+                    weights_buffer = npu_op.weights[0].address.buffer
+                    if weights_buffer in copy_map:
+                        weights_buffer = copy_map[weights_buffer]
 
-                new_weights, new_weights_length = _encode_weights_or_bias(
-                    weights_buffer, weights2_buffer, stmt, _encode_weights
-                )
-                _declare_constant_buffer(weights_buffer, new_weights)
-                buffer_to_offset[weights_buffer] = new_weights_length
+                    # In case of U65 512 mac variant the weights are split across two cores
+                    # and need to be encoded separately
+                    weights2_buffer = (
+                        npu_op.weights[1].address.buffer
+                        if accel_config == vapi.NpuAccelerator.Ethos_U65_512
+                        else None
+                    )
+                    if weights2_buffer in copy_map:
+                        weights2_buffer = copy_map[weights2_buffer]
 
-                # Align the scale_bias to 16 bytes
-                scale_bias_buffer = npu_op.biases[0].address.buffer
-                if scale_bias_buffer in copy_map:
-                    scale_bias_buffer = copy_map[scale_bias_buffer]
-                scale_bias2_buffer = (
-                    npu_op.biases[1].address.buffer
-                    if accel_config == vapi.NpuAccelerator.Ethos_U65_512
-                    else None
-                )
-                if scale_bias2_buffer in copy_map:
-                    scale_bias2_buffer = copy_map[scale_bias2_buffer]
+                    new_weights, split_idx = _encode_weights_or_bias(
+                        weights_buffer, weights2_buffer, stmt, _encode_weights
+                    )
+                    _declare_constant_buffer(weights_buffer, new_weights, split_idx)
 
-                new_scale_bias, new_scale_bias_length = _encode_weights_or_bias(
-                    scale_bias_buffer, scale_bias2_buffer, stmt, _align_scale_bias
-                )
+                    # Align the scale_bias to 16 bytes
+                    scale_bias_buffer = npu_op.biases[0].address.buffer
+                    if scale_bias_buffer in copy_map:
+                        scale_bias_buffer = copy_map[scale_bias_buffer]
+                    scale_bias2_buffer = (
+                        npu_op.biases[1].address.buffer
+                        if accel_config == vapi.NpuAccelerator.Ethos_U65_512
+                        else None
+                    )
+                    if scale_bias2_buffer in copy_map:
+                        scale_bias2_buffer = copy_map[scale_bias2_buffer]
 
-                #scale_bias_buffer = pointer_to_buffer[scale_bias_pointer]
+                    new_scale_bias, split_idx = _encode_weights_or_bias(
+                        scale_bias_buffer, scale_bias2_buffer, stmt, _align_scale_bias
+                    )
 
-                _declare_constant_buffer(scale_bias_buffer, new_scale_bias)
-                buffer_to_offset[scale_bias_buffer] = new_scale_bias_length
+                    _declare_constant_buffer(scale_bias_buffer, new_scale_bias, split_idx)
 
         tvm.tir.stmt_functor.post_order_visit(stmt, _visit)
 
@@ -458,7 +469,9 @@ def EncodeConstants(const_dict):
             "constant_buffer_replacements": constant_buffer_replacements,
         }
 
-    def transform_stmt(stmt, buf_remap, var_remap, pointer_to_buffer, new_buffer_to_const):
+    def transform_stmt(
+        stmt, buf_remap, var_remap, pointer_to_buffer, new_buffer_to_const, new_buffer_to_split_idx
+    ):
         def _visit_rewrite(stmt):
             if isinstance(stmt, tvm.tir.Call):
                 # For extern calls, we need to rewrite pairs of arguments corresponding to
@@ -473,7 +486,19 @@ def EncodeConstants(const_dict):
                         isinstance(prev_arg, tvm.tir.BufferLoad)
                         and prev_arg.buffer in new_buffer_to_const
                     ):
-                        arg = np.prod(list(prev_arg.buffer.shape))
+                        buffer_size = np.prod(list(prev_arg.buffer.shape))
+                        arg = buffer_size
+                        # We have to check for split weights/bias for conv2d and depthwise_conv2d
+                        if old_args[0] in ("ethosu_conv2d", "depthwise_conv2d"):
+                            # We have split weights/bias
+                            if prev_arg.buffer in new_buffer_to_split_idx:
+                                split_idx = new_buffer_to_split_idx[prev_arg.buffer]
+                                # The first half of the split buffer
+                                if prev_arg.indices[0] == 0:
+                                    arg = split_idx
+                                # the second half of the split buffer
+                                else:
+                                    arg = buffer_size - split_idx
 
                     new_args.append(arg)
 
@@ -501,11 +526,12 @@ def EncodeConstants(const_dict):
             # rewrite the nodes which contain the Buffers.
             if isinstance(stmt, tvm.tir.BufferLoad):
                 if stmt.buffer in buf_remap:
-                    offset = stmt.index
-                    if offset != 0:
-                        offset = buffer_to_offset[stmt.buffer]
-                    # TODO: integrate the offset
-                    return tvm.tir.BufferLoad(buf_remap[stmt.buffer], stmt.indices, stmt.span)
+                    new_buffer = buf_remap[stmt.buffer]
+                    new_indices = stmt.indices
+                    offset = new_indices[0]
+                    if offset != 0 and new_buffer in new_buffer_to_split_idx:
+                        offset = new_buffer_to_split_idx[new_buffer]
+                    return tvm.tir.BufferLoad(buf_remap[stmt.buffer], [offset], stmt.span)
 
             if isinstance(stmt, tvm.tir.AttrStmt):
                 node_pointer = stmt.node
@@ -533,7 +559,7 @@ def EncodeConstants(const_dict):
         old_buffer_to_const = {}
         for i, param in enumerate(f.params):
             if i in const_dict:
-                old_buffer_to_const[f.buffer_map[param]] = const_dict[i].flatten()
+                old_buffer_to_const[f.buffer_map[param]] = const_dict[i]
 
         # Step 1: Collect information on the buffers that will be
         # replaced by encodings.
@@ -543,11 +569,15 @@ def EncodeConstants(const_dict):
         # collected information.
         buf_remap = {}
         new_buffer_to_const = {}
+        new_buffer_to_split_idx = {}
 
         # Any encoded buffers must be replaced
         for info in buffer_information["constant_buffer_replacements"]:
             buf_remap[info["old_buffer"]] = info["new_buffer"]
             new_buffer_to_const[info["new_buffer"]] = info["encoded_constants"]
+
+            if info["split_idx"]:
+                new_buffer_to_split_idx[info["new_buffer"]] = info["split_idx"]
 
         # Any buffers that are copied into from an encoded buffer must
         # be replaced.
@@ -569,6 +599,9 @@ def EncodeConstants(const_dict):
                 if copy_source in new_buffer_to_const:
                     new_buffer_to_const[new_dest] = new_buffer_to_const[copy_source]
 
+                if copy_source in new_buffer_to_split_idx:
+                    new_buffer_to_split_idx[new_dest] = new_buffer_to_split_idx[copy_source]
+
         # Define additional dependent lookup tables.
         var_remap = {old.data: new.data for (old, new) in buf_remap.items()}
         pointer_to_buffer = {
@@ -577,7 +610,12 @@ def EncodeConstants(const_dict):
 
         # Step 3: Then perform the rewrites
         new_body = transform_stmt(
-            f.body, buf_remap, var_remap, pointer_to_buffer, new_buffer_to_const
+            f.body,
+            buf_remap,
+            var_remap,
+            pointer_to_buffer,
+            new_buffer_to_const,
+            new_buffer_to_split_idx,
         )
 
         # Step 4: Rewrite the buffer map and const dict to instead use the encoded versions

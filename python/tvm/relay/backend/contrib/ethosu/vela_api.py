@@ -158,7 +158,7 @@ def encode_weights(
         # The weight layout is assumed to be OHWI, always.
         weights_layout="OHWI",
         ifm_bitdepth=npu_op.ifm.data_type.size_in_bits(),
-        block_depth=npu_op.block_config.depth//2,
+        block_depth=npu_op.block_config.depth,
         dilation=(npu_op.kernel.dilation_x, npu_op.kernel.dilation_y),
         accel_config=accel_config,
         is_depthwise=is_depthwise,

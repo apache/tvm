@@ -89,12 +89,12 @@ def get_conv2d_params(stmt, producers_consumers):
         scale_bias2_length = SCALE_BIAS_LENGTH * math.floor(channels / 2)
 
         serial_scale_bias = SerialAddressRange(
-            address=tvm.tir.BufferLoad("uint8", scale_bias_load.buffer, scale_bias_base),
+            address=tvm.tir.BufferLoad(scale_bias_load.buffer, scale_bias_base),
             length=scale_bias_length,
         )
         serial_scale_bias2 = SerialAddressRange(
             address=tvm.tir.BufferLoad(
-                "uint8", scale_bias_load.buffer, scale_bias_base + scale_bias_length
+                scale_bias_load.buffer, [scale_bias_base[0] + scale_bias_length]
             ),
             length=scale_bias2_length,
         )
@@ -107,18 +107,18 @@ def get_conv2d_params(stmt, producers_consumers):
         )
 
         serial_weight = SerialAddressRange(
-            address=tvm.tir.BufferLoad("uint8", weight_load.buffer, weight_base),
+            address=tvm.tir.BufferLoad(weight_load.buffer, weight_base),
             length=weight_length,
         )
         serial_weight2 = SerialAddressRange(
-            address=tvm.tir.BufferLoad("uint8", weight_load.buffer, weight_base + weight_length),
+            address=tvm.tir.BufferLoad(weight_load.buffer, [weight_base[0] + weight_length]),
             length=weight2_length,
         )
     else:
         scale_bias_length = SCALE_BIAS_LENGTH * channels
 
         serial_scale_bias = SerialAddressRange(
-            address=tvm.tir.BufferLoad("uint8", scale_bias_load.buffer, scale_bias_base),
+            address=tvm.tir.BufferLoad(scale_bias_load.buffer, scale_bias_base),
             length=scale_bias_length,
         )
         # Insert -1s into the spec to denote the absence of the other pointer
@@ -130,7 +130,7 @@ def get_conv2d_params(stmt, producers_consumers):
         weight_length = channels * serial_kernel[0] * serial_kernel[1] * rc.extent.value
 
         serial_weight = SerialAddressRange(
-            address=tvm.tir.BufferLoad("uint8", weight_load.buffer, weight_base),
+            address=tvm.tir.BufferLoad(weight_load.buffer, weight_base),
             length=weight_length,
         )
         serial_weight2 = SerialAddressRange(
