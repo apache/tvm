@@ -69,6 +69,7 @@ import functools
 import logging
 import os
 import platform
+import shutil
 import sys
 import time
 import pickle
@@ -763,7 +764,12 @@ def requires_corstone300(*args):
     f : function
         Function to mark
     """
-    _requires_corstone300 = [pytest.mark.corstone300]
+    _requires_corstone300 = [
+        pytest.mark.corstone300,
+        pytest.mark.skipif(
+            shutil.which("arm-none-eabi-gcc") is None, reason="ARM embedded toolchain unavailable"
+        ),
+    ]
     return _compose(args, _requires_corstone300)
 
 
