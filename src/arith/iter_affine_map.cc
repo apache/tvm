@@ -178,9 +178,7 @@ class IterMapRewriter : public ExprMutator {
     for (auto kv : input_iters) {
       const Var& var = kv.first;
       const Range& vrng = kv.second;
-      if (is_one(vrng->extent)) {
-        var_map_[var] = IterSumExpr({}, vrng->min);
-      } else if (is_zero(vrng->min)) {
+      if (is_zero(vrng->min)) {
         IterMark mark(var, vrng->extent);
         var_map_[var] = IterSplitExpr(mark);
         input_marks_.push_back(mark);
