@@ -54,6 +54,8 @@ def set_func_attr(func, compile_name, symbol_name):
 )
 def test_conv2d(dpu_target):
     """Test conv2d operator for Vitis AI DPU targets"""
+    if skip_test():
+        return
 
     x = relay.var("x", shape=(1, 3, 224, 224))
     w = relay.const(np.zeros((16, 3, 3, 3), dtype="float32"))
@@ -69,6 +71,8 @@ def test_conv2d(dpu_target):
 @pytest.mark.parametrize("dpu_target", ["DPUCAHX8L", "DPUCZDX8G-zcu104"])
 def test_depthwise_conv(dpu_target):
     """Test depthwise_conv operator for Vitis-AI DPUCZDX8G-zcu104 target"""
+    if skip_test():
+        return
 
     dtype = "float32"
     ishape = (1, 32, 14, 14)
@@ -90,6 +94,8 @@ def test_depthwise_conv(dpu_target):
 )
 def test_bias_add(dpu_target):
     """Test bias_add operator for Vitis AI DPU targets"""
+    if skip_test():
+        return
 
     dtype = "float32"
     ishape = (1, 32, 14, 14)
@@ -110,6 +116,8 @@ def test_bias_add(dpu_target):
 )
 def test_relu(dpu_target):
     """Test relu operator for Vitis AI DPU targets"""
+    if skip_test():
+        return
 
     shape = (10, 10)
     x = relay.var("x", shape=shape)
@@ -126,6 +134,8 @@ def test_relu(dpu_target):
 )
 def test_batchnorm(dpu_target):
     """Test batchnorm operator for Vitis AI DPU targets"""
+    if skip_test():
+        return
 
     data = relay.var("data", shape=(1, 16, 112, 112))
     bn_gamma = relay.var("bn_gamma", relay.TensorType((16,), "float32"))
@@ -150,6 +160,8 @@ def test_batchnorm(dpu_target):
 )
 def test_add(dpu_target):
     """Test add operator for Vitis AI DPU targets"""
+    if skip_test():
+        return
 
     shape = (10, 10)
     x = relay.var("x", shape=shape)
@@ -166,6 +178,8 @@ def test_add(dpu_target):
 )
 def test_global_avg_pool2d(dpu_target):
     """Test global_avg_pool2d operator for Vitis AI DPU targets"""
+    if skip_test():
+        return
 
     shape = (10, 10, 7, 7)
     x = relay.var("x", shape=shape)
@@ -182,6 +196,8 @@ def test_global_avg_pool2d(dpu_target):
 )
 def test_avg_pool2d(dpu_target):
     """Test avg_pool2d for operator Vitis AI DPU targets"""
+    if skip_test():
+        return
 
     shape = (10, 10, 10, 10)
     x = relay.var("x", shape=shape)
@@ -198,6 +214,8 @@ def test_avg_pool2d(dpu_target):
 )
 def test_max_pool2d(dpu_target):
     """Test max_pool2d for operator Vitis AI DPU targets"""
+    if skip_test():
+        return
 
     shape = (64, 512, 10, 10)
     x = relay.var("x", shape=shape)
@@ -214,6 +232,8 @@ def test_max_pool2d(dpu_target):
 )
 def test_global_max_pool2d(dpu_target):
     """Test global_maxpool2d operator for Vitis AI DPU targets"""
+    if skip_test():
+        return
 
     shape = (1, 512, 7, 7)
     x = relay.var("x", shape=shape)
@@ -230,6 +250,8 @@ def test_global_max_pool2d(dpu_target):
 )
 def test_upsampling(dpu_target):
     """Test upsampling operator for Vitis AI DPU targets"""
+    if skip_test():
+        return
 
     shape = (64, 512, 10, 10)
     x = relay.var("x", shape=shape)
@@ -253,6 +275,8 @@ def test_upsampling(dpu_target):
 )
 def test_conv2d_transpose(dpu_target):
     """Test conv2d_transpose operator for Vitis AI DPU targets"""
+    if skip_test():
+        return
 
     dshape = (1, 3, 18, 18)
     kshape = (3, 10, 3, 3)
@@ -283,6 +307,8 @@ def test_conv2d_transpose(dpu_target):
 )
 def test_annotate(dpu_target):
     """Test annotation operator for Vitis AI DPU targets"""
+    if skip_test():
+        return
 
     def partition(dpu_target):
         data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
