@@ -22,7 +22,7 @@ from os import path as osp
 import numpy as np
 import pytest
 import tvm
-from tvm import relay
+from tvm import relay, tir
 from tvm.contrib import graph_executor
 from tvm.ir import IRModule
 from tvm.tir.schedule.trace import Trace
@@ -30,10 +30,13 @@ from tvm.meta_schedule import ReplayTraceConfig
 from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload, JSONDatabase
 from tvm.meta_schedule.integration import ApplyHistoryBest
 from tvm.meta_schedule.testing.relay_workload import get_network
-from tvm.meta_schedule.tune import tune_relay
+from tvm.meta_schedule.tune import tune_relay, tune_extracted_tasks, extract_task_from_relay, Parse
 from tvm.meta_schedule.utils import derived_object
 from tvm.target.target import Target
 from tvm.script import tir as T
+from tvm.script.registry import register
+from tvm._ffi import register_func
+import tempfile
 
 logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
@@ -323,15 +326,6 @@ def test_meta_schedule_relay_lowering():
         assert np.allclose(actual_output, expected_output, rtol=1e-4, atol=2e-4)
 
 
-from tvm import tir
-from tvm.script import tir as T
-from tvm import meta_schedule as ms
-from tvm.script.registry import register
-from tvm.meta_schedule.tune import tune_extracted_tasks, extract_task_from_relay, Parse
-from tvm._ffi import register_func
-import tempfile
-
-
 @register
 def int32x16(imm, span):
     return imm.astype("int32x16", span)
@@ -438,8 +432,6 @@ def schedule_dense(block, M, do_tune, sch):
 
     sch.tensorize(a_xi, "dot_16x1x16_uint8_int8_int32_cascadelake")
 
-    return fused, outer_block
-
 
 def manual_tir_common(do_tune=False):
     M, N, K = 1024, 1024, 1024
@@ -452,12 +444,11 @@ def manual_tir_common(do_tune=False):
     bias = relay.var("bias", shape=(weight_shape[0],), dtype="int32")
     dense = relay.nn.dense(data, weight, out_dtype="int32")
     bias_add = relay.nn.bias_add(dense, bias) + relay.const(1, dtype="int32")
-    bmm = relay.nn.batch_matmul(
+    out = relay.nn.batch_matmul(
         relay.cast(relay.expand_dims(bias_add, 0), "uint8"),
         relay.cast(relay.expand_dims(bias_add, 0), "int8"),
         out_dtype="int32",
     )
-    out = bmm
 
     relay_mod = tvm.IRModule.from_expr(out)
 
@@ -478,11 +469,6 @@ def manual_tir_common(do_tune=False):
 
     extracted_tasks = extract_task_from_relay(relay_mod, target, params)
 
-    database = JSONDatabase(
-        path_workload="database_workload.json",
-        path_tuning_record="database_tuning_record.json",
-    )
-
     tune_tasks = list(
         filter(
             lambda task: "dense" in task.task_name,
@@ -490,28 +476,33 @@ def manual_tir_common(do_tune=False):
         )
     )
 
-    if do_tune:
-        with tempfile.TemporaryDirectory() as work_dir:
-            config = ms.ReplayTraceConfig(
+    with tempfile.TemporaryDirectory() as work_dir:
+        if do_tune:
+            config = ReplayTraceConfig(
                 num_trials_per_iter=64,
                 num_trials_total=64,
             )
             database = tune_extracted_tasks(tune_tasks, target, config, work_dir=work_dir)
-    else:
-        for task in tune_tasks:
-            mod = Parse._mod(task.dispatched[0])
-            workload = database.commit_workload(mod)
+        else:
+            database = JSONDatabase(
+                path_workload=osp.join(work_dir, "database_workload.json"),
+                path_tuning_record=osp.join(work_dir, "database_tuning_record.json"),
+            )
 
-            sch = tvm.tir.Schedule(mod)
-            block = sch.get_block("compute")
-            schedule_rule = sch.get(block).annotations["schedule_rule"]
+            for task in tune_tasks:
+                mod = Parse._mod(task.dispatched[0])
+                workload = database.commit_workload(mod)
 
-            if "dense_vnni" in schedule_rule:
-                schedule_dense(block, M, False, sch)
+                sch = tvm.tir.Schedule(mod)
+                block = sch.get_block("compute")
+                schedule_rule = sch.get(block).annotations["schedule_rule"]
 
-            tune_rec = TuningRecord(sch.trace, [0.0], workload, tvm.target.Target(target), [])
+                if "dense_vnni" in schedule_rule:
+                    schedule_dense(block, M, False, sch)
 
-            database.commit_tuning_record(tune_rec)
+                tune_rec = TuningRecord(sch.trace, [0.0], workload, tvm.target.Target(target), [])
+
+                database.commit_tuning_record(tune_rec)
 
     with ApplyHistoryBest(database):
         with tvm.transform.PassContext(
@@ -530,11 +521,10 @@ def manual_tir_common(do_tune=False):
     np.testing.assert_equal(out, ref)
 
 
-def test_relay_manual_tir():
+@pytest.mark.skip("Requires cascadelake")
+def test_tune_relay_manual_tir_vnni():
     manual_tir_common(do_tune=False)
 
-
-def test_tune_relay_manual_tir():
     def schedule_rule_dense_vnni(sch, block):
         schedule_dense(block, None, True, sch)
         return [sch]
@@ -553,5 +543,4 @@ if __name__ == """__main__""":
     # test_meta_schedule_tune_relay("bert_base", [1, 64], "nvidia/geforce-rtx-3070")
     # test_meta_schedule_te2primfunc_argument_order()
     # test_meta_schedule_relay_lowering()
-    # test_relay_manual_tir()
-    test_tune_relay_manual_tir()
+    test_tune_relay_manual_tir_vnni()
