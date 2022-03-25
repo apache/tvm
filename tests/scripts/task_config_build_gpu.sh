@@ -48,4 +48,4 @@ echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake
 echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
-echo set\(USE_LIBTORCH $(python -c "import os.path, torch ; print(os.path.dirname(torch.__file__))")\) >> config.cmake
+echo set\(USE_LIBTORCH $(python3 -c "import os.path, torch ; print(os.path.dirname(torch.__file__))")\) >> config.cmake
