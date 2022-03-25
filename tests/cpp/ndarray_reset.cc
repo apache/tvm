@@ -1,6 +1,7 @@
 //
 // Created by ruxiliang on 2022/3/23.
 //
+#include <bits/stdc++.h>
 #include <gtest/gtest.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/ndarray.h>
@@ -17,4 +18,12 @@ TEST(NDArray,MemoryManagement){
   EXPECT_EQ(handle.use_count(),1);
   handle.reset();
   EXPECT_EQ(handle.use_count(),0);
+}
+
+TEST(NDArray,ContainerReset){
+  std::vector<NDArray> t;
+  t.resize(20);
+  for(const auto& h:t){
+    EXPECT_EQ(h.defined(),false);
+  }
 }

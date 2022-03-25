@@ -419,18 +419,35 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   std::pair<std::function<void()>, std::shared_ptr<OpArgs>> CreateTVMOp(
       uint32_t nid,const TVMOpParam& attrs, const std::vector<DLTensor>& args);
   /*!
+   *  \brief Update the TVM operator memory location
+   *  \param nid The node id
+   *  \param param The node attributes
+   *  \param args The arguments to the functor, including inputs and outputs
+   *  \return The pointer to arguments
+   */
+   std::shared_ptr<OpArgs> UpdateTVMOp(
+      uint32_t nid, const TVMOpParam& param, const std::vector<DLTensor>& args);
+  /*!
     * \brief update input and output tensors according to the op_args
     * @param nid current node id
     * @param op_args operator arguments information
     * @return
    */
   void UpdateInputOutputTensors(const std::unordered_set<uint32_t>& input_node_eids,const std::unordered_set<uint32_t>& output_node_eids,uint32_t nid,std::shared_ptr<GraphExecutor::OpArgs> op_args);
+  /*!
+   * \brief Allocate tensor for given sid
+   * @param sid the storage id
+   * @return
+   */
+   void AllocTensor(size_t sid);
   // Get node entry index.
   uint32_t entry_id(uint32_t nid, uint32_t index) const { return node_row_ptr_[nid] + index; }
   // Get node entry index.
   uint32_t entry_id(const NodeEntry& e) const { return entry_id(e.node_id, e.index); }
   // Number of node entries.
   uint32_t num_node_entries() const { return node_row_ptr_.back(); }
+  // Get sid
+  int get_sid(size_t nid) const { return attrs_.storage_id[nid]; }
   /*! \brief The graph nodes. */
   std::vector<Node> nodes_;
   /*! \brief The argument nodes. */
@@ -476,6 +493,10 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    * When the module does not include linked parmeters, module_lookup_linked_param_ will be nullptr.
    */
   bool module_lookup_linked_param_valid_;
+  /*!
+   * \brief size and device type of each storage pool entry
+   */
+   std::vector<PoolEntry> pool_entry_;
 };
 
 std::vector<Device> GetAllDevice(const TVMArgs& args, int dev_start_arg);
