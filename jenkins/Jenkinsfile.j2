@@ -81,7 +81,6 @@ tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
                tvm_multilib
 
 // command to start a docker container
-docker_run = 'docker/bash.sh'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 240
@@ -103,6 +102,90 @@ def init_git() {
     timeout(time: 2, unit: 'MINUTES') {
       sh (script: 'git submodule update --init -f', label: 'Update git submodules')
     }
+  }
+}
+
+def run_in_ecr(task) {
+  try {
+    // Use a credential so Jenkins knows to scrub the AWS account ID which is nice
+    // (but so we don't have to rely it being hardcoded in Jenkins)
+    withCredentials([string(
+      credentialsId: 'aws-account-id',
+      variable: '_ACCOUNT_ID_DO_NOT_USE',
+      )]) {
+      withEnv([
+        "AWS_ACCOUNT_ID=${aws_account_id}",
+        "AWS_ECR_URL=${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com",
+        'AWS_DEFAULT_REGION=us-west-2']) {
+        sh(
+          script: '''
+            set -x
+            aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ECR_URL
+          ''',
+          label: 'Log in to ECR'
+        )
+        task()
+      }
+    }
+  } finally {
+    sh(
+      script: 'rm -f ~/.docker/config.json',
+      label: 'Clean up login credentials'
+    )
+  }
+}
+
+def build_image(image_name) {
+  hash = sh(
+    returnStdout: true,
+    script: 'git log -1 --format=\'%h\''
+  ).trim()
+  def full_name = "${image_name}:${env.BRANCH_NAME}-${hash}"
+  sh(
+    script: "${docker_build} ${image_name} --spec ${full_name}",
+    label: 'Build docker image'
+  )
+  aws_account_id = sh(
+    returnStdout: true,
+    script: 'aws sts get-caller-identity | grep Account | cut -f4 -d\\"',
+    label: 'Get AWS ID'
+  ).trim()
+
+  run_in_ecr({
+    sh(
+      script: """
+        set -x
+        docker tag ${full_name} \$AWS_ECR_URL/${full_name}
+        docker push \$AWS_ECR_URL/${full_name}
+      """,
+      label: 'Upload image to ECR'
+    )
+  })
+
+  sh(
+    script: "docker rmi ${full_name}",
+    label: 'Remove docker image'
+  )
+
+  return full_name
+}
+
+def docker_run(image, script, label) {
+  exec = {
+    withEnv(["IMAGE=${image}"]) {
+      sh (
+        script: "docker/bash.sh \$IMAGE ${script}",
+        label: label,
+      )
+    }
+  }
+
+  if (image.contains("amazon")) {
+    run_in_ecr({
+      exec()
+    })
+  } else {
+    exec()
   }
 }
 
@@ -216,132 +299,32 @@ stage('Sanity Check') {
           // to run the lint
           return
         }
-        sh (
-          script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
-          label: 'Run lint',
-        )
+        docker_run(ci_lint, './tests/scripts/task_lint.sh', 'Run lint')
       }
     }
   }
-}
-
-def build_image(image_name) {
-  hash = sh(
-    returnStdout: true,
-    script: 'git log -1 --format=\'%h\''
-  ).trim()
-  def full_name = "${image_name}:${env.BRANCH_NAME}-${hash}"
-  sh(
-    script: "${docker_build} ${image_name} --spec ${full_name}",
-    label: 'Build docker image'
-  )
-  aws_account_id = sh(
-    returnStdout: true,
-    script: 'aws sts get-caller-identity | grep Account | cut -f4 -d\\"',
-    label: 'Get AWS ID'
-  ).trim()
-
-  try {
-    // Use a credential so Jenkins knows to scrub the AWS account ID which is nice
-    // (but so we don't have to rely it being hardcoded in Jenkins)
-    withCredentials([string(
-      credentialsId: 'aws-account-id',
-      variable: '_ACCOUNT_ID_DO_NOT_USE',
-      )]) {
-      withEnv([
-        "AWS_ACCOUNT_ID=${aws_account_id}",
-        'AWS_DEFAULT_REGION=us-west-2']) {
-        sh(
-          script: '''
-            set -x
-            aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
-          ''',
-          label: 'Log in to ECR'
-        )
-        sh(
-          script: """
-            set -x
-            docker tag ${full_name} \$AWS_ACCOUNT_ID.dkr.ecr.\$AWS_DEFAULT_REGION.amazonaws.com/${full_name}
-            docker push \$AWS_ACCOUNT_ID.dkr.ecr.\$AWS_DEFAULT_REGION.amazonaws.com/${full_name}
-          """,
-          label: 'Upload image to ECR'
-        )
-      }
-    }
-  } finally {
-    sh(
-      script: 'rm -f ~/.docker/config.json',
-      label: 'Clean up login credentials'
-    )
-  }
-  sh(
-    script: "docker rmi ${full_name}",
-    label: 'Remove docker image'
-  )
 }
 
 if (rebuild_docker_images) {
   stage('Docker Image Build') {
     // TODO in a follow up PR: Find ecr tag and use in subsequent builds
-    parallel 'ci-lint': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_lint')
+    parallel(
+    {% for image in images %}
+      '{{ image.name }}': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            new_{{ image.name }} = build_image('{{ image.name }}')
+            run_in_ecr({
+              {{ image.name }} = "${env.AWS_ECR_URL}/${new_{{ image.name }}}"
+            })
+          }
         }
-      }
-    }, 'ci-cpu': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_cpu')
-        }
-      }
-    }, 'ci-gpu': {
-      node('GPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_gpu')
-        }
-      }
-    }, 'ci-qemu': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_qemu')
-        }
-      }
-    }, 'ci-i386': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_i386')
-        }
-      }
-    }, 'ci-arm': {
-      node('ARM') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_arm')
-        }
-      }
-    }, 'ci-wasm': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_wasm')
-        }
-      }
-    }, 'ci-hexagon': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_hexagon')
-        }
-      }
-    }
+      },
+    {% endfor %}
+    )
   }
-  // TODO: Once we are able to use the built images, enable this step
+
   // If the docker images changed, we need to run the image build before the lint
   // can run since it requires a base docker image. Most of the time the images
   // aren't build though so it's faster to use the same node that checks for
@@ -349,12 +332,9 @@ if (rebuild_docker_images) {
   stage('Sanity Check (re-run)') {
     timeout(time: max_time, unit: 'MINUTES') {
       node('CPU') {
-        ws({{ m.per_exec_ws('tvm/sanity') }}) {
+        ws({{ m.per_exec_ws('tvm/sanity-rerun') }}) {
           init_git()
-          sh (
-            script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
-            label: 'Run lint',
-          )
+          docker_run(ci_lint, "./tests/scripts/task_lint.sh", "Run lint")
         }
       }
     }
@@ -375,10 +355,7 @@ def make(docker_type, path, make_flag) {
         throw ae
       }
       echo 'Incremental compilation failed. Fall back to build from scratch'
-      sh (
-        script: "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}",
-        label: 'Clear old cmake workspace',
-      )
+      docker_run(docker_type, "./tests/scripts/task_clean.sh ${path}", 'Clear old cmake workspace')
       cmake_build(docker_type, path, make_flag)
     }
   }
@@ -403,38 +380,23 @@ def unpack_lib(name, libs) {
 }
 
 def ci_setup(image) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_ci_setup.sh",
-    label: 'Set up CI environment',
-  )
+  docker_run(image, './tests/scripts/task_ci_setup.sh', 'Set up CI environment')
 }
 
 def python_unittest(image) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_python_unittest.sh",
-    label: 'Run Python unit tests',
-  )
+  docker_run(image, './tests/scripts/task_python_unittest.sh', 'Run Python unit tests')
 }
 
 def fsim_test(image) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_python_vta_fsim.sh",
-    label: 'Run VTA tests in FSIM',
-  )
+  docker_run(image, './tests/scripts/task_python_vta_fsim.sh', 'Run VTA tests in FSIM')
 }
 
 def cmake_build(image, path, make_flag) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod",
-    label: 'Run cmake build',
-  )
+  docker_run(image, './tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod', 'Run cmake build')
 }
 
 def cpp_unittest(image) {
-  sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_cpp_unittest.sh",
-    label: 'Build and run C++ tests',
-  )
+  docker_run("--env CI_NUM_EXECUTORS ${image}", './tests/scripts/task_cpp_unittest.sh', 'Build and run C++ tests')
 }
 
 stage('Build') {
@@ -446,11 +408,11 @@ stage('Build') {
       node('CPU') {
         ws({{ m.per_exec_ws('tvm/build-gpu') }}) {
           init_git()
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
+          docker_run("--no-gpu ${ci_gpu}", './tests/scripts/task_config_build_gpu.sh build', 'Configure GPU build')
           make("${ci_gpu} --no-gpu", 'build', '-j2')
           pack_lib('gpu', tvm_multilib)
           // compiler test
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
+          docker_run("--no-gpu ${ci_gpu}", './tests/scripts/task_config_build_gpu_other.sh build2', 'Configure GPU other build')
           make("${ci_gpu} --no-gpu", 'build2', '-j2')
           pack_lib('gpu2', tvm_multilib)
         }
@@ -462,17 +424,14 @@ stage('Build') {
       node('CPU') {
         ws({{ m.per_exec_ws('tvm/build-cpu') }}) {
           init_git()
-          sh (
-            script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
-            label: 'Create CPU cmake config',
-          )
+          docker_run(ci_cpu, './tests/scripts/task_config_build_cpu.sh build', 'Create CPU cmake config')
           make(ci_cpu, 'build', '-j2')
           pack_lib('cpu', tvm_multilib_tsim)
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_cpu)
             // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
             // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-            sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
+            docker_run(ci_cpu, './tests/scripts/task_rust.sh', 'Rust build and test')
           }
         }
       }
@@ -485,18 +444,12 @@ stage('Build') {
       node('CPU') {
         ws({{ m.per_exec_ws('tvm/build-wasm') }}) {
           init_git()
-          sh (
-            script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
-            label: 'Create WASM cmake config',
-          )
+          docker_run(ci_wasm, './tests/scripts/task_config_build_wasm.sh build', 'Create WASM cmake config')
           make(ci_wasm, 'build', '-j2')
           cpp_unittest(ci_wasm)
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_wasm)
-            sh (
-              script: "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh",
-              label: 'Run WASM lint and tests',
-            )
+            docker_run(ci_wasm, './tests/scripts/task_web_wasm.sh', 'Run WASM lint and tests')
           }
         }
       }
@@ -509,10 +462,7 @@ stage('Build') {
       node('CPU') {
         ws({{ m.per_exec_ws('tvm/build-i386') }}) {
           init_git()
-          sh (
-            script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build",
-            label: 'Create i386 cmake config',
-          )
+          docker_run(ci_i386, './tests/scripts/task_config_build_i386.sh build', 'Create i386 cmake config')
           make(ci_i386, 'build', '-j2')
           pack_lib('i386', tvm_multilib_tsim)
         }
@@ -526,10 +476,7 @@ stage('Build') {
       node('ARM') {
         ws({{ m.per_exec_ws('tvm/build-arm') }}) {
           init_git()
-          sh (
-            script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",
-            label: 'Create ARM cmake config',
-          )
+          docker_run(ci_arm, './tests/scripts/task_config_build_arm.sh build', 'Create ARM cmake config')
           make(ci_arm, 'build', '-j4')
           pack_lib('arm', tvm_multilib)
         }
@@ -543,23 +490,14 @@ stage('Build') {
       node('CPU') {
         ws({{ m.per_exec_ws('tvm/build-qemu') }}) {
           init_git()
-          sh (
-            script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh build",
-            label: 'Create QEMU cmake config',
-          )
+          docker_run(ci_qemu, './tests/scripts/task_config_build_qemu.sh build', 'Create QEMU cmake config')
           try {
             make(ci_qemu, 'build', '-j2')
             cpp_unittest(ci_qemu)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_qemu)
-              sh (
-                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
-                label: 'Run microTVM tests',
-              )
-              sh (
-                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
-                label: 'Run microTVM demos',
-              )
+              docker_run(ci_qemu, ' ./tests/scripts/task_python_microtvm.sh', 'Run microTVM tests')
+              docker_run(ci_qemu, ' ./tests/scripts/task_demo_microtvm.sh', 'Run microTVM demos')
             }
           } finally {
             junit 'build/pytest-results/*.xml'
@@ -575,25 +513,13 @@ stage('Build') {
       node('CPU') {
         ws({{ m.per_exec_ws('tvm/build-hexagon') }}) {
           init_git()
-          sh (
-            script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
-            label: 'Create Hexagon cmake config',
-          )
+          docker_run(ci_hexagon, './tests/scripts/task_config_build_hexagon.sh build', 'Create Hexagon cmake config')
           try {
             make(ci_hexagon, 'build', '-j2')
             cpp_unittest(ci_hexagon)
-            sh (
-              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
-              label: 'Build Hexagon API',
-            )
-            sh (
-              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
-              label: 'Run Hexagon tests',
-            )
-            sh (
-              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon_simulator.sh",
-              label: 'Run Hexagon tests on simulator',
-            )
+            docker_run(ci_hexagon, './tests/scripts/task_build_hexagon_api.sh', 'Build Hexagon API')
+            docker_run(ci_hexagon, './tests/scripts/task_python_hexagon.sh', 'Run Hexagon tests')
+            docker_run(ci_hexagon, './tests/scripts/task_python_hexagon_simulator.sh', 'Run Hexagon tests on simulator')
           } finally {
             junit 'build/pytest-results/*.xml'
           }
@@ -622,18 +548,9 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_gpu)
               cpp_unittest(ci_gpu)
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
-                label: 'Run Java unit tests',
-              )
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
-                label: 'Run Python GPU unit tests',
-              )
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
-                label: 'Run Python GPU integration tests',
-              )
+              docker_run(ci_gpu, './tests/scripts/task_java_unittest.sh', 'Run Java unit tests')
+              docker_run(ci_gpu, './tests/scripts/task_python_unittest_gpuonly.sh', 'Run Python GPU unit tests')
+              docker_run(ci_gpu, './tests/scripts/task_python_integration_gpuonly.sh', 'Run Python GPU integration tests')
             }
           } finally {
             junit 'build/pytest-results/*.xml'
@@ -653,10 +570,7 @@ stage('Test') {
             unpack_lib('cpu', tvm_multilib_tsim)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_cpu)
-              sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
-                label: 'Run CPU integration tests',
-              )
+              docker_run(ci_cpu, './tests/scripts/task_python_integration.sh', 'Run CPU integration tests')
             }
           } finally {
             junit 'build/pytest-results/*.xml'
@@ -679,10 +593,7 @@ stage('Test') {
               cpp_unittest(ci_cpu)
               python_unittest(ci_cpu)
               fsim_test(ci_cpu)
-              sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
-                label: 'Run VTA tests in TSIM',
-              )
+              docker_run(ci_cpu, './tests/scripts/task_python_vta_tsim.sh', 'Run VTA tests in TSIM')
             }
           } finally {
             junit 'build/pytest-results/*.xml'
@@ -704,10 +615,7 @@ stage('Test') {
               ci_setup(ci_i386)
               cpp_unittest(ci_i386)
               python_unittest(ci_i386)
-              sh (
-                script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
-                label: 'Run i386 integration tests',
-              )
+              docker_run(ci_i386, ' ./tests/scripts/task_python_integration_i386only.sh', 'Run i386 integration tests')
               fsim_test(ci_i386)
             }
           } finally {
@@ -730,18 +638,9 @@ stage('Test') {
               ci_setup(ci_arm)
               cpp_unittest(ci_arm)
               python_unittest(ci_arm)
-              sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
-                label: 'Run test_arm_compute_lib test',
-              )
-              sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_topi.sh",
-                label: 'Run TOPI tests',
-              )
-              sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh",
-                label: 'Run CPU integration tests',
-              )
+              docker_run(ci_arm, './tests/scripts/task_python_arm_compute_library.sh', 'Run test_arm_compute_lib test')
+              docker_run(ci_arm, './tests/scripts/task_python_topi.sh', 'Run TOPI tests')
+              docker_run(ci_arm, './tests/scripts/task_python_integration.sh', 'Run CPU integration tests')
             }
           } finally {
             junit 'build/pytest-results/*.xml'
@@ -761,10 +660,7 @@ stage('Test') {
             unpack_lib('gpu', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_gpu)
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh",
-                label: 'Run TOPI tests',
-              )
+              docker_run(ci_gpu, './tests/scripts/task_python_topi.sh', 'Run TOPI tests')
             }
           } finally {
             junit 'build/pytest-results/*.xml'
@@ -784,10 +680,7 @@ stage('Test') {
             unpack_lib('gpu', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_gpu)
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh 1",
-                label: 'Run Python frontend tests (shard 1)',
-              )
+              docker_run(ci_gpu, './tests/scripts/task_python_frontend.sh 1', 'Run Python frontend tests (shard 1)')
             }
           } finally {
             junit 'build/pytest-results/*.xml'
@@ -807,10 +700,7 @@ stage('Test') {
             unpack_lib('gpu', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_gpu)
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh 2",
-                label: 'Run Python frontend tests (shard 2)',
-              )
+              docker_run(ci_gpu, './tests/scripts/task_python_frontend.sh 2', 'Run Python frontend tests (shard 2)')
             }
           } finally {
             junit 'build/pytest-results/*.xml'
@@ -830,10 +720,7 @@ stage('Test') {
             unpack_lib('cpu', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_cpu)
-              sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh",
-                label: 'Run Python frontend tests',
-              )
+              docker_run(ci_cpu, './tests/scripts/task_python_frontend_cpu.sh', 'Run Python frontend tests')
             }
           } finally {
             junit 'build/pytest-results/*.xml'
@@ -852,10 +739,7 @@ stage('Test') {
           unpack_lib('gpu', tvm_multilib)
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_gpu)
-            sh (
-              script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh",
-              label: 'Build docs',
-            )
+            docker_run(ci_gpu, './tests/scripts/task_python_docs.sh', 'Build docs')
           }
           pack_lib('docs', 'docs.tgz')
           archiveArtifacts(artifacts: 'docs.tgz', fingerprint: true)
