@@ -18,7 +18,6 @@
 
 from ..backend import UMABackend
 from .strategies import *
-from .schedules import *
 from .passes import *
 from .patterns import *
 from .codegen import *
@@ -41,10 +40,7 @@ class UltraTrailBackend(UMABackend):
         #######################################################################
         self._register_operator_strategy("nn.conv1d", custom_conv1d_strategy, plevel=9)
 
-        self._register_tir_schedule(insert_extern_calls)
-
-        self._register_tir_pass(0, CodegenGenerateConfig())
-        self._register_tir_pass(0, CodegenGenerateConstants())
+        self._register_tir_pass(0, CodegenGenerateExternCalls())
 
         #######################################################################
         # TIR to runtime function registration

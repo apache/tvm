@@ -72,11 +72,6 @@ class UMABackend(object):
     ) -> None:
         self._relay_to_tir._operator_strategies.append((op, strat, plevel))
 
-    def _register_tir_schedule(
-        self, sch_func: Callable[[tvm.tir.Schedule], tvm.tir.Schedule]
-    ) -> None:
-        self._relay_to_tir._tir_schedules.append(sch_func)
-
     def _register_tir_pass(self, stage: int, tir_pass: tvm.tir.transform.PrimFuncPass) -> None:
         self._relay_to_tir._tir_passes.append((stage, tir_pass))
 
@@ -90,7 +85,6 @@ class UMABackend(object):
     # Backend functions
     ############################################################################
     def register(self) -> None:
-
         registration_func = tvm.get_global_func("relay.backend.contrib.uma.RegisterTarget")
         registration_func(self.target_name)
 

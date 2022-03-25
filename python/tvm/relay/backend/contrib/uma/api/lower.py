@@ -17,7 +17,7 @@
 """Lowering base class of the Universal Modular Accelerator Interface (UMA)"""
 
 import tvm
-from tvm import relay, te, tir
+from tvm import relay, te
 
 from typing import List, Tuple, Callable, Optional
 
@@ -38,7 +38,6 @@ class UMALower(object):
                 Optional[int],
             ]
         ] = []
-        self._tir_schedules: List[Callable[[tvm.tir.Schedule], tvm.tir.Schedule]] = []
         self._tir_passes: List[Tuple[int, tvm.tir.transform.PrimFuncPass]] = []
 
     def _lower_relay_to_tir(self, relay_prim_func: relay.Function) -> tvm.tir.PrimFunc:
@@ -66,13 +65,13 @@ class UMALower(object):
         tir_prim_func = tir_prim_func.with_attr("relay_attrs", relay_prim_func.attrs)
         return tir_prim_func
 
-    def _lower_stir_to_nstir(self, schedule: tvm.tir.Schedule) -> tvm.tir.PrimFunc:
-        """Lower a S-TIR schedule to a NS-TIR primitive function.
+    def _lower_stir_to_nstir(self, prim_func: tvm.tir.PrimFunc) -> tvm.tir.PrimFunc:
+        """Lower a S-TIR primitive function to a NS-TIR primitive function.
 
         Parameters
         ----------
-        schedule : tvm.tir.Schedule
-            The schedule to lower.
+        prim_func : tvm.tir.PrimFunc
+            The primitive function to lower.
 
         Returns
         -------
@@ -80,11 +79,18 @@ class UMALower(object):
             The lowered non-schedulable TensorIR primitive function.
 
         """
+        curr_ctxt = tvm.transform.PassContext().current()
+        assert "tir.add_lower_pass" not in curr_ctxt.config
+
         with tvm.transform.PassContext(
-            config={"tir.add_lower_pass": self._tir_passes}, opt_level=0
+            opt_level=curr_ctxt.opt_level,
+            required_pass=curr_ctxt.required_pass,
+            disabled_pass=curr_ctxt.disabled_pass,
+            instruments=curr_ctxt.instruments,
+            config={**dict(curr_ctxt.config), "tir.add_lower_pass": self._tir_passes},
         ):
-            mod = tvm.lower(schedule.mod)
-        prim_func = mod["main"]
+            mod = tvm.lower(tvm.ir.IRModule.from_expr(prim_func))
+        prim_func = mod[prim_func.attrs["global_symbol"]]
         return prim_func
 
     def relay_to_tir_func(self, ext_func: relay.Function) -> tvm.tir.PrimFunc:
@@ -104,10 +110,7 @@ class UMALower(object):
 
         """
         prim_func = self._lower_relay_to_tir(ext_func)
-        schedule = tir.Schedule(prim_func)
-        for sch_func in self._tir_schedules:
-            schedule = sch_func(schedule)
-        prim_func = self._lower_stir_to_nstir(schedule)
+        prim_func = self._lower_stir_to_nstir(prim_func)
         return prim_func
 
     def register(self) -> None:

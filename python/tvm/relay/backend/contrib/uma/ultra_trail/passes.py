@@ -17,7 +17,8 @@
 """Transform passes for the UltraTrail accelerator"""
 
 import tvm
-from tvm import relay
+from tvm import relay, tir
+from tvm.topi.utils import prod
 
 from collections import OrderedDict
 
@@ -165,18 +166,30 @@ class BufferScopeAnnotator:
 
         return mod
 
+def insert_extern_calls(sch):
+    def extern_calls():
+        calls = []
+        buffer_scopes = list(sch.mod["main"].attrs["relay_attrs"]["ut_buffer_scopes"])
+        buffer_scopes.reverse() # for some reason TIR params are reversed to relay function
+        for i, buffer_scope in enumerate(buffer_scopes):
+            buffer = sch.mod["main"].buffer_map[sch.mod["main"].params[i]]
+            size = prod(buffer.shape)
+            var = buffer.data
+            call = tir.call_extern("int32", f"load_{buffer_scope}", var, size)
+            calls.append(tir.Evaluate(call))
+        seq = tir.stmt_seq(*calls)
+        return tir.Block([], [], [], "call_extern", seq)
+
+    root_sref = sch.get_sref(sch.get_block("root"))
+    sch.state.replace(root_sref, extern_calls())
+
+    return sch
 
 @tvm.tir.transform.prim_func_pass(opt_level=1)
-class CodegenGenerateConfig:
+class CodegenGenerateExternCalls:
     def transform_function(
         self, func: tvm.tir.PrimFunc, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
     ) -> tvm.tir.PrimFunc:
-        return func
-
-
-@tvm.tir.transform.prim_func_pass(opt_level=1)
-class CodegenGenerateConstants:
-    def transform_function(
-        self, func: tvm.tir.PrimFunc, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.tir.PrimFunc:
-        return func
+        sch = tir.Schedule(func)
+        sch = insert_extern_calls(sch)
+        return sch.mod["main"]
