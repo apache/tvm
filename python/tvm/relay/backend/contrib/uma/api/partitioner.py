@@ -26,21 +26,16 @@ from typing import Dict, List, Tuple, Optional
 
 class UMAPartitioner(object):
     def __init__(
-        self, target_name: str, variant: str = "", merge_compiler_regions: bool = True
+        self, target_name: str, merge_compiler_regions: bool = True
     ) -> None:
         self.target_name = target_name
-        self.variant = variant
         self.merge_compiler_regions = merge_compiler_regions
 
         self._relay_passes: List[Tuple[int, tvm.transform.Pass]] = []
-        self._patterns: List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, List[str]]] = []
+        self._patterns: List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern]] = []
 
     def _pattern_table(self):
-        return [
-            (self.target_name + "." + pattern[0], pattern[1])
-            for pattern in self._patterns
-            if self.variant in pattern[2] or not pattern[2]
-        ]
+        return [(self.target_name + "." + pattern[0], pattern[1]) for pattern in self._patterns]
 
     def register(self) -> None:
         register_pattern_table(self.target_name, self._pattern_table)

@@ -28,7 +28,10 @@ from tvm.relay.backend.contrib.uma.api.codegen import UMACodegen
 
 class UMABackend(object):
     def __init__(self, variant: str = "", merge_compiler_region: bool = True) -> None:
-        self._relay_to_relay = UMAPartitioner(self.target_name, variant, merge_compiler_region)
+        # TODO: variant implementation
+        # - variant should allow the user to differentiate between different variants of the same NPU
+        # - we need to decide where we want to make the variant decision and which parts of UMA are affected by it
+        self._relay_to_relay = UMAPartitioner(self.target_name, merge_compiler_region)
         self._relay_to_tir = UMALower(self.target_name)
         self._tir_to_runtime = UMACodegen(self.target_name)
 
@@ -47,16 +50,70 @@ class UMABackend(object):
     ############################################################################
     # Relay to Relay function registration
     ############################################################################
-    def _register_relay_pass(self, stage: int, relay_pass: tvm.transform.Pass) -> None:
-        self._relay_to_relay._relay_passes.append((stage, relay_pass))
+    def _register_relay_pass(self, phase: int, relay_pass: tvm.transform.Pass) -> None:
+        """Registers a relay pass at the given phase in the lowering process.
 
-    def _register_pattern(
-        self,
-        name: str,
-        pattern: tvm.relay.dataflow_pattern.DFPattern,
-        variants: Optional[List[str]] = None,
-    ) -> None:
-        self._relay_to_relay._patterns.append((name, pattern, [] if variants is None else variants))
+        Parameters
+        ----------
+        phase: int
+           The phase at which the pass is registered.
+
+        relay_pass: tvm.transform.Pass
+            The relay pass to be registered.
+
+        Example
+        -------
+        Here is an example of how two relay passes are registered.
+        Passes of the same phase are executed in the order they are registered.
+
+        .. code-block:: python
+
+            self._register_relay_pass(0, MyPassA)
+            self._register_relay_pass(0, MyPassB)
+
+        Where a relay pass can look like this:
+
+        .. code-block:: python
+            
+            @tvm.ir.transform.module_pass(opt_level=0)
+            class MyPassA:
+                def transform_module(self, mod, ctx):
+                    # My pass functionality...
+                    return mod
+        """
+        self._relay_to_relay._relay_passes.append((phase, relay_pass))
+
+    def _register_pattern(self, name: str, pattern: tvm.relay.dataflow_pattern.DFPattern,) -> None:
+        """Registers a dataflow pattern that is used to partition the relay graph.
+
+        Parameters
+        ----------
+        name: str
+           The name of the pattern.
+
+        pattern: tvm.relay.dataflow_pattern.DFPattern
+            The dataflow pattern.
+
+        Example
+        -------
+        Here is an example of how two dataflow patterns are registered.
+        During partioning, patterns are searched in order of registration.
+
+        .. code-block:: python
+
+            self._register_pattern("conv1d", conv1d_pattern)
+            self._register_pattern("conv2d", conv2d_pattern)
+
+        Where a dataflow pattern can look like this:
+
+        .. code-block:: python
+            
+            conv1d_pattern = is_op("nn.conv1d")(wildcard(), wildcard())
+            optional_bias = lambda x: is_op("nn.bias_add")(x, wildcard())
+            optional_relu = lambda x: is_op("nn.relu")(x)
+            conv1d_pattern = conv1d_pattern.optional(optional_bias).optional(optional_relu)
+        """
+        self._relay_to_relay._patterns.append((name, pattern))
 
     ############################################################################
     # Relay to TIR function registration
@@ -64,21 +121,123 @@ class UMABackend(object):
     def _register_operator_strategy(
         self,
         op: str,
-        strat: Callable[
+        strategy: Callable[
             [tvm.ir.Attrs, tvm.ir.Array, tvm.ir.TensorType, tvm.target.Target],
             tvm.relay.op.op.OpStrategy,
         ],
         plevel: Optional[int] = 11,
     ) -> None:
-        self._relay_to_tir._operator_strategies.append((op, strat, plevel))
+        """Registers an operator strategy that is used to partition the relay graph.
 
-    def _register_tir_pass(self, stage: int, tir_pass: tvm.tir.transform.PrimFuncPass) -> None:
-        self._relay_to_tir._tir_passes.append((stage, tir_pass))
+        Parameters
+        ----------
+        op: str
+           The name of the operator for which this strategy will be registered.
+
+        strategy: Callable[[tvm.ir.Attrs, tvm.ir.Array, tvm.ir.TensorType, tvm.target.Target], tvm.relay.op.op.OpStrategy]
+            The strategy function.
+
+        plevel: Optional[int] = 11
+            The priority level of the strategy. Higher plevel equals higher priorization.
+            The TVM default for topi strategies is 10 so by default new UMA strategies are always used.
+
+        Example
+        -------
+        Here is an example of how two operator strategies are registered.
+
+        .. code-block:: python
+
+            self._register_operator_strategy("nn.conv1d", custom_conv1d_strategy)
+            self._register_operator_strategy("nn.conv2d", custom_conv2d_strategy)
+
+        Where a strategy function can look like this:
+
+        .. code-block:: python
+
+            @relay.op.strategy.override_native_generic_func("custom_conv1d_strategy")
+            def custom_conv1d_strategy(attrs, inputs, out_type, target):
+                strategy = _op.OpStrategy()
+                strategy.add_implementation(
+                    wrap_compute_conv1d(custom_conv1d_compute),
+                    wrap_topi_schedule(custom_conv1d_schedule),
+                    name="custom_conv1d.generic",
+                return strategy
+        """
+        self._relay_to_tir._operator_strategies.append((op, strategy, plevel))
+
+    def _register_tir_pass(self, phase: int, tir_pass: tvm.tir.transform.PrimFuncPass) -> None:
+        """Registers a TIR pass at the given phase in the lowering process.
+
+        Parameters
+        ----------
+        phase: int
+           The phase at which the pass is registered.
+
+        tir_pass: tvm.tir.transform.PrimFuncPass
+            The TIR pass to be registered.
+
+        Example
+        -------
+        Here is an example of how two TIR passes are registered.
+        Passes of the same phase are executed in the order they are registered.
+
+        .. code-block:: python
+
+            self._register_tir_pass(0, MyPassA)
+            self._register_tir_pass(0, MyPassB)
+
+        Where a TIR pass can look like this:
+
+        .. code-block:: python
+            
+            @tvm.tir.transform.prim_func_pass(opt_level=0)
+            class MyPassA:
+                def transform_function(self, func, mod, ctx):
+                    # My pass functionality...
+                    return func
+        """
+        self._relay_to_tir._tir_passes.append((phase, tir_pass))
 
     ############################################################################
     # TIR to runtime function registration
     ############################################################################
     def _register_codegen(self, fmt: str = "c", **kwargs) -> None:
+        """Registers a codegen which is used in place of the default C-codegen.
+
+        Parameters
+        ----------
+        fmt: str
+            The codegen format. For now, only C-codegen is supported by UMA.
+
+        **kwargs
+            Keyword arguments for the chosen codegen.
+
+        Example
+        -------
+        Here is an example of how the custom C-codegen is registered and configured.
+        Passes of the same phase are executed in the order they are registered.
+
+        .. code-block:: python
+
+            self._register_codegen(
+                fmt="c", includes=gen_includes, replace_call_extern=gen_replace_call_extern
+            )
+
+        The C-codegen provides two hooks which allows the user to insert code through the python API.
+            - `includes` hooks into the include stream and allows insertion of custom includes.
+            - `replace_call_extern` hooks into the expression visitor and allows the user to insert custom code for a given extern call.
+
+        The code generation functions can look like this:
+
+        .. code-block:: python
+
+            def gen_includes() -> str:
+                includes = "#include <my_custom_header.h>\n"
+                return includes
+
+            def gen_replace_call_extern(args: tvm.ir.container.Array) -> str:
+                return "my_custom_api_function({}, {}, {})".format(*args)
+        """
         self._tir_to_runtime._register_codegen(fmt, **kwargs)
 
     ############################################################################

@@ -18,6 +18,7 @@
 
 import tvm
 from tvm import relay, te
+from tvm.relay.op.op import register_strategy
 
 from typing import List, Tuple, Callable, Optional
 
@@ -113,3 +114,5 @@ class UMALower(object):
         tvm._ffi.register_func(
             "relay.ext.uma.relay_to_tir_func_{}".format(self.target_name), self.relay_to_tir_func
         )
+        for op, strategy, plevel in self._operator_strategies:
+            register_strategy(op, strategy, plevel)
