@@ -295,3 +295,18 @@ class IndexMap(Object):
 
         final_indices = mapping_function(*args)
         return IndexMap(args, final_indices)
+
+    def map_indices(self, indices: List[PrimExpr]) -> List[PrimExpr]:
+        """Apply the index map to a set of indices
+
+        Parameters
+        ----------
+        indices : List[PriExpr]
+            The indices to be mapped
+
+        Returns
+        -------
+        result : List[PrimExpr]
+            The mapped indices
+        """
+        return _ffi_api.IndexMapMapIndices(self, indices)
