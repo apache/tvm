@@ -204,6 +204,48 @@ def test_outer_seq_stmt():
     CheckAllocates(allocate_info)(mod)
 
 
+def test_allocate_without_seq_stmt():
+    """
+    Tests the case when an allocate statement does not have a sequence statement as its body.
+    """
+    # fmt: off
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def main(placeholder: T.Buffer[(8192,), "int8"], ethosu_write: T.Buffer[(2048,), "int8"], buffer_encoded: T.Buffer[(128,), "uint8"], buffer_encoded_1: T.Buffer[(32,), "uint8"], buffer_encoded_2: T.Buffer[(112,), "uint8"], buffer_encoded_3: T.Buffer[(32,), "uint8"], buffer_encoded_4: T.Buffer[(112,), "uint8"], buffer_encoded_5: T.Buffer[(32,), "uint8"], buffer_encoded_6: T.Buffer[(112,), "uint8"], buffer_encoded_7: T.Buffer[(32,), "uint8"]) -> None:
+            # function attr dict
+            T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+            T.preflattened_buffer(placeholder, [1, 16, 16, 32], dtype="int8", data=placeholder.data)
+            T.preflattened_buffer(ethosu_write, [1, 16, 16, 8], dtype="int8", data=ethosu_write.data)
+            # body
+            placeholder_global = T.allocate([128], "uint8", "global")
+            placeholder_global_1 = T.allocate([112], "uint8", "global")
+            placeholder_global_2 = T.allocate([112], "uint8", "global")
+            placeholder_d_global = T.allocate([32], "uint8", "global")
+            placeholder_d_global_1 = T.allocate([32], "uint8", "global")
+            placeholder_d_global_2 = T.allocate([32], "uint8", "global")
+            placeholder_global_3 = T.allocate([112], "uint8", "global")
+            T.evaluate(T.call_extern("ethosu_copy", buffer_encoded[0], 128, placeholder_global[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer_encoded_1[0], 32, placeholder_d_global[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 2, 16, 0, 16, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 128, 12, placeholder_d_global[0], 32, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer_encoded_2[0], 112, placeholder_global_1[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer_encoded_3[0], 32, placeholder_d_global_1[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 2, 16, 0, 16, ethosu_write[2], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global_1[0], 112, 12, placeholder_d_global_1[0], 32, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer_encoded_4[0], 112, placeholder_global_2[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer_encoded_5[0], 32, placeholder_d_global_2[0], dtype="handle"))
+            placeholder_d_global_3 = T.allocate([32], "uint8", "global")
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 2, 16, 0, 16, ethosu_write[4], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global_2[0], 112, 12, placeholder_d_global_2[0], 32, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer_encoded_6[0], 112, placeholder_global_3[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_copy", buffer_encoded_7[0], 32, placeholder_d_global_3[0], dtype="handle"))
+            T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 2, 16, 0, 16, ethosu_write[6], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global_3[0], 112, 12, placeholder_d_global_3[0], 32, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+    # fmt: on
+
+    mod = Module
+    allocate_info = ExtractAllocateInfo()(mod)
+    mod = HoistAllocates()(mod)
+    CheckAllocates(allocate_info)(mod)
+
+
 def test_multiple_prim_funcs():
     @tvm.script.ir_module
     class Module:

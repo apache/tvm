@@ -41,19 +41,21 @@ namespace ethosu {
  * "main" that is being offloaded to the NPU.
  *
  * For example,
- *               allocate {
- *                   extern_call(...)
- *                   allocate {
- *     Before:           extern_call(...)
- *                   }
- *               }
+ * Before:
+ *   allocate {
+ *       extern_call(...)
+ *           allocate {
+ *               extern_call(...)
+ *           }
+ *   }
  *
- *               allocate {
- *                   allocate {
- *                      extern_call(...)
- *     After:           extern_call(...)
- *                   }
- *               }
+ * After:
+ *   allocate {
+ *       allocate {
+ *           extern_call(...)
+ *           extern_call(...)
+ *       }
+ *  }
  */
 class HoistAllocatesMutator : public StmtExprMutator {
  public:
@@ -85,16 +87,17 @@ class HoistAllocatesMutator : public StmtExprMutator {
     allocates_.push_back(GetRef<Allocate>(op));
 
     // Skip the allocate node itself
-    const auto* seq = op->body.as<SeqStmtNode>();
-    ICHECK(seq) << "Expected a sequence statement but got " << op->body->GetTypeKey() << ".";
-
-    // Traverse the allocate body recursively and flatten
-    Array<Stmt> new_stmts;
-    new_stmts.reserve(seq->seq.size());
-    for (const Stmt& old_stmt : seq->seq) {
-      new_stmts.push_back(VisitStmt(old_stmt));
+    if (const auto* seq = op->body.as<SeqStmtNode>()) {
+      // Traverse the allocate body recursively and flatten
+      Array<Stmt> new_stmts;
+      new_stmts.reserve(seq->seq.size());
+      for (const Stmt& old_stmt : seq->seq) {
+        new_stmts.push_back(VisitStmt(old_stmt));
+      }
+      return SeqStmt::Flatten(new_stmts);
+    } else {
+      return VisitStmt(op->body);
     }
-    return SeqStmt::Flatten(new_stmts);
   }
 
   /*! A stack to store allocates as they are visited. */
