@@ -151,7 +151,7 @@ def extract_task_qbert():
         assert "vnni" in annotations["schedule_rule"]
 
 
-def extract_task_arm_conv2d_nchwc():
+def test_extract_task_arm_conv2d_nchwc():
     data_shape = (1, 64, 128, 128)
     weight_shape = (32, 64, 1, 1)
     bias_shape = (weight_shape[0],)
