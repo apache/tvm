@@ -16,9 +16,11 @@
 # under the License.
 import sys
 from typing import List
+import numpy as np
 
 import pytest
 import tvm
+from tvm import relay
 from tvm import meta_schedule as ms
 from tvm.ir.module import IRModule
 from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
@@ -147,6 +149,50 @@ def extract_task_qbert():
 
         assert "schedule_rule" in annotations
         assert "vnni" in annotations["schedule_rule"]
+
+
+def extract_task_arm_conv2d_nchwc():
+    data_shape = (1, 64, 128, 128)
+    weight_shape = (32, 64, 1, 1)
+    bias_shape = (weight_shape[0],)
+    padding = (1, 1)
+
+    data = relay.var("data", shape=data_shape, dtype="int8")
+    weight = relay.var("weight", shape=weight_shape, dtype="int8")
+    bias = relay.var("bias", shape=bias_shape, dtype="int32")
+    conv2d = relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=weight_shape[2:],
+        channels=weight_shape[0],
+        padding=padding,
+        strides=(1, 1),
+        out_dtype="int32",
+    )
+    bias_add = relay.nn.bias_add(conv2d, bias)
+    relay_mod = tvm.IRModule.from_expr(bias_add)
+
+    weight_np = np.random.uniform(1, 10, size=weight_shape).astype("int8")
+    bias_np = np.random.uniform(1, 10, size=bias_shape).astype("int32")
+
+    params = {"weight": weight_np, "bias": bias_np}
+
+    target = "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon"
+    extracted_tasks = extract_task_from_relay(relay_mod, target, params)
+    tune_tasks = list(
+        filter(
+            lambda task: "conv2d" in task.task_name,
+            extracted_tasks,
+        )
+    )
+
+    assert len(tune_tasks) == 1
+
+    relay_func = list(tune_tasks[0].mod.functions.values())[0]
+    out_type = relay_func.body.checked_type
+
+    # Check that the output is in NCHWc layout
+    assert list(out_type.shape) == [1, 8, 130, 130, 4]
 
 
 if __name__ == "__main__":

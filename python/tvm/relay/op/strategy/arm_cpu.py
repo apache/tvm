@@ -93,13 +93,18 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_spatial_pack),
                     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_spatial_pack),
                     name="conv2d_nchw_spatial_pack.arm_cpu",
+                    plevel=10,
                 )
 
-                if topi.arm_cpu.is_int8_hw_support(data.dtype, kernel.dtype):
+                if (
+                    topi.arm_cpu.is_int8_hw_support(data.dtype, kernel.dtype)
+                    and kernel.shape[1] >= 64
+                ):
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_int8),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_int8),
                         name="conv2d_nchw_int8.arm_cpu",
+                        plevel=15,
                     )
                 else:
                     strategy.add_implementation(
@@ -383,12 +388,16 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
     if layout == "NHWC" and data.dtype in ["int8", "uint8"]:
         strategy.add_implementation(
             wrap_compute_conv2d_gemm(native_compute),
-            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_native),
+            wrap_topi_schedule(
+                topi.arm_cpu.schedule_conv2d_NHWC_quantized_native_without_transform
+            ),
             name="conv2d_NHWC_quantized_native_without_transform.arm_cpu",
         )
         strategy.add_implementation(
             wrap_compute_conv2d_gemm(interleaved_compute),
-            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved),
+            wrap_topi_schedule(
+                topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved_without_transform
+            ),
             name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
         )
     else:
