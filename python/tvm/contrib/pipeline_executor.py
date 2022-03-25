@@ -55,6 +55,7 @@ class PipelineModule(object):
         self._get_input = self.module["get_input"]
         self._get_output = self.module["get_output"]
         self._get_num_outputs = self.module["get_num_outputs"]
+        self._get_num_inputs = self.module["get_num_inputs"]
         self._get_input_pipeline_map = self.module["get_input_pipeline_map"]
         self._get_pipe_execute_count = self.module["get_execute_count"]
 
@@ -158,6 +159,16 @@ class PipelineModule(object):
             The number of outputs.
         """
         return self._get_num_outputs()
+
+    @property
+    def num_inputs(self):
+        """Get the number of inputs
+        Returns
+        -------
+        count : int
+            The number of inputs
+        """
+        return self._get_num_inputs()
 
     @staticmethod
     def load_library(config_file_name):
