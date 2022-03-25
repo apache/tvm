@@ -97,7 +97,8 @@ TEST(CMSISNNConv2dBufferSize, Conv1xN) {
   ASSERT_EQ(conv2d_1xn(kHasMVE, 32), 0);
 }
 
-TEST(CMSISNNConv2dBufferSize, Default) {
+// Test disabled, see https://github.com/apache/tvm/issues/10748
+TEST(DISABLED_CMSISNNConv2dBufferSize, Default) {
   int32_t any = fake_parameters(gen);
 
   int32_t input_c = fake_parameters(gen);
