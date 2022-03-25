@@ -90,7 +90,7 @@ class InterfaceCNode : public runtime::ModuleNode {
   }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
-    return PackedFunc(nullptr);
+    return PackedFunc();
   }
 
  private:

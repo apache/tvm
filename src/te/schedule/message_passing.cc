@@ -148,12 +148,16 @@ void PassDownDomain(const Stage& stage, std::unordered_map<IterVar, Range>* p_st
       };
       if (r->factor.defined()) {
         Update(p_state, r->inner,
-               Range::FromMinExtent(0, resolve_min_extent_for_split(r->inner, r->factor)), actx);
+               Range::FromMinExtent(0, cast(range_parent->extent.dtype(),
+                                            resolve_min_extent_for_split(r->inner, r->factor))),
+               actx);
         Update(p_state, r->outer,
                Range::FromMinExtent(0, ceil_div(range_parent->extent, r->factor)), actx);
       } else {
         Update(p_state, r->outer,
-               Range::FromMinExtent(0, resolve_min_extent_for_split(r->outer, r->nparts)), actx);
+               Range::FromMinExtent(0, cast(range_parent->extent.dtype(),
+                                            resolve_min_extent_for_split(r->outer, r->nparts))),
+               actx);
         Update(p_state, r->inner,
                Range::FromMinExtent(0, ceil_div(range_parent->extent, r->nparts)), actx);
       }
@@ -531,6 +535,17 @@ void PassUpBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_sta
       } else {
         state[s->parent] |= state[s->rebased];
       }
+    } else if (const TransformNode* s = rel.as<TransformNode>()) {
+      for (const auto& original_var : s->original_variables) {
+        for (const auto& transformed_var : s->transformed_variables) {
+          if (!state.count(transformed_var)) {
+            ICHECK(allow_missing);
+            continue;
+          }
+          state[original_var] |= state[transformed_var];
+        }
+      }
+
     } else if (rel.as<SingletonNode>()) {
     } else {
       LOG(FATAL) << "unknown relation type";
@@ -576,6 +591,16 @@ void PassDownBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_s
         state[s->rebased] = state.at(s->parent);
       } else {
         state[s->rebased] |= state.at(s->parent);
+      }
+    } else if (const TransformNode* s = rel.as<TransformNode>()) {
+      for (const auto& original_var : s->original_variables) {
+        for (const auto& transformed_var : s->transformed_variables) {
+          if (!state.count(original_var)) {
+            ICHECK(allow_missing);
+            continue;
+          }
+          state[transformed_var] |= state[original_var];
+        }
       }
     } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
       state[s->iter] = 0;

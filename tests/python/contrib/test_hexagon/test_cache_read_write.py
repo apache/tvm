@@ -22,7 +22,7 @@ import tvm.testing
 from tvm import te
 from tvm.contrib import utils
 from tvm.contrib.hexagon.build import HexagonLauncher
-import tvm.contrib.hexagon.hexagon as hexagon
+import tvm.contrib.hexagon as hexagon
 
 from .conftest import requires_hexagon_toolchain
 
@@ -125,9 +125,15 @@ def test_cache_read_write(
 
     with launcher.start_session() as sess:
         mod = launcher.load_module(dso_binary, sess)
-        xt = tvm.nd.array(np.random.uniform(size=size).astype(x.dtype), device=sess.device)
-        yt = tvm.nd.array(np.random.uniform(size=size).astype(y.dtype), device=sess.device)
-        zt = tvm.nd.array(np.random.uniform(size=size).astype(z.dtype), device=sess.device)
+        xt = tvm.nd.array(
+            np.random.randint(-128, high=127, size=size, dtype=x.dtype), device=sess.device
+        )
+        yt = tvm.nd.array(
+            np.random.randint(-128, high=127, size=size, dtype=x.dtype), device=sess.device
+        )
+        zt = tvm.nd.array(
+            np.random.randint(-128, high=127, size=size, dtype=x.dtype), device=sess.device
+        )
         mod["dmacpy"](xt, yt, zt)
     launcher.stop_server()
 

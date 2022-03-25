@@ -22,7 +22,7 @@ import tvm
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir import spec
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
 from .infra import make_ethosu_binary_elementwise, get_binary_elementwise_args
 
 
@@ -71,7 +71,7 @@ def test_binary_elementwise_single(
     )
     func = relay.Function(relay.analysis.free_vars(binary_elementwise), binary_elementwise)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = lower_to_tir(func)
+    mod, _ = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):
@@ -177,6 +177,7 @@ def test_binary_elementwise_single(
             clip_max=100 if activation == "CLIP" else 0,
         ),
         rounding_mode=rounding_mode,
+        block_config=spec.SerialBlockConfig(0, 0, 0),
     )
 
     assert data[0] == ["ethosu_binary_elementwise"] + list(serial_binary_elementwise)
@@ -227,7 +228,7 @@ def test_shift_binary_elementwise_single(
     )
     func = relay.Function(relay.analysis.free_vars(binary_elementwise), binary_elementwise)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = lower_to_tir(func)
+    mod, _ = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):
@@ -333,6 +334,7 @@ def test_shift_binary_elementwise_single(
             clip_max=0,
         ),
         rounding_mode=rounding_mode,
+        block_config=spec.SerialBlockConfig(0, 0, 0),
     )
 
     assert data[0] == ["ethosu_binary_elementwise"] + list(serial_binary_elementwise)

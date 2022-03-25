@@ -52,6 +52,12 @@ class MemoryRegionNode : public Object {
   int read_bandwidth;
   /*! \brief The write bandwidth of the region in bytes per cycle */
   int write_bandwidth;
+  /*! \brief The read bandwidth of the region in bytes per cycle */
+  int read_latency;
+  /*! \brief The write bandwidth of the region in bytes per cycle */
+  int write_latency;
+  /*! \brief Length of memory burst */
+  int burst_length;
 
   static constexpr const char* _type_key = "contrib.ethosu.cascader.MemoryRegion";
   TVM_DECLARE_FINAL_OBJECT_INFO(MemoryRegionNode, Object)
@@ -59,12 +65,16 @@ class MemoryRegionNode : public Object {
 
 class MemoryRegion : public ObjectRef {
  public:
-  MemoryRegion(std::string name, int size, int read_bandwidth, int write_bandwidth) {
+  MemoryRegion(std::string name, int size, int read_bandwidth, int write_bandwidth,
+               int read_latency, int write_latency, int burst_length) {
     auto n = make_object<MemoryRegionNode>();
     n->name = name;
     n->size = size;
     n->read_bandwidth = read_bandwidth;
     n->write_bandwidth = write_bandwidth;
+    n->read_latency = read_latency;
+    n->write_latency = write_latency;
+    n->burst_length = burst_length;
     data_ = std::move(n);
   }
 

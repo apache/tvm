@@ -29,6 +29,7 @@ globs = [
     "conda/*",
     ".github/*",
     ".asf.yaml",
+    ".gitignore",
     "LICENSE",
     "NOTICE",
     "KEYS",

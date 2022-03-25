@@ -113,11 +113,8 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
    * \return The number of outputs.
    */
   int NumOutputs() const { return num_outputs_; }
-  /*!
-   * \brief Run the pipeline executor.
-   * \param serialized_mode Whether run the pipeline executor in serialized mode.
-   */
-  void Run(bool serialized_mode);
+  /*!\brief Run the pipeline executor.*/
+  void Run();
   /*!
    * \brief Get a list output data.
    * \return A list of output data.

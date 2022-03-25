@@ -108,7 +108,10 @@ bool QnnConv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs
     }
   }
   ICHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
-  ICHECK(IsScalarType(types[3], DataType::Int(32)));    // weight_zero_point
+
+  const auto* weight_zp_type = types[3].as<TensorTypeNode>();
+  ICHECK(weight_zp_type->dtype == DataType::Int(32));  // weight_zero_point
+
   ICHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
   // Kernel scale can be a vector of length output_channels or a scalar.
   if (param->groups == 1) {

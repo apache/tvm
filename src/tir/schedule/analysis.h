@@ -168,16 +168,11 @@ void CheckCompleteOrReductionBlock(const ScheduleState& self, const StmtSRef& bl
 /*!
  * \brief Check the subtree compact dataflow property. The scope root may have one or more subtrees
  *        rooted at its direct children, and this property requires all the blocks of the subtree
- *        that the specified sref is in to be complete block or reduction block.
+ *        that the specified sref is in to be local complete block or local reduction block.
  * \param self The schedule state
  * \param subtree_root The sref of the subtree root to be checked
- * \param scope_root_sref The scope root of the block
- * \throw ScheduleError If the subtree that the sref is in doesn't satisfy the compact
- *        dataflow condition, i.e. a block in the subtree is neither complete block nor
- *        reduction block
  */
-void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subtree_root,
-                                 const StmtSRef& scope_root_sref);
+void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subtree_root);
 /*!
  * \brief Check if the block is an output block, i.e. the block writes to at least a buffer that is
  * not allocated under the current scope
@@ -400,6 +395,16 @@ struct ProducerConsumerSplit {
  * \throw ScheduleError If the buffer index is out of bound.
  */
 Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, bool is_write);
+
+/*!
+ * \brief Find the defining site of the buffer in the given block and its ancestors
+ * \param block_sref The block sref
+ * \param buffer The buffer
+ * \return The defining site of the buffer and whether the buffer is allocated (otherwise the
+ *         buffer is from match_buffer).
+ */
+std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
+                                                          const Buffer& buffer);
 
 /******** Reduction Block Related ********/
 

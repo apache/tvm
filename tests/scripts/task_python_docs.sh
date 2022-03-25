@@ -58,6 +58,9 @@ sphinx_precheck() {
 
 function join_by { local IFS="$1"; shift; echo "$*"; }
 
+# Convert bash tutorials to Python format
+tests/scripts/task_convert_scripts_to_python.sh
+
 # These warnings are produced during the docs build for various reasons and are
 # known to not signficantly affect the output. Don't add anything new to this
 # list without special consideration of its effects, and don't add anything with
@@ -166,6 +169,7 @@ mv docs/doxygen/html _docs/reference/api/doxygen
 mv jvm/core/target/site/apidocs _docs/reference/api/javadoc
 # mv rust/target/doc _docs/api/rust
 mv web/dist/docs _docs/reference/api/typedoc
+git rev-parse HEAD > _docs/commit_hash
 
 if [ "$IS_LOCAL" != "1" ]; then
     echo "Start creating the docs tarball.."

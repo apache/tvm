@@ -147,6 +147,7 @@ def run_tvm_graph(
         outputs=out_names,
         convert_config=convert_config,
     )
+
     dev = tvm.device(target, 0)
     if mode == "debug":
         inputs = []
@@ -2421,10 +2422,11 @@ def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_s
         )
         oshape = tf.constant(output_shape, shape=output_shape.shape, dtype=str(output_shape.dtype))
 
+        # Output shape depends on a dynamic input, use VM.
         if default_value == None:
             output = tf.sparse_to_dense(indices, oshape, values)
             compare_tf_with_tvm(
-                [sparse_indices, sparse_values], ["indices:0", "values:0"], output.name
+                [sparse_indices, sparse_values], ["indices:0", "values:0"], output.name, mode="vm"
             )
         else:
             dv = tf.placeholder(shape=(), dtype=str(default_value.dtype), name="default_value")
@@ -2433,6 +2435,7 @@ def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_s
                 [sparse_indices, sparse_values, default_value],
                 ["indices:0", "values:0", "default_value:0"],
                 output.name,
+                mode="vm",
             )
 
 
@@ -2494,7 +2497,8 @@ def _test_sparse_to_dense_v2(indices, values, A_shape, dtype, default_value=None
 
         result = tf.sparse.to_dense(A_sp, default_value=default_value)
 
-        compare_tf_with_tvm([], [], result.name)
+        # The output shape depends on a dynamic input, use VM.
+        compare_tf_with_tvm([], [], result.name, mode="vm")
 
 
 def test_forward_sparse_to_dense_v2():
@@ -5572,7 +5576,7 @@ def _test_unique(n, dtype, is_dyn):
         if is_dyn:
             compare_tf_with_tvm(np_data, "in_data:0", ["Unique:0", "Unique:1"], mode="vm")
         else:
-            compare_tf_with_tvm(None, "", ["Unique:0", "Unique:1"])
+            compare_tf_with_tvm(np_data, "", ["Unique:0", "Unique:1"], mode="vm")
 
 
 def test_forward_unique():
@@ -5607,7 +5611,10 @@ def _test_unique_with_counts(n, dtype, is_dyn):
             )
         else:
             compare_tf_with_tvm(
-                None, "", ["UniqueWithCounts:0", "UniqueWithCounts:1", "UniqueWithCounts:2"]
+                np_data,
+                "",
+                ["UniqueWithCounts:0", "UniqueWithCounts:1", "UniqueWithCounts:2"],
+                mode="vm",
             )
 
 

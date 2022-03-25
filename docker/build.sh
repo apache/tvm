@@ -24,6 +24,7 @@
 #                [--dockerfile <DOCKERFILE_PATH>] [-it]
 #                [--net=host] [--cache-from <IMAGE_NAME>]
 #                [--name CONTAINER_NAME] [--context-path <CONTEXT_PATH>]
+#                [--spec DOCKER_IMAGE_SPEC]
 #                [<COMMAND>]
 #
 # CONTAINER_TYPE: Type of the docker container used the run the build,
@@ -35,6 +36,9 @@
 # DOCKERFILE_PATH: (Optional) Path to the Dockerfile used for docker build.  If
 #                  this optional value is not supplied (via the --dockerfile
 #                  flag), will use Dockerfile.CONTAINER_TYPE in default
+#
+# DOCKER_IMAGE_SPEC: Override the default logic to determine the image name and
+#                    tag
 #
 # IMAGE_NAME: An image to be as a source for cached layers when building the
 #             Docker image requested.
@@ -71,6 +75,11 @@ fi
 if [[ "$1" == "-it" ]]; then
     CI_DOCKER_EXTRA_PARAMS+=('-it')
     shift 1
+fi
+
+if [[ "$1" == "--spec" ]]; then
+    OVERRIDE_IMAGE_SPEC="$2"
+    shift 2
 fi
 
 if [[ "$1" == "--net=host" ]]; then
@@ -161,6 +170,10 @@ DOCKER_IMG_NAME=$(echo "${DOCKER_IMG_NAME}" | tr '[:upper:]' '[:lower:]')
 
 # Compose the full image spec with "name:tag" e.g. "tvm.ci_cpu:v0.03"
 DOCKER_IMG_SPEC="${DOCKER_IMG_NAME}:${DOCKER_IMAGE_TAG}"
+
+if [[ -n ${OVERRIDE_IMAGE_SPEC+x} ]]; then
+    DOCKER_IMG_SPEC="$OVERRIDE_IMAGE_SPEC"
+fi
 
 # Print arguments.
 echo "WORKSPACE: ${WORKSPACE}"

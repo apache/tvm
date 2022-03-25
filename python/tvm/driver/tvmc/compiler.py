@@ -29,7 +29,7 @@ from tvm.driver.tvmc.registry import generate_registry_args, reconstruct_registr
 from tvm.target import Target
 from tvm.relay.backend import Executor, Runtime
 
-from . import composite_target, frontends
+from . import composite_target, frontends, TVMCException
 from .model import TVMCModel, TVMCPackage
 from .main import register_parser
 from .target import target_from_cli, generate_target_args, reconstruct_target_args
@@ -153,6 +153,11 @@ def drive_compile(args):
         Zero if successfully completed
 
     """
+    if not os.path.isfile(args.FILE):
+        raise TVMCException(
+            f"Input file '{args.FILE}' doesn't exist, is a broken symbolic link, or a directory."
+        )
+
     tvmc_model = frontends.load_model(args.FILE, args.model_format, args.input_shapes)
 
     dump_code = [x.strip() for x in args.dump_code.split(",")] if args.dump_code else None
