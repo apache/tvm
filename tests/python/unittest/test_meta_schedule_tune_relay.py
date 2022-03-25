@@ -442,6 +442,8 @@ def manual_tir_common(do_tune=False):
     data = relay.var("data", shape=data_shape, dtype=data_dtype)
     weight = relay.var("weight", shape=weight_shape, dtype="int8")
     bias = relay.var("bias", shape=(weight_shape[0],), dtype="int32")
+
+    # dense is tuned by the TIR schedule above, bmm is scheduled by TE (topi/x86/batch_matmul.py)
     dense = relay.nn.dense(data, weight, out_dtype="int32")
     bias_add = relay.nn.bias_add(dense, bias) + relay.const(1, dtype="int32")
     out = relay.nn.batch_matmul(
