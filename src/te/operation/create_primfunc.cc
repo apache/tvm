@@ -136,7 +136,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
   Stmt body;
   if (const auto* reduce = expr_body.as<ReduceNode>()) {
     // Case 1. Reduce compute
-    block_name = compute_op->name;
+    block_name = info->GetUniqueName(compute_op->name);
     int n_buffers = buffers.size();
 
     Array<PrimExpr> lhs;

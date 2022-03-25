@@ -78,7 +78,7 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetOutput(); });
   } else if (name == "run") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Run(args[0]); });
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Run(); });
   } else if (name == "get_execute_count") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetExecutionCount(); });
@@ -140,13 +140,8 @@ int PipelineExecutor::GetParamsGroupPipelineMap(const std::string& name) {
   return param_connection_config[name];
 }
 
-/*!
- * \brief Run the pipeline executor.
- * \param serialized_mode Whether run the pipeline executor in serialized mode.
- */
-void PipelineExecutor::Run(bool serialized_mode) {
-  pipeline_scheduler_.PipelineRun(runtimes_, pipeline_config_, serialized_mode);
-}
+/*!\brief Run the pipeline executor.*/
+void PipelineExecutor::Run() { pipeline_scheduler_.PipelineRun(runtimes_, pipeline_config_); }
 /*!
  * \brief return A list of global output data.
  */

@@ -347,6 +347,7 @@ def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
     mod = OutlineCompilerFunctions("ethos-u")(mod)
     mod = LegalizeEthosU()(mod)
     mod = LUTsOptimizer()(mod)
+    mod = relay.transform.InferType()(mod)
     mod = IdentityOptimizer()(mod)
     mod = LayoutOptimizer()(mod)
     mod = relay.transform.InferType()(mod)

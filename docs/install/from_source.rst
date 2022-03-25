@@ -213,7 +213,7 @@ Building on Windows
 ~~~~~~~~~~~~~~~~~~~
 TVM support build via MSVC using cmake. You will need to ontain a visual studio compiler.
 The minimum required VS version is **Visual Studio Enterprise 2019** (NOTE: we test
-against GitHub Actions' [Windows 2019 Runner](https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md), so see that page for full details.
+against GitHub Actions' `Windows 2019 Runner <https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md>`_, so see that page for full details.
 We recommend following :ref:`build-with-conda` to obtain necessary dependencies and
 get an activated tvm-build environment. Then you can run the following command to build
 

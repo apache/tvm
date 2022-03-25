@@ -1484,11 +1484,21 @@ class Squeeze(OnnxOpConverter):
 
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
+        ishape = infer_shape(inputs[0])
         axis = inputs[1]
+
+        if axis is None:
+            # If axes is not provided, all the single dimensions will be removed from the shape.
+            if not ishape:  # scalar
+                return inputs[0]
+
+            axis = [i for i in range(len(ishape)) if ishape[i] == 1]
+            axis = _op.const(axis)
+
         dtype = infer_type(axis).checked_type.dtype
 
         if isinstance(axis, _expr.Constant):
-            constant_axes = list(inputs[1].data.numpy())
+            constant_axes = list(axis.data.numpy())
             constant_axes = list(map(int, constant_axes))
             return _op.squeeze(inputs[0], constant_axes)
 
@@ -3732,12 +3742,14 @@ class QLinearConv(OnnxOpConverter):
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
                 # Warning: Convolution does not yet support dynamic shapes,
                 # one will need to run dynamic_to_static on this model after import
+                zp = fold_constant(x_zero_point)
+                assert isinstance(zp, relay.Constant), "Zero point expected to be a constant"
                 data = autopad(
                     data,
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    pad_value=x_zero_point.data,
+                    pad_value=zp.data,
                     mode=attr["auto_pad"],
                 )
             elif attr["auto_pad"] == "VALID":
@@ -5146,7 +5158,7 @@ class GraphProto:
 
 
 def from_onnx(
-    model, shape=None, dtype="float32", opset=None, freeze_params=False, convert_config=None
+    model, shape=None, dtype="float32", opset=None, freeze_params=True, convert_config=None
 ):
     """Convert a ONNX model into an equivalent Relay Function.
 
@@ -5236,4 +5248,8 @@ def from_onnx(
     # Use the graph proto as a scope so that ops can access other nodes if needed.
     with g:
         mod, params = g.from_onnx(graph, opset)
+
+    if freeze_params:
+        mod = relay.transform.DynamicToStatic()(mod)
+
     return mod, params
