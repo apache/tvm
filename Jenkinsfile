@@ -46,14 +46,14 @@
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:v0.69'
-ci_gpu = 'tlcpack/ci-gpu:v0.82'
-ci_cpu = 'tlcpack/ci-cpu:v0.82'
-ci_wasm = 'tlcpack/ci-wasm:v0.72'
-ci_i386 = 'tlcpack/ci-i386:v0.75'
-ci_qemu = 'tlcpack/ci-qemu:v0.11'
-ci_arm = 'tlcpack/ci-arm:v0.08'
-ci_hexagon = 'tlcpack/ci-hexagon:v0.02'
+ci_lint = 'tlcpackstaging/ci-lint:20220325-055910-9de36f76e'
+ci_gpu = 'tlcpackstaging/ci-gpu:20220325-055910-9de36f76e'
+ci_cpu = 'tlcpackstaging/ci-cpu:20220325-055910-9de36f76e'
+ci_wasm = 'tlcpackstaging/ci-wasm:20220325-055910-9de36f76e'
+ci_i386 = 'tlcpackstaging/ci-i386:20220325-055910-9de36f76e'
+ci_qemu = 'tlcpackstaging/ci-qemu:20220325-055910-9de36f76e'
+ci_arm = 'tlcpackstaging/ci-arm:20220325-055910-9de36f76e'
+ci_hexagon = 'tlcpackstaging/ci-hexagon:20220325-055910-9de36f76e'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
