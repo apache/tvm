@@ -185,12 +185,18 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto* weight = types[1].as<TensorTypeNode>();
   if (data == nullptr) return false;
   static const Layout kNCHW("NCHW");
-  static const Layout kOIHW("OIHW");
+  Layout kOIHW("OIHW");
 
   const auto* param = attrs.as<Conv2DAttrs>();
   ICHECK(param != nullptr);
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->kernel_layout);
+
+  bool is_dnnl_group_conv = false;
+  if (param->groups > 1 && kernel_layout.name().find("G") != std::string::npos) {
+    kOIHW = Layout("GOIHW");
+    is_dnnl_group_conv = true;
+  }
 
   const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCHW);
   if (!trans_in_layout.defined()) {
@@ -203,10 +209,10 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kOIHW);
   if (!trans_kernel_layout.defined()) {
-    reporter->GetDiagCtx().Emit(
-        Diagnostic::Error(reporter->GetSpan())
-        << "conv2d only support kernel layouts that are convertible from OIHW."
-        << " The provided layout is: " << kernel_layout);
+    reporter->GetDiagCtx().Emit(Diagnostic::Error(reporter->GetSpan())
+                                << "conv2d only support kernel layouts that are convertible from "
+                                << kOIHW << "."
+                                << " The provided layout is: " << kernel_layout);
     return false;
   }
 
@@ -244,7 +250,12 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     ICHECK_EQ(param->dilation.size(), 2);
     Array<IndexExpr> wshape;
 
-    if (is_depthwise) {
+    if (is_dnnl_group_conv) {
+      // infer weight's shape for group convolution
+      wshape = {{param->groups, indexdiv(param->channels, param->groups),
+                 indexdiv(dshape_nchw[1], param->groups), param->kernel_size[0],
+                 param->kernel_size[1]}};
+    } else if (is_depthwise) {
       // infer weight's shape for depthwise convolution
       wshape = {{dshape_nchw[1], indexdiv(param->channels, dshape_nchw[1]), param->kernel_size[0],
                  param->kernel_size[1]}};
@@ -734,12 +745,18 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
   if (data == nullptr) return false;
 
   static const Layout kNCHW("NCHW");
-  static const Layout kIOHW("IOHW");
+  Layout kIOHW("IOHW");
 
   const Conv2DTransposeAttrs* param = attrs.as<Conv2DTransposeAttrs>();
   ICHECK(param != nullptr);
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->kernel_layout);
+
+  bool is_dnnl_group_conv = false;
+  if (param->groups > 1 && kernel_layout.name().find("G") != std::string::npos) {
+    kIOHW = Layout("GIOHW");
+    is_dnnl_group_conv = true;
+  }
 
   const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCHW);
   ICHECK(trans_in_layout.defined())
@@ -748,8 +765,8 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
 
   const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kIOHW);
   ICHECK(trans_kernel_layout.defined())
-      << "Conv2DTransposed only support kernel layouts that are convertible from IOHW."
-      << " But got " << kernel_layout;
+      << "Conv2DTransposed only support kernel layouts that are convertible from " << kIOHW << "."
+      << " But got " << kernel_layout << " " << kIOHW;
 
   Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
   const auto trans_out_layout = tir::BijectiveLayout(out_layout, kNCHW);
@@ -766,8 +783,17 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
     ICHECK_EQ(param->kernel_size.size(), 2);
     ICHECK_EQ(param->dilation.size(), 2);
 
-    Array<IndexExpr> wshape({dshape_nchw[1], indexdiv(param->channels, param->groups),
-                             param->kernel_size[0], param->kernel_size[1]});
+    Array<IndexExpr> wshape;
+    if (is_dnnl_group_conv) {
+      // infer weight's shape for group convolution
+      wshape = {{param->groups, indexdiv(dshape_nchw[1], param->groups),
+                 indexdiv(param->channels, param->groups), param->kernel_size[0],
+                 param->kernel_size[1]}};
+    } else {
+      // infer weight's shape for depthwise convolution
+      wshape = {{dshape_nchw[1], indexdiv(param->channels, param->groups), param->kernel_size[0],
+                 param->kernel_size[1]}};
+    }
 
     wshape = trans_kernel_layout.BackwardShape(wshape);
     dilated_ksize_y = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
@@ -1853,19 +1879,16 @@ InferCorrectLayoutOutput DeformableV2ConvInferCorrectLayout(
 RELAY_REGISTER_OP("nn.deformableV2_conv2d")
     .describe(R"code(Compute 2-D deformableV2 convolution on 4-D input.
 The deformableV2 convolution operation is described in https://arxiv.org/abs/1811.11168
-
 For 2-D deformableV2 convolution, the shapes are
 - **data**: (batch_size, channel, height, width)
 - **offset**: (batch_size, deformable_groups * kernel[0] * kernel[1] * 2, out_height, out_width)
 - **mask**: (batch_size, deformable_groupss * kernel[0] * kernel[1], out_height, out_width)
 - **weight**: (num_filter, channel, kernel[0], kernel[1])
 - **out**: (batch_size, num_filter, out_height, out_width).
-
 If `deformable_groups` is larger than 1, denoted by *dg*, then split the
 input `offset` evenly into *dg* parts along the channel axis, and also evenly split `out`
 evenly into *dg* parts along the channel axis. Next compute the deformable convolution, apply the
 *i*-th part of the offset part on the *i*-th out.
-
 If `groups` is larger than 1, denoted by *g*, then split the input `data` evenly into *g* parts
 along the channel axis, and also evenly split `weight` along the first dimension. Next compute
 the convolution on the *i*-th part of the data with the *i*-th weight part. The output is obtained
@@ -1892,7 +1915,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.deformableV2_conv2d")
           data, offset, mask, weight, strides, padding, dilation, deformable_groups, groups, channels,
           kernel_size, data_layout, kernel_layout, out_layout, out_dtype, "nn.deformableV2_conv2d");
     });
-    
+
 inline Expr MakeConv2dBackwardWeight(Expr grad, Expr data, Array<IndexExpr> strides,
                                      Array<IndexExpr> padding, Array<IndexExpr> dilation,
                                      int groups, IndexExpr channels, Array<IndexExpr> kernel_size,
@@ -1973,7 +1996,10 @@ bool Conv2DBackwardWeightRel(const Array<Type>& types, int num_inputs, const Att
                                param->kernel_size[1]};
   auto wshape = trans_kernel_layout.BackwardShape(wshape_oihw);
 
-  const auto dw_dtype = param->out_dtype == DataType() ? grad->dtype : param->out_dtype;
+  const auto dw_dtype = (param->out_dtype == DataType() || param->out_dtype.is_void())
+                            ? grad->dtype
+                            : param->out_dtype;
+
   reporter->Assign(types[2], TensorType(wshape, dw_dtype));
   return true;
 }

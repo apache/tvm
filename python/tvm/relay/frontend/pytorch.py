@@ -151,6 +151,7 @@ class PyTorchOpConverter:
             return self.types[node]
         if isinstance(node, tvm.relay.Var):
             return node.type_annotation
+
         tf = _TypeFinder(types=self.types)
         new_node = tf.visit(node)
         fn = _function.Function(list(tf.vars.values()), new_node)
@@ -253,6 +254,20 @@ class PyTorchOpConverter:
     # Operator implementations
     def make_elemwise(self, name):
         def elemwise(inputs, input_types):
+            if name == "divide":
+                # https://pytorch.org/docs/stable/generated/torch.div.html#torch.div
+                # None - default behavior. Performs no rounding and, if both input and
+                # other are integer types, promotes the inputs to the default scalar type.
+                if all(["int" in input_type for input_type in input_types[:2]]):
+                    input_types[:2] = ["float32"] * 2
+                    cast_inputs = []
+                    for inp in inputs[:2]:
+                        if np.isscalar(inp):
+                            cast_inputs.append(_expr.const(inp, dtype="float32"))
+                        else:
+                            cast_inputs.append(_op.cast(inp, "float32"))
+                    inputs[:2] = cast_inputs
+
             data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
             return get_relay_op(name)(data0, data1)
 
@@ -291,6 +306,10 @@ class PyTorchOpConverter:
         (dtype,) = input_types
         one = _expr.const(1, dtype=dtype)
         return _op.log(inputs[0] + one)
+
+    def square(self, inputs, input_types):
+        (dtype,) = input_types
+        return _op.power(inputs[0], _expr.const(2, dtype))
 
     def arange(self, inputs, input_types):
         def _get_value(val, dtype):
@@ -640,7 +659,7 @@ class PyTorchOpConverter:
                 tmp.append(_op.cast(_op.expand_dims(dim, axis=0), "int64"))
             size = _op.concatenate(tmp, axis=0)
 
-        out = _op.full(_expr.const(fill_value), size, dtype=dtype)
+        out = _op.full(_expr.const(fill_value, dtype=dtype), size, dtype=dtype)
         if need_reshape:
             out = _op.reshape(out, new_shape)
         return out
@@ -1598,6 +1617,20 @@ class PyTorchOpConverter:
 
         return func(data)
 
+    def var_mean(self, inputs, input_types):
+        data = inputs[0]
+        if len(inputs) == 2:
+            axis = None
+            keepdims = False
+            unbiased = bool(inputs[1])
+        else:
+            axis = inputs[1]
+            keepdims = bool(inputs[3])
+            unbiased = bool(inputs[2])
+
+        m, v = _op.reduce.mean_variance(data, axis, keepdims, False, unbiased)
+        return v, m
+
     def chunk(self, inputs, input_types):
         data = inputs[0]
 
@@ -1720,6 +1753,7 @@ class PyTorchOpConverter:
 
     def none(self, inputs, input_types):
         return None
+
     def make_pad(self, mode):
         def pad(inputs, input_types):
             data = inputs[0]
@@ -2140,21 +2174,24 @@ class PyTorchOpConverter:
             output_channels,
             kernel_size,
         )
+
         return _op.nn.bias_add(conv_out, bias)
-    
-    def deformV2_conv2d(self, inputs, input_types):
+
+     def deformV2_conv2d(self, inputs, input_types):
+        """
+        dcn_v2_cuda_forward(input, weight, bias, offset, mask,
+                                   kernel_h, kernel_w,
+                                   stride_h, stride_w,
+                                   pad_h, pad_w,
+                                   dilation_h, dilation_w,
+                                   deformable_group);
+        """
         data = inputs[0]
         weight = inputs[1]
         bias = inputs[2]
         offset = inputs[3]
         mask = inputs[4]
         strides_offset = 7  # there has kernel_h and kernel_w in pos 5 6
-        # logging.warning("this is deformableV2")
-        # else:
-        #    strides_offset = 4
-        #    bias = inputs[3]
-        #    logging.warning("mask argument not in deformableV2 conv2d is not supported and ignored")
-
         strides = (inputs[strides_offset], inputs[strides_offset + 1])
         padding = (inputs[strides_offset + 2], inputs[strides_offset + 3])
         dilation = (inputs[strides_offset + 4], inputs[strides_offset + 5])
@@ -2179,7 +2216,7 @@ class PyTorchOpConverter:
             kernel_size,
         )
         return _op.nn.bias_add(conv_out, bias)
-
+    
     def unbind(self, inputs, input_types):
         data = inputs[0]
         axis = int(inputs[1])
@@ -2933,6 +2970,25 @@ class PyTorchOpConverter:
         # Chop off the extra result dimension
         return _op.transform.squeeze(dense_result)
 
+    def grid_sampler(self, inputs, input_types):
+        if inputs[2] == 0:
+            mode = "bilinear"
+        else:
+            msg = "Only bilinear mode is supported in grid_sampler"
+            raise NotImplementedError(msg)
+
+        if inputs[3] == 0:
+            padding_mode = "zeros"
+        elif inputs[3] == 1:
+            padding_mode = "border"
+        else:
+            msg = "Only zeros and border padding mode are supported in grid_sampler"
+            raise NotImplementedError(msg)
+
+        axes = [0, 3, 1, 2]
+        grid = _op.transform.transpose(inputs[1], axes)
+        return _op.image.grid_sample(inputs[0], grid, mode, "NCHW", padding_mode)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2950,6 +3006,8 @@ class PyTorchOpConverter:
             "aten::div": self.make_elemwise("divide"),
             "aten::floor_divide": self.make_elemwise("floor_divide"),
             "aten::true_divide": self.make_elemwise("divide"),
+            "aten::fmod": self.make_elemwise("trunc_mod"),
+            "aten::remainder": self.make_elemwise("floor_mod"),
             "aten::addcdiv": self.addcdiv,
             "aten::addcmul": self.addcmul,
             "aten::ones": self.ones,
@@ -3057,6 +3115,7 @@ class PyTorchOpConverter:
             "aten::frobenius_norm": self.frobenius_norm,
             "aten::std": self.std,
             "aten::var": self.variance,
+            "aten::var_mean": self.var_mean,
             "aten::abs": self.make_unary("abs"),
             "aten::neg": self.make_unary("negative"),
             "aten::cos": self.make_unary("cos"),
@@ -3078,6 +3137,7 @@ class PyTorchOpConverter:
             "aten::sign": self.make_unary("sign"),
             "aten::sqrt": self.make_unary("sqrt"),
             "aten::rsqrt": self.make_unary("rsqrt"),
+            "aten::square": self.square,
             "aten::ceil": self.make_unary("ceil"),
             "aten::floor": self.make_unary("floor"),
             "aten::round": self.make_unary("round"),
@@ -3162,6 +3222,12 @@ class PyTorchOpConverter:
             "aten::einsum": self.einsum,
             "aten::dot": self.dot,
             "aten::mv": self.mv,
+            "aten::grid_sampler": self.grid_sampler,
+            "aten::__ior__": self.make_elemwise("bitwise_or"),
+            "aten::__iand__": self.make_elemwise("bitwise_and"),
+            "aten::__ixor__": self.make_elemwise("bitwise_xor"),
+            "aten::__lshift__": self.make_elemwise("left_shift"),
+            "aten::__rshift__": self.make_elemwise("right_shift"),
         }
 
     def update_convert_map(self, custom_map):
@@ -3195,8 +3261,7 @@ class PyTorchOpConverter:
         if missing:
             msg = "The following operators are not implemented: {}".format(missing)
             raise NotImplementedError(msg)
-    
-    
+
     def convert_block(self, block, outputs):
         """Translate Torch "Block", used for prim::If and prim::Loop"""
         ops = _get_operator_nodes(block.nodes())
@@ -3347,6 +3412,7 @@ class PyTorchOpConverter:
         for node_name, op_node in operators:
             operator = op_node.kind()
             inputs = _get_op_inputs(op_node, outputs)
+
             if operator == "prim::Constant":
                 outputs[node_name] = _get_constant(op_node)
             elif operator == "prim::ListConstruct" and _should_construct_dynamic_list(op_node):
@@ -3404,6 +3470,7 @@ class PyTorchOpConverter:
                     inputs, _get_input_types(op_node, outputs, default_dtype=self.default_dtype)
                 )
                 self.record_output_type(relay_out)
+
                 if isinstance(relay_out, tuple):
                     # This is for torch operators that return multiple outputs
                     # See _adaptive_max_2d above for example
@@ -3545,7 +3612,7 @@ def _wrap_const(c):
     return c
 
 
-def _run_jit_passes(graph):
+def _run_jit_passes(graph, enable_lower_all_tuples=True):
     """The inline pass is necessary to unwrap prim::CallMethod"""
     # pylint: disable=c-extension-no-member
     import torch
@@ -3557,6 +3624,9 @@ def _run_jit_passes(graph):
         torch._C._jit_pass_onnx_function_substitution(graph)
     else:
         torch._C._jit_pass_inline(graph)
+
+    if enable_lower_all_tuples:
+        torch._C._jit_pass_lower_all_tuples(graph)
 
 
 def _get_tensor_and_var(torch_tensor, name):
@@ -3640,6 +3710,7 @@ def _get_input_types(op_node, outputs, default_dtype="float32"):
                 in_types.append(default_dtype)
         else:
             in_types.append(_get_pytorch_value_type(inp.type(), default_dtype=default_dtype))
+
     return in_types
 
 
@@ -3965,31 +4036,43 @@ def from_pytorch(
 
     mod = tvm.IRModule()
     prelude = Prelude(mod)
+    enable_lower_all_tuples = True
 
     converter = PyTorchOpConverter(prelude, default_dtype)
 
     graph = script_module.graph.copy()
-    _run_jit_passes(graph)
+
+    # Check if lower_all_tuples pass can be enabled
+    graph_inputs = list(graph.inputs())
+    for inp in graph_inputs:
+        if inp.type().kind() == "TupleType" or inp.type().kind() == "ListType":
+            enable_lower_all_tuples = False
+            break
+    _run_jit_passes(graph, enable_lower_all_tuples)
 
     if custom_convert_map:
         converter.update_convert_map(custom_convert_map)
 
     op_names = get_all_op_names(graph)
     converter.report_missing_conversion(op_names)
+
     is_module = isinstance(script_module, torch.jit.ScriptModule)
     params = script_module.state_dict() if is_module else {}
     outputs = _get_relay_input_vars(
         graph, input_infos, prelude, default_dtype=default_dtype, is_module=is_module
     )
+
     if use_parser_friendly_name:
         new_names = [key.replace(".", "_") for key in params.keys()]
         params = dict(zip(new_names, params.values()))
+
     param_vars, tensors, packed_param_map = convert_params(graph, params, use_parser_friendly_name)
 
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
     outputs.update(param_vars)
     ret_name = _get_input_names(graph.return_node())
+
     # For quantized models
     quantized_ops = set(["aten::quantize_per_tensor", "quantized::linear_dynamic"])
     if len(quantized_ops.intersection(set(op_names))) > 0:
@@ -4007,10 +4090,17 @@ def from_pytorch(
         )
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         converter.update_convert_map(qnn_torch.convert_map)
-    ret = converter.convert_operators(_get_operator_nodes(graph.nodes()), outputs, ret_name)[0]
-    if isinstance(ret, list):
-        # ListConstruct kept original python list. Convert to tuple.
-        ret = _expr.Tuple(ret)
+
+    outputs = converter.convert_operators(_get_operator_nodes(graph.nodes()), outputs, ret_name)
+
+    # ListConstruct kept original python list. Convert to tuple.
+    outputs = [_expr.Tuple(output) if isinstance(output, list) else output for output in outputs]
+
+    if len(outputs) > 1:
+        ret = _expr.Tuple(outputs)
+    else:
+        ret = outputs[0]
+
     # Separate data inputs and parameters to make sure data inputs come first.
     func_args = []
     data_inputs = []
@@ -4020,5 +4110,7 @@ def from_pytorch(
         else:
             func_args.append(arg)
     func_args = data_inputs + func_args
+
     mod["main"] = tvm.relay.Function(func_args, ret)
+
     return transform.RemoveUnusedFunctions()(mod), tvm_params
