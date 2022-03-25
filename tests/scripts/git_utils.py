@@ -45,17 +45,19 @@ class GitHubRepo:
         query = compress_query(query)
         if variables is None:
             variables = {}
-        response = self._post(
-            "https://api.github.com/graphql", {"query": query, "variables": variables}
+        response = self._request(
+            "https://api.github.com/graphql",
+            {"query": query, "variables": variables},
+            method="POST",
         )
         if "data" not in response:
             msg = f"Error fetching data with query:\n{query}\n\nvariables:\n{variables}\n\nerror:\n{json.dumps(response, indent=2)}"
             raise RuntimeError(msg)
         return response
 
-    def _post(self, full_url: str, body: Dict[str, Any]) -> Dict[str, Any]:
-        print("Requesting POST to", full_url, "with", body)
-        req = request.Request(full_url, headers=self.headers(), method="POST")
+    def _request(self, full_url: str, body: Dict[str, Any], method: str) -> Dict[str, Any]:
+        print(f"Requesting {method} to", full_url, "with", body)
+        req = request.Request(full_url, headers=self.headers(), method=method.upper())
         req.add_header("Content-Type", "application/json; charset=utf-8")
         data = json.dumps(body)
         data = data.encode("utf-8")
@@ -65,8 +67,11 @@ class GitHubRepo:
             response = json.loads(response.read())
         return response
 
+    def put(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self._request(self.base + url, data, method="PUT")
+
     def post(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        return self._post(self.base + url, data)
+        return self._request(self.base + url, data, method="POST")
 
     def get(self, url: str) -> Dict[str, Any]:
         url = self.base + url
