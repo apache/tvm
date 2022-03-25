@@ -35,7 +35,7 @@ We do encourage everyone to work anything they are interested in.
 - [Tianqi Chen](https://github.com/tqchen) (PMC): @tqchen - topi, compiler, relay, docs
 - [Wei Chen](https://github.com/wweic): @wweic - runtime, relay, vm
 - [Zhi Chen](https://github.com/zhiics) (PMC): @zhiics - relay, quantization, pass manager
-- [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy - tir
+- [Siyuan Feng](https://github.com/Hzfengsy) (PMC): @Hzfengsy - tir
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm - frontends, quantization, topi
 - [Bohan Hou](https://github.com/spectrometerHBH): @spectrometerHBH - tir, arith, tvm-script
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
@@ -57,7 +57,7 @@ We do encourage everyone to work anything they are interested in.
 - [Trevor Morris](https://github.com/trevor-m): @trevor-m - byoc, compiler
 - [Leandro Nunes](https://github.com/leandron) (PMC): @leandron - tvmc
 - [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies - relay
-- [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic - hexagon, llvm
+- [Krzysztof Parzyszek](https://github.com/kparzysz-quic) (PMC): @kparzysz-quic - hexagon, llvm
 - [Andrew Reusch](https://github.com/areusch): (PMC) @areusch - runtime, microTVM
 - [Jared Roesch](https://github.com/jroesch) (PMC): @jroesch - relay
 - [Giuseppe Rossini](https://github.com/giuseros): @giuseros - aot, arm

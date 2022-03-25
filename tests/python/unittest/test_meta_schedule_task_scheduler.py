@@ -26,19 +26,11 @@ import tvm
 from tvm._ffi.base import TVMError
 from tvm.ir import IRModule
 from tvm.meta_schedule import TuneContext, measure_callback
-from tvm.meta_schedule.builder import BuilderInput, BuilderResult, PyBuilder
-from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
-from tvm.meta_schedule.runner import (
-    PyRunner,
-    RunnerFuture,
-    RunnerInput,
-    RunnerResult,
-    PyRunnerFuture,
-)
 from tvm.meta_schedule.search_strategy import ReplayTrace
 from tvm.meta_schedule.space_generator import ScheduleFn
 from tvm.meta_schedule.task_scheduler import PyTaskScheduler, RoundRobin
 from tvm.meta_schedule.utils import derived_object
+from tvm.meta_schedule.testing import DummyDatabase, DummyBuilder, DummyRunner, DummyRunnerFuture
 from tvm.script import tir as T
 from tvm.tir import Schedule
 
@@ -121,66 +113,6 @@ def _schedule_batch_matmul(sch: Schedule):
     k_0, k_1 = sch.split(loop=k, factors=[32, 32])
     t_0, t_1 = sch.split(loop=t, factors=[2, 512])
     sch.reorder(i_0, j_0, i_1, j_1, k_0, i_2, j_2, k_1, i_3, j_3, t_0, t_1)
-
-
-@derived_object
-class DummyRunnerFuture(PyRunnerFuture):
-    def done(self) -> bool:
-        return True
-
-    def result(self) -> RunnerResult:
-        return RunnerResult([random.uniform(5, 30) for _ in range(random.randint(1, 10))], None)
-
-
-@derived_object
-class DummyBuilder(PyBuilder):
-    def build(self, build_inputs: List[BuilderInput]) -> List[BuilderResult]:
-        return [BuilderResult("test_path", None) for _ in build_inputs]
-
-
-@derived_object
-class DummyRunner(PyRunner):
-    def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
-        return [DummyRunnerFuture() for _ in runner_inputs]
-
-
-@derived_object
-class DummyDatabase(PyDatabase):
-    def __init__(self):
-        super().__init__()
-        self.records = []
-        self.workload_reg = []
-
-    def has_workload(self, mod: IRModule) -> Workload:
-        for workload in self.workload_reg:
-            if tvm.ir.structural_equal(workload.mod, mod):
-                return True
-        return False
-
-    def commit_tuning_record(self, record: TuningRecord) -> None:
-        self.records.append(record)
-
-    def commit_workload(self, mod: IRModule) -> Workload:
-        for workload in self.workload_reg:
-            if tvm.ir.structural_equal(workload.mod, mod):
-                return workload
-        workload = Workload(mod)
-        self.workload_reg.append(workload)
-        return workload
-
-    def get_top_k(self, workload: Workload, top_k: int) -> List[TuningRecord]:
-        return list(
-            filter(
-                lambda x: x.workload == workload,
-                sorted(self.records, key=lambda x: sum(x.run_secs) / len(x.run_secs)),
-            )
-        )[: int(top_k)]
-
-    def __len__(self) -> int:
-        return len(self.records)
-
-    def print_results(self) -> None:
-        print("\n".join([str(r) for r in self.records]))
 
 
 @derived_object

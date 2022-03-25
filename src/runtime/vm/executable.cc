@@ -105,7 +105,7 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
-    return PackedFunc(nullptr);
+    return PackedFunc();
   }
 }
 

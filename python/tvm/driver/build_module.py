@@ -275,7 +275,7 @@ def build(
 
     annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
 
-    rt_mod_host = _driver_ffi.preprocess_module(annotated_mods, target_host)
+    rt_mod_host = _driver_ffi.tir_to_runtime(annotated_mods, target_host)
 
     annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
 

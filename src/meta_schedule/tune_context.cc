@@ -66,10 +66,8 @@ void TuneContextNode::Initialize() {
   for (const Postproc& postproc : postprocs) {
     postproc->InitializeWithTuneContext(GetRef<TuneContext>(this));
   }
-  if (mutator_probs.defined()) {
-    for (const auto& kv : mutator_probs) {
-      kv.first->InitializeWithTuneContext(GetRef<TuneContext>(this));
-    }
+  for (const auto& kv : mutator_probs) {
+    kv.first->InitializeWithTuneContext(GetRef<TuneContext>(this));
   }
 }
 

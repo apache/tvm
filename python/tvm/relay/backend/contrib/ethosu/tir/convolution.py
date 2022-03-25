@@ -63,7 +63,9 @@ def get_conv2d_params(stmt, producers, consumers):
     output_pointer = stores[0].buffer.data
     # Get feature map info
     serial_ifm, serial_padding = get_ifm_params(input_pointer, producers)
-    serial_ofm, replace_pointer, is_allocator = get_ofm_params(output_pointer, consumers, producers)
+    serial_ofm, serial_block_config, replace_pointer, is_allocator = get_ofm_params(
+        output_pointer, consumers, producers
+    )
     # Get kernel info
     serial_kernel = SerialKernel(
         width=int(rw.extent),
@@ -103,6 +105,7 @@ def get_conv2d_params(stmt, producers, consumers):
             activation=serial_activation,
             rounding_mode=attrs["rounding_mode"],
             upscale=attrs["upscale"],
+            block_config=serial_block_config,
         ),
         output_pointer,
         replace_pointer,

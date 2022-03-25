@@ -20,9 +20,11 @@ import logging
 
 import re
 from tvm import topi
+from tvm.topi.x86.utils import target_has_vnni
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
 from tvm.relay.ty import is_dynamic
+from tvm.target import Target
 from .generic import *
 from .. import op as _op
 
@@ -558,7 +560,24 @@ def dense_pack_strategy_cpu(attrs, inputs, out_type, target):
 def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     """batch_matmul x86 strategy"""
     strategy = _op.OpStrategy()
-    if is_dynamic(out_type) or is_auto_scheduler_enabled():
+    mcpu = Target.current().mcpu
+
+    if (
+        not attrs.transpose_a
+        and attrs.transpose_b
+        and target_has_vnni(mcpu)
+        and inputs[0].dtype == "uint8"
+        and inputs[1].dtype == "int8"
+        and inputs[1].shape[-2] % 16 == 0
+        and inputs[1].shape[-1] % 4 == 0
+    ):
+        strategy.add_implementation(
+            wrap_compute_batch_matmul(topi.x86.batch_matmul_vnni_compute, need_out_dtype=True),
+            wrap_topi_schedule(topi.x86.schedule_batch_matmul_vnni),
+            name="batch_matmul_vnni.x86",
+            plevel=10,
+        )
+    elif is_dynamic(out_type) or is_auto_scheduler_enabled():
         strategy.add_implementation(
             wrap_compute_batch_matmul(
                 topi.nn.batch_matmul, need_auto_scheduler_layout=True, need_out_dtype=True

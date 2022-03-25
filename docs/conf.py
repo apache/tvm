@@ -202,7 +202,7 @@ latex_documents = [
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/{.major}".format(sys.version_info), None),
-    "numpy": ("https://numpy.org/doc/stable", None),
+    # "numpy": ("https://numpy.org/doc/stable", None),
     "scipy": ("https://docs.scipy.org/doc/scipy-1.8.0/html-scipyorg/", None),
     "matplotlib": ("https://matplotlib.org/", None),
 }
@@ -353,7 +353,7 @@ sphinx_gallery_conf = {
     "reference_url": {
         "tvm": None,
         "matplotlib": "https://matplotlib.org/",
-        "numpy": "https://numpy.org/doc/stable",
+        # "numpy": "https://numpy.org/doc/stable",
     },
     "examples_dirs": examples_dirs,
     "within_subsection_order": WithinSubsectionOrder,

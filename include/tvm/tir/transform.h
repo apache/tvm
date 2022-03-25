@@ -459,6 +459,13 @@ TVM_DLL Pass FlattenBuffer();
  */
 TVM_DLL Pass TextureFlatten();
 
+/*
+ * \brief Lower VTCM allocations
+ *
+ * \return The Pass
+ */
+TVM_DLL Pass LowerVtcmAlloc();
+
 /*!
  * \brief Implements a Common Subexpression Elimination (CSE) for TIR
  *        which introduces let-in bindings for duplicated sub-expressions.

@@ -159,6 +159,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
                 out_dtype,
                 False,
                 data_layout,
+                int32_lanes=16,
             )
 
         batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)

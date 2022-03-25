@@ -725,6 +725,26 @@ def test_conv2d():
             ref_target="llvm",
         )
 
+    # align1 + int8 case
+    d_shape = (16, 3, 32, 32)
+    w_shape = (32, 3, 3, 3)
+    mod_nchw = get_conv2d_nchw(
+        d_shape, w_shape, padding, out_dtype="int32", data_dtype="uint8", weight_dtype="int8"
+    )
+
+    verify_conv2d(
+        mod_nchw,
+        mod_nchw,
+        d_shape,
+        w_shape,
+        sm=80,
+        atol=1e-5,
+        rtol=1e-5,
+        ref_target="llvm",
+        data_dtype="uint8",
+        weight_dtype="int8",
+    )
+
 
 def test_conv2d_fusion():
     d_shape = (16, 16, 32, 32)

@@ -48,58 +48,62 @@ namespace contrib {
 namespace ethosu {
 
 /*!
- * \brief This mutator lowers each external
- * relay function to a TIR PrimFunc
+ * \brief This mutator outlines functions that are marked with a named
+ * "Compiler" attribute. Functions that do not match this condition remain
+ * unaltered.
  */
-class RelayToTIRMutator : public MixedModeMutator {
+class OutlineCompilerFunctionsMutator : public MixedModeMutator {
  public:
-  explicit RelayToTIRMutator(IRModule ir_module) : ir_module_(ir_module) {}
-
-  IRModule operator()() {
-    GlobalVar main_global_var = ir_module_->GetGlobalVar("main");
-    Function main = Downcast<Function>(ir_module_->Lookup(main_global_var));
-    Function mutated_main = WithFields(main, main->params, VisitExpr(main->body));
-
-    ir_module_->Update(main_global_var, mutated_main);
-    ir_module_ = WithAttr(ir_module_, "device_contexts", device_contexts_);
-    return ir_module_;
-  }
+  explicit OutlineCompilerFunctionsMutator(const IRModule& mod, const std::string& compiler_name)
+      : mod_(mod), compiler_name_(compiler_name) {}
 
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     Call call = Downcast<Call>(post);
     if (call->op->IsInstance<FunctionNode>()) {
       Function func = Downcast<Function>(call->op);
-      auto codegen_name = func->GetAttr<String>(attr::kCompiler);
-      if (codegen_name.defined() && codegen_name == "ethos-u") {
-        auto relay_to_tir_func_pf =
-            tvm::runtime::Registry::Get("relay.ext.ethos-u.relay_to_tir_func");
-        ICHECK(relay_to_tir_func_pf);
-        tir::PrimFunc prim_func = (*relay_to_tir_func_pf)(func);
-        prim_func = WithAttr(prim_func, tvm::attr::kTarget, Target("ethos-u"));
-        String symbol_name = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol).value();
-        GlobalVar gv(symbol_name);
-        Array<RelayExpr> args = call->args;
-        gv->checked_type_ = func->checked_type();
-        ir_module_->Update(gv, prim_func);
-        device_contexts_.Set(gv, codegen_name.value());
-        return Call(gv, args, call->attrs, call->type_args);
+      auto compiler = func->GetAttr<String>(attr::kCompiler);
+      if (compiler.defined() && compiler == compiler_name_) {
+        auto gv_name = func->GetAttr<String>("global_symbol").value_or("");
+        ICHECK_NE(gv_name, "")
+            << "Function to be outlined must have global_symbol attribute, but didn't.";
+        GlobalVar gv(gv_name);
+        if (func->checked_type_.defined()) {
+          gv->checked_type_ = func->checked_type();
+        }
+        mod_->Update(gv, func);
+        return Call(gv, call->args, call->attrs, call->type_args);
       }
     }
     return post;
   }
 
  private:
-  IRModule ir_module_;
-  Map<GlobalVar, String> device_contexts_;
+  IRModule mod_;
+  std::string compiler_name_;
 };
 
-tvm::transform::Pass RelayToTIR() {
+/*!
+ * \brief A pass to outline compiler specific functions.
+ */
+tvm::transform::Pass OutlineCompilerFunctions(const std::string& compiler_name) {
   runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
-      [=](IRModule ir_module, transform::PassContext pass_context) {
-        return RelayToTIRMutator(ir_module)();
+      [=](IRModule mod, transform::PassContext ctx) {
+        GlobalVar gv = mod->GetGlobalVar("main");
+        Function main_func = Downcast<Function>(mod->Lookup("main"));
+        auto new_main_body =
+            OutlineCompilerFunctionsMutator(mod, compiler_name).VisitExpr(main_func->body);
+        if (!new_main_body.same_as(main_func->body)) {
+          Function new_main_func = WithFields(main_func, main_func->params, new_main_body);
+          mod->Update(gv, new_main_func);
+        }
+        return mod;
       };
-  return tvm::transform::CreateModulePass(pass_func, 0, "relay.contrib.ethos-u.RelayToTIR", {});
+  return tvm::transform::CreateModulePass(
+      pass_func, 0, "relay.backend.contrib.ethos-u.OutlineCompilerFunctions", {});
 }
+
+TVM_REGISTER_GLOBAL("relay.ext.ethos-u.OutlineCompilerFunctions")
+    .set_body_typed(OutlineCompilerFunctions);
 
 /*!
  * \brief This mutator removes identity operations that are not necessary. Specifically, an
@@ -161,11 +165,14 @@ tvm::transform::Pass IdentityOptimizer() {
   runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
       [=](IRModule mod, transform::PassContext ctx) {
         for (auto gv : mod->GetGlobalVars()) {
-          Function main_func = Downcast<Function>(mod->Lookup(gv));
-          auto new_main_body = RemoveRedundantIdentities().VisitExpr(main_func->body);
-          if (!new_main_body.same_as(main_func->body)) {
-            Function new_main_func = WithFields(main_func, main_func->params, new_main_body);
-            mod->Update(gv, new_main_func);
+          Function func = Downcast<Function>(mod->Lookup(gv));
+          auto compiler_name = func->GetAttr<String>(attr::kCompiler);
+          if (compiler_name.defined() && compiler_name == "ethos-u") {
+            auto new_body = RemoveRedundantIdentities().VisitExpr(func->body);
+            if (!new_body.same_as(func->body)) {
+              Function new_func = WithFields(func, func->params, new_body);
+              mod->Update(gv, new_func);
+            }
           }
         }
         return mod;
@@ -175,6 +182,20 @@ tvm::transform::Pass IdentityOptimizer() {
 }
 
 TVM_REGISTER_GLOBAL("relay.ext.ethos-u.IdentityOptimizer").set_body_typed(IdentityOptimizer);
+
+/*!
+ * \brief This pass will lower NPU functions in a Relay module to scheduled TIR prim functions.
+ */
+tvm::transform::Pass RelayToTIR() {
+  runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
+      [=](IRModule ir_module, transform::PassContext pass_context) {
+        auto relay_to_tir_pf = tvm::runtime::Registry::Get("relay.ext.ethos-u.relay_to_tir");
+        ICHECK(relay_to_tir_pf);
+        ir_module = (*relay_to_tir_pf)(ir_module);
+        return ir_module;
+      };
+  return tvm::transform::CreateModulePass(pass_func, 0, "relay.contrib.ethos-u.RelayToTIR", {});
+}
 
 /*!
  * \brief This function lowers the IRModule with PrimFunc

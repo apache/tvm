@@ -199,9 +199,6 @@ def convert_to_relay(
 def parametrize_aot_options(test):
     """Parametrize over valid option combinations"""
 
-    skip_i386 = pytest.mark.skipif(
-        platform.machine() == "i686", reason="Reference system unavailable in i386 container"
-    )
     requires_arm_eabi = pytest.mark.skipif(
         shutil.which("arm-none-eabi-gcc") is None, reason="ARM embedded toolchain unavailable"
     )
@@ -229,16 +226,18 @@ def parametrize_aot_options(test):
 
     # Skip reference system tests if running in i386 container
     marked_combinations = map(
-        lambda parameters: pytest.param(*parameters, marks=[skip_i386, requires_arm_eabi])
+        lambda parameters: pytest.param(*parameters, marks=[requires_arm_eabi])
         if parameters[2] == AOT_CORSTONE300_RUNNER
         else parameters,
         valid_combinations,
     )
 
-    return pytest.mark.parametrize(
+    fn = pytest.mark.parametrize(
         ["interface_api", "use_unpacked_api", "test_runner"],
         marked_combinations,
     )(test)
+
+    return tvm.testing.skip_if_32bit(reason="Reference system unavailable in i386 container")(fn)
 
 
 def subprocess_check_log_output(cmd, cwd, logfile):

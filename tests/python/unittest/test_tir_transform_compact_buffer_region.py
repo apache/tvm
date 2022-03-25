@@ -222,7 +222,7 @@ def compacted_symbolic_func(a: T.handle, c: T.handle, n: T.int32) -> None:
         with T.block():
             T.reads(A[i * 8 : i * 8 + 8])
             T.writes(C[i * 8 : i * 8 + 8])
-            B = T.alloc_buffer((8,), "float32")
+            B = T.alloc_buffer((T.min(n, 1) * 8,), "float32")
             for j in range(0, 8):
                 with T.block() as []:
                     T.reads(A[i * 8 + j])
@@ -576,6 +576,33 @@ def compacted_sparse_read_cache(
                         B[i] = B[i] + A_data_local[A_indptr[i] + k - (A_indptr[i] + k)]
 
 
+@T.prim_func
+def narrow_shape(A: T.Buffer[(10,), "float32"], B: T.Buffer[(10,), "float32"]) -> None:
+    B_cache = T.alloc_buffer(10, "float32")
+    for j in T.serial(3):
+        for k in T.serial(4):
+            with T.block("B_cache"):
+                T.where(j * 4 + k < 10)
+                B_cache[j * 4 + k] = B[j]
+    for i in T.serial(10):
+        A[i] = B_cache[i] + T.float32(1)
+
+
+@T.prim_func
+def compacted_narrow_shape(A: T.Buffer[(10,), "float32"], B: T.Buffer[(10,), "float32"]) -> None:
+    # body
+    # with T.block("root")
+    B_cache = T.alloc_buffer([10], dtype="float32")
+    for j, k in T.grid(3, 4):
+        with T.block("B_cache"):
+            T.where(j * 4 + k < 10)
+            T.reads(B[j])
+            T.writes(B_cache[j * 4 + k])
+            B_cache[j * 4 + k] = B[j]
+    for i in T.serial(10):
+        A[i] = B_cache[i] + T.float32(1)
+
+
 def test_elementwise():
     _check(elementwise_func, compacted_elementwise_func)
 
@@ -637,6 +664,10 @@ def test_sparse_read_cache():
     _check(sparse_read_cache, compacted_sparse_read_cache)
 
 
+def test_narrow_shape():
+    _check(narrow_shape, compacted_narrow_shape)
+
+
 if __name__ == "__main__":
     test_elementwise()
     test_unschedulable_block()
@@ -652,3 +683,4 @@ if __name__ == "__main__":
     test_mem_access_in_branch_func()
     test_opaque_access_annotated_func()
     test_sparse_read_cache()
+    test_narrow_shape()
