@@ -375,9 +375,7 @@ def dot_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
         )
 
 
-tir.TensorIntrin.register(
-    "dot_16x1x16_uint8_int8_int32_cascadelake", dot_product_desc, dot_product_intrin
-)
+VNNI_INTRIN = "dot_16x1x16_uint8_int8_int32_cascadelake"
 
 
 def schedule_dense(block, M, do_tune, sch):
@@ -430,7 +428,7 @@ def schedule_dense(block, M, do_tune, sch):
     init_loop = sch.get_loops(dec)[-1]
     sch.vectorize(init_loop)
 
-    sch.tensorize(a_xi, "dot_16x1x16_uint8_int8_int32_cascadelake")
+    sch.tensorize(a_xi, VNNI_INTRIN)
 
 
 def manual_tir_common(do_tune=False):
@@ -511,6 +509,16 @@ def manual_tir_common(do_tune=False):
             opt_level=3,
             config={"relay.backend.use_meta_schedule": True},
         ):
+            """
+            The log should say
+            meta_schedule/integration.cc:146: Warning: Cannot find workload: tvmgen_default_fused_expand_dims
+            meta_schedule/integration.cc:146: Warning: Cannot find workload: tvmgen_default_fused_cast
+            meta_schedule/integration.cc:146: Warning: Cannot find workload: tvmgen_default_fused_cast_1
+            meta_schedule/integration.cc:146: Warning: Cannot find workload: tvmgen_default_fused_nn_batch_matmul
+
+            This means batch matmul and others are scheduled by TE, and dense (the one not warned) is found in the
+            meta schedule tuning database during ApplyHistoryBest
+            """
             lib = relay.build(relay_mod, target=target, params=params)
 
     runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
@@ -525,6 +533,8 @@ def manual_tir_common(do_tune=False):
 
 @pytest.mark.skip("Requires cascadelake")
 def test_tune_relay_manual_tir_vnni():
+    tir.TensorIntrin.register(VNNI_INTRIN, dot_product_desc, dot_product_intrin)
+
     manual_tir_common(do_tune=False)
 
     def schedule_rule_dense_vnni(sch, block):
