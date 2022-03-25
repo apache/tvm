@@ -27,11 +27,11 @@ from tvm.relay.backend.contrib.uma.api.codegen import UMACodegen
 
 
 class UMABackend(object):
-    def __init__(self, variant: str = "", merge_compiler_region: bool = True) -> None:
+    def __init__(self, variant: str = "", merge_compiler_regions: bool = True) -> None:
         # TODO: variant implementation
         # - variant should allow the user to differentiate between different variants of the same NPU
         # - we need to decide where we want to make the variant decision and which parts of UMA are affected by it
-        self._relay_to_relay = UMAPartitioner(self.target_name, merge_compiler_region)
+        self._relay_to_relay = UMAPartitioner(self.target_name, merge_compiler_regions)
         self._relay_to_tir = UMALower(self.target_name)
         self._tir_to_runtime = UMACodegen(self.target_name)
 
