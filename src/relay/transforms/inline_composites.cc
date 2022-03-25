@@ -34,12 +34,12 @@ namespace tvm {
 
 namespace relay {
 
-class Unmerger : ExprMutator {
+class CompositeInliner : public MixedModeMutator {
  public:
-  explicit Unmerger(CallGraphEntry* cur_node, CallGraphNode* call_graph)
+  explicit CompositeInliner(CallGraphEntry* cur_node, CallGraphNode* call_graph)
       : cur_node_(cur_node), call_graph_(call_graph) {}
 
-  Expr VisitExpr_(const CallNode* call_node) final {
+  Expr Rewrite_(const CallNode* call_node) {
     Call vanilla_call = GetAnyCall(call_node);
     const auto* function_node = vanilla_call->op.as<FunctionNode>();
 
@@ -60,10 +60,10 @@ class Unmerger : ExprMutator {
       return Bind(function_node->body, bind_map);
     }
 
-    return ExprMutator::VisitExpr_(call_node);
+    return MixedModeMutator::VisitExpr_(call_node);
   }
 
-  Function Unmerge(const Function& func) {
+  Function Inline(const Function& func) {
     return WithFields(func, func->params, VisitExpr(func->body));
   }
 
@@ -88,13 +88,13 @@ IRModule InlineComposites(const IRModule& module, runtime::String target) {
 
     if (!base_func->GetAttr<String>(attr::kCompiler).defined() &&
         base_func->GetAttr<String>(attr::kCompiler) != target) {
-      return module;
+      continue;
     }
 
     if (it->GetNameHint() != "main") {
       if (const auto* fn = base_func.as<FunctionNode>()) {
         auto func = GetRef<Function>(fn);
-        auto new_func = Unmerger(it, cg.operator->()).Unmerge(func);
+        auto new_func = CompositeInliner(it, cg.operator->()).Inline(func);
         cg->module->Update(it->GetGlobalVar(), new_func);
       }
     }

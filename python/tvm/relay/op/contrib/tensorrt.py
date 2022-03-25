@@ -106,6 +106,7 @@ def partition_for_tensorrt(
     max_workspace_size=1 << 30,
     use_fp16=False,
     use_uint8=False,
+    use_patterns=False,
 ):
     """Partition the graph greedily offloading supported operators to TensorRT.
 
@@ -136,6 +137,9 @@ def partition_for_tensorrt(
         lower runtime, or if no low-precision implementation exists.
     use_uint8: Optional[bool]
         Allows, TRT to automatically convert FP32 inputs to UINT8.
+    use_patterns: Optional[bool]
+        Switches to use pattern-based op suppot by applying MergeCompsite and InlineComposites
+        passes.
     Returns
     -------
     mod_and_config : Tuple[Module, Dict[str, Any]]
@@ -164,32 +168,72 @@ def partition_for_tensorrt(
 
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
-    seq = tvm.transform.Sequential(
-        [
-            transform.InferType(),
-            RemoveDropoutPass(),
-            transform.RemoveUnusedFunctions(),
-            transform.ConvertLayout(
-                {
-                    "nn.conv1d": ["NCW", "default"],
-                    "nn.conv2d": ["NCHW", "default"],
-                    "nn.conv3d": ["NCDHW", "default"],
-                    "nn.conv2d_transpose": ["NCHW", "default"],
-                }
-            ),
-            transform.FoldConstant(),
-            transform.MergeComposite(pattern_table()),
-            transform.AnnotateTarget("tensorrt"),
-            transform.MergeCompilerRegions(),
-            transform.PartitionGraph(),
-            transform.InlineComposites("tensorrt"),
-            transform.InferType(),
-        ]
-    )
+
+    seq = get_pass_order(use_patterns)
     with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
         mod = seq(mod)
         mod = prune_tensorrt_subgraphs(mod)
     return mod, config
+
+
+def get_pass_order(use_patterns):
+    """
+    Get the pass ordering based on using predicates or patterns.
+
+    Parameters
+    ----------
+    use_patterns: Bool
+        True if pass needs to work with op patterns
+    Returns
+    ----------
+    ret : Sequential
+        Pass object
+    """
+    return (
+        tvm.transform.Sequential(
+            [
+                transform.InferType(),
+                RemoveDropoutPass(),
+                transform.RemoveUnusedFunctions(),
+                transform.ConvertLayout(
+                    {
+                        "nn.conv1d": ["NCW", "default"],
+                        "nn.conv2d": ["NCHW", "default"],
+                        "nn.conv3d": ["NCDHW", "default"],
+                        "nn.conv2d_transpose": ["NCHW", "default"],
+                    }
+                ),
+                transform.FoldConstant(),
+                transform.MergeComposite(pattern_table()),
+                transform.AnnotateTarget("tensorrt"),
+                transform.MergeCompilerRegions(),
+                transform.PartitionGraph(),
+                transform.InlineComposites("tensorrt"),
+                transform.InferType(),
+            ]
+        )
+        if use_patterns
+        else tvm.transform.Sequential(
+            [
+                transform.InferType(),
+                RemoveDropoutPass(),
+                transform.RemoveUnusedFunctions(),
+                transform.ConvertLayout(
+                    {
+                        "nn.conv1d": ["NCW", "default"],
+                        "nn.conv2d": ["NCHW", "default"],
+                        "nn.conv3d": ["NCDHW", "default"],
+                        "nn.conv2d_transpose": ["NCHW", "default"],
+                    }
+                ),
+                transform.FoldConstant(),
+                transform.AnnotateTarget("tensorrt"),
+                transform.MergeCompilerRegions(),
+                transform.PartitionGraph(),
+                transform.InferType(),
+            ]
+        )
+    )
 
 
 def check_dynamism(args, op_name):
@@ -451,7 +495,7 @@ def dense_annotate_fn(expr):  # pylint: disable=unused-variable
 
 
 @_register_external_dynamic_check_func("nn.batch_matmul")
-def batch_matmul_annotate_fn(expr):  # pylint: disable=unused-variable
+def batch_matmul_annotate_fn(expr):
     """Check if dense is supported by TensorRT."""
 
     args = expr.args
