@@ -2177,7 +2177,7 @@ class PyTorchOpConverter:
 
         return _op.nn.bias_add(conv_out, bias)
 
-     def deformV2_conv2d(self, inputs, input_types):
+    def deformV2_conv2d(self, inputs, input_types):
         """
         dcn_v2_cuda_forward(input, weight, bias, offset, mask,
                                    kernel_h, kernel_w,
