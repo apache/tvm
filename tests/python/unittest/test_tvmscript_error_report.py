@@ -21,8 +21,6 @@ import tvm
 from tvm import tir
 from tvm.testing import check_error
 from tvm.script import tir as T
-from tvm.ir.diagnostics import override_renderer
-import inspect
 
 
 def buffer_bind_missing_args(a: T.handle) -> None:
@@ -627,6 +625,15 @@ def floor_dtype(h: T.handle):
 
 def test_floor_dtype():
     check_error(floor_dtype, 3)
+
+
+def non_integer_typed_block_iter():
+    with T.block():
+        i = T.axis.S(0.1, 0.1)  # error IterVar requires an integer dtype
+
+
+def test_non_integer_typed_block_iter():
+    check_error(non_integer_typed_block_iter, 3)
 
 
 if __name__ == "__main__":
