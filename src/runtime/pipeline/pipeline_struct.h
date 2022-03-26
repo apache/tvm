@@ -1003,7 +1003,9 @@ class BackendRuntime : public BasicRuntime {
   void InitializePipeline(ConfigPipelineExecution config,
                           std::vector<std::shared_ptr<BackendRuntime>>* runtimes,
                           std::shared_ptr<GlobalRuntime> global_runtime) {
-    // Getting the 'binding configuration' for each runtime.
+    // Getting the current BackendRuntime's cpu affinity setting.
+    cpu_affinity_ = config.GetCPUAffinity(runtime_idx_);
+    // Getting the 'binding configuration' for each child runtime.
     config.VisitRuntimeOutputConfig(
         [&](int output_idx, int child_idx, std::string child_input_name) {
           std::shared_ptr<BasicRuntime> child_runtime = nullptr;
