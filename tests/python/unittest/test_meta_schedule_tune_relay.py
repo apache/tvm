@@ -422,7 +422,6 @@ def schedule_dense(block, M, do_tune, sch):
     sch.reorder(a_ko, a_xi, a_ki)
 
     sch.parallel(fused)
-
     dec = sch.decompose_reduction(block, a_ko)
 
     init_loop = sch.get_loops(dec)[-1]
@@ -482,7 +481,9 @@ def manual_tir_common(do_tune=False):
                 num_trials_per_iter=64,
                 num_trials_total=64,
             )
-            database = tune_extracted_tasks(tune_tasks, target, config, work_dir=work_dir)
+            database = tune_extracted_tasks(
+                tune_tasks, target, config, work_dir=work_dir, postprocs=lambda: []
+            )
         else:
             database = JSONDatabase(
                 path_workload=osp.join(work_dir, "database_workload.json"),
@@ -543,8 +544,7 @@ def test_tune_relay_manual_tir_vnni():
 
     register_func("meta_schedule.dense_vnni", schedule_rule_dense_vnni)
 
-    # TODO(masahi): Weird error from tuning with CheckSubtreeCompactDataflow in for_kind.cc turned on
-    # manual_tir_common(do_tune=True)
+    manual_tir_common(do_tune=True)
 
 
 if __name__ == """__main__""":
