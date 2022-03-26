@@ -475,7 +475,7 @@ class BuiltinLower : public StmtExprMutator {
     fdevapi_prefix += runtime::DeviceName(device_type_.as<IntImmNode>()->value);
 
     Array<PrimExpr> args = {
-        StringImm(fdevapi_prefix + ".AllocNd"),
+        StringImm(fdevapi_prefix + ".alloc_nd"),
         device_type_,
         device_id_,
         IntImm(DataType::Int(32), dtype.code()),
@@ -490,9 +490,9 @@ class BuiltinLower : public StmtExprMutator {
     Stmt alloca = LetStmt(let->var, call_packed, body);
 
     PrimExpr storage_scope = call->args[0];
-    Call free_op = Call(
-        DataType::Int(32), builtin::tvm_call_packed(),
-        {StringImm(fdevapi_prefix + ".FreeNd"), device_type_, device_id_, storage_scope, let->var});
+    Call free_op = Call(DataType::Int(32), builtin::tvm_call_packed(),
+                        {StringImm(fdevapi_prefix + ".free_nd"), device_type_, device_id_,
+                         storage_scope, let->var});
 
     Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
     body = SeqStmt({alloca, free_stmt});
