@@ -745,7 +745,7 @@ def test_tuple_lowered():
         def fuse_model(self):
             for idx, m in enumerate(self.modules()):
                 if type(m) == ConvBnRelu:
-                    torch.quantization.fuse_modules(m, ["conv", "bn", "relu"], inplace=True)
+                    torch.ao.quantization.fuse_modules_qat(m, ["conv", "bn", "relu"], inplace=True)
 
         def forward(self, input):
             input = self.quant(input)
