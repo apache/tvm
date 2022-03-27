@@ -34,7 +34,6 @@ from tvm.meta_schedule.tune import tune_relay, tune_extracted_tasks, extract_tas
 from tvm.meta_schedule.utils import derived_object
 from tvm.target.target import Target
 from tvm.script import tir as T
-from tvm.script.registry import register
 from tvm._ffi import register_func
 import tempfile
 
@@ -324,11 +323,6 @@ def test_meta_schedule_relay_lowering():
         actual_output = get_output(data, rt_mod1)
         expected_output = get_output(data, rt_mod2)
         assert np.allclose(actual_output, expected_output, rtol=1e-4, atol=2e-4)
-
-
-@register
-def int32x16(imm, span):
-    return imm.astype("int32x16", span)
 
 
 @T.prim_func
