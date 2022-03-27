@@ -526,14 +526,12 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
   if (loop_var_ranges.empty()) {
     return true;
   }
-  DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
   Array<arith::IterSumExpr> results = arith::DetectIterMap(
       /*indices=*/realize->iter_values,
       /*input_iters=*/loop_var_ranges,
       /*predicate=*/realize->predicate,
       /*require_bijective=*/false,
-      /*analyzer=*/analyzer,
-      /*diag_ctx*/ diag_ctx);
+      /*analyzer=*/analyzer);
   if (results.empty()) {
     return false;
   }
