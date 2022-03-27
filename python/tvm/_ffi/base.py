@@ -28,7 +28,7 @@ from . import libinfo
 # ----------------------------
 string_types = (str,)
 integer_types = (int, np.int32)
-numeric_types = integer_types + (float, np.float32)
+numeric_types = integer_types + (float, np.float16, np.float32)
 
 # this function is needed for python3
 # to convert ctypes.char_p .value back to python str
