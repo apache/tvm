@@ -1252,8 +1252,11 @@ class PyTorchOpConverter:
         end = int(inputs[2])
         dshape = get_const_tuple(self.infer_shape_with_prelude(data))
         ndim = len(dshape)
+        if start < 0:
+            start += ndim
         if end < 0:
             end += ndim
+        assert start <= end, "start dim cannot come after end dim"
         new_shape = [0] * start
 
         new_shape.append(-1)
