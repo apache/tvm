@@ -392,14 +392,18 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         for port in self.forwarded_ports_:
             subprocess.check_call(self._adb_device_sub_cmd + ["forward", "--remove", f"tcp:{port}"])
 
-    def start_server(self):
-        """Abstract method implementation. See description in HexagonLauncherRPC."""
-        self._copy_binaries()
-        self._run_server_script()
-
-    def stop_server(self):
-        """Abstract method implementation. See description in HexagonLauncherRPC."""
-        self._cleanup_port_forwarding()
+    def _terminate_remote(self):
+        # Send interupt to main and child processes
+        subprocess.Popen(
+            self._adb_device_sub_cmd
+            + ["shell", f"pkill -l sigint -P `cat {self._workspace}/rpc_pid.txt`"]
+        )
+        subprocess.Popen(
+            self._adb_device_sub_cmd
+            + ["shell", f"kill -s sigint `cat {self._workspace}/rpc_pid.txt`"]
+        )
+        # Wait for processes to destruct cleanly after receiving the intrupt
+        subprocess.Popen(self._adb_device_sub_cmd + ["shell", "sleep", "0.1s"])
         # Kill process children
         subprocess.Popen(
             self._adb_device_sub_cmd + ["shell", f"pkill -P `cat {self._workspace}/rpc_pid.txt`"]
@@ -408,6 +412,16 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         subprocess.Popen(
             self._adb_device_sub_cmd + ["shell", f"kill `cat {self._workspace}/rpc_pid.txt`"]
         )
+
+    def start_server(self):
+        """Abstract method implementation. See description in HexagonLauncherRPC."""
+        self._copy_binaries()
+        self._run_server_script()
+
+    def stop_server(self):
+        """Abstract method implementation. See description in HexagonLauncherRPC."""
+        self._cleanup_port_forwarding()
+        self._terminate_remote()
 
 
 class HexagonLauncherSimulator(HexagonLauncherRPC):
