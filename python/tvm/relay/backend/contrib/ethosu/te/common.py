@@ -21,6 +21,8 @@ from typing import Tuple, List
 
 def get_layout_transform_matrices(ofm_channels: int) -> Tuple[List[List[float]], List[List[float]]]:
     """Get the NHWC->NHCWB16 and NHCWB16->NHWC layout transform matrices.
+    For information about the supported layouts see https://developer.arm.com/documentation/102420/
+    0200/Functional-description/Control-and-data-flow/Supported-memory-formats-for-feature-maps
 
     Parameters
     ----------
@@ -33,6 +35,7 @@ def get_layout_transform_matrices(ofm_channels: int) -> Tuple[List[List[float]],
         The layout transformation matrices
     """
 
+    # The value of the last dimension (B16) is always 16.
     nhwc_to_nhcwb16 = [
         [1, 0, 0, 0, 0],
         [0, 1, 0, 0, 0],
@@ -42,6 +45,10 @@ def get_layout_transform_matrices(ofm_channels: int) -> Tuple[List[List[float]],
         [0, 0, 0, 0, 1],
     ]
 
+    # When we convert from NHWC to NHCWB16, the new C value is given by
+    # (ofm_channels - 1) // 16 + 1, which is a lossy operation, so we need to use
+    # the actual value of channels in the transform matrix to accurately recover
+    # the C in NHWC when we convert from NHCWB16 to NHWC.
     nhcwb16_to_nhwc = [
         [1, 0, 0, 0, 0, 0],
         [0, 1, 0, 0, 0, 0],
