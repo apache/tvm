@@ -22,14 +22,14 @@ import tvm
 from tvm import relay
 from tvm import testing
 
-from test_arm_compute_libinfrastructure import (
+from test_arm_compute_lib.infrastructure import (
     skip_runtime_test,
     skip_codegen_test,
     build_and_run,
     verify,
     verify_codegen,
 )
-from test_arm_compute_libinfrastructure import Device
+from test_arm_compute_lib.infrastructure import Device
 
 
 def _get_model(input_shape_a, input_shape_b, input_shape_c, axis, dtype, var_names):
