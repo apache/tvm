@@ -5150,8 +5150,6 @@ target_skips = {
 @pytest.mark.parametrize("onnx_test", onnx_test_folders)
 @tvm.testing.parametrize_targets
 def test_onnx_nodes(target, dev, onnx_test):
-    target = "cuda"
-    dev = tvm.cuda(0)
     target_kind = tvm.target.Target(target).kind.name
 
     if onnx_test in unsupported_onnx_tests:
