@@ -304,6 +304,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self._serial_number = serial_number
         adb_socket = rpc_info["adb_server_socket"] if rpc_info["adb_server_socket"] else "tcp:5037"
         self._adb_device_sub_cmd = ["adb", "-L", adb_socket, "-s", self._serial_number]
+        self.forwarded_ports_ = []
 
         super(HexagonLauncherAndroid, self).__init__(rpc_info, workspace)
 
@@ -359,10 +360,6 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
     def _run_server_script(self):
         """Setup the ADB connection and execute the server script."""
 
-        # Removed pre-defined forward/reverse rules
-        subprocess.check_call(self._adb_device_sub_cmd + ["forward", "--remove-all"])
-        subprocess.check_call(self._adb_device_sub_cmd + ["reverse", "--remove-all"])
-
         # Enable port reverse for RPC tracker
         rpc_tracker_port = self._rpc_info["rpc_tracker_port"]
         rpc_server_port = self._rpc_info["rpc_server_port"]
@@ -372,9 +369,10 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         )
         # Enable port forward for RPC server. We forward 9 ports after the rpc_server_port.
         for i in range(0, 10):
+            port = rpc_server_port + i
+            self.forwarded_ports_.append(port)
             subprocess.check_call(
-                self._adb_device_sub_cmd
-                + ["forward", f"tcp:{rpc_server_port+i}", f"tcp:{rpc_server_port+i}"]
+                self._adb_device_sub_cmd + ["forward", f"tcp:{port}", f"tcp:{port}"]
             )
 
         # Run server and connect to tracker
@@ -385,6 +383,15 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
             stderr=subprocess.PIPE,
         )
 
+    def _cleanup_port_forwarding(self):
+        # Removed pre-defined forward/reverse rules
+        rpc_tracker_port = self._rpc_info["rpc_tracker_port"]
+        subprocess.check_call(
+            self._adb_device_sub_cmd + ["reverse", "--remove", f"tcp:{rpc_tracker_port}"]
+        )
+        for port in self.forwarded_ports_:
+            subprocess.check_call(self._adb_device_sub_cmd + ["forward", "--remove", f"tcp:{port}"])
+
     def start_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._copy_binaries()
@@ -392,6 +399,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
 
     def stop_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
+        self._cleanup_port_forwarding()
         # Kill process children
         subprocess.Popen(
             self._adb_device_sub_cmd + ["shell", f"pkill -P `cat {self._workspace}/rpc_pid.txt`"]
