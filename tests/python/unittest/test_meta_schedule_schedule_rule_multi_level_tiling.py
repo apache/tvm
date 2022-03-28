@@ -17,13 +17,14 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
 from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
+from tvm.meta_schedule.testing import te_workload
 from tvm.meta_schedule.testing.schedule_rule import (
     multi_level_tiling,
 )
 from tvm.meta_schedule.testing.space_generation import check_trace
 from tvm.meta_schedule.tune_context import TuneContext
+from tvm.script import tir as T
 from tvm.te import create_prim_func
-from tvm.meta_schedule.testing import te_workload
 from tvm.target import Target
 
 
@@ -273,8 +274,36 @@ def test_cuda_matmul_relu():
     check_trace(spaces, expected)
 
 
+def test_cuda_sum_with_trivial_block_iter():
+    @T.prim_func
+    def sum_with_trivial_block_iter(
+        A: T.Buffer[(1, 64, 768), "float32"], B: T.Buffer[(1, 64, 1), "float32"]
+    ) -> None:
+        for i0, i1, i2, i3 in T.grid(1, 64, 1, 768):
+            with T.block("sum"):
+                ax0, ax1, ax2, k2 = T.axis.remap("SSSR", [i0, i1, i2, i3])
+                T.reads(A[ax0, ax1, k2])
+                T.writes(B[ax0, ax1, ax2])
+                with T.init():
+                    B[ax0, ax1, ax2] = T.float32(0)
+                B[ax0, ax1, ax2] = B[ax0, ax1, ax2] + A[ax0, ax1, k2]
+
+    # Expect nothing to happen - the rule is not supposed to be applied in this case
+    expected = [[]]
+    target = Target("cuda", host="llvm")
+    ctx = _create_context(
+        sum_with_trivial_block_iter,
+        target=target,
+        rule=multi_level_tiling(target=target),
+    )
+    spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
+    assert len(spaces) == 1
+    check_trace(spaces, expected)
+
+
 if __name__ == "__main__":
     test_cpu_matmul()
     test_cpu_matmul_relu()
     test_cuda_matmul()
     test_cuda_matmul_relu()
+    test_cuda_sum_with_trivial_block_iter()
