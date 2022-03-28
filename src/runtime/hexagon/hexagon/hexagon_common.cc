@@ -96,8 +96,7 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
         DLTensor* tensor = static_cast<DLTensor*>(arg_values[i].v_handle);
         buffer_args.emplace_back(i, static_cast<HexagonBuffer*>(tensor->data));
         HexagonBuffer* hexbuf = buffer_args.back().second;
-        CHECK_EQ(hexbuf->GetNumAllocs(), 1);
-        tensor->data = hexbuf->GetPointer()[0];
+        tensor->data = hexbuf->GetPointer();
       }
     }
     int ret = (*faddr)(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),

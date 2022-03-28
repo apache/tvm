@@ -94,11 +94,24 @@ class HexagonBuffer {
   //! \brief Prevent move assignment.
   HexagonBuffer& operator=(HexagonBuffer&&) = delete;
 
-  //! \brief Return pointer to allocations.
-  void** GetPointer();
+  /*! \brief Return data pointer
+   *
+   * The return type depends on the buffer being
+   */
+  void* GetPointer();
 
-  //! \brief Return number of allocations.
-  size_t GetNumAllocs() { return nallocs_; }
+  // //! \brief Return number of allocations.
+  // size_t GetNumAllocs() { return nallocs_; }
+
+  /*! \brief Return dimensionality of buffer
+   *
+   * Will always be either 1 or 2.  If the buffer is 1-d, allocation
+   * returns a pointer to data, which is accessed by
+   * ((value_type*)ptr)[i].  If the buffer is 2-d, allocation returns
+   * a pointer to an array of pointers, which is accessed by
+   * ((value_type**)ptr)[i][j].
+   */
+  size_t GetBufferDimension() { return ndim_; }
 
   //! \brief Memory scopes managed by a Hexagon Buffer.
   enum class StorageScope {
@@ -138,6 +151,9 @@ class HexagonBuffer {
   void CopyFrom(const HexagonBuffer& other, size_t nbytes);
 
  private:
+  //! \brief Return the total number of bytes in this buffer
+  size_t TotalBytes() const { return nbytes_per_allocation_ * allocations_.size(); }
+
   //! \brief Assign a storage scope to the buffer.
   void SetStorageScope(Optional<String> scope);
   /*! \brief Array of raw pointer allocations required by the buffer.
@@ -153,8 +169,8 @@ class HexagonBuffer {
   /*! \brief The underlying storage type in which the allocation
    *  resides.
    */
-  size_t nallocs_;
-  size_t nbytes_;
+  size_t ndim_;
+  size_t nbytes_per_allocation_;
   StorageScope storage_scope_;
 };
 
