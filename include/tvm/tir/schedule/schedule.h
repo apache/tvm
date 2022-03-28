@@ -123,7 +123,7 @@ class ScheduleNode : public runtime::Object {
    * 3) All the random variables are valid in the copy, pointing to the corresponding sref
    * reconstructed
    */
-  virtual Schedule Copy() const = 0;
+  virtual Schedule Copy() = 0;
   /*!
    * \brief Seed the randomness
    * \param seed The new random seed, -1 if use device random, otherwise non-negative

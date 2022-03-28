@@ -43,7 +43,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
 
  public:
   Optional<Trace> trace() const final { return trace_; }
-  Schedule Copy() const final;
+  Schedule Copy() final;
 
  public:
   /******** Schedule: Sampling ********/
