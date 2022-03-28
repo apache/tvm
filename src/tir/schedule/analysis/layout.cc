@@ -77,9 +77,8 @@ class SplitExprCollector {
                                         const PrimExpr& predicate,           //
                                         bool require_bijective,              //
                                         arith::Analyzer* analyzer) {
-    DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
     Array<arith::IterSumExpr> iter_sum_exprs = arith::DetectIterMap(
-        {analyzer->Simplify(index)}, input_iters, predicate, require_bijective, analyzer, diag_ctx);
+        {analyzer->Simplify(index)}, input_iters, predicate, require_bijective, analyzer);
     if (iter_sum_exprs.empty()) {
       return {};
     }

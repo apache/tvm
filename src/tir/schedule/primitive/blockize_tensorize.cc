@@ -257,12 +257,11 @@ Array<Array<arith::IterMark>> CheckSubspaceDivisible(const IRModule& mod,
                                                      const LoopSubspaceCollector& collector,
                                                      arith::Analyzer* analyzer) {
   const Block& block = block_realize->block;
-  DiagnosticContext diag_ctx(DiagnosticContext::Default(mod));
 
   Array<Array<arith::IterMark>> division =
       arith::SubspaceDivide(block_realize->iter_values, collector.loop_var_domain,
                             collector.inner_loop_vars, block_realize->predicate,
-                            /*require_bijective=*/false, analyzer, diag_ctx);
+                            /*require_bijective=*/false, analyzer);
 
   if (division.empty()) {
     // If we can't do perfect subspace division, check if it is a trivial case of subspace division.
