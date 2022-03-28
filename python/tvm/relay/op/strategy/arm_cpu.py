@@ -88,14 +88,6 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
     if groups == 1:
         if layout == "NCHW":
             if kernel_layout == "OIHW":
-                # ARM conv2d spatial pack schedule.
-                strategy.add_implementation(
-                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_spatial_pack),
-                    wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_spatial_pack),
-                    name="conv2d_nchw_spatial_pack.arm_cpu",
-                    plevel=10,
-                )
-
                 if (
                     topi.arm_cpu.is_int8_hw_support(data.dtype, kernel.dtype)
                     and kernel.shape[1] >= 64
@@ -107,6 +99,14 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                         plevel=15,
                     )
                 else:
+                    # ARM conv2d spatial pack schedule.
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_spatial_pack),
+                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_spatial_pack),
+                        name="conv2d_nchw_spatial_pack.arm_cpu",
+                        plevel=10,
+                    )
+
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.x86.conv2d_nchw),
                         wrap_topi_schedule(topi.x86.schedule_conv2d_nchw),

@@ -20,6 +20,7 @@ import numpy as np
 
 import pytest
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm import meta_schedule as ms
 from tvm.ir.module import IRModule
@@ -151,7 +152,8 @@ def extract_task_qbert():
         assert "vnni" in annotations["schedule_rule"]
 
 
-def extract_task_arm_conv2d_nchwc():
+@tvm.testing.skip_if_32bit(reason="Apparently the LLVM version on i386 image is too old")
+def test_extract_task_arm_conv2d_nchwc():
     data_shape = (1, 64, 128, 128)
     weight_shape = (32, 64, 1, 1)
     bias_shape = (weight_shape[0],)
