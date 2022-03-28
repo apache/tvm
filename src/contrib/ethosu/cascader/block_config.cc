@@ -46,8 +46,8 @@ BlockConfig::BlockConfig(const std::vector<int>& input_shape, const std::vector<
   auto n = make_object<BlockConfigNode>();
   n->input_shape_ = std::move(input_shape);
   n->output_shape_ = std::move(output_shape);
-  n->compute_cycles_ = std::move(compute_cycles);
-  n->output_cycles_ = std::move(output_cycles);
+  n->compute_cycles_ = compute_cycles;
+  n->output_cycles_ = output_cycles;
   data_ = std::move(n);
 }
 

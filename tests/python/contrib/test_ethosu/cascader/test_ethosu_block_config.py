@@ -22,6 +22,7 @@ import numpy as np
 import math
 
 import tvm.contrib.ethosu.cascader as cs
+from tvm.relay.backend.contrib.ethosu.te.common import get_layout_transform_matrices
 
 from .infra import make_matrices
 
@@ -244,17 +245,10 @@ def test_best_block_config(
     acc_config,
     expected_block_configs,
 ):
-    nhwc_to_nhcwb16 = [
-        [1, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0],
-        [0, 0, 0, 1 / 16, 0],
-        [0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 16],
-        [0, 0, 0, 0, 1],
-    ]
-
     ofm_channels = out_shape[3]
     ifm_channels = in_shape[3]
+
+    nhwc_to_nhcwb16, _ = get_layout_transform_matrices(ofm_channels)
 
     ifm_matrix, ifm_offset, weight_matrix, weight_offset, _, _ = make_matrices(
         op_type,
