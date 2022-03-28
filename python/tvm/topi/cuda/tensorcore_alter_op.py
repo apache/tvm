@@ -148,16 +148,18 @@ def _dense_legalize(attrs, inputs, arg_types):
 
     # Pad input and output channels to use tensorcore schedule.
     if dtype in ["float16", "int8", "uint8"]:
-        # The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32)
+        # The shape of (M, K, N) must be multiple of
+        # (16, 16, 16) or (32, 16, 8) or (8, 16, 32) or (4, 4, 4)
         if (
             (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
             or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
             or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
+            or (M % 4 == 0 and K % 4 == 0 and N % 4 == 0)
         ):
             # no need to pad
             return None
 
-        candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
+        candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32), (4, 4, 4)]
     elif dtype in ["int4", "uint4"]:
         if M % 8 == 0 and K % 32 == 0 and N % 8 == 0:
             # no need to pad
