@@ -233,13 +233,13 @@ AnnotationPosType GetAnnotationPosEncoding(const Var& var, const Array<PrimExpr>
   }
 }
 
-// Return the extent of a for loop
-int64_t GetLoopExtent(const ForNode* node) {
-  auto pint = node->extent.as<IntImmNode>();
-  if (pint != nullptr) {
-    return pint->value;
+// Return the maximum extent of a for loop
+int64_t GetLoopExtent(const ForNode* node, const Analyzer& ana) {
+  int64_t bound = ana.const_int_bound(node->extent)->max_value;
+  if (bound == ConstIntBound::kPosInf) {
+    return 1;  // Analyzer could not determine a valid bound, use 1 instead.
   } else {
-    return 1;
+    return bound;
   }
 }
 
@@ -499,7 +499,8 @@ std::tuple<ReuseType, float, float, float> ComputeReuse(
     const std::vector<const ForNode*>& for_loop_stack,
     const std::unordered_map<const ForNode*,
                              BufferMap<std::vector<std::tuple<BufferAccessType, int64_t, int>>>>&
-        for_touch_regions) {
+        for_touch_regions,
+    const Analyzer& ana) {
   float reuse_dis_iter = 1.0f;
   float reuse_dis_bytes = -1.0f;
 
@@ -519,7 +520,7 @@ std::tuple<ReuseType, float, float, float> ComputeReuse(
       }
     }
 
-    int64_t extent = GetLoopExtent(for_loop_stack[i]);
+    int64_t extent = GetLoopExtent(for_loop_stack[i], ana);
     if (find) {
       // accumulate/update reuse distance
       reuse_dis_iter *= extent;
@@ -549,7 +550,7 @@ std::tuple<ReuseType, float, float, float> ComputeReuse(
 
     int serial_reuse = static_cast<int>(buffer_map.at(buf).size()) - 1;
     if (serial_reuse > 0) {
-      int64_t extent = GetLoopExtent(cur_for);
+      int64_t extent = GetLoopExtent(cur_for, ana);
 
       // Have SerialMultipleReadWrite reuse
       reuse_dis_iter = std::numeric_limits<float>::max();
@@ -573,6 +574,12 @@ std::tuple<ReuseType, float, float, float> ComputeReuse(
 }
 
 // Extract features for every BufferStore statement
+//
+// This visitor assumes that loop bounds do no depend on data or on parent loop
+// bounds. For example, `for i in .. { for j in range(i, ..) }` would result in
+// inaccurate features. This visitor also does not take conditionals into
+// consideration when creating features. Each branch of the conditional is
+// taken at the same time.
 class PerStoreFeatureExtractor : public StmtExprVisitor {
  public:
   explicit PerStoreFeatureExtractor(int cache_line_size, const Map<Var, Buffer>& existing_buffers)
@@ -629,7 +636,9 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
       outer_loop_prod_ *= extent;
       for_loop_stack_.push_back(fake_for_node.as<ForNode>());
+      variable_definition_stack_.push_back({});
       StmtExprVisitor::VisitStmt_(node);
+      variable_definition_stack_.pop_back();
       for_loop_stack_.pop_back();
       outer_loop_prod_ /= extent;
 
@@ -647,7 +656,8 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   }
 
   void VisitStmt_(const ForNode* node) final {
-    int64_t loop_extent = GetLoopExtent(node);
+    ana_.Bind(node->loop_var, Range::FromMinExtent(node->min, node->extent));
+    int64_t loop_extent = GetLoopExtent(node, ana_);
 
     if (node->kind == ForKind::kVectorized) {
       vec_for_stack_.push_back(node);
@@ -659,7 +669,9 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
     outer_loop_prod_ *= loop_extent;
     for_loop_stack_.push_back(node);
+    variable_definition_stack_.push_back({});
     StmtExprVisitor::VisitStmt_(node);
+    variable_definition_stack_.pop_back();
     for_loop_stack_.pop_back();
     outer_loop_prod_ /= loop_extent;
 
@@ -724,6 +736,15 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     ExtractAllocationFeature(node);
   }
 
+  void VisitStmt_(const LetStmtNode* node) final {
+    // TODO(tkonolige): add arithmetic counts from this statement to counts of inner stores.
+    ana_.Bind(node->var, node->value);
+    ICHECK(variable_definition_stack_.size() > 0)
+        << "Variable definition out size of a for loop is not handled by feature extraction";
+    variable_definition_stack_.back().push_back(std::make_tuple(node->var, node->value));
+    StmtExprVisitor::VisitStmt_(node);
+  }
+
   // Extract computation related features (group 1)
   void ExtractComputationFeature(const Var& buffer, const Array<PrimExpr>& indices,
                                  const MathOpCounter& math_op_counter) {
@@ -752,10 +773,10 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
     fea.vec_num = vec_for_stack_.size();
     if (!vec_for_stack_.empty()) {
-      fea.vec_len = GetLoopExtent(vec_for_stack_.back());
+      fea.vec_len = GetLoopExtent(vec_for_stack_.back(), ana_);
       fea.vec_prod = 1.0;
       for (const ForNode* pfor : vec_for_stack_) {
-        fea.vec_prod *= GetLoopExtent(pfor);
+        fea.vec_prod *= GetLoopExtent(pfor, ana_);
       }
       fea.vec_type = AnnotationPosType::kPosMixed;
       // todo(merrymercy): this feature requires operation (tvm.compute) information
@@ -765,10 +786,10 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
     fea.unroll_num = unroll_for_stack_.size();
     if (!unroll_for_stack_.empty()) {
-      fea.unroll_len = GetLoopExtent(unroll_for_stack_.back());
+      fea.unroll_len = GetLoopExtent(unroll_for_stack_.back(), ana_);
       fea.unroll_prod = 1.0;
       for (const ForNode* pfor : unroll_for_stack_) {
-        fea.unroll_prod *= GetLoopExtent(pfor);
+        fea.unroll_prod *= GetLoopExtent(pfor, ana_);
       }
       fea.unroll_type = AnnotationPosType::kPosMixed;
       // GetAnnotationPosEncoding(unroll_for_stack_.back()->loop_var,
@@ -777,10 +798,10 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
     fea.parallel_num = parallel_for_stack_.size();
     if (!parallel_for_stack_.empty()) {
-      fea.parallel_len = GetLoopExtent(parallel_for_stack_.back());
+      fea.parallel_len = GetLoopExtent(parallel_for_stack_.back(), ana_);
       fea.parallel_prod = 1.0;
       for (const ForNode* pfor : parallel_for_stack_) {
-        fea.parallel_prod *= GetLoopExtent(pfor);
+        fea.parallel_prod *= GetLoopExtent(pfor, ana_);
       }
       fea.parallel_type = AnnotationPosType::kPosMixed;
       // GetAnnotationPosEncoding(parallel_for_stack_.back()->loop_var,
@@ -811,11 +832,6 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     buf_extractor.InsertAccess(buffer, BufferAccessType::kWrite, indices);
     buf_extractor.ExtractReads(value);
 
-    // Compute touched region for all outer loops
-    for (auto x : for_loop_stack_) {
-      ana_.Bind(x->loop_var, Range::FromMinExtent(x->min, 1), true);
-    }
-
     mem_bytes_list->reserve(for_loop_stack_.size());
     compute_ops_list->reserve(for_loop_stack_.size());
 
@@ -824,12 +840,31 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
                        math_op_counter.float_cmp + math_op_counter.float_math_func +
                        math_op_counter.float_other_func;
 
+    ICHECK_EQ(for_loop_stack_.size(), variable_definition_stack_.size())
+        << "variable_definition_stack_ should mirror for_loop_stack_ in size";
     std::vector<int> tmp_region;
     for (int i = static_cast<int>(for_loop_stack_.size()) - 1; i >= 0; i--) {
       const ForNode* p_for = for_loop_stack_[i];
 
-      ana_.Bind(p_for->loop_var,
-                Range::FromMinExtent(for_loop_stack_[i]->min, for_loop_stack_[i]->extent), true);
+      // Construct a local analyzer context which contains definitions (for and
+      // let) from innermost loops up to and including `i`. For loop variable
+      // definitions in loops more outer than `i` are set to 1 so that we can
+      // get per-loop-iteration features. Note that we add these definitions
+      // from outermost to innermost because inner definitions may depend on
+      // outer ones.
+      Analyzer local_analyzer;
+      for (int j = 0; j < i; j++) {
+        local_analyzer.Bind(for_loop_stack_.at(j)->loop_var,
+                            Range::FromMinExtent(for_loop_stack_.at(j)->min, 1));
+      }
+      for (int j = i; j < static_cast<int>(for_loop_stack_.size()); j++) {
+        local_analyzer.Bind(
+            for_loop_stack_.at(j)->loop_var,
+            Range::FromMinExtent(for_loop_stack_.at(j)->min, for_loop_stack_.at(j)->extent));
+        for (auto definition : variable_definition_stack_.at(j)) {
+          local_analyzer.Bind(std::get<0>(definition), std::get<1>(definition));
+        }
+      }
 
       // Note, here we do overwrite.
       // So if there are multiple BufferStoreNode, the last one will overwrite the first few.
@@ -842,7 +877,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
         const Var& t = x.first;
         const BufferAccess& acc = x.second;
 
-        ComputeRegion(acc.indices, &ana_, &tmp_region);
+        ComputeRegion(acc.indices, &local_analyzer, &tmp_region);
         int64_t touched_size = ElementProduct(tmp_region);
         buffer_regions_map[t].push_back(
             std::make_tuple(acc.acc_type, touched_size, buffer_dtypes.at(t).bytes()));
@@ -850,7 +885,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
       }
 
       mem_bytes_list->push_back(std::log2(mem_bytes));
-      *cur_compute_ops *= GetLoopExtent(for_loop_stack_[i]);
+      *cur_compute_ops *= GetLoopExtent(for_loop_stack_[i], local_analyzer);
       compute_ops_list->push_back(std::log2(*cur_compute_ops));
     }
 
@@ -893,7 +928,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
           if (stride != 0) {
             break;
           }
-          reduce_ratio *= GetLoopExtent(for_loop_stack_.back());
+          reduce_ratio *= GetLoopExtent(for_loop_stack_.back(), ana_);
         }
 
         lines = outer_loop_prod_ / reduce_ratio *
@@ -919,7 +954,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
       ReuseType reuse_type;
       float reuse_dis_iter, reuse_dis_bytes, reuse_ct;
       std::tie(reuse_type, reuse_dis_iter, reuse_dis_bytes, reuse_ct) =
-          ComputeReuse(t, acc.indices, for_loop_stack_, for_touch_regions_);
+          ComputeReuse(t, acc.indices, for_loop_stack_, for_touch_regions_, ana_);
 
       acc_feas.emplace_back();
       BufferAccessFeature& acc_fea = acc_feas.back();
@@ -1042,6 +1077,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   std::vector<const ForNode*> parallel_for_stack_;
   std::vector<const ForNode*> vec_for_stack_;
   std::vector<const ForNode*> unroll_for_stack_;
+  std::vector<std::vector<std::tuple<Var, PrimExpr>>> variable_definition_stack_;
 
   // GPU-related features
   bool is_gpu_{false};
