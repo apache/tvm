@@ -867,10 +867,9 @@ Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
     for (const Range& range : region) {
       affine_indices.push_back(range->min);
     }
-    DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
     iter_sum_exprs = DetectIterMap(
         /*indices=*/affine_indices, /*input_iters=*/var_dom,
-        /*predicate=*/predicate, /*require_bijective=*/false, analyzer, diag_ctx);
+        /*predicate=*/predicate, /*require_bijective=*/false, analyzer);
   }
   if (iter_sum_exprs.empty()) {
     return NullOpt;
