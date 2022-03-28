@@ -145,12 +145,13 @@ inline Expr MakeDeformableConv(Expr data, Expr offset, Expr weight, Array<IndexE
 }
 
 template <typename T>
-inline Expr MakeDeformableV2Conv(Expr data, Expr offset, Expr mask, Expr weight, Array<IndexExpr> strides,
-                               Array<IndexExpr> padding, Array<IndexExpr> dilation,
-                               int deformable_groups, int groups, int channels,
-                               Array<IndexExpr> kernel_size, std::string data_layout,
-                               std::string kernel_layout, std::string out_layout,
-                               DataType out_dtype, std::string op_name) {
+inline Expr MakeDeformableV2Conv(
+            Expr data, Expr offset, Expr mask, Expr weight, Array<IndexExpr> strides,
+            Array<IndexExpr> padding, Array<IndexExpr> dilation,
+            int deformable_groups, int groups, int channels,
+            Array<IndexExpr> kernel_size, std::string data_layout,
+            std::string kernel_layout, std::string out_layout,
+            DataType out_dtype, std::string op_name) {
   auto attrs = make_object<T>();
   attrs->strides = strides;
   attrs->padding = padding;

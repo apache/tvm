@@ -1873,7 +1873,10 @@ InferCorrectLayoutOutput DeformableV2ConvInferCorrectLayout(
     const Array<tvm::relay::Type>& old_in_types) {
   const AttrType* params = attrs.as<AttrType>();
   return InferCorrectLayoutOutput(
-      {params->data_layout, params->data_layout/*offset layout*/, params->data_layout/*mask layout*/, params->kernel_layout/*weight layout*/},
+      {params->data_layout, 
+      params->data_layout/*offset layout*/, 
+      params->data_layout/*mask layout*/, 
+      params->kernel_layout/*weight layout*/},
       {params->out_layout == "" ? params->data_layout : params->out_layout}, attrs);
 }
 RELAY_REGISTER_OP("nn.deformableV2_conv2d")
@@ -1907,9 +1910,12 @@ by concating all the *g* results.
 // Positional relay function to create deformable_conv2d operator
 // used by frontend FFI.
 TVM_REGISTER_GLOBAL("relay.op.nn._make.deformableV2_conv2d")
-    .set_body_typed([](Expr data, Expr offset, Expr mask, Expr weight, Array<IndexExpr> strides,
-                       Array<IndexExpr> padding, Array<IndexExpr> dilation, int deformable_groups,
-                       int groups, int channels, Array<IndexExpr> kernel_size, String data_layout,
+    .set_body_typed([](Expr data, Expr offset, Expr mask, Expr weight, 
+                       Array<IndexExpr> strides,
+                       Array<IndexExpr> padding, 
+                       Array<IndexExpr> dilation, int deformable_groups,
+                       int groups, int channels, 
+                       Array<IndexExpr> kernel_size, String data_layout,
                        String kernel_layout, String out_layout, DataType out_dtype) {
       return MakeDeformableV2Conv<DeformableV2Conv2DAttrs>(
           data, offset, mask, weight, strides, padding, dilation, deformable_groups, groups, channels,
