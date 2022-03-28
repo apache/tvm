@@ -63,8 +63,8 @@ void CheckACLError(const arm_compute::Status& status);
  * \return arm_compute::Tensor.
  */
 arm_compute::Tensor MakeACLTensor(const JSONGraphNode& tensor_rep, void* data = nullptr,
-                                  const DLTensor* scale = nullptr,
-                                  const DLTensor* offset = nullptr);
+                                  const DLTensor* scale = nullptr, const DLTensor* offset = nullptr,
+                                  bool apply_dim_correction = true, bool increase_dim_unit = true);
 
 /*!
  * \brief Make an acl tensor info object from JSON tensor
@@ -78,7 +78,9 @@ arm_compute::Tensor MakeACLTensor(const JSONGraphNode& tensor_rep, void* data = 
  */
 arm_compute::TensorInfo MakeACLTensorInfo(const std::vector<int64_t>& shape,
                                           const DLDataType& dtype, const DLTensor* scale = nullptr,
-                                          const DLTensor* offset = nullptr);
+                                          const DLTensor* offset = nullptr,
+                                          bool apply_dim_correction = true,
+                                          bool increase_dim_unit = true);
 
 /*!
  * \brief Create a memory manager for use with a layer that

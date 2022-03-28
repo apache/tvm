@@ -286,6 +286,7 @@ def _register_external_op_helper(op_name, supported=True):
 
 
 _register_external_op_helper("reshape")
+_register_external_op_helper("concatenate")
 
 
 @tvm.ir.register_op_attr("nn.conv2d", "target.arm_compute_lib")
