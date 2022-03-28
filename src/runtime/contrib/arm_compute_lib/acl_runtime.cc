@@ -95,7 +95,7 @@ class ACLRuntime : public JSONRuntimeBase {
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
       auto nid = input_nodes_[i];
       if (nodes_[nid].GetOpType() == "input") {
-        for (int index = 0; index < nodes_[nid].GetNumOutput(); index++) {
+        for (uint32_t index = 0; index < nodes_[nid].GetNumOutput(); index++) {
           uint32_t eid = EntryID(nid, index);
           void* data = data_entry_[eid]->data;
           auto key = std::pair<uint32_t, uint32_t>(nid, index);
