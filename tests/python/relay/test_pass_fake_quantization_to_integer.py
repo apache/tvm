@@ -654,6 +654,15 @@ def test_fake_quantize_binary_per_channel(operator):
         lhs_axis=1,
         rhs_axis=1,
     )
+    verify_binary_per_channel(
+        lhs_scale=np.random.uniform(1.0, 5.0, 224),
+        rhs_scale=np.random.uniform(1.0, 5.0, 224),
+        lhs_zp=np.random.randint(1, 3),
+        rhs_zp=np.random.randint(1, 3),
+        out_zp=np.random.randint(1, 3),
+        lhs_axis=-1,
+        rhs_axis=-1,
+    )
 
     # Different axes
     verify_binary_per_channel(

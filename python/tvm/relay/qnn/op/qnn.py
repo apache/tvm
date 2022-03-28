@@ -633,10 +633,12 @@ def add(
        The zero point of output quantized expr.
 
     lhs_axis: int
-        The channel axis for lhs quantization. Default value is -1.
+        The channel axis for lhs quantization. Default value is -1 which corresponds
+        to the last axis.
 
     rhs_axis: int
-        The channel axis for rhs quantization. Default value is -1.
+        The channel axis for rhs quantization. Default value is -1 which corresponds
+        to the last axis.
 
     Returns
     -------
@@ -759,10 +761,12 @@ def mul(
        The zero point of output quantized expr.
 
     lhs_axis: int
-        The channel axis for lhs quantization. Default value is -1.
+        The channel axis for lhs quantization. Default value is -1 which corresponds
+        to the last axis.
 
     rhs_axis: int
-        The channel axis for rhs quantization. Default value is -1.
+        The channel axis for rhs quantization. Default value is -1 which corresponds
+        to the last axis.
 
     Returns
     -------
@@ -1035,10 +1039,12 @@ def subtract(
        The zero point of output quantized expr.
 
     lhs_axis: int
-        The channel axis for lhs quantization. Default value is -1.
+        The channel axis for lhs quantization. Default value is -1 which corresponds
+        to the last axis.
 
     rhs_axis: int
-        The channel axis for rhs quantization. Default value is -1.
+        The channel axis for rhs quantization. Default value is -1 which corresponds
+        to the last axis.
 
     Returns
     -------

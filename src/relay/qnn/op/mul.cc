@@ -59,7 +59,7 @@ Expr QnnMulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto lhs_axis = broadcast_attrs->lhs_axis;
   auto rhs_axis = broadcast_attrs->rhs_axis;
 
-  if (lhs_axis == -1 && rhs_axis == -1) {
+  if (IsConstScalar(args.lhs_scale) && IsConstScalar(args.rhs_scale)) {
     /*
     This is per-tensor quantized multiply.
 
