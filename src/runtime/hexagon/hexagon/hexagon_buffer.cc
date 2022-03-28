@@ -151,16 +151,19 @@ HexagonBuffer::HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
     : ndim_(2), nbytes_per_allocation_(nbytes) {
   SetStorageScope(scope);
 
+  size_t nbytes_aligned = ((nbytes + (alignment - 1)) / alignment) * alignment;
+  size_t nbytes_monolithic = nallocs * nbytes_aligned;
+
   std::unique_ptr<Allocation> alloca = nullptr;
   if (GetStorageScope() == StorageScope::kDDR) {
-    alloca = Allocator<StorageScope::kDDR>(nallocs * nbytes, alignment);
+    alloca = Allocator<StorageScope::kDDR>(nbytes_monolithic, alignment);
   } else if (GetStorageScope() == StorageScope::kVTCM) {
-    alloca = Allocator<StorageScope::kVTCM>(nallocs * nbytes, alignment);
+    alloca = Allocator<StorageScope::kVTCM>(nbytes_monolithic, alignment);
   }
   CHECK(alloca) << "could not create allocation";
 
   for (size_t i = 0; i < nallocs; ++i) {
-    void* alloc_offset = static_cast<unsigned char*>(alloca->data_) + i * nbytes;
+    void* alloc_offset = static_cast<unsigned char*>(alloca->data_) + i * nbytes_aligned;
     allocations_.push_back(alloc_offset);
   }
 
