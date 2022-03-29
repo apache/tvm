@@ -1834,11 +1834,16 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
     return false;
   }
   const BufferNode* write_buffer = block->writes[0]->buffer.get();
-  // Step 1. Sort out spatial block variables
+  // Step 1. Sort out spatial block variables. Skip the block iters of domain [0, 1), since such
+  // block iters distracts the following check of the unused block iters.
   std::vector<const VarNode*> spatial_block_vars;
   spatial_block_vars.reserve(block->iter_vars.size());
   for (const IterVar& block_var : block->iter_vars) {
-    if (block_var->iter_type == IterVarType::kDataPar) {
+    const int64_t* dom_min = as_const_int(block_var->dom->min);
+    const int64_t* dom_extent = as_const_int(block_var->dom->extent);
+    bool has_trivial_dom =
+        dom_min != nullptr && dom_extent != nullptr && *dom_min == 0 && *dom_extent == 1;
+    if (block_var->iter_type == IterVarType::kDataPar && !has_trivial_dom) {
       spatial_block_vars.push_back(block_var->var.get());
     }
   }
