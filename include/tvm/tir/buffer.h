@@ -76,18 +76,33 @@ class BufferNode : public Object {
    *  This can be an empty array, indicating array is contiguous
    */
   Array<PrimExpr> strides;
-  /*! \brief The offset in terms of number of dtype elements (including lanes) */
-  PrimExpr elem_offset;
+
+  /*! \brief The offset for each physical dimension of the buffer.
+   *
+   * This is the offset of the start of the buffer, relative to the
+   * `data` variable.  This is typically used to represent offsets
+   * between two buffers that are backed by the same allocation, such
+   * as a buffer bind in a tensorized computation.  The offset is in
+   * terms of the scalar type of the buffer (e.g. an offset of 8 in a
+   * buffer of dtype float16x4 is a byte offset of 16 (8 elements) *
+   * (2 bytes/float16)).
+   */
+  Array<PrimExpr> elem_offsets;
+
   // Meta data
   /*! \brief optional name of the buffer */
   String name;
   /*! \brief Alignment requirement of data pointer in bytes. */
   int data_alignment;
+
   /*!
-   * \brief Factor of elem_offset field,
-   *  elem_offset is guaranteed to be multiple of offset_factor.
+   * \brief Factor of elem_offset field.
+   *
+   *  Each value in `elem_offsets` is guaranteed to be multiple of the
+   *  corresponding element in `offset_factors`.
    */
-  int offset_factor;
+  Array<IntImm> offset_factors;
+
   /*! \brief buffer type */
   BufferType buffer_type;
   /*!
