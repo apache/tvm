@@ -150,6 +150,21 @@ inline String JSONObj2Str(const ObjectRef& json_obj) {
 inline String SHash2Str(Workload::THashCode hash_code) { return std::to_string(hash_code); }
 
 /*!
+ * \brief Converts an TVM object to the hex string representation of its structural hash.
+ * \param obj The TVM object.
+ * \return The hex string representation of the hash code.
+ */
+inline String SHash2Hex(const ObjectRef& obj) {
+  std::ostringstream os;
+  size_t hash_code = 0;
+  if (obj.defined()) {
+    hash_code = StructuralHash()(obj);
+  }
+  os << "0x" << std::setw(16) << std::setfill('0') << std::hex << hash_code;
+  return os.str();
+}
+
+/*!
  * \brief Find the entry function of the given IRModule, i.e, functions marked by
  * `tir::attr::kIsEntryFunc`, whose name is `main` or being the only PrimeFunc.
  * \param mod The IRModule to find the entry function.

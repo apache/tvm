@@ -169,7 +169,7 @@ def main():
                 target=ARGS.target,
                 params=params,
             )
-
+    graph, rt_mod, params = lib.graph_json, lib.lib, lib.params
     if input_dtype.startswith("float"):
         input_data = np.random.uniform(size=input_shape).astype(input_dtype)
     else:
@@ -189,9 +189,10 @@ def main():
             min_repeat_ms=500,
             repeat=3,
         )
-        return list(np.array(ftimer().results))
+        results = list(np.array(ftimer().results) * 1000.0)  # type: ignore
+        print("Running time in time_evaluator: ", results)
 
-    results = run_module_via_rpc(
+    run_module_via_rpc(
         rpc_config=ARGS.rpc_config,
         lib=lib,
         dev_type=ARGS.target.kind.name,
@@ -199,7 +200,28 @@ def main():
         continuation=f_timer,
     )
 
-    print(results)
+    def f_per_layer(rt_mod, dev, input_data):
+        # pylint: disable=import-outside-toplevel
+        from tvm.contrib.debugger.debug_executor import create
+
+        # pylint: enable=import-outside-toplevel
+        mod = create(graph, rt_mod, dev)
+        mod.set_input(input_name, input_data)
+        graph_nodes = [n["name"] for n in json.loads(graph)["nodes"]]
+        graph_time = mod.run_individual(number=10, repeat=1, min_repeat_ms=5000)
+        print("|graph_nodes| = ", len(graph_nodes))
+        print("|graph_time| = ", len(graph_time))
+        graph_nodes_time = {k: float(v) for k, v in zip(graph_nodes, graph_time)}
+        for k, v in graph_nodes_time.items():
+            print(f"{k} : {v:.3f}")
+
+    run_module_via_rpc(
+        rpc_config=ARGS.rpc_config,
+        lib=rt_mod,
+        dev_type=ARGS.target.kind.name,
+        args=[input_data],
+        continuation=f_per_layer,
+    )
 
 
 if __name__ == "__main__":
