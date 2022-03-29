@@ -85,6 +85,8 @@ from tvm.contrib import nvcc, cudnn
 from tvm.error import TVMError
 from tvm.relay.op.contrib.ethosn import ethosn_available
 from tvm.relay.op.contrib import cmsisnn
+from tvm.relay.op.contrib import vitis_ai
+
 
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
 
@@ -948,6 +950,19 @@ def requires_cmsisnn(*args):
     """
 
     requirements = [pytest.mark.skipif(not cmsisnn.enabled(), reason="CMSIS NN not enabled")]
+    return _compose(args, requirements)
+
+
+def requires_vitis_ai(*args):
+    """Mark a test as requiring Vitis AI to run.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+
+    requirements = [pytest.mark.skipif(not vitis_ai.enabled(), reason="Vitis AI not enabled")]
     return _compose(args, requirements)
 
 
