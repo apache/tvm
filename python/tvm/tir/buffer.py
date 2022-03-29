@@ -170,6 +170,54 @@ class Buffer(Object):
         """
         return _ffi_api.BufferOffsetOf(self, indices)  # type: ignore
 
+    @property
+    def elem_offset(self):
+        """The offset of the buffer, relative to the backing
+        allocation.
+
+        This is provided for backwards compatibility for flat memory
+        spaces.  For non-flat memory spaces, each physical dimension
+        has an independent offset, which can be accessed with
+        `buf.elem_offsets`.
+
+        Returns
+        -------
+        elem_offset: PrimExpr
+
+            The offset of the buffer, relative to the backing
+            allocation.
+        """
+
+        offsets = self.elem_offsets
+        assert (
+            len(offsets) == 1
+        ), "Non-unique buffer.elem_offset, use buffer.elem_offsets (plural) instead."
+        return offsets[0]
+
+    @property
+    def offset_factor(self):
+        """the offset of the buffer, relative to the backing
+        allocation.
+
+        This is provided for backwards compatibility for flat memory
+        spaces.  For non-flat memory spaces, each physical dimension
+        has an independent offset factor, which can be accessed with
+        `buf.offset_factors`.
+
+        Returns
+        -------
+        offset_factor: int
+
+            The offset of the buffer, relative to the backing
+            allocation.
+        """
+
+        factors = self.offset_factors
+        assert (
+            len(factors) == 1
+        ), "Non-unique buffer.offset_factor, use buffer.offset_factors (plural) instead."
+        return factors[0]
+
 
 def decl_buffer(
     shape,
@@ -209,9 +257,18 @@ def decl_buffer(
     strides: array of Expr
         The stride of the buffer.
 
-    elem_offset: Expr, optional
-        The beginning offset of the array to data.
-        In terms of number of elements of dtype.
+    elem_offset: Optional[Union[Expr, Sequence[Expr]]]
+
+        The beginning offset of the array to data, in terms of number
+        of elements of dtype.  If None, will be treated either as an
+        offset of zero for each physical dimension if offset_factor is
+        unset, or as a list of Var objects that are implicitly defined
+        by this buffer declaration.  If an expression is passed, is
+        equivalent to passing a list of length 1.
+
+        The number of offsets should be the number of physical
+        dimensions of the buffer, or one more than the number of
+        `axis_separators`.
 
     scope: str, optional
         The storage scope of the buffer, if not global.
@@ -221,11 +278,14 @@ def decl_buffer(
         The alignment of data pointer in bytes.
         If -1 is passed, the alignment will be set to TVM's internal default.
 
-    offset_factor: int, optional
-        The factor of elem_offset field, when set,
-        elem_offset is required to be multiple of offset_factor.
-        If 0 is pssed, the alignment will be set to 1.
-        if non-zero is passed, we will created a Var for elem_offset if elem_offset is not None.
+    offset_factor: Optional[Union[int, Sequence[int]]]
+
+        The factor of elem_offset field.  When set, elem_offset is
+        required to be multiple of offset_factor.  If 0 is passed, the
+        alignment will be set to 1 on all physical dimensions.  If
+        non-zero is passed and elem_offset is None, elem_offset will
+        be set to a list of Var objects representing their implicit
+        definition by this buffer declaration.
 
     buffer_type: str, optional, {"", "auto_broadcast"}
         auto_broadcast buffer allows one to implement broadcast computation
@@ -280,6 +340,7 @@ def decl_buffer(
     for the DLTensor that is compact and aligned.
     If user pass a fully generic symbolic array to the strides,
     then the resulting function becomes fully generic.
+
     """
     # pylint: disable=import-outside-toplevel
     from .expr import Var
@@ -291,14 +352,31 @@ def decl_buffer(
     if axis_separators is None:
         axis_separators = []
 
-    if offset_factor != 0 and elem_offset is None:
+    n_physical_dim = len(axis_separators) + 1
+
+    if offset_factor == 0 or offset_factor is None:
+        offset_factor = [0 for _ in range(n_physical_dim)]
+    elif isinstance(offset_factor, int):
+        offset_factor = [offset_factor]
+
+    if elem_offset is None:
         shape_dtype = shape[0].dtype if shape and hasattr(shape[0], "dtype") else "int32"
-        elem_offset = Var("%s_elem_offset" % name, shape_dtype)
+        elem_offset = [
+            0 if factor == 0 else Var(f"{name}_elem_offset_{i}", shape_dtype)
+            for i, factor in enumerate(offset_factor)
+        ]
+
+    try:
+        elem_offset = list(elem_offset)
+    except TypeError:
+        elem_offset = [elem_offset]
+
     if data is None:
         # Bool is represented as uint1 in the IR, but stored as int8
         storage_type = PrimType(dtype)
         storage_type = PrimType("int8") if storage_type.dtype == "bool" else storage_type
         data = Var(name, PointerType(storage_type, scope), span)
+
     return _ffi_api.Buffer(  # type: ignore
         data,
         dtype,
