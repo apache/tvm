@@ -29,7 +29,7 @@ import numpy as np
 import tvm
 from tvm import rpc
 from tvm.autotvm.measure import request_remote
-from tvm.contrib import graph_executor as runtime
+from tvm.contrib import graph_executor as executor
 from tvm.contrib.debugger import debug_executor
 from . import TVMCException
 from .arguments import TVMCSuppressedArgumentParser
@@ -442,7 +442,7 @@ def run_module(
     number : int, optional
         The number of runs to measure within each repeat.
     profile : bool
-        Whether to profile the run with the debug runtime.
+        Whether to profile the run with the debug executor.
     end_to_end : bool
         Whether to measure the time of memory copies as well as model
         execution. Turning this on can provide a more realistic estimate
@@ -532,15 +532,15 @@ def run_module(
 
         # TODO(gromero): Adjust for micro targets.
         if profile:
-            logger.debug("Creating runtime with profiling enabled.")
+            logger.debug("Creating executor with profiling enabled.")
             module = debug_executor.create(tvmc_package.graph, lib, dev, dump_root="./prof")
         else:
             if device == "micro":
-                logger.debug("Creating runtime (micro) with profiling disabled.")
+                logger.debug("Creating executor (micro) with profiling disabled.")
                 module = tvm.micro.create_local_graph_executor(tvmc_package.graph, lib, dev)
             else:
-                logger.debug("Creating runtime with profiling disabled.")
-                module = runtime.create(tvmc_package.graph, lib, dev)
+                logger.debug("Creating executor with profiling disabled.")
+                module = executor.create(tvmc_package.graph, lib, dev)
 
         logger.debug("Loading params into the runtime module.")
         module.load_params(tvmc_package.params)

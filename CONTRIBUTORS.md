@@ -133,6 +133,7 @@ We do encourage everyone to work anything they are interested in.
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
 - [Andrew Reusch](https://github.com/areusch): @areusch
+- [David Riazati](https://github.com/driazati): @driazati
 - [Jared Roesch](https://github.com/jroesch): @jroesch
 - [Gustavo Romero](https://github.com/gromero): @gromero
 - [Giuseppe Rossini](https://github.com/giuseros): @giuseros

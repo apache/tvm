@@ -45,11 +45,14 @@ class ExtractedTask(Object):
         Target information
     dispatched : List[IRModule]
         A list of low-level IRs that the high-level IR could potentially dispatch to
+    weight : int
+        The weight of the task
     """
 
     task_name: str
     mod: IRModule
     dispatched: List[IRModule]
+    weight: int
 
     def __init__(
         self,
@@ -57,6 +60,7 @@ class ExtractedTask(Object):
         mod: IRModule,
         target: Target,
         dispatched: List[IRModule],
+        weight: int,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ExtractedTask,  # type: ignore # pylint: disable=no-member
@@ -64,6 +68,7 @@ class ExtractedTask(Object):
             mod,
             target,
             dispatched,
+            weight,
         )
 
 
@@ -239,6 +244,4 @@ def extract_task_from_relay(
         config=pass_config,
         disabled_pass=disabled_pass,
     ):
-        tasks = extract_task_func(mod, target, relay_params)
-        # Tasks are extracted via post order visit, return the reversed list.
-        return list(reversed(tasks))
+        return list(extract_task_func(mod, target, relay_params))

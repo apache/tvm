@@ -61,7 +61,7 @@ class ConcreteScheduleNode : public ScheduleNode {
  public:
   ScheduleState state() const final { return state_; }
   Optional<Trace> trace() const override { return NullOpt; }
-  Schedule Copy() const override;
+  Schedule Copy() override;
   void Seed(support::LinearCongruentialEngine::TRandState seed = -1) final;
   support::LinearCongruentialEngine::TRandState ForkSeed() final;
 

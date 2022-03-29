@@ -152,8 +152,9 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
             _, _, kh, kw, _, _, _ = get_const_tuple(kernel_vec.shape)
             dtype = "uint" if data.dtype == "uint8" else "int"
             if is_dotprod_available():
-                intrin = dot_int8_int8_int32_neon_82(int32_lanes=4)
+                intrin = dot_int8_int8_int32_neon_82(int32_lanes=4, dtype=dtype)
             elif is_neon_available():
+                assert dtype == "int", "uint8 not supported if dot product is not available"
                 intrin = dot_int8_int8_int32_neon()
             else:
                 raise RuntimeError(

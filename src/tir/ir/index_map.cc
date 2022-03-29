@@ -76,9 +76,7 @@ IndexMap IndexMap::Inverse(Array<Range> initial_ranges) const {
   // Unpack the output indices into linear combinations of the initial
   // indices.
   arith::Analyzer analyzer;
-  auto diagnostics = DiagnosticContext::Default(IRModule());
-  auto iter_map =
-      DetectIterMap((*this)->final_indices, input_iters, 1, true, &analyzer, diagnostics);
+  auto iter_map = DetectIterMap((*this)->final_indices, input_iters, 1, true, &analyzer);
   CHECK(iter_map.size()) << "Index transformation was not bijective.";
 
   // Determine expressions for the input variables, in terms of the
@@ -200,6 +198,8 @@ TVM_REGISTER_GLOBAL("tir.IndexMap")
     .set_body_typed([](Array<Var> initial_indices, Array<PrimExpr> final_indices) {
       return IndexMap(initial_indices, final_indices);
     });
+
+TVM_REGISTER_GLOBAL("tir.IndexMapMapIndices").set_body_method<IndexMap>(&IndexMapNode::MapIndices);
 
 }  // namespace tir
 }  // namespace tvm

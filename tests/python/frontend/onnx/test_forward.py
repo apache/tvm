@@ -1934,6 +1934,8 @@ def test_all_reduce_funcs(target, dev):
     ]
 
     for func in funcs:
+        verify_reduce_func(func, np.array(1.0).astype(np.float32), axis=None, keepdims=False)
+
         for keepdims in [True, False]:
             verify_reduce_func(
                 func, np.random.randn(3, 2, 2).astype(np.float32), axis=None, keepdims=keepdims

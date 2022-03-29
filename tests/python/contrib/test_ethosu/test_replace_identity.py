@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from numpy.core.shape_base import block
 import pytest
 
 pytest.importorskip("ethosu.vela")

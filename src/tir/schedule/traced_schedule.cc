@@ -33,11 +33,12 @@ Schedule Schedule::Traced(IRModule mod, support::LinearCongruentialEngine::TRand
   return Schedule(std::move(n));
 }
 
-Schedule TracedScheduleNode::Copy() const {
+Schedule TracedScheduleNode::Copy() {
   ObjectPtr<TracedScheduleNode> n = make_object<TracedScheduleNode>();
   n->error_render_level_ = this->error_render_level_;
   ConcreteScheduleNode::Copy(&n->state_, &n->symbol_table_);
   n->analyzer_ = std::make_unique<arith::Analyzer>();  // new analyzer needed because it is stateful
+  n->rand_state_ = ForkSeed();
   n->trace_ = Trace(this->trace_->insts, this->trace_->decisions);
   return Schedule(std::move(n));
 }

@@ -64,6 +64,21 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
       ObjectPtr<BlockNode> p_new_block = CopyOnWrite(block);
       p_new_block->name_hint = p_new_block->name_hint + "_update";
       p_new_block->init = NullOpt;
+      // Add write regions back to read regions in update block.
+      Array<BufferRegion> new_reads;
+      std::unordered_set<const BufferNode*> read_bufs;
+      for (const BufferRegion& read_access : block->reads) {
+        read_bufs.insert(read_access->buffer.get());
+      }
+      for (const BufferRegion& write_access : block->writes) {
+        if (read_bufs.find(write_access->buffer.get()) == read_bufs.end()) {
+          new_reads.push_back(write_access);
+        }
+      }
+      for (const BufferRegion& read_access : block->reads) {
+        new_reads.push_back(read_access);
+      }
+      p_new_block->reads = new_reads;
       new_reduction_block_ = Block(p_new_block);
       return new_reduction_block_;
     } else {
@@ -284,22 +299,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
                /*body=*/body);
   }
   body = Substitute(body, loop_var_map);
-  // Step 6. Add write regions back to read regions in update block.
-  Array<BufferRegion> new_reads;
-  std::unordered_set<const BufferNode*> read_bufs;
-  for (const BufferRegion& read_access : block->reads) {
-    read_bufs.insert(read_access->buffer.get());
-  }
-  for (const BufferRegion& write_access : block->writes) {
-    if (read_bufs.find(write_access->buffer.get()) == read_bufs.end()) {
-      new_reads.push_back(write_access);
-    }
-  }
-  for (const BufferRegion& read_access : block->reads) {
-    new_reads.push_back(read_access);
-  }
-  (const_cast<BlockNode*>(block))->reads = std::move(new_reads);
-  // Step 7. Mutate IR
+  // Step 6. Mutate IR
   const BlockNode* old_scope_root = TVM_SREF_TO_BLOCK(old_scope_root, scope_root_sref);
   Block new_scope_root{nullptr};
   Block new_reduction_block{nullptr};

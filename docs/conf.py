@@ -204,7 +204,7 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/{.major}".format(sys.version_info), None),
     # "numpy": ("https://numpy.org/doc/stable", None),
     "scipy": ("https://docs.scipy.org/doc/scipy-1.8.0/html-scipyorg/", None),
-    "matplotlib": ("https://matplotlib.org/", None),
+    # "matplotlib": ("https://matplotlib.org/", None),
 }
 
 from sphinx_gallery.sorting import ExplicitOrder
@@ -352,7 +352,7 @@ sphinx_gallery_conf = {
     "doc_module": ("tvm", "numpy"),
     "reference_url": {
         "tvm": None,
-        "matplotlib": "https://matplotlib.org/",
+        # "matplotlib": "https://matplotlib.org/",
         # "numpy": "https://numpy.org/doc/stable",
     },
     "examples_dirs": examples_dirs,

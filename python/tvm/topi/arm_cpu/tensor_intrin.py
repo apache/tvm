@@ -516,7 +516,7 @@ def dot_int8_int8_int32_neon_82(int32_lanes, dtype="uint"):
                 int32_lanes * num_int8_elements,
             )
             vdot = tvm.tir.call_llvm_pure_intrin(
-                dtype_c, inst, tvm.tir.const(2, "uint32"), vec_c, vec_a, vec_b
+                dtype_c, inst, tvm.tir.const(3, "uint32"), vec_c, vec_a, vec_b
             )
             ib.emit(outs[0].vstore(0, vdot))
             return ib.get()

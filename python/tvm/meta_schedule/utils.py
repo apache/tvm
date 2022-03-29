@@ -23,7 +23,6 @@ from contextlib import contextmanager
 from typing import Any, Callable, List, Optional, Union
 
 import psutil  # type: ignore
-import tvm
 from tvm._ffi import get_global_func, register_func
 from tvm.error import TVMError
 from tvm.ir import Array, IRModule, Map
@@ -321,7 +320,7 @@ def batch_json_str2obj(json_strs: List[str]) -> List[Any]:
     ]
 
 
-def structural_hash(mod: IRModule) -> str:
+def shash2hex(mod: IRModule) -> str:
     """Get the structural hash of a module.
 
     Parameters
@@ -334,12 +333,8 @@ def structural_hash(mod: IRModule) -> str:
     result : str
         The structural hash of the module.
     """
-    shash = tvm.ir.structural_hash(mod)
-    if shash < 0:
-        # Workaround because `structural_hash` returns a size_t, i.e., unsigned integer
-        # but ffi can't handle unsigned integers properly so it's parsed into a negative number
-        shash += 1 << 64
-    return str(shash)
+    func = get_global_func("meta_schedule._SHash2Hex")
+    return str(func(mod))
 
 
 def _get_default_str(obj: Any) -> str:
