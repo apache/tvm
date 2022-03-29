@@ -122,12 +122,19 @@ inline PrimExpr pack_buffer(Buffer buf) {
   } else {
     strides = 0;
   }
+
+  CHECK(buf->axis_separators.empty())
+      << "Cannot represent " << buf->axis_separators.size() + 1 << "-d buffer as a DLTensor";
+  ICHECK_LE(buf->elem_offsets.size(), 1);
+
+  PrimExpr elem_offset = buf->elem_offsets.size() ? buf->elem_offsets[0] : 0;
+
   Array<PrimExpr> pack_args{buf->data,
                             shape,
                             strides,
                             make_const(DataType::Int(32), static_cast<int64_t>(buf->shape.size())),
                             make_const(buf->dtype, 0),
-                            buf->elem_offset};
+                            elem_offset};
   return tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_stack_make_array(), pack_args);
 }
 

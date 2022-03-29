@@ -93,7 +93,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     if (const BufferLoadNode* load = op->value.as<BufferLoadNode>()) {
       if (load->buffer->data.same_as(op->buffer->data) &&
           ArrayDeepEqual(load->indices, op->indices) &&
-          tir::ExprDeepEqual()(load->buffer->elem_offset, op->buffer->elem_offset) &&
+          ArrayDeepEqual(load->buffer->elem_offsets, op->buffer->elem_offsets) &&
           ArrayDeepEqual(load->buffer->shape, op->buffer->shape) &&
           ArrayDeepEqual(load->buffer->strides, op->buffer->strides)) {
         return Evaluate(0);

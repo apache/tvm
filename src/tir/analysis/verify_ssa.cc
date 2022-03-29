@@ -100,16 +100,19 @@ class SSAVerifier final : public StmtExprVisitor {
   void DefineBuffer(const Buffer& buffer) {
     match_scope_ = true;
     this->VisitExpr(buffer->data);
-    for (size_t i = 0; i < buffer->shape.size(); ++i) {
-      this->VisitExpr(buffer->shape[i]);
+    for (const auto& dim : buffer->shape) {
+      this->VisitExpr(dim);
     }
 
     if (buffer->strides.defined()) {
-      for (size_t i = 0; i < buffer->strides.size(); ++i) {
-        this->VisitExpr(buffer->strides[i]);
+      for (const auto& stride : buffer->strides) {
+        this->VisitExpr(stride);
       }
     }
-    this->VisitExpr(buffer->elem_offset);
+
+    for (const auto& offset : buffer->elem_offsets) {
+      this->VisitExpr(offset);
+    }
 
     match_scope_ = false;
   }

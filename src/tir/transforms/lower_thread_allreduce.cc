@@ -143,8 +143,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       auto it = var_remap_.find(op->buffer->data.get());
       if (it != var_remap_.end()) {
         Buffer remapped_buffer(it->second, op->buffer->dtype, op->buffer->shape,
-                               op->buffer->strides, op->buffer->elem_offset, op->buffer->name,
-                               op->buffer->data_alignment, op->buffer->offset_factor,
+                               op->buffer->strides, op->buffer->elem_offsets, op->buffer->name,
+                               op->buffer->data_alignment, op->buffer->offset_factors,
                                op->buffer->buffer_type, op->buffer->axis_separators,
                                op->buffer->span);
         buf_remap_[op->buffer.get()] = remapped_buffer;
@@ -179,9 +179,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       auto it = var_remap_.find(store->buffer->data.get());
       if (it != var_remap_.end()) {
         Buffer remapped_buffer(it->second, store->buffer->dtype, store->buffer->shape,
-                               store->buffer->strides, store->buffer->elem_offset,
+                               store->buffer->strides, store->buffer->elem_offsets,
                                store->buffer->name, store->buffer->data_alignment,
-                               store->buffer->offset_factor, store->buffer->buffer_type,
+                               store->buffer->offset_factors, store->buffer->buffer_type,
                                store->buffer->axis_separators, store->buffer->span);
         buf_remap_[store->buffer.get()] = remapped_buffer;
         return BufferStore(remapped_buffer, store->value, store->indices, store->span);

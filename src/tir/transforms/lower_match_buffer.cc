@@ -164,11 +164,21 @@ class MatchBufferLower : public StmtExprMutator {
                    << " required_alignment=" << buffer->data_alignment
                    << ", provided_alignment=" << source_buffer->data_alignment;
     }
-    if (is_zero(buffer->elem_offset)) {
-      ICHECK(is_zero(source_buffer->elem_offset))
-          << "Trying to bind a Buffer with offset into one without offset "
-          << " required elem_offset=" << buffer->elem_offset
-          << ", provided elem_offset=" << source_buffer->elem_offset;
+
+    ICHECK_EQ(buffer->elem_offsets.size(), source_buffer->elem_offsets.size())
+        << "Trying to bind buffer with different physical dimension, requires "
+        << buffer->elem_offsets.size() << "-d buffer, but provided "
+        << source_buffer->elem_offsets.size() << "-d buffer";
+
+    for (size_t i = 0; i < buffer->elem_offsets.size(); i++) {
+      auto buffer_offset = buffer->elem_offsets[i];
+      if (is_zero(buffer_offset)) {
+        auto source_offset = source_buffer->elem_offsets[i];
+        ICHECK(is_zero(source_offset))
+            << "Trying to bind a Buffer with offset into one without offset "
+            << " required elem_offset=" << buffer_offset
+            << ", provided elem_offset=" << source_offset;
+      }
     }
 
     // Step.2. Update
@@ -186,16 +196,15 @@ class MatchBufferLower : public StmtExprMutator {
       }
 
       Array<PrimExpr> buffer_start_indices = source_buffer->ElemOffset(indices);
-      if (buffer_start_indices.size() == 1) {
-        Bind(buffer->elem_offset, buffer_start_indices[0], buffer->name + ".elem_offset");
-        CHECK(analyzer_.CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
+      ICHECK_EQ(buffer_start_indices.size(), buffer->elem_offsets.size());
+      ICHECK_EQ(buffer_start_indices.size(), buffer->offset_factors.size());
+      for (size_t i = 0; i < buffer_start_indices.size(); i++) {
+        auto offset = buffer->elem_offsets[i];
+        auto factor = buffer->offset_factors[i];
+        Bind(offset, buffer_start_indices[0], buffer->name + ".elem_offset");
+        CHECK(analyzer_.CanProve(truncmod(offset, factor) == 0))
             << "The source elem_offset " << buffer_start_indices[0]
-            << " does not satisfy the offset_factor " << buffer->offset_factor << ".";
-      } else {
-        // Non-zero elem_offset is ill-defined for non-flat memory.
-        // If needed in the future, will require `Array<PrimExpr>
-        // elem_offsets`, with one offset for each flattened index.
-        Bind(buffer->elem_offset, 0);
+            << " does not satisfy the offset_factor " << factor << ".";
       }
     }
 

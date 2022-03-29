@@ -430,9 +430,10 @@ class StoragePlanRewriter : public StmtExprMutator {
       return it->second;
     }
 
-    Buffer remapped = Buffer(new_backing_array, buf->dtype, buf->shape, buf->strides,
-                             buf->elem_offset, new_backing_array->name_hint, buf->data_alignment,
-                             buf->offset_factor, buf->buffer_type, buf->axis_separators, buf->span);
+    Buffer remapped =
+        Buffer(new_backing_array, buf->dtype, buf->shape, buf->strides, buf->elem_offsets,
+               new_backing_array->name_hint, buf->data_alignment, buf->offset_factors,
+               buf->buffer_type, buf->axis_separators, buf->span);
     buffer_remap_[key] = remapped;
     return remapped;
   }

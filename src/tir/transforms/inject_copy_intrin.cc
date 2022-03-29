@@ -174,7 +174,7 @@ class CopyIntrinInjector : public StmtMutator {
       auto writer = dst.CopyOnWrite();
       writer->shape = dst_shape;
       writer->strides = dst_strides;
-      writer->elem_offset = store_strides[loop_var_size];
+      writer->elem_offsets = {store_strides[loop_var_size]};
     }
 
     Buffer src = load->buffer;
@@ -182,7 +182,7 @@ class CopyIntrinInjector : public StmtMutator {
       auto writer = src.CopyOnWrite();
       writer->shape = src_shape;
       writer->strides = src_strides;
-      writer->elem_offset = src_elem_offset;
+      writer->elem_offsets = {src_elem_offset};
     }
     *out = flower_copy_fromto_(src, dst, pad_before, pad_after, pad_value);
     if (!out->defined()) {

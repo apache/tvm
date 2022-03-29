@@ -122,7 +122,25 @@ class ArgBinder {
   const Map<Var, PrimExpr>& def_handle_dtype() const { return def_handle_dtype_; }
 
  private:
-  // Internal bind function
+  /* \brief Internal bind function
+   *
+   * \param arg The expression that occurs within a function body.
+   *
+   * \param value The expression that whose value is bound to arg for
+   *     the duration of the function.
+   *
+   * \param arg_name The name of the argument being bound.  This is
+   *     used for creating error messages.
+   *
+   * \param with_lets If true, variable definitions should be done by
+   *     inserting a let statement with the function initialiation in
+   *     `init_nest_`.  If false, variable definitions should be
+   *     performed by adding a substitution to `def_map_`.  If `arg`
+   *     is not a `VarNode`, `with_lets` is unused.
+   *
+   * \return True if arg is a VarNode being defined by this binding,
+   *     otherwise false.
+   */
   bool Bind_(const PrimExpr& arg, const PrimExpr& value, const std::string& arg_name,
              bool with_lets);
   /*! \brief The definition map, can be uses to substitute */

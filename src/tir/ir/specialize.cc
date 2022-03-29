@@ -200,19 +200,17 @@ class PrimFuncSpecializer : public StmtExprMutator {
 
  private:
   Buffer MutateBuffer(const Buffer& buffer) {
-    Array<PrimExpr> shape =
-        MutateArray(buffer->shape, [this](const PrimExpr& e) { return VisitExpr(e); });
-    Array<PrimExpr> strides =
-        MutateArray(buffer->strides, [this](const PrimExpr& e) { return VisitExpr(e); });
+    auto mutate = [this](const PrimExpr& e) { return VisitExpr(e); };
+    Array<PrimExpr> shape = MutateArray(buffer->shape, mutate);
+    Array<PrimExpr> strides = MutateArray(buffer->strides, mutate);
+    Array<PrimExpr> elem_offsets = MutateArray(buffer->elem_offsets, mutate);
 
-    PrimExpr elem_offset = VisitExpr(buffer->elem_offset);
-
-    if (buffer->elem_offset.same_as(elem_offset) && buffer->shape.same_as(shape) &&
+    if (buffer->elem_offsets.same_as(elem_offsets) && buffer->shape.same_as(shape) &&
         buffer->strides.same_as(strides)) {
       return buffer;
     } else {
       auto n = make_object<BufferNode>(*buffer.get());
-      n->elem_offset = std::move(elem_offset);
+      n->elem_offsets = std::move(elem_offsets);
       n->shape = std::move(shape);
       n->strides = std::move(strides);
       return Buffer(n);
@@ -313,6 +311,11 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
       << "ValueError: The buffer strides dimensions mismatched" << buf_to_specialize->strides.size()
       << " vs. " << specific_buf->strides.size() << ".";
 
+  CHECK(specific_buf->elem_offsets.size() == buf_to_specialize->elem_offsets.size())
+      << "ValueError: The buffer offsets dimensions mismatched"
+      << buf_to_specialize->elem_offsets.size() << " vs. " << specific_buf->elem_offsets.size()
+      << ".";
+
   // Updating var mapping using specific_expr
   for (size_t i = 0; i < specific_buf->shape.size(); ++i) {
     build_var_mapping(specific_buf->shape[i], buf_to_specialize->shape[i]);
@@ -320,7 +323,9 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
   for (size_t i = 0; i < specific_buf->strides.size(); ++i) {
     build_var_mapping(specific_buf->strides[i], buf_to_specialize->strides[i]);
   }
-  build_var_mapping(specific_buf->elem_offset, buf_to_specialize->elem_offset);
+  for (size_t i = 0; i < specific_buf->elem_offsets.size(); ++i) {
+    build_var_mapping(specific_buf->elem_offsets[i], buf_to_specialize->elem_offsets[i]);
+  }
 
   // Check data_alignment and offset_factor.
   // These two signatures are int, so we do not need map them.
@@ -328,9 +333,17 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
       << "ValueError: The buffer data_alignment mismatched" << buf_to_specialize->data_alignment
       << " vs. " << specific_buf->data_alignment << ".";
 
-  CHECK_EQ(specific_buf->offset_factor, buf_to_specialize->offset_factor)
-      << "ValueError: The buffer offset_factor mismatched" << buf_to_specialize->offset_factor
-      << " vs. " << specific_buf->offset_factor << ".";
+  CHECK(specific_buf->offset_factors.size() == buf_to_specialize->offset_factors.size())
+      << "ValueError: The buffer offset factors dimensions mismatched"
+      << buf_to_specialize->offset_factors.size() << " vs. " << specific_buf->offset_factors.size()
+      << ".";
+
+  for (size_t i = 0; i < specific_buf->offset_factors.size(); ++i) {
+    CHECK_EQ(specific_buf->offset_factors[i]->value, buf_to_specialize->offset_factors[i]->value)
+        << "ValueError: The buffer offset_factors[" << i << "] mismatched"
+        << buf_to_specialize->offset_factors[i] << " vs. " << specific_buf->offset_factors[i]
+        << ".";
+  }
 }
 
 /*!

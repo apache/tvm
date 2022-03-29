@@ -170,8 +170,8 @@ class IRConvertSSA final : public StmtExprMutator {
     // new buffer, pushing it onto the scoped stack of existing
     // buffers.  This will be popped when the new_buffer_var
     // redefinition is popped.
-    Buffer new_buf(new_buffer_var, buf->dtype, buf->shape, buf->strides, buf->elem_offset,
-                   buf->name, buf->data_alignment, buf->offset_factor, buf->buffer_type,
+    Buffer new_buf(new_buffer_var, buf->dtype, buf->shape, buf->strides, buf->elem_offsets,
+                   buf->name, buf->data_alignment, buf->offset_factors, buf->buffer_type,
                    buf->axis_separators, buf->span);
     buffers.push_back(new_buf);
     return new_buf;

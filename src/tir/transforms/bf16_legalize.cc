@@ -276,9 +276,9 @@ class BF16LowerRewriter : public StmtExprMutator {
       if (oldbuf->dtype.is_bfloat16()) {
         DataType dtype = DataType::UInt(16, oldbuf->dtype.lanes());
         Var buffer_var = Var(oldbuf->data->name_hint, PointerType(PrimType(dtype)));
-        auto newbuf = Buffer(buffer_var, dtype, oldbuf->shape, oldbuf->strides, oldbuf->elem_offset,
-                             oldbuf->name, oldbuf->data_alignment, oldbuf->offset_factor,
-                             oldbuf->buffer_type);
+        auto newbuf = Buffer(buffer_var, dtype, oldbuf->shape, oldbuf->strides,
+                             oldbuf->elem_offsets, oldbuf->name, oldbuf->data_alignment,
+                             oldbuf->offset_factors, oldbuf->buffer_type);
         buffer_remap_[oldbuf] = newbuf;
         var_remap_[oldbuf->data] = buffer_var;
         new_buffer_map.Set(param_var, newbuf);
@@ -306,8 +306,8 @@ class BF16LowerRewriter : public StmtExprMutator {
         const Buffer& flatbuf = (*it).second;
         DataType dtype = DataType::UInt(16, oldbuf->dtype.lanes());
         auto newbuf = Buffer(flatbuf->data, dtype, oldbuf->shape, oldbuf->strides,
-                             oldbuf->elem_offset, oldbuf->name, oldbuf->data_alignment,
-                             oldbuf->offset_factor, oldbuf->buffer_type);
+                             oldbuf->elem_offsets, oldbuf->name, oldbuf->data_alignment,
+                             oldbuf->offset_factors, oldbuf->buffer_type);
         buffer_remap_[oldbuf] = newbuf;
         new_preflattened_buffer_map.Set(param_var, newbuf);
       } else {
@@ -334,8 +334,8 @@ class BF16LowerRewriter : public StmtExprMutator {
     if (var_it != var_remap_.end()) {
       DataType dtype =
           buf->dtype.is_bfloat16() ? DataType::UInt(16, buf->dtype.lanes()) : buf->dtype;
-      new_buf = Buffer(var_it->second, dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
-                       buf->data_alignment, buf->offset_factor, buf->buffer_type,
+      new_buf = Buffer(var_it->second, dtype, buf->shape, buf->strides, buf->elem_offsets,
+                       buf->name, buf->data_alignment, buf->offset_factors, buf->buffer_type,
                        buf->axis_separators, buf->span);
     }
 

@@ -220,8 +220,8 @@ Doc TIRTextPrinter::PrintProducer(const DataProducerNode* op) {
 Doc TIRTextPrinter::BufferNode2Doc(const BufferNode* buf, Doc doc) {
   doc << Doc::Text(": Buffer(") << Print(buf->data) << ", " << PrintDType(buf->dtype) << ", "
       << Print(buf->shape) << ", " << Print(buf->strides);
-  if (!is_zero(buf->elem_offset)) {
-    doc << ", elem_offset=" << Print(buf->elem_offset);
+  if (buf->elem_offsets.size()) {
+    doc << ", elem_offsets=" << Print(buf->elem_offsets);
   }
   if (buf->axis_separators.size()) {
     doc << ", axis_separators=" << Print(buf->axis_separators);
@@ -232,9 +232,18 @@ Doc TIRTextPrinter::BufferNode2Doc(const BufferNode* buf, Doc doc) {
   if (buf->data_alignment != 128) {
     doc << ", align=" << buf->data_alignment;
   }
-  if (buf->offset_factor != 1) {
-    doc << ", offset_factor=" << buf->offset_factor;
+
+  bool has_non_default_offset_factor = false;
+  for (const auto& offset_factor : buf->offset_factors) {
+    if (offset_factor->value != 1) {
+      has_non_default_offset_factor = true;
+      break;
+    }
   }
+  if (has_non_default_offset_factor) {
+    doc << ", offset_factor=" << Print(buf->offset_factors);
+  }
+
   if (buf->buffer_type != 1) {
     doc << ", type=" << Doc::StrLiteral("auto");
   }

@@ -356,8 +356,8 @@ Buffer PoolAllocationToOffsetConverter::GetRemappedBuffer(Buffer original) {
   auto it = allocate_var_to_let_var_.find(original->data);
   if (it != allocate_var_to_let_var_.end()) {
     remapped = Buffer((*it).second, original->dtype, original->shape, original->strides,
-                      original->elem_offset, original->name, original->data_alignment,
-                      original->offset_factor, original->buffer_type, original->axis_separators,
+                      original->elem_offsets, original->name, original->data_alignment,
+                      original->offset_factors, original->buffer_type, original->axis_separators,
                       original->span);
   }
 

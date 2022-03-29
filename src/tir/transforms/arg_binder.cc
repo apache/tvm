@@ -97,21 +97,35 @@ void ArgBinder::BindBuffer(const Buffer& arg, const Buffer& value, const std::st
                  << ", provided_alignment=" << value->data_alignment;
   }
   // bind pointer and offset.
-  if (is_zero(arg->elem_offset)) {
-    ICHECK(is_zero(value->elem_offset))
-        << "Trying to bind a Buffer with offset into one without offset "
-        << " required elem_offset=" << arg->elem_offset
-        << ", provided elem_offset=" << value->elem_offset;
+  ICHECK_EQ(arg->elem_offsets.size(), value->elem_offsets.size())
+      << "Trying to bind buffer with different physical dimension, requires "
+      << arg->elem_offsets.size() << "-d buffer, but provided " << value->elem_offsets.size()
+      << "-d buffer";
+  for (size_t i = 0; i < arg->elem_offsets.size(); i++) {
+    auto arg_offset = arg->elem_offsets[i];
+    if (is_zero(arg_offset)) {
+      auto value_offset = value->elem_offsets[i];
+      ICHECK(is_zero(value_offset))
+          << "Trying to bind a Buffer with offset into one without offset "
+          << " required elem_offset=" << arg_offset << ", provided elem_offset=" << value_offset;
+    }
   }
 
   this->Bind(arg->data, value->data, arg_name + ".data");
-  if (Bind_(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset", false)) {
-    if (arg->offset_factor > 1) {
-      PrimExpr offset = value->elem_offset;
-      PrimExpr factor = make_const(offset.dtype(), arg->offset_factor);
-      PrimExpr zero = make_zero(offset.dtype());
-      BinderAddAssert(&analyzer_, truncmod(offset, factor) == zero, arg_name + ".elem_offset",
-                      &asserts_);
+
+  ICHECK_EQ(arg->elem_offsets.size(), arg->offset_factors.size());
+  ICHECK_EQ(value->elem_offsets.size(), value->offset_factors.size());
+  for (size_t i = 0; i < arg->elem_offsets.size(); i++) {
+    auto arg_offset = arg->elem_offsets[i];
+    auto value_offset = value->elem_offsets[i];
+    if (Bind_(arg_offset, value_offset, arg_name + ".elem_offset", false)) {
+      auto arg_offset_factor = arg->offset_factors[i]->value;
+      if (arg_offset_factor > 1) {
+        PrimExpr factor = make_const(value_offset.dtype(), arg_offset_factor);
+        PrimExpr zero = make_zero(value_offset.dtype());
+        BinderAddAssert(&analyzer_, truncmod(value_offset, factor) == zero,
+                        arg_name + ".elem_offset", &asserts_);
+      }
     }
   }
 
@@ -271,24 +285,36 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   // Byte_offset field.
   int data_bytes = GetVectorBytes(buffer->dtype);
 
-  if (const auto* const_offset = buffer->elem_offset.as<IntImmNode>()) {
-    Bind_(make_const(DataType::UInt(64), const_offset->value * data_bytes),
-          TVMArrayGet(DataType::UInt(64), handle, builtin::kArrByteOffset),
-          arg_name + ".byte_offset", true);
-  } else {
-    if (Bind_(buffer->elem_offset,
-              cast(buffer->elem_offset.dtype(),
-                   (TVMArrayGet(DataType::UInt(64), handle, builtin::kArrByteOffset) /
-                    make_const(DataType::UInt(64), data_bytes))),
+  PrimExpr arg_byte_offset = TVMArrayGet(DataType::UInt(64), handle, builtin::kArrByteOffset);
+  if (buffer->elem_offsets.size() == 1) {
+    auto offset = buffer->elem_offsets[0];
+
+    if (const auto* const_offset = offset.as<IntImmNode>()) {
+      Bind_(make_const(DataType::UInt(64), const_offset->value * data_bytes), arg_byte_offset,
+            arg_name + ".byte_offset", true);
+    } else {
+      if (Bind_(
+              offset,
+              cast(offset.dtype(), (arg_byte_offset / make_const(DataType::UInt(64), data_bytes))),
               arg_name + ".elem_offset", true)) {
-      if (buffer->offset_factor > 1) {
-        PrimExpr offset = buffer->elem_offset;
-        PrimExpr factor = make_const(offset.dtype(), buffer->offset_factor);
-        PrimExpr zero = make_zero(offset.dtype());
-        BinderAddAssert(&analyzer_, truncmod(offset, factor) == zero, arg_name + ".elem_offset",
-                        &asserts_);
+        auto factor = buffer->offset_factors[0];
+        if (factor->value > 1) {
+          PrimExpr zero = make_zero(offset.dtype());
+          BinderAddAssert(&analyzer_, truncmod(offset, factor) == zero, arg_name + ".elem_offset",
+                          &asserts_);
+        }
       }
     }
+
+  } else {
+    for (size_t i = 0; i < buffer->elem_offsets.size(); i++) {
+      auto offset = buffer->elem_offsets[i];
+      CHECK(!is_zero(offset)) << "Buffer " << buffer->name << ".elem_offsets[" << i
+                              << "] = " << tvm::PrettyPrint(offset)
+                              << ", but non-zero element offsets across function boundaries "
+                              << "are only supported for flat memory spaces.";
+    }
+    BinderAddAssert(&analyzer_, arg_byte_offset == 0, arg_name + ".byte_offset", &asserts_);
   }
   // device info.
   Bind_(device_type, TVMArrayGet(DataType::Int(32), handle, builtin::kArrDeviceType),
