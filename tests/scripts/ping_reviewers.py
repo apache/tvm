@@ -21,6 +21,7 @@ import argparse
 import re
 import datetime
 import json
+import textwrap
 from typing import Dict, Any, List
 
 from git_utils import git, GitHubRepo, parse_remote
@@ -32,7 +33,7 @@ def prs_query(user: str, repo: str, cursor: str = None):
     after = ""
     if cursor is not None:
         after = f', before:"{cursor}"'
-    time_keys = "createdAt\nupdatedAt\nlastEditedAt\npublishedAt"
+    time_keys = "createdAt updatedAt lastEditedAt publishedAt"
     return f"""
         {{
     repository(name: "{repo}", owner: "{user}") {{
@@ -97,6 +98,8 @@ def find_reviewers(body: str) -> List[str]:
 def check_pr(pr, wait_time, now):
     last_action = None
 
+    author = pr["author"]["login"]
+
     def update_last(new_time, description):
         if isinstance(new_time, str):
             new_time = datetime.datetime.strptime(new_time, GIT_DATE_FORMAT)
@@ -144,6 +147,8 @@ def check_pr(pr, wait_time, now):
     review_reviewers = list(set(r["author"]["login"] for r in reviews))
 
     reviewers = cc_reviewers + review_reviewers + pr_body_reviewers
+    reviewers = list(set(reviewers))
+    reviewers = [r for r in reviewers if r != author]
 
     if time_since_last_action > wait_time:
         print(
@@ -164,15 +169,17 @@ def check_pr(pr, wait_time, now):
     return None
 
 
-def ping_reviewers(pr, reviewers):
+def make_ping_message(pr, reviewers):
     reviewers = [f"@{r}" for r in reviewers]
+    author = f'@{pr["author"]["login"]}'
     text = (
         "It has been a while since this PR was updated, "
         + " ".join(reviewers)
-        + " please leave a review or address the outstanding comments"
+        + " please leave a review or address the outstanding comments. "
+        + f"{author} if this PR is still a work in progress, please [convert it to a draft](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/changing-the-stage-of-a-pull-request#converting-a-pull-request-to-a-draft)"
+        " until it is ready for review."
     )
-    r = github.post(f"issues/{pr['number']}/comments", {"body": text})
-    print(r)
+    return text
 
 
 if __name__ == "__main__":
@@ -241,7 +248,7 @@ if __name__ == "__main__":
                     f"Skipping #{pr['number']} since author {pr['author']['login']} is not in allowlist: {author_allowlist}"
                 )
             else:
-                print(f"Checking #{pr['number']}, {author_allowlist}")
+                print(f"Checking #{pr['number']} since author is in {author_allowlist}")
                 prs_to_check.append(pr)
 
         print(f"Summary: Checking {len(prs_to_check)} of {len(prs)} fetched")
@@ -250,8 +257,15 @@ if __name__ == "__main__":
         for pr in prs_to_check:
             print("Checking", pr["url"])
             reviewers = check_pr(pr, wait_time, now)
-            if reviewers is not None and not args.dry_run:
-                ping_reviewers(pr, reviewers)
+            if reviewers is not None:
+                message = make_ping_message(pr, reviewers)
+                if args.dry_run:
+                    print(
+                        f"Would have commented on #{pr['number']}:\n{textwrap.indent(message, prefix='  ')}"
+                    )
+                else:
+                    r = github.post(f"issues/{pr['number']}/comments", {"body": message})
+                    print(r)
 
         edges = r["data"]["repository"]["pullRequests"]["edges"]
         if len(edges) == 0:
