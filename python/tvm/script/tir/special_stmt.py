@@ -486,7 +486,6 @@ class BlockAxis(SpecialStmt):
         if var_name in [iter_var.var.name for iter_var in block_scope.iter_vars]:
             self.context.report_error("Duplicate block axis " + var_name, self.node.span)
 
-        block_var = tvm.tir.Var(var_name, dtype="int32")
         dom = tvm.runtime.convert(dom)
         if isinstance(dom, PrimExpr):
             dom = tvm.ir.Range(dom)
@@ -497,6 +496,7 @@ class BlockAxis(SpecialStmt):
                 f"Block axis domain expected PrimExpr or Range, but got {type(dom)}",
                 self.node.span,
             )
+        block_var = tvm.tir.Var(var_name, dtype=dom.extent.dtype)
         value = tvm.runtime.convert(value)
         if not isinstance(value, PrimExpr):
             self.context.report_error(

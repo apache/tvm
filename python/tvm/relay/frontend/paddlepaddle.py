@@ -1281,7 +1281,7 @@ def convert_prelu(g, op, block):
             shape = _op.strided_slice(shape_of(x), [0], [1])
         else:
             shape = _op.strided_slice(shape_of(x), [1], [2])
-        alpha = _op.broadcast_to(alpha, shape)
+        alpha = _op.broadcast_to(alpha, fold_constant(shape))
     out = _op.nn.prelu(x, alpha, axis)
     g.add_node(op.output("Out")[0], out)
 
@@ -1937,8 +1937,9 @@ def convert_swish(g, op, block):
     """Operator converter for swish."""
 
     x = g.get_node(op.input("X")[0])
-    dtype = infer_type(x).checked_type.dtype
-    out = x / (_op.const(1.0, dtype) + _op.exp(_op.const(-1.0, dtype) * x))
+    beta = op.attr("beta")
+    assert beta == 1.0, "Only support beta==1.0 for PaddlePaddle's swish"
+    out = x * _op.tensor.sigmoid(x)
     g.add_node(op.output("Out")[0], out)
 
 

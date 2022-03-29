@@ -22,3 +22,5 @@ from .instruction import Instruction, InstructionKind
 from .schedule import BlockRV, ExprRV, LoopRV, Schedule, ScheduleError
 from .state import ScheduleDebugMask, ScheduleState
 from .trace import Trace
+
+from . import analysis

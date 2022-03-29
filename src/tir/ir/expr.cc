@@ -147,6 +147,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 IterVar::IterVar(Range dom, Var var, IterVarType t, String thread_tag, Span span) {
   ObjectPtr<IterVarNode> n = make_object<IterVarNode>();
   if (dom.defined() && dom->extent.defined()) {
+    CHECK(dom->extent.dtype().is_int())
+        << "The dtype of the domain of an IterVar must be an integer type. However, the domain's "
+           "dtype is "
+        << dom->extent.dtype();
     CHECK_EQ(dom->extent.dtype(), var.dtype())
         << "The dtype of the extent of an IterVar (" << dom->extent.dtype()
         << ") must match its associated Var's dtype (" << var.dtype() << ")";

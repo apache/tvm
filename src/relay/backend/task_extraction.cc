@@ -47,30 +47,40 @@ Array<ExtractedTask> ExtractTask(IRModule mod, Target target,
   transform::Sequential seq(pass_seqs);
   auto opt_mod = seq(std::move(mod));
 
-  Array<ExtractedTask> tasks;
-  std::unordered_set<tec::CCacheKey> cache;
-  std::unordered_map<std::string, int> name_map;
+  std::vector<ExtractedTask> tasks;
+  std::unordered_map<tec::CCacheKey, ExtractedTask> cache;
 
-  PostOrderVisit(opt_mod->Lookup("main"), [target, &tasks, &cache, &name_map](const Expr& exp) {
+  PostOrderVisit(opt_mod->Lookup("main"), [target, &tasks, &cache](const Expr& exp) {
     if (exp->IsInstance<FunctionNode>()) {
       Function relay_func = Downcast<Function>(exp);
-      tec::CCacheKey cache_key(relay_func, target);
-      if (relay_func->HasNonzeroAttr(attr::kPrimitive) && cache.find(cache_key) == cache.end()) {
-        Array<te::Tensor> inputs_outputs;
-        std::string fused_name;
-        std::tie(inputs_outputs, fused_name) =
-            tec::LowerTECompute(relay_func, target, /*return_inputs=*/true);
-        auto prim_func = tir::CreatePrimFunc(inputs_outputs);
-        GlobalVar prim_fn_var(fused_name);
-        IRModule relay_mod({{prim_fn_var, relay_func}});
-        IRModule tir_mod({{prim_fn_var, prim_func}});
-        auto task_name = tec::GetUniqueName(fused_name, &name_map);
-        tasks.push_back(ExtractedTask(task_name, relay_mod, target, {tir_mod}));
-        cache.insert(cache_key);
+      if (!relay_func->HasNonzeroAttr(attr::kPrimitive)) {
+        return;
       }
+      tec::CCacheKey cache_key(relay_func, target);
+      auto it = cache.find(cache_key);
+      if (it != cache.end()) {
+        it->second->weight += 1;
+        return;
+      }
+      Array<te::Tensor> inputs_outputs;
+      std::string fused_name;
+      std::tie(inputs_outputs, fused_name) =
+          tec::LowerTECompute(relay_func, target, /*return_inputs=*/true);
+      auto prim_func = tir::CreatePrimFunc(inputs_outputs);
+      GlobalVar prim_fn_var(fused_name);
+      IRModule relay_mod({{prim_fn_var, relay_func}});
+      IRModule tir_mod({{prim_fn_var, prim_func}});
+      ExtractedTask extracted_task(fused_name, relay_mod, target, {tir_mod}, 1);
+      tasks.push_back(extracted_task);
+      cache.emplace(cache_key, extracted_task);
     }
   });
-
+  // Tasks are extracted via post order visit, return the reversed list.
+  std::reverse(tasks.begin(), tasks.end());
+  std::unordered_map<std::string, int> name_map;
+  for (ExtractedTask task : tasks) {
+    task->task_name = tec::GetUniqueName(task->task_name, &name_map);
+  }
   return tasks;
 }
 

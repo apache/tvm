@@ -35,6 +35,7 @@
 
 #include <memory>
 
+#include "../../driver/internal_driver_api.h"
 #include "../../target/func_registry_generator.h"
 #include "../../target/metadata_module.h"
 #include "../../target/source/codegen_source_base.h"
@@ -445,7 +446,7 @@ class RelayBuildModule : public runtime::ModuleNode {
         ret_.mod = tvm::codegen::CSourceModuleCreate(";", "", Array<String>{});
       }
     } else {
-      ret_.mod = tvm::build(lowered_funcs, host_target);
+      ret_.mod = tvm::TIRToRuntime(lowered_funcs, host_target);
     }
 
     auto ext_mods = executor_codegen_->GetExternalModules();

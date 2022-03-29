@@ -80,6 +80,9 @@ void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, int ndim, const int64_t* sh
 
 void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
                                          DLDataType type_hint) {
+  bool is_valid_device = (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
+                         (DLDeviceType(dev.device_type) == kDLCPU);
+  CHECK(is_valid_device) << "dev.device_type: " << dev.device_type;
   if (alignment < kHexagonAllocAlignment) {
     alignment = kHexagonAllocAlignment;
   }
@@ -182,7 +185,7 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVM
 
 std::map<void*, HexagonBuffer*> vtcmallocs;
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNd").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.hexagon.alloc_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
   int32_t device_type = args[0];
   int32_t device_id = args[1];
   int32_t dtype_code_hint = args[2];
@@ -215,15 +218,16 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.AllocNd").set_body([](TVMArgs args, TVMR
   *rv = ptr;
 });
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.FreeNd").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.hexagon.free_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
   int32_t device_type = args[0];
   int32_t device_id = args[1];
   std::string scope = args[2];
-  CHECK(scope.find("vtcm") != std::string::npos);
+  CHECK(scope.find("global.vtcm") != std::string::npos);
   void* ptr = args[3];
   CHECK(vtcmallocs.find(ptr) != vtcmallocs.end());
 
   HexagonBuffer* hexbuf = vtcmallocs[ptr];
+  vtcmallocs.erase(ptr);
 
   Device dev;
   dev.device_type = static_cast<DLDeviceType>(device_type);

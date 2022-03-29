@@ -131,6 +131,48 @@ def access_in_branch_func() -> None:
 
 
 @T.prim_func
+def gemm() -> None:
+    A = T.alloc_buffer([16, 16], "float32")
+    B = T.alloc_buffer([16, 16], "float32")
+    C = T.alloc_buffer([16, 16], "float32")
+    for i, j, k, ii, jj in T.grid(4, 4, 16, 4, 4):
+        with T.block("update"):
+            vi = T.axis.S(16, i * 4 + ii)
+            vj = T.axis.S(16, j * 4 + jj)
+            vk = T.axis.R(16, k)
+            T.reads(A[vi, vk], B[vj, vk])
+            T.writes(C[vi, vj])
+            with T.init():
+                T.reads([])
+                T.writes(C[vi, vj])
+                C[vi, vj] = 0
+            C[vi, vj] += A[vi, vk] * B[vj, vk]
+
+
+@T.prim_func
+def decomposed_gemm() -> None:
+    A = T.alloc_buffer([16, 16], "float32")
+    B = T.alloc_buffer([16, 16], "float32")
+    C = T.alloc_buffer([16, 16], "float32")
+    for i, j in T.grid(4, 4):
+        for ii, jj in T.grid(4, 4):
+            with T.block("init"):
+                vi = T.axis.S(16, i * 4 + ii)
+                vj = T.axis.S(16, j * 4 + jj)
+                T.reads([])
+                T.writes(C[vi, vj])
+                C[vi, vj] = 0
+        for k, ii, jj in T.grid(16, 4, 4):
+            with T.block("update"):
+                vi = T.axis.S(16, i * 4 + ii)
+                vj = T.axis.S(16, j * 4 + jj)
+                vk = T.axis.R(16, k)
+                T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
+                T.writes(C[vi, vj])
+                C[vi, vj] += A[vi, vk] * B[vj, vk]
+
+
+@T.prim_func
 def access_of_padding_pattern() -> None:
     X = T.alloc_buffer([28, 28])
     X_pad = T.alloc_buffer([32, 32])
@@ -271,6 +313,26 @@ def test_access_of_padding_pattern():
     do_check_block("padding_reverse")
 
 
+def test_access_of_reduction():
+    block = gemm.body.block.body.body.body.body.body.body.block
+    alloc_buffers = gemm.body.block.alloc_buffers
+    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    ret = tir.analysis.get_block_access_region(block, buffer_var_map)
+    tvm.ir.assert_structural_equal(block.reads, ret[0])
+    tvm.ir.assert_structural_equal(block.writes, ret[1])
+
+
+def test_access_of_decompose_reduction():
+    init = decomposed_gemm.body.block.body.body.body[0].body.body.block
+    update = decomposed_gemm.body.block.body.body.body[1].body.body.body.block
+    alloc_buffers = decomposed_gemm.body.block.alloc_buffers
+    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    for block in [init, update]:
+        ret = tir.analysis.get_block_access_region(block, buffer_var_map)
+        tvm.ir.assert_structural_equal(block.reads, ret[0])
+        tvm.ir.assert_structural_equal(block.writes, ret[1])
+
+
 if __name__ == "__main__":
     test_block_access_region_detector()
     test_opaque_block()
@@ -279,3 +341,5 @@ if __name__ == "__main__":
     test_access_in_if_then_else_func()
     test_access_in_branch_func()
     test_access_of_padding_pattern()
+    test_access_of_reduction()
+    test_access_of_decompose_reduction()

@@ -1423,10 +1423,6 @@ def from_keras(model, shape=None, layout="NCHW"):
                 if (
                     hasattr(model, "_node_key")
                     and not model._node_key(keras_layer, node_idx) in model._network_nodes
-                ) or (
-                    # TFlite >=2.6
-                    not keras.engine.functional._make_node_key(keras_layer.name, node_idx)
-                    in model._network_nodes
                 ):
                     continue
             inexpr = []
@@ -1447,6 +1443,7 @@ def from_keras(model, shape=None, layout="NCHW"):
                 node_attributes = zip_node
             else:
                 node_attributes = node.iterate_inbound()
+
             for inbound_layer, n_idx, t_idx, _ in node_attributes:
                 if isinstance(inbound_layer, input_layer_class):
                     expr_name = inbound_layer.name

@@ -152,8 +152,9 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
             _, _, kh, kw, _, _, _ = get_const_tuple(kernel_vec.shape)
             dtype = "uint" if data.dtype == "uint8" else "int"
             if is_dotprod_available():
-                intrin = dot_int8_int8_int32_neon_82(int32_lanes=4)
+                intrin = dot_int8_int8_int32_neon_82(int32_lanes=4, dtype=dtype)
             elif is_neon_available():
+                assert dtype == "int", "uint8 not supported if dot product is not available"
                 intrin = dot_int8_int8_int32_neon()
             else:
                 raise RuntimeError(
@@ -297,6 +298,12 @@ def schedule_conv2d_NHWC_quantized_interleaved(cfg, outs):
     return _schedule_conv2d_NHWC_quantized(cfg, outs, True)
 
 
+@autotvm.register_topi_schedule("conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu")
+def schedule_conv2d_NHWC_quantized_interleaved_without_transform(cfg, outs):
+    """Interface for interleaved schedule_conv2d_NHWC_quantized_interleaved"""
+    return _schedule_conv2d_NHWC_quantized(cfg, outs, True)
+
+
 # Native schedules: those schedule won't interleave A (which is left in its native form).
 # The weights are interleaved and transposed
 @autotvm.register_topi_compute("conv2d_NHWC_quantized_native.arm_cpu")
@@ -328,5 +335,11 @@ def compute_conv2d_NHWC_quantized_native_without_transform(
 
 @autotvm.register_topi_schedule("conv2d_NHWC_quantized_native.arm_cpu")
 def schedule_conv2d_NHWC_quantized_native(cfg, outs):
+    """Interface for native schedule_conv2d_NHWC_quantized"""
+    return _schedule_conv2d_NHWC_quantized(cfg, outs, False)
+
+
+@autotvm.register_topi_schedule("conv2d_NHWC_quantized_native_without_transform.arm_cpu")
+def schedule_conv2d_NHWC_quantized_native_without_transform(cfg, outs):
     """Interface for native schedule_conv2d_NHWC_quantized"""
     return _schedule_conv2d_NHWC_quantized(cfg, outs, False)
