@@ -47,14 +47,12 @@ import pyxir.contrib.target.DPUCZDX8G
 import tvm
 import tvm.relay.testing
 from tvm import relay
+from tvm.testing import requires_vitis_ai
 
 from .infrastructure import verify_result
 
 
-@pytest.mark.skipif(
-    not tvm.get_global_func("relay.ext.vitis_ai.available", True),
-    reason="Skip test because Vitis-AI codegen is not available.",
-)
+@requires_vitis_ai
 @pytest.mark.parametrize("dpu_target", ["DPUCADF8H", "DPUCVDX8H", "DPUCZDX8G-zcu104"])
 def test_extern_vitis_ai_resnet18(dpu_target):
     """Test first part of Vitis AI on-the-fly quantization runtime with ResNet 18 model"""
