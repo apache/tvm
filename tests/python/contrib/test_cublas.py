@@ -14,12 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
 import tvm
 from tvm import te
+from tvm import relay
 import numpy as np
 from tvm.contrib import cublas
 from tvm.contrib import cublaslt
+from tvm.contrib import graph_executor
 import tvm.testing
+from tvm.relay.op.contrib import get_pattern_table
+from tvm.relay.op.contrib.cublas import partition_for_cublas
 
 
 def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
@@ -170,7 +176,85 @@ def test_batch_matmul():
     verify_batch_matmul((16, 1024, 128), (16, 128, 236), (16, 1024, 236), "int8", "int32")
 
 
+@tvm.testing.requires_cuda
+@pytest.mark.parametrize(
+    "n,m,k,transpose_A,transpose_B",
+    [
+        (64, 128, 32, False, False),
+        (17, 32, 16, True, False),
+        (24, 17, 12, False, True),
+        (96, 4, 17, True, True),
+    ],
+)
+@pytest.mark.parametrize(
+    "in_dtype,out_dtype",
+    [
+        ("float32", "float32"),
+        ("float16", "float16"),
+        ("float16", "float32"),
+        ("int8", "int32"),
+        ("float64", "float64"),
+        ("int8", "float32"),
+    ],
+)
+def test_relay_cublas_matmul(n, m, k, in_dtype, out_dtype, transpose_A, transpose_B):
+    np.random.seed(42)
+    pattern_table = get_pattern_table("cublas")
+    matmul_pattern = None
+    check_matmul = None
+    for pattern_name, pattern, check_func in pattern_table:
+        if pattern_name == "cublas.matmul":
+            matmul_pattern = pattern
+            check_matmul = check_func
+
+    assert matmul_pattern is not None
+    assert check_matmul is not None
+    A_shape = (k, n) if transpose_A else (n, k)
+    B_shape = (m, k) if transpose_B else (k, m)
+
+    def _create_mod():
+        mod = tvm.IRModule()
+        A_var = tvm.relay.var("A", tvm.relay.TensorType(A_shape, in_dtype))
+        B_var = tvm.relay.var("B", tvm.relay.TensorType(B_shape, in_dtype))
+        # Directly use matmul because nn.matmul sometimes defers to nn.dense
+        C_var = relay.op.nn._make.matmul(A_var, B_var, None, out_dtype, transpose_A, transpose_B)
+        f = tvm.relay.Function([A_var, B_var], C_var)
+        mod["main"] = f
+        mod = relay.transform.InferType()(mod)
+        return mod
+
+    mod = _create_mod()
+    if not matmul_pattern.match(mod["main"].body) or not check_matmul(mod["main"].body):
+        pytest.skip("Unsupported parameters")
+
+    cublas_mod = partition_for_cublas(mod)
+    # Assert that a new global function has been created for the cuBLAS partition
+    assert len(cublas_mod.get_global_vars()) == 2
+
+    A_data = np.random.uniform(0, 32, size=A_shape).astype(in_dtype)
+    B_data = np.random.uniform(0, 32, size=B_shape).astype(in_dtype)
+
+    # Test against CPU reference
+    cuda_config = (tvm.target.cuda(), tvm.cuda(), cublas_mod)
+    cpu_config = (tvm.target.Target("llvm"), tvm.cpu(), mod)
+    outputs = []
+    for target, dev, test_mod in [cuda_config, cpu_config]:
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(test_mod, target=target, target_host=cpu_config[0])
+            a = tvm.nd.array(A_data, dev)
+            b = tvm.nd.array(B_data, dev)
+            module = graph_executor.GraphModule(lib["default"](dev))
+            module.set_input("A", a)
+            module.set_input("B", b)
+            module.run()
+            outputs.append(module.get_output(0, tvm.nd.empty((n, m), dtype=out_dtype)).numpy())
+
+    tvm.testing.assert_allclose(
+        outputs[0],
+        outputs[1],
+        rtol=1e-2,
+    )
+
+
 if __name__ == "__main__":
-    test_matmul_add()
-    test_batch_matmul()
-    test_matmul_add_igemm()
+    pytest.main([__file__])
