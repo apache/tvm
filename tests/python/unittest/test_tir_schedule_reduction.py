@@ -282,5 +282,17 @@ def test_reduction_decompose_with_different_for_kind():
     verify_trace_roundtrip(s, mod=colsum_with_vectorization)
 
 
+def test_decompose_reduction_ref_hash_check():
+    mod = tvm.IRModule.from_expr(matmul)
+    mod_bak = mod
+    hash_before = tvm.ir.structural_hash(mod_bak)
+    s = tir.Schedule(mod["main"], debug_mask="all")
+    C = s.get_block("update")
+    i, j, k = s.get_loops(C)
+    s.decompose_reduction(C, k)
+    hash_after = tvm.ir.structural_hash(mod_bak)
+    assert hash_before == hash_after
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
