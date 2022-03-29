@@ -87,5 +87,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.TuneContext")
       return TuneContext(mod, target, space_generator, search_strategy, sch_rules, postprocs,
                          mutator_probs, task_name, rand_state, num_threads);
     });
+
+TVM_REGISTER_GLOBAL("meta_schedule._SHash2Hex").set_body_typed(SHash2Hex);
+
 }  // namespace meta_schedule
 }  // namespace tvm
