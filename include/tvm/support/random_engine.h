@@ -115,7 +115,7 @@ class LinearCongruentialEngine {
    * \return The forked seed.
    */
   TRandState ForkSeed() {
-    // In order for reproducibility, we computer the new seed using RNG's random state and a
+    // In order for reproducibility, we compute the new seed using RNG's random state and a
     // different set of parameters. Note that both 32767 and 1999999973 are prime numbers.
     return ((*this)() * 32767) % 1999999973;
   }
