@@ -1426,9 +1426,11 @@ class StorageFlattener : public StmtExprMutator {
         }
       }
 
+      size_t n_flattened_dims = op->buffer->axis_separators.size() + 1;
       e.buffer = Buffer(op->buffer->data, op->buffer->dtype, op->buffer->shape, op->buffer->strides,
-                        PrimExpr(), op->buffer->name, align, 0, kDefault,
-                        op->buffer->axis_separators, op->buffer->span);
+                        Array<PrimExpr>(n_flattened_dims, PrimExpr()), op->buffer->name, align,
+                        Array<IntImm>(n_flattened_dims, IntImm(op->buffer->DefaultIndexType(), 0)),
+                        kDefault, op->buffer->axis_separators, op->buffer->span);
       e.flattened_buffer = e.buffer.GetFlattenedBuffer();
 
       // TODO(Lunderberg): Move the handling of boolean into a

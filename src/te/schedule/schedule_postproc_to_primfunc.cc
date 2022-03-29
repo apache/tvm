@@ -337,8 +337,9 @@ class AxisSeparatorsAttrUnwrapper : StmtExprMutator {
     if (lookup) {
       Array<IntImm> axis_separators = lookup.value();
       if (axis_separators.size()) {
-        auto write_ptr = buf.CopyOnWrite();
-        write_ptr->axis_separators = axis_separators;
+        buf = Buffer(buf->data, buf->dtype, buf->shape, buf->strides, buf->elem_offsets, buf->name,
+                     buf->data_alignment, buf->offset_factors, buf->buffer_type,
+                     buf->axis_separators, buf->span);
       }
     }
 

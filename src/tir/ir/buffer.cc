@@ -554,7 +554,7 @@ Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> 
       elem_offsets.Set(i, make_const(index_dtype, 0));
     }
   }
-  if (elem_offsets.size() == 0) {
+  if (elem_offsets.size() == 0 || (elem_offsets.size() == 1 && is_zero(elem_offsets[0]))) {
     elem_offsets = Array<PrimExpr>(n_physical_dim, IntImm(index_dtype, 0));
   }
 
