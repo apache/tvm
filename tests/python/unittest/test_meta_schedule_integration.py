@@ -188,11 +188,7 @@ def test_meta_schedule_integration_extract_from_bert_base():
             [[1, 64, 768], [64, 768]],
         ),
     }
-    mod, params, _ = get_network(
-        name="bert_base",
-        input_shape=[1, 64],
-        cache_dir="/root/cache-workloads",
-    )
+    mod, params, _ = get_network(name="bert_base", input_shape=[1, 64])
     extracted_tasks = ms.integration.extract_task_from_relay(mod, target="llvm", params=params)
     assert len(extracted_tasks) == len(expected)
     for t in extracted_tasks:
