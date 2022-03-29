@@ -262,14 +262,6 @@ Array<PrimExpr> BufferNode::ElemOffset(Array<PrimExpr> input_indices) const {
         << "the index's dimensionality must match the dimensionality of the index given.";
   }
 
-  // TODO(Lunderberg): Better handling for cases where there is more
-  // than one output index.  Currently, this only allows elem_offset
-  // to be non-zero for flat memory allocations.
-  Array<PrimExpr> elem_offsets = {};
-  if (elem_offset.defined() && !is_zero(elem_offset)) {
-    elem_offsets = {elem_offset};
-  }
-
   if (elem_offsets.size()) {
     ICHECK_EQ(elem_offsets.size(), axis_separators.size() + 1)
         << "If element offsets are defined, "
@@ -488,6 +480,12 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
                             PrimExpr offset) const {
   const BufferNode* self = operator->();
   ICHECK(self != nullptr);
+
+  // To relax this restriction, will need to have `tvm_access_ptr`
+  // keep an array of offsets.  Maybe best to hold the type, buffer
+  // var, and offset all bundled together into a BufferLoad?
+  ICHECK(self->axis_separators.empty()) << "access_ptr not yet supported on non-flat memory";
+
   PrimExpr e_dtype;
   PrimExpr extent;
   if (self->shape.size() == 0) {
@@ -500,11 +498,14 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
                    make_const(DataType::Int(32), 1), self->shape) -
              offset;
   }
-  PrimExpr elem_offset = self->elem_offset + offset;
+
+  ICHECK_EQ(self->elem_offsets.size(), 1);
+
+  PrimExpr elem_offset = self->elem_offsets[0] + offset;
   if (content_lanes > 1) {
     e_dtype = tir::TypeAnnotation(self->dtype.with_lanes(content_lanes));
-    extent = extent / make_const(self->elem_offset.dtype(), content_lanes);
-    elem_offset = self->elem_offset / make_const(self->elem_offset.dtype(), content_lanes);
+    extent = extent / make_const(self->elem_offsets[0].dtype(), content_lanes);
+    elem_offset = self->elem_offsets[0] / make_const(self->elem_offsets[0].dtype(), content_lanes);
   } else {
     e_dtype = tir::TypeAnnotation(self->dtype);
   }
@@ -515,7 +516,15 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
 
 Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
                PrimExpr elem_offset, String name, int data_alignment, int offset_factor,
-               BufferType buffer_type, Array<IntImm> axis_separators, Span span) {
+               BufferType buffer_type, Array<IntImm> axis_separators, Span span)
+    : Buffer(data, dtype, shape, strides, {elem_offset}, name, data_alignment,
+             Array<IntImm>{IntImm(BufferNode::DefaultIndexType(shape), offset_factor)}, buffer_type,
+             axis_separators, span) {}
+
+Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
+               Array<PrimExpr> elem_offsets, String name, int data_alignment,
+               Array<IntImm> offset_factors, BufferType buffer_type, Array<IntImm> axis_separators,
+               Span span) {
   DataType storage_dtype = dtype;
   // specially handle bool
   if (storage_dtype == DataType::Bool()) {
@@ -537,6 +546,36 @@ Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> 
   ICHECK(data->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>())
       << "Variable " << data->name_hint << " does not point to a primitive.";
 
+  size_t n_physical_dim = axis_separators.size() + 1;
+
+  DataType index_dtype = BufferNode::DefaultIndexType(shape);
+  for (size_t i = 0; i < elem_offsets.size(); i++) {
+    if (!elem_offsets[i].defined()) {
+      elem_offsets.Set(i, make_const(index_dtype, 0));
+    }
+  }
+  if (elem_offsets.size() == 0) {
+    elem_offsets = Array<PrimExpr>(n_physical_dim, IntImm(index_dtype, 0));
+  }
+
+  if (data_alignment <= 0) {
+    data_alignment = runtime::kAllocAlignment;
+  }
+
+  for (size_t i = 0; i < offset_factors.size(); i++) {
+    if (offset_factors[i]->value == 0) {
+      offset_factors.Set(i, IntImm(index_dtype, 1));
+    }
+  }
+  if (offset_factors.size() == 0) {
+    offset_factors = Array<IntImm>(n_physical_dim, IntImm(index_dtype, 1));
+  }
+
+  CHECK_EQ(elem_offsets.size(), n_physical_dim)
+      << "Expected one element offset for each physical dimension of the buffer";
+  CHECK_EQ(offset_factors.size(), n_physical_dim)
+      << "Expected one offset factor for each physical dimension of the buffer";
+
   auto n = make_object<BufferNode>();
   n->data = std::move(data);
   n->dtype = dtype;
@@ -545,18 +584,9 @@ Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> 
   n->strides = std::move(strides);
   n->axis_separators = std::move(axis_separators);
   n->name = std::move(name);
-  if (!elem_offset.defined()) {
-    elem_offset = make_const(n->DefaultIndexType(), 0);
-  }
-  if (data_alignment <= 0) {
-    data_alignment = runtime::kAllocAlignment;
-  }
-  if (offset_factor == 0) {
-    offset_factor = 1;
-  }
-  n->elem_offset = std::move(elem_offset);
+  n->elem_offsets = std::move(elem_offsets);
   n->data_alignment = data_alignment;
-  n->offset_factor = offset_factor;
+  n->offset_factors = offset_factors;
   n->buffer_type = buffer_type;
   if (n->buffer_type == kAutoBroadcast && n->shape.size() > 0 && n->strides.empty()) {
     for (size_t i = 0; i < n->shape.size(); ++i) {
@@ -577,9 +607,12 @@ TVM_REGISTER_NODE_TYPE(BufferNode);
 
 TVM_REGISTER_GLOBAL("tir.Buffer").set_body([](TVMArgs args, TVMRetValue* ret) {
   ICHECK_EQ(args.size(), 11);
+  // Resolve overloaded Buffer constructor by passing a typed argument
+  // for the element offsets.
+  Array<PrimExpr> elem_offsets = args[4].operator Array<PrimExpr>();
   auto buffer_type = args[8].operator String();
   BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
-  *ret = Buffer(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], type,
+  *ret = Buffer(args[0], args[1], args[2], args[3], elem_offsets, args[5], args[6], args[7], type,
                 args[9], args[10]);
 });
 

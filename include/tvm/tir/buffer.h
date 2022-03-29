@@ -119,10 +119,10 @@ class BufferNode : public Object {
     v->Visit("shape", &shape);
     v->Visit("strides", &strides);
     v->Visit("axis_separators", &axis_separators);
-    v->Visit("elem_offset", &elem_offset);
+    v->Visit("elem_offsets", &elem_offsets);
     v->Visit("name", &name);
     v->Visit("data_alignment", &data_alignment);
-    v->Visit("offset_factor", &offset_factor);
+    v->Visit("offset_factors", &offset_factors);
     v->Visit("buffer_type", &buffer_type);
     v->Visit("span", &span);
   }
@@ -133,7 +133,7 @@ class BufferNode : public Object {
     return equal.DefEqual(data, other->data) && equal(dtype, other->dtype) &&
            equal.DefEqual(shape, other->shape) && equal.DefEqual(strides, other->strides) &&
            equal.DefEqual(axis_separators, other->axis_separators) &&
-           equal.DefEqual(elem_offset, other->elem_offset) &&
+           equal.DefEqual(elem_offsets, other->elem_offsets) &&
            equal(data_alignment, other->data_alignment) && equal(buffer_type, other->buffer_type);
   }
 
@@ -142,16 +142,14 @@ class BufferNode : public Object {
     hash_reduce(dtype);
     hash_reduce.DefHash(shape);
     hash_reduce.DefHash(strides);
-    hash_reduce.DefHash(elem_offset);
+    hash_reduce.DefHash(elem_offsets);
     hash_reduce.DefHash(axis_separators);
     hash_reduce(data_alignment);
     hash_reduce(buffer_type);
   }
 
   /*! \return preferred index type for this buffer node */
-  DataType DefaultIndexType() const {
-    return shape.size() != 0 ? shape[0].dtype() : DataType::Int(32);
-  }
+  DataType DefaultIndexType() const { return DefaultIndexType(shape); }
 
   /*! \brief Determine the offset in the buffer of the given index.
    *
@@ -165,6 +163,12 @@ class BufferNode : public Object {
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferNode, Object);
+
+ private:
+  static DataType DefaultIndexType(const Array<PrimExpr>& shape) {
+    return shape.size() != 0 ? shape[0].dtype() : DataType::Int(32);
+  }
+  friend class Buffer;
 };
 
 /*!
@@ -179,6 +183,13 @@ class Buffer : public ObjectRef {
   TVM_DLL Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
                  PrimExpr elem_offset, String name, int data_alignment, int offset_factor,
                  BufferType buffer_type, Array<IntImm> axis_separators = {}, Span span = Span());
+
+  // User can specify data_alignment and offset_factor to be 0
+  // A default value will be picked.
+  TVM_DLL Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
+                 Array<PrimExpr> elem_offsets, String name, int data_alignment,
+                 Array<IntImm> offset_factors, BufferType buffer_type,
+                 Array<IntImm> axis_separators = {}, Span span = Span());
 
   /*!
    * \brief Return a new buffer that is equivalent with current one
