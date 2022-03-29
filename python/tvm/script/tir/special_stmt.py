@@ -143,9 +143,19 @@ class MatchBuffer(SpecialStmt):
             if strides is None:
                 strides = []
             align = convert_to_int(align, "align", self.context.report_error, self.node.span)
-            offset_factor = convert_to_int(
-                offset_factor, "offset_factor", self.context.report_error, self.node.span
-            )
+
+            if offset_factor != 0:
+                try:
+                    offset_factor = list(offset_factor)
+                except TypeError:
+                    offset_factor = [offset_factor]
+
+                offset_factor = [
+                    convert_to_int(
+                        factor, "offset_factor", self.context.report_error, self.node.span
+                    )
+                    for factor in offset_factor
+                ]
             buffer_name: str = self.node.lhs[0].id.name
             buffer = tvm.tir.decl_buffer(
                 shape,

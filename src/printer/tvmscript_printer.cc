@@ -474,30 +474,73 @@ Doc TVMScriptPrinter::AllocBufferDeclaration(const Buffer& buf) {
   if (!buf->strides.empty()) {
     doc << ", strides=" << Print(buf->strides);
   }
-  if (buf->elem_offset->IsInstance<VarNode>()) {
-    Var elem_offset = Downcast<Var>(buf->elem_offset);
-    if (memo_var_.find(elem_offset) != memo_var_.end()) {
-      doc << ", elem_offset=" << Print(buf->elem_offset);
-    } else {
-      // implicitly define elem_offset
-      memo_var_[elem_offset] = Doc::Text(memo_buf_[buf].str() + ".elem_offset");
-      var_not_in_headers_.insert(elem_offset.get());
-      print_factor_explicitly = true;
+
+  {
+    bool requires_elem_offset_print = false;
+    bool is_implicit_definition = false;
+    bool is_explicit_usage = false;
+
+    Doc doc_offsets;
+
+    doc_offsets << "[";
+    for (size_t i = 0; i < buf->elem_offsets.size(); i++) {
+      if (i) {
+        doc_offsets << ", ";
+      }
+
+      auto offset = buf->elem_offsets[i];
+      if (offset->IsInstance<VarNode>() &&
+          memo_var_.find(Downcast<Var>(offset)) == memo_var_.end()) {
+        // If the element offset is a Var not previously encountered, then
+        // the buffer declaration is an implicit definition for that
+        // variable.
+        CHECK(!is_explicit_usage)
+            << "Cannot mix implicit definitions and explict variable use in elem_offsets";
+
+        requires_elem_offset_print = false;
+        is_implicit_definition = true;
+        std::stringstream ss;
+        ss << memo_buf_[buf].str() << ".elem_offsets[" << i << "]";
+        memo_var_[Downcast<Var>(offset)] = Doc::Text(ss.str());
+
+      } else {
+        // Otherwise, this is an argument that must be passed to the
+        // buffer declaration, and should be printed.
+        CHECK(!is_implicit_definition)
+            << "Cannot mix implicit definitions and explict variable use in elem_offsets";
+        is_explicit_usage = true;
+
+        doc_offsets << Print(offset);
+
+        auto int_offset = offset.as<IntImmNode>();
+        if (!int_offset || int_offset->value != 0) {
+          requires_elem_offset_print = true;
+        }
+      }
     }
-  } else if (buf->elem_offset->IsInstance<IntImmNode>()) {
-    IntImm elem_offset = Downcast<IntImm>(buf->elem_offset);
-    if (elem_offset->value != 0) {
-      doc << ", elem_offset=" << Print(buf->elem_offset);
+    doc_offsets << "]";
+
+    if (requires_elem_offset_print) {
+      doc << ", elem_offsets=" << doc_offsets;
     }
   }
+
   if (buf.scope() != "global") {
     doc << ", scope=" << Doc::StrLiteral(buf.scope());
   }
   if (buf->data_alignment != runtime::kAllocAlignment) {
     doc << ", align=" << buf->data_alignment;
   }
-  if (buf->offset_factor != 1 || print_factor_explicitly) {
-    doc << ", offset_factor=" << buf->offset_factor;
+
+  bool has_non_default_offset_factor = false;
+  for (const auto& offset_factor : buf->offset_factors) {
+    if (offset_factor->value != 1) {
+      has_non_default_offset_factor = true;
+      break;
+    }
+  }
+  if (has_non_default_offset_factor || print_factor_explicitly) {
+    doc << ", offset_factors=" << Print(buf->offset_factors);
   }
   if (buf->buffer_type != BufferType::kDefault) {
     doc << ", type=" << Doc::StrLiteral("auto");
@@ -586,12 +629,13 @@ bool TVMScriptPrinter::IsSimpleBuffer(const Buffer& buf) {
       return false;
     }
   }
-  if (!UndefinedVars(buf->elem_offset).empty()) {
-    return false;
-  } else if (buf->elem_offset->IsInstance<IntImmNode>()) {
-    IntImm elem_offset = Downcast<IntImm>(buf->elem_offset);
-    if (elem_offset->value != 0) {
+  for (const auto& offset : buf->elem_offsets) {
+    if (!UndefinedVars(offset).empty()) {
       return false;
+    } else if (auto* int_offset = offset.as<IntImmNode>()) {
+      if (int_offset->value != 0) {
+        return false;
+      }
     }
   }
   if (buf.scope() != "global") {
@@ -600,8 +644,11 @@ bool TVMScriptPrinter::IsSimpleBuffer(const Buffer& buf) {
   if (buf->data_alignment != runtime::kAllocAlignment) {
     return false;
   }
-  if (buf->offset_factor != 1) {
-    return false;
+
+  for (const auto& offset_factor : buf->offset_factors) {
+    if (offset_factor->value != 1) {
+      return false;
+    }
   }
   if (buf->buffer_type != BufferType::kDefault) {
     return false;
