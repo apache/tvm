@@ -48,14 +48,16 @@ import tvm
 import tvm.relay.testing
 from tvm import relay
 
-from .infrastructure import skip_test, verify_result
+from .infrastructure import verify_result
 
 
+@pytest.mark.skipif(
+    not tvm.get_global_func("relay.ext.vitis_ai.available", True),
+    reason="Skip test because Vitis-AI codegen is not available.",
+)
 @pytest.mark.parametrize("dpu_target", ["DPUCADF8H", "DPUCVDX8H", "DPUCZDX8G-zcu104"])
 def test_extern_vitis_ai_resnet18(dpu_target):
     """Test first part of Vitis AI on-the-fly quantization runtime with ResNet 18 model"""
-    if skip_test():
-        return
 
     dtype = "float32"
     ishape = (1, 3, 224, 224)
