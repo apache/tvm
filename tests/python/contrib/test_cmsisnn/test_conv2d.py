@@ -35,12 +35,14 @@ from tests.python.relay.aot.aot_test_utils import (
 from utils import (
     skip_if_no_reference_system,
     make_module,
+    create_conv2d_tflite_relay_models,
     get_range_for_dtype_str,
     get_same_padding,
     get_conv2d_qnn_params,
     make_qnn_relu,
     assert_partitioned_function,
     assert_no_external_function,
+    generate_ref_data_tflite,
 )
 
 
@@ -282,7 +284,6 @@ def test_conv2d_asymmetric_padding_int8(
     )
     orig_mod = make_module(model)
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
-
     # validate pattern matching
     assert_partitioned_function(orig_mod, cmsisnn_mod)
 
@@ -306,90 +307,40 @@ def test_conv2d_asymmetric_padding_int8(
 
 # This test expects assertion as the output should mismatch between TVM and CMSIS-NN
 @tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3)])
+@pytest.mark.parametrize("kernel_shape", [(3, 2), (1, 3)])
+@pytest.mark.parametrize("strides, dilation", [((3, 2), (1, 1))])
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
-def test_conv2d_numerical_mismatch_int8(padding):
+@pytest.mark.parametrize("activation", ["NONE", "RELU"])
+def test_conv2d_int8_tflite(ifm_shape, kernel_shape, strides, dilation, padding, activation):
     interface_api = "c"
     use_unpacked_api = True
     test_runner = AOT_USMP_CORSTONE300_RUNNER
 
-    out_channels = 3
-    ifm_shape = (1, 64, 100, 4)
-    input_zero_point = -64
-    input_scale = 1
-    strides = (1, 1)
-    dilation = (1, 1)
     dtype = "int8"
-    groups = 1
-    relu_type = "RELU"
-    weight_format = "HWIO"
-    kernel_size = (3, 3)
-    kernel_h = kernel_size[0]
-    kernel_w = kernel_size[1]
-    kernel_shape = (kernel_h, kernel_w, ifm_shape[3] // groups, out_channels)
-    kernel_zero_point = 0
-    kernel_scale = [1, 0.0256, 1.37]
-    enable_bias = False
-    in_min, in_max = get_range_for_dtype_str(dtype)
-
-    output_scale, output_zero_point = get_conv2d_qnn_params(
-        kernel_shape,
-        input_scale,
-        input_zero_point,
-        kernel_scale,
-        kernel_zero_point,
-        dtype,
-        dtype,
-        dtype,
+    tflite_model, relay_mod, params = create_conv2d_tflite_relay_models(
+        ifm_shape, kernel_shape, strides, dilation, padding, activation, dtype
     )
 
-    model, params = make_model(
-        ifm_shape,
-        kernel_shape,
-        input_zero_point,
-        input_scale,
-        kernel_zero_point,
-        kernel_scale,
-        output_zero_point,
-        output_scale,
-        padding,
-        strides,
-        dilation,
-        groups,
-        dtype,
-        dtype,
-        out_channels,
-        weight_format,
-        enable_bias,
-        relu_type,
-    )
-    orig_mod = make_module(model)
-    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(relay_mod, params)
 
     # validate pattern matching
-    assert_partitioned_function(orig_mod, cmsisnn_mod)
+    assert_partitioned_function(relay_mod, cmsisnn_mod)
 
-    # DO_NOT_RANDOMIZE: validate the output with fixed input
-    seed = 0
-    random_state = np.random.RandomState(seed)
-    input_data = random_state.randint(in_min, in_max, ifm_shape, dtype)
-    inputs = {"input": input_data}
-    output_list = generate_ref_data(orig_mod["main"], inputs, params)
-    try:
-        compile_and_run(
-            AOTTestModel(
-                module=cmsisnn_mod,
-                inputs=inputs,
-                outputs=output_list,
-                params=params,
-                output_tolerance=0,
-            ),
-            test_runner,
-            interface_api,
-            use_unpacked_api,
-        )
-        exit(-1)
-    except AssertionError:
-        return
+    # validate CMSIS-NN output against TFLite output
+    input_map, output_map = generate_ref_data_tflite(tflite_model)
+    compile_and_run(
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=input_map,
+            outputs=output_map,
+            params=params,
+            output_tolerance=0,
+        ),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
 
 
 @pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10314")
