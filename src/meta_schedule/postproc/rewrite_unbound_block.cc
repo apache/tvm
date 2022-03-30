@@ -167,9 +167,12 @@ class RewriteUnboundBlockNode : public PostprocNode {
  public:
   /*! \brief The max number of threads per block from Target */
   int max_num_threads_ = -1;
+  /*! \brief The max number of threadblocks in the cuda device */
+  int max_threadblock_ = -1;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `max_num_threads_` is not visited
+    // `max_threadblock_` is not visited
   }
 
   static constexpr const char* _type_key = "meta_schedule.RewriteUnboundBlock";
@@ -197,19 +200,22 @@ bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
     if (bind_type == tir::BindType::kBindBlock) {
       sch->Bind(fused, "blockIdx.x");
     } else if (bind_type == tir::BindType::kBindBlockThread) {
-      int extent_size = 0, max_block = 256;
+      int64_t extent_size = *tir::GetLoopIntExtent(sch->Get(fused).get());
       if (const IntImmNode* node = sch->Get(fused)->extent.as<IntImmNode>()) {
         extent_size = node->value;
       }
       Array<LoopRV> splits;
-      if (extent_size > max_block * max_num_threads_) {
-        splits = sch->Split(fused, {NullOpt, Integer(max_block), Integer(max_num_threads_)});
+      if (extent_size > max_threadblock_ * max_num_threads_) {
+        splits = sch->Split(fused, {NullOpt, Integer(max_threadblock_), Integer(max_num_threads_)});
         ICHECK_EQ(splits.size(), 3);
         sch->Reorder({splits[1], splits[2], splits[0]});
         sch->Bind(splits[1], "blockIdx.x");
         sch->Bind(splits[2], "threadIdx.x");
-      } else if (extent_size != 0) {
-        splits = sch->Split(fused, {NullOpt, Integer(std::min(max_num_threads_, extent_size))});
+      } else {
+        ICHECK_NE(extent_size, 0);
+        splits = sch->Split(
+            fused,
+            {NullOpt, Integer(std::min(static_cast<int64_t>(max_num_threads_), extent_size))});
         ICHECK_EQ(splits.size(), 2);
         sch->Bind(splits[0], "blockIdx.x");
         sch->Bind(splits[1], "threadIdx.x");
@@ -219,8 +225,9 @@ bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
   return true;
 }
 
-Postproc Postproc::RewriteUnboundBlock() {
+Postproc Postproc::RewriteUnboundBlock(int max_threadblock) {
   ObjectPtr<RewriteUnboundBlockNode> n = make_object<RewriteUnboundBlockNode>();
+  n->max_threadblock_ = max_threadblock;
   n->max_num_threads_ = -1;
   return Postproc(n);
 }
