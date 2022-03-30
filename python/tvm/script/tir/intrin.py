@@ -103,6 +103,16 @@ def float64(imm, span):
 
 
 @register
+def int32x16(imm, span):
+    return imm.astype("int32x16", span)
+
+
+@register
+def int32x4(imm, span):
+    return imm.astype("int32x4", span)
+
+
+@register
 def min_value(dtype, span):
     return tvm.tir.min_value(dtype, span)
 
