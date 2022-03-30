@@ -111,6 +111,165 @@ class After_norm_bmn:
                     D[b] = T.sqrt(C[b], dtype="float32")
 
 
+@tvm.script.ir_module
+class Bert_fused_reshape_transpose_reshape:
+    @T.prim_func
+    def main(
+        placeholder: T.Buffer[(12, 64, 64), "float32"], T_reshape: T.Buffer[(64, 768), "float32"]
+    ) -> None:
+        for i0_i1_fused_0, i0_i1_fused_1 in T.grid(1536, 32):
+            with T.block("T_reshape_1"):
+                ax0 = T.axis.spatial(64, (i0_i1_fused_0 * 32 + i0_i1_fused_1) // 768)
+                ax1 = T.axis.spatial(768, (i0_i1_fused_0 * 32 + i0_i1_fused_1) % 768)
+                T.reads(placeholder[ax1 % 768 // 64, (ax1 // 768 + ax0) % 64, ax1 % 64])
+                T.writes(T_reshape[ax0, ax1])
+                T_reshape[ax0, ax1] = placeholder[
+                    ((ax1 % 64 // 64 + (ax1 // 768 + ax0) % 64) // 64 + ax1 % 768 // 64) % 12,
+                    (ax1 % 64 // 64 + (ax1 // 768 + ax0) % 64) % 64,
+                    ax1 % 64 % 64,
+                ]
+
+
+@tvm.script.ir_module
+class Bert_fused_reshape_transpose_reshape_large:
+    @T.prim_func
+    def main(
+        placeholder: T.Buffer[(12, 64, 64), "float32"], T_reshape: T.Buffer[(64, 768), "float32"]
+    ) -> None:
+        for i0_i1_fused_0, i0_i1_fused_1 in T.grid(1536000, 32):
+            with T.block("T_reshape_1"):
+                ax0 = T.axis.spatial(64, (i0_i1_fused_0 * 32 + i0_i1_fused_1) // 768)
+                ax1 = T.axis.spatial(768, (i0_i1_fused_0 * 32 + i0_i1_fused_1) % 768)
+                T.reads(placeholder[ax1 % 768 // 64, (ax1 // 768 + ax0) % 64, ax1 % 64])
+                T.writes(T_reshape[ax0, ax1])
+                T_reshape[ax0, ax1] = placeholder[
+                    ((ax1 % 64 // 64 + (ax1 // 768 + ax0) % 64) // 64 + ax1 % 768 // 64) % 12,
+                    (ax1 % 64 // 64 + (ax1 // 768 + ax0) % 64) % 64,
+                    ax1 % 64 % 64,
+                ]
+
+
+@tvm.script.ir_module
+class Bert_fused_reshape_transpose_reshape_after_rub:
+    @T.prim_func
+    def main(
+        placeholder: T.Buffer[(12, 64, 64), "float32"], T_reshape: T.Buffer[(64, 768), "float32"]
+    ) -> None:
+        for i0_i1_fused_0_i0_i1_fused_1_fused_0 in T.thread_binding(48, thread="blockIdx.x"):
+            for i0_i1_fused_0_i0_i1_fused_1_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+                with T.block("T_reshape_1"):
+                    ax0 = T.axis.spatial(
+                        64,
+                        (
+                            (
+                                i0_i1_fused_0_i0_i1_fused_1_fused_0 * 1024
+                                + i0_i1_fused_0_i0_i1_fused_1_fused_1
+                            )
+                            // 32
+                            * 32
+                            + (
+                                i0_i1_fused_0_i0_i1_fused_1_fused_0 * 1024
+                                + i0_i1_fused_0_i0_i1_fused_1_fused_1
+                            )
+                            % 32
+                        )
+                        // 768,
+                    )
+                    ax1 = T.axis.spatial(
+                        768,
+                        (
+                            (
+                                i0_i1_fused_0_i0_i1_fused_1_fused_0 * 1024
+                                + i0_i1_fused_0_i0_i1_fused_1_fused_1
+                            )
+                            // 32
+                            * 32
+                            + (
+                                i0_i1_fused_0_i0_i1_fused_1_fused_0 * 1024
+                                + i0_i1_fused_0_i0_i1_fused_1_fused_1
+                            )
+                            % 32
+                        )
+                        % 768,
+                    )
+                    T.reads(placeholder[ax1 % 768 // 64, (ax1 // 768 + ax0) % 64, ax1 % 64])
+                    T.writes(T_reshape[ax0, ax1])
+                    T_reshape[ax0, ax1] = placeholder[
+                        ((ax1 % 64 // 64 + (ax1 // 768 + ax0) % 64) // 64 + ax1 % 768 // 64) % 12,
+                        (ax1 % 64 // 64 + (ax1 // 768 + ax0) % 64) % 64,
+                        ax1 % 64 % 64,
+                    ]
+
+
+@tvm.script.ir_module
+class Bert_fused_reshape_transpose_reshape_after_rub_large:
+    @T.prim_func
+    def main(
+        placeholder: T.Buffer[(12, 64, 64), "float32"], T_reshape: T.Buffer[(64, 768), "float32"]
+    ) -> None:
+        # body
+        # with T.block("root")
+        for i0_i1_fused_0_i0_i1_fused_1_fused_1 in T.thread_binding(256, thread="blockIdx.x"):
+            for i0_i1_fused_0_i0_i1_fused_1_fused_2 in T.thread_binding(1024, thread="threadIdx.x"):
+                for i0_i1_fused_0_i0_i1_fused_1_fused_0 in T.serial(188):
+                    with T.block("T_reshape_1"):
+                        ax0 = T.axis.spatial(
+                            64,
+                            (
+                                (
+                                    i0_i1_fused_0_i0_i1_fused_1_fused_0 * 262144
+                                    + i0_i1_fused_0_i0_i1_fused_1_fused_1 * 1024
+                                    + i0_i1_fused_0_i0_i1_fused_1_fused_2
+                                )
+                                // 32
+                                * 32
+                                + (
+                                    i0_i1_fused_0_i0_i1_fused_1_fused_0 * 262144
+                                    + i0_i1_fused_0_i0_i1_fused_1_fused_1 * 1024
+                                    + i0_i1_fused_0_i0_i1_fused_1_fused_2
+                                )
+                                % 32
+                            )
+                            // 768,
+                        )
+                        ax1 = T.axis.spatial(
+                            768,
+                            (
+                                (
+                                    i0_i1_fused_0_i0_i1_fused_1_fused_0 * 262144
+                                    + i0_i1_fused_0_i0_i1_fused_1_fused_1 * 1024
+                                    + i0_i1_fused_0_i0_i1_fused_1_fused_2
+                                )
+                                // 32
+                                * 32
+                                + (
+                                    i0_i1_fused_0_i0_i1_fused_1_fused_0 * 262144
+                                    + i0_i1_fused_0_i0_i1_fused_1_fused_1 * 1024
+                                    + i0_i1_fused_0_i0_i1_fused_1_fused_2
+                                )
+                                % 32
+                            )
+                            % 768,
+                        )
+                        T.where(
+                            (
+                                i0_i1_fused_0_i0_i1_fused_1_fused_0 * 256
+                                + i0_i1_fused_0_i0_i1_fused_1_fused_1
+                            )
+                            * 1024
+                            + i0_i1_fused_0_i0_i1_fused_1_fused_2
+                            < 49152000
+                        )
+                        T.reads(placeholder[ax1 % 768 // 64, (ax1 // 768 + ax0) % 64, ax1 % 64])
+                        T.writes(T_reshape[ax0, ax1])
+                        T_reshape[ax0, ax1] = placeholder[
+                            ((ax1 % 64 // 64 + (ax1 // 768 + ax0) % 64) // 64 + ax1 % 768 // 64)
+                            % 12,
+                            (ax1 % 64 // 64 + (ax1 // 768 + ax0) % 64) % 64,
+                            ax1 % 64 % 64,
+                        ]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on
 
@@ -135,6 +294,28 @@ def test_rewrite_norm_bmn():
     tvm.ir.assert_structural_equal(sch.mod, After_norm_bmn)
 
 
+def test_rewrite_cuda_loop_split_no_reduction():
+    mod = Bert_fused_reshape_transpose_reshape
+    target = Target("nvidia/nvidia-v100", host="llvm")
+    ctx = _create_context(mod, target)
+    sch = tir.Schedule(mod, debug_mask="all")
+    sch.enter_postproc()
+    assert ctx.postprocs[0].apply(sch)
+    tvm.ir.assert_structural_equal(sch.mod, Bert_fused_reshape_transpose_reshape_after_rub)
+
+
+def test_rewrite_cuda_loop_split_no_reduction_large():
+    mod = Bert_fused_reshape_transpose_reshape_large
+    target = Target("nvidia/nvidia-v100", host="llvm")
+    ctx = _create_context(mod, target)
+    sch = tir.Schedule(mod, debug_mask="all")
+    sch.enter_postproc()
+    assert ctx.postprocs[0].apply(sch)
+    tvm.ir.assert_structural_equal(sch.mod, Bert_fused_reshape_transpose_reshape_after_rub_large)
+
+
 if __name__ == "__main__":
-    test_rewrite_cooperative_fetch()
-    test_rewrite_norm_bmn()
+    # test_rewrite_cooperative_fetch()
+    # test_rewrite_norm_bmn()
+    test_rewrite_cuda_loop_split_no_reduction()
+    test_rewrite_cuda_loop_split_no_reduction_large()

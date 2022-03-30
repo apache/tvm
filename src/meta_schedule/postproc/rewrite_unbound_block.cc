@@ -157,6 +157,8 @@ class RewriteUnboundBlockNode : public PostprocNode {
     Optional<Integer> warp_size = context->target.value()->GetAttr<Integer>("thread_warp_size");
     CHECK(warp_size.defined()) << "ValueError: missing attribute `thread_warp_size` in the target";
     this->warp_size_ = warp_size.value();
+    this->max_num_threads_ =
+        context->target.value()->GetAttr<Integer>("max_threads_per_block").value();
   }
 
   // Inherited from PostprocNode
@@ -165,9 +167,12 @@ class RewriteUnboundBlockNode : public PostprocNode {
  public:
   /*! \brief The cached warp size from Target */
   int warp_size_ = -1;
+  /*! \brief The max number of threads per block from Target */
+  int max_num_threads_ = -1;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `warp_size_` is not visited
+    // `max_num_threads_` is not visited
   }
 
   static constexpr const char* _type_key = "meta_schedule.RewriteUnboundBlock";
@@ -195,10 +200,23 @@ bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
     if (bind_type == tir::BindType::kBindBlock) {
       sch->Bind(fused, "blockIdx.x");
     } else if (bind_type == tir::BindType::kBindBlockThread) {
-      Array<LoopRV> splits = sch->Split(fused, {NullOpt, Integer(this->warp_size_)});
-      ICHECK_EQ(splits.size(), 2);
-      sch->Bind(splits[0], "blockIdx.x");
-      sch->Bind(splits[1], "threadIdx.x");
+      int extent_size = 0, max_block = 256;
+      if (const IntImmNode* node = sch->Get(fused)->extent.as<IntImmNode>()) {
+        extent_size = node->value;
+      }
+      Array<LoopRV> splits;
+      if (extent_size > max_block * max_num_threads_) {
+        splits = sch->Split(fused, {NullOpt, Integer(max_block), Integer(max_num_threads_)});
+        ICHECK_EQ(splits.size(), 3);
+        sch->Reorder({splits[1], splits[2], splits[0]});
+        sch->Bind(splits[1], "blockIdx.x");
+        sch->Bind(splits[2], "threadIdx.x");
+      } else if (extent_size != 0) {
+        splits = sch->Split(fused, {NullOpt, Integer(std::min(max_num_threads_, extent_size))});
+        ICHECK_EQ(splits.size(), 2);
+        sch->Bind(splits[0], "blockIdx.x");
+        sch->Bind(splits[1], "threadIdx.x");
+      }
     }
   }
   return true;
@@ -206,6 +224,7 @@ bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
 
 Postproc Postproc::RewriteUnboundBlock() {
   ObjectPtr<RewriteUnboundBlockNode> n = make_object<RewriteUnboundBlockNode>();
+  n->max_num_threads_ = -1;
   n->warp_size_ = -1;
   return Postproc(n);
 }
