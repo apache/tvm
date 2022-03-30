@@ -176,9 +176,49 @@ def test_batch_matmul():
     verify_batch_matmul((16, 1024, 128), (16, 128, 236), (16, 1024, 236), "int8", "int32")
 
 
+def _verify_cublas_relay(expr):
+    np.random.seed(42)
+
+    mod = tvm.IRModule.from_expr(expr)
+    mod = relay.transform.InferType()(mod)
+    func = mod["main"]
+    cublas_mod = partition_for_cublas(mod)
+    assert len(cublas_mod.get_global_vars()) == 2
+
+    input_data = []
+    for param in func.params:
+        shape = [int(x) for x in param.checked_type.shape]
+        input_data.append(
+            (param.name_hint, np.random.uniform(0, 32, size=shape).astype(param.checked_type.dtype))
+        )
+
+    # Test against CPU reference
+    cuda_config = (tvm.target.cuda(), tvm.cuda(), cublas_mod)
+    cpu_config = (tvm.target.Target("llvm"), tvm.cpu(), mod)
+    outputs = []
+    for target, dev, test_mod in [cuda_config, cpu_config]:
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(test_mod, target=target, target_host=cpu_config[0])
+            module = graph_executor.GraphModule(lib["default"](dev))
+            for name, data in input_data:
+                module.set_input(name, tvm.nd.array(data, dev))
+
+            module.run()
+            out_type = func.body.checked_type
+            outputs.append(
+                module.get_output(0, tvm.nd.empty(out_type.shape, dtype=out_type.dtype)).numpy()
+            )
+
+    tvm.testing.assert_allclose(
+        outputs[0],
+        outputs[1],
+        rtol=1e-2,
+    )
+
+
 @tvm.testing.requires_cuda
 @pytest.mark.parametrize(
-    "n,m,k,transpose_A,transpose_B",
+    "n,m,k,transpose_a,transpose_b",
     [
         (64, 128, 32, False, False),
         (17, 32, 16, True, False),
@@ -197,63 +237,23 @@ def test_batch_matmul():
         ("int8", "float32"),
     ],
 )
-def test_relay_cublas_matmul(n, m, k, in_dtype, out_dtype, transpose_A, transpose_B):
-    np.random.seed(42)
-    pattern_table = get_pattern_table("cublas")
-    matmul_pattern = None
-    check_matmul = None
-    for pattern_name, pattern, check_func in pattern_table:
-        if pattern_name == "cublas.matmul":
-            matmul_pattern = pattern
-            check_matmul = check_func
+def test_relay_cublas_matmul(n, m, k, in_dtype, out_dtype, transpose_a, transpose_b):
+    unsupported_configs = [
+        (17, 32, 16, "int8", "float32", True, False),
+        (96, 4, 17, "int8", "float32", True, True),
+        (17, 32, 16, "int8", "int32", True, False),
+        (96, 4, 17, "int8", "int32", True, True),
+    ]
+    if (n, m, k, in_dtype, out_dtype, transpose_a, transpose_b) in unsupported_configs:
+        pytest.skip("Unsupported parameters.")
 
-    assert matmul_pattern is not None
-    assert check_matmul is not None
-    A_shape = (k, n) if transpose_A else (n, k)
-    B_shape = (m, k) if transpose_B else (k, m)
-
-    def _create_mod():
-        mod = tvm.IRModule()
-        A_var = tvm.relay.var("A", tvm.relay.TensorType(A_shape, in_dtype))
-        B_var = tvm.relay.var("B", tvm.relay.TensorType(B_shape, in_dtype))
-        # Directly use matmul because nn.matmul sometimes defers to nn.dense
-        C_var = relay.op.nn._make.matmul(A_var, B_var, None, out_dtype, transpose_A, transpose_B)
-        f = tvm.relay.Function([A_var, B_var], C_var)
-        mod["main"] = f
-        mod = relay.transform.InferType()(mod)
-        return mod
-
-    mod = _create_mod()
-    if not matmul_pattern.match(mod["main"].body) or not check_matmul(mod["main"].body):
-        pytest.skip("Unsupported parameters")
-
-    cublas_mod = partition_for_cublas(mod)
-    # Assert that a new global function has been created for the cuBLAS partition
-    assert len(cublas_mod.get_global_vars()) == 2
-
-    A_data = np.random.uniform(0, 32, size=A_shape).astype(in_dtype)
-    B_data = np.random.uniform(0, 32, size=B_shape).astype(in_dtype)
-
-    # Test against CPU reference
-    cuda_config = (tvm.target.cuda(), tvm.cuda(), cublas_mod)
-    cpu_config = (tvm.target.Target("llvm"), tvm.cpu(), mod)
-    outputs = []
-    for target, dev, test_mod in [cuda_config, cpu_config]:
-        with tvm.transform.PassContext(opt_level=3):
-            lib = relay.build(test_mod, target=target, target_host=cpu_config[0])
-            a = tvm.nd.array(A_data, dev)
-            b = tvm.nd.array(B_data, dev)
-            module = graph_executor.GraphModule(lib["default"](dev))
-            module.set_input("A", a)
-            module.set_input("B", b)
-            module.run()
-            outputs.append(module.get_output(0, tvm.nd.empty((n, m), dtype=out_dtype)).numpy())
-
-    tvm.testing.assert_allclose(
-        outputs[0],
-        outputs[1],
-        rtol=1e-2,
-    )
+    a_shape = (k, n) if transpose_a else (n, k)
+    b_shape = (m, k) if transpose_b else (k, m)
+    a = tvm.relay.var("A", tvm.relay.TensorType(a_shape, in_dtype))
+    b = tvm.relay.var("B", tvm.relay.TensorType(b_shape, in_dtype))
+    # Directly use matmul because nn.matmul sometimes defers to nn.dense
+    matmul = relay.op.nn._make.matmul(a, b, None, out_dtype, transpose_a, transpose_b)
+    _verify_cublas_relay(matmul)
 
 
 if __name__ == "__main__":

@@ -60,7 +60,7 @@ def partition_for_cublas(
 
 
 @register_pattern_table("cublas")
-def pattern_table() -> List[Tuple[str, relay.Pattern, Callable]]:
+def pattern_table() -> List[Tuple[str, relay.Pattern, Callable[[relay.Call], bool]]]:
     """Get the cuBLAS pattern table."""
 
     def matmul_pattern() -> relay.Pattern:
@@ -70,7 +70,7 @@ def pattern_table() -> List[Tuple[str, relay.Pattern, Callable]]:
     def check_matmul(matched: relay.Call) -> bool:
         """Check if matmul is supported by cuBLAS."""
         # Units not supported
-        if matched.attrs["units"] != None:
+        if matched.attrs["units"] is not None:
             return False
         # Input data types can't be mixed
         if matched.args[0].checked_type.dtype != matched.args[1].checked_type.dtype:
@@ -102,44 +102,18 @@ def pattern_table() -> List[Tuple[str, relay.Pattern, Callable]]:
     ]
 
 
-_LOWER_MAP = {}
+_LowerFunc = Callable[[relay.Call, List[te.Tensor]], te.Tensor]
+_LOWER_MAP: Dict[str, _LowerFunc] = {}
 
 
-def lower_composite(comp_name: str) -> Callable:
+def _lower_composite(comp_name: str) -> Callable[[_LowerFunc], _LowerFunc]:
     """Register a lowering function for a given composite function name."""
 
-    def _register(f: Callable) -> Callable:
+    def _register(f: _LowerFunc) -> _LowerFunc:
         _LOWER_MAP[comp_name] = f
         return f
 
     return _register
-
-
-@lower_composite("cublas.matmul")
-def lower_matmul(
-    comp_func: relay.Function, target: tvm.target.Target, global_name: str
-) -> tvm.runtime.Module:
-    """Lower a matmul using cuBLAS."""
-    op = comp_func.body
-    A = te.placeholder(
-        comp_func.params[0].checked_type.shape,
-        name="A",
-        dtype=comp_func.params[0].checked_type.dtype,
-    )
-    B = te.placeholder(
-        comp_func.params[1].checked_type.shape,
-        name="B",
-        dtype=comp_func.params[1].checked_type.dtype,
-    )
-    C = cublas.matmul(
-        A,
-        B,
-        transa=op.attrs["transpose_a"],
-        transb=op.attrs["transpose_b"],
-        dtype=comp_func.body.checked_type.dtype,
-    )
-    s = te.create_schedule(C.op)
-    return tvm.build(s, [A, B, C], target=target, name=global_name)
 
 
 @tvm._ffi.register_func("relay.ext.cublas")
@@ -154,5 +128,31 @@ def relay_to_runtime(partition: relay.Function) -> tvm.runtime.Module:
     comp_func = partition.body.op
     comp_name = comp_func.attrs["Composite"]
     assert comp_name in _LOWER_MAP
+    assert isinstance(comp_func.body, relay.Call)
 
-    return _LOWER_MAP[comp_name](comp_func, target, global_name)
+    op = comp_func.body
+    inputs = []
+    for i, param in enumerate(comp_func.params):
+        inputs.append(
+            te.placeholder(
+                param.checked_type.shape,
+                name=f"input_{i}",
+                dtype=param.checked_type.dtype,
+            )
+        )
+
+    output = _LOWER_MAP[comp_name](op, inputs)
+    prim_func = te.create_prim_func(inputs + [output])
+    return tvm.build(prim_func, target=target, name=global_name)
+
+
+@_lower_composite("cublas.matmul")
+def _lower_matmul(op: relay.Call, inputs: List[te.Tensor]) -> te.Tensor:
+    """Lower a matmul using cuBLAS."""
+    return cublas.matmul(
+        inputs[0],
+        inputs[1],
+        transa=op.attrs["transpose_a"],
+        transb=op.attrs["transpose_b"],
+        dtype=op.checked_type.dtype,
+    )
