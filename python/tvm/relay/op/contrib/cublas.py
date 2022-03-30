@@ -182,4 +182,6 @@ def _lower_batch_matmul(op: relay.Call, inputs: List[te.Tensor]) -> te.Tensor:
 @_lower_composite("cublas.dense")
 def _lower_dense(op: relay.Call, inputs: List[te.Tensor]) -> te.Tensor:
     """Lower a dense using cuBLAS."""
-    return cublas.matmul(inputs[0], inputs[1], False, True, dtype=op.checked_type.dtype)
+    return cublas.matmul(
+        inputs[0], inputs[1], transa=False, transb=True, dtype=op.checked_type.dtype
+    )
