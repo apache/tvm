@@ -73,8 +73,6 @@ def _get_expected_codegen(shape, dtype, op_name, qnn_params):
             "num_outputs": "1",
             "shape": [[list(shape)]],
             "dtype": [[dtype]],
-            "lhs_axis": [[-1]],
-            "rhs_axis": [[-1]],
         },
     }
 
