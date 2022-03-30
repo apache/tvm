@@ -79,11 +79,47 @@ def test_run_tflite_module__with_profile__valid_input(
     pytest.importorskip("tflite")
 
     inputs = np.load(imagenet_cat)
+    input_dict = {"input": inputs["input"].astype("uint8")}
 
     tflite_compiled_model = tflite_compile_model(tflite_mobilenet_v1_1_quant)
     result = tvmc.run(
         tflite_compiled_model,
-        inputs=inputs,
+        inputs=input_dict,
+        hostname=None,
+        device="cpu",
+        profile=True,
+    )
+
+    # collect the top 5 results
+    top_5_results = get_top_results(result, 5)
+    top_5_ids = top_5_results[0]
+
+    # IDs were collected from this reference:
+    # https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/
+    # java/demo/app/src/main/assets/labels_mobilenet_quant_v1_224.txt
+    tiger_cat_mobilenet_id = 283
+
+    assert (
+        tiger_cat_mobilenet_id in top_5_ids
+    ), "tiger cat is expected in the top-5 for mobilenet v1"
+    assert type(result.outputs) is dict
+    assert type(result.times) is BenchmarkResult
+    assert "output_0" in result.outputs.keys()
+
+
+def test_run_tflite_module__with_profile_vm__valid_input(
+    tflite_mobilenet_v1_1_quant, tflite_compile_model, imagenet_cat
+):
+    # some CI environments wont offer TFLite, so skip in case it is not present
+    pytest.importorskip("tflite")
+
+    inputs = np.load(imagenet_cat)
+    input_dict = {"input": inputs["input"].astype("uint8")}
+
+    tflite_compiled_model = tflite_compile_model(tflite_mobilenet_v1_1_quant, use_vm=True)
+    result = tvmc.run(
+        tflite_compiled_model,
+        inputs=input_dict,
         hostname=None,
         device="cpu",
         profile=True,

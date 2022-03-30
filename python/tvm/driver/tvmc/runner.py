@@ -32,6 +32,7 @@ from tvm.runtime import vm
 from tvm.autotvm.measure import request_remote
 from tvm.contrib import graph_executor
 from tvm.contrib.debugger import debug_executor
+from tvm.runtime import profiler_vm
 from . import TVMCException
 from .arguments import TVMCSuppressedArgumentParser
 from .project import (
@@ -531,16 +532,23 @@ def run_module(
             assert device == "cpu"
             dev = session.cpu()
 
-        if tvmc_package.use_vm:
-            assert inputs is not None and isinstance(
-                inputs, dict
-            ), "vm runner requires inputs to be provided as a dict"
-            exe = vm.VirtualMachine(lib, dev)
+        if tvmc_package.type == "vm":
+            assert inputs is not None, "vm runner requires inputs to be provided as a dict"
+
             input_tensor = {}
             for e, i in inputs.items():
                 input_tensor[e] = tvm.nd.array(i, dev)
-            exe.set_input("main", **input_tensor)
-            exe.invoke_stateful("main")
+
+            if profile:
+                logger.debug("Creating vm with profile enabled.")
+                exe = profiler_vm.VirtualMachineProfiler(lib, dev)
+                res = exe.profile(**input_tensor, func_name="main")
+                # This print is intentional
+                print(res)
+            else:
+                exe = vm.VirtualMachine(lib, dev)
+
+            exe_outputs = exe.invoke("main", **input_tensor)
             times = exe.benchmark(
                 dev,
                 **input_tensor,
@@ -549,11 +557,15 @@ def run_module(
                 number=number,
                 end_to_end=end_to_end,
             )
-            exe_outputs = exe.get_outputs()
+
+            # Special handling if the output only has a single value
+            if not isinstance(exe_outputs, list):
+                exe_outputs = [exe_outputs]
+
             outputs = {}
             for i, val in enumerate(exe_outputs):
                 output_name = "output_{}".format(i)
-                outputs[output_name] = val
+                outputs[output_name] = val.numpy()
         else:
             # TODO(gromero): Adjust for micro targets.
             if profile:

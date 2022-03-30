@@ -43,6 +43,10 @@ def test_tvmc_workflow(keras_simple):
 
 def test_tvmc_workflow_use_vm(keras_simple):
     pytest.importorskip("tensorflow")
+    import tensorflow as tf
+
+    # Reset so the input name remains consistent across unit test runs
+    tf.keras.backend.clear_session()
 
     tvmc_model = tvmc.load(keras_simple)
     tuning_records = tvmc.tune(tvmc_model, target="llvm", enable_autoscheduler=True, trials=2)
@@ -50,7 +54,7 @@ def test_tvmc_workflow_use_vm(keras_simple):
         tvmc_model, tuning_records=tuning_records, target="llvm", use_vm=True
     )
 
-    input_dict = {"input_2": np.random.uniform(size=(1, 32, 32, 3)).astype("float32")}
+    input_dict = {"input_1": np.random.uniform(size=(1, 32, 32, 3)).astype("float32")}
     result = tvmc.run(tvmc_package, device="cpu", end_to_end=True, inputs=input_dict)
 
     assert type(tvmc_model) is TVMCModel

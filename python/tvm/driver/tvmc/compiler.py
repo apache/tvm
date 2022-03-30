@@ -349,7 +349,7 @@ def compile_model(
     if dumps:
         save_dumps(package_path, dumps)
 
-    return TVMCPackage(package_path, use_vm=use_vm)
+    return TVMCPackage(package_path)
 
 
 def build(
