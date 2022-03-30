@@ -305,7 +305,6 @@ def test_conv2d_asymmetric_padding_int8(
     )
 
 
-# This test expects assertion as the output should mismatch between TVM and CMSIS-NN
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3)])
 @pytest.mark.parametrize("kernel_shape", [(3, 2), (1, 3)])
