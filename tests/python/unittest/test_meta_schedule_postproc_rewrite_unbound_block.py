@@ -315,7 +315,7 @@ def test_rewrite_cuda_loop_split_no_reduction_large():
 
 
 if __name__ == "__main__":
-    # test_rewrite_cooperative_fetch()
-    # test_rewrite_norm_bmn()
+    test_rewrite_cooperative_fetch()
+    test_rewrite_norm_bmn()
     test_rewrite_cuda_loop_split_no_reduction()
     test_rewrite_cuda_loop_split_no_reduction_large()
