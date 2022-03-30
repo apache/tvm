@@ -63,6 +63,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
         # data is nchw, implicitly treat it as nchw1c
         n, in_channel, ih, iw = get_const_tuple(data.shape)
         num_filter, _, kh, kw = get_const_tuple(kernel.shape)
+        n_elems = 1
 
     # Define autotvm tuning space
     is_kernel_1x1 = kh == 1 and kw == 1
@@ -104,7 +105,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
         data, kernel = _pack_data(cfg, data, kernel)
 
     return nn.conv2d_NCHWc_int8(
-        data, kernel, strides, padding, dilation, layout, out_layout, out_dtype
+        data, kernel, strides, padding, dilation, layout, out_layout, out_dtype, n_elems=n_elems
     )
 
 
@@ -135,6 +136,7 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
 
     def _callback(op):
         if "conv2d_NCHWc_int8" in op.tag:
+            return
             conv_out = op.output(0)
             kernel_vec = conv_out.op.input_tensors[1]
             data_vec = conv_out.op.input_tensors[0]
