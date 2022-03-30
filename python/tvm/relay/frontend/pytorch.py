@@ -2039,6 +2039,14 @@ class PyTorchOpConverter:
             assert isinstance(ty, tvm.ir.TypeCall) and ty.func == list_ty, msg
             return self.tensor_array_stack(inputs, input_types)
 
+    def sub(self, inputs, input_types):
+        if len(inputs) == 3:
+            data0, data1, alpha = self.pytorch_promote_types(inputs, input_types)
+            return get_relay_op("subtract")(data0, alpha * data1)
+        else:
+            data0, data1= self.pytorch_promote_types(inputs, input_types)
+            return get_relay_op("subtract")(data0, data1)
+
     def rsub(self, inputs, input_types):
         data0, data1, alpha = self.pytorch_promote_types(inputs, input_types)
 
@@ -2859,7 +2867,10 @@ class PyTorchOpConverter:
             inp = inputs[0]
         return op(inp, axis=dim, keepdims=keepdim)
 
-    def searchsorted_common(self, sorted_sequence, values, out_int32, right):
+    def searchsorted_common(
+        self, sorted_sequence, values, out_int32, right, side=None, out=None, sorter=None
+    ):
+        assert side is None and out is None and sorter is None, "unsupported parameters"
         dtype = "int32" if out_int32 else "int64"
         values_shape = _infer_shape(values)
 
@@ -2959,7 +2970,7 @@ class PyTorchOpConverter:
             "aten::pixel_shuffle": self.pixel_shuffle,
             "aten::device": self.none,
             "prim::device": self.none,
-            "aten::sub": self.make_elemwise("subtract"),
+            "aten::sub": self.sub,
             "aten::max": self.max,
             "aten::min": self.min,
             "aten::mul": self.make_elemwise("multiply"),
