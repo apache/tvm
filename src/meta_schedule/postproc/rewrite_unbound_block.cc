@@ -200,22 +200,29 @@ bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
     if (bind_type == tir::BindType::kBindBlock) {
       sch->Bind(fused, "blockIdx.x");
     } else if (bind_type == tir::BindType::kBindBlockThread) {
-      int64_t extent_size = *tir::GetLoopIntExtent(sch->Get(fused).get());
-      if (const IntImmNode* node = sch->Get(fused)->extent.as<IntImmNode>()) {
-        extent_size = node->value;
-      }
+      int64_t extent_size = 0;
       Array<LoopRV> splits;
-      if (extent_size > max_threadblock_ * max_num_threads_) {
-        splits = sch->Split(fused, {NullOpt, Integer(max_threadblock_), Integer(max_num_threads_)});
-        ICHECK_EQ(splits.size(), 3);
-        sch->Reorder({splits[1], splits[2], splits[0]});
-        sch->Bind(splits[1], "blockIdx.x");
-        sch->Bind(splits[2], "threadIdx.x");
+      if (const int64_t* extent_ptr = tir::GetLoopIntExtent(sch->Get(fused).get())) {
+        extent_size = *extent_ptr;
+        if (extent_size > max_threadblock_ * max_num_threads_) {
+          splits =
+              sch->Split(fused, {NullOpt, Integer(max_threadblock_), Integer(max_num_threads_)});
+          ICHECK_EQ(splits.size(), 3);
+          sch->Reorder({splits[1], splits[2], splits[0]});
+          sch->Bind(splits[1], "blockIdx.x");
+          sch->Bind(splits[2], "threadIdx.x");
+        } else {
+          ICHECK_NE(extent_size, 0);
+          splits = sch->Split(
+              fused,
+              {NullOpt, Integer(std::min(static_cast<int64_t>(max_num_threads_), extent_size))});
+          ICHECK_EQ(splits.size(), 2);
+          sch->Bind(splits[0], "blockIdx.x");
+          sch->Bind(splits[1], "threadIdx.x");
+        }
       } else {
-        ICHECK_NE(extent_size, 0);
-        splits = sch->Split(
-            fused,
-            {NullOpt, Integer(std::min(static_cast<int64_t>(max_num_threads_), extent_size))});
+        // loop is dynamic, returns nullptr
+        splits = sch->Split(fused, {NullOpt, Integer(max_num_threads_)});
         ICHECK_EQ(splits.size(), 2);
         sch->Bind(splits[0], "blockIdx.x");
         sch->Bind(splits[1], "threadIdx.x");

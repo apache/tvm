@@ -290,8 +290,6 @@ def test_rewrite_norm_bmn():
     sch = tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.postprocs[0].apply(sch)
-    print(sch.mod.script())
-    print(Schedule(After_norm_bmn).mod.script())
     tvm.ir.assert_structural_equal(sch.mod, After_norm_bmn)
 
 
