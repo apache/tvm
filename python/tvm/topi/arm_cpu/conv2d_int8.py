@@ -136,7 +136,6 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
 
     def _callback(op):
         if "conv2d_NCHWc_int8" in op.tag:
-            return
             conv_out = op.output(0)
             kernel_vec = conv_out.op.input_tensors[1]
             data_vec = conv_out.op.input_tensors[0]
