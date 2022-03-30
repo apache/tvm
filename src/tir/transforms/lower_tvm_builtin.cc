@@ -38,6 +38,35 @@ namespace tir {
 // These information are needed during codegen.
 class BuiltinLower : public StmtExprMutator {
  public:
+  // NOTE: Right now, we make the following scoping requirement
+  // for memory allocated by the following primitives
+  // - tvm_stack_make_array
+  // - tvm_stack_make_shape
+  // - arg stack
+  //
+  // Scoping and liveness rules:
+  // - Every call_packed introduce a new scope.
+  // - The memory allocated by tvm_stack_make_array/make_shape will
+  //   no longer become valid outside the scope (and may be reused by
+  //   subsequent call_packed.
+  // - TODO(tvm-team): we might consider a root scope so stack_make_shape
+  //   can be called out-side call_packed.
+  //
+  //  Example:
+  //  {
+  //    call_packed(make_shape1(...),
+  //                call_packed(make_shape2(...))
+  //    call_packed(make_shape3(...))
+  //  }
+  //
+  //  In this case, make_shape1 and make_shape2 should not share memory,
+  //  but they can share memory with make_shape3.
+  //
+  //  Rationale: most of the packed calls needs their own internal
+  //  argument stack, and those stack can be shared across calls.
+  //  Scoping is a quick way to enable sharing without having
+  //  to do full-scale liveness analysis and it does its job.
+  //  Alternative approaches can also be used.
   struct StackSizes {
     // If a tvm_stack_make_shape call has no arguments, it is still
     // valid and represents a scalar shape ().  Therefore, -1 is used
@@ -142,6 +171,10 @@ class BuiltinLower : public StmtExprMutator {
 
     auto stmt = StmtExprMutator::VisitStmt(s);
     auto& scope = alloca_scope_.back();
+    // This invariant asserts the assumption that
+    // make_stack_shape only happens within a call_packed.
+    // We could relax this in the future if we want to
+    // introduce root scope as a separate scope
     ICHECK_EQ(scope.run_sizes.shape_stack, -1);
     ICHECK_EQ(scope.run_sizes.array_stack, 0);
 

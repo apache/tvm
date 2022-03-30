@@ -130,6 +130,25 @@ def test_flatten_double_buffer():
     assert count[0] == 4
 
 
+def test_flatten_let_buffer():
+    @tvm.script.ir_module
+    class module:
+        @T.prim_func
+        def main():
+            T.func_attr({"from_legacy_te_schedule": True})
+
+            # If a pointer defined using a LetStmt,
+            A_data: T.Ptr[T.int32] = T.call_extern("dummy_extern_function", dtype="handle")
+
+            # and a buffer is backed by that pointer,
+            A: T.Buffer = T.buffer_decl([1], dtype="float32", data=A_data)
+            T.evaluate(A[0])
+
+    # then the call to StorageFlatten would result in an exception
+    # being thrown.
+    tvm.tir.transform.StorageFlatten(64)(module)
+
+
 @T.prim_func
 def tir_func(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [2, 2])
@@ -146,8 +165,4 @@ def test_flatten_tir():
 
 
 if __name__ == "__main__":
-    test_flatten2()
-    test_flatten_storage_align()
-    test_flatten_double_buffer()
-    test_flatten_prefetch()
-    test_flatten_tir()
+    sys.exit(pytest.main(sys.argv))

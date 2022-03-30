@@ -27,24 +27,11 @@ from tvm.relay.backend.contrib.ethosu.te.unary_elementwise import (
     match_ethosu_unary_elementwise,
     unary_elementwise_compute,
 )
+from tvm.relay.backend.contrib.ethosu.te.common import get_layout_transform_matrices
 
 
-def _make_matrices(ifm_layout, ofm_layout):
-    nhwc_to_nhcwb16 = [
-        [1, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0],
-        [0, 0, 0, 1 / 16, 0],
-        [0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 16],
-        [0, 0, 0, 0, 1],
-    ]
-    nhcwb16_to_nhwc = [
-        [1, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0],
-        [0, 0, 16, 0, 1, -16],
-        [0, 0, 0, 0, 0, 1],
-    ]
+def _make_matrices(ifm_layout, ofm_layout, ofm_channels):
+    nhwc_to_nhcwb16, nhcwb16_to_nhwc = get_layout_transform_matrices(ofm_channels)
     ifm_matrix = [
         [1, 0, 0, 0, 0],
         [0, 1, 0, 0, 0],
@@ -76,14 +63,7 @@ def _make_matrices(ifm_layout, ofm_layout):
 def test_ethosu_unary_elementwise_matcher(ofm_shape, ifm_layout, ofm_layout, op_type):
     ifm_shape = ofm_shape.copy()
     ofm_channels = ofm_shape[3]
-    nhwc_to_nhcwb16 = [
-        [1, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0],
-        [0, 0, 0, 1 / 16, 0],
-        [0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 16],
-        [0, 0, 0, 0, 1],
-    ]
+    nhwc_to_nhcwb16, _ = get_layout_transform_matrices(ofm_channels)
     if ifm_layout == "NHCWB16":
         ifm_shape = [
             int(math.ceil(n))
@@ -134,7 +114,7 @@ def test_ethosu_unary_elementwise_matcher(ofm_shape, ifm_layout, ofm_layout, op_
     stripes = [0] * len(ofm_shape)
     output_stripe_config = cs.StripeConfig(ofm_shape, ofm_shape, ofm_shape, order, stripes, offset)
 
-    ifm_transform = _make_matrices(ifm_layout, ofm_layout)
+    ifm_transform = _make_matrices(ifm_layout, ofm_layout, ofm_channels)
 
     device_config = cs.EthosuDeviceConfig("ethos-u55-256")
     part = match_ethosu_unary_elementwise(out, device_config)
@@ -145,13 +125,9 @@ def test_ethosu_unary_elementwise_matcher(ofm_shape, ifm_layout, ofm_layout, op_
 
     propagated_ifm = ifm_propagator.propagate(output_stripe_config).shape
 
-    # Layout conversions will align the propagated IFMs to the brick, i.e. 16
-    # so the expected ifm_shape needs to be rounded up to 16
-    if ifm_layout != ofm_layout:
-        assert ifm_shape[:-1] == propagated_ifm[:-1]
-        assert ((ifm_shape[-1] + 16 - 1) // 16) * 16 == propagated_ifm[-1]
-    else:
-        assert ifm_shape == propagated_ifm
+    # The layout transforms that have the exact number of output channels in them
+    # will lose no information about the number of channels
+    assert ifm_shape == propagated_ifm
 
 
 if __name__ == "__main__":
