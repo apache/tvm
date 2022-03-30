@@ -18,7 +18,7 @@
 """Extract parameters from the DMA operators in TIR."""
 import tvm
 from .utils import get_outer_loops, get_base_address, get_strides, get_op_attrs
-from .spec import SerialFeatureMap, SerialPadding
+from .spec import SerialBlockConfig, SerialFeatureMap, SerialPadding
 
 
 def get_pad_params(stmt):
@@ -253,6 +253,14 @@ def get_write_params(stmt):
 
     base_address = [get_base_address(index) for index in inner.indices]
     data_type = inner.buffer.data.type_annotation.element_type.dtype
+    if "block_config_height" in attrs:
+        block_config = SerialBlockConfig(
+            height=int(attrs["block_config_height"]),
+            width=int(attrs["block_config_width"]),
+            depth=int(attrs["block_config_depth"]),
+        )
+    else:
+        block_config = SerialBlockConfig(0, 0, 0)
     return (
         SerialFeatureMap(
             data_type=data_type,
@@ -273,6 +281,7 @@ def get_write_params(stmt):
             stride_w=strides[1],
             stride_c=strides[2],
         ),
+        block_config,
         input_pointer,
         output_pointer,
     )
@@ -327,6 +336,8 @@ def get_ofm_params(pointer, consumers, producers):
     -------
     serial_ifm : SerialFeatureMap
         The serializable OFM.
+    serial_block_config : SerialBlockConfig
+        The serializable block config.
     output_pointer : tvm.tir.Var
         The pointer that the OFM DMA pipeline produces.
     is_allocator : bool
@@ -336,11 +347,11 @@ def get_ofm_params(pointer, consumers, producers):
     convert_to_nhcwb16 = consumers[pointer]
     out_channels, _, output_pointer = get_convert_to_nhcwb16_params(convert_to_nhcwb16)
     write = consumers[output_pointer]
-    serial_ofm, _, output_pointer = get_write_params(write)
+    serial_ofm, serial_block_config, _, output_pointer = get_write_params(write)
     is_allocator = True
     if output_pointer not in producers:
         is_allocator = False
     elif producers[output_pointer] != write:
         is_allocator = False
     serial_ofm.channels = out_channels
-    return serial_ofm, output_pointer, is_allocator
+    return serial_ofm, serial_block_config, output_pointer, is_allocator

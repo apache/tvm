@@ -33,19 +33,20 @@ import tvm
 from tvm import relay
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tvm.relay.backend.contrib.ethosu.codegen import LayoutOptimizer
-from tvm.relay.backend.contrib.ethosu.codegen import relay_to_tir_func
+from tvm.relay.backend.contrib.ethosu.codegen import relay_to_tir
 
 from . import infra
 
 
-def _optimize(expr, optimize=True):
+def _optimize(func, optimize=True):
     """Create IRModule and run layout optimizer pass."""
-    mod = tvm.IRModule.from_expr(expr)
+    func = func.with_attr("Compiler", "ethos-u")
+    mod = tvm.IRModule.from_expr(func)
     mod = relay.transform.InferType()(mod)
     if optimize:
         mod = LayoutOptimizer()(mod)
     entry = mod["main"]
-    return entry if isinstance(expr, relay.Function) else entry.body
+    return entry if isinstance(func, relay.Function) else entry.body
 
 
 def _assert_structural_equal(a, b):
@@ -721,10 +722,10 @@ def test_layout_optimizer_runs_in_compilation_pipeline():
 
     mod = get_graph()
     mod = partition_for_ethosu(mod)
+    mod = relay_to_tir(mod)
 
     external_gv_name = mod["main"].body.op.name_hint
-    external_func = mod[external_gv_name]
-    prim_func = relay_to_tir_func(external_func)
+    prim_func = mod[external_gv_name]
 
     # Check for hints in the TIR prim func that the layout optimization pass has ran
     ops = prim_func.body.body.seq

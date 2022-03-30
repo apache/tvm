@@ -30,6 +30,8 @@ from .unary_elementwise import get_unary_elementwise_params
 from .transform import get_copy_params
 from .utils import get_weights_buffer, get_scale_bias_buffer
 
+from .. import _ffi_api
+
 
 def RemoveZeroStores():
     """This pass removes stores which just store zero to initialise buffers.
@@ -48,7 +50,7 @@ def RemoveZeroStores():
         )
 
     return tvm.tir.transform.prim_func_pass(
-        _ftransform, opt_level=0, name="tir.ethosu.remove_zero_stores"
+        _ftransform, opt_level=0, name="tir.contrib.ethos-u.remove_zero_stores"
     )
 
 
@@ -207,7 +209,7 @@ def ReplaceOperators():
         )
 
     return tvm.tir.transform.prim_func_pass(
-        _ftransform, opt_level=0, name="tir.ethosu.replace_operators"
+        _ftransform, opt_level=0, name="tir.contrib.ethos-u.replace_operators"
     )
 
 
@@ -296,7 +298,7 @@ def DivideConstants(const_dict):
 
     def _divide_constants(mod):
         transform_func = tvm.tir.transform.prim_func_pass(
-            _ftransform, opt_level=0, name="tir.ethosu.divide_constants"
+            _ftransform, opt_level=0, name="tir.contrib.ethos-u.divide_constants"
         )
         new_func = transform_func(mod)
         return new_func, new_const_dict
@@ -549,7 +551,7 @@ def EncodeConstants(const_dict):
         for key, value in divided_const_dict.items():
             const_dict[key] = value
         transform_func = tvm.tir.transform.prim_func_pass(
-            _ftransform, opt_level=0, name="tir.ethosu.encode_constants"
+            _ftransform, opt_level=0, name="tir.contrib.ethos-u.encode_constants"
         )
         new_func = transform_func(mod)
         return new_func, new_const_dict
@@ -584,7 +586,7 @@ def AnnotateAllocates():
         )
 
     return tvm.tir.transform.prim_func_pass(
-        _ftransform, opt_level=0, name="tir.ethosu.annotate_allocates"
+        _ftransform, opt_level=0, name="tir.contrib.ethos-u.annotate_allocates"
     )
 
 
@@ -751,7 +753,7 @@ def RemoveConcatenates():
         )
 
     return tvm.tir.transform.prim_func_pass(
-        _ftransform, opt_level=0, name="tir.ethosu.remove_concatenates"
+        _ftransform, opt_level=0, name="tir.contrib.ethos-u.remove_concatenates"
     )
 
 
@@ -795,9 +797,21 @@ def CreatePrimFuncWithoutConstants(const_dict):
 
     def _create_primfunc_without_constants(mod):
         transform_func = tvm.tir.transform.prim_func_pass(
-            _ftransform, opt_level=0, name="tir.ethosu.CreatePrimFuncWithoutConstants"
+            _ftransform, opt_level=0, name="tir.contrib.ethos-u.CreatePrimFuncWithoutConstants"
         )
         mod = transform_func(mod)
         return mod, new_const_dict
 
     return _create_primfunc_without_constants
+
+
+def HoistAllocates() -> tvm.IRModule:
+    """
+    Hoist allocate nodes up to the top of the body of the main function.
+
+    Returns
+    -------
+    tvm.IRModule
+        The new module with hoisted allocate nodes.
+    """
+    return _ffi_api.HoistAllocates()

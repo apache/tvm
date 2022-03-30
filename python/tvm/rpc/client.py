@@ -16,19 +16,17 @@
 # under the License.
 """RPC client tools"""
 import os
-import stat
 import socket
+import stat
 import struct
 import time
 
 import tvm._ffi
-from tvm.contrib import utils
 from tvm._ffi.base import TVMError
+from tvm.contrib import utils
 from tvm.runtime import ndarray as nd
 
-from . import base
-from . import server
-from . import _ffi_api
+from . import _ffi_api, base, server
 
 
 class RPCSession(object):
@@ -332,7 +330,7 @@ class TrackerSession(object):
         sorted_server = sorted(data["server_info"], key=lambda x: x["key"])
         for item in sorted_server:
             addr = item["addr"]
-            res += "%21s    " % ":".join(addr)
+            res += "%21s    " % ":".join(map(str, addr))
             res += item["key"] + "\n"
             key = item["key"].split(":")[1]  # 'server:rasp3b` -> 'rasp3b'
             if key not in total_ct:

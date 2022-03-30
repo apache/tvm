@@ -443,69 +443,8 @@ std::pair<IRModule, IRModule> SplitMixedModule(IRModule mod_mixed, const Target&
   return {host_mod, device_mod};
 }
 
-runtime::Module PreProcessModuleForBuild(const Map<Target, IRModule>& inputs_arg,
-                                         const Target& host_target) {
-  std::vector<runtime::Module> device_modules;
-  Map<Target, IRModule> inputs = inputs_arg;
-  Target target_host = host_target;
-
-  CheckAndUpdateHostConsistency(&inputs, &target_host);
-
-  if (!target_host.defined()) {
-    for (const auto& it : inputs) {
-      if (it.first->kind->device_type == kDLCPU || it.first->kind->device_type == kDLMicroDev) {
-        target_host = it.first;
-        break;
-      }
-    }
-  }
-
-  if (!target_host.defined()) {
-    target_host = DefaultTargetHost(target_host);
-  }
-
-  // Update target host for all targets
-  CheckAndUpdateHostConsistency(&inputs, &target_host);
-
-  // Take the attrs from the first module so the eventual modules have them.
-  // Ideally this would just be one unified module all the way through;
-  IRModule first_module = (*inputs.begin()).second;
-  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>(), {}, {}, {}, first_module->attrs);
-  ICHECK(mhost_all.defined()) << "The host module must be defined";
-
-  for (const auto& it : inputs) {
-    if (it.second.defined()) {
-      auto pair = SplitMixedModule(it.second, it.first, target_host);
-      auto& host_mod = pair.first;
-      auto& device_mod = pair.second;
-
-      ICHECK(host_mod.defined()) << "The split host module must be defined";
-
-      ICHECK(mhost_all.defined()) << "The host module must be defined";
-
-      mhost_all->Update(host_mod);
-
-      if (device_mod->functions.size() != 0) {
-        device_modules.push_back(codegen::Build(device_mod, it.first));
-      }
-    }
-  }
-
-  runtime::Module complete_mod = codegen::Build(mhost_all, target_host);
-  for (const auto& it : device_modules) {
-    if (it.operator->()) {
-      complete_mod.Import(it);
-    }
-  }
-  return complete_mod;
-}
-
-TVM_REGISTER_GLOBAL("driver.preprocess_module")
-    .set_body_typed([](const Map<Target, IRModule>& inputs_arg, Target host_target) {
-      return PreProcessModuleForBuild(inputs_arg, host_target);
-    });
-
-runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& target_host_arg) {
+runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
+                             const Target& target_host_arg) {
   auto pass_ctx = transform::PassContext::Current();
 
   std::vector<runtime::Module> device_modules;
@@ -578,6 +517,18 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
   return mhost;
 }
 
+TVM_REGISTER_GLOBAL("driver.tir_to_runtime")
+    .set_body_typed([](const Map<Target, IRModule>& inputs_arg, Target host_target) {
+      return TIRToRuntime(inputs_arg, host_target);
+    });
+
+// Build for heterogeneous execution when targets are specified as
+// objects.  This wrapper around the internal API is maintained for
+// backwards compatibility.
+runtime::Module build(const Map<Target, IRModule>& input, const Target& target_host) {
+  return TIRToRuntime(input, target_host);
+}
+
 // Build for heterogeneous execution when target is a string.
 runtime::Module build(const Map<String, IRModule>& inputs_arg, const Target& target_host_arg) {
   Map<Target, IRModule> updated_inputs;
@@ -591,7 +542,7 @@ runtime::Module build(const Map<String, IRModule>& inputs_arg, const Target& tar
     }
     updated_inputs.Set(target, it.second);
   }
-  return build(updated_inputs, target_host);
+  return TIRToRuntime(updated_inputs, target_host);
 }
 
 // Build for homogeneous execution.
@@ -601,7 +552,7 @@ runtime::Module build(const IRModule& funcs, const Target& target_arg,
   CheckAndUpdateHostConsistency(&target, &target_host);
   // More maps of target and target host
   Map<Target, IRModule> inputs = {{target, funcs}};
-  return build(inputs, target_host);
+  return TIRToRuntime(inputs, target_host);
 }
 
 transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) {

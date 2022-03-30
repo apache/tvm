@@ -209,6 +209,13 @@ def schedule_pragmas(sch):
             for attr, val in stage.op.attrs.items():
                 if attr not in ("op", "lut") and not isinstance(val, Propagator):
                     stage.pragma(ax, str(attr), val)
+        if stage.op.axis[0] in stage.iter_var_attrs:
+            attrs = stage.iter_var_attrs[stage.op.axis[0]]
+            if "block_config_height" in attrs.pragma_keys:
+                pragmas = dict(zip([k.value for k in attrs.pragma_keys], attrs.pragma_values))
+                stage.pragma(ax, "block_config_height", pragmas["block_config_height"])
+                stage.pragma(ax, "block_config_width", pragmas["block_config_width"])
+                stage.pragma(ax, "block_config_depth", pragmas["block_config_depth"])
 
     for stage in sch.stages:
         if (

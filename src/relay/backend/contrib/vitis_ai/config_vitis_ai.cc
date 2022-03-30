@@ -61,6 +61,8 @@ class VitisAICompilerConfig : public Attrs {
 
 TVM_REGISTER_NODE_TYPE(VitisAICompilerConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.vitis_ai.options", VitisAICompilerConfig);
+TVM_REGISTER_GLOBAL("relay.ext.vitis_ai.available")
+    .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) { *rv = true; });
 
 // Following config options are here for backward compatibility (deprecated API's)
 /*! \brief The target Vitis-AI accelerator device */

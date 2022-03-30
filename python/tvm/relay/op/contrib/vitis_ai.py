@@ -31,6 +31,14 @@ from tvm.relay.op.annotation import compiler_begin, compiler_end
 pyxir = None
 
 
+def enabled():
+    """Return whether Vitis-AI support is available"""
+    if not tvm.get_global_func("relay.ext.vitis_ai.available", True):
+        print("Skip because Vitis-AI codegen is not available.")
+        return False
+    return True
+
+
 @transform.function_pass(opt_level=0)
 class VitisAIAnnotationPass:
     """Responsible for annotating Relay expressions for Vitis-AI DPU accelerators

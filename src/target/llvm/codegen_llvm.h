@@ -238,7 +238,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * printf(), immediately calls fflush() to flush the stdout buffer
    * in case of segfault.
    */
-  void CreatePrintf(const std::string& format, const std::vector<llvm::Value*> format_args);
+  virtual void CreatePrintf(const std::string& format, llvm::ArrayRef<llvm::Value*> format_args);
 
   /*! \brief Lookup return address, for debugging purposes
    *

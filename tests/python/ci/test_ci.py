@@ -37,32 +37,73 @@ class TempGit:
 def test_cc_reviewers(tmpdir_factory):
     reviewers_script = REPO_ROOT / "tests" / "scripts" / "github_cc_reviewers.py"
 
-    def run(pr_body, expected_reviewers):
+    def run(pr_body, requested_reviewers, existing_review_users, expected_reviewers):
         git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
         git.run("init")
         git.run("checkout", "-b", "main")
         git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+        reviews = [{"user": {"login": r}} for r in existing_review_users]
+        requested_reviewers = [{"login": r} for r in requested_reviewers]
         proc = subprocess.run(
-            [str(reviewers_script), "--dry-run"],
+            [str(reviewers_script), "--dry-run", "--testing-reviews-json", json.dumps(reviews)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            env={"PR": json.dumps({"number": 1, "body": pr_body})},
+            env={
+                "PR": json.dumps(
+                    {"number": 1, "body": pr_body, "requested_reviewers": requested_reviewers}
+                )
+            },
             encoding="utf-8",
             cwd=git.cwd,
         )
         if proc.returncode != 0:
             raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
 
-        assert proc.stdout.strip().endswith(f"Adding reviewers: {expected_reviewers}")
+        assert f"After filtering existing reviewers, adding: {expected_reviewers}" in proc.stdout
 
-    run(pr_body="abc", expected_reviewers=[])
-    run(pr_body="cc @abc", expected_reviewers=["abc"])
-    run(pr_body="cc @", expected_reviewers=[])
-    run(pr_body="cc @abc @def", expected_reviewers=["abc", "def"])
-    run(pr_body="some text cc @abc @def something else", expected_reviewers=["abc", "def"])
+    run(pr_body="abc", requested_reviewers=[], existing_review_users=[], expected_reviewers=[])
+    run(
+        pr_body="cc @abc",
+        requested_reviewers=[],
+        existing_review_users=[],
+        expected_reviewers=["abc"],
+    )
+    run(pr_body="cc @", requested_reviewers=[], existing_review_users=[], expected_reviewers=[])
+    run(
+        pr_body="cc @abc @def",
+        requested_reviewers=[],
+        existing_review_users=[],
+        expected_reviewers=["abc", "def"],
+    )
+    run(
+        pr_body="some text cc @abc @def something else",
+        requested_reviewers=[],
+        existing_review_users=[],
+        expected_reviewers=["abc", "def"],
+    )
     run(
         pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
+        requested_reviewers=[],
+        existing_review_users=[],
         expected_reviewers=["abc", "def", "zzz"],
+    )
+    run(
+        pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
+        requested_reviewers=["abc"],
+        existing_review_users=[],
+        expected_reviewers=["def", "zzz"],
+    )
+    run(
+        pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
+        requested_reviewers=["abc"],
+        existing_review_users=["abc"],
+        expected_reviewers=["def", "zzz"],
+    )
+    run(
+        pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
+        requested_reviewers=[],
+        existing_review_users=["abc"],
+        expected_reviewers=["def", "zzz"],
     )
 
 

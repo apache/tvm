@@ -44,6 +44,21 @@ def elementwise(a: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
+def elementwise_shape_int64(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (T.int64(128), T.int64(128)))
+    B = T.alloc_buffer((T.int64(128), T.int64(128)))
+    C = T.match_buffer(c, (T.int64(128), T.int64(128)))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
+
+
+@T.prim_func
 def access_under_scope(b: T.handle, c: T.handle) -> None:
     A = T.alloc_buffer((128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -433,6 +448,32 @@ def block_predicate_cache_read() -> None:
             B[ax] = A_shared[ax] + T.float32(1)
 
 
+@T.prim_func
+def cache_read_shape_int64(var_A: T.handle, var_C: T.handle) -> None:
+    A = T.match_buffer(var_A, (T.int64(128), T.int64(128)), dtype="float32")
+    C = T.match_buffer(var_C, (T.int64(128), T.int64(128)), dtype="float32")
+    B = T.alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
+    A_global = T.alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
+    for ax0, ax1 in T.grid(T.int64(128), T.int64(128)):
+        with T.block("A_global"):
+            v0, v1 = T.axis.remap("SS", [ax0, ax1])
+            T.reads(A[v0, v1])
+            T.writes(A_global[v0, v1])
+            A_global[v0, v1] = A[v0, v1]
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(A_global[vi, vj])
+            T.writes(B[vi, vj])
+            B[vi, vj] = A_global[vi, vj] * T.float32(2)
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(B[vi, vj])
+            T.writes(C[vi, vj])
+            C[vi, vj] = B[vi, vj] + T.float32(1)
+
+
 ########## Expected function after cache_write ##########
 
 
@@ -755,6 +796,14 @@ def test_cache_read_with_block_predicate():
     sch.cache_read(block, 0, "shared")
     tvm.ir.assert_structural_equal(block_predicate_cache_read, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func_with_block_predicate)
+
+
+def test_cache_read_non_int32_shape():
+    sch = tir.Schedule(elementwise_shape_int64, debug_mask="all")
+    block_b = sch.get_block("B")
+    sch.cache_read(block_b, 0, "global")
+    tvm.ir.assert_structural_equal(cache_read_shape_int64, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=elementwise_shape_int64)
 
 
 def test_cache_read_fail_multi_producer():

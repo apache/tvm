@@ -43,12 +43,15 @@ class ExtractedTaskNode : public runtime::Object {
   Target target;
   /*! \brief A list of low-level IRs that the high-level IR could potentially dispatch to */
   Array<IRModule> dispatched;
+  /*! \brief Weight of the task */
+  int weight;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("task_name", &task_name);
     v->Visit("mod", &mod);
     v->Visit("target", &target);
     v->Visit("dispatched", &dispatched);
+    v->Visit("weight", &weight);
   }
 
   static constexpr const char* _type_key = "meta_schedule.ExtractedTask";
@@ -66,8 +69,10 @@ class ExtractedTask : public runtime::ObjectRef {
    * \brief The high-level IR
    * \brief A list of low-level IRs that the high-level IR could potentially dispatch to
    */
-  explicit ExtractedTask(String task_name, IRModule mod, Target target, Array<IRModule> dispatched);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ExtractedTask, runtime::ObjectRef, ExtractedTaskNode);
+  explicit ExtractedTask(String task_name, IRModule mod, Target target, Array<IRModule> dispatched,
+                         int weight);
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ExtractedTask, runtime::ObjectRef,
+                                                    ExtractedTaskNode);
 };
 
 /**************** MetaScheduleContext ****************/

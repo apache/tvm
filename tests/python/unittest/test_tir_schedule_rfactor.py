@@ -37,7 +37,7 @@ def transformed_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
         with T.block("update"):
             vi, vj = T.axis.remap("SS", [i0, i1])
             vk = T.axis.R(128, i2_outer * 32 + i2_inner_outer * 4 + i2_inner_inner)
-            T.reads([C[vi, vj], A[vi, vk], B[vj, vk]])
+            T.reads([A[vi, vk], B[vj, vk]])
             T.writes([C[vi, vj]])
             with T.init():
                 C[vi, vj] = 0.0
@@ -172,7 +172,7 @@ def transformed_square_sum_square_root(a: T.handle, d: T.handle) -> None:
             b = T.axis.S(16, i0)
             i = T.axis.R(256, T.floordiv(i1_i2_fused_outer, 256))
             j = T.axis.R(256, T.floormod(i1_i2_fused_outer, 256))
-            T.reads([C[b], A[b, i, j]])
+            T.reads([A[b, i, j]])
             T.writes([C[b]])
             with T.init():
                 C[b] = 0.0

@@ -17,6 +17,7 @@
 """ Support level5 operator test cases.
 """
 import math
+import platform
 import sys
 
 import numpy as np
@@ -220,6 +221,10 @@ class TestCropAndResize:
     interpolate_method = tvm.testing.parameter("bilinear", "nearest_neighbor")
     layout = tvm.testing.parameter("NHWC", "NCHW")
 
+    @pytest.mark.skipif(
+        platform.machine() == "aarch64",
+        reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+    )
     def test_crop_and_resize(self, target, dev, executor_kind, layout, interpolate_method):
         target_kind = tvm.target.Target(target).kind.name
         if (

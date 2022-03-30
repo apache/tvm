@@ -19,8 +19,7 @@ from typing import Dict, List, Optional, Union
 
 import numpy as np  # type: ignore
 import tvm.runtime.ndarray as nd
-
-from tvm._ffi import register_object, get_global_func
+from tvm._ffi import get_global_func, register_object
 from tvm.ir import IRModule, transform
 from tvm.relay import Any
 from tvm.relay import Function as RelayFunc
@@ -29,6 +28,7 @@ from tvm.target import Target
 
 from . import _ffi_api
 from .database import Database
+from .utils import autotvm_silencer
 
 
 @register_object("meta_schedule.ExtractedTask")
@@ -45,11 +45,14 @@ class ExtractedTask(Object):
         Target information
     dispatched : List[IRModule]
         A list of low-level IRs that the high-level IR could potentially dispatch to
+    weight : int
+        The weight of the task
     """
 
     task_name: str
     mod: IRModule
     dispatched: List[IRModule]
+    weight: int
 
     def __init__(
         self,
@@ -57,6 +60,7 @@ class ExtractedTask(Object):
         mod: IRModule,
         target: Target,
         dispatched: List[IRModule],
+        weight: int,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ExtractedTask,  # type: ignore # pylint: disable=no-member
@@ -64,6 +68,7 @@ class ExtractedTask(Object):
             mod,
             target,
             dispatched,
+            weight,
         )
 
 
@@ -234,11 +239,9 @@ def extract_task_from_relay(
     if not isinstance(target, Target):
         target = Target(target)
 
-    with target, transform.PassContext(
+    with autotvm_silencer(), target, transform.PassContext(
         opt_level=opt_level,
         config=pass_config,
         disabled_pass=disabled_pass,
     ):
-        tasks = extract_task_func(mod, target, relay_params)
-        # Tasks are extracted via post order visit, return the reversed list.
-        return list(reversed(tasks))
+        return list(extract_task_func(mod, target, relay_params))

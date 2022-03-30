@@ -20,9 +20,9 @@ import logging
 import os.path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
-import tvm
 from tvm._ffi.registry import register_func
 from tvm.ir import IRModule, structural_hash
+from tvm.ir.transform import PassContext
 from tvm.relay import Function as RelayFunc
 from tvm.relay import build as relay_build
 from tvm.runtime import Module, NDArray
@@ -48,6 +48,7 @@ from .search_strategy import (
 from .space_generator import PostOrderApply, SpaceGenerator
 from .task_scheduler import RoundRobin, TaskScheduler
 from .tune_context import TuneContext
+from .utils import autotvm_silencer
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -607,7 +608,7 @@ def deduplicate_extracted_tasks(
 
     for task in extracted_tasks:
         assert len(task.dispatched) == 1, "Only size 1 dispatched task list is supported for now"
-        mod = Parse._mod(task.dispatched[0])
+        mod = Parse._mod(task.dispatched[0])  # pylint: disable=protected-access
         shash = structural_hash(mod)
         if shash in hash2idx:
             count[hash2idx[shash]] += 1
@@ -714,6 +715,7 @@ def tune_extracted_tasks(
     )
     # pylint: enable=protected-access
     task_scheduler.tune()
+    task_scheduler.cost_model.save(os.path.join(work_dir, "cost_model.xgb"))
     return database
 
 
@@ -772,6 +774,9 @@ def tune_relay(
     """
 
     logger.info("Working directory: %s", work_dir)
+    # pylint: disable=protected-access
+    target = Parse._target(target)
+    # parse the tuning contexts
     extracted_tasks = extract_task_from_relay(mod, target, params)
     database = tune_extracted_tasks(
         extracted_tasks,
@@ -790,8 +795,8 @@ def tune_relay(
         mutator_probs=mutator_probs,
         num_threads=num_threads,
     )
-    with ApplyHistoryBest(database):
-        with tvm.transform.PassContext(
+    with target, autotvm_silencer(), ApplyHistoryBest(database):
+        with PassContext(
             opt_level=3,
             config={"relay.backend.use_meta_schedule": True},
         ):
