@@ -2044,7 +2044,7 @@ class PyTorchOpConverter:
             data0, data1, alpha = self.pytorch_promote_types(inputs, input_types)
             return get_relay_op("subtract")(data0, alpha * data1)
         else:
-            data0, data1= self.pytorch_promote_types(inputs, input_types)
+            data0, data1 = self.pytorch_promote_types(inputs, input_types)
             return get_relay_op("subtract")(data0, data1)
 
     def rsub(self, inputs, input_types):
