@@ -22,6 +22,7 @@ import numpy as np
 import math
 
 import tvm.contrib.ethosu.cascader as cs
+from tvm.relay.backend.contrib.ethosu.te.common import get_layout_transform_matrices
 
 from .infra import make_matrices
 
@@ -164,7 +165,7 @@ from .infra import make_matrices
                 ((1, 6, 5, 16), (1, 6, 1, 5, 16)),
                 ((1, 4, 4, 16), (1, 4, 1, 4, 16)),
                 ((1, 8, 4, 16), (1, 8, 1, 4, 16)),
-                ((1, 10, 6, 4), (1, 5, 1, 12, 4), (1, 16, 1, 4, 4)),
+                ((1, 10, 6, 4), (1, 5, 1, 12, 4), (1, 10, 1, 6, 4)),
                 ((1, 6, 5, 16), (1, 6, 1, 5, 16)),
                 # Depthwise Conv2D
                 ((1, 6, 10, 16), (1, 6, 1, 10, 16)),
@@ -182,7 +183,7 @@ from .infra import make_matrices
                 ((1, 6, 5, 16), (1, 6, 1, 5, 16)),
                 ((1, 4, 4, 16), (1, 4, 1, 4, 16)),
                 ((1, 8, 4, 16), (1, 8, 1, 4, 16)),
-                ((1, 10, 6, 8), (1, 16, 1, 4, 8)),
+                ((1, 10, 6, 8), (1, 10, 1, 6, 8)),
                 ((1, 6, 5, 16), (1, 6, 1, 5, 16)),
                 # Depthwise Conv2D
                 ((1, 6, 10, 16), (1, 6, 1, 10, 16)),
@@ -244,27 +245,22 @@ def test_best_block_config(
     acc_config,
     expected_block_configs,
 ):
-    nhwc_to_nhcwb16 = [
-        [1, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0],
-        [0, 0, 0, 1 / 16, 0],
-        [0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 16],
-        [0, 0, 0, 0, 1],
-    ]
-    nhcwb16_to_nhwc = [
-        [1, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0],
-        [0, 0, 16, 0, 1, -16],
-        [0, 0, 0, 0, 0, 1],
-    ]
-    ifm_matrix, ifm_offset, weight_matrix, weight_offset, _, _ = make_matrices(
-        op_type, kernel, stride, padding, layouts[0], layouts[1], dilation, in_shape[3]
-    )
-
     ofm_channels = out_shape[3]
     ifm_channels = in_shape[3]
+
+    nhwc_to_nhcwb16, _ = get_layout_transform_matrices(ofm_channels)
+
+    ifm_matrix, ifm_offset, weight_matrix, weight_offset, _, _ = make_matrices(
+        op_type,
+        kernel,
+        stride,
+        padding,
+        layouts[0],
+        layouts[1],
+        dilation,
+        ifm_channels,
+        ofm_channels,
+    )
 
     if layouts[0] == "NHCWB16":
         in_shape = [
@@ -321,8 +317,11 @@ def test_best_block_config(
     # Add tensors
     input_tensor = cs.Tensor(in_shape, "int8")
     part.set_input(0, input_tensor)
-    if op_type in ("ethosu_conv2d", "ethosu_depthwise_conv2d"):
+    if op_type == "ethosu_conv2d":
         weight_tensor = cs.Tensor([ofm_channels, kernel[0], kernel[1], ifm_channels], "int8")
+        part.set_input(1, weight_tensor)
+    elif op_type == "ethosu_depthwise_conv2d":
+        weight_tensor = cs.Tensor([ofm_channels, kernel[0], kernel[1], 1], "int8")
         part.set_input(1, weight_tensor)
 
     output_tensor = cs.Tensor(out_shape, "int8")
