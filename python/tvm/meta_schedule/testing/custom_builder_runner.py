@@ -17,11 +17,12 @@
 """Customized builder and runner methods"""
 # pylint: disable=import-outside-toplevel
 
-from typing import TYPE_CHECKING, Dict, List
+from typing import TYPE_CHECKING, Callable, Dict, List
 
 if TYPE_CHECKING:
+    import numpy as np  # type: ignore
     from tvm.ir import IRModule
-    from tvm.meta_schedule.runner import EvaluatorConfig
+    from tvm.meta_schedule.runner import EvaluatorConfig, RPCConfig
     from tvm.runtime import Device, Module, NDArray
     from tvm.target import Target
 
@@ -138,3 +139,32 @@ def run_with_graph_executor(
         repeated_costs.append(profile_result.results)
     costs = [float(cost) for cost in itertools.chain.from_iterable(repeated_costs)]
     return costs
+
+
+def run_module_via_rpc(
+    rpc_config: "RPCConfig",
+    lib: "Module",
+    dev_type: str,
+    args: List["np.ndarray"],
+    continuation: Callable,
+):
+    """Execute a tvm.runtime.Module on RPC remote"""
+    # pylint: disable=import-outside-toplevel
+    import os
+    import tempfile
+
+    from tvm.contrib.tar import tar
+    from tvm.runtime import ndarray
+
+    # pylint: enable=import-outside-toplevel
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        filename = os.path.join(tmp_dir, "tvm_tmp_mod." + tar.output_format)
+        lib.export_library(filename, tar)
+        session = rpc_config.connect_server()
+        session.upload(filename)
+        _, filename = os.path.split(filename)
+        rt_mod = session.load_module(filename)
+        dev = session.device(dev_type=dev_type, dev_id=0)
+        args = [ndarray.array(arg, dev) for arg in args]
+        return continuation(rt_mod, dev, *args)

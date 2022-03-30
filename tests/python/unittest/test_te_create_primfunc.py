@@ -22,7 +22,7 @@ import numpy as np
 import tvm.testing
 
 
-def test_unique_name():
+def test_unique_name_complete_block():
     A = te.placeholder((16, 16), name="A")
     B = te.compute((16, 16), lambda x, y: A[x, y] * 2, name="main")
     C = te.compute((16, 16), lambda x, y: B[x, y] + 1, name="main")
@@ -30,6 +30,18 @@ def test_unique_name():
     s = tir.Schedule(func, debug_mask="all")
     assert isinstance(s.get_sref(s.get_block("main")), tir.schedule.StmtSRef)
     assert isinstance(s.get_sref(s.get_block("main_1")), tir.schedule.StmtSRef)
+
+
+def test_unique_name_reduction_block():
+    k1 = te.reduce_axis((0, 16), "k1")
+    k2 = te.reduce_axis((0, 16), "k2")
+    A = te.placeholder((16, 16), name="A")
+    B = te.compute((16,), lambda i: te.sum(A[i, k1], axis=k1), name="sum")
+    C = te.compute((), lambda: te.sum(B[k2], axis=k2), name="sum")
+    func = te.create_prim_func([A, C])
+    s = tir.Schedule(func, debug_mask="all")
+    assert isinstance(s.get_sref(s.get_block("sum")), tir.schedule.StmtSRef)
+    assert isinstance(s.get_sref(s.get_block("sum_1")), tir.schedule.StmtSRef)
 
 
 def _check_workload(te_workload, tir_workload):
@@ -395,7 +407,7 @@ def tir_argmax_idx_val(
     for i0, i1 in T.grid(m, n):
         with T.block("argmax"):
             i, k = T.axis.remap("SR", [i0, i1])
-            T.reads(argmax_v1[i], val[i, k], argmax_v0[i], idx[i, k])
+            T.reads(val[i, k], idx[i, k])
             T.writes(argmax_v0[i], argmax_v1[i])
             with T.init():
                 argmax_v0[i] = T.int32(-1)
@@ -442,7 +454,7 @@ def tir_argmax_val_idx(
     for i0, i1 in T.grid(m, n):
         with T.block("argmax"):
             i, k = T.axis.remap("SR", [i0, i1])
-            T.reads(argmax_v0[i], val[i, k], argmax_v1[i], idx[i, k])
+            T.reads(val[i, k], idx[i, k])
             T.writes(argmax_v0[i], argmax_v1[i])
             with T.init():
                 argmax_v0[i] = T.min_value("float32")
@@ -462,7 +474,8 @@ def test_argmax_val_idx():
 
 
 if __name__ == "__main__":
-    test_unique_name()
+    test_unique_name_complete_block()
+    test_unique_name_reduction_block()
     test_matmul()
     test_element_wise()
     test_conv2d()

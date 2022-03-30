@@ -1289,17 +1289,28 @@ def test_forward_reshape():
 
 @tvm.testing.uses_gpu
 def test_flatten():
-    class Flatten(Module):
-        def forward(self, x):
-            return torch.flatten(x)
+    def _test_flatten(start_dim, end_dim):
+        return lambda inp: torch.flatten(inp, start_dim, end_dim)
 
-    class BatchFlatten(Module):
-        def forward(self, x):
-            return torch.flatten(x, start_dim=1)
+    inp = torch.rand((3, 5, 2, 2))
 
-    inp = torch.rand((5, 2, 2))
-    verify_model(Flatten(), input_data=inp)
-    verify_model(BatchFlatten(), input_data=inp)
+    # [3, 5, 2, 2] -> [60]
+    verify_model(_test_flatten(0, -1), inp)
+    verify_model(_test_flatten(0, 3), inp)
+    verify_model(_test_flatten(-4, 3), inp)
+    verify_model(_test_flatten(-4, -1), inp)
+
+    # [3, 5, 2, 2] -> [3, 5, 2, 2]
+    verify_model(_test_flatten(3, -1), inp)
+    verify_model(_test_flatten(-1, -1), inp)
+    verify_model(_test_flatten(0, -4), inp)
+    verify_model(_test_flatten(-4, -4), inp)
+
+    # [3, 5, 2, 2] -> [3, 10, 2]
+    verify_model(_test_flatten(1, 2), inp)
+    verify_model(_test_flatten(1, -2), inp)
+    verify_model(_test_flatten(-3, 2), inp)
+    verify_model(_test_flatten(-3, -2), inp)
 
 
 @tvm.testing.uses_gpu
@@ -3309,8 +3320,13 @@ def test_forward_unary():
         def forward(self, *args):
             return torch.log1p(args[0])
 
+    class Square(Module):
+        def forward(self, *args):
+            return torch.square(args[0])
+
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
+    verify_model(Square().float().eval(), input_data=input_data)
     verify_model(Sqrt1().float().eval(), input_data=input_data)
     verify_model(RSqrt1().float().eval(), input_data=input_data)
     verify_model(Ceil1().float().eval(), input_data=input_data)
@@ -4244,7 +4260,7 @@ def test_mod():
         return torch.fmod(x, y)
 
     def test_remainder(x, y):
-        return torch.fmod(x, y)
+        return torch.remainder(x, y)
 
     for test_fn in [test_fmod, test_remainder]:
         verify_model(test_fn, [torch.tensor([-3.0, -2, -1, 1, 2, 3]), torch.tensor(2)])
