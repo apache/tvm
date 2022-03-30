@@ -38,6 +38,8 @@ _qnn_params = {
     "rhs_zero_point": relay.const(85, "int32"),
     "output_scale": relay.const(0.0235294, "float32"),
     "output_zero_point": relay.const(128, "int32"),
+    "lhs_axis": relay.const(-1, "int32"),
+    "rhs_axis": relay.const(-1, "int32"),
 }
 
 
