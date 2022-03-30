@@ -82,7 +82,6 @@ tvm_multilib = 'build/libtvm.so, ' +
 
 tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
                tvm_multilib
-upstream_revision = null
 
 // command to start a docker container
 docker_run = 'docker/bash.sh'
@@ -102,23 +101,6 @@ def init_git() {
   sh (
     script: './tests/scripts/task_show_node_info.sh',
     label: 'Show executor node info',
-  )
-
-  // Determine merge commit to use for all stages
-  sh(
-    script: 'git fetch origin main',
-    label: 'Fetch upstream',
-  )
-  if (upstream_revision == null) {
-    upstream_revision = sh(
-      script: 'git log -1 FETCH_HEAD --format=\'%H\'',
-      label: 'Determine upstream revision',
-      returnStdout: true,
-    ).trim()
-  }
-  sh (
-    script: "git merge ${upstream_revision}",
-    label: 'Merge to origin/main'
   )
   retry(5) {
     timeout(time: 2, unit: 'MINUTES') {
