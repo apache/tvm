@@ -154,24 +154,21 @@ class RewriteUnboundBlockNode : public PostprocNode {
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {
     CHECK(context->target.defined()) << "ValueError: target is not defined";
-    Optional<Integer> warp_size = context->target.value()->GetAttr<Integer>("thread_warp_size");
-    CHECK(warp_size.defined()) << "ValueError: missing attribute `thread_warp_size` in the target";
-    this->warp_size_ = warp_size.value();
-    this->max_num_threads_ =
-        context->target.value()->GetAttr<Integer>("max_threads_per_block").value();
+    Optional<Integer> max_num_threads =
+        context->target.value()->GetAttr<Integer>("max_threads_per_block");
+    CHECK(max_num_threads.defined())
+        << "ValueError: missing attribute `max_threads_per_block` in the target";
+    this->max_num_threads_ = max_num_threads.value();
   }
 
   // Inherited from PostprocNode
   bool Apply(const tir::Schedule& sch) final;
 
  public:
-  /*! \brief The cached warp size from Target */
-  int warp_size_ = -1;
   /*! \brief The max number of threads per block from Target */
   int max_num_threads_ = -1;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    // `warp_size_` is not visited
     // `max_num_threads_` is not visited
   }
 
@@ -183,7 +180,7 @@ bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
   using tir::BlockRV;
   using tir::LoopRV;
   using tir::Schedule;
-  ICHECK_NE(this->warp_size_, -1);
+  ICHECK_NE(this->max_num_threads_, -1);
   std::vector<std::pair<tir::StmtSRef, String>> unbound_blocks =
       tir::UnboundBlockFinder::Find(sch->state());
   for (const auto& kv : unbound_blocks) {
@@ -225,7 +222,6 @@ bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
 Postproc Postproc::RewriteUnboundBlock() {
   ObjectPtr<RewriteUnboundBlockNode> n = make_object<RewriteUnboundBlockNode>();
   n->max_num_threads_ = -1;
-  n->warp_size_ = -1;
   return Postproc(n);
 }
 

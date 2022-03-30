@@ -22,10 +22,11 @@ from tvm.meta_schedule import TuneContext
 from tvm.meta_schedule.postproc import RewriteUnboundBlock
 from tvm.script import tir as T
 from tvm.target import Target
+from tvm.tir.schedule.schedule import Schedule
 
 
 def _target() -> Target:
-    return Target("cuda", host="llvm")
+    return Target("cuda --max_threads_per_block=1024", host="llvm")
 
 
 def _create_context(mod, target) -> TuneContext:
@@ -63,11 +64,11 @@ class After_cooperative_fetch:
     def main(var_A: T.handle, var_B: T.handle) -> None:
         A = T.match_buffer(var_A, [512, 512], dtype="float32")
         B = T.match_buffer(var_B, [512, 512], dtype="float32")
-        for i_j_fused_0 in T.thread_binding(0, 8192, thread="blockIdx.x"):
-            for i_j_fused_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
+        for i_j_fused_0 in T.thread_binding(256, thread="blockIdx.x"):
+            for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
                 with T.block("C"):
-                    vi = T.axis.spatial(512, (i_j_fused_0 * 32 + i_j_fused_1) // 512)
-                    vj = T.axis.spatial(512, (i_j_fused_0 * 32 + i_j_fused_1) % 512)
+                    vi = T.axis.spatial(512, (i_j_fused_0 * 1024 + i_j_fused_1) // 512)
+                    vj = T.axis.spatial(512, (i_j_fused_0 * 1024 + i_j_fused_1) % 512)
                     B[vi, vj] = A[vi, vj] + 1.0
 
 
@@ -94,20 +95,18 @@ class After_norm_bmn:
     def main(A: T.Buffer[(1, 256, 256), "float32"], D: T.Buffer[(1,), "float32"]) -> None:
         C = T.alloc_buffer([1], dtype="float32")
         for i0_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
-            for i0_fused_1 in T.thread_binding(32, thread="threadIdx.x"):
+            for i0_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
                 for i1, i2 in T.grid(256, 256):
                     with T.block("C"):
                         b = T.axis.S(1, 0)
                         i, j = T.axis.remap("RR", [i1, i2])
-                        T.where(i0_fused_1 < 1)
                         with T.init():
                             C[b] = T.float32(0)
                         C[b] = C[b] + A[b, i, j] * A[b, i, j]
         for i0_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
-            for i0_fused_1 in T.thread_binding(32, thread="threadIdx.x"):
+            for i0_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
                 with T.block("D"):
                     b = T.axis.S(1, 0)
-                    T.where(i0_fused_1 < 1)
                     D[b] = T.sqrt(C[b], dtype="float32")
 
 
@@ -291,6 +290,8 @@ def test_rewrite_norm_bmn():
     sch = tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.postprocs[0].apply(sch)
+    print(sch.mod.script())
+    print(Schedule(After_norm_bmn).mod.script())
     tvm.ir.assert_structural_equal(sch.mod, After_norm_bmn)
 
 
