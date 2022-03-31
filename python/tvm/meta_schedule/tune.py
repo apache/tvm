@@ -46,7 +46,7 @@ from .search_strategy import (
     ReplayTraceConfig,
 )
 from .space_generator import PostOrderApply, SpaceGenerator
-from .task_scheduler import RoundRobin, TaskScheduler
+from .task_scheduler import GradientBased, TaskScheduler
 from .tune_context import TuneContext
 from .utils import autotvm_silencer
 
@@ -64,6 +64,7 @@ FnMutatorProb = Callable[[], Dict[Mutator, float]]
 FnTaskScheduler = Callable[
     [
         List[TuneContext],
+        List[float],
         Builder,
         Runner,
         Database,
@@ -393,24 +394,29 @@ class Parse:
     def _task_scheduler(
         task_scheduler: Union[None, TaskScheduler, FnTaskScheduler],
         tasks: List[TuneContext],
+        task_weights: List[float],
         builder: Builder,
         runner: Runner,
         database: Database,
+        max_trials: int,
         cost_model: CostModel,
         measure_callbacks: List[MeasureCallback],
     ):
         if task_scheduler is None:
-            return RoundRobin(
+            return GradientBased(
                 tasks=tasks,
+                task_weights=task_weights,
                 builder=builder,
                 runner=runner,
                 database=database,
+                max_trials=max_trials,
                 cost_model=cost_model,
                 measure_callbacks=measure_callbacks,
             )
         if callable(task_scheduler):
             return task_scheduler(
                 tasks,
+                task_weights,
                 builder,
                 runner,
                 database,
@@ -495,9 +501,11 @@ def tune_tir(
     task_scheduler = Parse._task_scheduler(
         task_scheduler,
         [tune_context],
+        task_weights=[1.0],
         builder=Parse._builder(builder),
         runner=Parse._runner(runner),
         database=database,
+        max_trials=config.max_trials_global,
         cost_model=Parse._cost_model(cost_model),
         measure_callbacks=Parse._callbacks(measure_callbacks),
     )
@@ -707,9 +715,11 @@ def tune_extracted_tasks(
     task_scheduler = Parse._task_scheduler(
         task_scheduler,
         tune_contexts,
+        task_weights=[float(t.weight) for t in extracted_tasks],
         builder=Parse._builder(builder),
         runner=Parse._runner(runner),
         database=database,
+        max_trials=config.max_trials_global,
         cost_model=Parse._cost_model(cost_model),
         measure_callbacks=Parse._callbacks(measure_callbacks),
     )

@@ -214,9 +214,6 @@ Schedule ConcreteScheduleNode::Copy() {
 /******** Schedule: Schedule: Sampling ********/
 
 void ConcreteScheduleNode::Seed(support::LinearCongruentialEngine::TRandState seed) {
-  if (seed == -1) {
-    seed = std::random_device()();
-  }
   support::LinearCongruentialEngine(&rand_state_).Seed(seed);
 }
 

@@ -53,7 +53,7 @@ def derived_object(cls: type) -> type:
             def __init__(self, f_run: Callable = None):
                 self.__init_handle_by_constructor__(_ffi_api.RunnerPyRunner, f_run)
 
-        class PyRunner():
+        class PyRunner:
             _tvm_metadata = {
                 "cls": _PyRunner,
                 "methods": ["run"]
