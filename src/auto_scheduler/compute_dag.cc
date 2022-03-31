@@ -54,8 +54,7 @@ using namespace tvm::tir;
 
 template <class T>
 using OperationMap = AccessAnalyzerNode::OperationMap<T>;
-template <class T>
-using OperationMap2 = AccessAnalyzerNode::OperationMap2<T>;
+
 template <class T>
 using OperationMapLocal = std::unordered_map<te::Operation, T, ObjectPtrHash, ObjectPtrEqual>;
 using OperationSet = std::unordered_set<te::Operation, ObjectHash, ObjectEqual>;
@@ -161,7 +160,7 @@ class ReadAccessExtractor : public StmtExprVisitor {
   // All read accesses to all operations
   // The innermost vector stores multi-dimensional indices.
   // The middle vector stores possible multiple accesses
-  OperationMap<std::vector<std::vector<PrimExpr>>> read_access;
+  OperationMapLocal<std::vector<std::vector<PrimExpr>>> read_access;
   // Whether this expression has branch
   bool has_branch{false};
 };
@@ -251,17 +250,17 @@ bool HasExpensiveOp(const PrimExpr& expr) {
 }
 
 // TODO: C++-FU this.
-void CopyOperationMapLocalToNode(OperationMapLocal<bool>& local, OperationMap2<Bool>& node_map) {
+void CopyOperationMapLocalToNode(OperationMapLocal<bool>& local, OperationMap<Bool>& node_map) {
   for (auto& it : local) {
     node_map.Set(it.first, Bool(it.second));
   }
 }
 
 void CopyOperationMapLocalToNode(OperationMapLocal<OperationMapLocal<int>>& local,
-                                 OperationMap2<OperationMap2<Integer>>& node_map) {
+                                 OperationMap<OperationMap<Integer>>& node_map) {
   for (auto& it_outer : local) {
     OperationMapLocal<int>& inner_real = it_outer.second;
-    OperationMap2<Integer> inner_copy;
+    OperationMap<Integer> inner_copy;
     for (auto& it_inner : inner_real) {
       inner_copy.Set(it_inner.first, it_inner.second);
     }
@@ -271,10 +270,10 @@ void CopyOperationMapLocalToNode(OperationMapLocal<OperationMapLocal<int>>& loca
 
 void CopyOperationMapLocalToNode(
     OperationMapLocal<OperationMapLocal<std::vector<std::vector<PrimExpr>>>>& local,
-    OperationMap2<OperationMap2<Array<Array<PrimExpr>>>>& node_map) {
+    OperationMap<OperationMap<Array<Array<PrimExpr>>>>& node_map) {
   for (auto& it_outer : local) {
     OperationMapLocal<std::vector<std::vector<PrimExpr>>>& inner_real = it_outer.second;
-    OperationMap2<Array<Array<PrimExpr>>> inner_copy;
+    OperationMap<Array<Array<PrimExpr>>> inner_copy;
     for (auto& it_inner : inner_real) {
       std::vector<std::vector<PrimExpr>>& vec_real = it_inner.second;
       Array<Array<PrimExpr>> vec_copy;
@@ -291,6 +290,10 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
   OperationMapLocal<bool> is_output;
 
   auto node = make_object<AccessAnalyzerNode>();
+  // We want to write cached analysis information to TVM serializable objects like Map
+  // and Array. However, these have copy-on-write semantics which can be cumbersome to use
+  // so instead we perform all analysis using std containers and then write back to
+  // TVM serializable objects like node->read_from.
   OperationMapLocal<OperationMapLocal<std::vector<std::vector<PrimExpr>>>> read_from;
   OperationMapLocal<OperationMapLocal<std::vector<std::vector<PrimExpr>>>> read_by;
   OperationMapLocal<OperationMapLocal<int>> num_common_outer_iterators;
@@ -448,7 +451,7 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
     }
   }
 
-  // Copy over cached information to serializable containers
+  // Copy over cached analysis to serializable containers
   CopyOperationMapLocalToNode(read_from, node->read_from);
   CopyOperationMapLocalToNode(read_by, node->read_by);
   CopyOperationMapLocalToNode(num_common_outer_iterators, node->num_common_outer_iterators);
@@ -559,7 +562,7 @@ bool AccessAnalyzer::ElementWiseMatch(const te::Operation& op,
                                       const te::Operation& target_op) const {
   te::Operation cur_op = op;
   while (cur_op != target_op) {
-    const AccessAnalyzerNode::OperationMap2<Array<Array<PrimExpr>>>& map = operator->()->read_by.at(
+    const AccessAnalyzerNode::OperationMap<Array<Array<PrimExpr>>>& map = operator->()->read_by.at(
         cur_op);
 
     if (map.size() != 1) {

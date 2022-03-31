@@ -50,34 +50,31 @@ namespace auto_scheduler {
 class AccessAnalyzerNode : public Object {
  public:
   template <class T>
-  using OperationMap = std::unordered_map<te::Operation, T, ObjectPtrHash, ObjectPtrEqual>;
-
-  template <class T>
-  using OperationMap2 = Map<te::Operation, T>;
+  using OperationMap = Map<te::Operation, T>;
 
   /*! \brief Map an operation to all operations it reads from.
    * For each operation pair, use a two-dimensional array for multiple multi-dimensional accesses
    * The inner vector represents the indices of multi-dimensional access.*/
-  OperationMap2<OperationMap2<Array<Array<PrimExpr>>>> read_from;
+  OperationMap<OperationMap<Array<Array<PrimExpr>>>> read_from;
   /*! \brief Map an operation to all operations it is read by.
    * For each operation pair, use a two-dimensional array for multiple multi-dimensional accesses
    * The inner vector represents the indices of multi-dimensional access.*/
-  OperationMap2<OperationMap2<Array<Array<PrimExpr>>>> read_by;
+  OperationMap<OperationMap<Array<Array<PrimExpr>>>> read_by;
   /*! \brief Store the number of common outer iterators for operation pairs that have
    * read-write relations. */
-  OperationMap2<OperationMap2<Integer>> num_common_outer_iterators;
+  OperationMap<OperationMap<Integer>> num_common_outer_iterators;
   /*! \brief Store whether the operation is an op with only simple access.
    *  (e.g., injective, broadcast and elementwise ops without reduction) */
-  OperationMap2<Bool> is_simple_access;
+  OperationMap<Bool> is_simple_access;
   /*! \brief Store whether the operation is strictly inlineable
    * (e.g., injective, broadcast and elementwise without reduction, branch or expensive operations)
    */
-  OperationMap2<Bool> is_strictly_inlineable;
+  OperationMap<Bool> is_strictly_inlineable;
   /*! \brief Store whether the operation needs multi-level tiling
    * (e.g., computation-intensive ops with data reuse opportunity like matmul, conv2d) */
-  OperationMap2<Bool> needs_multi_level_tiling;
+  OperationMap<Bool> needs_multi_level_tiling;
   /*! \brief Store whether the operation is an output operation */
-  OperationMap2<Bool> is_output;
+  OperationMap<Bool> is_output;
   /*! \brief Store the topological order of operations */
   Array<te::Operation> ops_topo_order;
 
