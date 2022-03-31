@@ -78,10 +78,21 @@ class AccessAnalyzerNode : public Object {
   /*! \brief Store the topological order of operations */
   Array<te::Operation> ops_topo_order;
 
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("read_from", &read_from);
+    v->Visit("read_by", &read_by);
+    v->Visit("num_common_outer_iterators", &num_common_outer_iterators);
+    v->Visit("is_simple_access", &is_simple_access);
+    v->Visit("is_strictly_inlineable", &is_strictly_inlineable);
+    v->Visit("needs_multi_level_tiling", &needs_multi_level_tiling);
+    v->Visit("is_output", &is_output);
+    v->Visit("ops_topo_order", &ops_topo_order);
+  }
   static constexpr const char* _type_key = "auto_scheduler.AccessAnalyzer";
   TVM_DECLARE_FINAL_OBJECT_INFO(AccessAnalyzerNode, Object);
 };
 
+TVM_REGISTER_NODE_TYPE(AccessAnalyzerNode);
 /*!
  * \brief Managed reference to AccessAnalyzerNode.
  * \sa AccessAnalyzerNode
