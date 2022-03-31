@@ -71,7 +71,7 @@ def hexagon_clang_plus() -> str:
 
 
 @register_func("tvm.contrib.hexagon.link_shared")
-def link_shared(so_name, objs, **kwargs):
+def link_shared(so_name, objs, extra_args=None):
     """Link shared library on Hexagon using the registered Hexagon linker.
 
     Parameters
@@ -79,8 +79,10 @@ def link_shared(so_name, objs, **kwargs):
     so_name : str
         Name of the shared library file.
     objs : list[str,StringImm]
-    kwargs : additional arguments:
-        'verbose' - print additional information
+    extra_args : dict (str->str) or Map<String,String>
+        Additional arguments:
+            'hex_arch' - Hexagon architecture, e.g. v66
+            'verbose'  - Print additional information if the key is present
 
     Returns
     -------
@@ -97,12 +99,16 @@ def link_shared(so_name, objs, **kwargs):
 
     objs = [to_str(s) for s in objs]
 
+    if not extra_args:
+        extra_args = {}
+    hex_arch = extra_args.get("hex_arch") or "v66"
     linker = tvm.get_global_func("tvm.contrib.hexagon.hexagon_link")()
-    if kwargs.get("verbose"):
+    if extra_args.get("verbose"):
         print("tvm.contrib.hexagon.link_shared:")
         print("  Using linker:", linker)
         print("  Library name:", so_name)
         print("  Object files:", objs)
+        print("  Architecture:", hex_arch)
     if not os.access(linker, os.X_OK):
         message = 'The linker "' + linker + '" does not exist or is not executable.'
         if not os.environ.get("HEXAGON_TOOLCHAIN"):
@@ -120,7 +126,7 @@ def link_shared(so_name, objs, **kwargs):
             )
         raise Exception(message)
 
-    libpath = os.path.join(HEXAGON_TOOLCHAIN, "target", "hexagon", "lib", "v66", "G0")
+    libpath = os.path.join(HEXAGON_TOOLCHAIN, "target", "hexagon", "lib", hex_arch, "G0")
     cc.create_shared(
         so_name,
         objs,

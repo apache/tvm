@@ -901,7 +901,13 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
                           "do import tvm.contrib.hexagon";
 
   Array<PrimExpr> o_names = {StringImm(o_name)};
-  int rc = (*f)(so_name, o_names);
+  Map<String, String> extra_args;
+  if (target->attrs.count("mcpu")) {
+    llvm::StringRef mcpu = Downcast<String>(target->attrs.at("mcpu"));
+    ICHECK(mcpu.startswith("hexagon")) << "unexpected -mcpu value in target:" << mcpu.str();
+    extra_args.Set("hex_arch", mcpu.drop_front(strlen("hexagon")).str());
+  }
+  int rc = (*f)(so_name, o_names, extra_args);
   ICHECK(rc == 0) << "Failed to link " << so_name;
 
   // Move it to ExtractFuncInfo?
