@@ -88,8 +88,8 @@ def sdotp(data_dtype, kernel_dtype, out_dtype, vec_length, data_is_last_axis=Tru
 
 
 def get_vec_length(out, data, weight):
-    if Target.current().kind.name == "llvm" and re.match("u?int(8|16|32)", out):
-
+    tgt = Target.current()
+    if tgt.kind.name == "llvm" and "+xpulpv" in tgt.mattr and re.match("u?int(8|16|32)", out):
         if re.match("u?int8", data) and re.match("u?int8", weight):
             return 4
         elif re.match("u?int16", data) and re.match("u?int16", weight):
