@@ -181,8 +181,8 @@ bool IsConstShiftEqual(const Var& var, const PrimExpr& expr) {
 // Return whether the access to an operation is a simple access
 // (i.e. all index is just a variable with an optional constant shift)
 // For example, A[i][j], A[i+1][j] are simple accesses but A[i][j+i] is not.
-bool IsSimpleAccess(const te::Operation& op, const std::vector<PrimExpr>& indices,
-                    bool* axis_missing, bool* axis_duplicated, bool* same_order) {
+bool IsSimpleAccess(const te::Operation& op, const Array<PrimExpr>& indices, bool* axis_missing,
+                    bool* axis_duplicated, bool* same_order) {
   auto cop = op.as<te::ComputeOpNode>();
   if (cop == nullptr) {
     return false;
@@ -250,10 +250,48 @@ bool HasExpensiveOp(const PrimExpr& expr) {
   return found;
 }
 
+// TODO: C++-FU this.
+void CopyOperationMapLocalToNode(OperationMapLocal<bool>& local, OperationMap2<Bool>& node_map) {
+  for (auto& it : local) {
+    node_map.Set(it.first, Bool(it.second));
+  }
+}
+
+void CopyOperationMapLocalToNode(OperationMapLocal<OperationMapLocal<int>>& local,
+                                 OperationMap2<OperationMap2<Integer>>& node_map) {
+  for (auto& it_outer : local) {
+    OperationMapLocal<int>& inner_real = it_outer.second;
+    OperationMap2<Integer> inner_copy;
+    for (auto& it_inner : inner_real) {
+      inner_copy.Set(it_inner.first, it_inner.second);
+    }
+    node_map.Set(it_outer.first, inner_copy);
+  }
+}
+
+void CopyOperationMapLocalToNode(
+    OperationMapLocal<OperationMapLocal<std::vector<std::vector<PrimExpr>>>>& local,
+    OperationMap2<OperationMap2<Array<Array<PrimExpr>>>>& node_map) {
+  for (auto& it_outer : local) {
+    OperationMapLocal<std::vector<std::vector<PrimExpr>>>& inner_real = it_outer.second;
+    OperationMap2<Array<Array<PrimExpr>>> inner_copy;
+    for (auto& it_inner : inner_real) {
+      std::vector<std::vector<PrimExpr>>& vec_real = it_inner.second;
+      Array<Array<PrimExpr>> vec_copy;
+      for (auto& vec_inner : vec_real) {
+        vec_copy.push_back(vec_inner);
+      }
+      inner_copy.Set(it_inner.first, vec_copy);
+    }
+    node_map.Set(it_outer.first, inner_copy);
+  }
+}
+
 AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
   OperationMapLocal<bool> is_output;
 
   auto node = make_object<AccessAnalyzerNode>();
+  OperationMapLocal<OperationMapLocal<std::vector<std::vector<PrimExpr>>>> read_by;
   OperationMapLocal<OperationMapLocal<int>> num_common_outer_iterators;
   OperationMapLocal<bool> is_simple_access;
   OperationMapLocal<bool> is_strictly_inlineable;
@@ -277,7 +315,7 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
 
       // read_by and read_from map
       for (const auto& iter : extractor.read_access) {
-        std::vector<std::vector<PrimExpr>>& accesses = node->read_by[iter.first][op];
+        std::vector<std::vector<PrimExpr>>& accesses = read_by[iter.first][op];
         accesses.insert(accesses.begin(), iter.second.begin(), iter.second.end());
       }
 
@@ -403,33 +441,19 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
       needs_multi_level_tiling[op] = op_needs_multi_level_tiling;
 
       // check whether the op is output
-      is_output[op] = node->read_by[op].empty();
+      is_output[op] = read_by[op].empty();
     } else {
       LOG(FATAL) << "Invalid op" << op;
     }
   }
 
   // Copy over cached information to serializable containers
-  for (auto& it_outer : num_common_outer_iterators) {
-    OperationMapLocal<int>& inner_real = it_outer.second;
-    OperationMap2<Integer> inner_copy;
-    for (auto& it_inner : inner_real) {
-      inner_copy.Set(it_inner.first, it_inner.second);
-    }
-    node->num_common_outer_iterators.Set(it_outer.first, inner_copy);
-  }
-  for (auto& it : is_simple_access) {
-    node->is_simple_access.Set(it.first, Bool(it.second));
-  }
-  for (auto& it : is_strictly_inlineable) {
-    node->is_strictly_inlineable.Set(it.first, Bool(it.second));
-  }
-  for (auto& it : needs_multi_level_tiling) {
-    node->needs_multi_level_tiling.Set(it.first, Bool(it.second));
-  }
-  for (auto& it : is_output) {
-    node->is_output.Set(it.first, Bool(it.second));
-  }
+  CopyOperationMapLocalToNode(read_by, node->read_by);
+  CopyOperationMapLocalToNode(num_common_outer_iterators, node->num_common_outer_iterators);
+  CopyOperationMapLocalToNode(is_simple_access, node->is_simple_access);
+  CopyOperationMapLocalToNode(is_strictly_inlineable, node->is_strictly_inlineable);
+  CopyOperationMapLocalToNode(needs_multi_level_tiling, node->needs_multi_level_tiling);
+  CopyOperationMapLocalToNode(is_output, node->is_output);
 
   data_ = std::move(node);
 }
@@ -533,13 +557,15 @@ bool AccessAnalyzer::ElementWiseMatch(const te::Operation& op,
                                       const te::Operation& target_op) const {
   te::Operation cur_op = op;
   while (cur_op != target_op) {
-    const AccessAnalyzerNode::OperationMap<std::vector<std::vector<PrimExpr>>>& map =
-    operator->()->read_by.at(cur_op);
+    const AccessAnalyzerNode::OperationMap2<Array<Array<PrimExpr>>>& map = operator->()->read_by.at(
+        cur_op);
 
     if (map.size() != 1) {
       return false;
     }
-    te::Operation next_op = map.begin()->first;
+    // te::Operation next_op = map.begin()->first;
+    auto it_begin = *map.begin();
+    te::Operation next_op = it_begin.first;
 
     // Check condition 1: They have the same output size
     auto p_cur = cur_op.as<te::ComputeOpNode>();
@@ -561,7 +587,7 @@ bool AccessAnalyzer::ElementWiseMatch(const te::Operation& op,
     }
 
     // Check condition 2: The read is elementwise
-    const std::vector<std::vector<PrimExpr>> reads = map.begin()->second;
+    const Array<Array<PrimExpr>> reads = it_begin.second;
     bool is_simple_access, axis_missing, axis_duplicated, same_order;
     for (const auto& read : reads) {
       is_simple_access = auto_scheduler::IsSimpleAccess(next_op, read, &axis_missing,

@@ -62,7 +62,7 @@ class AccessAnalyzerNode : public Object {
   /*! \brief Map an operation to all operations it is read by.
    * For each operation pair, use a two-dimensional array for multiple multi-dimensional accesses
    * The inner vector represents the indices of multi-dimensional access.*/
-  OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_by;
+  OperationMap2<OperationMap2<Array<Array<PrimExpr>>>> read_by;
   /*! \brief Store the number of common outer iterators for operation pairs that have
    * read-write relations. */
   OperationMap2<OperationMap2<Integer>> num_common_outer_iterators;
