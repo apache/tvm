@@ -337,7 +337,7 @@ def compile_model(
     dumps = {}
     for source_type in dump_code:
         if use_vm:
-            _, lib = graph_module.save()
+            lib = graph_module.lib
         else:
             lib = graph_module.get_lib()
         # TODO lib.get_source call have inconsistent behavior for unsupported
@@ -347,7 +347,7 @@ def compile_model(
 
     # Create a new tvmc model package object from the graph definition.
     package_path = tvmc_model.export_package(
-        graph_module, package_path, cross, cross_options, output_format, use_vm=use_vm
+        graph_module, package_path, cross, cross_options, output_format
     )
 
     # Write dumps to file.

@@ -73,7 +73,8 @@ def verify_compile_tflite_module(model, shape_dict=None, use_vm=False):
     verify_tvmc_package(tvmc_package, dumps_path, use_vm=use_vm)
 
 
-def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
+@pytest.mark.parametrize("use_vm", [True, False])
+def test_compile_tflite_module(use_vm, tflite_mobilenet_v1_1_quant):
     # some CI environments wont offer tflite, so skip in case it is not present
     pytest.importorskip("tflite")
     # Check default compilation.
@@ -81,18 +82,7 @@ def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
     # Check with manual shape override
     shape_string = "input:[1,224,224,3]"
     shape_dict = tvmc.shape_parser.parse_shape_string(shape_string)
-    verify_compile_tflite_module(tflite_mobilenet_v1_1_quant, shape_dict)
-
-
-def test_compile_tflite_module_use_vm(tflite_mobilenet_v1_1_quant):
-    # some CI environments wont offer tflite, so skip in case it is not present
-    pytest.importorskip("tflite")
-    # Check default compilation.
-    verify_compile_tflite_module(tflite_mobilenet_v1_1_quant)
-    # Check with manual shape override
-    shape_string = "input:[1,224,224,3]"
-    shape_dict = tvmc.shape_parser.parse_shape_string(shape_string)
-    verify_compile_tflite_module(tflite_mobilenet_v1_1_quant, shape_dict, use_vm=True)
+    verify_compile_tflite_module(tflite_mobilenet_v1_1_quant, shape_dict, use_vm=use_vm)
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
@@ -228,22 +218,14 @@ def verify_compile_onnx_module(model, shape_dict=None, use_vm=False):
     verify_tvmc_package(tvmc_package, dumps_path, use_vm=use_vm)
 
 
-def test_compile_onnx_module(onnx_resnet50):
+@pytest.mark.parametrize("use_vm", [True, False])
+def test_compile_onnx_module(use_vm, onnx_resnet50):
     # Test default compilation
     verify_compile_onnx_module(onnx_resnet50)
     # Test with manual shape dict
     shape_string = "data:[1,3,200,200]"
     shape_dict = tvmc.shape_parser.parse_shape_string(shape_string)
-    verify_compile_onnx_module(onnx_resnet50, shape_dict)
-
-
-def test_compile_onnx_module_use_vm(onnx_resnet50):
-    # Test default compilation
-    verify_compile_onnx_module(onnx_resnet50, use_vm=True)
-    # Test with manual shape dict
-    shape_string = "data:[1,3,200,200]"
-    shape_dict = tvmc.shape_parser.parse_shape_string(shape_string)
-    verify_compile_onnx_module(onnx_resnet50, shape_dict, use_vm=True)
+    verify_compile_onnx_module(onnx_resnet50, shape_dict, use_vm=use_vm)
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.

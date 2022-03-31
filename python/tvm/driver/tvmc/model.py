@@ -291,7 +291,6 @@ class TVMCModel(object):
         cross: Optional[Union[str, Callable]] = None,
         cross_options: Optional[str] = None,
         output_format: str = "so",
-        use_vm: bool = False,
     ):
         """Save this TVMCModel to file.
         Parameters
@@ -320,7 +319,7 @@ class TVMCModel(object):
         if output_format == "mlf" and cross:
             raise TVMCException("Specifying the MLF output and a cross compiler is not supported.")
 
-        if use_vm:
+        if isinstance(executor_factory, Executable):
             package_path = self.export_vm_format(executor_factory, package_path, output_format)
         elif output_format in ["so", "tar"]:
             package_path = self.export_classic_format(
