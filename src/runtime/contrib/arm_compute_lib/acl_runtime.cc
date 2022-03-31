@@ -92,19 +92,19 @@ class ACLRuntime : public JSONRuntimeBase {
    * \return Status of inference.
    */
   void Run() override {
-    for (size_t i = 0; i < input_nodes_.size(); ++i) {
-      auto nid = input_nodes_[i];
+    for (size_t nid_idx = 0; nid_idx < input_nodes_.size(); ++nid_idx) {
+      auto nid = input_nodes_[nid_idx];
       if (nodes_[nid].GetOpType() == "input") {
-        for (uint32_t index = 0; index < nodes_[nid].GetNumOutput(); index++) {
-          uint32_t eid = EntryID(nid, index);
+        for (uint32_t eid_idx = 0; eid_idx < nodes_[nid].GetNumOutput(); eid_idx++) {
+          uint32_t eid = EntryID(nid, eid_idx);
           void* data = data_entry_[eid]->data;
-          auto key = std::pair<uint32_t, uint32_t>(nid, index);
+          auto key = std::pair<uint32_t, uint32_t>(nid, eid_idx);
           if (layer_.json_inputid_to_layer_inputid.count(key) > 0) {
             CheckACLError(
                 layer_.inputs[layer_.json_inputid_to_layer_inputid[key]].allocator()->import_memory(
                     data));
           } else {
-            CheckACLError(layer_.inputs[i].allocator()->import_memory(data));
+            CheckACLError(layer_.inputs[nid_idx].allocator()->import_memory(data));
           }
         }
       }
@@ -178,6 +178,8 @@ class ACLRuntime : public JSONRuntimeBase {
     std::shared_ptr<arm_compute::IFunction> function;
     std::vector<arm_compute::Tensor> inputs;
     std::vector<arm_compute::Tensor> outputs;
+    // maps the input index of JSON node to the index of the ACL layer's inputs
+    // this is optional (i.e.only when an operator uses the eid index)
     std::map<std::pair<uint32_t, uint32_t>, uint32_t> json_inputid_to_layer_inputid;
   };
 
@@ -206,7 +208,7 @@ class ACLRuntime : public JSONRuntimeBase {
       node_data = data_entry_[EntryID(tensor)]->data;
     }
     return MakeACLTensorFromJSONNode(node, scale, offset, node_data, apply_dim_correction,
-                                     increase_dim_unit);
+                                     increase_dim_unit, tensor.index_);
   }
 
   /*!
@@ -222,14 +224,13 @@ class ACLRuntime : public JSONRuntimeBase {
    * _num_dimensions should be 3 rather than 1.
    * \param increase_dim_unit (Optional) Set to true if new unit dimensions increase the number of
    * dimensions of the shape.
+   * \param entry_index The entry index.
    * \return ACL Tensor.
    */
-  arm_compute::Tensor MakeACLTensorFromJSONNode(const JSONGraphNode& node,
-                                                JSONGraphNodeEntry* scale = nullptr,
-                                                JSONGraphNodeEntry* offset = nullptr,
-                                                void* data = nullptr,
-                                                bool apply_dim_correction = true,
-                                                bool increase_dim_unit = true) {
+  arm_compute::Tensor MakeACLTensorFromJSONNode(
+      const JSONGraphNode& node, JSONGraphNodeEntry* scale = nullptr,
+      JSONGraphNodeEntry* offset = nullptr, void* data = nullptr, bool apply_dim_correction = true,
+      bool increase_dim_unit = true, uint32_t entry_index = 0) {
     const DLTensor* scale_data = nullptr;
     const DLTensor* offset_data = nullptr;
     if (scale && offset) {
@@ -237,7 +238,7 @@ class ACLRuntime : public JSONRuntimeBase {
       offset_data = data_entry_[EntryID(*offset)];
     }
     return MakeACLTensor(node, data, scale_data, offset_data, apply_dim_correction,
-                         increase_dim_unit);
+                         increase_dim_unit, entry_index);
   }
 
   /*!
@@ -559,7 +560,11 @@ class ACLRuntime : public JSONRuntimeBase {
     layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
     int dimNum = layer->inputs[0].info()->num_dimensions();
     auto function = std::make_shared<arm_compute::NEConcatenateLayer>();
-    function->configure(inputs, &layer->outputs[0], dimNum - std::stoi(axis[0]) - 1);
+    // the shape of input tensor will be reversed after passing to ACL
+    // for example a tensor with shape [1, 2, 3, 4] will be changed to
+    // [4, 3, 2, 1] at ACL side. So the axis here should be preprocessed.
+    auto a = std::stoi(axis[0]);
+    function->configure(inputs, &layer->outputs[0], a < 0 ? -a - 1 : dimNum - a - 1);
     layer->function = function;
   }
 

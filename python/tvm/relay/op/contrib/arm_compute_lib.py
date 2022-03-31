@@ -286,7 +286,6 @@ def _register_external_op_helper(op_name, supported=True):
 
 
 _register_external_op_helper("reshape")
-_register_external_op_helper("concatenate")
 
 
 @tvm.ir.register_op_attr("nn.conv2d", "target.arm_compute_lib")
@@ -488,6 +487,19 @@ def qnn_add(expr):
         if typ.dtype != "uint8":
             return False
 
+    return True
+
+
+@tvm.ir.register_op_attr("concatenate", "target.arm_compute_lib")
+def concatenate(expr):
+    """Check if the external ACL codegen for concatenate should be used."""
+    attrs, type_args = expr.attrs, expr.type_args
+    for idx in range(len(type_args[0].fields)):
+        if type_args[0].fields[idx].dtype not in ["float32", "uint8"]:
+            return False
+    # ACL concatenate only supports maximum 4 dimensions input tensor
+    if attrs.axis not in [-4, -3, -2, -1, 0, 1, 2, 3]:
+        return False
     return True
 
 

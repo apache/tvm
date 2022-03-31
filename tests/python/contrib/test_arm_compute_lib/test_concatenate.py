@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Arm Compute Library integration space_to_batch_nd tests."""
+"""Arm Compute Library integration concatenate tests."""
 
 import numpy as np
 
@@ -55,7 +55,7 @@ def _get_expected_codegen(input_shape_a, input_shape_b, input_shape_c, axis, dty
             "num_inputs": "3",
             "dtype": [[dtype]],
             "axis": [[str(axis)]],
-            "shape": [[[3, 234, 234, 256]]],
+            "shape": [[[6, 234, 234, 256]]],
         },
     }
 
@@ -80,10 +80,16 @@ def test_concatenate():
     device = Device()
     np.random.seed(0)
 
-    for input_shape_a, input_shape_b, input_shape_c, axis in [
-        ([1, 234, 234, 256], [1, 234, 234, 256], [1, 234, 234, 256], 0),
+    for input_shape_a, input_shape_b, input_shape_c, axis, dtype in [
+        ([1, 234, 234, 256], [2, 234, 234, 256], [3, 234, 234, 256], 0, "float32"),
+        ([1, 1, 234, 256], [1, 2, 234, 256], [1, 3, 234, 256], 1, "float32"),
+        ([1, 234, 234, 1], [1, 234, 234, 2], [1, 234, 234, 3], -1, "float32"),
+        ([1, 234, 234, 256], [2, 234, 234, 256], [3, 234, 234, 256], -4, "float32"),
+        ([1, 234, 234, 256], [2, 234, 234, 256], [3, 234, 234, 256], 0, "uint8"),
+        ([1, 1, 234, 256], [1, 2, 234, 256], [1, 3, 234, 256], 1, "uint8"),
+        ([1, 234, 234, 1], [1, 234, 234, 2], [1, 234, 234, 3], -1, "uint8"),
+        ([1, 234, 234, 256], [2, 234, 234, 256], [3, 234, 234, 256], -4, "uint8"),
     ]:
-        dtype = "int32"
         outputs = []
         inputs = {
             "a": tvm.nd.array(np.random.randn(*input_shape_a).astype(dtype)),
@@ -100,7 +106,7 @@ def test_concatenate():
             "input_shape_a": input_shape_a,
             "input_shape_b": input_shape_b,
             "input_shape_c": input_shape_c,
-            "axis": 0,
+            "axis": axis,
             "dtype": dtype,
         }
         verify(outputs, atol=1e-7, rtol=1e-7, config=config)
@@ -110,8 +116,8 @@ def test_codegen_concatenate():
     if skip_codegen_test():
         return
     shape_a = [1, 234, 234, 256]
-    shape_b = [1, 234, 234, 256]
-    shape_c = [1, 234, 234, 256]
+    shape_b = [2, 234, 234, 256]
+    shape_c = [3, 234, 234, 256]
     axis = 0
     inputs = {"a", "b", "c"}
     for dtype in ["float32"]:

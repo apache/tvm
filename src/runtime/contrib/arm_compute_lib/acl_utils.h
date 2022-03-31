@@ -64,7 +64,8 @@ void CheckACLError(const arm_compute::Status& status);
  */
 arm_compute::Tensor MakeACLTensor(const JSONGraphNode& tensor_rep, void* data = nullptr,
                                   const DLTensor* scale = nullptr, const DLTensor* offset = nullptr,
-                                  bool apply_dim_correction = true, bool increase_dim_unit = true);
+                                  bool apply_dim_correction = true, bool increase_dim_unit = true,
+                                  uint32_t entry_index = 0);
 
 /*!
  * \brief Make an acl tensor info object from JSON tensor

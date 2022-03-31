@@ -41,10 +41,11 @@ void CheckACLError(const arm_compute::Status& status) {
 
 arm_compute::Tensor MakeACLTensor(const JSONGraphNode& tensor_rep, void* data,
                                   const DLTensor* scale, const DLTensor* offset,
-                                  bool apply_dim_correction, bool increase_dim_unit) {
+                                  bool apply_dim_correction, bool increase_dim_unit,
+                                  uint32_t entry_index) {
   arm_compute::Tensor tensor;
-  std::vector<int64_t> shape = tensor_rep.GetOpShape()[0];
-  DLDataType dtype = tensor_rep.GetOpDataType()[0];
+  std::vector<int64_t> shape = tensor_rep.GetOpShape()[entry_index];
+  DLDataType dtype = tensor_rep.GetOpDataType()[entry_index];
   arm_compute::TensorInfo info =
       MakeACLTensorInfo(shape, dtype, scale, offset, apply_dim_correction, increase_dim_unit);
   info.set_is_resizable(false);
