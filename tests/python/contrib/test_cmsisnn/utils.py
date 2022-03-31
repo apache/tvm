@@ -231,6 +231,9 @@ def make_qnn_relu(expr, fused_activation_fn, scale, zero_point, dtype):
 
 
 def generate_random_input_data(seed, shape, dtype):
+    """
+    Generates randomized input numpy arrays based on shape and dtype
+    """
     random_state = np.random.RandomState(seed)
     if dtype == np.float32:
         return random_state.uniform(-1, 1, size).astype(dtype)
@@ -247,13 +250,19 @@ def generate_ref_data_tflite(model):
     It returns randomized inputs and reference outputs.
     """
     from tensorflow.lite.python.interpreter import OpResolverType
+    from distutils.version import LooseVersion
 
-    interpreter = tf.lite.Interpreter(
-        model_content=model,
-        experimental_op_resolver_type=OpResolverType.BUILTIN_REF,
-        experimental_preserve_all_tensors=False,
-    )
-    # interpreter = tf.lite.Interpreter(model_content=model)
+    output_tolerance = None
+    if tf.__version__ < LooseVersion("2.5.0"):
+        output_tolerance = 1
+        interpreter = tf.lite.Interpreter(model_content=model)
+    else:
+        output_tolerance = 0
+        interpreter = tf.lite.Interpreter(
+            model_content=model,
+            experimental_op_resolver_type=OpResolverType.BUILTIN_REF,
+            experimental_preserve_all_tensors=False,
+        )
 
     interpreter.allocate_tensors()
     input_details = interpreter.get_input_details()
@@ -278,7 +287,7 @@ def generate_ref_data_tflite(model):
             {output_detail["name"]: interpreter.get_tensor(output_detail["index"])}
         )
 
-    return input_data, expected_output_data
+    return input_data, expected_output_data, output_tolerance
 
 
 def create_conv2d_tflite_model(ifm_shape, kernel_shape, strides, dilation, padding, activation):

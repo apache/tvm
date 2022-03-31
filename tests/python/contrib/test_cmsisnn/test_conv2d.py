@@ -327,14 +327,14 @@ def test_conv2d_int8_tflite(ifm_shape, kernel_shape, strides, dilation, padding,
     assert_partitioned_function(relay_mod, cmsisnn_mod)
 
     # validate CMSIS-NN output against TFLite output
-    input_map, output_map = generate_ref_data_tflite(tflite_model)
+    input_map, output_map, output_tolerance = generate_ref_data_tflite(tflite_model)
     compile_and_run(
         AOTTestModel(
             module=cmsisnn_mod,
             inputs=input_map,
             outputs=output_map,
             params=params,
-            output_tolerance=0,
+            output_tolerance=output_tolerance,
         ),
         test_runner,
         interface_api,
