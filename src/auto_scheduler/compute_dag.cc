@@ -54,6 +54,10 @@ using namespace tvm::tir;
 
 template <class T>
 using OperationMap = AccessAnalyzerNode::OperationMap<T>;
+template <class T>
+using OperationMap2 = AccessAnalyzerNode::OperationMap2<T>;
+template <class T>
+using OperationMapLocal = std::unordered_map<te::Operation, T, ObjectPtrHash, ObjectPtrEqual>;
 using OperationSet = std::unordered_set<te::Operation, ObjectHash, ObjectEqual>;
 
 TVM_REGISTER_NODE_TYPE(ComputeDAGNode);
@@ -247,8 +251,14 @@ bool HasExpensiveOp(const PrimExpr& expr) {
 }
 
 AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
+  OperationMapLocal<bool> is_output;
+
   auto node = make_object<AccessAnalyzerNode>();
-  OperationMap<bool> has_branch;
+  OperationMapLocal<OperationMapLocal<int>> num_common_outer_iterators;
+  OperationMapLocal<bool> is_simple_access;
+  OperationMapLocal<bool> is_strictly_inlineable;
+  OperationMapLocal<bool> needs_multi_level_tiling;
+  OperationMapLocal<bool> has_branch;
 
   // Get all ops in topological order
   node->ops_topo_order = TopoSortOps(tensors);
@@ -302,8 +312,8 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
           }
         }
 
-        node->num_common_outer_iterators[op][producer] = n_common;
-        node->num_common_outer_iterators[producer][op] = n_common;
+        num_common_outer_iterators[op][producer] = n_common;
+        num_common_outer_iterators[producer][op] = n_common;
       }
     } else {
       LOG(FATAL) << "Invalid op: " << op;
@@ -313,14 +323,14 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
   // Do some static analysis on ComputeOps
   for (const auto& op : node->ops_topo_order) {
     if (op->IsInstance<te::PlaceholderOpNode>()) {
-      node->is_simple_access[op] = true;
-      node->needs_multi_level_tiling[op] = false;
-      node->is_strictly_inlineable[op] = false;
-      node->is_output[op] = false;
+      is_simple_access[op] = true;
+      needs_multi_level_tiling[op] = false;
+      is_strictly_inlineable[op] = false;
+      is_output[op] = false;
     } else if (auto cop = op.as<te::ComputeOpNode>()) {
       // check whether this op is element-wise and strict-inlineable
-      bool is_simple_access = true;
-      bool is_strictly_inlineable = true;
+      bool op_is_simple_access = true;
+      bool op_is_strictly_inlineable = true;
 
       bool axis_missing, axis_duplicated, same_order;
       for (const auto& pair : node->read_from[op]) {
@@ -328,16 +338,16 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
         for (const auto& access : access_list) {
           if (!auto_scheduler::IsSimpleAccess(op, access, &axis_missing, &axis_duplicated,
                                               &same_order)) {
-            is_simple_access = false;
-            is_strictly_inlineable = false;
+            op_is_simple_access = false;
+            op_is_strictly_inlineable = false;
             break;
           }
           if (!same_order || axis_duplicated) {
             // do not strictly inline transpose
-            is_strictly_inlineable = false;
+            op_is_strictly_inlineable = false;
           }
         }
-        if (!is_simple_access) {
+        if (!op_is_simple_access) {
           break;
         }
       }
@@ -348,19 +358,19 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
         has_expensive_op |= HasExpensiveOp(expr);
       }
       if (has_expensive_op || has_branch[op]) {
-        is_strictly_inlineable = false;
+        op_is_strictly_inlineable = false;
       }
 
       // constant tensor is strict-inlineable
       if (node->read_from[op].empty()) {
-        is_strictly_inlineable = true;
+        op_is_strictly_inlineable = true;
       }
 
-      node->is_simple_access[op] = is_simple_access;
-      node->is_strictly_inlineable[op] = is_strictly_inlineable;
+      is_simple_access[op] = op_is_simple_access;
+      is_strictly_inlineable[op] = op_is_strictly_inlineable;
 
       // check whether the op needs multi-level tiling
-      bool needs_multi_level_tiling = false;
+      bool op_needs_multi_level_tiling = false;
       int n_missing = 0;
 
       for (const auto& pair : node->read_from[op]) {
@@ -380,23 +390,45 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
         }
 
         if (n_missing >= 2 || (n_missing >= 1 && !cop->reduce_axis.empty())) {
-          needs_multi_level_tiling = true;
+          op_needs_multi_level_tiling = true;
           break;
         }
       }
 
       // do not perform multi-level tiling on "fake reduction" with const tensors
       if (op->attrs.count(SearchPolicyKey::simplify_const_tensor_indices)) {
-        needs_multi_level_tiling = false;
+        op_needs_multi_level_tiling = false;
       }
 
-      node->needs_multi_level_tiling[op] = needs_multi_level_tiling;
+      needs_multi_level_tiling[op] = op_needs_multi_level_tiling;
 
       // check whether the op is output
-      node->is_output[op] = node->read_by[op].empty();
+      is_output[op] = node->read_by[op].empty();
     } else {
       LOG(FATAL) << "Invalid op" << op;
     }
+  }
+
+  // Copy over cached information to serializable containers
+  for (auto& it_outer : num_common_outer_iterators) {
+    OperationMapLocal<int>& inner_real = it_outer.second;
+    OperationMap2<Integer> inner_copy;
+    for (auto& it_inner : inner_real) {
+      inner_copy.Set(it_inner.first, it_inner.second);
+    }
+    node->num_common_outer_iterators.Set(it_outer.first, inner_copy);
+  }
+  for (auto& it : is_simple_access) {
+    node->is_simple_access.Set(it.first, Bool(it.second));
+  }
+  for (auto& it : is_strictly_inlineable) {
+    node->is_strictly_inlineable.Set(it.first, Bool(it.second));
+  }
+  for (auto& it : needs_multi_level_tiling) {
+    node->needs_multi_level_tiling.Set(it.first, Bool(it.second));
+  }
+  for (auto& it : is_output) {
+    node->is_output.Set(it.first, Bool(it.second));
   }
 
   data_ = std::move(node);
@@ -488,9 +520,8 @@ int AccessAnalyzer::GetNumCommonOuterIterator(const te::Operation& op,
     }
 
     for (const auto& iter : operator->()->read_by.at(cur_op)) {
-      traverse(
-          iter.first,
-          std::min(cur_num, operator->()->num_common_outer_iterators.at(cur_op).at(iter.first)));
+      int common = operator->()->num_common_outer_iterators.at(cur_op).at(iter.first);
+      traverse(iter.first, std::min(cur_num, common));
     }
   };
 

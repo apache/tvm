@@ -52,6 +52,9 @@ class AccessAnalyzerNode : public Object {
   template <class T>
   using OperationMap = std::unordered_map<te::Operation, T, ObjectPtrHash, ObjectPtrEqual>;
 
+  template <class T>
+  using OperationMap2 = Map<te::Operation, T>;
+
   /*! \brief Map an operation to all operations it reads from.
    * For each operation pair, use a two-dimensional array for multiple multi-dimensional accesses
    * The inner vector represents the indices of multi-dimensional access.*/
@@ -62,19 +65,19 @@ class AccessAnalyzerNode : public Object {
   OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_by;
   /*! \brief Store the number of common outer iterators for operation pairs that have
    * read-write relations. */
-  OperationMap<OperationMap<int>> num_common_outer_iterators;
+  OperationMap2<OperationMap2<Integer>> num_common_outer_iterators;
   /*! \brief Store whether the operation is an op with only simple access.
    *  (e.g., injective, broadcast and elementwise ops without reduction) */
-  OperationMap<bool> is_simple_access;
+  OperationMap2<Bool> is_simple_access;
   /*! \brief Store whether the operation is strictly inlineable
    * (e.g., injective, broadcast and elementwise without reduction, branch or expensive operations)
    */
-  OperationMap<bool> is_strictly_inlineable;
+  OperationMap2<Bool> is_strictly_inlineable;
   /*! \brief Store whether the operation needs multi-level tiling
    * (e.g., computation-intensive ops with data reuse opportunity like matmul, conv2d) */
-  OperationMap<bool> needs_multi_level_tiling;
+  OperationMap2<Bool> needs_multi_level_tiling;
   /*! \brief Store whether the operation is an output operation */
-  OperationMap<bool> is_output;
+  OperationMap2<Bool> is_output;
   /*! \brief Store the topological order of operations */
   Array<te::Operation> ops_topo_order;
 
