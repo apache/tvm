@@ -325,6 +325,8 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     """
     data, weight = inputs
 
+    current_target = tvm.target.Target.current(allow_none = True)
+
     # First check if there is a LayoutConfig scope, and if so, whether
     # it indicates we should ignore this layer or not.
     layout_config = LayoutConfig.current
@@ -360,7 +362,11 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
         ):
             new_attrs["kernel_layout"] = "HWOI"
         else:
-            new_attrs["kernel_layout"] = "HWIO"
+
+            if current_target and "pulp" in current_target.keys and attrs["groups"] == 1:
+                new_attrs["kernel_layout"] = "OHWI"
+            else:
+                new_attrs["kernel_layout"] = "HWIO"
         return relay.nn.conv2d(data, weight, **new_attrs)
     elif desired_data_layout == "HWNC":
         new_attrs["kernel_layout"] = "HWOI"
