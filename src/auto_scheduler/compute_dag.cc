@@ -249,46 +249,43 @@ bool HasExpensiveOp(const PrimExpr& expr) {
   return found;
 }
 
-// TODO: C++-FU this.
-void CopyOperationMapLocalToNode(OperationMapLocal<bool>& local, OperationMap<Bool>& node_map) {
+// TODO(AndrewZhaoLuo): C++-FU this.
+void CopyOperationMapLocalToNode(const OperationMapLocal<bool>& local,
+                                 OperationMap<Bool>* node_map) {
   for (auto& it : local) {
-    node_map.Set(it.first, Bool(it.second));
+    node_map->Set(it.first, Bool(it.second));
   }
 }
-
-void CopyOperationMapLocalToNode(OperationMapLocal<OperationMapLocal<int>>& local,
-                                 OperationMap<OperationMap<Integer>>& node_map) {
+void CopyOperationMapLocalToNode(const OperationMapLocal<OperationMapLocal<int>>& local,
+                                 OperationMap<OperationMap<Integer>>* node_map) {
   for (auto& it_outer : local) {
-    OperationMapLocal<int>& inner_real = it_outer.second;
+    const OperationMapLocal<int>& inner_real = it_outer.second;
     OperationMap<Integer> inner_copy;
     for (auto& it_inner : inner_real) {
       inner_copy.Set(it_inner.first, it_inner.second);
     }
-    node_map.Set(it_outer.first, inner_copy);
+    node_map->Set(it_outer.first, inner_copy);
   }
 }
-
 void CopyOperationMapLocalToNode(
-    OperationMapLocal<OperationMapLocal<std::vector<std::vector<PrimExpr>>>>& local,
-    OperationMap<OperationMap<Array<Array<PrimExpr>>>>& node_map) {
+    const OperationMapLocal<OperationMapLocal<std::vector<std::vector<PrimExpr>>>>& local,
+    OperationMap<OperationMap<Array<Array<PrimExpr>>>>* node_map) {
   for (auto& it_outer : local) {
-    OperationMapLocal<std::vector<std::vector<PrimExpr>>>& inner_real = it_outer.second;
+    const OperationMapLocal<std::vector<std::vector<PrimExpr>>>& inner_real = it_outer.second;
     OperationMap<Array<Array<PrimExpr>>> inner_copy;
     for (auto& it_inner : inner_real) {
-      std::vector<std::vector<PrimExpr>>& vec_real = it_inner.second;
+      const std::vector<std::vector<PrimExpr>>& vec_real = it_inner.second;
       Array<Array<PrimExpr>> vec_copy;
       for (auto& vec_inner : vec_real) {
         vec_copy.push_back(vec_inner);
       }
       inner_copy.Set(it_inner.first, vec_copy);
     }
-    node_map.Set(it_outer.first, inner_copy);
+    node_map->Set(it_outer.first, inner_copy);
   }
 }
 
 AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
-  OperationMapLocal<bool> is_output;
-
   auto node = make_object<AccessAnalyzerNode>();
   // We want to write cached analysis information to TVM serializable objects like Map
   // and Array. However, these have copy-on-write semantics which can be cumbersome to use
@@ -301,6 +298,7 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
   OperationMapLocal<bool> is_strictly_inlineable;
   OperationMapLocal<bool> needs_multi_level_tiling;
   OperationMapLocal<bool> has_branch;
+  OperationMapLocal<bool> is_output;
 
   // Get all ops in topological order
   node->ops_topo_order = TopoSortOps(tensors);
@@ -452,13 +450,13 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
   }
 
   // Copy over cached analysis to serializable containers
-  CopyOperationMapLocalToNode(read_from, node->read_from);
-  CopyOperationMapLocalToNode(read_by, node->read_by);
-  CopyOperationMapLocalToNode(num_common_outer_iterators, node->num_common_outer_iterators);
-  CopyOperationMapLocalToNode(is_simple_access, node->is_simple_access);
-  CopyOperationMapLocalToNode(is_strictly_inlineable, node->is_strictly_inlineable);
-  CopyOperationMapLocalToNode(needs_multi_level_tiling, node->needs_multi_level_tiling);
-  CopyOperationMapLocalToNode(is_output, node->is_output);
+  CopyOperationMapLocalToNode(read_from, &node->read_from);
+  CopyOperationMapLocalToNode(read_by, &node->read_by);
+  CopyOperationMapLocalToNode(num_common_outer_iterators, &node->num_common_outer_iterators);
+  CopyOperationMapLocalToNode(is_simple_access, &node->is_simple_access);
+  CopyOperationMapLocalToNode(is_strictly_inlineable, &node->is_strictly_inlineable);
+  CopyOperationMapLocalToNode(needs_multi_level_tiling, &node->needs_multi_level_tiling);
+  CopyOperationMapLocalToNode(is_output, &node->is_output);
 
   data_ = std::move(node);
 }
