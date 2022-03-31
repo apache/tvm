@@ -58,11 +58,11 @@ class AccessAnalyzerNode : public Object {
   /*! \brief Map an operation to all operations it reads from.
    * For each operation pair, use a two-dimensional array for multiple multi-dimensional accesses
    * The inner vector represents the indices of multi-dimensional access.*/
-  OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_from;
+  OperationMap2<OperationMap2<Array<Array<PrimExpr>>>> read_from;
   /*! \brief Map an operation to all operations it is read by.
    * For each operation pair, use a two-dimensional array for multiple multi-dimensional accesses
    * The inner vector represents the indices of multi-dimensional access.*/
-  OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_by;
+  OperationMap2<OperationMap2<Array<Array<PrimExpr>>>> read_by;
   /*! \brief Store the number of common outer iterators for operation pairs that have
    * read-write relations. */
   OperationMap2<OperationMap2<Integer>> num_common_outer_iterators;
@@ -86,7 +86,16 @@ class AccessAnalyzerNode : public Object {
   static constexpr const char* _type_key = "auto_scheduler.AccessAnalyzer";
   TVM_DECLARE_FINAL_OBJECT_INFO(AccessAnalyzerNode, Object);
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("ops_topo_order", &ops_topo_order); }
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("read_from", &read_from);
+    v->Visit("read_by", &read_by);
+    v->Visit("num_common_outer_iterators", &num_common_outer_iterators);
+    v->Visit("is_simple_access", &is_simple_access);
+    v->Visit("is_strictly_inlineable", &is_strictly_inlineable);
+    v->Visit("needs_multi_level_tiling", &needs_multi_level_tiling);
+    v->Visit("is_output", &is_output);
+    v->Visit("ops_topo_order", &ops_topo_order);
+  }
 };
 
 TVM_REGISTER_NODE_TYPE(AccessAnalyzerNode);
