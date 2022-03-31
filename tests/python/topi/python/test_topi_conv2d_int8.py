@@ -363,19 +363,19 @@ def verify_conv2d_NCHWc_int8(
         # ),
     ]
 
-    # TODO(tvm-team): Figure out ARM dot product availability on CI aarch64 environment
+    build_only_aarch64 = platform.machine() != "aarch64"
+
     targets.append(
         (
             "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon,+v8.2a,+dotprod",
             topi.arm_cpu.conv2d_NCHWc_int8,
             topi.arm_cpu.schedule_conv2d_NCHWc_int8,
             8,
-            True,
+            build_only_aarch64,
         )
     )
 
     if in_dtype == "int8":
-        build_only_aarch64 = platform.machine() != "aarch64"
         targets.append(
             (
                 "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon",
