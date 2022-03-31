@@ -103,6 +103,7 @@ def partition_for_dnnl(mod, params=None, alter_layout=True):
     )
     with tvm.transform.PassContext(opt_level=3):
         mod = byoc_seq(mod)
+        mod = dnnl.prune_dnnl_subgraphs(mod)
     return mod
 
 
@@ -123,12 +124,15 @@ def assert_result_dict_holds(result_dict):
             tvm.testing.assert_allclose(r1, r2, rtol=1e-3, atol=1e-3)
 
 
-def run_and_verify(mod, input, params, target, run_module):
-    def check_dnnl_used(mod):
+def run_and_verify(mod, input, params, target, run_module, subgraph_num=None):
+    def check_dnnl_used(mod, subgraph_num=None):
         num_dnnl_subgraphs = sum(
             [1 if "dnnl" in gv.name_hint else 0 for gv in mod.get_global_vars()]
         )
-        assert num_dnnl_subgraphs >= 1
+        if subgraph_num:
+            assert num_dnnl_subgraphs == subgraph_num
+        else:
+            assert num_dnnl_subgraphs >= 1
 
     dev = tvm.cpu()
     result_dict = dict()
@@ -137,7 +141,7 @@ def run_and_verify(mod, input, params, target, run_module):
             result_key = mode + ("_dnnl" if use_dnnl else "") + ("_layout" if alter_layout else "")
             if use_dnnl:
                 processed_mod = partition_for_dnnl(mod, params, alter_layout)
-                check_dnnl_used(processed_mod)
+                check_dnnl_used(processed_mod, subgraph_num)
             else:
                 processed_mod = mod
             with tvm.transform.PassContext(opt_level=3):
@@ -154,7 +158,7 @@ def run_and_verify(mod, input, params, target, run_module):
         assert_result_dict_holds(result_dict)
 
 
-def run_and_verify_func(config, run_module, target="llvm", dtype="float32"):
+def run_and_verify_func(config, run_module, subgraph_num=None, target="llvm", dtype="float32"):
     """Test a Relay func by compiling, running, and comparing TVM and DNNL outputs.
     Parameters
     ----------
@@ -171,7 +175,9 @@ def run_and_verify_func(config, run_module, target="llvm", dtype="float32"):
         for k, v in input_shapes.items()
         if k not in is_param
     }
-    run_and_verify(f, input_dict, params, target=target, run_module=run_module)
+    run_and_verify(
+        f, input_dict, params, subgraph_num=subgraph_num, target=target, run_module=run_module
+    )
 
 
 def get_conv1d(
@@ -574,7 +580,6 @@ def test_elementwise(run_module, dtype="float32"):
         relay.log,
         relay.sqrt,
         relay.round,
-        relay.logsumexp,
         relay.nn.relu,
         relay.tanh,
         relay.sigmoid,
@@ -933,6 +938,38 @@ def test_pool3d(run_module, dtype="float32"):
         get_graph(relay.nn.max_pool3d, padding=(0, 0, 0, 1, 1, 1)), run_module=run_module
     )
     run_and_verify_func(get_graph(relay.nn.max_pool3d, strides=(1, 1, 1)), run_module=run_module)
+
+
+def test_prune_dnnl_subgraph(run_module):
+    """In this test, OP "add" should be offloaded from dnnl codegen."""
+
+    def get_graph():
+        x1 = relay.var("x1", shape=(1, 64, 56, 56))
+        x2 = relay.var("x2", shape=(1, 64, 56, 56))
+        bias = relay.var("bias", shape=(64,))
+        weight = relay.var("weight", shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(
+            x1,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+        )
+        y = relay.nn.bias_add(y, bias)
+        y = relay.nn.relu(y)
+        y = relay.nn.global_max_pool2d(y)
+        y = relay.add(y, x2)
+        dic = {
+            "x1": (1, 64, 56, 56),
+            "x2": (1, 64, 56, 56),
+            "weight": (64, 64, 3, 3),
+            "bias": (64,),
+        }
+        param_lst = ["weight", "bias"]
+        out = tvm.IRModule.from_expr(y)
+        return out, dic, param_lst
+
+    run_and_verify_func(get_graph(), subgraph_num=1, run_module=run_module)
 
 
 if __name__ == "__main__":

@@ -256,5 +256,126 @@ def test_relay_cublas_matmul(n, m, k, in_dtype, out_dtype, transpose_a, transpos
     _verify_cublas_relay(matmul)
 
 
+@tvm.testing.requires_cuda
+@pytest.mark.parametrize(
+    "n,m,k",
+    [
+        (64, 128, 32),
+        (17, 32, 16),
+        (24, 17, 12),
+        (96, 4, 17),
+    ],
+)
+@pytest.mark.parametrize(
+    "in_dtype,out_dtype",
+    [
+        ("float32", "float32"),
+        ("float16", "float16"),
+        ("float16", "float32"),
+        ("int8", "int32"),
+        ("float64", "float64"),
+        ("int8", "float32"),
+    ],
+)
+def test_relay_cublas_dense(n, m, k, in_dtype, out_dtype):
+    unsupported_configs = [
+        (96, 4, 17, "int8", "float32"),
+        (96, 4, 17, "int8", "int32"),
+    ]
+    if (n, m, k, in_dtype, out_dtype) in unsupported_configs:
+        pytest.skip("Unsupported parameters.")
+
+    data = tvm.relay.var("data", tvm.relay.TensorType((n, k), in_dtype))
+    weight = tvm.relay.var("weight", tvm.relay.TensorType((m, k), in_dtype))
+    dense = relay.op.nn.dense(data, weight, out_dtype=out_dtype)
+    _verify_cublas_relay(dense)
+
+
+@tvm.testing.requires_cuda
+@pytest.mark.parametrize(
+    "n,m,k,batch_a,batch_b,transpose_a,transpose_b",
+    [
+        (64, 128, 32, 16, 16, False, False),
+        (17, 32, 16, 16, 1, True, False),
+        (24, 17, 12, 17, 17, False, True),
+        (96, 4, 17, 53, 1, True, True),
+    ],
+)
+@pytest.mark.parametrize(
+    "in_dtype,out_dtype",
+    [
+        ("float32", "float32"),
+        ("float16", "float16"),
+        ("float16", "float32"),
+        ("int8", "int32"),
+        ("float64", "float64"),
+        ("int8", "float32"),
+    ],
+)
+def test_relay_cublas_batch_matmul(
+    n, m, k, batch_a, batch_b, in_dtype, out_dtype, transpose_a, transpose_b
+):
+    unsupported_configs = [
+        (17, 32, 16, 16, 1, "int8", "float32", True, False),
+        (96, 4, 17, 53, 1, "int8", "float32", True, True),
+        (17, 32, 16, 16, 1, "int8", "int32", True, False),
+        (96, 4, 17, 53, 1, "int8", "int32", True, True),
+    ]
+    if (
+        n,
+        m,
+        k,
+        batch_a,
+        batch_b,
+        in_dtype,
+        out_dtype,
+        transpose_a,
+        transpose_b,
+    ) in unsupported_configs:
+        pytest.skip("Unsupported parameters.")
+
+    a_shape = (batch_a, k, n) if transpose_a else (batch_a, n, k)
+    b_shape = (batch_b, m, k) if transpose_b else (batch_b, k, m)
+    a = tvm.relay.var("A", tvm.relay.TensorType(a_shape, in_dtype))
+    b = tvm.relay.var("B", tvm.relay.TensorType(b_shape, in_dtype))
+    batch_matmul = relay.op.nn.batch_matmul(a, b, out_dtype, transpose_a, transpose_b)
+    _verify_cublas_relay(batch_matmul)
+
+
+@tvm.testing.requires_cuda
+@pytest.mark.parametrize(
+    "n,m,k",
+    [
+        (64, 128, 32),
+        (17, 32, 16),
+        (24, 17, 12),
+        (96, 4, 17),
+    ],
+)
+@pytest.mark.parametrize(
+    "in_dtype,out_dtype",
+    [
+        ("float32", "float32"),
+        ("float16", "float16"),
+        ("float16", "float32"),
+        ("int8", "int32"),
+        ("float64", "float64"),
+        ("int8", "float32"),
+    ],
+)
+def test_relay_cublas_dense(n, m, k, in_dtype, out_dtype):
+    unsupported_configs = [
+        (96, 4, 17, "int8", "float32"),
+        (96, 4, 17, "int8", "int32"),
+    ]
+    if (n, m, k, in_dtype, out_dtype) in unsupported_configs:
+        pytest.skip("Unsupported parameters.")
+
+    data = tvm.relay.var("data", tvm.relay.TensorType((n, k), in_dtype))
+    weight = tvm.relay.var("weight", tvm.relay.TensorType((m, k), in_dtype))
+    dense = relay.op.nn.dense(data, weight, out_dtype=out_dtype)
+    _verify_cublas_relay(dense)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

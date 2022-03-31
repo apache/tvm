@@ -64,17 +64,23 @@ def pattern_table() -> List[Tuple[str, relay.Pattern, Callable[[relay.Call], boo
     """Get the cuBLAS pattern table."""
 
     def matmul_pattern() -> relay.Pattern:
-        """Create pattern for matrix multiply."""
+        """Create pattern for matmul."""
         return is_op("nn.matmul")(wildcard(), wildcard())
 
-    def check_matmul(matched: relay.Call) -> bool:
+    def batch_matmul_pattern() -> relay.Pattern:
+        """Create pattern for batch_matmul."""
+        return is_op("nn.batch_matmul")(wildcard(), wildcard())
+
+    def dense_pattern() -> relay.Pattern:
+        """Create pattern for dense."""
+        return is_op("nn.dense")(wildcard(), wildcard())
+
+    def check_matmul_like(matched: relay.Call) -> bool:
         """Check if matmul is supported by cuBLAS."""
-        # Units not supported
-        if matched.attrs["units"] is not None:
-            return False
         # Input data types can't be mixed
         if matched.args[0].checked_type.dtype != matched.args[1].checked_type.dtype:
             return False
+
         in_dtype = matched.args[0].checked_type.dtype
         out_dtype = matched.checked_type.dtype
         # Only the following data type combinations are supported
@@ -87,18 +93,21 @@ def pattern_table() -> List[Tuple[str, relay.Pattern, Callable[[relay.Call], boo
             ("int8", "float32"),
         ]:
             return False
+
         # If inputs are int8, input column strides must be a multiple of 4
         if in_dtype == "int8":
             if (
-                matched.args[0].checked_type.shape[1] % 4 != 0
-                or matched.args[1].checked_type.shape[1] % 4 != 0
+                matched.args[0].checked_type.shape[-1] % 4 != 0
+                or matched.args[1].checked_type.shape[-1] % 4 != 0
             ):
                 return False
 
         return True
 
     return [
-        ("cublas.matmul", matmul_pattern(), check_matmul),
+        ("cublas.matmul", matmul_pattern(), check_matmul_like),
+        ("cublas.batch_matmul", batch_matmul_pattern(), check_matmul_like),
+        ("cublas.dense", dense_pattern(), check_matmul_like),
     ]
 
 
@@ -155,4 +164,24 @@ def _lower_matmul(op: relay.Call, inputs: List[te.Tensor]) -> te.Tensor:
         transa=op.attrs["transpose_a"],
         transb=op.attrs["transpose_b"],
         dtype=op.checked_type.dtype,
+    )
+
+
+@_lower_composite("cublas.batch_matmul")
+def _lower_batch_matmul(op: relay.Call, inputs: List[te.Tensor]) -> te.Tensor:
+    """Lower a batch_matmul using cuBLAS."""
+    return cublas.batch_matmul(
+        inputs[0],
+        inputs[1],
+        transa=op.attrs["transpose_a"],
+        transb=op.attrs["transpose_b"],
+        dtype=op.checked_type.dtype,
+    )
+
+
+@_lower_composite("cublas.dense")
+def _lower_dense(op: relay.Call, inputs: List[te.Tensor]) -> te.Tensor:
+    """Lower a dense using cuBLAS."""
+    return cublas.matmul(
+        inputs[0], inputs[1], transa=False, transb=True, dtype=op.checked_type.dtype
     )
