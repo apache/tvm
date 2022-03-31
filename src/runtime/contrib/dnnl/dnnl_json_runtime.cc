@@ -642,12 +642,13 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     }
     // Push the correct shapes of each axis into the output_dims
     for (auto a : axis) {
-      dnnl::memory::dim shape = 1;
       if (layout.find(a) != std::string::npos) {
-        shape *= input_dims[layout.find(a)];
+        dnnl::memory::dim shape = input_dims[layout.find(a)];
         char lower_a = std::tolower(a);
-        if (layout.find(lower_a) != std::string::npos) {
-          shape *= input_dims[layout.find(lower_a)];
+        for (size_t i = 0; i < layout.size(); ++i) {
+          if (lower_a == layout[i]) {
+            shape *= input_dims[i];
+          }
         }
         out_dims.push_back(shape);
       }
