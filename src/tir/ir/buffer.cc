@@ -460,7 +460,7 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
   begins = SimplifyArray(&ana, begins);
   Array<PrimExpr> elem_offset = n->ElemOffset(begins);
   elem_offset.MutateByApply([&](const PrimExpr& expr) { return ana.Simplify(expr); });
-  ICHECK_EQ(elem_offset.size(), 1) << "MakeSlice currently supports only flat 1-d memory.";
+  // ICHECK_EQ(elem_offset.size(), 1) << "MakeSlice currently supports only flat 1-d memory.";
 
   Array<PrimExpr> strides = n->strides;
   if (strides.size() == 0) {
@@ -480,8 +480,14 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
       return MakeStrideView().MakeSlice(begins, extents);
     }
   }
-  return Buffer(n->data, n->dtype, extents, strides, elem_offset[0], n->name + "_slice",
-                n->data_alignment, 0, n->buffer_type);
+  Buffer slice(n->data, n->dtype, extents, strides, elem_offset[0], n->name + "_slice",
+               n->data_alignment, 0, n->buffer_type);
+  if (elem_offset.size() != 1) {
+    // Sentinel value for ArgBinder::BindBuffer to state that any usage
+    // of element offset is invalid.
+    slice.CopyOnWrite()->elem_offset = PrimExpr();
+  }
+  return slice;
 }
 
 PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes,
