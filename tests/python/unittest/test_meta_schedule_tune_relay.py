@@ -17,26 +17,31 @@
 # pylint: disable=missing-docstring
 import logging
 import tempfile
-from typing import List
 from os import path as osp
+from typing import List
+
 import numpy as np
 import pytest
 import tvm
 from tvm import relay, tir
+from tvm._ffi import register_func
 from tvm.contrib import graph_executor
 from tvm.ir import IRModule
-from tvm.tir.schedule import BlockRV, Schedule
-from tvm.tir.schedule.trace import Trace
 from tvm.meta_schedule import ReplayTraceConfig
-from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload, JSONDatabase
+from tvm.meta_schedule.database import JSONDatabase, PyDatabase, TuningRecord, Workload
 from tvm.meta_schedule.integration import ApplyHistoryBest
 from tvm.meta_schedule.testing.relay_workload import get_network
-from tvm.meta_schedule.tune import tune_relay, tune_extracted_tasks, extract_task_from_relay, Parse
+from tvm.meta_schedule.tune import (
+    Parse,
+    extract_task_from_relay,
+    tune_extracted_tasks,
+    tune_relay,
+)
 from tvm.meta_schedule.utils import derived_object
-from tvm.target.target import Target
 from tvm.script import tir as T
-from tvm._ffi import register_func
-import tempfile
+from tvm.target.target import Target
+from tvm.tir.schedule import BlockRV, Schedule
+from tvm.tir.schedule.trace import Trace
 
 logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
@@ -143,7 +148,7 @@ def test_meta_schedule_tune_relay(
             target=target,
             config=ReplayTraceConfig(
                 num_trials_per_iter=32,
-                num_trials_total=32,
+                max_trials_per_task=32,
             ),
             work_dir=work_dir,
             database=JSONDatabase(

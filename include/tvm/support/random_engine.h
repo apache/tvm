@@ -99,15 +99,15 @@ class LinearCongruentialEngine {
    * \brief Change the start random state of RNG with the seed of a new random state value.
    * \param rand_state The random state given in result_type.
    */
-  void Seed(TRandState rand_state = 1) {
-    ICHECK(rand_state != -1) << "The seed can't be -1 which should be changed to random seed!";
-    rand_state %= modulus;  // Make sure the seed is within the range of modulus.
-    if (rand_state == 0)
-      rand_state = 1;  // Avoid getting all 0 given the current parameter set.
-    else if (rand_state < 0)
-      rand_state += modulus;             // Make sure the rand state is non-negative.
-    ICHECK(rand_state_ptr_ != nullptr);  // Make sure the pointer is not null.
-    *rand_state_ptr_ = rand_state;       // Change pointed random state to given random state value.
+  void Seed(TRandState rand_state) {
+    if (rand_state == -1) {
+      rand_state = DeviceRandom();
+    } else if (rand_state == 0) {
+      rand_state = 1;
+    }
+    ICHECK(rand_state >= 0) << "The random state should be nonnegative";
+    ICHECK(rand_state_ptr_ != nullptr);
+    *rand_state_ptr_ = rand_state % modulus;
   }
 
   /*!

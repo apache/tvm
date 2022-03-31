@@ -42,12 +42,9 @@ TuneContext::TuneContext(Optional<IRModule> mod,                                
   n->postprocs = postprocs.value_or({});
   n->mutator_probs = mutator_probs.value_or({});
   n->task_name = task_name;
-  if (rand_state == -1) {
-    rand_state = support::LinearCongruentialEngine::DeviceRandom();
-  }
   support::LinearCongruentialEngine(&n->rand_state).Seed(rand_state);
   n->num_threads = num_threads;
-  n->is_stopped = false;
+  n->is_terminated = false;
   n->runner_futures = NullOpt;
   n->measure_candidates = NullOpt;
   data_ = std::move(n);

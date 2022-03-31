@@ -33,23 +33,23 @@ class ReplayFunc(SearchStrategy):
     ----------
     num_trials_per_iter : int
         Number of trials per iteration.
-    num_trials_total : int
+    max_trials_per_task : int
         Total number of trials.
     """
 
     num_trials_per_iter: int
-    num_trials_total: int
+    max_trials_per_task: int
 
     def __init__(
         self,
         num_trials_per_iter: int,
-        num_trials_total: int,
+        max_trials_per_task: int,
     ):
         """Constructor"""
         self.__init_handle_by_constructor__(
             _ffi_api.SearchStrategyReplayFunc,  # type: ignore # pylint: disable=no-member
             num_trials_per_iter,
-            num_trials_total,
+            max_trials_per_task,
         )
 
 
@@ -57,7 +57,8 @@ class ReplayFuncConfig(NamedTuple):
     """Configuration for ReplayFunc"""
 
     num_trials_per_iter: int
-    num_trials_total: int
+    max_trials_per_task: int
+    max_trials_global: int
 
     def create_strategy(self) -> ReplayFunc:
-        return ReplayFunc(self.num_trials_per_iter, self.num_trials_total)
+        return ReplayFunc(self.num_trials_per_iter, self.max_trials_per_task)

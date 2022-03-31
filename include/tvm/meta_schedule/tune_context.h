@@ -62,7 +62,7 @@ class TuneContextNode : public runtime::Object {
   /*! \brief The task scheduler that owns the tune context */
   const TaskSchedulerNode* task_scheduler;
   /*! \brief Whether the tuning task has been stopped or finished. */
-  bool is_stopped;
+  bool is_terminated;
   /*! \brief The measure candidates. */
   Optional<Array<MeasureCandidate>> measure_candidates;
   /*! \brief The building results. */
@@ -81,7 +81,7 @@ class TuneContextNode : public runtime::Object {
     v->Visit("task_name", &task_name);
     v->Visit("rand_state", &rand_state);
     v->Visit("num_threads", &num_threads);
-    v->Visit("is_stopped", &is_stopped);
+    v->Visit("is_terminated", &is_terminated);
     v->Visit("builder_results", &builder_results);
     v->Visit("runner_futures", &runner_futures);
     v->Visit("measure_candidates", &measure_candidates);
