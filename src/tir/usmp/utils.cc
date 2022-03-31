@@ -99,42 +99,22 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ",\n  memory_pressure=" << node->memory_pressure << ")";
     });
 
-ConstantInfo::ConstantInfo(String name_hint, Integer byte_alignment, Integer byte_offset,
-                           runtime::NDArray data) {
-  auto constant_info_node = make_object<ConstantInfoNode>();
-  constant_info_node->name_hint = name_hint;
-  constant_info_node->byte_alignment = byte_alignment;
-  constant_info_node->byte_offset = byte_offset;
-  constant_info_node->data = data;
-  data_ = std::move(constant_info_node);
-}
-
-TVM_REGISTER_NODE_TYPE(ConstantInfoNode);
-TVM_REGISTER_GLOBAL("tir.usmp.ConstantInfo")
-    .set_body_typed([](String name_hint, Integer byte_alignment, Integer byte_offset,
-                       runtime::NDArray data) {
-      return ConstantInfo(name_hint, byte_alignment, byte_offset, data);
-    });
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ConstantInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const ConstantInfoNode*>(ref.get());
-      p->stream << "ConstantInfoNode(\n"
-                << "name_hint=" << node->name_hint << ",\n byte_alignment=" << node->byte_alignment
-                << ",\n byte_offset=" << node->byte_offset << ",\n data=" << node->data << ")";
-    });
-
-PoolAllocation::PoolAllocation(PoolInfo pool_info, Integer byte_alignment, Integer byte_offset) {
+PoolAllocation::PoolAllocation(PoolInfo pool_info, Integer byte_offset) {
   auto pool_allocation_node = make_object<PoolAllocationNode>();
   pool_allocation_node->pool_info = pool_info;
-  pool_allocation_node->byte_alignment = byte_alignment;
   pool_allocation_node->byte_offset = byte_offset;
   data_ = std::move(pool_allocation_node);
 }
 
 TVM_REGISTER_NODE_TYPE(PoolAllocationNode);
-TVM_REGISTER_GLOBAL("tir.usmp.PoolAllocation")
-    .set_body_typed([](PoolInfo pool_info, Integer byte_alignment, Integer byte_offset) {
-      return PoolAllocation(pool_info, byte_alignment, byte_offset);
+TVM_REGISTER_GLOBAL("tir.usmp.WorkspacePoolInfo")
+    .set_body_typed([](WorkspacePoolInfo pool_info, Integer byte_offset) {
+      return PoolAllocation(pool_info, byte_offset);
+    });
+
+TVM_REGISTER_GLOBAL("tir.usmp.ConstantPoolInfo")
+    .set_body_typed([](ConstantPoolInfo pool_info, Integer byte_offset) {
+      return PoolAllocation(pool_info, byte_offset);
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -146,15 +126,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 AllocatedPoolInfo::AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size,
-                                     Integer pool_var_idx, Array<ConstantInfo> constant_info_arr) {
+                                     Integer pool_var_idx) {
   auto allocated_poolinfo_node = make_object<AllocatedPoolInfoNode>();
   allocated_poolinfo_node->pool_info = pool_info;
   allocated_poolinfo_node->allocated_size = allocated_size;
   if (pool_var_idx.defined()) {
     allocated_poolinfo_node->pool_var_idx = pool_var_idx;
-  }
-  if (constant_info_arr.defined()) {
-    allocated_poolinfo_node->constant_info_arr = constant_info_arr;
   }
   data_ = std::move(allocated_poolinfo_node);
 }
@@ -173,7 +150,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
-Array<BufferInfo> CreateArrayBufferInfo(const Map<BufferInfo, Stmt>& buffer_info_map) {
+Array<BufferInfo> ConvertToArrayOfBufferInfo(const Map<BufferInfo, Stmt>& buffer_info_map) {
   Array<BufferInfo> ret;
   for (const auto& kv : buffer_info_map) {
     auto buffer_info = kv.first;
@@ -294,7 +271,7 @@ Integer CalculateModuleWorkspaceSize(const IRModule& mod) {
 
 TVM_REGISTER_GLOBAL("tir.usmp.CreateArrayBufferInfo")
     .set_body_typed([](Map<BufferInfo, Stmt> buffer_info_map) {
-      return (CreateArrayBufferInfo(buffer_info_map));
+      return (ConvertToArrayOfBufferInfo(buffer_info_map));
     });
 
 TVM_REGISTER_GLOBAL("tir.usmp.AssignStmtPoolAllocations").set_body_typed(AssignStmtPoolAllocations);

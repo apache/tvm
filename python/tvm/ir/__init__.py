@@ -30,7 +30,13 @@ from .adt import Constructor, TypeData
 from .module import IRModule
 from .attrs import Attrs, DictAttrs, make_node
 from .container import Array, Map
-from .memory_pools import PoolInfo, WorkspaceMemoryPools
+from .memory_pools import (
+    PoolInfo,
+    WorkspacePoolInfo,
+    ConstantPoolInfo,
+    WorkspaceMemoryPools,
+    PoolInfoProperties,
+)
 
 from . import transform
 from . import instrument

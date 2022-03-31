@@ -50,18 +50,17 @@ class PoolInfoAssigner : public StmtExprMutator {
         module->GetAttr<WorkspaceMemoryPools>(tvm::attr::kWorkspaceMemoryPools)
             .value_or(WorkspaceMemoryPools(
                 {CreateDefaultMemoryPool(module),
-                 PoolInfo("global_const_workspace",
-                          {{target_host.value(), kTargetPoolReadOnlyAccess}},
-                          kUnrestrictedPoolSizeHint, kUnknownClockFrequency, kUnknownReadBandwidth,
-                          kUnknownWriteBandwidth, 0, 0, {{target_host.value(), 1}}, Bool(true))}));
+                 ConstantPoolInfo(
+                     "global_const_workspace", {target_host.value()}, {},
+                     PoolInfoProperties(kUnrestrictedPoolSizeHint, kUnknownClockFrequency,
+                                        kUnknownReadBandwidth, kUnknownWriteBandwidth, 0, 0,
+                                        {{target_host.value(), 1}}, Bool(true)))}));
     Array<PoolInfo> pool_infos = workspace_pools->pools;
     // split by access
     for (const PoolInfo& pool_info : pool_infos) {
-      for (const auto& kv : pool_info->target_access) {
-        Target tgt = kv.first;
-        auto& pool_map = pool_info->target_access[tgt] == kTargetPoolReadOnlyAccess
-                             ? target_const_pool_infos_
-                             : target_pool_infos_;
+      auto& pool_map = pool_info->IsInstance<ConstantPoolInfoNode>() ? target_const_pool_infos_
+                                                                     : target_pool_infos_;
+      for (const auto& tgt : pool_info->targets) {
         if (pool_map.find(tgt->str()) == pool_map.end()) {
           pool_map.Set(tgt->str(), Array<PoolInfo>());
         }
@@ -70,6 +69,7 @@ class PoolInfoAssigner : public StmtExprMutator {
         pool_map.Set(tgt->str(), pool_info_arr);
       }
     }
+
     mod_ = module->ShallowCopy();
   }
 
@@ -83,10 +83,10 @@ class PoolInfoAssigner : public StmtExprMutator {
   Map<String, Array<PoolInfo>> target_pool_infos_;
   Map<String, Array<PoolInfo>> target_const_pool_infos_;
   PrimFunc func_;
-  PoolInfo CreateDefaultMemoryPool(const IRModule& module);
+  WorkspacePoolInfo CreateDefaultMemoryPool(const IRModule& module);
 };
 
-PoolInfo PoolInfoAssigner::CreateDefaultMemoryPool(const tvm::IRModule& module) {
+WorkspacePoolInfo PoolInfoAssigner::CreateDefaultMemoryPool(const tvm::IRModule& module) {
   VLOG(1) << "Creating default memory pool for:" << std::endl << PrettyPrint(module);
   Map<Target, String> target_access;
   tir::PrimFunc tir_main_func =
@@ -97,9 +97,14 @@ PoolInfo PoolInfoAssigner::CreateDefaultMemoryPool(const tvm::IRModule& module) 
     Optional<Target> target = func->GetAttr<Target>(tvm::attr::kTarget);
     target_access.Set(target.value_or(target_host), kTargetPoolReadWriteAccess);
   }
-  return PoolInfo("global_workspace", target_access, kUnrestrictedPoolSizeHint,
-                  kUnknownClockFrequency, kUnknownReadBandwidth, kUnknownWriteBandwidth, 0, 0, {},
-                  Bool(true));
+  Array<Target> targets;
+  for (const auto& kv : target_access) {
+    targets.push_back(kv.first);
+  }
+  return WorkspacePoolInfo(
+      "global_workspace", targets,
+      PoolInfoProperties(kUnrestrictedPoolSizeHint, kUnknownClockFrequency, kUnknownReadBandwidth,
+                         kUnknownWriteBandwidth, 0, 0, {{target_host, 1}}, Bool(true)));
 }
 
 Stmt PoolInfoAssigner::VisitStmt_(const AllocateNode* op) {
@@ -107,6 +112,8 @@ Stmt PoolInfoAssigner::VisitStmt_(const AllocateNode* op) {
   ICHECK(tgt) << "The following PrimFunc does not have a target attr: \n" << func_;
   Map<String, ObjectRef> annotations = Map<String, ObjectRef>(op->annotations);
   if (op->annotations.find(kPoolCandidatesAllocateAttr) == op->annotations.end()) {
+    ICHECK(target_pool_infos_.count(tgt.value()->str()) > 0)
+        << "Target " << PrettyPrint(tgt) << " not found among " << PrettyPrint(target_pool_infos_);
     annotations.Set(kPoolCandidatesAllocateAttr, target_pool_infos_[tgt.value()->str()]);
   }
   Stmt body = VisitStmt(op->body);

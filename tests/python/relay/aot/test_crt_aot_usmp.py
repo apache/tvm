@@ -27,7 +27,7 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.backend import Executor, Runtime
-from tvm import WorkspaceMemoryPools, PoolInfo
+from tvm import WorkspaceMemoryPools, WorkspacePoolInfo, ConstantPoolInfo, PoolInfoProperties
 from tvm.micro import model_library_format as mlf
 from tvm.micro.testing.aot_test_utils import parametrize_aot_options
 from tvm.testing.aot import (
@@ -87,12 +87,15 @@ def test_synthetic(interface_api, use_unpacked_api, test_runner):
         pass_config={**test_runner.pass_config},
     )
     test_runner.pass_config.update(*config)
-    print(test_runner.pass_config)
     compile_and_run(
         AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
         test_runner,
         interface_api,
         use_unpacked_api,
+        # target = "c -executor=aot -link-params -runtime=c",
+        # target_opts = { "-link-params": True},
+        # test_dir = 'test',
+        verbose=True,
     )
 
 
@@ -348,9 +351,7 @@ def test_tflite_model_u3_usecase_single_external_pool(model_url, usmp_algo):
 
     pool_name = "my_memory_pool"
     target = tvm.target.Target("c")
-    workspace_memory_pools = WorkspaceMemoryPools(
-        [PoolInfo(pool_name, {target: PoolInfo.READ_WRITE_ACCESS})]
-    )
+    workspace_memory_pools = WorkspaceMemoryPools([WorkspacePoolInfo(pool_name, [target])])
     test_runner = AOTTestRunner(
         pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": usmp_algo},
         prologue=f"""
@@ -403,10 +404,10 @@ def test_tflite_model_u3_usecase_two_external_pools(model_url, usmp_algo):
     target = tvm.target.Target("c")
     workspace_memory_pools = WorkspaceMemoryPools(
         [
-            PoolInfo(
-                "my_memory_pool_1", {target: PoolInfo.READ_WRITE_ACCESS}, size_hint_bytes=2500000
+            WorkspacePoolInfo(
+                "my_memory_pool_1", [target], PoolInfoProperties(size_hint_bytes=2500000)
             ),
-            PoolInfo("my_memory_pool_2", {target: PoolInfo.READ_WRITE_ACCESS}),
+            WorkspacePoolInfo("my_memory_pool_2", [target]),
         ]
     )
     test_runner = AOTTestRunner(
@@ -461,9 +462,7 @@ def test_two_models_with_a_single_external_pool(model_urls, usmp_algo):
     interface_api = "c"
 
     target = tvm.target.Target("c")
-    workspace_memory_pools = WorkspaceMemoryPools(
-        [PoolInfo("my_memory_pool", {target: PoolInfo.READ_WRITE_ACCESS})]
-    )
+    workspace_memory_pools = WorkspaceMemoryPools([WorkspacePoolInfo("my_memory_pool", [target])])
     test_runner = AOTTestRunner(
         pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": usmp_algo},
         prologue=f"""

@@ -19,7 +19,8 @@ import pytest
 import random
 import tvm
 import tvm.testing
-from tvm.tir.usmp.utils import BufferInfo, PoolInfo
+from tvm.tir.usmp.utils import BufferInfo
+from tvm import WorkspacePoolInfo, PoolInfoProperties
 
 
 def _check_max_workspace_size(buffer_pool_allocations, pool_info, size):
@@ -63,7 +64,13 @@ def _verify_all_conflicts(buffer_pool_allocations):
         _verify_conflicts(buffer_info, pool_allocation, buffer_pool_allocations)
 
 
-def test_bounded(random_len=150, pools=[PoolInfo("default", {}, 65535), PoolInfo("slow", {})]):
+def test_bounded(
+    random_len=150,
+    pools=[
+        WorkspacePoolInfo("default", [], PoolInfoProperties(65535)),
+        WorkspacePoolInfo("slow", []),
+    ],
+):
     """Tests two pools, one is bounded and one is not limited"""
     random.seed(0)
     mem_range = [BufferInfo(str(i), random.randrange(1, 65535), pools) for i in range(random_len)]
@@ -351,7 +358,7 @@ def test_random_intervals(interval_len=16):
 def run_intervals(intervals):
     """Helper to run intervals"""
     expected_mem = find_maximum_from_intervals(intervals)
-    pools = [PoolInfo("default", {})]
+    pools = [WorkspacePoolInfo("default", [])]
     buffers = []
     # populate
     for i, (start, stop, size) in enumerate(intervals):

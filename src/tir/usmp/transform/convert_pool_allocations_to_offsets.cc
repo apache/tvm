@@ -366,8 +366,8 @@ Stmt PoolAllocationToOffsetConverter::VisitStmt_(const AllocateConstNode* op) {
     }
 
     auto consts = pool_initializations_[pool_info];
-    consts.push_back({result->var->name_hint, pool_allocations_[GetRef<Stmt>(op)]->byte_alignment,
-                      pool_allocations_[GetRef<Stmt>(op)]->byte_offset, op->data.value()});
+    consts.push_back({result->var->name_hint, pool_allocations_[GetRef<Stmt>(op)]->byte_offset,
+                      op->data.value()});
 
     pool_initializations_.Set(pool_info, consts);
     return result;
@@ -422,7 +422,8 @@ void PoolAllocationToOffsetConverter::AppdendConstInitializationData(
   for (AllocatedPoolInfo api : si.allocated_pool_params) {
     const auto& it = pool_initializations_.find(api->pool_info);
     if (it != pool_initializations_.end()) {
-      api->constant_info_arr = (*it).second;
+      auto* pi = const_cast<ConstantPoolInfoNode*>(api->pool_info.as<ConstantPoolInfoNode>());
+      pi->constant_info_array = (*it).second;
     }
   }
 }

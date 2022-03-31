@@ -40,8 +40,12 @@ struct PoolInfoNode : public Object {
    * to indicate the pool is not size restricted.
    */
   Integer size_hint_bytes;
+
+ private:
   /*! \brief The accessibility from each Target */
   Map<Target, String> target_access;  // 'rw' or 'ro'
+
+ public:
   /*! \brief The clock frequency of the memory in Hz */
   Integer clock_frequency_hz;
   /*! \brief The read bandwidth in bytes/cycle */
@@ -59,6 +63,9 @@ struct PoolInfoNode : public Object {
    * the entry point code generation of the executor
    */
   bool is_internal = false;
+
+  /*! \brief The targets linked to the pool */
+  Array<Target> targets;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pool_name", &pool_name);
@@ -100,7 +107,7 @@ struct PoolInfoNode : public Object {
   }
 
   static constexpr const char* _type_key = "ir.PoolInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PoolInfoNode, Object);
+  TVM_DECLARE_BASE_OBJECT_INFO(PoolInfoNode, Object);
 };
 
 /*!
@@ -130,7 +137,7 @@ static const int kUnknownReadBandwidth = -1;
 static const int kUnknownWriteBandwidth = -1;
 
 class PoolInfo : public ObjectRef {
- public:
+ protected:
   TVM_DLL PoolInfo(String pool_name, Map<Target, String> target_access,
                    Integer size_hint_bytes = kUnrestrictedPoolSizeHint,
                    Integer clock_frequency_hz = kUnknownClockFrequency,
@@ -138,7 +145,151 @@ class PoolInfo : public ObjectRef {
                    Integer write_bandwidth_bytes_per_cycle = kUnknownWriteBandwidth,
                    Integer read_latency_cycles = 0, Integer write_latency_cycles = 0,
                    Map<Target, Integer> target_burst_bytes = {}, Bool is_internal = Bool(false));
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PoolInfo, ObjectRef, PoolInfoNode);
+
+ public:
+  // TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PoolInfo, ObjectRef, PoolInfoNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(PoolInfo, ObjectRef, PoolInfoNode);
+};
+
+/*!
+ * \brief Describes a pool of memory properties
+ */
+struct PoolInfoPropertiesNode : public Object {
+  /*! \brief The expected size hint to be used by the allocator.
+   * The size_hint_bytes is set to kUnrestrictedPoolSizeHint
+   * to indicate the pool is not size restricted.
+   */
+  Integer size_hint_bytes;
+  /*! \brief The clock frequency of the memory in Hz */
+  Integer clock_frequency_hz;
+  /*! \brief The read bandwidth in bytes/cycle */
+  Integer read_bandwidth_bytes_per_cycle;
+  /*! \brief The write bandwidth in bytes/cycle */
+  Integer write_bandwidth_bytes_per_cycle;
+  /*! \brief The read latency in cycles */
+  Integer read_latency_cycles;
+  /*! \brief The write latency in cycles */
+  Integer write_latency_cycles;
+  /*! \brief The burst length in bytes for each Target */
+  Map<Target, Integer> target_burst_bytes;
+  /*! \brief Whether pool is internally generated.
+   * The internal pools will be generated as part of
+   * the entry point code generation of the executor
+   */
+  bool is_internal = false;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("size_hint_bytes", &size_hint_bytes);
+    v->Visit("clock_frequency_hz", &clock_frequency_hz);
+    v->Visit("read_bandwidth_bytes_per_cycle", &read_bandwidth_bytes_per_cycle);
+    v->Visit("write_bandwidth_bytes_per_cycle", &write_bandwidth_bytes_per_cycle);
+    v->Visit("read_latency_cycles", &read_latency_cycles);
+    v->Visit("write_latency_cycles", &write_latency_cycles);
+    v->Visit("target_burst_bytes", &target_burst_bytes);
+    v->Visit("is_internal", &is_internal);
+  }
+
+  bool SEqualReduce(const PoolInfoPropertiesNode* other, SEqualReducer equal) const {
+    return equal(size_hint_bytes, other->size_hint_bytes) &&
+           equal(clock_frequency_hz, other->clock_frequency_hz) &&
+           equal(read_bandwidth_bytes_per_cycle, other->read_bandwidth_bytes_per_cycle) &&
+           equal(write_bandwidth_bytes_per_cycle, other->write_bandwidth_bytes_per_cycle) &&
+           equal(read_latency_cycles, other->read_latency_cycles) &&
+           equal(write_latency_cycles, other->write_latency_cycles) &&
+           equal(target_burst_bytes, other->target_burst_bytes) &&
+           equal(is_internal, other->is_internal);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(size_hint_bytes);
+    hash_reduce(clock_frequency_hz);
+    hash_reduce(read_bandwidth_bytes_per_cycle);
+    hash_reduce(write_bandwidth_bytes_per_cycle);
+    hash_reduce(read_latency_cycles);
+    hash_reduce(write_latency_cycles);
+    hash_reduce(target_burst_bytes);
+    hash_reduce(is_internal);
+  }
+
+  static constexpr const char* _type_key = "ir.PoolInfoProperties";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PoolInfoPropertiesNode, Object);
+};
+
+class PoolInfoProperties : public ObjectRef {
+ public:
+  TVM_DLL PoolInfoProperties(Integer size_hint_bytes = kUnrestrictedPoolSizeHint,
+                             Integer clock_frequency_hz = kUnknownClockFrequency,
+                             Integer read_bandwidth_bytes_per_cycle = kUnknownReadBandwidth,
+                             Integer write_bandwidth_bytes_per_cycle = kUnknownWriteBandwidth,
+                             Integer read_latency_cycles = 0, Integer write_latency_cycles = 0,
+                             Map<Target, Integer> target_burst_bytes = {},
+                             Bool is_internal = Bool(false));
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PoolInfoProperties, ObjectRef, PoolInfoPropertiesNode);
+};
+
+struct WorkspacePoolInfoNode : public PoolInfoNode {
+  static constexpr const char* _type_key = "ir.WorkspacePoolInfo";
+  TVM_DECLARE_FINAL_OBJECT_INFO(WorkspacePoolInfoNode, PoolInfoNode);
+};
+
+class WorkspacePoolInfo : public PoolInfo {
+ public:
+  TVM_DLL WorkspacePoolInfo(
+      String pool_name, Array<Target> targets,
+      PoolInfoProperties properties = PoolInfoProperties(kUnrestrictedPoolSizeHint));
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(WorkspacePoolInfo, PoolInfo, WorkspacePoolInfoNode);
+};
+
+/*
+ * \brief The ConstantInfoNode contains numeric literal in RO pool
+ * Used in initialisation of RO memory
+ */
+struct ConstantInfoNode : public Object {
+  String name_hint;
+  Integer byte_offset;
+  runtime::NDArray data;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("name_hint", &name_hint);
+    v->Visit("byte_offset", &byte_offset);
+    v->Visit("data", &data);
+  }
+
+  bool SEqualReduce(const ConstantInfoNode* other, SEqualReducer equal) const {
+    return equal(name_hint, other->name_hint) && equal(byte_offset, other->byte_offset) &&
+           equal(data, other->data);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(name_hint);
+    hash_reduce(byte_offset);
+    hash_reduce(data);
+  }
+
+  static constexpr const char* _type_key = "tir.usmp.ConstantInfo";
+  static constexpr bool _type_has_method_sequal_reduce = true;
+  static constexpr bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(ConstantInfoNode, Object);
+};
+
+class ConstantInfo : public ObjectRef {
+ public:
+  TVM_DLL ConstantInfo(String name, Integer byte_offset, runtime::NDArray data);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ConstantInfo, ObjectRef, ConstantInfoNode);
+};
+
+struct ConstantPoolInfoNode : public PoolInfoNode {
+  Array<ConstantInfo> constant_info_array;
+  static constexpr const char* _type_key = "ir.ConstantPoolInfo";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ConstantPoolInfoNode, PoolInfoNode);
+};
+
+class ConstantPoolInfo : public PoolInfo {
+ public:
+  TVM_DLL ConstantPoolInfo(
+      String pool_name, Array<Target> targets, Array<ConstantInfo> constant_info_array,
+      PoolInfoProperties properties = PoolInfoProperties(kUnrestrictedPoolSizeHint));
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ConstantPoolInfo, PoolInfo, ConstantPoolInfoNode);
 };
 
 struct WorkspaceMemoryPoolsNode : public Object {

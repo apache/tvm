@@ -72,8 +72,8 @@ class BufferInfoExtractor : public StmtExprVisitor {
 
  private:
   void VisitStmt(const Stmt& n) override;
-  void VisitStmt_(const AllocateConstNode* op) override;
   void VisitStmt_(const AllocateNode* op) override;
+  void VisitStmt_(const AllocateConstNode* op) override;
   void VisitExpr_(const CallNode* op) override;
   void VisitExpr_(const VarNode* op) override;
   void VisitExpr_(const BufferLoadNode* op) override;
@@ -300,70 +300,50 @@ void BufferInfoExtractor::VisitStmt_(const AllocateNode* op) {
   current_scope_info.allocate_nodes.erase(GetRef<Allocate>(op));
 }
 
+void BufferInfoExtractor::VisitStmt_(const AllocateConstNode* op) {
+  ScopeInfo& current_scope_info = scope_stack_.top();
+  RecordAllocateConstNodeInfo(op);
+  StmtExprVisitor::VisitStmt(op->body);
+  current_scope_info.allocate_const_nodes.erase(GetRef<AllocateConst>(op));
+}
+
 void BufferInfoExtractor::RecordAllocateConstNodeInfo(const AllocateConstNode* op) {
   if (!op->annotations.count(kPoolCandidatesAllocateAttr)) {
     return;
   }
   Integer size_bytes = CalculateExtentsSize(op);
+  ICHECK(size_bytes.defined()) << "constant node size should be defined";
   const auto& buffer_var = op->buffer_var;
-  // We only statically memory plan only allocates with known
-  // compile time sizes.
-  if (size_bytes.defined()) {
-    if (allocate_infos.find(buffer_var) == allocate_infos.end()) {
-      // By default, the core compiler is assumed to attach the a default pool to each allocate.
-      ICHECK(op->annotations.count(kPoolCandidatesAllocateAttr))
-          << "Every statically sized allocate node needs an pool candidate attribute";
-      auto pool_candidates =
-          Downcast<Array<PoolInfo>>(op->annotations[kPoolCandidatesAllocateAttr]);
-
-      // TODO(@manupa-arm): improve the error when the responsible component for attaching a single
-      // pool is added
-      ICHECK(pool_candidates.size() > 0)
-          << "The core compiler should at least attach a single PoolInfo. If there were no "
-             "user-given arguments for memory pools, the default behaviour is a single size "
-             "un-restricted pool is assigned";
-      PrimFunc func = scope_stack_.top().func;
-      Optional<tvm::relay::Executor> executor_config =
-          module_->GetAttr<tvm::relay::Executor>(tvm::attr::kExecutor);
-      Integer workspace_alignment = 16;
-      if (executor_config) {
-        workspace_alignment = executor_config.value()
-                                  ->GetAttr<Integer>("workspace-byte-alignment")
-                                  .value_or(workspace_alignment);
-      }
-      auto buffer_info = BufferInfo(GetUniqueBufferName(buffer_var->name_hint), size_bytes,
-                                    pool_candidates, workspace_alignment);
-      auto allocate = GetRef<AllocateConst>(op);
-      allocate_infos[buffer_var] =
-          AllocateInfo{allocate, scope_stack_.top().func, scope_stack_.top().call};
-      buffer_info_map_.Set(buffer_info, allocate);
-    } else {
-      // Update the allocate info with the latest call
-      AllocateInfo ai = allocate_infos[buffer_var];
-      ai.call = scope_stack_.top().call;
-      allocate_infos[buffer_var] = ai;
+  if (allocate_infos.find(buffer_var) == allocate_infos.end()) {
+    // By default, the core compiler is assumed to attach the a default pool to each allocate.
+    ICHECK(op->annotations.count(kPoolCandidatesAllocateAttr))
+        << "Every statically sized allocate node needs an pool candidate attribute";
+    auto pool_candidates = Downcast<Array<PoolInfo>>(op->annotations[kPoolCandidatesAllocateAttr]);
+    ICHECK(pool_candidates.size() > 0)
+        << "The core compiler should at least attach a single PoolInfo. If there were no "
+           "user-given arguments for memory pools, the default behaviour is a single size "
+           "un-restricted pool is assigned";
+    PrimFunc func = scope_stack_.top().func;
+    Optional<tvm::relay::Executor> executor_config =
+        module_->GetAttr<tvm::relay::Executor>(tvm::attr::kExecutor);
+    Integer workspace_alignment = 16;
+    if (executor_config) {
+      workspace_alignment = executor_config.value()
+                                ->GetAttr<Integer>("workspace-byte-alignment")
+                                .value_or(workspace_alignment);
     }
+    auto buffer_info = BufferInfo(GetUniqueBufferName(buffer_var->name_hint), size_bytes,
+                                  pool_candidates, workspace_alignment);
+    auto allocate = GetRef<AllocateConst>(op);
+    allocate_infos[buffer_var] =
+        AllocateInfo{allocate, scope_stack_.top().func, scope_stack_.top().call};
+    buffer_info_map_.Set(buffer_info, allocate);
+  } else {
+    // Update the allocate info with the latest call
+    AllocateInfo ai = allocate_infos[buffer_var];
+    ai.call = scope_stack_.top().call;
+    allocate_infos[buffer_var] = ai;
   }
-}
-
-void BufferInfoExtractor::VisitStmt_(const AllocateConstNode* op) {
-  ScopeInfo& current_scope_info = scope_stack_.top();
-  const auto& type = Downcast<PointerType>(op->buffer_var->type_annotation);
-  const auto& storage_scope = type->storage_scope;
-
-  // If the allocate is in a for loop, USMP currently only looks at serial for loops.
-  // If its not a serial for loop, then memory planner will omit them in the current memory planning
-  // process leaving them to as tir.allocate nodes for codegen. Additionally, the USMP can only work
-  // with buffers that have global storage_scope
-
-  if (!current_scope_info.for_loop.defined()) {
-    RecordAllocateConstNodeInfo(op);
-  } else if (current_scope_info.for_loop.defined() &&
-             current_scope_info.for_loop->kind == ForKind::kSerial && storage_scope == "global") {
-    RecordAllocateConstNodeInfo(op);
-  }
-  StmtExprVisitor::VisitStmt(op->body);
-  current_scope_info.allocate_const_nodes.erase(GetRef<AllocateConst>(op));
 }
 
 void BufferInfoExtractor::VisitStmt_(const ForNode* op) {

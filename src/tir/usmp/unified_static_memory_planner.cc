@@ -63,7 +63,7 @@ IRModule PlanMemory(const IRModule& mod, String algo, bool use_workspace_io) {
   PrimFunc main_func = Downcast<PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_module_main));
   BufferInfoAnalysis buffer_info_analysis = ExtractBufferInfo(main_func, module);
   Array<BufferInfo> buffer_info_arr =
-      CreateArrayBufferInfo(buffer_info_analysis->buffer_info_stmts);
+      ConvertToArrayOfBufferInfo(buffer_info_analysis->buffer_info_stmts);
 
   // All items in RO pool should have conflicts with each other in this RO pool
   // as they will be placed in RO segment and pre-initialized
@@ -72,10 +72,14 @@ IRModule PlanMemory(const IRModule& mod, String algo, bool use_workspace_io) {
   Array<BufferInfo> buffer_info_vars;
   Array<BufferInfo> buffer_info_cons;
   for (const auto& buf : buffer_info_arr) {
-    if (std::string(buf->name_hint).rfind("constant", 0) == 0) {
-      buffer_info_cons.push_back(buf);
-    } else {
-      buffer_info_vars.push_back(buf);
+    for (const auto& pool : buf->pool_candidates) {
+      if (pool->IsInstance<ConstantPoolInfoNode>()) {
+        buffer_info_cons.push_back(buf);
+      } else {
+        buffer_info_vars.push_back(buf);
+      }
+
+      break;
     }
   }
   ICHECK(buffer_info_arr.size() == buffer_info_vars.size() + buffer_info_cons.size())
@@ -127,7 +131,6 @@ IRModule PlanMemory(const IRModule& mod, String algo, bool use_workspace_io) {
   if (allocated_pool_infos) {
     for (const tir::usmp::AllocatedPoolInfo& allocated_pool_info : allocated_pool_infos.value()) {
       VLOG(1) << "pool_size = " << allocated_pool_info->allocated_size;
-      LOG(INFO) << "pool_size = " << allocated_pool_info->allocated_size;
     }
   }
   return module;

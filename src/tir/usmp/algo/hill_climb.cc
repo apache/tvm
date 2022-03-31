@@ -123,8 +123,8 @@ class HillClimbAllocator : public GreedyBase {
         }
       }
       auto selected_pool = SelectPlacementPool(buf_info, pool_offset_candidates);
-      pool_allocations[buf_info.as<BufferInfoNode>()] = PoolAllocation(
-          selected_pool, buf_info->alignment, Integer(pool_offset_candidates[selected_pool]));
+      pool_allocations[buf_info.as<BufferInfoNode>()] =
+          PoolAllocation(selected_pool, Integer(pool_offset_candidates[selected_pool]));
     }
     return pool_allocations;
   }
