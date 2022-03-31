@@ -144,9 +144,10 @@ class Postproc : public runtime::ObjectRef {
   TVM_DLL static Postproc RewriteReductionBlock();
   /*!
    * \brief Create a postprocessor that adds thread binding to unbound blocks
+   * \param max_threadblock The max number of threadblocks in the cuda device.
    * \return The postprocessor created.
    */
-  TVM_DLL static Postproc RewriteUnboundBlock();
+  TVM_DLL static Postproc RewriteUnboundBlock(int max_threadblock);
   /*!
    * \brief Create a postprocessor that tensorize Tensor Core related components
    * \return The postprocessor created.
