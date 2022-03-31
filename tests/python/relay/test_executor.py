@@ -51,7 +51,7 @@ def test_create_executor_not_found():
 def test_create_executor_attr_not_found():
     with pytest.raises(
         TVMError,
-        match=r'TVMError: Executor "aot": Attribute "woof" not in "\[workspace-byte-alignment, unpacked-api, interface-api, link-params\]".',
+        match='TVMError: Executor "aot": Attribute "woof" not in "\\[workspace-byte-alignment, unpacked-api, interface-api, link-params\\]".',
     ):
         Executor("aot", {"woof": "bark"})
 
