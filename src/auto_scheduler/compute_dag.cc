@@ -291,6 +291,7 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
   OperationMapLocal<bool> is_output;
 
   auto node = make_object<AccessAnalyzerNode>();
+  OperationMapLocal<OperationMapLocal<std::vector<std::vector<PrimExpr>>>> read_from;
   OperationMapLocal<OperationMapLocal<std::vector<std::vector<PrimExpr>>>> read_by;
   OperationMapLocal<OperationMapLocal<int>> num_common_outer_iterators;
   OperationMapLocal<bool> is_simple_access;
@@ -306,7 +307,7 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
   // Build read & write access map
   for (const auto& op : node->ops_topo_order) {
     if (op->IsInstance<te::PlaceholderOpNode>()) {
-      node->read_from[op] = OperationMap<std::vector<std::vector<PrimExpr>>>();
+      read_from[op] = OperationMapLocal<std::vector<std::vector<PrimExpr>>>();
     } else if (auto cop = op.as<te::ComputeOpNode>()) {
       ReadAccessExtractor extractor;
       for (const auto& exp : cop->body) {
@@ -319,11 +320,11 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
         accesses.insert(accesses.begin(), iter.second.begin(), iter.second.end());
       }
 
-      node->read_from[op] = std::move(extractor.read_access);
+      read_from[op] = std::move(extractor.read_access);
       has_branch[op] = extractor.has_branch;
 
       // compute number of common outer iterators
-      for (const auto& pair : node->read_from[op]) {
+      for (const auto& pair : read_from[op]) {
         const te::Operation& producer = pair.first;
         const std::vector<std::vector<PrimExpr>>& access_list = pair.second;
         const Array<PrimExpr>& output_shape = op->output_shape(0);
@@ -371,7 +372,7 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
       bool op_is_strictly_inlineable = true;
 
       bool axis_missing, axis_duplicated, same_order;
-      for (const auto& pair : node->read_from[op]) {
+      for (const auto& pair : read_from[op]) {
         const std::vector<std::vector<PrimExpr>>& access_list = pair.second;
         for (const auto& access : access_list) {
           if (!auto_scheduler::IsSimpleAccess(op, access, &axis_missing, &axis_duplicated,
@@ -400,7 +401,7 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
       }
 
       // constant tensor is strict-inlineable
-      if (node->read_from[op].empty()) {
+      if (read_from[op].empty()) {
         op_is_strictly_inlineable = true;
       }
 
@@ -411,7 +412,7 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
       bool op_needs_multi_level_tiling = false;
       int n_missing = 0;
 
-      for (const auto& pair : node->read_from[op]) {
+      for (const auto& pair : read_from[op]) {
         const std::vector<std::vector<PrimExpr>>& access_list = pair.second;
         std::unordered_set<const VarNode*> vars;
         for (const std::vector<PrimExpr>& access : access_list) {
@@ -448,6 +449,7 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
   }
 
   // Copy over cached information to serializable containers
+  CopyOperationMapLocalToNode(read_from, node->read_from);
   CopyOperationMapLocalToNode(read_by, node->read_by);
   CopyOperationMapLocalToNode(num_common_outer_iterators, node->num_common_outer_iterators);
   CopyOperationMapLocalToNode(is_simple_access, node->is_simple_access);

@@ -58,7 +58,7 @@ class AccessAnalyzerNode : public Object {
   /*! \brief Map an operation to all operations it reads from.
    * For each operation pair, use a two-dimensional array for multiple multi-dimensional accesses
    * The inner vector represents the indices of multi-dimensional access.*/
-  OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_from;
+  OperationMap2<OperationMap2<Array<Array<PrimExpr>>>> read_from;
   /*! \brief Map an operation to all operations it is read by.
    * For each operation pair, use a two-dimensional array for multiple multi-dimensional accesses
    * The inner vector represents the indices of multi-dimensional access.*/
