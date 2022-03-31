@@ -384,7 +384,7 @@ def verify_conv2d_NCHWc_int8(
                 topi.arm_cpu.conv2d_NCHWc_int8,
                 topi.arm_cpu.schedule_conv2d_NCHWc_int8,
                 8,
-                build_only_aarch64
+                build_only_aarch64,
             )
         )
 
