@@ -116,3 +116,9 @@ def conv2d_strategy(attrs, inputs, out_type, target):
         else:
             raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
     return strategy
+
+@schedule_pool.register("pulp")
+def schedule_pool_pulp(attrs, outs, target):
+    """Schedule pooling ops"""
+    with target:
+        return topi.pulp.schedule_pool(outs, attrs.layout)

@@ -7,6 +7,7 @@ import re
 from ..nn.pad import pad
 from ..utils import simplify, get_const_tuple, traverse_inline
 from ..nn.utils import get_pad_tuple1d, get_pad_tuple
+from .. import tag
 
 
 def sdotp(data_dtype, kernel_dtype, out_dtype, vec_length, data_is_last_axis=True, kernel_is_last_axis=True, dilation=1):
@@ -817,3 +818,52 @@ def conv2d_nhwc_ohwi(
     )
 
     return Output
+
+
+def schedule_pool(outs, layout):
+    """Schedule for pool.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of pool
+        in the format of an array of tensors.
+
+    layout: str
+        Data layout.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for pool.
+    """
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+
+    def _schedule(PaddedInput, Pool):
+        if isinstance(PaddedInput.op, te.ComputeOp):
+            s[PaddedInput].compute_inline()
+
+    scheduled_ops = []
+
+    def traverse(OP):
+        """Internal traverse function"""
+        # inline all one-to-one-mapping operators except the last stage (output)
+        if tag.is_injective(OP.tag):
+            if OP not in s.outputs:
+                s[OP].compute_inline()
+            for tensor in OP.input_tensors:
+                if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
+                    traverse(tensor.op)
+        # schedule pool
+        elif OP.tag.startswith("pool"):
+            PaddedInput = OP.input_tensors[0]
+            Pool = OP.output(0)
+            _schedule(PaddedInput, Pool)
+        else:
+            raise RuntimeError("Unsupported operator: %s" % OP.tag)
+
+        scheduled_ops.append(OP)
+
+    traverse(outs[0].op)
+    return s
