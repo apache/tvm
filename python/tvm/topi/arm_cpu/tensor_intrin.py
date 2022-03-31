@@ -614,21 +614,22 @@ def dot_int8_int8_int32_neon():
                 ib.emit(outs[0].vstore(0, tvm.tir.const(0, int_32xl)))
                 return ib.get()
 
-            def pairwise_add_mul(idx):
-                # this broadcasts data to the vector size
-                a_int8 = ins[0].vload([0], "int8x4")
-                re_int32 = tvm.tir.call_intrin("int32", "tir.reinterpret", a_int8)
-                vec_ai32 = re_int32.astype("int32x2")
-                vec_a = tvm.tir.call_intrin(int_8xl, "tir.reinterpret", vec_ai32)
+            # this broadcasts data to the vector size
+            a_int8 = ins[0].vload([0], "int8x4")
+            re_int32 = tvm.tir.call_intrin("int32", "tir.reinterpret", a_int8)
+            vec_ai32 = re_int32.astype("int32x2")
+            vec_a = tvm.tir.call_intrin(int_8xl, "tir.reinterpret", vec_ai32)
 
-                vec_b = ins[1].vload([idx * 2, 0], int_8xl)  # we take two inputs at a time
+            vec_b = ins[1].vload([0, 0], "int8x16")
 
+            def pairwise_add_mul(extract_half):
+                vec_b_half = tvm.tir.call_intrin("int8x8", extract_half, vec_b)
                 multiply = tvm.tir.call_llvm_pure_intrin(
                     "int16x8",
                     "llvm.aarch64.neon.smull.v8i16",  # saturating pairwise multiplication
                     tvm.tir.const(2, "uint32"),
                     vec_a,
-                    vec_b,
+                    vec_b_half,
                 )
                 pairwise_reduction = tvm.tir.call_llvm_pure_intrin(
                     "int32x4",
@@ -638,8 +639,8 @@ def dot_int8_int8_int32_neon():
                 )
                 return pairwise_reduction
 
-            pair_1 = pairwise_add_mul(0)
-            pair_2 = pairwise_add_mul(1)
+            pair_1 = pairwise_add_mul("tir.vectorlow")
+            pair_2 = pairwise_add_mul("tir.vectorhigh")
             quad_reduction = tvm.tir.call_llvm_pure_intrin(
                 "int32x4",
                 "llvm.aarch64.neon.addp.v4i32",

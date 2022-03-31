@@ -150,7 +150,8 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
 
             args = [s, cfg, data_vec, kernel_vec, conv_out, outs[0]]
             # int8 conv kernel is 7-dim
-            _, _, kh, kw, _, _, _ = get_const_tuple(kernel_vec.shape)
+            _, _, kh, kw, _, _, n_elems = get_const_tuple(kernel_vec.shape)
+            assert n_elems == 4
             dtype = "uint" if data.dtype == "uint8" else "int"
             if is_dotprod_available():
                 intrin = dot_int8_int8_int32_neon_82(int32_lanes=4, dtype=dtype)

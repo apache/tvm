@@ -29,7 +29,7 @@ from ..utils import get_const_tuple
 from ..x86.conv2d import _get_default_config as _get_x86_default_config
 from ..x86.conv2d_int8 import _get_default_config_int8
 from .conv2d_int8 import is_int8_hw_support
-from .arm_utils import get_tiling_B_interleaved_t, is_dotprod_available, is_neon_available
+from .arm_utils import get_tiling_B_interleaved_t
 from ..generic.conv2d import conv2d_alter_int8_common
 
 logger = logging.getLogger("topi")
@@ -347,11 +347,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
         out_channel, _, kh, kw = get_const_tuple(kernel_tensor.shape)
 
-        if is_dotprod_available():
-            n_elems = 4
-        else:
-            assert is_neon_available(), "Neon required for ARM int8 NCHWc conv2d"
-            n_elems = 8
+        n_elems = 4
 
         if cfg.is_fallback:
             _get_default_config_int8(
