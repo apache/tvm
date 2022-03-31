@@ -17,7 +17,6 @@
 
 """CMSIS-NN functions for testing networks"""
 
-import tflite.Model
 import tensorflow as tf
 
 import platform
@@ -341,6 +340,8 @@ def create_conv2d_tflite_relay_models(
     Converts that into the Relay module and params.
     Returns TFLite model, Relay module and params.
     """
+    pytest.importorskip("tflite")
+    import tflite.Model
 
     serialized_tflite_model = create_conv2d_tflite_model(
         ifm_shape, kernel_shape, strides, dilation, padding, activation
