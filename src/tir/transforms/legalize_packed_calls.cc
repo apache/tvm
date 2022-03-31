@@ -55,11 +55,9 @@ class PackedCallLegalizer : public StmtExprMutator {
     // let B_packed = set_struct(tvm_value2, B)
     // let C_packed = set_struct(tvm_value3, C)
     // call_packed(f, A_packed, B_packed, C_packed)
-    std::vector<Stmt> new_stmts;
     if (call) {
       if (call->op.same_as(builtin::tvm_call_cpacked())) {
         Array<PrimExpr> packed_args{call->args[0]};
-        std::vector<tir::Var> tvm_values;
         VLOG(2) << "Legalize call:" << call;
         BaseFunc base_func = mod_->Lookup(Downcast<StringImm>(call->args[0])->value);
         const PrimFuncNode* prim_func = base_func.as<PrimFuncNode>();
@@ -100,14 +98,7 @@ class PackedCallLegalizer : public StmtExprMutator {
         }
         packed_args.push_back(call->args[call->args.size() - 1]);  // push device_context
         // Evaluate the packed call
-        new_stmts.push_back(tir::Evaluate(tir::Call(call->dtype, call->op, packed_args)));
-        tir::Stmt call_stmt = tir::SeqStmt(new_stmts);
-
-        // Allocate the TVMValues on the stack and define the variables
-        for (auto v : tvm_values) {
-          call_stmt = LetStmt(v, StackAlloca("array", 1), call_stmt);
-        }
-        return call_stmt;
+        return tir::Evaluate(tir::Call(call->dtype, call->op, packed_args));
       }
     }
     return StmtExprMutator::VisitStmt_(op);
