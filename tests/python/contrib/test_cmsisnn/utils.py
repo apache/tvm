@@ -257,6 +257,7 @@ def generate_ref_data_tflite(model):
         interpreter = tf.lite.Interpreter(model_content=model)
     else:
         from tensorflow.lite.python.interpreter import OpResolverType
+
         output_tolerance = 0
         interpreter = tf.lite.Interpreter(
             model_content=model,
