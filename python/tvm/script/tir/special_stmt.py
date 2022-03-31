@@ -871,7 +871,8 @@ class PreflattenedBufferMap(SpecialStmt):
     Example
     -------
     .. code-block:: python
-         T.preflattened_buffer_map({})
+         A0 = T.match_buffer(A, (48,), dtype="float32")
+         T.preflattened_buffer_map(A, (1, 4, 4, 3), elem_offset=1, align=4, dtype="float32")
     """
 
     def __init__(self):
