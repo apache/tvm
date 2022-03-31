@@ -463,7 +463,10 @@ std::string SimulatorRPCChannel::Cpu_::str() const {
 
 SimulatorRPCChannel::SDKInfo_::SDKInfo_(const std::string& sdk_root, const std::string& cpu)
     : root(sdk_root) {
-  qurt_root = root + "/rtos/qurt/compute" + cpu;
+  // For v69 chips, still look for v68 in the directory names.
+  std::string check_cpu = cpu == "v69" ? "v68" : cpu;
+
+  qurt_root = root + "/rtos/qurt/compute" + check_cpu;
   runelf = qurt_root + "/sdksim_bin/runelf.pbn";
 
   // The "run_main_on_hexagon_sim" binary lives in a subdirectory that looks
@@ -480,7 +483,7 @@ SimulatorRPCChannel::SDKInfo_::SDKInfo_(const std::string& sdk_root, const std::
     std::string name = d->d_name;
     // Note: The first substr is always safe, and the second only executes
     // when "name" is at least 13 characters long.
-    if (name.substr(0, 13) == "hexagon_toolv" && name.substr(name.size() - 3, 3) == cpu) {
+    if (name.substr(0, 13) == "hexagon_toolv" && name.substr(name.size() - 3, 3) == check_cpu) {
       dir_names.push_back(name);
     }
   }
