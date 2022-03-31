@@ -57,13 +57,12 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
         n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
         in_channel = ic_chunk * ic_bn
 
-        oc_chunk, ic_chunk, kh, kw, ic_bn, oc_bn, n_elems = get_const_tuple(kernel.shape)
+        oc_chunk, ic_chunk, kh, kw, ic_bn, oc_bn, _ = get_const_tuple(kernel.shape)
         num_filter = oc_chunk * oc_bn
     else:
         # data is nchw, implicitly treat it as nchw1c
         n, in_channel, ih, iw = get_const_tuple(data.shape)
         num_filter, _, kh, kw = get_const_tuple(kernel.shape)
-        n_elems = 1
 
     # Define autotvm tuning space
     is_kernel_1x1 = kh == 1 and kw == 1
@@ -103,6 +102,8 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
     # This can only happen when autotuning.
     if len(data.shape) == 4:
         data, kernel = _pack_data(cfg, data, kernel)
+
+    n_elems = int(kernel.shape[-1])
 
     return nn.conv2d_NCHWc_int8(
         data, kernel, strides, padding, dilation, layout, out_layout, out_dtype, n_elems=n_elems

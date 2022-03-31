@@ -310,8 +310,6 @@ def verify_conv2d_NCHWc_int8(
                 "NCHW",
                 out_dtype,
             )
-            print(C.shape)
-            print(bias.shape)
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
