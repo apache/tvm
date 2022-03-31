@@ -2993,7 +2993,7 @@ def test_unsqueeze_constant(target, dev):
         torch.onnx.export(layer, dummy_input, file_name, export_params=True)
 
         onnx_model = onnx.load(file_name)
-        relay.frontend.from_onnx(onnx_model, {"0": input_size})
+        relay.frontend.from_onnx(onnx_model, {"onnx::Reshape_0": input_size})
 
 
 @tvm.testing.parametrize_targets
