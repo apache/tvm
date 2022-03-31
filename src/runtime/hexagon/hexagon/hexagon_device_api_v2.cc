@@ -59,6 +59,10 @@ void HexagonDeviceAPIv2::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* r
 // DataSpace: static allocations for Hexagon
 void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, int ndim, const int64_t* shape,
                                          DLDataType dtype, Optional<String> mem_scope) {
+  if (!mem_scope.defined() || mem_scope.value() == "global") {
+    return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
+  }
+
   CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
 
   size_t typesize = (dtype.bits / 8) * dtype.lanes;
