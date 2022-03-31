@@ -249,7 +249,6 @@ def generate_ref_data_tflite(model):
     Random input generator is used to get the input data.
     It returns randomized inputs and reference outputs.
     """
-    from tensorflow.lite.python.interpreter import OpResolverType
     from distutils.version import LooseVersion
 
     output_tolerance = None
@@ -257,6 +256,7 @@ def generate_ref_data_tflite(model):
         output_tolerance = 1
         interpreter = tf.lite.Interpreter(model_content=model)
     else:
+        from tensorflow.lite.python.interpreter import OpResolverType
         output_tolerance = 0
         interpreter = tf.lite.Interpreter(
             model_content=model,
