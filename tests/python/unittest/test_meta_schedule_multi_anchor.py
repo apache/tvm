@@ -18,13 +18,10 @@ import numpy as np
 
 import tvm
 from tvm import relay
+from tvm.meta_schedule.tune import Parse, extract_task_from_relay
 
 
-def get_dense_dense():
-    M, N, K = 128, 128, 128
-    data_shape = (M, K)
-    weight_shape = (N, K)
-
+def get_dense_dense(data_shape, weight_shape):
     def multi_dense():
         p_data = relay.var("p_data", shape=data_shape, dtype="uint8")
         p_weight1 = relay.var("p_weight1", shape=weight_shape, dtype="int8")
@@ -46,6 +43,25 @@ def get_dense_dense():
     return relay.Function([data, weight1, weight2], out)
 
 
-mod = tvm.IRModule.from_expr(get_dense_dense())
 
-print(relay.transform.InferType()(mod))
+M, N, K = 128, 128, 128
+data_shape = (M, K)
+weight_shape = (N, K)
+
+
+relay_mod = tvm.IRModule.from_expr(get_dense_dense(data_shape, weight_shape))
+
+# print(relay.transform.InferType()(relay_mod))
+
+target = "llvm -mcpu=cascadelake -num-cores 4"
+
+weight1_np = np.random.uniform(1, 10, size=weight_shape).astype("int8")
+weight2_np = np.random.uniform(1, 10, size=weight_shape).astype("int8")
+
+params = {"weight1": weight1_np, "weight2": weight2_np}
+
+extracted_tasks = extract_task_from_relay(relay_mod, target, params)
+
+for task in extracted_tasks:
+    mod = Parse._mod(task.dispatched[0])
+    print(mod)
