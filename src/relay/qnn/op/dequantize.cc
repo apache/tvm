@@ -65,8 +65,9 @@ bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     ICHECK_GE(axis, 0) << "axis " << dequantize_attrs->axis << " is out of range";
   }
 
+  // We assume per-channel dequantization if rank > 1, otherwise it's per tensor.
   PrimExpr axis_shape;
-  if (rank > 0) {
+  if ((!(scale_is_scalar && zp_is_scalar)) && (rank > 1)) {
     axis_shape = data->shape[axis];
   } else {
     axis_shape = Integer(1);
