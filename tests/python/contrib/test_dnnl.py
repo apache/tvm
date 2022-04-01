@@ -109,7 +109,10 @@ def partition_for_dnnl(mod, params=None, alter_layout=True):
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.nd.NDArray):
-        return [o.numpy()]
+        o_np = o.numpy()
+        if o_np.dtype == np.uint16:
+            o_np = np.left_shift(o_np.astype("uint32"), 16).view("<f4")
+        return [o_np]
     elif isinstance(o, tvm.runtime.container.ADT) or isinstance(o, list):
         return [vmobj_to_list(f) for f in o]
     else:
@@ -121,7 +124,7 @@ def assert_result_dict_holds(result_dict):
         res1 = vmobj_to_list(result_dict[k1])
         res2 = vmobj_to_list(result_dict[k2])
         for r1, r2 in zip(res1, res2):
-            tvm.testing.assert_allclose(r1, r2, rtol=1e-3, atol=1e-3)
+            np.testing.assert_array_almost_equal(r1, r2, decimal=1)
 
 
 def run_and_verify(mod, input, params, target, run_module, subgraph_num=None):
@@ -137,13 +140,29 @@ def run_and_verify(mod, input, params, target, run_module, subgraph_num=None):
     dev = tvm.cpu()
     result_dict = dict()
     for mode in ["graph", "vm"]:
-        for use_dnnl, alter_layout in [(False, False), (True, False), (True, True)]:
-            result_key = mode + ("_dnnl" if use_dnnl else "") + ("_layout" if alter_layout else "")
+        for use_dnnl, alter_layout, use_bf16 in [
+            (False, False, False),
+            (True, False, False),
+            (True, False, True),
+            (True, True, False),
+            (True, True, True),
+        ]:
+            result_key = (
+                mode
+                + ("_dnnl" if use_dnnl else "")
+                + ("_layout" if alter_layout else "")
+                + ("_bf16" if use_bf16 else "_fp32")
+            )
+            processed_mod = mod
+            if use_bf16:
+                processed_mod = relay.transform.ToMixedPrecision("bfloat16")(processed_mod)
+                if tvm.ir.structural_equal(processed_mod, mod):
+                    print("can not convert to bfloat16, skipping...")
+                    continue
             if use_dnnl:
-                processed_mod = partition_for_dnnl(mod, params, alter_layout)
-                check_dnnl_used(processed_mod, subgraph_num)
-            else:
-                processed_mod = mod
+                processed_mod = partition_for_dnnl(processed_mod, params, alter_layout)
+                check_dnnl_used(processed_mod)
+
             with tvm.transform.PassContext(opt_level=3):
                 func = relay.create_executor(
                     mode, mod=processed_mod, device=dev, target=target
@@ -586,7 +605,6 @@ def test_elementwise(run_module, dtype="float32"):
         relay.exp,
         relay.log,
         relay.sqrt,
-        relay.round,
         relay.nn.relu,
         relay.tanh,
         relay.sigmoid,
@@ -956,14 +974,14 @@ def test_prune_dnnl_subgraph(run_module):
     """In this test, OP "add" should be offloaded from dnnl codegen."""
 
     def get_graph():
-        x1 = relay.var("x1", shape=(1, 64, 56, 56))
-        x2 = relay.var("x2", shape=(1, 64, 56, 56))
-        bias = relay.var("bias", shape=(64,))
-        weight = relay.var("weight", shape=(64, 64, 3, 3))
+        x1 = relay.var("x1", shape=(1, 32, 56, 56))
+        x2 = relay.var("x2", shape=(1, 32, 56, 56))
+        bias = relay.var("bias", shape=(32,))
+        weight = relay.var("weight", shape=(32, 32, 3, 3))
         y = relay.nn.conv2d(
             x1,
             weight,
-            channels=64,
+            channels=32,
             kernel_size=(3, 3),
             padding=(1, 1),
         )
@@ -972,10 +990,10 @@ def test_prune_dnnl_subgraph(run_module):
         y = relay.nn.global_max_pool2d(y)
         y = relay.add(y, x2)
         dic = {
-            "x1": (1, 64, 56, 56),
-            "x2": (1, 64, 56, 56),
-            "weight": (64, 64, 3, 3),
-            "bias": (64,),
+            "x1": (1, 32, 56, 56),
+            "x2": (1, 32, 56, 56),
+            "weight": (32, 32, 3, 3),
+            "bias": (32,),
         }
         param_lst = ["weight", "bias"]
         out = tvm.IRModule.from_expr(y)
@@ -986,5 +1004,5 @@ def test_prune_dnnl_subgraph(run_module):
 
 if __name__ == "__main__":
     import sys
-
+    
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
