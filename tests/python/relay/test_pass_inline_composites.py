@@ -57,28 +57,10 @@ fn (%a: Tensor[(10, 10), float32], %b: Tensor[(10, 10), float32]) -> Tensor[(10,
   nn.relu(%0) /* ty=Tensor[(10, 10), float32] */
 }
 
-One conventient use of this pass is to use Pattern-based operator support to move away
+One convenient use of this pass is to use Pattern-based operator support to move away
 from the original operator predicates, and inline them into a single primitive function to offload it 
 to an external BYOC backend, such as TensorRT.
 """
-
-
-def make_conv_bias_relu_pattern():
-    r"""Create a pattern to match the following graph.
-
-     conv2d
-       |
-    bias_add
-       |
-     relu
-    """
-    x = wildcard()
-    y = wildcard()
-    z = wildcard()
-    conv_node = is_op("nn.conv2d")(x, y)
-    bias_node = is_op("nn.bias_add")(conv_node, z)
-    r = is_op("nn.relu")(bias_node)
-    return r
 
 
 def make_add_relu_pattern():
@@ -115,51 +97,53 @@ def make_add_pattern():
     return pattern
 
 
-def check_result(pattern_table, graph, expected_graph, import_prelude=False):
+def check_success_composite_pass(func):
+    return func.body.op.attrs["Composite"] is not None
+
+
+def check_result(pattern_table, expected_graph, import_prelude=False):
     """Utility function to check inline composites results."""
     result = run_opt_pass(
-        graph, relay.transform.MergeComposite(pattern_table), import_prelude=import_prelude
+        expected_graph, relay.transform.MergeComposite(pattern_table), import_prelude=import_prelude
     )
-    print("merge composite reusult")
-    print(result)
-    print("---------------------")
+    assert check_success_composite_pass(
+        result
+    ), "Merge Composite pass didn't produced partioned from Pattern"
     result = run_opt_pass(
-        graph, relay.transform.InlineComposites(target=""), import_prelude=import_prelude
+        expected_graph, relay.transform.InlineComposites(target=""), import_prelude=import_prelude
     )
-    print(result)
-    print("-----------------")
     assert not relay.analysis.free_vars(result), "Found free vars in the result graph: {0}".format(
         str(result)
     )
     expected = run_opt_pass(expected_graph, relay.transform.InferType())
-    print(expected)
-    print("---------------")
     assert tvm.ir.structural_equal(
         result, expected, map_free_vars=True
     ), "Graph mismatch: output vs. expected\n{0}\n=====\n{1}".format(str(result), str(expected))
 
 
 def test_single_op_registry():
-    r"""Test inline composite pass is correctly inline the merge composite result.
+    r"""Test inline composite pass is correctly inline the post-merge composite graph.
 
-    We could expect the pattern `make_add_relu_pattern` to be merged
-    into a single op `add_relu`.
-
-        a  b                           a  b
-        \ /              a  b          \  /
-        add    ====>     \ /    ===>   add
-         |             add_relu         |
-       relu                            relu
+    We could expect the patterns `make_add_pattern` and `make_relu_pattern` to be inlined
+    into a single func instead of an single func per registered pattern.
 
     """
     pattern_table = [("add", make_add_pattern()), ("nn.relu", make_relu_pattern())]
 
-    def before():
-        a = relay.var("a", shape=(10, 10))
-        b = relay.var("b", shape=(10, 10))
-        add_node = relay.add(a, b)
-        r = relay.nn.relu(add_node)
-        return relay.Function([a, b], r)
+    def expected():
+        in_1 = relay.var("in_1", shape=(10, 10))
+        in_2 = relay.var("in_2", shape=(10, 10))
+        add_node = relay.add(in_1, in_2)
+        relu_node = relay.nn.relu(add_node)
+        add_relu = relay.Function([in_1, in_2], relu_node)
+        return add_relu
+
+    check_result(pattern_table, expected())
+
+
+def test_mix_fused_and_single_op():
+    r"""Test inline composite pass is correctly inline the merge composite result"""
+    pattern_table = [("add_relu", make_add_relu_pattern()), ("nn.relu", make_relu_pattern())]
 
     def expected():
         a = relay.var("a", shape=(10, 10))
@@ -170,47 +154,11 @@ def test_single_op_registry():
         in_2 = relay.var("in_2", shape=(10, 10))
         add_node = relay.add(in_1, in_2)
         relu_node = relay.nn.relu(add_node)
-        add_relu = relay.Function([in_1, in_2], relu_node)
+        relu_nd = relay.nn.relu(relu_node)
+        add_relu = relay.Function([in_1, in_2], relu_nd)
         return add_relu
 
-    check_result(pattern_table, before(), expected())
-
-
-def test_simple_merge():
-    r"""Test inline composite pass is correctly inline the merge composite result.
-
-    We could expect the pattern `make_add_relu_pattern` to be merged
-    into a single op `add_relu`.
-
-        a  b                           a  b
-        \ /              a  b          \  /
-        add    ====>     \ /    ===>   add
-         |             add_relu         |
-       relu                            relu
-
-    """
-    pattern_table = [("add_relu", make_add_relu_pattern())]
-
-    def before():
-        a = relay.var("a", shape=(10, 10))
-        b = relay.var("b", shape=(10, 10))
-        add_node = relay.add(a, b)
-        r = relay.nn.relu(add_node)
-        return relay.Function([a, b], r)
-
-    def expected():
-        a = relay.var("a", shape=(10, 10))
-        b = relay.var("b", shape=(10, 10))
-
-        # add_relu function
-        in_1 = relay.var("in_1", shape=(10, 10))
-        in_2 = relay.var("in_2", shape=(10, 10))
-        add_node = relay.add(in_1, in_2)
-        relu_node = relay.nn.relu(add_node)
-        add_relu = relay.Function([in_1, in_2], relu_node)
-        return add_relu
-
-    check_result(pattern_table, before(), expected())
+    check_result(pattern_table, expected())
 
 
 if __name__ == "__main__":
