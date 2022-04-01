@@ -56,12 +56,13 @@ def ptx_ldmatrix(
                 B[8 * j + tx // 4, 8 * k + (tx % 4) * 2 + i] = A_local[4 * k + 2 * j + i]
 
 
+@tvm.testing.requires_cuda
 def test_ptx_ldmatrix():
     f = ptx_ldmatrix
     _, _, param_num, param_trans = f.params
     arch = tvm.contrib.nvcc.get_target_compute_version()
     major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
+    if major * 10 + minor < 75:
         # Require at least SM75
         return
     for num in [1, 2, 4]:
