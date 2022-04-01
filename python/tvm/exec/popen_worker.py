@@ -52,7 +52,7 @@ def main():
 
             return os.fdopen(msvcrt.open_osfhandle(int(sys.argv[1]), os.O_BINARY), "rb")
         else:
-            return os.fdopen(int(sys.argv[1]), "rb", 0)
+            return os.fdopen(int(sys.argv[1]), "rb")
 
     def get_writer():
         if sys.platform == "win32":
@@ -61,7 +61,7 @@ def main():
 
             return os.fdopen(msvcrt.open_osfhandle(int(sys.argv[2]), os.O_BINARY), "wb")
         else:
-            return os.fdopen(int(sys.argv[2]), "wb", 0)
+            return os.fdopen(int(sys.argv[2]), "wb")
 
     def _respond(ret_value):
         """Send data back to the client."""
