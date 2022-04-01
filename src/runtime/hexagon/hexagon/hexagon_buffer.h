@@ -100,19 +100,6 @@ class HexagonBuffer {
    */
   void* GetPointer();
 
-  // //! \brief Return number of allocations.
-  // size_t GetNumAllocs() { return nallocs_; }
-
-  /*! \brief Return dimensionality of buffer
-   *
-   * Will always be either 1 or 2.  If the buffer is 1-d, allocation
-   * returns a pointer to data, which is accessed by
-   * ((value_type*)ptr)[i].  If the buffer is 2-d, allocation returns
-   * a pointer to an array of pointers, which is accessed by
-   * ((value_type**)ptr)[i][j].
-   */
-  size_t GetBufferDimension() { return ndim_; }
-
   //! \brief Memory scopes managed by a Hexagon Buffer.
   enum class StorageScope {
     //! \brief System DDR corresponding to global storage.
