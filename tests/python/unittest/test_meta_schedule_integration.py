@@ -17,9 +17,12 @@
 import sys
 from typing import List
 
+import numpy as np
 import pytest
 import tvm
+import tvm.testing
 from tvm import meta_schedule as ms
+from tvm import relay
 from tvm.ir.module import IRModule
 from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
 from tvm.meta_schedule.integration import (
@@ -27,14 +30,14 @@ from tvm.meta_schedule.integration import (
     ExtractedTask,
     MetaScheduleContext,
 )
+from tvm.meta_schedule.testing import DummyDatabase
 from tvm.meta_schedule.testing.relay_workload import get_network
+from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
+from tvm.meta_schedule.tune import Parse, extract_task_from_relay
 from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir import Schedule
-from tvm.meta_schedule.testing import DummyDatabase
-from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
-from tvm.meta_schedule.tune import extract_task_from_relay, Parse
 
 # pylint: disable=no-member,line-too-long,too-many-nested-blocks,unbalanced-tuple-unpacking,no-self-argument,missing-docstring,invalid-name
 
@@ -100,9 +103,103 @@ def test_meta_schedule_integration_extract_from_resnet():
         ]
     ]
 
-    assert len(extracted_tasks) == 20
+    assert len(extracted_tasks) == len(expected_task_names)
     for t in extracted_tasks:
         assert t.task_name in expected_task_names, t.task_name
+
+
+@requires_torch
+def test_meta_schedule_integration_extract_from_bert_base():
+    expected = {
+        "fused_nn_dense_2": (
+            12,
+            [[64, 3072], [768, 3072], [64, 768]],
+        ),
+        "fused_nn_dense": (
+            48,
+            [[64, 768], [768, 768], [64, 768]],
+        ),
+        "fused_nn_dense_1": (
+            12,
+            [[64, 768], [3072, 768], [64, 3072]],
+        ),
+        "fused_subtract_add_sqrt_divide_multiply_add": (
+            25,
+            [[1, 64, 768], [1, 64, 1], [1, 64, 1], [768], [768], [1, 64, 768]],
+        ),
+        "fused_nn_batch_matmul": (
+            24,
+            [[12, 64, 64], [12, 64, 64], [12, 64, 64]],
+        ),
+        "fused_reshape_add_add": (
+            24,
+            [[64, 768], [768], [1, 64, 768], [1, 64, 768]],
+        ),
+        "fused_variance": (
+            25,
+            [[1, 64, 768], [1, 64, 1], [1, 64, 1]],
+        ),
+        "fused_mean": (
+            25,
+            [[1, 64, 768], [1, 64, 1]],
+        ),
+        "fused_reshape_add_reshape_transpose_reshape": (
+            12,
+            [[64, 768], [768], [12, 64, 64]],
+        ),
+        "fused_reshape_add_multiply_fast_erf_multiply_add_multiply_reshape": (
+            12,
+            [[64, 3072], [3072], [64, 3072]],
+        ),
+        "fused_nn_fast_softmax": (
+            12,
+            [[1, 12, 64, 64], [1, 12, 64, 64]],
+        ),
+        "fused_reshape_add_reshape_transpose_reshape_1": (
+            24,
+            [[64, 768], [768], [12, 64, 64]],
+        ),
+        "fused_reshape_divide_add": (
+            12,
+            [[12, 64, 64], [1, 1, 1, 64], [1, 12, 64, 64]],
+        ),
+        "fused_reshape_transpose_reshape": (
+            12,
+            [[12, 64, 64], [64, 768]],
+        ),
+        "fused_nn_dense_add_fast_tanh": (
+            1,
+            [[1, 768], [768, 768], [1, 768], [1, 768]],
+        ),
+        "fused_cast_take_add": (
+            1,
+            [[1, 64], [30522, 768], [1, 64, 768], [1, 64, 768]],
+        ),
+        "fused_take": (
+            1,
+            [[1, 64, 768], [1, 768]],
+        ),
+        "fused_reshape": (
+            12,
+            [[1, 12, 64, 64], [12, 64, 64]],
+        ),
+        "fused_reshape_1": (
+            24,
+            [[1, 64, 768], [64, 768]],
+        ),
+    }
+    mod, params, _ = get_network(name="bert_base", input_shape=[1, 64])
+    extracted_tasks = ms.integration.extract_task_from_relay(mod, target="llvm", params=params)
+    assert len(extracted_tasks) == len(expected)
+    for t in extracted_tasks:
+        prim_func = None
+        for _, v in t.dispatched[0].functions.items():
+            prim_func = v
+        shape = [[int(x) for x in prim_func.buffer_map[b].shape] for b in prim_func.params]
+        assert t.task_name in expected
+        expected_weight, expected_shape = expected[t.task_name]
+        assert expected_weight == t.weight, t.task_name
+        assert expected_shape == shape, t.task_name
 
 
 @requires_torch
@@ -147,6 +244,51 @@ def extract_task_qbert():
 
         assert "schedule_rule" in annotations
         assert "vnni" in annotations["schedule_rule"]
+
+
+@tvm.testing.skip_if_32bit(reason="Apparently the LLVM version on i386 image is too old")
+def test_extract_task_arm_conv2d_nchwc():
+    data_shape = (1, 64, 128, 128)
+    weight_shape = (32, 64, 1, 1)
+    bias_shape = (weight_shape[0],)
+    padding = (1, 1)
+
+    data = relay.var("data", shape=data_shape, dtype="int8")
+    weight = relay.var("weight", shape=weight_shape, dtype="int8")
+    bias = relay.var("bias", shape=bias_shape, dtype="int32")
+    conv2d = relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=weight_shape[2:],
+        channels=weight_shape[0],
+        padding=padding,
+        strides=(1, 1),
+        out_dtype="int32",
+    )
+    bias_add = relay.nn.bias_add(conv2d, bias)
+    relay_mod = tvm.IRModule.from_expr(bias_add)
+
+    weight_np = np.random.uniform(1, 10, size=weight_shape).astype("int8")
+    bias_np = np.random.uniform(1, 10, size=bias_shape).astype("int32")
+
+    params = {"weight": weight_np, "bias": bias_np}
+
+    target = "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon"
+    extracted_tasks = extract_task_from_relay(relay_mod, target, params)
+    tune_tasks = list(
+        filter(
+            lambda task: "conv2d" in task.task_name,
+            extracted_tasks,
+        )
+    )
+
+    assert len(tune_tasks) == 1
+
+    relay_func = list(tune_tasks[0].mod.functions.values())[0]
+    out_type = relay_func.body.checked_type
+
+    # Check that the output is in NCHWc layout
+    assert list(out_type.shape) == [1, 8, 130, 130, 4]
 
 
 if __name__ == "__main__":

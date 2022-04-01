@@ -37,7 +37,7 @@ namespace cmsisnn {
 
 static std::random_device rd;
 static std::mt19937 gen(rd());
-static std::uniform_int_distribution<> fake_parameters(1, 100);
+static std::uniform_int_distribution<> fake_parameters(2, 100);
 
 class CMSISNNCalculatedBufferSize : public testing::TestWithParam<std::array<int32_t, 3>> {};
 

@@ -526,14 +526,12 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
   if (loop_var_ranges.empty()) {
     return true;
   }
-  DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
   Array<arith::IterSumExpr> results = arith::DetectIterMap(
       /*indices=*/realize->iter_values,
       /*input_iters=*/loop_var_ranges,
       /*predicate=*/realize->predicate,
       /*require_bijective=*/false,
-      /*analyzer=*/analyzer,
-      /*diag_ctx*/ diag_ctx);
+      /*analyzer=*/analyzer);
   if (results.empty()) {
     return false;
   }
@@ -1080,6 +1078,37 @@ Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, 
     throw BufferIndexOutOfRangeError(self->mod, block, n, is_write);
   }
   return access_region[n]->buffer;
+}
+
+std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
+                                                          const Buffer& buffer) {
+  // Climb up along the sref tree, and find the block where `buffer` is in alloc_buffers or
+  // match_buffers.
+  const StmtSRefNode* defining_site_sref = block_sref.get();
+  while (defining_site_sref != nullptr) {
+    const auto* block = defining_site_sref->StmtAs<BlockNode>();
+    // If this sref is not a block sref, skip it.
+    if (block == nullptr) {
+      defining_site_sref = defining_site_sref->parent;
+      continue;
+    }
+    // Try to find the buffer in `allloc_buffers`
+    for (const Buffer& alloc_buffer : block->alloc_buffers) {
+      if (buffer.same_as(alloc_buffer)) {
+        return {GetRef<StmtSRef>(defining_site_sref), true};
+      }
+    }
+    // We do not allow the buffer being defined in `match_buffer`.
+    for (const MatchBufferRegion match_buffer : block->match_buffers) {
+      if (buffer.same_as(match_buffer)) {
+        return {GetRef<StmtSRef>(defining_site_sref), false};
+      }
+    }
+    defining_site_sref = defining_site_sref->parent;
+  }
+  // If we cannot find the defining site block, it means that the buffer must be in the function's
+  // buffer_map, which isn't an intermediate buffer.
+  return {NullOpt, false};
 }
 
 /******** Pattern Matcher ********/
@@ -1805,11 +1834,16 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
     return false;
   }
   const BufferNode* write_buffer = block->writes[0]->buffer.get();
-  // Step 1. Sort out spatial block variables
+  // Step 1. Sort out spatial block variables. Skip the block iters of domain [0, 1), since such
+  // block iters distracts the following check of the unused block iters.
   std::vector<const VarNode*> spatial_block_vars;
   spatial_block_vars.reserve(block->iter_vars.size());
   for (const IterVar& block_var : block->iter_vars) {
-    if (block_var->iter_type == IterVarType::kDataPar) {
+    const int64_t* dom_min = as_const_int(block_var->dom->min);
+    const int64_t* dom_extent = as_const_int(block_var->dom->extent);
+    bool has_trivial_dom =
+        dom_min != nullptr && dom_extent != nullptr && *dom_min == 0 && *dom_extent == 1;
+    if (block_var->iter_type == IterVarType::kDataPar && !has_trivial_dom) {
       spatial_block_vars.push_back(block_var->var.get());
     }
   }

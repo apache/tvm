@@ -173,9 +173,8 @@ class IterMapRewriter : public ExprMutator {
  public:
   using Parent = ExprMutator;
 
-  explicit IterMapRewriter(Analyzer* analyzer, const Map<Var, Range>& input_iters,
-                           DiagnosticContext diag_ctx)
-      : analyzer_(analyzer), diag_ctx_(diag_ctx) {
+  explicit IterMapRewriter(Analyzer* analyzer, const Map<Var, Range>& input_iters)
+      : analyzer_(analyzer) {
     for (auto kv : input_iters) {
       const Var& var = kv.first;
       const Range& vrng = kv.second;
@@ -236,8 +235,6 @@ class IterMapRewriter : public ExprMutator {
     collector.Collect(bindings);
     for (const IterMark& mark : collector.visited_) {
       if (TryNormalizeSplits(mark, collector.mark2splits_[mark], require_bijective).empty()) {
-        diag_ctx_.Emit(Diagnostic::Error(mark->source->span)
-                       << "Fail to normalize iter mark splits: " << mark);
         return false;
       }
     }
@@ -245,9 +242,6 @@ class IterMapRewriter : public ExprMutator {
       // all input marks must be visited
       for (const IterMark& mark : input_marks_) {
         if (collector.visited_.count(mark) == 0) {
-          diag_ctx_.Emit(Diagnostic::Error(mark->source->span)
-                         << "The mapping is not bijective because input iter mark " << mark
-                         << " is not covered, ");
           return false;
         }
       }
@@ -297,7 +291,7 @@ class IterMapRewriter : public ExprMutator {
   PrimExpr VisitExpr(const PrimExpr& input_expr) final {
     auto expr = ExprMutator::VisitExpr(input_expr);
     if (expr->IsInstance<IterMapExprNode>()) {
-      Fail(Diagnostic::Error(input_expr->span));
+      unresolved_count_++;
     }
     return expr;
   }
@@ -347,13 +341,6 @@ class IterMapRewriter : public ExprMutator {
     }
   };
 
-  void Fail(const Diagnostic& diagnostic) {
-    unresolved_count_++;
-    if (diag_ctx_.defined()) {
-      diag_ctx_.Emit(diagnostic);
-    }
-  }
-
   // Internal analyzer
   Analyzer* analyzer_;
   // Counter to keep track of unresolved cases.
@@ -390,8 +377,6 @@ class IterMapRewriter : public ExprMutator {
   std::unordered_map<IterSumExpr, IterSumExpr, IterSumHash, IterSumEqual> flattened_map_;
   // The flattened forms of constrained iters
   std::vector<IterSumExpr> constrained_iters_flattened_;
-  // Diagnostic context
-  DiagnosticContext diag_ctx_;
 
   /*!
    * \brief Look for a split in splits that is not used such that its lower_factor is smallest.
@@ -448,10 +433,6 @@ class IterMapRewriter : public ExprMutator {
       if (j == splits.size()) {
         // we do not allow incomplete split if the bindings should be bijective
         if (require_bijective) {
-          diag_ctx_.Emit(
-              Diagnostic::Error(mark->source->span)
-              << "Do not allow incomplete split in bijective checking, expected_lower_factor="
-              << expected_lower_factor);
           return Array<IterSplitExpr>();
         }
         // look for the next split skipping this lower factor
@@ -461,10 +442,6 @@ class IterMapRewriter : public ExprMutator {
         j = SearchSkipLowerFactor(splits, used, expected_lower_factor);
         // split not found
         if (j == splits.size()) {
-          diag_ctx_.Emit(Diagnostic::Error(mark->source->span)
-                         << "Fail to find split skipping the lower factor in bijective-free "
-                            "checking, expected_lower_factor="
-                         << expected_lower_factor);
           return Array<IterSplitExpr>();
         }
       }
@@ -480,9 +457,6 @@ class IterMapRewriter : public ExprMutator {
     //         For example, y \in [0, 24) [(y / 2) % 6, y % 2] is valid, but y \in [0, 25) is not.
     if ((require_bijective && !analyzer_->CanProveEqual(expected_lower_factor, mark->extent)) ||
         (!require_bijective && !CanProveDivisible(mark->extent, expected_lower_factor))) {
-      diag_ctx_.Emit(Diagnostic::Error(mark->source->span)
-                     << "Mark extent of " << mark
-                     << " is not compatible with expected_lower_factor=" << expected_lower_factor);
       return Array<IterSplitExpr>();
     }
     return Array<IterSplitExpr>(iters.rbegin(), iters.rend());
@@ -545,9 +519,7 @@ class IterMapRewriter : public ExprMutator {
       expr.CopyOnWrite()->base = base + iter_min;
       return expr;
     }
-    Fail(Diagnostic::Error(expr->span)
-         << "Fail to normalize " << expr << " with predicate bound [" << predicate_induced_min
-         << ", " << predicate_induced_max << ")");
+    unresolved_count_++;
     return expr;
   }
 
@@ -563,7 +535,7 @@ class IterMapRewriter : public ExprMutator {
     if (opt.defined()) {
       return opt.value();
     } else {
-      Fail(Diagnostic::Error(expr->span) << "Fail to normalize iter sum with offset: " << expr);
+      unresolved_count_++;
       return expr;
     }
   }
@@ -611,8 +583,6 @@ class IterMapRewriter : public ExprMutator {
       }
     }
     if (!base_scale) {
-      diag_ctx_.Emit(Diagnostic::Error(expr->span)
-                     << "Fuse iters failed, can not find a valid base scale");
       return NullOpt;
     }
     // check if it can be remapped into a fused pattern.
@@ -625,8 +595,6 @@ class IterMapRewriter : public ExprMutator {
         if (!visited[j] && analyzer_->CanProveEqual(expr->args[j]->scale, expected_scale)) break;
       }
       if (j == expr->args.size()) {
-        diag_ctx_.Emit(Diagnostic::Error(expr->span)
-                       << "Fuse iters failed, can not find expected scale " << expected_scale);
         return NullOpt;
       }
       // look for the longest constrained iter started from expr->args[j]
@@ -659,9 +627,6 @@ class IterMapRewriter : public ExprMutator {
             }
           }
           if (k == expr->args.size()) {
-            diag_ctx_.Emit(Diagnostic::Error(expr->span)
-                           << "Fuse iters failed, can not find flattened iter match constraint "
-                           << constraint_to_match.value());
             return NullOpt;
           }
           visited[k] = true;
@@ -701,8 +666,6 @@ class IterMapRewriter : public ExprMutator {
       // old iter
       if (!analyzer_->CanProveEqual(expected_extra_base, it->second.offset * base_scale.value())) {
         // the extra offset is not consistent with old
-        diag_ctx_.Emit(Diagnostic::Error(expr->span)
-                       << "Fuse iters failed, the extra offset is not consistent with old");
         return NullOpt;
       }
       return IterSumExpr({IterSplitExpr(it->second.mark, base_scale.value())},
@@ -929,7 +892,7 @@ bool IterRangeSanityCheck(const Map<Var, Range>& iter_ranges) {
 
 Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                  const PrimExpr& predicate, bool require_bijective,
-                                 arith::Analyzer* analyzer, DiagnosticContext diag_ctx) {
+                                 arith::Analyzer* analyzer) {
   // Overall detection algorithm is divided into two steps:
   // - Step0: IterMapRewriter rewrites the expression to use IterMapExpr patterns.
   // - Step1: IterIndependenceChecker checks if the iterator are independent.
@@ -938,8 +901,6 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
   std::vector<IterConstraint> constraints;
   if (!is_one(predicate) &&
       !MatchBoundConstraints(predicate, &constrained_input_iters, &constraints)) {
-    diag_ctx.Emit(Diagnostic::Error(predicate->span)
-                  << "Fail to collect constraints from iteration predicate: " << predicate);
     return Array<IterSumExpr>();
   }
   // We have to make sure when we visit an iterator, all the constraints related with its successors
@@ -953,7 +914,7 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
       constraints.begin(), constraints.end(),
       [](const IterConstraint& a, const IterConstraint& b) { return a.expr_size < b.expr_size; });
 
-  IterMapRewriter rewriter(analyzer, constrained_input_iters, diag_ctx);
+  IterMapRewriter rewriter(analyzer, constrained_input_iters);
   // Step0.0: rewrite constraints in the order from size-small ones to size-big ones
   for (const IterConstraint& constraint : constraints) {
     auto res = rewriter.RewriteIterConstraint(constraint.iter, constraint.lower_bound,
@@ -961,8 +922,6 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
     if (rewriter.unresolved_count() != 0) return Array<IterSumExpr>();
   }
   if (!rewriter.CheckConstraints()) {
-    diag_ctx.Emit(Diagnostic::Error(predicate->span)
-                  << "Illegal iteration constraints: " << predicate);
     return Array<IterSumExpr>();
   }
   // Step0.1: rewrite indices
@@ -970,13 +929,11 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
   for (PrimExpr value : indices) {
     results.push_back(rewriter.Rewrite(value));
     if (rewriter.unresolved_count() != 0) {
-      diag_ctx.Emit(Diagnostic::Error(predicate->span) << "Affine mapping detection failed");
       return Array<IterSumExpr>();
     }
   }
   // Step1: IterIndependenceChecker checks if the iterator are independent.
   if (!rewriter.CheckMapping(results, require_bijective)) {
-    diag_ctx.Emit(Diagnostic::Error(predicate->span) << "Iterators are not independent");
     return Array<IterSumExpr>();
   }
 
@@ -987,8 +944,7 @@ TVM_REGISTER_GLOBAL("arith.DetectIterMap")
     .set_body_typed([](const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                        const PrimExpr& input_pred, bool is_bijective) {
       arith::Analyzer ana;
-      DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
-      return DetectIterMap(indices, input_iters, input_pred, is_bijective, &ana, diag_ctx);
+      return DetectIterMap(indices, input_iters, input_pred, is_bijective, &ana);
     });
 
 PrimExpr IterMapRewriter::VisitExpr_(const VarNode* op) {
@@ -1091,7 +1047,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
 
   if (a->IsInstance<IterMapExprNode>() && b->IsInstance<IterMapExprNode>()) {
     // cannot multiply two iterators, mark as unresolved.
-    Fail(Diagnostic::Error(op->span) << "Cannot multiply two iterators: " << GetRef<PrimExpr>(op));
+    unresolved_count_++;
     return GetRef<PrimExpr>(op);
   }
 
@@ -1127,9 +1083,7 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr rhs,
         lhs.CopyOnWrite()->scale = make_const(rhs->dtype, 1);
       } else {
         // mark as unresolved.
-        Fail(Diagnostic::Error(orig->span)
-             << "Can not prove floordiv rhs " << rhs << " divisible by lhs scale " << lhs->scale
-             << ", lhs=" << lhs);
+        unresolved_count_++;
         return orig;
       }
     }
@@ -1151,8 +1105,7 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr rhs,
     return std::move(lhs);
   } else {
     // mark as unresolved.
-    Fail(Diagnostic::Error(orig->span)
-         << "Can not prove floordiv lhs extent " << lhs->extent << " divisible by rhs " << rhs);
+    unresolved_count_++;
     return orig;
   }
 }
@@ -1180,7 +1133,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
 
   if (b->IsInstance<IterMapExprNode>()) {
     // cannot divide an iterator, mark as unresolved.
-    Fail(Diagnostic::Error(op->span) << "Cannot divide an iterator: " << GetRef<PrimExpr>(op));
+    unresolved_count_++;
     return GetRef<PrimExpr>(op);
   }
 
@@ -1189,15 +1142,13 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
     if (Optional<IterSumExpr> opt = TryFuseIters(ret)) {
       IterSumExpr sum = opt.value();
       if (!is_zero(sum->base)) {
-        Fail(Diagnostic::Error(op->span)
-             << "Fuse IterSumExpr " << ret
-             << " failed, cannot floordiv an IterSumExpr with nonzero base");
+        unresolved_count_++;
         return GetRef<PrimExpr>(op);
       }
       ICHECK_EQ(sum->args.size(), 1U);
       return SplitFloorDivConst(sum->args[0], b, GetRef<PrimExpr>(op));
     } else {
-      Fail(Diagnostic::Error(op->span) << "Fuse IterSumExpr " << ret << " failed");
+      unresolved_count_++;
       return GetRef<PrimExpr>(op);
     }
   } else {
@@ -1221,8 +1172,7 @@ PrimExpr IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, PrimExpr rhs,
         rhs = floordiv(rhs, lhs->scale);
       } else {
         // mark as unresolved.
-        Fail(Diagnostic::Error(orig->span) << "Can not prove floormod rhs " << rhs
-                                           << " divisible by " << lhs->scale << ", lhs=" << lhs);
+        unresolved_count_++;
         return orig;
       }
     }
@@ -1236,8 +1186,7 @@ PrimExpr IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, PrimExpr rhs,
     return std::move(lhs);
   } else {
     // mark as unresolved.
-    Fail(Diagnostic::Error(orig->span)
-         << "Can not prove floormod lhs extent " << lhs->extent << " divisible by rhs " << rhs);
+    unresolved_count_++;
     return orig;
   }
 }
@@ -1265,7 +1214,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
 
   if (b->IsInstance<IterMapExprNode>()) {
     // cannot mod an iterator, mark as unresolved.
-    Fail(Diagnostic::Error(op->span) << "Cannot mod an iterator: " << GetRef<PrimExpr>(op));
+    unresolved_count_++;
     return GetRef<PrimExpr>(op);
   }
 
@@ -1274,14 +1223,12 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
     if (Optional<IterSumExpr> opt = TryFuseIters(ret)) {
       IterSumExpr sum = opt.value();
       if (!is_zero(sum->base)) {
-        Fail(Diagnostic::Error(op->span)
-             << "Fuse IterSumExpr " << ret
-             << " failed, cannot floormod an IterSumExpr with nonzero base");
+        unresolved_count_++;
         return GetRef<PrimExpr>(op);
       }
       return SplitFloorModConst(sum->args[0], b, GetRef<PrimExpr>(op));
     } else {
-      Fail(Diagnostic::Error(op->span) << "Fail to fuse iters of " << ret);
+      unresolved_count_++;
       return GetRef<PrimExpr>(op);
     }
   } else {
@@ -1356,9 +1303,8 @@ Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, R
                                 const PrimExpr& input_pred, bool require_bijective) {
   if (!IterRangeSanityCheck(input_iters)) return indices;
   Analyzer analyzer;
-  DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
   Array<IterSumExpr> rewrite =
-      DetectIterMap(indices, input_iters, input_pred, require_bijective, &analyzer, diag_ctx);
+      DetectIterMap(indices, input_iters, input_pred, require_bijective, &analyzer);
   if (rewrite.empty()) {
     return indices;
   }
@@ -1385,9 +1331,8 @@ Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, R
 class SubspaceDivider {
  public:
   explicit SubspaceDivider(Analyzer* analyzer, const IterMarkSplitCollector& collector,
-                           const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& sub_iters,
-                           DiagnosticContext diag_ctx)
-      : analyzer_(analyzer), collector_(collector), sub_iters_(sub_iters), diag_ctx_(diag_ctx) {}
+                           const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& sub_iters)
+      : analyzer_(analyzer), collector_(collector), sub_iters_(sub_iters) {}
 
   size_t unresolved_count() const { return unresolved_count_; }
 
@@ -1449,8 +1394,8 @@ class SubspaceDivider {
     } else if (expr->args.size() == 1) {
       // arg + base, if arg=Y*E(X)+X, then arg+base = Y*E(X)+(X+base)
       if (!is_one(expr->args[0]->scale)) {
-        return Fail(Diagnostic::Error(expr->span)
-                    << "Expect split scale be 1, got " << expr->args[0]->scale);
+        unresolved_count_++;
+        return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
       }
       DivisionResult res = DivideIterSplitExpr(expr->args[0]);
       if (!is_zero(expr->base)) res = AddBase(res, expr->base);
@@ -1469,9 +1414,10 @@ class SubspaceDivider {
       DivisionResult arg_division = DivideIterSplitExpr(arg);
       IterSplitExpr new_arg;
       if (arg_division.IsInner()) {
-        if (!inner)
-          return Fail(Diagnostic::Error(expr->span)
-                      << "Current division is inner but outer division exists for previous args");
+        if (!inner) {
+          unresolved_count_++;
+          return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
+        }
         new_arg = arg_division.GetInnerAsSplit();
         inner_args.push_back(new_arg);
         inner = true;
@@ -1480,13 +1426,15 @@ class SubspaceDivider {
         outer_args.push_back(new_arg);
         inner = false;
       } else {
-        return Fail(Diagnostic::Error(expr->span)
-                    << "Division of " << arg << " is neither inner nor outer");
+        unresolved_count_++;
+        return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
       }
       extent *= new_arg->extent;
     }
-    if (!scale_is_one)
-      return Fail(Diagnostic::Error(expr->span) << "Expect all iter sum arg's scale be 1");
+    if (!scale_is_one) {
+      unresolved_count_++;
+      return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
+    }
     bool need_predicate = !analyzer_->CanProveEqual(extent, mark_extent);
     const IterMark& outer_mark = MarkFromArgsAndBase(outer_args, 0);
     const IterMark& inner_mark = MarkFromArgsAndBase(inner_args, expr->base);
@@ -1505,8 +1453,8 @@ class SubspaceDivider {
         inner_preds_ = inner_preds_ && (converter.Convert(inner_source) < mark_extent);
         return DivisionResult::Inner(inner_source, mark_extent);
       } else {
-        return Fail(Diagnostic::Error(expr->span)
-                    << "Either inner or outer args should exists if need predicate: " << expr);
+        unresolved_count_++;
+        return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
       }
     }
     return DivisionResult(outer_source, outer_mark->extent, inner_source, inner_mark->extent);
@@ -1516,14 +1464,6 @@ class SubspaceDivider {
   PrimExpr GetInnerPreds() const { return inner_preds_; }
 
  private:
-  DivisionResult Fail(const Diagnostic& diagnostic) {
-    unresolved_count_++;
-    if (diag_ctx_.defined()) {
-      diag_ctx_.Emit(diagnostic);
-    }
-    return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
-  }
-
   DivisionResult AddBase(DivisionResult division, PrimExpr base) {
     DivisionResult res = division;
     if (const auto* op = division.inner.as<IterSplitExprNode>()) {
@@ -1599,10 +1539,10 @@ class SubspaceDivider {
           if (!used[j] && analyzer_->CanProveEqual(splits[j]->lower_factor, expected_lower_factor))
             break;
         }
-        if (j == splits.size())
-          return Fail(Diagnostic::Error(expr->span)
-                      << "Can not find expected lower factor " << expected_lower_factor
-                      << " in splits of " << expr->source);
+        if (j == splits.size()) {
+          unresolved_count_++;
+          return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
+        }
         used[j] = true;
         if (!encountered_boundary) {
           inner_iters.push_back(splits[j]);
@@ -1613,9 +1553,10 @@ class SubspaceDivider {
         if (analyzer_->CanProveEqual(expected_lower_factor, mark_division.inner_extent))
           encountered_boundary = true;
       }
-      if (!encountered_boundary)
-        return Fail(Diagnostic::Error(expr->span)
-                    << "Can not find inner/outer boundary of " << expr);
+      if (!encountered_boundary) {
+        unresolved_count_++;
+        return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
+      }
       for (const IterSplitExpr& inner_iter : inner_iters) {
         IterSplitExpr new_iter = inner_iter;
         new_iter.CopyOnWrite()->source = inner_mark;
@@ -1629,8 +1570,8 @@ class SubspaceDivider {
         split_map_.emplace(outer_iter, DivisionResult::Outer(new_iter, outer_iter->extent));
       }
     } else {
-      return Fail(Diagnostic::Error(expr->span)
-                  << "Source expr to divide is neither var nor IterSumExpr");
+      unresolved_count_++;
+      return DivisionResult(IterSumExpr({}, 0), 0, IterSumExpr({}, 0), 0);
     }
     return split_map_.at(expr);
   }
@@ -1646,18 +1587,15 @@ class SubspaceDivider {
   std::unordered_map<IterSplitExpr, DivisionResult, ObjectPtrHash, ObjectPtrEqual> split_map_;
   // predicate of outer space and inner space;
   PrimExpr outer_preds_{Bool(true)}, inner_preds_{Bool(true)};
-  // diagnostic context
-  DiagnosticContext diag_ctx_;
 };
 
 Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
                                       const Map<Var, Range>& input_iters,
                                       const Array<Var>& sub_iters, const PrimExpr& predicate,
-                                      bool require_bijective, arith::Analyzer* analyzer,
-                                      DiagnosticContext diag_ctx) {
+                                      bool require_bijective, arith::Analyzer* analyzer) {
   if (!IterRangeSanityCheck(input_iters)) return Array<Array<IterMark>>();
   const Array<IterSumExpr>& maps =
-      DetectIterMap(bindings, input_iters, predicate, require_bijective, analyzer, diag_ctx);
+      DetectIterMap(bindings, input_iters, predicate, require_bijective, analyzer);
   if (maps.empty()) return {};
 
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> inner_iter_set;
@@ -1667,7 +1605,7 @@ Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
 
   IterMarkSplitCollector collector;
   collector.Collect(maps);
-  SubspaceDivider subspace_divider(analyzer, collector, inner_iter_set, diag_ctx);
+  SubspaceDivider subspace_divider(analyzer, collector, inner_iter_set);
 
   std::vector<Array<IterMark>> results;
   for (const IterSumExpr& expr : maps) {
@@ -1687,9 +1625,7 @@ TVM_REGISTER_GLOBAL("arith.SubspaceDivide")
                        const Array<Var>& sub_iters, const PrimExpr& predicate,
                        bool require_bijective) {
       arith::Analyzer ana;
-      DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
-      return SubspaceDivide(bindings, root_iters, sub_iters, predicate, require_bijective, &ana,
-                            diag_ctx);
+      return SubspaceDivide(bindings, root_iters, sub_iters, predicate, require_bijective, &ana);
     });
 
 class InverseAffineIterMapTransformer {

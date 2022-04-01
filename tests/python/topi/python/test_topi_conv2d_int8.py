@@ -21,7 +21,6 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import autotvm
-from tvm.autotvm.task.space import FallbackConfigEntity
 from tvm import topi
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
@@ -34,6 +33,7 @@ from tvm.topi.generic.conv2d import fallback_schedule_cpu_common_int8
 from common import Int8Fallback
 import tvm.testing
 import pytest
+import platform
 
 
 def compile_conv2d_NHWC_gemm_int8_arm(
@@ -259,7 +259,7 @@ def verify_conv2d_NCHWc_int8(
     lo = -128 if in_dtype == "int8" else 0
     hi = 127 if in_dtype == "int8" else 255
 
-    def check_target(target, compute, schedule, oc_block_factor):
+    def check_target(target, compute, schedule, oc_block_factor, build_only):
         dev = tvm.device(target, 0)
         if not tvm.testing.device_enabled(target):
             print("Skip because %s is not enabled" % target)
@@ -299,7 +299,6 @@ def verify_conv2d_NCHWc_int8(
 
         a_np, w_np, b_np, c_np = get_ref_data()
 
-        print("Running on target: %s" % target)
         with tvm.target.Target(target):
             C = compute(
                 A,
@@ -311,8 +310,6 @@ def verify_conv2d_NCHWc_int8(
                 "NCHW",
                 out_dtype,
             )
-            print(C.shape)
-            print(bias.shape)
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
@@ -323,45 +320,29 @@ def verify_conv2d_NCHWc_int8(
         w = tvm.nd.array(w_np.astype(dtype), dev)
         b = tvm.nd.array(b_np.astype(out_dtype), dev)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
+
         if add_bias:
-            tvm.build(
-                s,
-                [A, W, bias, C],
-                target,
-                name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
-                % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
-            )
-            func = tvm.build(
-                s,
-                [A, W, bias, C],
-                target,
-                name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
-                % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
-            )
-            try:
-                func(a, w, b, c)
-            except tvm.TVMError as e:
-                if "architecture mismatch" in str(e):
-                    print(f"Skipping execution because {target} is not supported by this CPU")
-                    return
-                else:
-                    raise
+            compile_args = [A, W, bias, C]
+            run_args = [a, w, b, c]
         else:
-            func = tvm.build(
-                s,
-                [A, W, C],
-                target,
-                name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
-                % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
-            )
-            try:
-                func(a, w, c)
-            except tvm.TVMError as e:
-                if "architecture mismatch" in str(e):
-                    print(f"Skipping execution because {target} is not supported by this CPU")
-                    return
-                else:
-                    raise
+            compile_args = [A, W, C]
+            run_args = [a, w, c]
+
+        func = tvm.build(
+            s,
+            compile_args,
+            target,
+            name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
+            % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
+        )
+
+        if build_only:
+            return
+
+        print("Running on target: %s" % target)
+
+        func(*run_args)
+
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
     targets = [
@@ -370,6 +351,7 @@ def verify_conv2d_NCHWc_int8(
             lambda a, w, s, p, d, l, ol, o: topi.cuda.conv2d_NCHWc_int8(a, w, s, p, d, l, o),
             topi.cuda.schedule_conv2d_NCHWc_int8,
             4,
+            False,
         ),
         # Disable on CI since it does not support spirv int8 dot product
         # (
@@ -377,22 +359,35 @@ def verify_conv2d_NCHWc_int8(
         #     lambda a, w, s, p, d, l, ol, o: topi.cuda.conv2d_NCHWc_int8(a, w, s, p, d, l, o),
         #     topi.cuda.schedule_conv2d_NCHWc_int8,
         #     4,
+        #     False,
         # ),
     ]
 
-    # TODO(Mousius) Re-enable once implementation is fixed
-    # if in_dtype == "int8":
-    #     targets.append(
-    #         (
-    #             "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon",
-    #             topi.arm_cpu.conv2d_NCHWc_int8,
-    #             topi.arm_cpu.schedule_conv2d_NCHWc_int8,
-    #             8,
-    #         )
-    #     )
+    build_only_aarch64 = platform.machine() != "aarch64"
 
-    for target, compute, schedule, oc_block_factor in targets:
-        check_target(target, compute, schedule, oc_block_factor)
+    targets.append(
+        (
+            "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon,+v8.2a,+dotprod",
+            topi.arm_cpu.conv2d_NCHWc_int8,
+            topi.arm_cpu.schedule_conv2d_NCHWc_int8,
+            8,
+            build_only_aarch64,
+        )
+    )
+
+    if in_dtype == "int8":
+        targets.append(
+            (
+                "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon",
+                topi.arm_cpu.conv2d_NCHWc_int8,
+                topi.arm_cpu.schedule_conv2d_NCHWc_int8,
+                8,
+                build_only_aarch64,
+            )
+        )
+
+    for target, compute, schedule, oc_block_factor, build_only in targets:
+        check_target(target, compute, schedule, oc_block_factor, build_only)
 
 
 def verify_conv2d_nchw_int8(

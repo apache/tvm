@@ -87,6 +87,8 @@ ALLOW_EXTENSION = {
     "ino",
     # linker scripts
     "ld",
+    # Jinja2 templates
+    "j2",
 }
 
 # List of file names allowed

@@ -48,6 +48,7 @@ if __name__ == "__main__":
     help = "Add @cc'ed people in a PR body as reviewers"
     parser = argparse.ArgumentParser(description=help)
     parser.add_argument("--remote", default="origin", help="ssh remote to parse")
+    parser.add_argument("--testing-reviews-json", help="(testing only) reviews as JSON")
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -66,8 +67,36 @@ if __name__ == "__main__":
     if body is None:
         body = ""
 
-    to_add = find_reviewers(body)
-    print("Adding reviewers:", to_add)
+    new_reviewers = find_reviewers(body)
+    print("Found these reviewers:", new_reviewers)
+
+    if args.testing_reviews_json:
+        existing_reviews = json.loads(args.testing_reviews_json)
+    else:
+        github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
+        existing_reviews = github.get(f"pulls/{number}/reviews")
+
+    existing_review_users = [review["user"]["login"] for review in existing_reviews]
+    print("PR has reviews from these users:", existing_review_users)
+    existing_review_users = set(r.lower() for r in existing_review_users)
+
+    existing_reviewers = [review["login"] for review in pr["requested_reviewers"]]
+    print("PR already had these reviewers requested:", existing_reviewers)
+
+    existing_reviewers_lower = {
+        existing_reviewer.lower() for existing_reviewer in existing_reviewers
+    }
+    to_add = []
+    for new_reviewer in new_reviewers:
+        if (
+            new_reviewer.lower() in existing_reviewers_lower
+            or new_reviewer.lower() in existing_review_users
+        ):
+            print(f"{new_reviewer} is already review requested, skipping")
+        else:
+            to_add.append(new_reviewer)
+
+    print(f"After filtering existing reviewers, adding: {to_add}")
 
     if not args.dry_run:
         github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)

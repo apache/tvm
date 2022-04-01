@@ -608,7 +608,7 @@ class ConstIntBoundAnalyzer::Impl
   }
 };
 
-ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr) {
+ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr) const {
   Entry ret = impl_->VisitExpr(expr);
   return ConstIntBound(ret.min_value, ret.max_value);
 }

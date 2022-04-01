@@ -195,7 +195,7 @@ class BuildModule(object):
 
         # Turn off AutoTVM config not found warnings if auto_scheduler is enabled.
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
-        autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
+        autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler or old_autotvm_silent
 
         mod_name = mangle_module_name(mod_name)
 

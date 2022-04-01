@@ -48,6 +48,8 @@ class WithBranch:
             for k0 in T.serial(32, 64):
                 with T.block():
                     i, j, k = T.axis.remap("SRR", [i0, j0, k0])
+                    T.reads(A[i, j, k])
+                    T.writes(B[i])
                     if (j == 0) and (k == 32):
                         B[i] = T.float32(0)
                     B[i] += A[i, j, k]
@@ -82,6 +84,8 @@ class BranchWithMatchBuffer:
             for k0 in T.serial(32, 64):
                 with T.block():
                     i, j, k = T.axis.remap("SRR", [i0, j0, k0])
+                    T.reads(A[i, j, k])
+                    T.writes(B[i])
                     BB = T.match_buffer(B[i], ())
                     AA = T.match_buffer(A[i, 0:64, 0:64], (64, 64))
                     if (j == 0) and (k == 32):
@@ -92,7 +96,6 @@ class BranchWithMatchBuffer:
 def test_lower_reduction():
     origin_mod = WithInit
     mod = tvm.tir.transform.LowerInitBlock()(origin_mod)
-    print(mod.script())
     tvm.ir.assert_structural_equal(mod, WithBranch, True)
 
 

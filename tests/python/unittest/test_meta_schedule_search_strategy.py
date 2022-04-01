@@ -83,9 +83,11 @@ def _schedule_matmul(sch: Schedule):
 @pytest.mark.parametrize("TestClass", [ReplayFunc, ReplayTrace])
 def test_meta_schedule_replay_func(TestClass: SearchStrategy):  # pylint: disable = invalid-name
     num_trials_per_iter = 7
-    num_trials_total = 20
+    max_trials_per_task = 20
 
-    strategy = TestClass(num_trials_per_iter=num_trials_per_iter, num_trials_total=num_trials_total)
+    strategy = TestClass(
+        num_trials_per_iter=num_trials_per_iter, max_trials_per_task=max_trials_per_task
+    )
     context = TuneContext(mod=Matmul, space_generator=ScheduleFn(sch_fn=_schedule_matmul))
     context.space_generator.initialize_with_tune_context(context)
     spaces = context.space_generator.generate_design_space(context.mod)
@@ -119,11 +121,11 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name]
         _, _ = sch.split(k, sch.sample_perfect_tile(k, n=2))
 
     num_trials_per_iter = 10
-    num_trials_total = 2000
+    max_trials_per_task = 2000
 
     strategy = EvolutionarySearch(
         num_trials_per_iter=num_trials_per_iter,
-        num_trials_total=num_trials_total,
+        max_trials_per_task=max_trials_per_task,
         population_size=5,
         init_measured_ratio=0.1,
         init_min_unmeasured=50,
@@ -148,6 +150,7 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name]
         database=DummyDatabase(),
         cost_model=ms.cost_model.RandomModel(),
         measure_callbacks=[],
+        max_trials=1,
     )
     context.space_generator.initialize_with_tune_context(context)
     spaces = context.space_generator.generate_design_space(context.mod)
@@ -180,11 +183,11 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
         return sch
 
     num_trials_per_iter = 10
-    num_trials_total = 100
+    max_trials_per_task = 100
 
     strategy = EvolutionarySearch(
         num_trials_per_iter=num_trials_per_iter,
-        num_trials_total=num_trials_total,
+        max_trials_per_task=max_trials_per_task,
         population_size=5,
         init_measured_ratio=0.1,
         init_min_unmeasured=50,
@@ -209,6 +212,7 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
         database=DummyDatabase(),
         cost_model=ms.cost_model.RandomModel(),
         measure_callbacks=[],
+        max_trials=1,
     )
     context.space_generator.initialize_with_tune_context(context)
     spaces = context.space_generator.generate_design_space(context.mod)

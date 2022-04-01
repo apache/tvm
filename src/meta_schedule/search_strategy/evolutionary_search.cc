@@ -325,7 +325,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
   /*! \brief The number of trials per iteration. */
   int num_trials_per_iter;
   /*! \brief The number of total trials. */
-  int num_trials_total;
+  int max_trials_per_task;
   /*! \brief The population size in the evolutionary search. */
   int population_size;
   /*!
@@ -363,7 +363,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     // `state_` is not visited
 
     /*** Configuration: global ***/
-    v->Visit("num_trials_total", &num_trials_total);
+    v->Visit("max_trials_per_task", &max_trials_per_task);
     v->Visit("num_trials_per_iter", &num_trials_per_iter);
     v->Visit("population_size", &population_size);
     v->Visit("num_empty_iters_before_early_stop", &num_empty_iters_before_early_stop);
@@ -640,13 +640,13 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickWithEpsGreedy(
 }
 
 Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasureCandidates() {
-  if (st >= self->num_trials_total) {
+  if (st >= self->max_trials_per_task) {
     return NullOpt;
   }
   int sample_num = self->num_trials_per_iter;
-  if (ed > self->num_trials_total) {
-    sample_num = self->num_trials_total - st;
-    ed = self->num_trials_total;
+  if (ed > self->max_trials_per_task) {
+    sample_num = self->max_trials_per_task - st;
+    ed = self->max_trials_per_task;
   }
   ICHECK_LT(st, ed);
   int pop = self->population_size;
@@ -681,7 +681,7 @@ void EvolutionarySearchNode::State::NotifyRunnerResults(
 }
 
 SearchStrategy SearchStrategy::EvolutionarySearch(int num_trials_per_iter,     //
-                                                  int num_trials_total,        //
+                                                  int max_trials_per_task,     //
                                                   int population_size,         //
                                                   double init_measured_ratio,  //
                                                   int init_min_unmeasured,     //
@@ -694,7 +694,7 @@ SearchStrategy SearchStrategy::EvolutionarySearch(int num_trials_per_iter,     /
   TVM_META_SCHEDULE_CHECK_PROB_RANGE(eps_greedy, "Greedy pick probability");
   ObjectPtr<EvolutionarySearchNode> n = make_object<EvolutionarySearchNode>();
   n->num_trials_per_iter = num_trials_per_iter;
-  n->num_trials_total = num_trials_total;
+  n->max_trials_per_task = max_trials_per_task;
   n->population_size = population_size;
   n->num_empty_iters_before_early_stop = 5;
   n->init_measured_ratio = init_measured_ratio;

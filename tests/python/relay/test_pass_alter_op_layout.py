@@ -1499,6 +1499,27 @@ def test_conv2d_strided_slice_packed_to_unpacked():
         assert tvm.ir.structural_equal(a, b)
 
 
+def test_conv2d_strided_slice_arbitrary_stride():
+    """Test rewriting strided_slice with arbitrary stride"""
+
+    def before():
+        x = relay.var("x", shape=(4, 12, 1, 1))
+        weight = relay.var("weight", shape=(9, 12, 1, 1))
+        y = relay.nn.conv2d(x, weight, channels=9, kernel_size=(1, 1), padding=(0, 0))
+        y = relay.strided_slice(y, begin=[3], end=[6], strides=[3], axes=[1])
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def alter_conv2d(attrs, inputs, tinfos, out_type):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs["data_layout"] = "NCHW3c"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        run_opt_pass(before(), transform.AlterOpLayout())
+
+
 def test_conv2d_reduce_channels():
     x = relay.var("data", shape=(1, 8, 48, 48))
     y = relay.nn.conv2d(

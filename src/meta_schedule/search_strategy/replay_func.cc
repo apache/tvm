@@ -42,7 +42,7 @@ class ReplayFuncNode : public SearchStrategyNode {
   /*! \brief The number of trials per iteration. */
   int num_trials_per_iter;
   /*! \brief The number of total trials. */
-  int num_trials_total;
+  int max_trials_per_task;
 
   /*! \brief The module to be tuned. */
   IRModule mod_{nullptr};
@@ -59,7 +59,7 @@ class ReplayFuncNode : public SearchStrategyNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("num_trials_per_iter", &num_trials_per_iter);
-    v->Visit("num_trials_total", &num_trials_total);
+    v->Visit("max_trials_per_task", &max_trials_per_task);
     // `space_generator_` is not visited
     // `mod_` is not visited
     // `args_info_` is not visited
@@ -104,10 +104,10 @@ class ReplayFuncNode : public SearchStrategyNode {
 };
 
 inline Optional<Array<MeasureCandidate>> ReplayFuncNode::State::GenerateMeasureCandidates() {
-  if (st >= self->num_trials_total) {
+  if (st >= self->max_trials_per_task) {
     return NullOpt;
   }
-  ed = std::min(ed, self->num_trials_total);
+  ed = std::min(ed, self->max_trials_per_task);
   Array<MeasureCandidate> result;
   for (int i = st; i < ed; i++) {
     for (;;) {
@@ -136,10 +136,10 @@ inline void ReplayFuncNode::State::NotifyRunnerResults(const Array<RunnerResult>
   ed += self->num_trials_per_iter;
 }
 
-SearchStrategy SearchStrategy::ReplayFunc(int num_trials_per_iter, int num_trials_total) {
+SearchStrategy SearchStrategy::ReplayFunc(int num_trials_per_iter, int max_trials_per_task) {
   ObjectPtr<ReplayFuncNode> n = make_object<ReplayFuncNode>();
   n->num_trials_per_iter = num_trials_per_iter;
-  n->num_trials_total = num_trials_total;
+  n->max_trials_per_task = max_trials_per_task;
   return SearchStrategy(n);
 }
 

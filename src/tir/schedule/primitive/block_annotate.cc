@@ -64,44 +64,6 @@ class StorageAlignAxisOutOfRangeError : public ScheduleError {
   int axis_;
 };
 
-/*!
- * \brief Find the defining site of the buffer in the given block and its ancestors
- * \param block_sref The block sref
- * \param buffer The buffer
- * \return The defining site of the buffer and whether the buffer is allocated (otherwise the
- *         buffer is from match_buffer).
- */
-std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
-                                                          const Buffer& buffer) {
-  // Climb up along the sref tree, and find the block where `buffer` is in alloc_buffers or
-  // match_buffers.
-  const StmtSRefNode* defining_site_sref = block_sref.get();
-  while (defining_site_sref != nullptr) {
-    const auto* block = defining_site_sref->StmtAs<BlockNode>();
-    // If this sref is not a block sref, skip it.
-    if (block == nullptr) {
-      defining_site_sref = defining_site_sref->parent;
-      continue;
-    }
-    // Try to find the buffer in `allloc_buffers`
-    for (const Buffer& alloc_buffer : block->alloc_buffers) {
-      if (buffer.same_as(alloc_buffer)) {
-        return {GetRef<StmtSRef>(defining_site_sref), true};
-      }
-    }
-    // We do not allow the buffer being defined in `match_buffer`.
-    for (const MatchBufferRegion match_buffer : block->match_buffers) {
-      if (buffer.same_as(match_buffer)) {
-        return {GetRef<StmtSRef>(defining_site_sref), false};
-      }
-    }
-    defining_site_sref = defining_site_sref->parent;
-  }
-  // If we cannot find the defining site block, it means that the buffer must be in the function's
-  // buffer_map, which isn't an intermediate buffer.
-  return {NullOpt, false};
-}
-
 class NonAllocatedBufferError : public ScheduleError {
  public:
   explicit NonAllocatedBufferError(IRModule mod, Buffer buffer) : mod_(mod), buffer_(buffer) {}

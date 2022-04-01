@@ -585,9 +585,15 @@ class TVMScriptParser(Transformer):
                         node.span,
                     )
                 ast_var = node.lhs[0]
+
+                if node.ty is None and hasattr(value, "dtype"):
+                    var_ty = value.dtype
+                else:
+                    var_ty = self.parse_type(node.ty, ast_var)
+
                 var = tvm.te.var(
                     ast_var.id.name,
-                    self.parse_type(node.ty, ast_var),
+                    var_ty,
                     span=tvm_span_from_synr(ast_var.span),
                 )
                 self.context.update_symbol(var.name, var, node)

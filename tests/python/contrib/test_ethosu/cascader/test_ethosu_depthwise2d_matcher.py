@@ -83,6 +83,7 @@ def test_ethosu_depthwise2d_matcher(kernel, stride, dilation, padding, ifm_layou
         ifm_layout,
         ofm_layout,
         dilation,
+        ofm_channels=ofm_channels,
     )
 
     device_config = cs.EthosuDeviceConfig("ethos-u55-256")

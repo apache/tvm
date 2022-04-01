@@ -129,7 +129,7 @@ std::unique_ptr<Allocation> Allocator<HexagonBuffer::StorageScope::kVTCM>(size_t
 }
 
 HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, Optional<String> scope)
-    : nallocs_(1), nbytes_(nbytes) {
+    : ndim_(1), nbytes_per_allocation_(nbytes) {
   SetStorageScope(scope);
 
   std::unique_ptr<Allocation> alloca = nullptr;
@@ -145,7 +145,7 @@ HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, Optional<String> s
 
 HexagonBuffer::HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
                              Optional<String> scope)
-    : nallocs_(nallocs), nbytes_(nallocs * nbytes) {
+    : ndim_(2), nbytes_per_allocation_(nbytes) {
   SetStorageScope(scope);
   for (size_t i = 0; i < nallocs; ++i) {
     std::unique_ptr<Allocation> alloca = nullptr;
@@ -161,7 +161,7 @@ HexagonBuffer::HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
 }
 
 HexagonBuffer::HexagonBuffer(void* data, size_t nbytes, Optional<String> scope)
-    : nallocs_(1), nbytes_(nbytes) {
+    : ndim_(1), nbytes_per_allocation_(nbytes) {
   SetStorageScope(scope);
   // disallow external VTCM allocations
   CHECK(GetStorageScope() != HexagonBuffer::StorageScope::kVTCM);
@@ -170,11 +170,19 @@ HexagonBuffer::HexagonBuffer(void* data, size_t nbytes, Optional<String> scope)
 
 HexagonBuffer::~HexagonBuffer() { managed_allocations_.clear(); }
 
-void** HexagonBuffer::GetPointer() {
-  if (!allocations_.size()) {
+void* HexagonBuffer::GetPointer() {
+  ICHECK(allocations_.size())
+      << "Internal failure, allocations_ should be set in HexagonBuffer constructor";
+
+  if (ndim_ == 1) {
+    ICHECK_EQ(allocations_.size(), 1);
+    return allocations_[0];
+  } else if (ndim_ == 2) {
+    return allocations_.data();
+  } else {
+    LOG(FATAL) << "HexagonBuffer should be either 1-d or 2-d, not " << ndim_ << "-d";
     return nullptr;
   }
-  return allocations_.data();
 }
 
 HexagonBuffer::StorageScope HexagonBuffer::GetStorageScope() const { return storage_scope_; }
@@ -195,17 +203,16 @@ void HexagonBuffer::SetStorageScope(Optional<String> scope) {
 }
 
 void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
-  CHECK_LE(nbytes, nbytes_);
+  CHECK_LE(nbytes, TotalBytes());
   CHECK(managed_allocations_.size() && "CopyTo not supported on unmanaged `external` allocations");
 
   size_t copied = 0;
-  for (size_t i = 0; i < nallocs_; ++i) {
-    size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->allocation_nbytes_);
+  for (const auto& managed_alloc : managed_allocations_) {
+    size_t bytes_to_copy = std::min(nbytes - copied, managed_alloc->allocation_nbytes_);
     if (bytes_to_copy == 0) break;
 
     void* data_plus_copied = static_cast<void*>((static_cast<char*>(data) + copied));
-    int status =
-        hexagon_user_dma_1d_sync(data_plus_copied, managed_allocations_[i]->data_, bytes_to_copy);
+    int status = hexagon_user_dma_1d_sync(data_plus_copied, managed_alloc->data_, bytes_to_copy);
     CHECK_EQ(status, 0);
 
     copied += bytes_to_copy;
@@ -213,18 +220,17 @@ void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
 }
 
 void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
-  CHECK_LE(nbytes, nbytes_);
+  CHECK_LE(nbytes, TotalBytes());
   CHECK(managed_allocations_.size() &&
         "CopyFrom not supported on unmanaged `external` allocations");
 
   size_t copied = 0;
-  for (size_t i = 0; i < nallocs_; ++i) {
-    size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->allocation_nbytes_);
+  for (const auto& managed_alloc : managed_allocations_) {
+    size_t bytes_to_copy = std::min(nbytes - copied, managed_alloc->allocation_nbytes_);
     if (bytes_to_copy == 0) break;
 
     void* data_plus_copied = static_cast<void*>((static_cast<char*>(data) + copied));
-    int status =
-        hexagon_user_dma_1d_sync(managed_allocations_[i]->data_, data_plus_copied, bytes_to_copy);
+    int status = hexagon_user_dma_1d_sync(managed_alloc->data_, data_plus_copied, bytes_to_copy);
     CHECK_EQ(status, 0);
 
     copied += bytes_to_copy;
@@ -232,31 +238,32 @@ void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
 }
 
 void HexagonBuffer::CopyFrom(const HexagonBuffer& other, size_t nbytes) {
-  CHECK_LE(nbytes, nbytes_);
-  CHECK_LE(nbytes, other.nbytes_);
+  CHECK_LE(nbytes, TotalBytes());
+  CHECK_LE(nbytes, other.TotalBytes());
   CHECK(managed_allocations_.size() &&
         "CopyFrom not supported on unmanaged `external` allocations");
   CHECK(other.managed_allocations_.size() &&
         "CopyFrom not supported on unmanaged `external` allocations");
 
-  if (nallocs_ == other.nallocs_) {
+  if (managed_allocations_.size() == other.managed_allocations_.size()) {
     size_t copied = 0;
-    for (size_t i = 0; i < nallocs_; ++i) {
-      size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->allocation_nbytes_);
+    for (size_t i = 0; i < managed_allocations_.size(); ++i) {
+      const auto& this_alloc = managed_allocations_[i];
+      const auto& other_alloc = other.managed_allocations_[i];
+
+      size_t bytes_to_copy = std::min(nbytes - copied, this_alloc->allocation_nbytes_);
       if (bytes_to_copy == 0) break;
 
-      CHECK_LE(other.managed_allocations_[i]->allocation_nbytes_,
-               managed_allocations_[i]->allocation_nbytes_);
+      CHECK_LE(other_alloc->allocation_nbytes_, this_alloc->allocation_nbytes_);
 
-      int status = hexagon_user_dma_1d_sync(managed_allocations_[i]->data_,
-                                            other.managed_allocations_[i]->data_, bytes_to_copy);
+      int status = hexagon_user_dma_1d_sync(this_alloc->data_, other_alloc->data_, bytes_to_copy);
       CHECK_EQ(status, 0);
 
       copied += bytes_to_copy;
     }
-  } else if (nallocs_ == 1) {
+  } else if (managed_allocations_.size() == 1) {
     return other.CopyTo(managed_allocations_[0]->data_, nbytes);
-  } else if (other.nallocs_ == 1) {
+  } else if (other.managed_allocations_.size() == 1) {
     return CopyFrom(other.managed_allocations_[0]->data_, nbytes);
   } else {
     CHECK(false) << "To copy between Hexagon Buffers they must either have the same number of "

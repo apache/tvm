@@ -120,7 +120,7 @@ class ConstIntBoundAnalyzer {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  TVM_DLL ConstIntBound operator()(const PrimExpr& expr);
+  TVM_DLL ConstIntBound operator()(const PrimExpr& expr) const;
 
   /*!
    * \brief analyze the expr with the intermediate memorized to avoid redundant computation
@@ -407,11 +407,13 @@ class TVM_DLL Analyzer {
    * \brief Notify all the sub-analyzers that var
    *        is created and binded to expr.
    *
-   *  Each var can only be binded once.
+   *  Each var can only be bound once.
    *
    * \param var The variable.
    * \param expr The expression we bind to.
-   * \param allow_override Whether we allow overriding an existing var's expression.
+   * \param allow_override Whether we allow overriding an existing var's
+   *        expression. This option should not be used if there is any dependency
+   *        between variables.
    */
   void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
   /*!
@@ -422,14 +424,18 @@ class TVM_DLL Analyzer {
    *
    * \param var The variable.
    * \param range The range we bind to.
-   * \param allow_override Whether we allow overriding an existing var's expression.
+   * \param allow_override Whether we allow overriding an existing var's
+   *        expression. This option should not be used if there is any dependency
+   *        between variables.
    */
   void Bind(const Var& var, const Range& range, bool allow_override = false);
   /*!
    * \brief Bind all the vars in the Map
    *
    * \param variables The {variable -> range} map.
-   * \param allow_override Whether we allow overriding an existing var's expression.
+   * \param allow_override Whether we allow overriding an existing var's
+   *        expression. This option should not be used if there is any dependency
+   *        between variables.
    */
   void Bind(const Map<Var, Range>& variables, bool allow_override = false);
   /*!

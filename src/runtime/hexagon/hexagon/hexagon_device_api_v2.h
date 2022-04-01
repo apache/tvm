@@ -75,6 +75,15 @@ class HexagonDeviceAPIv2 final : public DeviceAPI {
 
   /*!
    * \brief Allocate an Nd data space on device with memory scope support.
+   *
+   * If mem_scope is undefined or is "global", treat shape as the
+   * tensor shape, to be flattened into an allocation of 1-d physical
+   * memory.  This is done to maintain the semantics expected by callers of
+   * DeviceAPI::AllocDataSpace, in cases where it has a valid return value.
+   *
+   * For other values of mem_scope, the shape is the N-d physical
+   * shape of the allocation.
+   *
    * \param dev The device to perform the operation.
    * \param ndim The number of dimensions of allocated tensor.
    * \param shape The shape of allocated tensor.

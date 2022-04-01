@@ -331,6 +331,80 @@ def decomposed_gemm_after_vectorize(
 
 
 @T.prim_func
+def nested_block_bind(
+    A: T.Buffer[(16, 16, 16, 16), "float32"], B: T.Buffer[(16, 16, 16), "float32"]
+):
+    for i, j in T.grid(16, 16):
+        with T.block("outer"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            for k, l in T.grid(16, 16):
+                with T.block("inner"):
+                    vk, vl = T.axis.remap("SR", [k, l])
+                    with T.init():
+                        B[vi, vj, vk] = 0.0
+                    B[vi, vj, vk] = B[vi, vj, vk] + A[vi, vj, vk, vl]
+
+
+@T.prim_func
+def thread_bound_nested_block(
+    A: T.Buffer[(16, 16, 16, 16), "float32"], B: T.Buffer[(16, 16, 16), "float32"]
+) -> None:
+    for i in T.serial(16):
+        for j in T.thread_binding(16, thread="blockIdx.x"):
+            with T.block("outer"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                for k in T.serial(16):
+                    for l in T.thread_binding(16, thread="threadIdx.x"):
+                        with T.block("inner"):
+                            vk, vl = T.axis.remap("SR", [k, l])
+                            with T.init():
+                                B[vi, vj, vk] = T.float32(0)
+                            B[vi, vj, vk] = B[vi, vj, vk] + A[vi, vj, vk, vl]
+
+
+@T.prim_func
+def nested_block_bind_after_cache_read(
+    A: T.Buffer[(16, 16), "float32"], B: T.Buffer[(16,), "float32"]
+) -> None:
+    for i in T.serial(16):
+        with T.block("outer"):
+            vi = T.axis.spatial(16, i)
+            A_shared = T.alloc_buffer([1, 16], dtype="float32", scope="shared")
+            for ax0, ax1 in T.grid(1, 16):
+                with T.block("A_shared"):
+                    v0 = T.axis.spatial(16, vi + ax0)
+                    v1 = T.axis.spatial(16, ax1)
+                    A_shared[v0, v1] = A[v0, v1]
+            for j in T.serial(16):
+                with T.block("inner"):
+                    vj = T.axis.reduce(16, j)
+                    with T.init():
+                        B[vi] = T.float32(0)
+                    B[vi] = B[vi] + A_shared[vi, vj]
+
+
+@T.prim_func
+def thread_bound_nested_block_after_cache_read(
+    A: T.Buffer[(16, 16), "float32"], B: T.Buffer[(16,), "float32"]
+) -> None:
+    for i in T.thread_binding(16, thread="blockIdx.x"):
+        with T.block("outer"):
+            vi = T.axis.spatial(16, i)
+            A_shared = T.alloc_buffer([1, 16], dtype="float32", scope="shared")
+            for ax0, ax1 in T.grid(1, 16):
+                with T.block("A_shared"):
+                    v0 = T.axis.spatial(16, vi + ax0)
+                    v1 = T.axis.spatial(16, ax1)
+                    A_shared[v0, v1] = A[v0, v1]
+            for j in T.thread_binding(16, thread="threadIdx.x"):
+                with T.block("inner"):
+                    vj = T.axis.reduce(16, j)
+                    with T.init():
+                        B[vi] = T.float32(0)
+                    B[vi] = B[vi] + A_shared[vi, vj]
+
+
+@T.prim_func
 def decomposed_gemm_parallelize_init(
     A: T.Buffer[(16, 16), "float32"],
     B: T.Buffer[(16, 16), "float32"],
@@ -532,6 +606,30 @@ def test_vectorize_after_decompose():
     s.vectorize(jj)
     tvm.ir.assert_structural_equal(s.mod["main"], decomposed_gemm_after_vectorize)
     verify_trace_roundtrip(s, mod=decomposed_gemm)
+
+
+def test_nested_block_bind():
+    s = tir.Schedule(nested_block_bind)
+    block_outer = s.get_block("outer")
+    block_inner = s.get_block("inner")
+    _, j = s.get_loops(block_outer)
+    _, l = s.get_loops(block_inner)
+    s.bind(l, "threadIdx.x")
+    s.bind(j, "blockIdx.x")
+    tvm.ir.assert_structural_equal(s.mod["main"], thread_bound_nested_block)
+    verify_trace_roundtrip(s, mod=nested_block_bind)
+
+
+def test_nexted_block_bind_after_cache_read():
+    s = tir.Schedule(nested_block_bind_after_cache_read)
+    block_outer = s.get_block("outer")
+    block_inner = s.get_block("inner")
+    (i,) = s.get_loops(block_outer)
+    (j,) = s.get_loops(block_inner)
+    s.bind(i, "blockIdx.x")
+    s.bind(j, "threadIdx.x")
+    tvm.ir.assert_structural_equal(s.mod["main"], thread_bound_nested_block_after_cache_read)
+    verify_trace_roundtrip(s, mod=nested_block_bind_after_cache_read)
 
 
 def test_vectorize_init():

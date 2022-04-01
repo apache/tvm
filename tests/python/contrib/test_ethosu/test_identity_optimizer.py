@@ -32,7 +32,6 @@ from tvm.relay.backend.contrib.ethosu.codegen import relay_to_tir
 from tvm.relay.backend.contrib.ethosu.codegen import IdentityOptimizer
 
 from . import infra
-from .test_codegen import _compare_tvm_with_tflite
 
 
 def _optimize(func, optimize=True):
@@ -179,12 +178,14 @@ def test_many_output_identity():
     def get_graph(get_expected=False):
         x = relay.var("x", shape=(1, 2, 2, 4), dtype="int8")
         x = relay.reshape(x, newshape=(1, 1, 4, 4))
-        identity = infra.make_ethosu_identity(x)
+        if not get_expected:
+            x = infra.make_ethosu_identity(x)
         outputs = []
         for _ in range(4):
-            ifm = x if get_expected else identity
-            outputs.append(infra.make_ethosu_unary_elementwise(ifm, 4, "ABS"))
-        outputs.append(relay.strided_slice(identity, begin=(0, 0, 0, 0), end=(1, 1, 4, 4)))
+            outputs.append(infra.make_ethosu_unary_elementwise(x, 4, "ABS"))
+        ss = relay.strided_slice(x, begin=(0, 0, 0, 0), end=(1, 1, 4, 4))
+        identity_2 = infra.make_ethosu_identity(ss)
+        outputs.append(identity_2)
         out = relay.concatenate(outputs, axis=0)
         return relay.Function(relay.analysis.free_vars(out), out)
 
@@ -220,7 +221,8 @@ def test_identity_removal_with_multiple_transform_ops():
     def get_graph(get_expected=False):
         x = relay.var("x", shape=(1, 2, 2, 4), dtype="int8")
         x = relay.strided_slice(x, begin=[0, 0, 0, 0], end=[1, 2, 2, 2])
-        x = infra.make_ethosu_identity(x)
+        if not get_expected:
+            x = infra.make_ethosu_identity(x)
         x = relay.reshape(x, newshape=(1, 1, 1, 8))
         if not get_expected:
             x = infra.make_ethosu_identity(x)
@@ -267,6 +269,25 @@ def test_identity_single_removal_on_binary_elementwise():
     _assert_structural_equal(actual, expected)
 
 
+def test_multiple_transform_ops_with_reduction_in_dimensionality():
+    """Removal of an identity operation between two transform operations is usually okay.
+    However, if the dimensionality of the input is reduced by the second transformation
+    operation, it can lead to an output mismatch. Checking that the pass doesn't remove
+    an identity given this case."""
+
+    def get_graph():
+        x = relay.var("x", shape=(1, 2, 2, 4), dtype="int8")
+        x = relay.strided_slice(x, begin=(0, 0, 0, 0), end=(1, 2, 2, 2))
+        x = infra.make_ethosu_identity(x)
+        x = relay.reshape(x, newshape=(1, 2, 4))
+        x = infra.make_ethosu_identity(x)
+        return relay.Function(relay.analysis.free_vars(x), x)
+
+    actual = _optimize(get_graph())
+    expected = _optimize(get_graph(), optimize=False)
+    _assert_structural_equal(actual, expected)
+
+
 def test_identity_optimizer_runs_in_compilation_pipeline():
     """Checks that the identity optimization pass is run as part of the NPU compilation pipeline."""
 
@@ -301,7 +322,7 @@ def test_same_output():
         z = tf.reshape(z, (1, 1, 25, 8))
         return z
 
-    _compare_tvm_with_tflite(model, ifm_shapes, "ethos-u55-256")
+    infra.compare_tvm_with_tflite(model, ifm_shapes, "ethos-u55-256")
 
 
 def test_multi_output_identity_has_same_output():
@@ -319,4 +340,19 @@ def test_multi_output_identity_has_same_output():
         y = tf.concat(outputs, axis=0)
         return y
 
-    _compare_tvm_with_tflite(model, [ifm_shape], "ethos-u55-256")
+    infra.compare_tvm_with_tflite(model, [ifm_shape], "ethos-u55-256")
+
+
+def test_multiple_transform_ops_same_output():
+    """Check case of identity removal between transform ops and
+    then without, making sure they have the same output."""
+    ifm_shape = (1, 2, 2, 4)
+
+    @tf.function
+    def model(x):
+        x = tf.reshape(x, (1, 1, 4, 4))
+        x = tf.slice(x, (0, 0, 0, 0), (1, 1, 4, 3))
+        x = tf.reshape(x, (12,))
+        return x
+
+    infra.compare_tvm_with_tflite(model, [ifm_shape], "ethos-u55-256")

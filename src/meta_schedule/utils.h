@@ -38,6 +38,7 @@
 #include <tvm/support/parallel_for.h>
 #include <tvm/tir/schedule/schedule.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -45,6 +46,7 @@
 #include "../support/array.h"
 #include "../support/base64.h"
 #include "../support/nd_int_set.h"
+#include "../support/table_printer.h"
 #include "../support/utils.h"
 #include "../tir/schedule/primitive.h"
 #include "../tir/schedule/utils.h"
@@ -148,6 +150,21 @@ inline String JSONObj2Str(const ObjectRef& json_obj) {
  * \return The string representation of the hash code
  */
 inline String SHash2Str(Workload::THashCode hash_code) { return std::to_string(hash_code); }
+
+/*!
+ * \brief Converts an TVM object to the hex string representation of its structural hash.
+ * \param obj The TVM object.
+ * \return The hex string representation of the hash code.
+ */
+inline String SHash2Hex(const ObjectRef& obj) {
+  std::ostringstream os;
+  size_t hash_code = 0;
+  if (obj.defined()) {
+    hash_code = StructuralHash()(obj);
+  }
+  os << "0x" << std::setw(16) << std::setfill('0') << std::hex << hash_code;
+  return os.str();
+}
 
 /*!
  * \brief Find the entry function of the given IRModule, i.e, functions marked by
@@ -349,6 +366,27 @@ inline int GetTargetNumCores(const Target& target) {
         << num_cores << "\"";
   }
   return num_cores;
+}
+
+/*!
+ * \brief Get the median of the running time from RunnerResult in millisecond
+ * \param results The results from RunnerResult
+ * \return The median of the running time in millisecond
+ */
+inline double GetRunMsMedian(const RunnerResult& runner_result) {
+  Array<FloatImm> run_secs = runner_result->run_secs.value();
+  ICHECK(!run_secs.empty());
+  std::vector<double> v;
+  v.reserve(run_secs.size());
+  std::transform(run_secs.begin(), run_secs.end(), std::back_inserter(v),
+                 [](const FloatImm& f) -> double { return f->value; });
+  std::sort(v.begin(), v.end());
+  int n = v.size();
+  if (n % 2 == 0) {
+    return (v[n / 2] + v[n / 2 + 1]) * 0.5 * 1000.0;
+  } else {
+    return v[n / 2] * 1000.0;
+  }
 }
 
 }  // namespace meta_schedule

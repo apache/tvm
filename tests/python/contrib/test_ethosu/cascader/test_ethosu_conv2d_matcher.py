@@ -82,6 +82,7 @@ def test_ethosu_conv2d_matcher(
         ofm_layout,
         dilation,
         ifm_channels,
+        ofm_channels,
     )
 
     device_config = cs.EthosuDeviceConfig("ethos-u55-256")

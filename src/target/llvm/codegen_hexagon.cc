@@ -69,6 +69,8 @@ class CodeGenHexagon final : public CodeGenLLVM {
   llvm::Module* GetModulePtr() const { return module_.get(); }
 
  protected:
+  void CreatePrintf(const std::string& format, llvm::ArrayRef<llvm::Value*> format_args) final;
+
   // meta data
   llvm::MDNode* md_tbaa_ctx_ptr_{nullptr};
   llvm::FunctionType* ftype_tvm_func_call_{nullptr};
@@ -572,6 +574,35 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
   return CodeGenLLVM::CreateIntrinsic(op);
 }
 
+void CodeGenHexagon::CreatePrintf(const std::string& format,
+                                  llvm::ArrayRef<llvm::Value*> format_args) {
+  // This function generates LLVM instructions to call HAP_debug_v2,
+  // as if the FARF macro in `HAP_farf.h` were called as
+  // FARF(ALWAYS, format, format_args[0], format_args[1], ...)
+  std::string func_name = "HAP_debug_v2";
+
+  llvm::Function* func = module_->getFunction(func_name);
+  if (func == nullptr) {
+    llvm::FunctionType* ftype = llvm::FunctionType::get(
+        t_void_, {t_int32_, t_char_->getPointerTo(), t_int32_, t_char_->getPointerTo()}, true);
+    func = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, func_name, module_.get());
+  }
+
+  llvm::Value* format_str = builder_->CreateGlobalStringPtr(format, "printf_format_str");
+
+  // The value of FARF_ALWAYS_LEVEL, defined as HAP_LEVEL_HIGH
+  llvm::Value* level = ConstInt32(2);
+
+  // There is no such filename/line number for this print statement
+  llvm::Value* filename = builder_->CreateGlobalStringPtr("generated-LLVM-code", "dummy_filename");
+  llvm::Value* line_number = ConstInt32(1);
+
+  std::vector<llvm::Value*> func_args = {level, filename, line_number, format_str};
+  func_args.insert(func_args.end(), format_args.begin(), format_args.end());
+
+  builder_->CreateCall(func, func_args);
+}
+
 CodeGenLLVM::TypedPointer CodeGenHexagon::CreateBufferPtr(llvm::Value* buffer_ptr,
                                                           DataType buffer_element_dtype,
                                                           llvm::ArrayRef<llvm::Value*> indices,
@@ -870,7 +901,13 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
                           "do import tvm.contrib.hexagon";
 
   Array<PrimExpr> o_names = {StringImm(o_name)};
-  int rc = (*f)(so_name, o_names);
+  Map<String, String> extra_args;
+  if (target->attrs.count("mcpu")) {
+    llvm::StringRef mcpu = Downcast<String>(target->attrs.at("mcpu"));
+    ICHECK(mcpu.startswith("hexagon")) << "unexpected -mcpu value in target:" << mcpu.str();
+    extra_args.Set("hex_arch", mcpu.drop_front(strlen("hexagon")).str());
+  }
+  int rc = (*f)(so_name, o_names, extra_args);
   ICHECK(rc == 0) << "Failed to link " << so_name;
 
   // Move it to ExtractFuncInfo?

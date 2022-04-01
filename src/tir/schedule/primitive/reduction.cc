@@ -64,6 +64,21 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
       ObjectPtr<BlockNode> p_new_block = CopyOnWrite(block);
       p_new_block->name_hint = p_new_block->name_hint + "_update";
       p_new_block->init = NullOpt;
+      // Add write regions back to read regions in update block.
+      Array<BufferRegion> new_reads;
+      std::unordered_set<const BufferNode*> read_bufs;
+      for (const BufferRegion& read_access : block->reads) {
+        read_bufs.insert(read_access->buffer.get());
+      }
+      for (const BufferRegion& write_access : block->writes) {
+        if (read_bufs.find(write_access->buffer.get()) == read_bufs.end()) {
+          new_reads.push_back(write_access);
+        }
+      }
+      for (const BufferRegion& read_access : block->reads) {
+        new_reads.push_back(read_access);
+      }
+      p_new_block->reads = new_reads;
       new_reduction_block_ = Block(p_new_block);
       return new_reduction_block_;
     } else {
@@ -826,9 +841,8 @@ class WriteBackBlockCreator : public BaseBlockCreator {
   }
 
   void CreateReadWriteRegions() final {
-    read_regions_.push_back(CreateRegion(wb_lhs_));
     read_regions_.push_back(CreateRegion(wb_rhs_));
-    write_regions_.push_back(read_regions_[0]);
+    write_regions_.push_back(CreateRegion(wb_lhs_));
   }
 
   static BufferRegion CreateRegion(const BufferLoad& load) {

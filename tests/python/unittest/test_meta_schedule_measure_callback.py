@@ -16,19 +16,18 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import re
-from typing import List
 from random import random
+from typing import List
 
 import pytest
 import tvm
 from tvm.ir import IRModule, assert_structural_equal
 from tvm.meta_schedule.builder import BuilderResult
 from tvm.meta_schedule.measure_callback import PyMeasureCallback
-from tvm.meta_schedule.builder import BuilderResult
 from tvm.meta_schedule.runner import RunnerResult
-from tvm.meta_schedule.testing import DummyDatabase, DummyRunner, DummyBuilder
 from tvm.meta_schedule.search_strategy import MeasureCandidate
 from tvm.meta_schedule.task_scheduler import RoundRobin, TaskScheduler
+from tvm.meta_schedule.testing import DummyBuilder, DummyDatabase, DummyRunner
 from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.tir.schedule import Schedule
@@ -79,7 +78,7 @@ def test_meta_schedule_measure_callback():
 
     measure_callback = FancyMeasureCallback()
     measure_callback.apply(
-        RoundRobin([], DummyBuilder(), DummyRunner(), DummyDatabase()),
+        RoundRobin([], DummyBuilder(), DummyRunner(), DummyDatabase(), max_trials=1),
         0,
         [MeasureCandidate(Schedule(Matmul), None)],
         [BuilderResult("test_build", None)],
@@ -103,7 +102,7 @@ def test_meta_schedule_measure_callback_fail():
     measure_callback = FailingMeasureCallback()
     with pytest.raises(ValueError, match="test"):
         measure_callback.apply(
-            RoundRobin([], DummyBuilder(), DummyRunner(), DummyDatabase()),
+            RoundRobin([], DummyBuilder(), DummyRunner(), DummyDatabase(), max_trials=1),
             0,
             [MeasureCandidate(Schedule(Matmul), None)],
             [BuilderResult("test_build", None)],

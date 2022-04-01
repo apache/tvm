@@ -120,12 +120,12 @@ Block MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
   Array<PrimExpr> access_indices;
   // Create block vars, block's accessed region and accessing indices
   for (const PrimExpr& dim : cache_region->buffer->shape) {
-    Var var("v" + std::to_string(access_indices.size()));
+    Var var("v" + std::to_string(access_indices.size()), dim.dtype());
     block_vars.push_back(IterVar(/*dom=*/Range::FromMinExtent(0, dim),
                                  /*var=*/var,
                                  /*IterVarType=*/kDataPar));
     access_indices.push_back(var);
-    access_region.push_back(Range::FromMinExtent(var, 1));
+    access_region.push_back(Range::FromMinExtent(var, make_const(var.dtype(), 1)));
   }
 
   // Create the body block:
