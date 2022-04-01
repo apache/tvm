@@ -24,16 +24,15 @@
 
 // we do not want clang to reorder our includes
 // clang-format off
-#include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/contrib/libtorch_runtime.h>
-
 #include <ATen/dlpack.h>
 #include <ATen/DLConvertor.h>
 #include <torch/csrc/jit/serialization/import.h>
 #include <torch/torch.h>
 
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/runtime/contrib/libtorch_runtime.h>
 // clang-format on
 
 #include <cstddef>
