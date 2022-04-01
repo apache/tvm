@@ -19,6 +19,8 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.meta_schedule.tune import Parse, extract_task_from_relay
+from tvm.meta_schedule.database import TuningRecord, JSONDatabase
+from tvm.meta_schedule.integration import ApplyHistoryBest
 
 
 def get_dense_dense(data_shape, weight_shape):
@@ -28,8 +30,7 @@ def get_dense_dense(data_shape, weight_shape):
         p_weight2 = relay.var("p_weight2", shape=weight_shape, dtype="int8")
 
         dense1 = relay.nn.dense(p_data, p_weight1, out_dtype="int32")
-        dense2 = relay.nn.dense(relay.cast(dense1, "uint8"),
-                                p_weight2, out_dtype="int32")
+        dense2 = relay.nn.dense(relay.cast(dense1, "uint8"), p_weight2, out_dtype="int32")
 
         f = relay.Function([p_data, p_weight1, p_weight2], dense2)
         f = f.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
@@ -41,7 +42,6 @@ def get_dense_dense(data_shape, weight_shape):
 
     out = relay.Call(multi_dense(), [data, weight1, weight2])
     return relay.Function([data, weight1, weight2], out)
-
 
 
 M, N, K = 128, 128, 128
@@ -62,6 +62,30 @@ params = {"weight1": weight1_np, "weight2": weight2_np}
 
 extracted_tasks = extract_task_from_relay(relay_mod, target, params)
 
-for task in extracted_tasks:
-    mod = Parse._mod(task.dispatched[0])
-    print(mod)
+assert len(extracted_tasks) == 1
+
+task = extracted_tasks[0]
+
+database = JSONDatabase(
+    path_workload="database_workload.json",
+    path_tuning_record="database_tuning_record.json",
+)
+
+mod = Parse._mod(task.dispatched[0])
+
+workload = database.commit_workload(mod)
+
+sch = tvm.tir.Schedule(mod)
+# print(sch.mod.script())
+
+tune_rec = TuningRecord(sch.trace, [0.0], workload, tvm.target.Target(target), [])
+
+database.commit_tuning_record(tune_rec)
+
+
+with ApplyHistoryBest(database):
+    with tvm.transform.PassContext(
+        opt_level=3,
+        config={"relay.backend.use_meta_schedule": True},
+    ):
+        lib = relay.build(relay_mod, target=target, params=params)
