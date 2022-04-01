@@ -94,9 +94,19 @@ class HexagonBuffer {
   //! \brief Prevent move assignment.
   HexagonBuffer& operator=(HexagonBuffer&&) = delete;
 
-  /*! \brief Return data pointer
+  /*! \brief Return data pointer into the buffer
    *
-   * The return type depends on the buffer being
+   * The returned pointer is intended for use as the runtime value
+   * corresponding to the `Var BufferNode::data` of a buffer.  The
+   * return type depends on the dimensionality of the buffer being
+   * accessed, and must be compatible with the usage defined in
+   * `CodeGenHexagon::CreateBufferPtr`.
+   *
+   * For a 1-d buffer, this pointer can be cast to a `T*` and accessed
+   * as a 1-d array (e.g. `static_cast<int32_t*>(GetPointer())[i]`).
+   * For a 2-d buffer, this pointer can be cast to a `T**` and
+   * accessed as a 2-d array
+   * (e.g. `static_cast<int32_t**>(GetPointer())[i][j]`).
    */
   void* GetPointer();
 
