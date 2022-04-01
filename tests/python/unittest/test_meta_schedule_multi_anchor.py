@@ -22,7 +22,7 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import relay
-from tvm.meta_schedule.tune import apply_manual_schedules
+from tvm.meta_schedule.testing import apply_manual_schedules
 from tvm.meta_schedule.integration import ApplyHistoryBest
 
 

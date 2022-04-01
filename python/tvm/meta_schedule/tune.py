@@ -18,7 +18,6 @@
 # pylint: disable=import-outside-toplevel
 import logging
 import os.path
-import tempfile
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from tvm._ffi.registry import register_func
@@ -812,25 +811,3 @@ def tune_relay(
             config={"relay.backend.use_meta_schedule": True},
         ):
             return relay_build(mod, target=target, params=params)
-
-
-def apply_manual_schedules(relay_mod, target, params, schedule_fn):
-    extracted_tasks = extract_task_from_relay(relay_mod, target, params)
-
-    with tempfile.TemporaryDirectory() as work_dir:
-        database = JSONDatabase(
-            path_workload=os.path.join(work_dir, "database_workload.json"),
-            path_tuning_record=os.path.join(work_dir, "database_tuning_record.json"),
-        )
-
-        for task in extracted_tasks:
-            mod = Parse._mod(task.dispatched[0])
-            sch = Schedule(mod)
-
-            if schedule_fn(task, sch):
-                # print(sch.mod.script())
-                workload = database.commit_workload(mod)
-                tune_rec = TuningRecord(sch.trace, [0.0], workload, Target(target), [])
-                database.commit_tuning_record(tune_rec)
-
-        return database

@@ -31,11 +31,11 @@ from tvm.meta_schedule import ReplayTraceConfig
 from tvm.meta_schedule.database import JSONDatabase, PyDatabase, TuningRecord, Workload
 from tvm.meta_schedule.integration import ApplyHistoryBest
 from tvm.meta_schedule.testing.relay_workload import get_network
+from tvm.meta_schedule.testing import apply_manual_schedules
 from tvm.meta_schedule.tune import (
     extract_task_from_relay,
     tune_extracted_tasks,
     tune_relay,
-    apply_manual_schedules,
 )
 from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
@@ -553,7 +553,6 @@ def test_tune_relay_manual_tir_vnni():
     tir.TensorIntrin.register(VNNI_INTRIN, dot_product_desc, dot_product_vnni)
 
     manual_tir_common(do_tune=False)
-    return
 
     """
     We can inject and apply a custom TIR scheduling to a TE compute of interest, using
@@ -588,12 +587,12 @@ def test_tune_relay_manual_tir_vnni():
 
 
 if __name__ == """__main__""":
-    # test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "llvm --num-cores=16")
-    # test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "nvidia/geforce-rtx-3070")
-    # test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=16")
-    # test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "nvidia/geforce-rtx-3070")
-    # test_meta_schedule_tune_relay("bert_base", [1, 64], "llvm --num-cores=16")
-    # test_meta_schedule_tune_relay("bert_base", [1, 64], "nvidia/geforce-rtx-3070")
-    # test_meta_schedule_te2primfunc_argument_order()
-    # test_meta_schedule_relay_lowering()
+    test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "llvm --num-cores=16")
+    test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "nvidia/geforce-rtx-3070")
+    test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=16")
+    test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "nvidia/geforce-rtx-3070")
+    test_meta_schedule_tune_relay("bert_base", [1, 64], "llvm --num-cores=16")
+    test_meta_schedule_tune_relay("bert_base", [1, 64], "nvidia/geforce-rtx-3070")
+    test_meta_schedule_te2primfunc_argument_order()
+    test_meta_schedule_relay_lowering()
     test_tune_relay_manual_tir_vnni()
