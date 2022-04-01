@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Testing utilitiy functions in meta schedule"""
+import random
 from typing import List, Optional, Callable, Dict, Union
 
 import tvm
