@@ -17,6 +17,7 @@
 import numpy as np
 
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.meta_schedule.tune import Parse, extract_task_from_relay
 from tvm.meta_schedule.database import TuningRecord, JSONDatabase
@@ -25,20 +26,20 @@ from tvm.meta_schedule.integration import ApplyHistoryBest
 
 def get_dense_dense(data_shape, weight_shape):
     def multi_dense():
-        p_data = relay.var("p_data", shape=data_shape, dtype="uint8")
-        p_weight1 = relay.var("p_weight1", shape=weight_shape, dtype="int8")
-        p_weight2 = relay.var("p_weight2", shape=weight_shape, dtype="int8")
+        p_data = relay.var("p_data", shape=data_shape, dtype="float32")
+        p_weight1 = relay.var("p_weight1", shape=weight_shape, dtype="float32")
+        p_weight2 = relay.var("p_weight2", shape=weight_shape, dtype="float32")
 
-        dense1 = relay.nn.dense(p_data, p_weight1, out_dtype="int32")
-        dense2 = relay.nn.dense(relay.cast(dense1, "uint8"), p_weight2, out_dtype="int32")
+        dense1 = relay.nn.dense(p_data, p_weight1)
+        dense2 = relay.nn.dense(dense1, p_weight2)
 
         f = relay.Function([p_data, p_weight1, p_weight2], dense2)
         f = f.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         return f
 
-    data = relay.var("data", shape=data_shape, dtype="uint8")
-    weight1 = relay.var("weight1", shape=weight_shape, dtype="int8")
-    weight2 = relay.var("weight2", shape=weight_shape, dtype="int8")
+    data = relay.var("data", shape=data_shape, dtype="float32")
+    weight1 = relay.var("weight1", shape=weight_shape, dtype="float32")
+    weight2 = relay.var("weight2", shape=weight_shape, dtype="float32")
 
     out = relay.Call(multi_dense(), [data, weight1, weight2])
     return relay.Function([data, weight1, weight2], out)
@@ -46,7 +47,11 @@ def get_dense_dense(data_shape, weight_shape):
 
 def get_ref(data_np, weight1_np, weight2_np):
     dense1 = np.dot(data_np, np.transpose(weight1_np))
-    return np.dot(dense1.astype("uint8"), np.transpose(weight2_np))
+    return np.dot(dense1, np.transpose(weight2_np))
+
+
+def schedule_dense_dense(sch):
+    pass
 
 
 def test():
@@ -60,9 +65,9 @@ def test():
 
     target = "llvm"
 
-    data_np = np.random.uniform(1, 10, size=data_shape).astype("uint8")
-    weight1_np = np.random.uniform(1, 10, size=weight_shape).astype("int8")
-    weight2_np = np.random.uniform(1, 10, size=weight_shape).astype("int8")
+    data_np = np.random.randn(*data_shape).astype("float32")
+    weight1_np = np.random.randn(*weight_shape).astype("float32")
+    weight2_np = np.random.randn(*weight_shape).astype("float32")
 
     params = {"weight1": weight1_np, "weight2": weight2_np}
 
@@ -82,6 +87,9 @@ def test():
     workload = database.commit_workload(mod)
 
     sch = tvm.tir.Schedule(mod)
+
+    schedule_dense_dense(sch)
+
     print(sch.mod.script())
 
     tune_rec = TuningRecord(sch.trace, [0.0], workload, tvm.target.Target(target), [])
@@ -106,7 +114,7 @@ def test():
 
     ref = get_ref(data_np, weight1_np, weight2_np)
 
-    np.testing.assert_equal(out, ref)
+    tvm.testing.assert_allclose(out, ref, atol=1e-4, rtol=1e-4)
 
 
 if __name__ == "__main__":
