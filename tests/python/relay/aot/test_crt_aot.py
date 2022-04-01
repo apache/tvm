@@ -888,7 +888,7 @@ def test_output_tensor_names():
         return tflite_model
 
     tflite_graph = create_tflite_graph_two_outs()
-    tflite_model = tflite.Model.GetRootAsModel(tflite_graph, 0)
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
     mod, params = relay.frontend.from_tflite(
         tflite_model,
         shape_dict={"input": ifm_shape},

@@ -107,13 +107,8 @@ PoolAllocation::PoolAllocation(PoolInfo pool_info, Integer byte_offset) {
 }
 
 TVM_REGISTER_NODE_TYPE(PoolAllocationNode);
-TVM_REGISTER_GLOBAL("tir.usmp.WorkspacePoolInfo")
-    .set_body_typed([](WorkspacePoolInfo pool_info, Integer byte_offset) {
-      return PoolAllocation(pool_info, byte_offset);
-    });
-
-TVM_REGISTER_GLOBAL("tir.usmp.ConstantPoolInfo")
-    .set_body_typed([](ConstantPoolInfo pool_info, Integer byte_offset) {
+TVM_REGISTER_GLOBAL("tir.usmp.PoolAllocation")
+    .set_body_typed([](PoolInfo pool_info, Integer byte_offset) {
       return PoolAllocation(pool_info, byte_offset);
     });
 

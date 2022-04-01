@@ -929,7 +929,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       }
     }
     function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info);
-    LOG(INFO) << "LOWERED MOD ATTRS " << PrettyPrint(lowered_mod->attrs) << "\n";
     return lowered_mod;
   }
 

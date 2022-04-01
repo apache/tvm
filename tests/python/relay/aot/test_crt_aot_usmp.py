@@ -307,11 +307,19 @@ def test_tflite_model_u1_usecase(model_url, usmp_algo, workspace_size):
         compiled_test_mods[0].executor_factory.function_metadata
     )
     assert mlf_memory_map["main"][0]["workspace_size_bytes"] == workspace_size
+    assert mlf_memory_map["main"][0]["constants_size_bytes"] == 0
     # That should match to workspace size that will be codegen'd to the entry point.
-    allocated_pool_info = list(
-        dict(compiled_test_mods[0].executor_factory.executor_codegen_metadata.pool_inputs).values()
-    )[0]
-    assert allocated_pool_info.allocated_size == workspace_size
+    allocated_pool_info_size = sum(
+        [
+            _.allocated_size
+            for _ in list(
+                dict(
+                    compiled_test_mods[0].executor_factory.executor_codegen_metadata.pool_inputs
+                ).values()
+            )
+        ]
+    )
+    assert allocated_pool_info_size == workspace_size
 
     run_and_check(
         models=compiled_test_mods,

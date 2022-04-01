@@ -25,6 +25,7 @@ from tvm.tir import stmt_functor
 from tvm.tir import PrimFunc
 from tvm.tir.usmp import utils as usmp_utils
 from tvm.target import Target
+from tvm import WorkspacePoolInfo
 
 
 def _replace_stmt_with_buf_var_names(buffer_info_map):
@@ -165,12 +166,8 @@ class LinearStructure:
 
 def test_linear():
     target = Target("c")
-    fast_memory_pool = usmp_utils.PoolInfo(
-        pool_name="fast_memory", target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS}
-    )
-    slow_memory_pool = usmp_utils.PoolInfo(
-        pool_name="slow_memory", target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS}
-    )
+    fast_memory_pool = WorkspacePoolInfo(pool_name="fast_memory", targets=[target])
+    slow_memory_pool = WorkspacePoolInfo(pool_name="slow_memory", targets=[target])
     tir_mod = LinearStructure
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
     tir_mod = _assign_poolinfos_to_allocates_in_irmodule(
@@ -284,9 +281,9 @@ __tvm_meta__ = None
 
 def test_parallel_serial_mixed_for_loops():
     target = Target("c")
-    global_ws_pool = usmp_utils.PoolInfo(
+    global_ws_pool = WorkspacePoolInfo(
         pool_name="global_workspace",
-        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+        targets=[target],
     )
     all_serial_tir_mod = AllSerialForLoops
     all_serial_tir_mod = _assign_targets_to_primfuncs_irmodule(all_serial_tir_mod, target)
@@ -651,9 +648,9 @@ class InceptionStructure:
 
 def test_inception_structure():
     target = Target("c")
-    global_ws_pool = usmp_utils.PoolInfo(
+    global_ws_pool = WorkspacePoolInfo(
         pool_name="global_workspace",
-        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+        targets=[target],
     )
     tir_mod = InceptionStructure
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
@@ -1365,9 +1362,9 @@ class MultipleCallsToSamePrimFuncModule:
 
 def test_multiple_calls_to_same_primfunc():
     target = Target("c")
-    global_ws_pool = usmp_utils.PoolInfo(
+    global_ws_pool = WorkspacePoolInfo(
         pool_name="global_workspace",
-        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+        targets=[target],
     )
     tir_mod = MultipleCallsToSamePrimFuncModule
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)

@@ -201,8 +201,11 @@ class WorkspacePoolInfo(PoolInfo):
         self,
         pool_name: str,
         targets,  # Dict[Target, str]
-        pool_info_properties=PoolInfoProperties(),
+        pool_info_properties=None,
     ):
+        if pool_info_properties is None:
+            pool_info_properties = PoolInfoProperties()
+
         self.__init_handle_by_constructor__(
             _ffi_api.WorkspacePoolInfo,  # type: ignore # pylint: disable=no-member
             pool_name,
@@ -233,8 +236,10 @@ class ConstantPoolInfo(PoolInfo):
         self,
         pool_name: str,
         targets,  # list[Target]
-        pool_info_properties=PoolInfoProperties(),
+        pool_info_properties=None,
     ):
+        if pool_info_properties is None:
+            pool_info_properties = PoolInfoProperties()
         self.__init_handle_by_constructor__(
             _ffi_api.ConstantPoolInfo,  # type: ignore # pylint: disable=no-member
             pool_name,
