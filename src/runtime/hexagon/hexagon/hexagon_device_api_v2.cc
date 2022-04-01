@@ -59,23 +59,31 @@ void HexagonDeviceAPIv2::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* r
 // DataSpace: static allocations for Hexagon
 void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, int ndim, const int64_t* shape,
                                          DLDataType dtype, Optional<String> mem_scope) {
+  if (!mem_scope.defined() || mem_scope.value() == "global") {
+    return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
+  }
+
   CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
 
-  // Forcing contiguous allocation, for now
-  // TODO(Straw): Enable discontiguous allocation
-  size_t nallocs = 1;
-  size_t nbytes = 1;
-  for (int i = 0; i < ndim; ++i) {
-    nbytes *= shape[i];
-  }
   size_t typesize = (dtype.bits / 8) * dtype.lanes;
-  nbytes *= typesize;
 
-  size_t alignment = typesize;
+  size_t alignment = shape[ndim - 1] * typesize;
   if (alignment < kHexagonAllocAlignment) {
     alignment = kHexagonAllocAlignment;
   }
-  return new HexagonBuffer(nallocs, nbytes, alignment, mem_scope);
+
+  if (ndim == 1) {
+    size_t nbytes = shape[0] * typesize;
+    return new HexagonBuffer(nbytes, alignment, mem_scope);
+  } else if (ndim == 2) {
+    size_t nallocs = shape[0];
+    size_t nbytes = shape[1] * typesize;
+    return new HexagonBuffer(nallocs, nbytes, alignment, mem_scope);
+  } else {
+    LOG(FATAL) << "Hexagon Device API supports only 1d and 2d allocations, but received ndim = "
+               << ndim;
+    return nullptr;
+  }
 }
 
 void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
@@ -109,9 +117,7 @@ void* HexagonDeviceAPIv2::AllocWorkspace(Device dev, size_t size, DLDataType typ
   auto* hexbuf = static_cast<HexagonBuffer*>(
       dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->AllocWorkspace(dev, size));
 
-  // Assumes a single contiguous allocation
-  // TODO(Straw): Enable discontiguous allocation
-  void* ptr = hexbuf->GetPointer()[0];
+  void* ptr = hexbuf->GetPointer();
   workspace_allocations_.insert({ptr, hexbuf});
   return ptr;
 }
@@ -128,9 +134,7 @@ void HexagonDeviceAPIv2::FreeWorkspace(Device dev, void* data) {
 void* HexagonDeviceAPIv2::AllocVtcmWorkspace(Device dev, int ndim, const int64_t* shape,
                                              DLDataType dtype, Optional<String> mem_scope) {
   CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
-  // Forcing contiguous allocation, for now
-  // TODO(Straw): Enable discontiguous allocation
-  CHECK_EQ(ndim, 1);
+  CHECK((ndim == 1 || ndim == 2) && "Hexagon Device API supports only 1d and 2d allocations");
   return AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
 }
 
@@ -193,9 +197,7 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.alloc_nd").set_body([](TVMArgs args, TVM
   std::string scope = args[4];
   CHECK(scope.find("global.vtcm") != std::string::npos);
   int64_t ndim = args[5];
-  // Forcing contiguous allocation, for now
-  // TODO(Straw): Enable discontiguous allocation
-  CHECK_EQ(ndim, 1);
+  CHECK((ndim == 1 || ndim == 2) && "Hexagon Device API supports only 1d and 2d allocations");
   int64_t* shape = static_cast<int64_t*>(static_cast<void*>(args[6]));
 
   Device dev;
@@ -211,9 +213,7 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.alloc_nd").set_body([](TVMArgs args, TVM
   HexagonBuffer* hexbuf = reinterpret_cast<HexagonBuffer*>(
       hexapi->AllocVtcmWorkspace(dev, ndim, shape, type_hint, String(scope)));
 
-  // Assumes a single contiguous allocation
-  // TODO(Straw): Enable discontiguous allocation
-  void* ptr = hexbuf->GetPointer()[0];
+  void* ptr = hexbuf->GetPointer();
   vtcmallocs[ptr] = hexbuf;
   *rv = ptr;
 });

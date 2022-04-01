@@ -54,7 +54,7 @@ TEST(HexagonBuffer, copy_from) {
   std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
   hb.CopyFrom(data.data(), data.size());
 
-  uint8_t* ptr = static_cast<uint8_t*>(hb.GetPointer()[0]);
+  uint8_t* ptr = static_cast<uint8_t*>(hb.GetPointer());
   for (size_t i = 0; i < data.size(); ++i) {
     EXPECT_EQ(ptr[i], data[i]);
   }
@@ -103,17 +103,15 @@ TEST(HexagonBuffer, nd_copy_from) {
   std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
   hb.CopyFrom(data.data(), data.size());
 
-  uint8_t* ptr = static_cast<uint8_t*>(hb.GetPointer()[0]);
-  EXPECT_EQ(ptr[0], data[0]);
-  EXPECT_EQ(ptr[1], data[1]);
-  EXPECT_EQ(ptr[2], data[2]);
-  EXPECT_EQ(ptr[3], data[3]);
-
-  ptr = static_cast<uint8_t*>(hb.GetPointer()[1]);
-  EXPECT_EQ(ptr[0], data[4]);
-  EXPECT_EQ(ptr[1], data[5]);
-  EXPECT_EQ(ptr[2], data[6]);
-  EXPECT_EQ(ptr[3], data[7]);
+  uint8_t** ptr = static_cast<uint8_t**>(hb.GetPointer());
+  EXPECT_EQ(ptr[0][0], data[0]);
+  EXPECT_EQ(ptr[0][1], data[1]);
+  EXPECT_EQ(ptr[0][2], data[2]);
+  EXPECT_EQ(ptr[0][3], data[3]);
+  EXPECT_EQ(ptr[1][0], data[4]);
+  EXPECT_EQ(ptr[1][1], data[5]);
+  EXPECT_EQ(ptr[1][2], data[6]);
+  EXPECT_EQ(ptr[1][3], data[7]);
 }
 
 TEST(HexagonBuffer, 1d_copy_from_1d) {
@@ -127,7 +125,7 @@ TEST(HexagonBuffer, 1d_copy_from_1d) {
   from.CopyFrom(data.data(), data.size());
   to.CopyFrom(from, 8);
 
-  uint8_t* ptr = static_cast<uint8_t*>(to.GetPointer()[0]);
+  uint8_t* ptr = static_cast<uint8_t*>(to.GetPointer());
   for (size_t i = 0; i < data.size(); ++i) {
     EXPECT_EQ(ptr[i], data[i]);
   }
@@ -144,17 +142,15 @@ TEST(HexagonBuffer, 2d_copy_from_1d) {
   hb1d.CopyFrom(data.data(), data.size());
   hb2d.CopyFrom(hb1d, 8);
 
-  uint8_t* ptr = static_cast<uint8_t*>(hb2d.GetPointer()[0]);
-  EXPECT_EQ(ptr[0], data[0]);
-  EXPECT_EQ(ptr[1], data[1]);
-  EXPECT_EQ(ptr[2], data[2]);
-  EXPECT_EQ(ptr[3], data[3]);
-
-  ptr = static_cast<uint8_t*>(hb2d.GetPointer()[1]);
-  EXPECT_EQ(ptr[0], data[4]);
-  EXPECT_EQ(ptr[1], data[5]);
-  EXPECT_EQ(ptr[2], data[6]);
-  EXPECT_EQ(ptr[3], data[7]);
+  uint8_t** ptr = static_cast<uint8_t**>(hb2d.GetPointer());
+  EXPECT_EQ(ptr[0][0], data[0]);
+  EXPECT_EQ(ptr[0][1], data[1]);
+  EXPECT_EQ(ptr[0][2], data[2]);
+  EXPECT_EQ(ptr[0][3], data[3]);
+  EXPECT_EQ(ptr[1][0], data[4]);
+  EXPECT_EQ(ptr[1][1], data[5]);
+  EXPECT_EQ(ptr[1][2], data[6]);
+  EXPECT_EQ(ptr[1][3], data[7]);
 }
 
 TEST(HexagonBuffer, 1d_copy_from_2d) {
@@ -168,7 +164,7 @@ TEST(HexagonBuffer, 1d_copy_from_2d) {
   hb2d.CopyFrom(data.data(), data.size());
   hb1d.CopyFrom(hb2d, 8);
 
-  uint8_t* ptr = static_cast<uint8_t*>(hb1d.GetPointer()[0]);
+  uint8_t* ptr = static_cast<uint8_t*>(hb1d.GetPointer());
   for (size_t i = 0; i < data.size(); ++i) {
     EXPECT_EQ(ptr[i], data[i]);
   }
@@ -245,12 +241,12 @@ TEST(HexagonBuffer, external) {
 
   Optional<String> def;
   HexagonBuffer hb_default(data.data(), data.size(), def);
-  EXPECT_EQ(hb_default.GetPointer()[0], data.data());
+  EXPECT_EQ(hb_default.GetPointer(), data.data());
   EXPECT_EQ(hb_default.GetStorageScope(), HexagonBuffer::StorageScope::kDDR);
 
   Optional<String> global("global");
   HexagonBuffer hb_global(data.data(), data.size(), global);
-  EXPECT_EQ(hb_global.GetPointer()[0], data.data());
+  EXPECT_EQ(hb_global.GetPointer(), data.data());
   EXPECT_EQ(hb_global.GetStorageScope(), HexagonBuffer::StorageScope::kDDR);
 
   Optional<String> vtcm("global.vtcm");
