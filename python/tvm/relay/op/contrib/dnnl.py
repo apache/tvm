@@ -212,7 +212,7 @@ def pattern_table():
 
 
 def get_optimal_layout_for_conv(
-    data_layout, kernel_layout, weight_shape, out_shape, paddings, strides, dilates, groups
+    data_layout, kernel_layout, weight_shape, out_shape, paddings, strides, dilates, groups, dtype
 ):
     """Get the optimal layout of dnnl, given shape of conv2d.
 
@@ -236,6 +236,7 @@ def get_optimal_layout_for_conv(
         strides,
         dilates,
         groups,
+        dtype,
     )
 
 
@@ -249,6 +250,7 @@ def get_optimal_layout_for_conv_transpose(
     strides,
     dilates,
     groups,
+    dtype,
 ):
     """Get the optimal layout of dnnl, given shape of tranposed conv2d.
 
@@ -274,6 +276,7 @@ def get_optimal_layout_for_conv_transpose(
         strides,
         dilates,
         groups,
+        dtype,
     )
 
 
@@ -289,6 +292,21 @@ def get_shape(tensor):
         return tensor[-1].shape
     if isinstance(tensor, relay.expr.Call):
         return tensor.checked_type.shape
+    raise TypeError("Unsupport data type: %s" % type(tensor))
+
+
+def get_dtype(tensor):
+    """Get tensor's shape."""
+    if isinstance(tensor, relay.expr.Var):
+        return tensor.type_annotation.dtype
+    if isinstance(tensor, relay.expr.Constant):
+        return tensor.data.dtype
+    if isinstance(tensor, tvm.ir.tensor_type.TensorType):
+        return tensor.dtype
+    if isinstance(tensor, tvm.ir.container.Array):
+        return tensor[-1].dtype
+    if isinstance(tensor, relay.expr.Call):
+        return tensor.checked_type.dtype
     raise TypeError("Unsupport data type: %s" % type(tensor))
 
 
@@ -353,6 +371,7 @@ def alter_conv(attrs, inputs, tinfos, out_type):
     paddings = ",".join([str(x) for x in attrs.get_int_tuple("padding")])
     strides = ",".join([str(x) for x in attrs.get_int_tuple("strides")])
     dilates = ",".join([str(x) for x in attrs.get_int_tuple("dilation")])
+    dtype = get_dtype(weight)
     new_attrs = dict(attrs)
     conv_type = type(attrs).__name__.split("Attrs")[0]
 
@@ -365,6 +384,7 @@ def alter_conv(attrs, inputs, tinfos, out_type):
         strides,
         dilates,
         groups,
+        dtype,
     )
     src_df, weight_df, dst_df = res.split(",")
     new_attrs["data_layout"] = tag2layout(src_df, is_weight=False, conv_type=conv_type)
@@ -389,6 +409,7 @@ def alter_conv_transpose(attrs, inputs, tinfos, out_type):
     strides = ",".join([str(x) for x in attrs.get_int_tuple("strides")])
     dilates = ",".join([str(x) for x in attrs.get_int_tuple("dilation")])
     groups = str(attrs.groups)
+    dtype = get_dtype(weight)
     new_attrs = dict(attrs)
     conv_type = type(attrs).__name__.split("Attrs")[0]
 
@@ -402,6 +423,7 @@ def alter_conv_transpose(attrs, inputs, tinfos, out_type):
         strides,
         dilates,
         groups,
+        dtype,
     )
     src_df, weight_df, dst_df = res.split(",")
     new_attrs["data_layout"] = tag2layout(src_df, is_weight=False, conv_type=conv_type)
