@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import os
+import tempfile
+
 import numpy as np
 
 import tvm
@@ -83,24 +86,25 @@ def test_dense_dense():
 
     task = extracted_tasks[0]
 
-    database = JSONDatabase(
-        path_workload="database_workload.json",
-        path_tuning_record="database_tuning_record.json",
-    )
-
     mod = Parse._mod(task.dispatched[0])
 
-    workload = database.commit_workload(mod)
+    with tempfile.TemporaryDirectory() as work_dir:
+        database = JSONDatabase(
+            path_workload=os.path.join(work_dir, "database_workload.json"),
+            path_tuning_record=os.path.join(work_dir, "database_tuning_record.json"),
+        )
 
-    sch = tvm.tir.Schedule(mod)
+        workload = database.commit_workload(mod)
 
-    schedule_dense_dense(sch)
+        sch = tvm.tir.Schedule(mod)
 
-    print(sch.mod.script())
+        schedule_dense_dense(sch)
 
-    tune_rec = TuningRecord(sch.trace, [0.0], workload, tvm.target.Target(target), [])
+        print(sch.mod.script())
 
-    database.commit_tuning_record(tune_rec)
+        tune_rec = TuningRecord(sch.trace, [0.0], workload, tvm.target.Target(target), [])
+
+        database.commit_tuning_record(tune_rec)
 
     with ApplyHistoryBest(database):
         with tvm.transform.PassContext(
