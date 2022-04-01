@@ -51,10 +51,16 @@ def get_ref(data_np, weight1_np, weight2_np):
 
 
 def schedule_dense_dense(sch):
-    pass
+    dense1 = sch.get_block("T_matmul_NT")
+    dense2 = sch.get_block("T_matmul_NT_1")
+
+    y1, x1, k1 = sch.get_loops(dense1)
+    y2, x2, k2 = sch.get_loops(dense2)
+
+    # ...
 
 
-def test():
+def test_dense_dense():
     M, N, K = 128, 128, 128
     data_shape = (M, K)
     weight_shape = (N, K)
@@ -118,4 +124,4 @@ def test():
 
 
 if __name__ == "__main__":
-    test()
+    test_dense_dense()
