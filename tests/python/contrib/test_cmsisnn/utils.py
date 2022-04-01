@@ -17,8 +17,6 @@
 
 """CMSIS-NN functions for testing networks"""
 
-import tensorflow as tf
-
 import platform
 import math
 import numpy as np
@@ -248,6 +246,7 @@ def generate_ref_data_tflite(model):
     Random input generator is used to get the input data.
     It returns randomized inputs and reference outputs.
     """
+    import tensorflow as tf
     from distutils.version import LooseVersion
 
     output_tolerance = None
@@ -292,6 +291,7 @@ def generate_ref_data_tflite(model):
 
 def create_conv2d_tflite_model(ifm_shape, kernel_shape, strides, dilation, padding, activation):
     """ This method prepares TFlite graph with a single Conv2d layer """
+    import tensorflow as tf
 
     class Model(tf.Module):
         @tf.function
