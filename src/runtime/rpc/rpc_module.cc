@@ -21,6 +21,10 @@
  * \file rpc_module.cc
  * \brief RPC runtime module.
  */
+#if defined(__hexagon__)
+#define TVM_LOG_CUSTOMIZE 1
+#endif
+
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/profiling.h>
@@ -397,10 +401,9 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
         int64_t t_nanos = t->SyncAndGetElapsedNanos();
 
         if ((min_repeat_ms > 0) && (t_nanos == 0)) {
-          // We're almost certainly caught in an infinite loop, perahsp because something
+          // We're almost certainly caught in an infinite loop, perhaps because something
           // in the timing mechanism isn't working as expected.
-          LOG(FATAL) << __FILE__ << ":" << __LINE__ << ": "
-                     << "Time evaluation will be stuck in an infinite loop: "
+          LOG(FATAL) << "Time evaluation will be stuck in an infinite loop: "
                      << "min_repeat_ms=" << min_repeat_ms
                      << ", but the function of interest supposedly has a running time of 0ns.";
         }
