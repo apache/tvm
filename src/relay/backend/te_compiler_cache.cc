@@ -337,7 +337,7 @@ class ScheduleBuilder : public ExprVisitor {
           schedule = Downcast<te::Schedule>(obj);
         }
       }
-      if (use_auto_scheduler_) {
+      if (use_meta_scheduler_) {
         IRModule relay_mod({{prim_fn_var, relay_func}});
         IRModule tir_mod({{prim_fn_var, tir::CreatePrimFunc(Concat(fn_inputs, tensor_outs))}});
         Optional<IRModule> scheduled_mod = meta_schedule::MetaScheduleContext::QueryInsideWithScope(
