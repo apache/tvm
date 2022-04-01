@@ -38,8 +38,6 @@ _qnn_params = {
     "rhs_zero_point": relay.const(85, "int32"),
     "output_scale": relay.const(0.0235294, "float32"),
     "output_zero_point": relay.const(128, "int32"),
-    "lhs_axis": int(-1),
-    "rhs_axis": int(-1),
 }
 
 
@@ -75,6 +73,10 @@ def _get_expected_codegen(shape, dtype, op_name, qnn_params):
             "dtype": [[dtype]],
         },
     }
+
+    if qnn_params:
+        node["lhs_axis"] = [[-1]]
+        node["rhs_axis"] = [[-1]]
 
     return [*inputs, node]
 
