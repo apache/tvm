@@ -44,48 +44,70 @@ def get_dense_dense(data_shape, weight_shape):
     return relay.Function([data, weight1, weight2], out)
 
 
-M, N, K = 128, 128, 128
-data_shape = (M, K)
-weight_shape = (N, K)
+def get_ref(data_np, weight1_np, weight2_np):
+    dense1 = np.dot(data_np, np.transpose(weight1_np))
+    return np.dot(dense1.astype("uint8"), np.transpose(weight2_np))
 
 
-relay_mod = tvm.IRModule.from_expr(get_dense_dense(data_shape, weight_shape))
+def test():
+    M, N, K = 128, 128, 128
+    data_shape = (M, K)
+    weight_shape = (N, K)
 
-# print(relay.transform.InferType()(relay_mod))
+    relay_mod = tvm.IRModule.from_expr(get_dense_dense(data_shape, weight_shape))
 
-target = "llvm -mcpu=cascadelake -num-cores 4"
+    # print(relay.transform.InferType()(relay_mod))
 
-weight1_np = np.random.uniform(1, 10, size=weight_shape).astype("int8")
-weight2_np = np.random.uniform(1, 10, size=weight_shape).astype("int8")
+    target = "llvm"
 
-params = {"weight1": weight1_np, "weight2": weight2_np}
+    data_np = np.random.uniform(1, 10, size=data_shape).astype("uint8")
+    weight1_np = np.random.uniform(1, 10, size=weight_shape).astype("int8")
+    weight2_np = np.random.uniform(1, 10, size=weight_shape).astype("int8")
 
-extracted_tasks = extract_task_from_relay(relay_mod, target, params)
+    params = {"weight1": weight1_np, "weight2": weight2_np}
 
-assert len(extracted_tasks) == 1
+    extracted_tasks = extract_task_from_relay(relay_mod, target, params)
 
-task = extracted_tasks[0]
+    assert len(extracted_tasks) == 1
 
-database = JSONDatabase(
-    path_workload="database_workload.json",
-    path_tuning_record="database_tuning_record.json",
-)
+    task = extracted_tasks[0]
 
-mod = Parse._mod(task.dispatched[0])
+    database = JSONDatabase(
+        path_workload="database_workload.json",
+        path_tuning_record="database_tuning_record.json",
+    )
 
-workload = database.commit_workload(mod)
+    mod = Parse._mod(task.dispatched[0])
 
-sch = tvm.tir.Schedule(mod)
-# print(sch.mod.script())
+    workload = database.commit_workload(mod)
 
-tune_rec = TuningRecord(sch.trace, [0.0], workload, tvm.target.Target(target), [])
+    sch = tvm.tir.Schedule(mod)
+    print(sch.mod.script())
 
-database.commit_tuning_record(tune_rec)
+    tune_rec = TuningRecord(sch.trace, [0.0], workload, tvm.target.Target(target), [])
+
+    database.commit_tuning_record(tune_rec)
+
+    with ApplyHistoryBest(database):
+        with tvm.transform.PassContext(
+            opt_level=3,
+            config={"relay.backend.use_meta_schedule": True},
+        ):
+            lib = relay.build(relay_mod, target=target, params=params)
+
+    dev = tvm.device(target, 0)
+
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    runtime.set_input("data", data_np)
+    runtime.run()
+
+    out = runtime.get_output(0).numpy()
+
+    ref = get_ref(data_np, weight1_np, weight2_np)
+
+    np.testing.assert_equal(out, ref)
 
 
-with ApplyHistoryBest(database):
-    with tvm.transform.PassContext(
-        opt_level=3,
-        config={"relay.backend.use_meta_schedule": True},
-    ):
-        lib = relay.build(relay_mod, target=target, params=params)
+if __name__ == "__main__":
+    test()
