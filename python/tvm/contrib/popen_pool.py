@@ -124,7 +124,7 @@ class PopenWorker:
                 self._reader.close()
             except IOError:
                 pass
-            # kill all child processes recurisvely
+            # kill all child processes recursively
             try:
                 kill_child_processes(self._proc.pid)
             except TypeError:
