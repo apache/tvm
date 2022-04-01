@@ -18,6 +18,7 @@
 # pylint: disable=import-outside-toplevel
 """Transform operators."""
 
+import numpy as np
 from ...tir import expr as _expr
 from ..expr import Constant, Expr, Tuple, TupleWrapper, const
 from . import _make
@@ -1408,6 +1409,11 @@ def matrix_set_diag(data, diagonal, k=0, align="RIGHT_LEFT"):
     else:
         k_one = k
         k_two = k
+
+    if not isinstance(k_one, Expr):
+        k_one = const(np.asarray([k_one], dtype=np.int64))
+    if not isinstance(k_two, Expr):
+        k_two = const(np.asarray([k_two], dtype=np.int64))
 
     super_diag_right_align = align[:5] == "RIGHT"
     sub_diag_right_align = align[-5:] == "RIGHT"
