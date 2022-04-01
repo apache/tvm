@@ -50,18 +50,20 @@ def main():
             # pylint: disable=import-outside-toplevel
             import msvcrt
 
-            return os.fdopen(msvcrt.open_osfhandle(int(sys.argv[1]), os.O_BINARY), "rb")
+            reader = os.fdopen(msvcrt.open_osfhandle(int(sys.argv[1]), os.O_BINARY), "rb")
         else:
-            return os.fdopen(int(sys.argv[1]), "rb")
+            reader = os.fdopen(int(sys.argv[1]), "rb")
+        return reader
 
     def get_writer():
         if sys.platform == "win32":
             # pylint: disable=import-outside-toplevel
             import msvcrt
 
-            return os.fdopen(msvcrt.open_osfhandle(int(sys.argv[2]), os.O_BINARY), "wb")
+            writer = os.fdopen(msvcrt.open_osfhandle(int(sys.argv[2]), os.O_BINARY), "wb")
         else:
-            return os.fdopen(int(sys.argv[2]), "wb")
+            writer = os.fdopen(int(sys.argv[2]), "wb")
+        return writer
 
     def _respond(ret_value):
         """Send data back to the client."""
