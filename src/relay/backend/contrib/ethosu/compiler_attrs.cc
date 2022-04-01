@@ -48,8 +48,7 @@ struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode
             "ethos-u55-128, ethos-u55-256}")
         .set_default("ethos-u55-256");
     TVM_ATTR_FIELD(enable_cascader)
-        .describe(
-            "Whether the cascader should be enabled")
+        .describe("Whether the cascader should be enabled")
         .set_default(false);
   }
 };
