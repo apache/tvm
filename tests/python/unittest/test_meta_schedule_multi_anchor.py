@@ -100,7 +100,7 @@ def test_dense_dense():
 
         schedule_dense_dense(sch)
 
-        print(sch.mod.script())
+        # print(sch.mod.script())
 
         tune_rec = TuningRecord(sch.trace, [0.0], workload, tvm.target.Target(target), [])
 
