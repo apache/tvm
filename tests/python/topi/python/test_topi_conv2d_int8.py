@@ -21,7 +21,6 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import autotvm
-from tvm.autotvm.task.space import FallbackConfigEntity
 from tvm import topi
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
@@ -34,6 +33,7 @@ from tvm.topi.generic.conv2d import fallback_schedule_cpu_common_int8
 from common import Int8Fallback
 import tvm.testing
 import pytest
+import platform
 
 
 def compile_conv2d_NHWC_gemm_int8_arm(
@@ -299,7 +299,6 @@ def verify_conv2d_NCHWc_int8(
 
         a_np, w_np, b_np, c_np = get_ref_data()
 
-        print("Running on target: %s" % target)
         with tvm.target.Target(target):
             C = compute(
                 A,
@@ -311,8 +310,6 @@ def verify_conv2d_NCHWc_int8(
                 "NCHW",
                 out_dtype,
             )
-            print(C.shape)
-            print(bias.shape)
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
@@ -342,6 +339,8 @@ def verify_conv2d_NCHWc_int8(
         if build_only:
             return
 
+        print("Running on target: %s" % target)
+
         func(*run_args)
 
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
@@ -364,14 +363,15 @@ def verify_conv2d_NCHWc_int8(
         # ),
     ]
 
-    # TODO(tvm-team): Properly run ARM code on CI aarch64 environment
+    build_only_aarch64 = platform.machine() != "aarch64"
+
     targets.append(
         (
             "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon,+v8.2a,+dotprod",
             topi.arm_cpu.conv2d_NCHWc_int8,
             topi.arm_cpu.schedule_conv2d_NCHWc_int8,
             8,
-            True,
+            build_only_aarch64,
         )
     )
 
@@ -382,7 +382,7 @@ def verify_conv2d_NCHWc_int8(
                 topi.arm_cpu.conv2d_NCHWc_int8,
                 topi.arm_cpu.schedule_conv2d_NCHWc_int8,
                 8,
-                True,
+                build_only_aarch64,
             )
         )
 

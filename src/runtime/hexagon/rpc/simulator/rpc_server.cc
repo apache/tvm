@@ -311,6 +311,12 @@ int main() {
   return 0;
 }
 
+// Workaround for missing functions in 8.5.08
+extern "C" {
+__attribute__((weak)) void _Get_eh_data() {}
+__attribute__((weak)) void _Parse_fde_instr() {}
+}
+
 TVM_REGISTER_GLOBAL("tvm.hexagon.load_module")
     .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
       std::string soname = args[0];

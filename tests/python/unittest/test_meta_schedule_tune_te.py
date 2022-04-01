@@ -24,7 +24,6 @@ from tvm.meta_schedule.testing import te_workload
 from tvm.target.target import Target
 from tvm.tir import Schedule
 
-
 logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 
@@ -37,7 +36,7 @@ def test_tune_matmul():
             target=Target("llvm --num-cores=16"),
             config=ReplayTraceConfig(
                 num_trials_per_iter=32,
-                num_trials_total=32,
+                max_trials_per_task=32,
             ),
             work_dir=work_dir,
         )

@@ -57,7 +57,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
         n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
         in_channel = ic_chunk * ic_bn
 
-        oc_chunk, ic_chunk, kh, kw, ic_bn, oc_bn, n_elems = get_const_tuple(kernel.shape)
+        oc_chunk, ic_chunk, kh, kw, ic_bn, oc_bn, _ = get_const_tuple(kernel.shape)
         num_filter = oc_chunk * oc_bn
     else:
         # data is nchw, implicitly treat it as nchw1c
@@ -103,8 +103,10 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
     if len(data.shape) == 4:
         data, kernel = _pack_data(cfg, data, kernel)
 
+    n_elems = int(kernel.shape[-1])
+
     return nn.conv2d_NCHWc_int8(
-        data, kernel, strides, padding, dilation, layout, out_layout, out_dtype
+        data, kernel, strides, padding, dilation, layout, out_layout, out_dtype, n_elems=n_elems
     )
 
 
@@ -149,7 +151,8 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
 
             args = [s, cfg, data_vec, kernel_vec, conv_out, outs[0]]
             # int8 conv kernel is 7-dim
-            _, _, kh, kw, _, _, _ = get_const_tuple(kernel_vec.shape)
+            _, _, kh, kw, _, _, n_elems = get_const_tuple(kernel_vec.shape)
+            assert n_elems == 4
             dtype = "uint" if data.dtype == "uint8" else "int"
             if is_dotprod_available():
                 intrin = dot_int8_int8_int32_neon_82(int32_lanes=4, dtype=dtype)

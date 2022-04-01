@@ -18,17 +18,16 @@
 import logging
 import tempfile
 
-import tvm
 import pytest
-from tvm.meta_schedule import ReplayTraceConfig, tune_tir
-from tvm.meta_schedule.tune_context import TuneContext
-from tvm.meta_schedule import schedule_rule, postproc
+import tvm
+from tvm.meta_schedule import ReplayTraceConfig, postproc, schedule_rule, tune_tir
 from tvm.meta_schedule.space_generator import PostOrderApply
+from tvm.meta_schedule.testing import te_workload
+from tvm.meta_schedule.tune_context import TuneContext
 from tvm.script import tir as T
 from tvm.target.target import Target
 from tvm.te.operation import create_prim_func
 from tvm.tir import Schedule
-from tvm.meta_schedule.testing import te_workload
 
 logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
@@ -61,7 +60,7 @@ def test_tune_matmul_cpu():
             target=Target("llvm --num-cores=16"),
             config=ReplayTraceConfig(
                 num_trials_per_iter=32,
-                num_trials_total=32,
+                max_trials_per_task=32,
             ),
             work_dir=work_dir,
         )
@@ -80,7 +79,7 @@ def test_tune_matmul_cuda():
             target=Target("nvidia/geforce-rtx-3070"),
             config=ReplayTraceConfig(
                 num_trials_per_iter=32,
-                num_trials_total=32,
+                max_trials_per_task=32,
             ),
             work_dir=work_dir,
         )
@@ -98,14 +97,14 @@ def test_tune_matmul_cuda_tensor_core():
     target = Target("nvidia/geforce-rtx-3070")
     config = ReplayTraceConfig(
         num_trials_per_iter=32,
-        num_trials_total=320,
+        max_trials_per_task=320,
     )
 
     class DefaultTensorCore:
         @staticmethod
         def _sch_rules():
-            from tvm.meta_schedule import (  # pylint: disable=import-outside-toplevel
-                schedule_rule as M,
+            from tvm.meta_schedule import (
+                schedule_rule as M,  # pylint: disable=import-outside-toplevel
             )
 
             return [
@@ -154,8 +153,8 @@ def test_tune_matmul_cuda_tensor_core():
 
         @staticmethod
         def _postproc():
-            from tvm.meta_schedule import (  # pylint: disable=import-outside-toplevel
-                postproc as M,
+            from tvm.meta_schedule import (
+                postproc as M,  # pylint: disable=import-outside-toplevel
             )
 
             return [
@@ -183,8 +182,8 @@ def test_tune_matmul_cuda_tensor_core():
             print(sch.mod.script())
             print(sch.trace)
 
-            from tvm.contrib import nvcc
             import numpy as np
+            from tvm.contrib import nvcc
 
             ctx = tvm.gpu(0)
             if nvcc.have_tensorcore(ctx.compute_version):

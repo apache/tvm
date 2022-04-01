@@ -45,7 +45,7 @@ class ReplayTraceNode : public SearchStrategyNode {
   /*! \brief The number of trials per iteration. */
   int num_trials_per_iter;
   /*! \brief The number of total trials. */
-  int num_trials_total;
+  int max_trials_per_task;
 
   /*! \brief The module to be tuned. */
   Array<IRModule> per_thread_mod_{nullptr};
@@ -62,7 +62,7 @@ class ReplayTraceNode : public SearchStrategyNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("num_trials_per_iter", &num_trials_per_iter);
-    v->Visit("num_trials_total", &num_trials_total);
+    v->Visit("max_trials_per_task", &max_trials_per_task);
     // `per_thread_mod_` is not visited
     // `args_info_` is not visited
     // `postprocs_` is not visited
@@ -119,10 +119,10 @@ class ReplayTraceNode : public SearchStrategyNode {
 };
 
 inline Optional<Array<MeasureCandidate>> ReplayTraceNode::State::GenerateMeasureCandidates() {
-  if (st >= self->num_trials_total) {
+  if (st >= self->max_trials_per_task) {
     return NullOpt;
   }
-  ed = std::min(ed, self->num_trials_total);
+  ed = std::min(ed, self->max_trials_per_task);
   ICHECK_LT(st, ed);
   std::vector<TRandState> per_thread_rand_state = ForkSeed(&self->rand_state_, self->num_threads_);
   Array<MeasureCandidate> per_task_result(ed - st, MeasureCandidate{nullptr});
@@ -150,10 +150,10 @@ inline void ReplayTraceNode::State::NotifyRunnerResults(const Array<RunnerResult
   ed += self->num_trials_per_iter;
 }
 
-SearchStrategy SearchStrategy::ReplayTrace(int num_trials_per_iter, int num_trials_total) {
+SearchStrategy SearchStrategy::ReplayTrace(int num_trials_per_iter, int max_trials_per_task) {
   ObjectPtr<ReplayTraceNode> n = make_object<ReplayTraceNode>();
   n->num_trials_per_iter = num_trials_per_iter;
-  n->num_trials_total = num_trials_total;
+  n->max_trials_per_task = max_trials_per_task;
   return SearchStrategy(n);
 }
 

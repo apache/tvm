@@ -38,6 +38,7 @@
 #include <tvm/support/parallel_for.h>
 #include <tvm/tir/schedule/schedule.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -45,6 +46,7 @@
 #include "../support/array.h"
 #include "../support/base64.h"
 #include "../support/nd_int_set.h"
+#include "../support/table_printer.h"
 #include "../support/utils.h"
 #include "../tir/schedule/primitive.h"
 #include "../tir/schedule/utils.h"
@@ -364,6 +366,27 @@ inline int GetTargetNumCores(const Target& target) {
         << num_cores << "\"";
   }
   return num_cores;
+}
+
+/*!
+ * \brief Get the median of the running time from RunnerResult in millisecond
+ * \param results The results from RunnerResult
+ * \return The median of the running time in millisecond
+ */
+inline double GetRunMsMedian(const RunnerResult& runner_result) {
+  Array<FloatImm> run_secs = runner_result->run_secs.value();
+  ICHECK(!run_secs.empty());
+  std::vector<double> v;
+  v.reserve(run_secs.size());
+  std::transform(run_secs.begin(), run_secs.end(), std::back_inserter(v),
+                 [](const FloatImm& f) -> double { return f->value; });
+  std::sort(v.begin(), v.end());
+  int n = v.size();
+  if (n % 2 == 0) {
+    return (v[n / 2] + v[n / 2 + 1]) * 0.5 * 1000.0;
+  } else {
+    return v[n / 2] * 1000.0;
+  }
 }
 
 }  // namespace meta_schedule

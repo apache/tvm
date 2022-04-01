@@ -347,7 +347,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
         out_channel, _, kh, kw = get_const_tuple(kernel_tensor.shape)
 
-        n_elems = 8
+        n_elems = 4
 
         if cfg.is_fallback:
             _get_default_config_int8(

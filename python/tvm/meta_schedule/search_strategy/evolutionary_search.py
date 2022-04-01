@@ -34,7 +34,7 @@ class EvolutionarySearch(SearchStrategy):
     ----------
     num_trials_per_iter : int
         Number of trials per iteration.
-    num_trials_total : int
+    max_trials_per_task : int
         Total number of trials.
     population_size : int
         The initial population of traces from measured samples and randomly generated samples.
@@ -53,7 +53,7 @@ class EvolutionarySearch(SearchStrategy):
     """
 
     num_trials_per_iter: int
-    num_trials_total: int
+    max_trials_per_task: int
     population_size: int
     init_measured_ratio: int
     init_min_unmeasured: int
@@ -66,7 +66,7 @@ class EvolutionarySearch(SearchStrategy):
         self,
         *,
         num_trials_per_iter: int,
-        num_trials_total: int,
+        max_trials_per_task: int,
         population_size: int,
         init_measured_ratio: float,
         init_min_unmeasured: int,
@@ -79,7 +79,7 @@ class EvolutionarySearch(SearchStrategy):
         self.__init_handle_by_constructor__(
             _ffi_api.SearchStrategyEvolutionarySearch,  # type: ignore # pylint: disable=no-member
             num_trials_per_iter,
-            num_trials_total,
+            max_trials_per_task,
             population_size,
             init_measured_ratio,
             init_min_unmeasured,
@@ -94,7 +94,8 @@ class EvolutionarySearchConfig(NamedTuple):
     """Configuration for EvolutionarySearch"""
 
     num_trials_per_iter: int
-    num_trials_total: int
+    max_trials_per_task: int
+    max_trials_global: int
     population_size: int = 2048
     init_measured_ratio: float = 0.2
     init_min_unmeasured: int = 50
@@ -106,7 +107,7 @@ class EvolutionarySearchConfig(NamedTuple):
     def create_strategy(self) -> EvolutionarySearch:
         return EvolutionarySearch(
             num_trials_per_iter=self.num_trials_per_iter,
-            num_trials_total=self.num_trials_total,
+            max_trials_per_task=self.max_trials_per_task,
             population_size=self.population_size,
             init_measured_ratio=self.init_measured_ratio,
             init_min_unmeasured=self.init_min_unmeasured,

@@ -30,7 +30,6 @@ from tvm.relay.backend.contrib.ethosu.codegen import LUTsOptimizer
 from tvm.relay.backend.contrib.ethosu.codegen import relay_to_tir
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 
-from .test_codegen import _get_tflite_graph
 from . import infra
 
 
@@ -121,7 +120,7 @@ def test_lut_optimizer_runs_in_compilation_pipeline():
         op = tf.nn.depthwise_conv2d(op, weight2, (1, 1, 1, 1), "VALID")
         return tf.nn.tanh(op)
 
-    mod, _ = _get_tflite_graph(get_graph, [ifm_shape])
+    mod, _ = infra.get_tflite_graph(get_graph, [ifm_shape])
     mod = partition_for_ethosu(mod)
     mod = relay_to_tir(mod)
 

@@ -683,6 +683,7 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
   // Module::GetFunction is not const, so this lambda has to be mutable
   return PackedFunc([=](TVMArgs args, TVMRetValue* ret) mutable {
     PackedFunc f = mod.GetFunction(func_name);
+    CHECK(f.defined()) << "There is no function called \"" << func_name << "\" in the module";
     Device dev{static_cast<DLDeviceType>(device_type), device_id};
 
     // warmup
@@ -695,17 +696,21 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
     }
     std::vector<Map<String, ObjectRef>> results;
     results.reserve(collectors.size());
-    std::vector<ObjectRef> collector_data;
+    std::vector<std::pair<MetricCollector, ObjectRef>> collector_data;
     collector_data.reserve(collectors.size());
     for (auto& collector : collectors) {
-      collector_data.push_back(collector->Start(dev));
+      ObjectRef o = collector->Start(dev);
+      // If not defined, then the collector cannot time this device.
+      if (o.defined()) {
+        collector_data.push_back({collector, o});
+      }
     }
 
     // TODO(tkonolige): repeated calls if the runtime is small?
     f.CallPacked(args, ret);
 
-    for (size_t i = 0; i < collectors.size(); i++) {
-      results.push_back(collectors[i]->Stop(collector_data[i]));
+    for (auto& kv : collector_data) {
+      results.push_back(kv.first->Stop(kv.second));
     }
     Map<String, ObjectRef> combined_results;
     for (auto m : results) {

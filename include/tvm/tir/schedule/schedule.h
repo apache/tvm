@@ -128,7 +128,7 @@ class ScheduleNode : public runtime::Object {
    * \brief Seed the randomness
    * \param seed The new random seed, -1 if use device random, otherwise non-negative
    */
-  virtual void Seed(support::LinearCongruentialEngine::TRandState seed = -1) = 0;
+  virtual void Seed(support::LinearCongruentialEngine::TRandState seed) = 0;
   /*! \brief Fork the random state */
   virtual support::LinearCongruentialEngine::TRandState ForkSeed() = 0;
 
