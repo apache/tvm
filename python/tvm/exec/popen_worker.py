@@ -40,22 +40,32 @@ def main():
     if len(sys.argv) != 3:
         print("Usage: <read_fd> <write_fd>")
         return
-    if sys.platform == "win32":
-        # pylint: disable=import-outside-toplevel
-        import msvcrt
-
-        reader = os.fdopen(msvcrt.open_osfhandle(int(sys.argv[1]), os.O_BINARY), "rb")
-        writer = os.fdopen(msvcrt.open_osfhandle(int(sys.argv[2]), os.O_BINARY), "wb")
-    else:
-        reader = os.fdopen(int(sys.argv[1]), "rb")
-        writer = os.fdopen(int(sys.argv[2]), "wb")
 
     logging.basicConfig(level=logging.INFO)
 
     lock = threading.Lock()
 
+    def get_reader():
+        if sys.platform == "win32":
+            # pylint: disable=import-outside-toplevel
+            import msvcrt
+
+            return os.fdopen(msvcrt.open_osfhandle(int(sys.argv[1]), os.O_BINARY), "rb")
+        else:
+            return os.fdopen(int(sys.argv[1]), "rb", 0)
+
+    def get_writer():
+        if sys.platform == "win32":
+            # pylint: disable=import-outside-toplevel
+            import msvcrt
+
+            return os.fdopen(msvcrt.open_osfhandle(int(sys.argv[2]), os.O_BINARY), "wb")
+        else:
+            return os.fdopen(int(sys.argv[2]), "wb", 0)
+
     def _respond(ret_value):
         """Send data back to the client."""
+        writer = get_writer()
         data = cloudpickle.dumps(ret_value, protocol=pickle.HIGHEST_PROTOCOL)
         writer.write(struct.pack("<i", len(data)))
         writer.write(data)
@@ -69,6 +79,7 @@ def main():
         lock.release()
 
     while True:
+        reader = get_reader()
         raw_bytes_size = reader.read(4)
         if len(raw_bytes_size) != 4:
             # the parent exited
