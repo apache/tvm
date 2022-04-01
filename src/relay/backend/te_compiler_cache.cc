@@ -299,6 +299,7 @@ class ScheduleBuilder : public ExprVisitor {
   explicit ScheduleBuilder(Target target) : target_(target) {
     // Whether to use auto_scheduler schedule.
     use_auto_scheduler_ = backend::IsAutoSchedulerEnabled();
+    use_meta_scheduler_ = backend::IsMetaScheduleEnabled();
   }
 
   CachedFunc Create(const Function& relay_func, std::function<std::string(std::string)> renamer) {
@@ -336,7 +337,7 @@ class ScheduleBuilder : public ExprVisitor {
           schedule = Downcast<te::Schedule>(obj);
         }
       }
-      if (backend::IsMetaScheduleEnabled()) {
+      if (use_meta_scheduler_) {
         IRModule relay_mod({{prim_fn_var, relay_func}});
         IRModule tir_mod({{prim_fn_var, tir::CreatePrimFunc(Concat(fn_inputs, tensor_outs))}});
         Optional<IRModule> scheduled_mod = meta_schedule::MetaScheduleContext::QueryInsideWithScope(
@@ -377,7 +378,7 @@ class ScheduleBuilder : public ExprVisitor {
     }
 
     int op_pattern = fpattern[op];
-    if (!use_auto_scheduler_ && op_pattern >= kCommReduce) {
+    if (!use_auto_scheduler_ && !use_meta_scheduler_ && op_pattern >= kCommReduce) {
       ICHECK(!anchor_op_.defined() || anchor_op_pattern_ < kCommReduce)
           << "Cannot apply TOPI schedule to a primitive function with two complicated ops"
           << " anchor=" << anchor_op_ << " current=" << op;
@@ -395,6 +396,7 @@ class ScheduleBuilder : public ExprVisitor {
   Attrs anchor_attrs_;
   int anchor_op_pattern_{0};
   bool use_auto_scheduler_;
+  bool use_meta_scheduler_;
 };
 
 /*!
