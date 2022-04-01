@@ -66,8 +66,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Fill in the input buffers.
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
       auto eid = EntryID(input_nodes_[i], 0);
-      // TODO(@comaniac): Support other data lengths.
-      size_t offset_in_bytes = entry_out_mem_[eid].second * 4;
+      size_t offset_in_bytes =
+          entry_out_mem_[eid].second * ((data_entry_[eid]->dtype.bits + 7) / 8);
       size_t buffer_size = GetDataSize(*data_entry_[eid]);
       write_to_dnnl_memory(data_entry_[eid]->data, entry_out_mem_[eid].first, buffer_size,
                            offset_in_bytes);
@@ -82,7 +82,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Read output buffers.
     for (size_t i = 0; i < outputs_.size(); ++i) {
       auto eid = EntryID(outputs_[i]);
-      size_t offset_in_bytes = entry_out_mem_[eid].second * 4;
+      size_t offset_in_bytes =
+          entry_out_mem_[eid].second * ((data_entry_[eid]->dtype.bits + 7) / 8);
       size_t buffer_size = GetDataSize(*data_entry_[eid]);
       read_from_dnnl_memory(data_entry_[eid]->data, entry_out_mem_[eid].first, buffer_size,
                             offset_in_bytes);
@@ -301,13 +302,33 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // has not yet been bound to the other DNNL memory; otherwise it may have memory leak.
     ICHECK_EQ(entry_out_mem_.count(eid), 0);
 
-    // TODO(@comanic): Support other data types (i.e., int8).
-    auto data_node = nodes_[entry.id_];
-    auto dltype = data_node.GetOpDataType()[entry.index_];
-    ICHECK_EQ(dltype.bits, 32);
-
     entry_out_mem_[eid] = {mem, offset};
     return entry_out_mem_[eid].first;
+  }
+
+  dt dtype_dl2dnnl(DLDataType dltype) {
+    dt dnnl_type = dt::undef;
+    if (dltype.code == DataType::TypeCode::kFloat) {
+      if (dltype.bits == 16) {
+        dnnl_type = dt::f16;
+      } else if (dltype.bits == 32) {
+        dnnl_type = dt::f32;
+      }
+    } else if (dltype.code == DataType::TypeCode::kBFloat && dltype.bits == 16) {
+      dnnl_type = dt::bf16;
+    } else if (dltype.code == DataType::TypeCode::kInt) {
+      if (dltype.bits == 8) {
+        dnnl_type = dt::s8;
+      } else if (dltype.bits == 32) {
+        dnnl_type = dt::s32;
+      }
+    } else if (dltype.code == DataType::TypeCode::kUInt && dltype.bits == 8) {
+      dnnl_type = dt::u8;
+    }
+    if (dnnl_type == dt::undef) {
+      LOG_ERROR << "unsupported datatype: code=" << dltype.code << ", bits=" << dltype.bits;
+    }
+    return dnnl_type;
   }
 
   void Convolution(const size_t& nid) {
@@ -380,10 +401,11 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     }
 
     // Memory descriptions.
-    auto conv_src_md = dnnl::memory::desc(src_dims, dt::f32, layout_dict[data_layout]);
-    auto conv_weights_md = dnnl::memory::desc(weights_dims, dt::f32, layout_dict[kernel_layout]);
-    auto conv_bias_md = dnnl::memory::desc(bias_dims, dt::f32, tag::any);
-    auto conv_dst_md = dnnl::memory::desc(dst_dims, dt::f32, tag::any);
+    dt dtype = dtype_dl2dnnl(nodes_[data_entry.id_].GetOpDataType()[data_entry.index_]);
+    auto conv_src_md = dnnl::memory::desc(src_dims, dtype, layout_dict[data_layout]);
+    auto conv_weights_md = dnnl::memory::desc(weights_dims, dtype, layout_dict[kernel_layout]);
+    auto conv_bias_md = dnnl::memory::desc(bias_dims, dtype, tag::any);
+    auto conv_dst_md = dnnl::memory::desc(dst_dims, dtype, tag::any);
 
     // Conv description.
     auto conv_desc =
@@ -413,7 +435,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     auto conv_dst_memory = BindDNNLMemory(out_entry, conv_prim_desc.dst_desc());
 
     // Bias memory.
-    auto conv_bias_memory = dnnl::memory({bias_dims, dt::f32, tag::x}, engine_);
+    auto conv_bias_memory = dnnl::memory({bias_dims, dtype, tag::x}, engine_);
     if (has_bias) {
       auto bias_entry = node.GetInputs()[2];
       BindDNNLMemory(bias_entry, conv_bias_memory);
@@ -508,10 +530,11 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     }
 
     // Memory descriptions.
-    auto deconv_src_md = dnnl::memory::desc(src_dims, dt::f32, layout_dict[data_layout]);
-    auto deconv_weights_md = dnnl::memory::desc(weights_dims, dt::f32, layout_dict[kernel_layout]);
-    auto deconv_bias_md = dnnl::memory::desc(bias_dims, dt::f32, tag::any);
-    auto deconv_dst_md = dnnl::memory::desc(dst_dims, dt::f32, tag::any);
+    dt dtype = dtype_dl2dnnl(nodes_[data_entry.id_].GetOpDataType()[data_entry.index_]);
+    auto deconv_src_md = dnnl::memory::desc(src_dims, dtype, layout_dict[data_layout]);
+    auto deconv_weights_md = dnnl::memory::desc(weights_dims, dtype, layout_dict[kernel_layout]);
+    auto deconv_bias_md = dnnl::memory::desc(bias_dims, dtype, tag::x);
+    auto deconv_dst_md = dnnl::memory::desc(dst_dims, dtype, tag::any);
 
     // Transposed covn2d description.
     auto deconv_desc =
@@ -541,7 +564,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     auto deconv_dst_memory = BindDNNLMemory(out_entry, deconv_prim_desc.dst_desc());
 
     // Bias memory.
-    auto deconv_bias_memory = dnnl::memory({bias_dims, dt::f32, tag::x}, engine_);
+    auto deconv_bias_memory = dnnl::memory({bias_dims, dtype, tag::x}, engine_);
     if (has_bias) {
       auto bias_entry = node.GetInputs()[2];
       BindDNNLMemory(bias_entry, deconv_bias_memory);
@@ -581,10 +604,12 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     dnnl::memory::dims out_dims = out_shape;
 
     // Memory descriptions.
-    auto data_md = dnnl::memory::desc({data_dims, dt::f32, tag::nc});
-    auto weight_md = dnnl::memory::desc({weight_dims, dt::f32, tag::nc});
-    auto bias_md = dnnl::memory::desc({bias_dims, dt::f32, tag::x});
-    auto dst_md = dnnl::memory::desc({out_dims, dt::f32, tag::nc});
+    auto dl_dtype = nodes_[data_entry.id_].GetOpDataType()[data_entry.index_];
+    dt dtype = dtype_dl2dnnl(dl_dtype);
+    auto data_md = dnnl::memory::desc({data_dims, dtype, tag::nc});
+    auto weight_md = dnnl::memory::desc({weight_dims, dtype, tag::nc});
+    auto bias_md = dnnl::memory::desc({bias_dims, dtype, tag::x});
+    auto dst_md = dnnl::memory::desc({out_dims, dtype, tag::nc});
 
     // Dense description.
     auto dense_desc = dnnl::inner_product_forward::desc(dnnl::prop_kind::forward_inference, data_md,
@@ -607,7 +632,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       BindDNNLMemory(bias_entry, bias_memory);
     } else {
       float bias[OC] = {0};
-      write_to_dnnl_memory(bias, bias_memory, OC * sizeof(float));
+      write_to_dnnl_memory(bias, bias_memory, OC * ((dl_dtype.bits + 7) / 8));
     }
 
     // Output memory.
@@ -632,7 +657,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     float epsilon = std::stof(node.GetAttr<std::vector<std::string>>("epsilon")[0]);
 
     // Memory description.
-    dnnl::memory::desc data_md = GenDNNLMemDescByShape(data_shape, dt::f32);
+    dt dtype = dtype_dl2dnnl(nodes_[data_entry.id_].GetOpDataType()[data_entry.index_]);
+    dnnl::memory::desc data_md = GenDNNLMemDescByShape(data_shape, dtype);
 
     // BN description.
     auto bn_desc = dnnl::batch_normalization_forward::desc(
@@ -701,8 +727,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     dnnl::memory::dims padding_dims_r = TransformStr2Dims(str_padding_r);
 
     // Memory descriptions.
-    auto pool_src_md = dnnl::memory::desc(src_dims, dt::f32, layout_dict[layout]);
-    auto pool_dst_md = dnnl::memory::desc(dst_dims, dt::f32, tag::any);
+    dt dtype = dtype_dl2dnnl(nodes_[data_entry.id_].GetOpDataType()[data_entry.index_]);
+    auto pool_src_md = dnnl::memory::desc(src_dims, dtype, layout_dict[layout]);
+    auto pool_dst_md = dnnl::memory::desc(dst_dims, dtype, tag::any);
 
     // Pooling description.
     auto pool_desc = dnnl::pooling_forward::desc(dnnl::prop_kind::forward_inference, algo,
@@ -729,7 +756,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     auto data_entry = node.GetInputs()[0];
     dnnl::memory::dims shape = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
-    dnnl::memory::desc data_md = GenDNNLMemDescByShape(shape, dt::f32);
+    dt dtype = dtype_dl2dnnl(nodes_[data_entry.id_].GetOpDataType()[data_entry.index_]);
+    dnnl::memory::desc data_md = GenDNNLMemDescByShape(shape, dtype);
     float alpha = 0., beta = 0.;
     if (op_name == "clip") {
       alpha = std::stof(node.GetAttr<std::vector<std::string>>("a_min")[0]);
@@ -762,7 +790,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     if (axis < 0) {
       axis = shape.size() + axis;
     }
-    dnnl::memory::desc data_md = GenDNNLMemDescByShape(shape, dt::f32);
+    dt dtype = dtype_dl2dnnl(nodes_[data_entry.id_].GetOpDataType()[data_entry.index_]);
+    dnnl::memory::desc data_md = GenDNNLMemDescByShape(shape, dtype);
 
     auto softmax_desc =
         dnnl::softmax_forward::desc(dnnl::prop_kind::forward_inference, data_md, axis);
@@ -790,7 +819,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     ICHECK_EQ(node.GetInputs().size(), 2U);
     for (auto entry : node.GetInputs()) {
       auto data_shape = nodes_[entry.id_].GetOpShape()[entry.index_];
-      dnnl::memory::desc data_md = GenDNNLMemDescByShape(data_shape, dt::f32);
+      dt dtype = dtype_dl2dnnl(nodes_[entry.id_].GetOpDataType()[entry.index_]);
+      dnnl::memory::desc data_md = GenDNNLMemDescByShape(data_shape, dtype);
 
       data_dims.push_back(data_shape);
       data_mds.push_back(data_md);
