@@ -1785,7 +1785,7 @@ def concatenate_strategy(attrs, inputs, out_type, target):
 def concatenate_strategy_cpu(attrs, inputs, out_type, target):
     """concatenate x86 strategy"""
     strategy = _op.OpStrategy()
-    use_old_concat = True
+    use_old_concat = False
     if use_old_concat:
         strategy.add_implementation(
             wrap_compute_concat(topi.transform.concatenate),
