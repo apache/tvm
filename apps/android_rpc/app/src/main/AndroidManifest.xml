@@ -23,6 +23,7 @@ under the License.
     package="org.apache.tvm.tvmrpc" >
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="26"/>
 
     <application
         android:allowBackup="true"
