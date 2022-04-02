@@ -20,10 +20,9 @@ import tempfile
 
 import pytest
 import tvm
-from tvm.meta_schedule import ReplayTraceConfig, postproc, schedule_rule, tune_tir
+from tvm.meta_schedule import ReplayTraceConfig, schedule_rule, tune_tir
 from tvm.meta_schedule.space_generator import PostOrderApply
 from tvm.meta_schedule.testing import te_workload
-from tvm.meta_schedule.tune_context import TuneContext
 from tvm.script import tir as T
 from tvm.target.target import Target
 from tvm.te.operation import create_prim_func
@@ -61,6 +60,7 @@ def test_tune_matmul_cpu():
             config=ReplayTraceConfig(
                 num_trials_per_iter=32,
                 max_trials_per_task=32,
+                max_trials_global=32,
             ),
             work_dir=work_dir,
         )
@@ -80,6 +80,7 @@ def test_tune_matmul_cuda():
             config=ReplayTraceConfig(
                 num_trials_per_iter=32,
                 max_trials_per_task=32,
+                max_trials_global=32,
             ),
             work_dir=work_dir,
         )
@@ -98,6 +99,7 @@ def test_tune_matmul_cuda_tensor_core():
     config = ReplayTraceConfig(
         num_trials_per_iter=32,
         max_trials_per_task=320,
+        max_trials_global=320,
     )
 
     class DefaultTensorCore:
