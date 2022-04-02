@@ -31,7 +31,7 @@ from tvm.meta_schedule import ReplayTraceConfig
 from tvm.meta_schedule.database import JSONDatabase, PyDatabase, TuningRecord, Workload
 from tvm.meta_schedule.integration import ApplyHistoryBest
 from tvm.meta_schedule.testing.relay_workload import get_network
-from tvm.meta_schedule.testing import apply_manual_schedules
+from tvm.meta_schedule.testing import apply_fixed_schedules
 from tvm.meta_schedule.tune import (
     extract_task_from_relay,
     tune_extracted_tasks,
@@ -149,6 +149,7 @@ def test_meta_schedule_tune_relay(
             config=ReplayTraceConfig(
                 num_trials_per_iter=32,
                 max_trials_per_task=32,
+                max_trials_global=32,
             ),
             work_dir=work_dir,
             database=JSONDatabase(
@@ -490,8 +491,9 @@ def manual_tir_common(do_tune=False):
             )
         )
         config = ReplayTraceConfig(
-            num_trials_per_iter=64,
-            num_trials_total=64,
+            num_trials_per_iter=32,
+            max_trials_per_task=32,
+            max_trials_global=32,
         )
 
         with tempfile.TemporaryDirectory() as work_dir:
@@ -517,7 +519,7 @@ def manual_tir_common(do_tune=False):
 
             return True
 
-        database = apply_manual_schedules(relay_mod, target, params, schedule_fn)
+        database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
 
     with ApplyHistoryBest(database):
         with tvm.transform.PassContext(

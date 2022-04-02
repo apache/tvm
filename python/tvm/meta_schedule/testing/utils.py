@@ -118,19 +118,19 @@ class DummyMutator(PyMutator):
         return Trace(trace.insts, {})
 
 
-def apply_manual_schedules(
+def apply_fixed_schedules(
     relay_mod: Union[RelayFunc, IRModule],
     target: Union[str, Target],
     params: Optional[Dict[str, NDArray]],
     schedule_fn: Callable[[ExtractedTask, Schedule], bool],
 ):
-    """Apply manual schedules as specified by schedule_fn to extracted tasks,
-    and return a database that can be passed to ApplyHistoryBest.
+    """Apply fixed schedules (manually written, without any tunable knobs) as specified by
+    schedule_fn to extracted tasks, and return a database that can be passed to ApplyHistoryBest.
 
     Parameters
     ----------
     mod : Union[RelayFunc, IRModule]
-        The Relay module to apply manual schedules.
+        The Relay module to apply fixed schedules.
     target : Union[str, Target]
         The target used to extract tasks.
     params : Optional[Dict[str, tvm.runtime.NDArray]]

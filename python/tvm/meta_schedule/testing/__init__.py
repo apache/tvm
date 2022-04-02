@@ -21,5 +21,5 @@ from .utils import (
     DummyRunner,
     DummyRunnerFuture,
     DummyMutator,
-    apply_manual_schedules,
+    apply_fixed_schedules,
 )

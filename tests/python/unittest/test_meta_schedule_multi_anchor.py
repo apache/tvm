@@ -19,7 +19,7 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import relay
-from tvm.meta_schedule.testing import apply_manual_schedules
+from tvm.meta_schedule.testing import apply_fixed_schedules
 from tvm.meta_schedule.integration import ApplyHistoryBest
 
 
@@ -81,7 +81,7 @@ def test_dense_dense():
             return True
         return False
 
-    database = apply_manual_schedules(relay_mod, target, params, schedule_fn)
+    database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
 
     with ApplyHistoryBest(database):
         with tvm.transform.PassContext(
