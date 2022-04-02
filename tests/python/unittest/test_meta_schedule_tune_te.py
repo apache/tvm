@@ -37,6 +37,7 @@ def test_tune_matmul():
             config=ReplayTraceConfig(
                 num_trials_per_iter=32,
                 max_trials_per_task=32,
+                max_trials_global=32,
             ),
             work_dir=work_dir,
         )
