@@ -179,7 +179,7 @@ class RPCModuleNode final : public ModuleNode {
       return WrapRemoteFunc(sess_->GetFunction(name));
     } else {
       InitRemoteFunc(&remote_mod_get_function_, "tvm.rpc.server.ModuleGetFunction");
-      return remote_mod_get_function_(GetRef<Module>(this), name, false);
+      return remote_mod_get_function_(GetRef<Module>(this), name, true);
     }
   }
 
