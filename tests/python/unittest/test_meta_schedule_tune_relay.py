@@ -149,6 +149,7 @@ def test_meta_schedule_tune_relay(
             config=ReplayTraceConfig(
                 num_trials_per_iter=32,
                 max_trials_per_task=32,
+                max_trials_global=20000,
             ),
             work_dir=work_dir,
             database=JSONDatabase(
@@ -493,7 +494,8 @@ def manual_tir_common(do_tune=False):
         if do_tune:
             config = ReplayTraceConfig(
                 num_trials_per_iter=64,
-                num_trials_total=64,
+                max_trials_per_task=64,
+                max_trials_global=20000,
             )
             # postprocs=lambda: [] is important to prevent default post processors from
             # tampering with the manual schedule.
