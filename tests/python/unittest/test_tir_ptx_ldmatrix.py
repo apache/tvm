@@ -30,30 +30,30 @@ def ptx_ldmatrix(
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    A_shared = T.allocate([16, 16], "float16", scope="shared")
-    A_local = T.allocate([8], "float16", scope="local")
-    for i in range(8):
-        A_shared[i * 2 + tx // 16, tx % 16] = A[i * 2 + tx // 16, tx % 16]
-    for i in range(8):
-        A_local[i] = 0
+    with T.block():
+        A_shared = T.alloc_buffer([16, 16], "float16", scope="shared")
+        A_local = T.alloc_buffer([8], "float16", scope="local")
 
-    T.evaluate(
-        T.ptx_ldmatrix(
-            trans,
-            num,
-            ".b16",
-            A_local.data,
-            0,
-            A_shared.data,
-            16 * (tx % 16) + 8 * (tx // 16),
-            dtype="float16",
+        for i in range(8):
+            A_shared[i * 2 + tx // 16, tx % 16] = A[i * 2 + tx // 16, tx % 16]
+
+        T.evaluate(
+            T.ptx_ldmatrix(
+                trans,
+                num,
+                ".b16",
+                A_local.data,
+                0,
+                A_shared.data,
+                16 * (tx % 16) + 8 * (tx // 16),
+                dtype="float16",
+            )
         )
-    )
 
-    for k in range(2):
-        for j in range(2):
-            for i in range(2):
-                B[8 * j + tx // 4, 8 * k + (tx % 4) * 2 + i] = A_local[4 * k + 2 * j + i]
+        for k in range(2):
+            for j in range(2):
+                for i in range(2):
+                    B[8 * j + tx // 4, 8 * k + (tx % 4) * 2 + i] = A_local[4 * k + 2 * j + i]
 
 
 @tvm.testing.requires_cuda
