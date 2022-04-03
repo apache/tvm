@@ -41,7 +41,7 @@
 
 #include "../../runtime/hexagon/hexagon_module.h"
 #include "../build_common.h"
-#include "codegen_llvm.h"
+#include "codegen_cpu.h"
 
 namespace tvm {
 namespace codegen {
@@ -54,90 +54,49 @@ static std::string get_name(const PrimFunc& f) {
 }
 
 // Hexagon code generation
-class CodeGenHexagon final : public CodeGenLLVM {
+class CodeGenHexagon final : public CodeGenCPU {
  public:
+ void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
+            bool system_lib, bool dynamic_lookup, bool target_c_runtime) override;
   void InitTarget(llvm::TargetMachine* tm) final;
-  void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
-            bool system_lib, bool dynamic_lookup, bool target_c_runtime) final;
-
-  void VisitStmt_(const AssertStmtNode* op) override;
 
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
   llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
                                 bool skip_first_arg) override;
-  void AddMainFunction(const std::string& entry_func_name) override;
   llvm::Module* GetModulePtr() const { return module_.get(); }
 
  protected:
   void CreatePrintf(const std::string& format, llvm::ArrayRef<llvm::Value*> format_args) final;
-
-  // meta data
-  llvm::MDNode* md_tbaa_ctx_ptr_{nullptr};
-  llvm::FunctionType* ftype_tvm_func_call_{nullptr};
-  llvm::FunctionType* ftype_tvm_get_func_from_env_{nullptr};
-  llvm::FunctionType* ftype_tvm_api_set_last_error_{nullptr};
 
  private:
   TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
                                llvm::ArrayRef<llvm::Value*> indices, DataType value_dtype) final;
   TypedPointer CreateStructRefPtr(DataType t, llvm::Value* buf, llvm::Value* index, int kind);
 
-  // Check if the call to packed function is successful
-  // if not directly finalize function and pass on return code.
-  // return the end block after the check
-  llvm::BasicBlock* CheckCallSuccess(llvm::Value* retcode);
-
-  // Get runtime functions
-  llvm::Value* RuntimeTVMFuncCall();
-  llvm::Value* RuntimeTVMGetFuncFromEnv();
-  llvm::Value* RuntimeTVMAPISetLastError();
-
-  void InitGlobalContext(bool dynamic_lookup);
   llvm::GlobalVariable* InitContextPtr(llvm::Type* type, std::string name);
   llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
   std::vector<std::pair<std::string, llvm::Value*>> export_system_symbols_;
-  llvm::Value* GetPackedFuncHandle(const std::string& str);
 
   // global to packed function handle
   std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
 
-  // Make packed call.
-  struct PackedCall {
-    llvm::Value* ret_value;
-    llvm::Value* ret_tcode;
-    llvm::BasicBlock* end_block;
-  };
-  PackedCall MakeCallPackedLowered(const Array<PrimExpr>& args, const DataType& r_type,
-                                   const int64_t begin, const int64_t end);
   // create call into tvm packed function.
   llvm::Value* CreateCallPacked(const CallNode* op);
-  // Create trace call into tvm packed function.
-  llvm::Value* CreateCallTracePacked(const CallNode* op);
 
   std::map<std::string, llvm::Type*> types_for_alloca_;
-
-  // Type definitions.
-  llvm::Type* t_tvm_func_handle_{nullptr};
-  llvm::Type* t_tvm_value_{nullptr};
-  llvm::Type* t_tvm_shape_index_{nullptr};
-  llvm::Type* t_tvm_device_{nullptr};
-  llvm::Type* t_tvm_type_{nullptr};
-  llvm::Type* t_tvm_array_{nullptr};
-
-  // Context for injection lookup
-  llvm::GlobalVariable* gv_mod_ctx_{nullptr};
-  llvm::GlobalVariable* gv_tvm_func_call_{nullptr};
-  llvm::GlobalVariable* gv_tvm_get_func_from_env_{nullptr};
-  llvm::GlobalVariable* gv_tvm_api_set_last_error_{nullptr};
-  std::unordered_map<std::string, llvm::GlobalVariable*> gv_func_map_;
-
-  // context for direct dynamic lookup
-  llvm::Function* f_tvm_func_call_{nullptr};
-  llvm::Function* f_tvm_get_func_from_env_{nullptr};
-  llvm::Function* f_tvm_api_set_last_error_{nullptr};
-  llvm::Function* f_tvm_register_system_symbol_{nullptr};
 };
 
+void CodeGenHexagon::Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
+            bool system_lib, bool dynamic_lookup, bool target_c_runtime) {
+  CodeGenCPU::Init(module_name, tm, ctx, system_lib, dynamic_lookup, target_c_runtime);
+
+  types_for_alloca_ = {
+    {"shape", t_tvm_shape_index_},
+    {"arg_value", t_tvm_value_},
+    {"arg_tcode", t_int_},
+    {"array", t_tvm_array_},
+  };
+}
 void CodeGenHexagon::InitTarget(llvm::TargetMachine* tm) {
   native_vector_bits_ = 64;  // Assume "scalar" vectors at first.
   llvm::StringRef fs = tm->getTargetFeatureString();
@@ -155,54 +114,6 @@ void CodeGenHexagon::InitTarget(llvm::TargetMachine* tm) {
     native_vector_bits_ = hvx_bytes * 8;
   }
   CodeGenLLVM::InitTarget(tm);
-}
-
-void CodeGenHexagon::Init(const std::string& module_name, llvm::TargetMachine* tm,
-                          llvm::LLVMContext* ctx, bool system_lib, bool dynamic_lookup,
-                          bool target_c_runtime) {
-  CodeGenLLVM::Init(module_name, tm, ctx, system_lib, dynamic_lookup, false);
-
-  func_handle_map_.clear();
-  t_tvm_value_ = llvm::StructType::create({t_float64_}, "t_tvm_value");
-  t_tvm_shape_index_ = llvm::Type::getIntNTy(*ctx, DataType::ShapeIndex().bits());
-  t_tvm_device_ = llvm::StructType::create({t_int_, t_int_}, "t_tvm_device");
-  t_tvm_type_ = llvm::StructType::create({t_int8_, t_int8_, t_int16_}, "t_tvm_type");
-  t_tvm_func_handle_ = t_void_p_;
-  // DLTensor
-  t_tvm_array_ = llvm::StructType::create(
-      {t_void_p_, t_tvm_device_, t_int_, t_tvm_type_, t_tvm_shape_index_->getPointerTo(),
-       t_tvm_shape_index_->getPointerTo(), t_int64_},
-      "t_tvm_array");
-
-  types_for_alloca_ = {
-      {"shape", t_tvm_shape_index_},
-      {"arg_value", t_tvm_value_},
-      {"arg_tcode", t_int_},
-      {"array", t_tvm_array_},
-  };
-
-  // Runtime functions.
-  ftype_tvm_func_call_ = llvm::FunctionType::get(
-      t_int_,
-      {t_tvm_func_handle_, t_tvm_value_->getPointerTo(), t_int_->getPointerTo(), t_int_,
-       t_tvm_value_->getPointerTo(), t_int_->getPointerTo()},
-      false);
-  ftype_tvm_get_func_from_env_ = llvm::FunctionType::get(
-      t_int_, {t_void_p_, t_char_->getPointerTo(), t_tvm_func_handle_->getPointerTo()}, false);
-  ftype_tvm_api_set_last_error_ =
-      llvm::FunctionType::get(t_void_, {t_char_->getPointerTo()}, false);
-  md_tbaa_ctx_ptr_ = md_builder_->createTBAAScalarTypeNode("ctx_ptr", md_tbaa_root_);
-
-  // initialize TVM runtime API
-  if (system_lib) {
-    // We will need this in environment for backward registration.
-    f_tvm_register_system_symbol_ = llvm::Function::Create(
-        llvm::FunctionType::get(t_int_, {t_char_->getPointerTo(), t_void_p_}, false),
-        llvm::Function::ExternalLinkage, "TVMBackendRegisterSystemLibSymbol", module_.get());
-  } else {
-    f_tvm_register_system_symbol_ = nullptr;
-  }
-  this->InitGlobalContext(dynamic_lookup);
 }
 
 llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, String global_symbol,
@@ -272,181 +183,6 @@ llvm::Value* CodeGenHexagon::GetContextPtr(llvm::GlobalVariable* gv) {
   return faddr;
 }
 
-void CodeGenHexagon::InitGlobalContext(bool dynamic_lookup) {
-  // Module context
-  gv_mod_ctx_ = InitContextPtr(t_void_p_, tvm::runtime::symbol::tvm_module_ctx);
-  // Register back the locations.
-  if (f_tvm_register_system_symbol_ != nullptr) {
-    export_system_symbols_.emplace_back(
-        std::make_pair(tvm::runtime::symbol::tvm_module_ctx, gv_mod_ctx_));
-  } else {
-    if (!dynamic_lookup) {
-      gv_tvm_func_call_ = InitContextPtr(ftype_tvm_func_call_->getPointerTo(), "__TVMFuncCall");
-      gv_tvm_get_func_from_env_ = InitContextPtr(ftype_tvm_get_func_from_env_->getPointerTo(),
-                                                 "__TVMBackendGetFuncFromEnv");
-      gv_tvm_api_set_last_error_ =
-          InitContextPtr(ftype_tvm_api_set_last_error_->getPointerTo(), "__TVMAPISetLastError");
-      // Mark as context functions
-      gv_func_map_["TVMBackendAllocWorkspace"] = nullptr;
-      gv_func_map_["TVMBackendFreeWorkspace"] = nullptr;
-    }
-  }
-}
-
-llvm::Value* CodeGenHexagon::RuntimeTVMFuncCall() {
-  if (f_tvm_func_call_ != nullptr) return f_tvm_func_call_;
-  return GetContextPtr(gv_tvm_func_call_);
-}
-
-llvm::Value* CodeGenHexagon::RuntimeTVMGetFuncFromEnv() {
-  if (f_tvm_get_func_from_env_ != nullptr) return f_tvm_get_func_from_env_;
-  return GetContextPtr(gv_tvm_get_func_from_env_);
-}
-
-llvm::Value* CodeGenHexagon::RuntimeTVMAPISetLastError() {
-  if (f_tvm_api_set_last_error_ != nullptr) return f_tvm_api_set_last_error_;
-  return GetContextPtr(gv_tvm_api_set_last_error_);
-}
-
-CodeGenHexagon::PackedCall CodeGenHexagon::MakeCallPackedLowered(const Array<PrimExpr>& args,
-                                                                 const DataType& r_type,
-                                                                 const int64_t begin,
-                                                                 const int64_t end) {
-  PackedCall pc;
-  std::string func_name = args[0].as<StringImmNode>()->value;
-  llvm::Value* handle = GetPackedFuncHandle(func_name);
-  // call the function
-  int64_t nargs = end - begin;
-  ICHECK_GE(nargs, 0);
-  llvm::Value* stack_value = MakeValue(args[1]);
-  llvm::Value* stack_tcode = MakeValue(args[2]);
-  llvm::Value* arg_value = builder_->CreateInBoundsGEP(
-      t_tvm_value_, builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
-      ConstInt32(begin));
-  TypedPointer arg_tcode =
-      CreateBufferPtr(stack_tcode, DataType::Int(32), {ConstInt32(begin)}, DataType::Int(32));
-  llvm::Value* ret_value = builder_->CreateInBoundsGEP(
-      t_tvm_value_, builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
-      ConstInt32(end));
-  TypedPointer ret_tcode =
-      CreateBufferPtr(stack_tcode, DataType::Int(32), {ConstInt32(end)}, DataType::Int(32));
-
-#if TVM_LLVM_VERSION >= 90
-  auto call_callee = llvm::FunctionCallee(ftype_tvm_func_call_, RuntimeTVMFuncCall());
-#else
-  auto call_callee = RuntimeTVMFuncCall();
-#endif
-  llvm::Value* call = builder_->CreateCall(
-      call_callee,
-      {handle, arg_value, arg_tcode.addr, ConstInt32(nargs), ret_value, ret_tcode.addr});
-  llvm::BasicBlock* end_block = CheckCallSuccess(call);
-
-  // Load the return value and cast it to the designated type (r_type).
-  DataType r_api_type = tir::APIType(r_type);
-  llvm::Type* llvm_r_api_type = DTypeToLLVMType(r_api_type);
-  llvm::Value* load_ptr = builder_->CreatePointerCast(ret_value, llvm_r_api_type->getPointerTo());
-#if TVM_LLVM_VERSION >= 110
-  llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, llvm::Align(8));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, 8);
-#else
-  llvm::Value* rvalue = builder_->CreateAlignedLoad(load_ptr, 8);
-#endif
-  pc.ret_value = CreateCast(r_api_type, r_type, rvalue);
-
-  // Load the return type code.
-#if TVM_LLVM_VERSION >= 110
-  pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, llvm::Align(8));
-#elif TVM_LLVM_VERSION >= 80
-  pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, 8);
-#else
-  pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.addr, 8);
-#endif
-
-  pc.end_block = end_block;
-  return pc;
-}
-
-llvm::Value* CodeGenHexagon::GetPackedFuncHandle(const std::string& fname) {
-  using llvm::BasicBlock;
-  // We will store the packed function handle in global space.
-  // Initialize it during the first call.
-  llvm::DataLayout layout(module_.get());
-  uint64_t align = layout.getTypeAllocSize(t_tvm_func_handle_);
-  auto it = func_handle_map_.find(fname);
-
-  llvm::GlobalVariable* hptr;
-  if (it == func_handle_map_.end()) {
-    // create global location for the handle
-    // create the function handle
-    hptr =
-        new llvm::GlobalVariable(*module_, t_tvm_func_handle_, false,
-                                 llvm::GlobalValue::InternalLinkage, nullptr, ".tvm_func." + fname);
-#if TVM_LLVM_VERSION >= 100
-    hptr->setAlignment(llvm::Align(align));
-#else
-    hptr->setAlignment(align);
-#endif
-    hptr->setInitializer(llvm::Constant::getNullValue(t_tvm_func_handle_));
-    func_handle_map_[fname] = hptr;
-  } else {
-    hptr = it->second;
-  }
-  // create emit codes that checks and load the function.
-  BasicBlock* pre_block = builder_->GetInsertBlock();
-  BasicBlock* init_block = BasicBlock::Create(*ctx_, "handle_init", function_);
-  BasicBlock* end_block = BasicBlock::Create(*ctx_, "handle_init_end", function_);
-#if TVM_LLVM_VERSION >= 110
-  llvm::Value* handle = builder_->CreateAlignedLoad(t_tvm_func_handle_, hptr, llvm::Align(align));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::Value* handle = builder_->CreateAlignedLoad(t_tvm_func_handle_, hptr, align);
-#else
-  llvm::Value* handle = builder_->CreateAlignedLoad(hptr, align);
-#endif
-  llvm::Value* handle_not_null =
-      builder_->CreateICmpNE(handle, llvm::Constant::getNullValue(t_tvm_func_handle_));
-  builder_->CreateCondBr(handle_not_null, end_block, init_block, md_very_likely_branch_);
-  // Initialize the handle if needed.
-  builder_->SetInsertPoint(init_block);
-  llvm::Value* out =
-      WithFunctionEntry([&]() { return builder_->CreateAlloca(t_tvm_func_handle_); });
-#if TVM_LLVM_VERSION >= 110
-  llvm::LoadInst* ctx = builder_->CreateAlignedLoad(gv_mod_ctx_->getValueType(), gv_mod_ctx_,
-                                                    llvm::Align(gv_mod_ctx_->getAlignment()));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::LoadInst* ctx = builder_->CreateAlignedLoad(gv_mod_ctx_->getValueType(), gv_mod_ctx_,
-                                                    gv_mod_ctx_->getAlignment());
-#else
-  llvm::LoadInst* ctx = builder_->CreateAlignedLoad(gv_mod_ctx_, gv_mod_ctx_->getAlignment());
-#endif
-  ctx->setMetadata("tbaa",
-                   md_builder_->createTBAAStructTagNode(md_tbaa_ctx_ptr_, md_tbaa_ctx_ptr_, 0));
-#if TVM_LLVM_VERSION >= 90
-  auto env_callee = llvm::FunctionCallee(ftype_tvm_get_func_from_env_, RuntimeTVMGetFuncFromEnv());
-#else
-  auto env_callee = RuntimeTVMGetFuncFromEnv();
-#endif
-  llvm::Value* retcode = builder_->CreateCall(env_callee, {ctx, GetConstString(fname), out});
-  init_block = CheckCallSuccess(retcode);
-#if TVM_LLVM_VERSION >= 110
-  llvm::Value* loaded_handle =
-      builder_->CreateAlignedLoad(t_tvm_func_handle_, out, llvm::Align(align));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::Value* loaded_handle = builder_->CreateAlignedLoad(t_tvm_func_handle_, out, align);
-#else
-  llvm::Value* loaded_handle = builder_->CreateAlignedLoad(out, align);
-#endif
-  // Store the handle
-  builder_->CreateStore(loaded_handle, hptr);
-  builder_->CreateBr(end_block);
-  // end block
-  builder_->SetInsertPoint(end_block);
-  llvm::PHINode* phi = builder_->CreatePHI(t_tvm_func_handle_, 2);
-  phi->addIncoming(handle, pre_block);
-  phi->addIncoming(loaded_handle, init_block);
-  return phi;
-}
-
 llvm::Value* CodeGenHexagon::CreateCallPacked(const CallNode* op) {
   // There is always a call to __tvm_set_device in a standalone op,
   // and we can't have calls to packed functions, because they need
@@ -457,78 +193,7 @@ llvm::Value* CodeGenHexagon::CreateCallPacked(const CallNode* op) {
     return ConstInt32(0);
   }
 
-  ICHECK_EQ(op->args.size(), 5U);
-  PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[3].as<IntImmNode>()->value,
-                                        op->args[4].as<IntImmNode>()->value);
-  return pc.ret_value;
-}
-
-llvm::Value* CodeGenHexagon::CreateCallTracePacked(const CallNode* op) {
-  ICHECK_EQ(op->args.size(), 6U);
-  PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[3].as<IntImmNode>()->value,
-                                        op->args[4].as<IntImmNode>()->value);
-  // Get traced value.
-  llvm::Value* traced_value = MakeValue(op->args[5]);
-  // The update_block handles case when we need to update the return value.
-  llvm::BasicBlock* update_block = llvm::BasicBlock::Create(*ctx_, "update_block", function_);
-  // The continue_block handles case when we need to return original
-  // traced value.
-  llvm::BasicBlock* continue_block = llvm::BasicBlock::Create(*ctx_, "continue_block", function_);
-
-  // Check the ret_type_code and create cmp instruction.
-  llvm::Value* cmp =
-      builder_->CreateICmpNE(pc.ret_tcode, llvm::ConstantInt::get(t_int_, kTVMNullptr));
-  builder_->CreateCondBr(cmp, update_block, continue_block);
-  builder_->SetInsertPoint(update_block);
-  builder_->CreateBr(continue_block);
-  builder_->SetInsertPoint(continue_block);
-  // The return value depends on from what bb we come from.
-  llvm::PHINode* phi_rvalue = builder_->CreatePHI(traced_value->getType(), 2);
-  phi_rvalue->addIncoming(pc.ret_value, update_block);
-  phi_rvalue->addIncoming(traced_value, pc.end_block);
-  return phi_rvalue;
-}
-
-llvm::BasicBlock* CodeGenHexagon::CheckCallSuccess(llvm::Value* retcode) {
-  // create emit codes that checks and load the function.
-  using llvm::BasicBlock;
-  BasicBlock* fail_block = BasicBlock::Create(*ctx_, "call_fail", function_);
-  BasicBlock* end_block = BasicBlock::Create(*ctx_, "call_end", function_);
-  llvm::Value* succ = builder_->CreateICmpEQ(retcode, llvm::ConstantInt::get(t_int_, 0));
-  builder_->CreateCondBr(succ, end_block, fail_block, md_very_likely_branch_);
-  builder_->SetInsertPoint(fail_block);
-  // return the code.
-  builder_->CreateRet(retcode);
-  // otherwise set it to be new end.
-  builder_->SetInsertPoint(end_block);
-  return end_block;
-}
-
-void CodeGenHexagon::VisitStmt_(const AssertStmtNode* op) {
-  using llvm::BasicBlock;
-  llvm::Value* cond = MakeValue(op->condition);
-  std::ostringstream os;
-  os << "Assert fail: " << op->condition;
-  if (op->message.as<StringImmNode>()) {
-    os << ", " << op->message.as<StringImmNode>()->value;
-  }
-  llvm::Value* msg = GetConstString(os.str());
-  BasicBlock* fail_block = BasicBlock::Create(*ctx_, "assert_fail", function_);
-  BasicBlock* end_block = BasicBlock::Create(*ctx_, "assert_end", function_);
-  builder_->CreateCondBr(cond, end_block, fail_block, md_very_likely_branch_);
-  // fail condition.
-  builder_->SetInsertPoint(fail_block);
-#if TVM_LLVM_VERSION >= 90
-  auto err_callee =
-      llvm::FunctionCallee(ftype_tvm_api_set_last_error_, RuntimeTVMAPISetLastError());
-#else
-  auto err_callee = RuntimeTVMAPISetLastError();
-#endif
-  builder_->CreateCall(err_callee, {msg});
-  builder_->CreateRet(ConstInt32(-1));
-  // otherwise set it to be new end.
-  builder_->SetInsertPoint(end_block);
-  CodeGenLLVM::VisitStmt_(op);
+  return CodeGenCPU::CreateCallPacked(op);
 }
 
 llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
@@ -918,30 +583,6 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   }
   return HexagonModuleCreate(so_name, "so", ExtractFuncInfo(mod), asm_str, obj_str, ir_str, bc_str,
                              export_abi);
-}
-
-void CodeGenHexagon::AddMainFunction(const std::string& entry_func_name) {
-  llvm::Function* f = module_->getFunction(entry_func_name);
-  ICHECK(f) << "Function " << entry_func_name << "does not in module";
-  llvm::Type* type = llvm::ArrayType::get(t_char_, entry_func_name.length() + 1);
-  llvm::GlobalVariable* global =
-      new llvm::GlobalVariable(*module_, type, true, llvm::GlobalValue::WeakAnyLinkage, nullptr,
-                               runtime::symbol::tvm_module_main);
-#if TVM_LLVM_VERSION >= 100
-  global->setAlignment(llvm::Align(1));
-#else
-  global->setAlignment(1);
-#endif
-  // comdat is needed for windows select any linking to work
-  // set comdat to Any(weak linking)
-  if (target_machine_->getTargetTriple().isOSWindows()) {
-    llvm::Comdat* comdat = module_->getOrInsertComdat(runtime::symbol::tvm_module_main);
-    comdat->setSelectionKind(llvm::Comdat::Any);
-    global->setComdat(comdat);
-  }
-
-  global->setInitializer(llvm::ConstantDataArray::getString(*ctx_, entry_func_name));
-  global->setDLLStorageClass(llvm::GlobalVariable::DLLExportStorageClass);
 }
 
 TVM_REGISTER_GLOBAL("target.build.hexagon").set_body_typed(BuildHexagon);
