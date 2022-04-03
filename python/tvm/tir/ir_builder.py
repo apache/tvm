@@ -246,13 +246,16 @@ class IRBuilder(object):
             if isinstance(e, _expr.PrimExpr):
                 if not e.dtype.startswith("int"):
                     raise NotImplementedError(
-                        f"Infer loop_var dtype failed: unsupported dtype in loop begin or end {e.dtype}")
+                        f"Infer loop_var dtype failed: unsupported dtype in loop begin or end {e.dtype}"
+                    )
                 return e.dtype
             elif isinstance(e, int):
                 return "int32"
             else:
                 raise NotImplementedError(
-                    f"Infer loop_var dtype failed: unsupported dtype in loop begin or end {e.dtype}")
+                    f"Infer loop_var dtype failed: unsupported dtype in loop begin or end {e.dtype}"
+                )
+
         if dtype is None:
             dtype = "int64" if "int64" in [get_dtype(begin), get_dtype(end)] else "int32"
 
