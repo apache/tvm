@@ -18,10 +18,10 @@
  */
 
 /*!
- * \file ptx_mma.cc
+ * \file ptx.cc
  */
 
-#include "ptx_mma.h"
+#include "ptx.h"
 
 #include <algorithm>
 #include <string>
@@ -60,13 +60,18 @@ enum class DataType : int {
   kFloat32 = 13,
   kTensorFloat32 = 14,
   kFloat64 = 15,
-  kBit1 = 16
+  kBit1 = 16,
+  kBit8 = 17,
+  kBit16 = 18,
+  kBit32 = 19,
+  kBit64 = 20,
 };
 
-static const char* dtype_str[] = {".s4",    ".u4",  ".s8",   ".u8",  ".s16", ".u16",
-                                  ".s32",   ".u32", ".s64",  ".u64", ".f16", ".bf16",
-                                  ".f16x2", ".f32", ".tf32", ".f64", ".b1"};
-static const uint32_t num_bits[] = {4, 4, 8, 8, 16, 16, 32, 32, 64, 64, 16, 16, 32, 32, 32, 64, 1};
+static const char* dtype_str[] = {".s4",   ".u4",  ".s8",  ".u8",  ".s16",  ".u16",   ".s32",
+                                  ".u32",  ".s64", ".u64", ".f16", ".bf16", ".f16x2", ".f32",
+                                  ".tf32", ".f64", ".b1",  ".b8",  ".b16",  ".b32",   ".b64"};
+static const uint32_t num_bits[] = {4,  4,  8,  8,  16, 16, 32, 32, 64, 64, 16,
+                                    16, 32, 32, 32, 64, 1,  8,  16, 32, 64};
 
 /*!
  * \brief Create PTX data type from string.
@@ -106,6 +111,14 @@ inline DataType DTypeFromString(const std::string str) {
     return DataType::kFloat64;
   } else if (str == "int1" || str == ".b1") {
     return DataType::kBit1;
+  } else if (str == ".b8") {
+    return DataType::kBit8;
+  } else if (str == ".b16") {
+    return DataType::kBit16;
+  } else if (str == ".b32") {
+    return DataType::kBit32;
+  } else if (str == ".b64") {
+    return DataType::kBit64;
   } else {
     LOG(FATAL) << "Unrecognized PTX data type " << str;
     return DataType(0);
@@ -360,6 +373,7 @@ inline FragAttrs GetFragAttrs(DataType dtype) {
     case DataType::kUInt4:
     case DataType::kInt8:
     case DataType::kUInt8:
+    case DataType::kBit16:
     case DataType::kFloat16:  // .f16x2 register
     case DataType::kBFloat16:
     case DataType::kTensorFloat32:
@@ -508,9 +522,9 @@ inline std::tuple<std::string, std::string, std::string> GetMMAOperands(int m, i
 std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layout,
                              const std::string& B_layout, const std::string& A_dtype,
                              const std::string& B_dtype, const std::string& C_dtype,
-                             const std::string& a_ref, const std::string& a_offset,
-                             const std::string& b_ref, const std::string& b_offset,
-                             const std::string& c_ref, const std::string& c_offset,
+                             const std::string& a_ptr, const std::string& a_elem_offset,
+                             const std::string& b_ptr, const std::string& b_elem_offset,
+                             const std::string& c_ptr, const std::string& c_elem_offset,
                              const std::string& metadata, const std::string& metadata_offset,
                              const std::string& sparsity_selector, const std::string& bit_op,
                              bool sparse, bool saturate) {
@@ -525,7 +539,7 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
   std::string asm_code = R"(
   {
     __asm__ __volatile__(
-      "mma{sparse}.sync.aligned.{shape}.{alayout}.{blayout}{saturate}{dtype}{atype}{btype}{ctype}{bitop}"
+      "mma{.sparse}.sync.aligned{.shape}{.alayout}{.blayout}{.saturate}{.dtype}{.atype}{.btype}{.ctype}{.bitop}"
       "{templates};\n"
       : {outputs}
       : {inputs});
@@ -537,27 +551,89 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
 
   // replace patterns
   Replacer replacer;
-  replacer.register_rule("{sparse}", sparse ? ".sp" : "");
-  replacer.register_rule("{shape}", shape);
-  replacer.register_rule("{saturate}", saturate ? ".satfinite" : "");
-  replacer.register_rule("{alayout}", A_layout);
-  replacer.register_rule("{blayout}", B_layout);
-  replacer.register_rule("{atype}", ptx::DTypeToString(dtype_a));
-  replacer.register_rule("{btype}", ptx::DTypeToString(dtype_b));
-  replacer.register_rule("{ctype}", ptx::DTypeToString(dtype_c));
-  replacer.register_rule("{dtype}", ptx::DTypeToString(dtype_c));
-  replacer.register_rule("{bitop}", bit_op.empty() ? "" : "." + bit_op + ".popc");
+  replacer.register_rule("{.sparse}", sparse ? ".sp" : "");
+  replacer.register_rule("{.shape}", "." + shape);
+  replacer.register_rule("{.saturate}", saturate ? ".satfinite" : "");
+  replacer.register_rule("{.alayout}", "." + A_layout);
+  replacer.register_rule("{.blayout}", "." + B_layout);
+  replacer.register_rule("{.atype}", ptx::DTypeToString(dtype_a));
+  replacer.register_rule("{.btype}", ptx::DTypeToString(dtype_b));
+  replacer.register_rule("{.ctype}", ptx::DTypeToString(dtype_c));
+  replacer.register_rule("{.dtype}", ptx::DTypeToString(dtype_c));
+  replacer.register_rule("{.bitop}", bit_op.empty() ? "" : "." + bit_op + ".popc");
   replacer.register_rule("{templates}", templates_str);
   replacer.register_rule("{outputs}", outputs_str);
   replacer.register_rule("{inputs}", inputs_str);
   asm_code = replacer.rewrite(asm_code);
   replacer.empty_rules();
-  replacer.register_rule("A", a_ref + " + " + a_offset);
-  replacer.register_rule("B", b_ref + " + " + b_offset);
-  replacer.register_rule("C", c_ref + " + " + c_offset);
-  replacer.register_rule("D", c_ref + " + " + c_offset);
+  replacer.register_rule("A", a_ptr + " + " + a_elem_offset);
+  replacer.register_rule("B", b_ptr + " + " + b_elem_offset);
+  replacer.register_rule("C", c_ptr + " + " + c_elem_offset);
+  replacer.register_rule("D", c_ptr + " + " + c_elem_offset);
   replacer.register_rule("E", metadata + " + " + metadata_offset);
   replacer.register_rule("F", sparsity_selector);
+  asm_code = replacer.rewrite(asm_code);
+  return asm_code;
+}
+
+inline std::tuple<std::string, std::string> GetLoadMatrixOperands(
+    int num, const std::string& local_ptr, const std::string& local_elem_offset) {
+  std::stringstream templates, outputs;
+  int arg_counter = 0;
+  // generate templates
+  templates << "{%" << arg_counter++;
+  for (int i = 1; i < num; ++i) {
+    templates << ", %" << arg_counter++;
+  }
+  templates << "}, [%" << arg_counter++ << "]";
+  // generate outputs
+  std::string ptr_type = "(unsigned *)";
+  for (int i = 0; i < num; ++i) {
+    if (i != 0) {
+      outputs << ", ";
+    }
+    outputs << "\"=r\"((" << ptr_type << "(" << local_ptr << " + " << local_elem_offset << "))["
+            << i << "])";
+  }
+  return std::make_tuple(templates.str(), outputs.str());
+}
+
+std::string PrintLoadMatrixAssembly(bool trans, int num, const std::string& type,
+                                    const std::string& local_ptr,
+                                    const std::string& local_elem_offset,
+                                    const std::string& smem_ptr,
+                                    const std::string& smem_elem_offset) {
+  CHECK(num == 1 || num == 2 || num == 4) << "ldmatrix only accept loading 1/2/4 matrices.";
+  ptx::DataType data_type = ptx::DTypeFromString(type);
+  CHECK(data_type == ptx::DataType::kBit16) << "ldmatrix only accept matrix with type .b16.";
+  std::string asm_code = R"(
+  {
+    unsigned int addr;
+    __asm__ __volatile__(
+      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
+      : "=r"(addr)
+      : "l"((void *)({smem_addr}))
+    );
+    __asm__ __volatile__(
+      "ldmatrix.sync.aligned{.shape}{.num}{.trans}{.ss}{.type}"
+      "{templates};\n"
+      : {outputs}
+      : "r"(addr)
+    );
+  }
+)";
+  std::string templates_str, outputs_str;
+  std::tie(templates_str, outputs_str) = GetLoadMatrixOperands(num, local_ptr, local_elem_offset);
+
+  Replacer replacer;
+  replacer.register_rule("{.shape}", ".m8n8");
+  replacer.register_rule("{.num}", ".x" + std::to_string(num));
+  replacer.register_rule("{.trans}", trans ? ".trans" : "");
+  replacer.register_rule("{.ss}", ".shared");
+  replacer.register_rule("{.type}", ptx::DTypeToString(data_type));
+  replacer.register_rule("{smem_addr}", smem_ptr + " + " + smem_elem_offset);
+  replacer.register_rule("{templates}", templates_str);
+  replacer.register_rule("{outputs}", outputs_str);
   asm_code = replacer.rewrite(asm_code);
   return asm_code;
 }
