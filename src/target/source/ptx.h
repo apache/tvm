@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file ptx_mma.h
- * \brief MMA code generation with inlined PTX code.
+ * \file ptx.h
+ * \brief Code generation with inlined PTX code.
  */
-#ifndef TVM_TARGET_SOURCE_PTX_MMA_H_
-#define TVM_TARGET_SOURCE_PTX_MMA_H_
+#ifndef TVM_TARGET_SOURCE_PTX_H_
+#define TVM_TARGET_SOURCE_PTX_H_
 
 #include <tvm/runtime/logging.h>
 
@@ -40,11 +40,11 @@ namespace codegen {
  * \param A_dtype The data type of multiplicand A.
  * \param B_dtype The data type of multiplicand B.
  * \param C_dtype The data type of multiplicand C.
- * \param a_ref Pointer to buffer A.
+ * \param a_ptr Pointer to buffer A.
  * \param a_offset The offset of element in A.
- * \param b_ref Pointer to buffer B.
+ * \param b_ptr Pointer to buffer B.
  * \param b_offset The offset of element in B.
- * \param c_ref Pointer to buffer C.
+ * \param c_ptr Pointer to buffer C.
  * \param c_offset The offset of element in C.
  * \param metadata Pointer to metadata buffer (only used for sparse mma).
  * \param metadata_offset The offset of element in metadata.
@@ -56,14 +56,30 @@ namespace codegen {
 std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layout,
                              const std::string& B_layout, const std::string& A_dtype,
                              const std::string& B_dtype, const std::string& C_dtype,
-                             const std::string& a_ref, const std::string& a_offset,
-                             const std::string& b_ref, const std::string& b_offset,
-                             const std::string& c_ref, const std::string& c_offset,
+                             const std::string& a_ptr, const std::string& a_offset,
+                             const std::string& b_ptr, const std::string& b_offset,
+                             const std::string& c_ptr, const std::string& c_offset,
                              const std::string& metadata, const std::string& metadata_offset,
                              const std::string& sparsity_selector, const std::string& bit_op,
                              bool sparse, bool saturate);
 
+/*!
+ * \brief Print ldmatrix assembly string given parameters.
+ * \param trans: whether the matrix is loaded in column major format or not.
+ * \param num: number of matrices to load.
+ * \param type: The data type in the matrix, .b16 is the only accepted data type.
+ * \param local_ptr: pointer to local buffer.
+ * \param local_elem_offset: The offset of the element to store in the local buffer.
+ * \param smem_ptr: pointer to the shared memory buffer to load.
+ * \param smem_elem_offset: The offset of the start element of the row to load in shared memory.
+ */
+std::string PrintLoadMatrixAssembly(bool trans, int num, const std::string& type,
+                                    const std::string& local_ptr,
+                                    const std::string& local_elem_offset,
+                                    const std::string& smem_ptr,
+                                    const std::string& smem_elem_offset);
+
 }  // namespace codegen
 }  // namespace tvm
 
-#endif  // TVM_TARGET_SOURCE_PTX_MMA_H_
+#endif  // TVM_TARGET_SOURCE_PTX_H_
