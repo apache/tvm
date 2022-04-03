@@ -22,6 +22,7 @@
  */
 #include "graph_executor.h"
 
+#include <dlpack/dlpack.h>
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
@@ -58,10 +59,11 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
  * \brief Run all the operations one by one.
  */
 void GraphExecutor::Run() {
-  ref_cnt.resize(num_node_entries(), 0);
   // setup the array and requirements.
   for (size_t i = 0; i < op_execs_.size(); ++i) {
-    if (op_execs_[i]) PerformOp(i);
+    if (op_execs_[i]) {
+      PerformOp(i);
+    }
   }
 }
 
@@ -72,14 +74,16 @@ void GraphExecutor::PerformOp(size_t nid) {
   // first we need to get all the input tensors and add the reference count
   // if they are not in memory, rematerialize them
   for (const auto& input : node.inputs) {
-    // we do not need to care about input and parameter
-    if (std::find(input_nodes_.begin(), input_nodes_.end(), entry_id(input)) != input_nodes_.end())
-      continue;
+    // also we do not care about cpu
+    if (pool_entry_[get_sid(entry_id(input))].device_type == (int)(kDLCPU)) continue;
     // otherwise we should rematerialize the input tensors that are not in the memory
     // and update the reference count at the same time
-    if (is_evicted(entry_id(input))) RematerializeTensor(entry_id(input));
-    ICHECK_LE(entry_id(input), ref_cnt.size());
-    ref_cnt[entry_id(input)] += 1;
+
+    if (!runtime_info_[entry_id(input)].use_cnt) {
+      if(!runtime_info_[entry_id(input)].available)
+        RematerializeTensor(entry_id(input));
+    }
+    runtime_info_[entry_id(input)].use_cnt += 1;
   }
   // now all of the inputs are recovered, we can set up to compute the location of input/output
   // compute current input memory location of the tensor
@@ -117,7 +121,7 @@ void GraphExecutor::PerformOp(size_t nid) {
 
   // now we can execute the operator
   op_execs_[nid]();
-
+  runtime_info_[nid].available = true;
   // at last, we should perform eviction
   PerformEviction(nid);
 }
@@ -125,21 +129,22 @@ void GraphExecutor::PerformOp(size_t nid) {
 void GraphExecutor::PerformEviction(size_t nid) {
   auto node = nodes_[nid];
   for (const auto& input : node.inputs) {
-    // Again, continues when meet input and parameters
-    if (std::find(input_nodes_.begin(), input_nodes_.end(), entry_id(input)) != input_nodes_.end())
-      continue;
+    // we do not care about cpu
+    if (pool_entry_[get_sid(entry_id(input))].device_type == (int)(kDLCPU)) continue;
     // Decrease the reference count and free when ref_cnt is zero
-    ref_cnt[entry_id(input)] -= 1;
+    runtime_info_[entry_id(input)].use_cnt -= 1;
     // free tensor when ref_cnt is zero
-    if (!ref_cnt[entry_id(input)]) {
+    if (!runtime_info_[entry_id(input)].use_cnt) {
       FreeTensor(entry_id(input));
+      runtime_info_[entry_id(input)].available = false;
     }
   }
 }
 
 void GraphExecutor::FreeTensor(size_t nid) {
   data_entry_[nid].reset();
-  storage_pool_[get_sid(nid)].reset();
+  if (storage_pool_[get_sid(nid)].use_count() == 1)
+    storage_pool_[get_sid(nid)].reset();
 }
 /*!
  * \brief Initialize the graph executor with graph and device.
@@ -502,7 +507,7 @@ void GraphExecutor::SetupStorage() {
   storage_pool_.resize(pool_entry_.size());
   for (size_t sid = 0; sid < pool_entry_.size(); sid++) {
     // We just allocate tensor for input nodes now
-    if (sid_to_input.find(static_cast<int>(sid)) != sid_to_input.end()) {
+    if (pool_entry_[sid].device_type == static_cast<int>(kDLCPU)){
       AllocTensor(sid);
     }
   }
@@ -515,8 +520,8 @@ void GraphExecutor::SetupStorage() {
   for (size_t i = 0; i < data_entry_.size(); ++i) {
     int storage_id = attrs_.storage_id[i];
     ICHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
-    // just make view for allocated parameters
-    if (std::find(input_nodes_.begin(), input_nodes_.end(), i) != input_nodes_.end()) {
+    // just make view for allocated parameters and tensors in cpu
+    if (pool_entry_[storage_id].device_type == static_cast<int>(kDLCPU)){
       data_entry_[i] = storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
     }
 
@@ -527,6 +532,7 @@ void GraphExecutor::SetupStorage() {
 }
 
 void GraphExecutor::SetupOpExecs() {
+  runtime_info_.resize(num_node_entries(),{0,false});
   op_execs_.resize(this->GetNumOfNodes());
   input_dltensors_.resize(num_node_entries());
   output_dltensors_.resize(num_node_entries());
@@ -746,8 +752,10 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
 std::shared_ptr<GraphExecutor::OpArgs> GraphExecutor::UpdateTVMOp(
     uint32_t nid, const TVMOpParam& param, const std::vector<DLTensor>& args) {
   auto arg_ptr = op_mem_location_map_[nid];
-  arg_ptr->arg_values.clear();
-  arg_ptr->arg_tcodes.clear();
+  if (arg_ptr){
+    arg_ptr->arg_values.clear();
+    arg_ptr->arg_tcodes.clear();
+  }
   // setup address.
   arg_ptr->args = args;
   if (param.flatten_data) {
