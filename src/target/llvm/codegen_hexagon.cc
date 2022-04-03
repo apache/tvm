@@ -60,7 +60,6 @@ class CodeGenHexagon final : public CodeGenCPU {
             bool system_lib, bool dynamic_lookup, bool target_c_runtime) override;
   void InitTarget(llvm::TargetMachine* tm) final;
 
-  llvm::Value* CreateIntrinsic(const CallNode* op) override;
   llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
                                 bool skip_first_arg) override;
   llvm::Module* GetModulePtr() const { return module_.get(); }
@@ -82,21 +81,13 @@ class CodeGenHexagon final : public CodeGenCPU {
 
   // create call into tvm packed function.
   llvm::Value* CreateCallPacked(const CallNode* op);
-
-  std::map<std::string, llvm::Type*> types_for_alloca_;
 };
 
 void CodeGenHexagon::Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
             bool system_lib, bool dynamic_lookup, bool target_c_runtime) {
   CodeGenCPU::Init(module_name, tm, ctx, system_lib, dynamic_lookup, target_c_runtime);
-
-  types_for_alloca_ = {
-    {"shape", t_tvm_shape_index_},
-    {"arg_value", t_tvm_value_},
-    {"arg_tcode", t_int_},
-    {"array", t_tvm_array_},
-  };
 }
+
 void CodeGenHexagon::InitTarget(llvm::TargetMachine* tm) {
   native_vector_bits_ = 64;  // Assume "scalar" vectors at first.
   llvm::StringRef fs = tm->getTargetFeatureString();
@@ -194,49 +185,6 @@ llvm::Value* CodeGenHexagon::CreateCallPacked(const CallNode* op) {
   }
 
   return CodeGenCPU::CreateCallPacked(op);
-}
-
-llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
-  if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
-    return CreateCallPacked(op);
-  } else if (op->op.same_as(builtin::tvm_call_trace_packed_lowered())) {
-    return CreateCallTracePacked(op);
-  } else if (op->op.same_as(builtin::tvm_struct_get())) {
-    ICHECK_EQ(op->args.size(), 3);
-    int kind = op->args[2].as<IntImmNode>()->value;
-    TypedPointer ref =
-        CreateStructRefPtr(op->dtype, MakeValue(op->args[0]), MakeValue(op->args[1]), kind);
-    if (kind == builtin::kArrAddr) {
-      return builder_->CreatePointerCast(ref.addr, t_void_p_);
-    }
-    return builder_->CreateLoad(ref.type, ref.addr);
-  } else if (op->op.same_as(builtin::tvm_struct_set())) {
-    ICHECK_EQ(op->args.size(), 4);
-    int kind = op->args[2].as<IntImmNode>()->value;
-    ICHECK(kind != builtin::kArrAddr);
-    TypedPointer ref = CreateStructRefPtr(op->args[3].dtype(), MakeValue(op->args[0]),
-                                          MakeValue(op->args[1]), kind);
-    llvm::Value* value = MakeValue(op->args[3]);
-    if (value->getType()->isPointerTy()) {
-      value = builder_->CreatePointerCast(value, ref.type);
-    }
-    builder_->CreateStore(value, ref.addr);
-    return ConstInt32(0);
-  } else if (op->op.same_as(builtin::tvm_stack_alloca())) {
-    ICHECK_EQ(op->args.size(), 2);
-    const std::string& name = op->args[0].as<StringImmNode>()->value;
-    llvm::Value* size = ConstInt32(op->args[1].as<IntImmNode>()->value);
-    return builder_->CreateAlloca(types_for_alloca_.at(name), size);
-  } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
-    llvm::Value* neg_1 = ConstInt32(-1);
-    builder_->CreateRet(neg_1);
-    auto next_block = std::next(builder_->GetInsertBlock()->getIterator());
-    llvm::BasicBlock* new_bb = llvm::BasicBlock::Create(*ctx_, "cont", function_, &*next_block);
-    builder_->SetInsertPoint(new_bb);
-    return neg_1;
-  }
-
-  return CodeGenLLVM::CreateIntrinsic(op);
 }
 
 void CodeGenHexagon::CreatePrintf(const std::string& format,
