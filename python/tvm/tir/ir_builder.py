@@ -242,19 +242,20 @@ class IRBuilder(object):
         self._seq_stack.append([])
 
         # auto infer dtype when it's not specified
-        def get_dtype(e):
-            if isinstance(e, _expr.PrimExpr):
-                if not e.dtype.startswith("int"):
+        def get_dtype(expr):
+            if isinstance(expr, _expr.PrimExpr):
+                if not expr.dtype.startswith("int"):
                     raise NotImplementedError(
-                        f"Infer loop_var dtype failed: unsupported dtype in loop begin or end {e.dtype}"
+                        f"Infer loop_var dtype failed:"
+                        f" unsupported dtype in loop begin or end {expr.dtype}"
                     )
-                return e.dtype
-            elif isinstance(e, int):
+                return expr.dtype
+            if isinstance(expr, int):
                 return "int32"
-            else:
-                raise NotImplementedError(
-                    f"Infer loop_var dtype failed: unsupported dtype in loop begin or end {e.dtype}"
-                )
+            raise NotImplementedError(
+                f"Infer loop_var dtype failed:"
+                f" unsupported dtype in loop begin or end {expr.dtype}"
+            )
 
         if dtype is None:
             dtype = "int64" if "int64" in [get_dtype(begin), get_dtype(end)] else "int32"

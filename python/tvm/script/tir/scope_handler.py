@@ -477,13 +477,13 @@ class ForScopeHandler(ScopeHandler):
             )
         # generate loop vars
         self.loop_vars = []
-        for name, span, li in zip(loop_var_names, spans, self.loop_info):
+        for name, lv_span, li in zip(loop_var_names, spans, self.loop_info):
             if not li.begin.dtype.startswith("int"):
                 raise NotImplementedError(f"Unsupported dtype in loop begin: {li.begin.dtype}")
             if not li.extent.dtype.startswith("int"):
                 raise NotImplementedError(f"Unsupported dtype in loop extent: {li.extent.dtype}")
             dtype = "int64" if "int64" in [li.begin.dtype, li.extent.dtype] else "int32"
-            self.loop_vars.append(tvm.te.var(name, dtype=dtype, span=span))
+            self.loop_vars.append(tvm.te.var(name, dtype=dtype, span=lv_span))
 
         for loop_var, loop_info in zip(self.loop_vars, self.loop_info):
             context.update_symbol(loop_var.name, loop_var, node)
