@@ -25,7 +25,7 @@
 
 // AOT memory array, stack allocator wants it aligned
 static uint8_t g_aot_memory[WORKSPACE_SIZE]
-    __attribute__((aligned (TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)));
+    __attribute__((aligned(TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)));
 tvm_workspace_t app_workspace;
 
 // Blink code for debugging purposes
