@@ -50,15 +50,18 @@ class ExtractAllocateInfo:
 
 def CheckAllocates(allocate_info):  # pylint: disable=invalid-name
     """
-    Checks that all allocates have been visited before an external call has been visited.
-    Additionally, checks that the information for each allocate is what is expected.
+    Checks that all allocates have been visited before an external call has been visited and
+    checks that the information for each allocate is what is expected. Additionally, the pass
+    checks the body of the tir after the final allocate statement is flat (it contains no
+    sequence statement).
     """
 
     allocate_idx = 0
     expected_num_allocates = len(allocate_info)
+    num_seq_stmts = 0
 
     def _pre_visit(stmt):
-        nonlocal allocate_idx, expected_num_allocates
+        nonlocal allocate_idx, expected_num_allocates, num_seq_stmts
 
         if isinstance(stmt, tvm.tir.Allocate):
             expected = allocate_info[allocate_idx]
@@ -73,6 +76,12 @@ def CheckAllocates(allocate_info):  # pylint: disable=invalid-name
             ), f"Allocate condition {stmt.condition} did not match expected {expected['condition']}"
 
             allocate_idx += 1
+        elif isinstance(stmt, tvm.tir.SeqStmt):
+            num_seq_stmts += 1
+            assert num_seq_stmts <= expected_num_allocates, (
+                "Encountered a SeqStmt after all allocates have been visited, was the "
+                "body flattened correctly?"
+            )
         else:
             assert (
                 allocate_idx == expected_num_allocates
@@ -81,7 +90,7 @@ def CheckAllocates(allocate_info):  # pylint: disable=invalid-name
     def _ftransform(f, mod, ctx):
         f.with_body(
             tvm.tir.stmt_functor.ir_transform(
-                f.body, _pre_visit, None, ["tir.Allocate", "tir.Call"]
+                f.body, _pre_visit, None, ["tir.Allocate", "tir.Call", "tir.SeqStmt"]
             )
         )
 
