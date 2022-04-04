@@ -15,13 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Schedules for Hexagon. """
+"""Schedule for injective operators"""
 
-# pylint: disable=wildcard-import
+import tvm
 
-from .batch_matmul import *
-from .conv2d import *
-from .dense import *
-from .injective import *
-from .pooling import *
-from .reduce import *
+
+def schedule_injective(outs):
+    """Schedule for injective op.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of injective in the format
+        of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    outs = [outs] if isinstance(outs, tvm.te.tensor.Tensor) else outs
+    s = tvm.te.create_schedule([x.op for x in outs])
+    tvm.te.schedule.AutoInlineInjective(s)
+    return s
+
+
+def schedule_softmax(outs):
+    return schedule_injective(outs)

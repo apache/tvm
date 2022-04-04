@@ -15,13 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Schedules for Hexagon. """
+"""Schedule for composition of reduction operator"""
 
-# pylint: disable=wildcard-import
+import tvm
 
-from .batch_matmul import *
-from .conv2d import *
-from .dense import *
-from .injective import *
-from .pooling import *
-from .reduce import *
+
+def schedule_reduce(outs):
+    """Schedule for reduction op.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of reduction in the format
+        of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    outs = [outs] if isinstance(outs, tvm.te.tensor.Tensor) else outs
+    s = tvm.te.create_schedule([x.op for x in outs])
+    tvm.te.schedule.AutoInlineInjective(s)
+    return s
