@@ -56,18 +56,20 @@ bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   auto rank = static_cast<int>(data->shape.size());
   axis = (axis < 0) ? ((rank > 0) ? data->shape.size() + axis : 0) : axis;
 
-  // If zero point and scale are scalar then axis doesnt matter.
-  bool scale_is_scalar = (types[1].as<TensorTypeNode>())->shape.size() == 0;
-  bool zp_is_scalar = (types[2].as<TensorTypeNode>())->shape.size() == 0;
+  // If zero point and scale are scalar or have arbitrary rank with one element,
+  // then axis doesn't matter.
+  bool scale_is_scalar = (types[1].as<TensorTypeNode>())->shape.size() == 0 ||
+                         get_const_int((types[1].as<TensorTypeNode>())->Size()) == 1;
+  bool zp_is_scalar = (types[2].as<TensorTypeNode>())->shape.size() == 0 ||
+                      get_const_int((types[2].as<TensorTypeNode>())->Size()) == 1;
 
   if (!(scale_is_scalar && zp_is_scalar)) {
     ICHECK_LT(axis, rank > 0 ? rank : 1) << "axis " << dequantize_attrs->axis << " is out of range";
     ICHECK_GE(axis, 0) << "axis " << dequantize_attrs->axis << " is out of range";
   }
 
-  // We assume per-channel dequantization if rank > 1, otherwise it's per tensor.
   PrimExpr axis_shape;
-  if ((!(scale_is_scalar && zp_is_scalar)) && (rank > 1)) {
+  if (!(scale_is_scalar && zp_is_scalar)) {
     axis_shape = data->shape[axis];
   } else {
     axis_shape = Integer(1);
