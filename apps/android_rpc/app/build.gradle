@@ -17,8 +17,35 @@
 
 apply plugin: 'com.android.application'
 
+task generateJniHeaders(type: Exec, description: 'Generate JNI Headers') {
+    def headerPath = "${project.projectDir}/src/main/jni"
+    def classPath = "${project.projectDir}/../../../jvm/core/target/*"
+    def filePath = "${project.projectDir}/../../../jvm/core/src/main/java/org/apache/tvm/LibInfo.java"
+    commandLine "javac", "-h", headerPath, "-classpath", classPath, filePath
+    doLast {
+        file("${headerPath}/org_apache_tvm_LibInfo.h").renameTo(file("${headerPath}/org_apache_tvm_native_c_api.h"))
+    }
+}
+
+task copyFiles(type: Copy, description: 'Copy Sources for ndk-build') {
+    dependsOn "generateJniHeaders"
+    def ndkFilesPath = "${project.projectDir}/../../../jvm/native/src/main/native"
+    def srcPath = "${project.projectDir}/src/main/jni/"
+
+    from "${ndkFilesPath}/org_apache_tvm_native_c_api.cc", "${ndkFilesPath}/jni_helper_func.h"
+    into srcPath
+}
+
+task deleteLibs(type: Delete, description: "Delete Compiled Libraries") {
+    dependsOn "copyFiles"
+    def libsPath = "${project.projectDir}/src/main/libs"
+    delete libsPath
+}
+
 task buildJni(type: Exec, description: 'Build JNI libs') {
-    commandLine 'sh', 'src/main/jni/build.sh'
+    dependsOn "deleteLibs"
+    def buildPath = "${project.projectDir}/src/main/jni"
+    commandLine "ndk-build", "--directory", buildPath
 }
 
 tasks.withType(JavaCompile) {
@@ -26,8 +53,7 @@ tasks.withType(JavaCompile) {
 }
 
 android {
-    compileSdkVersion 26
-    buildToolsVersion "26.0.1"
+    compileSdkVersion 31
     defaultConfig {
         applicationId "org.apache.tvm.tvmrpc"
         minSdkVersion 24
@@ -50,22 +76,22 @@ android {
     }
 
     gradle.taskGraph.whenReady {graph ->
-     def tasks = graph.getAllTasks()
-     tasks.each {task ->
-         def name = task.getName()
+    def tasks = graph.getAllTasks()
+    tasks.each {task ->
+        def name = task.getName()
          if (name.contains("lint")) task.setEnabled(false)
-     }
+    }
  }
 }
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    androidTestImplementation('com.android.support.test.espresso:espresso-core:2.2.2', {
+    androidTestImplementation('com.android.support.test.espresso:espresso-core:3.4.0', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
-    implementation 'com.android.support:appcompat-v7:26.0.1'
-    implementation 'com.android.support.constraint:constraint-layout:1.0.2'
-    implementation 'com.android.support:design:26.0.1'
+    implementation 'androidx.appcompat:appcompat:1.4.1'
+    implementation 'com.android.support.constraint:constraint-layout:2.1.3'
+    implementation 'com.android.support:design:28.0.0'
     implementation 'org.apache.tvm:tvm4j-core:0.0.1-SNAPSHOT'
-    testImplementation 'junit:junit:4.12'
+    testImplementation 'junit:junit:4.13.2'
 }
