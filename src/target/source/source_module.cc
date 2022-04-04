@@ -799,8 +799,13 @@ runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& mod
                                                relay::Runtime runtime,
                                                relay::backend::ExecutorCodegenMetadata metadata,
                                                runtime::metadata::Metadata aot_metadata) {
+  Array<runtime::Module> final_modules(modules);
+  if (aot_metadata.defined()) {
+    final_modules.push_back(CreateAotMetadataModule(aot_metadata));
+  }
+
   Array<String> func_names;
-  for (runtime::Module mod : modules) {
+  for (runtime::Module mod : final_modules) {
     auto pf_funcs = mod.GetFunction("get_func_names");
     if (pf_funcs != nullptr) {
       Array<String> func_names_ = pf_funcs();
@@ -809,14 +814,11 @@ runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& mod
       }
     }
   }
+
   auto n = make_object<CSourceCrtMetadataModuleNode>(func_names, "c", target, runtime, metadata);
   auto csrc_metadata_module = runtime::Module(n);
-  for (const auto& mod : modules) {
+  for (const auto& mod : final_modules) {
     csrc_metadata_module.Import(mod);
-  }
-
-  if (aot_metadata.defined()) {
-    csrc_metadata_module.Import(CreateAotMetadataModule(aot_metadata));
   }
 
   return std::move(csrc_metadata_module);
