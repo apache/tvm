@@ -202,8 +202,17 @@ TEST(HexagonBuffer, md_copy_from_nd) {
   Optional<String> scope("global");
   HexagonBuffer hb3d(3 /* ndim */, 4 /* nbytes */, 8 /* alignment */, scope);
   HexagonBuffer hb4d(4 /* ndim */, 3 /* nbytes */, 8 /* alignment */, scope);
-  EXPECT_THROW(hb3d.CopyFrom(hb4d, 12), InternalError);
-  EXPECT_THROW(hb4d.CopyFrom(hb3d, 12), InternalError);
+
+  std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+
+  hb3d.CopyFrom(data.data(), data.size());
+  hb4d.CopyFrom(hb3d, data.size());
+
+  uint8_t** hb3d_ptr = static_cast<uint8_t**>(hb3d.GetPointer());
+  uint8_t** hb4d_ptr = static_cast<uint8_t**>(hb4d.GetPointer());
+  for (size_t i = 0; i < 12; i++) {
+    EXPECT_EQ(hb3d_ptr[i / 4][i % 4], hb4d_ptr[i / 3][i % 3]);
+  }
 }
 
 TEST(HexagonBuffer, copy_to) {
