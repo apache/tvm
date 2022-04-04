@@ -40,9 +40,6 @@ python3 tests/lint/check_file_type.py
 echo "Checking ASF license headers..."
 tests/lint/check_asf_header.sh --local
 
-echo "Linting the C++ code..."
-tests/lint/cpplint.sh
-
 echo "clang-format check..."
 tests/lint/clang_format.sh
 
