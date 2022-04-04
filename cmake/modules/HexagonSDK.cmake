@@ -134,7 +134,7 @@ function(_get_hexagon_sdk_property_impl
   elseif(_property STREQUAL "QAIC_EXE")
     set(_override $ENV{QAIC_PATH_OVERRIDE})
     if(_override)
-      set_parent(_qaic_path "${_override}")
+      _check_path_exists("${_override}" _qaic_path)
     else()
       _get_ubuntu_version(_uversion)
       _check_path_exists(
@@ -142,16 +142,15 @@ function(_get_hexagon_sdk_property_impl
         _qaic_path
       )
     endif()
-    _check_path_exists("${_qaic_path}" _qaic_path_found)
-    if(NOT _qaic_path_found)
+    if(NOT _qaic_path)
       message(
-        SEND_ERROR
+        WARNING
         "The qaic executable cannot be found in '${_qaic_path}'. You can set "
         "the environment variable QAIC_PATH_OVERRIDE to override the automatic "
         "search."
       )
     endif()
-    set_parent(${_output_variable} "${_qaic_path_found}")
+    set_parent(${_output_variable} "${_qaic_path}")
 
   else()
     # The rest of the checks returns path(s), which shares some common code.
