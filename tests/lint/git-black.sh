@@ -73,10 +73,8 @@ else
 fi
 
 if [[ "$INPLACE_FORMAT" == "true" ]]; then
-    echo "Running black on Python files against revision" $1:
-    CMD=( "black" "${FILES[@]}" )
-    echo "${CMD[@]}"
-    "${CMD[@]}"
+    echo "Running black on Python files against revision" $REVISION:
+    python3 -m black ${FILES[@]}
 else
     echo "Running black in checking mode"
     python3 -m black --diff --check ${FILES[@]}
