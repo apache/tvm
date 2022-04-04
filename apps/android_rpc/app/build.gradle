@@ -52,11 +52,11 @@ tasks.withType(JavaCompile) {
     compileTask -> compileTask.dependsOn buildJni
 }
 
-gradle.projectsEvaluated {
-    tasks.withType(JavaCompile) {
-        options.compilerArgs << "-Xlint:deprecation"
-    }
-}
+// gradle.projectsEvaluated {
+//     tasks.withType(JavaCompile) {
+//         options.compilerArgs << "-Xlint:deprecation"
+//     }
+// }
 
 android {
     compileSdkVersion 31
