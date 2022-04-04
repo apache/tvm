@@ -418,8 +418,8 @@ def test_export_byoc_c_module():
         with tf.extractfile("./metadata.json") as f:
             metadata = json.load(f)
         main_md = metadata["memory"]["functions"]["main"]
-        print(main_md[0]["workspace_size_bytes"], flush = True)
-        if platform.architecture()[0] == '64bit':
+        print(main_md[0]["workspace_size_bytes"], flush=True)
+        if platform.architecture()[0] == "64bit":
             assert main_md == [
                 {
                     "constants_size_bytes": 0,
