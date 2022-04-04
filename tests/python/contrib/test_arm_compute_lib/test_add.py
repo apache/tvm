@@ -75,8 +75,8 @@ def _get_expected_codegen(shape, dtype, op_name, qnn_params):
     }
 
     if qnn_params:
-        node["attrs"]["lhs_axis"] = [[-1]]
-        node["attrs"]["rhs_axis"] = [[-1]]
+        node["attrs"]["lhs_axis"] = [["-1"]]
+        node["attrs"]["rhs_axis"] = [["-1"]]
 
     return [*inputs, node]
 
