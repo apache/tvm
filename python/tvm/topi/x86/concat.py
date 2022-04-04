@@ -18,7 +18,7 @@
 "concatenate related operators"
 from typing import Optional
 import tvm
-from tvm import te
+from tvm import te, topi
 import numpy as np
 from ..utils import get_const_int, const_vector
 
@@ -104,6 +104,7 @@ def _concat(a_tuple, axis=0):
             dtype=dtype,
             name="concatenate_ext",
         )
+
     inner = get_const_int(int(np.prod(out_shape[:axis])))
     outer = get_const_int(int(np.prod(out_shape[axis:])))
     return te.extern(
@@ -120,7 +121,7 @@ def concatenate(data: tvm.te.Tensor, axis: Optional[int] = 0):
 
     Parameters
     ----------
-    a_tuple : tuple of tvm.te.Tensor
+    data : tuple of tvm.te.Tensor
         The arrays to concatenate
 
     axis : int, optional
@@ -130,4 +131,12 @@ def concatenate(data: tvm.te.Tensor, axis: Optional[int] = 0):
     -------
     ret : tvm.te.Tensor
     """
+    out_shape = data[0].shape
+    sizeVec_found = False
+    for i in out_shape:
+        if isinstance(i, tvm.tir.expr.SizeVar):
+            sizeVec_found = True
+    if sizeVec_found:
+        # workaround to support dynamic shape
+        return topi.transform.concatenate(data, axis=axis)
     return _concat(data, axis=axis)
