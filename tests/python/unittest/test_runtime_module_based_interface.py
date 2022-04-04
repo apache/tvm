@@ -684,8 +684,8 @@ def test_num_threads():
     elif omp_env_threads is not None:
         assert reported == omp_env_threads
     else:
-        hardware_threads = os.cpu_count() / 2
-        assert reported == hardware_threads
+        hardware_threads = os.cpu_count()
+        assert reported == hardware_threads or reported == hardware_threads // 2
 
 
 if __name__ == "__main__":
