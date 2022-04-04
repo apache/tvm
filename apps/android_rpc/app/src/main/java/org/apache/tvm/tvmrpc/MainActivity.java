@@ -29,7 +29,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import android.widget.CompoundButton;
 import android.widget.EditText;
-import android.widget.Switch;
+import androidx.appcompat.widget.SwitchCompat;
 import android.content.Intent;
 
 
@@ -56,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
     EditText edProxyAddress = findViewById(R.id.input_address);
     EditText edProxyPort = findViewById(R.id.input_port);
     EditText edAppKey = findViewById(R.id.input_key);
-    Switch inputSwitch =  findViewById(R.id.switch_persistent);
+    SwitchCompat inputSwitch =  findViewById(R.id.switch_persistent);
 
     final String proxyHost = edProxyAddress.getText().toString();
     final int proxyPort = Integer.parseInt(edProxyPort.getText().toString());
@@ -80,7 +80,7 @@ public class MainActivity extends AppCompatActivity {
 
   private void setupRelaunch() {
     final Context context = this;
-    final Switch switchPersistent = findViewById(R.id.switch_persistent);
+    final SwitchCompat switchPersistent = findViewById(R.id.switch_persistent);
     final Runnable rPCStarter = new Runnable() {
         public void run() {
             if (switchPersistent.isChecked()) {
@@ -90,7 +90,8 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     };
-    Handler handler = new Handler();
+
+    Handler handler = new Handler(Looper.getMainLooper());
     handler.postDelayed(rPCStarter, HANDLER_RESTART_DELAY);
   }
 
@@ -102,7 +103,7 @@ public class MainActivity extends AppCompatActivity {
     setSupportActionBar(toolbar);
     final Context context = this;
 
-    Switch switchPersistent = findViewById(R.id.switch_persistent);
+    SwitchCompat switchPersistent = findViewById(R.id.switch_persistent);
     switchPersistent.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
       @Override
       public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -137,7 +138,7 @@ public class MainActivity extends AppCompatActivity {
     EditText edProxyAddress = findViewById(R.id.input_address);
     EditText edProxyPort = findViewById(R.id.input_port);
     EditText edAppKey = findViewById(R.id.input_key);
-    Switch input_switch = findViewById(R.id.switch_persistent);
+    SwitchCompat input_switch = findViewById(R.id.switch_persistent);
     edProxyAddress.setEnabled(enable);
     edProxyPort.setEnabled(enable);
     edAppKey.setEnabled(enable);

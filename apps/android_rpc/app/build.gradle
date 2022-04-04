@@ -52,6 +52,12 @@ tasks.withType(JavaCompile) {
     compileTask -> compileTask.dependsOn buildJni
 }
 
+gradle.projectsEvaluated {
+    tasks.withType(JavaCompile) {
+        options.compilerArgs << "-Xlint:deprecation"
+    }
+}
+
 android {
     compileSdkVersion 31
     defaultConfig {
@@ -75,13 +81,11 @@ android {
         }
     }
 
-    gradle.taskGraph.whenReady {graph ->
-    def tasks = graph.getAllTasks()
-    tasks.each {task ->
-        def name = task.getName()
-         if (name.contains("lint")) task.setEnabled(false)
+    lintOptions {
+        disable "Instantiatable" // MainActivity and RPCActivity must extend android.app.Activity
+        disable "MissingClass" // .RPCWatchdogService was not found in the project or the libraries
+        disable "IconDipSize" // The image ic_launcher.png varies significantly in its density-independent size
     }
- }
 }
 
 dependencies {
