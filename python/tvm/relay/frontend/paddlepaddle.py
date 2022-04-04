@@ -1672,7 +1672,7 @@ def convert_scale(g, op, block):
     bias_after_scale = op.attr("bias_after_scale")
     x = g.get_node(op.input("X")[0])
     if np.isclose(scale, 1.0) and np.isclose(bias, 0.0):
-        out = _op.copy(x)
+        out = x
     else:
         if np.isclose(bias, 0.0):
             out = x * _expr.const(np.array(scale).astype("float32"))

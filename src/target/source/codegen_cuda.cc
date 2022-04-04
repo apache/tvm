@@ -33,7 +33,7 @@
 #include <vector>
 
 #include "literal/cuda_half_t.h"
-#include "ptx_mma.h"
+#include "ptx.h"
 
 namespace tvm {
 namespace codegen {
@@ -772,11 +772,11 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // arg 3: A precision: fp16, fp32, ...
     // arg 4: B precision: fp16, fp32, ...
     // arg 5: C precision: fp16, fp32, ...
-    // arg 6: A multiplicand
+    // arg 6: A multiplicand pointer
     // arg 7: A multiplicand index
-    // arg 8: B multiplicand
+    // arg 8: B multiplicand pointer
     // arg 9: B multiplicand index
-    // arg 10: C accumulator
+    // arg 10: C accumulator pointer
     // arg 11: C accumulator index
     // arg 12: metadata
     // arg 13: metadata index
@@ -803,6 +803,24 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref, a_offset, b_ref, b_offset,
         c_ref, c_offset, metadata, metadata_offset, sparse_selector, "", true, saturate);
     this->stream << asm_code;
+  } else if (op->op.same_as(builtin::ptx_ldmatrix())) {
+    // arg 0: whether the matrix is loaded in column major format or not.
+    // arg 1: number of matrices to load.
+    // arg 2: The data type in the matrix, .b16 is the only accepted data type.
+    // arg 3: pointer to local buffer.
+    // arg 4: The offset of the element to store in the local buffer.
+    // arg 5: pointer to the shared memory buffer to load.
+    // arg 6: The offset of the start element of the row to load in shared memory.
+    ICHECK_EQ(op->args.size(), 7U);
+    bool trans = Downcast<Bool>(op->args[0])->value;
+    int num = Downcast<Integer>(op->args[1])->value;
+    std::string type = Downcast<StringImm>(op->args[2])->value;
+    std::string local_ptr = this->PrintExpr(op->args[3]);
+    std::string local_elem_offset = this->PrintExpr(op->args[4]);
+    std::string smem_ptr = this->PrintExpr(op->args[5]);
+    std::string smem_elem_offset = this->PrintExpr(op->args[6]);
+    this->stream << PrintLoadMatrixAssembly(trans, num, type, local_ptr, local_elem_offset,
+                                            smem_ptr, smem_elem_offset);
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
