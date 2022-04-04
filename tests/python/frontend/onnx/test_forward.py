@@ -5395,10 +5395,7 @@ def test_gelu(target, dev):
         model = helper.make_model(graph, producer_name="gelu_test")
         verify_with_ort_with_inputs(model, [x], [x.shape], target=target, dev=dev)
 
-    x = np.array(
-        [-1.0, 0, 1.0, 100.0, -100.0, 1000.0, -1000.0],
-        dtype=np.float32
-    )
+    x = np.array([-1.0, 0, 1.0, 100.0, -100.0, 1000.0, -1000.0], dtype=np.float32)
     verify_gelu(x)
     x = np.array([[1, 2], [3, 4]], dtype=np.float32)
     verify_gelu(x)
@@ -5430,10 +5427,7 @@ def test_biasgelu(target, dev):
         model = helper.make_model(graph, producer_name="biasgelu_test")
         verify_with_ort_with_inputs(model, [x, bias], [x.shape], target=target, dev=dev)
 
-    x = np.array(
-        [-1.0, 0, 1.0, 100.0, -100.0, 1000.0, -1000.0],
-        dtype=np.float32
-    )
+    x = np.array([-1.0, 0, 1.0, 100.0, -100.0, 1000.0, -1000.0], dtype=np.float32)
     bias = np.repeat(2.0, 7).astype("float32")
     verify_biasgelu(x, bias)
 
