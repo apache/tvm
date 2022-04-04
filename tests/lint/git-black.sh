@@ -47,7 +47,8 @@ if [ ! -x "$(command -v black)" ]; then
 fi
 
 # Print out specific version
-echo "Version Information: $(black --version)"
+VERSION=$(black --version)
+echo "black version: $VERSION"
 
 # Compute Python files which changed to compare.
 IFS=$'\n' read -a FILES -d'\n' < <(git diff --name-only --diff-filter=ACMRTUX $1 -- "*.py" "*.pyi") || true

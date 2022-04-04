@@ -46,7 +46,7 @@
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:v0.70'
+ci_lint = 'tlcpack/ci-lint:v0.69'
 ci_gpu = 'tlcpack/ci-gpu:v0.84'
 ci_cpu = 'tlcpack/ci-cpu:v0.83'
 ci_wasm = 'tlcpack/ci-wasm:v0.73'
@@ -214,6 +214,10 @@ stage('Sanity Check') {
           script: './tests/scripts/git_change_docker.sh',
           label: 'Check for any docker changes',
         )
+        if (skip_ci) {
+          // Don't rebuild when skipping CI
+          rebuild_docker_images = false
+        }
         if (rebuild_docker_images) {
           // Exit before linting so we can use the newly created Docker images
           // to run the lint

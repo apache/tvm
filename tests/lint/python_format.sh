@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
+set -eux
 
 ./tests/lint/git-black.sh HEAD~1
 ./tests/lint/git-black.sh origin/main
