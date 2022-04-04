@@ -253,7 +253,7 @@ void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& 
     size_t src_region_end = std::min((src_i + 1) * src.region_size_bytes, bytes_to_copy);
 
     size_t dest_i_begin = src_region_begin / dest.region_size_bytes;
-    size_t dest_i_end = src_region_end / dest.region_size_bytes;
+    size_t dest_i_end = (src_region_end - 1) / dest.region_size_bytes + 1;
     for (size_t dest_i = dest_i_begin; dest_i < dest_i_end; dest_i++) {
       size_t offset_begin = std::max(src_region_begin, dest_i * dest.region_size_bytes);
       size_t offset_end = std::min(src_region_end, (dest_i + 1) * dest.region_size_bytes);
