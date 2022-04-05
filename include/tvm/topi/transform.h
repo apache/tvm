@@ -1885,8 +1885,7 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, const
                                      : 0);
             return k;
           };
-          auto get_k = [&]() { return if_then_else(k1(0) == k2(0), k1(0), multi_diagonals()); };
-          k = get_k();
+          k = if_then_else(k1(0) == k2(0), k1(0), multi_diagonals());
           diagonal_indices.push_back(if_then_else(k >= 0, iter_vars[ndim - 1], iter_vars[ndim]) +
                                      offset);
           return diagonal(diagonal_indices);

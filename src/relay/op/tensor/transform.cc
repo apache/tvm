@@ -3811,7 +3811,7 @@ TVM_REGISTER_NODE_TYPE(MatrixSetDiagAttrs);
 
 bool MatrixSetDiagRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
-  // `types` contains: [input, diagonal, result]
+  // `types` contains: [input, diagonal, k1, k2, result]
   ICHECK_EQ(types.size(), 5);
 
   const auto* input = types[0].as<TensorTypeNode>();
@@ -3869,7 +3869,7 @@ RELAY_REGISTER_OP("matrix_set_diag")
     .set_num_inputs(4)
     .add_argument("input", "Tensor", "Input Tensor.")
     .add_argument("diagonal", "Tensor", "Values to be filled in the diagonal.")
-    .add_argument("k1", "Tensor", "ILower limit (included) of the range of diagonals.")
+    .add_argument("k1", "Tensor", "Lower limit (included) of the range of diagonals.")
     .add_argument("k2", "Tensor", "Upper limit (included) of the range of diagonals.")
     .set_support_level(10)
     .add_type_rel("MatrixSetDiag", MatrixSetDiagRel)

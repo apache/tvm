@@ -3305,11 +3305,10 @@ class OperatorConverter(object):
             ), "TFLite MATRIX_DIAG requires diagonal and output tensors' \
                     scale and zero points to be equal"
 
-        # Tflite's output tensor for matrix_diag has rank k+1
         shape = to_int_list(self.get_tensor_shape(diagonal))
-        # Diagonal's tensor has rank k. Therefore we remove the last dimension [:-1].
-        diag_shape = np.insert(shape[:-1], len(shape[:-1]) - 1, 1).astype(np.int32)
+        diag_shape = np.insert(shape, len(shape) - 1, 1).astype(np.int32)
         dtype = self.get_tensor_type_str(diagonal.tensor.Type())
+        shape = np.append(shape, shape[-1]).astype(np.int32)
         input_expr = _op.zeros(tuple(shape), dtype)
         diagonal_expr = self.get_tensor_expr(diagonal)
 
