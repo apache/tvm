@@ -236,7 +236,7 @@ class ConstantPoolInfo(PoolInfo):
         self,
         pool_name: str,
         targets,  # list[Target]
-        constant_info_arr=Nonde,  # list[ConstantInfo]
+        constant_info_arr=None,  # list[ConstantInfo]
         pool_info_properties=None,
     ):
         if constant_info_arr is None:
