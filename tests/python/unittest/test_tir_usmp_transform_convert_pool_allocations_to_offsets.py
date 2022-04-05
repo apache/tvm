@@ -141,8 +141,8 @@ class LinearStructure:
 class LinearStructurePlanned:
     @T.prim_func
     def __tvm_main__(input: T.handle, fast_memory_0_var: T.Ptr[T.uint8], slow_memory_1_var: T.Ptr[T.uint8],  output: T.handle) -> None:
-        fast_memory_0_buffer_var = T.match_buffer(fast_memory_0_var, [200704], dtype="uint8", strides=[1], elem_offset=1, align=16)
-        slow_memory_1_buffer_var = T.match_buffer(slow_memory_1_var, [1418528], dtype="uint8", strides=[1], elem_offset=1, align=16)
+        fast_memory_0_buffer_var = T.match_buffer(fast_memory_0_var, [200704], dtype="uint8", strides=[1], elem_offset=0, align=16)
+        slow_memory_1_buffer_var = T.match_buffer(slow_memory_1_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         T.attr("default", "device_id", 0)
         T.attr("default", "device_type", 1)
@@ -156,8 +156,8 @@ class LinearStructurePlanned:
     def tvmgen_default_fused_nn_max_pool2d_cast(placeholder_28: T.handle, T_cast_6: T.handle, fast_memory_6_var: T.Ptr[T.uint8], slow_memory_7_var: T.Ptr[T.uint8]) -> None:
         placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8")
         T_cast_7 = T.match_buffer(T_cast_6, [177], dtype="int16")
-        fast_memory_6_buffer_var = T.match_buffer(fast_memory_6_var, [200704], dtype="uint8", strides=[1], elem_offset=1, align=16)
-        slow_memory_7_buffer_var = T.match_buffer(slow_memory_7_var, [1418528], dtype="uint8", strides=[1], elem_offset=1, align=16)
+        fast_memory_6_buffer_var = T.match_buffer(fast_memory_6_var, [200704], dtype="uint8", strides=[1], elem_offset=0, align=16)
+        slow_memory_7_buffer_var = T.match_buffer(slow_memory_7_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         tensor_2_let = T.buffer_decl([200704], dtype="uint8")
         with T.let(tensor_2_let.data, T.address_of(fast_memory_6_buffer_var[0], dtype="handle")):
@@ -174,8 +174,8 @@ class LinearStructurePlanned:
         placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8")
         placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16")
         T_subtract_1 = T.match_buffer(T_subtract, [452], dtype="int16")
-        fast_memory_2_buffer_var = T.match_buffer(fast_memory_2_var, [200704], dtype="uint8", strides=[1], elem_offset=1, align=16)
-        slow_memory_3_buffer_var = T.match_buffer(slow_memory_3_var, [1418528], dtype="uint8", strides=[1], elem_offset=1, align=16)
+        fast_memory_2_buffer_var = T.match_buffer(fast_memory_2_var, [200704], dtype="uint8", strides=[1], elem_offset=0, align=16)
+        slow_memory_3_buffer_var = T.match_buffer(slow_memory_3_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         for ax0_ax1_fused_1, ax2_1, ax3_inner_1 in T.grid(224, 224, 3):
             T_subtract_1[ax0_ax1_fused_1 * 672 + ax2_1 * 3 + ax3_inner_1] = T.cast(placeholder_4[ax0_ax1_fused_1 * 672 + ax2_1 * 3 + ax3_inner_1], "int16") - placeholder_5[0]
@@ -186,8 +186,8 @@ class LinearStructurePlanned:
         placeholder_66 = T.match_buffer(placeholder_63, [9408], dtype="int16")
         placeholder_67 = T.match_buffer(placeholder_64, [64], dtype="int32")
         T_cast_21 = T.match_buffer(T_cast_20, [289], dtype="uint8")
-        fast_memory_4_buffer_var = T.match_buffer(fast_memory_4_var, [200704], dtype="uint8", strides=[1], elem_offset=1, align=16)
-        slow_memory_5_buffer_var = T.match_buffer(slow_memory_5_var, [1418528], dtype="uint8", strides=[1], elem_offset=1, align=16)
+        fast_memory_4_buffer_var = T.match_buffer(fast_memory_4_var, [200704], dtype="uint8", strides=[1], elem_offset=0, align=16)
+        slow_memory_5_buffer_var = T.match_buffer(slow_memory_5_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_7_let = T.buffer_decl([157323], "int16")
         with T.let(PaddedInput_7_let.data, T.address_of(slow_memory_5_buffer_var[802816], dtype="handle")):
@@ -371,7 +371,7 @@ class ResnetStructurePlanned:
         placeholder_2 = T.match_buffer(placeholder, [360000], dtype="uint8")
         placeholder_3 = T.match_buffer(placeholder_1, [64], dtype="int32")
         T_cast_1 = T.match_buffer(T_cast, [215], dtype="int16")
-        global_workspace_1_buffer_var = T.match_buffer(global_workspace_1_var, [7920256], dtype="uint8", strides=[1], elem_offset=1, align=16)
+        global_workspace_1_buffer_var = T.match_buffer(global_workspace_1_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         for ax0_ax1_fused, ax2, ax3_outer, ax3_inner in T.grid(75, 75, 4, 16):
             T_cast_1[ax0_ax1_fused * 4800 + ax2 * 64 + ax3_outer * 16 + ax3_inner] = T.cast(T.cast(T.max(T.min(T.q_multiply_shift(T.cast(placeholder_2[ax0_ax1_fused * 4800 + ax2 * 64 + ax3_outer * 16 + ax3_inner], "int32") - 94, 1843157232, 31, 1, dtype="int32") + placeholder_3[ax3_outer * 16 + ax3_inner], 255), 0), "uint8"), "int16")
@@ -383,7 +383,7 @@ class ResnetStructurePlanned:
         placeholder_26 = T.match_buffer(placeholder_24, [256], dtype="int32")
         placeholder_28 = T.match_buffer(placeholder_25, [1440000], dtype="int32")
         T_cast_7 = T.match_buffer(T_cast_6, [407], dtype="uint8")
-        global_workspace_5_buffer_var = T.match_buffer(global_workspace_5_var, [7920256], dtype="uint8", strides=[1], elem_offset=1, align=16)
+        global_workspace_5_buffer_var = T.match_buffer(global_workspace_5_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_3_let = T.buffer_decl([360000], 'int16')
         with T.let(PaddedInput_3_let.data, T.address_of(global_workspace_5_buffer_var[6480000], dtype="handle")):
@@ -406,7 +406,7 @@ class ResnetStructurePlanned:
         placeholder_20 = T.match_buffer(placeholder_17, [16384], dtype="int16")
         placeholder_21 = T.match_buffer(placeholder_18, [256], dtype="int32")
         T_add_1 = T.match_buffer(T_add, [407], dtype="int32")
-        global_workspace_4_buffer_var = T.match_buffer(global_workspace_4_var, [7920256], dtype="uint8", strides=[1], elem_offset=1, align=16)
+        global_workspace_4_buffer_var = T.match_buffer(global_workspace_4_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_2_let = T.buffer_decl([360000], "int16")
         with T.let(PaddedInput_2_let.data, T.address_of(global_workspace_4_buffer_var[7200000], dtype="handle")):
@@ -429,7 +429,7 @@ class ResnetStructurePlanned:
         placeholder_8 = T.match_buffer(placeholder_5, [4096], dtype="int16")
         placeholder_9 = T.match_buffer(placeholder_6, [64], dtype="int32")
         T_cast_3 = T.match_buffer(T_cast_2, [215], dtype="int16")
-        global_workspace_2_buffer_var = T.match_buffer(global_workspace_2_var, [7920256], dtype="uint8", strides=[1], elem_offset=1, align=16)
+        global_workspace_2_buffer_var = T.match_buffer(global_workspace_2_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_let = T.buffer_decl([360000], "int16")
         with T.let(PaddedInput_let.data, T.address_of(global_workspace_2_buffer_var[7200000], dtype="handle")):
@@ -451,7 +451,7 @@ class ResnetStructurePlanned:
         placeholder_14 = T.match_buffer(placeholder_11, [36864], dtype="int16")
         placeholder_15 = T.match_buffer(placeholder_12, [64], dtype="int32")
         T_cast_5 = T.match_buffer(T_cast_4, [215], dtype="int16")
-        global_workspace_3_buffer_var = T.match_buffer(global_workspace_3_var, [7920256], dtype="uint8", strides=[1], elem_offset=1, align=16)
+        global_workspace_3_buffer_var = T.match_buffer(global_workspace_3_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_1_let = T.buffer_decl([379456], "int16")
         with T.let(PaddedInput_1_let.data, T.address_of(global_workspace_3_buffer_var[0], dtype="handle")):
@@ -469,7 +469,7 @@ class ResnetStructurePlanned:
 
     @T.prim_func
     def __tvm_main__(input: T.handle, global_workspace_0_var: T.Ptr[T.uint8], output: T.handle) -> None:
-        global_workspace_0_buffer_var = T.match_buffer(global_workspace_0_var, [7920256], dtype="uint8", strides=[1], elem_offset=1, align=16)
+        global_workspace_0_buffer_var = T.match_buffer(global_workspace_0_var, [7920256], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         T.attr("default", "device_id", 0)
         T.attr("default", "device_type", 1)
