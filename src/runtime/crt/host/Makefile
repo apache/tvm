@@ -39,7 +39,7 @@ BUILD_DIR = build
 
 CRT_LIB_NAMES = \
 	microtvm_rpc_server microtvm_rpc_common \
-	aot_executor aot_executor_module \
+	aot_executor_module aot_executor \
 	graph_executor_module graph_executor \
 	common memory
 
