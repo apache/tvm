@@ -22,10 +22,29 @@ set -o pipefail
 
 # install libraries for building c++ core on ubuntu
 apt-get update && apt-get install -y --no-install-recommends \
-        git make google-mock libgtest-dev cmake wget unzip libtinfo-dev libz-dev \
-        libcurl4-openssl-dev libssl-dev libopenblas-dev g++ sudo \
-        apt-transport-https graphviz pkg-config curl ninja-build parallel \
-        lsb-core
+    apt-transport-https \
+    cmake \
+    curl \
+    g++ \
+    gdb \
+    git \
+    google-mock \
+    graphviz \
+    libcurl4-openssl-dev \
+    libgtest-dev \
+    libopenblas-dev \
+    libssl-dev \
+    libtinfo-dev \
+    libz-dev \
+    lsb-core \
+    make \
+    ninja-build \
+    parallel \
+    pkg-config \
+    sudo \
+    unzip \
+    wget \
+
 
 # Get Ubuntu version
 release=$(lsb_release -r)
