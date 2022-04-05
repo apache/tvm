@@ -260,185 +260,6 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
   std::vector<TensorType> return_ttypes_;
 };
 
-namespace {
-
-/*!
- * \brief Utility function to convert a concrete integer to a PrimExpr.
- * \param num the number to convert
- * \return PrimExpr representing num
- */
-inline PrimExpr ConstInt32(int32_t num) {
-  ICHECK_LE(num, std::numeric_limits<int>::max());
-  return tir::make_const(DataType::Int(32), static_cast<int>(num));
-}
-
-/*!
- * \brief Emit a call to the C Device API.
- * \param device_name Name of the device, used to prefix the function name.
- * \param hook Name of the Device API function.
- * \param context void* context arg passed to this API function.
- */
-tir::Stmt MakeDeviceHookCall(const std::string& device_name, const std::string& hook,
-                             PrimExpr context) {
-  Array<String> sections = {"Device", device_name, hook};
-  String device_hook = ToCFunctionStyle(PrefixName(sections));
-
-  return tir::Evaluate(tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(),
-                                 {tvm::tir::StringImm(device_hook), context}));
-}
-}  // namespace
-
-class AOTCallGenerator {
- public:
-  explicit AOTCallGenerator(std::string func_name)
-      : func_name_{func_name}, args_{tvm::tir::StringImm(func_name)} {}
-
-  tir::Var PushArg(PrimExpr arg) {
-    if (!arg->IsInstance<tir::VarNode>()) {
-      arg = MakeLetBind(arg);
-    }
-    args_.push_back(arg);
-    return Downcast<tir::Var>(arg);
-  }
-
-  void PushStackDLTensor(const TensorType& ttype, PrimExpr data) {
-    auto dltensor_var = MakeLetBind(StackAlloca("array", 1));
-    auto shape_var = MakeLetBind(StackAlloca("shape", ttype->shape.size()));
-
-    // Populate DLTensor.data
-    prep_stmts_.push_back(
-        tir::Evaluate(tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                                     {dltensor_var, 0, tir::builtin::kArrData, data})));
-
-    // Populate DLTensor.device
-    prep_stmts_.push_back(
-        tir::Evaluate(tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                                     {dltensor_var, 0, tir::builtin::kArrDeviceType, kDLCPU})));
-    prep_stmts_.push_back(
-        tir::Evaluate(tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                                     {dltensor_var, 0, tir::builtin::kArrDeviceId, 0})));
-
-    // Populate DLTensor.ndim
-    prep_stmts_.push_back(tir::Evaluate(tvm::tir::Call(
-        DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-        {dltensor_var, 0, tir::builtin::kArrNDim, static_cast<int32_t>(ttype->shape.size())})));
-
-    // Populate DLTensor.dtype
-    prep_stmts_.push_back(
-        tir::Evaluate(tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                                     {dltensor_var, 0, tir::builtin::kArrTypeCode,
-                                      IntImm(DataType(kDLUInt, 8, 1), ttype->dtype.code())})));
-    prep_stmts_.push_back(
-        tir::Evaluate(tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                                     {dltensor_var, 0, tir::builtin::kArrTypeBits,
-                                      IntImm(DataType(kDLUInt, 8, 1), ttype->dtype.bits())})));
-    prep_stmts_.push_back(
-        tir::Evaluate(tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                                     {dltensor_var, 0, tir::builtin::kArrTypeLanes,
-                                      IntImm(DataType(kDLUInt, 16, 1), ttype->dtype.lanes())})));
-
-    // Populate DLTensor.shape
-    for (size_t i = 0; i < ttype->shape.size(); ++i) {
-      prep_stmts_.push_back(tvm::tir::Store(
-          shape_var, IntImm(DataType(kDLInt, 64, 1), Downcast<IntImm>(ttype->shape[i])->value),
-          IntImm(DataType(kDLUInt, 64, 1), i), tir::const_true()));
-    }
-
-    prep_stmts_.push_back(
-        tir::Evaluate(tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                                     {dltensor_var, 0, tir::builtin::kArrShape, shape_var})));
-
-    // Populate DLTensor.strides. DNS -- TODO actually pull correct byte_offset
-    prep_stmts_.push_back(tir::Evaluate(tvm::tir::Call(
-        DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-        {dltensor_var, 0, tir::builtin::kArrStrides, IntImm(DataType(kDLUInt, 64, 1), 0)})));
-
-    // Populate DLTensor.byte_offset. DNS -- TODO actually pull correct byte_offset
-    prep_stmts_.push_back(tir::Evaluate(tvm::tir::Call(
-        DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-        {dltensor_var, 0, tir::builtin::kArrByteOffset, IntImm(DataType(kDLUInt, 64, 1), 0)})));
-
-    args_.push_back(dltensor_var);
-  }
-
-  void PushStackDLTensors(const Expr& expr, std::vector<tir::Var> sids) {
-    const TupleNode* t = expr.as<TupleNode>();
-    if (t != nullptr) {
-      CHECK_EQ(sids.size(), t->fields.size()) << "Relay tuple does not map 1:1 into TIR; AOT can't "
-                                                 "handle this type of Relay Expr in a CallNode.";
-      for (size_t i = 0; i < sids.size(); i++) {
-        PushStackDLTensor(Downcast<TensorType>(t->fields[i]->checked_type()), sids[i]);
-      }
-    } else {
-      PushStackDLTensor(Downcast<TensorType>(expr->checked_type()), sids[0]);
-    }
-  }
-
-  tir::Stmt GenerateUnpacked(std::string device_name, PrimExpr device_context) {
-    auto make_call = [this] {
-      return tir::Evaluate(
-          tvm::tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(), args_));
-    };
-    if (device_context.defined()) {
-      tir::Var context_var = PushArg(device_context);
-      return Generate(tir::SeqStmt({
-          MakeDeviceHookCall(device_name, "Open", context_var),
-          make_call(),
-          MakeDeviceHookCall(device_name, "Close", context_var),
-      }));
-    } else {
-      return Generate(make_call());
-    }
-  }
-
-  tir::Stmt GeneratePacked() {
-    return Generate(
-        tir::Evaluate(tvm::tir::Call(DataType::Int(32), tir::builtin::tvm_call_packed(), args_)));
-  }
-
-  tir::Stmt GenerateCPacked() {
-    // call_cpacked calling convention does not use a context
-    PushArg(tir::make_zero(DataType::Handle()));
-    return Generate(
-        tir::Evaluate(tvm::tir::Call(DataType::Int(32), tir::builtin::tvm_call_cpacked(), args_)));
-  }
-
- private:
-  tir::Stmt Generate(tir::Stmt call_stmts) {
-    tir::Stmt body = tir::SeqStmt::Flatten(prep_stmts_, call_stmts);
-
-    for (auto bind : let_binds_) {
-      body = tir::LetStmt(bind.first, bind.second, body);
-    }
-
-    return body;
-  }
-
-  tir::Var MakeLetBind(PrimExpr expr) {
-    std::stringstream ss;
-    ss << func_name_ << "_let" << let_binds_.size();
-    tir::Var v{ss.str(), DataType::Handle()};
-    let_binds_.emplace_back(std::make_pair(v, expr));
-    return v;
-  }
-
-  /*!
-   * \brief Utility function to allocate a DLTensor or TVMValue
-   * \param  type the type of allocation
-   * \param num the number of variable to allocate on the stack
-   * \return PrimExpr representing the allocated object
-   */
-  PrimExpr StackAlloca(std::string type, size_t num) {
-    Array<PrimExpr> args = {tir::StringImm(type), ConstInt32(num)};
-    return tir::Call(DataType::Handle(), tir::builtin::tvm_stack_alloca(), args);
-  }
-
-  std::string func_name_;
-  tvm::Array<PrimExpr> args_;
-  std::vector<std::pair<tir::Var, PrimExpr>> let_binds_;
-  Array<tir::Stmt> prep_stmts_;
-};
-
 /*! \brief Code generator for AOT executor */
 class AOTExecutorCodegen : public MixedModeVisitor {
  protected:
@@ -578,7 +399,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    * returns the passed Call
    */
   tir::Call AddCheckReturn(tir::Call existing_call) {
-    Array<PrimExpr> args = {ConstInt32(0), ConstInt32(-1), existing_call};
+    Array<PrimExpr> args = {tir::make_const(DataType::Int(32, 1), 0, Span()), tir::make_const(DataType::Int(32, 1), -1, Span()), existing_call};
     return tir::Call(DataType::Int(32), tir::builtin::tvm_check_return(), args);
   }
 
@@ -687,7 +508,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     auto retval_i = tir::BufferLoad(tmp_read, {loop_idx});
     // Copy the variable from the input to the output
     tir::Stmt copy =
-        tir::For(loop_idx, 0, ConstInt32(size), tir::ForKind::kSerial,
+        tir::For(loop_idx, 0, tir::make_const(DataType::Int(32, 1), size, Span()), tir::ForKind::kSerial,
                  tir::BufferStore(tmp_write, tir::Let(tmp_read->data, in, retval_i), {loop_idx}));
     stmts_.push_back(tir::LetStmt(tmp_write->data, out, copy));
   }
@@ -757,7 +578,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       return it.second->name_hint == context->name_hint;
     });
     const String& device_name = (*it).first;
-    return MakeDeviceHookCall(device_name, hook, context);
+    Array<String> sections = {"Device", device_name, hook};
+    String device_hook = ToCFunctionStyle(PrefixName(sections));
+
+    return tir::Evaluate(tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(),
+                                   {tvm::tir::StringImm(device_hook), context}));
   }
 
   /*!
@@ -927,7 +752,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
       for (int i = 0; i < ndim; i++) {
         int shape = kv.second->data->shape[i];
-        extents.push_back(tir::make_const(DataType::Int(32), shape));
+        extents.push_back(tir::make_const(DataType::Int(32), shape, Span()));
       }
       body = tir::AllocateConst(buffer_var, dtype, extents, kv.second->data, body);
     }

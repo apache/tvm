@@ -37,10 +37,30 @@
 
 namespace tvm {
 namespace codegen {
-
 namespace metadata {
 
+/*!
+ * \brief Construct a unique string "address" for a struct member from a vector of pieces.
+ *
+ * In codegen, it is frequently necessary to assemble a C-style identifier for an
+ * otherwise-anonymous member of Metadata. For instance, suppose Metadata declares an array:
+ * struct TVMMetadata {
+ *   int64_t* shape;
+ * };
+ *
+ * In order to properly initialize this struct, the array must be declared separately with a global name.
+ * This function produces such a name, here termed "address."
+ *
+ * \param parts A vector of pieces, typically the struct member names which identify the path to
+ *  this member.
+ * \return The joined pieces.
+ */
 std::string address_from_parts(const std::vector<std::string>& parts);
+
+/*!
+ * \brief A prefix in metadata symbol names.
+ * This prefix is typically given to address_from_parts as the 0th item in parts.
+ */
 static constexpr const char* kMetadataGlobalSymbol = "kTvmgenMetadata";
 
 /*!

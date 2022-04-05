@@ -406,6 +406,17 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
                                              unsigned int shared_address_space, int alignment,
                                              llvm::GlobalValue::LinkageTypes linkage);
 
+  /*!
+   * \brief Get the `i`th argument to the given function, respecting LLVM API changes.
+   *
+   * NOTE: in LLVM < 10.0, the underlying API returns a const llvm::Argument*. To provide a uniform
+   * API, const is removed here. Proper usage of LLVM APIs depends on having a non-const Argument*,
+   * so we take this appraoch here rather than adding const.
+   *
+   * \param function The function containing the arguments.
+   * \param i The index of the argument to retrieve.
+   * \return The retrieved argument.
+   */
   llvm::Argument* GetArg(const llvm::Function* function, int i) const {
 #if TVM_LLVM_VERSION >= 100
     return function->getArg(i);

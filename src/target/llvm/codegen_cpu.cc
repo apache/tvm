@@ -807,10 +807,6 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
                                                          bool use_string_lookup) {
   PackedCall pc;
   std::string func_name = args[0].as<StringImmNode>()->value;
-  llvm::Value* handle = nullptr;
-  if (use_string_lookup) {
-    handle = GetPackedFuncHandle(func_name);
-  }
   // call the function
   int64_t nargs = end - begin;
   ICHECK_GE(nargs, 0);
@@ -834,7 +830,9 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
   if (use_string_lookup) {
     callee_ftype = ftype_tvm_func_call_;
     callee_value = RuntimeTVMFuncCall();
-    call_args.push_back(handle);
+    call_args.push_back(GetPackedFuncHandle(func_name));
+    call_args.insert(call_args.end(),
+                     {arg_value, arg_tcode.addr, ConstInt32(nargs), ret_value, ret_tcode.addr});
   } else {
     callee_ftype = ftype_tvm_backend_packed_c_func_;
     callee_value = module_->getFunction(func_name);
@@ -843,12 +841,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
           llvm::Function::Create(ftype_tvm_backend_packed_c_func_, llvm::Function::ExternalLinkage,
                                  func_name, module_.get());
     }
-  }
 
-  if (use_string_lookup) {
-    call_args.insert(call_args.end(),
-                     {arg_value, arg_tcode.addr, ConstInt32(nargs), ret_value, ret_tcode.addr});
-  } else {
     nargs -= 1;
     call_args.insert(call_args.end(), {
                                           builder_->CreateBitCast(arg_value, t_void_p_),
@@ -1048,13 +1041,10 @@ class MetadataTypeDefiner : public AttrVisitor {
 
   void DefineType(runtime::metadata::MetadataBase metadata) {
     ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
-    LOG(INFO) << "Created type for " << metadata->GetTypeKey() << ":";
     for (auto e : elements_) {
       std::string value;
       llvm::raw_string_ostream os(value);
       e->print(os, true);
-      //      LOG(INFO) << " - " << e << ", tyid=" << e->getTypeID() << " == " << value;
-      //      e->dump();
     }
     llvm_types_->structs_by_type_key[metadata->GetTypeKey()] =
         llvm::StructType::create(*ctx_, elements_, metadata->get_c_struct_name());
@@ -1120,18 +1110,6 @@ class MetadataSerializerLLVM : public AttrVisitor {
     auto struct_ty = llvm_types_->structs_by_type_key[metadata->GetTypeKey()];
     ICHECK(struct_ty != nullptr) << "Did not find LLVM StructType* for type_key="
                                  << metadata->GetTypeKey();
-    std::string ty_value;
-    llvm::raw_string_ostream ty_os(ty_value);
-    struct_ty->print(ty_os, true);
-    LOG(INFO) << "Get LLVM ConstantStruct (" << struct_elements.size() << " elements)";
-    LOG(INFO) << "  Type (" << metadata->GetTypeKey() << "==" << struct_ty->getName().data()
-              << "): " << ty_value;
-    for (auto e : struct_elements) {
-      std::string value;
-      llvm::raw_string_ostream os(value);
-      e->print(os);
-      LOG(INFO) << " - " << value;
-    }
     CHECK_EQ(struct_elements.size(), struct_ty->getNumElements());
     auto out = llvm::ConstantStruct::get(struct_ty, struct_elements);
     if (elements_.size() > 0) {

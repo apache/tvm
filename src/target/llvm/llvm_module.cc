@@ -554,11 +554,6 @@ runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata
       << "LLVM module verification failed with the following errors: \n"
       << verify_errors.str();
 
-  // std::string tmp;
-  // llvm::raw_string_ostream stream(tmp);
-  // mod->print(stream, nullptr);
-  // LOG(INFO) << "LLVM metadata IR: " << stream.str();
-
   auto n = make_object<LLVMModuleNode>();
   n->Init(std::move(mod), ctx);
 
