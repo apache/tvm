@@ -47,14 +47,6 @@
 namespace tvm {
 namespace runtime {
 namespace hexagon {
-
-/*! \brief Unpack HexagonBuffers in packed functions
- *  prior to invoking.
- *  \param faddr The function address.
- *  \param mptr The module pointer node.
- *  \return A packed function wrapping the requested function.
- */
-PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& mptr);
 }  // namespace hexagon
 }  // namespace runtime
 }  // namespace tvm
