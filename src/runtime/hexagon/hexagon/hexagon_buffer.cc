@@ -205,34 +205,8 @@ void HexagonBuffer::SetStorageScope(Optional<String> scope) {
   }
 }
 
-struct BufferSet {
-  BufferSet(void* const* buffers, size_t num_regions, size_t region_size_bytes)
-      : buffers(buffers), num_regions(num_regions), region_size_bytes(region_size_bytes) {}
-
-  size_t TotalBytes() const { return num_regions * region_size_bytes; }
-
-  void* const* buffers;
-  size_t num_regions;
-  size_t region_size_bytes;
-};
-
-struct MemoryCopy {
-  MemoryCopy(void* dest, void* src, size_t num_bytes)
-      : dest(dest), src(src), num_bytes(num_bytes) {}
-
-  bool IsDirectlyBefore(const MemoryCopy& other) {
-    void* src_end = static_cast<unsigned char*>(src);
-    void* dest_end = static_cast<unsigned char*>(dest);
-    return (src_end == other.src) && (dest_end == other.dest);
-  }
-
-  void* dest;
-  void* src;
-  size_t num_bytes;
-};
-
-void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& src,
-                                        size_t bytes_to_copy) {
+std::vector<MemoryCopy> BufferSet::MemoryCopies(const BufferSet& dest, const BufferSet& src,
+                                                size_t bytes_to_copy) {
   CHECK_LE(bytes_to_copy, src.TotalBytes());
   CHECK_LE(bytes_to_copy, dest.TotalBytes());
 
@@ -265,8 +239,10 @@ void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& 
     }
   }
 
-  // If regions are contiguously allocated, we can reduce the number
-  // of copies required by merging adjacent copies.
+  return micro_copies;
+}
+
+std::vector<MemoryCopy> MemoryCopy::MergeAdjacent(std::vector<MemoryCopy> micro_copies) {
   std::sort(micro_copies.begin(), micro_copies.end(),
             [](const MemoryCopy& a, const MemoryCopy& b) { return a.src < b.src; });
 
@@ -278,6 +254,19 @@ void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& 
       macro_copies.push_back(copy);
     }
   }
+
+  return macro_copies;
+}
+
+void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& src,
+                                        size_t bytes_to_copy) {
+  // First, determine all copies that do not cross boundaries in
+  // either source or destination region.
+  auto micro_copies = BufferSet::MemoryCopies(dest, src, bytes_to_copy);
+
+  // If regions are contiguously allocated, we can reduce the number
+  // of copies required by merging adjacent copies.
+  auto macro_copies = MemoryCopy::MergeAdjacent(std::move(micro_copies));
 
   // Finally, do the memory copies.
   for (const auto& copy : macro_copies) {
