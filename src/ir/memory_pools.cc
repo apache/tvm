@@ -27,11 +27,10 @@
 
 namespace tvm {
 
-PoolInfo::PoolInfo(String pool_name, Map<Target, String> target_access, Integer size_hint_bytes,
-                   Integer clock_frequency_hz, Integer read_bandwidth_bytes_per_cycle,
-                   Integer write_bandwidth_bytes_per_cycle, Integer read_latency_cycles,
-                   Integer write_latency_cycles, Map<Target, Integer> target_burst_bytes,
-                   Bool is_internal) {
+PoolInfo::PoolInfo(String pool_name, Integer size_hint_bytes, Integer clock_frequency_hz,
+                   Integer read_bandwidth_bytes_per_cycle, Integer write_bandwidth_bytes_per_cycle,
+                   Integer read_latency_cycles, Integer write_latency_cycles,
+                   Map<Target, Integer> target_burst_bytes, Bool is_internal) {
   auto poolinfo_node = make_object<PoolInfoNode>();
   poolinfo_node->pool_name = pool_name;
   poolinfo_node->size_hint_bytes = size_hint_bytes;
@@ -222,4 +221,21 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << "pools=" << node->pools << ")";
     });
 
+ConstantMemoryPools::ConstantMemoryPools(Array<ConstantPoolInfo> pools) {
+  auto constant_memory_pools_node = make_object<ConstantMemoryPoolsNode>();
+  constant_memory_pools_node->pools = pools;
+  data_ = std::move(constant_memory_pools_node);
+}
+
+TVM_REGISTER_NODE_TYPE(ConstantMemoryPoolsNode);
+TVM_REGISTER_GLOBAL("ir.ConstantMemoryPools").set_body_typed([](Array<ConstantPoolInfo> pools) {
+  return ConstantMemoryPools(pools);
+});
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ConstantMemoryPoolsNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const ConstantMemoryPoolsNode*>(ref.get());
+      p->stream << "ConstnatnMemoryPoolsNode(\n"
+                << "pools=" << node->pools << ")";
+    });
 }  // namespace tvm

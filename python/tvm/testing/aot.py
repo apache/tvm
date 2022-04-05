@@ -592,6 +592,7 @@ def compile_models(
     use_runtime_executor: bool = True,
     target: tvm.target.Target = tvm.target.Target("c"),
     workspace_memory_pools=None,
+    constant_memory_pools=None,
     schedule_name: str = None,
 ) -> List[AOTCompiledTestModel]:
     """
@@ -632,6 +633,7 @@ def compile_models(
                             executor=executor,
                             runtime=runtime,
                             workspace_memory_pools=workspace_memory_pools,
+                            constant_memory_pools=constant_memory_pools,
                             params=model.params,
                             mod_name=model.name,
                         )
@@ -658,6 +660,7 @@ def compile_models(
                         executor=executor,
                         runtime=runtime,
                         workspace_memory_pools=workspace_memory_pools,
+                        constant_memory_pools=constant_memory_pools,
                         params=model.params,
                         mod_name=model.name,
                     )

@@ -236,27 +236,31 @@ class ConstantPoolInfo(PoolInfo):
         self,
         pool_name: str,
         targets,  # list[Target]
+        constant_info_arr=Nonde,  # list[ConstantInfo]
         pool_info_properties=None,
     ):
+        if constant_info_arr is None:
+            constant_info_arr = []
         if pool_info_properties is None:
             pool_info_properties = PoolInfoProperties()
         self.__init_handle_by_constructor__(
             _ffi_api.ConstantPoolInfo,  # type: ignore # pylint: disable=no-member
             pool_name,
             targets,
+            constant_info_arr,
             pool_info_properties,
         )
 
 
 @register_object("ir.WorkspaceMemoryPools")
 class WorkspaceMemoryPools(Object):
-    """This object contains a list of PoolInfo objects to be used as
+    """This object contains a list of WorkspacePoolInfo objects to be used as
     workspace memory in the compilation
 
     Parameters
     ----------
-    pools : List[PoolInfo]
-        The list of PoolInfo objects to be used with the compilation
+    pools : List[WorkspacePoolInfo]
+        The list of ConstantPoolInfo objects to be used with the compilation
     """
 
     def __init__(
@@ -265,4 +269,24 @@ class WorkspaceMemoryPools(Object):
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.WorkspaceMemoryPools, pools  # type: ignore # pylint: disable=no-member
+        )
+
+
+@register_object("ir.ConstantMemoryPools")
+class ConstantMemoryPools(Object):
+    """This object contains a list of ConstantPoolInfo objects to be used as
+    read-only memory in the compilation
+
+    Parameters
+    ----------
+    pools : List[ConstantPoolInfo]
+        The list of ConstantPoolInfo objects to be used with the compilation
+    """
+
+    def __init__(
+        self,
+        pools: List[ConstantPoolInfo],
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.ConstantMemoryPools, pools  # type: ignore # pylint: disable=no-member
         )

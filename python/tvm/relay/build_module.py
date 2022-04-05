@@ -80,6 +80,7 @@ class BuildModule(object):
         executor=Executor("graph"),
         runtime=Runtime("cpp"),
         workspace_memory_pools=None,
+        constant_memory_pools=None,
         params=None,
         mod_name=None,
     ):
@@ -111,8 +112,13 @@ class BuildModule(object):
             Defaults to "cpp" if no runtime specified.
 
         workspace_memory_pools : Optional[WorkspaceMemoryPools]
-            The object that contains an Array of PoolInfo objects
-            that hold properties of workspace pools that could be
+            The object that contains an Array of WorkspacePoolInfo objects
+            that hold properties of read-write workspace pools that could be
+            used by the inference.
+
+        constant_memory_pools : Optional[ConstantMemoryPools]
+            The object that contains an Array of ConstantPoolInfo objects
+            that hold properties of read-only memory pools that could be
             used by the inference.
 
         params : dict of str to NDArray
@@ -151,7 +157,16 @@ class BuildModule(object):
 
         mod_name = mangle_module_name(mod_name)
 
-        self._build(mod, raw_targets, executor, runtime, workspace_memory_pools, mod_name)
+        self._build(
+            mod,
+            target,
+            target_host,
+            executor,
+            runtime,
+            workspace_memory_pools,
+            constant_memory_pools,
+            mod_name,
+        )
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts
@@ -328,6 +343,7 @@ def build(
     executor=Executor("graph"),
     runtime=Runtime("cpp"),
     workspace_memory_pools=None,
+    constant_memory_pools=None,
     params=None,
     mod_name="default",
 ):
@@ -357,8 +373,13 @@ def build(
         Defaults to "cpp" if no runtime specified.
 
     workspace_memory_pools : Optional[WorkspaceMemoryPools]
-        The object that contains an Array of PoolInfo objects
-        that hold properties of workspace pools that could be
+        The object that contains an Array of WorkspacePoolInfo objects
+        that hold properties of read-write workspace pools that could be
+        used by the inference.
+
+    constant_memory_pools : Optional[ConstantMemoryPools]
+        The object that contains an Array of ConstantPoolInfo objects
+        that hold properties of read-only pools that could be
         used by the inference.
 
     params : dict of str to NDArray
@@ -420,6 +441,7 @@ def build(
             executor=executor,
             runtime=runtime,
             workspace_memory_pools=workspace_memory_pools,
+            constant_memory_pools=constant_memory_pools,
             mod_name=mod_name,
         )
         func_metadata = bld_mod.get_function_metadata()

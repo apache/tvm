@@ -48,28 +48,37 @@ class PoolInfoAssigner : public StmtExprMutator {
     ICHECK(target_host) << "main function does not have a target attr";
     WorkspaceMemoryPools workspace_pools =
         module->GetAttr<WorkspaceMemoryPools>(tvm::attr::kWorkspaceMemoryPools)
-            .value_or(WorkspaceMemoryPools(
-                {CreateDefaultMemoryPool(module),
-                 ConstantPoolInfo(
-                     "global_const_workspace", {target_host.value()}, {},
-                     PoolInfoProperties(kUnrestrictedPoolSizeHint, kUnknownClockFrequency,
-                                        kUnknownReadBandwidth, kUnknownWriteBandwidth, 0, 0,
-                                        {{target_host.value(), 1}}, Bool(true)))}));
-    Array<PoolInfo> pool_infos = workspace_pools->pools;
-    // split by access
-    for (const PoolInfo& pool_info : pool_infos) {
-      auto& pool_map = pool_info->IsInstance<ConstantPoolInfoNode>() ? target_const_pool_infos_
-                                                                     : target_pool_infos_;
-      for (const auto& tgt : pool_info->targets) {
-        if (pool_map.find(tgt->str()) == pool_map.end()) {
-          pool_map.Set(tgt->str(), Array<PoolInfo>());
+            .value_or(WorkspaceMemoryPools({CreateDefaultMemoryPool(module)}));
+    // make default ConstantPoolInfo if no constant and no workspace pool infos supplied
+    ConstantMemoryPools constant_pools =
+        module->GetAttr<ConstantMemoryPools>(tvm::attr::kConstantMemoryPools)
+            .value_or(
+                module->GetAttr<WorkspaceMemoryPools>(tvm::attr::kWorkspaceMemoryPools).defined()
+                    ? ConstantMemoryPools()
+                    : ConstantMemoryPools({ConstantPoolInfo(
+                          "global_const_workspace", {target_host.value()}, {},
+                          PoolInfoProperties(kUnrestrictedPoolSizeHint, kUnknownClockFrequency,
+                                             kUnknownReadBandwidth, kUnknownWriteBandwidth, 0, 0,
+                                             {{target_host.value(), 1}}, Bool(true)))}));
+    auto to_map = [](auto pool_infos) {
+      Map<String, Array<PoolInfo>> pool_map;
+      for (const PoolInfo& pool_info : pool_infos) {
+        for (const auto& tgt : pool_info->targets) {
+          if (pool_map.find(tgt->str()) == pool_map.end()) {
+            pool_map.Set(tgt->str(), Array<PoolInfo>());
+          }
+          Array<PoolInfo> pool_info_arr = pool_map[tgt->str()];
+          pool_info_arr.push_back(pool_info);
+          pool_map.Set(tgt->str(), pool_info_arr);
         }
-        Array<PoolInfo> pool_info_arr = pool_map[tgt->str()];
-        pool_info_arr.push_back(pool_info);
-        pool_map.Set(tgt->str(), pool_info_arr);
       }
-    }
+      return pool_map;
+    };
 
+    target_pool_infos_ = to_map(workspace_pools->pools);
+    if (constant_pools.defined()) {
+      target_const_pool_infos_ = to_map(constant_pools->pools);
+    }
     mod_ = module->ShallowCopy();
   }
 

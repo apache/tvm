@@ -35,6 +35,7 @@ from .memory_pools import (
     WorkspacePoolInfo,
     ConstantPoolInfo,
     WorkspaceMemoryPools,
+    ConstantMemoryPools,
     PoolInfoProperties,
 )
 

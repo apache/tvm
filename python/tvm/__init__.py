@@ -48,6 +48,7 @@ from .ir import WorkspacePoolInfo
 from .ir import ConstantPoolInfo
 from .ir import PoolInfoProperties
 from .ir import WorkspaceMemoryPools
+from .ir import ConstantMemoryPools
 from . import ir
 
 # tvm.tir

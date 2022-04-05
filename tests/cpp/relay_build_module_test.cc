@@ -128,8 +128,8 @@ TEST(Relay, BuildModule) {
   Array<Target> targets = {llvm_tgt};
   auto relay_mod = tvm::IRModule::FromExpr(func);
   ICHECK(relay_mod.defined()) << "Module must be defined";
-  build_f(relay_mod, targets, Executor::Create("graph"), Runtime::Create("cpp"),
-          WorkspaceMemoryPools(), "");
+  build_f(relay_mod, targets, llvm_tgt, Executor::Create("graph"), Runtime::Create("cpp"),
+          WorkspaceMemoryPools(), ConstantMemoryPools(), "");
   std::string json = json_f();
   tvm::runtime::Module mod = mod_f();
   // run
