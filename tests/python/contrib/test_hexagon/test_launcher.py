@@ -181,7 +181,7 @@ def test_graph_executor(hexagon_session):
     if hexagon_session is None:
         pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
-    graph_mod = hexagon_session.get_graph_executor(lowered)
+    graph_mod = hexagon_session.get_executor(lowered)
     graph_mod.set_input(**params)
     graph_mod.run(**inputs)
     hexagon_output = graph_mod.get_output(0).numpy()
@@ -261,7 +261,7 @@ def test_graph_executor_multiple_conv2d(hexagon_session):
     params = {"weight1": weight1_data, "weight2": weight2_data}
     inputs = {"data": input_data}
 
-    graph_mod = hexagon_session.get_graph_executor(lowered)
+    graph_mod = hexagon_session.get_executor(lowered)
     graph_mod.set_input(**params)
     graph_mod.run(**inputs)
     hexagon_output = graph_mod.get_output(0).numpy()
@@ -335,7 +335,7 @@ def test_aot_executor(hexagon_session):
     if hexagon_session is None:
         pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
 
-    aot_mod = hexagon_session.get_aot_executor(lowered)
+    aot_mod = hexagon_session.get_executor(lowered)
     aot_mod.set_input(**inputs)
     aot_mod.run()
     hexagon_output = aot_mod.get_output(0).numpy()
@@ -415,7 +415,7 @@ def test_aot_executor_multiple_conv2d(hexagon_session):
     if hexagon_session is None:
         pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
 
-    aot_mod = hexagon_session.get_aot_executor(lowered)
+    aot_mod = hexagon_session.get_executor(lowered)
     aot_mod.set_input(**inputs)
     aot_mod.run()
     hexagon_output = aot_mod.get_output(0).numpy()

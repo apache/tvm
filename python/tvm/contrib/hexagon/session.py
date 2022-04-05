@@ -25,7 +25,11 @@ from typing import Union, Optional
 import tvm
 from tvm import rpc as _rpc
 import tvm.contrib.hexagon as hexagon
-from tvm.relay.backend.executor_factory import ExecutorFactoryModule
+from tvm.relay.backend.executor_factory import (
+    ExecutorFactoryModule,
+    AOTExecutorFactoryModule,
+    GraphExecutorFactoryModule,
+)
 
 
 class Session:
@@ -141,7 +145,7 @@ class Session:
 
     def get_graph_executor(
         self,
-        module: Union[str, pathlib.Path, ExecutorFactoryModule],
+        module: Union[str, pathlib.Path, GraphExecutorFactoryModule],
         graph_json: Optional[str] = None,
     ):
         """Create a local GraphModule which consumes a remote libmod.
@@ -152,10 +156,10 @@ class Session:
         Parameters
         ----------
 
-        module : Union[str, pathlib.Path, ExecutorFactoryModule]
+        module : Union[str, pathlib.Path, GraphExecutorFactoryModule]
 
             The module to load.  If `module` is a
-            `ExecutorFactoryModule`, it will be uploaded to the remote
+            `GraphExecutorFactoryModule`, it will be uploaded to the remote
             session and loaded.  In this case, `graph_json` should be
             None.
 
@@ -183,7 +187,7 @@ class Session:
             self.device is not None
         ), "Hexagon session must be started using __enter__ prior to use"
 
-        if isinstance(module, ExecutorFactoryModule):
+        if isinstance(module, GraphExecutorFactoryModule):
             assert graph_json is None, "May not specify graph_json if full module is provided"
             graph_json = module.get_graph_json()
             graph_mod = self.load_module(module.get_lib())
@@ -197,7 +201,7 @@ class Session:
 
     def get_aot_executor(
         self,
-        module: Union[str, pathlib.Path, ExecutorFactoryModule],
+        module: Union[str, pathlib.Path, AOTExecutorFactoryModule],
     ):
         """Create a local GraphModule which consumes a remote libmod.
 
@@ -207,10 +211,10 @@ class Session:
         Parameters
         ----------
 
-        module : Union[str, pathlib.Path, ExecutorFactoryModule]
+        module : Union[str, pathlib.Path, AOTExecutorFactoryModule]
 
             The module to load.  If `module` is a
-            `ExecutorFactoryModule`, it will be uploaded to the remote
+            `AOTExecutorFactoryModule`, it will be uploaded to the remote
             session and loaded.
 
             If `module` is a string or `pathlib.Path`, it must be
@@ -273,3 +277,21 @@ class Session:
 
         aot_mod = self.load_module(module)
         return tvm.runtime.executor.AotModule(aot_mod["default"](self.device))
+
+    def get_executor(self, module: ExecutorFactoryModule):
+        """Create a local GraphModule which consumes a remote libmod.
+
+        Parameters
+        ----------
+
+        module : ExecutorFactoryModule
+
+            The module to upload to the remote
+            session and load.
+        """
+        if isinstance(module, AOTExecutorFactoryModule):
+            return self.get_aot_executor(module)
+        elif isinstance(module, GraphExecutorFactoryModule):
+            return self.get_graph_executor(module)
+        else:
+            raise TypeError(f"Unsupported executor type: {type(module)}")
