@@ -84,7 +84,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::FunctionType* ftype_tvm_static_init_callback_{nullptr};
   llvm::FunctionType* ftype_tvm_static_init_{nullptr};
 
- //private:
+ private:
   // the parallel group information
   struct ParallelEnv {
     Var task_id;

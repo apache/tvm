@@ -60,8 +60,6 @@ class CodeGenHexagon final : public CodeGenCPU {
             bool system_lib, bool dynamic_lookup, bool target_c_runtime) override;
   void InitTarget(llvm::TargetMachine* tm) final;
 
-  llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
-                                bool skip_first_arg) override;
   llvm::Module* GetModulePtr() const { return module_.get(); }
 
  protected:
@@ -74,10 +72,6 @@ class CodeGenHexagon final : public CodeGenCPU {
 
   llvm::GlobalVariable* InitContextPtr(llvm::Type* type, std::string name);
   llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
-  std::vector<std::pair<std::string, llvm::Value*>> export_system_symbols_;
-
-  // create call into tvm packed function.
-  llvm::Value* CreateCallPacked(const CallNode* op);
 };
 
 void CodeGenHexagon::Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
@@ -102,45 +96,6 @@ void CodeGenHexagon::InitTarget(llvm::TargetMachine* tm) {
     native_vector_bits_ = hvx_bytes * 8;
   }
   CodeGenLLVM::InitTarget(tm);
-}
-
-llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, String global_symbol,
-                                              const Array<PrimExpr>& args, bool skip_first_arg) {
-  std::vector<llvm::Value*> arg_values;
-  for (size_t i = skip_first_arg; i < args.size(); ++i) {
-    arg_values.push_back(MakeValue(args[i]));
-  }
-  std::vector<llvm::Type*> arg_types;
-  for (llvm::Value* v : arg_values) {
-    arg_types.push_back(v->getType());
-  }
-  llvm::FunctionType* ftype = llvm::FunctionType::get(GetLLVMType(ret_type), arg_types, false);
-  // Check if it is available in global function table as injected function.
-  auto it = gv_func_map_.find(global_symbol);
-  if (it != gv_func_map_.end()) {
-    if (it->second == nullptr) {
-      gv_func_map_[global_symbol] = InitContextPtr(ftype->getPointerTo(), "__" + global_symbol);
-      it = gv_func_map_.find(global_symbol);
-    }
-#if TVM_LLVM_VERSION >= 90
-    auto ext_callee = llvm::FunctionCallee(ftype, GetContextPtr(it->second));
-#else
-    auto ext_callee = GetContextPtr(it->second);
-#endif
-    return builder_->CreateCall(ext_callee, arg_values);
-  } else {
-    llvm::Function* f = module_->getFunction(global_symbol);
-    if (f == nullptr) {
-      f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                                 global_symbol.operator llvm::StringRef(), module_.get());
-    }
-#if TVM_LLVM_VERSION >= 90
-    auto ext_callee = llvm::FunctionCallee(f);
-#else
-    auto ext_callee = f;
-#endif
-    return builder_->CreateCall(ext_callee, arg_values);
-  }
 }
 
 llvm::GlobalVariable* CodeGenHexagon::InitContextPtr(llvm::Type* p_type, std::string name) {
@@ -169,19 +124,6 @@ llvm::Value* CodeGenHexagon::GetContextPtr(llvm::GlobalVariable* gv) {
   faddr->setMetadata("tbaa",
                      md_builder_->createTBAAStructTagNode(md_tbaa_ctx_ptr_, md_tbaa_ctx_ptr_, 0));
   return faddr;
-}
-
-llvm::Value* CodeGenHexagon::CreateCallPacked(const CallNode* op) {
-  // There is always a call to __tvm_set_device in a standalone op,
-  // and we can't have calls to packed functions, because they need
-  // a Module object to work (or at least TVMBackendGetFuncFromEnv
-  // function).
-  const std::string& name = op->args[0].as<StringImmNode>()->value;
-  if (name == "__tvm_set_device") {
-    return ConstInt32(0);
-  }
-
-  return CodeGenCPU::CreateCallPacked(op);
 }
 
 void CodeGenHexagon::CreatePrintf(const std::string& format,
