@@ -39,6 +39,7 @@ MYPYPATH=$TVM_PATH/python mypy --check-untyped-defs tests/python/unittest/test_t
 echo "Checking MyPy Type defs in tvm.relay.op.contrib"
 mypy --disallow-untyped-defs python/tvm/relay/op/contrib/cublas.py
 mypy --disallow-untyped-defs python/tvm/relay/op/contrib/cudnn.py
+mypy --disallow-untyped-defs python/tvm/relay/op/contrib/te_target.py
 
 #TODO(@mikepapadim): This is failing atm
 # echo "Checking MyPy Type defs in the tvm.relay.backend.contrib.ethosu package."
