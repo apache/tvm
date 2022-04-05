@@ -147,6 +147,26 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   ICHECK(loop_var.dtype().is_scalar());
   ICHECK(body.defined());
 
+  // When extent or min is an IntImm but has narrower dtype than loop_var, we directly promote them
+  // without raising errors.
+  auto try_promote_imm_dtype = [&](const PrimExpr& e) {
+    ICHECK(e.dtype().bits() <= loop_var.dtype().bits())
+        << " Loop variable's dtype (" << loop_var.dtype()
+        << ") is narrower than that of `min` or `extent` (" << e.dtype() << ")";
+    const IntImmNode* a = e.as<IntImmNode>();
+    if (a && e.dtype().bits() < loop_var.dtype().bits()) {
+      return make_const(loop_var.dtype(), a->value);
+    } else {
+      return e;
+    }
+  };
+
+  min = try_promote_imm_dtype(min);
+  extent = try_promote_imm_dtype(extent);
+
+  ICHECK(loop_var.dtype() == min.dtype()) << loop_var.dtype() << " vs " << min.dtype();
+  ICHECK(loop_var.dtype() == extent.dtype()) << loop_var.dtype() << " vs " << extent.dtype();
+
   ObjectPtr<ForNode> node = make_object<ForNode>();
   node->loop_var = std::move(loop_var);
   node->min = std::move(min);
