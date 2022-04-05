@@ -29,6 +29,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/op_strategy.h>
+#include <tvm/runtime/builtin_fp16.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
@@ -175,6 +176,8 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
               return make_const(dtype, static_cast<const int32_t*>(data)[0]);
             } else if (dtype == DataType::Int(64)) {
               return make_const(dtype, static_cast<const int64_t*>(data)[0]);
+            } else if (dtype == DataType::Float(16)) {
+              return make_const(dtype, __gnu_h2f_ieee(static_cast<const uint16_t*>(data)[0]));
             } else if (dtype == DataType::Float(32)) {
               return make_const(dtype, static_cast<const float*>(data)[0]);
             } else if (dtype == DataType::Float(64)) {
