@@ -171,6 +171,42 @@ class HexagonBuffer {
   StorageScope storage_scope_;
 };
 
+/*! \brief Structure used to track/coalesce memory copies */
+struct MemoryCopy {
+  static std::vector<MemoryCopy> MergeAdjacent(std::vector<MemoryCopy> micro_copies);
+
+  MemoryCopy(void* dest, void* src, size_t num_bytes)
+      : dest(dest), src(src), num_bytes(num_bytes) {}
+
+  bool IsDirectlyBefore(const MemoryCopy& other) {
+    void* src_end = static_cast<unsigned char*>(src) + num_bytes;
+    void* dest_end = static_cast<unsigned char*>(dest) + num_bytes;
+    return (src_end == other.src) && (dest_end == other.dest);
+  }
+
+  void* dest;
+  void* src;
+  size_t num_bytes;
+};
+
+/*!
+ */
+struct BufferSet {
+  // Determine all copies that do not cross boundaries in either
+  // source or destination region.
+  static std::vector<MemoryCopy> MemoryCopies(const BufferSet& dest, const BufferSet& src,
+                                              size_t bytes_to_copy);
+
+  BufferSet(void* const* buffers, size_t num_regions, size_t region_size_bytes)
+      : buffers(buffers), num_regions(num_regions), region_size_bytes(region_size_bytes) {}
+
+  size_t TotalBytes() const { return num_regions * region_size_bytes; }
+
+  void* const* buffers;
+  size_t num_regions;
+  size_t region_size_bytes;
+};
+
 }  // namespace hexagon
 }  // namespace runtime
 }  // namespace tvm

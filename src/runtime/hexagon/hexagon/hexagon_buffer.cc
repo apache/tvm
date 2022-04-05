@@ -205,73 +205,105 @@ void HexagonBuffer::SetStorageScope(Optional<String> scope) {
   }
 }
 
+std::vector<MemoryCopy> BufferSet::MemoryCopies(const BufferSet& dest, const BufferSet& src,
+                                                size_t bytes_to_copy) {
+  CHECK_LE(bytes_to_copy, src.TotalBytes());
+  CHECK_LE(bytes_to_copy, dest.TotalBytes());
+
+  auto pointer_to = [](const BufferSet& buf, size_t region_i, size_t byte_i) -> void* {
+    void* region = buf.buffers[region_i];
+    return static_cast<unsigned char*>(region) + byte_i;
+  };
+
+  size_t num_src_regions = (bytes_to_copy + src.region_size_bytes - 1) / src.region_size_bytes;
+
+  // First, determine all copies that do not cross boundaries in
+  // either source or destination region.  This requires two loops, as
+  // a single source region may overlap one or more destination
+  // regions, and vice versa.
+  std::vector<MemoryCopy> micro_copies;
+  for (size_t src_i = 0; src_i < num_src_regions; src_i++) {
+    size_t src_region_begin = src_i * src.region_size_bytes;
+    size_t src_region_end = std::min((src_i + 1) * src.region_size_bytes, bytes_to_copy);
+
+    size_t dest_i_begin = src_region_begin / dest.region_size_bytes;
+    size_t dest_i_end = (src_region_end - 1) / dest.region_size_bytes + 1;
+    for (size_t dest_i = dest_i_begin; dest_i < dest_i_end; dest_i++) {
+      size_t offset_begin = std::max(src_region_begin, dest_i * dest.region_size_bytes);
+      size_t offset_end = std::min(src_region_end, (dest_i + 1) * dest.region_size_bytes);
+
+      size_t num_bytes = offset_end - offset_begin;
+      void* src_ptr = pointer_to(src, src_i, offset_begin % src.region_size_bytes);
+      void* dest_ptr = pointer_to(dest, dest_i, offset_begin % dest.region_size_bytes);
+      micro_copies.push_back(MemoryCopy(dest_ptr, src_ptr, num_bytes));
+    }
+  }
+
+  return micro_copies;
+}
+
+std::vector<MemoryCopy> MemoryCopy::MergeAdjacent(std::vector<MemoryCopy> micro_copies) {
+  std::sort(micro_copies.begin(), micro_copies.end(),
+            [](const MemoryCopy& a, const MemoryCopy& b) { return a.src < b.src; });
+
+  std::vector<MemoryCopy> macro_copies;
+  for (const auto& copy : micro_copies) {
+    if (macro_copies.size() && macro_copies.back().IsDirectlyBefore(copy)) {
+      macro_copies.back().num_bytes += copy.num_bytes;
+    } else {
+      macro_copies.push_back(copy);
+    }
+  }
+
+  return macro_copies;
+}
+
+void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& src,
+                                        size_t bytes_to_copy) {
+  // First, determine all copies that do not cross boundaries in
+  // either source or destination region.
+  auto micro_copies = BufferSet::MemoryCopies(dest, src, bytes_to_copy);
+
+  // If regions are contiguously allocated, we can reduce the number
+  // of copies required by merging adjacent copies.
+  auto macro_copies = MemoryCopy::MergeAdjacent(std::move(micro_copies));
+
+  // Finally, do the memory copies.
+  for (const auto& copy : macro_copies) {
+    int error_code = hexagon_user_dma_1d_sync(copy.dest, copy.src, copy.num_bytes);
+    CHECK_EQ(error_code, 0);
+  }
+}
+
 void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
-  CHECK_LE(nbytes, TotalBytes());
   CHECK(managed_allocations_.size() && "CopyTo not supported on unmanaged `external` allocations");
 
-  size_t copied = 0;
-  for (const auto& managed_alloc : managed_allocations_) {
-    size_t bytes_to_copy = std::min(nbytes - copied, managed_alloc->allocation_nbytes_);
-    if (bytes_to_copy == 0) break;
+  BufferSet src(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
+  BufferSet dest(&data, 1, nbytes);
 
-    void* data_plus_copied = static_cast<void*>((static_cast<char*>(data) + copied));
-    int status = hexagon_user_dma_1d_sync(data_plus_copied, managed_alloc->data_, bytes_to_copy);
-    CHECK_EQ(status, 0);
-
-    copied += bytes_to_copy;
-  }
+  hexagon_buffer_copy_across_regions(dest, src, nbytes);
 }
 
 void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
-  CHECK_LE(nbytes, TotalBytes());
   CHECK(managed_allocations_.size() &&
         "CopyFrom not supported on unmanaged `external` allocations");
 
-  size_t copied = 0;
-  for (const auto& managed_alloc : managed_allocations_) {
-    size_t bytes_to_copy = std::min(nbytes - copied, managed_alloc->allocation_nbytes_);
-    if (bytes_to_copy == 0) break;
+  BufferSet src(&data, 1, nbytes);
+  BufferSet dest(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
 
-    void* data_plus_copied = static_cast<void*>((static_cast<char*>(data) + copied));
-    int status = hexagon_user_dma_1d_sync(managed_alloc->data_, data_plus_copied, bytes_to_copy);
-    CHECK_EQ(status, 0);
-
-    copied += bytes_to_copy;
-  }
+  hexagon_buffer_copy_across_regions(dest, src, nbytes);
 }
 
 void HexagonBuffer::CopyFrom(const HexagonBuffer& other, size_t nbytes) {
-  CHECK_LE(nbytes, TotalBytes());
-  CHECK_LE(nbytes, other.TotalBytes());
   CHECK(managed_allocations_.size() &&
         "CopyFrom not supported on unmanaged `external` allocations");
   CHECK(other.managed_allocations_.size() &&
         "CopyFrom not supported on unmanaged `external` allocations");
 
-  if (managed_allocations_.size() == other.managed_allocations_.size()) {
-    size_t copied = 0;
-    for (size_t i = 0; i < managed_allocations_.size(); ++i) {
-      const auto& this_alloc = managed_allocations_[i];
-      const auto& other_alloc = other.managed_allocations_[i];
+  BufferSet src(other.allocations_.data(), other.allocations_.size(), other.nbytes_per_allocation_);
+  BufferSet dest(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
 
-      size_t bytes_to_copy = std::min(nbytes - copied, this_alloc->allocation_nbytes_);
-      if (bytes_to_copy == 0) break;
-
-      CHECK_LE(other_alloc->allocation_nbytes_, this_alloc->allocation_nbytes_);
-
-      int status = hexagon_user_dma_1d_sync(this_alloc->data_, other_alloc->data_, bytes_to_copy);
-      CHECK_EQ(status, 0);
-
-      copied += bytes_to_copy;
-    }
-  } else if (managed_allocations_.size() == 1) {
-    return other.CopyTo(managed_allocations_[0]->data_, nbytes);
-  } else if (other.managed_allocations_.size() == 1) {
-    return CopyFrom(other.managed_allocations_[0]->data_, nbytes);
-  } else {
-    CHECK(false) << "To copy between Hexagon Buffers they must either have the same number of "
-                    "dimensions or one of the Hexagon Buffers must have a single dimension.";
-  }
+  hexagon_buffer_copy_across_regions(dest, src, nbytes);
 }
 
 }  // namespace hexagon
