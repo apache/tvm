@@ -338,7 +338,7 @@ Buffer Buffer::GetFlattenedBuffer() const {
   // input axis.
   for (size_t i = 0; (i + 1) < self->axis_separators.size(); i++) {
     auto sep = self->axis_separators[i]->value;
-    auto next_sep = self->axis_separators[i]->value;
+    auto next_sep = self->axis_separators[i + 1]->value;
     ICHECK_LT(sep, next_sep) << "Axis separators must be in strictly increasing order.";
   }
   if (self->axis_separators.size()) {

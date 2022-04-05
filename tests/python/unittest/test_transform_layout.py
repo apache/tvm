@@ -225,11 +225,13 @@ class Test2DPhysicalLayout:
         "1d_A",
         "2d_A",
         "2d_rev_A",
+        "3d_A",
     )
     transform_B = tvm.testing.parameter(
         "1d_B",
         "2d_B",
         "2d_rev_B",
+        "3d_B",
     )
 
     @staticmethod
@@ -254,6 +256,8 @@ class Test2DPhysicalLayout:
             return lambda i, j, k: [i, j, te.AXIS_SEPARATOR, k]
         elif name == "2d_rev":
             return lambda i, j, k: [k, j, te.AXIS_SEPARATOR, i]
+        elif name == "3d":
+            return lambda i, j, k: [i, te.AXIS_SEPARATOR, j, te.AXIS_SEPARATOR, k]
         else:
             raise ValueError(f"Unknown transformation: {name}")
 
@@ -268,6 +272,8 @@ class Test2DPhysicalLayout:
             return [i * logical_shape[1] + j, k]
         elif name == "2d_rev":
             return [k * logical_shape[1] + j, i]
+        elif name == "3d":
+            return [i, j, k]
         else:
             raise ValueError(f"Unknown transformation: {name}")
 
