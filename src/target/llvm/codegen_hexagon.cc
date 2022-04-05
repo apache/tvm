@@ -76,9 +76,6 @@ class CodeGenHexagon final : public CodeGenCPU {
   llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
   std::vector<std::pair<std::string, llvm::Value*>> export_system_symbols_;
 
-  // global to packed function handle
-  std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
-
   // create call into tvm packed function.
   llvm::Value* CreateCallPacked(const CallNode* op);
 };
