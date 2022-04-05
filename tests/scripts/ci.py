@@ -451,8 +451,10 @@ def typing_get_args(annotation):
 
 
 def is_optional_type(annotation):
-    return (typing_get_origin(annotation) == typing.Union) and (
-        type(None) in typing_get_args(annotation)
+    return (
+        hasattr(annotation, "__origin__")
+        and (typing_get_origin(annotation) == typing.Union)
+        and (type(None) in typing_get_args(annotation))
     )
 
 
