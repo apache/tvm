@@ -64,7 +64,7 @@ tasks.withType(JavaCompile) {
 android {
     compileSdkVersion 31
     defaultConfig {
-        applicationId "org.apache.tvm.tvmrpc"
+        applicationId "org.apache.tvm.android.demo"
         minSdkVersion 24
         targetSdkVersion 26
         versionCode 1
@@ -88,7 +88,6 @@ android {
         disable "Instantiatable" // MainActivity and RPCActivity must extend android.app.Activity
         disable "MissingApplicationIcon" // Should explicitly set android:icon, there is no default
         disable "UnsafeNativeCodeLocation" // Shared libraries should not be placed in the res or assets directories.
-
     }
 }
 
