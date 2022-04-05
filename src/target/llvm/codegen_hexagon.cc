@@ -74,7 +74,7 @@ class CodeGenHexagon final : public CodeGenCPU {
   llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
 };
 
-void CodeGenHexagon::Init(const std::string& module_name, llvm::TargetMachine* tm, 
+void CodeGenHexagon::Init(const std::string& module_name, llvm::TargetMachine* tm,
             llvm::LLVMContext* ctx, bool system_lib, bool dynamic_lookup, bool target_c_runtime) {
   CodeGenCPU::Init(module_name, tm, ctx, system_lib, dynamic_lookup, target_c_runtime);
 }
