@@ -83,8 +83,6 @@ android {
 
     lintOptions {
         disable "Instantiatable" // MainActivity and RPCActivity must extend android.app.Activity
-        disable "MissingApplicationIcon" // Should explicitly set android:icon, there is no default
-        disable "UnsafeNativeCodeLocation" // Shared libraries should not be placed in the res or assets directories.
     }
 }
 
