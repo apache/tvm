@@ -5403,9 +5403,6 @@ def test_gelu(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_biasgelu(target, dev):
-    if target != "llvm":
-        pass
-
     def verify_biasgelu(x, bias):
         node = onnx.helper.make_node(
             "BiasGelu",
