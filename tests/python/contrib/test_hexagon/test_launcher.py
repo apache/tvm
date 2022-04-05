@@ -144,7 +144,7 @@ class TestMatMul:
 
 
 @requires_hexagon_toolchain
-def test_graph_executor(hexagon_launcher, hexagon_session):
+def test_graph_executor(hexagon_session):
     dtype = "float32"
     data = relay.var("data", relay.TensorType((1, 64, 64, 3), dtype))
     weight = relay.var("weight", relay.TensorType((5, 5, 3, 8), dtype))
@@ -170,10 +170,6 @@ def test_graph_executor(hexagon_launcher, hexagon_session):
     params = {"weight": weight_in}
     inputs = {"data": data_in}
 
-    temp = utils.tempdir()
-    dso_binary = "test_binary.so"
-    dso_binary_path = temp.relpath(dso_binary)
-
     with tvm.transform.PassContext(opt_level=3):
         lowered = tvm.relay.build(
             relay_mod,
@@ -181,16 +177,11 @@ def test_graph_executor(hexagon_launcher, hexagon_session):
             runtime=runtime,
             executor=executor,
         )
-        lowered.get_lib().save(dso_binary_path)
 
     if hexagon_session is None:
         pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
-    hexagon_launcher.upload(dso_binary_path, dso_binary)
-
-    graph_mod = hexagon_launcher.get_graph_executor(
-        lowered.get_graph_json(), dso_binary, hexagon_session
-    )
+    graph_mod = hexagon_session.get_graph_executor(lowered)
     graph_mod.set_input(**params)
     graph_mod.run(**inputs)
     hexagon_output = graph_mod.get_output(0).numpy()
@@ -212,7 +203,7 @@ def test_graph_executor(hexagon_launcher, hexagon_session):
 
 
 @requires_hexagon_toolchain
-def test_graph_executor_multiple_conv2d(hexagon_launcher, hexagon_session):
+def test_graph_executor_multiple_conv2d(hexagon_session):
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
@@ -246,10 +237,6 @@ def test_graph_executor_multiple_conv2d(hexagon_launcher, hexagon_session):
     runtime = Runtime("cpp")
     executor = Executor("graph")
 
-    temp = utils.tempdir()
-    dso_binary = "test_binary.so"
-    dso_binary_path = temp.relpath(dso_binary)
-
     with tvm.transform.PassContext(opt_level=3):
         lowered = tvm.relay.build(
             relay_mod,
@@ -257,12 +244,9 @@ def test_graph_executor_multiple_conv2d(hexagon_launcher, hexagon_session):
             runtime=runtime,
             executor=executor,
         )
-        lowered.get_lib().save(dso_binary_path)
 
     if hexagon_session is None:
         pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
-
-    hexagon_launcher.upload(dso_binary_path, dso_binary)
 
     weight1_data = np.random.rand(w1_shape[0], w1_shape[1], w1_shape[2], w1_shape[3]).astype(
         dtype=dtype
@@ -277,9 +261,7 @@ def test_graph_executor_multiple_conv2d(hexagon_launcher, hexagon_session):
     params = {"weight1": weight1_data, "weight2": weight2_data}
     inputs = {"data": input_data}
 
-    graph_mod = hexagon_launcher.get_graph_executor(
-        lowered.get_graph_json(), dso_binary, hexagon_session
-    )
+    graph_mod = hexagon_session.get_graph_executor(lowered)
     graph_mod.set_input(**params)
     graph_mod.run(**inputs)
     hexagon_output = graph_mod.get_output(0).numpy()
@@ -312,7 +294,7 @@ def _workaround_create_aot_shared():
 
 
 @requires_hexagon_toolchain
-def test_aot_executor(hexagon_launcher, hexagon_session):
+def test_aot_executor(hexagon_session):
     dtype = "float32"
     input_shape = (1, 128, 128, 3)
     w_shape = (5, 5, 3, 8)
@@ -332,9 +314,6 @@ def test_aot_executor(hexagon_launcher, hexagon_session):
     relay_mod = relay.transform.InferType()(relay_mod)
 
     target_hexagon = tvm.target.hexagon("v68")
-    temp = utils.tempdir()
-    dso_binary = "test_binary.so"
-    dso_binary_path = temp / dso_binary
 
     weight_data = np.random.rand(w_shape[0], w_shape[1], w_shape[2], w_shape[3]).astype(dtype=dtype)
     input_data = np.random.rand(
@@ -352,20 +331,11 @@ def test_aot_executor(hexagon_launcher, hexagon_session):
             runtime=Runtime("cpp"),
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "c"}),
         )
-        # Uncomment this once the workaround is not needed.
-        # lowered.export_library(
-        #     dso_binary_path, fcompile=hexagon.create_aot_shared, hexagon_arch="v68"
-        # )
-        lowered.export_library(
-            dso_binary_path, fcompile=_workaround_create_aot_shared(), hexagon_arch="v68"
-        )
 
     if hexagon_session is None:
         pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
 
-    hexagon_launcher.upload(dso_binary_path, dso_binary)
-
-    aot_mod = hexagon_launcher.get_aot_executor(dso_binary, hexagon_session)
+    aot_mod = hexagon_session.get_aot_executor(lowered)
     aot_mod.set_input(**inputs)
     aot_mod.run()
     hexagon_output = aot_mod.get_output(0).numpy()
@@ -388,7 +358,7 @@ def test_aot_executor(hexagon_launcher, hexagon_session):
 
 
 @requires_hexagon_toolchain
-def test_aot_executor_multiple_conv2d(hexagon_launcher, hexagon_session):
+def test_aot_executor_multiple_conv2d(hexagon_session):
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
@@ -419,9 +389,6 @@ def test_aot_executor_multiple_conv2d(hexagon_launcher, hexagon_session):
     relay_mod = relay.transform.InferType()(relay_mod)
 
     target_hexagon = tvm.target.hexagon("v68")
-    temp = utils.tempdir()
-    dso_binary = "test_binary.so"
-    dso_binary_path = temp / dso_binary
 
     weight1_data = np.random.rand(w1_shape[0], w1_shape[1], w1_shape[2], w1_shape[3]).astype(
         dtype=dtype
@@ -444,20 +411,11 @@ def test_aot_executor_multiple_conv2d(hexagon_launcher, hexagon_session):
             runtime=Runtime("cpp"),
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "c"}),
         )
-        # Uncomment this once the workaround is not needed.
-        # lowered.export_library(
-        #     dso_binary_path, fcompile=hexagon.create_aot_shared, hexagon_arch="v68"
-        # )
-        lowered.export_library(
-            dso_binary_path, fcompile=_workaround_create_aot_shared(), hexagon_arch="v68"
-        )
 
     if hexagon_session is None:
         pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
 
-    hexagon_launcher.upload(dso_binary_path, dso_binary)
-
-    aot_mod = hexagon_launcher.get_aot_executor(dso_binary, hexagon_session)
+    aot_mod = hexagon_session.get_aot_executor(lowered)
     aot_mod.set_input(**inputs)
     aot_mod.run()
     hexagon_output = aot_mod.get_output(0).numpy()
