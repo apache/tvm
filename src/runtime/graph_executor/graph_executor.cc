@@ -76,14 +76,18 @@ void GraphExecutor::PerformOp(size_t nid) {
   for (const auto& input : node.inputs) {
     // also we do not care about cpu
     if (pool_entry_[get_sid(entry_id(input))].device_type == (int)(kDLCPU)) continue;
+    // we do not need to care about input and parameter
+    if (std::find(input_nodes_.begin(), input_nodes_.end(), entry_id(input)) != input_nodes_.end())
+      continue;
+    if (std::find(nodes_not_evicted_.begin(), nodes_not_evicted_.end(), entry_id(input)) != nodes_not_evicted_.end())
+      continue;
     // otherwise we should rematerialize the input tensors that are not in the memory
     // and update the reference count at the same time
 
-    if (!runtime_info_[entry_id(input)].use_cnt) {
-      if(!runtime_info_[entry_id(input)].available)
+    if (is_evicted(entry_id(input))) {
         RematerializeTensor(entry_id(input));
     }
-    runtime_info_[entry_id(input)].use_cnt += 1;
+    ref_cnt[entry_id(input)] += 1;
   }
   // now all of the inputs are recovered, we can set up to compute the location of input/output
   // compute current input memory location of the tensor
@@ -121,7 +125,6 @@ void GraphExecutor::PerformOp(size_t nid) {
 
   // now we can execute the operator
   op_execs_[nid]();
-  runtime_info_[nid].available = true;
   // at last, we should perform eviction
   PerformEviction(nid);
 }
@@ -131,12 +134,16 @@ void GraphExecutor::PerformEviction(size_t nid) {
   for (const auto& input : node.inputs) {
     // we do not care about cpu
     if (pool_entry_[get_sid(entry_id(input))].device_type == (int)(kDLCPU)) continue;
+    // Again, continues when meet input and parameters
+    if (std::find(input_nodes_.begin(), input_nodes_.end(), entry_id(input)) != input_nodes_.end())
+      continue;
+    if (std::find(nodes_not_evicted_.begin(), nodes_not_evicted_.end(), entry_id(input)) != nodes_not_evicted_.end())
+      continue;
     // Decrease the reference count and free when ref_cnt is zero
-    runtime_info_[entry_id(input)].use_cnt -= 1;
+    ref_cnt[entry_id(input)] -= 1;
     // free tensor when ref_cnt is zero
-    if (!runtime_info_[entry_id(input)].use_cnt) {
+    if (!ref_cnt[entry_id(input)]) {
       FreeTensor(entry_id(input));
-      runtime_info_[entry_id(input)].available = false;
     }
   }
 }
@@ -532,7 +539,19 @@ void GraphExecutor::SetupStorage() {
 }
 
 void GraphExecutor::SetupOpExecs() {
-  runtime_info_.resize(num_node_entries(),{0,false});
+  ref_cnt.resize(num_node_entries(),0);
+  nodes_not_evicted_ = {};
+  for(size_t nid = 0;nid < num_node_entries();nid++){
+    auto slice_node = nodes_[nid];
+    if (slice_node.name.find("slice") != std::string::npos){
+      nodes_not_evicted_.push_back(nid);
+      for (const auto& input:slice_node.inputs){
+        if (std::find(nodes_not_evicted_.begin(),nodes_not_evicted_.end(),entry_id(input)) == nodes_not_evicted_.end()) {
+          nodes_not_evicted_.push_back(entry_id(input));
+        }
+      }
+    }
+  }
   op_execs_.resize(this->GetNumOfNodes());
   input_dltensors_.resize(num_node_entries());
   output_dltensors_.resize(num_node_entries());

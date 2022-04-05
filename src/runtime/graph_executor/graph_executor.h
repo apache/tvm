@@ -235,11 +235,6 @@ class TVM_DLL GraphExecutor : public ModuleNode {
       }
     }
   };
-  // runtime info
-  struct RTInfo{
-    size_t use_cnt;
-    bool available;
-  };
   // Node
   struct Node {
     // operator type in string
@@ -546,7 +541,9 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    */
   std::vector<PoolEntry> pool_entry_;
   /*! \brief record runtime memory info */
-  std::vector<RTInfo> runtime_info_;
+  std::vector<size_t> ref_cnt;
+  /*! \brief nodes that should not be evicted */
+  std::vector<size_t> nodes_not_evicted_;
 };
 
 std::vector<Device> GetAllDevice(const TVMArgs& args, int dev_start_arg);
