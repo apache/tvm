@@ -56,7 +56,7 @@ static std::string get_name(const PrimFunc& f) {
 // Hexagon code generation
 class CodeGenHexagon final : public CodeGenCPU {
  public:
- void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
+  void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
             bool system_lib, bool dynamic_lookup, bool target_c_runtime) override;
   void InitTarget(llvm::TargetMachine* tm) final;
 
@@ -74,8 +74,8 @@ class CodeGenHexagon final : public CodeGenCPU {
   llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
 };
 
-void CodeGenHexagon::Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
-            bool system_lib, bool dynamic_lookup, bool target_c_runtime) {
+void CodeGenHexagon::Init(const std::string& module_name, llvm::TargetMachine* tm, 
+            llvm::LLVMContext* ctx, bool system_lib, bool dynamic_lookup, bool target_c_runtime) {
   CodeGenCPU::Init(module_name, tm, ctx, system_lib, dynamic_lookup, target_c_runtime);
 }
 
