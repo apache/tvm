@@ -451,6 +451,8 @@ def register_binary_qnn(op_name, op):
             right_t.zero_point,
             out_t.scale,
             out_t.zero_point,
+            left_t.axis,
+            right_t.axis,
         )
 
         return [out, out_t]
