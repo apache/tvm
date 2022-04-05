@@ -169,8 +169,8 @@ struct MemoryCopy {
       : dest(dest), src(src), num_bytes(num_bytes) {}
 
   bool IsDirectlyBefore(const MemoryCopy& other) {
-    void* src_end = static_cast<unsigned char*>(src);
-    void* dest_end = static_cast<unsigned char*>(dest);
+    void* src_end = static_cast<unsigned char*>(src) + num_bytes;
+    void* dest_end = static_cast<unsigned char*>(dest) + num_bytes;
     return (src_end == other.src) && (dest_end == other.dest);
   }
 
