@@ -374,6 +374,19 @@ def test_fake_quantize_image_resize_bilinear():
     compare_fq_to_int(op, [x_np], allow_rounding_error=True)
 
 
+def test_fake_quantize_abs():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+
+    zero = relay.const(0)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.op.abs(x)
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+
+    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+
+    compare_fq_to_int(op, [x_np])
+
+
 def test_fake_quantize_expand_dims():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 

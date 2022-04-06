@@ -107,6 +107,7 @@ register_unary_identity("nn.depth_to_space")
 register_unary_identity("max")
 register_unary_identity("min")
 register_unary_identity("image.resize2d")
+register_unary_identity("abs")
 
 
 @register_fake_quantization_to_integer("nn.adaptive_avg_pool1d")
