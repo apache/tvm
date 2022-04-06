@@ -36,8 +36,9 @@ from tvm.contrib import cudnn
 import pytest
 
 sys.setrecursionlimit(10000)
-torch.backends.cuda.matmul.allow_tf32 = False
-torch.backends.cudnn.allow_tf32 = False
+if torch.cuda.is_available():
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
 
 
 def list_ops(expr):
@@ -114,57 +115,6 @@ def load_model(model_name):
     except ModuleNotFoundError:
         raise ModuleNotFoundError("Please install pretrainedmodels.pytorch")
     raise RuntimeError("Model not supported")
-
-
-def confidence_interval(mean, stdev, count, alpha=0.01):
-    """Returns the lower and upper bounds of the confidence interval of a random
-    variable. Confidence is 1 - alpha (default confidence is 99%)."""
-    stdval = tdistr.ppf(1 - alpha / 2, count - 1)
-    lower, upper = mean + np.array([-1, 1]) * stdval * stdev / np.sqrt(count)
-    return lower, upper
-
-
-def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
-    """Compute the latency of the given model"""
-    latencies = []
-    count = 0
-    while True:
-        if isinstance(model, Module):
-            input_data = [torch.rand(shape).float() for shape in input_shapes]
-            if torch.cuda.is_available():
-                input_data = list(map(lambda x: x.cuda(), input_data))
-                model = model.cuda()
-            t_start = time()
-            with torch.no_grad():
-                model(*input_data)
-            t_end = time()
-            latencies.append(t_end - t_start)
-        else:
-            input_data = {}
-            for i, shape in enumerate(input_shapes):
-                name = "input" + str(i)
-                arr = np.random.random(shape).astype("float32")
-                input_data[name] = tvm.nd.array(arr)
-            t_start = time()
-            model.set_input(**input_data)
-            model.run()
-            for i, shape in enumerate(output_shapes):
-                arr = np.zeros(shape).astype("float32")
-                model.get_output(i, tvm.nd.array(arr))
-            t_end = time()
-        count += 1
-        if count < dryruns:
-            continue
-        latencies.append(t_end - t_start)
-        mean = np.mean(latencies)
-        stdev = np.std(latencies)
-        sample_size = len(latencies)
-        if sample_size > dryruns:
-            lower, upper = confidence_interval(mean, stdev, sample_size)
-            est = (upper + lower) / 2
-            err = (upper - lower) / 2
-            if err < thresh:
-                return est
 
 
 def verify_model(
@@ -244,7 +194,8 @@ def verify_model(
 
     del model_name
     del baseline_model
-    torch.cuda.empty_cache()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 # Single operator tests
