@@ -55,7 +55,7 @@ class Conv2dOperation:
         return self.tile_description.math_instruction.element_accumulator
 
     def core_name(self):
-        """ The basic operation kind is prefixed with a letter indicating the accumulation type. """
+        """The basic operation kind is prefixed with a letter indicating the accumulation type."""
         intermediate_type = ""
 
         if self.tile_description.math_instruction.opcode_class == OpcodeClass.TensorOp:
@@ -77,7 +77,7 @@ class Conv2dOperation:
         )
 
     def extended_name(self):
-        """ Append data types if they differ from compute type. """
+        """Append data types if they differ from compute type."""
         if (
             self.C.element != self.tile_description.math_instruction.element_accumulator
             and self.A.element != self.tile_description.math_instruction.element_accumulator
@@ -145,7 +145,7 @@ class Conv2dOperation:
 
 
 class EmitConv2dInstance:
-    """ Responsible for emitting a CUTLASS template definition."""
+    """Responsible for emitting a CUTLASS template definition."""
 
     def __init__(self):
         self.epilogue_default = """

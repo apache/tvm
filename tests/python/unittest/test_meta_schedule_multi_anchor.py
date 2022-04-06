@@ -14,16 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os
-import tempfile
-
 import numpy as np
 
 import tvm
 import tvm.testing
 from tvm import relay
-from tvm.meta_schedule.tune import Parse, extract_task_from_relay
-from tvm.meta_schedule.database import TuningRecord, JSONDatabase
+from tvm.meta_schedule.testing import apply_fixed_schedules
 from tvm.meta_schedule.integration import ApplyHistoryBest
 
 
@@ -72,39 +68,20 @@ def test_dense_dense():
 
     # print(relay.transform.InferType()(relay_mod))
 
-    target = "llvm"
-
     data_np = np.random.randn(*data_shape).astype("float32")
     weight1_np = np.random.randn(*weight_shape).astype("float32")
     weight2_np = np.random.randn(*weight_shape).astype("float32")
 
+    target = "llvm"
     params = {"weight1": weight1_np, "weight2": weight2_np}
 
-    extracted_tasks = extract_task_from_relay(relay_mod, target, params)
+    def schedule_fn(task, sch):
+        if "nn_dense_nn_dense" in task.task_name:
+            schedule_dense_dense(sch)
+            return True
+        return False
 
-    assert len(extracted_tasks) == 1
-
-    task = extracted_tasks[0]
-
-    mod = Parse._mod(task.dispatched[0])
-
-    with tempfile.TemporaryDirectory() as work_dir:
-        database = JSONDatabase(
-            path_workload=os.path.join(work_dir, "database_workload.json"),
-            path_tuning_record=os.path.join(work_dir, "database_tuning_record.json"),
-        )
-
-        workload = database.commit_workload(mod)
-
-        sch = tvm.tir.Schedule(mod)
-
-        schedule_dense_dense(sch)
-
-        # print(sch.mod.script())
-
-        tune_rec = TuningRecord(sch.trace, [0.0], workload, tvm.target.Target(target), [])
-
-        database.commit_tuning_record(tune_rec)
+    database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
 
     with ApplyHistoryBest(database):
         with tvm.transform.PassContext(

@@ -5375,6 +5375,64 @@ def test_reverse_sequence(target, dev):
     verify_reverse_sequence(x, sequence_lens, 1, 0)
 
 
+@tvm.testing.parametrize_targets
+def test_gelu(target, dev):
+    def verify_gelu(x):
+        node = onnx.helper.make_node(
+            "Gelu",
+            inputs=["x"],
+            outputs=["y"],
+            domain="com.microsoft",
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "gelu_test",
+            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape))],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(x.shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="gelu_test")
+        verify_with_ort_with_inputs(model, [x], [x.shape], target=target, dev=dev)
+
+    x = np.array([-1.0, 0, 1.0, 100.0, -100.0, 1000.0, -1000.0], dtype=np.float32)
+    verify_gelu(x)
+    x = np.array([[1, 2], [3, 4]], dtype=np.float32)
+    verify_gelu(x)
+
+
+@tvm.testing.parametrize_targets
+def test_biasgelu(target, dev):
+    def verify_biasgelu(x, bias):
+        node = onnx.helper.make_node(
+            "BiasGelu",
+            inputs=["x", "bias"],
+            outputs=["y"],
+            domain="com.microsoft",
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "biasgelu_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape)),
+                helper.make_tensor_value_info("bias", TensorProto.FLOAT, list(bias.shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(x.shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="biasgelu_test")
+        verify_with_ort_with_inputs(model, [x, bias], [x.shape], target=target, dev=dev)
+
+    x = np.array([-1.0, 0, 1.0, 100.0, -100.0, 1000.0, -1000.0], dtype=np.float32)
+    bias = np.repeat(2.0, 7).astype("float32")
+    verify_biasgelu(x, bias)
+
+    x = np.array([[1, 2], [3, 4]], dtype=np.float32)
+    bias = np.array([0.3, 4.0], dtype=np.float32)
+    verify_biasgelu(x, bias)
+
+
 @tvm.testing.known_failing_targets("cuda")
 @tvm.testing.parametrize_targets
 def test_qlinearconv(target, dev):

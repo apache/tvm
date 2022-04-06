@@ -31,8 +31,8 @@ from tvm.meta_schedule import ReplayTraceConfig
 from tvm.meta_schedule.database import JSONDatabase, PyDatabase, TuningRecord, Workload
 from tvm.meta_schedule.integration import ApplyHistoryBest
 from tvm.meta_schedule.testing.relay_workload import get_network
+from tvm.meta_schedule.testing import apply_fixed_schedules
 from tvm.meta_schedule.tune import (
-    Parse,
     extract_task_from_relay,
     tune_extracted_tasks,
     tune_relay,
@@ -480,52 +480,46 @@ def manual_tir_common(do_tune=False):
 
     params = {"weight": weight_np, "bias": bias_np}
 
-    extracted_tasks = extract_task_from_relay(relay_mod, target, params)
+    if do_tune:
+        extracted_tasks = extract_task_from_relay(relay_mod, target, params)
 
-    # Filter out tasks that we don't intend to schedule / tune with TIR.
-    tune_tasks = list(
-        filter(
-            lambda task: "dense" in task.task_name,
-            extracted_tasks,
-        )
-    )
-
-    with tempfile.TemporaryDirectory() as work_dir:
-        if do_tune:
-            config = ReplayTraceConfig(
-                num_trials_per_iter=64,
-                max_trials_per_task=64,
-                max_trials_global=20000,
+        # Filter out tasks that we don't intend to schedule / tune with TIR.
+        tune_tasks = list(
+            filter(
+                lambda task: "dense" in task.task_name,
+                extracted_tasks,
             )
+        )
+        config = ReplayTraceConfig(
+            num_trials_per_iter=64,
+            max_trials_per_task=64,
+            max_trials_global=20000,
+        )
+
+        with tempfile.TemporaryDirectory() as work_dir:
             # postprocs=lambda: [] is important to prevent default post processors from
             # tampering with the manual schedule.
             database = tune_extracted_tasks(
                 tune_tasks, target, config, work_dir=work_dir, postprocs=lambda: []
             )
-        else:
-            database = JSONDatabase(
-                path_workload=osp.join(work_dir, "database_workload.json"),
-                path_tuning_record=osp.join(work_dir, "database_tuning_record.json"),
-            )
+    else:
 
-            for task in tune_tasks:
-                mod = Parse._mod(task.dispatched[0])
-                workload = database.commit_workload(mod)
+        def schedule_fn(task, sch):
+            if "dense" not in task.task_name:
+                return False
 
-                sch = tvm.tir.Schedule(mod)
-                block = sch.get_block("compute")
+            block = sch.get_block("compute")
 
-                # Looks up schedule_rule annotation. See the comment in test_tune_relay_manual_tir_vnni().
-                schedule_rule = sch.get(block).annotations["schedule_rule"]
+            # Looks up schedule_rule annotation. See the comment in test_tune_relay_manual_tir_vnni().
+            schedule_rule = sch.get(block).annotations["schedule_rule"]
 
-                if "dense_vnni" in schedule_rule:
-                    schedule_dense(block, M, False, sch)
+            assert "dense_vnni" in schedule_rule
 
-                # [0.0] is for dummy measurement. There is only one tuning record so ApplyHistoryBest
-                # will always have only one option.
-                tune_rec = TuningRecord(sch.trace, [0.0], workload, tvm.target.Target(target), [])
+            schedule_dense(block, M, False, sch)
 
-                database.commit_tuning_record(tune_rec)
+            return True
+
+        database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
 
     with ApplyHistoryBest(database):
         with tvm.transform.PassContext(

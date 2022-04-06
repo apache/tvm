@@ -499,6 +499,7 @@ def test_github_tag_teams(tmpdir_factory):
         [temporary] opt-in: @person5
 
         - something: @person1 @person2
+        - something3: @person1 @person2 @SOME1-ONE-
         - something else @person1 @person2
         - something else2: @person1 @person2
         - something-else @person1 @person2
@@ -633,7 +634,7 @@ def test_github_tag_teams(tmpdir_factory):
                 cc @person1 @person2 @person4"""
             ),
         },
-        check="Everyone to cc is already cc'ed, no update needed",
+        check="No one to cc, exiting",
     )
 
     run(
@@ -671,7 +672,7 @@ def test_github_tag_teams(tmpdir_factory):
                 cc @person1 @person2 @person4"""
             ),
         },
-        check="Everyone to cc is already cc'ed, no update needed",
+        check="No one to cc, exiting",
     )
 
     run(
@@ -691,7 +692,7 @@ def test_github_tag_teams(tmpdir_factory):
                 cc @person1 @person2 @person4"""
             ),
         },
-        check="Everyone to cc is already cc'ed, no update needed",
+        check="No one to cc, exiting",
     )
 
     run(
@@ -712,6 +713,40 @@ def test_github_tag_teams(tmpdir_factory):
             ),
         },
         check="Terminating since 1234 is a draft",
+    )
+
+    run(
+        type="ISSUE",
+        data={
+            "title": "[something] A title",
+            "number": 1234,
+            "user": {
+                "login": "person5",
+            },
+            "labels": [{"name": "something2"}],
+            "body": textwrap.dedent(
+                """
+                `mold` and `lld` can be a much faster alternative to `ld` from gcc. We should modify our CMakeLists.txt to detect and use these when possible. cc @person1
+
+                cc @person4
+                """
+            ),
+        },
+        check="would have updated issues/1234 with {'body': '\\n`mold` and `lld` can be a much faster alternative to `ld` from gcc. We should modify our CMakeLists.txt to detect and use these when possible. cc @person1\\n\\ncc @person2 @person4\\n'}",
+    )
+
+    run(
+        type="ISSUE",
+        data={
+            "title": "[something3] A title",
+            "number": 1234,
+            "user": {
+                "login": "person5",
+            },
+            "labels": [{"name": "something2"}],
+            "body": "@person2 @SOME1-ONE-",
+        },
+        check="Dry run, would have updated issues/1234 with {'body': '@person2 @SOME1-ONE-\\n\\ncc @person1'}",
     )
 
 
