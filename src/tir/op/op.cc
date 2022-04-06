@@ -657,7 +657,7 @@ PrimExpr abs(PrimExpr x, Span span) {
     // Clip int minimum representable values to minimum + 1, so that the absolute
     // value is the maximum representable value
     int bits = x.dtype().bits();
-    long min_value = 0;
+    int64_t min_value = 0;
     if (bits == 8) {
       min_value = INT8_MIN;
     } else if (bits == 16) {
