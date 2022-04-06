@@ -45,7 +45,7 @@ def intrin_mem_copy(shape, dtype, dst_scope, src_scope):
         dtype,
         scope=dst_scope,
         offset_factor=1,
-        name="mem_copy_dest_buffer",
+        name="mem_copy_dst_buffer",
     )
 
     zero_indices = [0 for _ in shape]
@@ -96,11 +96,26 @@ def test_cache_read_write(hexagon_session):
 
     cache_read_x = s[x_global].transform_layout(layout_transform_2d)
     cache_read_y = s[y_global].transform_layout(layout_transform_2d)
-    cache_read_z = s[z_global].transform_layout(layout_transform_2d)
+    cache_write_z = s[z_global].transform_layout(layout_transform_2d)
 
-    # TODO(Straw): DMA not functional yet
     mem_copy_read = intrin_mem_copy(inner_shape, dtype, "global.vtcm", "global")
     s[x_global].tensorize(cache_read_x[1], mem_copy_read)
+    s[y_global].tensorize(cache_read_y[1], mem_copy_read)
+
+    mem_copy_write = intrin_mem_copy(outer_shape, dtype, "global", "global.vtcm")
+    s[z].tensorize(s[z].op.axis[0], mem_copy_write)
+
+    # TODO (Straw)
+    # Above call to `tensorize` produces the following TIR, as expected:
+    #   @tir.mem_copy(@tir.address_of(z[0], dtype=handle),
+    #                 @tir.address_of(z.global.vtcm_1[0, 0], dtype=handle),
+    #                 64,
+    #                 dtype=handle)
+    #
+    # But, fails with data miscompare where first 16 bytes (out of 64) are correct
+    #  and remaining bytes incorrect due to the fact that `z` consists of 4
+    #  allocations of 16 bytes each not necessarily located in contingous memory
+    #  in VTCM.  Need to think about the correct solution for this problem.
 
     print(tvm.lower(s, [x, y, z]))
 
