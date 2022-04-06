@@ -53,7 +53,7 @@ echo "Rust check..."
 tests/lint/rust_format.sh
 
 echo "black check..."
-tests/lint/git-black.sh -i
+tests/lint/git-black.sh
 
 echo "Linting the Python code..."
 tests/lint/pylint.sh
