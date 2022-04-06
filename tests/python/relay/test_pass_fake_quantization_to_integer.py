@@ -346,7 +346,7 @@ class TestUnaryQNNOp:
 
     def test_tanh(self):
         self.helper_test_fake_quantize_unary_op(fp32_op=relay.tanh)
-    
+
     def test_log(self):
         self.helper_test_fake_quantize_unary_op(fp32_op=relay.log)
 
@@ -375,6 +375,7 @@ def test_fake_quantize_image_resize_bilinear():
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
     compare_fq_to_int(op, [x_np], allow_rounding_error=True)
+
 
 def test_fake_quantize_image_resize_bilinear():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
