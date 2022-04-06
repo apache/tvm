@@ -264,7 +264,9 @@ class Session:
 
                 # Uncomment this once the workaround is not needed.
                 # module.export_library(
-                #     str(binary_path), fcompile=hexagon.create_aot_shared, hexagon_arch=hexagon_arch
+                #     str(binary_path),
+                #     fcompile=hexagon.create_aot_shared,
+                #     hexagon_arch=hexagon_arch,
                 # )
                 module.export_library(
                     str(binary_path),
@@ -291,7 +293,7 @@ class Session:
         """
         if isinstance(module, AOTExecutorFactoryModule):
             return self.get_aot_executor(module)
-        elif isinstance(module, GraphExecutorFactoryModule):
+        if isinstance(module, GraphExecutorFactoryModule):
             return self.get_graph_executor(module)
-        else:
-            raise TypeError(f"Unsupported executor type: {type(module)}")
+
+        raise TypeError(f"Unsupported executor type: {type(module)}")
