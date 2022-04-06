@@ -515,7 +515,7 @@ class EthosuDeviceConfig:
             output_block = [
                 output_shape[0],
                 _round_up(min(output_shape[1], max_height), self._micro_block.height),
-                min(output_shape[2] * output_shape[4], max_width),
+                min(output_shape[2] * output_shape[4], max_depth),
                 _round_up(min(output_shape[3], max_width), self._micro_block.width),
                 16,
             ]
