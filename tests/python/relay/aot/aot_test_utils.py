@@ -18,9 +18,11 @@
 import sys
 import datetime
 import itertools
+import json
 import logging
 import os
 import pathlib
+import platform
 import re
 import shutil
 import subprocess
@@ -35,12 +37,13 @@ pytest.importorskip("tvm.micro")
 
 import tvm
 from tvm import relay
+from tvm import te
 from tvm.contrib import utils, graph_executor
-from tvm.relay.backend import Executor, Runtime
+from tvm.relay.backend import te_compiler, Executor, Runtime
+from tvm.relay.backend.te_compiler import TECompiler
 from tvm.relay.backend.utils import mangle_module_name
 from tvm.micro import export_model_library_format
 from tvm.micro.testing import mlf_extract_workspace_size_bytes
-import tvm.relay.testing.tf as tf_testing
 
 _LOG = logging.getLogger(__name__)
 
@@ -937,14 +940,6 @@ def generate_ref_data(mod, input_data, params=None, target="llvm"):
         output_tensor_names = main.attrs["output_tensor_names"]
 
     return dict(zip(output_tensor_names, out))
-
-
-def get_tflite_model(model_url):
-    """Get a TFLite model from URL."""
-    tflite_model_file = tf_testing.get_workload_official(model_url[0], model_url[1])
-    with open(tflite_model_file, "rb") as f:
-        tflite_model_buf = f.read()
-    return tflite_model_buf
 
 
 def create_relay_module_and_inputs_from_tflite_file(tflite_model_file):

@@ -44,6 +44,7 @@ from tvm.topi.nn.utils import get_pad_tuple
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.backend.contrib.ethosu import preprocess
+import tvm.relay.testing.tf as tf_testing
 
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tests.python.relay.aot.aot_test_utils import (
@@ -239,6 +240,14 @@ def generate_ref_data_tflite(model):
     }
 
     return input_data, expected_output_data
+
+
+def get_tflite_model(model_url):
+    """Get a TFLite model from URL."""
+    tflite_model_file = tf_testing.get_workload_official(model_url[0], model_url[1])
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    return tflite_model_buf
 
 
 def get_tflite_graph(tf_func, shapes, ranges=None):

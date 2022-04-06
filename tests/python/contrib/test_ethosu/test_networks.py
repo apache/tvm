@@ -24,10 +24,7 @@ import numpy as np
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tvm.micro import model_library_format as mlf
 
-from tests.python.relay.aot.aot_test_utils import (
-    get_tflite_model,
-    convert_to_relay,
-)
+from tests.python.relay.aot.aot_test_utils import convert_to_relay
 
 from . import infra
 
@@ -57,7 +54,7 @@ MOBILENET_V2_URL = (
 )
 def test_networks_without_usmp(accel_type, model_url, workspace_size):
     np.random.seed(23)
-    tflite_model_buf = get_tflite_model(model_url)
+    tflite_model_buf = infra.get_tflite_model(model_url)
     input_data, output_data = infra.generate_ref_data_tflite(tflite_model_buf)
     mod, params = convert_to_relay(tflite_model_buf)
     mod = partition_for_ethosu(mod, params)
@@ -80,7 +77,7 @@ def test_networks_without_usmp(accel_type, model_url, workspace_size):
 )
 def test_networks_with_usmp(accel_type, model_url, workspace_size):
     np.random.seed(23)
-    tflite_model_buf = get_tflite_model(model_url)
+    tflite_model_buf = infra.get_tflite_model(model_url)
     input_data, output_data = infra.generate_ref_data_tflite(tflite_model_buf)
     mod, params = convert_to_relay(tflite_model_buf)
     mod = partition_for_ethosu(mod, params)
