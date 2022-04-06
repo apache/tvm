@@ -157,7 +157,9 @@ def test_graph_executor():
         # )
 
         graph_mod = tvm.contrib.graph_executor.create(
-            factory.get_graph_json(), sess.get_system_lib(), sess.device
+            factory.get_graph_json(),
+            sess.get_system_lib(),
+            sess.device
         )
 
         A_data = tvm.nd.array(np.array([2, 3], dtype="uint8"), device=sess.device)
@@ -201,7 +203,11 @@ def test_aot_executor():
         factory = tvm.relay.build(relay_mod, target=TARGET, runtime=runtime, executor=executor)
 
     with _make_session(temp_dir, factory) as sess:
-        aot_executor = tvm.runtime.executor.aot_executor.AotModule(sess._rpc.get_function("tvm.aot_executor.create")())
+        aot_executor = tvm.runtime.executor.aot_executor.AotModule(
+            sess._rpc.get_function("tvm.aot_executor.create")(sess.get_system_lib(), sess.device))
+
+        assert aot_executor.get_input_index("a") == 0
+        assert aot_executor.get_input_index("b") == 1
 
         A_data = aot_executor["get_input"]("a").copyfrom(np.array([2, 3], dtype="uint8"))
         B_data = aot_executor["get_input"]("b").copyfrom(np.array([4, 7], dtype="uint8"))
