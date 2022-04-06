@@ -28,6 +28,34 @@
 extern "C" {
 #endif
 
+#include <dlpack/dlpack.h>
+#include <tvm/runtime/metadata.h>
+
+typedef struct TVMMetadata TVMMetadata;
+
+typedef struct TVMAotExecutor {
+  /*! \brief The top-level metadata structure */
+  TVMMetadata* metadata;
+  /*! \brief The code module that contains both host and device code */
+  TVMModuleHandle module_handle;
+  /*! \brief The device type */
+  DLDevice device;
+} TVMAotExecutor;
+
+/*!
+ * \brief Allocate a new AotExecutor with TVMPlatformMemoryAllocate and initialize it.
+ *
+ * \param module_handle TVM Module that exposes the functions to call.
+ * \param devices runtime execution device.
+ * \param executor Pointer which receives a pointer to the newly-created instance.
+ * \return 0 if successful.
+ */
+int TVMAotExecutor_Create(TVMModuleHandle module_handle,
+                          const DLDevice* devices, TVMAotExecutor** executor);
+
+int TVMAotExecutor_Release(TVMAotExecutor* executor, const DLDevice device);
+
+int TVMAotExecutor_GetInputIndex(TVMAotExecutor* executor, const char* name);
 
 #ifdef __cplusplus
 }  // extern "C"

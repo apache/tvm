@@ -23,3 +23,97 @@
  * \file aot_executor.c
  * \brief implement AoT executor in C
  */
+
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/aot_executor.h>
+#include <tvm/runtime/crt/logging.h>
+#include <tvm/runtime/crt/module.h>
+#include <tvm/runtime/crt/packed_func.h>
+#include <tvm/runtime/crt/page_allocator.h>
+
+#include <string.h>
+
+static void DumpMetadata(TVMMetadata* md)
+{
+  fprintf(stderr, "%s:\n", __FUNCTION__);
+  fprintf(stderr, "\tmod_name=%s\n", md->mod_name);
+  fprintf(stderr, "\tversion=%ld\n", md->version);
+  fprintf(stderr, "\tnum_inputs=%ld\n", md->num_inputs);
+  fprintf(stderr, "\tnum_outputs=%ld\n", md->num_outputs);
+  fprintf(stderr, "\tnum_pools=%ld\n", md->num_pools);
+
+  uint32_t i;
+
+  for (i = 0; i < md->num_inputs; ++i) {
+    fprintf(stderr, "\tinput[%d]: %s\n", i, md->inputs[i].name);
+  }
+
+  for (i = 0; i < md->num_outputs; ++i) {
+    fprintf(stderr, "\toutput[%d]: %s\n", i, md->outputs[i].name);
+  }
+}
+
+int TVMAotExecutor_GetInputIndex(TVMAotExecutor* executor, const char* name) {
+  uint32_t i;
+  int32_t rv = -1;
+
+  TVMMetadata* md = executor->metadata;
+  for (i = 0; i < md->num_inputs; ++i) {
+    if (!strcmp(md->inputs[i].name, name)) {
+      rv = i;
+      break;
+    }
+  }
+  CHECK_GE(rv, 0, "cannot find '%s' among input.", name);
+  return rv;
+}
+
+int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
+                        const DLDevice* device) {
+
+  executor->module_handle = module_handle;
+  executor->device = *device;
+
+  // get a pointer to the PackedFunc get_c_metadata() which gives us access to the top-level
+  // metadata structure
+  TVMPackedFunc get_c_metadata;
+  TVMArgs temp_args;
+  temp_args.values_count = 0;
+
+  int status = TVMPackedFunc_InitModuleFunc(&get_c_metadata, executor->module_handle, 
+                                            "get_c_metadata", &temp_args);
+  if (status != 0) {
+    return status;
+  }
+
+  get_c_metadata.Call(&get_c_metadata);
+  // save the returned pointer to the top-level metadata
+  executor->metadata = (TVMMetadata *)get_c_metadata.ret_value.values[0].v_handle;
+
+  DumpMetadata(executor->metadata);
+
+  return status;
+}
+
+int TVMAotExecutor_Create(TVMModuleHandle module_handle,
+                          const DLDevice* device, TVMAotExecutor** executor) {
+
+  tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(**executor), *device, (void**)executor);
+  if (err != kTvmErrorNoError) {
+    return -1;
+  }
+
+  memset(*executor, 0, sizeof(**executor));
+
+  return TVMAotExecutor_Init(*executor, module_handle, device);
+}
+
+int TVMAotExecutor_Release(TVMAotExecutor* executor, const DLDevice device) {
+
+  int status = TVMPlatformMemoryFree(executor, device);
+  if (status != 0) {
+    return status;
+  }
+
+  return 0;
+}
