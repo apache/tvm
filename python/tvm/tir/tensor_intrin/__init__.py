@@ -16,4 +16,4 @@
 # under the License.
 # pylint: disable=unused-import
 """Intrinsics for tensorization."""
-from . import vnni
+from . import x86

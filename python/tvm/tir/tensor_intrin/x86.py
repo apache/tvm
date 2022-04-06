@@ -23,7 +23,7 @@ from tvm.script import tir as T
 
 
 @T.prim_func
-def dot_product_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
+def dot_product_16x4_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (4,), "uint8", offset_factor=1)
     B = T.match_buffer(b, (16, 4), "int8", offset_factor=1)
     C = T.match_buffer(c, (16,), "int32", offset_factor=1)
@@ -41,7 +41,7 @@ def dot_product_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
-def dot_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
+def dot_product_16x4_vnni_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (4,), "uint8", offset_factor=1)
     B = T.match_buffer(b, (16, 4), "int8", offset_factor=1)
     C = T.match_buffer(c, (16,), "int32", offset_factor=1)
@@ -66,6 +66,6 @@ def dot_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
         )
 
 
-INTRIN_NAME = "dot_16x1x16_uint8_int8_int32_cascadelake"
+VNNI_INTRIN = "dot_16x4_vnni"
 
-TensorIntrin.register(INTRIN_NAME, dot_product_desc, dot_product_intrin)
+TensorIntrin.register(VNNI_INTRIN, dot_product_16x4_desc, dot_product_16x4_vnni_impl)
