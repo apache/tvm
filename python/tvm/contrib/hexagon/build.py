@@ -195,19 +195,27 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
             "timeout": 0,
             "key": self.HEXAGON_REMOTE_DEVICE_KEY,
         }
-        return Session(hexagon_remote_kw)
+        return Session(self, hexagon_remote_kw)
 
-    def load_module(self, module_name: Union[str, pathlib.Path], session: Session):
+    def load_module(self, module: Union[str, pathlib.Path, tvm.runtime.Module], session: Session):
         """Load TVM module.
 
         Parameters
         ----------
-        module_name : str or pathlib.Path
-            Name of the module to load. It must be either a bare file name
-            (without any path components), or a full path in the remote
-            system. If it is a file name, the file must be placed in the
-            remote workspace.
+        module : Union[str, pathlib.Path, tvm.runtime.Module]
+
+            The module to load.  If `module` is a
+            `tvm.runtime.Module`, it will be uploaded to the remote
+            session and loaded.
+
+            If the object passed is a string or pathlib.Path, it must
+            be either a bare file name (without any path components),
+            or a full path in the remote system. If it is a file name,
+            the file must already have been uploaded to the remote,
+            and be placed in the remote workspace.
+
         session : Session
+
             Remote session. The session must be established (via __enter__)
             prior to calling this function.
 
@@ -215,8 +223,9 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         -------
         TVMModule :
             TVM module object.
+
         """
-        return session.load_module(module_name)
+        return session.load_module(module)
 
     def get_graph_executor(
         self, graph_json: str, module_name: Union[str, pathlib.Path], session: Session

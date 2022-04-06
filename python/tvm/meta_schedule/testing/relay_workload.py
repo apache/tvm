@@ -16,6 +16,7 @@
 # under the License.
 """Workloads in Relay IR"""
 # pylint: disable=import-outside-toplevel
+import logging
 import multiprocessing
 import os
 import pickle
@@ -28,6 +29,8 @@ from tvm.ir import IRModule
 from tvm.meta_schedule.integration import ExtractedTask, extract_task_from_relay
 from tvm.runtime import NDArray, load_param_dict, save_param_dict
 from tvm.target import Target
+
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 def _get_network(
@@ -170,7 +173,7 @@ def _load_cache(cache_dir: Optional[str], filename: str) -> Optional[List[Any]]:
     path = os.path.join(os.path.expanduser(cache_dir), filename)
     if not os.path.exists(path):
         return None
-    print(f"Load from cache: {path}")
+    logger.info("Loaded from cached: %s", path)
     with open(path, "rb") as i_f:
         return pickle.load(i_f)
 

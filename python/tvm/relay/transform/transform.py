@@ -789,6 +789,24 @@ def Inline():
     return _ffi_api.Inline()
 
 
+def InlineComposites(target):
+    """Perform inlining on the given Relay IR module. The functions originate
+    from the MergeComposite pass based on an input pattern table will fold back
+    to main. Currently, this is used for the TRT BYOC which expects a single
+    primitive function to operate on.
+
+    Parameters
+    ----------
+    target: str
+        The byoc target for which ops need to fold back to primitive function.
+    Returns
+    -------
+    ret: tvm.transform.Pass
+        The registered pass that performs inlining for a Relay IR module.
+    """
+    return _ffi_api.InlineComposites(target)
+
+
 def gradient(expr, mod=None, mode="higher_order"):
     """
     Transform the input function,

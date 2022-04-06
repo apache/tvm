@@ -1281,7 +1281,7 @@ def convert_prelu(g, op, block):
             shape = _op.strided_slice(shape_of(x), [0], [1])
         else:
             shape = _op.strided_slice(shape_of(x), [1], [2])
-        alpha = _op.broadcast_to(alpha, shape)
+        alpha = _op.broadcast_to(alpha, fold_constant(shape))
     out = _op.nn.prelu(x, alpha, axis)
     g.add_node(op.output("Out")[0], out)
 
@@ -1672,7 +1672,7 @@ def convert_scale(g, op, block):
     bias_after_scale = op.attr("bias_after_scale")
     x = g.get_node(op.input("X")[0])
     if np.isclose(scale, 1.0) and np.isclose(bias, 0.0):
-        out = _op.copy(x)
+        out = x
     else:
         if np.isclose(bias, 0.0):
             out = x * _expr.const(np.array(scale).astype("float32"))

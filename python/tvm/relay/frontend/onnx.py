@@ -18,6 +18,7 @@
 # pylint: disable=import-outside-toplevel
 """ONNX: Open Neural Network Exchange frontend for Relay."""
 import copy
+import math
 import warnings
 from typing import Optional
 
@@ -795,6 +796,46 @@ class Elu(OnnxOpConverter):
         ) + _op.nn.relu(inputs[0])
 
 
+class Gelu(OnnxOpConverter):
+    """Operator converter for Gelu from Microsoft onnxruntime contrib opset.
+
+    gelu(x) = 0.5x(1 + erf(x/sqrt(2)))
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        x = inputs[0]
+
+        # Declare consts
+        half = _expr.const(0.5)
+        one = _expr.const(1.0)
+        sqrt2 = _expr.const(math.sqrt(2))
+
+        # Compute gelu
+        term1 = _op.multiply(half, x)
+        erf = _op.erf(_op.divide(x, sqrt2))
+        term2 = _op.add(one, erf)
+        return _op.multiply(term1, term2)
+
+
+class BiasGelu(OnnxOpConverter):
+    """Operator converter for BiasGelu from Microsoft onnxruntime contrib opset.
+
+    bias_gelu(x, b) = 0.5(x, b)(1 + erf((x + b)/sqrt(2)))
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        x = inputs[0]
+        b = inputs[1]
+
+        b_shape = infer_shape(b)
+        assert len(b_shape) == 1, "BiasGelu bias term must be a 1D tensor"
+
+        inp = _op.add(x, b)
+        return Gelu._impl_v1([inp], attr, params)
+
+
 class Gemm(OnnxOpConverter):
     """Operator converter for Gemm."""
 
@@ -1484,11 +1525,21 @@ class Squeeze(OnnxOpConverter):
 
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
+        ishape = infer_shape(inputs[0])
         axis = inputs[1]
+
+        if axis is None:
+            # If axes is not provided, all the single dimensions will be removed from the shape.
+            if not ishape:  # scalar
+                return inputs[0]
+
+            axis = [i for i in range(len(ishape)) if ishape[i] == 1]
+            axis = _op.const(axis)
+
         dtype = infer_type(axis).checked_type.dtype
 
         if isinstance(axis, _expr.Constant):
-            constant_axes = list(inputs[1].data.numpy())
+            constant_axes = list(axis.data.numpy())
             constant_axes = list(map(int, constant_axes))
             return _op.squeeze(inputs[0], constant_axes)
 
@@ -1841,6 +1892,18 @@ class HardSigmoid(OnnxOpConverter):
         return AttrCvt("clip")([transformX], attr)
 
 
+class HardSwish(OnnxOpConverter):
+    """Operator converter for HardSwish."""
+
+    @classmethod
+    def _impl_v14(cls, inputs, attr, params):
+        alpha = attr.get("alpha", 1 / 6)
+        beta = attr.get("beta", 0.5)
+        transformX = inputs[0] * _expr.const(alpha) + _expr.const(beta)
+        attr = {"a_min": 0, "a_max": 1}
+        return inputs[0] * AttrCvt("clip")([transformX], attr)
+
+
 class Reduce(OnnxOpConverter):
     """Operator converter for reduce ops."""
 
@@ -1853,6 +1916,9 @@ class Reduce(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if not infer_shape(inputs[0]):  # promote scalar to 1-D tensor
+            inputs[0] = _op.expand_dims(inputs[0], axis=0)
+
         if "axes" in attr:
             axis = attr.get("axes", 0)
         else:
@@ -1863,6 +1929,9 @@ class Reduce(OnnxOpConverter):
 
     @classmethod
     def _impl_v12(cls, inputs, attr, params):
+        if not infer_shape(inputs[0]):  # promote scalar to 1-D tensor
+            inputs[0] = _op.expand_dims(inputs[0], axis=0)
+
         if len(inputs) == 2:
             if isinstance(inputs[1], _expr.Constant):
                 # Get axis and unpack scalar
@@ -1915,6 +1984,9 @@ class ReduceSumSquare(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if not infer_shape(inputs[0]):  # promote scalar to 1-D tensor
+            inputs[0] = _op.expand_dims(inputs[0], axis=0)
+
         if "axes" in attr:
             axis = attr.get("axes", 0)
         else:
@@ -1931,6 +2003,9 @@ class ReduceL1(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if not infer_shape(inputs[0]):  # promote scalar to 1-D tensor
+            inputs[0] = _op.expand_dims(inputs[0], axis=0)
+
         if "axes" in attr:
             axis = attr.get("axes", 0)
         else:
@@ -1947,6 +2022,9 @@ class ReduceL2(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if not infer_shape(inputs[0]):  # promote scalar to 1-D tensor
+            inputs[0] = _op.expand_dims(inputs[0], axis=0)
+
         if "axes" in attr:
             axis = attr.get("axes", 0)
         else:
@@ -1964,6 +2042,9 @@ class ReduceLogSum(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if not infer_shape(inputs[0]):  # promote scalar to 1-D tensor
+            inputs[0] = _op.expand_dims(inputs[0], axis=0)
+
         if "axes" in attr:
             axis = attr.get("axes", 0)
         else:
@@ -3720,12 +3801,14 @@ class QLinearConv(OnnxOpConverter):
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
                 # Warning: Convolution does not yet support dynamic shapes,
                 # one will need to run dynamic_to_static on this model after import
+                zp = fold_constant(x_zero_point)
+                assert isinstance(zp, relay.Constant), "Zero point expected to be a constant"
                 data = autopad(
                     data,
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    pad_value=x_zero_point.data,
+                    pad_value=zp.data,
                     mode=attr["auto_pad"],
                 )
             elif attr["auto_pad"] == "VALID":
@@ -4652,6 +4735,8 @@ def _get_convert_map(opset):
         "LeakyRelu": Renamer("leaky_relu"),
         "Selu": Selu.get_converter(opset),
         "Elu": Elu.get_converter(opset),
+        "Gelu": Gelu.get_converter(opset),
+        "BiasGelu": BiasGelu.get_converter(opset),
         "Exp": Renamer("exp"),
         "Greater": Renamer("greater"),
         "GreaterOrEqual": Renamer("greater_equal"),
@@ -4674,6 +4759,7 @@ def _get_convert_map(opset):
         "PRelu": Prelu.get_converter(opset),
         "Sigmoid": Renamer("sigmoid"),
         "HardSigmoid": HardSigmoid.get_converter(opset),
+        "HardSwish": HardSwish.get_converter(opset),
         "Max": Maximum.get_converter(opset),
         "Min": Minimum.get_converter(opset),
         "Sum": Sum.get_converter(opset),
@@ -5133,7 +5219,7 @@ class GraphProto:
 
 
 def from_onnx(
-    model, shape=None, dtype="float32", opset=None, freeze_params=False, convert_config=None
+    model, shape=None, dtype="float32", opset=None, freeze_params=True, convert_config=None
 ):
     """Convert a ONNX model into an equivalent Relay Function.
 
@@ -5223,4 +5309,8 @@ def from_onnx(
     # Use the graph proto as a scope so that ops can access other nodes if needed.
     with g:
         mod, params = g.from_onnx(graph, opset)
+
+    if freeze_params:
+        mod = relay.transform.DynamicToStatic()(mod)
+
     return mod, params

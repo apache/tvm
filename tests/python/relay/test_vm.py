@@ -619,6 +619,26 @@ def test_add_op_scalar(target, dev):
         check_result(target, dev, [x_data, y_data], x_data + y_data, mod)
 
 
+def test_add_op_scalar_float16(target, dev):
+    """
+    test_add_op_scalar_float16:
+        fn (x, y) {
+            return x + y;
+        }
+    """
+    mod = tvm.IRModule()
+    x = relay.var("x", shape=(), dtype="float16")  # Default to float16
+    y = relay.var("y", shape=(), dtype="float16")  # Default to float16
+    func = relay.Function([x, y], relay.op.add(x, y))
+    x_y_data = [
+        (np.array(10.0, dtype="float16"), np.array(1.0, dtype="float16")),
+        (np.float16(10.0), np.float16(1.0)),
+    ]
+    for (x_data, y_data) in x_y_data:
+        mod["main"] = func
+        check_result(target, dev, [x_data, y_data], x_data + y_data, mod)
+
+
 def test_add_op_scalar_int(target, dev):
     """
     test_add_op_scalar_int:

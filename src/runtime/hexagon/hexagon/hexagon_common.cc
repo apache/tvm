@@ -28,6 +28,7 @@
 #include "hexagon_common.h"
 
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include <sstream>
@@ -37,6 +38,10 @@
 
 #include "../../library_module.h"
 #include "hexagon_buffer.h"
+
+#if defined(__hexagon__)
+#include "HAP_perf.h"
+#endif
 
 namespace tvm {
 namespace runtime {
@@ -90,9 +95,8 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
       if (args.type_codes[i] == kTVMDLTensorHandle) {
         DLTensor* tensor = static_cast<DLTensor*>(arg_values[i].v_handle);
         buffer_args.emplace_back(i, static_cast<HexagonBuffer*>(tensor->data));
-        // Assumes a single contiguous allocation
-        // TODO(Straw): Enable discontiguous allocation
-        tensor->data = buffer_args.back().second->GetPointer()[0];
+        HexagonBuffer* hexbuf = buffer_args.back().second;
+        tensor->data = hexbuf->GetPointer();
       }
     }
     int ret = (*faddr)(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
@@ -109,6 +113,28 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
     }
   });
 }
+
+#if defined(__hexagon__)
+class HexagonTimerNode : public TimerNode {
+ public:
+  virtual void Start() { start = HAP_perf_get_time_us(); }
+  virtual void Stop() { end = HAP_perf_get_time_us(); }
+  virtual int64_t SyncAndGetElapsedNanos() { return (end - start) * 1e3; }
+  virtual ~HexagonTimerNode() {}
+
+  static constexpr const char* _type_key = "HexagonTimerNode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(HexagonTimerNode, TimerNode);
+
+ private:
+  uint64_t start, end;
+};
+
+TVM_REGISTER_OBJECT_TYPE(HexagonTimerNode);
+
+TVM_REGISTER_GLOBAL("profiling.timer.hexagon").set_body_typed([](Device dev) {
+  return Timer(make_object<HexagonTimerNode>());
+});
+#endif
 }  // namespace hexagon
 
 namespace {

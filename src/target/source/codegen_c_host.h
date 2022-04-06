@@ -26,6 +26,8 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "codegen_c.h"
@@ -38,11 +40,18 @@ namespace codegen {
 class CodeGenCHost : public CodeGenC {
  public:
   CodeGenCHost();
-  void Init(bool output_ssa, bool emit_asserts, std::string target_str);
+  void Init(bool output_ssa, bool emit_asserts, std::string target_str,
+            const std::unordered_set<std::string>& devices);
 
   void InitGlobalContext();
   void AddFunction(const PrimFunc& f);
-
+  /*!
+   * \brief Add functions from the (unordered) range to the current module in a deterministic
+   * order. This helps with debugging.
+   *
+   * \param functions A vector of unordered range of current module.
+   */
+  void AddFunctionsOrdered(std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> functions);
   void DefineModuleName();
 
   void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)

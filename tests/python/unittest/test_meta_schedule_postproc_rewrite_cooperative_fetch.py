@@ -72,7 +72,6 @@ class AfterRewrite0:
                                     v1 = T.axis.spatial(512, (ax0_ax1_fused_0 * 8 + ax0_ax1_fused_1) % 512)
                                     T.reads([A[v0, v1]])
                                     T.writes([A_shared[v0, v1]])
-                                    T.block_attr({"meta_schedule.cooperative_fetch":1})
                                     A_shared[v0, v1] = A[v0, v1]
                         for ax0_ax1_fused_0 in T.serial(0, 1024):
                             for ax0_ax1_fused_1 in T.thread_binding(0, 8, thread="threadIdx.x"):
@@ -82,14 +81,13 @@ class AfterRewrite0:
                                         v1 = T.axis.spatial(512, i0_0_i1_0_fused * 32 + (ax0_ax1_fused_0 * 16 + ax0_ax1_fused_1 * 2 + ax0_ax1_fused_2) % 32)
                                         T.reads([B[v0, v1]])
                                         T.writes([B_shared[v0, v1]])
-                                        T.block_attr({"meta_schedule.cooperative_fetch":2})
                                         B_shared[v0, v1] = B[v0, v1]
                         for i2_1, i0_3, i1_3, i2_2, i0_4, i1_4 in T.grid(16, 2, 2, 32, 16, 2):
                             with T.block("C"):
                                 i = T.axis.spatial(512, i0_1_i1_1_fused * 32 + i0_3 * 16 + i0_4)
                                 j = T.axis.spatial(512, i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + i1_3 * 2 + i1_4)
                                 k = T.axis.reduce(512, i2_1 * 32 + i2_2)
-                                T.reads([C_local[i, j], A_shared[i, k], B_shared[k, j]])
+                                T.reads([A_shared[i, k], B_shared[k, j]])
                                 T.writes([C_local[i, j]])
                                 with T.init():
                                     C_local[i, j] = T.float32(0)
@@ -131,13 +129,13 @@ def test_rewrite_cooperative_fetch():
     sch.bind(loop=l32, thread_axis="vthread.x")
     l33 = sch.fuse(l12, l22)
     sch.bind(loop=l33, thread_axis="threadIdx.x")
-    b34 = sch.cache_read(block=b0, read_buffer_index=1, storage_scope="shared")
+    b34 = sch.cache_read(block=b0, read_buffer_index=0, storage_scope="shared")
     sch.compute_at(block=b34, loop=l28, preserve_unit_loops=True)
     _, _, _, _, l39, l40 = sch.get_loops(block=b34)
     l41 = sch.fuse(l39, l40)
     _, v43 = sch.sample_perfect_tile(loop=l41, n=2, max_innermost_factor=4, decision=[262144, 1])
     sch.annotate(block_or_loop=b34, ann_key="meta_schedule.cooperative_fetch", ann_val=v43)
-    b44 = sch.cache_read(block=b0, read_buffer_index=2, storage_scope="shared")
+    b44 = sch.cache_read(block=b0, read_buffer_index=1, storage_scope="shared")
     sch.compute_at(block=b44, loop=l28, preserve_unit_loops=True)
     _, _, _, _, l49, l50 = sch.get_loops(block=b44)
     l51 = sch.fuse(l49, l50)

@@ -329,6 +329,8 @@ class ThreadPool {
     num_workers_used_ = std::min(num_workers_, num_workers_used_);
   }
 
+  int32_t NumThreads() const { return num_workers_used_; }
+
  private:
   // Shared initialization code
   void Init() {
@@ -391,12 +393,16 @@ TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRe
   threading::Configure(mode, nthreads, cpus);
 });
 
+TVM_REGISTER_GLOBAL("runtime.NumThreads").set_body_typed([]() -> int32_t {
+  return threading::NumThreads();
+});
+
 namespace threading {
 void ResetThreadPool() { tvm::runtime::ThreadPool::ThreadLocal()->Reset(); }
 /*!
  * \brief configure the CPU id affinity
- * \param mode The preferred CPU type (1 = big, -1 = little, -2 = specify ,
- *  -3 = kSpecifyOneCorePerThread, -3 = kSpecifyThreadShareAllCore).
+ * \param mode The preferred CPU type (1 = big, -1 = little, -2 = kSpecifyOneCorePerThread,
+ *  -3 = kSpecifyThreadShareAllCore).
  * \param nthreads The number of threads to use (0 = use all).
  * \param cpus cpus A list of CPUs is used to set the 'cpu affinity' for the worker threads.
  *
@@ -406,6 +412,7 @@ void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthr
   tvm::runtime::threading::SetMaxConcurrency(cpus.size());
   tvm::runtime::ThreadPool::ThreadLocal()->UpdateWorkerConfiguration(mode, nthreads, cpus);
 }
+int32_t NumThreads() { return tvm::runtime::ThreadPool::ThreadLocal()->NumThreads(); }
 }  // namespace threading
 }  // namespace runtime
 }  // namespace tvm

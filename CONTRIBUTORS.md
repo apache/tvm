@@ -35,8 +35,9 @@ We do encourage everyone to work anything they are interested in.
 - [Tianqi Chen](https://github.com/tqchen) (PMC): @tqchen - topi, compiler, relay, docs
 - [Wei Chen](https://github.com/wweic): @wweic - runtime, relay, vm
 - [Zhi Chen](https://github.com/zhiics) (PMC): @zhiics - relay, quantization, pass manager
-- [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy - tir
+- [Siyuan Feng](https://github.com/Hzfengsy) (PMC): @Hzfengsy - tir
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm - frontends, quantization, topi
+- [Mehrdad Hessar](https://github.com/mehrdadh): @mehrdadh - microTVM, hexagon
 - [Bohan Hou](https://github.com/spectrometerHBH): @spectrometerHBH - tir, arith, tvm-script
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
@@ -57,9 +58,10 @@ We do encourage everyone to work anything they are interested in.
 - [Trevor Morris](https://github.com/trevor-m): @trevor-m - byoc, compiler
 - [Leandro Nunes](https://github.com/leandron) (PMC): @leandron - tvmc
 - [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies - relay
-- [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic - hexagon, llvm
+- [Krzysztof Parzyszek](https://github.com/kparzysz-quic) (PMC): @kparzysz-quic - hexagon, llvm
 - [Andrew Reusch](https://github.com/areusch): (PMC) @areusch - runtime, microTVM
 - [Jared Roesch](https://github.com/jroesch) (PMC): @jroesch - relay
+- [Gustavo Romero](https://github.com/gromero): @gromero - microtvm, tvmc
 - [Giuseppe Rossini](https://github.com/giuseros): @giuseros - aot, arm
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
 - [Christopher Sidebottom](https://github.com/Mousius): @Mousius - arm, ethos-u, relay
@@ -133,6 +135,7 @@ We do encourage everyone to work anything they are interested in.
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
 - [Andrew Reusch](https://github.com/areusch): @areusch
+- [David Riazati](https://github.com/driazati): @driazati
 - [Jared Roesch](https://github.com/jroesch): @jroesch
 - [Gustavo Romero](https://github.com/gromero): @gromero
 - [Giuseppe Rossini](https://github.com/giuseros): @giuseros

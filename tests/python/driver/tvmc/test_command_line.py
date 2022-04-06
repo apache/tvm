@@ -14,12 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import platform
 import pytest
 import os
 
 from tvm.driver.tvmc.main import _main
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_tvmc_cl_workflow(keras_simple, tmpdir_factory):
     pytest.importorskip("tensorflow")
 

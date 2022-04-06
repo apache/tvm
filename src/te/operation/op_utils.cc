@@ -128,7 +128,7 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
         nest[i + 1].emplace_back(LetStmt(var, promote_to_bound_dtype(dom->min), no_op));
         value_map[iv] = promote_to_bound_dtype(dom->min);
       } else if (is_zero(dom->min)) {
-        nest[i + 1].emplace_back(For(var, 0, dom->extent, kind, no_op));
+        nest[i + 1].emplace_back(For(var, 0, promote_to_bound_dtype(dom->extent), kind, no_op));
         value_map[iv] = promote_to_bound_dtype(var);
       } else {
         Var idx(bind_iv->var->name_hint + ".idx", iv->var.dtype());

@@ -35,12 +35,14 @@ from tests.python.relay.aot.aot_test_utils import (
 from utils import (
     skip_if_no_reference_system,
     make_module,
+    create_conv2d_tflite_relay_models,
     get_range_for_dtype_str,
     get_same_padding,
     get_conv2d_qnn_params,
     make_qnn_relu,
     assert_partitioned_function,
     assert_no_external_function,
+    generate_ref_data_tflite,
 )
 
 
@@ -282,7 +284,6 @@ def test_conv2d_asymmetric_padding_int8(
     )
     orig_mod = make_module(model)
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
-
     # validate pattern matching
     assert_partitioned_function(orig_mod, cmsisnn_mod)
 
@@ -297,6 +298,43 @@ def test_conv2d_asymmetric_padding_int8(
             outputs=output_list,
             params=params,
             output_tolerance=1,
+        ),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
+
+
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3)])
+@pytest.mark.parametrize("kernel_shape", [(3, 2), (1, 3)])
+@pytest.mark.parametrize("strides, dilation", [((3, 2), (1, 1))])
+@pytest.mark.parametrize("padding", ["SAME", "VALID"])
+@pytest.mark.parametrize("activation", ["NONE", "RELU"])
+def test_conv2d_int8_tflite(ifm_shape, kernel_shape, strides, dilation, padding, activation):
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
+
+    dtype = "int8"
+    tflite_model, relay_mod, params = create_conv2d_tflite_relay_models(
+        ifm_shape, kernel_shape, strides, dilation, padding, activation, dtype
+    )
+
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(relay_mod, params)
+
+    # validate pattern matching
+    assert_partitioned_function(relay_mod, cmsisnn_mod)
+
+    # validate CMSIS-NN output against TFLite output
+    input_map, output_map, output_tolerance = generate_ref_data_tflite(tflite_model)
+    compile_and_run(
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=input_map,
+            outputs=output_map,
+            params=params,
+            output_tolerance=output_tolerance,
         ),
         test_runner,
         interface_api,

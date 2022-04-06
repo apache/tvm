@@ -24,7 +24,6 @@ import numpy as np
 import pytest
 
 pytest.importorskip("pyxir")
-import pyxir.contrib.target.DPUCADX8G
 import pyxir.contrib.target.DPUCZDX8G
 
 import tvm
@@ -55,14 +54,6 @@ def get_cpu_op_count(mod):
     c = Counter()
     c.visit(mod["main"])
     return c.count
-
-
-def skip_test():
-    """Skip test if it requires the Vitis-AI codegen and it's not present."""
-    if not tvm.get_global_func("relay.ext.vitis_ai", True):
-        print("Skip test because Vitis-AI codegen is not available.")
-        return True
-    return False
 
 
 def build_module(

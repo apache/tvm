@@ -191,6 +191,19 @@ constexpr const size_t kSrcPrefixLength = 5;
 constexpr const char* kDefaultKeyword = "DEFAULT";
 }  // namespace
 
+namespace {
+/*! \brief Convert __FILE__ to a vlog_level_map_ key, which strips any prefix ending iwth src/ */
+std::string FileToVLogMapKey(const std::string& filename) {
+  // Canonicalize the filename.
+  // TODO(mbs): Not Windows friendly.
+  size_t last_src = filename.rfind(kSrcPrefix, std::string::npos, kSrcPrefixLength);
+  // Strip anything before the /src/ prefix, on the assumption that will yield the
+  // TVM project relative filename. If no such prefix fallback to filename without
+  // canonicalization.
+  return (last_src == std::string::npos) ? filename : filename.substr(last_src + kSrcPrefixLength);
+}
+}  // namespace
+
 /* static */
 TvmLogDebugSettings TvmLogDebugSettings::ParseSpec(const char* opt_spec) {
   TvmLogDebugSettings settings;
@@ -220,8 +233,10 @@ TvmLogDebugSettings TvmLogDebugSettings::ParseSpec(const char* opt_spec) {
       return settings;
     }
 
+    name = FileToVLogMapKey(name);
+
     std::string level;
-    if (!std::getline(spec_stream, level, ';')) {
+    if (!std::getline(spec_stream, level, ',')) {
       LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, expecting level";
       return settings;
     }
@@ -243,16 +258,8 @@ TvmLogDebugSettings TvmLogDebugSettings::ParseSpec(const char* opt_spec) {
 }
 
 bool TvmLogDebugSettings::VerboseEnabledImpl(const std::string& filename, int level) const {
-  // Canonicalize the filename.
-  // TODO(mbs): Not Windows friendly.
-  size_t last_src = filename.rfind(kSrcPrefix, std::string::npos, kSrcPrefixLength);
-  // Strip anything before the /src/ prefix, on the assumption that will yield the
-  // TVM project relative filename. If no such prefix fallback to filename without
-  // canonicalization.
-  std::string key =
-      last_src == std::string::npos ? filename : filename.substr(last_src + kSrcPrefixLength);
   // Check for exact match.
-  auto itr = vlog_level_map_.find(key);
+  auto itr = vlog_level_map_.find(FileToVLogMapKey(filename));
   if (itr != vlog_level_map_.end()) {
     return level <= itr->second;
   }

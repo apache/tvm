@@ -37,32 +37,73 @@ class TempGit:
 def test_cc_reviewers(tmpdir_factory):
     reviewers_script = REPO_ROOT / "tests" / "scripts" / "github_cc_reviewers.py"
 
-    def run(pr_body, expected_reviewers):
+    def run(pr_body, requested_reviewers, existing_review_users, expected_reviewers):
         git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
         git.run("init")
         git.run("checkout", "-b", "main")
         git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+        reviews = [{"user": {"login": r}} for r in existing_review_users]
+        requested_reviewers = [{"login": r} for r in requested_reviewers]
         proc = subprocess.run(
-            [str(reviewers_script), "--dry-run"],
+            [str(reviewers_script), "--dry-run", "--testing-reviews-json", json.dumps(reviews)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            env={"PR": json.dumps({"number": 1, "body": pr_body})},
+            env={
+                "PR": json.dumps(
+                    {"number": 1, "body": pr_body, "requested_reviewers": requested_reviewers}
+                )
+            },
             encoding="utf-8",
             cwd=git.cwd,
         )
         if proc.returncode != 0:
             raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
 
-        assert proc.stdout.strip().endswith(f"Adding reviewers: {expected_reviewers}")
+        assert f"After filtering existing reviewers, adding: {expected_reviewers}" in proc.stdout
 
-    run(pr_body="abc", expected_reviewers=[])
-    run(pr_body="cc @abc", expected_reviewers=["abc"])
-    run(pr_body="cc @", expected_reviewers=[])
-    run(pr_body="cc @abc @def", expected_reviewers=["abc", "def"])
-    run(pr_body="some text cc @abc @def something else", expected_reviewers=["abc", "def"])
+    run(pr_body="abc", requested_reviewers=[], existing_review_users=[], expected_reviewers=[])
+    run(
+        pr_body="cc @abc",
+        requested_reviewers=[],
+        existing_review_users=[],
+        expected_reviewers=["abc"],
+    )
+    run(pr_body="cc @", requested_reviewers=[], existing_review_users=[], expected_reviewers=[])
+    run(
+        pr_body="cc @abc @def",
+        requested_reviewers=[],
+        existing_review_users=[],
+        expected_reviewers=["abc", "def"],
+    )
+    run(
+        pr_body="some text cc @abc @def something else",
+        requested_reviewers=[],
+        existing_review_users=[],
+        expected_reviewers=["abc", "def"],
+    )
     run(
         pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
+        requested_reviewers=[],
+        existing_review_users=[],
         expected_reviewers=["abc", "def", "zzz"],
+    )
+    run(
+        pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
+        requested_reviewers=["abc"],
+        existing_review_users=[],
+        expected_reviewers=["def", "zzz"],
+    )
+    run(
+        pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
+        requested_reviewers=["abc"],
+        existing_review_users=["abc"],
+        expected_reviewers=["def", "zzz"],
+    )
+    run(
+        pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
+        requested_reviewers=[],
+        existing_review_users=["abc"],
+        expected_reviewers=["def", "zzz"],
     )
 
 
@@ -458,6 +499,7 @@ def test_github_tag_teams(tmpdir_factory):
         [temporary] opt-in: @person5
 
         - something: @person1 @person2
+        - something3: @person1 @person2 @SOME1-ONE-
         - something else @person1 @person2
         - something else2: @person1 @person2
         - something-else @person1 @person2
@@ -592,7 +634,7 @@ def test_github_tag_teams(tmpdir_factory):
                 cc @person1 @person2 @person4"""
             ),
         },
-        check="Everyone to cc is already cc'ed, no update needed",
+        check="No one to cc, exiting",
     )
 
     run(
@@ -630,7 +672,7 @@ def test_github_tag_teams(tmpdir_factory):
                 cc @person1 @person2 @person4"""
             ),
         },
-        check="Everyone to cc is already cc'ed, no update needed",
+        check="No one to cc, exiting",
     )
 
     run(
@@ -650,7 +692,7 @@ def test_github_tag_teams(tmpdir_factory):
                 cc @person1 @person2 @person4"""
             ),
         },
-        check="Everyone to cc is already cc'ed, no update needed",
+        check="No one to cc, exiting",
     )
 
     run(
@@ -671,6 +713,40 @@ def test_github_tag_teams(tmpdir_factory):
             ),
         },
         check="Terminating since 1234 is a draft",
+    )
+
+    run(
+        type="ISSUE",
+        data={
+            "title": "[something] A title",
+            "number": 1234,
+            "user": {
+                "login": "person5",
+            },
+            "labels": [{"name": "something2"}],
+            "body": textwrap.dedent(
+                """
+                `mold` and `lld` can be a much faster alternative to `ld` from gcc. We should modify our CMakeLists.txt to detect and use these when possible. cc @person1
+
+                cc @person4
+                """
+            ),
+        },
+        check="would have updated issues/1234 with {'body': '\\n`mold` and `lld` can be a much faster alternative to `ld` from gcc. We should modify our CMakeLists.txt to detect and use these when possible. cc @person1\\n\\ncc @person2 @person4\\n'}",
+    )
+
+    run(
+        type="ISSUE",
+        data={
+            "title": "[something3] A title",
+            "number": 1234,
+            "user": {
+                "login": "person5",
+            },
+            "labels": [{"name": "something2"}],
+            "body": "@person2 @SOME1-ONE-",
+        },
+        check="Dry run, would have updated issues/1234 with {'body': '@person2 @SOME1-ONE-\\n\\ncc @person1'}",
     )
 
 

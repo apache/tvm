@@ -24,6 +24,7 @@ from tvm import te
 from tvm import tir
 from .cascader_options import CascaderOptions
 from .graph import CascaderGraph, Part, Tensor, TESubgraph
+from .parts import EthosuPart
 from .tensor_config import MemoryRegion
 from .proposal import Proposal
 from .proposal_generator import generate_proposals
@@ -125,6 +126,23 @@ def apply_proposal(proposal: Proposal, sch: te.Schedule) -> None:
 
     """
     for plan in proposal.plans:
+        for part in plan.part_group:
+            if isinstance(part, EthosuPart):
+                tensor_config = plan.tensor_configs[part.output_tensor]
+                stripe_config = tensor_config.stripe_configs[0]
+                block_config = part.get_block_config(stripe_config)
+                iv = part.subgraph.output_tensor.op.axis[0]
+                block_shape = block_config.output_shape
+                if len(block_shape) == 4:
+                    height, width, depth = block_shape[1:]
+                else:
+                    height = block_shape[1]
+                    width = block_shape[3]
+                    depth = block_shape[2] * block_shape[4]
+                sch[part.subgraph.output_tensor].pragma(iv, "block_config_height", height)
+                sch[part.subgraph.output_tensor].pragma(iv, "block_config_width", width)
+                sch[part.subgraph.output_tensor].pragma(iv, "block_config_depth", depth)
+
         output_tensor_config = plan.output_config
         output_tensor = output_tensor_config.tensor
         output_part = output_tensor.producers[0]

@@ -143,6 +143,11 @@ class QDenseArgs(Enum):
     WEIGHTS_SCALE = 5
 
 
+def is_npu_func(func: relay.Function) -> bool:
+    """Check if the given function is an NPU function."""
+    return func.attrs and "Compiler" in func.attrs and func.attrs["Compiler"] == "ethos-u"
+
+
 def is_composite_func(func: relay.Function, name: str) -> bool:
     """
     This method checks whether the call is to
@@ -313,3 +318,59 @@ class CompilationArtifact(Object):
             encoded_constants,
             base_addresses,
         )
+
+
+def create_npu_function_pass(opt_level: int, name: str = ""):
+    """
+    A utility decorator that wraps a given class as an NPU function pass. That is,
+    a pass that behaves like a function pass and only traverses NPU external
+    functions. How each NPU function is mutated is defined by the
+    `transform_npu_function(global_variable, relay_function)` function which should
+    be created in the class that is to be decorated. See the example below.
+
+    Example
+    -------
+    This small example demonstrates a pass over NPU functions that performs no
+    mutation.
+
+    @create_npu_function_pass(opt_level=1)
+    class MyPass:
+        def transform_npu_function(self, global_var, func):
+            return func
+
+    mod = tvm.IRModule()
+    mod = MyPass()(mod)
+
+    Parameters
+    ----------
+    opt_level: int
+        Optimization level for the module pass.
+    name: str, optional
+        Name for the module pass.
+
+    Returns
+    -------
+    decorator
+        The npu_pass decorator.
+    """
+
+    def decorator(npu_pass_class):
+        @tvm.ir.transform.module_pass(name=name, opt_level=opt_level)
+        class ModulePassWrapper:
+            """The wrapper for the NPU pass."""
+
+            def __init__(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
+
+            def transform_module(self, mod: tvm.ir.IRModule, _) -> tvm.ir.IRModule:
+                npu_functions = filter(lambda x: is_npu_func(x[1]), mod.functions.items())
+                for global_var, func in npu_functions:
+                    npu_pass = npu_pass_class(*self.args, **self.kwargs)
+                    func = npu_pass.transform_npu_function(global_var, func)
+                    mod.update_func(global_var, func)
+                return mod
+
+        return ModulePassWrapper
+
+    return decorator

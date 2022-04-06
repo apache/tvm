@@ -533,13 +533,27 @@ class BufferStrideLegalize : public StmtExprMutator {
   // be simplified in the future by having AllocateNode hold a buffer,
   // rather than a buffer_var.
   Stmt VisitStmt_(const AllocateNode* op) final {
-    allocate_node_var_.insert(op->buffer_var.get());
+    buffer_var_defines_.insert(op->buffer_var.get());
     return StmtExprMutator::VisitStmt_(op);
   }
 
   Stmt VisitStmt_(const AllocateConstNode* op) final {
-    allocate_node_var_.insert(op->buffer_var.get());
+    buffer_var_defines_.insert(op->buffer_var.get());
     return StmtExprMutator::VisitStmt_(op);
+  }
+
+  Stmt VisitStmt_(const LetStmtNode* op) final {
+    if (op->var.dtype().is_handle()) {
+      buffer_var_defines_.insert(op->var.get());
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
+  PrimExpr VisitExpr_(const LetNode* op) final {
+    if (op->var.dtype().is_handle()) {
+      buffer_var_defines_.insert(op->var.get());
+    }
+    return StmtExprMutator::VisitExpr_(op);
   }
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
@@ -575,7 +589,7 @@ class BufferStrideLegalize : public StmtExprMutator {
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     auto alloc_key = node->buffer->data.get();
-    if (!buf_map_.count(node->buffer) && allocate_node_var_.count(alloc_key)) {
+    if (!buf_map_.count(node->buffer) && buffer_var_defines_.count(alloc_key)) {
       BufferEntry entry;
       entry.remap_to = WithStrides(node->buffer);
       entry.in_scope = true;
@@ -615,7 +629,7 @@ class BufferStrideLegalize : public StmtExprMutator {
 
   // Set of vars that have occurred in an AllocateNode, but haven't
   // yet occurred in a BufferLoad/BufferStore.
-  std::unordered_set<const VarNode*> allocate_node_var_;
+  std::unordered_set<const VarNode*> buffer_var_defines_;
 
   IRVisitorWithAnalyzer* bound_analyzer_;
 };
@@ -918,13 +932,27 @@ class BufferBindUnwrapper : public StmtExprMutator {
   // be simplified in the future by having AllocateNode hold a buffer,
   // rather than a buffer_var.
   Stmt VisitStmt_(const AllocateNode* op) final {
-    allocate_node_var_.insert(op->buffer_var.get());
+    buffer_var_defines_.insert(op->buffer_var.get());
     return StmtExprMutator::VisitStmt_(op);
   }
 
   Stmt VisitStmt_(const AllocateConstNode* op) final {
-    allocate_node_var_.insert(op->buffer_var.get());
+    buffer_var_defines_.insert(op->buffer_var.get());
     return StmtExprMutator::VisitStmt_(op);
+  }
+
+  Stmt VisitStmt_(const LetStmtNode* op) final {
+    if (op->var.dtype().is_handle()) {
+      buffer_var_defines_.insert(op->var.get());
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
+  PrimExpr VisitExpr_(const LetNode* op) final {
+    if (op->var.dtype().is_handle()) {
+      buffer_var_defines_.insert(op->var.get());
+    }
+    return StmtExprMutator::VisitExpr_(op);
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -1118,7 +1146,7 @@ class BufferBindUnwrapper : public StmtExprMutator {
 
   const BufferEntry& GetBufferEntry(Buffer buffer) {
     auto alloc_key = buffer->data.get();
-    if (!buf_map_.count(buffer.get()) && allocate_node_var_.count(alloc_key)) {
+    if (!buf_map_.count(buffer.get()) && buffer_var_defines_.count(alloc_key)) {
       BufferEntry entry;
       entry.buffer = buffer;
       buf_map_[buffer.get()] = std::move(entry);
@@ -1138,7 +1166,7 @@ class BufferBindUnwrapper : public StmtExprMutator {
   std::unordered_map<const BufferNode*, BufferEntry> buf_map_;
   // Set of vars that have occurred in an AllocateNode, but haven't
   // yet occurred in a BufferLoad/BufferStore.
-  std::unordered_set<const VarNode*> allocate_node_var_;
+  std::unordered_set<const VarNode*> buffer_var_defines_;
   // Analyzer for the variable bounds, used to simplify the bounds populator. We really need the
   // analyzer from it. However
   IRVisitorWithAnalyzer* bound_analyzer_;
@@ -1376,13 +1404,40 @@ class StorageFlattener : public StmtExprMutator {
   // be simplified in the future by having AllocateNode hold a buffer,
   // rather than a buffer_var.
   Stmt VisitStmt_(const AllocateNode* op) final {
-    allocate_node_var_.insert(op->buffer_var.get());
-    return StmtExprMutator::VisitStmt_(op);
+    buffer_var_defines_.insert(op->buffer_var.get());
+    auto stmt = Downcast<Allocate>(StmtExprMutator::VisitStmt_(op));
+    return Allocate(stmt->buffer_var, stmt->dtype, FlattenExtents(stmt), stmt->condition,
+                    stmt->body, stmt->annotations, stmt->span);
   }
 
   Stmt VisitStmt_(const AllocateConstNode* op) final {
-    allocate_node_var_.insert(op->buffer_var.get());
+    buffer_var_defines_.insert(op->buffer_var.get());
+    auto stmt = Downcast<AllocateConst>(StmtExprMutator::VisitStmt_(op));
+    ObjectRef data_or_idx;
+    if (stmt->data) {
+      data_or_idx = stmt->data.value();
+    } else if (stmt->irmod_storage_idx) {
+      data_or_idx = stmt->irmod_storage_idx.value();
+    } else {
+      LOG(FATAL) << "Neither data array nor data index specified for allocation of const "
+                 << op->buffer_var->name_hint;
+    }
+    return AllocateConst(stmt->buffer_var, stmt->dtype, FlattenExtents(stmt), data_or_idx,
+                         stmt->body, stmt->span);
+  }
+
+  Stmt VisitStmt_(const LetStmtNode* op) final {
+    if (op->var.dtype().is_handle()) {
+      buffer_var_defines_.insert(op->var.get());
+    }
     return StmtExprMutator::VisitStmt_(op);
+  }
+
+  PrimExpr VisitExpr_(const LetNode* op) final {
+    if (op->var.dtype().is_handle()) {
+      buffer_var_defines_.insert(op->var.get());
+    }
+    return StmtExprMutator::VisitExpr_(op);
   }
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
@@ -1556,6 +1611,82 @@ class StorageFlattener : public StmtExprMutator {
   }
 
  private:
+  // Helper function for visiting Allocate and AllocateConst.  If, in
+  // the future, these are updated to hold a buffer (Buffer) object
+  // rather than a buffer_var (Var), this function can be replaced
+  // with a call to GetBufferEntry.
+  template <typename Node>
+  Array<PrimExpr> FlattenExtents(const Node& node) {
+    arith::Analyzer analyzer;
+
+    // If an allocation has extents that match the buffer
+    auto is_compatible_buffer = [&](const Buffer& buffer) {
+      if (buffer->shape.size() != node->extents.size()) {
+        return false;
+      }
+      for (size_t i = 0; i < buffer->shape.size(); i++) {
+        if (!analyzer.CanProveEqual(buffer->shape[i], node->extents[i])) {
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    auto int_array_equal = [](const Array<IntImm>& a, const Array<IntImm>& b) {
+      if (a.size() != b.size()) {
+        return false;
+      }
+
+      for (size_t i = 0; i < a.size(); i++) {
+        if (a[i]->value != b[i]->value) {
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    Array<IntImm> axis_separators;
+    auto it = buffer_var_map_.find(node->buffer_var.get());
+    if (it != buffer_var_map_.end()) {
+      const auto& buffers = it->second;
+      if (buffers.size() == 0) {
+        // No buffers use this allocation, treat as flat and optimize
+        // out later.
+      } else if (buffers.size() == 1) {
+        // Only one buffer uses this allocation, so use its axis
+        // separators.
+        axis_separators = buffers[0]->axis_separators;
+      } else {
+        // Try to find a buffer using this allocation with a matching
+        // shape.
+        Buffer compatible_buffer;
+        for (const auto& buffer : buffers) {
+          if (is_compatible_buffer(buffer)) {
+            ICHECK(!compatible_buffer.defined() ||
+                   int_array_equal(compatible_buffer->axis_separators, buffer->axis_separators))
+                << "Cannot determine axis separators to use when flattening "
+                << node->buffer_var->name_hint
+                << ", multiple buffer objects found with conflicting axis separators";
+            compatible_buffer = buffer;
+          }
+        }
+        ICHECK(compatible_buffer.defined())
+            << "Cannot determine axis separators to use when flattening "
+            << node->buffer_var->name_hint << ", no buffers found with matching shape";
+        axis_separators = compatible_buffer->axis_separators;
+      }
+    }
+
+    // Use GetFlattenedBuffer to determine the flattened shape of the
+    // output.  We only need the shape and axis separators defined,
+    // everything else can be dummy values.
+    Buffer dummy_buffer =
+        decl_buffer(node->extents, DataType::Float(32), "buffer", "", axis_separators);
+    return dummy_buffer.GetFlattenedBuffer()->shape;
+  }
+
   // The buffer entry in the flatten map
   struct DimAlignInfo {
     int align_factor{0};
@@ -1598,7 +1729,7 @@ class StorageFlattener : public StmtExprMutator {
 
   const BufferEntry& GetBufferEntry(Buffer buffer) {
     auto alloc_key = buffer->data.get();
-    if (!buf_map_.count(buffer) && allocate_node_var_.count(alloc_key)) {
+    if (!buf_map_.count(buffer) && buffer_var_defines_.count(alloc_key)) {
       BufferEntry entry;
       entry.buffer = buffer;
       entry.flattened_buffer = buffer.GetFlattenedBuffer();
@@ -1622,7 +1753,11 @@ class StorageFlattener : public StmtExprMutator {
   std::unordered_map<const VarNode*, PrimExpr> var_remap_;
   // Set of vars that have occurred in an AllocateNode, but haven't
   // yet occurred in a BufferLoad/BufferStore.
-  std::unordered_set<const VarNode*> allocate_node_var_;
+  std::unordered_set<const VarNode*> buffer_var_defines_;
+  // Map from an allocation variable to the buffer(s) that it backs.
+  // Used to track the determine the axis_separators that should be
+  // used for flattening the extents of an AllocateNode.
+  std::unordered_map<const VarNode*, std::vector<Buffer>> buffer_var_map_;
   // Buffer map
   std::unordered_map<Buffer, BufferEntry, ObjectPtrHash, ObjectPtrEqual> buf_map_;
   // The extern buffer map, updated to include flattened buffers.

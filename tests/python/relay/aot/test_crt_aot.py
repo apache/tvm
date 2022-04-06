@@ -16,13 +16,12 @@
 # under the License.
 
 from collections import OrderedDict
-from distutils import file_util
+import platform
 import re
 import sys
 import os
 import tarfile
 import pathlib
-import re
 
 import numpy as np
 import pytest
@@ -905,7 +904,8 @@ def test_output_tensor_names():
 
     in_min, in_max = (-128, 127)
     data = np.random.randint(in_min, high=in_max, size=ifm_shape, dtype="int8")
-    inputs = {"x_int8": data}
+    input_name = mod["main"].params[0].name_hint
+    inputs = {input_name: data}
     output_list = generate_ref_data(mod, inputs, params)
     compile_and_run(
         AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),

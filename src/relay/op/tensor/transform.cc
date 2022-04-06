@@ -2711,6 +2711,13 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
             new_begin.push_back(begin[i]);
             new_end.push_back(end[i]);
           } else {
+            if (strides.defined() && i < strides.size()) {
+              auto stride = strides[i];
+              // arbitrary stride is not supported
+              if (stride.defined() && stride->value != 1) {
+                return out_default;
+              }
+            }
             int64_t bg = begin[i];
             int64_t ed = end[i];
             if (bg % factor || ed % factor) {

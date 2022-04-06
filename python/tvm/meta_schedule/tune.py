@@ -18,11 +18,11 @@
 # pylint: disable=import-outside-toplevel
 import logging
 import os.path
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Union
 
-import tvm
 from tvm._ffi.registry import register_func
 from tvm.ir import IRModule, structural_hash
+from tvm.ir.transform import PassContext
 from tvm.relay import Function as RelayFunc
 from tvm.relay import build as relay_build
 from tvm.runtime import Module, NDArray
@@ -40,22 +40,14 @@ from .mutator import Mutator
 from .postproc import Postproc
 from .runner import LocalRunner, Runner
 from .schedule_rule import ScheduleRule
-from .search_strategy import (
-    EvolutionarySearchConfig,
-    ReplayFuncConfig,
-    ReplayTraceConfig,
-)
+from .search_strategy import EvolutionarySearch, ReplayFunc, ReplayTrace
 from .space_generator import PostOrderApply, SpaceGenerator
-from .task_scheduler import RoundRobin, TaskScheduler
+from .task_scheduler import GradientBased, TaskScheduler
 from .tune_context import TuneContext
+from .utils import autotvm_silencer
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
-SearchStrategyConfig = Union[
-    ReplayFuncConfig,
-    ReplayTraceConfig,
-    EvolutionarySearchConfig,
-]
 FnSpaceGenerator = Callable[[], SpaceGenerator]
 FnScheduleRule = Callable[[], List[ScheduleRule]]
 FnPostproc = Callable[[], List[Postproc]]
@@ -63,6 +55,7 @@ FnMutatorProb = Callable[[], Dict[Mutator, float]]
 FnTaskScheduler = Callable[
     [
         List[TuneContext],
+        List[float],
         Builder,
         Runner,
         Database,
@@ -70,6 +63,107 @@ FnTaskScheduler = Callable[
         List[MeasureCallback],
     ],
     TaskScheduler,
+]
+
+
+class ReplayFuncConfig(NamedTuple):
+    """Configuration for ReplayFunc
+
+    Parameters
+    ----------
+    num_trials_per_iter : int
+        Number of trials per iteration.
+    max_trials_per_task : int
+        Total number of trials for one task
+    max_trials_global : int
+        Total number of trials for all tasks in the task scheduler
+    """
+
+    num_trials_per_iter: int
+    max_trials_per_task: int
+    max_trials_global: int
+
+    def create_strategy(self) -> ReplayFunc:
+        return ReplayFunc(self.num_trials_per_iter, self.max_trials_per_task)
+
+
+class ReplayTraceConfig(NamedTuple):
+    """Configuration for ReplayTrace
+
+    Parameters
+    ----------
+    num_trials_per_iter : int
+        Number of trials per iteration.
+    max_trials_per_task : int
+        Total number of trials for one task
+    max_trials_global : int
+        Total number of trials for all tasks in the task scheduler
+    """
+
+    num_trials_per_iter: int
+    max_trials_per_task: int
+    max_trials_global: int
+
+    def create_strategy(self) -> ReplayTrace:
+        return ReplayTrace(self.num_trials_per_iter, self.max_trials_per_task)
+
+
+class EvolutionarySearchConfig(NamedTuple):
+    """Configuration for EvolutionarySearch
+
+    Parameters
+    ----------
+    num_trials_per_iter : int
+        Number of trials per iteration.
+    max_trials_per_task : int
+        Total number of trials.
+    max_trials_global : int
+        Total number of trials for all tasks in the task scheduler
+    population_size : int
+        The initial population of traces from measured samples and randomly generated samples.
+    init_measured_ratio : int
+        The ratio of measured samples in the initial population.
+    init_min_unmeasured : int
+        The minimal size of unmeasured population in the initial sampling.
+    genetic_num_iters : int
+        The number of iterations for genetic algorithm.
+    genetic_mutate_prob : float
+        The probability of mutation.
+    genetic_max_fail_count : int
+        The maximum number to retry mutation.
+    eps_greedy : float
+        The ratio of greedy selected samples in the final picks.
+    """
+
+    num_trials_per_iter: int
+    max_trials_per_task: int
+    max_trials_global: int
+    population_size: int = 2048
+    init_measured_ratio: float = 0.2
+    init_min_unmeasured: int = 50
+    genetic_num_iters: int = 4
+    genetic_mutate_prob: float = 0.85
+    genetic_max_fail_count: int = 10
+    eps_greedy: float = 0.05
+
+    def create_strategy(self) -> EvolutionarySearch:
+        return EvolutionarySearch(
+            num_trials_per_iter=self.num_trials_per_iter,
+            max_trials_per_task=self.max_trials_per_task,
+            population_size=self.population_size,
+            init_measured_ratio=self.init_measured_ratio,
+            init_min_unmeasured=self.init_min_unmeasured,
+            genetic_num_iters=self.genetic_num_iters,
+            genetic_mutate_prob=self.genetic_mutate_prob,
+            genetic_max_fail_count=self.genetic_max_fail_count,
+            eps_greedy=self.eps_greedy,
+        )
+
+
+SearchStrategyConfig = Union[
+    ReplayFuncConfig,
+    ReplayTraceConfig,
+    EvolutionarySearchConfig,
 ]
 
 
@@ -392,24 +486,29 @@ class Parse:
     def _task_scheduler(
         task_scheduler: Union[None, TaskScheduler, FnTaskScheduler],
         tasks: List[TuneContext],
+        task_weights: List[float],
         builder: Builder,
         runner: Runner,
         database: Database,
+        max_trials: int,
         cost_model: CostModel,
         measure_callbacks: List[MeasureCallback],
     ):
         if task_scheduler is None:
-            return RoundRobin(
+            return GradientBased(
                 tasks=tasks,
+                task_weights=task_weights,
                 builder=builder,
                 runner=runner,
                 database=database,
+                max_trials=max_trials,
                 cost_model=cost_model,
                 measure_callbacks=measure_callbacks,
             )
         if callable(task_scheduler):
             return task_scheduler(
                 tasks,
+                task_weights,
                 builder,
                 runner,
                 database,
@@ -494,9 +593,11 @@ def tune_tir(
     task_scheduler = Parse._task_scheduler(
         task_scheduler,
         [tune_context],
+        task_weights=[1.0],
         builder=Parse._builder(builder),
         runner=Parse._runner(runner),
         database=database,
+        max_trials=config.max_trials_global,
         cost_model=Parse._cost_model(cost_model),
         measure_callbacks=Parse._callbacks(measure_callbacks),
     )
@@ -607,7 +708,7 @@ def deduplicate_extracted_tasks(
 
     for task in extracted_tasks:
         assert len(task.dispatched) == 1, "Only size 1 dispatched task list is supported for now"
-        mod = Parse._mod(task.dispatched[0])
+        mod = Parse._mod(task.dispatched[0])  # pylint: disable=protected-access
         shash = structural_hash(mod)
         if shash in hash2idx:
             count[hash2idx[shash]] += 1
@@ -706,14 +807,17 @@ def tune_extracted_tasks(
     task_scheduler = Parse._task_scheduler(
         task_scheduler,
         tune_contexts,
+        task_weights=[float(t.weight) for t in extracted_tasks],
         builder=Parse._builder(builder),
         runner=Parse._runner(runner),
         database=database,
+        max_trials=config.max_trials_global,
         cost_model=Parse._cost_model(cost_model),
         measure_callbacks=Parse._callbacks(measure_callbacks),
     )
     # pylint: enable=protected-access
     task_scheduler.tune()
+    task_scheduler.cost_model.save(os.path.join(work_dir, "cost_model.xgb"))
     return database
 
 
@@ -772,6 +876,9 @@ def tune_relay(
     """
 
     logger.info("Working directory: %s", work_dir)
+    # pylint: disable=protected-access
+    target = Parse._target(target)
+    # parse the tuning contexts
     extracted_tasks = extract_task_from_relay(mod, target, params)
     database = tune_extracted_tasks(
         extracted_tasks,
@@ -790,8 +897,8 @@ def tune_relay(
         mutator_probs=mutator_probs,
         num_threads=num_threads,
     )
-    with ApplyHistoryBest(database):
-        with tvm.transform.PassContext(
+    with target, autotvm_silencer(), ApplyHistoryBest(database):
+        with PassContext(
             opt_level=3,
             config={"relay.backend.use_meta_schedule": True},
         ):

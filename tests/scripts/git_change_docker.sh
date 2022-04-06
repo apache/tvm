@@ -19,7 +19,12 @@
 
 set -eux
 
-changed_files=$(git diff --no-commit-id --name-only -r origin/main)
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$BRANCH" == "main" ]; then
+    changed_files=$(git diff --no-commit-id --name-only -r HEAD~1)
+else
+    changed_files=$(git diff --no-commit-id --name-only -r origin/main)
+fi
 
 for file in $changed_files; do
     echo "Checking $file"

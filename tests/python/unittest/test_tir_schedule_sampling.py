@@ -194,5 +194,16 @@ def test_sample_compute_location():
         numpy.testing.assert_allclose(expected_rate, cnt / n, atol=0.04)
 
 
+def test_sample_perfect_tile_after_copy():
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    sch_copy = sch.copy()
+    _, _, i = sch.get_loops(sch.get_block("B"))
+    sch.sample_perfect_tile(i, n=4)
+
+    _, _, i = sch_copy.get_loops(sch_copy.get_block("B"))
+    # Hangs if ForkSeed is not invoked when copying a schedule
+    sch_copy.sample_perfect_tile(i, n=4)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

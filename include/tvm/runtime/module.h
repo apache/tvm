@@ -251,6 +251,14 @@ inline const ModuleNode* Module::operator->() const {
   return static_cast<const ModuleNode*>(get());
 }
 
+inline std::ostream& operator<<(std::ostream& out, const Module& module) {
+  out << "Module(type_key= ";
+  out << module->type_key();
+  out << ")";
+
+  return out;
+}
+
 }  // namespace runtime
 }  // namespace tvm
 
