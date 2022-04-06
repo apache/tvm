@@ -37,6 +37,9 @@ python3 jenkins/generate.py --check
 echo "Checking file types..."
 python3 tests/lint/check_file_type.py
 
+echo "Checking CMake <-> LibInfo options mirroring"
+python3 tests/lint/check_cmake_options.py
+
 echo "Checking ASF license headers..."
 tests/lint/check_asf_header.sh --local
 
@@ -50,7 +53,7 @@ echo "Rust check..."
 tests/lint/rust_format.sh
 
 echo "black check..."
-tests/lint/git-black.sh -i
+tests/lint/git-black.sh
 
 echo "Linting the Python code..."
 tests/lint/pylint.sh

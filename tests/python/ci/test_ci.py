@@ -605,25 +605,6 @@ def test_github_tag_teams(tmpdir_factory):
             "title": "A title",
             "number": 1234,
             "user": {
-                "login": "person6",
-            },
-            "labels": [{"name": "something"}],
-            "body": textwrap.dedent(
-                """
-                hello
-
-                something"""
-            ),
-        },
-        check="Author person6 is not opted in, quitting",
-    )
-
-    run(
-        type="ISSUE",
-        data={
-            "title": "A title",
-            "number": 1234,
-            "user": {
                 "login": "person5",
             },
             "labels": [{"name": "something"}],
