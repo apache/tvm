@@ -23,15 +23,17 @@
 #include <tvm/runtime/device_api.h>
 
 #include <map>
+#include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
+
+#include "hexagon_buffer.h"
 
 namespace tvm {
 namespace runtime {
 namespace hexagon {
-
-class HexagonBuffer;
 
 /*!
  * \brief Hexagon Device API that is compiled and run on Hexagon.
@@ -70,7 +72,7 @@ class HexagonDeviceAPIv2 final : public DeviceAPI {
    */
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
 
-  //! Dereference workspace pool and erase from tracked workspace_allocations_.
+  //! Erase from tracked hexagon_buffer_map and free
   void FreeWorkspace(Device dev, void* data) final;
 
   /*!
@@ -125,8 +127,23 @@ class HexagonDeviceAPIv2 final : public DeviceAPI {
                       TVMStreamHandle stream) final;
 
  private:
-  //! Lookup table for the HexagonBuffer managing a workspace allocation.
-  std::unordered_map<void*, HexagonBuffer*> workspace_allocations_;
+  /*! \brief Helper to allocate a HexagonBuffer and register the result
+   *  in the owned buffer map.
+   *  \return Raw data storage managed by the hexagon buffer
+   */
+  template <typename... Args>
+  void* AllocateHexagonBuffer(Args&&... args) {
+    auto buf = std::make_unique<HexagonBuffer>(std::forward<Args>(args)...);
+    void* ptr = buf->GetPointer();
+    hexagon_buffer_map_.insert({ptr, std::move(buf)});
+    return ptr;
+  }
+  /*! \brief Helper to free a HexagonBuffer and unregister the result
+   *  from the owned buffer map.
+   */
+  void FreeHexagonBuffer(void* ptr);
+  //! Lookup table for the HexagonBuffer managing an allocation.
+  std::unordered_map<void*, std::unique_ptr<HexagonBuffer>> hexagon_buffer_map_;
 };
 }  // namespace hexagon
 }  // namespace runtime
