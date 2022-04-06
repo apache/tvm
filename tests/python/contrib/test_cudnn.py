@@ -488,6 +488,7 @@ def _verify_cudnn_relay(expr):
     )
 
 
+@tvm.testing.requires_cuda
 @pytest.mark.parametrize(
     "shape,axis",
     [
