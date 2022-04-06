@@ -150,17 +150,24 @@ HexagonBuffer::HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
                              Optional<String> scope)
     : ndim_(2), nbytes_per_allocation_(nbytes) {
   SetStorageScope(scope);
-  for (size_t i = 0; i < nallocs; ++i) {
-    std::unique_ptr<Allocation> alloca = nullptr;
-    if (GetStorageScope() == StorageScope::kDDR) {
-      alloca = Allocator<StorageScope::kDDR>(nbytes, alignment);
-    } else if (GetStorageScope() == StorageScope::kVTCM) {
-      alloca = Allocator<StorageScope::kVTCM>(nbytes, alignment);
-    }
-    CHECK(alloca != nullptr);
-    allocations_.push_back(alloca->data_);
-    managed_allocations_.push_back(std::move(alloca));
+
+  size_t nbytes_aligned = ((nbytes + (alignment - 1)) / alignment) * alignment;
+  size_t nbytes_monolithic = nallocs * nbytes_aligned;
+
+  std::unique_ptr<Allocation> alloca = nullptr;
+  if (GetStorageScope() == StorageScope::kDDR) {
+    alloca = Allocator<StorageScope::kDDR>(nbytes_monolithic, alignment);
+  } else if (GetStorageScope() == StorageScope::kVTCM) {
+    alloca = Allocator<StorageScope::kVTCM>(nbytes_monolithic, alignment);
   }
+  CHECK(alloca) << "could not create allocation";
+
+  for (size_t i = 0; i < nallocs; ++i) {
+    void* alloc_offset = static_cast<unsigned char*>(alloca->data_) + i * nbytes_aligned;
+    allocations_.push_back(alloc_offset);
+  }
+
+  managed_allocations_.push_back(std::move(alloca));
 }
 
 HexagonBuffer::HexagonBuffer(void* data, size_t nbytes, Optional<String> scope)
