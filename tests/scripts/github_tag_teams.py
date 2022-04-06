@@ -27,6 +27,9 @@ from typing import Dict, Any, List, Tuple
 from git_utils import git, GitHubRepo, parse_remote, find_ccs
 
 
+GITHUB_NAME_REGEX = r"@[a-zA-Z0-9-]+"
+
+
 def parse_line(line: str) -> Tuple[str, List[str]]:
     line = line.lstrip(" -")
     line = line.split()
@@ -244,6 +247,10 @@ if __name__ == "__main__":
     to_cc = [teams.get(t, []) for t in tags]
     to_cc = list(set(item for sublist in to_cc for item in sublist))
     to_cc = [user for user in to_cc if user != author]
+    existing_tags = list(set(re.findall(GITHUB_NAME_REGEX, body)))
+    existing_tags = set(tag.replace("@", "") for tag in existing_tags)
+    print(f"Found existing tags: {existing_tags}")
+    to_cc = [user for user in to_cc if user not in existing_tags]
     print("Users to cc based on labels", to_cc)
 
     # Create the new PR/issue body
