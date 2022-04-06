@@ -18,7 +18,6 @@
 """CMSIS-NN functions for testing networks"""
 
 import platform
-
 import math
 import numpy as np
 import pytest
@@ -226,3 +225,134 @@ def make_qnn_relu(expr, fused_activation_fn, scale, zero_point, dtype):
         )
     if fused_activation_fn == "RELU":
         return tvm.relay.op.clip(expr, a_min=max(qmin, quantize(0.0)), a_max=qmax)
+
+
+def generate_random_input_data(seed, shape, dtype):
+    """
+    Generates randomized input numpy arrays based on shape and dtype
+    """
+    random_state = np.random.RandomState(seed)
+    if dtype == np.float32:
+        return random_state.uniform(-1, 1, size).astype(dtype)
+    else:
+        low = np.iinfo(dtype).min
+        high = np.iinfo(dtype).max + 1
+        return random_state.randint(low, high, shape, dtype)
+
+
+def generate_ref_data_tflite(model):
+    """
+    This method uses TFLite reference kernels to generate reference output.
+    Random input generator is used to get the input data.
+    It returns randomized inputs and reference outputs.
+    """
+    import tensorflow as tf
+    from distutils.version import LooseVersion
+
+    output_tolerance = None
+    if tf.__version__ < LooseVersion("2.5.0"):
+        output_tolerance = 1
+        interpreter = tf.lite.Interpreter(model_content=model)
+    else:
+        from tensorflow.lite.python.interpreter import OpResolverType
+
+        output_tolerance = 0
+        interpreter = tf.lite.Interpreter(
+            model_content=model,
+            experimental_op_resolver_type=OpResolverType.BUILTIN_REF,
+            experimental_preserve_all_tensors=False,
+        )
+
+    interpreter.allocate_tensors()
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+
+    # Generate predictable randomized input
+    seed = 0
+    input_data = {}
+    for input_detail in input_details:
+        input_values = generate_random_input_data(
+            seed, input_detail["shape"], input_detail["dtype"]
+        )
+        interpreter.set_tensor(input_detail["index"], input_values)
+        input_data.update({input_detail["name"]: input_values})
+
+    interpreter.invoke()
+
+    # Obtain the expected output from interpreter
+    expected_output_data = {}
+    for output_detail in output_details:
+        expected_output_data.update(
+            {output_detail["name"]: interpreter.get_tensor(output_detail["index"])}
+        )
+
+    return input_data, expected_output_data, output_tolerance
+
+
+def create_conv2d_tflite_model(ifm_shape, kernel_shape, strides, dilation, padding, activation):
+    """ This method prepares TFlite graph with a single Conv2d layer """
+    import tensorflow as tf
+
+    class Model(tf.Module):
+        @tf.function
+        def tf_function(self, x):
+            # Use tf.nn API to create the model
+            tf_strides = [1, strides[0], strides[1], 1]
+            op = tf.nn.conv2d(
+                x,
+                filters=tf.constant(
+                    np.random.uniform(size=[kernel_shape[0], kernel_shape[1], 3, 3]),
+                    dtype=tf.float32,
+                ),
+                strides=tf_strides,
+                padding=padding,
+                dilations=dilation,
+            )
+            if activation:
+                op = tf.nn.relu(op)
+            return op
+
+    model = Model()
+    concrete_func = model.tf_function.get_concrete_function(
+        tf.TensorSpec(ifm_shape, dtype=tf.float32)
+    )
+
+    def representative_dataset():
+        for _ in range(100):
+            data = np.random.rand(*tuple(ifm_shape))
+            yield [data.astype(np.float32)]
+
+    converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.representative_dataset = representative_dataset
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+    converter.inference_input_type = tf.int8
+    converter.inference_output_type = tf.int8
+    tflite_model = converter.convert()
+    return tflite_model
+
+
+def create_conv2d_tflite_relay_models(
+    ifm_shape, kernel_shape, strides, dilation, padding, activation, dtype
+):
+    """
+    This method creates a conv2d TFLite layer and prepared TFLite model from it.
+    Converts that into the Relay module and params.
+    Returns TFLite model, Relay module and params.
+    """
+    pytest.importorskip("tflite")
+    import tflite.Model
+
+    serialized_tflite_model = create_conv2d_tflite_model(
+        ifm_shape, kernel_shape, strides, dilation, padding, activation
+    )
+
+    tflite_model = tflite.Model.Model.GetRootAsModel(serialized_tflite_model, 0)
+
+    relay_module, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+
+    return serialized_tflite_model, relay_module, params
