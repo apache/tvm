@@ -460,7 +460,6 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
   begins = SimplifyArray(&ana, begins);
   Array<PrimExpr> elem_offset = n->ElemOffset(begins);
   elem_offset.MutateByApply([&](const PrimExpr& expr) { return ana.Simplify(expr); });
-  // ICHECK_EQ(elem_offset.size(), 1) << "MakeSlice currently supports only flat 1-d memory.";
 
   Array<PrimExpr> strides = n->strides;
   if (strides.size() == 0) {

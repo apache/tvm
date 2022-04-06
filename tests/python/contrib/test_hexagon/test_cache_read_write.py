@@ -106,7 +106,7 @@ def test_cache_read_write(hexagon_session):
     # 4 allocations of 16 bytes each not necessarily located in contiguous address
     # space in VTCM.  Without this split we attempt to copy all 64 bytes of `z_vtcm`
     # back to `z` as if `z_vtcm` was contiguous resulting in data miscompare where
-    # only the first 16 bytes of `z` are correct compared to the refernce.  Unclear
+    # only the first 16 bytes of `z` are correct compared to the reference.  Unclear
     # if adding this `split` is a fix or a workaround at this time.  Need to think
     # about other possible solutions.
     zouter, zinner = s[z].split(z.op.axis[0], factor=factor)
