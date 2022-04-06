@@ -18,6 +18,10 @@ from .. import TensorIntrin
 from tvm.script import tir as T
 
 
+# Tensorized intrinsic description and VNNI-specific implementation.
+# Equivalent to the ones in topi/x86/tensor_intrin.py
+
+
 @T.prim_func
 def dot_product_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (4,), "uint8", offset_factor=1)
@@ -52,9 +56,7 @@ def dot_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
         B_i8x64 = B.vload([0, 0], dtype="int8x64")
         B_i32x16 = T.reinterpret(B_i8x64, dtype="int32x16")
 
-        C[
-            T.ramp(T.int32(0), 1, 16)
-        ] += T.call_llvm_pure_intrin(  # Note: this is an update +=
+        C[T.ramp(T.int32(0), 1, 16)] += T.call_llvm_pure_intrin(  # Note: this is an update +=
             T.llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512"),
             T.uint32(0),
             T.int32x16(0),
@@ -64,6 +66,6 @@ def dot_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
         )
 
 
-TensorIntrin.register(
-    "dot_16x1x16_uint8_int8_int32_cascadelake", dot_product_desc, dot_product_intrin
-)
+INTRIN_NAME = "dot_16x1x16_uint8_int8_int32_cascadelake"
+
+TensorIntrin.register(INTRIN_NAME, dot_product_desc, dot_product_intrin)
