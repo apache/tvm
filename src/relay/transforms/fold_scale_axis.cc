@@ -29,6 +29,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/tir/data_layout.h>
 
+#include "../backend/utils.h"
 #include "../op/tensor/transform.h"
 #include "pass_utils.h"
 #include "pattern_utils.h"
@@ -492,11 +493,11 @@ RELAY_REGISTER_OP("multiply")
     .set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", MultiplyForwardRewrite);
 
 // Consumer operators
-// Conv2D send out requirement of axis folding.
-Array<Message> Conv2DForwardPrep(const Call& call, const Message& out_message) {
+// Conv send out requirement of axis folding.
+template <typename ATTRS>
+Array<Message> ConvForwardPrep(const Call& call, const ATTRS* param, const Message& out_message) {
   // TODO(tvm-team) support general data layout
   // by transforming weight
-  const auto* param = call->attrs.as<Conv2DAttrs>();
   ICHECK(param != nullptr);
   Layout data_layout(param->data_layout);
   Layout kernel_layout(param->kernel_layout);
@@ -512,8 +513,8 @@ Array<Message> Conv2DForwardPrep(const Call& call, const Message& out_message) {
   //
   // only handle depthwise or full conv2d.
   // TODO(tvm-team) handle grouped conv by reshape + bcast
-  bool is_depthwise_conv2d = IsDepthwiseConv2D(call, param, kernel_layout);
-  if (param->groups == 1 || is_depthwise_conv2d) {
+  bool is_depthwise_conv = IsDepthwiseConv(call, param, kernel_layout);
+  if (param->groups == 1 || is_depthwise_conv) {
     auto ko_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
     auto ki_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
     if ((ko_small_axis < 0 && ki_small_axis < 0 && c_small_axis < 0) ||     // simple layout
@@ -529,14 +530,14 @@ Array<Message> Conv2DForwardPrep(const Call& call, const Message& out_message) {
 }
 
 // Conv2D consumes the scale axis during transformation.
-Expr Conv2DForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
-                          const Message& message) {
+template <typename ATTRS>
+Expr ConvForwardRewrite(const Call& ref_call, const ATTRS* param, const Array<Expr>& new_args,
+                        const Message& message) {
   // if data do not have scale, normal transform path.
   const auto* sdata = new_args[0].as<ScaledExprNode>();
   const auto* sweight = new_args[1].as<ScaledExprNode>();
   if (sdata == nullptr) return Expr();
   if (sweight != nullptr) return Expr();
-  const auto* param = ref_call->attrs.as<Conv2DAttrs>();
   ICHECK(param != nullptr);
   Layout data_layout(param->data_layout);
   Layout kernel_layout(param->kernel_layout);
@@ -552,13 +553,13 @@ Expr Conv2DForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
   ICHECK(is_simple || is_blocking);
 
   // Check it must be depthwise or full conv2d.
-  bool is_depthwise_conv2d = IsDepthwiseConv2D(ref_call, param, kernel_layout);
-  ICHECK(param->groups == 1 || is_depthwise_conv2d);
+  bool is_depthwise_conv = IsDepthwiseConv(ref_call, param, kernel_layout);
+  ICHECK(param->groups == 1 || is_depthwise_conv);
 
   Expr weight = new_args[1];
 
   // match the ic_axis
-  if (is_depthwise_conv2d) {
+  if (is_depthwise_conv) {
     if (is_simple) {
       Expr scale = ExpandBiasToMatchAxis(sdata->scale, kernel_layout.ndim(), {big_ko_axis});
       weight = Multiply(weight, scale);
@@ -580,112 +581,38 @@ Expr Conv2DForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
       if (!weight.defined()) return Expr();
     }
   }
-  // return transformed conv2d
+  // return transformed conv
   return Call(ref_call->op, {sdata->value, weight}, ref_call->attrs, ref_call->type_args);
 }
 
-RELAY_REGISTER_OP("nn.conv2d").set_attr<FForwardPrep>("FScaleAxisForwardPrep", Conv2DForwardPrep);
+Array<Message> PreConvForwardPrep(const Call& call, const Message& out_message) {
+  if (backend::IsOp(call.as<CallNode>(), "nn.conv2d")) {
+    const auto* param = call->attrs.as<Conv2DAttrs>();
+    return ConvForwardPrep(call, param, out_message);
+  }
+  const auto* param = call->attrs.as<Conv3DAttrs>();
+  return ConvForwardPrep(call, param, out_message);
+}
+
+Expr PreConvForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
+                           const Message& message) {
+  if (backend::IsOp(ref_call.as<CallNode>(), "nn.conv2d")) {
+    const auto* param = ref_call->attrs.as<Conv2DAttrs>();
+    return ConvForwardRewrite(ref_call, param, new_args, message);
+  }
+  const auto* param = ref_call->attrs.as<Conv3DAttrs>();
+  return ConvForwardRewrite(ref_call, param, new_args, message);
+}
+
+RELAY_REGISTER_OP("nn.conv2d").set_attr<FForwardPrep>("FScaleAxisForwardPrep", PreConvForwardPrep);
 
 RELAY_REGISTER_OP("nn.conv2d")
-    .set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", Conv2DForwardRewrite);
+    .set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", PreConvForwardRewrite);
 
-// Consumer operators
-// Conv3D send out requirement of axis folding.
-Array<Message> Conv3DForwardPrep(const Call& call, const Message& out_message) {
-  // TODO(tvm-team) support general data layout
-  // by transforming weight
-  const auto* param = call->attrs.as<Conv3DAttrs>();
-  ICHECK(param != nullptr);
-  Layout data_layout(param->data_layout);
-  Layout kernel_layout(param->kernel_layout);
-  int c_big_axis = data_layout.IndexOf(LayoutAxis::Get('C'));
-  int c_small_axis = data_layout.IndexOf(LayoutAxis::Get('c'));
-
-  ICHECK_GE(c_big_axis, 0);
-  Message none = NullValue<Message>();
-  // For now, we only support simple pattern (no folded weight/data)
-  // More general layout can be supported under the current framework.
-  // By using a unified layout transformation.
-  // We only need to change the Prep and Mutate function.
-  //
-  // only handle depthwise or full conv3d.
-  // TODO(tvm-team) handle grouped conv by reshape + bcast
-  bool is_depthwise_conv3d = IsDepthwiseConv3D(call, param, kernel_layout);
-  if (param->groups == 1 || is_depthwise_conv3d) {
-    auto ko_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
-    auto ki_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
-    if ((ko_small_axis < 0 && ki_small_axis < 0 && c_small_axis < 0) ||     // simple layout
-        (ko_small_axis >= 0 && ki_small_axis >= 0 && c_small_axis >= 0)) {  // blocked layout
-      Array<Integer> arr{c_big_axis};
-      if (c_small_axis >= 0) {
-        arr.push_back(c_small_axis);
-      }
-      return {Message(arr, false), none};
-    }
-  }
-  return {none, none};
-}
-
-// Conv3D consumes the scale axis during transformation.
-Expr Conv3DForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
-                          const Message& message) {
-  // if data do not have scale, normal transform path.
-  const auto* sdata = new_args[0].as<ScaledExprNode>();
-  const auto* sweight = new_args[1].as<ScaledExprNode>();
-  if (sdata == nullptr) return Expr();
-  if (sweight != nullptr) return Expr();
-  const auto* param = ref_call->attrs.as<Conv3DAttrs>();
-  ICHECK(param != nullptr);
-  Layout data_layout(param->data_layout);
-  Layout kernel_layout(param->kernel_layout);
-  int c_big_axis = data_layout.IndexOf(LayoutAxis::Get('C'));
-  ICHECK_GE(c_big_axis, 0);
-  int small_ko_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
-  int small_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
-  int big_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('I'));
-  int big_ko_axis = kernel_layout.IndexOf(LayoutAxis::Get('O'));
-
-  bool is_simple = (small_ko_axis < 0 && small_ki_axis < 0 && big_ki_axis >= 0);
-  bool is_blocking = (small_ko_axis >= 0 && small_ki_axis >= 0 && big_ki_axis >= 0);
-  ICHECK(is_simple || is_blocking);
-
-  // Check it must be depthwise or full conv3d.
-  bool is_depthwise_conv3d = IsDepthwiseConv3D(ref_call, param, kernel_layout);
-  ICHECK(param->groups == 1 || is_depthwise_conv3d);
-
-  Expr weight = new_args[1];
-
-  // match the ic_axis
-  if (is_depthwise_conv3d) {
-    if (is_simple) {
-      Expr scale = ExpandBiasToMatchAxis(sdata->scale, kernel_layout.ndim(), {big_ko_axis});
-      weight = Multiply(weight, scale);
-    } else {
-      weight = Multiply(weight,
-                        ReshapeToMatchAxis(sdata->scale, weight->type_as<TensorTypeNode>()->shape,
-                                           {big_ko_axis, small_ko_axis}));
-      if (!weight.defined()) return Expr();
-    }
-
-  } else {
-    if (is_simple) {
-      Expr scale = ExpandBiasToMatchAxis(sdata->scale, kernel_layout.ndim(), {big_ki_axis});
-      weight = Multiply(weight, scale);
-    } else {
-      weight = Multiply(weight,
-                        ReshapeToMatchAxis(sdata->scale, weight->type_as<TensorTypeNode>()->shape,
-                                           {big_ki_axis, small_ki_axis}));
-      if (!weight.defined()) return Expr();
-    }
-  }
-  // return transformed conv3d
-  return Call(ref_call->op, {sdata->value, weight}, ref_call->attrs, ref_call->type_args);
-}
-
-RELAY_REGISTER_OP("nn.conv3d").set_attr<FForwardPrep>("FScaleAxisForwardPrep", Conv3DForwardPrep);
+RELAY_REGISTER_OP("nn.conv3d").set_attr<FForwardPrep>("FScaleAxisForwardPrep", PreConvForwardPrep);
 
 RELAY_REGISTER_OP("nn.conv3d")
-    .set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", Conv3DForwardRewrite);
+    .set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", PreConvForwardRewrite);
 
 // Dense send out requirement of axis folding.
 Array<Message> DenseForwardPrep(const Call& call, const Message& out_message) {
@@ -1035,9 +962,9 @@ RELAY_REGISTER_OP("multiply")
     .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", MultiplyBackwardTransform);
 
 // Consumer operators
-// Conv2D send out requirement of axis folding.
-Message Conv2DBackwardPrep(const Call& call, const Array<Message>& in_messages) {
-  const auto* param = call->attrs.as<Conv2DAttrs>();
+// Conv send out requirement of axis folding.
+template <typename ATTRS>
+Message ConvBackwardPrep(const Call& call, const ATTRS* param, const Array<Message>& in_messages) {
   ICHECK(param != nullptr);
   Layout kernel_layout(param->kernel_layout);
   Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
@@ -1050,10 +977,10 @@ Message Conv2DBackwardPrep(const Call& call, const Array<Message>& in_messages) 
   // By using a unified layout transformation.
   // We only need to change the Prep and Mutate function.
   //
-  // only handle depthwise or full conv2d.
+  // only handle depthwise or full conv.
   // TODO(tvm-team) handle grouped conv by reshape + bcast
-  bool is_depthwise_conv2d = IsDepthwiseConv2D(call, param, kernel_layout);
-  if (param->groups == 1 || is_depthwise_conv2d) {
+  bool is_depthwise_conv = IsDepthwiseConv(call, param, kernel_layout);
+  if (param->groups == 1 || is_depthwise_conv) {
     auto ko_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
     auto ki_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
     if ((ko_small_axis < 0 && ki_small_axis < 0 && c_small_axis < 0) ||     // simple layout
@@ -1068,13 +995,13 @@ Message Conv2DBackwardPrep(const Call& call, const Array<Message>& in_messages) 
   return NullValue<Message>();
 }
 
-// Conv2D consumes the scale axis during transformation.
-Expr Conv2DBackwardTransform(const Call& call, const Message& message, const Expr& scale,
-                             const BackwardTransformer& transformer) {
+// Conv consumes the scale axis during transformation.
+template <typename ATTRS>
+Expr ConvBackwardTransform(const Call& call, const ATTRS* param, const Message& message,
+                           const Expr& scale, const BackwardTransformer& transformer) {
   if (!message.defined()) {
     return transformer->NormalCallTransform(call.operator->());
   }
-  const auto* param = call->attrs.as<Conv2DAttrs>();
   ICHECK(param != nullptr);
   Layout kernel_layout(param->kernel_layout);
   Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
@@ -1086,9 +1013,9 @@ Expr Conv2DBackwardTransform(const Call& call, const Message& message, const Exp
   int small_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
   int big_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('I'));
   int big_ko_axis = kernel_layout.IndexOf(LayoutAxis::Get('O'));
-  // Check it must be depthwise or full conv2d.
-  bool is_depthwise_conv2d = IsDepthwiseConv2D(call, param, kernel_layout);
-  ICHECK(param->groups == 1 || is_depthwise_conv2d);
+  // Check it must be depthwise or full conv.
+  bool is_depthwise_conv = IsDepthwiseConv(call, param, kernel_layout);
+  ICHECK(param->groups == 1 || is_depthwise_conv);
   bool is_simple = (small_ko_axis < 0 && small_ki_axis < 0 && big_ki_axis >= 0);
   bool is_blocking = (small_ko_axis >= 0 && small_ki_axis >= 0 && big_ki_axis >= 0);
   ICHECK(is_simple || is_blocking);
@@ -1110,93 +1037,36 @@ Expr Conv2DBackwardTransform(const Call& call, const Message& message, const Exp
   return Call(call->op, {data, weight}, call->attrs, call->type_args);
 }
 
-RELAY_REGISTER_OP("nn.conv2d")
-    .set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", Conv2DBackwardPrep);
-
-RELAY_REGISTER_OP("nn.conv2d")
-    .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", Conv2DBackwardTransform);
-
-// Consumer operators
-// Conv3D send out requirement of axis folding.
-Message Conv3DBackwardPrep(const Call& call, const Array<Message>& in_messages) {
-  const auto* param = call->attrs.as<Conv3DAttrs>();
-  ICHECK(param != nullptr);
-  Layout kernel_layout(param->kernel_layout);
-  Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
-  int c_big_axis = out_layout.IndexOf(LayoutAxis::Get('C'));
-  int c_small_axis = out_layout.IndexOf(LayoutAxis::Get('c'));
-
-  ICHECK_GE(c_big_axis, 0);
-  // For now, we only support simple pattern (no folded weight/data)
-  // More general layout can be supported under the current framework.
-  // By using a unified layout transformation.
-  // We only need to change the Prep and Mutate function.
-  //
-  // only handle depthwise or full conv3d.
-  // TODO(tvm-team) handle grouped conv by reshape + bcast
-  bool is_depthwise_conv3d = IsDepthwiseConv3D(call, param, kernel_layout);
-  if (param->groups >= 1 || is_depthwise_conv3d) {
-    auto ko_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
-    auto ki_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
-    if ((ko_small_axis < 0 && ki_small_axis < 0 && c_small_axis < 0) ||     // simple layout
-        (ko_small_axis >= 0 && ki_small_axis >= 0 && c_small_axis >= 0)) {  // blocked layout
-      Array<Integer> arr{c_big_axis};
-      if (c_small_axis >= 0) {
-        arr.push_back(c_small_axis);
-      }
-      return Message(arr, false);
-    }
-  }
-  return NullValue<Message>();
-}
-
-// Conv3D consumes the scale axis during transformation.
-Expr Conv3DBackwardTransform(const Call& call, const Message& message, const Expr& scale,
-                             const BackwardTransformer& transformer) {
-  if (!message.defined()) {
-    return transformer->NormalCallTransform(call.operator->());
+Message PreConvBackwardPrep(const Call& call, const Array<Message>& in_messages) {
+  if (backend::IsOp(call.as<CallNode>(), "nn.conv2d")) {
+    const auto* param = call->attrs.as<Conv2DAttrs>();
+    return ConvBackwardPrep(call, param, in_messages);
   }
   const auto* param = call->attrs.as<Conv3DAttrs>();
-  ICHECK(param != nullptr);
-  Layout kernel_layout(param->kernel_layout);
-  Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
-  int c_big_axis = out_layout.IndexOf(LayoutAxis::Get('C'));
-  ICHECK_GE(c_big_axis, 0);
-  // For now, we only support simple pattern (no folded weight/data)
-  // TODO(tvm-team) support general data layout
-  int small_ko_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
-  int small_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
-  int big_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('I'));
-  int big_ko_axis = kernel_layout.IndexOf(LayoutAxis::Get('O'));
-  // Check it must be depthwise or full conv3d.
-  bool is_depthwise_conv3d = IsDepthwiseConv3D(call, param, kernel_layout);
-  ICHECK(param->groups >= 1 || is_depthwise_conv3d);
-  bool is_simple = (small_ko_axis < 0 && small_ki_axis < 0 && big_ki_axis >= 0);
-  bool is_blocking = (small_ko_axis >= 0 && small_ki_axis >= 0 && big_ki_axis >= 0);
-  ICHECK(is_simple || is_blocking);
-
-  Expr data = transformer->Transform(call->args[0], NullValue<Message>(), NullValue<Expr>());
-  Expr weight = transformer->Transform(call->args[1], NullValue<Message>(), NullValue<Expr>());
-  // scale on input for deptwise.
-  Expr wscale;
-  if (is_simple) {
-    wscale = ExpandBiasToMatchAxis(scale, kernel_layout.ndim(), {big_ko_axis});
-  } else {
-    wscale = ReshapeToMatchAxis(scale, weight->type_as<TensorTypeNode>()->shape,
-                                {big_ko_axis, small_ko_axis});
-    if (!wscale.defined()) {
-      return transformer->NormalCallTransform(call.operator->());
-    }
-  }
-  weight = Multiply(weight, wscale);
-  return Call(call->op, {data, weight}, call->attrs, call->type_args);
+  return ConvBackwardPrep(call, param, in_messages);
 }
 
-RELAY_REGISTER_OP("nn.conv3d")
-    .set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", Conv3DBackwardPrep);
+Expr PreConvBackwardTransform(const Call& call, const Message& message, const Expr& scale,
+                              const BackwardTransformer& transformer) {
+  if (backend::IsOp(call.as<CallNode>(), "nn.conv2d")) {
+    const auto* param = call->attrs.as<Conv2DAttrs>();
+    return ConvBackwardTransform(call, param, message, scale, transformer);
+  }
+  const auto* param = call->attrs.as<Conv3DAttrs>();
+  return ConvBackwardTransform(call, param, message, scale, transformer);
+}
+
+RELAY_REGISTER_OP("nn.conv2d")
+    .set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", PreConvBackwardPrep);
+
+RELAY_REGISTER_OP("nn.conv2d")
+    .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", PreConvBackwardTransform);
 
 RELAY_REGISTER_OP("nn.conv3d")
-    .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", Conv3DBackwardTransform);
+    .set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", PreConvBackwardPrep);
+
+RELAY_REGISTER_OP("nn.conv3d")
+    .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", PreConvBackwardTransform);
 
 Message BiasAddBackwardPrep(const Call& call, const Array<Message>& in_messages) {
   const BiasAddAttrs* attrs = call->attrs.as<BiasAddAttrs>();
