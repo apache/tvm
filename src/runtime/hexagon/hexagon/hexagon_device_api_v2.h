@@ -26,6 +26,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "hexagon_buffer.h"
@@ -132,7 +133,7 @@ class HexagonDeviceAPIv2 final : public DeviceAPI {
    */
   template <typename... Args>
   void* AllocateHexagonBuffer(Args&&... args) {
-    auto buf = std::unique_ptr<HexagonBuffer>(new HexagonBuffer(std::forward<Args>(args)...));
+    auto buf = std::make_unique<HexagonBuffer>(std::forward<Args>(args)...);
     void* ptr = buf->GetPointer();
     hexagon_buffer_map_.insert({ptr, std::move(buf)});
     return ptr;

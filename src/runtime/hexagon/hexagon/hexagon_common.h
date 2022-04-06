@@ -44,12 +44,6 @@
     }                                                                             \
   } while (0)
 
-namespace tvm {
-namespace runtime {
-namespace hexagon {
-}  // namespace hexagon
-}  // namespace runtime
-}  // namespace tvm
 inline bool IsHexagonDevice(DLDevice dev) {
   return TVMDeviceExtType(dev.device_type) == kDLHexagon;
 }
