@@ -90,32 +90,28 @@ def test_cache_read_write(hexagon_session):
     z = te.compute(outer_shape, lambda i: x[i] + y[i], name="z")
     s = te.create_schedule(z.op)
 
-    x_global = s.cache_read(x, "global.vtcm", [z])
-    y_global = s.cache_read(y, "global.vtcm", [z])
-    z_global = s.cache_write(z, "global.vtcm")
+    x_vtcm = s.cache_read(x, "global.vtcm", [z])
+    y_vtcm = s.cache_read(y, "global.vtcm", [z])
+    z_vtcm = s.cache_write(z, "global.vtcm")
 
-    cache_read_x = s[x_global].transform_layout(layout_transform_2d)
-    cache_read_y = s[y_global].transform_layout(layout_transform_2d)
-    cache_write_z = s[z_global].transform_layout(layout_transform_2d)
+    layout_x_vtcm = s[x_vtcm].transform_layout(layout_transform_2d)
+    layout_y_vtcm = s[y_vtcm].transform_layout(layout_transform_2d)
+    layout_z_vtcm = s[z_vtcm].transform_layout(layout_transform_2d)
 
     mem_copy_read = intrin_mem_copy(inner_shape, dtype, "global.vtcm", "global")
-    s[x_global].tensorize(cache_read_x[1], mem_copy_read)
-    s[y_global].tensorize(cache_read_y[1], mem_copy_read)
+    s[x_vtcm].tensorize(layout_x_vtcm[1], mem_copy_read)
+    s[y_vtcm].tensorize(layout_y_vtcm[1], mem_copy_read)
 
-    mem_copy_write = intrin_mem_copy(outer_shape, dtype, "global", "global.vtcm")
-    s[z].tensorize(s[z].op.axis[0], mem_copy_write)
-
-    # TODO (Straw)
-    # Above call to `tensorize` produces the following TIR, as expected:
-    #   @tir.mem_copy(@tir.address_of(z[0], dtype=handle),
-    #                 @tir.address_of(z.global.vtcm_1[0, 0], dtype=handle),
-    #                 64,
-    #                 dtype=handle)
-    #
-    # But, fails with data miscompare where first 16 bytes (out of 64) are correct
-    #  and remaining bytes incorrect due to the fact that `z` consists of 4
-    #  allocations of 16 bytes each not necessarily located in contingous memory
-    #  in VTCM.  Need to think about the correct solution for this problem.
+    # TODO (Straw) Test fails without this `split` because `z_vtcm` consists of
+    # 4 allocations of 16 bytes each not necessarily located in contiguous address
+    # space in VTCM.  Without this split we attempt to copy all 64 bytes of `z_vtcm`
+    # back to `z` as if `z_vtcm` was contiguous resulting in data miscompare where
+    # only the first 16 bytes of `z` are correct compared to the refernce.  Unclear
+    # if adding this `split` is a fix or a workaround at this time.  Need to think
+    # about other possible solutions.
+    zouter, zinner = s[z].split(z.op.axis[0], factor=factor)
+    mem_copy_write = intrin_mem_copy(inner_shape, dtype, "global", "global.vtcm")
+    s[z].tensorize(zinner, mem_copy_write)
 
     print(tvm.lower(s, [x, y, z]))
 
