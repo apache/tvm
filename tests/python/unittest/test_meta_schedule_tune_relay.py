@@ -42,7 +42,7 @@ from tvm.script import tir as T
 from tvm.target.target import Target
 from tvm.tir.schedule import BlockRV, Schedule
 from tvm.tir.schedule.trace import Trace
-from tvm.tir.tensor_intrin.x86 import VNNI_INTRIN
+from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 
 logging.basicConfig()

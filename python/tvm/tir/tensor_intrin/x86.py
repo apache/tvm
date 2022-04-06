@@ -23,11 +23,9 @@ from tvm.script import tir as T
 
 
 @T.prim_func
-def dot_product_16x4_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (4,), "uint8", offset_factor=1)
-    B = T.match_buffer(b, (16, 4), "int8", offset_factor=1)
-    C = T.match_buffer(c, (16,), "int32", offset_factor=1)
-
+def dot_product_16x4_u8i8i32_desc(
+    A: T.Buffer[(4,), "uint8"], B: T.Buffer[(16, 4), "int8"], C: T.Buffer[(16,), "int32"]
+) -> None:
     with T.block("root"):
         T.reads(C[0:16], A[0:4], B[0:16, 0:4])
         T.writes(C[0:16])
@@ -41,7 +39,9 @@ def dot_product_16x4_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
-def dot_product_16x4_vnni_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
+def dot_product_16x4_u8i8i32_vnni_impl(
+    A: T.Buffer[(4,), "uint8"], B: T.Buffer[(16, 4), "int8"], C: T.Buffer[(16,), "int32"]
+) -> None:
     A = T.match_buffer(a, (4,), "uint8", offset_factor=1)
     B = T.match_buffer(b, (16, 4), "int8", offset_factor=1)
     C = T.match_buffer(c, (16,), "int32", offset_factor=1)
@@ -66,6 +66,8 @@ def dot_product_16x4_vnni_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
         )
 
 
-VNNI_INTRIN = "dot_16x4_vnni"
+VNNI_DOT_16x4_INTRIN = "dot_16x4_vnni"
 
-TensorIntrin.register(VNNI_INTRIN, dot_product_16x4_desc, dot_product_16x4_vnni_impl)
+TensorIntrin.register(
+    VNNI_DOT_16x4_INTRIN, dot_product_16x4_u8i8i32_desc, dot_product_16x4_u8i8i32_vnni_impl
+)
