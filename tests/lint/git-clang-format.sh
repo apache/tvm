@@ -20,9 +20,9 @@ set -u
 set -o pipefail
 
 
-INPLACE_FORMAT=false
+INPLACE_FORMAT=${INPLACE_FORMAT:=false}
 LINT_ALL_FILES=true
-REVISION=
+REVISION=$(git rev-list --max-parents=0 HEAD)
 
 while (( $# )); do
     case "$1" in
@@ -47,6 +47,7 @@ while (( $# )); do
             ;;
     esac
 done
+
 
 cleanup()
 {
@@ -78,8 +79,7 @@ fi
 if [[ "$LINT_ALL_FILES" == "true" ]]; then
     echo "Running git-clang-format against all C++ files"
     FILES=$(git ls-files | grep -E '\.(c|cc|cpp|mm|h|hpp)$')
-    BASE_COMMIT=$(git rev-list --max-parents=0 HEAD)
-    git-${CLANG_FORMAT} --diff --extensions h,mm,c,cc --binary=${CLANG_FORMAT} "$BASE_COMMIT" ${FILES[@]} 1> /tmp/$$.clang-format.txt
+    git-${CLANG_FORMAT} --diff --extensions h,mm,c,cc --binary=${CLANG_FORMAT} "$REVISION" ${FILES[@]} 1> /tmp/$$.clang-format.txt
 else
     echo "Running git-clang-format against $REVISION"
     git-${CLANG_FORMAT} --diff --extensions h,mm,c,cc --binary=${CLANG_FORMAT} "$REVISION" 1> /tmp/$$.clang-format.txt
