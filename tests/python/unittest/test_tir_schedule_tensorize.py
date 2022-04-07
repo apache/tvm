@@ -23,6 +23,7 @@ from tvm import tir, te
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
+from tvm.tir.tensor_intrin.arm_cpu import ARM_DOT_4x4_i8_NEON_INTRIN, ARM_DOT_4x4_i8_SDOT_INTRIN
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
@@ -532,10 +533,9 @@ def test_tensorize_with_annotation():
     verify_trace_roundtrip(sch=s, mod=func)
 
 
-def test_tensorize_vnni():
-    n, m, k = 128, 128, 128
-    X = te.placeholder((m, k), name="X", dtype="uint8")
-    packed_W = te.placeholder((n // 16, k // 4, 16, 4), name="packedW", dtype="int8")
+def get_matmul_packed(m, n, k, lhs_type, int32_lanes):
+    X = te.placeholder((m, k), name="X", dtype=lhs_type)
+    packed_W = te.placeholder((n // int32_lanes, k // 4, int32_lanes, 4), name="packedW", dtype="int8")
 
     ak = te.reduce_axis((0, k), name="k")
     matmul = te.compute(
@@ -550,7 +550,13 @@ def test_tensorize_vnni():
         name="compute",
     )
 
-    func = te.create_prim_func([X, packed_W, matmul])
+    return te.create_prim_func([X, packed_W, matmul])
+
+
+def test_tensorize_vnni():
+    m, n, k = 128, 128, 128
+
+    func = get_matmul_packed(m, n, k, "uint8", 16)
 
     sch = tir.Schedule(func, debug_mask="all")
     block = sch.get_block("compute")
@@ -566,6 +572,26 @@ def test_tensorize_vnni():
     verify_trace_roundtrip(sch=sch, mod=func)
 
 
+def test_tensorize_arm_dot():
+    m, n, k = 128, 128, 128
+
+    func = get_matmul_packed(m, n, k, "int8", 4)
+
+    for intrin in [ARM_DOT_4x4_i8_SDOT_INTRIN, ARM_DOT_4x4_i8_NEON_INTRIN]:
+        sch = tir.Schedule(func, debug_mask="all")
+        block = sch.get_block("compute")
+        _, j, k = sch.get_loops(block)
+
+        _, ji = sch.split(j, factors=[None, 4])
+        ko, ki = sch.split(k, factors=[None, 4])
+        sch.reorder(ko, ji, ki)
+
+        sch.decompose_reduction(block, ko)
+        sch.tensorize(ji, intrin)
+
+        verify_trace_roundtrip(sch=sch, mod=func)
+
+
 if __name__ == "__main__":
     # sys.exit(pytest.main([__file__] + sys.argv[1:]))
-    test_tensorize_vnni()
+    test_tensorize_arm_dot()

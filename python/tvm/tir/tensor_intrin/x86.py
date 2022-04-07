@@ -39,13 +39,9 @@ def dot_product_16x4_u8i8i32_desc(
 
 
 @T.prim_func
-def dot_product_16x4_u8i8i32_vnni_impl(
+def dot_product_16x4_u8i8i32_vnni(
     A: T.Buffer[(4,), "uint8"], B: T.Buffer[(16, 4), "int8"], C: T.Buffer[(16,), "int32"]
 ) -> None:
-    A = T.match_buffer(a, (4,), "uint8", offset_factor=1)
-    B = T.match_buffer(b, (16, 4), "int8", offset_factor=1)
-    C = T.match_buffer(c, (16,), "int32", offset_factor=1)
-
     with T.block("root"):
         T.reads(C[0:16], A[0:4], B[0:16, 0:4])
         T.writes(C[0:16])
@@ -69,5 +65,5 @@ def dot_product_16x4_u8i8i32_vnni_impl(
 VNNI_DOT_16x4_INTRIN = "dot_16x4_vnni"
 
 TensorIntrin.register(
-    VNNI_DOT_16x4_INTRIN, dot_product_16x4_u8i8i32_desc, dot_product_16x4_u8i8i32_vnni_impl
+    VNNI_DOT_16x4_INTRIN, dot_product_16x4_u8i8i32_desc, dot_product_16x4_u8i8i32_vnni
 )
