@@ -51,45 +51,48 @@ def dot_product_4x4_i8i8i32_neon(
         vec_ai32 = T.broadcast(re_int32, 2)
         vec_a = T.reinterpret(vec_ai32, dtype="int8x8")
 
-        vec_b = B.vload([0, 0], dtype="int8x8")
+        vec_b = B.vload([0, 0], dtype="int8x16")
 
-        multiply = T.call_llvm_pure_intrin(
+        # TODO(masahi): Remove duplication when inlined function call is supported
+        vec_b_low = T.vectorlow(vec_b, dtype="int8x8")
+
+        multiply_low = T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.smull.v8i16"),
             T.uint32(2),
             vec_a,
-            vec_b,
+            vec_b_low,
             dtype="int16x8",
         )
 
-        pair1 = T.call_llvm_pure_intrin(
+        pairwise_reduction_low = T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.saddlp.v4i32.v8i16"),
             T.uint32(1),
-            multiply,
+            multiply_low,
             dtype="int32x4",
         )
 
-        vec_b_2 = B.vload([2, 0], dtype="int8x8")
+        vec_b_high = T.vectorhigh(vec_b, dtype="int8x8")
 
-        multiply_2 = T.call_llvm_pure_intrin(
+        multiply_high = T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.smull.v8i16"),
             T.uint32(2),
             vec_a,
-            vec_b_2,
+            vec_b_high,
             dtype="int16x8",
         )
 
-        pair2 = T.call_llvm_pure_intrin(
+        pairwise_reduction_high = T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.saddlp.v4i32.v8i16"),
             T.uint32(1),
-            multiply_2,
+            multiply_high,
             dtype="int32x4",
         )
 
         C[T.ramp(T.int32(0), 1, 4)] += T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.addp.v4i32"),
             T.uint32(2),
-            pair1,
-            pair2,
+            pairwise_reduction_low,
+            pairwise_reduction_high,
             dtype="int32x4",
         )
 
