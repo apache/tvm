@@ -15,12 +15,40 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Schedules for conv2d. """
+"""Schedule for conv2d"""
 
 import tvm
 
 
 def schedule_conv2d_nhwc(outs):
-    """Schedule for Conv2d NHWC operator."""
+    """Schedule for conv2d NHWC operator.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of conv2d in the format
+        of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    outs = [outs] if isinstance(outs, tvm.te.tensor.Tensor) else outs
     s = tvm.te.create_schedule([x.op for x in outs])
+    tvm.te.schedule.AutoInlineInjective(s)
     return s
+
+
+def schedule_conv2d_nchw(outs):
+    return schedule_conv2d_nhwc(outs)
+
+
+def schedule_conv2d(outs, layout="NHWC"):
+    layout_uncase = layout.casefold()
+    if layout_uncase == "NHWC".casefold():
+        return schedule_conv2d_nhwc(outs)
+    if layout_uncase == "NCHW".casefold():
+        return schedule_conv2d_nchw(outs)
+
+    raise ValueError(f"Unexpected layout={layout}")
