@@ -20,7 +20,9 @@ from tvm.script import tir as T
 
 @T.prim_func
 def dot_product_4x4_i8i8i32_desc(
-    A: T.Buffer[(4,), "int8"], B: T.Buffer[(4, 4), "int8"], C: T.Buffer[(4,), "int32"]
+    A: T.Buffer((4,), "int8", offset_factor=1),
+    B: T.Buffer((4, 4), "int8", offset_factor=1),
+    C: T.Buffer((4,), "int32", offset_factor=1),
 ) -> None:
     with T.block("root"):
         T.reads(C[0:4], A[0:4], B[0:4, 0:4])
@@ -36,7 +38,9 @@ def dot_product_4x4_i8i8i32_desc(
 
 @T.prim_func
 def dot_product_4x4_i8i8i32_neon(
-    A: T.Buffer[(4,), "int8"], B: T.Buffer[(4, 4), "int8"], C: T.Buffer[(4,), "int32"]
+    A: T.Buffer((4,), "int8", offset_factor=1),
+    B: T.Buffer((4, 4), "int8", offset_factor=1),
+    C: T.Buffer((4,), "int32", offset_factor=1),
 ) -> None:
     with T.block("root"):
         T.reads(C[0:4], A[0:4], B[0:4, 0:4])
@@ -92,7 +96,9 @@ def dot_product_4x4_i8i8i32_neon(
 
 @T.prim_func
 def dot_product_4x4_i8i8i32_sdot(
-    A: T.Buffer[(4,), "int8"], B: T.Buffer[(4, 4), "int8"], C: T.Buffer[(4,), "int32"]
+    A: T.Buffer((4,), "int8", offset_factor=1),
+    B: T.Buffer((4, 4), "int8", offset_factor=1),
+    C: T.Buffer((4,), "int32", offset_factor=1),
 ) -> None:
     with T.block("root"):
         T.reads(C[0:4], A[0:4], B[0:4, 0:4])
