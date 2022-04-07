@@ -27,6 +27,26 @@
 
 namespace tvm {
 
+GlobalVar WithFields(GlobalVar global_var, Optional<String> opt_name_hint, Optional<Type> opt_type,
+                     Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
+  String name_hint = opt_name_hint.value_or(global_var->name_hint);
+  Type type = opt_type.value_or(global_var->checked_type());
+  VirtualDevice virtual_device = opt_virtual_device.value_or(global_var->virtual_device());
+  Span span = opt_span.value_or(global_var->span);
+  bool all_fields_unchanged =
+      name_hint.same_as(global_var->name_hint) && type.same_as(global_var->checked_type()) &&
+      virtual_device.same_as(global_var->virtual_device()) && span.same_as(global_var->span);
+  if (!all_fields_unchanged) {
+    GlobalVarNode* cow_global_var_node = global_var.CopyOnWrite();
+    cow_global_var_node->name_hint = name_hint;
+    cow_global_var_node->checked_type_ = type;
+    cow_global_var_node->virtual_device_ = virtual_device;
+    cow_global_var_node->span = span;
+  }
+
+  return global_var;
+}
+
 VirtualDevice RelayExprNode::virtual_device() const {
   if (!this->virtual_device_.defined()) {
     // virtual_device_ should always be defined, unless we imported this node from JSON using an old
@@ -75,6 +95,25 @@ TensorType ConstantNode::tensor_type() const {
   }
 
   return TensorType(shape, dtype);
+}
+
+Constant WithFields(Constant constant, Optional<runtime::NDArray> opt_data,
+                    Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
+  runtime::NDArray data = opt_data.value_or(constant->data);
+  VirtualDevice virtual_device = opt_virtual_device.value_or(constant->virtual_device());
+  Span span = opt_span.value_or(constant->span);
+
+  bool all_fields_unchanged = data.same_as(constant->data) &&
+                              virtual_device.same_as(constant->virtual_device()) &&
+                              span.same_as(constant->span);
+
+  if (!all_fields_unchanged) {
+    ConstantNode* cow_constant_node = constant.CopyOnWrite();
+    cow_constant_node->data = data;
+    cow_constant_node->virtual_device_ = virtual_device;
+    cow_constant_node->span = span;
+  }
+  return constant;
 }
 
 Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
