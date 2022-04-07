@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,missing-function-docstring
 """Intrinsics for x86 tensorization."""
 from tvm.script import tir as T
 from .. import TensorIntrin
@@ -30,9 +30,6 @@ def dot_product_16x4_u8i8i32_desc(
     B: T.Buffer((16, 4), "int8", offset_factor=1),
     C: T.Buffer((16,), "int32", offset_factor=1),
 ) -> None:
-    """
-    A description for 16x4 dot product.
-    """
     with T.block("root"):
         T.reads(C[0:16], A[0:4], B[0:16, 0:4])
         T.writes(C[0:16])
@@ -51,9 +48,6 @@ def dot_product_16x4_u8i8i32_vnni(
     B: T.Buffer((16, 4), "int8", offset_factor=1),
     C: T.Buffer((16,), "int32", offset_factor=1),
 ) -> None:
-    """
-    A VNNI-specific implmementation for 16x4 dot product.
-    """
     with T.block("root"):
         T.reads(C[0:16], A[0:4], B[0:16, 0:4])
         T.writes(C[0:16])
