@@ -840,7 +840,7 @@ class EnvThread(SpecialStmt):
                 self.context.report_error(
                     f"VarDef expected assign to only one var, but got {names}", span
                 )
-            v = Var(names[0], span=span)
+            v = Var(names[0], dtype="int32", span=span)
             self.context.func_var_env_dict[v] = env_name
             self.context.update_symbol(v.name, v, self.node)
 

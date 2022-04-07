@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-"""Intrinsics for x86 tensorization."""
-from .. import TensorIntrin
+"""Intrinsics for ARM tensorization."""
 from tvm.script import tir as T
+from .. import TensorIntrin
 
 
 # TODO(masahi): Parametrize the TVMScript description of dot product by
