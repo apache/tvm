@@ -23,6 +23,7 @@ from tvm.script import tir as T
 # TODO(masahi): Parametrize the TVMScript description of dot product by
 # shape and dtype, and share the common description with x86.
 
+
 @T.prim_func
 def dot_product_4x4_i8i8i32_desc(
     A: T.Buffer((4,), "int8", offset_factor=1),
