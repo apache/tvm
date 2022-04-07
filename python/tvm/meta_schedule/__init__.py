@@ -21,7 +21,6 @@ from . import (
     cost_model,
     database,
     feature_extractor,
-    integration,
     mutator,
     postproc,
     runner,
@@ -29,6 +28,9 @@ from . import (
     search_strategy,
     space_generator,
 )
+from .apply_history_best import ApplyHistoryBest
+from .extracted_task import ExtractedTask
+from .relay_integration import extract_task_from_relay
 from .search_strategy import MeasureCandidate
 from .tune import (
     EvolutionarySearchConfig,

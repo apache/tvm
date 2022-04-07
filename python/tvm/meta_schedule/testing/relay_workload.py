@@ -26,7 +26,7 @@ import tvm
 import tvm.relay.testing
 from tvm import relay
 from tvm.ir import IRModule
-from tvm.meta_schedule.integration import ExtractedTask, extract_task_from_relay
+from tvm.meta_schedule import ExtractedTask, extract_task_from_relay
 from tvm.runtime import NDArray, load_param_dict, save_param_dict
 from tvm.target import Target
 

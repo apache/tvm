@@ -27,16 +27,12 @@ from tvm import relay, tir
 from tvm._ffi import register_func
 from tvm.contrib import graph_executor
 from tvm.ir import IRModule
-from tvm.meta_schedule import ReplayTraceConfig
+from tvm.meta_schedule import ApplyHistoryBest, ReplayTraceConfig
 from tvm.meta_schedule.database import JSONDatabase, PyDatabase, TuningRecord, Workload
-from tvm.meta_schedule.integration import ApplyHistoryBest
-from tvm.meta_schedule.testing.relay_workload import get_network
+from tvm.meta_schedule.relay_integration import extract_task_from_relay
 from tvm.meta_schedule.testing import apply_fixed_schedules
-from tvm.meta_schedule.tune import (
-    extract_task_from_relay,
-    tune_extracted_tasks,
-    tune_relay,
-)
+from tvm.meta_schedule.testing.relay_workload import get_network
+from tvm.meta_schedule.tune import tune_extracted_tasks, tune_relay
 from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.target.target import Target
@@ -528,13 +524,13 @@ def manual_tir_common(do_tune=False):
         ):
             """
             The log should say
-            meta_schedule/integration.cc:146: Warning: Cannot find workload: tvmgen_default_fused_expand_dims
-            meta_schedule/integration.cc:146: Warning: Cannot find workload: tvmgen_default_fused_cast
-            meta_schedule/integration.cc:146: Warning: Cannot find workload: tvmgen_default_fused_cast_1
-            meta_schedule/integration.cc:146: Warning: Cannot find workload: tvmgen_default_fused_nn_batch_matmul
+            Warning: Cannot find workload: tvmgen_default_fused_expand_dims
+            Warning: Cannot find workload: tvmgen_default_fused_cast
+            Warning: Cannot find workload: tvmgen_default_fused_cast_1
+            Warning: Cannot find workload: tvmgen_default_fused_nn_batch_matmul
 
-            This means batch matmul and others are scheduled by TE, and dense (the one not warned) is found in the
-            meta schedule tuning database during ApplyHistoryBest
+            This means batch matmul and others are scheduled by TE, and dense (the one not warned)
+            is found in the meta schedule tuning database during ApplyHistoryBest
             """
             lib = relay.build(relay_mod, target=target, params=params)
 
