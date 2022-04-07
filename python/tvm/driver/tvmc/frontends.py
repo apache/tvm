@@ -246,8 +246,23 @@ class PyTorchFrontend(Frontend):
 
         if shape_dict is None:
             raise TVMCException("--input-shapes must be specified for %s" % self.name())
+        try:
+            traced_model = torch.jit.load(path)
+        except RuntimeError:
+            # Consder the nn-model dumped by torch.save is given
 
-        traced_model = torch.jit.load(path)
+            # The second argument of torch.jit.trace takes list.
+            # However, tvm interface currently takes dict.
+            # Hence, the modules with multiple inputs are temporary forbidden.
+            assert (
+                len(shape_dict) == 1
+            ), f"Mutiple inputs models are not supported so far: {shape_dict}."
+            shape = next(iter(shape_dict.values()))
+
+            model = torch.load(path)
+            model.eval()
+            traced_model = torch.jit.trace(model, [shape])
+
         traced_model.eval()  # Switch to inference mode
 
         # Convert shape dictionary to list for Pytorch frontend compatibility
