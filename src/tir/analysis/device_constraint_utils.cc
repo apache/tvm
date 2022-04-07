@@ -210,8 +210,6 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
 
     // Start with a copy of the current prim_func buffer map.
     Map<Var, Buffer> new_buffer_map(prim_func->buffer_map.begin(), prim_func->buffer_map.end());
-    Map<Var, Buffer> new_preflattened_buffer_map(prim_func->preflattened_buffer_map.begin(),
-                                                 prim_func->preflattened_buffer_map.end());
     bool any_change = false;
 
     // For each constrained parameter...
@@ -225,23 +223,6 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
         any_change = true;
       }
       new_buffer_map.Set(param, new_buffer);
-
-      // Rewrite the pre-flattened buffers to account for constraint.
-      // This only has an impact if the IRModule being analyzed has
-      // already been run through the StorageFlatten or FlattenBuffer
-      // passes.
-      if (auto opt = prim_func->preflattened_buffer_map.Get(param)) {
-        Buffer pf_buffer = opt.value();
-        if (pf_buffer.same_as(buffer)) {
-          new_preflattened_buffer_map.Set(param, new_buffer);
-        } else {
-          const Buffer new_buffer = RewriteBuffer(pf_buffer, virtual_device);
-          if (!new_buffer.same_as(pf_buffer)) {
-            any_change = true;
-          }
-          new_preflattened_buffer_map.Set(param, new_buffer);
-        }
-      }
     }
     // Make sure we have accounted for all prim_func parameters.
     CheckNoRemainingPointerParams(prim_func, &current_primfunc_param_index);
@@ -259,8 +240,7 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
 
     if (any_change) {
       return PrimFunc(prim_func->params, std::move(new_body), prim_func->ret_type,
-                      std::move(new_buffer_map), std::move(new_preflattened_buffer_map),
-                      prim_func->attrs, prim_func->span);
+                      std::move(new_buffer_map), prim_func->attrs, prim_func->span);
     } else {
       return prim_func;
     }
