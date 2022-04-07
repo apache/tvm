@@ -181,5 +181,42 @@ def test_dynamic_shape_gemm():
     assert_structural_equal(gemm_dyn_shape, gemm_dyn_shape_roundtrip)
 
 
+@T.prim_func
+def match_buffer_int64(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (T.int64(128), T.int64(128)), dtype="float32")
+    B = T.alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
+    C = T.match_buffer(c, (T.int64(128), T.int64(128)), dtype="float32")
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(T.int64(128), T.int64(128)):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
+
+
+@T.prim_func
+def match_buffer_int64_after_roundtrip(
+    A: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+    C: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+) -> None:
+    B = T.alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(T.int64(128), T.int64(128)):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
+
+
+def test_match_buffer_int64():
+    original = match_buffer_int64
+    after_roundtrip = match_buffer_int64_after_roundtrip
+    assert_structural_equal(original, after_roundtrip, True)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
