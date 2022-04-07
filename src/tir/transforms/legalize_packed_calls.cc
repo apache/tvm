@@ -71,8 +71,13 @@ class PackedCallLegalizer : public StmtExprMutator {
             // all such stack-allocated tensors and minimize the storage needed by reusing
             // DLTensors.
             Array<PrimExpr> call_args{call->args[i]};
+            tvm::runtime::Map<tvm::tir::Var, tvm::tir::Buffer>::iterator param_buf_it;
             if (prim_func != nullptr) {
-              Buffer param = prim_func->preflattened_buffer_map[prim_func->params[i - 1]];
+              auto param_var = prim_func->params[i - 1];
+              param_buf_it = prim_func->preflattened_buffer_map.find(param_var);
+            }
+            if (prim_func != nullptr && param_buf_it != prim_func->preflattened_buffer_map.end()) {
+              Buffer param = (*param_buf_it).second;
               PrimExpr shape = tvm::tir::Call(
                   DataType::Handle(), tvm::tir::builtin::tvm_stack_make_shape(), param->shape);
               Cast var_type(param->dtype, IntImm(DataType::Int(32), 0));
