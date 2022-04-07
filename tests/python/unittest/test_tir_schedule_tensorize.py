@@ -22,8 +22,11 @@ import tvm.testing
 from tvm import tir, te
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
-from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
-from tvm.tir.tensor_intrin.arm_cpu import ARM_DOT_4x4_i8_NEON_INTRIN, ARM_DOT_4x4_i8_SDOT_INTRIN
+from tvm.tir.tensor_intrin import (
+    VNNI_DOT_16x4_INTRIN,
+    ARM_DOT_4x4_i8_NEON_INTRIN,
+    ARM_DOT_4x4_i8_SDOT_INTRIN,
+)
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
@@ -567,7 +570,7 @@ def test_tensorize_vnni():
     sch.reorder(ko, ji, ki)
 
     sch.decompose_reduction(block, ko)
-    sch.tensorize(ji, VNNI_INTRIN)
+    sch.tensorize(ji, VNNI_DOT_16x4_INTRIN)
 
     verify_trace_roundtrip(sch=sch, mod=func)
 

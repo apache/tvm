@@ -16,4 +16,5 @@
 # under the License.
 # pylint: disable=unused-import
 """Intrinsics for tensorization."""
-from . import x86
+from .x86 import *
+from .arm_cpu import *
