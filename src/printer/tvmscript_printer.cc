@@ -577,9 +577,6 @@ bool TVMScriptPrinter::IsSimpleBuffer(const Buffer& buf) {
     return false;
   }
   for (const PrimExpr& shp_i : buf->shape) {
-    if (shp_i.dtype() != DataType::Int(32)) {
-      return false;
-    }
     if (!UndefinedVars(shp_i).empty()) {
       return false;
     }

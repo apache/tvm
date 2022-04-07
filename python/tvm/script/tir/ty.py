@@ -56,6 +56,9 @@ class ConcreteType(TypeGeneric):  # pylint: disable=too-few-public-methods, abst
         else:
             self.type = tvm.ir.PrimType(vtype)
 
+    def __call__(self, *args):
+        pass
+
     def evaluate(self):
         return self.type
 
