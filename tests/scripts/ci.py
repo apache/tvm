@@ -189,10 +189,9 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
 
     docker_bash = REPO_ROOT / "docker" / "bash.sh"
 
-    command = [docker_bash, "--name", name]
+    command = [docker_bash, "-t", "--name", name]
     if interactive:
         command.append("-i")
-        command.append("-t")
         scripts = ["interact() {", "  bash", "}", "trap interact 0", ""] + scripts
 
     for key, value in env.items():
@@ -366,6 +365,7 @@ def generate_command(
         skip_build: bool = False,
         interactive: bool = False,
         docker_image: Optional[str] = None,
+        verbose: bool = False,
         **kwargs,
     ) -> None:
         """
@@ -374,6 +374,7 @@ def generate_command(
         skip_build -- skip build and setup scripts
         interactive -- start a shell after running build / test scripts
         docker-image -- manually specify the docker image to use
+        verbose -- run verbose build
         """
         if precheck is not None:
             precheck()
@@ -411,6 +412,7 @@ def generate_command(
                 # determine which build directory to use (i.e. if there are
                 # multiple copies of libtvm.so laying around)
                 "TVM_LIBRARY_PATH": str(REPO_ROOT / get_build_dir(name)),
+                "VERBOSE": "true" if verbose else "false",
             },
             interactive=interactive,
         )

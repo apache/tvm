@@ -16,8 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -euxo pipefail
 
 # Python is required by apps/bundle_deploy
 source tests/scripts/setup-pytest-env.sh
@@ -40,10 +39,20 @@ if grep crttest build/Makefile > /dev/null; then
     make crttest  # NOTE: don't parallelize, due to issue with build deps.
 fi
 
-cd build && ctest --gtest_death_test_style=threadsafe && cd ..
+if grep crttest build/build.ninja > /dev/null; then
+    pushd build
+    ninja crttest
+    popd
+fi
+
+
+pushd build
+ctest --gtest_death_test_style=threadsafe
+popd
 
 # Test MISRA-C runtime
-cd apps/bundle_deploy
+pushd apps/bundle_deploy
 rm -rf build
 make test_dynamic test_static
-cd ../..
+popd
+
