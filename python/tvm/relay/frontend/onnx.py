@@ -836,6 +836,145 @@ class BiasGelu(OnnxOpConverter):
         return Gelu._impl_v1([inp], attr, params)
 
 
+class EmbedLayerNormalization(OnnxOpConverter):
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        input_ids = inputs[0]
+        segment_ids = inputs[1]
+        word_emb = inputs[2]
+        pos_emb = inputs[3]
+        segment_emb = inputs[4]
+        gamma = inputs[5]
+        beta = inputs[6]
+
+        mask = inputs[7]
+        pos_ids = inputs[8]
+
+        (batch_size, seq_len) = infer_shape(input_ids)
+
+        if segment_ids:
+            assert segment_emb
+
+        if pos_ids is None:
+            pos_ids = _op.const([list(range(seq_len))] * seq_len, dtype="int64")
+
+        word_vec = _op.take(word_emb, input_ids, axis=0)
+        segment_vec = _op.take(segment_emb, segment_ids, axis=0)
+        pos_vec = _op.take(pos_emb, pos_ids, axis=0)
+
+        vec_sum = _op.add(word_vec, pos_vec)
+        if segment_ids:
+            vec_sum = _op.add(vec_sum, segment_vec)
+
+        eps_dtype = infer_type(word_emb).checked_type.dtype
+
+        u, s = _op.mean_variance(vec_sum, axis=-1, keepdims=True)
+        ln = _op.divide(_op.subtract(vec_sum, u), _op.sqrt(_op.add(s, _op.const(attr["epsilon"], dtype=eps_dtype))))
+        ln = _op.multiply(ln, gamma) + beta
+
+        # TODO: actually calculate this
+        mask_index = _op.const(np.zeros((batch_size,), dtype="int64"))
+
+        return _expr.TupleWrapper(_expr.Tuple([ln, mask_index, vec_sum]), 3)
+
+
+class SkipLayerNormalization(OnnxOpConverter):
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        breakpoint()
+
+
+class Attention(OnnxOpConverter):
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        num_heads = attr["num_heads"]
+        assert "qkv_hidden_sizes" not in attr
+        assert "unidirectional" not in attr
+
+        # (batch, seq, in_hidden)
+        input_emb = inputs[0]
+
+        # (in_hidden, 3 * out_hidden), where out_hidden = num_heads * head_size
+        weight = inputs[1]
+
+        # (3 * out_hidden,)
+        bias = inputs[2]
+
+        # 1. (    batch,              1,        max_seq, max_seq)
+        # 2. (    batch, past_seq + seq,)
+        # 3. (    batch,            seq, past_seq + seq,)
+        # 4. (    batch,)
+        # 5. (2 * batch,)
+        mask_index = inputs[3]
+
+        # (2, batch, num_heads, past_seq, head_size)
+        past = inputs[4]
+
+        # (batch, num_heads, seq, seq)
+        extra_add = inputs[5]
+
+        (batch_size, seq_len, in_hidden) = infer_shape(input_emb)
+        (out_hidden_x3,) = infer_shape(bias)
+        assert out_hidden_x3 % 3 == 0
+        out_hidden = out_hidden_x3 // 3
+        assert out_hidden % num_heads == 0
+        head_size = out_hidden // num_heads
+
+        mask_index_shape = infer_shape(mask_index)
+        assert len(mask_index_shape) == 2
+        assert mask_index_shape[0] == batch_size
+        assert mask_index_shape[1] == seq_len
+
+        assert past is None
+        assert extra_add is None
+
+        # decompose weight into Q, K, V: (in_hidden, out_hidden) and do the matmuls
+        w_Q, w_K, w_V = _op.split(weight, 3, axis=1)
+
+        Q = _op.nn.matmul(input_emb, w_Q)
+        K = _op.nn.matmul(input_emb, w_K)
+        V = _op.nn.matmul(input_emb, w_V)
+
+        # massage tensors in preparation for batched matmul
+        def massage(tensor, is_V=False):
+            axes = [0, 2, 3, 1] if is_V else [0, 2, 1, 3]
+            tensor = _op.reshape(tensor, (batch_size, seq_len, num_heads, head_size))
+            tensor = _op.transpose(tensor, axes=axes)
+            return _op.reverse_reshape(tensor, (-1, 0, 0))
+
+        Q = massage(Q)
+        K = massage(K)
+        V = massage(V, is_V=True)
+
+        K_present = _op.reshape(K, (batch_size, num_heads, seq_len, head_size))
+        V_present = _op.reshape(V, (batch_size, num_heads, seq_len, head_size))
+        present = _op.stack([K_present, V_present], axis=0)
+
+        att_scores = _op.nn.batch_matmul(Q, K)
+        score_dtype = infer_type(att_scores).checked_type.dtype
+        att_scores = _op.divide(att_scores, _op.const(np.sqrt(head_size), dtype=infer_type(att_scores).checked_type.dtype))
+        att_scores = _op.reshape(att_scores, (batch_size, num_heads, seq_len, seq_len))
+
+        # build the attention mask
+        att_mask = _op.cast(mask_index, score_dtype)
+        att_mask = _op.expand_dims(att_mask, 1, num_newaxis=2)
+        att_mask = _op.subtract(_op.const(1, dtype=score_dtype), att_mask)
+        att_mask = _op.multiply(att_mask, _op.const(-10000, dtype=score_dtype))
+
+        # apply the mask
+        att_scores = _op.add(att_scores, att_mask)
+        att_scores = _op.reshape(att_scores, (batch_size * num_heads, seq_len, seq_len))
+
+        att_probs = _op.nn.softmax(att_scores, axis=-1)
+
+        C = _op.nn.batch_matmul(att_probs, V)
+        C = _op.reverse_reshape(C, (-1, num_heads, 0, 0))
+        C = _op.transpose(C, axes=[0, 2, 1, 3])
+        C = _op.reshape(C, (0, 0, out_hidden))
+
+        return _expr.TupleWrapper(_expr.Tuple([C, present]), 2)
+
+
 class Gemm(OnnxOpConverter):
     """Operator converter for Gemm."""
 
@@ -4737,6 +4876,9 @@ def _get_convert_map(opset):
         "Elu": Elu.get_converter(opset),
         "Gelu": Gelu.get_converter(opset),
         "BiasGelu": BiasGelu.get_converter(opset),
+        "EmbedLayerNormalization": EmbedLayerNormalization.get_converter(opset),
+        "SkipLayerNormalization": SkipLayerNormalization.get_converter(opset),
+        "Attention": Attention.get_converter(opset),
         "Exp": Renamer("exp"),
         "Greater": Renamer("greater"),
         "GreaterOrEqual": Renamer("greater_equal"),
