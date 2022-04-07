@@ -78,6 +78,4 @@ def @main(%data : Tensor[(16, 29), int8]) -> Tensor[(16, 29), int8] {
         test_runner,
         interface_api,
         use_unpacked_api,
-        verbose=1,
-        test_dir="./test",
     )
