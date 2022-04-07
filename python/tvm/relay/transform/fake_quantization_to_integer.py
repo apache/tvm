@@ -107,7 +107,32 @@ register_unary_identity("nn.depth_to_space")
 register_unary_identity("max")
 register_unary_identity("min")
 register_unary_identity("image.resize2d")
-register_unary_identity("abs")
+
+
+@register_fake_quantization_to_integer("abs")
+def abs(expr, type_map):
+    assert len(expr.args) == 1
+    arg = expr.args[0]
+    t = type_map[arg]
+
+    if t.dtype == "int8":
+        bits = 8
+    elif t.dtype == "int16":
+        bits = 16
+    elif t.dtype == "int32":
+        bits = 32
+    elif t.dtype == "int64":
+        bits = 64
+    else:
+        raise AssertionError(
+            "Attempted to take absolute value of int with bitwidth not in [8, 16, 32, 64]"
+        )
+
+    min_value = relay.const(-(2 ** (bits - 1)), t.dtype)
+    one = relay.const(1, t.dtype)
+    out = relay.op.where(relay.op.equal(min_value, arg), arg + one, arg)
+    out = relay.op.abs(out)
+    return [out, t]
 
 
 @register_fake_quantization_to_integer("nn.adaptive_avg_pool1d")

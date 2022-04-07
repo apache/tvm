@@ -653,27 +653,7 @@ PrimExpr abs(PrimExpr x, Span span) {
     if (px) {
       return IntImm(x.dtype(), std::abs(px->value), px->span);
     }
-
-    // Clip int minimum representable values to minimum + 1, so that the absolute
-    // value is the maximum representable value
-    int bits = x.dtype().bits();
-    int64_t min_value = 0;
-    if (bits == 8) {
-      min_value = INT8_MIN;
-    } else if (bits == 16) {
-      min_value = INT16_MIN;
-    } else if (bits == 32) {
-      min_value = INT32_MIN;
-    } else if (bits == 64) {
-      min_value = INT64_MIN;
-    } else {
-      ICHECK(false) << "Attempted to take absolute value of int with bitwidth not in "
-                    << "[8, 16, 32, 64";
-    }
-
-    auto min = make_const(x.dtype(), min_value, span);
-    auto neg_term = tir::Select(x == min, x + 1, x, span);
-    return tir::Select(x >= make_zero(x.dtype()), x, -neg_term, span);
+    return tir::Select(x >= make_zero(x.dtype()), x, -x, span);
   } else if (x.dtype().is_float()) {
     using tir::FloatImmNode;
     const FloatImmNode* fx = x.as<FloatImmNode>();
