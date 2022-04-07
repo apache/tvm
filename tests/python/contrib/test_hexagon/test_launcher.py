@@ -32,14 +32,6 @@ import tvm.contrib.hexagon as hexagon
 
 from .conftest import requires_hexagon_toolchain
 
-RPC_SERVER_PORT = 7070
-
-# NOTE on server ports:
-# These tests use different port numbers for the RPC server (7070 + ...).
-# The reason is that an RPC session cannot be gracefully closed without
-# triggering TIME_WAIT state on the server socket. This prevents another
-# server to bind to the same port until the wait time elapses.
-
 
 @requires_hexagon_toolchain
 def test_add(hexagon_session):
