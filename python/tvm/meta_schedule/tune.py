@@ -23,18 +23,17 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Union
 from tvm._ffi.registry import register_func
 from tvm.ir import IRModule, structural_hash
 from tvm.ir.transform import PassContext
-from tvm.relay import Function as RelayFunc
-from tvm.relay import build as relay_build
 from tvm.runtime import Module, NDArray
 from tvm.target import Target
 from tvm.te import Tensor, create_prim_func
 from tvm.tir import PrimFunc, Schedule
 
+from .apply_history_best import ApplyHistoryBest
 from .builder import Builder, LocalBuilder
 from .cost_model import CostModel, XGBModel
 from .database import Database, JSONDatabase, TuningRecord
+from .extracted_task import ExtractedTask
 from .feature_extractor import PerStoreFeature
-from .integration import ApplyHistoryBest, ExtractedTask, extract_task_from_relay
 from .measure_callback import MeasureCallback
 from .mutator import Mutator
 from .postproc import Postproc
@@ -822,7 +821,7 @@ def tune_extracted_tasks(
 
 
 def tune_relay(
-    mod: Union[RelayFunc, IRModule],
+    mod: IRModule,
     target: Union[str, Target],
     config: SearchStrategyConfig,
     work_dir: str,
@@ -844,7 +843,7 @@ def tune_relay(
 
     Parameters
     ----------
-    mod : Union[RelayFunc, IRModule]
+    mod : IRModule
         The module to tune.
     target : Union[str, Target]
         The target to tune for.
@@ -874,6 +873,12 @@ def tune_relay(
     lib : Module
         The built runtime module for the given relay workload.
     """
+    # pylint: disable=import-outside-toplevel
+    from tvm.relay import build as relay_build
+
+    from .relay_integration import extract_task_from_relay
+
+    # pylint: enable=import-outside-toplevel
 
     logger.info("Working directory: %s", work_dir)
     # pylint: disable=protected-access

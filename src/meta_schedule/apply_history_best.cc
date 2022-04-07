@@ -16,17 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/meta_schedule/integration.h>
-#include <tvm/relay/function.h>
-#include <tvm/tir/function.h>
-
 #include "./utils.h"
-#include "tvm/runtime/container/optional.h"
 
 namespace tvm {
 namespace meta_schedule {
 
 /**************** Utility functions ****************/
+
 template <class FunctionType, class RetType, class Callback>
 Optional<RetType> GetOnlyOneFunctionCommon(const IRModule& mod, Callback on_found) {
   if (mod->functions.size() != 1) {
@@ -59,52 +55,34 @@ bool HasOnlyOneFunction(const IRModule& mod) {
   return GetOnlyOneFunction<FunctionType>(mod).defined();
 }
 
-/**************** ExtractedTask ****************/
+/**************** Context Manager ****************/
 
-ExtractedTask::ExtractedTask(String task_name, IRModule mod, Target target,
-                             Array<IRModule> dispatched, int weight) {
-  ObjectPtr<ExtractedTaskNode> n = make_object<ExtractedTaskNode>();
-  n->task_name = task_name;
-  n->mod = mod;
-  n->target = target;
-  n->dispatched = dispatched;
-  n->weight = weight;
-  data_ = n;
-}
-
-/**************** MetaScheduleContext ****************/
-
-struct MetaScheduleContextThreadLocalEntry {
-  Optional<MetaScheduleContext> ctx;
+class ApplyHistoryBestInternal {
+ public:
+  static void EnterScope(ApplyHistoryBest ctx) { ctx.EnterWithScope(); }
+  static void ExitScope(ApplyHistoryBest ctx) { ctx.ExitWithScope(); }
 };
 
-using MetaScheduleContextThreadLocalStore =
-    dmlc::ThreadLocalStore<MetaScheduleContextThreadLocalEntry>;
+struct ApplyHistoryBestThreadLocalEntry {
+  Optional<ApplyHistoryBest> ctx;
+};
 
-Optional<MetaScheduleContext> MetaScheduleContext::Current() {
-  return MetaScheduleContextThreadLocalStore::Get()->ctx;
+using ApplyHistoryBestThreadLocalStore = dmlc::ThreadLocalStore<ApplyHistoryBestThreadLocalEntry>;
+
+Optional<ApplyHistoryBest> ApplyHistoryBest::Current() {
+  return ApplyHistoryBestThreadLocalStore::Get()->ctx;
 }
 
-void MetaScheduleContext::EnterWithScope() {
-  Optional<MetaScheduleContext>& ctx = MetaScheduleContextThreadLocalStore::Get()->ctx;
-  CHECK(!ctx.defined())
-      << "ValueError: Nested MetaScheduleContext context managers are not allowed";
+void ApplyHistoryBest::EnterWithScope() {
+  Optional<ApplyHistoryBest>& ctx = ApplyHistoryBestThreadLocalStore::Get()->ctx;
+  CHECK(!ctx.defined()) << "ValueError: Nested ApplyHistoryBest context managers are not allowed";
   ctx = *this;
 }
 
-void MetaScheduleContext::ExitWithScope() {
-  Optional<MetaScheduleContext>& ctx = MetaScheduleContextThreadLocalStore::Get()->ctx;
+void ApplyHistoryBest::ExitWithScope() {
+  Optional<ApplyHistoryBest>& ctx = ApplyHistoryBestThreadLocalStore::Get()->ctx;
   ICHECK(ctx.defined());
   ctx = NullOpt;
-}
-
-Optional<IRModule> MetaScheduleContext::QueryInsideWithScope(runtime::String task_name,
-                                                             IRModule mod, Target target,
-                                                             Optional<Array<IRModule>> dispatched) {
-  if (Optional<MetaScheduleContext> ctx = MetaScheduleContext::Current()) {
-    return ctx.value()->Query(task_name, mod, target, dispatched);
-  }
-  return NullOpt;
 }
 
 /**************** ApplyHistoryBest ****************/
@@ -149,37 +127,19 @@ Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModu
   return NullOpt;
 }
 
-/**************** FFI ****************/
-
-class MetaScheduleContextInternal {
- public:
-  static void EnterScope(MetaScheduleContext ctx) { ctx.EnterWithScope(); }
-  static void ExitScope(MetaScheduleContext ctx) { ctx.ExitWithScope(); }
-};
-
-TVM_REGISTER_NODE_TYPE(ExtractedTaskNode);
-TVM_REGISTER_OBJECT_TYPE(MetaScheduleContextNode);
 TVM_REGISTER_NODE_TYPE(ApplyHistoryBestNode);
-
-TVM_REGISTER_GLOBAL("meta_schedule.ExtractedTask")
-    .set_body_typed([](String task_name, IRModule mod, Target target, Array<IRModule> dispatched,
-                       int weight) -> ExtractedTask {
-      return ExtractedTask(task_name, mod, target, dispatched, weight);
-    });
-TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextEnterScope")
-    .set_body_typed(MetaScheduleContextInternal::EnterScope);
-TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextExitScope")
-    .set_body_typed(MetaScheduleContextInternal::ExitScope);
-TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextCurrent")
-    .set_body_typed(MetaScheduleContext::Current);
-TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextQueryInsideWithScope")
-    .set_body_typed(MetaScheduleContext::QueryInsideWithScope);
-TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextQuery")
-    .set_body_method<MetaScheduleContext>(&MetaScheduleContextNode::Query);
 TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBest")
     .set_body_typed([](Database database) -> ApplyHistoryBest {
       return ApplyHistoryBest(database);
     });
+TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBestEnterScope")
+    .set_body_typed(ApplyHistoryBestInternal::EnterScope);
+TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBestExitScope")
+    .set_body_typed(ApplyHistoryBestInternal::ExitScope);
+TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBestCurrent")
+    .set_body_typed(ApplyHistoryBest::Current);
+TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBestQuery")
+    .set_body_method<ApplyHistoryBest>(&ApplyHistoryBestNode::Query);
 
 }  // namespace meta_schedule
 }  // namespace tvm
