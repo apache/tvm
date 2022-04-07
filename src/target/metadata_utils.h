@@ -48,8 +48,8 @@ namespace metadata {
  *   int64_t* shape;
  * };
  *
- * In order to properly initialize this struct, the array must be declared separately with a global name.
- * This function produces such a name, here termed "address."
+ * In order to properly initialize this struct, the array must be declared separately with a global
+ * name. This function produces such a name, here termed "address."
  *
  * \param parts A vector of pieces, typically the struct member names which identify the path to
  *  this member.

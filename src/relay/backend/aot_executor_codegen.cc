@@ -399,7 +399,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    * returns the passed Call
    */
   tir::Call AddCheckReturn(tir::Call existing_call) {
-    Array<PrimExpr> args = {tir::make_const(DataType::Int(32, 1), 0, Span()), tir::make_const(DataType::Int(32, 1), -1, Span()), existing_call};
+    Array<PrimExpr> args = {tir::make_const(DataType::Int(32, 1), 0, Span()),
+                            tir::make_const(DataType::Int(32, 1), -1, Span()), existing_call};
     return tir::Call(DataType::Int(32), tir::builtin::tvm_check_return(), args);
   }
 
@@ -507,9 +508,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     te::Var loop_idx("i", DataType::Int(32));
     auto retval_i = tir::BufferLoad(tmp_read, {loop_idx});
     // Copy the variable from the input to the output
-    tir::Stmt copy =
-        tir::For(loop_idx, 0, tir::make_const(DataType::Int(32, 1), size, Span()), tir::ForKind::kSerial,
-                 tir::BufferStore(tmp_write, tir::Let(tmp_read->data, in, retval_i), {loop_idx}));
+    tir::Stmt copy = tir::For(
+        loop_idx, 0, tir::make_const(DataType::Int(32, 1), size, Span()), tir::ForKind::kSerial,
+        tir::BufferStore(tmp_write, tir::Let(tmp_read->data, in, retval_i), {loop_idx}));
     stmts_.push_back(tir::LetStmt(tmp_write->data, out, copy));
   }
 

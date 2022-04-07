@@ -25,7 +25,9 @@ import pytest
 @tvm.script.ir_module
 class Module:
     @T.prim_func
-    def tvm_test_cpacked(A : T.handle, B: T.handle, C: T.handle, device_context: T.handle) -> T.handle:
+    def tvm_test_cpacked(
+        A: T.handle, B: T.handle, C: T.handle, device_context: T.handle
+    ) -> T.handle:
         A_0 = T.match_buffer(A, (1,), dtype="float32")
         A_0pre = T.preflattened_buffer(A_0, (1,), dtype="float32")
         B_0 = T.match_buffer(B, (1,), dtype="float32")
@@ -56,7 +58,9 @@ class Module:
 @tvm.script.ir_module
 class Expected:
     @T.prim_func
-    def tvm_test_cpacked(A : T.handle, B: T.handle, C: T.handle, device_context: T.handle) -> T.handle:
+    def tvm_test_cpacked(
+        A: T.handle, B: T.handle, C: T.handle, device_context: T.handle
+    ) -> T.handle:
         A_0 = T.match_buffer(A, (1,), dtype="float32")
         A_0pre = T.preflattened_buffer(A_0, (1,), dtype="float32")
         B_0 = T.match_buffer(B, (1,), dtype="float32")
@@ -73,12 +77,40 @@ class Expected:
         device_context = T.var("handle")
 
         # body
-        T.evaluate(T.tvm_call_cpacked("tvm_test_cpacked",
-                                      T.tvm_stack_make_array(A, T.tvm_stack_make_shape(1, dtype="handle"), T.reinterpret(T.uint64(0), dtype="handle"), T.uint32(1), T.cast(0, dtype="float32"), 0, dtype="handle"),
-                                      T.tvm_stack_make_array(B, T.tvm_stack_make_shape(1, dtype="handle"), T.reinterpret(T.uint64(0), dtype="handle"), T.uint32(1), T.cast(0, dtype="float32"), 0, dtype="handle"),
-                                      T.tvm_stack_make_array(C, T.tvm_stack_make_shape(1, dtype="handle"), T.reinterpret(T.uint64(0), dtype="handle"), T.uint32(1), T.cast(0, dtype="float32"), 0, dtype="handle"),
-                                      device_context,
-                                      dtype="int32"))
+        T.evaluate(
+            T.tvm_call_cpacked(
+                "tvm_test_cpacked",
+                T.tvm_stack_make_array(
+                    A,
+                    T.tvm_stack_make_shape(1, dtype="handle"),
+                    T.reinterpret(T.uint64(0), dtype="handle"),
+                    T.uint32(1),
+                    T.cast(0, dtype="float32"),
+                    0,
+                    dtype="handle",
+                ),
+                T.tvm_stack_make_array(
+                    B,
+                    T.tvm_stack_make_shape(1, dtype="handle"),
+                    T.reinterpret(T.uint64(0), dtype="handle"),
+                    T.uint32(1),
+                    T.cast(0, dtype="float32"),
+                    0,
+                    dtype="handle",
+                ),
+                T.tvm_stack_make_array(
+                    C,
+                    T.tvm_stack_make_shape(1, dtype="handle"),
+                    T.reinterpret(T.uint64(0), dtype="handle"),
+                    T.uint32(1),
+                    T.cast(0, dtype="float32"),
+                    0,
+                    dtype="handle",
+                ),
+                device_context,
+                dtype="int32",
+            )
+        )
 
 
 def test_aot_packed_call():
