@@ -14,9 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
+"""Intrinsics for x86 tensorization."""
 from .. import TensorIntrin
 from tvm.script import tir as T
 
+
+# TODO(masahi): Parametrize the TVMScript description of dot product by
+# shape and dtype, and share the common description with x86.
 
 @T.prim_func
 def dot_product_4x4_i8i8i32_desc(
@@ -24,6 +29,9 @@ def dot_product_4x4_i8i8i32_desc(
     B: T.Buffer((4, 4), "int8", offset_factor=1),
     C: T.Buffer((4,), "int32", offset_factor=1),
 ) -> None:
+    """
+    A description for 4x4 dot product.
+    """
     with T.block("root"):
         T.reads(C[0:4], A[0:4], B[0:4, 0:4])
         T.writes(C[0:4])
@@ -42,6 +50,9 @@ def dot_product_4x4_i8i8i32_neon(
     B: T.Buffer((4, 4), "int8", offset_factor=1),
     C: T.Buffer((4,), "int32", offset_factor=1),
 ) -> None:
+    """
+    A implementation for 4x4 dot product, applicable for any ARM CPUs supporting NEON.
+    """
     with T.block("root"):
         T.reads(C[0:4], A[0:4], B[0:4, 0:4])
         T.writes(C[0:4])
@@ -103,6 +114,9 @@ def dot_product_4x4_i8i8i32_sdot(
     B: T.Buffer((4, 4), "int8", offset_factor=1),
     C: T.Buffer((4,), "int32", offset_factor=1),
 ) -> None:
+    """
+    A implementation for 4x4 dot product, applicable for ARM CPUs supporting sdot.
+    """
     with T.block("root"):
         T.reads(C[0:4], A[0:4], B[0:4, 0:4])
         T.writes(C[0:4])
