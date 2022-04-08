@@ -1399,7 +1399,6 @@ class Shape(OnnxOpConverter):
         start = attr.get("start")
         end = attr.get("end")
         return shape_of(inputs[0], dtype="int64", start=start, end=end)
-        
 
 
 class CumSum(OnnxOpConverter):

@@ -615,8 +615,8 @@ def shape_of(x, dtype="int64", start=None, end=None):
     ttype = infer_type(x).checked_type
     if not _ty.is_dynamic(ttype):
         shape = list(ttype.shape)
-        start = start or 0 # default to first
-        end = end or len(shape) # default to last
+        start = start or 0  # default to first
+        end = end or len(shape)  # default to last
         shape_sliced = shape[start:end]
         return _expr.const(shape_sliced, dtype)
     return _op.shape_of(x, dtype)
