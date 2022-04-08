@@ -34,6 +34,8 @@
 #endif
 #if defined(__hexagon__)
 #include <dlfcn.h>
+#define FARF_LOW 1
+#include <HAP_farf.h>
 #include <qurt.h>
 #define HEXAGON_STACK_SIZE 65536
 #endif
@@ -51,6 +53,7 @@ class QuRTThread {
     QuRTThread(std::function<void(int)> worker_callback, int worker_id) :
       f(worker_callback), i(worker_id) {
       qurt_thread_attr_t attr;
+      FARF(LOW, "Creating worker thread %d", i);
       qurt_thread_attr_init(&attr);
       qurt_thread_attr_set_stack_size(&attr, sizeof(stack));
       qurt_thread_attr_set_stack_addr(&attr, stack);
@@ -59,11 +62,14 @@ class QuRTThread {
     bool joinable() const { return qurt_thread_get_id() != thread; }
     void join() {
       int status;
+      FARF(LOW, "join() called on thread id %d (worker id %d)", thread, i);
       qurt_thread_join(thread, &status);
     }
   private:
     static void run_func(QuRTThread * t) {
-      t->f(t->i);
+      FARF(LOW, "In run_func");
+      qurt_thread_exit(0);
+      //t->f(t->i);
     }
     qurt_thread_t thread;
     std::function<void(int)> f;
