@@ -52,13 +52,9 @@ class QuRTThread {
       f(worker_callback), i(worker_id) {
       qurt_thread_attr_t attr;
       qurt_thread_attr_init(&attr);
-      stack = malloc(HEXAGON_STACK_SIZE);
-      qurt_thread_attr_set_stack_size(&attr, HEXAGON_STACK_SIZE);
+      qurt_thread_attr_set_stack_size(&attr, sizeof(stack));
       qurt_thread_attr_set_stack_addr(&attr, stack);
       qurt_thread_create(&thread, &attr, (void (*)(void *))run_func, this);
-    }
-    ~QuRTThread() {
-      free(stack);
     }
     bool joinable() const { return qurt_thread_get_id() != thread; }
     void join() {
@@ -73,6 +69,7 @@ class QuRTThread {
     void * stack;
     std::function<void(int)> f;
     int i;
+    uint8_t stack[HEXAGON_STACK_SIZE];
 };
 #endif
 thread_local int max_concurrency = 0;
