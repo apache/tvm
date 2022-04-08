@@ -42,7 +42,7 @@ static void DumpMetadata(TVMMetadata* md)
   fprintf(stderr, "\tnum_outputs=%ld\n", md->num_outputs);
   fprintf(stderr, "\tnum_pools=%ld\n", md->num_pools);
 
-  uint32_t i;
+  int i;
 
   for (i = 0; i < md->num_inputs; ++i) {
     fprintf(stderr, "\tinput[%d]: %s\n", i, md->inputs[i].name);
@@ -50,6 +50,10 @@ static void DumpMetadata(TVMMetadata* md)
 
   for (i = 0; i < md->num_outputs; ++i) {
     fprintf(stderr, "\toutput[%d]: %s\n", i, md->outputs[i].name);
+  }
+
+  for (i = 0; i < md->num_pools; ++i) {
+    fprintf(stderr, "\tpools[%d]: %s\n", i, md->pools[i].name);
   }
 }
 
@@ -90,7 +94,46 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
   // save the returned pointer to the top-level metadata
   executor->metadata = (TVMMetadata *)get_c_metadata.ret_value.values[0].v_handle;
 
-  DumpMetadata(executor->metadata);
+  TVMMetadata* md = executor->metadata;
+  
+  DumpMetadata(md);
+  
+  executor->num_args = md->num_inputs + md->num_outputs + md->num_pools;
+
+  TVMPlatformMemoryAllocate(executor->num_args * sizeof(*executor->args),
+                            executor->device, (void **)(&executor->args));
+
+  int i;
+  int arg_idx = 0;
+  for (i = 0; i < md->num_inputs; ++i) {
+    fprintf(stderr, "\tinput allocate[%d]: %s\n", i, md->inputs[i].name);
+
+#define FAKE_SHAPE
+
+#ifdef FAKE_SHAPE
+    int64_t shape = 2;
+    TVMNDArray_Empty(1, &shape, md->inputs[i].dtype,
+                     executor->device, &executor->args[arg_idx++]);
+#else
+    TVMNDArray_Empty(md->inputs[i].num_shape, md->inputs[i].shape, md->inputs[i].dtype,
+                     executor->device, &executor->args[arg_idx++]);
+#endif
+
+  }
+
+  for (i = 0; i < md->num_outputs; ++i) {
+    fprintf(stderr, "\toutput allocate[%d]: %s\n", i, md->outputs[i].name);
+
+    TVMNDArray_Empty(md->outputs[i].num_shape, md->outputs[i].shape, md->outputs[i].dtype,
+                     executor->device, &executor->args[arg_idx++]);
+  }
+
+  for (i = 0; i < md->num_pools; ++i) {
+    fprintf(stderr, "\tpools allocate[%d]: %s\n", i, md->pools[i].name);
+
+    TVMNDArray_Empty(md->pools[i].num_shape, md->pools[i].shape, md->pools[i].dtype,
+                     executor->device, &executor->args[arg_idx++]);
+  }
 
   return status;
 }
@@ -110,7 +153,26 @@ int TVMAotExecutor_Create(TVMModuleHandle module_handle,
 
 int TVMAotExecutor_Release(TVMAotExecutor* executor, const DLDevice device) {
 
-  int status = TVMPlatformMemoryFree(executor, device);
+  int status;
+
+  if (executor->num_args > 0) {
+    // free TVMNDArray data memory for each each argument
+    int i;
+    for (i = 0; i < executor->num_args; ++i) {
+      status = TVMNDArray_Release(&executor->args[i]);
+      if (status != 0) {
+        return status;
+      }
+    }
+
+    // free TVMNDArray argument list
+    status = TVMPlatformMemoryFree(executor->args, executor->device);
+    if (status != 0) {
+        return status;
+    }
+  }
+
+  status = TVMPlatformMemoryFree(executor, device);
   if (status != 0) {
     return status;
   }
