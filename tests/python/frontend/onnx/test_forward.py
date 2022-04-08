@@ -5589,6 +5589,7 @@ def test_attention(target, dev):
     verify_attention(input, weight, bias, mask_index, num_heads)
 
 
+@tvm.testing.parametrize_targets
 def test_skiplayernormalization(target, dev):
     def verify_skiplayernormalization(input, skip, gamma, beta, bias):
         node = onnx.helper.make_node(
