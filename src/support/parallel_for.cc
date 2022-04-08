@@ -119,8 +119,6 @@ void parallel_for_dynamic(int begin, int end, int num_threads,
     threads.emplace_back(std::move(task), thread_id);
   }
 
-  // Step 2.2. Launch worker 0 inplace
-
   auto try_await_futures = [&futures]() {
     try {
       for (auto&& future : futures) {
@@ -131,6 +129,7 @@ void parallel_for_dynamic(int begin, int end, int num_threads,
     }
   };
 
+  // Step 2.2. Launch worker 0 inplace
   try {
     worker(0);
   } catch (const std::exception& e) {

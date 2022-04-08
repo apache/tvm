@@ -131,7 +131,7 @@ void TaskSchedulerNode::Tune() {
     Optional<Array<MeasureCandidate>> candidates = strategy->GenerateMeasureCandidates();
     if (candidates.defined()) {
       // Filter out invalid candidates.
-      // An invalid candidate can arise due to a schdule application failure (e.g. tensorize).
+      // An invalid candidate can arise due to a schedule application failure (e.g. tensorize).
       Array<MeasureCandidate> valid_candidates;
       for (MeasureCandidate candidate : candidates.value()) {
         if (candidate.defined()) {
