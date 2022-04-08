@@ -5436,7 +5436,13 @@ def test_biasgelu(target, dev):
 @tvm.testing.parametrize_targets
 def test_embedlayernormalization(target, dev):
     def verify_embedlayernormalization(
-        input_ids, segment_ids, word_embedding, position_embedding, segment_embedding, gamma, beta,
+        input_ids,
+        segment_ids,
+        word_embedding,
+        position_embedding,
+        segment_embedding,
+        gamma,
+        beta,
     ):
         node = onnx.helper.make_node(
             "EmbedLayerNormalization",
@@ -5481,11 +5487,11 @@ def test_embedlayernormalization(target, dev):
                 helper.make_tensor_value_info(
                     "output", TensorProto.FLOAT, list((batch_size, sequence_length, hidden_size))
                 ),
+                helper.make_tensor_value_info("mask_index", TensorProto.INT32, [batch_size]),
                 helper.make_tensor_value_info(
-                    "mask_index", TensorProto.INT32, [batch_size]
-                ),
-                helper.make_tensor_value_info(
-                    "embedding_sum", TensorProto.FLOAT, list((batch_size, sequence_length, hidden_size))
+                    "embedding_sum",
+                    TensorProto.FLOAT,
+                    list((batch_size, sequence_length, hidden_size)),
                 ),
             ],
         )
@@ -5502,7 +5508,11 @@ def test_embedlayernormalization(target, dev):
                 gamma,
                 beta,
             ],
-            [(batch_size, sequence_length, hidden_size), batch_size, (batch_size, sequence_length, hidden_size)],
+            [
+                (batch_size, sequence_length, hidden_size),
+                batch_size,
+                (batch_size, sequence_length, hidden_size),
+            ],
             target=target,
             dev=dev,
             rtol=1e-4,
@@ -5617,7 +5627,9 @@ def test_skiplayernormalization(target, dev):
         )
 
         model = helper.make_model(graph, producer_name="skiplayernormalization_test")
-        verify_with_ort_with_inputs(model, [input, skip, gamma, beta, bias], [input.shape], target=target, dev=dev)
+        verify_with_ort_with_inputs(
+            model, [input, skip, gamma, beta, bias], [input.shape], target=target, dev=dev
+        )
 
     hidden_size = 384
     batch_size = 4
