@@ -438,7 +438,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     GlobalVar global_var = call_lowered_props.lowered_func;
     bool has_c_device_api_context = device_contexts_.count(global_var) != 0;
-    bool call_device_hooks = false;
     tir::Var device_context;
     tir::Stmt func_call;
 
@@ -480,7 +479,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     ICHECK(func_call.defined()) << "Must define func_call";
 
-    if (call_device_hooks) {
+    if (has_c_device_api_context) {
       func_call = tir::SeqStmt(Array<tir::Stmt>({
           GenerateDeviceHook(device_context, "Open"),
           func_call,
@@ -582,8 +581,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     Array<String> sections = {"Device", device_name, hook};
     String device_hook = ToCFunctionStyle(PrefixName(sections));
 
-    return tir::Evaluate(tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(),
-                                   {tvm::tir::StringImm(device_hook), context}));
+    return tir::Evaluate(
+        AddCheckReturn(tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(),
+                                 {tvm::tir::StringImm(device_hook), context})));
   }
 
   /*!
