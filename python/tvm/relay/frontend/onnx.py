@@ -838,6 +838,11 @@ class BiasGelu(OnnxOpConverter):
 
 
 class EmbedLayerNormalization(OnnxOpConverter):
+    """Operator converter for EmbedLayerNormalization from Microsoft onnxruntime contrib opset.
+
+    This layer embeds the input tokens, sums them, and applies layer normalization.
+    """
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         input_ids = inputs[0]
@@ -887,6 +892,12 @@ class EmbedLayerNormalization(OnnxOpConverter):
 
 
 class SkipLayerNormalization(OnnxOpConverter):
+    """Operator converter for SkipLayerNormalization from Microsoft onnxruntime contrib opset.
+
+    This layer sums the two input tensors (along with optional bias), and applies layer
+    normalization.
+    """
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         data = inputs[0]
@@ -918,6 +929,11 @@ class SkipLayerNormalization(OnnxOpConverter):
 
 
 class Attention(OnnxOpConverter):
+    """Operator converter for Attention from Microsoft onnxruntime contrib opset.
+
+    This is the self-attention mechanism used in transformer models.
+    """
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         num_heads = attr["num_heads"]
@@ -949,7 +965,7 @@ class Attention(OnnxOpConverter):
         # (batch, num_heads, seq, seq)
         extra_add = inputs[5]
 
-        (batch_size, seq_len, in_hidden) = infer_shape(input_emb)
+        (batch_size, seq_len, _) = infer_shape(input_emb)
         (out_hidden_x3,) = infer_shape(bias)
         assert out_hidden_x3 % 3 == 0, "bias shape should be divisible by 3"
         out_hidden = out_hidden_x3 // 3
