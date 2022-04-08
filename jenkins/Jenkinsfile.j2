@@ -242,10 +242,6 @@ stage('Sanity Check') {
           // to run the lint
           return
         }
-        sh (
-          script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
-          label: 'Run lint',
-        )
       }
     }
   }
