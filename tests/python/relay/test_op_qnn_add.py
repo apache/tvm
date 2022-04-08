@@ -232,7 +232,7 @@ def test_saturation():
     np.testing.assert_equal(op_res.numpy(), golden_output)
 
 
-def test_ignore_broadcast_axis():
+def test_ignore_channel_axis():
     data_dtype = "uint8"
 
     x = relay.var("x", shape=(4,), dtype=data_dtype)
@@ -259,4 +259,4 @@ if __name__ == "__main__":
     test_tflite_same_io_qnn_params()
     test_tflite_different_io_qnn_params()
     test_saturation()
-    test_ignore_broadcast_axis()
+    test_ignore_channel_axis()

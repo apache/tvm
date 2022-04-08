@@ -260,14 +260,14 @@ static inline bool QnnBroadcastRel(const Array<Type>& types, int num_inputs, con
   auto lhs_rank = static_cast<int>(lhs_data->shape.size());
   auto rhs_rank = static_cast<int>(rhs_data->shape.size());
 
-  auto get_broadcast_axis = [](int rank, int axis_from_attr) {
+  auto get_channel_axis = [](int rank, int axis_from_attr) {
     if (rank <= 1) return 0;
     if (axis_from_attr < 0) return rank + axis_from_attr;
     return axis_from_attr;
   };
 
-  const int lhs_axis = get_broadcast_axis(lhs_rank, broadcast_attrs->lhs_axis);
-  const int rhs_axis = get_broadcast_axis(rhs_rank, broadcast_attrs->rhs_axis);
+  const int lhs_axis = get_channel_axis(lhs_rank, broadcast_attrs->lhs_axis);
+  const int rhs_axis = get_channel_axis(rhs_rank, broadcast_attrs->rhs_axis);
 
   // If zero point and scale are scalar then axis doesn't matter.
   bool lhs_scale_is_scalar = (types[2].as<TensorTypeNode>())->shape.size() == 0;
