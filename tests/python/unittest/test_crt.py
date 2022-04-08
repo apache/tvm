@@ -212,8 +212,8 @@ def test_aot_executor():
         assert aot_executor.get_input_index("a") == 0
         assert aot_executor.get_input_index("b") == 1
 
-        A_np = np.array([2, 3], dtype="uint8")
-        B_np = np.array([4, 7], dtype="uint8")
+        A_np = np.array([[2, 3]], dtype="uint8")
+        B_np = np.array([[4, 7]], dtype="uint8")
 
         A_data = aot_executor.get_input("a").copyfrom(A_np)
         B_data = aot_executor.get_input("b").copyfrom(B_np)
