@@ -139,6 +139,8 @@ void TaskSchedulerNode::Tune() {
         }
       }
 
+      if (valid_candidates.size() == 0) continue;
+
       task->measure_candidates = std::move(valid_candidates);
       num_trials_already += task->measure_candidates.value().size();
       SendToBuilder(this->builder, task);
