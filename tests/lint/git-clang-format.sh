@@ -78,8 +78,7 @@ fi
 
 if [[ "$LINT_ALL_FILES" == "true" ]]; then
     echo "Running git-clang-format against all C++ files"
-    FILES=$(git ls-files | grep -E '\.(c|cc|cpp|mm|h|hpp)$')
-    git-${CLANG_FORMAT} --diff --extensions h,mm,c,cc --binary=${CLANG_FORMAT} "$REVISION" ${FILES[@]} 1> /tmp/$$.clang-format.txt
+    git-${CLANG_FORMAT} --diff --extensions h,mm,c,cc --binary=${CLANG_FORMAT} "$REVISION" 1> /tmp/$$.clang-format.txt
 else
     echo "Running git-clang-format against $REVISION"
     git-${CLANG_FORMAT} --diff --extensions h,mm,c,cc --binary=${CLANG_FORMAT} "$REVISION" 1> /tmp/$$.clang-format.txt
