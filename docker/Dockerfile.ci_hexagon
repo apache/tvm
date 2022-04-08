@@ -16,8 +16,8 @@
 # under the License.
 
 # CI docker Hexagon env
-# tag: v0.01
-FROM tvmcihexagon/ci-hexagon-base:v0.01_SDK4.2.0.2
+# tag: v0.02
+FROM tvmcihexagon/ci-hexagon-base:v0.02_SDK4.5.0.3
 
 RUN apt-get update --fix-missing
 RUN apt-get install -y ca-certificates gnupg2 libxml2-dev
@@ -25,8 +25,8 @@ RUN apt-get install -y ca-certificates gnupg2 libxml2-dev
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
-COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
-RUN bash /install/ubuntu1804_install_python.sh
+COPY install/ubuntu2004_install_python.sh /install/ubuntu2004_install_python.sh
+RUN bash /install/ubuntu2004_install_python.sh
 
 # Globally disable pip cache
 RUN pip config set global.cache-dir false
@@ -58,8 +58,20 @@ COPY install/ubuntu_install_hexagon.sh /install/ubuntu_install_hexagon.sh
 RUN bash /install/ubuntu_install_hexagon.sh
 ENV CLANG_LLVM_HOME /opt/clang-llvm
 ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/opt/clang-llvm/lib
-ENV HEXAGON_TOOLCHAIN "${HEXAGON_SDK_PATH}/tools/HEXAGON_Tools/8.4.09/Tools"
+ENV HEXAGON_TOOLCHAIN "${HEXAGON_SDK_PATH}/tools/HEXAGON_Tools/8.5.08/Tools"
 
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh
+
+# TensorFlow deps
+COPY install/ubuntu_install_tensorflow.sh /install/ubuntu_install_tensorflow.sh
+RUN bash /install/ubuntu_install_tensorflow.sh
+
+# TFLite deps
+COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
+RUN bash /install/ubuntu_install_tflite.sh
+
+# Install ONNX
+COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
+RUN bash /install/ubuntu_install_onnx.sh

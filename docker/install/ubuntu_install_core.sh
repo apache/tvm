@@ -54,6 +54,7 @@ if [ "$version_number" == "20.04" ]; then
   # Single package source (Ubuntu 20.04)
   # googletest is installed via libgtest-dev
   cd /usr/src/googletest && cmake CMakeLists.txt && make && cp -v lib/*.a /usr/lib
+  cd /usr/src/gmock && make install
 elif [ "$version_number" == "18.04" ]; then
   # Single package source (Ubuntu 18.04)
   # googletest is installed via libgtest-dev
