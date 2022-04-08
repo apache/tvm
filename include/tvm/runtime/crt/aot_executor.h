@@ -30,6 +30,7 @@ extern "C" {
 
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/metadata.h>
+#include <tvm/runtime/crt/internal/common/ndarray.h>
 
 typedef struct TVMMetadata TVMMetadata;
 
@@ -40,6 +41,9 @@ typedef struct TVMAotExecutor {
   TVMModuleHandle module_handle;
   /*! \brief The device type */
   DLDevice device;
+  /*! \brief List of allocated arguments, input(s), output(s), and pool(s)*/
+  TVMNDArray* args;
+  int64_t num_args;
 } TVMAotExecutor;
 
 /*!

@@ -83,6 +83,24 @@ int32_t TVMAotExecutorModule_NotImplemented(TVMValue* args, int* tcodes, int nar
   return kTvmErrorFunctionCallNotImplemented;
 }
 
+int32_t TVMAotExecutorModule_GetInput(TVMValue* args, int* tcodes, int nargs,
+                                      TVMValue* ret_values, int* ret_tcodes,
+                                      void* resource_handle) {
+
+  int index = TVMAotExecutor_GetInputIndex(aot_executor.executor, args[0].v_str);
+
+  fprintf(stderr, "%s: input: %s index: %d\n", __FUNCTION__, args[0].v_str, index);
+
+  if (index < 0) {
+    return kTvmErrorExecutorModuleNoSuchInput;
+  }
+
+  ret_values[0].v_handle = (void*)&aot_executor.executor->args[index].dl_tensor;
+  ret_tcodes[0] = kTVMNDArrayHandle;
+
+  return 0;
+}
+
 int32_t TVMAotExecutorModule_GetInputIndex(TVMValue* args, int* tcodes, int nargs,
                                            TVMValue* ret_values, int* ret_tcodes,
                                            void* resource_handle) {
@@ -99,7 +117,7 @@ int32_t TVMAotExecutorModule_GetInputIndex(TVMValue* args, int* tcodes, int narg
 }
 
 static const TVMBackendPackedCFunc aot_executor_registry_funcs[] = {
-    &TVMAotExecutorModule_NotImplemented,     // get_input
+    &TVMAotExecutorModule_GetInput,           // get_input
     &TVMAotExecutorModule_GetInputIndex,      // get_input_index
     &TVMAotExecutorModule_NotImplemented,     // get_input_info
     &TVMAotExecutorModule_NotImplemented,     // get_num_inputs
