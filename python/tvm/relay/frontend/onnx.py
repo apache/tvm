@@ -850,7 +850,7 @@ class EmbedLayerNormalization(OnnxOpConverter):
         mask = inputs[7]
         pos_ids = inputs[8]
 
-        eps = attr["epsilon"] if "epsilon" in attr else 0.0
+        eps = attr["epsilon"] if "epsilon" in attr else 1e-12
 
         (batch_size, seq_len) = infer_shape(input_ids)
 
@@ -877,8 +877,10 @@ class EmbedLayerNormalization(OnnxOpConverter):
         )
         ln = _op.multiply(ln, gamma) + beta
 
-        # TODO: actually calculate this
         mask_index = _op.const(np.zeros((batch_size,), dtype="int64"))
+        if mask:
+            # calculate number of words per sentence
+            mask_index = _op.sum(mask, axis=1)
 
         return _expr.TupleWrapper(_expr.Tuple([ln, mask_index, vec_sum]), 3)
 
@@ -886,7 +888,32 @@ class EmbedLayerNormalization(OnnxOpConverter):
 class SkipLayerNormalization(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        breakpoint()
+        data = inputs[0]
+        skip = inputs[1]
+        gamma = inputs[2]
+        beta = inputs[3]
+        bias = inputs[4]
+
+        eps = attr["epsilon"] if "epsilon" in attr else 1e-12
+
+        x = _op.add(data, skip)
+        if bias is not None:
+            x = _op.add(x, bias)
+
+        eps_dtype = infer_type(x).checked_type.dtype
+
+        u, s = _op.mean_variance(x, axis=-1, keepdims=True)
+        output = _op.divide(
+            _op.subtract(x, u),
+            _op.sqrt(_op.add(s, _op.const(eps, dtype=eps_dtype))),
+        )
+        output = _op.multiply(output, gamma)
+        if beta:
+            output = _op.add(output, beta)
+
+        placeholder = _op.const(0, dtype="float32")
+
+        return _expr.TupleWrapper(_expr.Tuple([output, placeholder, placeholder]), 3)
 
 
 class Attention(OnnxOpConverter):
