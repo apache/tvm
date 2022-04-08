@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-04-07T13:50:22.427152
+// Generated at 2022-04-08T13:20:33.311331
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -86,6 +86,7 @@ tvm_multilib = 'build/libtvm.so, ' +
 tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
                tvm_multilib
 upstream_revision = null
+base_commit = null
 
 // command to start a docker container
 docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS'
@@ -97,6 +98,16 @@ rebuild_docker_images = false
 def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
 }
+
+def init_base_commit() {
+  checkout scm
+  base_commit = sh(
+    script: 'git rev-list --no-merges -n 1 HEAD',
+    label: 'Determine HEAD',
+    returnStdout: true,
+  ).trim()
+}
+
 
 // initialize source codes
 def init_git() {
@@ -119,6 +130,7 @@ def init_git() {
       returnStdout: true,
     ).trim()
   }
+
   sh (
     script: "git merge ${upstream_revision}",
     label: 'Merge to origin/main'
@@ -144,6 +156,30 @@ def should_skip_slow_tests(pr_number) {
     )
   }
   return result == 0
+}
+
+def report_status(name, description, url, status) {
+  if (base_commit == null) {
+    sh "echo base commit cannot be null && exit 1"
+  }
+  withCredentials([usernamePassword(credentialsId: 'tqchen-ci',
+                                    usernameVariable: 'GITHUB_APP',
+                                    passwordVariable: 'GITHUB_TOKEN')]) {
+    withEnv([
+      "COMMIT=${base_commit}",
+      "STATUS=${status}",
+      "NAME=${name}",
+      "TARGET_URL=${url}",
+      "DESCRIPTION=${description}"]) {
+      sh '''
+      curl -H "Content-Type: application/json" \
+            -H "Accept: application/vnd.github.antiope-preview+json" \
+            -H "authorization: Bearer ${GITHUB_TOKEN}" \
+            -d '{ "state": "$STATUS", "target_url": "$TARGET_URL", "description": "$DESCRIPTION", "context": "$NAME" }' \
+              https://api.github.com/repos/apache/tvm/statuses/$COMMIT
+      '''
+    }
+  }
 }
 
 def cancel_previous_build() {
@@ -223,7 +259,10 @@ stage('Sanity Check') {
   timeout(time: max_time, unit: 'MINUTES') {
     node('CPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/sanity") {
+        init_base_commit()
+        report_status('sanity check', 'running linters', env.RUN_DISPLAY_URL, 'pending')
         init_git()
+        sh "exit 1"
         is_docs_only_build = sh (
           returnStatus: true,
           script: './tests/scripts/git_change_docs.sh',
