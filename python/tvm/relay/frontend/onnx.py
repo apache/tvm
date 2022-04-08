@@ -807,9 +807,10 @@ class Gelu(OnnxOpConverter):
         x = inputs[0]
 
         # Declare consts
-        half = _expr.const(0.5)
-        one = _expr.const(1.0)
-        sqrt2 = _expr.const(math.sqrt(2))
+        const_dtype = infer_type(x).checked_type.dtype
+        half = _expr.const(0.5, dtype=const_dtype)
+        one = _expr.const(1.0, dtype=const_dtype)
+        sqrt2 = _expr.const(math.sqrt(2), dtype=const_dtype)
 
         # Compute gelu
         term1 = _op.multiply(half, x)
