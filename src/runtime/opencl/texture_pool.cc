@@ -36,35 +36,41 @@ class TexturePool::Pool {
     Entry e;
     e.data = nullptr;
     if (free_list_.size() != 0) {
-      int64_t req_size = height * width;
       Entry new_mem;
-      int64_t min_added_size = std::numeric_limits<int64_t>::max();
-      int64_t min_wasted_size = std::numeric_limits<int64_t>::max();
+      int64_t min_added_size_x = std::numeric_limits<int64_t>::max();
+      int64_t min_added_size_y = std::numeric_limits<int64_t>::max();
+      int64_t min_wasted_size_x = std::numeric_limits<int64_t>::max();
+      int64_t min_wasted_size_y = std::numeric_limits<int64_t>::max();
       std::vector<Entry>::iterator best_mem;
       for (auto it = free_list_.begin(); it != free_list_.end(); ++it) {
         if (it->type.code != type_hint.code) {
           continue;
         }
-        int64_t old_size = it->x * it->y;
         new_mem.x = std::max(it->x, width);
         new_mem.y = std::max(it->y, height);
-        int64_t new_size = new_mem.x * new_mem.y;
-        int64_t added_size = new_size - old_size;
-        int64_t wasted_size = new_size - req_size;
+        int64_t added_size_x = new_mem.x - it->x;
+        int64_t added_size_y = new_mem.y - it->y;
+        int64_t wasted_size_x = new_mem.x - width;
+        int64_t wasted_size_y = new_mem.y - height;
         // Minimize added size first and wasted size thereafter
-        if ((min_added_size > 0 && added_size < min_added_size) ||
-            (min_added_size == 0 && wasted_size < min_wasted_size)) {
-          min_added_size = added_size;
-          min_wasted_size = wasted_size;
+        if ((min_added_size_x > 0 && added_size_x < min_added_size_x) ||
+            (min_added_size_y > 0 && added_size_y < min_added_size_y) ||
+            (min_added_size_x == added_size_x && wasted_size_x < min_wasted_size_x) ||
+            (min_added_size_y == added_size_y && wasted_size_y < min_wasted_size_y)) {
+          min_added_size_x = added_size_x;
+          min_added_size_y = added_size_y;
+          min_wasted_size_x = wasted_size_x;
+          min_wasted_size_y = wasted_size_y;
           best_mem = it;
         }
       }
 
-      if (min_added_size == 0) {
+      if (min_added_size_x == 0 && min_added_size_y == 0) {
         // use existing block
         e = *best_mem;
         free_list_.erase(best_mem);
-      } else if (min_added_size <= req_size) {
+      } else if (static_cast<size_t>(min_added_size_x) <= width ||
+                 static_cast<size_t>(min_added_size_y) <= height) {
         // if added size is less or equal to
         // what is needed by alloc, then grow entry
         device->FreeDataSpace(dev, best_mem->data);
