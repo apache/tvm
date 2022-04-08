@@ -74,6 +74,7 @@ class TablePrinter {
   /*! \brief A helper class to print a specific row in the table */
   struct Line {
     inline Line& operator<<(int x);
+    inline Line& operator<<(int64_t x);
     inline Line& operator<<(double x);
     inline Line& operator<<(const std::string& x);
 
@@ -84,6 +85,11 @@ class TablePrinter {
 };
 
 inline TablePrinter::Line& TablePrinter::Line::operator<<(int x) {
+  p->tab_.back().push_back(std::to_string(x));
+  return *this;
+}
+
+inline TablePrinter::Line& TablePrinter::Line::operator<<(int64_t x) {
   p->tab_.back().push_back(std::to_string(x));
   return *this;
 }
