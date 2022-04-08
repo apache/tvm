@@ -856,7 +856,7 @@ class EmbedLayerNormalization(OnnxOpConverter):
         mask = inputs[7]
         pos_ids = inputs[8]
 
-        eps = attr["epsilon"] if "epsilon" in attr else 1e-12
+        eps = attr.get('epsilon', 1e-12)
 
         (batch_size, seq_len) = infer_shape(input_ids)
 
@@ -4940,6 +4940,9 @@ def _get_convert_map(opset):
         "Elu": Elu.get_converter(opset),
         "Gelu": Gelu.get_converter(opset),
         "BiasGelu": BiasGelu.get_converter(opset),
+        # TODO: We need a better way to handle different domains, in case
+        # of name collisions. EmbedLayerNormalization, SkipLayerNormalization, and Attention
+        # are in the `com.microsoft` domain.
         "EmbedLayerNormalization": EmbedLayerNormalization.get_converter(opset),
         "SkipLayerNormalization": SkipLayerNormalization.get_converter(opset),
         "Attention": Attention.get_converter(opset),
