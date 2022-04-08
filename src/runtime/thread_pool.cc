@@ -43,6 +43,41 @@
 #include <thread>
 #include <vector>
 
+#ifdef __hexagon__
+#define FARF_LOW 1
+#include <HAP_farf.h>
+class Mutex {
+  public:
+    Mutex() { qurt_mutex_init(&mutex); }
+    ~Mutex() { qurt_mutex_destroy(&mutex); }
+    //operator=() = delete;
+    void lock() { qurt_mutex_lock(&mutex); }
+    bool try_lock() { return qurt_mutex_try_lock(&mutex) == 0; }
+    void unlock() { qurt_mutex_unlock(&mutex); }
+    qurt_mutex_t * mutex_ptr() { return &mutex; }
+  private:
+    qurt_mutex_t mutex;
+};
+class ConditionVariable {
+  public:
+    ConditionVariable() { qurt_cond_init(&cond); }
+    ~ConditionVariable() { qurt_cond_destroy(&cond); }
+    void notify_all() { qurt_cond_broadcast(&cond); }
+    void notify_one() { qurt_cond_signal(&cond); }
+    template <class Predicate>
+    void wait(std::unique_lock<Mutex>& lock, Predicate stop_waiting) {
+      while (!stop_waiting()) {
+        qurt_cond_wait(&cond, lock.mutex()->mutex_ptr());
+      }
+    }
+  private:
+    qurt_cond_t cond;
+};
+#else
+typedef std::mutex Mutex;
+typedef std::condition_variable ConditionVariable;
+#endif
+
 #include "../support/utils.h"
 const constexpr int kL1CacheBytes = 64;
 
@@ -164,7 +199,7 @@ class SpscTaskQueue {
       tvm::runtime::threading::Yield();
     }
     if (pending_.fetch_add(1) == -1) {
-      std::unique_lock<std::mutex> lock(mutex_);
+      std::unique_lock<Mutex> lock(mutex_);
       cv_.notify_one();
     }
   }
@@ -183,7 +218,7 @@ class SpscTaskQueue {
       tvm::runtime::threading::Yield();
     }
     if (pending_.fetch_sub(1) == 0) {
-      std::unique_lock<std::mutex> lock(mutex_);
+      std::unique_lock<Mutex> lock(mutex_);
       cv_.wait(lock, [this] { return pending_.load() >= 0 || exit_now_.load(); });
     }
     if (exit_now_.load(std::memory_order_relaxed)) {
@@ -201,7 +236,7 @@ class SpscTaskQueue {
    * \brief Signal to terminate the worker.
    */
   void SignalForKill() {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<Mutex> lock(mutex_);
     exit_now_.store(true);
     cv_.notify_all();
   }
@@ -251,9 +286,9 @@ class SpscTaskQueue {
   std::atomic<bool> exit_now_{false};
 
   // internal mutex
-  std::mutex mutex_;
+  Mutex mutex_;
   // cv for consumer
-  std::condition_variable cv_;
+  ConditionVariable cv_;
 };
 
 // The thread pool

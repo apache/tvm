@@ -59,7 +59,10 @@ class QuRTThread {
       qurt_thread_attr_set_stack_addr(&attr, stack);
       qurt_thread_create(&thread, &attr, (void (*)(void *))run_func, this);
     }
-    bool joinable() const { return qurt_thread_get_id() != thread; }
+    bool joinable() const {
+      FARF(LOW, "Checking if current thread %d != %d for joinability", qurt_thread_get_id(), thread);
+      return qurt_thread_get_id() != thread;
+    }
     void join() {
       int status;
       FARF(LOW, "join() called on thread id %d (worker id %d)", thread, i);
@@ -68,8 +71,10 @@ class QuRTThread {
   private:
     static void run_func(QuRTThread * t) {
       FARF(LOW, "In run_func");
-      qurt_thread_exit(0);
-      //t->f(t->i);
+      t->f(t->i);
+      FARF(LOW, "Leaving run_func");
+      qurt_thread_exit(QURT_EOK);
+      FARF(LOW, "I SHOULD NOT BE HERE");
     }
     qurt_thread_t thread;
     std::function<void(int)> f;
@@ -135,6 +140,9 @@ class ThreadGroup::Impl {
  private:
   void SetThreadAffinity(std::thread::native_handle_type thread,
                          const std::vector<unsigned int>& ids) {
+#ifdef __hexagon__
+    FARF(LOW, "SetThreadAffinity called!!");
+#endif
 #if defined(__linux__) || defined(__ANDROID__)
     if (pthread_equal(thread, CURRENT_THREAD_HANDLE)) {
       thread = pthread_self();
@@ -324,7 +332,14 @@ int ThreadGroup::Configure(AffinityMode mode, int nthreads, bool exclude_worker0
   return impl_->Configure(mode, nthreads, exclude_worker0, cpus);
 }
 
-void Yield() { std::this_thread::yield(); }
+void Yield() {
+#ifdef __hexagon__
+  qurt_sleep(1);
+#else
+  std::this_thread::yield();
+#endif
+}
+
 /*!
  * \brief Set the maximum number of available cores.
  */
