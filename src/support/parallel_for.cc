@@ -118,26 +118,36 @@ void parallel_for_dynamic(int begin, int end, int num_threads,
     futures.emplace_back(task.get_future());
     threads.emplace_back(std::move(task), thread_id);
   }
+
   // Step 2.2. Launch worker 0 inplace
+
+  auto try_await_futures = [&futures]() {
+    try {
+      for (auto&& future : futures) {
+        future.get();
+      }
+    } catch (const std::exception& e) {
+      LOG(WARNING) << "RuntimeError: parallel_for_dynamic error on future get with " << e.what();
+    }
+  };
+
   try {
     worker(0);
   } catch (const std::exception& e) {
     for (auto&& thread : threads) {
       thread.join();
     }
-    LOG(FATAL) << "RuntimeError: parallel_for_dynamic error with " << e.what();
+    LOG(WARNING) << "RuntimeError: parallel_for_dynamic error on thread join with " << e.what();
+    try_await_futures();
+    return;
   }
+
   // Step 3. Join threads and check exceptions
   for (auto&& thread : threads) {
     thread.join();
   }
-  try {
-    for (auto&& future : futures) {
-      future.get();
-    }
-  } catch (const std::exception& e) {
-    LOG(FATAL) << "RuntimeError: parallel_for_dynamic error with " << e.what();
-  }
+
+  try_await_futures();
 }
 
 }  // namespace support
