@@ -77,7 +77,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
       int trials = record.trials;
       row << /*id=*/i                                 //
           << /*name=*/record.task->task_name.value()  //
-          << /*flops=*/static_cast<int>(record.flop)  //
+          << /*flops=*/static_cast<int64_t>(record.flop)  //
           << /*weight=*/static_cast<int>(record.weight);
       if (trials == 0) {
         row << /*speed=*/"N/A" << /*latency=*/"N/A" << /*weighted_latency=*/"N/A";
