@@ -34,6 +34,7 @@ void SendToBuilder(const Builder& builder, const TuneContext& context) {
   Array<BuilderInput> inputs;
   inputs.reserve(candidates.size());
   for (const MeasureCandidate& candidate : candidates) {
+    ICHECK(candidate.defined()) << "Undefined MeasureCandidate found";
     inputs.push_back(BuilderInput(candidate->sch->mod(), target));
   }
   context->builder_results = builder->Build(inputs);
@@ -127,7 +128,18 @@ void TaskSchedulerNode::Tune() {
     ICHECK(!task->is_terminated);
     ICHECK(!task->runner_futures.defined());
     SearchStrategy strategy = task->search_strategy.value();
-    if ((task->measure_candidates = strategy->GenerateMeasureCandidates()).defined()) {
+    Optional<Array<MeasureCandidate>> candidates = strategy->GenerateMeasureCandidates();
+    if (candidates.defined()) {
+      // Filter out invalid candidates.
+      // An invalid candidate can arise due to a schdule application failure (e.g. tensorize).
+      Array<MeasureCandidate> valid_candidates;
+      for (MeasureCandidate candidate : candidates.value()) {
+        if (candidate.defined()) {
+          valid_candidates.push_back(candidate);
+        }
+      }
+
+      task->measure_candidates = std::move(valid_candidates);
       num_trials_already += task->measure_candidates.value().size();
       SendToBuilder(this->builder, task);
       SendToRunner(this->runner, task);
