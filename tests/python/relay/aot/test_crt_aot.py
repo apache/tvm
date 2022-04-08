@@ -939,7 +939,7 @@ def test_workspace_calculation(workspace_byte_alignment, main_workspace_size):
     executor = Executor(
         "aot",
         {
-            "workspace-byte-alignment": workspace_byte_alignment,
+            "workspace-alignment": workspace_byte_alignment,
         },
     )
     with tvm.transform.PassContext(
@@ -974,7 +974,7 @@ def test_workspace_calculation_cmsis_nn():
     executor = Executor(
         "aot",
         {
-            "workspace-byte-alignment": 16,
+            "workspace-alignment": 16,
             "interface-api": "c",
             "unpacked-api": True,
         },
