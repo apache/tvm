@@ -20,6 +20,9 @@
 Using TVM's CI
 ==============
 
+.. contents::
+  :local:
+
 TVM uses Jenkins for running Linux continuous integration (CI) tests on
 `branches <https://ci.tlcpack.ai/job/tvm/>`_ and
 `pull requests <https://ci.tlcpack.ai/job/tvm/view/change-requests/>`_ through a
@@ -58,10 +61,7 @@ the failing job to view the logs. Note:
 Reproduce Failures
 ------------------
 
-Most TVM Python tests run under |pytest|_ and
-can be run as described in :ref:`pr-testing`. For a closer environment to the one
-than runs in CI you can run the docker images directly, build TVM, and execute
-tests inside the container. See :ref:`docker_images` for details.
+Most TVM Python tests run under |pytest|_ and can be run as described in :ref:`pr-testing`.
 
 Keeping CI Green
 ****************

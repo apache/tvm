@@ -21,7 +21,7 @@
 
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/type_functor.h>
-#include <tvm/meta_schedule/integration.h>
+#include <tvm/meta_schedule/apply_history_best.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/expr.h>
@@ -29,6 +29,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/op_strategy.h>
+#include <tvm/runtime/builtin_fp16.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
@@ -169,16 +170,18 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
               return make_const(dtype, static_cast<const int16_t*>(data)[0]);
             } else if (dtype == DataType::Int(8)) {
               return make_const(dtype, static_cast<const int8_t*>(data)[0]);
+            } else if (dtype == DataType::UInt(8) || dtype == DataType::Bool()) {
+              return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
             } else if (dtype == DataType::Int(32)) {
               return make_const(dtype, static_cast<const int32_t*>(data)[0]);
             } else if (dtype == DataType::Int(64)) {
               return make_const(dtype, static_cast<const int64_t*>(data)[0]);
+            } else if (dtype == DataType::Float(16)) {
+              return make_const(dtype, __gnu_h2f_ieee(static_cast<const uint16_t*>(data)[0]));
             } else if (dtype == DataType::Float(32)) {
               return make_const(dtype, static_cast<const float*>(data)[0]);
             } else if (dtype == DataType::Float(64)) {
               return make_const(dtype, static_cast<const double*>(data)[0]);
-            } else if (dtype == DataType::Bool()) {
-              return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
             } else {
               LOG(FATAL) << dtype << " not handled";
               return tvm::PrimExpr();
@@ -299,6 +302,13 @@ class ScheduleBuilder : public ExprVisitor {
   explicit ScheduleBuilder(Target target) : target_(target) {
     // Whether to use auto_scheduler schedule.
     use_auto_scheduler_ = backend::IsAutoSchedulerEnabled();
+    if (backend::IsMetaScheduleEnabled()) {
+      meta_schedule_ctx_ = meta_schedule::ApplyHistoryBest::Current();
+      CHECK(meta_schedule_ctx_.defined()) << "ValueError: `use_meta_schedule` is enabled in Relay "
+                                             "build, but no ApplyHistoryBest context is provided. ";
+    } else {
+      meta_schedule_ctx_ = NullOpt;
+    }
   }
 
   CachedFunc Create(const Function& relay_func, std::function<std::string(std::string)> renamer) {
@@ -336,12 +346,11 @@ class ScheduleBuilder : public ExprVisitor {
           schedule = Downcast<te::Schedule>(obj);
         }
       }
-      if (backend::IsMetaScheduleEnabled()) {
+      if (meta_schedule_ctx_) {
         IRModule relay_mod({{prim_fn_var, relay_func}});
         IRModule tir_mod({{prim_fn_var, tir::CreatePrimFunc(Concat(fn_inputs, tensor_outs))}});
-        Optional<IRModule> scheduled_mod = meta_schedule::MetaScheduleContext::QueryInsideWithScope(
-            prim_fn_var->name_hint, relay_mod, target_, Array<IRModule>{tir_mod});
-        if (scheduled_mod) {
+        if (Optional<IRModule> scheduled_mod = meta_schedule_ctx_.value()->Query(
+                prim_fn_var->name_hint, relay_mod, target_, Array<IRModule>{tir_mod})) {
           ICHECK_EQ(scheduled_mod.value()->functions.count(prim_fn_var), 1);
           prim_func = Downcast<tir::PrimFunc>(scheduled_mod.value()->functions[prim_fn_var]);
         }
@@ -377,7 +386,7 @@ class ScheduleBuilder : public ExprVisitor {
     }
 
     int op_pattern = fpattern[op];
-    if (!use_auto_scheduler_ && op_pattern >= kCommReduce) {
+    if (!use_auto_scheduler_ && !meta_schedule_ctx_.defined() && op_pattern >= kCommReduce) {
       ICHECK(!anchor_op_.defined() || anchor_op_pattern_ < kCommReduce)
           << "Cannot apply TOPI schedule to a primitive function with two complicated ops"
           << " anchor=" << anchor_op_ << " current=" << op;
@@ -395,6 +404,7 @@ class ScheduleBuilder : public ExprVisitor {
   Attrs anchor_attrs_;
   int anchor_op_pattern_{0};
   bool use_auto_scheduler_;
+  Optional<meta_schedule::ApplyHistoryBest> meta_schedule_ctx_;
 };
 
 /*!

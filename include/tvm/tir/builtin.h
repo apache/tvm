@@ -623,6 +623,15 @@ TVM_DLL const Op& ptx_mma();
  */
 TVM_DLL const Op& ptx_mma_sp();
 
+/*!
+ * \brief tvm intrinsic for ptx load matrix from shared memory.
+ *
+ * void ptx_ldmatrix(Bool trans, IntImm num, StringImm type,
+ *                   Var local_ptr, Expr local_offset,
+ *                   Var smem_ptr, Expr smem_offset);
+ */
+TVM_DLL const Op& ptx_ldmatrix();
+
 // TODO(tvm-team) replace the usage of the vector operations by Shuffle.
 /*!
  * \brief Get the high level half of the vector

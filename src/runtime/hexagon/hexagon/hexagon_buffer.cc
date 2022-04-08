@@ -84,7 +84,10 @@ struct VTCMAllocation : public Allocation {
     // allocate nbytes of vtcm on a single page
     HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param(&res_info, /*vtcm_size = */ nbytes,
                                                           /*b_single_page = */ 1));
-    context_id_ = HAP_compute_res_acquire(&res_info, /*timeout = */ 10000);
+
+    // TODO(HWE): Investigate why a non-zero timeout results in
+    // hanging, both in the simulator and on hardware.
+    context_id_ = HAP_compute_res_acquire(&res_info, /*timeout = */ 0);
 
     if (context_id_) {
       data_ = HAP_compute_res_attr_get_vtcm_ptr(&res_info);
@@ -129,7 +132,7 @@ std::unique_ptr<Allocation> Allocator<HexagonBuffer::StorageScope::kVTCM>(size_t
 }
 
 HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, Optional<String> scope)
-    : nallocs_(1), nbytes_(nbytes) {
+    : ndim_(1), nbytes_per_allocation_(nbytes) {
   SetStorageScope(scope);
 
   std::unique_ptr<Allocation> alloca = nullptr;
@@ -145,23 +148,30 @@ HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, Optional<String> s
 
 HexagonBuffer::HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
                              Optional<String> scope)
-    : nallocs_(nallocs), nbytes_(nallocs * nbytes) {
+    : ndim_(2), nbytes_per_allocation_(nbytes) {
   SetStorageScope(scope);
-  for (size_t i = 0; i < nallocs; ++i) {
-    std::unique_ptr<Allocation> alloca = nullptr;
-    if (GetStorageScope() == StorageScope::kDDR) {
-      alloca = Allocator<StorageScope::kDDR>(nbytes, alignment);
-    } else if (GetStorageScope() == StorageScope::kVTCM) {
-      alloca = Allocator<StorageScope::kVTCM>(nbytes, alignment);
-    }
-    CHECK(alloca != nullptr);
-    allocations_.push_back(alloca->data_);
-    managed_allocations_.push_back(std::move(alloca));
+
+  size_t nbytes_aligned = ((nbytes + (alignment - 1)) / alignment) * alignment;
+  size_t nbytes_monolithic = nallocs * nbytes_aligned;
+
+  std::unique_ptr<Allocation> alloca = nullptr;
+  if (GetStorageScope() == StorageScope::kDDR) {
+    alloca = Allocator<StorageScope::kDDR>(nbytes_monolithic, alignment);
+  } else if (GetStorageScope() == StorageScope::kVTCM) {
+    alloca = Allocator<StorageScope::kVTCM>(nbytes_monolithic, alignment);
   }
+  CHECK(alloca) << "could not create allocation";
+
+  for (size_t i = 0; i < nallocs; ++i) {
+    void* alloc_offset = static_cast<unsigned char*>(alloca->data_) + i * nbytes_aligned;
+    allocations_.push_back(alloc_offset);
+  }
+
+  managed_allocations_.push_back(std::move(alloca));
 }
 
 HexagonBuffer::HexagonBuffer(void* data, size_t nbytes, Optional<String> scope)
-    : nallocs_(1), nbytes_(nbytes) {
+    : ndim_(1), nbytes_per_allocation_(nbytes) {
   SetStorageScope(scope);
   // disallow external VTCM allocations
   CHECK(GetStorageScope() != HexagonBuffer::StorageScope::kVTCM);
@@ -170,11 +180,19 @@ HexagonBuffer::HexagonBuffer(void* data, size_t nbytes, Optional<String> scope)
 
 HexagonBuffer::~HexagonBuffer() { managed_allocations_.clear(); }
 
-void** HexagonBuffer::GetPointer() {
-  if (!allocations_.size()) {
+void* HexagonBuffer::GetPointer() {
+  ICHECK(allocations_.size())
+      << "Internal failure, allocations_ should be set in HexagonBuffer constructor";
+
+  if (ndim_ == 1) {
+    ICHECK_EQ(allocations_.size(), 1);
+    return allocations_[0];
+  } else if (ndim_ == 2) {
+    return allocations_.data();
+  } else {
+    LOG(FATAL) << "HexagonBuffer should be either 1-d or 2-d, not " << ndim_ << "-d";
     return nullptr;
   }
-  return allocations_.data();
 }
 
 HexagonBuffer::StorageScope HexagonBuffer::GetStorageScope() const { return storage_scope_; }
@@ -194,74 +212,105 @@ void HexagonBuffer::SetStorageScope(Optional<String> scope) {
   }
 }
 
+std::vector<MemoryCopy> BufferSet::MemoryCopies(const BufferSet& dest, const BufferSet& src,
+                                                size_t bytes_to_copy) {
+  CHECK_LE(bytes_to_copy, src.TotalBytes());
+  CHECK_LE(bytes_to_copy, dest.TotalBytes());
+
+  auto pointer_to = [](const BufferSet& buf, size_t region_i, size_t byte_i) -> void* {
+    void* region = buf.buffers[region_i];
+    return static_cast<unsigned char*>(region) + byte_i;
+  };
+
+  size_t num_src_regions = (bytes_to_copy + src.region_size_bytes - 1) / src.region_size_bytes;
+
+  // First, determine all copies that do not cross boundaries in
+  // either source or destination region.  This requires two loops, as
+  // a single source region may overlap one or more destination
+  // regions, and vice versa.
+  std::vector<MemoryCopy> micro_copies;
+  for (size_t src_i = 0; src_i < num_src_regions; src_i++) {
+    size_t src_region_begin = src_i * src.region_size_bytes;
+    size_t src_region_end = std::min((src_i + 1) * src.region_size_bytes, bytes_to_copy);
+
+    size_t dest_i_begin = src_region_begin / dest.region_size_bytes;
+    size_t dest_i_end = (src_region_end - 1) / dest.region_size_bytes + 1;
+    for (size_t dest_i = dest_i_begin; dest_i < dest_i_end; dest_i++) {
+      size_t offset_begin = std::max(src_region_begin, dest_i * dest.region_size_bytes);
+      size_t offset_end = std::min(src_region_end, (dest_i + 1) * dest.region_size_bytes);
+
+      size_t num_bytes = offset_end - offset_begin;
+      void* src_ptr = pointer_to(src, src_i, offset_begin % src.region_size_bytes);
+      void* dest_ptr = pointer_to(dest, dest_i, offset_begin % dest.region_size_bytes);
+      micro_copies.push_back(MemoryCopy(dest_ptr, src_ptr, num_bytes));
+    }
+  }
+
+  return micro_copies;
+}
+
+std::vector<MemoryCopy> MemoryCopy::MergeAdjacent(std::vector<MemoryCopy> micro_copies) {
+  std::sort(micro_copies.begin(), micro_copies.end(),
+            [](const MemoryCopy& a, const MemoryCopy& b) { return a.src < b.src; });
+
+  std::vector<MemoryCopy> macro_copies;
+  for (const auto& copy : micro_copies) {
+    if (macro_copies.size() && macro_copies.back().IsDirectlyBefore(copy)) {
+      macro_copies.back().num_bytes += copy.num_bytes;
+    } else {
+      macro_copies.push_back(copy);
+    }
+  }
+
+  return macro_copies;
+}
+
+void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& src,
+                                        size_t bytes_to_copy) {
+  // First, determine all copies that do not cross boundaries in
+  // either source or destination region.
+  auto micro_copies = BufferSet::MemoryCopies(dest, src, bytes_to_copy);
+
+  // If regions are contiguously allocated, we can reduce the number
+  // of copies required by merging adjacent copies.
+  auto macro_copies = MemoryCopy::MergeAdjacent(std::move(micro_copies));
+
+  // Finally, do the memory copies.
+  for (const auto& copy : macro_copies) {
+    int error_code = hexagon_user_dma_1d_sync(copy.dest, copy.src, copy.num_bytes);
+    CHECK_EQ(error_code, 0);
+  }
+}
+
 void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
-  CHECK_LE(nbytes, nbytes_);
   CHECK(managed_allocations_.size() && "CopyTo not supported on unmanaged `external` allocations");
 
-  size_t copied = 0;
-  for (size_t i = 0; i < nallocs_; ++i) {
-    size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->allocation_nbytes_);
-    if (bytes_to_copy == 0) break;
+  BufferSet src(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
+  BufferSet dest(&data, 1, nbytes);
 
-    void* data_plus_copied = static_cast<void*>((static_cast<char*>(data) + copied));
-    int status =
-        hexagon_user_dma_1d_sync(data_plus_copied, managed_allocations_[i]->data_, bytes_to_copy);
-    CHECK_EQ(status, 0);
-
-    copied += bytes_to_copy;
-  }
+  hexagon_buffer_copy_across_regions(dest, src, nbytes);
 }
 
 void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
-  CHECK_LE(nbytes, nbytes_);
   CHECK(managed_allocations_.size() &&
         "CopyFrom not supported on unmanaged `external` allocations");
 
-  size_t copied = 0;
-  for (size_t i = 0; i < nallocs_; ++i) {
-    size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->allocation_nbytes_);
-    if (bytes_to_copy == 0) break;
+  BufferSet src(&data, 1, nbytes);
+  BufferSet dest(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
 
-    void* data_plus_copied = static_cast<void*>((static_cast<char*>(data) + copied));
-    int status =
-        hexagon_user_dma_1d_sync(managed_allocations_[i]->data_, data_plus_copied, bytes_to_copy);
-    CHECK_EQ(status, 0);
-
-    copied += bytes_to_copy;
-  }
+  hexagon_buffer_copy_across_regions(dest, src, nbytes);
 }
 
 void HexagonBuffer::CopyFrom(const HexagonBuffer& other, size_t nbytes) {
-  CHECK_LE(nbytes, nbytes_);
-  CHECK_LE(nbytes, other.nbytes_);
   CHECK(managed_allocations_.size() &&
         "CopyFrom not supported on unmanaged `external` allocations");
   CHECK(other.managed_allocations_.size() &&
         "CopyFrom not supported on unmanaged `external` allocations");
 
-  if (nallocs_ == other.nallocs_) {
-    size_t copied = 0;
-    for (size_t i = 0; i < nallocs_; ++i) {
-      size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->allocation_nbytes_);
-      if (bytes_to_copy == 0) break;
+  BufferSet src(other.allocations_.data(), other.allocations_.size(), other.nbytes_per_allocation_);
+  BufferSet dest(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
 
-      CHECK_LE(other.managed_allocations_[i]->allocation_nbytes_,
-               managed_allocations_[i]->allocation_nbytes_);
-
-      int status = hexagon_user_dma_1d_sync(managed_allocations_[i]->data_,
-                                            other.managed_allocations_[i]->data_, bytes_to_copy);
-      CHECK_EQ(status, 0);
-
-      copied += bytes_to_copy;
-    }
-  } else if (nallocs_ == 1) {
-    return other.CopyTo(managed_allocations_[0]->data_, nbytes);
-  } else if (other.nallocs_ == 1) {
-    return CopyFrom(other.managed_allocations_[0]->data_, nbytes);
-  } else {
-    CHECK(false) << "To copy between Hexagon Buffers they must either have the same number of "
-                    "dimensions or one of the Hexagon Buffers must have a single dimension.";
-  }
+  hexagon_buffer_copy_across_regions(dest, src, nbytes);
 }
 
 }  // namespace hexagon

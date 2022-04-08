@@ -140,6 +140,12 @@ void ResetThreadPool();
 void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthreads,
                std::vector<unsigned int> cpus);
 
+/*!
+ * \brief Get the number of threads being used by the TVM runtime
+ * \returns The number of threads used.
+ */
+int32_t NumThreads();
+
 }  // namespace threading
 }  // namespace runtime
 }  // namespace tvm

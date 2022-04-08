@@ -289,6 +289,13 @@ class AxisSeparatorsAttrUnwrapper : StmtExprMutator {
 
     if (op->attr_key == tir::attr::axis_separators) {
       return op->body;
+    } else if (op->attr_key == tir::attr::buffer_bind_scope) {
+      Array<ObjectRef> tuple = Downcast<Array<ObjectRef>>(op->node);
+      Buffer view_buffer = Downcast<Buffer>(tuple[0]);
+      Buffer source_buffer = Downcast<Buffer>(tuple[1]);
+      return AttrStmt(
+          Array<ObjectRef>{GetRemappedBuffer(view_buffer), GetRemappedBuffer(source_buffer)},
+          op->attr_key, op->value, op->body);
     } else {
       return ret;
     }

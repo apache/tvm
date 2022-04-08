@@ -144,6 +144,25 @@ TEST(DFPattern, OR) {
   ICHECK(node->right == b);
 }
 
+TEST(DFPattern, Optional) {
+  using namespace tvm;
+  using namespace tvm::relay;
+  DFPattern a = WildcardPattern();
+  DFPattern b = WildcardPattern();
+  auto pattern = a.Optional([b](const DFPattern& other) { return other + b; });
+  auto* node = pattern.as<AltPatternNode>();
+  ICHECK(node);
+  ICHECK(node->left == a);
+  auto* right_node = node->right.as<CallPatternNode>();
+  ICHECK(right_node);
+  ICHECK(right_node->args.size() == 2);
+  ICHECK(right_node->args[0] == a);
+  ICHECK(right_node->args[1] == b);
+  auto* expr_pattern = right_node->op.as<ExprPatternNode>();
+  ICHECK(expr_pattern);
+  ICHECK(expr_pattern->expr == Op::Get("add"));
+}
+
 TEST(DFPattern, HasAttr) {
   using namespace tvm;
   using namespace tvm::relay;

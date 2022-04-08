@@ -31,14 +31,6 @@ std::string GetTaskName(const TuneContext& task, int task_id) {
   return os.str();
 }
 
-double GetRunMs(const Array<FloatImm>& run_secs) {
-  double total = 0.0;
-  for (const FloatImm& i : run_secs) {
-    total += i->value;
-  }
-  return total * 1e3 / run_secs.size();
-}
-
 struct TaskInfo {
   std::string name;
   double flop = 0.0;
@@ -103,7 +95,7 @@ class EchoStatisticsNode : public MeasureCallbackNode {
         info.UpdateError(err.value(), candidate);
       } else {
         ICHECK(runner_result->run_secs.defined());
-        info.Update(GetRunMs(runner_result->run_secs.value()));
+        info.Update(GetRunMsMedian(runner_result));
       }
     }
   }

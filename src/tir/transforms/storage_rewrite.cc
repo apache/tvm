@@ -76,6 +76,8 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   };
   // The scope of each allocation
   struct AllocEntry {
+    // The physical dimension of the allocation.
+    size_t num_physical_dimensions{0};
     // scope level
     size_t level{0};
     // allocation stmt
@@ -85,8 +87,16 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   void VisitStmt_(const AllocateNode* op) final {
     size_t level = scope_.size();
     const VarNode* buf = op->buffer_var.get();
-    alloc_info_[buf].alloc = op;
-    alloc_info_[buf].level = level;
+
+    AllocEntry entry;
+    entry.alloc = op;
+    entry.level = level;
+    // Since StorageRewrite occurs after StorageFlatten/FlattenBuffer,
+    // all allocations specify the extent of physical dimensions, and
+    // is 1 for flat memory spaces.
+    entry.num_physical_dimensions = op->extents.size();
+    alloc_info_[buf] = entry;
+
     StmtExprVisitor::VisitStmt_(op);
   }
 
@@ -104,6 +114,12 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     if (it != alloc_info_.end() && it->second.alloc) {
       ICHECK_LT(it->second.level, scope_.size());
       scope_[it->second.level].touched.push_back(buf);
+
+      ICHECK_EQ(op->buffer->axis_separators.size() + 1, it->second.num_physical_dimensions)
+          << "Buffer " << op->buffer->name << " is allocated with "
+          << it->second.num_physical_dimensions
+          << " physical dimensions, but is accessed as having "
+          << op->buffer->axis_separators.size() + 1 << " physical dimensions" << std::endl;
     }
     StmtEntry e = scope_.back();
     scope_.pop_back();
@@ -125,6 +141,12 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     if (it != alloc_info_.end() && it->second.alloc) {
       ICHECK_LT(it->second.level, scope_.size()) << "Load memory in places other than store.";
       scope_[it->second.level].touched.push_back(buf);
+
+      ICHECK_EQ(op->buffer->axis_separators.size() + 1, it->second.num_physical_dimensions)
+          << "Buffer " << op->buffer->name << " is allocated with "
+          << it->second.num_physical_dimensions
+          << " physical dimensions, but is accessed as having "
+          << op->buffer->axis_separators.size() + 1 << " physical dimensions" << std::endl;
     }
   }
 
@@ -530,6 +552,10 @@ class StoragePlanRewriter : public StmtExprMutator {
     uint64_t const_nbits{0};
     // The storage scope.
     StorageScope scope;
+    // The physical dimensionality of the allocations.  Since
+    // StorageRewrite is applied after StorageFlatten/FlattenBuffer,
+    // this is size of `AllocateNode::extents`.  If moved
+    size_t ndim;
     // Allocs that shares this entry.
     std::vector<const AllocateNode*> allocs;
     // The children of this entry, not including itself.
@@ -629,8 +655,8 @@ class StoragePlanRewriter : public StmtExprMutator {
           // simply use the original allocation.
           PrimExpr sz = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
                               make_const(DataType::Int(32), 1), e->allocs[0]->extents);
-          e->new_alloc =
-              Allocate(e->alloc_var, alloc_type, {sz}, e->allocs[0]->condition, Evaluate(0));
+          e->new_alloc = Allocate(e->alloc_var, alloc_type, e->allocs[0]->extents,
+                                  e->allocs[0]->condition, Evaluate(0));
           if (IsSpecialTaggedMemory(e->scope)) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
             uint64_t total_elem = e->const_nbits / e->elem_type.bits();
@@ -641,8 +667,13 @@ class StoragePlanRewriter : public StmtExprMutator {
           // Build a merged allocation
           PrimExpr combo_size;
           for (const AllocateNode* op : e->allocs) {
-            PrimExpr sz = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                                make_const(DataType::Int(32), 1), op->extents);
+            ICHECK_EQ(op->extents.size(), 1)
+                << "Buffer var " << op->buffer_var->name_hint
+                << " was identified as a re-usable allocation, but has " << op->extents.size()
+                << " physical dimensions.  "
+                << "Currently, only flat 1-d memory spaces should be identified as re-usable "
+                   "allocations.";
+            PrimExpr sz = op->extents[0];
             auto nbits = op->dtype.bits() * op->dtype.lanes();
             if (const auto* imm = sz.as<IntImmNode>()) {
               if (imm->value > std::numeric_limits<int>::max() / nbits) {
@@ -790,7 +821,8 @@ class StoragePlanRewriter : public StmtExprMutator {
 
         for (const VarNode* var : it->second.gen) {
           ICHECK(alloc_info.count(var));
-          const AllocateNode* alloc = alloc_info.at(var).alloc;
+          const AllocEntry& entry = alloc_info.at(var);
+          const AllocateNode* alloc = entry.alloc;
           auto storage_scope = StorageScope::Create(GetPtrStorageScope(GetRef<Var>(var)));
           StorageEntry* dst_entry = nullptr;
           // inplace detection
@@ -818,7 +850,8 @@ class StoragePlanRewriter : public StmtExprMutator {
             }
           }
           if (dst_entry == nullptr) {
-            dst_entry = FindAlloc(alloc, thread_scope_, storage_scope);
+            dst_entry =
+                FindAlloc(alloc, thread_scope_, storage_scope, entry.num_physical_dimensions);
           }
           dst_entry->allocs.emplace_back(alloc);
           alloc_map_[var] = dst_entry;
@@ -871,24 +904,34 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
 
   StorageEntry* FindAlloc(const AllocateNode* op, const Object* attach_scope,
-                          const StorageScope& scope) {
+                          const StorageScope& scope, size_t num_physical_dimensions) {
     ICHECK(op != nullptr);
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
     uint64_t op_elem_bits = op->dtype.bits() * op->dtype.lanes();
     uint64_t const_nbits = static_cast<uint64_t>(op->ConstantAllocationSize() * op_elem_bits);
+
+    // If the size of the array isn't known at compile-time, it must
+    // have its own allocation with size determined at runtime.
+    bool is_known_size = (const_nbits != 0);
+
+    // Currently, only flat memory spaces can be re-used.  Packing
+    // into N-d space (e.g. 2-d texture memory on GPUs) will require
+    // more in-depth algorithms.
+    bool is_flat_memory_space = (num_physical_dimensions == 1);
+
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
-    if (scope.tag.length() == 0) {
-      if (scope.rank >= StorageRank::kWarp || op->dtype.is_handle()) {
-        return NewAlloc(op, attach_scope, scope, const_nbits);
-      }
-      if (const_nbits > 0 && const_nbits <= 32) {
-        return NewAlloc(op, attach_scope, scope, const_nbits);
-      }
+    bool is_small_array =
+        (scope.tag.length() == 0) && (scope.rank >= StorageRank::kWarp || op->dtype.is_handle() ||
+                                      (is_known_size && const_nbits <= 32));
+
+    if (is_small_array || !is_flat_memory_space) {
+      return NewAlloc(op, attach_scope, scope, const_nbits);
     }
-    if (const_nbits != 0) {
+
+    if (is_known_size) {
       // constant allocation.
       auto begin = const_free_map_.lower_bound(const_nbits / match_range);
       auto mid = const_free_map_.lower_bound(const_nbits);

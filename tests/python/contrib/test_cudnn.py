@@ -21,11 +21,14 @@ import pytest
 
 import tvm
 from tvm import te
+from tvm import relay
 from tvm.contrib import cudnn
 from tvm.contrib.nvcc import have_fp16
+from tvm.contrib import graph_executor
 import numpy as np
 import tvm.topi.testing
 import tvm.testing
+from tvm.relay.op.contrib.cudnn import partition_for_cudnn
 
 
 requires_cudnn = pytest.mark.skipif(
@@ -443,6 +446,71 @@ conv_output_shape_conditions = {
 )
 def conv_output_shape_kwargs(request):
     return request.param
+
+
+def _verify_cudnn_relay(expr):
+    np.random.seed(42)
+
+    mod = tvm.IRModule.from_expr(expr)
+    mod = relay.transform.InferType()(mod)
+    func = mod["main"]
+    cudnn_mod = partition_for_cudnn(mod)
+    assert len(cudnn_mod.get_global_vars()) == 2
+
+    input_data = []
+    for param in func.params:
+        shape = [int(x) for x in param.checked_type.shape]
+        input_data.append(
+            (param.name_hint, np.random.uniform(0, 32, size=shape).astype(param.checked_type.dtype))
+        )
+
+    # Test against CPU reference
+    cuda_config = (tvm.target.cuda(), tvm.cuda(), cudnn_mod)
+    cpu_config = (tvm.target.Target("llvm"), tvm.cpu(), mod)
+    outputs = []
+    for target, dev, test_mod in [cuda_config, cpu_config]:
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(test_mod, target=target, target_host=cpu_config[0])
+            module = graph_executor.GraphModule(lib["default"](dev))
+            for name, data in input_data:
+                module.set_input(name, tvm.nd.array(data, dev))
+
+            module.run()
+            out_type = func.body.checked_type
+            outputs.append(
+                module.get_output(0, tvm.nd.empty(out_type.shape, dtype=out_type.dtype)).numpy()
+            )
+
+    tvm.testing.assert_allclose(
+        outputs[0],
+        outputs[1],
+        rtol=1e-3,
+    )
+
+
+@tvm.testing.requires_cuda
+@pytest.mark.parametrize(
+    "shape,axis",
+    [
+        ((200,), 0),
+        ((13, 27), 0),
+        ((44, 12, 67), 1),
+        ((1, 16, 16, 8), 2),
+        ((2, 4, 6, 8, 10), 3),
+    ],
+)
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        "float32",
+        "float16",
+        "float64",
+    ],
+)
+def test_relay_cudnn_softmax(shape, axis, dtype):
+    x = tvm.relay.var("x", tvm.relay.TensorType(shape, dtype))
+    softmax = relay.op.nn.softmax(x, axis=axis)
+    _verify_cudnn_relay(softmax)
 
 
 if __name__ == "__main__":

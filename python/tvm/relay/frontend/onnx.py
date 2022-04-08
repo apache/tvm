@@ -18,6 +18,7 @@
 # pylint: disable=import-outside-toplevel
 """ONNX: Open Neural Network Exchange frontend for Relay."""
 import copy
+import math
 import warnings
 from typing import Optional
 
@@ -793,6 +794,46 @@ class Elu(OnnxOpConverter):
         return _expr.const(-alpha) * _op.nn.relu(
             _expr.const(1.0) - _op.exp(inputs[0])
         ) + _op.nn.relu(inputs[0])
+
+
+class Gelu(OnnxOpConverter):
+    """Operator converter for Gelu from Microsoft onnxruntime contrib opset.
+
+    gelu(x) = 0.5x(1 + erf(x/sqrt(2)))
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        x = inputs[0]
+
+        # Declare consts
+        half = _expr.const(0.5)
+        one = _expr.const(1.0)
+        sqrt2 = _expr.const(math.sqrt(2))
+
+        # Compute gelu
+        term1 = _op.multiply(half, x)
+        erf = _op.erf(_op.divide(x, sqrt2))
+        term2 = _op.add(one, erf)
+        return _op.multiply(term1, term2)
+
+
+class BiasGelu(OnnxOpConverter):
+    """Operator converter for BiasGelu from Microsoft onnxruntime contrib opset.
+
+    bias_gelu(x, b) = 0.5(x, b)(1 + erf((x + b)/sqrt(2)))
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        x = inputs[0]
+        b = inputs[1]
+
+        b_shape = infer_shape(b)
+        assert len(b_shape) == 1, "BiasGelu bias term must be a 1D tensor"
+
+        inp = _op.add(x, b)
+        return Gelu._impl_v1([inp], attr, params)
 
 
 class Gemm(OnnxOpConverter):
@@ -4694,6 +4735,8 @@ def _get_convert_map(opset):
         "LeakyRelu": Renamer("leaky_relu"),
         "Selu": Selu.get_converter(opset),
         "Elu": Elu.get_converter(opset),
+        "Gelu": Gelu.get_converter(opset),
+        "BiasGelu": BiasGelu.get_converter(opset),
         "Exp": Renamer("exp"),
         "Greater": Renamer("greater"),
         "GreaterOrEqual": Renamer("greater_equal"),

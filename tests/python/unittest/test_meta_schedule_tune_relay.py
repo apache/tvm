@@ -17,23 +17,29 @@
 # pylint: disable=missing-docstring
 import logging
 import tempfile
-from typing import List
 from os import path as osp
+from typing import List
+
 import numpy as np
 import pytest
 import tvm
-from tvm import relay
+from tvm import relay, tir
+from tvm._ffi import register_func
 from tvm.contrib import graph_executor
 from tvm.ir import IRModule
-from tvm.tir.schedule.trace import Trace
-from tvm.meta_schedule import ReplayTraceConfig
-from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload, JSONDatabase
-from tvm.meta_schedule.integration import ApplyHistoryBest
+from tvm.meta_schedule import ApplyHistoryBest, ReplayTraceConfig
+from tvm.meta_schedule.database import JSONDatabase, PyDatabase, TuningRecord, Workload
+from tvm.meta_schedule.relay_integration import extract_task_from_relay
+from tvm.meta_schedule.testing import apply_fixed_schedules
 from tvm.meta_schedule.testing.relay_workload import get_network
-from tvm.meta_schedule.tune import tune_relay
+from tvm.meta_schedule.tune import tune_extracted_tasks, tune_relay
 from tvm.meta_schedule.utils import derived_object
-from tvm.target.target import Target
 from tvm.script import tir as T
+from tvm.target.target import Target
+from tvm.tir.schedule import BlockRV, Schedule
+from tvm.tir.schedule.trace import Trace
+from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
+
 
 logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
@@ -140,7 +146,8 @@ def test_meta_schedule_tune_relay(
             target=target,
             config=ReplayTraceConfig(
                 num_trials_per_iter=32,
-                num_trials_total=32,
+                max_trials_per_task=32,
+                max_trials_global=20000,
             ),
             work_dir=work_dir,
             database=JSONDatabase(
@@ -323,6 +330,207 @@ def test_meta_schedule_relay_lowering():
         assert np.allclose(actual_output, expected_output, rtol=1e-4, atol=2e-4)
 
 
+def schedule_dense(dense_block, M, do_tune, sch):
+    """
+    Manually schedule a dense block, created from TE compute op via CreatePrimFunc,
+    using VNNI instruction.
+    """
+    post_blocks = sch.get_consumers(dense_block)
+
+    if len(post_blocks) > 0:
+        # Fuse all intermediate post ops into the last op.
+        # This is equivalent to the traverse_inline function used in TE schedules.
+        while True:
+            next_post_blocks = []
+            for post_block in post_blocks:
+                next_consumers = sch.get_consumers(post_block)
+
+                if len(next_consumers) > 0:
+                    sch.compute_inline(post_block)
+
+                next_post_blocks += next_consumers
+
+            if len(next_post_blocks) == 0:
+                assert len(post_blocks) == 1
+                outer_block = post_blocks[0]
+                a_y, a_x = sch.get_loops(outer_block)[-2:]
+                break
+
+            post_blocks = next_post_blocks
+    else:
+        a_y, a_x, _ = sch.get_loops(dense_block)[-3:]
+        outer_block = dense_block
+
+    if do_tune:
+        y_factors = sch.sample_perfect_tile(a_y, n=2, max_innermost_factor=128)
+        a_yo, a_yi = sch.split(a_y, factors=y_factors)
+    else:
+        a_yo, a_yi = sch.split(a_y, factors=[None, min(M, 64)])
+
+    a_xo, a_xi = sch.split(a_x, factors=[None, 16])
+    sch.reorder(a_yo, a_xo, a_yi, a_xi)
+    fused = sch.fuse(a_yo, a_xo)
+
+    if outer_block != dense_block:
+        # Handle the case when dense is fused with post ops.
+        sch.vectorize(a_xi)
+        sch.compute_at(dense_block, a_yi)
+
+    a_xi, a_k = sch.get_loops(dense_block)[-2:]
+    a_ko, a_ki = sch.split(a_k, factors=[None, 4])
+    sch.reorder(a_ko, a_xi, a_ki)
+
+    # We need to parallelize before decompose_reduction, otherwise the so-called "Compact dataflow"
+    # condition is violated.
+    sch.parallel(fused)
+    dec = sch.decompose_reduction(dense_block, a_ko)
+
+    init_loop = sch.get_loops(dec)[-1]
+    sch.vectorize(init_loop)
+
+    sch.tensorize(a_xi, VNNI_INTRIN)
+
+
+def manual_tir_common(do_tune=False):
+    M, N, K = 1024, 1024, 1024
+    data_shape = (M, K)
+    weight_shape = (N, K)
+
+    data_dtype = "uint8"
+    data = relay.var("data", shape=data_shape, dtype=data_dtype)
+    weight = relay.var("weight", shape=weight_shape, dtype="int8")
+    bias = relay.var("bias", shape=(weight_shape[0],), dtype="int32")
+
+    # dense is tuned by the TIR schedule above, bmm is scheduled by TE (topi/x86/batch_matmul.py)
+    dense = relay.nn.dense(data, weight, out_dtype="int32")
+    bias_add = relay.nn.bias_add(dense, bias) + relay.const(1, dtype="int32")
+    out = relay.nn.batch_matmul(
+        relay.cast(relay.expand_dims(bias_add, 0), "uint8"),
+        relay.cast(relay.expand_dims(bias_add, 0), "int8"),
+        out_dtype="int32",
+    )
+
+    relay_mod = tvm.IRModule.from_expr(out)
+
+    target = "llvm -mcpu=cascadelake -num-cores 4"
+    dev = tvm.device(target, 0)
+
+    data = np.random.uniform(1, 10, size=(M, K)).astype("uint8")
+    weight_np = np.random.uniform(1, 10, size=weight_shape).astype("int8")
+    bias_np = np.random.uniform(1, 10, size=(weight_shape[0],)).astype("int32")
+
+    ref = (
+        relay.create_executor("vm", mod=relay_mod, device=dev, target=target)
+        .evaluate()(*[data, weight_np, bias_np])
+        .numpy()
+    )
+
+    params = {"weight": weight_np, "bias": bias_np}
+
+    if do_tune:
+        extracted_tasks = extract_task_from_relay(relay_mod, target, params)
+
+        # Filter out tasks that we don't intend to schedule / tune with TIR.
+        tune_tasks = list(
+            filter(
+                lambda task: "dense" in task.task_name,
+                extracted_tasks,
+            )
+        )
+        config = ReplayTraceConfig(
+            num_trials_per_iter=64,
+            max_trials_per_task=64,
+            max_trials_global=20000,
+        )
+
+        with tempfile.TemporaryDirectory() as work_dir:
+            # postprocs=lambda: [] is important to prevent default post processors from
+            # tampering with the manual schedule.
+            database = tune_extracted_tasks(
+                tune_tasks, target, config, work_dir=work_dir, postprocs=lambda: []
+            )
+    else:
+
+        def schedule_fn(task, sch):
+            if "dense" not in task.task_name:
+                return False
+
+            block = sch.get_block("compute")
+
+            # Looks up schedule_rule annotation. See the comment in test_tune_relay_manual_tir_vnni().
+            schedule_rule = sch.get(block).annotations["schedule_rule"]
+
+            assert "dense_vnni" in schedule_rule
+
+            schedule_dense(block, M, False, sch)
+
+            return True
+
+        database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
+
+    with ApplyHistoryBest(database):
+        with tvm.transform.PassContext(
+            opt_level=3,
+            config={"relay.backend.use_meta_schedule": True},
+        ):
+            """
+            The log should say
+            Warning: Cannot find workload: tvmgen_default_fused_expand_dims
+            Warning: Cannot find workload: tvmgen_default_fused_cast
+            Warning: Cannot find workload: tvmgen_default_fused_cast_1
+            Warning: Cannot find workload: tvmgen_default_fused_nn_batch_matmul
+
+            This means batch matmul and others are scheduled by TE, and dense (the one not warned)
+            is found in the meta schedule tuning database during ApplyHistoryBest
+            """
+            lib = relay.build(relay_mod, target=target, params=params)
+
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    runtime.set_input("data", data)
+    runtime.run()
+
+    out = runtime.get_output(0).numpy()
+
+    np.testing.assert_equal(out, ref)
+
+
+@pytest.mark.skip("Requires cascadelake")
+def test_tune_relay_manual_tir_vnni():
+    manual_tir_common(do_tune=False)
+
+    """
+    We can inject and apply a custom TIR scheduling to a TE compute of interest, using
+    the "schedule_rule" annotation. For example, in topi/x86/dense.py we have the following
+    declaration for int8 dense targeting the VNNI instruction.
+
+    C = te.compute(
+        ...
+        attrs={"schedule_rule": "meta_schedule.dense_vnni"},
+    )
+
+    When the meta scheduler encounters a TensorIR block with the "schedule_rule" annotation,
+    it looks up the packed func registry for a function that is associated with the given schedule rule
+    key ("meta_schedule.dense_vnni" in this example). The signature of such custom schedule functions
+    must be
+
+       (tir.schedule.Schedule, tir.schedule.BlockRV) -> [tir.schedule.Schedule].
+
+    The BlockRV argument corresponds to the TE compute annotated with "schedule_rlue".
+
+    The relevant code is in meta_schedule/space_generator/post_order_apply.cc.
+
+    """
+
+    def schedule_rule_dense_vnni(sch: Schedule, dense_block: BlockRV):
+        schedule_dense(dense_block, None, True, sch)
+        return [sch]
+
+    register_func("meta_schedule.dense_vnni", schedule_rule_dense_vnni)
+
+    manual_tir_common(do_tune=True)
+
+
 if __name__ == """__main__""":
     test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "llvm --num-cores=16")
     test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "nvidia/geforce-rtx-3070")
@@ -332,3 +540,4 @@ if __name__ == """__main__""":
     test_meta_schedule_tune_relay("bert_base", [1, 64], "nvidia/geforce-rtx-3070")
     test_meta_schedule_te2primfunc_argument_order()
     test_meta_schedule_relay_lowering()
+    test_tune_relay_manual_tir_vnni()

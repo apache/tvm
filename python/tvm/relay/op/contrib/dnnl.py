@@ -36,6 +36,9 @@ import logging
 
 import tvm.ir
 from tvm import relay
+from tvm.relay import transform
+from tvm.relay.expr import GlobalVar
+from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 from ... import _ffi_api
 from ...dataflow_pattern import wildcard, is_op
@@ -83,7 +86,6 @@ _register_external_op_helper("exp")
 _register_external_op_helper("log")
 _register_external_op_helper("sqrt")
 _register_external_op_helper("round")
-_register_external_op_helper("logsumexp")
 _register_external_op_helper("nn.relu")
 _register_external_op_helper("nn.leaky_relu")
 _register_external_op_helper("tanh")
@@ -411,3 +413,95 @@ def alter_conv_transpose(attrs, inputs, tinfos, out_type):
     if conv_type == "Conv2DTranspose":
         return relay.nn.conv2d_transpose(data, weight, **new_attrs)
     return relay.nn.conv3d_transpose(data, weight, **new_attrs)
+
+
+class IsComputeIntensiveGraph(ExprVisitor):
+    """
+    Visits the Graph recursively and checks if it contains compute heavy ops like convolutions and
+    its transpose and dense.
+    """
+
+    def __init__(self):
+        ExprVisitor.__init__(self)
+        self.is_compute_intensive = False
+
+    def visit_call(self, call):
+        compute_intensive_ops = set(
+            [
+                "nn.conv1d",
+                "nn.conv2d",
+                "nn.conv2d_transpose",
+                "nn.conv3d",
+                "nn.conv3d_transpose",
+                "nn.dense",
+            ]
+        )
+        if isinstance(call.op, tvm.tir.op.Op):
+            if str(call.op) in compute_intensive_ops:
+                self.is_compute_intensive = True
+
+        return super().visit_call(call)
+
+    def is_graph_compute_intensive(self, subgraph) -> bool:
+        """
+        This function recursively visits the graph and checks if it's compute intensive"
+        """
+        self.visit(subgraph)
+        return self.is_compute_intensive
+
+
+def is_valid_subgraph(body):
+    """Final check on whether the subgraph is valid and should be offloaded to DNNL."""
+    return IsComputeIntensiveGraph().is_graph_compute_intensive(body)
+
+
+def prune_dnnl_subgraphs(mod):
+    """
+    Removes invalid subgraphs, which does not contain compute intensive dnnl ops.
+    """
+
+    class SubgraphRemover(ExprMutator):
+        """
+        Reverts subgraphs in subgraphs_to_remove back to TVM instead of using an external codegen.
+        """
+
+        def __init__(self, subgraphs_to_remove, mod, new_mod):
+            ExprMutator.__init__(self)
+            self.subgraphs_to_remove = subgraphs_to_remove
+            self.mod = mod
+            self.new_mod = new_mod
+
+        def visit_call(self, call):
+            if isinstance(call.op, GlobalVar):
+                name = call.op.name_hint
+                if name in self.subgraphs_to_remove:
+                    # "Inline" the subgraph back into new main function.
+                    func = self.mod[name]
+                    var_map = {}
+                    for arg, param in zip(call.args, func.params):
+                        var_map[param] = super().visit(arg)
+                    new_body = relay.bind(func.body, var_map)
+                    return new_body
+                if name != "main":
+                    args = []
+                    for arg in call.args:
+                        args.append(super().visit(arg))
+                    return call.op(*args)
+            return super().visit_call(call)
+
+    subgraphs_to_remove = []
+    # If only one subgraph, do nothing.
+    if len(mod.get_global_vars()) <= 2:
+        return mod
+    # Remove invalid subgraphs
+    for subgraph in mod.get_global_vars():
+        name = subgraph.name_hint
+        if not mod[name].attrs or mod[name].attrs["Compiler"] != "dnnl":
+            continue
+        if not is_valid_subgraph(mod[name].body):
+            subgraphs_to_remove.append(name)
+    # Create new pruned module
+    new_mod = tvm.IRModule(mod.functions, mod.type_definitions)
+    new_mod["main"] = SubgraphRemover(subgraphs_to_remove, mod, new_mod).visit(mod["main"])
+    new_mod = transform.RemoveUnusedFunctions()(new_mod)
+    return new_mod

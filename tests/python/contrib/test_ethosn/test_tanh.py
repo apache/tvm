@@ -43,24 +43,29 @@ def _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype):
 
 
 @requires_ethosn
-@pytest.mark.parametrize("shape", [(1, 512, 512, 3)])
-def test_tanh(shape):
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+@pytest.mark.parametrize("shape", [(1, 52, 52, 3)])
+def test_tanh(dtype, shape):
+    zp_min = np.iinfo(dtype).min
+    zp_max = np.iinfo(dtype).max
+
     np.random.seed(0)
     inputs = {
-        "a": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype="uint8")),
+        "a": tvm.nd.array(np.random.randint(zp_min, high=zp_max, size=shape, dtype=dtype)),
     }
     outputs = []
     for npu in [False, True]:
-        model = _get_model(shape, 120, 0.0250629, 128, 0.0078125, "uint8")
+        model = _get_model(shape, zp_min + 120, 0.0250629, zp_min + 128, 0.0078125, dtype)
         mod = tei.make_module(model, [])
         outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
 
-    tei.verify(outputs, "uint8", 1)
+    tei.verify(outputs, dtype, 1)
 
 
 @requires_ethosn
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
 @pytest.mark.parametrize(
-    "shape, input_zp, input_sc, output_zp, output_sc, dtype, err_msg",
+    "shape, input_zp, input_sc, output_zp, output_sc, err_msg",
     [
         (
             (1, 16, 16, 16),
@@ -68,13 +73,13 @@ def test_tanh(shape):
             0.0250629,
             64,
             0.0078125,
-            "uint8",
-            "output quantization params=(64, 0.0078125), must = (128, 1/256);",
+            "output quantization params=(64, 0.0078125), must = ({test_zp}, 1/256);",
         )
     ],
 )
-def test_tanh_failure(shape, input_zp, input_sc, output_zp, output_sc, dtype, err_msg):
+def test_tanh_failure(shape, input_zp, input_sc, output_zp, output_sc, err_msg, dtype):
+    test_zp = 0 if dtype == "int8" else 128
     model = _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype)
     model = tei.make_ethosn_composite(model, "ethos-n.qnn_tanh")
     mod = tei.make_ethosn_partition(model)
-    tei.test_error(mod, {}, err_msg)
+    tei.test_error(mod, {}, err_msg.format(test_zp=test_zp))

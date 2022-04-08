@@ -32,6 +32,8 @@ import random
 import subprocess
 import platform
 import textwrap
+import typing
+
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple, Callable, Union
 
@@ -434,6 +436,28 @@ def cli_name(s: str) -> str:
     return s.replace("_", "-")
 
 
+def typing_get_origin(annotation):
+    if sys.version_info >= (3, 8):
+        return typing.get_origin(annotation)
+    else:
+        return annotation.__origin__
+
+
+def typing_get_args(annotation):
+    if sys.version_info >= (3, 8):
+        return typing.get_args(annotation)
+    else:
+        return annotation.__args__
+
+
+def is_optional_type(annotation):
+    return (
+        hasattr(annotation, "__origin__")
+        and (typing_get_origin(annotation) == typing.Union)
+        and (type(None) in typing_get_args(annotation))
+    )
+
+
 def add_subparser(
     func: Callable,
     subparsers: Any,
@@ -479,12 +503,11 @@ def add_subparser(
         arg_cli_name = cli_name(name)
         kwargs: Dict[str, Union[str, bool]] = {"help": arg_help_texts[arg_cli_name]}
 
-        arg_type = value.annotation
-        is_optional = False
-        if str(value.annotation).startswith("typing.Optional"):
-
-            is_optional = True
-            arg_type = value.annotation.__args__[0]
+        is_optional = is_optional_type(value.annotation)
+        if is_optional:
+            arg_type = typing_get_args(value.annotation)[0]
+        else:
+            arg_type = value.annotation
 
         # Grab the default value if present
         has_default = False

@@ -23,6 +23,12 @@ from urllib import request
 from typing import Dict, Tuple, Any, Optional, List
 
 
+def compress_query(query: str) -> str:
+    query = query.replace("\n", "")
+    query = re.sub("\s+", " ", query)
+    return query
+
+
 class GitHubRepo:
     def __init__(self, user, repo, token):
         self.token = token
@@ -36,6 +42,7 @@ class GitHubRepo:
         }
 
     def graphql(self, query: str, variables: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        query = compress_query(query)
         if variables is None:
             variables = {}
         response = self._post(

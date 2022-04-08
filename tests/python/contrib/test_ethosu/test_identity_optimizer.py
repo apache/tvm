@@ -32,7 +32,6 @@ from tvm.relay.backend.contrib.ethosu.codegen import relay_to_tir
 from tvm.relay.backend.contrib.ethosu.codegen import IdentityOptimizer
 
 from . import infra
-from .test_codegen import _compare_tvm_with_tflite
 
 
 def _optimize(func, optimize=True):
@@ -323,7 +322,7 @@ def test_same_output():
         z = tf.reshape(z, (1, 1, 25, 8))
         return z
 
-    _compare_tvm_with_tflite(model, ifm_shapes, "ethos-u55-256")
+    infra.compare_tvm_with_tflite(model, ifm_shapes, "ethos-u55-256")
 
 
 def test_multi_output_identity_has_same_output():
@@ -341,7 +340,7 @@ def test_multi_output_identity_has_same_output():
         y = tf.concat(outputs, axis=0)
         return y
 
-    _compare_tvm_with_tflite(model, [ifm_shape], "ethos-u55-256")
+    infra.compare_tvm_with_tflite(model, [ifm_shape], "ethos-u55-256")
 
 
 def test_multiple_transform_ops_same_output():
@@ -356,4 +355,4 @@ def test_multiple_transform_ops_same_output():
         x = tf.reshape(x, (12,))
         return x
 
-    _compare_tvm_with_tflite(model, [ifm_shape], "ethos-u55-256")
+    infra.compare_tvm_with_tflite(model, [ifm_shape], "ethos-u55-256")

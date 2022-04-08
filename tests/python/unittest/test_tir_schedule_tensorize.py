@@ -19,9 +19,14 @@ import sys
 import pytest
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import tir, te
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.tensor_intrin import (
+    VNNI_DOT_16x4_INTRIN,
+    ARM_DOT_4x4_i8_NEON_INTRIN,
+    ARM_DOT_4x4_i8_SDOT_INTRIN,
+)
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
@@ -529,6 +534,65 @@ def test_tensorize_with_annotation():
     s.tensorize(ii, "test_annotated_mma_intrin")
     tvm.ir.assert_structural_equal(annotated_tensorized_matmul, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
+
+
+def get_matmul_packed(m, n, k, lhs_type, int32_lanes):
+    X = te.placeholder((m, k), name="X", dtype=lhs_type)
+    packed_W = te.placeholder((n // int32_lanes, k // 4, int32_lanes, 4), name="packedW", dtype="int8")
+
+    ak = te.reduce_axis((0, k), name="k")
+    matmul = te.compute(
+        (m, n),
+        lambda i, j: te.sum(
+            X[i, ak].astype("int32")
+            * packed_W[
+                tvm.tir.indexdiv(j, 16), tvm.tir.indexdiv(ak, 4), j % 16, ak % 4
+            ].astype("int32"),
+            axis=ak,
+        ),
+        name="compute",
+    )
+
+    return te.create_prim_func([X, packed_W, matmul])
+
+
+def test_tensorize_vnni():
+    m, n, k = 128, 128, 128
+
+    func = get_matmul_packed(m, n, k, "uint8", 16)
+
+    sch = tir.Schedule(func, debug_mask="all")
+    block = sch.get_block("compute")
+    _, j, k = sch.get_loops(block)
+
+    _, ji = sch.split(j, factors=[None, 16])
+    ko, ki = sch.split(k, factors=[None, 4])
+    sch.reorder(ko, ji, ki)
+
+    sch.decompose_reduction(block, ko)
+    sch.tensorize(ji, VNNI_DOT_16x4_INTRIN)
+
+    verify_trace_roundtrip(sch=sch, mod=func)
+
+
+def test_tensorize_arm_dot():
+    m, n, k = 128, 128, 128
+
+    func = get_matmul_packed(m, n, k, "int8", 4)
+
+    for intrin in [ARM_DOT_4x4_i8_SDOT_INTRIN, ARM_DOT_4x4_i8_NEON_INTRIN]:
+        sch = tir.Schedule(func, debug_mask="all")
+        block = sch.get_block("compute")
+        _, j, k = sch.get_loops(block)
+
+        _, ji = sch.split(j, factors=[None, 4])
+        ko, ki = sch.split(k, factors=[None, 4])
+        sch.reorder(ko, ji, ki)
+
+        sch.decompose_reduction(block, ko)
+        sch.tensorize(ji, intrin)
+
+        verify_trace_roundtrip(sch=sch, mod=func)
 
 
 if __name__ == "__main__":

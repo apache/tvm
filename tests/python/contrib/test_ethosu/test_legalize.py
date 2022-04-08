@@ -223,20 +223,6 @@ def test_split_sections_legalize():
     tvm.ir.assert_structural_equal(mod_axis2, expected_axis2)
 
 
-def infer_type_function_pass(func):
-    mod = tvm.IRModule()
-    mod["test"] = func
-    mod = relay.transform.InferType()(mod)
-    return mod["test"]
-
-
-def get_shape_expr(in_expr, out_expr):
-    main_f = relay.Function([in_expr], out_expr)
-    main_f = infer_type_function_pass(main_f)
-    shape = [int(i) for i in main_f.body.checked_type.shape]
-    return shape
-
-
 INVERSE_LAYOUT_TRANSFORM_OHWI_MAP = {
     "HWIO": [1, 2, 3, 0],
     "HWOI": [1, 2, 0, 3],

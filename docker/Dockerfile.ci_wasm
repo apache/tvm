@@ -30,6 +30,13 @@ RUN pip config set global.no-cache-dir false
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
 
+# Rust env (build early; takes a while)
+COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
+RUN bash /install/ubuntu_install_rust.sh
+ENV RUSTUP_HOME /opt/rust
+ENV CARGO_HOME /opt/rust
+ENV PATH $PATH:$CARGO_HOME/bin
+
 COPY install/ubuntu1804_install_llvm.sh /install/ubuntu1804_install_llvm.sh
 RUN bash /install/ubuntu1804_install_llvm.sh
 
@@ -47,3 +54,7 @@ ENV PATH=${PATH}:${EMSDK}:${EMSDK}/upstream/emscripten
 ENV EMSCRIPTEN=${EMSDK}/upstream/emscripten
 ENV BINARYEN=${EMSDK}/upstream
 ENV LLVM=${EMSDK}/upstream/bin
+
+# sccache
+COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
+RUN bash /install/ubuntu_install_sccache.sh
