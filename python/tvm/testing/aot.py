@@ -587,6 +587,7 @@ def compile_models(
     interface_api: str,
     use_unpacked_api: bool,
     workspace_byte_alignment: int = 8,
+    constant_byte_alignment: int = 8,
     enable_op_fusion: bool = True,
     pass_config: Dict[str, Any] = None,
     use_runtime_executor: bool = True,
@@ -605,7 +606,8 @@ def compile_models(
     executor = Executor(
         "aot",
         {
-            "workspace-byte-alignment": workspace_byte_alignment,
+            "workspace-alignment": workspace_byte_alignment,
+            "constant-alignment": constant_byte_alignment,
             "interface-api": interface_api,
             "unpacked-api": use_unpacked_api,
         },
@@ -686,6 +688,7 @@ def run_and_check(
     interface_api: str,
     debug_calculated_workspaces=False,
     workspace_byte_alignment=8,
+    constant_byte_alignment=8,
     data_linkage: AOTDataLinkage = None,
     test_dir: str = None,
     verbose: bool = False,
@@ -697,7 +700,7 @@ def run_and_check(
     """
 
     def run_and_check_body(base_path):
-        cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
+        cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} -DTVM_RUNTIME_CONST_ALLOC_ALIGNMENT_BYTES={constant_byte_alignment} "
         # The calculated workspaces will not account for stack allocator tags used for debugging
         if debug_calculated_workspaces:
             cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
@@ -833,6 +836,7 @@ def compile_and_run(
     use_unpacked_api: bool,
     debug_calculated_workspaces: bool = False,
     workspace_byte_alignment: int = 8,
+    constant_byte_alignment: int = 8,
     enable_op_fusion: bool = True,
     data_linkage: AOTDataLinkage = None,
     use_runtime_executor: bool = True,
@@ -861,6 +865,7 @@ def compile_and_run(
         interface_api=interface_api,
         use_unpacked_api=use_unpacked_api,
         workspace_byte_alignment=workspace_byte_alignment,
+        constant_byte_alignment=constant_byte_alignment,
         enable_op_fusion=enable_op_fusion,
         pass_config=runner.pass_config,
         use_runtime_executor=use_runtime_executor,
@@ -874,6 +879,7 @@ def compile_and_run(
         interface_api=interface_api,
         debug_calculated_workspaces=debug_calculated_workspaces,
         workspace_byte_alignment=workspace_byte_alignment,
+        constant_byte_alignment=constant_byte_alignment,
         data_linkage=data_linkage,
         test_dir=test_dir,
         verbose=verbose,

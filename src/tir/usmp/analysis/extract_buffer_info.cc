@@ -245,7 +245,7 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
       Integer workspace_alignment = 16;
       if (executor_config) {
         workspace_alignment =
-            executor_config.value()->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+            executor_config.value()->GetAttr<Integer>("workspace-alignment").value_or(16);
       }
 
       BufferInfoKind bi_kind = BufferInfoKind::kIntermediate;
@@ -326,14 +326,13 @@ void BufferInfoExtractor::RecordAllocateConstNodeInfo(const AllocateConstNode* o
     PrimFunc func = scope_stack_.top().func;
     Optional<tvm::relay::Executor> executor_config =
         module_->GetAttr<tvm::relay::Executor>(tvm::attr::kExecutor);
-    Integer workspace_alignment = 16;
+    Integer alignment = 16;
     if (executor_config) {
-      workspace_alignment = executor_config.value()
-                                ->GetAttr<Integer>("workspace-byte-alignment")
-                                .value_or(workspace_alignment);
+      alignment =
+          executor_config.value()->GetAttr<Integer>("constant-alignment").value_or(alignment);
     }
     auto buffer_info = BufferInfo(GetUniqueBufferName(buffer_var->name_hint), size_bytes,
-                                  pool_candidates, workspace_alignment);
+                                  pool_candidates, alignment);
     auto allocate = GetRef<AllocateConst>(op);
     allocate_infos[buffer_var] =
         AllocateInfo{allocate, scope_stack_.top().func, scope_stack_.top().call};
@@ -574,54 +573,40 @@ BufferInfoAnalysis BufferInfoExtractor::operator()(const PrimFunc& main_func) {
     }
   }
 
-  // All items in RO pool should have conflicts with each other in this RO pool
+  // All ConstantPoolInfo items should have conflicts with each other
   // as they will be placed in RO segment and pre-initialized
-  // Array<BufferInfo> buffer_info_arr =
-  //    ConvertToArrayOfBufferInfo(this->buffer_info_map_);
 
-  // split buffers to vars (RW) and constants (RO)
+  // split buffers to vars (WorkspacePoolInfo items) and constants (ConstantPoolInfo items)
   Array<BufferInfo> buffer_info_vars;
-  Array<BufferInfo> buffer_info_cons;
+  Array<BufferInfo> buffer_info_constants;
   for (const auto& kv : this->buffer_info_map_) {
-    const auto& buf = kv.first;
-    for (const auto& pool : buf->pool_candidates) {
-      if (pool->IsInstance<ConstantPoolInfoNode>()) {
-        buffer_info_cons.push_back(buf);
-      } else {
-        buffer_info_vars.push_back(buf);
-      }
-
-      break;
+    const auto& stmt = kv.second;
+    if (stmt->IsInstance<AllocateConstNode>()) {
+      buffer_info_constants.push_back(kv.first);
+    } else {
+      buffer_info_vars.push_back(kv.first);
     }
   }
-  ICHECK(buffer_info_map_.size() == buffer_info_vars.size() + buffer_info_cons.size())
+  ICHECK(buffer_info_map_.size() == buffer_info_vars.size() + buffer_info_constants.size())
       << "missing value";
 
+  Map<ObjectRef, ObjectRef> srch;
   // intersect with each other, as all constants should exist at the same time
-  for (const auto& buf1 : buffer_info_cons) {
-    for (const auto& buf2 : buffer_info_cons) {
-      if (buf1->conflicts.end() ==
-          std::find(buf1->conflicts.begin(), buf1->conflicts.end(), buf2)) {
-        buf1->conflicts.push_back(buf2);
-        if (buf2->conflicts.end() ==
-            std::find(buf2->conflicts.begin(), buf2->conflicts.end(), buf1)) {
-          buf2->conflicts.push_back(buf1);
-        }
-      }
-    }
-    // remove conflicts with vars part as non-relevant anymore
-    for (const auto& buf2 : buffer_info_vars) {
-      const auto& it = std::find(buf1->conflicts.begin(), buf1->conflicts.end(), buf2);
-      if (buf1->conflicts.end() != it) {
-        buf1->conflicts.erase(it);
-        const auto& it = std::find(buf2->conflicts.begin(), buf2->conflicts.end(), buf1);
-        if (buf2->conflicts.end() != it) {
-          buf2->conflicts.erase(it);
-        }
-      }
-    }
+  for (const auto& buf : buffer_info_constants) {
+    srch.Set(buf, buf);
+    Array<ObjectRef> conflicts;
+    std::copy_if(buffer_info_constants.begin(), buffer_info_constants.end(),
+                 std::back_inserter(conflicts), [buf](const auto& b) { return b != buf; });
+    buf->conflicts.Assign(conflicts.begin(), conflicts.end());
   }
 
+  // remove all conflicts with constants
+  for (const auto& buf : buffer_info_vars) {
+    Array<ObjectRef> conflicts;
+    std::copy_if(buf->conflicts.begin(), buf->conflicts.end(), std::back_inserter(conflicts),
+                 [&srch](const auto& c) { return srch.end() == srch.find(c); });
+    buf->conflicts.Assign(conflicts.begin(), conflicts.end());
+  }
   return BufferInfoAnalysis(this->buffer_info_map_, max_open_set_size);
 }
 

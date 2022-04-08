@@ -876,7 +876,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    */
   Map<String, FunctionInfo> CalculateWorkspaceSizes(
       const IRModule& lowered_mod, const Map<String, FunctionInfo>& function_metadata) {
-    Integer workspace_byte_alignment = GetModuleAlignment(lowered_mod);
+    Integer workspace_byte_alignment = GetModuleWorkspaceAlignment(lowered_mod);
     Map<String, FunctionInfo> updated_function_metadata;
     for (const auto& kv : lowered_mod->functions) {
       GlobalVar global_var = kv.first;
@@ -903,7 +903,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    */
   IRModule PlanMemoryWithUSMP(const IRModule& mod) {
     VLOG(1) << "Planning memory with USMP for module:" << std::endl << PrettyPrint(mod);
-    Integer workspace_byte_alignment = GetModuleAlignment(mod);
+    Integer workspace_byte_alignment = GetModuleWorkspaceAlignment(mod);
     IRModule lowered_mod = mod->ShallowCopy();
     lowered_mod = tir::transform::UnifiedStaticMemoryPlanner()(lowered_mod);
     function_metadata_ = CalculateWorkspaceSizes(lowered_mod, function_metadata_);
@@ -936,7 +936,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    * \brief Run StorageRewrite to plan memory for lowered IRModule.
    */
   IRModule PlanMemoryWithStorageRewrite(const IRModule& mod) {
-    Integer workspace_byte_alignment = GetModuleAlignment(mod);
+    Integer workspace_byte_alignment = GetModuleWorkspaceAlignment(mod);
     IRModule lowered_mod = mod->ShallowCopy();
     function_metadata_ = CalculateWorkspaceSizes(lowered_mod, function_metadata_);
     // Running StorageRewrite just on the main function
@@ -961,11 +961,19 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   }
 
   /*!
-   * \brief Gets module alignment from supplied executor or defaults to 16
+   * \brief Gets module workspace alignment from supplied executor or defaults to 16
    */
-  Integer GetModuleAlignment(const IRModule& mod) {
+  Integer GetModuleWorkspaceAlignment(const IRModule& mod) {
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
-    return executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+    return executor_config->GetAttr<Integer>("workspace-alignment").value_or(16);
+  }
+
+  /*!
+   * \brief Gets module constant alignment from supplied executor or defaults to 16
+   */
+  Integer GetModuleConstantAlignment(const IRModule& mod) {
+    Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
+    return executor_config->GetAttr<Integer>("constant-alignment").value_or(16);
   }
 
  protected:
@@ -1028,7 +1036,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     VLOG_CONTEXT << "AOT";
 
     Runtime runtime_config = mod->GetAttr<Runtime>(tvm::attr::kRuntime).value();
-    Integer workspace_byte_alignment = GetModuleAlignment(mod);
+    Integer workspace_byte_alignment = GetModuleWorkspaceAlignment(mod);
 
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
     std::string interface_api =
@@ -1255,8 +1263,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     ret.metadata = ExecutorCodegenMetadata(
         inputs, input_tensor_types, output_var_names, output_tensor_types, pool_vars, devices,
-        runtime::kTvmExecutorAot, mod_name, interface_api, unpacked_api, GetModuleAlignment(mod),
-        pool_var_info, io_pool_allocations);
+        runtime::kTvmExecutorAot, mod_name, interface_api, unpacked_api,
+        GetModuleWorkspaceAlignment(mod), GetModuleConstantAlignment(mod), pool_var_info,
+        io_pool_allocations);
     return ret;
   }
 

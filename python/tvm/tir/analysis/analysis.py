@@ -182,6 +182,25 @@ def calculate_workspace_bytes(func: PrimFunc, workspace_byte_alignment: int) -> 
     return _ffi_api.calculate_workspace_bytes(func, workspace_byte_alignment)  # type: ignore
 
 
+def calculate_constant_bytes(func: PrimFunc, constant_byte_alignment: int) -> int:
+    """Calculate the constant size in bytes needed by the TIR allocates inside the TIR
+    PrimFunc.
+
+    Parameters
+    ----------
+    func: tvm.tir.PrimFunc
+        The function to be detected.
+    constant_byte_alignment : int
+        The byte alignment required for each tensor
+
+    Returns
+    -------
+    result : int
+        Workspace size in bytes.
+    """
+    return _ffi_api.calculate_constant_bytes(func, constant_byte_alignment)  # type: ignore
+
+
 def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
     """Detect the lowest common ancestor(LCA) of buffer access, including both high-level
     access(BufferLoad, BufferStore) and low-level access(Load, Store and opaque access).

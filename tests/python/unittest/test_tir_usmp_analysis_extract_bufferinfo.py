@@ -25,7 +25,7 @@ from tvm.tir import stmt_functor
 from tvm.tir import PrimFunc
 from tvm.tir.usmp import utils as usmp_utils
 from tvm.target import Target
-from tvm import WorkspacePoolInfo
+from tvm import WorkspacePoolInfo, ConstantPoolInfo
 
 
 def _replace_stmt_with_buf_var_names(buffer_info_map):
@@ -55,7 +55,7 @@ def _get_allocates(primfunc):
     return allocates
 
 
-def _assign_poolinfos_to_allocates_in_primfunc(primfunc, pool_infos):
+def _assign_poolinfos_to_allocates_in_primfunc(primfunc, pool_infos, constant_pool_infos):
     """helper to assing poolinfos to allocate nodes in a tir.PrimFunc"""
 
     def set_poolinfos(stmt):
@@ -68,16 +68,27 @@ def _assign_poolinfos_to_allocates_in_primfunc(primfunc, pool_infos):
                 body=stmt.body,
                 annotations={tvm.tir.usmp.utils.CANDIDATE_MEMORY_POOL_ATTR: pool_infos},
             )
+        elif isinstance(stmt, tvm.tir.AllocateConst):
+            return tvm.tir.AllocateConst(
+                buffer_var=stmt.buffer_var,
+                dtype=stmt.dtype,
+                extents=stmt.extents,
+                data_or_idx=stmt.data,
+                body=stmt.body,
+                annotations={tvm.tir.usmp.utils.CANDIDATE_MEMORY_POOL_ATTR: constant_pool_infos},
+            )
 
     return primfunc.with_body(stmt_functor.ir_transform(primfunc.body, None, set_poolinfos))
 
 
-def _assign_poolinfos_to_allocates_in_irmodule(mod, pool_infos):
+def _assign_poolinfos_to_allocates_in_irmodule(mod, pool_infos, constant_pool_infos=None):
     """helper to assign poolinfos to allocate nodes in a IRModule"""
     ret = tvm.IRModule()
     for global_var, basefunc in mod.functions.items():
         if isinstance(basefunc, tvm.tir.PrimFunc):
-            ret[global_var] = _assign_poolinfos_to_allocates_in_primfunc(basefunc, pool_infos)
+            ret[global_var] = _assign_poolinfos_to_allocates_in_primfunc(
+                basefunc, pool_infos, constant_pool_infos
+            )
     return ret
 
 
@@ -1343,7 +1354,12 @@ class MultipleCallsToSamePrimFuncModule:
         sid_18 = T.allocate([3456], "int8", "global.workspace")
         sid_19 = T.allocate([3456], "int8", "global.workspace")
         sid_20 = T.allocate([3456], "int8", "global.workspace")
-        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_layout_transform_1", data_buffer.data, sid_8.data, dtype="int32"))
+
+        sid_21 = T.allocate_const([0,1,2,3,4,5,6,7,8,9], "int8", [10])
+        sid_22 = T.allocate_const([1], "int8", [1])
+        sid_23 = T.allocate_const([2,1], "int8", [3456])
+
+        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_layout_transform_1", data_buffer.data, sid_23.data, dtype="int32"))
         T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_nn_contrib_conv2d_NCHWc", sid_8.data, T.cast(T.lookup_param("p0", dtype="handle"), "handle"), sid_7.data, dtype="int32"))
         T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_layout_transform", sid_7.data, sid_6.data, dtype="int32"))
         T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_reshape_1", data_buffer.data, sid_12.data, dtype="int32"))
@@ -1366,15 +1382,23 @@ def test_multiple_calls_to_same_primfunc():
         pool_name="global_workspace",
         targets=[target],
     )
+    global_const_pool = ConstantPoolInfo(
+        pool_name="global_constants",
+        targets=[target],
+    )
+
     tir_mod = MultipleCallsToSamePrimFuncModule
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
-    tir_mod = _assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_ws_pool])
+    tir_mod = _assign_poolinfos_to_allocates_in_irmodule(
+        tir_mod, [global_ws_pool], [global_const_pool]
+    )
     main_func = tir_mod["run_model"]
     buffer_info_analysis = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
     assert buffer_info_analysis.memory_pressure == 11424
     buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_analysis.buffer_info_stmts)
 
     # check conflicts
+    _verify_conflicts("sid_23", ["sid_22", "sid_21"], buffer_info_map)
     _verify_conflicts(
         "sid_6",
         [

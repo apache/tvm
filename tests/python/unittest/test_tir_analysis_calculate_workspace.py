@@ -57,6 +57,7 @@ def primfunc_global_allocates(placeholder_144: T.handle, placeholder_145: T.hand
 def primfunc_local_allocates(placeholder_162: T.handle, placeholder_163: T.handle, placeholder_164: T.handle, T_cast_76: T.handle) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "fused_nn_conv2d_add_cast_fixed_point_multiply_clip_cast_cast_9", "tir.noalias": True})
+    sid_21 = T.allocate_const([0,1,2,3,4,5,6,7], "int8", [8])
     placeholder_165 = T.match_buffer(placeholder_162, [100352], dtype="int16", elem_offset=0, align=128, offset_factor=1)
     placeholder_166 = T.match_buffer(placeholder_163, [4608], dtype="int16", elem_offset=0, align=128, offset_factor=1)
     placeholder_167 = T.match_buffer(placeholder_164, [512], dtype="int32", elem_offset=0, align=128, offset_factor=1)
@@ -90,19 +91,17 @@ def primfunc_local_allocates(placeholder_162: T.handle, placeholder_163: T.handl
 # fmt: on
 
 
-@pytest.mark.parametrize("alignment_and_size", [(1, 663552), (10, 663560)])
-def test_global_allocates(alignment_and_size):
-    alignment = alignment_and_size[0]
-    size = alignment_and_size[1]
+@pytest.mark.parametrize("alignment,size,consts", [(1, 663552, 0), (10, 663560, 0)])
+def test_global_allocates(alignment, size, consts):
     primfunc = primfunc_global_allocates
+    assert tvm.tir.analysis.calculate_constant_bytes(primfunc, alignment) == consts
     assert tvm.tir.analysis.calculate_workspace_bytes(primfunc, alignment) == size
 
 
-@pytest.mark.parametrize("alignment_and_size", [(1, 1566720), (100, 1567100)])
-def test_local_allocates(alignment_and_size):
-    alignment = alignment_and_size[0]
-    size = alignment_and_size[1]
+@pytest.mark.parametrize("alignment,size,consts", [(1, 1566720, 8), (100, 1567100, 100)])
+def test_local_allocates(alignment, size, consts):
     primfunc = primfunc_local_allocates
+    assert tvm.tir.analysis.calculate_constant_bytes(primfunc, alignment) == consts
     assert tvm.tir.analysis.calculate_workspace_bytes(primfunc, alignment) == size
 
 

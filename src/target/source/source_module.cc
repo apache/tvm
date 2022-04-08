@@ -312,8 +312,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         code_ << "  ";
         codegen_c_base_.PrintType(data.DataType(), code_);
         code_ << " " << const_info->name_hint << "[" << num_elements
-              << "] __attribute__((packed, aligned(" << metadata_->workspace_byte_alignment
-              << ")));";
+              << "] __attribute__((packed, aligned(" << metadata_->constant_alignment << ")));";
         code_ << " // " << num_elements * data.DataType().bytes()
               << " bytes, aligned offset: " << offs << "\n";
       }
@@ -335,7 +334,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
   void GenerateWorkspaceBuffer(const WorkspacePoolInfoNode* pool_info, size_t allocated_size) {
     code_ << "__attribute__((section(\".bss.noinit.tvm\"), ";
-    code_ << "aligned(" << metadata_->workspace_byte_alignment << ")))\n";
+    code_ << "aligned(" << metadata_->workspace_alignment << ")))\n";
     code_ << "static uint8_t " << pool_info->pool_name << "[";
     code_ << allocated_size << "];\n";
   }

@@ -52,7 +52,6 @@ def _check_for_no_tvm_backendallocworkspace_calls(mod: tvm.runtime.module):
 @parametrize_aot_options
 def test_synthetic(interface_api, use_unpacked_api, test_runner):
     mod, params = tvm.relay.testing.synthetic.get_workload()
-    # mod = tvm.parser.fromtext(RELAY_MODEL)
     main_func = mod["main"]
     shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
     type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
@@ -60,12 +59,9 @@ def test_synthetic(interface_api, use_unpacked_api, test_runner):
     input_data = np.ones(shape_dict["data"]).astype(type_dict["data"])
     params = {}
     for name, shape in shape_dict.items():
-        # if( name.endswith("weight") ):
         if name != "data":
             params[name] = np.ones(shape_dict[name]).astype(type_dict[name])
-            # weight_data = np.ones(shape_dict["weight"]).astype(type_dict["weight"])
 
-    # params = {"weight": weight_data}
     inputs = {"data": input_data}
     output_list = generate_ref_data(mod, inputs, params)
     config = (
@@ -92,22 +88,24 @@ def test_synthetic(interface_api, use_unpacked_api, test_runner):
         test_runner,
         interface_api,
         use_unpacked_api,
-        # target = "c -executor=aot -link-params -runtime=c",
-        # target_opts = { "-link-params": True},
-        # test_dir = 'test',
-        verbose=True,
     )
 
 
 @pytest.mark.parametrize(
-    "workspace_byte_alignment,main_workspace_size",
+    "workspace_byte_alignment,constant_byte_alignment,main_workspace_size",
     [
-        (8, 18228),
-        (16, 18236),
-        (256, 19596),
+        (8, 8, 18228),
+        (16, 8, 18228),
+        (256, 8, 18740),
+        (8, 16, 18236),
+        (16, 16, 18236),
+        (256, 16, 18748),
+        (8, 256, 19084),
+        (16, 256, 19084),
+        (256, 256, 19596),
     ],
 )
-def test_memory_planning(workspace_byte_alignment, main_workspace_size):
+def test_memory_planning(workspace_byte_alignment, constant_byte_alignment, main_workspace_size):
     """Checks calculated workspace against known values"""
     mod, params = tvm.relay.testing.synthetic.get_workload()
     target = "c"
@@ -115,7 +113,8 @@ def test_memory_planning(workspace_byte_alignment, main_workspace_size):
     executor = Executor(
         "aot",
         {
-            "workspace-byte-alignment": workspace_byte_alignment,
+            "workspace-alignment": workspace_byte_alignment,
+            "constant-alignment": constant_byte_alignment,
         },
     )
     with tvm.transform.PassContext(
@@ -130,8 +129,9 @@ def test_memory_planning(workspace_byte_alignment, main_workspace_size):
         lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
     # The workspace_size dictionary will have an entry for both the 'primitive' and 'host'
     # targets, though both are identical.
-    for size in lib.function_metadata["__tvm_main__"].workspace_sizes.values():
-        assert size == main_workspace_size
+    assert (
+        sum(lib.function_metadata["__tvm_main__"].workspace_sizes.values()) == main_workspace_size
+    )
 
 
 @parametrize_aot_options
