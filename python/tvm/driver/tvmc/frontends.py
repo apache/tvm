@@ -32,6 +32,7 @@ from pathlib import Path
 import numpy as np
 
 from tvm import relay
+from tvm import parser
 from tvm.driver.tvmc import TVMCException, TVMCImportError
 from tvm.driver.tvmc.model import TVMCModel
 
@@ -294,6 +295,41 @@ class PaddleFrontend(Frontend):
         return relay.frontend.from_paddle(prog, shape_dict=shape_dict, **kwargs)
 
 
+class RelayFrontend(Frontend):
+    """Relay frontend for TVMC"""
+
+    @staticmethod
+    def name():
+        return "relay"
+
+    @staticmethod
+    def suffixes():
+        return ["relay"]
+
+    def load(self, path, shape_dict=None, **kwargs):
+        with open(path, "r", encoding="utf-8") as relay_text:
+            text = relay_text.read()
+        if shape_dict is not None:
+            logger.warning("Supplied shape_dict argument ignored for text frontend")
+        ir_mod = parser.fromtext(text)
+
+        def _gen_params(ir_mod):
+            """Populate the all the params in the mode with ones."""
+            main_func = ir_mod["main"]
+            shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
+            type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
+            params = {}
+            for name, shape in shape_dict.items():
+                data = np.ones(shape).astype(type_dict[name])
+                params[name] = data
+            return params
+
+        logger.warning("Parameters in the relay module will be initialized with ones.")
+        params = _gen_params(ir_mod)
+
+        return ir_mod, params
+
+
 ALL_FRONTENDS = [
     KerasFrontend,
     OnnxFrontend,
@@ -301,6 +337,7 @@ ALL_FRONTENDS = [
     TFLiteFrontend,
     PyTorchFrontend,
     PaddleFrontend,
+    RelayFrontend,
 ]
 
 
