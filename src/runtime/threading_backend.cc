@@ -66,7 +66,6 @@ class QuRTThread {
       t->f(t->i);
     }
     qurt_thread_t thread;
-    void * stack;
     std::function<void(int)> f;
     int i;
     uint8_t stack[HEXAGON_STACK_SIZE];
