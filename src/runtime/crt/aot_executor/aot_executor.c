@@ -95,9 +95,9 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
   executor->metadata = (TVMMetadata *)get_c_metadata.ret_value.values[0].v_handle;
 
   TVMMetadata* md = executor->metadata;
-  
+
   DumpMetadata(md);
-  
+
   executor->num_args = md->num_inputs + md->num_outputs + md->num_pools;
 
   TVMPlatformMemoryAllocate(executor->num_args * sizeof(*executor->args),
@@ -108,17 +108,8 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
   for (i = 0; i < md->num_inputs; ++i) {
     fprintf(stderr, "\tinput allocate[%d]: %s\n", i, md->inputs[i].name);
 
-#define FAKE_SHAPE
-
-#ifdef FAKE_SHAPE
-    int64_t shape = 2;
-    TVMNDArray_Empty(1, &shape, md->inputs[i].dtype,
-                     executor->device, &executor->args[arg_idx++]);
-#else
     TVMNDArray_Empty(md->inputs[i].num_shape, md->inputs[i].shape, md->inputs[i].dtype,
                      executor->device, &executor->args[arg_idx++]);
-#endif
-
   }
 
   for (i = 0; i < md->num_outputs; ++i) {
