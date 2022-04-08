@@ -870,6 +870,29 @@ stage('Test') {
       Utils.markStageSkippedForConditional('frontend: CPU')
     }
   },
+  'frontend: aarch64': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('ARM') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
+          try {
+            init_git()
+            unpack_lib('arm', tvm_multilib)
+            timeout(time: max_time, unit: 'MINUTES') {
+              ci_setup(ci_arm)
+              sh (
+                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
+                label: 'Run Python frontend tests',
+              )
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('frontend: aarch64')
+    }
+  },
   'docs: GPU': {
     if (!skip_ci) {
       node('TensorCore') {
