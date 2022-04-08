@@ -856,7 +856,7 @@ class EmbedLayerNormalization(OnnxOpConverter):
         mask = inputs[7]
         pos_ids = inputs[8]
 
-        eps = attr.get('epsilon', 1e-12)
+        eps = attr.get("epsilon", 1e-12)
 
         (batch_size, seq_len) = infer_shape(input_ids)
 
@@ -906,7 +906,7 @@ class SkipLayerNormalization(OnnxOpConverter):
         beta = inputs[3]
         bias = inputs[4]
 
-        eps = attr["epsilon"] if "epsilon" in attr else 1e-12
+        eps = attr.get("epsilon", 1e-12)
 
         x = _op.add(data, skip)
         if bias is not None:
