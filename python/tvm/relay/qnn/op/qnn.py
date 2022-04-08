@@ -999,7 +999,7 @@ def sigmoid(x, scale, zero_point, output_scale, output_zero_point):
 
 
 def log(x, scale, zero_point, output_scale, output_zero_point):
-    """Quantized sigmoid.
+    """Quantized log.
 
     Parameters
     ----------
