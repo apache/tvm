@@ -28,25 +28,25 @@ namespace tvm {
 namespace relay {
 namespace {
 
-TEST(WithFields, GlobalVar) {}
+TEST(WithFields, GlobalVar) {
+  auto tensor_type = relay::TensorType({}, DataType::Bool());
+  GlobalVar func_init("dummy_func", tensor_type, {});
+  GlobalVar func_cp = WithFields(func_init);
+  ICHECK(func_init->name_hint == func_cp->name_hint);
+  ICHECK(func_init->span == func_cp->span);
+  ICHECK(func_init->checked_type_ == func_cp->checked_type_);
+}
 
-TEST(WithFields, Constant) {}
-
-TEST(WithFields, Tuple) {}
-
-TEST(WithFields, Var) {}
-
-TEST(WithFields, Let) {}
-
-TEST(WithFields, If) {}
-
-TEST(WithFields, TupleGetItem) {}
-
-TEST(WithFields, RefCreate) {}
-
-TEST(WithFields, RefRead) {}
-
-TEST(WithFields, RefWrite) {}
+TEST(WithFields, Constant) {
+  int64_t out_channels = 64;
+  Device dev{DLDeviceType::kDLCPU, 0};
+  runtime::NDArray multiplier_nda = runtime::NDArray::Empty({out_channels}, DataType::Int(32), dev);
+  Constant constant_init(multiplier_nda, {});
+  Constant constant_cp = WithFields(constant_init);
+  ICHECK(constant_init->checked_type_ == constant_cp->checked_type_);
+  ICHECK_EQ(constant_init->data, constant_cp->data);
+  ICHECK_EQ(constant_init->span, constant_cp->span);
+}
 
 }  // namespace
 }  // namespace relay
