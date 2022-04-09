@@ -50,13 +50,16 @@ sphinx_precheck() {
 
     pushd docs
     make clean
-    TVM_TUTORIAL_EXEC_PATTERN=none make html SPHINXOPTS="-W --keep-going" 2>&1 | tee /tmp/$$.log.txt
+    TVM_TUTORIAL_EXEC_PATTERN=none make html 2>&1 | tee /tmp/$$.log.txt
     check_sphinx_warnings "docs"
     popd
 }
 
 
 function join_by { local IFS="$1"; shift; echo "$*"; }
+
+# Convert bash tutorials to Python format
+tests/scripts/task_convert_scripts_to_python.sh
 
 # These warnings are produced during the docs build for various reasons and are
 # known to not signficantly affect the output. Don't add anything new to this
@@ -121,7 +124,7 @@ find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
 cd docs
-PYTHONPATH=$(pwd)/../python make html SPHINXOPTS='-W --keep-going -j auto' |& tee /tmp/$$.log.txt
+PYTHONPATH=$(pwd)/../python make html SPHINXOPTS='-j auto' |& tee /tmp/$$.log.txt
 if grep -E "failed to execute|Segmentation fault" < /tmp/$$.log.txt; then
     echo "Some of sphinx-gallery item example failed to execute."
     exit 1
@@ -166,6 +169,7 @@ mv docs/doxygen/html _docs/reference/api/doxygen
 mv jvm/core/target/site/apidocs _docs/reference/api/javadoc
 # mv rust/target/doc _docs/api/rust
 mv web/dist/docs _docs/reference/api/typedoc
+git rev-parse HEAD > _docs/commit_hash
 
 if [ "$IS_LOCAL" != "1" ]; then
     echo "Start creating the docs tarball.."
