@@ -56,8 +56,6 @@ int32_t TVMAotExecutorModule_Create(TVMValue* args, int* tcodes, int nargs, TVMV
 
   DLDevice dev = args[1].v_device;
 
-  fprintf(stderr, "%s: device_type: %d device_id: %d\n", __FUNCTION__, dev.device_type, dev.device_id);
-
   if (dev.device_type != kDLCPU) {
     return kTvmErrorExecutorModuleBadContext;
   }
@@ -89,8 +87,6 @@ int32_t TVMAotExecutorModule_GetInput(TVMValue* args, int* tcodes, int nargs,
 
   int index = TVMAotExecutor_GetInputIndex(aot_executor.executor, args[0].v_str);
 
-  fprintf(stderr, "%s: input: %s index: %d\n", __FUNCTION__, args[0].v_str, index);
-
   if (index < 0) {
     return kTvmErrorExecutorModuleNoSuchInput;
   }
@@ -101,9 +97,34 @@ int32_t TVMAotExecutorModule_GetInput(TVMValue* args, int* tcodes, int nargs,
   return 0;
 }
 
+int32_t TVMAotExecutorModule_GetOutput(TVMValue* args, int* tcodes, int nargs,
+                                       TVMValue* ret_values, int* ret_tcodes,
+                                       void* resource_handle) {
+
+  if (nargs != 1) {
+    return kTvmErrorFunctionCallNumArguments;
+  }
+
+  if (args[0].v_int64 > TVMAotExecutor_GetNumOutputs(aot_executor.executor)) {
+    return kTvmErrorFunctionCallInvalidArg;
+  }
+
+  // index past the input entries
+  int64_t idx = args[0].v_int64 + TVMAotExecutor_GetNumInputs(aot_executor.executor);
+
+  ret_values[0].v_handle = (void*)&aot_executor.executor->args[idx].dl_tensor;
+  ret_tcodes[0] = kTVMNDArrayHandle;
+
+  return 0;
+}
+
 int32_t TVMAotExecutorModule_GetInputIndex(TVMValue* args, int* tcodes, int nargs,
                                            TVMValue* ret_values, int* ret_tcodes,
                                            void* resource_handle) {
+
+  if (nargs != 1) {
+    return kTvmErrorFunctionCallNumArguments;
+  }
 
   int index = TVMAotExecutor_GetInputIndex(aot_executor.executor, args[0].v_str);
 
@@ -116,17 +137,52 @@ int32_t TVMAotExecutorModule_GetInputIndex(TVMValue* args, int* tcodes, int narg
   return 0;
 }
 
+int32_t TVMAotExecutorModule_GetNumInputs(TVMValue* args, int* tcodes, int nargs,
+                                            TVMValue* ret_values, int* ret_tcodes,
+                                            void* resource_handle) {
+  if (nargs != 0) {
+    return kTvmErrorFunctionCallNumArguments;
+  }
+
+  ret_values[0].v_int64 = TVMAotExecutor_GetNumInputs(aot_executor.executor);
+  ret_tcodes[0] = kTVMArgInt;
+  return 0;
+}
+
+int32_t TVMAotExecutorModule_GetNumOutputs(TVMValue* args, int* tcodes, int nargs,
+                                             TVMValue* ret_values, int* ret_tcodes,
+                                             void* resource_handle) {
+  if (nargs != 0) {
+    return kTvmErrorFunctionCallNumArguments;
+  }
+
+  ret_values[0].v_int64 = TVMAotExecutor_GetNumOutputs(aot_executor.executor);
+  ret_tcodes[0] = kTVMArgInt;
+  return 0;
+}
+
+int32_t TVMAotExecutorModule_Run(TVMValue* args, int* tcodes, int nargs,
+                                 TVMValue* ret_values, int* ret_tcodes,
+                                 void* resource_handle) {
+
+  if (nargs != 0) {
+    return kTvmErrorFunctionCallNumArguments;
+  }
+
+  return TVMAotExecutor_Run(aot_executor.executor);
+}
+
 static const TVMBackendPackedCFunc aot_executor_registry_funcs[] = {
     &TVMAotExecutorModule_GetInput,           // get_input
     &TVMAotExecutorModule_GetInputIndex,      // get_input_index
-    &TVMAotExecutorModule_NotImplemented,     // get_input_info
-    &TVMAotExecutorModule_NotImplemented,     // get_num_inputs
-    &TVMAotExecutorModule_NotImplemented,     // get_num_outputs
-    &TVMAotExecutorModule_NotImplemented,     // get_output
-    &TVMAotExecutorModule_NotImplemented,     // load_params
-    &TVMAotExecutorModule_NotImplemented,     // run
+    &TVMAotExecutorModule_NotImplemented,     // get_input_info (do not implement)
+    &TVMAotExecutorModule_GetNumInputs,       // get_num_inputs
+    &TVMAotExecutorModule_GetNumOutputs,      // get_num_outputs
+    &TVMAotExecutorModule_GetOutput,          // get_output
+    &TVMAotExecutorModule_NotImplemented,     // load_params (do not implement)
+    &TVMAotExecutorModule_Run,                // run
     &TVMAotExecutorModule_NotImplemented,     // set_input
-    &TVMAotExecutorModule_NotImplemented,     // share_params
+    &TVMAotExecutorModule_NotImplemented,     // share_params (do not implement)
 };
 
 static const TVMFuncRegistry aot_executor_registry = {

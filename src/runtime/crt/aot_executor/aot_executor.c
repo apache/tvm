@@ -57,9 +57,17 @@ static void DumpMetadata(TVMMetadata* md)
   }
 }
 
+int TVMAotExecutor_GetNumInputs(TVMAotExecutor* executor) {
+  return executor->metadata->num_inputs;
+}
+
+int TVMAotExecutor_GetNumOutputs(TVMAotExecutor* executor) {
+  return executor->metadata->num_outputs;
+}
+
 int TVMAotExecutor_GetInputIndex(TVMAotExecutor* executor, const char* name) {
-  uint32_t i;
-  int32_t rv = -1;
+  int i;
+  int rv = -1;
 
   TVMMetadata* md = executor->metadata;
   for (i = 0; i < md->num_inputs; ++i) {
@@ -70,6 +78,46 @@ int TVMAotExecutor_GetInputIndex(TVMAotExecutor* executor, const char* name) {
   }
   CHECK_GE(rv, 0, "cannot find '%s' among input.", name);
   return rv;
+}
+
+int TVMAotExecutor_Run(TVMAotExecutor* executor) {
+
+  const char* tvm_main_suffix = "___tvm_main__";
+  char tvm_main_name[TVM_CRT_MAX_STRLEN_FUNCTION_NAME];
+  const size_t max_strlen = TVM_CRT_MAX_STRLEN_FUNCTION_NAME;
+
+  {
+    size_t len = strnlen(executor->metadata->mod_name, max_strlen);
+    len += strnlen(tvm_main_suffix, max_strlen);
+
+    CHECK_LT(len, max_strlen, "tvm_main name too long %ld\n", len);
+  }
+
+  strncpy(tvm_main_name, executor->metadata->mod_name, (max_strlen-strlen(tvm_main_suffix)-1));
+  strcat(tvm_main_name, tvm_main_suffix);
+
+  TVMPackedFunc tvm_main;
+  TVMArgs temp_args;
+
+  CHECK_LE(executor->num_args, TVM_CRT_MAX_ARGS, "too many args %ld\n", executor->num_args);
+
+  int i;
+  for (i = 0; i < executor->num_args; ++i) {
+    temp_args.values[i].v_handle = &executor->args[i].dl_tensor;
+    temp_args.tcodes[i] = kTVMDLTensorHandle;
+  }
+  temp_args.values_count = executor->num_args;
+
+  int status = TVMPackedFunc_InitModuleFunc(&tvm_main, executor->module_handle,
+                                            tvm_main_name, &temp_args);
+
+  if (status != 0) {
+      return status;
+  }
+
+  CHECK_EQ(tvm_main.Call(&tvm_main), 0, "call to %s failed", tvm_main_name);
+
+  return 0;
 }
 
 int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
@@ -90,7 +138,8 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
     return status;
   }
 
-  get_c_metadata.Call(&get_c_metadata);
+  CHECK_EQ(get_c_metadata.Call(&get_c_metadata), 0, "get_c_metadata");
+
   // save the returned pointer to the top-level metadata
   executor->metadata = (TVMMetadata *)get_c_metadata.ret_value.values[0].v_handle;
 
@@ -100,30 +149,42 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
 
   executor->num_args = md->num_inputs + md->num_outputs + md->num_pools;
 
-  TVMPlatformMemoryAllocate(executor->num_args * sizeof(*executor->args),
-                            executor->device, (void **)(&executor->args));
+  tvm_crt_error_t err = TVMPlatformMemoryAllocate(executor->num_args * sizeof(*executor->args),
+                                                  executor->device, (void **)(&executor->args));
+  if (err != kTvmErrorNoError) {
+    return -1;
+  }
 
   int i;
   int arg_idx = 0;
   for (i = 0; i < md->num_inputs; ++i) {
     fprintf(stderr, "\tinput allocate[%d]: %s\n", i, md->inputs[i].name);
 
-    TVMNDArray_Empty(md->inputs[i].num_shape, md->inputs[i].shape, md->inputs[i].dtype,
-                     executor->device, &executor->args[arg_idx++]);
+    status = TVMNDArray_Empty(md->inputs[i].num_shape, md->inputs[i].shape, md->inputs[i].dtype,
+                              executor->device, &executor->args[arg_idx++]);
+    if (status != 0) {
+      return status;
+    }
   }
 
   for (i = 0; i < md->num_outputs; ++i) {
     fprintf(stderr, "\toutput allocate[%d]: %s\n", i, md->outputs[i].name);
 
-    TVMNDArray_Empty(md->outputs[i].num_shape, md->outputs[i].shape, md->outputs[i].dtype,
-                     executor->device, &executor->args[arg_idx++]);
+    status = TVMNDArray_Empty(md->outputs[i].num_shape, md->outputs[i].shape, md->outputs[i].dtype,
+                              executor->device, &executor->args[arg_idx++]);
+    if (status != 0) {
+      return status;
+    }
   }
 
   for (i = 0; i < md->num_pools; ++i) {
     fprintf(stderr, "\tpools allocate[%d]: %s\n", i, md->pools[i].name);
 
-    TVMNDArray_Empty(md->pools[i].num_shape, md->pools[i].shape, md->pools[i].dtype,
-                     executor->device, &executor->args[arg_idx++]);
+    status = TVMNDArray_Empty(md->pools[i].num_shape, md->pools[i].shape, md->pools[i].dtype,
+                              executor->device, &executor->args[arg_idx++]);
+    if (status != 0) {
+      return status;
+    }
   }
 
   return status;

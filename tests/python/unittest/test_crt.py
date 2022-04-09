@@ -212,6 +212,9 @@ def test_aot_executor():
         assert aot_executor.get_input_index("a") == 0
         assert aot_executor.get_input_index("b") == 1
 
+        assert aot_executor.get_num_inputs() == 2
+        assert aot_executor.get_num_outputs() == 1
+
         A_np = np.array([[2, 3]], dtype="uint8")
         B_np = np.array([[4, 7]], dtype="uint8")
 
@@ -221,10 +224,11 @@ def test_aot_executor():
         print("A_data: " + str(A_data))
         print("B_data: " + str(B_data))
         
-#        aot_executor["run"]()
+        aot_executor.run()
 
-#        out = aot_executor.get_output(0)
-#        assert (out.numpy() == np.array([6, 10])).all()
+        out = aot_executor.get_output(0)
+        print("out: " + str(out))
+        assert (out.numpy() == np.array([6, 10])).all()
 
     with _make_session(temp_dir, factory) as sess:
         do_test()

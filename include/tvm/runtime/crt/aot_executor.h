@@ -59,7 +59,13 @@ int TVMAotExecutor_Create(TVMModuleHandle module_handle,
 
 int TVMAotExecutor_Release(TVMAotExecutor* executor, const DLDevice device);
 
+int TVMAotExecutor_GetNumInputs(TVMAotExecutor* executor);
+
+int TVMAotExecutor_GetNumOutputs(TVMAotExecutor* executor);
+
 int TVMAotExecutor_GetInputIndex(TVMAotExecutor* executor, const char* name);
+
+int TVMAotExecutor_Run(TVMAotExecutor* executor);
 
 #ifdef __cplusplus
 }  // extern "C"
