@@ -41,7 +41,7 @@ deployed to Arduino using TVM.
 # * A traffic light might look for **cars**, so it can judge which lights should change first.
 # * A forest camera might want to look for a **kind of animal**, so they can estimate how large the animal population is.
 # To make these devices affordable, we would like them to need only a low-cost processor like the
-# `nRF52840` <https://www.nordicsemi.com/Products/nRF52840> (costing $5 each on Mouser) or the `RP2040` <https://www.raspberrypi.com/products/rp2040/> (just $1.45 each!).
+# `nRF52840 <https://www.nordicsemi.com/Products/nRF52840>`_ (costing $5 each on Mouser) or the `RP2040 <https://www.raspberrypi.com/products/rp2040/>`_ (just $1.45 each!).
 #
 # These devices have very little memory (~250 KB RAM), meaning that no conventional edge AI
 # vision model (like MobileNet or EfficientNet) will be able to run. In this tutorial, we will
@@ -50,6 +50,7 @@ deployed to Arduino using TVM.
 #
 # Installing the Prerequisites
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#
 # To run this tutorial, we will need Tensorflow and TFLite to train our model, pyserial and tlcpack
 # (a community build of TVM) to compile and test it, and imagemagick and curl to preprocess data.
 # We will also need to install the Arduino CLI and the mbed_nano package to test our model.
@@ -67,10 +68,11 @@ deployed to Arduino using TVM.
 #
 # Using the GPU
 # ^^^^^^^^^^^^^
+#
 # This tutorial demonstrates training a neural network, which is requires a lot of computing power
 # and will go much faster if you have a GPU. If you are viewing this tutorial on Google Colab, you
 # can enable a GPU by going to **Runtime->Change runtime type** and selecting "GPU" as our hardware
-# accelerator. If you are running locally, you can `follow Tensorflow's guide`<https://www.tensorflow.org/guide/gpu> instead.
+# accelerator. If you are running locally, you can `follow Tensorflow's guide <https://www.tensorflow.org/guide/gpu>`_ instead.
 #
 # We can test our GPU installation with the following code:
 
@@ -85,7 +87,7 @@ else:
 # Choosing Our Work Dir
 # ^^^^^^^^^^^^^^^^^^^^^
 # We need to pick a directory where our image datasets, trained model, and eventual Arduino sketch
-# will all live. If running on Google Colab, we'll save everything in `/root` (aka `~`) but you'll
+# will all live. If running on Google Colab, we'll save everything in ``/root`` (aka ``~``) but you'll
 # probably want to store it elsewhere if running locally.
 
 FOLDER = "/root"
@@ -105,9 +107,9 @@ FOLDER = tempfile.mkdtemp()
 # whatever category you like! Just change the source URL below to one containing images of another
 # type of object.
 #
-# To get our car images, we'll be downloading the `Stanford Cars dataset` <http://ai.stanford.edu/~jkrause/cars/car_dataset.html>,
+# To get our car images, we'll be downloading the `Stanford Cars dataset <http://ai.stanford.edu/~jkrause/cars/car_dataset.html>`_,
 # which contains 16,185 full color images of cars. We'll also need images of random things that
-# aren't cars, so we'll use the `COCO 2014`<https://cocodataset.org/#home> validation set (it's
+# aren't cars, so we'll use the `COCO 2017 <https://cocodataset.org/#home>` validation set (it's
 # smaller, and thus faster to download than the full training set. Training on the full data set
 # would yield better results). Note that there are some cars in the COCO 2017 data set, but it's
 # a small enough fraction not to matter - just keep in mind that this will drive down our percieved
@@ -166,22 +168,22 @@ for category in ["object", "random"]:
 # ----------------
 # Currently, our data is stored on-disk as JPG files of various sizes. To train with it, we'll have
 # to load the images into memory, resize them to be 64x64, and convert them to raw, uncompressed
-# data. Keras's `image_dataset_from_directory` will take care of most of this, though it loads
+# data. Keras's ``image_dataset_from_directory`` will take care of most of this, though it loads
 # images such that each pixel value is a float from 0 to 255.
 #
 # We'll also need to load labels, though Keras will help with this. From our subdirectory structure,
-#  it knows the images in `/objects` are one class, and those in `/random` another. Setting
-# `label_mode='categorical'` tells Keras to convert these into **categorical labels** - a 2x1 vector
-#  that's either `[1, 0]` for an object of our target class, or `[0, 1]` vector for anything else.
-# We'll also set `shuffle=True` to randomize the order of our examples.
+# it knows the images in ``/objects`` are one class, and those in ``/random`` another. Setting
+# ``label_mode='categorical'`` tells Keras to convert these into **categorical labels** - a 2x1 vector
+# that's either ``[1, 0]`` for an object of our target class, or ``[0, 1]`` vector for anything else.
+# We'll also set ``shuffle=True`` to randomize the order of our examples.
 #
 # We will also **batch** the data - grouping samples into clumps to make our training go faster.
-# Setting `batch_size = 32` is a decent number.
+# Setting ``batch_size = 32`` is a decent number.
 #
 # Lastly, in machine learning we generally want our inputs to be small numbers. We'll thus use a
-# `Rescaling` layer to change our images such that each pixel is a float between `0.0` and `1.0`,
-# instead of `0` to `255`. We need to be careful not to rescale our categorical labels though, so
-# we'll use a `lambda` function.
+# ``Rescaling`` layer to change our images such that each pixel is a float between ``0.0`` and ``1.0``,
+# instead of ``0`` to ``255``. We need to be careful not to rescale our categorical labels though, so
+# we'll use a ``lambda`` function.
 
 import tensorflow as tf
 
@@ -200,7 +202,7 @@ full_dataset = unscaled_dataset.map(lambda im, lbl: (rescale(im), lbl))
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^
 # Before giving this data set to our neural network, we ought to give it a quick visual inspection.
 # Does the data look properly transformed? Do the labels seem appropriate? And what's our ratio of
-# objects to other stuff? We can display some examples from our datasets using `matplotlib`:
+# objects to other stuff? We can display some examples from our datasets using ``matplotlib``:
 
 import matplotlib.pyplot as plt
 from os import listdir
@@ -237,8 +239,8 @@ validation_dataset = full_dataset.skip(len(train_dataset))
 ######################################################################
 # Loading the Data
 # ----------------
-# In the past decade, `convolutional neural networks`<https://en.wikipedia.org/wiki/Convolutional_neural_network> have been widely
-# adopted for image classification tasks. State-of-the-art models like `EfficientNet V2`<https://arxiv.org/abs/2104.00298> are able
+# In the past decade, `convolutional neural networks <https://en.wikipedia.org/wiki/Convolutional_neural_network>`_ have been widely
+# adopted for image classification tasks. State-of-the-art models like `EfficientNet V2 <https://arxiv.org/abs/2104.00298>`_ are able
 # to perform image classification better than even humans! Unfortunately, these models have tens of
 # millions of parameters, and thus won't fit on cheap security camera computers.
 #
@@ -257,13 +259,13 @@ validation_dataset = full_dataset.skip(len(train_dataset))
 #
 # What is Transfer Learning?
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^
-# Deep learning has `dominated image classification`<https://paperswithcode.com/sota/image-classification-on-imagenet> for a long time,
+# Deep learning has `dominated image classification <https://paperswithcode.com/sota/image-classification-on-imagenet>`_ for a long time,
 # but training neural networks takes a lot of time. When a neural network is trained "from scratch",
 # its parameters start out randomly initialized, forcing it to learn very slowly how to tell images
 # apart.
 #
 # With transfer learning, we instead start with a neural network that's **already** good at a
-# specific task. In this example, that task is classifying images from `the ImageNet database`<https://www.image-net.org/>. This
+# specific task. In this example, that task is classifying images from `the ImageNet database <https://www.image-net.org/>`_. This
 # means the network already has some object detection capabilities, and is likely closer to what you
 # want then a random model would be.
 #
@@ -278,7 +280,7 @@ validation_dataset = full_dataset.skip(len(train_dataset))
 # conglomerate model for a few epochs on our cars vs non-cars dataset, to fine tune the first layers
 # and train from scratch the last layers.
 #
-# Source MobileNets for transfer learning have been `pretrained by the Tensorflow folks`<https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.md>, so we
+# Source MobileNets for transfer learning have been `pretrained by the Tensorflow folks <https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.md>`_, so we
 # can just download the one closest to what we want (the 128x128 input model with 0.25 depth scale).
 #
 #     .. code-block:: bash
@@ -325,13 +327,13 @@ model.add(tf.keras.layers.Dense(2, activation='softmax'))
 # When training neural networks, we must set a parameter called the **learning rate** that controls
 # how fast our network learns. It must be set carefully - too slow, and our network will take
 # forever to train; too fast, and our network won't be able to learn some fine details. Generally
-# for Adam (the optimizer we're using), `0.001` is a pretty good learning rate (and is what's
-# recommended in the `original paper`<https://arxiv.org/abs/1412.6980>). However, in this case
-# `0.0005` seems to work a little better.
+# for Adam (the optimizer we're using), ``0.001`` is a pretty good learning rate (and is what's
+# recommended in the `original paper <https://arxiv.org/abs/1412.6980>`_). However, in this case
+# ``0.0005`` seems to work a little better.
 #
-# We'll also pass the validation set from earlier to `model.fit`. This will evaluate how good our
+# We'll also pass the validation set from earlier to ``model.fit``. This will evaluate how good our
 # model is each time we train it, and let us track how our model is improving. Once training is
-# finished, the model should have a validation accuracy around `0.98` (meaning it was right 98% of
+# finished, the model should have a validation accuracy around ``0.98`` (meaning it was right 98% of
 # the time on our validation set).
 
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0005),
@@ -344,7 +346,7 @@ model.fit(train_dataset, validation_data=validation_dataset, epochs=3, verbose=2
 # ------------
 # We've done a decent job of reducing our model's size so far - changing the input dimension,
 # along with removing the bottom layers reduced the model to just 219k parameters. However, each of
-# these parameters is a `float32` that takes four bytes, so our model will take up almost one MB!
+# these parameters is a ``float32`` that takes four bytes, so our model will take up almost one MB!
 #
 # Additionally, it might be the case that our hardware doesn't have built-in support for floating
 # point numbers. While most high-memory Arduinos (like the Nano 33 BLE) do have hardware support,
@@ -357,10 +359,10 @@ model.fit(train_dataset, validation_data=validation_dataset, epochs=3, verbose=2
 # while being relatively truthful to the original model.
 #
 # We will help TensorFlow do this by creating a representative dataset - a subset of the original
-# that is used for tracking how those neurons activate. We'll then pass this into a `TFLiteConverter`
-# (Keras itself does not have quantization support) with an `Optimize` flag to tell TFLite to perform
+# that is used for tracking how those neurons activate. We'll then pass this into a ``TFLiteConverter``
+# (Keras itself does not have quantization support) with an ``Optimize`` flag to tell TFLite to perform
 # the conversion. By default, TFLite keeps the inputs and outputs of our model as floats, so we must
-#  explicitly tell it to avoid this behavior.
+# explicitly tell it to avoid this behavior.
 
 converter = tf.lite.TFLiteConverter.from_keras_model(model)
 def representative_dataset():
@@ -379,8 +381,8 @@ quantized_model = converter.convert()
 # Download the Model if Desired
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 # We've now got a finished model, that you can use locally or in other tutorials (try autotuning
-# this model or viewing it on `https://netron.app/`<https://netron.app/>. If you're running this
-# tutorial on Google Colab, then the code below will let you download your `.tflite` model.
+# this model or viewing it on `https://netron.app/ <https://netron.app/>`_. If you're running this
+# tutorial on Google Colab, then the code below will let you download your ``.tflite`` model.
 #
 #     .. code-block:: python
 #
@@ -394,16 +396,16 @@ quantized_model = converter.convert()
 ######################################################################
 # Compiling With TVM For Arduino
 # ------------------------------
-# Tensorflow has a built-in framework for deploying to microcontrollers - `TFLite Micro`<https://www.tensorflow.org/lite/microcontrollers>. However,
+# Tensorflow has a built-in framework for deploying to microcontrollers - `TFLite Micro <https://www.tensorflow.org/lite/microcontrollers>`_. However,
 # it's poorly supported by development boards, and does not support autotuning. We will use Apache
 # TVM instead.
 #
-# TVM can be used either with its command line interface (`tvmc`) or with its Python interface. The
+# TVM can be used either with its command line interface (``tvmc``) or with its Python interface. The
 # Python interface is fully-featured and more stable, so we'll use it here.
 #
 # TVM is an optimizing compiler, and optimizations to our model are performed in stages via
-# **intermediate representations**. The first of these is `Relay`<https://arxiv.org/abs/1810.00952> a high-level intermediate
-# representation emphasizing portability. The conversion from `.tflite` to Relay is done without any
+# **intermediate representations**. The first of these is `Relay <https://arxiv.org/abs/1810.00952>`_ a high-level intermediate
+# representation emphasizing portability. The conversion from ``.tflite`` to Relay is done without any
 # knowledge of our "end goal" - the fact we intend to run this model on an Arduino.
 #
 # Choosing an Arduino Board
@@ -424,14 +426,15 @@ quantized_model = converter.convert()
 # ^^^^^^^^^^^^^^^^^^^^^^
 # Next, we'll compile the model to TVM's MLF (machine learning format) intermediate representation,
 # which consists of C/C++ code and is designed for autotuning. To improve performance, we'll tell
-# TVM that we're compiling for the `nrf52840` microprocessor (the one the Nano 33 BLE uses). We'll
-# also tell it to use the C runtime (abbreviated `crt`) and to use ahead-of-time memory allocation
-# (abbreviated `aot`, which helps reduce the model's memory footprint). Lastly, we will disable
-# vectorization with `"tir.disable_vectorize": True`, as C has no native vectorized types.
+# TVM that we're compiling for the ``nrf52840`` microprocessor (the one the Nano 33 BLE uses). We'll
+# also tell it to use the C runtime (abbreviated ``crt``) and to use ahead-of-time memory allocation
+# (abbreviated ``aot``, which helps reduce the model's memory footprint). Lastly, we will disable
+# vectorization with ``"tir.disable_vectorize": True``, as C has no native vectorized types.
 #
-# Once we have set these configuration parameters, we will call `tvm.relay.build` to compile our
+# Once we have set these configuration parameters, we will call ``tvm.relay.build`` to compile our
 # Relay model into the MLF intermediate representation. From here, we just need to call
-# `tvm.micro.generate_project` and pass in the Arduino template project to finish compilation.
+# ``tvm.micro.generate_project`` and pass in the Arduino template project to finish compilation.
+
 import shutil
 import tflite
 import tvm
@@ -478,11 +481,11 @@ arduino_project = tvm.micro.generate_project(
 # on them both.
 #
 # Currently, these are 224x224 PNG images we can download from Imgur. Before we can feed in these
-# images, we'll need to resize and convert them to raw data, which can be done with `imagemagick`.
+# images, we'll need to resize and convert them to raw data, which can be done with ``imagemagick``.
 #
 # It's also challenging to load raw data onto an Arduino, as only C/CPP files (and similar) are
 # compiled. We can work around this by embedding our raw data in a hard-coded C array with the
-# built-in utility `bin2c`, that will output a file resembling the following:
+# built-in utility ``bin2c``, that will output a file resembling the following:
 #
 #     .. code-block:: c
 #
@@ -511,7 +514,7 @@ arduino_project = tvm.micro.generate_project(
 # Writing our Arduino Script
 # --------------------------
 # We now need a little bit of Arduino code to read the two binary arrays we just generated, run the
-# model on them, and log the output to the serial monitor. This file will replace `arduino_sketch.ino`
+# model on them, and log the output to the serial monitor. This file will replace ``arduino_sketch.ino``
 # as the main file of our sketch. You'll have to copy this code in manually.
 #
 #     .. code-block:: bash
@@ -543,7 +546,7 @@ arduino_project = tvm.micro.generate_project(
 # Compiling our Code
 # ^^^^^^^^^^^^^^^^^^
 # Now that our project has been generated, TVM's job is mostly done! We can still call
-# `arduino_project.build()` and `arduino_project.upload()`, but these just use `arduino-cli`'s
+# ``arduino_project.build()`` and ``arduino_project.upload()``, but these just use ``arduino-cli``'s
 # compile and flash commands underneath. We could also begin autotuning our model, but that's a
 # subject for a different tutorial. To finish up, we'll first test that our program compiles does
 # not throw any compiler errors:
@@ -579,5 +582,5 @@ print("Compilation succeeded!")
 # Next Steps
 # ^^^^^^^^^^
 # From here, we could modify the model to read live images from the camera - we have another
-# Arduino tutorial for how to do that `on GitHub`<https://github.com/guberti/tvm-arduino-demos/tree/master/examples/person_detection>. Alternatively, we could also
-# `use TVM's autotuning capabilities`<https://tvm.apache.org/docs/how_to/work_with_microtvm/micro_autotune.html> to dramatically improve the model's performance.
+# Arduino tutorial for how to do that `on GitHub <https://github.com/guberti/tvm-arduino-demos/tree/master/examples/person_detection>`_. Alternatively, we could also
+# `use TVM's autotuning capabilities <https://tvm.apache.org/docs/how_to/work_with_microtvm/micro_autotune.html>`_ to dramatically improve the model's performance.
