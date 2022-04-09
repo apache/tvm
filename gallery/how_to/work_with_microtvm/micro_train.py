@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-.. _microTVM-with-TFLite:
+.. _microtvm-train-arduino:
 
 Training Vision Models for microTVM
-===========================
+===================================
 **Author**: `Gavin Uberti <https://github.com/guberti>`_
 
 This tutorial shows how MobileNetV1 models can be trained
@@ -28,11 +28,12 @@ deployed to Arduino using TVM.
 
 ######################################################################
 # .. note::
-#     # This tutorial is best viewed as a Jupyter Notebook. You can download and run it locally
-#     # using the link at the bottom of this page, or open it online for free using Google Colab.
+#
+#   This tutorial is best viewed as a Jupyter Notebook. You can download and run it locally
+#   using the link at the bottom of this page, or open it online for free using Google Colab.
 #
 # Motivation
-# -----
+# ----------
 # When building IOT devices, we often want them to **see and understand** the world around them.
 # This can take many forms, but often times a device will want to know if a certain **kind of
 # object** is in its field of vision. For example:
@@ -52,7 +53,9 @@ deployed to Arduino using TVM.
 # To run this tutorial, we will need Tensorflow and TFLite to train our model, pyserial and tlcpack
 # (a community build of TVM) to compile and test it, and imagemagick and curl to preprocess data.
 # We will also need to install the Arduino CLI and the mbed_nano package to test our model.
+#
 #     .. code-block:: bash
+#
 #       pip install -q tensorflow tflite pyserial
 #       pip install -q tlcpack-nightly -f https://tlcpack.ai/wheels
 #       apt-get -qq install imagemagick curl
@@ -64,7 +67,6 @@ deployed to Arduino using TVM.
 #
 # Using the GPU
 # ^^^^^^^^^^^^^
-#
 # This tutorial demonstrates training a neural network, which is requires a lot of computing power
 # and will go much faster if you have a GPU. If you are viewing this tutorial on Google Colab, you
 # can enable a GPU by going to **Runtime->Change runtime type** and selecting "GPU" as our hardware
@@ -80,8 +82,20 @@ else:
   print("GPU detected - you're good to go.")
 
 ######################################################################
+# Choosing Our Work Dir
+# ^^^^^^^^^^^^^^^^^^^^^
+# We need to pick a directory where our image datasets, trained model, and eventual Arduino sketch
+# will all live. If running on Google Colab, we'll save everything in `/root` (aka `~`) but you'll
+# probably want to store it elsewhere if running locally.
+
+FOLDER = "/root"
+#.. testsetup::
+import tempfile
+FOLDER = tempfile.mkdtemp()
+
+######################################################################
 # Downloading the Data
-# -----
+# --------------------
 # Convolutional neural networks usually learn by looking at many images, along with labels telling
 # the network what those images are. To get these images, we'll need a publicly available dataset
 # with thousands of images of all sorts of objects and labels of what's in each image. We'll also
@@ -122,23 +136,34 @@ else:
 # during training to correct for this, but training will still work if we ignore it. It should
 # take about **2 minutes** to download the Stanford Cars, while COCO 2017 validation will take
 # **1 minute**.
-
+#
 #     .. code-block:: bash
 #
 #       # Download and extract our car images
-#       mkdir -p /root/images/object/
-#       curl "http://ai.stanford.edu/~jkrause/car196/car_ims.tgz" -o ~/images/object.tgz
-#       tar -xf ~/images/object.tgz --strip-components 1 -C ~/images/object#
+#       mkdir -p {FOLDER}/images/object/
+#       curl "http://ai.stanford.edu/~jkrause/car196/car_ims.tgz" -o {FOLDER}/images/object.tgz
+#       tar -xf {FOLDER}/images/object.tgz --strip-components 1 -C {FOLDER}/images/object#
 #
 #       # Download and extract other images
-#       mkdir -p /root/images/random/
-#       curl "http://images.cocodataset.org/zips/val2017.zip" -o ~/images/random.zip
-#       unzip -jqo ~/images/random.zip -d ~/images/random
+#       mkdir -p {FOLDER}/images/random/
+#       curl "http://images.cocodataset.org/zips/val2017.zip" -o {FOLDER}/images/random.zip
+#       unzip -jqo {FOLDER}/images/random.zip -d {FOLDER}/images/random
 
+
+#.. doctest::
+import os
+os.mkdir(FOLDER + "/images")
+os.mkdir(FOLDER + "/images/object")
+os.mkdir(FOLDER + "/images/random")
+from PIL import Image
+for category in ["object", "random"]:
+  for i in range(48):
+    img = Image.new("RGB", (100, 100), (255, 255, 255))
+    img.save(FOLDER + f"/images/{category}/{i:05d}.jpg", "JPEG")
 
 ######################################################################
 # Loading the Data
-# -----
+# ----------------
 # Currently, our data is stored on-disk as JPG files of various sizes. To train with it, we'll have
 # to load the images into memory, resize them to be 64x64, and convert them to raw, uncompressed
 # data. Keras's `image_dataset_from_directory` will take care of most of this, though it loads
@@ -149,7 +174,10 @@ else:
 # `label_mode='categorical'` tells Keras to convert these into **categorical labels** - a 2x1 vector
 #  that's either `[1, 0]` for an object of our target class, or `[0, 1]` vector for anything else.
 # We'll also set `shuffle=True` to randomize the order of our examples.
-
+#
+# We will also **batch** the data - grouping samples into clumps to make our training go faster.
+# Setting `batch_size = 32` is a decent number.
+#
 # Lastly, in machine learning we generally want our inputs to be small numbers. We'll thus use a
 # `Rescaling` layer to change our images such that each pixel is a float between `0.0` and `1.0`,
 # instead of `0` to `255`. We need to be careful not to rescale our categorical labels though, so
@@ -158,8 +186,8 @@ else:
 import tensorflow as tf
 
 unscaled_dataset = tf.keras.utils.image_dataset_from_directory(
-  "/root/images",
-  batch_size=None,
+  FOLDER + "/images",
+  batch_size=32,
   shuffle=True,
   label_mode='categorical',
   image_size=(96, 96),
@@ -177,12 +205,12 @@ full_dataset = unscaled_dataset.map(lambda im, lbl: (rescale(im), lbl))
 import matplotlib.pyplot as plt
 from os import listdir
 
-print("/images/random contains %d images" % len(listdir("/root/images/random/")))
-print("/images/target contains %d images" % len(listdir("/root/images/object/")))
+print("/images/random contains %d images" % len(listdir(FOLDER + "/images/random/")))
+print("/images/target contains %d images" % len(listdir(FOLDER + "/images/object/")))
 
 SAMPLES_TO_SHOW = 10
 plt.figure(figsize=(20, 10))
-for i, (image, label) in enumerate(unscaled_dataset):
+for i, (image, label) in enumerate(unscaled_dataset.unbatch()):
   if i >= SAMPLES_TO_SHOW:
     break
   ax = plt.subplot(1, SAMPLES_TO_SHOW, i + 1)
@@ -201,18 +229,14 @@ for i, (image, label) in enumerate(unscaled_dataset):
 #
 # To prevent this, we will set aside some of the data (we'll use 20%) as a **validation set**. Our
 # model will never be trained on validation data - we'll only use it to check our model's accuracy.
-#
-# We will also **batch** the data - grouping samples into clumps to make our training go faster.
-# Setting `BATCH_SIZE = 32` is a decent number.
 
-BATCH_SIZE = 32
-num_images = len(full_dataset)
-train_dataset = full_dataset.take(int(num_images * 0.8)).batch(BATCH_SIZE)
-validation_dataset = full_dataset.skip(len(train_dataset)).batch(BATCH_SIZE)
+num_batches = len(full_dataset)
+train_dataset = full_dataset.take(int(num_batches * 0.8))
+validation_dataset = full_dataset.skip(len(train_dataset))
 
 ######################################################################
 # Loading the Data
-# -----
+# ----------------
 # In the past decade, `convolutional neural networks`<https://en.wikipedia.org/wiki/Convolutional_neural_network> have been widely
 # adopted for image classification tasks. State-of-the-art models like `EfficientNet V2`<https://arxiv.org/abs/2104.00298> are able
 # to perform image classification better than even humans! Unfortunately, these models have tens of
@@ -256,14 +280,21 @@ validation_dataset = full_dataset.skip(len(train_dataset)).batch(BATCH_SIZE)
 #
 # Source MobileNets for transfer learning have been `pretrained by the Tensorflow folks`<https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.md>, so we
 # can just download the one closest to what we want (the 128x128 input model with 0.25 depth scale).
+#
+#     .. code-block:: bash
+#
+#       mkdir -p {FOLDER}/models
+#       curl "https://storage.googleapis.com/tensorflow/keras-applications/mobilenet/mobilenet_2_5_128_tf.h5" \
+#         -o {FOLDER}/models/mobilenet_2_5_128_tf.h5
 
-!mkdir -p /root/models
-!curl "https://storage.googleapis.com/tensorflow/keras-applications/mobilenet/mobilenet_2_5_128_tf.h5" \
-  -o ~/models/mobilenet_2_5_128_tf.h5
 IMAGE_SIZE = (96, 96, 3)
+WEIGHTS_PATH = FOLDER + "/models/mobilenet_2_5_128_tf.h5"
+#.. doctest::
+os.mkdir(FOLDER + "/models")
+WEIGHTS_PATH = None
 pretrained = tf.keras.applications.MobileNet(
     input_shape = IMAGE_SIZE,
-    weights = "/root/models/mobilenet_2_5_128_tf.h5",
+    weights = WEIGHTS_PATH,
     alpha = 0.25
 )
 
@@ -333,8 +364,8 @@ model.fit(train_dataset, validation_data=validation_dataset, epochs=3, verbose=2
 
 converter = tf.lite.TFLiteConverter.from_keras_model(model)
 def representative_dataset():
-  for input_value in full_dataset.batch(1).take(100):
-    yield [input_value[0]]
+  for image_batch, label_batch in full_dataset.take(3):
+    yield [image_batch]
 
 converter.optimizations = [tf.lite.Optimize.DEFAULT]
 converter.representative_dataset = representative_dataset
@@ -352,11 +383,13 @@ quantized_model = converter.convert()
 # tutorial on Google Colab, then the code below will let you download your `.tflite` model.
 #
 #     .. code-block:: python
+#
 #       from google.colab import files
 #       QUANTIZED_MODEL_PATH = '/root/models/quantized.tflite'
 #       with open(QUANTIZED_MODEL_PATH, 'wb') as f:
 #         f.write(quantized_model)
 #       files.download(QUANTIZED_MODEL_PATH)
+#
 
 ######################################################################
 # Compiling With TVM For Arduino
@@ -399,11 +432,17 @@ quantized_model = converter.convert()
 # Once we have set these configuration parameters, we will call `tvm.relay.build` to compile our
 # Relay model into the MLF intermediate representation. From here, we just need to call
 # `tvm.micro.generate_project` and pass in the Arduino template project to finish compilation.
+import shutil
 import tflite
 import tvm
 
+# Method to load model is different in TFLite 1 vs 2
+try: # TFLite 2.1 and above
+    tflite_model = tflite.Model.GetRootAsModel(quantized_model, 0)
+except AttributeError: # Fall back to TFLite 1.14 method
+    tflite_model = tflite.Model.Model.GetRootAsModel(quantized_model, 0)
+
 # Convert to the Relay intermediate representation
-tflite_model = tflite.Model.GetRootAsModel(quantized_model, 0)
 mod, params = tvm.relay.frontend.from_tflite(tflite_model)
 
 # Set configuration flags to improve performance
@@ -416,11 +455,14 @@ with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": Tru
     mod = tvm.relay.build(mod, target, runtime=runtime, executor=executor, params=params)
 
 # Generate an Arduino project from the MLF intermediate representation
-!rm -rf /root/models/project
+from unittest.mock import create_autospec, MagicMock
+tvm.micro.generate_project = create_autospec(tvm.micro.generate_project, return_value=MagicMock())
+
+shutil.rmtree(FOLDER + "/models/project", ignore_errors=True)
 arduino_project = tvm.micro.generate_project(
     tvm.micro.get_microtvm_template_projects("arduino"),
     mod,
-    '/root/models/project',
+    FOLDER + "/models/project",
     {
         "arduino_board": "nano33ble",
         "arduino_cli_cmd": "/content/bin/arduino-cli",
@@ -442,7 +484,8 @@ arduino_project = tvm.micro.generate_project(
 # compiled. We can work around this by embedding our raw data in a hard-coded C array with the
 # built-in utility `bin2c`, that will output a file resembling the following:
 #
-#     .. code-block:: c++
+#     .. code-block:: c
+#
 #       static const unsigned char CAR_IMAGE[] = {
 #         0x22,0x23,0x14,0x22,
 #         ...
@@ -452,6 +495,7 @@ arduino_project = tvm.micro.generate_project(
 # We can do both of these things with a few lines of Bash code:
 #
 #     .. code-block:: bash
+#
 #       mkdir -p /root/tests
 #       curl "https://i.imgur.com/JBbEhxN.png" -o ~/tests/car_224.png
 #       convert ~/tests/car_224.png -resize 64 ~/tests/car_64.png
@@ -471,29 +515,30 @@ arduino_project = tvm.micro.generate_project(
 # as the main file of our sketch. You'll have to copy this code in manually.
 #
 #     .. code-block:: bash
-#       #include "src/model.h"
-#       #include "car.c"
-#       #include "catan.c"
+
+#         #include "src/model.h"
+#         #include "car.c"
+#         #include "catan.c"
 #
-#       void setup() {
-#         Serial.begin(9600);
-#         TVMInitialize();
-#       }
+#         void setup() {
+#           Serial.begin(9600);
+#           TVMInitialize();
+#         }
 #
-#       void loop() {
-#         uint8_t result_data[2];
-#         Serial.println("Car results:");
-#         TVMExecute(const_cast<uint8_t*>(CAR_IMAGE), result_data);
-#         Serial.print(result_data[0]); Serial.print(", ");
-#         Serial.print(result_data[1]); Serial.println();
+#         void loop() {
+#           uint8_t result_data[2];
+#           Serial.println("Car results:");
+#           TVMExecute(const_cast<uint8_t*>(CAR_IMAGE), result_data);
+#           Serial.print(result_data[0]); Serial.print(", ");
+#           Serial.print(result_data[1]); Serial.println();
 #
-#         Serial.println("Other object results:");
-#         TVMExecute(const_cast<uint8_t*>(CATAN_IMAGE), result_data);
-#         Serial.print(result_data[0]); Serial.print(", ");
-#         Serial.print(result_data[1]); Serial.println();
+#           Serial.println("Other object results:");
+#           TVMExecute(const_cast<uint8_t*>(CATAN_IMAGE), result_data);
+#           Serial.print(result_data[0]); Serial.print(", ");
+#           Serial.print(result_data[1]); Serial.println();
 #
-#         delay(1000);
-#       }
+#           delay(1000);
+#         }
 #
 # Compiling our Code
 # ^^^^^^^^^^^^^^^^^^
@@ -504,7 +549,6 @@ arduino_project = tvm.micro.generate_project(
 # not throw any compiler errors:
 
 arduino_project.build()
-arduino_project.upload()
 print("Compilation succeeded!")
 
 ######################################################################
@@ -513,6 +557,7 @@ print("Compilation succeeded!")
 # If all works as expected, you should see the following output on a Serial monitor:
 #
 #     .. code-block::
+#
 #       Car results:
 #       255, 0
 #       Other object results:
