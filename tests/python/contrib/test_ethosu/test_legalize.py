@@ -102,15 +102,21 @@ def test_split_indices_legalize():
         """
         return tvm.parser.fromtext(expected_ir_string)
 
+    rewrite_split = [legalize.PartitionedSplitRewriter(), legalize.SplitRewriter()]
+
     mod_axis1 = tvm.IRModule()
-    mod_axis1["tvmgen_default_ethos_u_main_0"] = create_graph(1)
-    mod_axis1 = legalize.LegalizeSplit()(mod_axis1)
+    func = create_graph(1)
+    for r in rewrite_split:
+        func = dataflow_pattern.rewrite(r, func)
+    mod_axis1["tvmgen_default_ethos_u_main_0"] = func
     expected_axis1 = expected_mod_axis1()
     tvm.ir.assert_structural_equal(mod_axis1, expected_axis1)
 
     mod_axis2 = tvm.IRModule()
-    mod_axis2["tvmgen_default_ethos_u_main_0"] = create_graph(2)
-    mod_axis2 = legalize.LegalizeSplit()(mod_axis2)
+    func = create_graph(2)
+    for r in rewrite_split:
+        func = dataflow_pattern.rewrite(r, func)
+    mod_axis2["tvmgen_default_ethos_u_main_0"] = func
     expected_axis2 = expected_mod_axis2()
     tvm.ir.assert_structural_equal(mod_axis2, expected_axis2)
 
@@ -198,31 +204,23 @@ def test_split_sections_legalize():
         """
         return tvm.parser.fromtext(expected_ir_string)
 
+    rewrite_split = [legalize.PartitionedSplitRewriter(), legalize.SplitRewriter()]
+
     mod_axis1 = tvm.IRModule()
-    mod_axis1["tvmgen_default_ethos_u_main_0"] = create_graph(1, 5)
-    mod_axis1 = legalize.LegalizeSplit()(mod_axis1)
+    func = create_graph(1, 5)
+    for r in rewrite_split:
+        func = dataflow_pattern.rewrite(r, func)
+    mod_axis1["tvmgen_default_ethos_u_main_0"] = func
     expected_axis1 = expected_mod_axis1()
     tvm.ir.assert_structural_equal(mod_axis1, expected_axis1)
 
     mod_axis2 = tvm.IRModule()
-    mod_axis2["tvmgen_default_ethos_u_main_0"] = create_graph(2, 5)
-    mod_axis2 = legalize.LegalizeSplit()(mod_axis2)
+    func = create_graph(2, 5)
+    for r in rewrite_split:
+        func = dataflow_pattern.rewrite(r, func)
+    mod_axis2["tvmgen_default_ethos_u_main_0"] = func
     expected_axis2 = expected_mod_axis2()
     tvm.ir.assert_structural_equal(mod_axis2, expected_axis2)
-
-
-def infer_type_function_pass(func):
-    mod = tvm.IRModule()
-    mod["test"] = func
-    mod = relay.transform.InferType()(mod)
-    return mod["test"]
-
-
-def get_shape_expr(in_expr, out_expr):
-    main_f = relay.Function([in_expr], out_expr)
-    main_f = infer_type_function_pass(main_f)
-    shape = [int(i) for i in main_f.body.checked_type.shape]
-    return shape
 
 
 INVERSE_LAYOUT_TRANSFORM_OHWI_MAP = {
@@ -861,7 +859,7 @@ def test_relay_reshape_legalize(ifm_shape, new_shape):
         ([5000], [123], [2151]),
     ],
 )
-def test_tflite_strided_slice(ifm_shape, begin, size):
+def test_tflite_slice(ifm_shape, begin, size):
     dtype = "int8"
 
     def create_tflite_graph():
@@ -901,6 +899,81 @@ def test_tflite_strided_slice(ifm_shape, begin, size):
         assert strided_slice.op.name == "strided_slice"
 
         # check that identity's output shape matches strided slice's output shape
+        assert list(identity.checked_type.shape) == size
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+    mod, _ = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+
+    strided_slice_pattern_table = [
+        (
+            ethosu.StridedSliceParams.composite_name,
+            ethosu.strided_slice_pattern(),
+            lambda pat: ethosu.StridedSliceParams(pat).is_valid(),
+        ),
+    ]
+    mod = partition_ethosu_by_table(mod, strided_slice_pattern_table)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.StridedSliceRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.NoOpRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    mod = relay.transform.InferType()(mod)
+
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+@pytest.mark.parametrize(
+    "ifm_shape, begin, end",
+    [([1, 1, 5, 8], [0, 0, 0, 0], [1, 1, 2, 3]), ([1, 3, 3], [0, 1, 2], [1, 2, 3])],
+)
+def test_tflite_strided_slice(ifm_shape, begin, end):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def strided_slice_func(self, x):
+                return tf.strided_slice(x, begin, end)
+
+        model = Model()
+
+        # Save the model
+        concrete_func = model.strided_slice_func.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    def verify(ext_func):
+        identity = ext_func.body
+        assert identity.op.name == "contrib.ethosu.identity"
+
+        # check that the strided_slice is still there
+        strided_slice = identity.args[0]
+        assert strided_slice.op.name == "strided_slice"
+
+        # check that identity's output shape matches strided slice's output shape
+        size = list(np.array(end) - np.array(begin))
         assert list(identity.checked_type.shape) == size
 
     tflite_graph = create_tflite_graph()
@@ -2343,6 +2416,109 @@ def test_tflite_leaky_relu(ifm_shape, alpha):
     mod["tvmgen_default_ethos_u_main_0"] = relay.transform.InferType()(mod)[
         "tvmgen_default_ethos_u_main_0"
     ]
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+@pytest.mark.parametrize("ifm_shape", [(1, 14), (1, 151)])
+@pytest.mark.parametrize("ofm_channels", [32, 64])
+@pytest.mark.parametrize("use_bias", [True, False])
+@pytest.mark.parametrize("activation_function", ["RELU", "NONE"])
+def test_tflite_fully_connected(
+    ifm_shape,
+    ofm_channels,
+    use_bias,
+    activation_function,
+):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def fully_connected(self, x):
+                bias_shape = ofm_channels
+                bias = tf.constant(np.random.uniform(size=bias_shape), dtype=tf.float32)
+                w = tf.constant(
+                    np.random.uniform(size=[ifm_shape[1], ofm_channels]),
+                    dtype=tf.float32,
+                )
+                x = tf.matmul(x, w)
+                if use_bias:
+                    x = tf.nn.bias_add(x, bias)
+                if activation_function:
+                    x = tf.nn.relu(x)
+                return x
+
+        model = Model()
+        concrete_func = model.fully_connected.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    def verify(ext_func):
+        op = ext_func.body.args[0]
+        ofm_channels = op.attrs.ofm_channels
+
+        # check IFM
+        ifm = op.args[0].checked_type
+        assert list(ifm.shape) == [1, 1] + list(ifm_shape)
+        assert str(ifm.dtype) == dtype
+
+        # check OFM
+        ofm = op.checked_type
+        assert list(ofm.shape) == [1, 1, 1, ofm_channels]
+        assert str(ofm.dtype) == dtype
+
+        # check weights
+        weights_ohwi = op.args[1].data.asnumpy()
+        assert str(weights_ohwi.dtype) == dtype
+        assert list(weights_ohwi.shape) == [ofm_channels, 1, 1, ifm_shape[1]]
+
+        # Check that scale_bias matches weight tensor
+        assert list(op.args[2].checked_type.shape)[0] == ofm_channels
+
+        assert list(op.attrs.padding) == [0, 0, 0, 0]
+        assert list(op.attrs.strides) == [1, 1]
+        assert list(op.attrs.dilation) == [1, 1]
+        if activation_function == "RELU":
+            assert str(op.attrs.activation) == "CLIP"
+
+    fc_pattern_table = [
+        (
+            ethosu.FullyConnectedParams.composite_name,
+            ethosu.qnn_fc_pattern(),
+            lambda pat: ethosu.FullyConnectedParams(pat).is_valid(),
+        )
+    ]
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, fc_params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+
+    mod["main"] = bind_params_by_name(mod["main"], fc_params)
+    mod = partition_ethosu_by_table(mod, fc_pattern_table)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.FullyConnectedRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 

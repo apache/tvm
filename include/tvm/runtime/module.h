@@ -217,6 +217,8 @@ TVM_DLL bool RuntimeEnabled(const std::string& target);
 
 /*! \brief namespace for constant symbols */
 namespace symbol {
+/*! \brief A PackedFunc that retrieves exported metadata. */
+constexpr const char* tvm_get_c_metadata = "get_c_metadata";
 /*! \brief Global variable to store module context. */
 constexpr const char* tvm_module_ctx = "__tvm_module_ctx";
 /*! \brief Global variable to store device module blob */
@@ -247,6 +249,14 @@ inline ModuleNode* Module::operator->() { return static_cast<ModuleNode*>(get_mu
 
 inline const ModuleNode* Module::operator->() const {
   return static_cast<const ModuleNode*>(get());
+}
+
+inline std::ostream& operator<<(std::ostream& out, const Module& module) {
+  out << "Module(type_key= ";
+  out << module->type_key();
+  out << ")";
+
+  return out;
 }
 
 }  // namespace runtime

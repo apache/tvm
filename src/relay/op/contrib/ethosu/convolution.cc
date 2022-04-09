@@ -31,96 +31,13 @@
 
 #include "../../../qnn/utils.h"
 #include "common.h"
+#include "op_attrs.h"
 
 namespace tvm {
 namespace relay {
 namespace op {
 namespace contrib {
 namespace ethosu {
-
-/*! \brief Attributes used by the Ethos(TM)-U NPU convolution operator */
-struct EthosuConv2DAttrs : public tvm::AttrsNode<EthosuConv2DAttrs> {
-  double ifm_scale;
-  int ifm_zero_point;
-  int weight_zero_point;
-  double ofm_scale;
-  int ofm_zero_point;
-  Array<IndexExpr> kernel_shape;
-  IndexExpr ofm_channels;
-  Array<IndexExpr> strides;
-  Array<IndexExpr> padding;
-  Array<IndexExpr> dilation;
-  String activation;
-  int clip_min;
-  int clip_max;
-  String rounding_mode;
-  String upscale;
-  String ifm_layout;
-  String ofm_layout;
-
-  TVM_DECLARE_ATTRS(EthosuConv2DAttrs, "relay.attrs.EthosuConv2DAttrs") {
-    TVM_ATTR_FIELD(ifm_scale).describe("The quantization scale for the Input Feature Map tensor.");
-    TVM_ATTR_FIELD(ifm_zero_point)
-        .describe("The quantization zero point for the Input Feature Map tensor.");
-    TVM_ATTR_FIELD(weight_zero_point)
-        .describe("The quantization zero point for the weight tensor.");
-    TVM_ATTR_FIELD(ofm_scale).describe("The quantization scale for the Output Feature Map tensor.");
-    TVM_ATTR_FIELD(ofm_zero_point)
-        .describe("The quantization zero point for the Output Feature Map tensor.");
-    TVM_ATTR_FIELD(kernel_shape)
-        .describe("The 2 dimensional kernel shape as (kernel_height, kernel_width).")
-        .set_default(NullValue<Array<IndexExpr>>());
-    TVM_ATTR_FIELD(ofm_channels)
-        .describe("The number of the Output Feature Map channels.")
-        .set_default(NullValue<IndexExpr>());
-    TVM_ATTR_FIELD(strides)
-        .set_default(Array<IndexExpr>({1, 1}))
-        .describe("The 2 dimensional strides as (stride_height, stride_width).");
-    TVM_ATTR_FIELD(padding)
-        .set_default(Array<IndexExpr>({0, 0, 0, 0}))
-        .describe("The 4 dimensional padding as (pad_top, pad_left, pad_bottom, pad_right).");
-    TVM_ATTR_FIELD(dilation)
-        .set_default(Array<IndexExpr>({1, 1}))
-        .describe("The 2 dimensional dilation as (dilation_height, dilation_width).");
-    TVM_ATTR_FIELD(activation)
-        .describe(
-            "The activation function to use. "
-            "'NONE' - no activation function. "
-            "'CLIP' - clip the output between clip_min and clip_max. "
-            "'TANH' - tanh activation function. "
-            "'SIGMOID' - sigmoid activation function. "
-            "'LUT' - use a look-up table to perform the activation function.")
-        .set_default("NONE");
-    TVM_ATTR_FIELD(clip_min)
-        .describe("The minimum clipping value if activation = 'CLIP'.")
-        .set_default(0);
-    TVM_ATTR_FIELD(clip_max)
-        .describe("The maximum clipping value if activation = 'CLIP'.")
-        .set_default(0);
-    TVM_ATTR_FIELD(rounding_mode)
-        .describe(
-            "The rounding mode to apply to the Output Feature Map tensor. "
-            "'TFL' - Tensorflow Lite rounding scheme. "
-            "'TRUNCATE' - Truncate towards zero."
-            "'NATURAL' - Round to nearest value, with x.5 rounded up towards +infinity.")
-        .set_default("TFL");
-    TVM_ATTR_FIELD(upscale)
-        .describe(
-            "The 2x2 upscaling mode to apply to the Input Feature Map tensor. "
-            "'NONE' - no upscaling. "
-            "'NEAREST' - upscale using nearest neighbour. "
-            "'ZEROS' - upscale using zeros.")
-        .set_default("NONE");
-    TVM_ATTR_FIELD(ifm_layout)
-        .set_default("NHWC")
-        .describe("The layout of the Input Feature Map tensor. Can be 'NHWC' or 'NHCWB16'.");
-    TVM_ATTR_FIELD(ofm_layout)
-        .set_default("NHWC")
-        .describe("The layout of the Output Feature Map tensor. Can be 'NHWC' or 'NHCWB16'.");
-  }
-};
-
-TVM_REGISTER_NODE_TYPE(EthosuConv2DAttrs);
 
 bool EthosuConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {

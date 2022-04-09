@@ -78,7 +78,7 @@ jobs:
         python -m pytest -v tests/python/contrib/test_rpc_server_device.py
 
   Windows:
-    runs-on: windows-2016
+    runs-on: windows-2019
     steps:
     - uses: actions/checkout@v2
       with:
@@ -94,4 +94,3 @@ jobs:
       shell: cmd /C call {0}
       run: >-
         python -m pytest -v tests/python/all-platform-minimal-test
-

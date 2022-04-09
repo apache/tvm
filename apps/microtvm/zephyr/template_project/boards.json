@@ -1,4 +1,12 @@
 {
+    "b_u585i_iot02a": {
+        "board": "b_u585i_iot02a",
+        "model": "stm32u5xx",
+        "is_qemu": false,
+        "fpu": true,
+        "vid_hex": "0483",
+        "pid_hex": "374e"
+    },
     "mimxrt1050_evk": {
         "board": "mimxrt1050_evk",
         "model": "imxrt10xx",
@@ -12,6 +20,15 @@
         "model": "mps2_an521",
         "is_qemu": true,
         "fpu": false,
+        "vid_hex": "",
+        "pid_hex": ""
+    },
+    "mps3_an547": {
+        "board": "mps3_an547",
+        "model": "mps3_an547",
+        "is_qemu": true,
+        "fpu": false,
+        "note": "FPU is supported by mps3_an547, but full support for FPU+MVE is only available from QEMU v6.2.0 (not present in any zephyr-sdk yet), hence FPU is left disabled.",
         "vid_hex": "",
         "pid_hex": ""
     },

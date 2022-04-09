@@ -249,7 +249,23 @@ Pass SimplifyForFeatureExtraction() {
     static Stmt Run(Stmt stmt) { return Simplifier()(std::move(stmt)); }
 
    private:
-    PrimExpr VisitExpr_(const SelectNode* node) final { return make_const(node->dtype, 1.0); }
+    static bool HasBufferLoad(const PrimExpr& expr) {
+      bool found = false;
+      PostOrderVisit(expr, [&found](const ObjectRef& node) {
+        if (node->IsInstance<BufferLoadNode>()) {
+          found = true;
+        }
+      });
+      return found;
+    }
+
+    PrimExpr VisitExpr_(const SelectNode* node) final {
+      if (HasBufferLoad(node->true_value) || HasBufferLoad(node->false_value) ||
+          HasBufferLoad(node->condition)) {
+        return GetRef<Select>(node);
+      }
+      return make_const(node->dtype, 1.0);
+    }
 
     PrimExpr VisitExpr_(const VarNode* var) final {
       if (unit_vars_.count(GetRef<Var>(var))) {
@@ -1303,7 +1319,7 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
     auto f = [this, is_gpu, &candidates, &results](int, int task_id) -> void {
       const auto& candidate = candidates[task_id];
       std::vector<std::vector<double>> features;
-      ExtractSingle(candidate->sch->mod(), is_gpu, &features);
+      ExtractSingle(DeepCopyIRModule(candidate->sch->mod()), is_gpu, &features);
       results[task_id] = tir::utils::AsNDArray(features);
     };
     support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);

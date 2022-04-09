@@ -125,9 +125,9 @@ class PipelineModule(object):
         self._get_input_pipeline_map = self.module["get_input_pipeline_map"]
         self._get_pipe_execute_count = self.module["get_execute_count"]
 
-    def run(self, sync=False):
+    def run(self):
         """Run the pipeline executor."""
-        self._run(sync)
+        self._run()
 
     def get_input_pipeline_map(self, name):
         """Using the "name" to get the corresponding subgraph index and also get the "input name"
@@ -510,6 +510,7 @@ class PipelineConfig(object):
             self.target = None
             self.name = None
             self.dev = None
+            self.cpu_affinity = ""
             self.idx = None
             self.mod = mod
             self.input_params = InferType()(mod)["main"].params
@@ -685,6 +686,7 @@ class PipelineConfig(object):
                 output_conf.append(output)
 
             mconf["mod_idx"] = module.idx
+            mconf["cpu_affinity"] = module.cpu_affinity
             mconf["output"] = output_conf
 
             module_connection[mod] = {

@@ -16,11 +16,15 @@
 # under the License.
 
 # Be compatible with older version of CMake
-find_vulkan(${USE_VULKAN})
+find_vulkan(${USE_VULKAN} ${USE_KHRONOS_SPIRV})
 
 if(USE_VULKAN)
   if(NOT Vulkan_FOUND)
     message(FATAL_ERROR "Cannot find Vulkan, USE_VULKAN=" ${USE_VULKAN})
+  endif()
+  if (USE_SPIRV_KHR_INTEGER_DOT_PRODUCT)
+    add_definitions(-DTVM_SPIRV_KHR_INTEGER_DOT_PRODUCT=1)
+    message(STATUS "Enable SPIRV_KHR_INTEGER_DOT_PRODUCT")
   endif()
   include_directories(SYSTEM ${Vulkan_INCLUDE_DIRS})
   message(STATUS "Build with Vulkan support")

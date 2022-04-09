@@ -20,11 +20,15 @@
 /*!
  * \file hexagon_common.cc
  */
+// TODO(csulivan,adstraw,kparzysz-quic) This should be set on a TVM-wide basis.
+#if defined(__hexagon__)
 #define TVM_LOG_CUSTOMIZE 1
+#endif
 
 #include "hexagon_common.h"
 
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include <sstream>
@@ -35,77 +39,36 @@
 #include "../../library_module.h"
 #include "hexagon_buffer.h"
 
+#if defined(__hexagon__)
+#include "HAP_perf.h"
+#endif
+
 namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-void HexagonLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
-  Module mod = args[0];
-  int64_t storage_id = args[1];
-  DLTensor* template_tensor = args[2];
-  Device dev = args[3];
-  auto lookup_linked_param = mod.GetFunction(::tvm::runtime::symbol::tvm_lookup_linked_param, true);
-  if (lookup_linked_param == nullptr) {
-    *rv = nullptr;
-    return;
-  }
 
-  TVMRetValue opaque_handle = lookup_linked_param(storage_id);
-  if (opaque_handle.type_code() == kTVMNullptr) {
-    *rv = nullptr;
-    return;
-  }
+#if defined(__hexagon__)
+class HexagonTimerNode : public TimerNode {
+ public:
+  virtual void Start() { start = HAP_perf_get_time_us(); }
+  virtual void Stop() { end = HAP_perf_get_time_us(); }
+  virtual int64_t SyncAndGetElapsedNanos() { return (end - start) * 1e3; }
+  virtual ~HexagonTimerNode() {}
 
-  std::vector<int64_t> shape_vec{template_tensor->shape,
-                                 template_tensor->shape + template_tensor->ndim};
+  static constexpr const char* _type_key = "HexagonTimerNode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(HexagonTimerNode, TimerNode);
 
-  Optional<String> scope("global");
-  auto* param_buffer =
-      new HexagonBuffer(static_cast<void*>(opaque_handle), GetDataSize(*template_tensor), scope);
-  auto* container = new NDArray::Container(static_cast<void*>(param_buffer), shape_vec,
-                                           template_tensor->dtype, dev);
-  container->SetDeleter([](Object* container) {
-    // The NDArray::Container needs to be deleted
-    // along with the HexagonBuffer wrapper. However the
-    // buffer's data points to global const memory and
-    // so should not be deleted.
-    auto* ptr = static_cast<NDArray::Container*>(container);
-    delete static_cast<HexagonBuffer*>(ptr->dl_tensor.data);
-    delete ptr;
-  });
-  *rv = NDArray(GetObjectPtr<Object>(container));
-}
+ private:
+  uint64_t start, end;
+};
 
-PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& sptr_to_self) {
-  return PackedFunc([faddr, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-    TVMValue ret_value;
-    int ret_type_code = kTVMNullptr;
+TVM_REGISTER_OBJECT_TYPE(HexagonTimerNode);
 
-    TVMValue* arg_values = const_cast<TVMValue*>(args.values);
-    std::vector<std::pair<size_t, HexagonBuffer*>> buffer_args;
-    for (int i = 0; i < args.num_args; i++) {
-      if (args.type_codes[i] == kTVMDLTensorHandle) {
-        DLTensor* tensor = static_cast<DLTensor*>(arg_values[i].v_handle);
-        buffer_args.emplace_back(i, static_cast<HexagonBuffer*>(tensor->data));
-        // Assumes a single contiguous allocation
-        // TODO(Straw): Enable discontiguous allocation after RFC 39 lands
-        tensor->data = buffer_args.back().second->GetPointer()[0];
-      }
-    }
-    int ret = (*faddr)(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
-                       args.num_args, &ret_value, &ret_type_code, nullptr);
-    ICHECK_EQ(ret, 0) << TVMGetLastError();
-
-    for (auto& arg : buffer_args) {
-      DLTensor* tensor = static_cast<DLTensor*>(arg_values[arg.first].v_handle);
-      tensor->data = arg.second;
-    }
-
-    if (ret_type_code != kTVMNullptr) {
-      *rv = TVMRetValue::MoveFromCHost(ret_value, ret_type_code);
-    }
-  });
-}
+TVM_REGISTER_GLOBAL("profiling.timer.hexagon").set_body_typed([](Device dev) {
+  return Timer(make_object<HexagonTimerNode>());
+});
+#endif
 }  // namespace hexagon
 
 namespace {
@@ -136,12 +99,9 @@ void LogMessageImpl(const std::string& file, int lineno, const std::string& mess
 }
 }  // namespace detail
 
-TVM_REGISTER_GLOBAL("tvm.runtime.hexagon.lookup_linked_params")
-    .set_body(hexagon::HexagonLookupLinkedParam);
-
 TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectPtr<Library> n = CreateDSOLibraryObject(args[0]);
-  *rv = CreateModuleFromLibrary(n, hexagon::WrapPackedFunc);
+  *rv = CreateModuleFromLibrary(n);
 });
 }  // namespace runtime
 }  // namespace tvm

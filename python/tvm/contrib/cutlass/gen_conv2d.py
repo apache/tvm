@@ -22,6 +22,7 @@ from .gen_gemm import CutlassGemmProfiler
 from .conv2d_profiler import Conv2dProfilerEmitter
 from .gen_tensor_op import ProfilerEngine, GENERATOR_FUNC_TABLE, EPILOGUE_MAP
 from .library import (
+    DataType,
     EpilogueFunctor,
     SwizzlingFunctor,
     TensorDescription,
@@ -132,6 +133,10 @@ def enumerate_conv2d_operators(
                 A = TensorDescription(element_a, LayoutType.TensorNHWC, alignment)
                 B = TensorDescription(element_b, LayoutType.TensorNHWC, alignment)
                 C = TensorDescription(element_c, LayoutType.TensorNHWC, alignment)
+
+                if element_c == DataType.s32 and A.alignment == 1:
+                    tile.threadblock_shape[0] = min(tile.threadblock_shape[0], 128)
+                    tile.threadblock_shape[1] = min(tile.threadblock_shape[1], 128)
 
                 op = Conv2dOperation(
                     conv_kind,

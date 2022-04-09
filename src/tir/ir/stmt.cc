@@ -147,6 +147,26 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   ICHECK(loop_var.dtype().is_scalar());
   ICHECK(body.defined());
 
+  // When extent or min is an IntImm but has narrower dtype than loop_var, we directly promote them
+  // without raising errors.
+  auto try_promote_imm_dtype = [&](const PrimExpr& e) {
+    ICHECK(e.dtype().bits() <= loop_var.dtype().bits())
+        << " Loop variable's dtype (" << loop_var.dtype()
+        << ") is narrower than that of `min` or `extent` (" << e.dtype() << ")";
+    const IntImmNode* a = e.as<IntImmNode>();
+    if (a && e.dtype().bits() < loop_var.dtype().bits()) {
+      return make_const(loop_var.dtype(), a->value);
+    } else {
+      return e;
+    }
+  };
+
+  min = try_promote_imm_dtype(min);
+  extent = try_promote_imm_dtype(extent);
+
+  ICHECK(loop_var.dtype() == min.dtype()) << loop_var.dtype() << " vs " << min.dtype();
+  ICHECK(loop_var.dtype() == extent.dtype()) << loop_var.dtype() << " vs " << extent.dtype();
+
   ObjectPtr<ForNode> node = make_object<ForNode>();
   node->loop_var = std::move(loop_var);
   node->min = std::move(min);
@@ -241,6 +261,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // Store
 Store::Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate, Span span) {
+  LOG(FATAL) << "Unexpected use of deprecated Store node for buffer " << buffer_var->name_hint
+             << ".  Use BufferStore instead.";
   ICHECK(value.defined());
   ICHECK(index.defined());
   ICHECK(predicate.defined());
@@ -341,7 +363,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 // Allocate
 Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
                    Stmt body, Map<String, ObjectRef> annotations, Span span) {
-  CHECK(IsPointerType(buffer_var->type_annotation, dtype))
+  CHECK(IsPointerType(buffer_var->type_annotation, dtype) ||
+        (dtype.is_bool() && IsPointerType(buffer_var->type_annotation, DataType::Int(8))))
       << "The allocated data type (" << dtype
       << ") does not match the type annotation of the buffer " << buffer_var << " ("
       << buffer_var->type_annotation
@@ -668,6 +691,24 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // BufferStore
 BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices, Span span) {
+  ICHECK_EQ(buffer->shape.size(), indices.size())
+      << "Buffer " << buffer->name << " is " << buffer->shape.size()
+      << "-dimensional, cannot be indexed with the " << indices.size()
+      << "-dimensional indices provided.";
+
+  for (int i = 0; i < static_cast<int>(indices.size()) - 1; i++) {
+    ICHECK(indices[i].dtype().is_scalar())
+        << "Only the last index of a buffer access may be a vector type.";
+  }
+
+  int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
+  int buffer_lanes = buffer->dtype.lanes();
+
+  ICHECK_EQ(index_lanes * buffer_lanes, value.dtype().lanes())
+      << "Cannot store value with " << value.dtype().lanes() << ", expected value with "
+      << index_lanes * buffer_lanes << " (" << index_lanes << " index lanes * " << buffer_lanes
+      << " buffer element lanes)";
+
   ObjectPtr<BufferStoreNode> node = make_object<BufferStoreNode>();
   node->buffer = std::move(buffer);
   node->value = std::move(value);
@@ -760,7 +801,12 @@ BufferRegion BufferRegion::FullRegion(Buffer buffer) {
 BufferRegion BufferRegion::FromPoint(Buffer buffer, Array<PrimExpr> indices) {
   Array<Range> region;
   for (const PrimExpr& index : indices) {
-    region.push_back(Range::FromMinExtent(index, 1));
+    if (const RampNode* ramp_index = index.as<RampNode>()) {
+      region.push_back(
+          Range::FromMinExtent(ramp_index->base, ramp_index->stride * ramp_index->lanes));
+    } else {
+      region.push_back(Range::FromMinExtent(index, 1));
+    }
   }
   return BufferRegion(buffer, region);
 }

@@ -18,6 +18,7 @@
 """Arm(R) Ethos(TM)-N integration mean tests"""
 
 import numpy as np
+import pytest
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
@@ -40,18 +41,22 @@ def _get_model(shape, axis, keepdims, input_zp, input_sc, output_zp, output_sc, 
 
 
 @requires_ethosn
-def test_mean():
-    trials = [(1, 7, 7, 2048), (1, 8, 8)]
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+@pytest.mark.parametrize("shape", [(1, 7, 7, 2048), (1, 8, 8)])
+def test_mean(dtype, shape):
+    zp_min = np.iinfo(dtype).min
+    zp_max = np.iinfo(dtype).max
 
     np.random.seed(0)
-    for shape in trials:
-        inputs = {
-            "a": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype="uint8")),
-        }
-        outputs = []
-        for npu in [False, True]:
-            model = _get_model(shape, [1, 2], True, 128, 0.0784314, 128, 0.0784314, "uint8")
-            mod = tei.make_module(model, [])
-            outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+    inputs = {
+        "a": tvm.nd.array(np.random.randint(zp_min, high=zp_max + 1, size=shape, dtype=dtype)),
+    }
+    outputs = []
+    for npu in [False, True]:
+        model = _get_model(
+            shape, [1, 2], True, zp_min + 128, 0.0784314, zp_min + 128, 0.0784314, dtype=dtype
+        )
+        mod = tei.make_module(model, [])
+        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
 
-        tei.verify(outputs, "uint8", 1)
+    tei.verify(outputs, dtype, 1)

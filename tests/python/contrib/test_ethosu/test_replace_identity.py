@@ -22,7 +22,7 @@ import tvm
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir import spec
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
 from .infra import make_ethosu_identity, get_pooling_args
 
 
@@ -33,7 +33,7 @@ def test_identity(ifm_shape):
 
     func = relay.Function(relay.analysis.free_vars(identity), identity)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = lower_to_tir(func)
+    mod, _ = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):
@@ -106,6 +106,7 @@ def test_identity(ifm_shape):
         activation=spec.SerialActivation(op="NONE", clip_min=0, clip_max=0),
         upscale="NONE",
         rounding_mode="TFL",
+        block_config=spec.SerialBlockConfig(0, 0, 0),
     )
 
     assert data[0] == ["ethosu_identity"] + list(serial_pooling)

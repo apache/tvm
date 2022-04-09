@@ -66,7 +66,7 @@ def elementwise_symbolic_fused(a: T.handle, b: T.handle, n: T.int32) -> None:
     for i_j_k_fused in T.serial(0, (n * 16384)):
         with T.block("B"):
             vi = T.axis.S(128, T.floordiv(i_j_k_fused, n * 128))
-            vj = T.axis.S(128, T.floordiv(T.floormod(i_j_k_fused, n*128), n))
+            vj = T.axis.S(128, T.floordiv(T.floormod(i_j_k_fused, n * 128), n))
             vk = T.axis.S(n, T.floormod(i_j_k_fused, n))
             T.reads([A[vi, vj, vk]])
             T.writes([B[vi, vj, vk]])
@@ -273,7 +273,7 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads([])
             T.writes([A[0:16, 0:16]])
-            T.store(A.data, vi * 16 + vj, 1)
+            A[vi, vj] = 1
     for i, j in T.grid(16, 16):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -292,7 +292,7 @@ def opaque_access_fused(a: T.handle, b: T.handle) -> None:
             vj = T.axis.S(16, T.floormod(i_j_fused, 16))
             T.reads([])
             T.writes([A[0:16, 0:16]])
-            T.store(A.data, ((vi * 16) + vj), 1, 1)
+            A[vi, vj] = 1
     for i_j_fused in T.serial(0, 256):
         with T.block("B"):
             vi = T.axis.S(16, T.floordiv(i_j_fused, 16))
@@ -312,7 +312,7 @@ def opaque_access_split(a: T.handle, b: T.handle) -> None:
             vj = T.axis.S(16, j0 * 4 + j1)
             T.reads([])
             T.writes([A[0:16, 0:16]])
-            T.store(A.data, ((vi * 16) + vj), 1, 1)
+            A[vi, vj] = 1
     for i, j0, j1 in T.grid(16, 4, 4):
         with T.block("B"):
             vi = T.axis.S(16, i)

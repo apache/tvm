@@ -200,10 +200,10 @@ _reg.register_shape_func("invert_permutation", False, elemwise_shape_func)
 @script
 def _arange_shape_func(start, stop, step):
     out = output_tensor((1,), "int64")
-    if step[0] < 0:
-        out[0] = int64(ceil_div((int64(start[0]) - int64(stop[0])), int64(-step[0])))
+    if step[()] < 0:
+        out[0] = int64(ceil_div((int64(start[()]) - int64(stop[()])), int64(-step[()])))
     else:
-        out[0] = int64(ceil_div((int64(stop[0]) - int64(start[0])), int64(step[0])))
+        out[0] = int64(ceil_div((int64(stop[()]) - int64(start[()])), int64(step[()])))
     return out
 
 
@@ -299,7 +299,7 @@ def _strided_slice_shape_func_with_axes(data_shape, begin, end, strides, slice_m
             else:
                 cend = cbegin + int64(end[i])
         else:
-            if end[i] > data_shape[i]:
+            if end[i] > data_shape[axes[i]]:
                 cend = dim_size
             else:
                 cend = int64(end[i])
@@ -417,6 +417,7 @@ def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
             assert infer_idx < 0, "One and only one dim can be inferred"
             out[dst_idx] = int64(1)
             infer_idx = i
+            src_idx += 1
             dst_idx += 1
         elif newshape[i] == -2:
             copy = True

@@ -200,14 +200,14 @@ class BaseInliner : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(var);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* load) final {
-    CheckOpaqueAccess(load->buffer_var.get());
-    return StmtExprMutator::VisitExpr_(load);
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
-  Stmt VisitStmt_(const StoreNode* store) final {
-    CheckOpaqueAccess(store->buffer_var.get());
-    return StmtExprMutator::VisitStmt_(store);
+  Stmt VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
   }
 
   Stmt VisitStmt_(const ForNode* loop) final {
@@ -282,6 +282,31 @@ class BaseInliner : public StmtExprMutator {
     for (int i = 0; i < n; ++i) {
       idx_sub_[idx_vars_[i]] = indices[i];
     }
+  }
+
+  /*!
+   * \brief Count the number of undefined variables that are not used
+   * as buffer objects.
+   *
+   * This is used to determine whether inlining or reverse inlining is
+   * possible.  The only undefined variables present should be the
+   * load/store indices, or buffer access based on those indices.
+   *
+   * \param stmt The statement in which to count undefined variables
+   */
+  static int GetNumUndefinedNonpointerVars(const Stmt& stmt) {
+    auto undefined_vars = UndefinedVars(stmt, {});
+    // Buffer pointers and the inlined indices are allowed, but no
+    // other variables may appear in the inlined block.
+    int num_nonpointer_vars = 0;
+    for (const auto& var : undefined_vars) {
+      bool is_pointer = var->dtype.is_handle() && var->type_annotation.defined() &&
+                        var->type_annotation.as<PointerTypeNode>();
+      if (!is_pointer) {
+        num_nonpointer_vars++;
+      }
+    }
+    return num_nonpointer_vars;
   }
 
  private:
@@ -417,7 +442,8 @@ class ComputeInliner : public BaseInliner {
     if (inlined_store_ == nullptr) {
       return false;
     }
-    int n_vars = UndefinedVars(GetRef<Stmt>(inlined_store_), {}).size();
+
+    int n_vars = GetNumUndefinedNonpointerVars(GetRef<Stmt>(inlined_store_));
     if (!UpdateAndCheckIndexVars(inlined_store_->indices, n_vars)) {
       return false;
     }
@@ -484,7 +510,7 @@ class ReverseComputeInliner : public BaseInliner {
       // Failure: no BufferLoad from the `inlined_buffer_`
       return false;
     }
-    int n_vars = UndefinedVars(GetRef<BufferStore>(inlined_store_), {}).size();
+    int n_vars = GetNumUndefinedNonpointerVars(GetRef<Stmt>(inlined_store_));
     for (const BufferLoadNode* load : loads) {
       if (!UpdateAndCheckIndexVars(load->indices, n_vars)) {
         // Failure: incorrect of inconsistent index vars

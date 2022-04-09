@@ -29,10 +29,10 @@ def test_for():
     n = te.var("n")
     A = ib.allocate("float32", n, name="A", scope="global")
     with ib.for_range(0, n, name="i") as i:
-        ib.emit(tvm.tir.call_extern("int32", "fadd", device_context(0), A))
+        ib.emit(tvm.tir.call_extern("int32", "fadd", device_context(0), A.asobject().data))
         with ib.for_range(0, 10, name="j") as j:
-            ib.emit(tvm.tir.call_extern("int32", "fadd", device_context(1), A))
-            ib.emit(tvm.tir.call_extern("int32", "fadd", device_context(0), A))
+            ib.emit(tvm.tir.call_extern("int32", "fadd", device_context(1), A.asobject().data))
+            ib.emit(tvm.tir.call_extern("int32", "fadd", device_context(0), A.asobject().data))
     body = ib.get()
     mod = tvm.IRModule({"func": tvm.tir.PrimFunc([dev_type, n], body)})
 

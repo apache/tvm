@@ -27,7 +27,8 @@ from typing import List
 
 import os
 import struct
-import numpy
+import numpy as np
+import tflite.Model
 import math
 from enum import IntEnum
 import tensorflow as tf
@@ -40,7 +41,12 @@ import tvm
 from tvm import relay
 import tvm.relay.backend.contrib.ethosu.op as ethosu_ops
 from tvm.topi.nn.utils import get_pad_tuple
+from tvm.relay.expr_functor import ExprMutator
+from tvm.relay.op.annotation import compiler_begin, compiler_end
+from tvm.relay.backend.contrib.ethosu import preprocess
+import tvm.relay.testing.tf as tf_testing
 
+from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tests.python.relay.aot.aot_test_utils import (
     AOTCompiledTestModel,
     AOTDataLinkage,
@@ -57,14 +63,6 @@ class AttachType(IntEnum):
     kInlinedAlready = 3
     kScope = 4
     kScanUpdate = 5
-
-
-class VelaArtifacts:
-    def __init__(self):
-        self.cs = dict()
-        self.flash = dict()
-        self.sram = dict()
-        self.npu_ops = set()
 
 
 def print_payload(payload):
@@ -88,84 +86,6 @@ def parse_cmd(binary_cmd):
         command = cmd0(code & CmdMode.CmdOpMask)
         value = param
     return command, value
-
-
-def check_cmms_equivalency(vela_cmd, vela_value, tvm_value, ignore_cmds=None):
-    if ignore_cmds is None:
-        ignore_cmds = []
-    if vela_value != tvm_value and vela_cmd not in ignore_cmds:
-        raise RuntimeError(
-            "ValueMismatch :: vela={}, tvm={} for command:{}".format(
-                vela_value, tvm_value, vela_cmd
-            )
-        )
-
-
-def verify_cmms(cmms_tvm_blob, cmms_vela_blob):
-    vela_cmm = deserialize_command_stream(cmms_vela_blob)
-    tvm_cmm = deserialize_command_stream(cmms_tvm_blob)
-    cmms_zip = zip(vela_cmm, tvm_cmm)
-
-    first_ifm_found = False
-    last_ofm_found = False
-
-    ignore_commands = (
-        cmd1.NPU_SET_DMA0_SRC,
-        cmd1.NPU_SET_DMA0_DST,
-        cmd1.NPU_SET_WEIGHT_BASE,
-        cmd1.NPU_SET_OFM_BASE0,
-        cmd1.NPU_SET_IFM_BASE0,
-        cmd1.NPU_SET_SCALE_BASE,
-    )
-
-    ofm_region_params = []
-    ofm_bases = []
-    for vela_cmm, tvm_cmm in cmms_zip:
-        vela_cmd, vela_value = parse_cmd(vela_cmm)
-        tvm_cmd, tvm_value = parse_cmd(tvm_cmm)
-
-        assert vela_cmd == tvm_cmd
-
-        # The first IFM region could be different, but it needs to be 1 and 3.
-        if vela_cmd == cmd0.NPU_SET_IFM_REGION and not first_ifm_found:
-            if vela_value == 1 and tvm_value == 3:
-                first_ifm_found = True
-                continue
-
-        if vela_cmd == cmd1.NPU_SET_IFM_BASE0 and not first_ifm_found:
-            if tvm_value != 0:
-                raise RuntimeError("ValueError :: tvm primary ifm base should be zero")
-            continue
-
-        # OFM regions should be cached to be checked later
-        if vela_cmd == cmd0.NPU_SET_OFM_REGION:
-            ofm_region_params.append((vela_value, tvm_value))
-            continue
-
-        # OFM bases should be cached to be checked later
-        if vela_cmd == cmd1.NPU_SET_OFM_BASE0:
-            ofm_bases.append((vela_value, tvm_value))
-            continue
-
-        check_cmms_equivalency(vela_cmd, vela_value, tvm_value, ignore_commands)
-
-    # The last OFM region could be different but it should be 1 and 4.
-    last_vela_ofm_region, last_tvm_ofm_region = ofm_region_params.pop(-1)
-    if not (last_vela_ofm_region == 1 and last_tvm_ofm_region == 4):
-        raise RuntimeError(
-            "ValueMismatch :: vela={}, tvm={} for last ofm region it should be 1 and 4 respectively".format(
-                last_vela_ofm_region, last_tvm_ofm_region
-            )
-        )
-
-    # The rest of the OFM regions should be the same.
-    for vela_value, tvm_value in ofm_region_params:
-        check_cmms_equivalency(vela_cmd, vela_value, tvm_value, ignore_commands)
-
-    # The last OFM base should be zero for tvm
-    _, last_tvm_ofm_base = ofm_bases.pop(-1)
-    if not last_tvm_ofm_base == 0:
-        raise RuntimeError("ValueError :: tvm primary ofm base should be zero")
 
 
 def deserialize_command_stream(blob):
@@ -260,25 +180,18 @@ def verify_source(
     )
 
 
-def flatten_numpy_data(data):
-    """Flatten the numpy tensor to be single dimensional"""
-    total_elements = data.size
-    reshaped_data = numpy.reshape(data, [total_elements])
-    return reshaped_data
-
-
 class InputGenerator:
     def __init__(self, random_state):
         self._random_state = random_state
 
     def generate(self, size, dtype):
-        if dtype == numpy.float32:
+        if dtype == np.float32:
             print("random float32")
             return self._random_state.uniform(-1, 1, size).astype(dtype)
         else:
-            print("random (u)int min=%d max=%d", numpy.iinfo(dtype).min, numpy.iinfo(dtype).max)
-            low = numpy.iinfo(dtype).min
-            high = numpy.iinfo(dtype).max + 1
+            print("random (u)int min=%d max=%d", np.iinfo(dtype).min, np.iinfo(dtype).max)
+            low = np.iinfo(dtype).min
+            high = np.iinfo(dtype).max + 1
             return self._random_state.randint(low, high, size, dtype)
 
 
@@ -288,7 +201,12 @@ def generate_ref_data_tflite(model):
     The random input data and generated output data are returned.
     """
     expected_output_data = {}
-    interpreter = tf.lite.Interpreter(model_content=model)
+
+    interpreter = tf.lite.Interpreter(
+        model_content=model,
+        experimental_op_resolver_type=tf.lite.experimental.OpResolverType.BUILTIN_REF,
+    )
+
     interpreter.allocate_tensors()
 
     input_details = interpreter.get_input_details()
@@ -296,7 +214,7 @@ def generate_ref_data_tflite(model):
 
     # Initialize random generators with a fixed seed to get deterministic results
     seed = 0
-    random_state = numpy.random.RandomState(seed)
+    random_state = np.random.RandomState(seed)
 
     inputgen = InputGenerator(random_state)
 
@@ -308,8 +226,12 @@ def generate_ref_data_tflite(model):
         )
         for input_detail in input_details
     }
-    for index, value in enumerate(input_data.values()):
-        interpreter.set_tensor(index, value)
+    input_index = {input_detail["name"]: input_detail["index"] for input_detail in input_details}
+
+    for input_name in input_data.keys():
+        data = input_data[input_name]
+        index = input_index[input_name]
+        interpreter.set_tensor(index, data)
     interpreter.invoke()
 
     expected_output_data = {
@@ -320,31 +242,125 @@ def generate_ref_data_tflite(model):
     return input_data, expected_output_data
 
 
-def make_partitioned_function(relay_op):
+def get_tflite_model(model_url):
+    """Get a TFLite model from URL."""
+    tflite_model_file = tf_testing.get_workload_official(model_url[0], model_url[1])
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    return tflite_model_buf
 
-    ifm0 = relay.analysis.free_vars(relay_op)
-    ifm_shape = ifm0[0].type_annotation.shape
-    ifm_dtype = ifm0[0].type_annotation.dtype
 
-    ifm = relay.var("ifm", shape=ifm_shape, dtype=ifm_dtype)
+def get_tflite_graph(tf_func, shapes, ranges=None):
+    tensor_specs = [tf.TensorSpec(shape, dtype=tf.float32) for shape in shapes]
+    if not ranges:
+        ranges = [(0, 1) for _ in shapes]
+    concrete_func = tf_func.get_concrete_function(*tensor_specs)
 
-    glb_ethosu = relay.GlobalVar("tvmgen_default_ethosu_main_0")
+    # Convert the model
+    def representative_dataset():
+        for _ in range(100):
+            inputs = []
+            for i, shape in enumerate(shapes):
+                data = np.random.uniform(
+                    low=ranges[i][0], high=ranges[i][1], size=tuple(shape)
+                ).astype("float32")
+                inputs.append(data)
 
-    func = (
-        relay.Function(ifm0, relay_op)
-        .with_attr("Inline", 1)
-        .with_attr("Compiler", "ethos-u")
-        .with_attr("global_symbol", "tvmgen_default_ethosu_main_0")
-        .with_attr("Primitive", 1)
+            yield inputs
+
+    converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.representative_dataset = representative_dataset
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+    converter.inference_input_type = tf.int8
+    converter.inference_output_type = tf.int8
+    tflite_graph = converter.convert()
+
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    relay_module, params = relay.frontend.from_tflite(tflite_model)
+    mod = partition_for_ethosu(relay_module, params)
+    return mod, tflite_graph
+
+
+def compare_ethosu_with_reference(
+    mod, input_data, output_data, accel_type, output_tolerance=0, print_cmm=False
+):
+    compiled_models = build_source(
+        mod,
+        input_data,
+        output_data,
+        accel_type,
+        output_tolerance=output_tolerance,
     )
-    mod = tvm.IRModule()
-    mod[glb_ethosu] = func
-    mod = relay.transform.InferType()(mod)
 
-    call = relay.Call(glb_ethosu, [ifm])
-    mod["main"] = relay.Function([ifm], call)
-    mod = relay.transform.InferType()(mod)
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
+    # Verify generated C source
+    if print_cmm:
+        get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+        compilation_artifacts = get_artifacts(ethosu_module)
+        cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
+        print_payload(cmms)
+
+    verify_source(compiled_models, accel_type)
+
+
+def compare_tvm_with_tflite(
+    tf_func, shapes, accel_type, ranges=None, output_tolerance=0, print_cmm=False
+):
+    mod, tflite_graph = get_tflite_graph(tf_func, shapes, ranges)
+
+    # Generate reference data
+    input_data, output_data = generate_ref_data_tflite(tflite_graph)
+
+    compare_ethosu_with_reference(
+        mod,
+        input_data,
+        output_data,
+        accel_type,
+        output_tolerance=output_tolerance,
+        print_cmm=print_cmm,
+    )
+
+
+class EthosUAnnotator(ExprMutator):
+    """Annotate entire graph for Ethos-U offload"""
+
+    def __init__(self):
+        super(EthosUAnnotator, self).__init__()
+        self.compiler = "ethos-u"
+        self.last_call = True
+
+    def visit_call(self, call):
+        curr_last = self.last_call
+        self.last_call = False
+
+        params = []
+        for arg in call.args:
+            param = super().visit(arg)
+            if isinstance(param, relay.expr.Var):
+                param = compiler_begin(param, self.compiler)
+            params.append(param)
+
+        new_call = relay.Call(call.op, params, call.attrs)
+        if curr_last:
+            new_call = compiler_end(new_call, self.compiler)
+        return new_call
+
+    def visit_constant(self, constant):
+        new_constant = compiler_begin(constant, self.compiler)
+        return new_constant
+
+
+def create_ethosu_partition(mod):
+    mod["main"] = EthosUAnnotator().visit(mod["main"])
+    mod = relay.transform.MergeCompilerRegions()(mod)
+    mod = relay.transform.InferType()(mod)
+    mod = relay.transform.PartitionGraph()(mod)
+    mod = relay.transform.InferType()(mod)
+    mod = preprocess.preprocess_ext_io()(mod)
     return mod
 
 
@@ -352,7 +368,7 @@ def generate_weights_data(shape, dtype):
     size = 1
     for dim in shape:
         size *= dim
-    return (numpy.arange(size) % 255).reshape(shape).astype(dtype)
+    return (np.arange(size) % 255).reshape(shape).astype(dtype)
 
 
 def get_convolutional_args(call, include_buffers=False, remove_constants=False):
@@ -369,8 +385,8 @@ def get_convolutional_args(call, include_buffers=False, remove_constants=False):
             continue
         elif isinstance(arg, tvm.tir.expr.IntImm) or isinstance(arg, tvm.tir.expr.FloatImm):
             conv_args.append(arg.value)
-        elif isinstance(arg, tvm.tir.expr.Load) and not include_buffers:
-            conv_args.append(arg.index)
+        elif isinstance(arg, tvm.tir.expr.BufferLoad) and not include_buffers:
+            conv_args.append(arg.indices[0])
         else:
             conv_args.append(arg)
 
@@ -521,8 +537,8 @@ def get_pooling_args(call, include_buffers=False):
     for i, arg in enumerate(args):
         if isinstance(arg, tvm.tir.expr.IntImm) or isinstance(arg, tvm.tir.expr.FloatImm):
             pooling_args.append(arg.value)
-        elif isinstance(arg, tvm.tir.expr.Load) and not include_buffers:
-            pooling_args.append(arg.index)
+        elif isinstance(arg, tvm.tir.expr.BufferLoad) and not include_buffers:
+            pooling_args.append(arg.indices[0])
         else:
             pooling_args.append(arg)
 
@@ -572,8 +588,8 @@ def get_binary_elementwise_args(call, include_buffers=False):
     for i, arg in enumerate(args):
         if isinstance(arg, tvm.tir.expr.IntImm) or isinstance(arg, tvm.tir.expr.FloatImm):
             binary_elementwise_args.append(arg.value)
-        elif isinstance(arg, tvm.tir.expr.Load) and not include_buffers:
-            binary_elementwise_args.append(arg.index)
+        elif isinstance(arg, tvm.tir.expr.BufferLoad) and not include_buffers:
+            binary_elementwise_args.append(arg.indices[0])
         else:
             binary_elementwise_args.append(arg)
 

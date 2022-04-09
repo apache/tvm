@@ -20,6 +20,7 @@
 #define TVM_TIR_SCHEDULE_SCHEDULE_H_
 
 #include <tvm/support/random_engine.h>
+#include <tvm/tir/index_map.h>
 #include <tvm/tir/schedule/state.h>
 #include <tvm/tir/schedule/trace.h>
 
@@ -34,6 +35,14 @@ enum class ScheduleErrorRenderLevel : int32_t {
   kFast = 1,
   /*! \brief No error message at all */
   kNone = 2,
+};
+
+/*! \brief Type of buffer index */
+enum class BufferIndexType : int32_t {
+  /*! \brief Index of a read buffer */
+  kRead = 0,
+  /*! \brief Index of a written buffer */
+  kWrite = 1,
 };
 
 /**************** Random variable: BlockRV ****************/
@@ -114,12 +123,12 @@ class ScheduleNode : public runtime::Object {
    * 3) All the random variables are valid in the copy, pointing to the corresponding sref
    * reconstructed
    */
-  virtual Schedule Copy() const = 0;
+  virtual Schedule Copy() = 0;
   /*!
    * \brief Seed the randomness
    * \param seed The new random seed, -1 if use device random, otherwise non-negative
    */
-  virtual void Seed(support::LinearCongruentialEngine::TRandState seed = -1) = 0;
+  virtual void Seed(support::LinearCongruentialEngine::TRandState seed) = 0;
   /*! \brief Fork the random state */
   virtual support::LinearCongruentialEngine::TRandState ForkSeed() = 0;
 
@@ -520,6 +529,21 @@ class ScheduleNode : public runtime::Object {
    * \param ann_key The annotation key
    */
   virtual void Unannotate(const BlockRV& block_rv, const String& ann_key) = 0;
+
+  /******** Schedule: Layout transformation ********/
+  /*!
+   * \brief Apply a transformation represented by IndexMap to buffer
+   * \details The indices and the access region to the target buffer is transformed by the given
+   * index_map. The index_map is used to infer the new shape of the buffer. Buffer must be either
+   * a function parameter, or allocated in a block (it cannot be a buffer subregion created via
+   * 'match_buffer').
+   * \param block_rv The block that accesses the target buffer.
+   * \param buffer_index The index of the buffer in block's read or write region.
+   * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+   * \param index_map The transformation to apply.
+   */
+  virtual void TransformLayout(const BlockRV& block_rv, int buffer_index,
+                               BufferIndexType buffer_index_type, const IndexMap& index_map) = 0;
 
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */

@@ -249,7 +249,7 @@ void VirtualMachine::SetOneInput(std::string func_name, const TVMArgValue& tag,
   const auto& vm_func = CheckAndGetVMFunction(func_name);
   size_t params_num = vm_func.params.size();
 
-  int inp_index;
+  int inp_index = 0;
   if (tag.type_code() == kTVMArgInt) {
     inp_index = tag;
   } else if (tag.type_code() == kTVMStr) {

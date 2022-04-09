@@ -36,4 +36,5 @@ from .parts import InlinePart, EthosuPart
 from .device_config import EthosuDeviceConfig
 from .tensor_config import TensorConfigState, MemoryRegion, TensorConfig
 from .plan import Plan
+from .scheduler import apply_proposal, cascade
 from .cascader_options import CascaderOptions

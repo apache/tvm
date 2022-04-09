@@ -36,3 +36,4 @@ run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test-1 tests/p
 # Then run all unittests on both ctypes and cython.
 run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-0 tests/python/unittest
 run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME}-1 tests/python/unittest
+run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-ci tests/python/ci

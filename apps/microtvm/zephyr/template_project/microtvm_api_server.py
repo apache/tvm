@@ -515,6 +515,10 @@ class Handler(server.ProjectAPIHandler):
         if options.get("west_cmd"):
             cmake_args.append(f"-DWEST={options['west_cmd']}")
 
+        if self._is_qemu(options):
+            # Some boards support more than one emulator, so ensure QEMU is set.
+            cmake_args.append(f"-DEMU_PLATFORM=qemu")
+
         cmake_args.append(f"-DBOARD:STRING={options['zephyr_board']}")
 
         check_call(cmake_args, cwd=BUILD_DIR)
@@ -527,7 +531,7 @@ class Handler(server.ProjectAPIHandler):
     # A list of all zephyr_board values which are known to launch using QEMU. Many platforms which
     # launch through QEMU by default include "qemu" in their name. However, not all do. This list
     # includes those tested platforms which do not include qemu.
-    _KNOWN_QEMU_ZEPHYR_BOARDS = ("mps2_an521",)
+    _KNOWN_QEMU_ZEPHYR_BOARDS = ("mps2_an521", "mps3_an547")
 
     @classmethod
     def _is_qemu(cls, options):
@@ -662,6 +666,10 @@ class ZephyrSerialTransport:
         return generic_find_serial_port()
 
     @classmethod
+    def _find_stm32cubeprogrammer_serial_port(cls, options):
+        return generic_find_serial_port()
+
+    @classmethod
     def _find_serial_port(cls, options):
         flash_runner = _get_flash_runner()
 
@@ -673,6 +681,9 @@ class ZephyrSerialTransport:
 
         if flash_runner == "jlink":
             return cls._find_jlink_serial_port(options)
+
+        if flash_runner == "stm32cubeprogrammer":
+            return cls._find_stm32cubeprogrammer_serial_port(options)
 
         raise RuntimeError(f"Don't know how to deduce serial port for flash runner {flash_runner}")
 
@@ -735,17 +746,15 @@ class ZephyrQemuTransport:
         os.mkfifo(self.write_pipe)
         os.mkfifo(self.read_pipe)
 
-        if "gdbserver_port" in self.options:
-            if "env" in self.kwargs:
-                self.kwargs["env"] = copy.copy(self.kwargs["env"])
-            else:
-                self.kwargs["env"] = os.environ.copy()
-
-            self.kwargs["env"]["TVM_QEMU_GDBSERVER_PORT"] = str(self.options["gdbserver_port"])
+        env = None
+        if self.options.get("gdbserver_port"):
+            env = os.environ.copy()
+            env["TVM_QEMU_GDBSERVER_PORT"] = self.options["gdbserver_port"]
 
         self.proc = subprocess.Popen(
             ["make", "run", f"QEMU_PIPE={self.pipe}"],
             cwd=BUILD_DIR,
+            env=env,
             stdout=subprocess.PIPE,
         )
         self._wait_for_qemu()

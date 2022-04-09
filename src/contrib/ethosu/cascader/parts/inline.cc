@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "../block_config.h"
 #include "../common.h"
 
 namespace tvm {
@@ -33,7 +34,8 @@ namespace cascader {
 const PerformanceInfo InlinePartNode::GetPerformanceInfo(const StripeConfig& output_stripe_config,
                                                          BufferMode buffer_mode) {
   std::vector<int64_t> read_bytes(input_tensors_.size());
-  PerformanceInfo info(0, read_bytes, 0);
+  BlockConfig block_config = BlockConfig(std::vector<int>(1, 1), std::vector<int>(1, 1), 0, 0);
+  PerformanceInfo info(0, read_bytes, 0, block_config);
   return info;
 }
 

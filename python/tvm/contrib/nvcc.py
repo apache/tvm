@@ -112,10 +112,11 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
         msg += py_str(out)
         raise RuntimeError(msg)
 
-    data = bytearray(open(file_target, "rb").read())
-    if not data:
-        raise RuntimeError("Compilation error: empty result is generated")
-    return data
+    with open(file_target, "rb") as f:
+        data = bytearray(f.read())
+        if not data:
+            raise RuntimeError("Compilation error: empty result is generated")
+        return data
 
 
 def find_cuda_path():

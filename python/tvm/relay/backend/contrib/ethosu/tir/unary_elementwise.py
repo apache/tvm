@@ -54,14 +54,16 @@ def get_unary_elementwise_params(stmt, producers, consumers):
     input_pointer = None
     if isinstance(inner.value, tir.expr.Select):
         # ABS
-        input_pointer = inner.value.condition.b.buffer_var
+        input_pointer = inner.value.condition.b.buffer.data
     if isinstance(inner.value, tir.expr.Sub):
         # CLZ
-        input_pointer = inner.value.b.args[0].buffer_var
-    output_pointer = inner.buffer_var
+        input_pointer = inner.value.b.args[0].buffer.data
+    output_pointer = inner.buffer.data
     # Get feature map info
     serial_ifm, _ = get_ifm_params(input_pointer, producers)
-    serial_ofm, replace_pointer, is_allocator = get_ofm_params(output_pointer, consumers, producers)
+    serial_ofm, serial_block_config, replace_pointer, is_allocator = get_ofm_params(
+        output_pointer, consumers, producers
+    )
     # Get activation info
     serial_activation = SerialActivation(
         op=attrs["activation"], clip_min=attrs["clip_min"], clip_max=attrs["clip_max"]
@@ -73,6 +75,7 @@ def get_unary_elementwise_params(stmt, producers, consumers):
             operator_type=attrs["operator_type"],
             activation=serial_activation,
             rounding_mode=attrs["rounding_mode"],
+            block_config=serial_block_config,
         ),
         output_pointer,
         replace_pointer,

@@ -232,7 +232,31 @@ def test_saturation():
     np.testing.assert_equal(op_res.numpy(), golden_output)
 
 
+def test_ignore_channel_axis():
+    data_dtype = "uint8"
+
+    x = relay.var("x", shape=(4,), dtype=data_dtype)
+    y = relay.var("y", shape=(4,), dtype=data_dtype)
+    z = relay.qnn.op.add(
+        lhs=x,
+        rhs=y,
+        lhs_scale=relay.const(0.00784314, "float32"),
+        lhs_zero_point=relay.const(127, "int32"),
+        rhs_scale=relay.const(0.00784314, "float32"),
+        rhs_zero_point=relay.const(127, "int32"),
+        output_scale=relay.const(0.00784314, "float32"),
+        output_zero_point=relay.const(127, "int32"),
+        lhs_axis=1,
+        rhs_axis=1,
+    )
+
+    func = relay.Function([x, y], z)
+    mod = tvm.IRModule.from_expr(func)
+    mod = relay.transform.InferType()(mod)
+
+
 if __name__ == "__main__":
     test_tflite_same_io_qnn_params()
     test_tflite_different_io_qnn_params()
     test_saturation()
+    test_ignore_channel_axis()

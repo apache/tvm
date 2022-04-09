@@ -105,10 +105,15 @@ TVM_DLL const Op& large_uint_imm();
 TVM_DLL const Op& q_multiply_shift();
 
 /*!
- * \brief See pesudo code
+ * \brief Returns the address of an element in the buffer (see pseudocode below).
  *
- *  Handle address_of(Load *op) {
- *     return &op->buffer_var[index];
+ * The number of indices should match the dimensionality of the buffer
+ * being accessed.  If this operation occurs after buffer flattening,
+ * the number of indices must be supported by the target (i.e. N>1
+ * only on targets that support non-flat memory buffers).
+ *
+ *  Handle address_of(BufferLoad *op) {
+ *     return &op->buffer_var[op->indices[0], op->indices[1], ..., op->indices[N-1]];
  *  }
  */
 TVM_DLL const Op& address_of();
@@ -380,6 +385,20 @@ TVM_DLL const Op& tvm_call_cpacked();
 TVM_DLL const Op& tvm_call_trace_packed();
 
 /*!
+ * \brief Checks the return value of another call is correct or returns a given value.
+ *
+ * \note  This is meant to serve a specific case for AOT code generator whilst this
+ *        cannot be fully represented in TIR.
+ *
+ *  Type tvm_check_return(expected, return_unexpected, nested_call) {
+ *     if (nested_call() != expected) {
+ *         return return_unexpected;
+ *     }
+ *  }
+ */
+TVM_DLL const Op& tvm_check_return();
+
+/*!
  * \brief See pesudo code
  *  Mark the content as thread local context, can get optimized
  *  by only call the call once at thread start.
@@ -591,6 +610,28 @@ TVM_DLL const Op& tvm_store_matrix_sync();
  */
 TVM_DLL const Op& ptx_mma();
 
+/*!
+ * \brief tvm intrinsic for sparse tensor core ptx instructions.
+ *
+ * void ptx_mma_sp(StringImm shape, StringImm A_layout, StringImm B_layout,
+ *                 StringImm A_dtype, StringImm B_dtype, StringImm C_dtype,
+ *                 Var multiplicand_a, Expr a_index,
+ *                 Var multiplicand_b, Expr b_index,
+ *                 Var accumulator, Expr c_index,
+ *                 Var metadata, Expr meta_index,
+ *                 Var sparse_selector, bool saturate);
+ */
+TVM_DLL const Op& ptx_mma_sp();
+
+/*!
+ * \brief tvm intrinsic for ptx load matrix from shared memory.
+ *
+ * void ptx_ldmatrix(Bool trans, IntImm num, StringImm type,
+ *                   Var local_ptr, Expr local_offset,
+ *                   Var smem_ptr, Expr smem_offset);
+ */
+TVM_DLL const Op& ptx_ldmatrix();
+
 // TODO(tvm-team) replace the usage of the vector operations by Shuffle.
 /*!
  * \brief Get the high level half of the vector
@@ -612,9 +653,9 @@ TVM_DLL const Op& vectorcombine();
  */
 TVM_DLL const Op& atomic_add();
 /*!
- * \brief Create a texture 2d memory allocation
+ * \brief Create an Nd memory allocation with storage scope
  */
-TVM_DLL const Op& texture2d_alloca();
+TVM_DLL const Op& nd_mem_alloc_with_scope();
 
 /*!
  * \brief Store to texture 2d memory

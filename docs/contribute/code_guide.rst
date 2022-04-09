@@ -20,6 +20,10 @@
 Code Guide and Tips
 ===================
 
+.. contents::
+  :depth: 2
+  :local:
+
 This is a document used to record tips in TVM codebase for reviewers and contributors.
 Most of them are summarized through lessons during the contributing and process.
 
@@ -34,14 +38,18 @@ C++ Code Styles
   pass by value is better than pass by const reference in such cases.
 - Favor ``const`` member function when possible.
 
-We use `clang-format` to enforce the code style. Because different version
+We use ``clang-format`` to enforce the code style. Because different version
 of clang-format might change by its version, it is recommended to use the same
 version of the clang-format as the main one.
 You can also use the following command via docker.
 
 .. code:: bash
 
-    docker/bash.sh tlcpack/ci-lint clang-format-10 [path-to-file]
+    # Run a specific file through clang-format
+    docker/bash.sh ci_lint clang-format-10 [path-to-file]
+
+    # Run all linters, including clang-format
+    python tests/scripts/ci.py lint
 
 
 clang-format is also not perfect, when necessary, you can use disble clang-format on certain code regions.
@@ -78,8 +86,8 @@ Because clang-format may not recognize macros, it is recommended to use macro li
 Python Code Styles
 ------------------
 - The functions and classes are documented in `numpydoc <https://numpydoc.readthedocs.io/en/latest/>`_ format.
-- Check your code style using ``make pylint``
-- Stick to language features as in ``python 3.6``
+- Check your code style using ``python tests/scripts/ci.py lint``
+- Stick to language features in ``python 3.7``
 
 
 Writing Python Tests
