@@ -312,6 +312,7 @@ within_subsection_order = {
         "bring_your_own_datatypes.py",
     ],
     "micro": [
+        "micro_train.py",
         "micro_autotune.py",
         "micro_reference_vm.py",
         "micro_tflite.py",

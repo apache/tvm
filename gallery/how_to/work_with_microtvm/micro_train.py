@@ -77,11 +77,12 @@ deployed to Arduino using TVM.
 # We can test our GPU installation with the following code:
 
 import tensorflow as tf
+
 if not tf.test.gpu_device_name():
-  print("No GPU was detected!")
-  print("Model training will take much longer (~30 minutes instead of ~5)")
+    print("No GPU was detected!")
+    print("Model training will take much longer (~30 minutes instead of ~5)")
 else:
-  print("GPU detected - you're good to go.")
+    print("GPU detected - you're good to go.")
 
 ######################################################################
 # Choosing Our Work Dir
@@ -91,8 +92,9 @@ else:
 # probably want to store it elsewhere if running locally.
 
 FOLDER = "/root"
-#.. testsetup::
+# .. testsetup::
 import tempfile
+
 FOLDER = tempfile.mkdtemp()
 
 ######################################################################
@@ -151,17 +153,17 @@ FOLDER = tempfile.mkdtemp()
 #       curl "http://images.cocodataset.org/zips/val2017.zip" -o {FOLDER}/images/random.zip
 #       unzip -jqo {FOLDER}/images/random.zip -d {FOLDER}/images/random
 
-
-#.. doctest::
 import os
+
 os.mkdir(FOLDER + "/images")
 os.mkdir(FOLDER + "/images/object")
 os.mkdir(FOLDER + "/images/random")
 from PIL import Image
+
 for category in ["object", "random"]:
-  for i in range(48):
-    img = Image.new("RGB", (100, 100), (255, 255, 255))
-    img.save(FOLDER + f"/images/{category}/{i:05d}.jpg", "JPEG")
+    for i in range(48):
+        img = Image.new("RGB", (100, 100), (255, 255, 255))
+        img.save(FOLDER + f"/images/{category}/{i:05d}.jpg", "JPEG")
 
 ######################################################################
 # Loading the Data
@@ -188,13 +190,13 @@ for category in ["object", "random"]:
 import tensorflow as tf
 
 unscaled_dataset = tf.keras.utils.image_dataset_from_directory(
-  FOLDER + "/images",
-  batch_size=32,
-  shuffle=True,
-  label_mode='categorical',
-  image_size=(96, 96),
+    FOLDER + "/images",
+    batch_size=32,
+    shuffle=True,
+    label_mode="categorical",
+    image_size=(96, 96),
 )
-rescale = tf.keras.layers.Rescaling(scale=1.0/255)
+rescale = tf.keras.layers.Rescaling(scale=1.0 / 255)
 full_dataset = unscaled_dataset.map(lambda im, lbl: (rescale(im), lbl))
 
 ######################################################################
@@ -213,12 +215,12 @@ print("/images/target contains %d images" % len(listdir(FOLDER + "/images/object
 SAMPLES_TO_SHOW = 10
 plt.figure(figsize=(20, 10))
 for i, (image, label) in enumerate(unscaled_dataset.unbatch()):
-  if i >= SAMPLES_TO_SHOW:
-    break
-  ax = plt.subplot(1, SAMPLES_TO_SHOW, i + 1)
-  plt.imshow(image.numpy().astype("uint8"))
-  plt.title(list(label.numpy()))
-  plt.axis("off")
+    if i >= SAMPLES_TO_SHOW:
+        break
+    ax = plt.subplot(1, SAMPLES_TO_SHOW, i + 1)
+    plt.imshow(image.numpy().astype("uint8"))
+    plt.title(list(label.numpy()))
+    plt.axis("off")
 
 ######################################################################
 # What's Inside Our Dataset?
@@ -291,13 +293,11 @@ validation_dataset = full_dataset.skip(len(train_dataset))
 
 IMAGE_SIZE = (96, 96, 3)
 WEIGHTS_PATH = FOLDER + "/models/mobilenet_2_5_128_tf.h5"
-#.. doctest::
+# .. doctest::
 os.mkdir(FOLDER + "/models")
 WEIGHTS_PATH = None
 pretrained = tf.keras.applications.MobileNet(
-    input_shape = IMAGE_SIZE,
-    weights = WEIGHTS_PATH,
-    alpha = 0.25
+    input_shape=IMAGE_SIZE, weights=WEIGHTS_PATH, alpha=0.25
 )
 
 ######################################################################
@@ -311,15 +311,12 @@ pretrained = tf.keras.applications.MobileNet(
 model = tf.keras.models.Sequential()
 
 model.add(tf.keras.layers.InputLayer(input_shape=IMAGE_SIZE))
-model.add(tf.keras.Model(
-    inputs=pretrained.inputs,
-    outputs=pretrained.layers[-5].output
-))
+model.add(tf.keras.Model(inputs=pretrained.inputs, outputs=pretrained.layers[-5].output))
 
 model.add(tf.keras.layers.Reshape((-1,)))
 model.add(tf.keras.layers.Dropout(0.1))
 model.add(tf.keras.layers.Flatten())
-model.add(tf.keras.layers.Dense(2, activation='softmax'))
+model.add(tf.keras.layers.Dense(2, activation="softmax"))
 
 ######################################################################
 # Training Our Network
@@ -336,9 +333,11 @@ model.add(tf.keras.layers.Dense(2, activation='softmax'))
 # finished, the model should have a validation accuracy around ``0.98`` (meaning it was right 98% of
 # the time on our validation set).
 
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0005),
-                loss='categorical_crossentropy',
-                metrics=['accuracy'])
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.0005),
+    loss="categorical_crossentropy",
+    metrics=["accuracy"],
+)
 model.fit(train_dataset, validation_data=validation_dataset, epochs=3, verbose=2)
 
 ######################################################################
@@ -365,9 +364,12 @@ model.fit(train_dataset, validation_data=validation_dataset, epochs=3, verbose=2
 # explicitly tell it to avoid this behavior.
 
 converter = tf.lite.TFLiteConverter.from_keras_model(model)
+
+
 def representative_dataset():
-  for image_batch, label_batch in full_dataset.take(3):
-    yield [image_batch]
+    for image_batch, label_batch in full_dataset.take(3):
+        yield [image_batch]
+
 
 converter.optimizations = [tf.lite.Optimize.DEFAULT]
 converter.representative_dataset = representative_dataset
@@ -440,9 +442,9 @@ import tflite
 import tvm
 
 # Method to load model is different in TFLite 1 vs 2
-try: # TFLite 2.1 and above
+try:  # TFLite 2.1 and above
     tflite_model = tflite.Model.GetRootAsModel(quantized_model, 0)
-except AttributeError: # Fall back to TFLite 1.14 method
+except AttributeError:  # Fall back to TFLite 1.14 method
     tflite_model = tflite.Model.Model.GetRootAsModel(quantized_model, 0)
 
 # Convert to the Relay intermediate representation
@@ -459,6 +461,7 @@ with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": Tru
 
 # Generate an Arduino project from the MLF intermediate representation
 from unittest.mock import create_autospec, MagicMock
+
 tvm.micro.generate_project = create_autospec(tvm.micro.generate_project, return_value=MagicMock())
 
 shutil.rmtree(FOLDER + "/models/project", ignore_errors=True)
@@ -517,8 +520,8 @@ arduino_project = tvm.micro.generate_project(
 # model on them, and log the output to the serial monitor. This file will replace ``arduino_sketch.ino``
 # as the main file of our sketch. You'll have to copy this code in manually.
 #
-#     .. code-block:: bash
-
+#     .. code-block:: c
+#
 #         #include "src/model.h"
 #         #include "car.c"
 #         #include "catan.c"
