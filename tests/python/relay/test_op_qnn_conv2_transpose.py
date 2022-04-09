@@ -671,6 +671,7 @@ def test_non_scalar_input_scale_zp():
     )
     verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
 
+
 def test_per_channel_kernel_scale():
     data_shape = (2, 1, 2, 4)
     data_dtype = "uint8"
