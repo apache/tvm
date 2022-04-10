@@ -874,14 +874,7 @@ class EmbedLayerNormalization(OnnxOpConverter):
         if segment_ids:
             vec_sum = _op.add(vec_sum, segment_vec)
 
-        eps_dtype = infer_type(word_emb).checked_type.dtype
-
-        u, s = _op.mean_variance(vec_sum, axis=-1, keepdims=True)
-        ln = _op.divide(
-            _op.subtract(vec_sum, u),
-            _op.sqrt(_op.add(s, _op.const(eps, dtype=eps_dtype))),
-        )
-        ln = _op.multiply(ln, gamma) + beta
+        ln = SkipLayerNormalization._compute_layer_norm(vec_sum, eps, gamma, beta)
 
         mask_index = _op.const(np.zeros((batch_size,), dtype="int64"))
         if mask:
@@ -898,6 +891,21 @@ class SkipLayerNormalization(OnnxOpConverter):
     normalization.
     """
 
+    @staticmethod
+    def _compute_layer_norm(x, eps, gamma, beta):
+        eps_dtype = infer_type(x).checked_type.dtype
+
+        u, s = _op.mean_variance(x, axis=-1, keepdims=True)
+        output = _op.divide(
+            _op.subtract(x, u),
+            _op.sqrt(_op.add(s, _op.const(eps, dtype=eps_dtype))),
+        )
+        output = _op.multiply(output, gamma)
+        if beta is not None:
+            output = _op.add(output, beta)
+
+        return output
+
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         data = inputs[0]
@@ -912,17 +920,9 @@ class SkipLayerNormalization(OnnxOpConverter):
         if bias is not None:
             x = _op.add(x, bias)
 
-        eps_dtype = infer_type(x).checked_type.dtype
+        output = SkipLayerNormalization._compute_layer_norm(x, eps, gamma, beta)
 
-        u, s = _op.mean_variance(x, axis=-1, keepdims=True)
-        output = _op.divide(
-            _op.subtract(x, u),
-            _op.sqrt(_op.add(s, _op.const(eps, dtype=eps_dtype))),
-        )
-        output = _op.multiply(output, gamma)
-        if beta:
-            output = _op.add(output, beta)
-
+        # onnxruntime doesn't compute the other outputs, despite the documentation
         placeholder = _op.const(0, dtype="float32")
 
         return _expr.TupleWrapper(_expr.Tuple([output, placeholder, placeholder]), 3)
