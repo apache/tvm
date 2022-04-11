@@ -358,9 +358,10 @@ def _create_cascader(
     return _cascader
 
 
-def _ethos_u55_cascader() -> Callable:
+def _ethos_u55_cascader(sram) -> Callable:
+    # TODO(ekalda): Extract the flash info from ConstantPools once it is implemented
     flash = MemoryRegion(name="FLASH", size=10 ** 7, read_bandwidth=4, write_bandwidth=4)
-    sram = MemoryRegion(name="SRAM", size=10 ** 6, read_bandwidth=16, write_bandwidth=16)
+
     device_config = EthosuDeviceConfig(util.get_accelerator_config())
     cascader_options = CascaderOptions(
         cascade_region=sram,
@@ -375,6 +376,34 @@ def _ethos_u55_cascader() -> Callable:
         constant_region=flash,
         working_regions=[sram],
         device_config=device_config,
+    )
+
+
+def _extract_memory_info(memory_pool):
+    size = int(memory_pool.size_hint_bytes)
+    read_bandwidth = int(memory_pool.read_bandwidth_bytes_per_cycle)
+    write_bandwidth = int(memory_pool.write_bandwidth_bytes_per_cycle)
+
+    for param in (size, read_bandwidth, write_bandwidth):
+        assert param != -1, f"{param} needs to be specified for the cascader."
+
+    name_to_burst_lenght = {
+        target.kind.name: burst for target, burst in memory_pool.target_burst_bytes.items()
+    }
+
+    try:
+        burst_length = int(name_to_burst_lenght["ethos-u"])
+    except KeyError:
+        burst_length = 1
+
+    return MemoryRegion(
+        name=memory_pool.pool_name,
+        size=size,
+        read_bandwidth=read_bandwidth,
+        write_bandwidth=write_bandwidth,
+        read_latency=int(memory_pool.read_latency_cycles),
+        write_latency=int(memory_pool.write_latency_cycles),
+        burst_length=burst_length,
     )
 
 
@@ -407,14 +436,27 @@ def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
     }
     mod = mod.with_attr("device_contexts", device_contexts)
 
-    # We are currently using copy_constants scheduler In the long run,
-    # this should be a single intelligent and a composite scheduler
-    # that can perform scheduling based on user inputs such as
-    # scratch memory size.
-    if util.enable_cascader() and util.get_accelerator_config() != "ethos-u65-256":
-        tir_mod = LowerToTIR(_ethos_u55_cascader)(mod)
+    # Use the cascader if it is enabled for the U55 accelerator, otherwise use copy_constants
+    # scheduler
+    if util.enable_cascader():
+        assert (
+            util.get_accelerator_config() != "ethos-u65-256"
+        ), "Cascading is not supported for the U65 accelerator"
+
+        workspace_memory_pools = mod.attrs["workspace_memory_pools"]
+
+        assert (
+            workspace_memory_pools
+        ), "Workspace memory pool needs to be provided for the U55 cascader"
+
+        assert (
+            len(workspace_memory_pools.pools) == 1
+        ), "Exactly one workspace pool needs to be provided for the U55 cascader"
+
+        sram = _extract_memory_info(workspace_memory_pools.pools[0])
+        tir_mod = LowerToTIR(_ethos_u55_cascader(sram))(mod)
     else:
-        tir_mod = LowerToTIR(copy_constants)(mod)
+        tir_mod = LowerToTIR(copy_constants())(mod)
 
     return tir_mod
 
