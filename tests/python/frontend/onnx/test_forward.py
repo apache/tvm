@@ -39,6 +39,10 @@ def get_input_data_shape_dict(graph_def, input_data):
         shape_dict = {}
         for i, _ in enumerate(input_data):
             input_names[i] = graph_def.graph.input[i].name
+            if input_data[i] is None:
+                # Skip adding input shape data when the input data is None;
+                # This is to enable optional arguments for onnx operators.
+                continue
             shape_dict[input_names[i]] = input_data[i].shape
     else:
         input_names = graph_def.graph.input[0].name
@@ -5448,10 +5452,10 @@ def test_embedlayernormalization(target, dev):
             "EmbedLayerNormalization",
             inputs=[
                 "input_ids",
-                "segment_ids",
+                "" if segment_ids is None else "segment_ids",
                 "word_embedding",
                 "position_embedding",
-                "segment_embedding",
+                "" if segment_embedding is None else "segment_embedding",
                 "gamma",
                 "beta",
             ],
@@ -5461,6 +5465,9 @@ def test_embedlayernormalization(target, dev):
 
         node.attribute.append(onnx.helper.make_attribute("epsilon", 1e-4))
 
+        segment_ids_shape = [] if segment_ids is None else segment_ids.shape
+        segment_embedding_shape = [] if segment_embedding is None else segment_embedding.shape
+
         graph = helper.make_graph(
             [node],
             "embedlayernormalization_test",
@@ -5468,9 +5475,7 @@ def test_embedlayernormalization(target, dev):
                 helper.make_tensor_value_info(
                     "input_ids", TensorProto.INT32, list(input_ids.shape)
                 ),
-                helper.make_tensor_value_info(
-                    "segment_ids", TensorProto.INT32, list(segment_ids.shape)
-                ),
+                helper.make_tensor_value_info("segment_ids", TensorProto.INT32, segment_ids_shape),
                 helper.make_tensor_value_info(
                     "word_embedding", TensorProto.FLOAT, list(word_embedding.shape)
                 ),
@@ -5478,7 +5483,7 @@ def test_embedlayernormalization(target, dev):
                     "position_embedding", TensorProto.FLOAT, list(position_embedding.shape)
                 ),
                 helper.make_tensor_value_info(
-                    "segment_embedding", TensorProto.FLOAT, list(segment_embedding.shape)
+                    "segment_embedding", TensorProto.FLOAT, segment_embedding_shape
                 ),
                 helper.make_tensor_value_info("gamma", TensorProto.FLOAT, list(gamma.shape)),
                 helper.make_tensor_value_info("beta", TensorProto.FLOAT, list(beta.shape)),
@@ -5535,6 +5540,11 @@ def test_embedlayernormalization(target, dev):
 
     verify_embedlayernormalization(
         input_ids, segment_ids, word_embedding, position_embedding, segment_embedding, gamma, beta
+    )
+
+    # Test with undefined segment embedding
+    verify_embedlayernormalization(
+        input_ids, None, word_embedding, position_embedding, None, gamma, beta
     )
 
 

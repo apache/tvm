@@ -907,21 +907,6 @@ class SkipLayerNormalization(OnnxOpConverter):
     normalization.
     """
 
-    @staticmethod
-    def _compute_layer_norm(x, eps, gamma, beta):
-        eps_dtype = infer_type(x).checked_type.dtype
-
-        u, s = _op.mean_variance(x, axis=-1, keepdims=True)
-        output = _op.divide(
-            _op.subtract(x, u),
-            _op.sqrt(_op.add(s, _op.const(eps, dtype=eps_dtype))),
-        )
-        output = _op.multiply(output, gamma)
-        if beta is not None:
-            output = _op.add(output, beta)
-
-        return output
-
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         data = inputs[0]
@@ -929,6 +914,10 @@ class SkipLayerNormalization(OnnxOpConverter):
         gamma = inputs[2]
         beta = inputs[3]
         bias = inputs[4]
+
+        assert (
+            beta is not None and bias is not None
+        ), "SkipLayerNormalization import currently only supports required beta and bias"
 
         eps = attr.get("epsilon", 1e-12)
 
@@ -990,6 +979,9 @@ class Attention(OnnxOpConverter):
         ), "output hidden size should be divisible by number of attention heads"
         head_size = out_hidden // num_heads
 
+        assert (
+            mask_index is not None
+        ), "Attention import currently only supports required mask_index"
         mask_index_shape = infer_shape(mask_index)
         assert (
             len(mask_index_shape) == 2
