@@ -230,6 +230,23 @@ def test_broadcast_to():
 
 
 @tvm.testing.uses_gpu
+def test_broadcast_to_const_shape_int64():
+    shape_like = relay.const(np.array([1, 5]), dtype="int64")
+    x = relay.var("x", shape=(1,), dtype="int64")
+    z = relay.broadcast_to(x, shape=shape_like)
+    z = relay.sum(z, axis=0)
+
+    f = relay.Function([x], z)
+
+    x = np.random.randint(10, size=(1,), dtype="int64")
+    ref_res = np.broadcast_to(x, (5,))
+    for target, dev in tvm.testing.enabled_targets():
+        for kind in ["graph", "debug"]:
+            op_res = relay.create_executor(kind, device=dev, target=target).evaluate(f)(x)
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res)
+
+
+@tvm.testing.uses_gpu
 def test_broadcast_to_like():
     shape = (4, 1, 6)
     shape_like = (3, 4, 5, 6)
