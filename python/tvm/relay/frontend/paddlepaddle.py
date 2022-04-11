@@ -658,7 +658,7 @@ def convert_gelu(g, op, block):
     x = g.get_node(op.input("X")[0])
     out = x * (
         _expr.const(0.5, dtype="float32")
-        + _op.erf(x * _expr.const(0.5 ** 0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
+        + _op.erf(x * _expr.const(0.5**0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
     )
     g.add_node(op.output("Out")[0], out)
 

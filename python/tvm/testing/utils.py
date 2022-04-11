@@ -218,7 +218,7 @@ def check_numerical_grads(
         wrong_percentage = int(100 * len(wrong_positions) / np.prod(grad.shape))
 
         dist = np.sqrt(np.sum((ngrad - grad) ** 2))
-        grad_norm = np.sqrt(np.sum(ngrad ** 2))
+        grad_norm = np.sqrt(np.sum(ngrad**2))
 
         if not (np.isfinite(dist) and np.isfinite(grad_norm)):
             raise ValueError(
