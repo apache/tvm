@@ -220,7 +220,7 @@ def test_vectorize_while_fail():
 
 def test_vectorize_dtype_mismatch():
     n = tvm.tir.IntImm("int64", 4)
-    A = te.compute((n,), lambda i: tvm.tir.IntImm("int64", 2 ** 31 - 1) + i, name="A")
+    A = te.compute((n,), lambda i: tvm.tir.IntImm("int64", 2**31 - 1) + i, name="A")
     s = te.create_schedule(A.op)
     s[A].vectorize(A.op.axis[0])
     tvm.lower(s, [A], "llvm", simple_mode=True)
