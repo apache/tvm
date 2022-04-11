@@ -34,7 +34,7 @@ from .infra import make_ethosu_conv2d, make_ethosu_binary_elementwise
 @tvm.script.ir_module
 class WeightStreamOnlyU55:
     @T.prim_func
-    def main(placeholder: T.Buffer[(8192,), "int8"], ethosu_write: T.Buffer[(2048,), "int8"]) -> None:
+    def main(placeholder: T.Buffer[(1, 16, 16, 32), "int8"], ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.buffer_decl([128], "uint8")
@@ -45,8 +45,8 @@ class WeightStreamOnlyU55:
         buffer_5 = T.buffer_decl([32], "uint8")
         buffer_6 = T.buffer_decl([112], "uint8")
         buffer_7 = T.buffer_decl([32], "uint8")
-        T.preflattened_buffer(placeholder, [1, 16, 16, 32], "int8", data=placeholder.data)
-        T.preflattened_buffer(ethosu_write, [1, 16, 16, 8], "int8", data=ethosu_write.data)
+        placeholder = T.buffer_decl([8192], "int8", data=placeholder.data)
+        ethosu_write = T.buffer_decl([2048], "int8", data=ethosu_write.data)
         # body
         p1_global = T.allocate([128], "uint8", "global", annotations={"disable_lower_builtin":True})
         p2_global = T.allocate([32], "uint8", "global", annotations={"disable_lower_builtin":True})
@@ -169,13 +169,13 @@ def test_weight_stream_only(accelerator, reference_mod, reference_const_sizes):
 @tvm.script.ir_module
 class RereadWeightsU55:
     @T.prim_func
-    def main(placeholder: T.Buffer[(8192,), "int8"], ethosu_write: T.Buffer[(2048,), "int8"]) -> None:
+    def main(placeholder: T.Buffer[(1, 16, 16, 32), "int8"], ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.buffer_decl([304], "uint8")
         buffer_1 = T.buffer_decl([80], "uint8")
-        T.preflattened_buffer(placeholder, [1, 16, 16, 32], "int8", data=placeholder.data)
-        T.preflattened_buffer(ethosu_write, [1, 16, 16, 8], "int8", data=ethosu_write.data)
+        placeholder = T.buffer_decl([8192], "int8", data=placeholder.data)
+        ethosu_write = T.buffer_decl([2048], "int8", data=ethosu_write.data)
         # body
         placeholder_global = T.allocate([304], "uint8", "global", annotations={"disable_lower_builtin":True})
         placeholder_d_global = T.allocate([80], "uint8", "global", annotations={"disable_lower_builtin":True})
@@ -275,15 +275,15 @@ def test_re_read_weights(accelerator, reference_mod, reference_const_sizes):
 @tvm.script.ir_module
 class DirectReadOnlyU55:
     @T.prim_func
-    def main(placeholder: T.Buffer[(8192,), "int8"], ethosu_write: T.Buffer[(2048,), "int8"]) -> None:
+    def main(placeholder: T.Buffer[(1, 16, 16, 32), "int8"], ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.buffer_decl([592], "uint8")
         buffer_1 = T.buffer_decl([160], "uint8")
         buffer_2 = T.buffer_decl([160], "uint8")
         buffer_3 = T.buffer_decl([80], "uint8")
-        T.preflattened_buffer(placeholder, [1, 16, 16, 32], "int8", data=placeholder.data)
-        T.preflattened_buffer(ethosu_write, [1, 16, 16, 8], "int8", data=ethosu_write.data)
+        placeholder = T.buffer_decl([8192], "int8", data=placeholder.data)
+        ethosu_write = T.buffer_decl([2048], "int8", data=ethosu_write.data)
         # body
         ethosu_write_1 = T.allocate([4096], "int8", "global", annotations={"disable_lower_builtin":True})
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 16, 16, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 16, 1, 1, 1, 1, 1, 1, 1, buffer[0], 592, T.int8(-1), T.int8(-1), 12, buffer_1[0], 160, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
@@ -371,7 +371,7 @@ def test_direct_read_only(accelerator, reference_mod, reference_const_sizes):
 @tvm.script.ir_module
 class MixedReadU55:
     @T.prim_func
-    def main(placeholder: T.Buffer[(8192,), "int8"], ethosu_write: T.Buffer[(2048,), "int8"]) -> None:
+    def main(placeholder: T.Buffer[(1, 16, 16, 32), "int8"], ethosu_write: T.Buffer[(1, 16, 16, 8), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         buffer = T.buffer_decl([592], "uint8")
@@ -384,8 +384,8 @@ class MixedReadU55:
         buffer_7 = T.buffer_decl([32], "uint8")
         buffer_8 = T.buffer_decl([80], "uint8")
         buffer_9 = T.buffer_decl([32], "uint8")
-        T.preflattened_buffer(placeholder, [1, 16, 16, 32], "int8", data=placeholder.data)
-        T.preflattened_buffer(ethosu_write, [1, 16, 16, 8], "int8", data=ethosu_write.data)
+        placeholder = T.buffer_decl([2048], "int8", data=placeholder.data)
+        ethosu_write = T.buffer_decl([2048], "int8", data=ethosu_write.data)
         # body
         ethosu_write_1 = T.allocate([4096], "int8", "global", annotations={"disable_lower_builtin":True})
         placeholder_global = T.allocate([80], "uint8", "global", annotations={"disable_lower_builtin":True})

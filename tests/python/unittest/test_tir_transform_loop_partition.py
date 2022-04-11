@@ -544,9 +544,6 @@ def partitioned_concat(
     A: T.Buffer[(16,), "float32"], B: T.Buffer[(16,), "float32"], C: T.Buffer[(32,), "float32"]
 ) -> None:
     T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-    T.preflattened_buffer(A, [16], data=A.data)
-    T.preflattened_buffer(B, [16], data=B.data)
-    T.preflattened_buffer(C, [32], data=C.data)
     for i in T.serial(0, 16):
         C[i] = A[i]
     for i in T.serial(0, 16):
@@ -570,15 +567,15 @@ def test_explicit_partition_hint():
 
 @T.prim_func
 def partitioned_concat_3(
-    placeholder: T.Buffer[(50176,), "int8"],
-    placeholder_1: T.Buffer[(25088,), "int8"],
-    placeholder_2: T.Buffer[(25088,), "int8"],
-    T_concat: T.Buffer[(100352,), "int8"],
+    placeholder: T.Buffer[(1, 64, 28, 28), "int8"],
+    placeholder_1: T.Buffer[(1, 32, 28, 28), "int8"],
+    placeholder_2: T.Buffer[(1, 32, 28, 28), "int8"],
+    T_concat: T.Buffer[(1, 128, 28, 28), "int8"],
 ) -> None:
-    T.preflattened_buffer(placeholder, [1, 64, 28, 28], "int8", data=placeholder.data)
-    T.preflattened_buffer(placeholder_1, [1, 32, 28, 28], "int8", data=placeholder_1.data)
-    T.preflattened_buffer(placeholder_2, [1, 32, 28, 28], "int8", data=placeholder_2.data)
-    T.preflattened_buffer(T_concat, [1, 128, 28, 28], "int8", data=T_concat.data)
+    placeholder = T.buffer_decl([50176], "int8", data=placeholder.data)
+    placeholder_1 = T.buffer_decl([25088], "int8", data=placeholder_1.data)
+    placeholder_2 = T.buffer_decl([25088], "int8", data=placeholder_2.data)
+    T_concat = T.buffer_decl([100352], "int8", data=T_concat.data)
     for i1, i2, i3 in T.grid(64, 28, 28):
         T_concat[i1 * 784 + i2 * 28 + i3] = placeholder[i1 * 784 + i2 * 28 + i3]
     for i1, i2, i3 in T.grid(32, 28, 28):
@@ -589,15 +586,15 @@ def partitioned_concat_3(
 
 @T.prim_func
 def concat_func_3(
-    placeholder: T.Buffer[(50176,), "int8"],
-    placeholder_1: T.Buffer[(25088,), "int8"],
-    placeholder_2: T.Buffer[(25088,), "int8"],
-    T_concat: T.Buffer[(100352,), "int8"],
+    placeholder: T.Buffer[(1, 64, 28, 28), "int8"],
+    placeholder_1: T.Buffer[(1, 32, 28, 28), "int8"],
+    placeholder_2: T.Buffer[(1, 32, 28, 28), "int8"],
+    T_concat: T.Buffer[(1, 128, 28, 28), "int8"],
 ) -> None:
-    T.preflattened_buffer(placeholder, (1, 64, 28, 28), "int8", data=placeholder.data)
-    T.preflattened_buffer(placeholder_1, (1, 32, 28, 28), "int8", data=placeholder_1.data)
-    T.preflattened_buffer(placeholder_2, (1, 32, 28, 28), "int8", data=placeholder_2.data)
-    T.preflattened_buffer(T_concat, (1, 128, 28, 28), "int8", data=T_concat.data)
+    placeholder = T.buffer_decl([50176], "int8", data=placeholder.data)
+    placeholder_1 = T.buffer_decl([25088], "int8", data=placeholder_1.data)
+    placeholder_2 = T.buffer_decl([25088], "int8", data=placeholder_2.data)
+    T_concat = T.buffer_decl([100352], "int8", data=T_concat.data)
     for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
         for i2, i3 in T.grid(28, 28):
             if 96 <= i1:

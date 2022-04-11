@@ -24,12 +24,12 @@ from tvm.script import tir as T
 @tvm.script.ir_module
 class Before:
     @T.prim_func
-    def main(inputs: T.Buffer[(8192,), "float32"], weight: T.Buffer[(2097152,), "float32"], conv2d_transpose_nhwc: T.Buffer[(16384,), "float32"]) -> None:
+    def main(inputs: T.Buffer[(1, 4, 4, 512), "float32"], weight: T.Buffer[(4, 4, 512, 256), "float32"], conv2d_transpose_nhwc: T.Buffer[(1, 8, 8, 256), "float32"]) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        T.preflattened_buffer(inputs, [1, 4, 4, 512], dtype="float32", data=inputs.data)
-        T.preflattened_buffer(weight, [4, 4, 512, 256], dtype="float32", data=weight.data)
-        T.preflattened_buffer(conv2d_transpose_nhwc, [1, 8, 8, 256], dtype="float32", data=conv2d_transpose_nhwc.data)
+        inputs = T.buffer_decl([8192], dtype="float32", data=inputs.data)
+        weight = T.buffer_decl([2097152], dtype="float32", data=weight.data)
+        conv2d_transpose_nhwc = T.buffer_decl([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
         # var definition
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
@@ -55,12 +55,12 @@ class Before:
 @tvm.script.ir_module
 class After:
     @T.prim_func
-    def main(inputs: T.Buffer[(8192,), "float32"], weight: T.Buffer[(2097152,), "float32"], conv2d_transpose_nhwc: T.Buffer[(16384,), "float32"]) -> None:
+    def main(inputs: T.Buffer[(1, 4, 4, 512), "float32"], weight: T.Buffer[(4, 4, 512, 256), "float32"], conv2d_transpose_nhwc: T.Buffer[(1, 8, 8, 256), "float32"]) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        T.preflattened_buffer(inputs, [1, 4, 4, 512], dtype="float32", data=inputs.data)
-        T.preflattened_buffer(weight, [4, 4, 512, 256], dtype="float32", data=weight.data)
-        T.preflattened_buffer(conv2d_transpose_nhwc, [1, 8, 8, 256], dtype="float32", data=conv2d_transpose_nhwc.data)
+        inputs = T.buffer_decl([8192], dtype="float32", data=inputs.data)
+        weight = T.buffer_decl([2097152], dtype="float32", data=weight.data)
+        conv2d_transpose_nhwc = T.buffer_decl([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
         # var definition
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
@@ -86,15 +86,15 @@ class After:
 @tvm.script.ir_module
 class After_simplified:
     @T.prim_func
-    def main(inputs: T.Buffer[(8192,), "float32"], weight: T.Buffer[(2097152,), "float32"], conv2d_transpose_nhwc: T.Buffer[(16384,), "float32"]) -> None:
+    def main(inputs: T.Buffer[(1, 4, 4, 512), "float32"], weight: T.Buffer[(4, 4, 512, 256), "float32"], conv2d_transpose_nhwc: T.Buffer[(1, 8, 8, 256), "float32"]) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # var definition
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
-        T.preflattened_buffer(inputs, [1, 4, 4, 512], dtype="float32", data=inputs.data)
-        T.preflattened_buffer(weight, [4, 4, 512, 256], dtype="float32", data=weight.data)
-        T.preflattened_buffer(conv2d_transpose_nhwc, [1, 8, 8, 256], dtype="float32", data=conv2d_transpose_nhwc.data)
+        inputs = T.buffer_decl([8192], dtype="float32", data=inputs.data)
+        weight = T.buffer_decl([2097152], dtype="float32", data=weight.data)
+        conv2d_transpose_nhwc = T.buffer_decl([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
         # body
         T.launch_thread(blockIdx_x, 64)
         conv2d_transpose_nhwc_local = T.allocate([8], "float32", "local")
