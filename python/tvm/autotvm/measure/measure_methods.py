@@ -44,6 +44,7 @@ from tvm.contrib import ndk, stackvm, tar
 from tvm.contrib.popen_pool import PopenPoolExecutor
 from tvm.driver import build
 from tvm.error import TVMError
+from tvm.ir.container import Map
 from tvm.target import Target
 
 from ..env import AutotvmGlobalScope
@@ -496,7 +497,8 @@ class LocalRunner(RPCRunner):
 def _build_func_common(measure_input, runtime=None, check_gpu=None, build_option=None):
     """Common part for building a configuration"""
     target, task, config = measure_input
-    target, task.target_host = Target.check_and_update_host_consist(target, task.target_host)
+    assert not isinstance(target, (Map, dict)), "It's expected that 'target' is a string here."
+    target, _ = Target.check_and_update_host_consist(target, task.target_host)
 
     with target:
         s, args = task.instantiate(config)
@@ -520,7 +522,7 @@ def _build_func_common(measure_input, runtime=None, check_gpu=None, build_option
             func = vta.build(s, args, target_host=task.target_host)
         else:
             with tvm.ir.transform.PassContext(config=opts):
-                func = build(s, args, target_host=task.target_host, runtime=runtime)
+                func = build(s, args, target=target, runtime=runtime)
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
 
