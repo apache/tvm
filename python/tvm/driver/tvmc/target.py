@@ -81,7 +81,7 @@ def generate_target_args(parser):
     parser.add_argument(
         "--target",
         help="compilation target as plain string, inline JSON or path to a JSON file",
-        required=True,
+        required=False,
     )
     for target_kind in _valid_target_kinds():
         _generate_target_kind_args(parser, target_kind)

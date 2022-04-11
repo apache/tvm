@@ -43,7 +43,7 @@ logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_compile_parser(subparsers, _):
+def add_compile_parser(subparsers, _, json_params):
     """Include parser for 'compile' subcommand"""
 
     parser = subparsers.add_parser("compile", help="compile a model.")
@@ -137,6 +137,9 @@ def add_compile_parser(subparsers, _):
         type=parse_pass_list_str,
         default="",
     )
+
+    for one_entry in json_params:
+        parser.set_defaults(**one_entry)
 
 
 def drive_compile(args):
