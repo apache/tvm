@@ -880,7 +880,7 @@ class EmbedLayerNormalization(OnnxOpConverter):
             assert segment_emb
 
         if pos_ids is None:
-            pos_ids = _op.const([list(range(seq_len))] * seq_len, dtype="int64")
+            pos_ids = _op.const([list(range(seq_len))] * seq_len, dtype="int32")
 
         word_vec = _op.take(word_emb, input_ids, axis=0)
         segment_vec = _op.take(segment_emb, segment_ids, axis=0)
@@ -892,7 +892,7 @@ class EmbedLayerNormalization(OnnxOpConverter):
 
         ln = layer_norm(vec_sum, eps, gamma, beta)
 
-        mask_index = _op.const(np.zeros((batch_size,), dtype="int64"))
+        mask_index = _op.const(np.zeros((batch_size,), dtype="int32"))
         if mask:
             # calculate number of words per sentence
             mask_index = _op.sum(mask, axis=1)
