@@ -1435,6 +1435,12 @@ class Shape(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         return shape_of(inputs[0], "int64")
 
+    @classmethod
+    def _impl_v15(cls, inputs, attr, params):
+        start = attr.get("start")
+        end = attr.get("end")
+        return shape_of(inputs[0], dtype="int64", start=start, end=end)
+
 
 class CumSum(OnnxOpConverter):
     """Operator converter for CumSum."""
