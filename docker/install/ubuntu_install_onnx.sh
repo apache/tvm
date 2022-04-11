@@ -28,7 +28,7 @@ set -o pipefail
 # to onnx>=1.9, onnxoptimizer should also be installed.
 pip3 install \
     onnx==1.10.2 \
-    onnxruntime==1.11.0 \
+    onnxruntime==1.9.0 \
     onnxoptimizer==0.2.6
 
 # torch depends on a number of other packages, but unhelpfully, does
