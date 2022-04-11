@@ -100,7 +100,7 @@ def test_concatenate():
             inputs["a"].shape, inputs["b"].shape, inputs["c"].shape, axis, dtype, iter(inputs)
         )
         for acl in [False, True]:
-            outputs.append(build_and_run(func, inputs, 1, None, device, enable_acl=acl)[0])
+            outputs.append(build_and_run(func, inputs, 1, None, device, enable_acl=acl, offload_concat=True)[0])
 
         config = {
             "input_shape_a": input_shape_a,
@@ -124,7 +124,7 @@ def test_codegen_concatenate():
         args = (shape_a, shape_b, shape_c, axis, dtype)
         func = _get_model(*args, iter(inputs))
         exp_codegen = _get_expected_codegen(*args)
-        verify_codegen(func, exp_codegen, 1)
+        verify_codegen(func, exp_codegen, 1, offload_concat=True)
 
 
 if __name__ == "__main__":
