@@ -29,7 +29,6 @@
 #endif
 
 #include <algorithm>
-#include <atomic>
 #include <unordered_map>
 #include <utility>
 
@@ -306,7 +305,7 @@ class MapNode : public Object {
 
  protected:
 #if TVM_LOG_DEBUG
-  std::atomic<uint64_t> state_marker;
+  uint64_t state_marker;
 #endif  // TVM_LOG_DEBUG
   /*!
    * \brief Create the map using contents from the given iterators.
