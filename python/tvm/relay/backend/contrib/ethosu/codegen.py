@@ -438,7 +438,7 @@ def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
 
     # Use the cascader if it is enabled for the U55 accelerator, otherwise use copy_constants
     # scheduler
-    if util.enable_cascader():
+    if util.is_cascader_enabled():
         assert (
             util.get_accelerator_config() != "ethos-u65-256"
         ), "Cascading is not supported for the U65 accelerator"

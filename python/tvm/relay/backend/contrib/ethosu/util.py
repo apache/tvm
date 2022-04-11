@@ -241,7 +241,7 @@ def get_accelerator_config():
     return compiler_attrs.accelerator_config
 
 
-def enable_cascader():
+def is_cascader_enabled():
     """Determine whether the cascader is enabled"""
     compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
     return compiler_attrs.enable_cascader
