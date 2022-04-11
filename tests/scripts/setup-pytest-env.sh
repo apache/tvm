@@ -62,10 +62,15 @@ function run_pytest() {
 
     suite_name="${test_suite_name}-${ffi_type}"
     exit_code=0
+    # Default to 1 CPU for all tests so they run under pytest. This makes it so
+    # pytest runs them in another process so segfaults don't crash pytest's
+    # test reporting
+    ncpus=${PYTEST_CPUS:=1}
     TVM_FFI=${ffi_type} python3 -m pytest \
            -o "junit_suite_name=${suite_name}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${suite_name}.xml" \
            "--junit-prefix=${ffi_type}" \
+           -n "$ncpus" \
            "$@" || exit_code=$?
     if [ "$exit_code" -ne "0" ]; then
         pytest_errors+=("${suite_name}: $@")
