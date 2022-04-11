@@ -3223,6 +3223,24 @@ def int64_support():
     return elementwise_shape_int64
 
 
+def string_annotation_escaping():
+    @T.prim_func
+    def string_annotation_of_special_chars():
+        T.func_attr(
+            {
+                "key1": '"\'hello\t\r"',
+                "key2": """
+            %1 = add i32 %0, %0
+            %2 = add i32 %0, %1
+            %3 = add i32 %1, %2
+            """,
+            }
+        )
+        T.evaluate(0)
+
+    return string_annotation_of_special_chars
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3256,6 +3274,7 @@ ir_generator = tvm.testing.parameter(
     llvm_intrin_call,
     parse_bufferslice_as_range_bound,
     int64_support,
+    string_annotation_escaping,
 )
 
 
