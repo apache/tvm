@@ -158,8 +158,11 @@ class TVMScriptParser(Transformer):
 
     # pylint gets confused here with synr.Transformer which doesn't have a
     # custom init, so just disable it
-    def __init__(self, base_lineno, tir_namespace):  # pylint: disable=super-init-not-called
+    def __init__(
+        self, base_lineno, tir_namespace, params: Optional[Dict[str, Any]] = None
+    ):  # pylint: disable=super-init-not-called
         self.context = None
+        self.params = params
 
         self.base_lineno = base_lineno
         self.current_lineno = 0
@@ -435,6 +438,10 @@ class TVMScriptParser(Transformer):
             if len(decorators) != 1:
                 return False
             d: ast.Expr = decorators[0]
+            # Allow the decorator to be either T.prim_func or
+            # T.prim_func(params=...)
+            if isinstance(d, ast.Call):
+                d = d.func_name
             return (
                 isinstance(d, ast.Attr)
                 and isinstance(d.object, ast.Var)
@@ -1136,6 +1143,12 @@ class TVMScriptParser(Transformer):
         symbol = self.context.lookup_symbol(name)
         if symbol is not None:
             return symbol
+
+        if self.params and name in self.params:
+            obj = self.params[name]
+            span = tvm_span_from_synr(node.span)
+            return tvm.runtime.convert(obj, span=span)
+
         self.report_error(f"Unknown identifier {name}.", node.span)
 
     def transform_TypeVar(self, node):
@@ -1147,6 +1160,10 @@ class TVMScriptParser(Transformer):
         symbol = Registry.lookup(name) or self.context.lookup_symbol(name)
         if symbol is not None:
             return symbol
+
+        if self.params and name in self.params:
+            return self.params[name]
+
         self.report_error(f"Unknown identifier {name}.", node.span)
 
     def transform_Constant(self, node):
@@ -1230,7 +1247,9 @@ def get_tir_namespace(script: Union[Callable, type]) -> List[str]:
 
 
 def from_source(
-    input_func: Union[str, Callable], tir_prefix: Optional[List[str]] = None
+    input_func: Union[str, Callable],
+    tir_prefix: Optional[List[str]] = None,
+    params: Optional[Dict[str, Any]] = None,
 ) -> Union[PrimFunc, IRModule]:
     """Parse function or string into PrimFunc or IRModule.
 
@@ -1252,12 +1271,12 @@ def from_source(
     """
     if isinstance(input_func, str):
         tir_prefix = ["T", "tir"] if tir_prefix is None else tir_prefix
-        return to_ast(input_func, TVMDiagnosticCtx(), TVMScriptParser(0, tir_prefix))
+        return to_ast(input_func, TVMDiagnosticCtx(), TVMScriptParser(0, tir_prefix, params))
     elif inspect.isfunction(input_func):
         _, start_line = inspect.getsourcelines(input_func)
         env: Dict[str, Any] = input_func.__globals__
         namespace = [key for key in env.keys() if env[key] is tir]
-        parser = TVMScriptParser(start_line, namespace)
+        parser = TVMScriptParser(start_line, namespace, params)
         result = to_ast(input_func, TVMDiagnosticCtx(), parser)
         return result
     else:
