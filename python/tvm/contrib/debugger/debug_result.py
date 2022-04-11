@@ -154,7 +154,7 @@ class DebugResult(object):
         """Dump the trace to the Chrome trace.json format."""
 
         def s_to_us(t):
-            return t * 10 ** 6
+            return t * 10**6
 
         starting_times = np.zeros(len(self._time_list) + 1)
         starting_times[1:] = np.cumsum([times[0] for times in self._time_list])

@@ -2193,7 +2193,7 @@ def test_vgg11_bn():
 def test_custom_conversion_map():
     def get_roi_align():
         pool_size = 5
-        n_channels = 2 * (pool_size ** 2)
+        n_channels = 2 * (pool_size**2)
         x = torch.rand(2, n_channels, 10, 10)
         rois = torch.tensor(
             [
