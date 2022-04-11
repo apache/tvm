@@ -47,7 +47,6 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-
 #if defined(__hexagon__)
 class HexagonTimerNode : public TimerNode {
  public:
