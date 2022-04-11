@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-04-11T10:45:26.226802
+// Generated at 2022-04-11T12:22:12.040444
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -85,6 +85,7 @@ tvm_multilib = 'build/libtvm.so, ' +
 
 tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
                tvm_multilib
+microtvm_lib = 'build/microtvm_template_projects.tar.gz, ' + tvm_lib
 upstream_revision = null
 
 // command to start a docker container
@@ -576,23 +577,12 @@ stage('Build') {
             script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh build",
             label: 'Create QEMU cmake config',
           )
-          try {
-            make(ci_qemu, 'build', '-j2')
-            cpp_unittest(ci_qemu)
-            timeout(time: max_time, unit: 'MINUTES') {
-              ci_setup(ci_qemu)
-              sh (
-                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
-                label: 'Run microTVM tests',
-              )
-              sh (
-                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
-                label: 'Run microTVM demos',
-              )
-            }
-          } finally {
-            junit 'build/pytest-results/*.xml'
-          }
+          make(ci_qemu, 'build', '-j2')
+          sh(
+            script: 'cd build && tar -czvf microtvm_template_projects.tar.gz microtvm_template_projects/',
+            label: 'Compress microtvm_template_projects'
+          )
+          pack_lib('qemu', microtvm_lib)
         }
       }
      } else {
@@ -608,24 +598,8 @@ stage('Build') {
             script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
             label: 'Create Hexagon cmake config',
           )
-          try {
-            make(ci_hexagon, 'build', '-j2')
-            cpp_unittest(ci_hexagon)
-            sh (
-              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
-              label: 'Build Hexagon API',
-            )
-            sh (
-              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
-              label: 'Run Hexagon tests',
-            )
-            sh (
-              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon_simulator.sh",
-              label: 'Run Hexagon tests on simulator',
-            )
-          } finally {
-            junit 'build/pytest-results/*.xml'
-          }
+          make(ci_hexagon, 'build', '-j2')
+          pack_lib('hexagon', tvm_lib)
         }
       }
      } else {
@@ -777,6 +751,70 @@ stage('Test') {
       }
     } else {
       Utils.markStageSkippedForConditional('python3: i386')
+    }
+  },
+  'test: Hexagon': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
+          timeout(time: max_time, unit: 'MINUTES') {
+            try {
+              init_git()
+              unpack_lib('hexagon', tvm_lib)
+              ci_setup(ci_hexagon)
+              cpp_unittest(ci_hexagon)
+              sh (
+                script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
+                label: 'Build Hexagon API',
+              )
+              sh (
+                script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+                label: 'Run Hexagon tests',
+              )
+              sh (
+                script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon_simulator.sh",
+                label: 'Run Hexagon tests on simulator',
+              )
+            } finally {
+              junit 'build/pytest-results/*.xml'
+            }
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('test: Hexagon')
+    }
+  },
+  'test: QEMU': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-qemu") {
+          timeout(time: max_time, unit: 'MINUTES') {
+            try {
+              init_git()
+              unpack_lib('qemu', microtvm_lib)
+              sh(
+                script: 'cd build && tar -xzvf microtvm_template_projects.tar.gz',
+                label: 'Unpack microtvm_template_projects'
+              )
+              ci_setup(ci_qemu)
+              cpp_unittest(ci_qemu)
+              sh (
+                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+              sh (
+                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
+                label: 'Run microTVM demos',
+              )
+            } finally {
+              junit 'build/pytest-results/*.xml'
+            }
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('test: QEMU')
     }
   },
   'topi: aarch64': {
