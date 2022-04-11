@@ -235,16 +235,6 @@ class Session:
             self.device is not None
         ), "Hexagon session must be started using __enter__ prior to use"
 
-        def _workaround_create_aot_shared():
-            # The C codegen uses TVM/RT functions directly. On Hexagon it should use
-            # functions pointers via __TVMxyz variables. This workaround makes the
-            # runtime symbols visible to the compiled shared library.
-            extra_link_flags = os.environ.get("HEXAGON_SHARED_LINK_FLAGS")
-            extra_options = str(extra_link_flags).split() if extra_link_flags else []
-            return lambda so_name, files, hexagon_arch, options: hexagon.create_aot_shared(
-                so_name, files, hexagon_arch, options=extra_options + options
-            )
-
         if isinstance(module, ExecutorFactoryModule):
             hexagon_arch = set(
                 target.mcpu.replace("hexagon", "")
@@ -262,15 +252,9 @@ class Session:
                 binary_name = "test_binary.so"
                 binary_path = temp_dir / binary_name
 
-                # Uncomment this once the workaround is not needed.
-                # module.export_library(
-                #     str(binary_path),
-                #     fcompile=hexagon.create_aot_shared,
-                #     hexagon_arch=hexagon_arch,
-                # )
                 module.export_library(
                     str(binary_path),
-                    fcompile=_workaround_create_aot_shared(),
+                    fcompile=hexagon.create_aot_shared,
                     hexagon_arch=hexagon_arch,
                 )
 

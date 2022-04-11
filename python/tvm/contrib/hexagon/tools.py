@@ -160,6 +160,19 @@ def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: st
             + "HEXAGON_SDK_PATH in your environment."
         )
 
+    # The AOT C codegen uses TVM runtime functions
+    # (e.g. TVMBackendAllocWorkspace) directly. On Hexagon these calls
+    # should be made using functions pointers provided as __TVM*
+    # variables in the provided context.  This workaround allows the
+    # the TVM runtime symbols to be visible to the compiled shared
+    # library.
+    #
+    # This workaround can be removed when AOT codegen can be done with
+    # LLVM codegen.
+    workaround_link_flags = os.environ.get("HEXAGON_SHARED_LINK_FLAGS")
+    if workaround_link_flags:
+        options.extend(workaround_link_flags.split())
+
     tvm_dir = pathlib.Path(os.path.dirname(os.path.realpath(__file__))) / ".." / ".." / ".." / ".."
     compute_arch = f"compute{hexagon_arch}"
     compile_options = [
