@@ -49,7 +49,8 @@ class SimplifyConvPad {
     conv1d_ = IsOp("nn.conv1d");
     conv2d_ = IsOp("nn.conv2d");
     conv3d_ = IsOp("nn.conv3d");
-    conv_ = (conv1d_ || conv2d_ || conv3d_)({pad_, w_});
+    qconv2d_ = IsOp("qnn.conv2d");
+    conv_ = (conv1d_ || conv2d_ || conv3d_ || qconv2d_)({pad_, w_});
     pattern_ = conv_;
   }
 
@@ -131,6 +132,8 @@ class SimplifyConvPad {
         attrs = GetAttrs(param, call_node->attrs.as<Conv2DAttrs>());
       } else if (node_map.count(conv3d_)) {
         attrs = GetAttrs(param, call_node->attrs.as<Conv3DAttrs>());
+      } else if (node_map.count(qconv2d_)) {
+        attrs = GetAttrs(param, call_node->attrs.as<Conv2DAttrs>());
       } else {
         return post;
       }
@@ -158,6 +161,7 @@ class SimplifyConvPad {
   DFPattern conv1d_;
   DFPattern conv2d_;
   DFPattern conv3d_;
+  DFPattern qconv2d_;
 };
 
 class SimplifyExplicitPadding {
