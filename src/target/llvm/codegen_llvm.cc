@@ -1411,11 +1411,9 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
-  //  LOG(INFO) << "Visit Call:" << GetRef<Call>(op);
   if (auto* ptr_op = op->op.as<OpNode>()) {
     auto call_op = GetRef<Op>(ptr_op);
     if (op->op.same_as(builtin_lookup_param_)) {
-      //      return llvm::ConstantInt::get(t_void_p_, 0);
       return GetLinkedParamSymbol(Downcast<StringImm>(op->args[0])->value, nullptr);
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       // call extern intrinsic
