@@ -217,13 +217,13 @@ class Session:
             session and load.
         """
         if isinstance(module, AOTExecutorFactoryModule):
-            return self._get_aot_executor_from_factory(module)
+            return self._aot_executor_from_factory(module)
         if isinstance(module, GraphExecutorFactoryModule):
-            return self._get_graph_executor_from_factory(module)
+            return self._graph_executor_from_factory(module)
 
         raise TypeError(f"Unsupported executor type: {type(module)}")
 
-    def _get_graph_executor_from_factory(
+    def _graph_executor_from_factory(
         self,
         module: Union[str, pathlib.Path, GraphExecutorFactoryModule],
     ):
@@ -253,7 +253,7 @@ class Session:
 
         return tvm.contrib.graph_executor.create(graph_json, graph_mod, self.device)
 
-    def _get_aot_executor_from_factory(
+    def _aot_executor_from_factory(
         self,
         module: Union[str, pathlib.Path, AOTExecutorFactoryModule],
     ):
