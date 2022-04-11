@@ -39,7 +39,7 @@ def get_input_data_shape_dict(graph_def, input_data):
         shape_dict = {}
         for i, _ in enumerate(input_data):
             input_names[i] = graph_def.graph.input[i].name
-            if input_data[i] is None:
+            if input_data[i] is None or len(input_data[i]) == 0:
                 # Skip adding input shape data when the input data is None;
                 # This is to enable optional arguments for onnx operators.
                 continue
@@ -5459,7 +5459,7 @@ def test_embedlayernormalization(target, dev):
                 "gamma",
                 "beta",
             ],
-            outputs=["output", "mask_index", "embedding_sum"],
+            outputs=["output", "mask_index"],
             domain="com.microsoft",
         )
 
@@ -5493,30 +5493,27 @@ def test_embedlayernormalization(target, dev):
                     "output", TensorProto.FLOAT, list((batch_size, sequence_length, hidden_size))
                 ),
                 helper.make_tensor_value_info("mask_index", TensorProto.INT32, [batch_size]),
-                helper.make_tensor_value_info(
-                    "embedding_sum",
-                    TensorProto.FLOAT,
-                    list((batch_size, sequence_length, hidden_size)),
-                ),
             ],
         )
 
         model = helper.make_model(graph, producer_name="embedlayernormalization_test")
+
+        # TODO(@anwang2009): onnxruntime v1.9.0 requires empty list for optional argument,
+        # but v1.10.0+ requires None instead.
         verify_with_ort_with_inputs(
             model,
             [
                 input_ids,
-                segment_ids,
+                [] if segment_ids is None else segment_ids,
                 word_embedding,
                 position_embedding,
-                segment_embedding,
+                [] if segment_embedding is None else segment_embedding,
                 gamma,
                 beta,
             ],
             [
                 (batch_size, sequence_length, hidden_size),
                 batch_size,
-                (batch_size, sequence_length, hidden_size),
             ],
             target=target,
             dev=dev,

@@ -897,7 +897,8 @@ class EmbedLayerNormalization(OnnxOpConverter):
             # calculate number of words per sentence
             mask_index = _op.sum(mask, axis=1)
 
-        return _expr.TupleWrapper(_expr.Tuple([ln, mask_index, vec_sum]), 3)
+        # TODO(@anwang2009): onnxruntime v1.10.0 requires a third output of vec_sum
+        return _expr.TupleWrapper(_expr.Tuple([ln, mask_index]), 2)
 
 
 class SkipLayerNormalization(OnnxOpConverter):
