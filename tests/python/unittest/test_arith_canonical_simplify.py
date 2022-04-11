@@ -331,7 +331,7 @@ def test_simplify_cast():
     # cast(i32, i + j - 100)
     i = te.var("i", dtype="int64")
     j = te.var("j", dtype="int64")
-    ck.analyzer.update(i, tvm.arith.ConstIntBound(0, 2 ** 31 - 1))
+    ck.analyzer.update(i, tvm.arith.ConstIntBound(0, 2**31 - 1))
     ck.analyzer.update(j, tvm.arith.ConstIntBound(0, 10))
     res = tcast("int32", i + j - 100)
     ck.verify(res, res)

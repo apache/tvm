@@ -111,7 +111,7 @@ def test_reinterpret():
         fadd = m["test_reinterpret"]
         dev = tvm.cpu(0)
         n = nn
-        a = tvm.nd.array(np.random.randint(-(2 ** 30), 2 ** 30, size=n).astype(A.dtype), dev)
+        a = tvm.nd.array(np.random.randint(-(2**30), 2**30, size=n).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
         fadd(a, b)
         tvm.testing.assert_allclose(b.numpy(), (2 + a.numpy()).view("float32"))
