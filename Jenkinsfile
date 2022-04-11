@@ -206,6 +206,7 @@ stage('Prepare') {
     ci_i386 = params.ci_i386_param ?: ci_i386
     ci_qemu = params.ci_qemu_param ?: ci_qemu
     ci_arm = params.ci_arm_param ?: ci_arm
+    ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
 
     sh (script: """
       echo "Docker images being used in this build:"
@@ -216,6 +217,7 @@ stage('Prepare') {
       echo " ci_i386 = ${ci_i386}"
       echo " ci_qemu = ${ci_qemu}"
       echo " ci_arm  = ${ci_arm}"
+      echo " ci_hexagon  = ${ci_hexagon}"
     """, label: 'Docker image names')
   }
 }
