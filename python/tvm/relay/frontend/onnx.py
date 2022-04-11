@@ -329,6 +329,22 @@ def matmul_out_dtype(inputs, out_dtype):
     return _op.nn.dense(inputs[0], input_1_t, out_dtype=out_dtype)
 
 
+def layer_norm(x, eps, gamma, beta):
+    """Common function to handle layer norm"""
+    eps_dtype = infer_type(x).checked_type.dtype
+
+    u, s = _op.mean_variance(x, axis=-1, keepdims=True)
+    output = _op.divide(
+        _op.subtract(x, u),
+        _op.sqrt(_op.add(s, _op.const(eps, dtype=eps_dtype))),
+    )
+    output = _op.multiply(output, gamma)
+    if beta is not None:
+        output = _op.add(output, beta)
+
+    return output
+
+
 class OnnxOpConverter(object):
     """A helper class for holding onnx op converters."""
 
@@ -874,7 +890,7 @@ class EmbedLayerNormalization(OnnxOpConverter):
         if segment_ids:
             vec_sum = _op.add(vec_sum, segment_vec)
 
-        ln = SkipLayerNormalization._compute_layer_norm(vec_sum, eps, gamma, beta)
+        ln = layer_norm(vec_sum, eps, gamma, beta)
 
         mask_index = _op.const(np.zeros((batch_size,), dtype="int64"))
         if mask:
@@ -920,7 +936,7 @@ class SkipLayerNormalization(OnnxOpConverter):
         if bias is not None:
             x = _op.add(x, bias)
 
-        output = SkipLayerNormalization._compute_layer_norm(x, eps, gamma, beta)
+        output = layer_norm(x, eps, gamma, beta)
 
         # onnxruntime doesn't compute the other outputs, despite the documentation
         placeholder = _op.const(0, dtype="float32")
