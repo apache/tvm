@@ -22,8 +22,8 @@ import tvm
 
 pytest.importorskip("tflite")
 pytest.importorskip("tensorflow")
-import tflite.Model
-import tensorflow as tf
+import tflite.Model  # pylint: disable=wrong-import-position
+import tensorflow as tf  # pylint: disable=wrong-import-position
 
 
 class TFLiteModel:
