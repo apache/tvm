@@ -19,8 +19,9 @@
 set -e
 set -u
 
-mkdir -p build
-cd build
+BUILD_DIR=$1
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
 cp ../cmake/config.cmake .
 
 echo set\(USE_CUBLAS ON\) >> config.cmake
@@ -41,7 +42,6 @@ echo set\(USE_PROFILER ON\) >> config.cmake
 echo set\(USE_ANTLR ON\) >> config.cmake
 echo set\(USE_VTA_FSIM ON\) >> config.cmake
 echo set\(USE_BLAS openblas\) >> config.cmake
-echo set\(CMAKE_CXX_COMPILER g++\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
 echo set\(USE_TENSORRT_CODEGEN ON\) >> config.cmake
 echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake

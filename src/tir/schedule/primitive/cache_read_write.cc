@@ -108,7 +108,7 @@ Block MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
   std::vector<PrimExpr> iter_values;
   // Create loop vars and block vars' binding_value
   for (const Range& axis_range : cache_region->region) {
-    Var loop_var("ax" + std::to_string(loop_vars.size()));
+    Var loop_var("ax" + std::to_string(loop_vars.size()), axis_range->extent.dtype());
     loop_vars.push_back(loop_var);
     iter_values.push_back(axis_range->min + loop_var);
   }
@@ -120,12 +120,12 @@ Block MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
   Array<PrimExpr> access_indices;
   // Create block vars, block's accessed region and accessing indices
   for (const PrimExpr& dim : cache_region->buffer->shape) {
-    Var var("v" + std::to_string(access_indices.size()));
+    Var var("v" + std::to_string(access_indices.size()), dim.dtype());
     block_vars.push_back(IterVar(/*dom=*/Range::FromMinExtent(0, dim),
                                  /*var=*/var,
                                  /*IterVarType=*/kDataPar));
     access_indices.push_back(var);
-    access_region.push_back(Range::FromMinExtent(var, 1));
+    access_region.push_back(Range::FromMinExtent(var, make_const(var.dtype(), 1)));
   }
 
   // Create the body block:
@@ -456,13 +456,9 @@ class CacheReadRewriter : public StmtExprMutator {
     return ExprMutator::VisitExpr_(load);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* load) final {
-    if (load->buffer_var.same_as(info_->read_buffer->data)) {
-      ObjectPtr<LoadNode> n = make_object<LoadNode>(*load);
-      n->buffer_var = info_->write_buffer->data;
-      return PrimExpr(n);
-    }
-    return ExprMutator::VisitExpr_(load);
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
@@ -575,22 +571,14 @@ class CacheWriteRewriter : public StmtExprMutator {
     return ExprMutator::VisitExpr_(load);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* load) final {
-    if (load->buffer_var.same_as(info_->write_buffer->data)) {
-      ObjectPtr<LoadNode> n = make_object<LoadNode>(*load);
-      n->buffer_var = info_->read_buffer->data;
-      return PrimExpr(n);
-    }
-    return ExprMutator::VisitExpr_(load);
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
-  Stmt VisitStmt_(const StoreNode* store) final {
-    if (store->buffer_var.same_as(info_->write_buffer->data)) {
-      ObjectPtr<StoreNode> n = make_object<StoreNode>(*store);
-      n->buffer_var = info_->read_buffer->data;
-      return Stmt(n);
-    }
-    return StmtMutator::VisitStmt_(store);
+  Stmt VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {

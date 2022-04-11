@@ -1499,6 +1499,27 @@ def test_conv2d_strided_slice_packed_to_unpacked():
         assert tvm.ir.structural_equal(a, b)
 
 
+def test_conv2d_strided_slice_arbitrary_stride():
+    """Test rewriting strided_slice with arbitrary stride"""
+
+    def before():
+        x = relay.var("x", shape=(4, 12, 1, 1))
+        weight = relay.var("weight", shape=(9, 12, 1, 1))
+        y = relay.nn.conv2d(x, weight, channels=9, kernel_size=(1, 1), padding=(0, 0))
+        y = relay.strided_slice(y, begin=[3], end=[6], strides=[3], axes=[1])
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def alter_conv2d(attrs, inputs, tinfos, out_type):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs["data_layout"] = "NCHW3c"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        run_opt_pass(before(), transform.AlterOpLayout())
+
+
 def test_conv2d_reduce_channels():
     x = relay.var("data", shape=(1, 8, 48, 48))
     y = relay.nn.conv2d(
@@ -1699,6 +1720,19 @@ def test_axis_semantic_change():
     mod = tvm.IRModule.from_expr(func)
     with tvm.transform.PassContext(opt_level=3):
         relay.build(mod, target="llvm")
+
+
+def test_alter_with_subfunc():
+    v1 = relay.var("v", shape=[1, 256, 10, 10], dtype="float32")
+    v2 = relay.image.resize2d(v1, size=[16, 16], roi=[0.0, 0.0, 0.0, 0.0], rounding_method="")
+    sub_func = relay.Function([v1], v2)
+    x1 = relay.var("x", shape=[1, 256, 10, 10], dtype="float32")
+    x2 = sub_func(x1)
+    x3 = relay.image.resize2d(x2, size=[8, 8], roi=[0.0, 0.0, 0.0, 0.0], rounding_method="")
+    func = relay.Function([x1], x3)
+    mod = tvm.IRModule.from_expr(func)
+    mod = relay.transform.InferType()(mod)
+    assert tvm.ir.structural_equal(relay.transform.AlterOpLayout()(mod), mod)
 
 
 if __name__ == "__main__":

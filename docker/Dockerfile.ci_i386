@@ -31,6 +31,13 @@ RUN bash /install/ubuntu_install_llvm.sh
 COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
 RUN bash /install/ubuntu1804_install_python.sh
 
+# Rust env (build early; takes a while)
+COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
+RUN bash /install/ubuntu_install_rust.sh
+ENV RUSTUP_HOME /opt/rust
+ENV CARGO_HOME /opt/rust
+ENV PATH $PATH:$CARGO_HOME/bin
+
 # Globally disable pip cache
 RUN pip config set global.no-cache-dir false
 
@@ -51,3 +58,7 @@ RUN bash /install/ubuntu_install_sbt.sh
 # Verilator deps
 COPY install/ubuntu_install_verilator.sh /install/ubuntu_install_verilator.sh
 RUN bash /install/ubuntu_install_verilator.sh
+
+# sccache
+COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
+RUN bash /install/ubuntu_install_sccache.sh

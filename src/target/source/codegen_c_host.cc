@@ -28,7 +28,10 @@
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 
+#include <algorithm>
 #include <string>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "../../support/str_escape.h"
@@ -41,7 +44,8 @@ namespace codegen {
 
 CodeGenCHost::CodeGenCHost() { module_name_ = GetUniqueName("__tvm_module_ctx"); }
 
-void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_str) {
+void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_str,
+                        const std::unordered_set<std::string>& devices) {
   emit_asserts_ = emit_asserts;
   declared_globals_.clear();
   decl_stream << "// tvm target: " << target_str << "\n";
@@ -49,6 +53,16 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_s
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "#include <math.h>\n";
+  if (devices.find("ethos-u") != devices.end()) {
+    decl_stream << "#include <tvm_ethosu_runtime.h>\n";
+  }
+  if (devices.find("cmsis-nn") != devices.end()) {
+    decl_stream << "#include <stdio.h>\n";
+    decl_stream << "#include <stdlib.h>\n";
+    decl_stream << "#include <dlpack/dlpack.h>\n";
+    decl_stream << "#include <arm_nnfunctions.h>\n";
+    decl_stream << "#include <arm_nn_types.h>\n";
+  }
   CodeGenC::Init(output_ssa);
 }
 
@@ -95,6 +109,10 @@ void CodeGenCHost::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   if (t.is_handle()) {
     ICHECK_EQ(lanes, 1) << "does not support vector types";
     os << "void*";
+    return;
+  }
+  if (t.is_void()) {
+    os << "void";
     return;
   }
   if (t == DataType::Bool()) {
@@ -235,17 +253,10 @@ void CodeGenCHost::PrintFuncCallC(const std::string& packed_func_name, int num_a
   this->stream << "}\n";
 }
 
-CodeGenCHost::FunctionInfo CodeGenCHost::GetFunctionInfo(const CallNode* op,
-                                                         bool has_resource_handle) {
+std::string CodeGenCHost::GetPackedName(const CallNode* op) {
   const StringImmNode* s = op->args[0].as<StringImmNode>();
   ICHECK(s != nullptr) << "tvm_call_packed_lowered expects first argument as function name";
-  int64_t begin = op->args[3].as<IntImmNode>()->value;
-  int64_t end = op->args[4].as<IntImmNode>()->value;
-  int64_t num_args = end - begin;
-  ICHECK_GE(num_args, 0);
   std::string func_name = s->value;
-  // NOTE: cannot rely on GetUnique for global decl_stream declarations
-  // because it is reset between AddFunction().
   std::string packed_func_name = func_name + "_packed";
   std::string unique_name;
   auto it = declared_globals_.find(packed_func_name);
@@ -256,11 +267,24 @@ CodeGenCHost::FunctionInfo CodeGenCHost::GetFunctionInfo(const CallNode* op,
     declared_globals_[packed_func_name] = unique_name;
     decl_stream << "static void* " << unique_name << " = NULL;\n";
   }
+  return unique_name;
+}
+
+CodeGenCHost::FunctionInfo CodeGenCHost::GetFunctionInfo(const CallNode* op,
+                                                         bool has_resource_handle) {
+  const StringImmNode* s = op->args[0].as<StringImmNode>();
+  ICHECK(s != nullptr) << "tvm_call_{c}packed_lowered expects first argument as function name";
+  int64_t begin = op->args[3].as<IntImmNode>()->value;
+  int64_t end = op->args[4].as<IntImmNode>()->value;
+  int64_t num_args = end - begin;
+  ICHECK_GE(num_args, 0);
+  std::string func_name = s->value;
+
   if (has_resource_handle) {
     std::string resource_handle_name = op->args[5].as<StringImmNode>()->value;
-    return {func_name, unique_name, num_args - 1, resource_handle_name};
+    return {func_name, num_args - 1, resource_handle_name};
   }
-  return {func_name, unique_name, num_args};
+  return {func_name, num_args};
 }
 
 void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
@@ -287,11 +311,12 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     this->stream << "TVMValue " << stack_name << "[" << size << "];\n";
     os << stack_name;
   } else if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
-    auto function_info = GetFunctionInfo(op);
-    this->PrintGetFuncFromBackend(function_info.func_name, function_info.func_name_packed);
-    this->PrintFuncCall(function_info.func_name_packed, function_info.num_args);
+    auto function_info = GetFunctionInfo(op, false /* has_resource_handle */);
+    std::string func_name_packed = GetPackedName(op);
+    this->PrintGetFuncFromBackend(function_info.func_name, func_name_packed);
+    this->PrintFuncCall(func_name_packed, function_info.num_args);
   } else if (op->op.same_as(builtin::tvm_call_cpacked_lowered())) {
-    auto function_info = GetFunctionInfo(op, true);
+    auto function_info = GetFunctionInfo(op, true /* has_resource_handle */);
     this->PrintFuncCallC(function_info.func_name, function_info.num_args,
                          function_info.resource_handle_name);
   } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
@@ -345,15 +370,26 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   bool emit_asserts = false;
+
+  std::unordered_set<std::string> devices;
+  if (mod->GetAttr<Map<GlobalVar, String>>("device_contexts") != nullptr) {
+    Map<GlobalVar, String> device_contexts =
+        mod->GetAttr<Map<GlobalVar, String>>("device_contexts").value();
+    for (auto const& context : device_contexts) {
+      devices.insert(context.second.data());
+    }
+  }
+
   CodeGenCHost cg;
-  cg.Init(output_ssa, emit_asserts, target->str());
+  cg.Init(output_ssa, emit_asserts, target->str(), devices);
   cg.SetConstantsByteAlignment(target->GetAttr<Integer>("constants-byte-alignment").value_or(16));
   Map<String, LinkedParam> linked_params;
   PrimFunc aot_executor_fn;
 
+  std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> funcs;
   for (auto kv : mod->functions) {
     // Make sure that the executor function is the last one to be code generated so that all the
-    // symbols are available to tvm_run_func
+    // symbols are available to __tvm_main__
     auto fun_name = std::string(kv.first->name_hint);
     bool is_aot_executor_fn = kv.second->GetAttr<Bool>("runner_function", Bool(false)).value();
 
@@ -361,12 +397,26 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
       aot_executor_fn = Downcast<PrimFunc>(kv.second);
       continue;
     }
+    funcs.push_back(kv);
+  }
 
+  // Sort functions
+  std::sort(funcs.begin(), funcs.end(),
+            [](std::pair<tvm::GlobalVar, tvm::BaseFunc> kv_a,
+               std::pair<tvm::GlobalVar, tvm::BaseFunc> kv_b) {
+              std::string name_hint_a = kv_a.first->name_hint;
+              std::string name_hint_b = kv_b.first->name_hint;
+              return name_hint_a < name_hint_b;
+            });
+
+  // Add all functions except __tvm_main__
+  for (auto& kv : funcs) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     cg.AddFunction(f);
   }
 
+  // Add __tvm_main__
   if (aot_executor_fn.defined()) {
     cg.AddFunction(aot_executor_fn);
   }

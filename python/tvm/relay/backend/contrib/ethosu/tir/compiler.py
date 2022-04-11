@@ -23,6 +23,7 @@ from tvm.driver.build_module import schedule_to_module
 
 from . import passes as ethosu_passes
 from .scheduler import schedule
+from .. import util
 
 
 def lower_ethosu(sch, args, const_dict, name="main"):
@@ -87,6 +88,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
         mod = ethosu_passes.ReplaceOperators()(mod)
         mod = tvm.tir.transform.RemoveNoOp()(mod)
         mod, const_dict = ethosu_passes.EncodeConstants(const_dict)(mod)
+        mod = ethosu_passes.HoistAllocates()(mod)
         disable_storage_rewrite = curr_cfg.get("tir.disable_storage_rewrite", False)
         if not disable_storage_rewrite:
             mod = tvm.tir.transform.StorageRewrite()(mod)
@@ -172,7 +174,42 @@ def extract_constants(func):
     return new_func, const_dict
 
 
-def lower_to_tir(func, cascader=None):
+@util.create_npu_function_pass(opt_level=1)
+class LowerToTIR:
+    """A pass that lowers NPU Relay functions to TIR. This pass wraps
+    the _lower_to_tir pass that operates function->function, while this
+    is IRModule->IRModule.
+
+    Attributes
+    ----------
+    scheduler : callable
+        A function to schedule NPU operations. For example,
+        scheduler.py/copy_constants.
+    """
+
+    def __init__(self, scheduler):
+        self.scheduler = scheduler
+
+    def transform_npu_function(self, _, func: relay.Function) -> relay.Function:
+        """Lower NPU functions to TIR."""
+
+        tir_mod, const_dict = _lower_to_tir(func, self.scheduler())
+
+        for param in const_dict.keys():
+            const_dict[param] = tvm.nd.array(const_dict[param])
+
+        compiler_name = "ethos-u"
+        primfunc = tir_mod["main"]
+        primfunc = primfunc.with_attr("global_symbol", func.attrs["global_symbol"])
+        primfunc = primfunc.with_attr("ethos-u.constants", const_dict)
+        primfunc = primfunc.with_attr("target", tvm.target.Target(compiler_name))
+        return primfunc
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+def _lower_to_tir(func, cascader=None):
     """Lower a Relay function to TIR for the Arm(R) Ethos(TM)-U NPU target.
 
     The Relay function should only contain operations supported

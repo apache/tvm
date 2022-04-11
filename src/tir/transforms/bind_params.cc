@@ -53,12 +53,11 @@ class ParamsCollector : public StmtExprVisitor {
     return constant_list_;
   }
 
-  void VisitExpr_(const LoadNode* ln) {
-    if (constant_map_.find(ln->buffer_var) != constant_map_.end()) {
-      auto it =
-          std::find(constant_list_.begin(), constant_list_.end(), ln->buffer_var.operator->());
+  void VisitExpr_(const BufferLoadNode* ln) {
+    if (constant_map_.find(ln->buffer->data) != constant_map_.end()) {
+      auto it = std::find(constant_list_.begin(), constant_list_.end(), ln->buffer->data.get());
       if (it == constant_list_.end()) {
-        constant_list_.push_back(ln->buffer_var.operator->());
+        constant_list_.push_back(ln->buffer->data.get());
       }
     }
     StmtExprVisitor::VisitExpr_(ln);
@@ -83,7 +82,6 @@ class ParamsCollector : public StmtExprVisitor {
  private:
   std::vector<const tir::VarNode*> constant_list_;
   Map<tir::Var, runtime::NDArray> constant_map_;
-  bool first_for_ = true;
 };
 
 namespace transform {

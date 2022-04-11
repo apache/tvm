@@ -55,6 +55,7 @@ def make_simple_home_map(graph, var_region, const_region):
 
 if ethosu_enabled:
     from tvm.relay.backend.contrib.ethosu.tir.compiler import extract_constants, lower_to_te
+    from tvm.relay.backend.contrib.ethosu.te.common import get_layout_transform_matrices
 
     def create_te_graph(func):
         func, consts = extract_constants(func)
@@ -64,28 +65,24 @@ if ethosu_enabled:
         return te_graph, consts
 
     def make_matrices(
-        op_type, kernel, stride, padding, ifm_layout, ofm_layout, dilation=(1, 1), ifm_channels=1
+        op_type,
+        kernel,
+        stride,
+        padding,
+        ifm_layout,
+        ofm_layout,
+        dilation=(1, 1),
+        ifm_channels=1,
+        ofm_channels=1,
     ):
         kernel_h, kernel_w = kernel
         stride_h, stride_w = stride
         dilation_h, dilation_w = dilation
         dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
         dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
-        nhwc_to_nhcwb16 = [
-            [1, 0, 0, 0, 0],
-            [0, 1, 0, 0, 0],
-            [0, 0, 0, 1 / 16, 0],
-            [0, 0, 1, 0, 0],
-            [0, 0, 0, 0, 16],
-            [0, 0, 0, 0, 1],
-        ]
-        nhcwb16_to_nhwc = [
-            [1, 0, 0, 0, 0, 0],
-            [0, 1, 0, 0, 0, 0],
-            [0, 0, 0, 1, 0, 0],
-            [0, 0, 16, 0, 1, -16],
-            [0, 0, 0, 0, 0, 1],
-        ]
+
+        nhwc_to_nhcwb16, nhcwb16_to_nhwc = get_layout_transform_matrices(ofm_channels)
+
         if op_type == "ethosu_conv2d":
             ifm_matrix = [
                 [1, 0, 0, 0, 0],

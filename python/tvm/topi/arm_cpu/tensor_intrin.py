@@ -516,7 +516,7 @@ def dot_int8_int8_int32_neon_82(int32_lanes, dtype="uint"):
                 int32_lanes * num_int8_elements,
             )
             vdot = tvm.tir.call_llvm_pure_intrin(
-                dtype_c, inst, tvm.tir.const(2, "uint32"), vec_c, vec_a, vec_b
+                dtype_c, inst, tvm.tir.const(3, "uint32"), vec_c, vec_a, vec_b
             )
             ib.emit(outs[0].vstore(0, vdot))
             return ib.get()
@@ -614,21 +614,22 @@ def dot_int8_int8_int32_neon():
                 ib.emit(outs[0].vstore(0, tvm.tir.const(0, int_32xl)))
                 return ib.get()
 
-            def pairwise_add_mul(idx):
-                # this broadcasts data to the vector size
-                a_int8 = ins[0].vload([0], "int8x4")
-                re_int32 = tvm.tir.call_intrin("int32", "tir.reinterpret", a_int8)
-                vec_ai32 = re_int32.astype("int32x2")
-                vec_a = tvm.tir.call_intrin(int_8xl, "tir.reinterpret", vec_ai32)
+            # this broadcasts data to the vector size
+            a_int8 = ins[0].vload([0], "int8x4")
+            re_int32 = tvm.tir.call_intrin("int32", "tir.reinterpret", a_int8)
+            vec_ai32 = re_int32.astype("int32x2")
+            vec_a = tvm.tir.call_intrin(int_8xl, "tir.reinterpret", vec_ai32)
 
-                vec_b = ins[1].vload([idx * 2, 0], int_8xl)  # we take two inputs at a time
+            vec_b = ins[1].vload([0, 0], "int8x16")
 
+            def pairwise_add_mul(extract_half):
+                vec_b_half = tvm.tir.call_intrin("int8x8", extract_half, vec_b)
                 multiply = tvm.tir.call_llvm_pure_intrin(
                     "int16x8",
                     "llvm.aarch64.neon.smull.v8i16",  # saturating pairwise multiplication
                     tvm.tir.const(2, "uint32"),
                     vec_a,
-                    vec_b,
+                    vec_b_half,
                 )
                 pairwise_reduction = tvm.tir.call_llvm_pure_intrin(
                     "int32x4",
@@ -638,8 +639,8 @@ def dot_int8_int8_int32_neon():
                 )
                 return pairwise_reduction
 
-            pair_1 = pairwise_add_mul(0)
-            pair_2 = pairwise_add_mul(1)
+            pair_1 = pairwise_add_mul("tir.vectorlow")
+            pair_2 = pairwise_add_mul("tir.vectorhigh")
             quad_reduction = tvm.tir.call_llvm_pure_intrin(
                 "int32x4",
                 "llvm.aarch64.neon.addp.v4i32",
@@ -713,7 +714,7 @@ def gemm_acc_4x4_int8_int8_int32(dtype):
 
         void gemm_acc_4x4_int8_int8_int32(int8 A[4][4], int8 B[4][4], int32 C[4][4]){
             for (int i = 0; i < 4; i++){
-                for (int j = 0; i < 4; i++){
+                for (int j = 0; j < 4; j++){
                     for (int k = 0; k < 4; k++){
                         C[i][j] += A[i][k] * B[j][k]
                     }
@@ -840,7 +841,7 @@ def gemm_acc_nx16_int8_int8_int32(dtype, rows):
 
         void mmla_nx16_int8_int8_int32(int8 A[n][16], int8 B[4][16][4], int32 output[n][16]){
             for (int i = 0; i < n; i++){
-                for (int j = 0; i < 16; i++){
+                for (int j = 0; j < 16; j++){
                     for (int k = 0; k < 16; k++){
                         out[i][j] += A[i][k] * B[k//4][j][k%4]
                     }
@@ -1058,7 +1059,7 @@ def gemm_acc_2x2_int8_int8_int32(dtype):
 
         void mmla_2x2_int8_int8_int32(int8 A[2][8], int8 B[2][8], int32 C[2][2]){
             for (int i = 0; i < 2; i++){
-                for (int j = 0; i < 2; i++){
+                for (int j = 0; j < 2; j++){
                     for (int k = 0; k < 8; k++){
                         C[i][j] += A[i][k] * B[j][k]
                     }

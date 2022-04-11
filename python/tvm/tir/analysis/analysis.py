@@ -16,15 +16,16 @@
 # under the License.
 """Wrapping existing analysis utils."""
 # pylint: disable=invalid-name
-from typing import Dict, List
+from typing import Dict, List, Union
 
 from tvm import Object
-from tvm.tir.stmt import Block, BufferRegion
-from tvm.tir.stmt import PrimExpr
+from tvm.ir import IRModule
 from tvm.tir.expr import Var
-from . import _ffi_api
-from ..function import PrimFunc
+from tvm.tir.stmt import Block, BufferRegion, PrimExpr
+
 from .. import Buffer, Stmt
+from ..function import PrimFunc
+from . import _ffi_api
 
 
 def expr_deep_equal(lhs: PrimExpr, rhs: PrimExpr) -> bool:
@@ -197,6 +198,22 @@ def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
         Map from buffer to the LCA of all access to it.
     """
     return _ffi_api.detect_buffer_access_lca(func)  # type: ignore # pylint: disable=no-member
+
+
+def estimate_tir_flops(stmt_or_mod: Union[Stmt, IRModule]) -> float:
+    """Estimate the FLOPs of a TIR fragment.
+
+    Parameters
+    ----------
+    stmt_or_mod: Union[Stmt, IRModule]
+        The TIR fragment or IRModule to be estimated.
+
+    Returns
+    -------
+    flops: float
+        The estimated FLOPs.
+    """
+    return _ffi_api.EstimateTIRFlops(stmt_or_mod)  # type: ignore # pylint: disable=no-member
 
 
 # NOTE: relay_func_type in the following two functions should be relay.FuncType however that would

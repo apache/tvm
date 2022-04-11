@@ -16,12 +16,16 @@
 # under the License.
 import pytest
 import itertools
+import numpy as np
+
 import tvm
-import tvm.relay.testing
 from tvm import relay
+from tvm.relay import transform
+from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.testing.temp_op_attr import TempOpAttr
 from tvm.relay.op.contrib import dnnl
 import tvm.testing
-import numpy as np
+
 
 has_dnnl_codegen = pytest.mark.skipif(
     not tvm.get_global_func("relay.ext.dnnl", True), reason="DNNL codegen not available"
@@ -32,6 +36,75 @@ run_module = tvm.testing.parameter(
     pytest.param(True, marks=[has_dnnl_codegen, *tvm.testing.requires_llvm()]),
     ids=["compile", "run"],
 )
+
+
+def partition_for_dnnl(mod, params=None, alter_layout=True):
+    """Partition the graph greedily offloading supported operators to DNNL.
+
+    Parameters
+    ----------
+    mod : Module
+        The module to run passes on.
+    params : Optional[Dict[str, NDArray]]
+        Constant input parameters.
+    Returns
+    -------
+    mod : Module
+        Annotated and partitioned module.
+    """
+    if params:
+        mod["main"] = bind_params_by_name(mod["main"], params)
+
+    with TempOpAttr("nn.conv2d", "FTVMLegalize", dnnl.legalize_group_conv):
+        with TempOpAttr("nn.conv2d_transpose", "FTVMLegalize", dnnl.legalize_group_conv):
+            seq = tvm.transform.Sequential(
+                [
+                    transform.CanonicalizeOps(),
+                    transform.InferType(),
+                    transform.SimplifyInference(),
+                    transform.FoldConstant(),
+                    transform.FoldScaleAxis(),
+                    # fold consecutive add ops to simplify pattern `conv2d-bias_add-bn-relu`
+                    transform.SimplifyExpr(),
+                    transform.FoldConstant(),
+                    # alter group conv /conv_transpose layout to `GOIHW` / `GIOHW`
+                    transform.Legalize(),
+                    transform.FoldConstant(),
+                ]
+            )
+            with tvm.transform.PassContext(opt_level=3):
+                mod = seq(mod)
+    if alter_layout:
+        with TempOpAttr("nn.conv1d", "FTVMAlterOpLayout", dnnl.alter_conv):
+            with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", dnnl.alter_conv):
+                with TempOpAttr("nn.conv3d", "FTVMAlterOpLayout", dnnl.alter_conv):
+                    with TempOpAttr(
+                        "nn.conv2d_transpose", "FTVMAlterOpLayout", dnnl.alter_conv_transpose
+                    ):
+                        with TempOpAttr(
+                            "nn.conv3d_transpose", "FTVMAlterOpLayout", dnnl.alter_conv_transpose
+                        ):
+                            alter_layout_seq = tvm.transform.Sequential(
+                                [
+                                    transform.AlterOpLayout(),
+                                    transform.FoldConstant(),
+                                ]
+                            )
+                            with tvm.transform.PassContext(opt_level=3):
+                                mod = alter_layout_seq(mod)
+
+    byoc_seq = tvm.transform.Sequential(
+        [
+            transform.MergeComposite(dnnl.pattern_table()),
+            transform.AnnotateTarget("dnnl"),
+            transform.MergeCompilerRegions(),
+            transform.PartitionGraph(),
+        ]
+    )
+    with tvm.transform.PassContext(opt_level=3):
+        mod = byoc_seq(mod)
+        mod = dnnl.prune_dnnl_subgraphs(mod)
+    return mod
 
 
 def vmobj_to_list(o):
@@ -51,23 +124,30 @@ def assert_result_dict_holds(result_dict):
             tvm.testing.assert_allclose(r1, r2, rtol=1e-3, atol=1e-3)
 
 
-def run_and_verify(mod, input, params, target, run_module):
-    def check_dnnl_used(mod):
+def run_and_verify(mod, input, params, target, run_module, subgraph_num=None):
+    def check_dnnl_used(mod, subgraph_num=None):
         num_dnnl_subgraphs = sum(
             [1 if "dnnl" in gv.name_hint else 0 for gv in mod.get_global_vars()]
         )
-        assert num_dnnl_subgraphs >= 1
+        if subgraph_num:
+            assert num_dnnl_subgraphs == subgraph_num
+        else:
+            assert num_dnnl_subgraphs >= 1
 
     dev = tvm.cpu()
     result_dict = dict()
     for mode in ["graph", "vm"]:
-        for use_dnnl in [False, True]:
-            result_key = mode + ("_dnnl" if use_dnnl else "")
+        for use_dnnl, alter_layout in [(False, False), (True, False), (True, True)]:
+            result_key = mode + ("_dnnl" if use_dnnl else "") + ("_layout" if alter_layout else "")
             if use_dnnl:
-                mod = dnnl.partition_for_dnnl(mod, params)
-                check_dnnl_used(mod)
+                processed_mod = partition_for_dnnl(mod, params, alter_layout)
+                check_dnnl_used(processed_mod, subgraph_num)
+            else:
+                processed_mod = mod
             with tvm.transform.PassContext(opt_level=3):
-                func = relay.create_executor(mode, mod=mod, device=dev, target=target).evaluate()
+                func = relay.create_executor(
+                    mode, mod=processed_mod, device=dev, target=target
+                ).evaluate()
             if run_module:
                 if isinstance(input, dict):
                     result_dict[result_key] = func(**input, **params)
@@ -78,15 +158,13 @@ def run_and_verify(mod, input, params, target, run_module):
         assert_result_dict_holds(result_dict)
 
 
-def run_and_verify_func(config, run_module, target="llvm", dtype="float32"):
+def run_and_verify_func(config, run_module, subgraph_num=None, target="llvm", dtype="float32"):
     """Test a Relay func by compiling, running, and comparing TVM and DNNL outputs.
-
     Parameters
     ----------
     config : Tuple[relay.Function, Dict[str, NDArray], List[str]]
         A tuple containing 1) The function to test, 2) A dictionary of var names to input shapes and
         3) A list of which vars should be considered params.
-
     run_module: bool
         If True, the built module will be run after being compiled.
     """
@@ -97,12 +175,14 @@ def run_and_verify_func(config, run_module, target="llvm", dtype="float32"):
         for k, v in input_shapes.items()
         if k not in is_param
     }
-    run_and_verify(f, input_dict, params, target, run_module)
+    run_and_verify(
+        f, input_dict, params, subgraph_num=subgraph_num, target=target, run_module=run_module
+    )
 
 
 def get_conv1d(
     x_shape=((1, 3, 224)),
-    k_shape=(10, 3, 3),
+    k_shape=(16, 3, 3),
     groups=1,
     padding=(1, 1),
     strides=(1),
@@ -222,7 +302,7 @@ def get_conv2d_transpose(
     out = relay.nn.conv2d_transpose(
         x,
         kernel,
-        channels=k_shape[1],
+        channels=k_shape[1] * groups,
         kernel_size=k_shape[2:4],
         groups=groups,
         padding=padding,
@@ -251,7 +331,7 @@ def get_conv2d_weights_const(
     dtype="float32",
 ):
     x = relay.var("x", shape=(x_shape), dtype=dtype)
-    kernel = relay.const(np.ones(k_shape).astype(dtype))
+    kernel = relay.const(np.random.randint(0, 1, k_shape).astype(dtype))
     out = relay.nn.conv2d(
         x,
         kernel,
@@ -270,7 +350,7 @@ def get_conv2d_weights_const(
 def get_conv2d_bias(
     x_shape=(1, 32, 8, 8), k_shape=(16, 32, 3, 3), activation=None, dtype="float32"
 ):
-    conv, dic, param_lst = get_conv2d(x_shape=x_shape, k_shape=k_shape, dtype=dtype)
+    conv, dic, param_lst = get_conv2d_weights_const(x_shape=x_shape, k_shape=k_shape, dtype=dtype)
     bias = relay.var("bias", shape=(k_shape[0],), dtype=dtype)
     out = relay.nn.bias_add(conv, bias)
     dic["bias"] = (k_shape[0],)
@@ -325,6 +405,13 @@ def get_conv2d_bias_bn_relu(x_shape=(1, 32, 8, 8), k_shape=(16, 32, 3, 3), dtype
     return relay.nn.relu(conv2d_bias_bn), dic, param_lst
 
 
+def get_conv2d_bias_sum_relu(x_shape=(1, 32, 8, 8), k_shape=(16, 32, 3, 3), dtype="float32"):
+    conv2d_bias, dic, param_lst = get_conv2d_bias(x_shape, k_shape, dtype=dtype)
+    sum_data = relay.const(np.random.randint(x_shape).astype(dtype))
+    conv2d_bias_sum = relay.add(sum_data, conv2d_bias)
+    return relay.nn.relu(conv2d_bias_sum), dic, param_lst
+
+
 def get_conv3d(
     x_shape=(1, 32, 8, 8, 8),
     k_shape=(16, 32, 3, 3, 3),
@@ -336,7 +423,7 @@ def get_conv3d(
     dtype="float32",
 ):
     x = relay.var("x", shape=(x_shape), dtype=dtype)
-    kernel = relay.var("kernel", shape=(k_shape), dtype=dtype)
+    kernel = relay.const(np.random.randint(0, 1, k_shape).astype(dtype))
     out = relay.nn.conv3d(
         x,
         kernel,
@@ -373,7 +460,7 @@ def get_conv3d_transpose(
     kernel_layout="OIDHW",
 ):
     x = relay.var("x", shape=(x_shape), dtype=dtype)
-    kernel = relay.var("kernel", shape=(k_shape), dtype=dtype)
+    kernel = relay.const(np.random.randint(0, 1, k_shape).astype(dtype))
     out = relay.nn.conv3d_transpose(
         x,
         kernel,
@@ -466,7 +553,7 @@ def test_dnnl_not_compatible(run_module, target="llvm", dtype="float32"):
     f = relay.Function([x], out)
     mod = tvm.IRModule()
     mod["main"] = f
-    mod = dnnl.partition_for_dnnl(mod)
+    mod = partition_for_dnnl(mod)
     for mode in ["graph", "vm"]:
         with tvm.transform.PassContext(opt_level=3):
             func = relay.create_executor(mode, mod=mod, device=tvm.cpu(0), target=target).evaluate()
@@ -500,7 +587,6 @@ def test_elementwise(run_module, dtype="float32"):
         relay.log,
         relay.sqrt,
         relay.round,
-        relay.logsumexp,
         relay.nn.relu,
         relay.tanh,
         relay.sigmoid,
@@ -542,15 +628,22 @@ def test_softmax(run_module, dtype="float32"):
 
 
 def test_conv1d(run_module, dtype="float32"):
-    conv1d, dic, param_lst = get_conv1d(channels=10, dtype=dtype)
+    conv1d, dic, param_lst = get_conv1d(channels=16, dtype=dtype)
     conv1d = tvm.IRModule.from_expr(conv1d)
     config = conv1d, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+    x_shape = (1, 32, 224)
+    k_shape = (16, 32, 3)
+    conv1d_bias, dic, param_lst = get_conv1d(x_shape, k_shape, dtype=dtype)
+    conv1d_bias = tvm.IRModule.from_expr(conv1d_bias)
+    config = conv1d_bias, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
 
 def test_conv1d_pattern(run_module, dtype="float32"):
     x_shape = (1, 3, 224)
-    k_shape = (10, 3, 3)
+    k_shape = (16, 3, 3)
     activation_lst = [None, "relu", "tanh", "sigmoid"]
     for a in activation_lst:
         conv1d, dic, param_lst = get_conv1d(x_shape, k_shape, activation=a, dtype=dtype)
@@ -566,7 +659,7 @@ def test_conv1d_pattern(run_module, dtype="float32"):
 
 def test_conv2d(run_module, dtype="float32"):
     x_shape = (1, 32, 8, 8)
-    for k_shape, groups in [((16, 32, 3, 3), 1), ((32, 1, 3, 3), 32)]:
+    for k_shape, groups in [((16, 32, 3, 3), 1), ((32, 1, 3, 3), 32), ((32, 2, 3, 3), 16)]:
         for padding in [(0, 0), (1, 1)]:
             for strides in [(1, 1), (2, 2)]:
                 for dilation in [(1, 1), (2, 2)]:
@@ -587,6 +680,13 @@ def test_conv2d(run_module, dtype="float32"):
 def test_conv2d_weights_const(run_module, dtype="float32"):
     x_shape = (1, 32, 8, 8)
     k_shape = (16, 32, 3, 3)
+    conv2d, dic, param_lst = get_conv2d_weights_const(x_shape, k_shape, dtype=dtype)
+    conv2d = tvm.IRModule.from_expr(conv2d)
+    config = conv2d, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+    x_shape = (1, 3, 8, 8)
+    k_shape = (16, 3, 3, 3)
     conv2d, dic, param_lst = get_conv2d_weights_const(x_shape, k_shape, dtype=dtype)
     conv2d = tvm.IRModule.from_expr(conv2d)
     config = conv2d, dic, param_lst
@@ -613,16 +713,28 @@ def test_conv2d_pattern(run_module, dtype="float32"):
     config = conv2d_bias_bn_relu, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
+    conv2d_bias_bn_relu, dic, param_lst = get_conv2d_bias_bn_relu(x_shape, k_shape, dtype=dtype)
+    conv2d_bias_bn_relu = tvm.IRModule.from_expr(conv2d_bias_bn_relu)
+    config = conv2d_bias_bn_relu, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
 
 def test_conv2d_transpose(run_module, dtype="float32"):
-    for padding in [(0, 0), (1, 1)]:
-        for strides in [(1, 1), (2, 2)]:
-            conv2d_transpose, dic, param_lst = get_conv2d_transpose(
-                padding=padding, strides=strides, dtype=dtype
-            )
-            conv2d_transpose = tvm.IRModule.from_expr(conv2d_transpose)
-            config = conv2d_transpose, dic, param_lst
-            run_and_verify_func(config, run_module=run_module, dtype=dtype)
+    x_shape = (1, 32, 8, 8)
+    for k_shape, groups in [((32, 16, 3, 3), 1), ((32, 1, 3, 3), 32), ((32, 4, 3, 3), 16)]:
+        for padding in [(0, 0), (1, 1)]:
+            for strides in [(1, 1), (2, 2)]:
+                conv2d_transpose, dic, param_lst = get_conv2d_transpose(
+                    x_shape=x_shape,
+                    k_shape=k_shape,
+                    groups=groups,
+                    padding=padding,
+                    strides=strides,
+                    dtype=dtype,
+                )
+                conv2d_transpose = tvm.IRModule.from_expr(conv2d_transpose)
+                config = conv2d_transpose, dic, param_lst
+                run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
 
 def test_conv2d_transpose_pattern(run_module, dtype="float32"):
@@ -646,6 +758,13 @@ def test_conv3d(run_module, dtype="float32"):
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
     conv3d, dic, param_lst = get_conv3d(padding=(0, 0, 0, 1, 1, 1), dtype=dtype)
+    conv3d = tvm.IRModule.from_expr(conv3d)
+    config = conv3d, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+    conv3d, dic, param_lst = get_conv3d(
+        x_shape=(1, 3, 8, 8, 8), k_shape=(16, 3, 3, 3, 3), dtype=dtype
+    )
     conv3d = tvm.IRModule.from_expr(conv3d)
     config = conv3d, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
@@ -831,6 +950,38 @@ def test_pool3d(run_module, dtype="float32"):
         get_graph(relay.nn.max_pool3d, padding=(0, 0, 0, 1, 1, 1)), run_module=run_module
     )
     run_and_verify_func(get_graph(relay.nn.max_pool3d, strides=(1, 1, 1)), run_module=run_module)
+
+
+def test_prune_dnnl_subgraph(run_module):
+    """In this test, OP "add" should be offloaded from dnnl codegen."""
+
+    def get_graph():
+        x1 = relay.var("x1", shape=(1, 64, 56, 56))
+        x2 = relay.var("x2", shape=(1, 64, 56, 56))
+        bias = relay.var("bias", shape=(64,))
+        weight = relay.var("weight", shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(
+            x1,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+        )
+        y = relay.nn.bias_add(y, bias)
+        y = relay.nn.relu(y)
+        y = relay.nn.global_max_pool2d(y)
+        y = relay.add(y, x2)
+        dic = {
+            "x1": (1, 64, 56, 56),
+            "x2": (1, 64, 56, 56),
+            "weight": (64, 64, 3, 3),
+            "bias": (64,),
+        }
+        param_lst = ["weight", "bias"]
+        out = tvm.IRModule.from_expr(y)
+        return out, dic, param_lst
+
+    run_and_verify_func(get_graph(), subgraph_num=1, run_module=run_module)
 
 
 if __name__ == "__main__":

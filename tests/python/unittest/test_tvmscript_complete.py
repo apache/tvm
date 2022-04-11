@@ -117,7 +117,7 @@ def test_complete_matmul():
     access_A = tvm.tir.BufferRegion(A, [Range.from_min_extent(vi, 1), Range.from_min_extent(vk, 1)])
     access_B = tvm.tir.BufferRegion(B, [Range.from_min_extent(vj, 1), Range.from_min_extent(vk, 1)])
     access_C = tvm.tir.BufferRegion(C, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)])
-    tvm.ir.assert_structural_equal(block.reads, [access_C, access_A, access_B])
+    tvm.ir.assert_structural_equal(block.reads, [access_A, access_B])
     tvm.ir.assert_structural_equal(block.writes, [access_C])
 
 
@@ -317,12 +317,6 @@ def expect_alloc_buffer_func(a: T.handle, b: T.handle) -> None:
 def test_complete_alloc_buffer():
     rt_func = tvm.script.from_source(alloc_buffer_func.script(show_meta=True))
     tvm.ir.assert_structural_equal(alloc_buffer_func, expect_alloc_buffer_func)
-
-
-@T.prim_func
-def load_var() -> None:
-    d = T.var("float32")
-    d[1] = d[1]
 
 
 if __name__ == "__main__":

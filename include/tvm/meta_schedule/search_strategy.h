@@ -252,21 +252,21 @@ class SearchStrategy : public runtime::ObjectRef {
   /*!
    * \brief Constructor of replay trace search strategy.
    * \param num_trials_per_iter The number of trials per iteration, i.e., the batch size.
-   * \param num_trials_total The total number of trials for trace replaying.
+   * \param max_trials_per_task The total number of trials for trace replaying.
    */
-  TVM_DLL static SearchStrategy ReplayTrace(int num_trials_per_iter, int num_trials_total);
+  TVM_DLL static SearchStrategy ReplayTrace(int num_trials_per_iter, int max_trials_per_task);
 
   /*!
    * \brief Constructor of replay func search strategy.
    * \param num_trials_per_iter The number of trials per iteration, i.e., the batch size.
-   * \param num_trials_total The total number of trials for func replaying.
+   * \param max_trials_per_task The total number of trials for func replaying.
    */
-  TVM_DLL static SearchStrategy ReplayFunc(int num_trials_per_iter, int num_trials_total);
+  TVM_DLL static SearchStrategy ReplayFunc(int num_trials_per_iter, int max_trials_per_task);
 
   /*!
    * \brief Constructor of evolutionary search strategy.
    * \param num_trials_per_iter The number of trials per iteration, i.e., the batch size.
-   * \param num_trials_total The total number of trials for evolutionary search.
+   * \param max_trials_per_task The total number of trials for evolutionary search.
    * \param population_size The initial sample population.
    * \param init_measured_ratio The ratio of measures samples in initial population.
    * \param init_min_unmeasured The minimal size of unmeasured population in the initial sampling.
@@ -276,7 +276,7 @@ class SearchStrategy : public runtime::ObjectRef {
    * \param eps_greedy The ratio to select samples in a greedy fashion via their predicted score.
    */
   TVM_DLL static SearchStrategy EvolutionarySearch(int num_trials_per_iter,     //
-                                                   int num_trials_total,        //
+                                                   int max_trials_per_task,     //
                                                    int population_size,         //
                                                    double init_measured_ratio,  //
                                                    int init_min_unmeasured,     //

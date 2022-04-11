@@ -17,13 +17,14 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
 from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
+from tvm.meta_schedule.testing import te_workload
 from tvm.meta_schedule.testing.schedule_rule import (
     multi_level_tiling,
 )
 from tvm.meta_schedule.testing.space_generation import check_trace
 from tvm.meta_schedule.tune_context import TuneContext
+from tvm.script import tir as T
 from tvm.te import create_prim_func
-from tvm.meta_schedule.testing import te_workload
 from tvm.target import Target
 
 
@@ -187,13 +188,13 @@ def test_cuda_matmul():
             'sch.annotate(block_or_loop=b0, ann_key="meta_schedule.thread_extent_high_inclusive", ann_val=1024)',
             'b33 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="local")',
             "sch.reverse_compute_at(block=b33, loop=l32, preserve_unit_loops=True)",
-            'b34 = sch.cache_read(block=b0, read_buffer_index=1, storage_scope="shared")',
+            'b34 = sch.cache_read(block=b0, read_buffer_index=0, storage_scope="shared")',
             "sch.compute_at(block=b34, loop=l27, preserve_unit_loops=True)",
             "l35, l36, l37, l38, l39, l40 = sch.get_loops(block=b34)",
             "l41 = sch.fuse(l39, l40)",
             "v42 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])",
             'sch.annotate(block_or_loop=b34, ann_key="meta_schedule.cooperative_fetch", ann_val=v42)',
-            'b43 = sch.cache_read(block=b0, read_buffer_index=2, storage_scope="shared")',
+            'b43 = sch.cache_read(block=b0, read_buffer_index=1, storage_scope="shared")',
             "sch.compute_at(block=b43, loop=l27, preserve_unit_loops=True)",
             "l44, l45, l46, l47, l48, l49 = sch.get_loops(block=b43)",
             "l50 = sch.fuse(l48, l49)",
@@ -241,13 +242,13 @@ def test_cuda_matmul_relu():
             'sch.bind(loop=l32, thread_axis="threadIdx.x")',
             'b33 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="local")',
             "sch.reverse_compute_at(block=b33, loop=l32, preserve_unit_loops=True)",
-            'b34 = sch.cache_read(block=b0, read_buffer_index=1, storage_scope="shared")',
+            'b34 = sch.cache_read(block=b0, read_buffer_index=0, storage_scope="shared")',
             "sch.compute_at(block=b34, loop=l27, preserve_unit_loops=True)",
             "l35, l36, l37, l38, l39, l40 = sch.get_loops(block=b34)",
             "l41 = sch.fuse(l39, l40)",
             "v42 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])",
             'sch.annotate(block_or_loop=b34, ann_key="meta_schedule.cooperative_fetch", ann_val=v42)',
-            'b43 = sch.cache_read(block=b0, read_buffer_index=2, storage_scope="shared")',
+            'b43 = sch.cache_read(block=b0, read_buffer_index=1, storage_scope="shared")',
             "sch.compute_at(block=b43, loop=l27, preserve_unit_loops=True)",
             "l44, l45, l46, l47, l48, l49 = sch.get_loops(block=b43)",
             "l50 = sch.fuse(l48, l49)",
@@ -273,8 +274,36 @@ def test_cuda_matmul_relu():
     check_trace(spaces, expected)
 
 
+def test_cuda_sum_with_trivial_block_iter():
+    @T.prim_func
+    def sum_with_trivial_block_iter(
+        A: T.Buffer[(1, 64, 768), "float32"], B: T.Buffer[(1, 64, 1), "float32"]
+    ) -> None:
+        for i0, i1, i2, i3 in T.grid(1, 64, 1, 768):
+            with T.block("sum"):
+                ax0, ax1, ax2, k2 = T.axis.remap("SSSR", [i0, i1, i2, i3])
+                T.reads(A[ax0, ax1, k2])
+                T.writes(B[ax0, ax1, ax2])
+                with T.init():
+                    B[ax0, ax1, ax2] = T.float32(0)
+                B[ax0, ax1, ax2] = B[ax0, ax1, ax2] + A[ax0, ax1, k2]
+
+    # Expect nothing to happen - the rule is not supposed to be applied in this case
+    expected = [[]]
+    target = Target("cuda", host="llvm")
+    ctx = _create_context(
+        sum_with_trivial_block_iter,
+        target=target,
+        rule=multi_level_tiling(target=target),
+    )
+    spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
+    assert len(spaces) == 1
+    check_trace(spaces, expected)
+
+
 if __name__ == "__main__":
     test_cpu_matmul()
     test_cpu_matmul_relu()
     test_cuda_matmul()
     test_cuda_matmul_relu()
+    test_cuda_sum_with_trivial_block_iter()

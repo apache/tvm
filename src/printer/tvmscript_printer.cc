@@ -22,6 +22,7 @@
  * \brief Printer class to print Tensor IR to python syntax script
  */
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/serialization.h>
 #include <tvm/runtime/registry.h>
@@ -198,6 +199,8 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
    * than in the header.
    */
   Map<Var, Array<Buffer>> buffer_var_usage_;
+  /*! \brief Analyzer to simplify some expressions. */
+  arith::Analyzer ana_;
 
   Doc VisitExpr_(const CastNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const VarNode* op, ExprPrecedence* out_precedence) override;
@@ -262,7 +265,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintRange(const RangeNode* op);
   Doc PrintArray(const ArrayNode* op);
   Doc PrintBuffer(const BufferNode* op);
-  Doc PrintNonHeaderBufferDeclarations(Var buffer_var, Stmt body);
+  Doc PrintNonHeaderBufferDeclarations(const Array<Buffer>& aliasing_buffers);
   Doc AllocBufferDeclaration(const Buffer& buf);
   Doc PrintBlockVar(const IterVar& iter_var, const PrimExpr& value);
   Doc PrintBlockVarRemaps();
@@ -909,16 +912,21 @@ Doc TVMScriptPrinter::VisitExpr_(const ReduceNode* op, ExprPrecedence* out_prece
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const LetStmtNode* op) {
+  if (!buffer_var_usage_.count(op->var)) {
+    buffer_var_usage_ = BufferUsageFinder::FindUsage(std::move(buffer_var_usage_), op->body);
+  }
+  Array<Buffer> buffer_usage = buffer_var_usage_.Get(op->var).value_or({});
+
   Doc doc;
   if (current_num_ != num_child_ - 1) {
     doc << "with " << tir_prefix_ << ".let(" << Print(op->var) << ", " << Print(op->value) << "):";
-    doc << Doc::Indent(4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(op->var, op->body)
-                                         << PrintBody(op->body));
+    doc << Doc::Indent(
+        4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(buffer_usage) << PrintBody(op->body));
   } else {
     if (memo_var_.find(op->var) == memo_var_.end()) var_not_in_headers_.insert(op->var.get());
     doc << Print(op->var) << ": " << Print(GetType(op->var)) << " = " << Print(op->value)
         << Doc::NewLine();
-    doc << PrintNonHeaderBufferDeclarations(op->var, op->body) << PrintBody(op->body);
+    doc << PrintNonHeaderBufferDeclarations(buffer_usage) << PrintBody(op->body);
   }
   return doc;
 }
@@ -1005,8 +1013,59 @@ Doc TVMScriptPrinter::VisitStmt_(const BufferRealizeNode* op) {
   return Doc();
 }
 
+namespace {
+struct AllocUsage {
+  Buffer alloc_buffer;
+  Array<Buffer> aliasing_buffers;
+};
+
+template <typename AllocNode>
+AllocUsage FindAllocateUsage(AllocNode* op, Map<Var, Array<Buffer>>* cache_ptr) {
+  Map<Var, Array<Buffer>>& cache = *cache_ptr;
+  if (!cache.count(op->buffer_var)) {
+    cache = BufferUsageFinder::FindUsage(std::move(cache), op->body);
+  }
+  Array<Buffer> buffer_usage = cache.Get(op->buffer_var).value_or({});
+
+  auto is_exact_match = [](Buffer a, Buffer b) {
+    if (a->dtype != b->dtype) return false;
+    if (a->shape.size() != b->shape.size()) return false;
+
+    arith::Analyzer analyzer;
+    for (size_t i = 0; i < a->shape.size(); i++) {
+      if (!analyzer.CanProveEqual(a->shape[i], b->shape[i])) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // If the buffer allocated via T.allocate is an exact match to the
+  // usage of the buffer later on, then that buffer is the return
+  // value of T.allocate, and no T.buffer_decl statement is needed.
+  Buffer alloc_buffer(op->buffer_var, op->dtype, op->extents, {}, 0, op->buffer_var->name_hint, 0,
+                      0, kDefault);
+  bool found_alloc_buf = false;
+  Array<Buffer> aliasing_buffers;
+  for (const auto& buf : buffer_usage) {
+    if (!found_alloc_buf && is_exact_match(buf, alloc_buffer)) {
+      alloc_buffer = buf;
+      found_alloc_buf = true;
+    } else {
+      aliasing_buffers.push_back(buf);
+    }
+  }
+
+  return AllocUsage{alloc_buffer, aliasing_buffers};
+}
+}  // namespace
+
 Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
-  var_not_in_headers_.insert(op->buffer_var.get());
+  auto usage = FindAllocateUsage(op, &buffer_var_usage_);
+  Buffer& alloc_buffer = usage.alloc_buffer;
+  Array<Buffer>& aliasing_buffers = usage.aliasing_buffers;
+  buf_not_in_headers_.insert(alloc_buffer.get());
+  var_not_in_headers_.insert(alloc_buffer->data.get());
 
   auto storage_scope = GetPtrStorageScope(op->buffer_var);
   Doc func_call;
@@ -1024,13 +1083,12 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
 
   Doc doc;
   if (current_num_ != num_child_ - 1) {
-    doc << "with " << func_call << " as " << Print(op->buffer_var) << ":";
-    doc << Doc::Indent(4, Doc::NewLine()
-                              << PrintNonHeaderBufferDeclarations(op->buffer_var, op->body)
-                              << PrintBody(op->body));
+    doc << "with " << func_call << " as " << Print(alloc_buffer) << ":";
+    doc << Doc::Indent(4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(aliasing_buffers)
+                                         << PrintBody(op->body));
   } else {
-    doc << Print(op->buffer_var) << " = " << func_call << Doc::NewLine();
-    doc << PrintNonHeaderBufferDeclarations(op->buffer_var, op->body) << PrintBody(op->body);
+    doc << Print(alloc_buffer) << " = " << func_call << Doc::NewLine();
+    doc << PrintNonHeaderBufferDeclarations(aliasing_buffers) << PrintBody(op->body);
   }
   TryDeallocVar(op->buffer_var);
   return doc;
@@ -1066,16 +1124,25 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
   }
   auto ndarray_str = ss.str();
 
+  auto usage = FindAllocateUsage(alloc, &buffer_var_usage_);
+  Buffer& alloc_buffer = usage.alloc_buffer;
+  Array<Buffer>& aliasing_buffers = usage.aliasing_buffers;
+  buf_not_in_headers_.insert(alloc_buffer.get());
+  var_not_in_headers_.insert(alloc_buffer->data.get());
+
+  Doc func_call;
+  func_call << tir_prefix_ << ".allocate_const(" << ndarray_str << ", " << PrintDType(alloc->dtype)
+            << ", " << Print(alloc->extents) << ")";
+
   Doc doc;
   var_not_in_headers_.insert(alloc->buffer_var.get());
   if (current_num_ != num_child_ - 1) {
-    doc << "with tir.allocate_const(" << ndarray_str << ", " << PrintDType(alloc->dtype) << ", "
-        << Print(alloc->extents) << ")";
-    doc << Doc::Indent(4, Doc::NewLine() << PrintBody(alloc->body));
+    doc << "with " << func_call << " as " << Print(alloc_buffer) << ":";
+    doc << Doc::Indent(4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(aliasing_buffers)
+                                         << PrintBody(alloc->body));
   } else {
-    doc << Print(alloc->buffer_var) << " = tir.allocate_const(" << ndarray_str << ", "
-        << PrintDType(alloc->dtype) << ", " << Print(alloc->extents);
-    doc << ")" << Doc::NewLine() << PrintBody(alloc->body);
+    doc << Print(alloc_buffer) << " = " << func_call << Doc::NewLine();
+    doc << PrintNonHeaderBufferDeclarations(aliasing_buffers) << PrintBody(alloc->body);
   }
   return doc;
 }
@@ -1462,8 +1529,29 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     if (simple_buf.count(buf)) continue;
     buf_not_in_headers_.insert(buf.get());
     body << Print(buf) << " = " << tir_prefix_ << ".match_buffer(";
+    ICHECK(memo_buf_decl_.count(buf));
     body << Print((*it).first) << ", " << memo_buf_decl_[buf];
     body << ")" << Doc::NewLine();
+  }
+  // print preflattened buffer map
+  for (const auto& param : op->params) {
+    auto pf_buf_it = op->preflattened_buffer_map.find(param);
+    if (pf_buf_it != op->preflattened_buffer_map.end()) {
+      const Buffer& preflattened = (*pf_buf_it).second;
+
+      auto buf_it = op->buffer_map.find(param);
+      ICHECK(buf_it != op->buffer_map.end()) << "Found pre-flattened buffer " << preflattened->name
+                                             << " with no corresponding post-flatten buffer.";
+      const Buffer& postflattened = (*buf_it).second;
+
+      // Call Print() without assigning in order to fill memo_buf_decl_.
+      Print(preflattened);
+      buf_not_in_headers_.insert(preflattened.get());
+      ICHECK(memo_buf_decl_.count(preflattened));
+
+      body << tir_prefix_ << ".preflattened_buffer(" << Print(postflattened) << ", "
+           << memo_buf_decl_.at(preflattened) << ")" << Doc::NewLine();
+    }
   }
   // print body
   body << "# body" << Doc::NewLine();
@@ -1583,13 +1671,9 @@ Doc TVMScriptPrinter::PrintBuffer(const BufferNode* op) {
   return meta_.InMeta(buffer) ? meta_.GetMetaNode(buffer) : AllocBuf(buffer);
 }
 
-Doc TVMScriptPrinter::PrintNonHeaderBufferDeclarations(Var buffer_var, Stmt body) {
-  if (!buffer_var_usage_.count(buffer_var)) {
-    buffer_var_usage_ = BufferUsageFinder::FindUsage(std::move(buffer_var_usage_), body);
-  }
-  Array<Buffer> buffer_usage = buffer_var_usage_.Get(buffer_var).value_or({});
+Doc TVMScriptPrinter::PrintNonHeaderBufferDeclarations(const Array<Buffer>& aliasing_buffers) {
   Doc decls;
-  for (const auto& buf_usage : buffer_usage) {
+  for (const auto& buf_usage : aliasing_buffers) {
     decls << Print(buf_usage) << " = " << tir_prefix_ << ".buffer_decl("
           << memo_buf_decl_[buf_usage] << ")" << Doc::NewLine();
     buf_not_in_headers_.insert(buf_usage.get());
@@ -1607,7 +1691,7 @@ Doc TVMScriptPrinter::PrintBufferRegion(const BufferRegionNode* op) {
       if (i != 0) doc << ", ";
       const auto& range = op->region[i];
       if (!is_one(range->extent)) {
-        doc << Print(range->min) << " : " << Print(range->min + range->extent);
+        doc << Print(range->min) << " : " << Print(ana_.Simplify(range->min + range->extent));
       } else {
         doc << Print(range->min);
       }
@@ -1641,7 +1725,7 @@ Doc TVMScriptPrinter::PrintLoop(const For& loop) {
   if (is_zero(loop->min)) {
     res << Print(loop->extent);
   } else {
-    res << Print(loop->min) << ", " << Print(loop->min + loop->extent);
+    res << Print(loop->min) << ", " << Print(ana_.Simplify(loop->min + loop->extent));
   }
   if (loop->thread_binding.defined()) {
     res << ", thread=";
@@ -1680,7 +1764,13 @@ Doc TVMScriptPrinter::PrintTarget(const TargetNode* target) {
     if (it != config.begin()) {
       res << ", ";
     }
-    res << "\"" << (*it).first << "\":" << Print((*it).second);
+    res << "\"" << (*it).first << "\":";
+    if ((*it).first == "host") {
+      ICHECK(target->host.defined());
+      res << PrintTarget(target->GetHost().value().get());
+    } else {
+      res << Print((*it).second);
+    }
   }
   res << "})";
   return res;

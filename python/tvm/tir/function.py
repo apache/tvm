@@ -16,7 +16,8 @@
 # under the License.
 """Function data types."""
 
-from typing import Mapping, Union
+from typing import Callable, List, Mapping, Optional, Union
+import inspect
 
 import tvm._ffi
 import tvm.runtime
@@ -45,6 +46,9 @@ class PrimFunc(BaseFunc):
     buffer_map : Map[tvm.tir.Var, tvm.tir.Buffer]
         The buffer binding map.
 
+    preflattened_buffer_map : Optional[Map[tvm.tir.Var, tvm.tir.Buffer]]
+        The buffer binding map, prior to any flattening.
+
     attrs: Optional[tvm.Attrs]
         Attributes of the function, can be None
 
@@ -52,9 +56,20 @@ class PrimFunc(BaseFunc):
         The location of this itervar in the source code.
     """
 
-    def __init__(self, params, body, ret_type=None, buffer_map=None, attrs=None, span=None):
+    def __init__(
+        self,
+        params,
+        body,
+        ret_type=None,
+        buffer_map=None,
+        preflattened_buffer_map=None,
+        attrs=None,
+        span=None,
+    ):
+
         param_list = []
         buffer_map = {} if buffer_map is None else buffer_map
+        preflattened_buffer_map = {} if preflattened_buffer_map is None else preflattened_buffer_map
         for x in params:
             x = tvm.runtime.convert(x) if not isinstance(x, Object) else x
             if isinstance(x, Buffer):
@@ -67,8 +82,15 @@ class PrimFunc(BaseFunc):
                 raise TypeError("params can only contain Var or Buffer")
 
         self.__init_handle_by_constructor__(
-            _ffi_api.PrimFunc, param_list, body, ret_type, buffer_map, attrs, span  # type: ignore
-        )
+            _ffi_api.PrimFunc,
+            param_list,
+            body,
+            ret_type,
+            buffer_map,
+            preflattened_buffer_map,
+            attrs,
+            span,
+        )  # type: ignore
 
     def with_body(self, new_body, span=None):
         """Create a new PrimFunc with the same set signatures but a new body.
@@ -86,7 +108,15 @@ class PrimFunc(BaseFunc):
         new_func : PrimFunc
             The created new function.
         """
-        return PrimFunc(self.params, new_body, self.ret_type, self.buffer_map, self.attrs, span)
+        return PrimFunc(
+            self.params,
+            new_body,
+            self.ret_type,
+            self.buffer_map,
+            self.preflattened_buffer_map,
+            self.attrs,
+            span,
+        )
 
     def specialize(self, param_map: Mapping[Var, Union[PrimExpr, Buffer]]):
         """Specialize parameters of PrimFunc
@@ -210,3 +240,73 @@ class TensorIntrin(Object):
             The TensorIntrin with the specified name.
         """
         return _ffi_api.TensorIntrinGet(name)  # pylint: type: ignore
+
+
+@tvm._ffi.register_object("tir.IndexMap")
+class IndexMap(Object):
+    """A mapping from multi-dimensional indices to another set of multi-dimensional indices
+
+    Parameters
+    ----------
+    initial_indices : List[Var]
+        Variables representing the indices prior to remapping.
+    final_indices : List[PrimExpr]
+        Expressions defining the indices after remapping.
+    """
+
+    initial_indices: List[Var]
+    final_indices: List[PrimExpr]
+
+    def __init__(self, initial_indices, final_indices):
+        self.__init_handle_by_constructor__(_ffi_api.IndexMap, initial_indices, final_indices)
+
+    @staticmethod
+    def from_func(mapping_function: Callable, ndim: Optional[int] = None):
+        """Create an index map from a function
+
+        Parameters
+        ----------
+        mapping_function : Callable
+            The function to map from source indices to target indices
+        """
+        params = inspect.signature(mapping_function).parameters
+        default_index_dtype = "int32"
+        args = []
+        var_arg_name = None
+        for name, param in params.items():
+            if param.kind in [
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            ]:
+                args.append(tvm.tir.Var(name, default_index_dtype))
+            elif param.kind == inspect.Parameter.VAR_POSITIONAL:
+                var_arg_name = name
+            else:
+                raise ValueError("transform_layout mapping may not have *args or **kwargs")
+
+        # Now that all the named arguments have been collected,
+        # everything that remains should go to the *args, if
+        # specified.
+        if var_arg_name is not None:
+            assert ndim is not None, "ndim must be specified when *args is used"
+            num_var_args = ndim - len(args)
+            for i in range(num_var_args):
+                args.append(tvm.tir.Var(f"{var_arg_name}_{i}", default_index_dtype))
+
+        final_indices = mapping_function(*args)
+        return IndexMap(args, final_indices)
+
+    def map_indices(self, indices: List[PrimExpr]) -> List[PrimExpr]:
+        """Apply the index map to a set of indices
+
+        Parameters
+        ----------
+        indices : List[PriExpr]
+            The indices to be mapped
+
+        Returns
+        -------
+        result : List[PrimExpr]
+            The mapped indices
+        """
+        return _ffi_api.IndexMapMapIndices(self, indices)

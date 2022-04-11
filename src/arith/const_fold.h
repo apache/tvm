@@ -108,6 +108,10 @@ inline PrimExpr TryConstFold<tir::Add>(PrimExpr a, PrimExpr b) {
 template <>
 inline PrimExpr TryConstFold<tir::Sub>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
+    ICHECK(!((pa && pa->dtype.is_uint() && pa->value == 0U) &&
+             (pb && pb->dtype.is_uint() && pb->value > 0U)))
+        << "Checked failed. Minuend 's value is 0U and it's dtype is uint "
+        << "while Subtrahend's dtype is uint; which will cause a negative uint";
     const DataType& rtype = a.dtype();
     if (pa && pb) return IntImm(rtype, pa->value - pb->value);
     if (pb && pb->value == 0) return a;

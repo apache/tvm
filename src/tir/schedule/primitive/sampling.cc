@@ -299,22 +299,12 @@ std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandS
     return SamplePerfectTile(rand_state, extent, n_splits);
   }
   CHECK_GE(n_splits, 2) << "ValueError: Cannot tile a loop into " << n_splits << " splits";
-  std::vector<int32_t> innermost_candidates;
-  innermost_candidates.reserve(max_innermost_factor);
-  for (int32_t i = 1; i <= max_innermost_factor; ++i) {
-    if (extent % i == 0) {
-      innermost_candidates.push_back(i);
+  while (true) {
+    std::vector<int64_t> result = SamplePerfectTile(rand_state, extent, n_splits);
+    if (result.back() <= max_innermost_factor) {
+      return result;
     }
   }
-  // N.B. Theoretically sampling evenly breaks the uniform sampling of the global sampling space.
-  // We should do multiple factorization to weight the choices. However, it would lead to slower
-  // sampling speed. On the other hand, considering potential tricks we might do on the innermost
-  // loop, in which sampling uniformly does not help, let's leave it as it is for now, and maybe add
-  // more heuristics in the future
-  int32_t innermost = innermost_candidates[SampleInt(rand_state, 0, innermost_candidates.size())];
-  std::vector<int64_t> result = SamplePerfectTile(rand_state, extent / innermost, n_splits - 1);
-  result.push_back(innermost);
-  return result;
 }
 
 std::vector<int64_t> SamplePerfectTile(

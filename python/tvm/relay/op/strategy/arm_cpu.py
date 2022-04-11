@@ -22,6 +22,7 @@ import logging
 from tvm import relay, topi
 from ....target import arm_isa
 from ....topi.generic import conv2d as conv2d_generic
+from ....auto_scheduler import is_auto_scheduler_enabled
 from .generic import *
 from .. import op as _op
 
@@ -87,20 +88,25 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
     if groups == 1:
         if layout == "NCHW":
             if kernel_layout == "OIHW":
-                # ARM conv2d spatial pack schedule.
-                strategy.add_implementation(
-                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_spatial_pack),
-                    wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_spatial_pack),
-                    name="conv2d_nchw_spatial_pack.arm_cpu",
-                )
-
-                if topi.arm_cpu.is_int8_hw_support(data.dtype, kernel.dtype):
+                if (
+                    topi.arm_cpu.is_int8_hw_support(data.dtype, kernel.dtype)
+                    and kernel.shape[1] >= 64
+                ):
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_int8),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_int8),
                         name="conv2d_nchw_int8.arm_cpu",
+                        plevel=15,
                     )
                 else:
+                    # ARM conv2d spatial pack schedule.
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_spatial_pack),
+                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_spatial_pack),
+                        name="conv2d_nchw_spatial_pack.arm_cpu",
+                        plevel=10,
+                    )
+
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.x86.conv2d_nchw),
                         wrap_topi_schedule(topi.x86.schedule_conv2d_nchw),
@@ -382,12 +388,16 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
     if layout == "NHWC" and data.dtype in ["int8", "uint8"]:
         strategy.add_implementation(
             wrap_compute_conv2d_gemm(native_compute),
-            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_native),
+            wrap_topi_schedule(
+                topi.arm_cpu.schedule_conv2d_NHWC_quantized_native_without_transform
+            ),
             name="conv2d_NHWC_quantized_native_without_transform.arm_cpu",
         )
         strategy.add_implementation(
             wrap_compute_conv2d_gemm(interleaved_compute),
-            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved),
+            wrap_topi_schedule(
+                topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved_without_transform
+            ),
             name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
         )
     else:
@@ -463,7 +473,9 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
         )
     else:
         strategy.add_implementation(
-            wrap_compute_dense(topi.nn.dense),
+            wrap_compute_dense(
+                topi.nn.dense, need_auto_scheduler_layout=is_auto_scheduler_enabled()
+            ),
             wrap_topi_schedule(topi.generic.schedule_dense),
             name="dense.generic",
         )

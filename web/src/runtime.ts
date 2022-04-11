@@ -1069,7 +1069,7 @@ export class Instance implements Disposable {
         do {
           if (durationMs > 0.0) {
             setupNumber = Math.floor(
-              Math.max(minRepeatMs / (durationMs / nstep) + 1, nstep * 1.618)
+              Math.max(minRepeatMs / (durationMs / setupNumber) + 1, setupNumber * 1.618)
             );
           }
           const tstart: number = perf.now();

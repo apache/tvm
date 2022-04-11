@@ -74,6 +74,19 @@ def InjectPrefetch():
     return _ffi_api.InjectPrefetch()  # type: ignore
 
 
+def ApplyLayoutTransforms():
+    """Reshape buffers that appear in the "layout_transform_map"
+    fucntion attribute.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    """
+    return _ffi_api.ApplyLayoutTransforms()  # type: ignore
+
+
 def StorageFlatten(cache_line_size, create_bound_attribute: bool = False):
     """Flatten the multi-dimensional read/write to 1D.
 
@@ -782,3 +795,14 @@ def ExtractPrimFuncConstants():
         The result pass
     """
     return _ffi_api.ExtractPrimFuncConstants()  # type: ignore
+
+
+def RenormalizeSplitPattern():
+    """Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RenormalizeSplitPattern()  # type: ignore

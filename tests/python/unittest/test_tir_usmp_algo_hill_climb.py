@@ -45,13 +45,10 @@ def _verify_conflicts(buffer_info, pool_allocation, buffer_info_map):
 
         if conflict_pool_allocation.pool_info == pool_allocation.pool_info:
             assert conflict_pool_allocation.byte_offset != pool_allocation.byte_offset
-            l2 = (
-                max(
-                    conflict_pool_allocation.byte_offset + conflict.size_bytes,
-                    pool_allocation.byte_offset + buffer_info.size_bytes,
-                )
-                - min(conflict_pool_allocation.byte_offset, pool_allocation.byte_offset)
-            )
+            l2 = max(
+                conflict_pool_allocation.byte_offset + conflict.size_bytes,
+                pool_allocation.byte_offset + buffer_info.size_bytes,
+            ) - min(conflict_pool_allocation.byte_offset, pool_allocation.byte_offset)
             assert (
                 conflict.size_bytes + buffer_info.size_bytes <= l2
             ), 'Conflicting: \n"{} @{}"\n"{} @{}"'.format(

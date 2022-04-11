@@ -277,6 +277,19 @@ def test_fake_quantize_maxpool():
     compare_fq_to_int(op, [x_np])
 
 
+def test_fake_quantize_adaptive_avgpool1d():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+
+    zero = relay.const(0)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.op.nn.adaptive_avg_pool1d(x)
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+
+    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+
+    compare_fq_to_int(op, [x_np], True)
+
+
 def test_fake_quantize_avgpool():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 
@@ -341,6 +354,32 @@ def test_fake_quantize_reshape():
     zero = relay.const(0)
     x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
     op = relay.op.reshape(x, [1, 3, -1])
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+
+    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+
+    compare_fq_to_int(op, [x_np])
+
+
+def test_fake_quantize_image_resize_bilinear():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+
+    zero = relay.const(0)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.image.resize2d(x, size=[4, 4], method="linear")
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+
+    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+
+    compare_fq_to_int(op, [x_np], allow_rounding_error=True)
+
+
+def test_fake_quantize_abs():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+
+    zero = relay.const(0)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.op.abs(x)
     op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
 
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
@@ -509,6 +548,18 @@ def test_fake_quantize_relu():
     compare_fq_to_int(op, [x_np])
 
 
+def test_fake_quantize_mean():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="uint8")
+
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(114))
+    op = relay.op.mean(x)
+    op = relay.qnn.op.quantize(op, relay.const(2.0), relay.const(114), out_dtype="uint8")
+
+    x_np = np.random.randint(0, 255, size=[1, 3, 224, 224], dtype="uint8")
+
+    compare_fq_to_int(op, [x_np], allow_rounding_error=True)
+
+
 def test_fake_quantize_relu_per_channel():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="uint8")
 
@@ -523,6 +574,18 @@ def test_fake_quantize_relu_per_channel():
     x_np = np.random.randint(0, 255, size=[1, 3, 224, 224], dtype="uint8")
 
     compare_fq_to_int(op, [x_np])
+
+
+def test_fake_quantize_leaky_relu():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="uint8")
+
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(114))
+    op = relay.op.nn.leaky_relu(x, 0.1)
+    op = relay.qnn.op.quantize(op, relay.const(2.0), relay.const(114), out_dtype="uint8")
+
+    x_np = np.random.randint(0, 255, size=[1, 3, 224, 224], dtype="uint8")
+
+    compare_fq_to_int(op, [x_np], True)
 
 
 @pytest.mark.parametrize(
@@ -552,10 +615,103 @@ def test_fake_quantize_binary(operator):
 
 @pytest.mark.parametrize(
     "operator",
+    [relay.op.add, relay.op.multiply, relay.op.subtract, relay.op.minimum, relay.op.maximum],
+)
+def test_fake_quantize_binary_per_channel(operator):
+    def verify_binary_per_channel(lhs_scale, rhs_scale, lhs_zp, rhs_zp, out_zp, lhs_axis, rhs_axis):
+        if operator == relay.op.multiply:
+            out_scale = relay.const(2.0)
+            rhs_axis = lhs_axis  # TODO: Support different axes for per-channel quantized multiply
+        else:
+            out_scale = relay.const(0.1)
+
+        x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+        x = relay.qnn.op.dequantize(x, relay.const(lhs_scale), relay.const(lhs_zp), axis=lhs_axis)
+
+        y = relay.var("y", shape=[1, 3, 224, 224], dtype="int8")
+        y = relay.qnn.op.dequantize(y, relay.const(rhs_scale), relay.const(rhs_zp), axis=rhs_axis)
+
+        op = operator(x, y)
+
+        op = relay.qnn.op.quantize(op, out_scale, relay.const(out_zp), out_dtype="int8")
+        x_np = np.random.randint(-25, 25, size=[1, 3, 224, 224], dtype="int8")
+        y_np = np.random.randint(-25, 25, size=[1, 3, 224, 224], dtype="int8")
+
+        compare_fq_to_int(op, [x_np, y_np], allow_rounding_error=True)
+
+    # Same axis
+    verify_binary_per_channel(
+        lhs_scale=np.random.uniform(1.0, 5.0, 3),
+        rhs_scale=np.random.uniform(1.0, 5.0, 3),
+        lhs_zp=0,
+        rhs_zp=0,
+        out_zp=0,
+        lhs_axis=1,
+        rhs_axis=1,
+    )
+    verify_binary_per_channel(
+        lhs_scale=np.random.uniform(1.0, 5.0, 3),
+        rhs_scale=np.random.uniform(1.0, 5.0, 3),
+        lhs_zp=np.random.randint(1, 3),
+        rhs_zp=np.random.randint(1, 3),
+        out_zp=0,
+        lhs_axis=1,
+        rhs_axis=1,
+    )
+    verify_binary_per_channel(
+        lhs_scale=np.random.uniform(1.0, 5.0, 3),
+        rhs_scale=np.random.uniform(1.0, 5.0, 3),
+        lhs_zp=np.random.randint(1, 3),
+        rhs_zp=np.random.randint(1, 3),
+        out_zp=np.random.randint(1, 3),
+        lhs_axis=1,
+        rhs_axis=1,
+    )
+    verify_binary_per_channel(
+        lhs_scale=np.random.uniform(1.0, 5.0, 224),
+        rhs_scale=np.random.uniform(1.0, 5.0, 224),
+        lhs_zp=np.random.randint(1, 3),
+        rhs_zp=np.random.randint(1, 3),
+        out_zp=np.random.randint(1, 3),
+        lhs_axis=-1,
+        rhs_axis=-1,
+    )
+
+    # Different axes
+    verify_binary_per_channel(
+        lhs_scale=np.random.uniform(1.0, 5.0, 224),
+        rhs_scale=np.random.uniform(1.0, 5.0, 224),
+        lhs_zp=0,
+        rhs_zp=0,
+        out_zp=0,
+        lhs_axis=2,
+        rhs_axis=3,
+    )
+    verify_binary_per_channel(
+        lhs_scale=np.random.uniform(1.0, 5.0, 224),
+        rhs_scale=np.random.uniform(1.0, 5.0, 224),
+        lhs_zp=np.random.randint(1, 3),
+        rhs_zp=np.random.randint(1, 3),
+        out_zp=0,
+        lhs_axis=2,
+        rhs_axis=3,
+    )
+    verify_binary_per_channel(
+        lhs_scale=np.random.uniform(1.0, 5.0, 224),
+        rhs_scale=np.random.uniform(1.0, 5.0, 224),
+        lhs_zp=np.random.randint(1, 3),
+        rhs_zp=np.random.randint(1, 3),
+        out_zp=np.random.randint(1, 3),
+        lhs_axis=2,
+        rhs_axis=3,
+    )
+
+
+@pytest.mark.parametrize(
+    "operator",
     [
         relay.op.add,
         relay.op.multiply,
-        relay.op.subtract,
         relay.op.subtract,
         relay.op.minimum,
         relay.op.maximum,

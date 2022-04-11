@@ -80,7 +80,8 @@ def unschedulable_func(a: T.handle, c: T.handle) -> None:
             T.writes(C[i, 0:16])
             B = T.alloc_buffer((16, 16), "float32")
             for j in range(0, 16):
-                T.store(B.data, i * 16 + j, A[i, j] + 1.0)
+                T.evaluate(T.call_extern("dummy_extern_function", B.data, dtype="int32"))
+                B[i, j] = A[i, j] + 1.0
             for j in range(0, 16):
                 C[i, j] = B[i, j] * 2.0
 
@@ -221,7 +222,7 @@ def compacted_symbolic_func(a: T.handle, c: T.handle, n: T.int32) -> None:
         with T.block():
             T.reads(A[i * 8 : i * 8 + 8])
             T.writes(C[i * 8 : i * 8 + 8])
-            B = T.alloc_buffer((8,), "float32")
+            B = T.alloc_buffer((T.min(n, 1) * 8,), "float32")
             for j in range(0, 8):
                 with T.block() as []:
                     T.reads(A[i * 8 + j])
@@ -251,7 +252,7 @@ def complex_func(a: T.handle, c: T.handle, n: T.int32) -> None:
                     for k in range(4, 8):
                         D[k, j] = 1.0
                     for k in range(2, 4):
-                        T.store(B.data, j, A[i, j] + D[k, j])
+                        B[i, j] = A[i, j] + D[k, j]
             for j in range(3, 5):
                 with T.block() as []:
                     T.reads(B[i, j])
@@ -281,7 +282,7 @@ def compacted_complex_func(a: T.handle, c: T.handle, n: T.int32) -> None:
                     for k in range(4, 8):
                         D[k - 2, 0] = 1.0
                     for k in range(2, 4):
-                        T.store(B.data, j, A[i, j] + D[k - 2, 0])
+                        B[0, j] = A[i, j] + D[k - 2, 0]
             for j in range(3, 5):
                 with T.block() as []:
                     T.reads(B[0, j])
@@ -476,13 +477,15 @@ def opaque_access_annotated_func(a: T.handle) -> None:
                 # no annotation, opaque access will cover full region
                 T.reads([])
                 T.writes([])
-                T.store(B.data, i, "float32", A[i])
+                T.evaluate(T.call_extern("opaque_extern_function", A.data, B.data, dtype="int32"))
+                B[i] = A[i]
             with T.block():
                 # treat opaque access only access annotated regions, even if
                 # they are not compatible with actual buffer accesses.
                 T.reads([B[i]])
                 T.writes([C[i : i + 9]])
-                T.store(C.data, i, T.load("float32", B.data, i))
+                T.evaluate(T.call_extern("opaque_extern_function", B.data, C.data, dtype="int32"))
+                C[i] = B[i]
 
 
 @T.prim_func
@@ -496,13 +499,15 @@ def compacted_opaque_access_annotated_func(a: T.handle) -> None:
                 # no annotation, opaque access will cover full region
                 T.reads([])
                 T.writes([])
-                T.store(B.data, i, "float32", A[i])
+                T.evaluate(T.call_extern("opaque_extern_function", A.data, B.data, dtype="int32"))
+                B[i] = A[i]
             with T.block():
                 # treat opaque access only access annotated regions, even if
                 # they are not compatible with actual buffer accesses.
                 T.reads([B[i]])
                 T.writes([C[i : i + 9]])
-                T.store(C.data, i, T.load("float32", B.data, i))
+                T.evaluate(T.call_extern("opaque_extern_function", B.data, C.data, dtype="int32"))
+                C[i] = B[i]
 
 
 @T.prim_func
@@ -571,6 +576,33 @@ def compacted_sparse_read_cache(
                         B[i] = B[i] + A_data_local[A_indptr[i] + k - (A_indptr[i] + k)]
 
 
+@T.prim_func
+def narrow_shape(A: T.Buffer[(10,), "float32"], B: T.Buffer[(10,), "float32"]) -> None:
+    B_cache = T.alloc_buffer(10, "float32")
+    for j in T.serial(3):
+        for k in T.serial(4):
+            with T.block("B_cache"):
+                T.where(j * 4 + k < 10)
+                B_cache[j * 4 + k] = B[j]
+    for i in T.serial(10):
+        A[i] = B_cache[i] + T.float32(1)
+
+
+@T.prim_func
+def compacted_narrow_shape(A: T.Buffer[(10,), "float32"], B: T.Buffer[(10,), "float32"]) -> None:
+    # body
+    # with T.block("root")
+    B_cache = T.alloc_buffer([10], dtype="float32")
+    for j, k in T.grid(3, 4):
+        with T.block("B_cache"):
+            T.where(j * 4 + k < 10)
+            T.reads(B[j])
+            T.writes(B_cache[j * 4 + k])
+            B_cache[j * 4 + k] = B[j]
+    for i in T.serial(10):
+        A[i] = B_cache[i] + T.float32(1)
+
+
 def test_elementwise():
     _check(elementwise_func, compacted_elementwise_func)
 
@@ -632,6 +664,10 @@ def test_sparse_read_cache():
     _check(sparse_read_cache, compacted_sparse_read_cache)
 
 
+def test_narrow_shape():
+    _check(narrow_shape, compacted_narrow_shape)
+
+
 if __name__ == "__main__":
     test_elementwise()
     test_unschedulable_block()
@@ -647,3 +683,4 @@ if __name__ == "__main__":
     test_mem_access_in_branch_func()
     test_opaque_access_annotated_func()
     test_sparse_read_cache()
+    test_narrow_shape()

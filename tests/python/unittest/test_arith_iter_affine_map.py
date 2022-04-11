@@ -44,6 +44,10 @@ def var_dom(iters):
     return {var: tvm.ir.Range(0, ext) for var, ext in iters}
 
 
+def convert_iter_expr(expr):
+    return tvm.arith.normalize_iter_map_to_expr(expr)
+
+
 def assert_iter_sum_pattern(sum_expr, extent, base, scale=1):
     """Check the sum expr have the right pattern."""
     assert isinstance(sum_expr, tvm.arith.IterSumExpr)
@@ -112,11 +116,13 @@ def test_fuse():
     res = tvm.arith.detect_iter_map([x * 4 + y * 2], var_dom([(x, 3), (y, 2)]))
     assert len(res) == 1
     assert_iter_sum_pattern(res[0], 6, 0, scale=2)
+    tvm.ir.assert_structural_equal(convert_iter_expr(res[0]), (x * 2 + y) * 2)
 
     # simple stride pattern with symbolic
     res = tvm.arith.detect_iter_map([x * 2 * c0 + y * 2], var_dom([(x, 3), (y, c0)]))
     assert len(res) == 1
     assert_iter_sum_pattern(res[0], 3 * c0, 0, scale=2)
+    tvm.ir.assert_structural_equal(convert_iter_expr(res[0]), (x * c0 + y) * 2)
 
 
 def test_split():
@@ -633,7 +639,7 @@ def test_subspace_division():
     tvm.ir.assert_structural_equal(res[0][0], j0[0])
     tvm.ir.assert_structural_equal(res[0][1], floordiv(l0[0] * 6 + l1[0], 6))
     tvm.ir.assert_structural_equal(res[1][0], 0)
-    tvm.ir.assert_structural_equal(res[1][1], floormod(floordiv(l0[0] * 6 + l1[0], 3), 2))
+    tvm.ir.assert_structural_equal(res[1][1], floordiv(floormod(l0[0] * 6 + l1[0], 6), 3))
     tvm.ir.assert_structural_equal(res[2][0], 0)
     tvm.ir.assert_structural_equal(res[2][1], (floormod(l0[0] * 6 + l1[0], 3) * 3) + j3[0])
 

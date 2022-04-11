@@ -153,6 +153,7 @@ def run_test_with_all_multiprocessing(func, *args, **kwargs):
             mp.set_start_method(old_start_method, force=True)
 
 
+@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10489")
 @tvm.testing.parametrize_targets("cuda", "opencl")
 def test_tuning_gpu(target, dev):
     def runner(target, dev):

@@ -20,7 +20,13 @@ import json
 import subprocess
 import re
 from urllib import request
-from typing import Dict, Tuple, Any
+from typing import Dict, Tuple, Any, Optional, List
+
+
+def compress_query(query: str) -> str:
+    query = query.replace("\n", "")
+    query = re.sub("\s+", " ", query)
+    return query
 
 
 class GitHubRepo:
@@ -35,8 +41,17 @@ class GitHubRepo:
             "Authorization": f"Bearer {self.token}",
         }
 
-    def graphql(self, query: str) -> Dict[str, Any]:
-        return self._post("https://api.github.com/graphql", {"query": query})
+    def graphql(self, query: str, variables: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        query = compress_query(query)
+        if variables is None:
+            variables = {}
+        response = self._post(
+            "https://api.github.com/graphql", {"query": query, "variables": variables}
+        )
+        if "data" not in response:
+            msg = f"Error fetching data with query:\n{query}\n\nvariables:\n{variables}\n\nerror:\n{json.dumps(response, indent=2)}"
+            raise RuntimeError(msg)
+        return response
 
     def _post(self, full_url: str, body: Dict[str, Any]) -> Dict[str, Any]:
         print("Requesting POST to", full_url, "with", body)
@@ -95,3 +110,18 @@ def git(command, **kwargs):
     if proc.returncode != 0:
         raise RuntimeError(f"Command failed {command}:\nstdout:\n{proc.stdout}")
     return proc.stdout.strip()
+
+
+def find_ccs(body: str) -> List[str]:
+    matches = re.findall(r"(cc( @[-A-Za-z0-9]+)+)", body, flags=re.MULTILINE)
+    matches = [full for full, last in matches]
+
+    reviewers = []
+    for match in matches:
+        if match.startswith("cc "):
+            match = match.replace("cc ", "")
+        users = [x.strip() for x in match.split("@")]
+        reviewers += users
+
+    reviewers = set(x for x in reviewers if x != "")
+    return list(reviewers)

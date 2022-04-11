@@ -21,6 +21,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/op.h>
+#include <tvm/tir/index_map.h>
 #include <tvm/tir/schedule/state.h>
 
 #include <tuple>
@@ -168,16 +169,11 @@ void CheckCompleteOrReductionBlock(const ScheduleState& self, const StmtSRef& bl
 /*!
  * \brief Check the subtree compact dataflow property. The scope root may have one or more subtrees
  *        rooted at its direct children, and this property requires all the blocks of the subtree
- *        that the specified sref is in to be complete block or reduction block.
+ *        that the specified sref is in to be local complete block or local reduction block.
  * \param self The schedule state
  * \param subtree_root The sref of the subtree root to be checked
- * \param scope_root_sref The scope root of the block
- * \throw ScheduleError If the subtree that the sref is in doesn't satisfy the compact
- *        dataflow condition, i.e. a block in the subtree is neither complete block nor
- *        reduction block
  */
-void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subtree_root,
-                                 const StmtSRef& scope_root_sref);
+void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subtree_root);
 /*!
  * \brief Check if the block is an output block, i.e. the block writes to at least a buffer that is
  * not allocated under the current scope
@@ -234,6 +230,17 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
  * \throw ScheduleError If the input block does not have an affine binding
  */
 void CheckAffineBinding(const ScheduleState& self, Block block);
+
+/*!
+ * \brief Check whether a block has an affine binding under the high exclusive sref node,
+ * throw an exception if the block does not have an affine binding.
+ * \param self The schedule state
+ * \param block The block to be checked
+ * \param high_exclusive The highest sref node
+ * \throw ScheduleError If the input block does not have an affine binding
+ */
+void CheckPartialAffineBinding(const ScheduleState& self, Block block,
+                               const Optional<StmtSRef>& high_exclusive);
 
 /*!
  * \brief Extracts the ranges of loop variables in a path of the sref tree
@@ -401,6 +408,16 @@ struct ProducerConsumerSplit {
  */
 Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, bool is_write);
 
+/*!
+ * \brief Find the defining site of the buffer in the given block and its ancestors
+ * \param block_sref The block sref
+ * \param buffer The buffer
+ * \return The defining site of the buffer and whether the buffer is allocated (otherwise the
+ *         buffer is from match_buffer).
+ */
+std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
+                                                          const Buffer& buffer);
+
 /******** Reduction Block Related ********/
 
 /*!
@@ -514,6 +531,19 @@ bool CanComputeAt(const ScheduleState& self, const StmtSRef& block_sref, const S
  */
 bool CanReverseComputeAt(const ScheduleState& self, const StmtSRef& block_sref,
                          const StmtSRef& loop_sref, bool preserve_unit_loops);
+
+/*!
+ * \brief Provided the access pattern to a buffer, suggest one of the possible layout
+ * transformation to minimize the locality of the access pattern.
+ * \param buffer The buffer to be transformed
+ * \param indices The access pattern to the buffer
+ * \param loops The loops above the buffer
+ * \param predicate The predicate of the access
+ * \param analyzer Arithmetic analyzer
+ */
+Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& indices,
+                                   const Array<For>& loops, const PrimExpr& predicate,
+                                   arith::Analyzer* analyzer);
 
 /*!
  * \brief Checks if the given AST contains the specific operators

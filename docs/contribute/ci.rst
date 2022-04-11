@@ -20,6 +20,9 @@
 Using TVM's CI
 ==============
 
+.. contents::
+  :local:
+
 TVM uses Jenkins for running Linux continuous integration (CI) tests on
 `branches <https://ci.tlcpack.ai/job/tvm/>`_ and
 `pull requests <https://ci.tlcpack.ai/job/tvm/view/change-requests/>`_ through a
@@ -58,10 +61,7 @@ the failing job to view the logs. Note:
 Reproduce Failures
 ------------------
 
-Most TVM Python tests run under |pytest|_ and
-can be run as described in :ref:`pr-testing`. For a closer environment to the one
-than runs in CI you can run the docker images directly, build TVM, and execute
-tests inside the container. See :ref:`docker_images` for details.
+Most TVM Python tests run under |pytest|_ and can be run as described in :ref:`pr-testing`.
 
 Keeping CI Green
 ****************
@@ -80,9 +80,12 @@ Skip CI for Reverts
 -------------------
 
 For reverts and trivial forward fixes, adding ``[skip ci]`` to the revert's
-commit message will cause CI to shortcut and only run lint. Committers should
+PR title will cause CI to shortcut and only run lint. Committers should
 take care that they only merge CI-skipped PRs to fix a failure on ``main`` and
 not in cases where the submitter wants to shortcut CI to merge a change faster.
+The PR title is checked when the build is first run (specifically during the lint
+step, so changes after that has run do not affect CI and will require the job to
+be re-triggered by another ``git push``).
 
 .. code:: bash
 

@@ -16,11 +16,12 @@
 # under the License.
 """Helper functions in TVM Script Parser"""
 
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from tvm.arith import Analyzer
 from tvm.ir import Range
 from tvm.tir import PrimExpr, BufferRegion
+from tvm.tir.expr import IntImm
 from .node import BufferSlice
 
 
@@ -44,8 +45,8 @@ def buffer_slice_to_region(
     """
     region: List[Range] = []
     for s in buffer_slice.slices:
-        start: Union[PrimExpr, int] = s.start
-        extent: Union[PrimExpr, int] = 1 if s.stop is None else s.stop - s.start
+        start = s.start if isinstance(s.start, PrimExpr) else IntImm("int32", s.start)
+        extent = IntImm(start.dtype, 1) if s.stop is None else s.stop - s.start
         if not analyzer:
             analyzer = Analyzer()
         if isinstance(extent, PrimExpr):

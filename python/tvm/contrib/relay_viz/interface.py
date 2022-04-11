@@ -48,7 +48,7 @@ class VizNode:
         self._detail = node_detail
 
     @property
-    def identity(self) -> Union[int, str]:
+    def identity(self) -> str:
         return self._id
 
     @property
@@ -58,6 +58,10 @@ class VizNode:
     @property
     def detail(self) -> str:
         return self._detail
+
+    def __repr__(self) -> str:
+        detail = self._detail.replace("\n", ", ")
+        return f"VizNode(identity: {self._id}, type_name: {self._type}, detail: {detail}"
 
 
 class VizEdge:
@@ -139,7 +143,7 @@ class VizGraph(abc.ABC):
 
         Parameters
         ----------
-        id_start : VizEdge
+        viz_edge : VizEdge
             A `VizEdge` instance.
         """
 
@@ -277,7 +281,7 @@ class DefaultVizParser(VizParser):
         node_id = node_to_id[node]
 
         # Tuple -> TupleGetItemNode
-        viz_node = VizNode(node_id, f"TupleGetItem", "idx: {node.index}")
+        viz_node = VizNode(node_id, f"TupleGetItem", f"idx: {node.index}")
         viz_edges = [VizEdge(node_to_id[node.tuple_value], node_id)]
         return viz_node, viz_edges
 

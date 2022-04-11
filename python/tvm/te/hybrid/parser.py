@@ -312,7 +312,7 @@ class HybridParser(ast.NodeVisitor):
                     "You should bind a pure name to the tensors",
                 )
                 self.add_symbol(node.targets[i].id, Symbol.GlobalBuffer, rhs.output(i))
-                rmap[rhs.symbolic_outputs[i].op] = rhs.output(i)
+                rmap[rhs.outputs[i].op] = rhs.output(i)
             return utils.replace_io(rhs.body, rmap)
 
         _internal_assert(len(node.targets) == 1, "So far only one-valued assignment is supported!")
@@ -511,7 +511,13 @@ class HybridParser(ast.NodeVisitor):
 
         if iter_var is None:
             _internal_assert(kind is not None, "The loop iterating function parse error!")
-            offset = iter_var = tvm.te.var(_name)
+            if isinstance(ext, _expr.PrimExpr):
+                dtype = ext.dtype
+            elif isinstance(ext, int):
+                dtype = "int32"
+            else:
+                raise NotImplementedError(f"Unsupported type of ext: {type(ext)}")
+            offset = iter_var = tvm.te.var(_name, dtype=dtype)
             if not tvm.tir.analysis.expr_deep_equal(low, tvm.runtime.const(0, "int32")):
                 offset = iter_var + low
             self.add_symbol(_name, Symbol.LoopVar, offset)

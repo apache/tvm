@@ -97,14 +97,16 @@ void FeatureVisitor::VisitStmt_(const AttrStmtNode* op) {
 }
 
 // memory access
-void FeatureVisitor::VisitExpr_(const LoadNode* op) {
-  EnterMem_(op->buffer_var, op->index);
+void FeatureVisitor::VisitExpr_(const BufferLoadNode* op) {
+  ICHECK_EQ(op->indices.size(), 1) << "FeatureVisitor can only be used on flattened buffers";
+  EnterMem_(op->buffer->data, op->indices[0]);
   StmtExprVisitor::VisitExpr_(op);
   ExitMem_();
 }
 
-void FeatureVisitor::VisitStmt_(const StoreNode* op) {
-  EnterMem_(op->buffer_var, op->index);
+void FeatureVisitor::VisitStmt_(const BufferStoreNode* op) {
+  ICHECK_EQ(op->indices.size(), 1) << "FeatureVisitor can only be used on flattened buffers";
+  EnterMem_(op->buffer->data, op->indices[0]);
   StmtExprVisitor::VisitStmt_(op);
   ExitMem_();
 }
