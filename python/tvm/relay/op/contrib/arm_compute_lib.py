@@ -28,6 +28,10 @@ from ..strategy.generic import is_depthwise_conv2d
 from .register import register_pattern_table
 
 
+# global variable control wether offload concatenate
+offload_concat_ = False
+
+
 def is_arm_compute_runtime_enabled():
     """Check if the ACL graph executor is present.
 
@@ -42,7 +46,7 @@ def is_arm_compute_runtime_enabled():
     return False
 
 
-def partition_for_arm_compute_lib(mod, params=None, **opts):
+def partition_for_arm_compute_lib(mod, params=None, offload_concat=False, **opts):
     """Partition the graph greedily offloading supported
     operators to Arm Compute Library.
 
@@ -52,11 +56,15 @@ def partition_for_arm_compute_lib(mod, params=None, **opts):
         The module to run passes on.
     params : Optional[Dict[str, NDArray]]
         Constant input parameters.
+    offload_concat : Optional[bool]
+        Whether offload concatenate
 
     Returns
     -------
     ret : annotated and partitioned module.
     """
+    global offload_concat_
+    offload_concat_ = offload_concat
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
 
@@ -493,6 +501,8 @@ def qnn_add(expr):
 @tvm.ir.register_op_attr("concatenate", "target.arm_compute_lib")
 def concatenate(expr):
     """Check if the external ACL codegen for concatenate should be used."""
+    if not offload_concat_:
+        return False
     attrs, type_args = expr.attrs, expr.type_args
     for idx in range(len(type_args[0].fields)):
         if type_args[0].fields[idx].dtype not in ["float32", "uint8"]:
