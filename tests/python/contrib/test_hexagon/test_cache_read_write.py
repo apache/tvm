@@ -72,6 +72,7 @@ def intrin_mem_copy(shape, dtype, dst_scope, src_scope):
 
     return te.decl_tensor_intrin(dst.op, intrin_func, binds={src: src_buffer, dst: dst_buffer})
 
+
 def verify(hexagon_session, s, x, y, z, size):
     print(tvm.lower(s, [x, y, z]))
 
@@ -171,7 +172,8 @@ def test_cache_read_write_2d(hexagon_session):
 
     # The loop schedule over `z` is not modified when calling `transform_layout`
     # on `z_vtcm` above therefore we must call `split` to modify the loop schedule
-    # over `z` to accurately copy `z_vtcm` back to `z`
+    # over `z` to match the layout of `z_vtcm` such that we can accurately write
+    # `z_vtcm` back to `z` using memory copy intrinsic
     zouter, zinner = s[z].split(z.op.axis[0], factor=factor)
     mem_copy_write = intrin_mem_copy(inner_shape, dtype, "global", "global.vtcm")
     s[z].tensorize(zinner, mem_copy_write)

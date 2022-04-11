@@ -481,9 +481,15 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
   }
   Buffer slice(n->data, n->dtype, extents, strides, elem_offset[0], n->name + "_slice",
                n->data_alignment, 0, n->buffer_type);
+
+  // Buffer must be constructed with a singular element offset which means there is no
+  // support for n-dimensional buffers where n > 1.  Insert sentinel value for
+  // ArgBinder::BindBuffer to state that any usage of element offset is invalid
+  // in this case.  This allows for construction of a Buffer with multiple element offsets
+  // but disallows any usage of those element offsets.  See PR #10816 for discussion on 
+  // supporting multiple element offsets in TIR Buffer.  
+  // TODO(Lunderberg): Remove if/when TIR supports multiple element offsets in TIR Buffer
   if (elem_offset.size() != 1) {
-    // Sentinel value for ArgBinder::BindBuffer to state that any usage
-    // of element offset is invalid.
     slice.CopyOnWrite()->elem_offset = PrimExpr();
   }
   return slice;
