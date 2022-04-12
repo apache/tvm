@@ -95,7 +95,7 @@ class GraphExecutorDebug : public GraphExecutor {
   std::vector<std::vector<double>> RunIndividualNode(int node_index, int number, int repeat,
                                                      int min_repeat_ms) {
     // warmup run
-    GraphExecutor::Run();
+    // GraphExecutor::Run();
     std::string tkey = module_->type_key();
 
     // results_in_seconds[a][b] is the bth index run of the ath index repeat
@@ -394,7 +394,21 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       ICHECK_GT(number, 0);
       ICHECK_GT(repeat, 0);
       ICHECK_GE(min_repeat_ms, 0);
-      *rv = this->RunIndividualNode(node_index, number, repeat, min_repeat_ms);
+      std::vector<std::vector<double>> results =
+          this->RunIndividualNode(node_index, number, repeat, min_repeat_ms);
+
+      std::stringstream s;
+      s.precision(6);  // down to microseconds
+
+      for (std::vector<double>& row : results) {
+        for (double cur : row) {
+          s << cur << ", ";
+        }
+        s << "\n";
+      }
+
+      // Have problems returning Integers and FloatImm so this is hack
+      *rv = s.str();
     });
   } else if (name == "profile") {
     return TypedPackedFunc<profiling::Report(Array<profiling::MetricCollector>)>(

@@ -111,6 +111,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         self._dump_root = dump_root
         self._dump_path = None
         self._run_individual = module["run_individual"]
+        self._run_individual_node = module["run_individual_node"]
         self._debug_get_output = module["debug_get_output"]
         self._execute_node = module["execute_node"]
         self._get_node_output = module["get_node_output"]
@@ -280,6 +281,21 @@ class GraphModuleDebug(graph_executor.GraphModule):
     def run_individual(self, number, repeat=1, min_repeat_ms=0):
         ret = self._run_individual(number, repeat, min_repeat_ms)
         return ret.strip(",").split(",") if ret else []
+
+    def run_individual_node(self, index, number, repeat=1, min_repeat_ms=0):
+        """Results are returned as serialized strings which we deserialize."""
+        ret = self._run_individual_node(index, number, repeat, min_repeat_ms)
+        answer = []
+        for line in ret.split("\n"):
+            cur_results = []
+            if line.strip() == "":
+                continue
+            for value in line.split(","):
+                if value.strip() == "":
+                    continue
+                cur_results.append(float(value))
+            answer.append(cur_results)
+        return answer
 
     def profile(self, collectors=None, **input_dict):
         """Run forward execution of the graph and collect overall and per-op
