@@ -2945,7 +2945,6 @@ class TopK(OnnxOpConverter):
             k_value = _expr.const(params[inputs[1].name_hint])
         else:
             k_value = inputs[1]
-
         return _op.topk(inputs[0], k_value, axis=axis, dtype="int64")
 
 
