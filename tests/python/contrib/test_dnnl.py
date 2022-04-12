@@ -130,7 +130,7 @@ def assert_result_dict_holds(result_dict):
                 tvm.testing.assert_allclose(r1, r2, rtol=1e-3, atol=1e-3)
 
 
-def run_and_verify(mod, input, params, target, run_module, subgraph_num=None):
+def run_and_verify(mod, input, params, target, run_module, subgraph_num=None, test_bf16=True):
     def check_dnnl_used(mod, subgraph_num=None):
         num_dnnl_subgraphs = sum(
             [1 if "dnnl" in gv.name_hint else 0 for gv in mod.get_global_vars()]
@@ -143,13 +143,14 @@ def run_and_verify(mod, input, params, target, run_module, subgraph_num=None):
     dev = tvm.cpu()
     result_dict = dict()
     for mode in ["graph", "vm"]:
-        for use_dnnl, alter_layout, use_bf16 in [
+        configs = [
             (False, False, False),
             (True, False, False),
-            (True, False, True),
             (True, True, False),
-            (True, True, True),
-        ]:
+        ]
+        if test_bf16:
+            configs += [(True, False, True), (True, True, True)]
+        for use_dnnl, alter_layout, use_bf16 in configs:
             result_key = (
                 mode
                 + ("_dnnl" if use_dnnl else "")
@@ -180,7 +181,7 @@ def run_and_verify(mod, input, params, target, run_module, subgraph_num=None):
         assert_result_dict_holds(result_dict)
 
 
-def run_and_verify_func(config, run_module, subgraph_num=None, target="llvm", dtype="float32"):
+def run_and_verify_func(config, run_module, subgraph_num=None, target="llvm", dtype="float32", test_bf16=True):
     """Test a Relay func by compiling, running, and comparing TVM and DNNL outputs.
     Parameters
     ----------
@@ -198,7 +199,7 @@ def run_and_verify_func(config, run_module, subgraph_num=None, target="llvm", dt
         if k not in is_param
     }
     run_and_verify(
-        f, input_dict, params, subgraph_num=subgraph_num, target=target, run_module=run_module
+        f, input_dict, params, subgraph_num=subgraph_num, target=target, run_module=run_module, test_bf16=test_bf16
     )
 
 
@@ -1002,7 +1003,7 @@ def test_prune_dnnl_subgraph(run_module):
         out = tvm.IRModule.from_expr(y)
         return out, dic, param_lst
 
-    run_and_verify_func(get_graph(), subgraph_num=1, run_module=run_module)
+    run_and_verify_func(get_graph(), subgraph_num=1, run_module=run_module, test_bf16=False)
 
 
 if __name__ == "__main__":
