@@ -39,7 +39,7 @@ def get_input_data_shape_dict(graph_def, input_data):
         shape_dict = {}
         for i, _ in enumerate(input_data):
             input_names[i] = graph_def.graph.input[i].name
-            if input_data[i] is None or len(input_data[i]) == 0:
+            if input_data[i] is None or input_data[i].shape == ():
                 # Skip adding input shape data when the input data is None;
                 # This is to enable optional arguments for onnx operators.
                 continue
@@ -5504,10 +5504,10 @@ def test_embedlayernormalization(target, dev):
             model,
             [
                 input_ids,
-                [] if segment_ids is None else segment_ids,
+                np.empty(0, dtype="int32") if segment_ids is None else segment_ids,
                 word_embedding,
                 position_embedding,
-                [] if segment_embedding is None else segment_embedding,
+                np.empty(0, dtype="float32") if segment_embedding is None else segment_embedding,
                 gamma,
                 beta,
             ],
