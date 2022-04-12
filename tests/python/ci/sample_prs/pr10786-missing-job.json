@@ -93,7 +93,7 @@
                 },
                 {
                   "state": "SUCCESS",
-                  "context": "tvm-ci/pr-merge",
+                  "context": "tvm-ci/definitely-not-pr-merge",
                   "targetUrl": "https://ci.tlcpack.ai/job/tvm/job/PR-10786/1/display/redirect"
                 }
               ]
@@ -114,7 +114,7 @@
         "updatedAt": "2022-03-25T22:13:50Z",
         "authorCanPushToRepository": true,
         "commit": {
-          "oid": "abc12345"
+          "oid": "6f04bcf57d07f915a98fd91178f04d9e92a09fcd"
         },
         "state": "APPROVED"
       }

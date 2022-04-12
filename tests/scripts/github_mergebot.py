@@ -150,12 +150,12 @@ class PR:
         self.repo_name = repo
         self.dry_run = dry_run
 
-        self.github = GitHubRepo(user=owner, repo=repo, token=os.environ["GITHUB_TOKEN"])
-
         if dry_run and raw_data:
             # In test mode there is no need to fetch anything
             self.raw = raw_data
+            self.github = None
         else:
+            self.github = GitHubRepo(user=owner, repo=repo, token=os.environ["GITHUB_TOKEN"])
             if os.getenv("DEBUG", "0") == "1":
                 # For local runs fill in the requested data but cache it for
                 # later use
@@ -420,6 +420,25 @@ class PR:
             return
         else:
             all_ci_passed = True
+
+        # Map of job name: has seen in completed jobs
+        seen_expected_jobs = {
+            "tvm-ci/pr-merge": False,
+        }
+        logging.info(f"Expected to see jobs: {seen_expected_jobs}")
+
+        missing_expected_jobs = []
+        for job in self.ci_jobs():
+            seen_expected_jobs[job["name"]] = True
+
+        for name, seen in seen_expected_jobs.items():
+            if not seen:
+                missing_expected_jobs.append(name)
+
+        if len(missing_expected_jobs) > 0:
+            missing_jobs_msg = "\n".join([f" * `{name}`" for name in missing_expected_jobs])
+            self.comment(f"Cannot merge, missing expected jobs:\n{missing_jobs_msg}")
+            return
 
         head_commit_reviews = self.head_commit_reviews()
         for review in head_commit_reviews:
