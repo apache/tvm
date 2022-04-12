@@ -145,7 +145,7 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
                        << ann.value();
         }
 
-        if ((!sch_rule.defined() && !has_schedule_rule) ||
+        if ((ann.defined() && sch_rule.defined()) || (!has_schedule_rule && !sch_rule.defined()) ||
             (ann.defined() && ann.value() == "None")) {
           stack.emplace_back(sch, blocks);
           continue;
