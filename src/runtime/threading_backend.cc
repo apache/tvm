@@ -72,8 +72,9 @@ class QuRTThread {
   private:
     static void run_func(QuRTThread * t) {
       FARF(LOW, "In run_func for thread %d", qurt_thread_get_id());
+      qurt_sleep(100000);
       t->f();
-      FARF(LOW, "Leaving run_func %d", qurt_thread_get_id());
+      FARF(LOW, "Leaving run_func for thread %d", qurt_thread_get_id());
       qurt_thread_exit(QURT_EOK);
     }
     qurt_thread_attr_t attr;
