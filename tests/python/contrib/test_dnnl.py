@@ -124,7 +124,10 @@ def assert_result_dict_holds(result_dict):
         res1 = vmobj_to_list(result_dict[k1])
         res2 = vmobj_to_list(result_dict[k2])
         for r1, r2 in zip(res1, res2):
-            np.testing.assert_array_almost_equal(r1, r2, decimal=1)
+            if "bf16" in k1 or "bf16" in k2:
+                np.testing.assert_array_almost_equal(r1, r2, decimal=1)
+            else:
+                tvm.testing.assert_allclose(r1, r2, rtol=1e-3, atol=1e-3)
 
 
 def run_and_verify(mod, input, params, target, run_module, subgraph_num=None):
