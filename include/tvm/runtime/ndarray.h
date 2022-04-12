@@ -156,6 +156,16 @@ class NDArray : public ObjectRef {
   TVM_DLL static NDArray Empty(ShapeTuple shape, DLDataType dtype, Device dev,
                                Optional<String> mem_scope = NullOpt);
   /*!
+   * \brief Create a NDArray backed by an external dlpack tensor.
+   *
+   * This allows us to create a NDArray using the memory
+   * allocated by an external source. Responsibility for memory
+   * retaining lies with the external source.
+   * \param dl_tensor The DLPack tensor to copy from.
+   * \return The created NDArray view.
+   */
+  TVM_DLL static NDArray FromExternalDLTensor(const DLTensor& dl_tensor);
+  /*!
    * \brief Create a NDArray backed by a dlpack tensor.
    *
    * This allows us to create a NDArray using the memory

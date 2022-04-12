@@ -170,6 +170,10 @@ struct NDArray::Internal {
     static_cast<NDArray::Container*>(tensor->manager_ctx)->DecRef();
     delete tensor;
   }
+
+  static void DLManagedTensorSelfDeleter(DLManagedTensor* tensor) {
+    delete tensor;
+  }
 };
 
 NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype) {
@@ -196,6 +200,26 @@ NDArray NDArray::Empty(ShapeTuple shape, DLDataType dtype, Device dev, Optional<
       DeviceAPI::Get(ret->device)
           ->AllocDataSpace(ret->device, shape.size(), shape.data(), ret->dtype, mem_scope);
   return ret;
+}
+
+NDArray NDArray::FromExternalDLTensor(const DLTensor& dl_tensor) {
+  DLManagedTensor* tensor_ctx = new DLManagedTensor();
+  tensor_ctx->dl_tensor = dl_tensor;
+  tensor_ctx->deleter = NDArray::Internal::DLManagedTensorSelfDeleter;
+  tensor_ctx->manager_ctx = NULL;
+
+  NDArray::Container* data = new NDArray::Container();
+
+  data->SetDeleter(Internal::DLPackDeleter);
+  data->manager_ctx = tensor_ctx;
+  data->dl_tensor = dl_tensor;
+  std::vector<ShapeTuple::index_type> shape;
+  shape.resize(data->dl_tensor.ndim);
+  shape.assign(data->dl_tensor.shape, data->dl_tensor.shape + data->dl_tensor.ndim);
+  data->shape_ = ShapeTuple(shape);
+  data->dl_tensor.shape = const_cast<ShapeTuple::index_type*>(data->shape_.data());
+
+  return NDArray(GetObjectPtr<Object>(data));
 }
 
 NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
