@@ -266,8 +266,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         aot_module : AotModule
             Runtime AOT module that can be used to execute.
         """
-        aot_mod = self.load_module(module_name, session)
-        return tvm.runtime.executor.AotModule(aot_mod["default"](session.device))
+        return session.get_aot_executor(module_name)
 
 
 class HexagonLauncherAndroid(HexagonLauncherRPC):
