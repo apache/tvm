@@ -141,12 +141,9 @@ def fold_pad_qconv2d():
     a = run_opt_pass(before(), relay.transform.FoldExplicitPadding())
     b = run_opt_pass(expected(), transform.InferType())
 
-    print(a)
-    print(b)
-
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b, map_free_vars=True), "Actual = \n" + str(a)
 
 
 if __name__ == "__main__":
-    # test_simplify_conv_pad()
+    test_simplify_conv_pad()
     fold_pad_qconv2d()
