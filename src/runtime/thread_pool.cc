@@ -46,6 +46,7 @@
 #ifdef __hexagon__
 #define FARF_LOW 1
 #include <HAP_farf.h>
+#define NARF(...) FARF(LOW, __VA_ARGS__)
 class Mutex {
   public:
     Mutex() { qurt_mutex_init(&mutex); }
@@ -76,6 +77,7 @@ class ConditionVariable {
 #else
 typedef std::mutex Mutex;
 typedef std::condition_variable ConditionVariable;
+#define NARF(...)
 #endif
 
 #include "../support/utils.h"
@@ -332,23 +334,30 @@ class ThreadPool {
           << " workers=" << num_workers_used_ << " request=" << num_task;
     }
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
+    NARF("launcher->Init returned");
     SpscTaskQueue::Task tsk;
     tsk.launcher = launcher;
     // if worker0 is taken by the main, queues_[0] is abandoned
     for (int i = exclude_worker0_; i < num_task; ++i) {
+      NARF("queues_[%d]->Push(tsk)", i);
       tsk.task_id = i;
       queues_[i]->Push(tsk);
     }
     // use the main thread to run task 0
     if (exclude_worker0_) {
       TVMParallelGroupEnv* penv = &(tsk.launcher->env);
+      NARF("Calling *tsk.launcher->flambda(0)");
       if ((*tsk.launcher->flambda)(0, penv, cdata) == 0) {
+        NARF("Calling tsk.launcher->SignalJobFinish()");
         tsk.launcher->SignalJobFinish();
       } else {
+        NARF("Calling tsk.launcher->SignalJobError()");
         tsk.launcher->SignalJobError(tsk.task_id);
       }
     }
+    NARF("Calling launcher->WaitForJobs");
     int res = launcher->WaitForJobs();
+    NARF("launcher->WaitForJobs returned %d", res);
     return res;
   }
 
@@ -388,14 +397,20 @@ class ThreadPool {
     // Initialize the spin count (from envvar TVM_THREAD_POOL_SPIN_COUNT) on
     // the global first use of the ThreadPool.
     // TODO(tulloch): should we make this configurable via standard APIs?
+    NARF("In RunWorker(%d)", worker_id);
     static size_t spin_count = GetSpinCount();
+    NARF("Trying to pop task off of worker queue %d", worker_id);
     while (queue->Pop(&task, spin_count)) {
+      NARF("Got a task for worker %d", worker_id);
       ICHECK(task.launcher != nullptr);
       TVMParallelGroupEnv* penv = &(task.launcher->env);
       void* cdata = task.launcher->cdata;
+      NARF("Executing flambda for worker %d", worker_id);
       if ((*task.launcher->flambda)(task.task_id, penv, cdata) == 0) {
         task.launcher->SignalJobFinish();
+        NARF("Calling SignalJobFinish for worker %d", worker_id);
       } else {
+        NARF("Calling SignalJobError for worker %d", worker_id);
         task.launcher->SignalJobError(task.task_id);
       }
     }
@@ -464,6 +479,7 @@ int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_ta
   } else {
 #if !TVM_THREADPOOL_USE_OPENMP
     int res = tvm::runtime::ThreadPool::ThreadLocal()->Launch(flambda, cdata, num_task, 1);
+    NARF("tvm::runtime::ThreadPool::ThreadLocal()->Launch returned %d", res);
     return res;
 #else
     if (num_task == 0) num_task = num_workers;
