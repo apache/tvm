@@ -109,8 +109,6 @@ class DataTypeVisitor final : public StmtExprVisitor {
       analyzer_.Bind(iv->var, Range::FromMinExtent(0, op->value));
       if (op->attr_key == attr::thread_extent) {
         // Narrow extents to 32 bits on GPU.
-        ICHECK(analyzer_.CanProveLess(op->value, static_cast<int64_t>(INT32_MAX) + 1))
-            << "cannot prove thread extent <= INT32_MAX, which is required for GPU";
         vextent_[iv->var.as<VarNode>()] = DataType::Int(32);
       } else {
         vextent_[iv->var.as<VarNode>()] = op->value.dtype();
