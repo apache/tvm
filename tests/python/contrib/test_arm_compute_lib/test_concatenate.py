@@ -100,7 +100,9 @@ def test_concatenate():
             inputs["a"].shape, inputs["b"].shape, inputs["c"].shape, axis, dtype, iter(inputs)
         )
         for acl in [False, True]:
-            outputs.append(build_and_run(func, inputs, 1, None, device, enable_acl=acl, offload_concat=True)[0])
+            outputs.append(
+                build_and_run(func, inputs, 1, None, device, enable_acl=acl, offload_concat=True)[0]
+            )
 
         config = {
             "input_shape_a": input_shape_a,
