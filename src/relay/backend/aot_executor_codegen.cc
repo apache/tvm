@@ -126,7 +126,14 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
     for (const auto& param : func_node->params) {
       CreateStorage(param.get());
     }
-    GetStorage(func_node->body);
+    StorageInfo si = GetStorage(func_node->body);
+
+    // If the final expr could not be found it means it was let bound,
+    // manually add the var to the storage device map so it can be
+    // found by `UpdateMainWorkspaceSize`.
+    if (storage_device_map_.find(func_node->body) == storage_device_map_.end()) {
+      storage_device_map_[func_node->body] = si;
+    }
   }
 
   void VisitExpr_(const GlobalVarNode* op) final {
@@ -168,7 +175,8 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
   void VisitExpr_(const IfNode* op) final { LOG(FATAL) << "if is not supported."; }
 
   void PreVisitLetBinding_(const Var& var, const Expr& value) final {
-    LOG(FATAL) << "let is not supported.";
+    VisitExpr(value);
+    let_bound_values_.Set(var, value);
   }
 
  private:
@@ -215,11 +223,29 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
    * \return The corresponding token.
    */
   StorageInfo GetStorage(const Expr& expr) {
+    Expr true_expr = expr;
+
+    // Don't get storage for let nodes.
+    while (const auto* let_node = true_expr.as<LetNode>()) {
+      VisitExpr(true_expr);
+      true_expr = let_node->body;
+    }
+
+    // Var nodes may be let bound, if this is the case get the value.
+    if (true_expr->IsInstance<VarNode>()) {
+      Var var = Downcast<Var>(true_expr);
+      if (let_bound_values_.find(var) != let_bound_values_.end()) {
+        true_expr = let_bound_values_.Get(var).value();
+      }
+    }
+
     // See through "on_device" calls.
-    Expr true_expr = IgnoreOnDevice(expr);
+    true_expr = IgnoreOnDevice(true_expr);
+
     VisitExpr(true_expr);
     auto it = storage_device_map_.find(true_expr);
-    ICHECK(it != storage_device_map_.end());
+    ICHECK(it != storage_device_map_.end()) << "Could not find " << true_expr->GetTypeKey() << " "
+                                            << PrettyPrint(true_expr) << " in storage device map";
     return it->second;
   }
 
@@ -258,6 +284,8 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
   std::vector<int> return_ids_;
   /*! \brief the data types of the return values */
   std::vector<TensorType> return_ttypes_;
+  /*! \brief Maps let var to corresponding value. */
+  Map<Var, Expr> let_bound_values_;
 };
 
 /*! \brief Code generator for AOT executor */
@@ -335,6 +363,17 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    */
   std::vector<tir::Var> PackSid(Expr expr) {
     std::vector<tir::Var> buffer_vars;
+
+    // Var nodes may be let bound, if this is the case get the value.
+    if (expr->IsInstance<VarNode>()) {
+      Var var = Downcast<Var>(expr);
+      if (let_bound_values_.find(var) != let_bound_values_.end()) {
+        expr = let_bound_values_.Get(var).value();
+        expr = IgnoreOnDevice(expr);
+      }
+    }
+    ICHECK(storage_device_map_.find(expr) != storage_device_map_.end())
+        << "Storage map did not contain constant expr " << PrettyPrint(expr);
     StorageInfo& sinfo = storage_device_map_[expr];
 
     // Note that an expression can have multiple sids associated with it
@@ -422,9 +461,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
                                            {tir::StringImm(params_by_expr_[arg])});
         // NOTE: this cast looks like a no-op, but is required for compilation downstream.
         // Because DataType::Handle has default bits=64, but CodeGenC does not observe this field,
-        // adding this cast forces the codegen to insert the cast. In this case, a cast is required
-        // because param_handle is actually code-generated as `const void*`, and the `const` piece
-        // needs to be removed.
+        // adding this cast forces the codegen to insert the cast. In this case, a cast is
+        // required because param_handle is actually code-generated as `const void*`, and the
+        // `const` piece needs to be removed.
         args.push_back(tvm::tir::Cast(DataType::Handle(32, 1), param_handle));
       } else {
         auto sids = FindExpr(arg);
@@ -599,6 +638,12 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   }
 
   void VisitExpr_(const CallNode* call_node) override {
+    OnDeviceProps on_device_props = GetOnDeviceProps(call_node);
+    if (on_device_props.body.defined()) {
+      VisitExpr(on_device_props.body);
+      return;
+    }
+
     DeviceCopyProps device_copy_props = GetDeviceCopyProps(call_node);
     CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
 
@@ -624,28 +669,32 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
   void VisitExpr_(const VarNode* op) override {
     Expr expr = GetRef<Expr>(op);
-    StorageInfo& sinfo = storage_device_map_[expr];
+    if (storage_device_map_.find(expr) != storage_device_map_.end()) {
+      StorageInfo& sinfo = storage_device_map_[expr];
 
-    // If the Var node is an output node we need to copy the content of the variable to the output
-    // It's safe to check the SID here because Var StorageToken are never reallocated
-    auto output_iter = std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[0]);
-    if (output_iter != return_sid_.end()) {
-      int output_index = std::distance(return_sid_.begin(), output_iter);
-      if (params_by_expr_.find(expr) != params_by_expr_.end()) {
-        auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
-                                           {tir::StringImm(params_by_expr_[expr])});
-        CopyToOutput(GetBufferVarForIO(input_vars_.size() + output_index), param_handle,
-                     /*pack_input*/ false, sinfo->storage_sizes_in_bytes[0]);
-      } else {
-        auto var_expr = FindExpr(expr);
-        CopyToOutput(GetBufferVarForIO(input_vars_.size() + output_index), var_expr[0],
-                     /*pack_input*/ false, sinfo->storage_sizes_in_bytes[0]);
+      // If the Var node is an output node we need to copy the content of the variable to the
+      // output It's safe to check the SID here because Var StorageToken are never reallocated
+      auto output_iter = std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[0]);
+      if (output_iter != return_sid_.end()) {
+        int output_index = std::distance(return_sid_.begin(), output_iter);
+        if (params_by_expr_.find(expr) != params_by_expr_.end()) {
+          auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
+                                             {tir::StringImm(params_by_expr_[expr])});
+          CopyToOutput(GetBufferVarForIO(input_vars_.size() + output_index), param_handle,
+                       /*pack_input*/ false, sinfo->storage_sizes_in_bytes[0]);
+        } else {
+          auto var_expr = FindExpr(expr);
+          CopyToOutput(GetBufferVarForIO(input_vars_.size() + output_index), var_expr[0],
+                       /*pack_input*/ false, sinfo->storage_sizes_in_bytes[0]);
+        }
       }
     }
   }
 
   void VisitExpr_(const ConstantNode* op) override {
     Expr expr = GetRef<Expr>(op);
+    ICHECK(storage_device_map_.find(expr) != storage_device_map_.end())
+        << "Storage map did not contain constant expr " << PrettyPrint(expr);
     StorageInfo& sinfo = storage_device_map_[expr];
     std::stringstream ss;
     ss << "constant_" << constant_map_.size();
@@ -674,12 +723,21 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   }
 
   void VisitExpr_(const LetNode* op) override {
-    // TODO(giuseros): support Let nodes in AOT
-    LOG(FATAL) << "Let not yet implemented in AOT";
+    auto pre_visit = [this](const LetNode* op) {
+      this->VisitExpr(op->var);
+      let_bound_values_.Set(op->var, op->value);
+      this->VisitExpr(op->value);
+    };
+    auto post_visit = [this](const LetNode* op) {
+      this->VisitExpr(op->body);
+      this->visit_counter_[op] += 1;
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
   }
+
   void VisitExpr_(const TupleGetItemNode* op) override { VisitExpr(op->tuple); }
   void VisitExpr_(const OpNode* op) override {
-    if (GetRef<Op>(op) != CallLoweredOp()) {
+    if (GetRef<Op>(op) != CallLoweredOp() && GetRef<Op>(op) != OnDeviceOp()) {
       LOG(FATAL) << "All OpNodes except for call_lowered should have been expanded";
     }
   }
@@ -775,21 +833,36 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   }
 
   /*!
-   * brief Access IO vars using the buffer vars and
+   * \brief Access IO vars using the buffer vars and
    * not the actual var.
    */
   tir::Var GetBufferVarForIO(int index) { return main_buffer_map_[main_signature_[index]]->data; }
 
   /*!
-   * brief Create tir::Var for input/output while updating
-   * the buffer_maps.
+   * \brief Create tir::Var for input/output while updating the buffer_maps.
+   *
+   * \param expr The expression to evaluate.
+   * \param original_name The name of the tir::Var.
+   * \param use_unique_name Whether to generate a new unique name where a name conflicts.
    */
   void CreateIOVar(const Expr& expr, const std::string& original_name,
                    bool use_unique_name = true) {
-    if (expr->IsInstance<TupleNode>()) {
-      Tuple tuple = Downcast<Tuple>(expr);
-      for (unsigned i = 0; i < tuple->fields.size(); i++) {
-        CreateIOVar(tuple->fields[i], original_name);
+    CreateIOVar(expr->checked_type(), original_name, use_unique_name);
+  }
+
+  /*!
+   * \brief Create tir::Var for input/output while updating the buffer_maps.
+   *
+   * \param expr The expression to evaluate.
+   * \param original_name The name of the tir::Var.
+   * \param use_unique_name Whether to generate a new unique name where a name conflicts.
+   */
+  void CreateIOVar(const Type& type, const std::string& original_name,
+                   bool use_unique_name = true) {
+    if (type->IsInstance<TupleTypeNode>()) {
+      TupleType tuple_type = Downcast<TupleType>(type);
+      for (unsigned i = 0; i < tuple_type->fields.size(); i++) {
+        CreateIOVar(tuple_type->fields[i], original_name);
       }
     } else {
       std::string name = original_name;
@@ -798,19 +871,20 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       }
       tir::Var var = tir::Var(name, DataType::Handle());
       main_signature_.push_back(var);
-      auto tensor_type = expr->checked_type().as<TensorTypeNode>();
+      auto tensor_type = type.as<TensorTypeNode>();
+      ICHECK(tensor_type) << "Expected TensorType node but was " << type->GetTypeKey();
       DataType elem_type = tensor_type->dtype;
       tir::Var buffer_var =
           tir::Var(name + "_buffer_var", PointerType(PrimType(elem_type), "global"));
       tir::Buffer buffer = tir::Buffer(buffer_var, elem_type, tensor_type->shape, {}, 0,
                                        name + "_buffer", 16, 1, tir::BufferType::kDefault);
       main_buffer_map_.Set(var, buffer);
-      io_tensor_types_.Set(var, Downcast<TensorType>(expr->checked_type()));
+      io_tensor_types_.Set(var, Downcast<TensorType>(type));
     }
   }
 
   /*!
-   * brief Create a unique name for I/O Var
+   * \brief Create a unique name for I/O Var
    */
   std::string GetUniqueIOVarName(std::string name) {
     if (io_var_names_.find(name) == io_var_names_.end()) {
@@ -823,7 +897,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   }
 
   /*!
-   * brief Calculate workspace sizes for PrimFuncs in the IRModule
+   * \brief Calculate workspace sizes for PrimFuncs in the IRModule
    */
   Map<String, FunctionInfo> CalculateWorkspaceSizes(
       const IRModule& lowered_mod, const Map<String, FunctionInfo>& function_metadata) {
@@ -852,7 +926,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   }
 
   /*!
-   * brief Run USMP to plan memory for lowered IRModule
+   * \brief Run USMP to plan memory for lowered IRModule.
    */
   IRModule PlanMemoryWithUSMP(const IRModule& mod) {
     VLOG(1) << "Planning memory with USMP for module:" << std::endl << PrettyPrint(mod);
@@ -888,7 +962,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   }
 
   /*!
-   * brief Run StorageRewrite to plan memory for lowered IRModule
+   * \brief Run StorageRewrite to plan memory for lowered IRModule.
    */
   IRModule PlanMemoryWithStorageRewrite(const IRModule& mod) {
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
@@ -966,6 +1040,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   std::vector<int> return_sid_;
   /*! \brief This is per IO var name counter to aid the generating unique names */
   std::unordered_map<std::string, int> io_var_names_;
+  /*! \brief Maps let var to corresponding value. */
+  Map<Var, Expr> let_bound_values_;
 
  public:
   AOTExecutorCodegen(runtime::Module* mod, const Array<Target>& targets)
@@ -1010,6 +1086,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       ICHECK(false) << "runtime_config (" << runtime_config->name
                     << ") is not one of the expected values";
     }
+
+    mod = transform::ToANormalForm()(mod);
 
     IRModule lowered_mod = tec::LowerTEPass(
         mod_name,
@@ -1056,9 +1134,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       for (auto sid : kv.second->storage_ids) {
         // The buffer_var is created with storage_scope to be global.workspace to be serviced by
         // TVMBackendAllocWorkspace(TVMBAW) calls, explicitly. The reasoning being the executor
-        // allocates should be serviced by TVMBAWs as the data could be accessed by many devices and
-        // should not be lowered to the stack. For more details please refer to the discussion here:
-        // https://github.com/apache/tvm/issues/9022
+        // allocates should be serviced by TVMBAWs as the data could be accessed by many devices
+        // and should not be lowered to the stack. For more details please refer to the discussion
+        // here: https://github.com/apache/tvm/issues/9022
         te::Var buffer_var(MakeString("sid_", sid),
                            PointerType(PrimType(DataType::Int(8)), "global.workspace"));
         sids_table_[sid] = buffer_var;
@@ -1071,12 +1149,13 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // If output tensor names were provided use them
     if (auto opt = func->GetAttr<Array<String>>("output_tensor_names")) {
       Array<String> output_tensor_names = opt.value();
-      if (lowered_main_func->body->IsInstance<TupleNode>()) {
-        Tuple output_tuple = Downcast<Tuple>(lowered_main_func->body);
-        for (unsigned i = 0; i < output_tuple->fields.size(); i++) {
+      Expr output_expr = lowered_main_func->body;
+      if (output_expr->checked_type()->IsInstance<TupleTypeNode>()) {
+        TupleType output_tuple_type = Downcast<TupleType>(output_expr->checked_type());
+        for (unsigned i = 0; i < output_tuple_type->fields.size(); i++) {
           // AoT Executor Codegen does not create these names,
           // thus should be used as they are provided.
-          CreateIOVar(output_tuple->fields[i], output_tensor_names[i],
+          CreateIOVar(output_tuple_type->fields[i], output_tensor_names[i],
                       /*use_unique_name = */ false);
         }
       } else {
@@ -1094,8 +1173,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     VisitExpr(lowered_main_func->body);
 
     // Create the runner function. Please note that the function is not legal yet
-    // because the packed calls arguments are not wrapped in TVMValues. To make this happen we need
-    // to run the LegalizePackedCalls pass.
+    // because the packed calls arguments are not wrapped in TVMValues. To make this happen we
+    // need to run the LegalizePackedCalls pass.
     LoweredOutput ret;
     ret.params = std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>>();
     for (auto param : params_) {
