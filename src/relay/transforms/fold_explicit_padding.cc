@@ -49,9 +49,18 @@ class SimplifyConvPad {
     conv1d_ = IsOp("nn.conv1d");
     conv2d_ = IsOp("nn.conv2d");
     conv3d_ = IsOp("nn.conv3d");
-    qconv2d_ = IsOp("qnn.conv2d");
-    conv_ = (conv1d_ || conv2d_ || conv3d_ || qconv2d_)({pad_, w_});
-    pattern_ = conv_;
+
+    conv_ = (conv1d_ || conv2d_ || conv3d_)({pad_, w_});
+
+    input_zero_point_ = IsWildcard();
+    kernel_zero_point_ = IsWildcard();
+    input_scale_ = IsWildcard();
+    kernel_scale_ = IsWildcard();
+
+    qconv2d_ = IsOp("qnn.conv2d")(
+        {pad_, w_, input_zero_point_, kernel_zero_point_, input_scale_, kernel_scale_});
+
+    pattern_ = conv_ || qconv2d_;
   }
 
   template <typename T>
@@ -122,9 +131,21 @@ class SimplifyConvPad {
     ICHECK(param);
     Array<Expr> args = pad_node->args;
 
+    auto x = node_map[x_][0];
+    auto w = node_map[w_][0];
+
     // Possibly perform more optimizations if the pad_value is 0
     const ConstantNode* pad_value = args[1].as<ConstantNode>();
-    if (param->pad_mode == "constant" && pad_value && ToScalar(pad_value->data) == 0.0) {
+    if (node_map.find(qconv2d_) != node_map.end()) {
+      Attrs attrs = GetAttrs(param, call_node->attrs.as<Conv2DAttrs>());
+      auto input_zero_point = node_map[input_zero_point_][0];
+      auto kernel_zero_point = node_map[kernel_zero_point_][0];
+      auto input_scale = node_map[input_scale_][0];
+      auto kernel_scale = node_map[kernel_scale_][0];
+      return Call(call_node->op,
+                  {x, w, input_zero_point, kernel_zero_point, input_scale, kernel_scale}, attrs,
+                  call_node->type_args, call_node->span);
+    } else if (param->pad_mode == "constant" && pad_value && ToScalar(pad_value->data) == 0.0) {
       Attrs attrs;
       if (node_map.count(conv1d_)) {
         attrs = GetAttrs(param, call_node->attrs.as<Conv1DAttrs>());
@@ -132,16 +153,12 @@ class SimplifyConvPad {
         attrs = GetAttrs(param, call_node->attrs.as<Conv2DAttrs>());
       } else if (node_map.count(conv3d_)) {
         attrs = GetAttrs(param, call_node->attrs.as<Conv3DAttrs>());
-      } else if (node_map.count(qconv2d_)) {
-        attrs = GetAttrs(param, call_node->attrs.as<Conv2DAttrs>());
       } else {
         return post;
       }
       if (!attrs.defined()) {
         return post;
       }
-      auto x = node_map[x_][0];
-      auto w = node_map[w_][0];
       return Call(call_node->op, {x, w}, attrs, call_node->type_args, call_node->span);
     }
     return post;
@@ -162,6 +179,10 @@ class SimplifyConvPad {
   DFPattern conv2d_;
   DFPattern conv3d_;
   DFPattern qconv2d_;
+  DFPattern input_zero_point_;
+  DFPattern kernel_zero_point_;
+  DFPattern input_scale_;
+  DFPattern kernel_scale_;
 };
 
 class SimplifyExplicitPadding {
