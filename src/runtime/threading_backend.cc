@@ -47,17 +47,18 @@ namespace runtime {
 namespace threading {
 #if defined(__hexagon__)
 class QuRTThread {
+  typedef std::function<void()> Callback;
   public:
     //template<class Function, class... Args>
     //explicit QuRTThread(Function&& f) {
-    QuRTThread(std::function<void(int)> worker_callback, int worker_id) :
-      f(worker_callback), i(worker_id) {
-      qurt_thread_attr_t attr;
-      FARF(LOW, "Creating worker thread %d", i);
+    QuRTThread(Callback worker_callback) :
+      f(worker_callback) {
+      //FARF(LOW, "Creating worker thread %d", i);
       qurt_thread_attr_init(&attr);
       qurt_thread_attr_set_stack_size(&attr, sizeof(stack));
       qurt_thread_attr_set_stack_addr(&attr, stack);
       qurt_thread_create(&thread, &attr, (void (*)(void *))run_func, this);
+      FARF(LOW, "created thread %d", thread);
     }
     bool joinable() const {
       FARF(LOW, "Checking if current thread %d != %d for joinability", qurt_thread_get_id(), thread);
@@ -65,35 +66,33 @@ class QuRTThread {
     }
     void join() {
       int status;
-      FARF(LOW, "join() called on thread id %d (worker id %d)", thread, i);
+      FARF(LOW, "join() called on thread id %d", thread);
       qurt_thread_join(thread, &status);
     }
   private:
     static void run_func(QuRTThread * t) {
-      FARF(LOW, "In run_func");
-      t->f(t->i);
-      FARF(LOW, "Leaving run_func");
+      FARF(LOW, "In run_func for thread %d", qurt_thread_get_id());
+      t->f();
+      FARF(LOW, "Leaving run_func %d", qurt_thread_get_id());
       qurt_thread_exit(QURT_EOK);
-      FARF(LOW, "I SHOULD NOT BE HERE");
     }
+    qurt_thread_attr_t attr;
     qurt_thread_t thread;
-    std::function<void(int)> f;
-    int i;
+    Callback f;
     uint8_t stack[HEXAGON_STACK_SIZE];
 };
 #endif
-thread_local int max_concurrency = 0;
+thread_local int max_concurrency = 3;
 class ThreadGroup::Impl {
  public:
   Impl(int num_workers, std::function<void(int)> worker_callback, bool exclude_worker0)
       : num_workers_(num_workers) {
+#ifdef __hexagon__
+    FARF(LOW, "num_workers requested = %d, exclude_worker0 = %d", num_workers_, exclude_worker0);
+#endif
     ICHECK_GE(num_workers, 1) << "Requested a non-positive number of worker threads.";
     for (int i = exclude_worker0; i < num_workers_; ++i) {
-#ifdef __hexagon__
-      threads_.emplace_back(QuRTThread(worker_callback, i));
-#else
       threads_.emplace_back([worker_callback, i] { worker_callback(i); });
-#endif // __hexagon__
     }
     InitSortedOrder();
   }
