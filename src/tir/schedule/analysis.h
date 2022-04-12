@@ -232,6 +232,17 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
 void CheckAffineBinding(const ScheduleState& self, Block block);
 
 /*!
+ * \brief Check whether a block has an affine binding under the high exclusive sref node,
+ * throw an exception if the block does not have an affine binding.
+ * \param self The schedule state
+ * \param block The block to be checked
+ * \param high_exclusive The highest sref node
+ * \throw ScheduleError If the input block does not have an affine binding
+ */
+void CheckPartialAffineBinding(const ScheduleState& self, Block block,
+                               const Optional<StmtSRef>& high_exclusive);
+
+/*!
  * \brief Extracts the ranges of loop variables in a path of the sref tree
  * \param low_inclusive The lowest node in the path
  * \param high_exclusive The highest node in the path, defaults to the scope root if not specified

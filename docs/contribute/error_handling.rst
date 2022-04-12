@@ -19,6 +19,11 @@
 
 Error Handling Guide
 ====================
+
+.. contents::
+  :depth: 2
+  :local:
+
 TVM contains structured error classes to indicate specific types of error.
 Please raise a specific error type when possible, so that users can
 write code to handle a specific error category if necessary.

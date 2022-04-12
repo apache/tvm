@@ -270,7 +270,6 @@ def test_ethosu_binary_elementwise(
         shapes=[ifm_shape, ifm2_shape],
         ranges=[(0, 1), (0, 2)],
         accel_type=accel_type,
-        output_tolerance=1 if operator_type == "MAX" else 0,
     )
 
 
@@ -387,12 +386,7 @@ def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
     )
     mod = partition_for_ethosu(mod)
 
-    # TODO(lhutton1) For now output is not bit exact with TFLite.
-    # This is because TFLite reference kernels are not being used.
-    # For this, TFLite will need upgrading to 2.6.
-    compiled_models = infra.build_source(
-        mod, input_data, output_data, accel_type, output_tolerance=1
-    )
+    compiled_models = infra.build_source(mod, input_data, output_data, accel_type)
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
     ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
@@ -438,9 +432,7 @@ def test_elementwise_add_from_constant_scalar(accel_type, dtype, constant):
     }
     output_data = generate_ref_data(cpu_mod, input_data)
 
-    infra.compare_ethosu_with_reference(
-        ethosu_mod, input_data, output_data, accel_type, output_tolerance=0
-    )
+    infra.compare_ethosu_with_reference(ethosu_mod, input_data, output_data, accel_type)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -477,9 +469,7 @@ def test_ethosu_left_shift_binary_elemwise(
     output_data = generate_ref_data(cpu_mod, input_data)
     ethosu_mod = partition_for_ethosu(cpu_mod)
 
-    infra.compare_ethosu_with_reference(
-        ethosu_mod, input_data, output_data, accel_type, output_tolerance=0
-    )
+    infra.compare_ethosu_with_reference(ethosu_mod, input_data, output_data, accel_type)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -754,10 +744,7 @@ def test_tflite_concat(shapes, axis, accel_type):
         op = tf.concat(list(inputs), axis)
         return op
 
-    # TODO(lhutton1) For now output is not bit exact with TFLite.
-    # This is because TFLite reference kernels are not being used.
-    # For this, TFLite will need upgrading to 2.6.
-    infra.compare_tvm_with_tflite(concat_func, shapes, accel_type, output_tolerance=1)
+    infra.compare_tvm_with_tflite(concat_func, shapes, accel_type)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -892,10 +879,7 @@ def test_tflite_resize2d_bilinear(accel_type, ifm_shape, size, align_corners):
             x, size, align_corners=align_corners, half_pixel_centers=False
         )
 
-    # TODO(lhutton1) For now output is not bit exact with TFLite.
-    # This is because TFLite reference kernels are not being used.
-    # For this, TFLite will need upgrading to 2.6.
-    infra.compare_tvm_with_tflite(resize_model, [ifm_shape], accel_type, output_tolerance=1)
+    infra.compare_tvm_with_tflite(resize_model, [ifm_shape], accel_type)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -955,10 +939,7 @@ def test_tflite_pack(accel_type, ifm_shapes, axis):
     def pack_func(*inputs):
         return tf.stack(inputs, axis=axis)
 
-    # TODO(lhutton1) For now output is not bit exact with TFLite.
-    # This is because TFLite reference kernels are not being used.
-    # For this, TFLite will need upgrading to 2.6.
-    infra.compare_tvm_with_tflite(pack_func, ifm_shapes, accel_type, output_tolerance=1)
+    infra.compare_tvm_with_tflite(pack_func, ifm_shapes, accel_type)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)

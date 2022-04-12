@@ -24,7 +24,6 @@ import numpy as np  # type: ignore
 import tvm
 from tvm import meta_schedule as ms
 from tvm.ir.transform import PassContext
-from tvm.meta_schedule.integration import extract_task_from_relay
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.relay_workload import get_network
 from tvm.relay import build as relay_build
@@ -107,7 +106,7 @@ def tune_each_task(
     work_dir,
     params,
 ):
-    extracted_tasks = extract_task_from_relay(mod, target, params)
+    extracted_tasks = ms.extract_task_from_relay(mod, target, params)
     database = ms.database.JSONDatabase(
         path_workload=os.path.join(work_dir, "default_database_workload.json"),
         path_tuning_record=os.path.join(work_dir, "default_database_tuning_record.json"),
@@ -139,7 +138,7 @@ def tune_each_task(
         )
         # pylint: enable=protected-access
         task_scheduler.tune()
-    with target, ms.integration.ApplyHistoryBest(database):
+    with target, ms.ApplyHistoryBest(database):
         with PassContext(
             opt_level=3,
             config={"relay.backend.use_meta_schedule": True},

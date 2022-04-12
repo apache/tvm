@@ -187,7 +187,7 @@ def get_pow2s(n):
     factors: list
         List of all power-of-two numbers
     """
-    return [2 ** x for x in range(math.floor(math.log2(n)) + 1)]
+    return [2**x for x in range(math.floor(math.log2(n)) + 1)]
 
 
 class SplitSpace(TransformSpace):

@@ -321,7 +321,7 @@ def pick_from_weight(weight, pows=1.0):
     """Identify token from Softmax output.
     This token will be mapped to word in the vocabulary.
     """
-    weight = weight ** pows
+    weight = weight**pows
     t = np.cumsum(weight)
     s = np.sum(weight)
     return int(np.searchsorted(t, 0.5 * s))

@@ -861,10 +861,10 @@ def test_reinterpret():
         (1000,), "int16", "uint16", lambda shape: np.random.randint(-1000, 1000, size=shape)
     )
     verify_reinterpret(
-        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2 ** 32 - 1, size=shape)
+        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2**32 - 1, size=shape)
     )
     verify_reinterpret(
-        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2 ** 32 - 1, size=shape)
+        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2**32 - 1, size=shape)
     )
 
 

@@ -544,26 +544,62 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
   return true;
 }
 
-void CheckAffineBinding(const ScheduleState& self, Block block) {
+void CheckPartialAffineBinding(const ScheduleState& self, Block block,
+                               const Optional<StmtSRef>& high_exclusive) {
   class NotAffineBindingError : public ScheduleError {
    public:
-    explicit NotAffineBindingError(IRModule mod, Block block)
-        : mod_(std::move(mod)), block_(std::move(block)) {}
+    explicit NotAffineBindingError(IRModule mod, Block block, Optional<StmtSRef> high_exclusive)
+        : mod_(std::move(mod)), block_(std::move(block)) {
+      if (high_exclusive.defined()) {
+        high_exclusive_loop_ = high_exclusive.value()->StmtAs<ForNode>();
+      }
+    }
     String FastErrorString() const final {
-      return "ScheduleError: The block is required to have an affine binding";
+      std::ostringstream ss;
+      if (high_exclusive_loop_) {
+        ss << "ScheduleError: The block is required to have an partial affine binding under "
+           << high_exclusive_loop_->loop_var;
+      } else {
+        ss << "ScheduleError: The block is required to have an affine binding";
+      }
+      return ss.str();
     }
     String DetailRenderTemplate() const final {
-      return "The block {0} is required to have an affine binding";
+      std::ostringstream ss;
+      if (high_exclusive_loop_) {
+        ss << "The block {0} is required to have an partial affine binding under "
+           << high_exclusive_loop_->loop_var;
+      } else {
+        ss << "The block {0} is required to have an affine binding";
+      }
+      return ss.str();
     }
     IRModule mod() const final { return mod_; }
     Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
     IRModule mod_;
     Block block_;
+    const ForNode* high_exclusive_loop_{nullptr};
   };
 
-  if (!self->IsAffineBlockBinding(self->stmt2ref.at(block.get()))) {
-    throw NotAffineBindingError(self->mod, std::move(block));
+  StmtSRef block_sref = self->stmt2ref.at(block.get());
+  if (self->IsAffineBlockBinding(block_sref)) {
+    // check block cached state for global affineness
+    return;
   }
+  if (block_sref->parent && high_exclusive.defined()) {
+    // if it is not of global affine binding, check affineness under high_exclusive,
+    arith::Analyzer analyzer;
+    Map<Var, Range> dom_map =
+        LoopDomainOfSRefTreePath(GetRef<StmtSRef>(block_sref->parent), high_exclusive);
+    if (IsAffineBinding(GetBlockRealize(self, block_sref), dom_map, &analyzer)) {
+      return;
+    }
+  }
+  throw NotAffineBindingError(self->mod, std::move(block), high_exclusive);
+}
+
+void CheckAffineBinding(const ScheduleState& self, Block block) {
+  CheckPartialAffineBinding(self, std::move(block), NullOpt);
 }
 
 Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,

@@ -107,7 +107,7 @@ bool QnnConv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs
       return false;
     }
   }
-  ICHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
+  ICHECK(IsScalarType(types[2], DataType::Int(32)));  // input_zero_point
 
   const auto* weight_zp_type = types[3].as<TensorTypeNode>();
   ICHECK(weight_zp_type->dtype == DataType::Int(32));  // weight_zero_point
