@@ -149,17 +149,17 @@ def _dense_legalize(attrs, inputs, arg_types):
     # Pad input and output channels to use tensorcore schedule.
     if dtype in ["float16", "int8", "uint8"]:
         # The shape of (M, K, N) must be multiple of
-        # (16, 16, 16) or (32, 16, 8) or (8, 16, 32) or (4, 4, 4)
+        # (16, 16, 16) or (32, 16, 8) or (8, 16, 32)
+        # from https://arxiv.org/pdf/1811.09736.pdf
         if (
             (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
             or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
             or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
-            or (M % 4 == 0 and K % 4 == 0 and N % 4 == 0)
         ):
             # no need to pad
             return None
 
-        candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32), (4, 4, 4)]
+        candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
     elif dtype in ["int4", "uint4"]:
         if M % 8 == 0 and K % 32 == 0 and N % 8 == 0:
             # no need to pad
@@ -172,7 +172,19 @@ def _dense_legalize(attrs, inputs, arg_types):
 
     if extra_flops_ratio > 2:
         logger.info("dense pad_to_tensorcore skipped, extra_flops_ratio %s", extra_flops_ratio)
-        return None
+
+        # If tensorcore schedule padding fails, pad to nearest upward 4x4x4 as long as
+        # the additional flops ratio isn't double or more.
+        # Note that 4x4x4 is invalid for tensorcore scheduling, but padding upwards to 4x4x4
+        # doesn't hurt if tensorcore padding has already failed.
+        if M % 4 == 0 and K % 4 == 0 and N % 4 == 0:
+            # No need to pad
+            return None
+        (dm, dk, dn) = _pad_to(M, K, N, (4, 4, 4))
+        extra_flops_ratio = _extra_flops(M, K, N, dm, dk, dn) / (M * K * N)
+
+        if extra_flops_ratio > 2:
+            return None
 
     logger.info("dense pad_to_tensorcore, extra_flops_ratio %s", extra_flops_ratio)
 
@@ -200,12 +212,16 @@ def pad_to_tensorcore(M, K, N, candidates):
     best_pad = (0, 0, 0)
     for padding in candidates:
         dm, dk, dn = _pad_to(M, K, N, padding)
-        e = (M + dm) * (N + dn) * (K + dk) - M * N * K
+        e = _extra_flops(M, K, N, dm, dk, dn)
         # print(dm, dk, dn, e, flops)
         if e < extra_flops:
             extra_flops = e
             best_pad = (dm, dk, dn)
     return best_pad, extra_flops / flops
+
+
+def _extra_flops(M, K, N, dm, dk, dn):
+    return (M + dm) * (N + dn) * (K + dk) - M * N * K
 
 
 def _pad_to(M, K, N, PADDING):
