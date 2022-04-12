@@ -107,7 +107,12 @@ class DataTypeVisitor final : public StmtExprVisitor {
       IterVar iv = Downcast<IterVar>(op->node);
       ICHECK_NE(iv->thread_tag.length(), 0U);
       analyzer_.Bind(iv->var, Range::FromMinExtent(0, op->value));
-      vextent_[iv->var.as<VarNode>()] = op->value.dtype();
+      if (op->attr_key == attr::thread_extent) {
+        // narrow extents to 32 bits on GPU
+        vextent_[iv->var.as<VarNode>()] = DataType::Int(32);
+      } else {
+        vextent_[iv->var.as<VarNode>()] = op->value.dtype();
+      }
       StmtExprVisitor::VisitStmt_(op);
     } else {
       StmtExprVisitor::VisitStmt_(op);
