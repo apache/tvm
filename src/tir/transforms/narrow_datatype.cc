@@ -29,6 +29,7 @@
 
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../arith/ir_visitor_with_analyzer.h"
+#include "tvm/runtime/logging.h"
 
 namespace tvm {
 namespace tir {
@@ -276,7 +277,13 @@ class DataTypeRewriter : public StmtExprMutator {
       PrimExpr e = VisitExpr(iv->var);
       Var var = Downcast<Var>(e);
       if (ivmap_.find(iv) == ivmap_.end()) {
-        ivmap_[iv] = IterVar(iv->dom, var, iv->iter_type, iv->thread_tag);
+        Range dom = iv->dom;
+        if (dom.defined()) {
+          DataType vi_dtype = dom->extent.dtype();
+          if (vi_dtype.is_int() && vi_dtype.bits() < var.dtype().bits())
+            dom = Range(cast(var.dtype(), dom->min), cast(var.dtype(), dom->extent), dom->span);
+        }
+        ivmap_[iv] = IterVar(dom, var, iv->iter_type, iv->thread_tag);
       }
       return AttrStmt(ivmap_[iv], op->attr_key, cast(var.dtype(), op->value), op->body);
     }
