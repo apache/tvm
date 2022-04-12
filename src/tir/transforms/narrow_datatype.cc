@@ -278,9 +278,13 @@ class DataTypeRewriter : public StmtExprMutator {
       if (ivmap_.find(iv) == ivmap_.end()) {
         Range dom = iv->dom;
         if (dom.defined()) {
-          DataType vi_dtype = dom->extent.dtype();
-          if (vi_dtype.is_int() && vi_dtype.bits() < var.dtype().bits())
-            dom = Range(cast(var.dtype(), dom->min), cast(var.dtype(), dom->extent), dom->span);
+          PrimExpr extend = dom->extent;
+          if (extend.dtype().is_int() && var.dtype().is_int() &&
+              var.dtype().bits() != extend.dtype().bits()) {
+            int bits = std::max(extend.dtype().bits(), var.dtype().bits());
+            DataType dtype = var.dtype().with_bits(bits);
+            dom = Range(cast(dtype, dom->min), cast(dtype, extend), dom->span);
+          }
         }
         ivmap_[iv] = IterVar(dom, var, iv->iter_type, iv->thread_tag);
       }
