@@ -23,6 +23,7 @@ import multiprocessing as mp
 import os
 import pathlib
 import signal
+import socket
 import stat
 import subprocess
 from typing import Union
@@ -357,23 +358,46 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         for item in self.ANDROID_HEXAGON_RPC_FILES:
             self._copy_to_remote(lib_dir / item, self._workspace / item)
 
-    def _run_server_script(self):
-        """Setup the ADB connection and execute the server script."""
+    def _process_forwarded_ports(self):
+        forwarded_ports = subprocess.check_output(self._adb_device_sub_cmd + ["forward", "--list"])
+        existing_forwards = []
+        for forward in str(forwarded_ports).split("\\n"):
+            entry = forward.split()
+            if len(entry) == 3:
+                _, local, _ = entry
+                existing_forwards.append(int(local.strip("tcp:")))
+        return existing_forwards
 
-        # Enable port reverse for RPC tracker
-        rpc_tracker_port = self._rpc_info["rpc_tracker_port"]
-        rpc_server_port = self._rpc_info["rpc_server_port"]
+    def _forward_ports(self, rpc_server_port, existing_forwards):
+        # Enable port forward for RPC server. We forward the first ten open ports
+        # starting from the rpc_server_port
+        port = rpc_server_port
+        while len(self.forwarded_ports_) < 10:
+            if port not in existing_forwards and not _is_port_in_use(port):
+                subprocess.check_call(
+                    self._adb_device_sub_cmd + ["forward", f"tcp:{port}", f"tcp:{port}"]
+                )
+                self.forwarded_ports_.append(port)
+            port += 1
+
+    def _reverse_ports(self, rpc_tracker_port):
         subprocess.check_call(
             self._adb_device_sub_cmd
             + ["reverse", f"tcp:{rpc_tracker_port}", f"tcp:{rpc_tracker_port}"]
         )
-        # Enable port forward for RPC server. We forward 9 ports after the rpc_server_port.
-        for i in range(0, 10):
-            port = rpc_server_port + i
-            self.forwarded_ports_.append(port)
-            subprocess.check_call(
-                self._adb_device_sub_cmd + ["forward", f"tcp:{port}", f"tcp:{port}"]
-            )
+
+    def _run_server_script(self):
+        """Setup the ADB connection and execute the server script."""
+
+        # Collect any existing adb port forwarding to avoid duplication
+        # with another running process
+        existing_forwards = self._process_forwarded_ports()
+        # Enable port reverse for RPC tracker
+        rpc_tracker_port = self._rpc_info["rpc_tracker_port"]
+        rpc_server_port = self._rpc_info["rpc_server_port"]
+
+        self._reverse_ports(rpc_tracker_port)
+        self._forward_ports(rpc_server_port, existing_forwards)
 
         # Run server and connect to tracker
         subprocess.Popen(
@@ -521,6 +545,12 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
     def stop_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._server_process.terminate()
+
+
+# https://stackoverflow.com/a/52872579/2689797
+def _is_port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(("localhost", port)) == 0
 
 
 # pylint: disable=invalid-name
