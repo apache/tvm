@@ -418,12 +418,12 @@ if [[ "${DOCKER_IMAGE_NAME}" == *"demo_vitis_ai"* && -d "/dev/shm" && -d "/opt/x
                   )
 
     XCLMGMT_DRIVER="$(find /dev -name xclmgmt\*)"
-    for DRIVER in "${XCLMGMT_DRIVER}"; do
+    for DRIVER in ${XCLMGMT_DRIVER}; do
        DOCKER_DEVICES+=( --device="${DRIVER}" )
     done
 
     RENDER_DRIVER="$(find /dev/dri -name renderD\*)"
-    for DRIVER in "${RENDER_DRIVER}"; do
+    for DRIVER in ${RENDER_DRIVER}; do
         DOCKER_DEVICES+=( --device="${DRIVER}" )
     done
 fi
