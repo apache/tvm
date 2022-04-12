@@ -2940,6 +2940,7 @@ class TopK(OnnxOpConverter):
                 ),
                 2,
             )
+
         if get_name(inputs[1]) in params:
             k_value = _expr.const(params[inputs[1].name_hint])
         else:
