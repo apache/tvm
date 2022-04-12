@@ -67,48 +67,21 @@ class GraphExecutorDebug : public GraphExecutor {
         time_sec_per_op[index] += RunOpRPC(index, number, repeat, min_repeat_ms);
       }
     } else {
-      for (int i = 0; i < repeat; ++i) {
-        std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds>
-            tbegin, tend;
-        double duration_ms = 0.0;
-        do {
-          std::fill(time_sec_per_op.begin(), time_sec_per_op.end(), 0);
-          if (duration_ms > 0.0) {
-            number = static_cast<int>(std::max((min_repeat_ms / (duration_ms / number) + 1),
-                                               number * 1.618));  // 1.618 is chosen by random
-          }
-          tbegin = std::chrono::high_resolution_clock::now();
-          std::vector<std::vector<Timer>> op_timers;
-          for (size_t index = 0; index < op_execs_.size(); index++) {
-            op_timers.push_back({});
-          }
-          for (int k = 0; k < number; k++) {
-            for (size_t index = 0; index < op_execs_.size(); ++index) {
-              if (op_execs_[index]) {
-                op_timers[index].push_back(RunOpHost(index));
-              }
-            }
-          }
-          for (size_t index = 0; index < op_execs_.size(); ++index) {
-            for (auto t : op_timers[index]) {
-              time_sec_per_op[index] += t->SyncAndGetElapsedNanos() / 1e9;
-            }
-          }
-          tend = std::chrono::high_resolution_clock::now();
-          duration_ms =
-              std::chrono::duration_cast<std::chrono::duration<double>>(tend - tbegin).count() *
-              1000;
-        } while (duration_ms < min_repeat_ms);
+      for (size_t index = 0; index < op_execs_.size(); ++index) {
+        std::vector<std::vector<double>> results =
+            RunIndividualNode(index, number, repeat, min_repeat_ms);
 
-        LOG(INFO) << "Iteration: " << i;
-        int op = 0;
-        for (size_t index = 0; index < time_sec_per_op.size(); index++) {
-          if (op_execs_[index]) {
-            time_sec_per_op[index] /= number;
-            LOG(INFO) << "Op #" << op++ << " " << GetNodeName(index) << ": "
-                      << time_sec_per_op[index] * 1e6 << " us/iter";
+        double total = 0.0;
+        for (size_t cur_repeat = 0; cur_repeat < results.size(); cur_repeat++) {
+          std::vector<double>& timings = results[cur_repeat];
+          double total_in_trial = 0;
+          for (double t : timings) {
+            total_in_trial += t;
           }
+          total_in_trial /= timings.size();
+          total += total_in_trial;
         }
+        time_sec_per_op[index] = total / results.size();
       }
     }
 
@@ -117,6 +90,54 @@ class GraphExecutorDebug : public GraphExecutor {
       os << time_sec_per_op[index] << ",";
     }
     return os.str();
+  }
+
+  std::vector<std::vector<double>> RunIndividualNode(int node_index, int number, int repeat,
+                                                     int min_repeat_ms) {
+    // warmup run
+    GraphExecutor::Run();
+    std::string tkey = module_->type_key();
+
+    // results_in_seconds[a][b] is the bth index run of the ath index repeat
+    std::vector<std::vector<double>> results_in_seconds;
+
+    if (tkey == "rpc") {
+      LOG(FATAL) << "RPC measurements should not use RunIndividualNode!";
+    }
+
+    for (int i = 0; i < repeat; ++i) {
+      std::vector<Timer> op_timers;
+      double duration_ms = 0.0;
+
+      // Keep timing operations, upping number of repeats until we reach min_repeat_ms
+      do {
+        op_timers.clear();
+        if (duration_ms > 0.0) {
+          number = static_cast<int>(std::max((min_repeat_ms / (duration_ms / number) + 1),
+                                             number * 1.618));  // 1.618 is chosen by random
+        }
+
+        std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds>
+            tbegin, tend;
+        tbegin = std::chrono::high_resolution_clock::now();
+        for (int k = 0; k < number; k++) {
+          if (op_execs_[node_index]) {
+            op_timers.push_back(RunOpHost(node_index));
+          }
+        }
+        tend = std::chrono::high_resolution_clock::now();
+        duration_ms =
+            std::chrono::duration_cast<std::chrono::duration<double>>(tend - tbegin).count() * 1000;
+      } while (duration_ms < min_repeat_ms);
+
+      std::vector<double> timings_in_seconds;
+      for (Timer t : op_timers) {
+        timings_in_seconds.push_back(t->SyncAndGetElapsedNanos() / 1e9);
+      }
+      results_in_seconds.push_back(timings_in_seconds);
+    }
+
+    return results_in_seconds;
   }
 
   double RunOpRPC(int index, int number, int repeat, int min_repeat_ms) {
@@ -361,6 +382,19 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       ICHECK_GT(repeat, 0);
       ICHECK_GE(min_repeat_ms, 0);
       *rv = this->RunIndividual(number, repeat, min_repeat_ms);
+    });
+  } else if (name == "run_individual_node") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      int node_index = args[0];
+      int number = args[1];
+      int repeat = args[2];
+      int min_repeat_ms = args[3];
+      ICHECK_GE(node_index, 0);
+      ICHECK_LT(node_index, nodes_.size());
+      ICHECK_GT(number, 0);
+      ICHECK_GT(repeat, 0);
+      ICHECK_GE(min_repeat_ms, 0);
+      *rv = this->RunIndividualNode(node_index, number, repeat, min_repeat_ms);
     });
   } else if (name == "profile") {
     return TypedPackedFunc<profiling::Report(Array<profiling::MetricCollector>)>(
