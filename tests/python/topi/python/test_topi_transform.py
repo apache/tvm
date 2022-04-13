@@ -750,24 +750,68 @@ def verify_sparse_to_dense(sparse_indices, sparse_values, default_value, output_
 
 
 def verify_matrix_set_diag(input_shape, diagonal_shape, dtype, k=0, align="RIGHT_LEFT"):
+    # input matrix that contains diagonals to be replaced
     input = te.placeholder(shape=input_shape, name="input", dtype=dtype)
+    # diagonal values to be placed as new diagonal values of input matrix
     diagonal = te.placeholder(shape=diagonal_shape, name="diagonal", dtype=dtype)
-    matrix_set_diag_result = topi.transform.matrix_set_diag(input, diagonal, k, align)
+    # diagonals offsets
+    # k1 and k2 define the lower and upper limits of diagonals to be set
+    # where k*=0 means main diagonal, k*< 0 sub-diagonal, and k*> 0 super-diagonal
+    # when k is not an tuple or list, k1 will be equal to k2, meaning that only one diagonal will be replaced.
+    k1 = te.placeholder(shape=(1,), name="k1", dtype="int64")
+    # k2 defines the upper limit diagonal to be set
+    k2 = te.placeholder(shape=(1,), name="k2", dtype="int64")
+    matrix_set_diag_result = topi.transform.matrix_set_diag(input, diagonal, (k1, k2), align)
+
+    # k can be an integer or a pair of integers representing the lower and upper limits of a matrix band;
+    k_one, k_two = None, None
+    if isinstance(k, (tuple, list)):
+        k_one = k[0]
+        if len(k) >= 2:
+            k_two = k[1]
+        else:
+            k_two = k[0]
+    else:
+        k_one = k
+        k_two = k
+
+    # Generate random data for input matrix
+    input_npy = np.random.randint(-100, 100, size=input_shape).astype(dtype)
+    # Generate random data for diagonal (single or multiple diagionals)
+    diagonal_npy = np.random.randint(-100, 100, size=diagonal_shape).astype(dtype)
+    # Run numpy test for matrix_set_diag with random data
+    # output will be saved to compare with TOPI version of matrix_set_diag
+    out_npy = tvm.topi.testing.matrix_set_diag(input_npy, diagonal_npy, k, align)
 
     def check_device(target, dev):
         dev = tvm.device(target, 0)
         print("Running on target: %s" % target)
         with tvm.target.Target(target):
             s = tvm.topi.testing.get_injective_schedule(target)(matrix_set_diag_result)
-        fn = tvm.build(s, [input, diagonal, matrix_set_diag_result], target, name="matrix_set_diag")
-        input_npy = np.random.randint(-100, 100, size=input_shape).astype(dtype)
-        diagonal_npy = np.random.randint(-100, 100, size=diagonal_shape).astype(dtype)
-        out_npy = tvm.topi.testing.matrix_set_diag(input_npy, diagonal_npy, k, align)
+        fn = tvm.build(
+            s, [input, diagonal, k1, k2, matrix_set_diag_result], target, name="matrix_set_diag"
+        )
+
+        # Convert numpy input data to TVM ND array
         input_nd = tvm.nd.array(input_npy, dev)
+
+        # Convert numpy diagonal data to TVM ND array
         diagonal_nd = tvm.nd.array(diagonal_npy, dev)
+
+        # Convert k1 and k2 to numpy array and then to TVM ND array
+        k1_nd = tvm.nd.array(np.asarray([k_one]), dev)
+        k2_nd = tvm.nd.array(np.asarray([k_two]), dev)
+
+        # Convert k1 and k2 to numpy array and then to TVM ND array
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(matrix_set_diag_result.dtype), dev)
-        fn(input_nd, diagonal_nd, out_nd)
+
+        # Run TOPI test for matrix_set_diag with random data
+        fn(input_nd, diagonal_nd, k1_nd, k2_nd, out_nd)
+
+        # Convert TOPI output to numpy
         out_topi = out_nd.numpy()
+
+        # Check if Numpy version matches TOPI one
         tvm.testing.assert_allclose(out_topi, out_npy)
 
     for target, dev in tvm.testing.enabled_targets():
