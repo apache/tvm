@@ -228,6 +228,7 @@ def test_broadcast_to():
             op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(x)
             tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
+
 @tvm.testing.uses_gpu
 def test_broadcast_to_const_shape_int64():
     shape_like = relay.const(np.array([1, 5]), dtype="int64")
@@ -243,6 +244,7 @@ def test_broadcast_to_const_shape_int64():
         for kind in ["graph", "debug"]:
             op_res = relay.create_executor(kind, device=dev, target=target).evaluate(f)(x)
             tvm.testing.assert_allclose(op_res.numpy(), ref_res)
+
 
 @tvm.testing.uses_gpu
 def test_broadcast_to_like():
