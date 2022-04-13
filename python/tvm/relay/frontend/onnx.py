@@ -3913,10 +3913,17 @@ class QLinearMatMul(OnnxOpConverter):
     - Only supports 2D input tensors.
     - Not guaranteed to meet the integer-overflow behavior stipulated in the
       ONNX documentation for this operator.
+
+    The QLinearMatMul converter is re-used for MatMulInteger and is adapted for
+    the latter with the optional `expected_out_dtypes` argument.
     """
 
     @classmethod
-    def _impl_v10(cls, inputs, attr, params):
+    def _impl_v10(cls, inputs, attr, params, expected_out_dtypes=None):
+        if expected_out_dtypes is None:
+            # The default QLinearMatMul converter is expected to have one of
+            # these output dtypes.
+            expected_out_dtypes = ["int8", "uint8"]
 
         # Some of the ops used below take scalar-like inputs, and may require either
         # of the following:
@@ -3966,7 +3973,7 @@ class QLinearMatMul(OnnxOpConverter):
         assert b_zp_type.dtype == b_type.dtype
 
         assert y_scale_type.dtype == "float32"
-        assert y_zp_type.dtype in ["int8", "uint8"]
+        assert y_zp_type.dtype in expected_out_dtypes
 
         # TODO: relax this limitation in a future version of this importer.
         a_rank = len(a_shape)
@@ -4028,6 +4035,11 @@ class QLinearMatMul(OnnxOpConverter):
         matmul_result_scale_scalar = fold_constant(_op.multiply(a_scale_scalar, b_scale_scalar))
         matmul_result_zp_scalar = _op.const(0, dtype="int32")
 
+        if "int32" in expected_out_dtypes:
+            # This is the adaptation of the QLinearMatMul converter for MatMulInteger,
+            # in the MatMulInteger case we skip the unnecessary requantization step.
+            return matmul_result
+
         # requantize requires y_scale to be constant,
         # if y_scale is not constant, doing dequantize -> quantize
         if isinstance(y_scale_scalar, _expr.Constant):
@@ -4051,6 +4063,58 @@ class QLinearMatMul(OnnxOpConverter):
             )
 
         return y
+
+
+class MatMulInteger(OnnxOpConverter):
+    """Operator converter for MatMulInteger."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        a = inputs[0]
+        b = inputs[1]
+
+        a_dtype = infer_type(a).checked_type.dtype
+        b_dtype = infer_type(b).checked_type.dtype
+
+        assert a_dtype in ("int8", "uint8"), "MatMulInteger: invalid dtype for first input"
+        assert b_dtype in ("int8", "uint8"), "MatMulInteger: invalid dtype for second input"
+
+        assert a_dtype == b_dtype, "MatMulInteger: input dtypes must match"
+
+        a_scale = _op.const(1.0, dtype="float32")
+        b_scale = _op.const(1.0, dtype="float32")
+        out_scale = _op.const(1.0, dtype="float32")
+
+        a_zero_point = _op.const(0.0, dtype=a_dtype)
+        b_zero_point = _op.const(0.0, dtype=b_dtype)
+        out_zero_point = _op.const(0.0, dtype="int32")
+
+        if len(inputs) == 4:
+            a_zero_point = inputs[2]
+            b_zero_point = inputs[3]
+
+            a_zp_dtype = infer_type(a_zero_point).checked_type.dtype
+            b_zp_dtype = infer_type(b_zero_point).checked_type.dtype
+            assert (
+                a_zp_dtype == a_dtype and b_zp_dtype == b_dtype
+            ), "MatMulInteger: input dtype doesn't match zero point dtype"
+        elif len(inputs) != 2:
+            raise AssertionError(
+                "MatMulInteger op takes 2 or 4 inputs, {} given".format(len(inputs))
+            )
+
+        inputs = [
+            a,
+            a_scale,
+            a_zero_point,
+            b,
+            b_scale,
+            b_zero_point,
+            out_scale,
+            out_zero_point,
+        ]
+
+        return QLinearMatMul.get_converter(10)(inputs, attr, params, expected_out_dtypes=["int32"])
 
 
 class QLinearMul(OnnxOpConverter):
@@ -4781,6 +4845,7 @@ def _get_convert_map(opset):
         "Softsign": Softsign.get_converter(opset),
         "Gemm": Gemm.get_converter(opset),
         "MatMul": MatMul.get_converter(opset),
+        "MatMulInteger": MatMulInteger.get_converter(opset),
         "MatMulInteger16": MatMulInteger16.get_converter(opset),
         "Mod": Mod.get_converter(opset),
         "Xor": Renamer("logical_xor"),

@@ -5053,7 +5053,6 @@ unsupported_onnx_tests = [
     "test_loop11",
     "test_loop13_seq",
     "test_lstm_batchwise",
-    "test_matmulinteger",
     "test_maxpool_with_argmax_2d_precomputed_pads",
     "test_maxpool_with_argmax_2d_precomputed_strides",
     "test_maxunpool_export_with_output_shape",
