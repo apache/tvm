@@ -41,7 +41,7 @@ extern "C" {
 #include "hexagon_rpc.h"
 
 // TODO(mehrdadh): make this configurable.
-#define TVM_HEXAGON_RPC_BUFF_SIZE_BYTES 2 * 1024 * 1024
+#define TVM_HEXAGON_RPC_BUFF_SIZE_BYTES 5 * 1024 * 1024
 
 // TODO(csulivan,adstraw,kparzysz-quic) This should be set on a TVM-wide basis.
 #if defined(__hexagon__)

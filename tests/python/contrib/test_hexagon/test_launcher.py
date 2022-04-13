@@ -16,11 +16,9 @@
 # under the License.
 
 import os
-import pathlib
 import sys
 import pytest
 import numpy as np
-import logging
 
 import tvm.testing
 from tvm import te

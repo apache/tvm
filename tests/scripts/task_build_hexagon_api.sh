@@ -19,8 +19,18 @@
 set -e
 set -u
 
+use_cache=false
+if [ $# -ge 1 ] && [[ "$1" == "--use-cache" ]]; then
+    use_cache=true
+    shift 1
+fi
+
 cd apps/hexagon_api
-rm -rf build
+
+if [ "$use_cache" = false ]; then
+    rm -rf build
+fi
+
 mkdir -p build
 cd build
 
