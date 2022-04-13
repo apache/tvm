@@ -80,8 +80,15 @@ class GraphExecutorDebug : public GraphExecutor {
           }
           total_in_trial /= timings.size();
           total += total_in_trial;
+          time_sec_per_op[index] = total / results.size();
+
+          LOG(INFO) << "Iteration: " << cur_repeat;
+          int op = 0;
+          if (op_execs_[index]) {
+            LOG(INFO) << "Op #" << op++ << " " << GetNodeName(index) << ": "
+                      << time_sec_per_op[index] * 1e6 << " us/iter";
+          }
         }
-        time_sec_per_op[index] = total / results.size();
       }
     }
 
@@ -141,9 +148,10 @@ class GraphExecutorDebug : public GraphExecutor {
   }
 
   double RunOpRPC(int index, int number, int repeat, int min_repeat_ms) {
-    // Right now we expect either "tvm_op" for nodes which run PackedFunc or "null" for nodes which
-    // represent inputs/parameters to the graph. Other types may be supported in the future, but
-    // consideration would be needed as to how to do that over RPC before we support it here.
+    // Right now we expect either "tvm_op" for nodes which run PackedFunc or "null" for nodes
+    // which represent inputs/parameters to the graph. Other types may be supported in the
+    // future, but consideration would be needed as to how to do that over RPC before we support
+    // it here.
     if (nodes_[index].op_type != "tvm_op") {
       CHECK_EQ(nodes_[index].op_type, "null")
           << "Don't know how to run op type " << nodes_[index].op_type

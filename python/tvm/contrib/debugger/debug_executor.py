@@ -291,10 +291,10 @@ class GraphModuleDebug(graph_executor.GraphModule):
             The index of the node, see `self.debug_datum.get_graph_nodes`
 
         number: int
-            The number of times to benchmark the nodes.
+            The number of times to run the node to get a benchmark result.
 
         repeat: int
-            The number of times to run the node to get a benchmark result.
+            The number of times to benchmark the nodes.
 
         min_repeat_ms: int
             The minimum consecutive runtime of the node for a benchmark result.
