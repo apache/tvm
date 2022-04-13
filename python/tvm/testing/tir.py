@@ -22,7 +22,7 @@ import tvm
 from tvm.ir.diagnostics import override_renderer
 
 
-CHECK_ERROR_RE = re.compile(r'^.*# check_error: (.+)$')
+CHECK_ERROR_RE = re.compile(r"^.*# check_error: (.+)$")
 
 
 def check_error(func, rel_lineno):
@@ -51,9 +51,11 @@ def check_error(func, rel_lineno):
             d.span.line - 1 == rel_lineno
         ), f"Expected error to be on line {rel_lineno}, but it was on {d.span.line - 1}"
 
-    error_line = source_code.split('\n')[rel_lineno]
+    error_line = source_code.split("\n")[rel_lineno]
     m = CHECK_ERROR_RE.match(error_line)
     if m:
         expected_error_text = m.group(1)
         errors = [e.message for e in errors]
-        assert expected_error_text in errors, f'check_error expects "{expected_error_text} in str(errors): {errors}'
+        assert (
+            expected_error_text in errors
+        ), f'check_error expects "{expected_error_text} in str(errors): {errors}'

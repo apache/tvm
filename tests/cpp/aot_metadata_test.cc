@@ -61,10 +61,10 @@ using ::tvm::runtime::Array;
 using ::tvm::runtime::Downcast;
 using ::tvm::runtime::ObjectRef;
 
-using ::tvm::runtime::metadata::TensorInfo;
 using ::tvm::runtime::metadata::Metadata;
 using ::tvm::runtime::metadata::MetadataArray;
 using ::tvm::runtime::metadata::MetadataKind;
+using ::tvm::runtime::metadata::TensorInfo;
 
 TEST(Metadata, ParseStruct) {
   Metadata md = Metadata(&kNormal);
@@ -210,25 +210,23 @@ TEST(Metadata, Visitor) {
 using ::tvm::runtime::make_object;
 TEST(Metadata, InMemory) {
   Metadata md = Metadata(make_object<tvm::target::metadata::InMemoryMetadataNode>(
-          TVM_METADATA_VERSION,
-          std::vector<TensorInfo>(
-              {TensorInfo(
-                   make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
-                       tvm::String("Input1"), std::vector<int64_t>{1, 5, 5, 3},
-                       tvm::runtime::DataType(DLDataType{1, 2, 3}))),
-               TensorInfo(
-                   make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
-                       tvm::String("Input2"), std::vector<int64_t>{1, 5, 5, 3},
-                       tvm::runtime::DataType(DLDataType{2, 3, 4})))}),
-          std::vector<TensorInfo>({TensorInfo(
-              make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
-                  tvm::String("Output1"), std::vector<int64_t>{3, 8, 8},
-                  tvm::runtime::DataType(DLDataType{3, 4, 5})))}),
-          std::vector<TensorInfo>({TensorInfo(
-              make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
-                  tvm::String("Pool1"), std::vector<int64_t>{5, 10, 10},
-                  tvm::runtime::DataType(DLDataType{3, 4, 7})))}),
-          "default"));
+      TVM_METADATA_VERSION,
+      std::vector<TensorInfo>(
+          {TensorInfo(make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
+               tvm::String("Input1"), std::vector<int64_t>{1, 5, 5, 3},
+               tvm::runtime::DataType(DLDataType{1, 2, 3}))),
+           TensorInfo(make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
+               tvm::String("Input2"), std::vector<int64_t>{1, 5, 5, 3},
+               tvm::runtime::DataType(DLDataType{2, 3, 4})))}),
+      std::vector<TensorInfo>(
+          {TensorInfo(make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
+              tvm::String("Output1"), std::vector<int64_t>{3, 8, 8},
+              tvm::runtime::DataType(DLDataType{3, 4, 5})))}),
+      std::vector<TensorInfo>(
+          {TensorInfo(make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
+              tvm::String("Pool1"), std::vector<int64_t>{5, 10, 10},
+              tvm::runtime::DataType(DLDataType{3, 4, 7})))}),
+      "default"));
 
   auto md_data = md->data();
   EXPECT_THAT(md_data->version, Eq(TVM_METADATA_VERSION));
@@ -266,14 +264,13 @@ TEST(Metadata, InMemory) {
 }
 
 TEST(Metadata, ZeroElementLists) {
-  Metadata md =
-      Metadata(make_object<tvm::target::metadata::InMemoryMetadataNode>(
-          TVM_METADATA_VERSION, std::vector<TensorInfo>({}),
-          std::vector<TensorInfo>({TensorInfo(
-              make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
-                  tvm::String("Output1"), std::vector<int64_t>{},
-                  tvm::runtime::DataType(DLDataType{3, 4, 5})))}),
-          std::vector<TensorInfo>({}), "default"));
+  Metadata md = Metadata(make_object<tvm::target::metadata::InMemoryMetadataNode>(
+      TVM_METADATA_VERSION, std::vector<TensorInfo>({}),
+      std::vector<TensorInfo>(
+          {TensorInfo(make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
+              tvm::String("Output1"), std::vector<int64_t>{},
+              tvm::runtime::DataType(DLDataType{3, 4, 5})))}),
+      std::vector<TensorInfo>({}), "default"));
 
   EXPECT_THAT(md->data()->num_inputs, Eq(0));
   EXPECT_THAT(md->inputs().size(), Eq(0));
@@ -304,13 +301,14 @@ TEST(MetadataArray, GetElementCStructName) {
 namespace {
 std::string ExplainDiscoveredNameEq(bool negation, std::string expected_name) {
   std::stringstream ss;
-  ss << "std::get<0>(discovered_array) " << (negation ? "isn't" : "is") << " equal to " << expected_name;
+  ss << "std::get<0>(discovered_array) " << (negation ? "isn't" : "is") << " equal to "
+     << expected_name;
   return ss.str();
 }
-}
+}  // namespace
 
 MATCHER_P(DiscoveredNameEq, expected_name, ExplainDiscoveredNameEq(negation, expected_name)) {
-  return std::string{std::get<0>(arg)} == expected_name;
+  return std::string {std::get<0>(arg)} == expected_name;
 }
 
 TEST(DiscoverArraysVisitor, DiscoverArrays) {
@@ -320,22 +318,24 @@ TEST(DiscoverArraysVisitor, DiscoverArrays) {
   Metadata md = Metadata(&kNormal);
   visitor.Visit(kMetadataGlobalSymbol, &md);
 
-  EXPECT_THAT(q, ElementsAreArray(
-                {DiscoveredNameEq("kTvmgenMetadata_inputs_0_shape"),
-                 DiscoveredNameEq("kTvmgenMetadata_inputs_1_shape"),
-                 DiscoveredNameEq("kTvmgenMetadata_inputs"),
-                 DiscoveredNameEq("kTvmgenMetadata_outputs_0_shape"),
-                 DiscoveredNameEq("kTvmgenMetadata_outputs"),
-                 DiscoveredNameEq("kTvmgenMetadata_pools_0_shape"),
-                 DiscoveredNameEq("kTvmgenMetadata_pools")}));
+  EXPECT_THAT(q, ElementsAreArray({DiscoveredNameEq("kTvmgenMetadata_inputs_0_shape"),
+                                   DiscoveredNameEq("kTvmgenMetadata_inputs_1_shape"),
+                                   DiscoveredNameEq("kTvmgenMetadata_inputs"),
+                                   DiscoveredNameEq("kTvmgenMetadata_outputs_0_shape"),
+                                   DiscoveredNameEq("kTvmgenMetadata_outputs"),
+                                   DiscoveredNameEq("kTvmgenMetadata_pools_0_shape"),
+                                   DiscoveredNameEq("kTvmgenMetadata_pools")}));
 }
 
-template <typename T, std::enable_if_t<std::is_base_of<tvm::runtime::metadata::MetadataBase, T>::value, bool> = true>
+template <typename T,
+          std::enable_if_t<std::is_base_of<tvm::runtime::metadata::MetadataBase, T>::value, bool> =
+              true>
 class TVMObjectIsInstanceMatcher : public MatcherInterface<tvm::runtime::metadata::MetadataBase> {
  public:
   using is_gtest_matcher = void;
 
-  bool MatchAndExplain(tvm::runtime::metadata::MetadataBase arg, MatchResultListener* os) const override {
+  bool MatchAndExplain(tvm::runtime::metadata::MetadataBase arg,
+                       MatchResultListener* os) const override {
     bool result = arg->IsInstance<typename T::ContainerType>();
     if (!result) {
       (*os) << "is an instance of type " << T::ContainerType::_type_key;
@@ -344,7 +344,7 @@ class TVMObjectIsInstanceMatcher : public MatcherInterface<tvm::runtime::metadat
     return result;
   }
 
-  void DescribeTo(std::ostream* os)  const override {
+  void DescribeTo(std::ostream* os) const override {
     (*os) << "is an instance of type " << T::ContainerType::_type_key;
   }
 
@@ -365,7 +365,5 @@ TEST(DiscoverComplexTypesVisitor, DiscoverComplexTypes) {
   Metadata md = Metadata(&kNormal);
   visitor.Discover(md);
 
-  EXPECT_THAT(q, ElementsAre(
-                TVMObjectIsInstance<TensorInfo>(),
-                TVMObjectIsInstance<Metadata>()));
+  EXPECT_THAT(q, ElementsAre(TVMObjectIsInstance<TensorInfo>(), TVMObjectIsInstance<Metadata>()));
 }

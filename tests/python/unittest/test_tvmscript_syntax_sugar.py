@@ -180,6 +180,7 @@ def test_dynamic_shape_gemm():
     gemm_dyn_shape_roundtrip = from_source(gemm_dyn_shape.script())
     assert_structural_equal(gemm_dyn_shape, gemm_dyn_shape_roundtrip)
 
+
 @T.prim_func
 def preflattened_buffer_map(A: T.handle, B: T.handle):
     A_1 = T.match_buffer(A, [1])
@@ -188,8 +189,11 @@ def preflattened_buffer_map(A: T.handle, B: T.handle):
     T.preflattened_buffer(B_1, [1])
     B_1[0] = A_1[0]
 
+
 def test_preflattened_buffer_map():
-    A_var = [k for k, _ in preflattened_buffer_map.preflattened_buffer_map.items() if k.name == "A"][0]
+    A_var = [
+        k for k, _ in preflattened_buffer_map.preflattened_buffer_map.items() if k.name == "A"
+    ][0]
     assert preflattened_buffer_map.preflattened_buffer_map[A_var].data_alignment == 1
     assert preflattened_buffer_map.preflattened_buffer_map[A_var].offset_factor == 2
 
