@@ -34,8 +34,6 @@
 #endif
 #if defined(__hexagon__)
 #include <dlfcn.h>
-#define FARF_LOW 1
-#include <HAP_farf.h>
 #include <qurt.h>
 #include <stdlib.h>
 #define HEXAGON_STACK_SIZE 65536
@@ -47,83 +45,61 @@
 namespace tvm {
 namespace runtime {
 namespace threading {
-#if defined(__hexagon__)
+#ifdef __hexagon__
 class QuRTThread {
   typedef std::function<void()> Callback;
   public:
-    //template<class Function, class... Args>
-    //explicit QuRTThread(Function&& f) {
     QuRTThread(Callback worker_callback) :
       f(worker_callback) {
       static int id = 1;
       qurt_thread_attr_t attr;
       char name[32];
-      FARF(LOW, "Creating worker thread %d", id);
-      int ret = posix_memalign(&stack, HEXAGON_STACK_ALIGNMENT, HEXAGON_STACK_SIZE);
-      FARF(LOW, "posix_memalign returned %d, stack = %08x", ret, stack);
+      posix_memalign(&stack, HEXAGON_STACK_ALIGNMENT, HEXAGON_STACK_SIZE);
       qurt_thread_attr_init(&attr);
       qurt_thread_attr_set_stack_size(&attr, HEXAGON_STACK_SIZE);
       qurt_thread_attr_set_stack_addr(&attr, stack);
       snprintf(name, sizeof(name), "worker %d", id++);
       qurt_thread_attr_set_name(&attr, name);
       qurt_thread_create(&thread, &attr, (void (*)(void *))run_func, this);
-      FARF(LOW, "created thread %d (stack = %08x)", thread, stack);
     }
     QuRTThread(QuRTThread&& other) :
       thread(other.thread), f(other.f), stack(other.stack) {
       other.thread = 0;
     }
     ~QuRTThread() {
-      FARF(LOW, "~QuRTThread()");
       if (thread) {
         join();
         free(stack);
       }
     }
-    bool joinable() const {
-      FARF(LOW, "Checking if current thread %d != %d for joinability", qurt_thread_get_id(), thread);
-      return qurt_thread_get_id() != thread;
-    }
+    bool joinable() const { return qurt_thread_get_id() != thread; }
     void join() {
       int status;
-      FARF(LOW, "join() called on thread id %d from thread %d", thread, qurt_thread_get_id());
       qurt_thread_join(thread, &status);
     }
   private:
     static void run_func(QuRTThread * t) {
-      FARF(LOW, "In run_func for thread %d", qurt_thread_get_id());
       t->f();
-      qurt_sleep(100000);
-      FARF(LOW, "Leaving run_func for thread %d", qurt_thread_get_id());
       qurt_thread_exit(QURT_EOK);
     }
     qurt_thread_t thread;
     Callback f;
     void *stack;
 };
-#endif
+#endif // __hexagon__
 thread_local int max_concurrency = 0;
 class ThreadGroup::Impl {
  public:
   Impl(int num_workers, std::function<void(int)> worker_callback, bool exclude_worker0)
       : num_workers_(num_workers) {
-#ifdef __hexagon__
-    FARF(LOW, "num_workers requested = %d, exclude_worker0 = %d", num_workers_, exclude_worker0);
-#endif
     ICHECK_GE(num_workers, 1) << "Requested a non-positive number of worker threads.";
     for (int i = exclude_worker0; i < num_workers_; ++i) {
       threads_.emplace_back([worker_callback, i] { worker_callback(i); });
     }
     InitSortedOrder();
   }
-  ~Impl() { 
-#ifdef __hexagon__
-    FARF(LOW, "Calling Join() from ~Impl()");
-#endif
+  ~Impl() {
     Join();
-#ifdef __hexagon__
-    FARF(LOW, "Join() returned in ~Impl()");
-#endif
   }
 
   void Join() {
@@ -167,9 +143,6 @@ class ThreadGroup::Impl {
  private:
   void SetThreadAffinity(std::thread::native_handle_type thread,
                          const std::vector<unsigned int>& ids) {
-#ifdef __hexagon__
-    FARF(LOW, "SetThreadAffinity called!!");
-#endif
 #if defined(__linux__) || defined(__ANDROID__)
     if (pthread_equal(thread, CURRENT_THREAD_HANDLE)) {
       thread = pthread_self();
@@ -248,7 +221,7 @@ class ThreadGroup::Impl {
         SetMasterThreadFullCpuAffinity(mode);
       }
     }
-  #endif // __hexagon__
+#endif // __hexagon__
   }
 
   void SetThreadFullCpuAffinity(std::thread::native_handle_type thread, AffinityMode mode) {
@@ -262,7 +235,7 @@ class ThreadGroup::Impl {
     // Note: this works well on x86 too. Because x86 doesn't have BIG.LITTLE,
     // our implementation will use kBig mode by default and will let main thread
     // run on intended cores.
-  #ifndef __hexagon__
+#ifndef __hexagon__
     std::vector<unsigned> ids;
     switch (mode) {
       case kSpecifyOneCorePerThread:
@@ -284,7 +257,7 @@ class ThreadGroup::Impl {
         break;
     }
     SetThreadAffinity(thread, ids);
-  #endif // __hexagon__
+#endif // __hexagon__
   }
 
   void SetMasterThreadFullCpuAffinity(AffinityMode mode) {
