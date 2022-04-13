@@ -148,9 +148,7 @@ def _dense_legalize(attrs, inputs, arg_types):
 
     # Pad input and output channels to use tensorcore schedule.
     if dtype in ["float16", "int8", "uint8"]:
-        # The shape of (M, K, N) must be multiple of
-        # (16, 16, 16) or (32, 16, 8) or (8, 16, 32)
-        # from https://arxiv.org/pdf/1811.09736.pdf
+        # The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32)
         if (
             (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
             or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
@@ -169,10 +167,10 @@ def _dense_legalize(attrs, inputs, arg_types):
         return None
 
     (dm, dk, dn), extra_flops_ratio = pad_to_tensorcore(M, K, N, candidates)
+    skip_pad = extra_flops_ratio > 2
 
-    if extra_flops_ratio > 2:
-        logger.info("dense pad_to_tensorcore skipped, extra_flops_ratio %s", extra_flops_ratio)
-
+    if skip_pad and dtype in ["int8", "uint8"]:
+        skip_pad = False
         # If tensorcore schedule padding fails, pad to nearest upward 4x4x4 as long as
         # the additional flops ratio isn't double or more.
         # Note that 4x4x4 is invalid for tensorcore scheduling, but padding upwards to 4x4x4
@@ -182,9 +180,11 @@ def _dense_legalize(attrs, inputs, arg_types):
             return None
         (dm, dk, dn) = _pad_to(M, K, N, (4, 4, 4))
         extra_flops_ratio = _extra_flops(M, K, N, dm, dk, dn) / (M * K * N)
+        skip_pad = extra_flops_ratio > 2
 
-        if extra_flops_ratio > 2:
-            return None
+    if skip_pad:
+        logger.info("dense pad_to_tensorcore skipped, extra_flops_ratio %s", extra_flops_ratio)
+        return None
 
     logger.info("dense pad_to_tensorcore, extra_flops_ratio %s", extra_flops_ratio)
 

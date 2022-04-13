@@ -272,7 +272,7 @@ def test_legalize_dense():
     _test_legalize_dense((7, 31), (31, 31), (1, 1, 1), "int4")
     _test_legalize_dense((3, 32), (32, 32), (5, 0, 0), "int4")
     _test_legalize_dense((8, 16), (32, 16), (0, 16, 0), "int4")
-    _test_legalize_dense((1, 16), (32, 16), (0, 0, 0), "int4", False)
+    _test_legalize_dense((2, 16), (32, 16), (0, 0, 0), "int4", False)
 
 
 @tvm.testing.uses_gpu
