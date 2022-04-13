@@ -36,70 +36,45 @@ namespace relay {
 
 class CompositeInliner : public MixedModeMutator {
  public:
-  explicit CompositeInliner(CallGraphEntry* cur_node, CallGraphNode* call_graph)
-      : cur_node_(cur_node), call_graph_(call_graph) {}
+  CompositeInliner() = default;
 
-  Expr Rewrite_(const CallNode* call_node) {
-    Call vanilla_call = GetAnyCall(call_node);
-    const auto* function_node = vanilla_call->op.as<FunctionNode>();
+  using MixedModeMutator::Rewrite_;
 
-    if (function_node) {
-      Array<Expr> new_args;
-      new_args.reserve(vanilla_call->args.size());
-      for (auto arg : vanilla_call->args) {
-        new_args.push_back(VisitExpr(arg));
+  Expr Rewrite_(const CallNode* call_node, const Expr& post) final {
+    const auto* post_call_node = post.as<CallNode>();
+    Call vanilla_post_call = GetAnyCall(post_call_node);
+    if (const auto* function_node = vanilla_post_call->op.as<FunctionNode>()) {
+      if (function_node->GetAttr(attr::kComposite, Optional<String>()).defined()) {
+        // Is a call to a literal function with the "Composite" attribute.
+        // Inline the function body.
+        Map<Var, Expr> bind_map;
+        for (size_t i = 0; i < vanilla_post_call->args.size(); i++) {
+          bind_map.Set(function_node->params[i], vanilla_post_call->args[i]);
+        }
+        return Bind(function_node->body, bind_map);
       }
-
-      Map<Var, Expr> bind_map;
-      for (size_t i = 0; i < new_args.size(); i++) {
-        bind_map.Set(function_node->params[i], new_args[i]);
-      }
-
-      // Attrs need to be empty at this point to avoid propagating Composite and
-      // PartitionedFromPattern that fiddling TRT code gen for registered ops.
-      return Bind(function_node->body, bind_map);
     }
-
-    return MixedModeMutator::VisitExpr_(call_node);
+    return post;
   }
 
   Function Inline(const Function& func) {
-    return WithFields(func, func->params, VisitExpr(func->body));
+    return WithFields(func, /*opt_params=*/{}, VisitExpr(func->body));
   }
-
- private:
-  /*!
-   * \brief The current call graph entry that is being handled. Each entry
-   * contains a global function.
-   */
-  CallGraphEntry* cur_node_;
-  /*! \brief The call graph that is used for global function lookup. */
-  const CallGraphNode* call_graph_;
 };
 
 IRModule InlineComposites(const IRModule& module, runtime::String target) {
-  CallGraph cg(module);
-  auto topo = cg->TopologicalOrder();
-  std::reverse(topo.begin(), topo.end());
-  std::unordered_set<CallGraphEntry*> original_entry;
-  ICHECK(target.defined());
-  for (auto* it : topo) {
-    auto base_func = module->Lookup(it->GetNameHint());
-
-    if (!base_func->GetAttr<String>(attr::kCompiler).defined() &&
-        base_func->GetAttr<String>(attr::kCompiler) != target) {
-      continue;
-    }
-
-    if (it->GetNameHint() != "main") {
-      if (const auto* fn = base_func.as<FunctionNode>()) {
-        auto func = GetRef<Function>(fn);
-        auto new_func = CompositeInliner(it, cg.operator->()).Inline(func);
-        cg->module->Update(it->GetGlobalVar(), new_func);
+  IRModule out_mod = module->ShallowCopy();
+  for (const auto& kv : module->functions) {
+    Optional<String> opt_compiler = kv.second->GetAttr(attr::kCompiler, Optional<String>());
+    if (const auto* function_node = kv.second.as<FunctionNode>()) {
+      if (opt_compiler.defined() && opt_compiler.value() == target) {
+        // Is a global function with the "Compiler" attribute matching the desired target.
+        // Inline all "Composite" function calls in the body.
+        out_mod->Add(kv.first, CompositeInliner().Inline(GetRef<Function>(function_node)));
       }
     }
   }
-  return module;
+  return out_mod;
 }
 
 namespace transform {
