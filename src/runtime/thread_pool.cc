@@ -48,8 +48,6 @@
 #include <HAP_farf.h>
 #define NARF(...) FARF(LOW, __VA_ARGS__)
 #else
-typedef std::mutex Mutex;
-typedef std::condition_variable ConditionVariable;
 #define NARF(...)
 #endif
 
@@ -174,7 +172,7 @@ class SpscTaskQueue {
       tvm::runtime::threading::Yield();
     }
     if (pending_.fetch_add(1) == -1) {
-      std::unique_lock<Mutex> lock(mutex_);
+      std::unique_lock<std::mutex> lock(mutex_);
       cv_.notify_one();
     }
   }
@@ -196,7 +194,7 @@ class SpscTaskQueue {
     NARF("thread %d: done spinning in Pop()", qurt_thread_get_id());
     if (pending_.fetch_sub(1) == 0) {
       NARF("thread %d: Nothing available yet in Pop(), waiting...", qurt_thread_get_id());
-      std::unique_lock<Mutex> lock(mutex_);
+      std::unique_lock<std::mutex> lock(mutex_);
       cv_.wait(lock, [this] { return pending_.load() >= 0 || exit_now_.load(); });
     }
     NARF("thread %d: Pop() got something", qurt_thread_get_id());
@@ -216,7 +214,7 @@ class SpscTaskQueue {
    * \brief Signal to terminate the worker.
    */
   void SignalForKill() {
-    std::lock_guard<Mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     exit_now_.store(true);
     cv_.notify_all();
   }
@@ -266,9 +264,9 @@ class SpscTaskQueue {
   std::atomic<bool> exit_now_{false};
 
   // internal mutex
-  Mutex mutex_;
+  std::mutex mutex_;
   // cv for consumer
-  ConditionVariable cv_;
+  std::condition_variable cv_;
 };
 
 // The thread pool
