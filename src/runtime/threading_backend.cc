@@ -37,7 +37,9 @@
 #define FARF_LOW 1
 #include <HAP_farf.h>
 #include <qurt.h>
+#include <stdlib.h>
 #define HEXAGON_STACK_SIZE 65536
+#define HEXAGON_STACK_ALIGNMENT 32
 #endif
 #include <algorithm>
 #include <thread>
@@ -53,12 +55,30 @@ class QuRTThread {
     //explicit QuRTThread(Function&& f) {
     QuRTThread(Callback worker_callback) :
       f(worker_callback) {
-      //FARF(LOW, "Creating worker thread %d", i);
+      static int id = 1;
+      qurt_thread_attr_t attr;
+      char name[32];
+      FARF(LOW, "Creating worker thread %d", id);
+      int ret = posix_memalign(&stack, HEXAGON_STACK_ALIGNMENT, HEXAGON_STACK_SIZE);
+      FARF(LOW, "posix_memalign returned %d, stack = %08x", ret, stack);
       qurt_thread_attr_init(&attr);
-      qurt_thread_attr_set_stack_size(&attr, sizeof(stack));
+      qurt_thread_attr_set_stack_size(&attr, HEXAGON_STACK_SIZE);
       qurt_thread_attr_set_stack_addr(&attr, stack);
+      snprintf(name, sizeof(name), "worker %d", id++);
+      qurt_thread_attr_set_name(&attr, name);
       qurt_thread_create(&thread, &attr, (void (*)(void *))run_func, this);
-      FARF(LOW, "created thread %d", thread);
+      FARF(LOW, "created thread %d (stack = %08x)", thread, stack);
+    }
+    QuRTThread(QuRTThread&& other) :
+      thread(other.thread), f(other.f), stack(other.stack) {
+      other.thread = 0;
+    }
+    ~QuRTThread() {
+      FARF(LOW, "~QuRTThread()");
+      if (thread) {
+        join();
+        free(stack);
+      }
     }
     bool joinable() const {
       FARF(LOW, "Checking if current thread %d != %d for joinability", qurt_thread_get_id(), thread);
@@ -66,24 +86,23 @@ class QuRTThread {
     }
     void join() {
       int status;
-      FARF(LOW, "join() called on thread id %d", thread);
+      FARF(LOW, "join() called on thread id %d from thread %d", thread, qurt_thread_get_id());
       qurt_thread_join(thread, &status);
     }
   private:
     static void run_func(QuRTThread * t) {
       FARF(LOW, "In run_func for thread %d", qurt_thread_get_id());
-      qurt_sleep(100000);
       t->f();
+      qurt_sleep(100000);
       FARF(LOW, "Leaving run_func for thread %d", qurt_thread_get_id());
       qurt_thread_exit(QURT_EOK);
     }
-    qurt_thread_attr_t attr;
     qurt_thread_t thread;
     Callback f;
-    uint8_t stack[HEXAGON_STACK_SIZE];
+    void *stack;
 };
 #endif
-thread_local int max_concurrency = 3;
+thread_local int max_concurrency = 0;
 class ThreadGroup::Impl {
  public:
   Impl(int num_workers, std::function<void(int)> worker_callback, bool exclude_worker0)
@@ -97,7 +116,15 @@ class ThreadGroup::Impl {
     }
     InitSortedOrder();
   }
-  ~Impl() { Join(); }
+  ~Impl() { 
+#ifdef __hexagon__
+    FARF(LOW, "Calling Join() from ~Impl()");
+#endif
+    Join();
+#ifdef __hexagon__
+    FARF(LOW, "Join() returned in ~Impl()");
+#endif
+  }
 
   void Join() {
     for (auto& t : threads_) {

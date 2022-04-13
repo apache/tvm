@@ -47,33 +47,6 @@
 #define FARF_LOW 1
 #include <HAP_farf.h>
 #define NARF(...) FARF(LOW, __VA_ARGS__)
-class Mutex {
-  public:
-    Mutex() { qurt_mutex_init(&mutex); }
-    ~Mutex() { qurt_mutex_destroy(&mutex); }
-    //operator=() = delete;
-    void lock() { qurt_mutex_lock(&mutex); }
-    bool try_lock() { return qurt_mutex_try_lock(&mutex) == 0; }
-    void unlock() { qurt_mutex_unlock(&mutex); }
-    qurt_mutex_t * mutex_ptr() { return &mutex; }
-  private:
-    qurt_mutex_t mutex;
-};
-class ConditionVariable {
-  public:
-    ConditionVariable() { qurt_cond_init(&cond); }
-    ~ConditionVariable() { qurt_cond_destroy(&cond); }
-    void notify_all() { qurt_cond_broadcast(&cond); }
-    void notify_one() { qurt_cond_signal(&cond); }
-    template <class Predicate>
-    void wait(std::unique_lock<Mutex>& lock, Predicate stop_waiting) {
-      while (!stop_waiting()) {
-        qurt_cond_wait(&cond, lock.mutex()->mutex_ptr());
-      }
-    }
-  private:
-    qurt_cond_t cond;
-};
 #else
 typedef std::mutex Mutex;
 typedef std::condition_variable ConditionVariable;
@@ -216,13 +189,17 @@ class SpscTaskQueue {
     // Busy wait a bit when the queue is empty.
     // If a new task comes to the queue quickly, this wait avoid the worker from sleeping.
     // The default spin count is set by following the typical omp convention
+    NARF("thread %d: Pop() ... ", qurt_thread_get_id());
     for (uint32_t i = 0; i < spin_count && pending_.load() == 0; ++i) {
       tvm::runtime::threading::Yield();
     }
+    NARF("thread %d: done spinning in Pop()", qurt_thread_get_id());
     if (pending_.fetch_sub(1) == 0) {
+      NARF("thread %d: Nothing available yet in Pop(), waiting...", qurt_thread_get_id());
       std::unique_lock<Mutex> lock(mutex_);
       cv_.wait(lock, [this] { return pending_.load() >= 0 || exit_now_.load(); });
     }
+    NARF("thread %d: Pop() got something", qurt_thread_get_id());
     if (exit_now_.load(std::memory_order_relaxed)) {
       return false;
     }
@@ -231,6 +208,7 @@ class SpscTaskQueue {
     ICHECK(tail_.load(std::memory_order_acquire) != head);
     *output = buffer_[head];
     head_.store((head + 1) % kRingSize, std::memory_order_release);
+    NARF("thread %d: leaving Pop()", qurt_thread_get_id());
     return true;
   }
 
@@ -397,7 +375,7 @@ class ThreadPool {
     // Initialize the spin count (from envvar TVM_THREAD_POOL_SPIN_COUNT) on
     // the global first use of the ThreadPool.
     // TODO(tulloch): should we make this configurable via standard APIs?
-    NARF("In RunWorker(%d)", worker_id);
+    NARF("In RunWorker(%d), PL:TL() = %08x", worker_id, ParallelLauncher::ThreadLocal());
     static size_t spin_count = GetSpinCount();
     NARF("Trying to pop task off of worker queue %d", worker_id);
     while (queue->Pop(&task, spin_count)) {
