@@ -46,47 +46,49 @@ namespace tvm {
 namespace runtime {
 namespace threading {
 #ifdef __hexagon__
+// pthreads are broken on older versions of qurt, so
+// we need to use native APIs instead of std::threads
 class QuRTThread {
   typedef std::function<void()> Callback;
-  public:
-    QuRTThread(Callback worker_callback) :
-      f(worker_callback) {
-      static int id = 1;
-      qurt_thread_attr_t attr;
-      char name[32];
-      posix_memalign(&stack, HEXAGON_STACK_ALIGNMENT, HEXAGON_STACK_SIZE);
-      qurt_thread_attr_init(&attr);
-      qurt_thread_attr_set_stack_size(&attr, HEXAGON_STACK_SIZE);
-      qurt_thread_attr_set_stack_addr(&attr, stack);
-      snprintf(name, sizeof(name), "worker %d", id++);
-      qurt_thread_attr_set_name(&attr, name);
-      qurt_thread_create(&thread, &attr, (void (*)(void *))run_func, this);
+
+ public:
+  explicit QuRTThread(Callback worker_callback) : f(worker_callback) {
+    static int id = 1;
+    qurt_thread_attr_t attr;
+    char name[32];
+    posix_memalign(&stack, HEXAGON_STACK_ALIGNMENT, HEXAGON_STACK_SIZE);
+    qurt_thread_attr_init(&attr);
+    qurt_thread_attr_set_stack_size(&attr, HEXAGON_STACK_SIZE);
+    qurt_thread_attr_set_stack_addr(&attr, stack);
+    snprintf(name, sizeof(name), "worker %d", id++);
+    qurt_thread_attr_set_name(&attr, name);
+    qurt_thread_create(&thread, &attr, (void (*)(void*))run_func, this);
+  }
+  QuRTThread(QuRTThread&& other) : thread(other.thread), f(other.f), stack(other.stack) {
+    other.thread = 0;
+  }
+  ~QuRTThread() {
+    if (thread) {
+      join();
+      free(stack);
     }
-    QuRTThread(QuRTThread&& other) :
-      thread(other.thread), f(other.f), stack(other.stack) {
-      other.thread = 0;
-    }
-    ~QuRTThread() {
-      if (thread) {
-        join();
-        free(stack);
-      }
-    }
-    bool joinable() const { return qurt_thread_get_id() != thread; }
-    void join() {
-      int status;
-      qurt_thread_join(thread, &status);
-    }
-  private:
-    static void run_func(QuRTThread * t) {
-      t->f();
-      qurt_thread_exit(QURT_EOK);
-    }
-    qurt_thread_t thread;
-    Callback f;
-    void *stack;
+  }
+  bool joinable() const { return qurt_thread_get_id() != thread; }
+  void join() {
+    int status;
+    qurt_thread_join(thread, &status);
+  }
+
+ private:
+  static void run_func(QuRTThread* t) {
+    t->f();
+    qurt_thread_exit(QURT_EOK);
+  }
+  qurt_thread_t thread;
+  Callback f;
+  void* stack;
 };
-#endif // __hexagon__
+#endif  // __hexagon__
 thread_local int max_concurrency = 0;
 class ThreadGroup::Impl {
  public:
@@ -98,9 +100,7 @@ class ThreadGroup::Impl {
     }
     InitSortedOrder();
   }
-  ~Impl() {
-    Join();
-  }
+  ~Impl() { Join(); }
 
   void Join() {
     for (auto& t : threads_) {
@@ -221,7 +221,7 @@ class ThreadGroup::Impl {
         SetMasterThreadFullCpuAffinity(mode);
       }
     }
-#endif // __hexagon__
+#endif  // __hexagon__
   }
 
   void SetThreadFullCpuAffinity(std::thread::native_handle_type thread, AffinityMode mode) {
@@ -257,7 +257,7 @@ class ThreadGroup::Impl {
         break;
     }
     SetThreadAffinity(thread, ids);
-#endif // __hexagon__
+#endif  // __hexagon__
   }
 
   void SetMasterThreadFullCpuAffinity(AffinityMode mode) {
