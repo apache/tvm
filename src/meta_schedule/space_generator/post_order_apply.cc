@@ -158,7 +158,8 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
         if (sch_rule.defined()) {
           applied = sch_rule.value()->Apply(sch, /*block=*/block_rv);
         } else {
-          ICHECK(custom_schedule_fn) << "ValueError: Custom schedule rule not found: " << ann.value();
+          ICHECK(custom_schedule_fn)
+              << "ValueError: Custom schedule rule not found: " << ann.value();
           applied = (*custom_schedule_fn)(sch, block_rv);
         }
 
