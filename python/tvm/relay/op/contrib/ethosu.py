@@ -1767,7 +1767,10 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
 # pylint: disable=unused-argument
 @requires_vela
 def partition_for_ethosu(
-    mod: tvm.ir.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None, **opts
+    mod: tvm.ir.IRModule,
+    params: Optional[Dict[str, tvm.runtime.NDArray]] = None,
+    mod_name: str = "default",
+    **opts,
 ):
     """This helper function partition the relay graph as produced by the
     relay frontend for a given model into external functions
@@ -1779,6 +1782,8 @@ def partition_for_ethosu(
         The IRModule that gets generated from a relay frontend
     params : Optional[Dict[str, tvm.runtime.NDArray]]
         Constant input parameters.
+    mod_name: str, optional
+        The module name
 
     Returns
     -------
@@ -1796,7 +1801,7 @@ def partition_for_ethosu(
     mod = relay.transform.AnnotateTarget("ethos-u")(mod)
     mod = relay.transform.MergeCompilerRegions()(mod)
     mod = relay.transform.InferType()(mod)
-    mod = relay.transform.PartitionGraph()(mod)
+    mod = relay.transform.PartitionGraph(mod_name)(mod)
     mod = relay.transform.InferType()(mod)
     mod = preprocess.preprocess_ext_io()(mod)
     return mod

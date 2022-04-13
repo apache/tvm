@@ -393,7 +393,7 @@ class TVMCPackage(object):
 
             has_graph_executor = "graph" in metadata["executors"]
             graph = temp.relpath("executor-config/graph/graph.json") if has_graph_executor else None
-            params = temp.relpath("parameters/default.params")
+            params = temp.relpath(f'parameters/{metadata["model_name"]}.params')
 
             self.type = "mlf"
         else:
