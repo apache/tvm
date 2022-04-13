@@ -94,7 +94,12 @@ class GraphExecutorDebug : public GraphExecutor {
 
     std::ostringstream os;
     for (size_t index = 0; index < time_sec_per_op.size(); index++) {
-      os << time_sec_per_op[index] << ",";
+      double time = time_sec_per_op[index];
+      // To have good behavior when calculating total time, etc.
+      if (isnan(time)) {
+        time = 0;
+      }
+      os << time << ",";
     }
     return os.str();
   }
