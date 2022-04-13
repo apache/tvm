@@ -142,10 +142,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param e The expression to be created value for.
    * \return created value.
    */
-  llvm::Value* MakeValue(const PrimExpr& e) {
-    auto a = VisitExpr(e);
-    return a;
-  }
+  llvm::Value* MakeValue(const PrimExpr& e) { return VisitExpr(e); }
   // Short hande code to get a constant int 32
   llvm::Constant* ConstInt32(int64_t value) const {
     return llvm::ConstantInt::getSigned(t_int32_, value);

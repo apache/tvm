@@ -431,6 +431,15 @@ if(USE_GTEST)
     find_package(GTest REQUIRED)
   endif()
   if(GTEST_FOUND)
+    # GMock is formally supported in CMake 3.20; for now, expect libgmock.a in the same directory,
+    # and require that folks compiling against GMock::GMock also link against GTest::GTest
+    # (for the includes dir).
+    add_library(GMock::GMock STATIC IMPORTED GLOBAL)
+    get_target_property(GTEST_LIB_PATH GTest::GTest IMPORTED_LOCATION)
+    get_filename_component(GTEST_LIB_DIR "${GTEST_LIB_PATH}" DIRECTORY)
+    set_target_properties(GMock::GMock PROPERTIES
+        IMPORTED_LOCATION "${GTEST_LIB_DIR}/libgmock.a")
+
     enable_testing()
     include(CTest)
   endif()
@@ -626,7 +635,7 @@ if(GTEST_FOUND)
   add_executable(cpptest ${TEST_SRCS})
   # include runtime files for unit testing
   target_include_directories(cpptest PUBLIC "src/runtime")
-  target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main pthread dl)
+  target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main GMock::GMock pthread dl)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
   # For some reason, compile definitions are not propagated correctly, so we manually add them here

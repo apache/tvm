@@ -655,7 +655,7 @@ class MetadataSerializer : public AttrVisitor {
       if (key != nullptr) {
         address_.push_back(key);
       }
-      code_ << metadata::address_from_parts(address_);
+      code_ << metadata::AddressFromParts(address_);
       if (key != nullptr) {
         address_.pop_back();
       }
@@ -733,7 +733,7 @@ class MetadataSerializer : public AttrVisitor {
 
     // Finally, emit overall struct.
     address_.push_back(metadata::kMetadataGlobalSymbol);
-    code_ << "const struct TVMMetadata " << metadata::address_from_parts(address_) << " = {"
+    code_ << "const struct TVMMetadata " << metadata::AddressFromParts(address_) << " = {"
           << std::endl;
     Visit(nullptr, &metadata);
     code_ << "};" << std::endl;

@@ -55,11 +55,11 @@ namespace metadata {
  *  this member.
  * \return The joined pieces.
  */
-std::string address_from_parts(const std::vector<std::string>& parts);
+std::string AddressFromParts(const std::vector<std::string>& parts);
 
 /*!
  * \brief A prefix in metadata symbol names.
- * This prefix is typically given to address_from_parts as the 0th item in parts.
+ * This prefix is typically given to AddressFromParts as the 0th item in parts.
  */
 static constexpr const char* kMetadataGlobalSymbol = "kTvmgenMetadata";
 
@@ -103,13 +103,6 @@ class DiscoverArraysVisitor : public AttrVisitor {
  */
 class DiscoverComplexTypesVisitor : public AttrVisitor {
  public:
-  /*! \brief Models a single complex type discovered in this visitor.
-   * Contains two fields:
-   *  0. The struct_name for this Metadata instance.
-   *  1. The discovered MetadataArray.
-   */
-  using DiscoveredComplexType = std::tuple<std::string, runtime::metadata::MetadataBase>;
-
   /*! \brief Construct a new instance.
    * \param queue An ordered map which holds the
    */

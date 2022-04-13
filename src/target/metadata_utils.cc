@@ -27,9 +27,7 @@ namespace tvm {
 namespace codegen {
 namespace metadata {
 
-DiscoverArraysVisitor::DiscoverArraysVisitor(std::vector<DiscoveredArray>* queue) : queue_{queue} {}
-
-std::string address_from_parts(const std::vector<std::string>& parts) {
+std::string AddressFromParts(const std::vector<std::string>& parts) {
   std::stringstream ss;
   for (unsigned int i = 0; i < parts.size(); ++i) {
     if (i > 0) {
@@ -39,6 +37,8 @@ std::string address_from_parts(const std::vector<std::string>& parts) {
   }
   return ss.str();
 }
+
+DiscoverArraysVisitor::DiscoverArraysVisitor(std::vector<DiscoveredArray>* queue) : queue_{queue} {}
 
 void DiscoverArraysVisitor::Visit(const char* key, double* value) {}
 void DiscoverArraysVisitor::Visit(const char* key, int64_t* value) {}
@@ -69,7 +69,7 @@ void DiscoverArraysVisitor::Visit(const char* key, ObjectRef* value) {
         }
       }
 
-      queue_->push_back(std::make_tuple(address_from_parts(address_parts_),
+      queue_->push_back(std::make_tuple(AddressFromParts(address_parts_),
                                         Downcast<runtime::metadata::MetadataArray>(metadata)));
     } else {
       ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
