@@ -228,6 +228,12 @@ VulkanGetBufferMemoryRequirements2Functions::VulkanGetBufferMemoryRequirements2F
       vkGetDeviceProcAddr(device, "vkGetBufferMemoryRequirements2KHR"));
 }
 
+VulkanQueueInsertDebugUtilsLabelFunctions::VulkanQueueInsertDebugUtilsLabelFunctions(
+    VkInstance instance) {
+  vkQueueInsertDebugUtilsLabelEXT = (PFN_vkQueueInsertDebugUtilsLabelEXT)ICHECK_NOTNULL(
+      vkGetInstanceProcAddr(instance, "vkQueueInsertDebugUtilsLabelEXT"));
+}
+
 VulkanDevice::VulkanDevice(const VulkanInstance& instance, VkPhysicalDevice phy_device)
     : physical_device_(phy_device) {
   queue_family_index = SelectComputeQueueFamily();
@@ -325,6 +331,11 @@ VulkanDevice::VulkanDevice(const VulkanInstance& instance, VkPhysicalDevice phy_
     get_buffer_memory_requirements_2_functions =
         std::make_unique<VulkanGetBufferMemoryRequirements2Functions>(device_);
   }
+
+  if (instance.HasExtension("VK_EXT_debug_utils")) {
+    queue_insert_debug_utils_label_functions =
+        std::make_unique<VulkanQueueInsertDebugUtilsLabelFunctions>(instance);
+  }
 }
 
 VulkanDevice::~VulkanDevice() {
@@ -363,6 +374,8 @@ void VulkanDevice::do_swap(VulkanDevice&& other) {
   std::swap(descriptor_template_khr_functions, other.descriptor_template_khr_functions);
   std::swap(get_buffer_memory_requirements_2_functions,
             other.get_buffer_memory_requirements_2_functions);
+  std::swap(queue_insert_debug_utils_label_functions,
+            other.queue_insert_debug_utils_label_functions);
   std::swap(compute_mtype_index, other.compute_mtype_index);
   std::swap(queue, other.queue);
   std::swap(queue_family_index, other.queue_family_index);
