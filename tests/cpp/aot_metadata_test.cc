@@ -308,7 +308,7 @@ std::string ExplainDiscoveredNameEq(bool negation, std::string expected_name) {
 }  // namespace
 
 MATCHER_P(DiscoveredNameEq, expected_name, ExplainDiscoveredNameEq(negation, expected_name)) {
-  return std::string {std::get<0>(arg)} == expected_name;
+  return std::string(std::get<0>(arg)) == expected_name;
 }
 
 TEST(DiscoverArraysVisitor, DiscoverArrays) {
