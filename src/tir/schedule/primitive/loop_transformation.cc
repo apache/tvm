@@ -134,16 +134,18 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
 class BlockPropertyError : public ScheduleError {
  public:
   /*!
-   * \brief Check that all the blocks under the specific stmt have affine bindings and only have
-   *     data-parallel or reduction block iters
+   * \brief Check that all the blocks under the specific stmt have affine bindings
+   *     wrt top loop sref and only have data-parallel or reduction block iters
    * \param self The state of the schedule
    * \param sref The sref to the specific stmt
    */
-  static void CheckBlockIterTypeAndAffineBinding(const ScheduleState& self,
+  static void CheckBlockIterTypeAndAffineBinding(const ScheduleState& self, const StmtSRefNode* top,
                                                  const StmtSRefNode* sref) {
     class BlockIterTypeAndAffineBindingChecker : public StmtVisitor {
      public:
-      explicit BlockIterTypeAndAffineBindingChecker(const ScheduleState& state) : state_(state) {}
+      explicit BlockIterTypeAndAffineBindingChecker(const ScheduleState& state,
+                                                    const StmtSRefNode* top)
+          : state_(state), top_(top) {}
 
      private:
       void VisitStmt_(const BlockNode* op) final {
@@ -151,13 +153,16 @@ class BlockPropertyError : public ScheduleError {
           if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
             throw BlockPropertyError(state_->mod, GetRef<Block>(op));
           }
-          CheckAffineBinding(state_, GetRef<Block>(op));
+          Optional<StmtSRef> high_exclusive =
+              top_->parent ? GetRef<StmtSRef>(top_->parent) : Optional<StmtSRef>(NullOpt);
+          CheckPartialAffineBinding(state_, GetRef<Block>(op), high_exclusive);
         }
       }
       const ScheduleState& state_;
+      const StmtSRefNode* top_;
     };
 
-    BlockIterTypeAndAffineBindingChecker checker(self);
+    BlockIterTypeAndAffineBindingChecker checker(self, top);
     checker(GetRef<Stmt>(sref->stmt));
   }
 
@@ -708,8 +713,8 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
   // Step 3. Collect all loops in the chain and check the loops are single-branch
   std::vector<const StmtSRefNode*> chain = GetLoopsInReorderRange(self, top, bottom);
   // Step 4. Check the block below has all its block_var to be data-parallel or reduction,
-  // and the block has an affine binding.
-  BlockPropertyError::CheckBlockIterTypeAndAffineBinding(self, bottom);
+  // and the block has an affine binding wrt top of the loop range.
+  BlockPropertyError::CheckBlockIterTypeAndAffineBinding(self, top, bottom);
   // Step 5. Replace the original loops with the reordered loops and check that outer loop is
   // not dependent on inner loop
   For new_loop = ConstructNewLoopChain(self, std::move(chain), ordered_loop_srefs, loop_srefs);

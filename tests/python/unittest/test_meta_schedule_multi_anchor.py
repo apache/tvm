@@ -15,12 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
-
 import tvm
 import tvm.testing
 from tvm import relay
+from tvm.meta_schedule import ApplyHistoryBest
 from tvm.meta_schedule.testing import apply_fixed_schedules
-from tvm.meta_schedule.integration import ApplyHistoryBest
 
 
 def get_dense_dense(data_shape, weight_shape):

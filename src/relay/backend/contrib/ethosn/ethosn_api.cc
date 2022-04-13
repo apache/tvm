@@ -275,6 +275,11 @@ EthosnError EthosnAPI::Reshape(const Expr& expr, ReshapeParams* params) {
   const auto* input_dtype = reshape->args[0]->checked_type().as<TensorTypeNode>();
   const auto& reshape_attrs = reshape->attrs.as<ReshapeAttrs>();
 
+  if (reshape_attrs->newshape.size() > params->new_shape.size()) {
+    return EthosnError(ErrStrm() << "reshape dimension=" << reshape_attrs->newshape.size()
+                                 << ", reshape dimension must be <= " << params->new_shape.size());
+  }
+
   sl::TensorShape input_tensor_shape = {1, 1, 1, 1};
   sl::DataType input_data_type;
   EthosnError err = Tvm2Npu(input_dtype->shape, &input_tensor_shape);

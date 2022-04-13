@@ -150,25 +150,24 @@ HexagonBuffer::HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
                              Optional<String> scope)
     : ndim_(2), nbytes_per_allocation_(nbytes) {
   SetStorageScope(scope);
-  for (size_t i = 0; i < nallocs; ++i) {
-    std::unique_ptr<Allocation> alloca = nullptr;
-    if (GetStorageScope() == StorageScope::kDDR) {
-      alloca = Allocator<StorageScope::kDDR>(nbytes, alignment);
-    } else if (GetStorageScope() == StorageScope::kVTCM) {
-      alloca = Allocator<StorageScope::kVTCM>(nbytes, alignment);
-    }
-    CHECK(alloca != nullptr);
-    allocations_.push_back(alloca->data_);
-    managed_allocations_.push_back(std::move(alloca));
-  }
-}
 
-HexagonBuffer::HexagonBuffer(void* data, size_t nbytes, Optional<String> scope)
-    : ndim_(1), nbytes_per_allocation_(nbytes) {
-  SetStorageScope(scope);
-  // disallow external VTCM allocations
-  CHECK(GetStorageScope() != HexagonBuffer::StorageScope::kVTCM);
-  allocations_.push_back(data);
+  size_t nbytes_aligned = ((nbytes + (alignment - 1)) / alignment) * alignment;
+  size_t nbytes_monolithic = nallocs * nbytes_aligned;
+
+  std::unique_ptr<Allocation> alloca = nullptr;
+  if (GetStorageScope() == StorageScope::kDDR) {
+    alloca = Allocator<StorageScope::kDDR>(nbytes_monolithic, alignment);
+  } else if (GetStorageScope() == StorageScope::kVTCM) {
+    alloca = Allocator<StorageScope::kVTCM>(nbytes_monolithic, alignment);
+  }
+  CHECK(alloca) << "could not create allocation";
+
+  for (size_t i = 0; i < nallocs; ++i) {
+    void* alloc_offset = static_cast<unsigned char*>(alloca->data_) + i * nbytes_aligned;
+    allocations_.push_back(alloc_offset);
+  }
+
+  managed_allocations_.push_back(std::move(alloca));
 }
 
 HexagonBuffer::~HexagonBuffer() { managed_allocations_.clear(); }
@@ -276,8 +275,6 @@ void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& 
 }
 
 void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
-  CHECK(managed_allocations_.size() && "CopyTo not supported on unmanaged `external` allocations");
-
   BufferSet src(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
   BufferSet dest(&data, 1, nbytes);
 
@@ -285,9 +282,6 @@ void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
 }
 
 void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
-  CHECK(managed_allocations_.size() &&
-        "CopyFrom not supported on unmanaged `external` allocations");
-
   BufferSet src(&data, 1, nbytes);
   BufferSet dest(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
 
@@ -295,11 +289,6 @@ void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
 }
 
 void HexagonBuffer::CopyFrom(const HexagonBuffer& other, size_t nbytes) {
-  CHECK(managed_allocations_.size() &&
-        "CopyFrom not supported on unmanaged `external` allocations");
-  CHECK(other.managed_allocations_.size() &&
-        "CopyFrom not supported on unmanaged `external` allocations");
-
   BufferSet src(other.allocations_.data(), other.allocations_.size(), other.nbytes_per_allocation_);
   BufferSet dest(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
 

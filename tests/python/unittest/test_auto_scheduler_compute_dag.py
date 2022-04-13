@@ -47,25 +47,25 @@ def test_estimate_flop():
     N = 512
     A, B, C = matmul_auto_scheduler_test(N, N, N)
     dag = auto_scheduler.ComputeDAG([A, B, C])
-    assert abs(dag.flop_ct - 2 * N ** 3) < 0.5
+    assert abs(dag.flop_ct - 2 * N**3) < 0.5
 
     D = topi.nn.relu(C)
     dag = auto_scheduler.ComputeDAG([A, B, D])
-    assert abs(dag.flop_ct - (2 * N ** 3 + N * N)) < 0.5
+    assert abs(dag.flop_ct - (2 * N**3 + N * N)) < 0.5
 
     # should not count the comparison operations in padding
     E = topi.nn.pad(C, [1, 1])
     dag = auto_scheduler.ComputeDAG([A, B, E])
-    assert abs(dag.flop_ct - 2 * N ** 3) < 0.5
+    assert abs(dag.flop_ct - 2 * N**3) < 0.5
 
     F = te.compute((N, N), lambda i, j: E[i, j], name="F", attrs={"FLOP": 1234})
     dag = auto_scheduler.ComputeDAG([A, B, F])
-    assert abs(dag.flop_ct - (2 * N ** 3 + 1234)) < 0.5
+    assert abs(dag.flop_ct - (2 * N**3 + 1234)) < 0.5
 
     A = te.placeholder((N, N), dtype="float32", name="A")
     F = te.compute((N, N), lambda i, j: te.if_then_else(A[i, j] > 0, A[i, j], 0))
     dag = auto_scheduler.ComputeDAG([A, F])
-    assert abs(dag.flop_ct - N ** 2) < 0.5
+    assert abs(dag.flop_ct - N**2) < 0.5
 
 
 def test_stage_order():

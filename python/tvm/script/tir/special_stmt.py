@@ -25,10 +25,9 @@ from tvm.ir.expr import PrimExpr, Range
 
 import tvm.tir
 from tvm.runtime import Object, String
-from tvm import te
 from tvm.target import Target
 from tvm.ir import Span
-from tvm.tir import IntImm, IterVar
+from tvm.tir import IntImm, IterVar, Var
 
 from .node import BufferSlice
 from .utils import buffer_slice_to_region
@@ -800,7 +799,7 @@ class VarDef(SpecialStmt):
                 self.context.report_error(
                     f"VarDef expected assign to only one var, but got {names}", span
                 )
-            v = te.var(names[0], dtype, span=span)
+            v = Var(names[0], dtype, span=span)
             self.context.update_symbol(v.name, v, self.node)
 
         super().__init__(var, def_symbol=True)
@@ -821,7 +820,7 @@ class BufferVarDef(SpecialStmt):
                     f"VarDef expected assign to only one var, but got {names}", span
                 )
             ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
-            v = te.var(names[0], ptr_type, span=span)
+            v = Var(names[0], ptr_type, span=span)
             self.context.update_symbol(v.name, v, self.node)
 
         super().__init__(buffer_var, def_symbol=True)
@@ -841,7 +840,7 @@ class EnvThread(SpecialStmt):
                 self.context.report_error(
                     f"VarDef expected assign to only one var, but got {names}", span
                 )
-            v = te.var(names[0], span=span)
+            v = Var(names[0], dtype="int32", span=span)
             self.context.func_var_env_dict[v] = env_name
             self.context.update_symbol(v.name, v, self.node)
 

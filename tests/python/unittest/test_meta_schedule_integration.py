@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import sys
-from typing import List
 
 import numpy as np
 import pytest
@@ -23,18 +22,13 @@ import tvm
 import tvm.testing
 from tvm import meta_schedule as ms
 from tvm import relay
-from tvm.ir.module import IRModule
-from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
-from tvm.meta_schedule.integration import (
-    ApplyHistoryBest,
-    ExtractedTask,
-    MetaScheduleContext,
-)
+from tvm.meta_schedule import ApplyHistoryBest
+from tvm.meta_schedule.database import TuningRecord
+from tvm.meta_schedule.relay_integration import extract_task_from_relay
 from tvm.meta_schedule.testing import DummyDatabase
 from tvm.meta_schedule.testing.relay_workload import get_network
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
-from tvm.meta_schedule.tune import Parse, extract_task_from_relay
-from tvm.meta_schedule.utils import derived_object
+from tvm.meta_schedule.tune import Parse
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir import Schedule
@@ -68,14 +62,14 @@ def _has_torch():
 requires_torch = pytest.mark.skipif(not _has_torch(), reason="torch is not installed")
 
 
-def test_meta_schedule_integration_no_current():
-    assert MetaScheduleContext.current() is None
+def test_meta_schedule_apply_history_best_no_current():
+    assert ApplyHistoryBest.current() is None
 
 
 @requires_torch
 def test_meta_schedule_integration_extract_from_resnet():
     mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
-    extracted_tasks = ms.integration.extract_task_from_relay(mod, target="llvm", params=params)
+    extracted_tasks = ms.extract_task_from_relay(mod, target="llvm", params=params)
     expected_task_names = [
         "fused_" + s
         for s in [
@@ -189,7 +183,7 @@ def test_meta_schedule_integration_extract_from_bert_base():
         ),
     }
     mod, params, _ = get_network(name="bert_base", input_shape=[1, 64])
-    extracted_tasks = ms.integration.extract_task_from_relay(mod, target="llvm", params=params)
+    extracted_tasks = ms.extract_task_from_relay(mod, target="llvm", params=params)
     assert len(extracted_tasks) == len(expected)
     for t in extracted_tasks:
         prim_func = None

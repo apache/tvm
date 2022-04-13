@@ -609,13 +609,16 @@ def try_infer_value(val, on_success=None, on_failure=None, parameters=None):
         return val, False
 
 
-def shape_of(x, dtype="int64"):
+def shape_of(x, dtype="int64", start=None, end=None):
     """Get shape of a tensor."""
 
     ttype = infer_type(x).checked_type
     if not _ty.is_dynamic(ttype):
         shape = list(ttype.shape)
-        return _expr.const(shape, dtype)
+        start = start or 0  # default to first
+        end = end or len(shape)  # default to last
+        shape_sliced = shape[start:end]
+        return _expr.const(shape_sliced, dtype)
     return _op.shape_of(x, dtype)
 
 

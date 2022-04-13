@@ -29,7 +29,7 @@ import tvm.contrib.ethosu.cascader as cs
 def FLASH():
     return cs.MemoryRegion(
         name="FLASH",
-        size=10 ** 7,
+        size=10**7,
         read_bandwidth=4,
         write_bandwidth=4,
         read_latency=0,
@@ -42,7 +42,7 @@ def FLASH():
 def DRAM():
     return cs.MemoryRegion(
         name="DRAM",
-        size=10 ** 9,
+        size=10**9,
         read_bandwidth=8,
         write_bandwidth=8,
         read_latency=0,
@@ -55,7 +55,7 @@ def DRAM():
 def SRAM():
     return cs.MemoryRegion(
         name="SRAM",
-        size=10 ** 6,
+        size=10**6,
         read_bandwidth=16,
         write_bandwidth=16,
         read_latency=0,

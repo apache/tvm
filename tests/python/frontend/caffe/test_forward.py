@@ -877,12 +877,12 @@ def test_forward_TanH():
 
 
 def _test_reduction(data, **kwargs):
-    """ One iteration of Reduction """
+    """One iteration of Reduction"""
     _test_op(data, L.Reduction, "Reduction", **kwargs)
 
 
 def test_forward_Reduction():
-    """ Reduction """
+    """Reduction"""
     reduction_op = {"SUM": 1, "ASUM": 2, "SUMSQ": 3, "MEAN": 4}
     _test_reduction(np.random.rand(10).astype(np.float32), operation=reduction_op["SUM"], axis=0)
     _test_reduction(
