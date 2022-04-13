@@ -16,16 +16,17 @@
 # under the License.
 """Graph debug runtime executes TVM debug packed functions."""
 
-import os
-import tempfile
-import shutil
 import logging
-import tvm._ffi
+import os
+import shutil
+import tempfile
 
+import tvm._ffi
 from tvm._ffi.base import string_types
 from tvm.contrib import graph_executor
-from . import debug_result
+
 from ...runtime.profiling import Report
+from . import debug_result
 
 _DUMP_ROOT_PREFIX = "tvmdbg_"
 _DUMP_PATH_PREFIX = "_tvmdbg_"
@@ -224,7 +225,6 @@ class GraphModuleDebug(graph_executor.GraphModule):
         """Execute the node specified with index will be executed.
         Each debug output will be copied to the buffer
         Time consumed for each execution will be set as debug output.
-
         """
         # Get timing.
         self.debug_datum._time_list = [[float(t)] for t in self.run_individual(10, 1, 1)]
@@ -283,7 +283,28 @@ class GraphModuleDebug(graph_executor.GraphModule):
         return ret.strip(",").split(",") if ret else []
 
     def run_individual_node(self, index, number, repeat=1, min_repeat_ms=0):
-        """Results are returned as serialized strings which we deserialize."""
+        """Benchmark a single node in the serialized graph.
+
+        Parameters
+        ----------
+        index : int
+            The index of the node, see `self.debug_datum.get_graph_nodes`
+
+        number: int
+            The number of times to benchmark the nodes.
+
+        repeat: int
+            The number of times to run the node to get a benchmark result.
+
+        min_repeat_ms: int
+            The minimum consecutive runtime of the node for a benchmark result.
+
+        Returns
+        -------
+        A list of dimensions `number` x `repeat` each one the runtime of the node
+            in seconds.
+        """
+        # Results are returned as serialized strings which we deserialize
         ret = self._run_individual_node(index, number, repeat, min_repeat_ms)
         answer = []
         for line in ret.split("\n"):
