@@ -1505,7 +1505,8 @@ class Unsqueeze(OnnxOpConverter):
 
         rank_input = len(infer_type(inputs[0]).checked_type.shape)
         num_new_axis = int(infer_type(inputs[1]).checked_type.shape[0])
-        axes = relay.split(inputs[1], num_new_axis).astuple()
+        axes = relay.sort(inputs[1])
+        axes = relay.split(axes, num_new_axis).astuple()
         result = inputs[0]
 
         # TODO (AndrewZhaoLuo): investigate performance issues with consecutive

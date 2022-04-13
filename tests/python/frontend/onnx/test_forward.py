@@ -5125,10 +5125,6 @@ unsupported_onnx_tests = [
     "test_triu_square",
     "test_triu_square_neg",
     "test_triu_zero",
-    # These unsqueeze tests work, but take 2+ hrs to run
-    "test_unsqueeze_three_axes",
-    "test_unsqueeze_two_axes",
-    "test_unsqueeze_unsorted_axes",
     "test_unique_sorted_with_axis",
     "test_unique_sorted_with_axis_3d",
     "test_unique_sorted_with_negative_axis",
