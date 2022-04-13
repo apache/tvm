@@ -51,7 +51,7 @@ def convert_iter_expr(expr):
 def assert_iter_sum_pattern(sum_expr, extent, base, scale=1):
     """Check the sum expr have the right pattern."""
     assert isinstance(sum_expr, tvm.arith.IterSumExpr)
-    if extent is None:
+    if extent == 1:
         assert len(sum_expr.args) == 0
     else:
         assert len(sum_expr.args) == 1
@@ -69,12 +69,12 @@ def test_trivial():
     assert len(res) == 3
     assert_iter_sum_pattern(res[0], 3, 0)
     assert_iter_sum_pattern(res[1], 4, 0)
-    assert_iter_sum_pattern(res[2], None, 3)
+    assert_iter_sum_pattern(res[2], 1, 3)
 
     res = tvm.arith.detect_iter_map([x[0], 3], var_dom([x, y]))
     assert len(res) == 2
     assert_iter_sum_pattern(res[0], 3, 0)
-    assert_iter_sum_pattern(res[1], None, 3)
+    assert_iter_sum_pattern(res[1], 1, 3)
 
     # not independent
     res = tvm.arith.detect_iter_map([x[0], x[0], 3], var_dom([x, y]))
