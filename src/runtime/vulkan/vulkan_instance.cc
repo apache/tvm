@@ -59,6 +59,13 @@ VulkanInstance::VulkanInstance() {
     std::vector<const char*> required_extensions{};
     std::vector<const char*> optional_extensions{"VK_KHR_get_physical_device_properties2"};
 
+    // Check if RGP support is needed. If needed, enable VK_EXT_debug_utils extension for
+    // inserting debug labels into the queue.
+    if (support::BoolEnvironmentVar("TVM_USE_AMD_RGP")) {
+      LOG(INFO) << "Push VK_EXT_debug_utils";
+      required_extensions.push_back("VK_EXT_debug_utils");
+    }
+
     uint32_t inst_extension_prop_count;
     VULKAN_CALL(
         vkEnumerateInstanceExtensionProperties(nullptr, &inst_extension_prop_count, nullptr));

@@ -25,6 +25,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "vulkan_amdrgp.h"
 #include "vulkan_common.h"
 
 namespace tvm {
@@ -99,6 +100,20 @@ class VulkanStream {
                       const std::function<void(VulkanStreamState*)>& deferred_kernel,
                       const VulkanStreamToken& deferred_token);
 
+  // reset profiler state
+  void ProfilerReset() {
+    if (profiler_) {
+      profiler_->reset();
+    }
+  }
+
+  // set profiler to READY state after reset
+  void ProfilerReady() {
+    if (profiler_) {
+      profiler_->ready();
+    }
+  }
+
   // Synchronize the current stream `state_` with respect to the host.
   void Synchronize();
 
@@ -110,6 +125,7 @@ class VulkanStream {
   std::unordered_map<VkDescriptorSet, std::vector<VulkanStreamToken>> deferred_tokens_;
   std::vector<std::function<void(VulkanStreamState*)>> deferred_kernels_;
   VkCommandPool cmd_pool_;
+  VulkanStreamProfiler* profiler_ = nullptr;
 };
 
 }  // namespace vulkan
