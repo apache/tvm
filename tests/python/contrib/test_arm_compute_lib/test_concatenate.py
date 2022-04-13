@@ -47,8 +47,8 @@ def _get_expected_codegen(input_shape_a, input_shape_b, input_shape_c, axis, dty
         "name": "concatenate",
         "inputs": [
             [0, 0, 0],
-            [0, 1, 0],
-            [0, 2, 0],
+            [1, 0, 0],
+            [2, 0, 0],
         ],
         "attrs": {
             "num_outputs": "1",
@@ -59,16 +59,33 @@ def _get_expected_codegen(input_shape_a, input_shape_b, input_shape_c, axis, dty
         },
     }
 
-    input = {
+    input_a = {
         "op": "input",
         "name": "",
         "attrs": {
-            "shape": [[input_shape_a, input_shape_b, input_shape_c]],
-            "dtype": [[dtype, dtype, dtype]],
+            "shape": [[input_shape_a]],
+            "dtype": [[dtype]],
         },
     }
 
-    return [input, node]
+    input_b = {
+        "op": "input",
+        "name": "",
+        "attrs": {
+            "shape": [[input_shape_b]],
+            "dtype": [[dtype]],
+        },
+    }
+
+    input_c = {
+        "op": "input",
+        "name": "",
+        "attrs": {
+            "shape": [[input_shape_c]],
+            "dtype": [[dtype]],
+        },
+    }
+    return [input_a, input_b, input_c, node]
 
 
 def test_concatenate():
@@ -101,7 +118,7 @@ def test_concatenate():
         )
         for acl in [False, True]:
             outputs.append(
-                build_and_run(func, inputs, 1, None, device, enable_acl=acl, offload_concat=True)[0]
+                build_and_run(func, inputs, 1, None, device, enable_acl=acl, disabled_ops=[])[0]
             )
 
         config = {
@@ -126,7 +143,7 @@ def test_codegen_concatenate():
         args = (shape_a, shape_b, shape_c, axis, dtype)
         func = _get_model(*args, iter(inputs))
         exp_codegen = _get_expected_codegen(*args)
-        verify_codegen(func, exp_codegen, 1, offload_concat=True)
+        verify_codegen(func, exp_codegen, 1, disabled_ops=[])
 
 
 if __name__ == "__main__":

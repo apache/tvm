@@ -164,7 +164,13 @@ def skip_codegen_test():
 
 
 def build_module(
-    mod, target, params=None, enable_acl=True, tvm_ops=0, acl_partitions=1, offload_concat=False
+    mod,
+    target,
+    params=None,
+    enable_acl=True,
+    tvm_ops=0,
+    acl_partitions=1,
+    disabled_ops=["concatenate"],
 ):
     """Build module with option to build for ACL."""
     if isinstance(mod, tvm.relay.expr.Call):
@@ -172,7 +178,7 @@ def build_module(
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
         if enable_acl:
             mod = arm_compute_lib.partition_for_arm_compute_lib(
-                mod, params, offload_concat=offload_concat
+                mod, params, disabled_ops=disabled_ops
             )
             tvm_op_count = get_cpu_op_count(mod)
             assert tvm_op_count == tvm_ops, "Got {} TVM operators, expected {}".format(
@@ -203,7 +209,7 @@ def build_and_run(
     tvm_ops=0,
     acl_partitions=1,
     config=None,
-    offload_concat=False,
+    disabled_ops=["concatenate"],
 ):
     """Build and run the relay module."""
     if config is None:
@@ -211,7 +217,7 @@ def build_and_run(
 
     try:
         lib = build_module(
-            mod, device.target, params, enable_acl, tvm_ops, acl_partitions, offload_concat
+            mod, device.target, params, enable_acl, tvm_ops, acl_partitions, disabled_ops
         )
     except Exception as e:
         err_msg = "The module could not be built.\n"
@@ -283,7 +289,7 @@ def verify_codegen(
     num_acl_modules=1,
     tvm_ops=0,
     target="llvm -mtriple=aarch64-linux-gnu -mattr=+neon",
-    offload_concat=False,
+    disabled_ops=["concatenate"],
 ):
     """Check acl codegen against a known good output."""
     module = build_module(
@@ -291,7 +297,7 @@ def verify_codegen(
         target,
         tvm_ops=tvm_ops,
         acl_partitions=num_acl_modules,
-        offload_concat=offload_concat,
+        disabled_ops=disabled_ops,
     )
     acl_modules = extract_acl_modules(module)
 
