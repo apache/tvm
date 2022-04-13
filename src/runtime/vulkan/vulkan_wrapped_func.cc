@@ -98,6 +98,15 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
       vkCmdPipelineBarrier(state->cmd_buffer_, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                            VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
                            1, &barrier_info, 0, nullptr, 0, nullptr);
+
+      if (device.UseDebugUtilsLabel()) {
+        VkDebugUtilsLabelEXT dispatch_label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+                                               NULL,
+                                               func_name_.c_str(),
+                                               {0.0f, 0.0f, 0.0f, 0.0f}};
+        device.queue_insert_debug_utils_label_functions->vkQueueInsertDebugUtilsLabelEXT(
+            device.Queue(), &dispatch_label);
+      }
     });
     return;
   }
@@ -164,6 +173,15 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     deferred_token.buffers_[i] = descriptor_buffers[i].buffer;
   }
   device.ThreadLocalStream().LaunchDeferred(deferred_initializer, deferred_kernel, deferred_token);
+
+  if (device.UseDebugUtilsLabel()) {
+    VkDebugUtilsLabelEXT dispatch_label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+                                           NULL,
+                                           func_name_.c_str(),
+                                           {0.0f, 0.0f, 0.0f, 0.0f}};
+    device.queue_insert_debug_utils_label_functions->vkQueueInsertDebugUtilsLabelEXT(
+        device.Queue(), &dispatch_label);
+  }
 }
 
 VulkanModuleNode::~VulkanModuleNode() {
