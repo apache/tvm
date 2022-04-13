@@ -276,7 +276,17 @@ class DataTypeRewriter : public StmtExprMutator {
       PrimExpr e = VisitExpr(iv->var);
       Var var = Downcast<Var>(e);
       if (ivmap_.find(iv) == ivmap_.end()) {
-        ivmap_[iv] = IterVar(iv->dom, var, iv->iter_type, iv->thread_tag);
+        Range dom = iv->dom;
+        if (dom.defined()) {
+          PrimExpr extend = dom->extent;
+          if (extend.dtype().is_int() && var.dtype().is_int() &&
+              var.dtype().bits() != extend.dtype().bits()) {
+            int bits = std::max(extend.dtype().bits(), var.dtype().bits());
+            DataType dtype = var.dtype().with_bits(bits);
+            dom = Range(cast(dtype, dom->min), cast(dtype, extend), dom->span);
+          }
+        }
+        ivmap_[iv] = IterVar(dom, var, iv->iter_type, iv->thread_tag);
       }
       return AttrStmt(ivmap_[iv], op->attr_key, cast(var.dtype(), op->value), op->body);
     }
