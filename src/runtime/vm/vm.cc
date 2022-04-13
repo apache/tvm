@@ -303,13 +303,12 @@ void VirtualMachine::SetInputTensorWithIndex(std::vector<ObjectRef>& tensors,
   if (inp_tensor.type_code() == kTVMDLTensorHandle) {
     // Automatically convert input DLTensors to NDArray
     DLTensor* tensor = inp_tensor;
-    std::vector<int64_t> shape;
-    for (int64_t i = 0; i < tensor->ndim; i++) {
-      shape.push_back(tensor->shape[i]);
+    if (dev.device_type == tensor->device.device_type &&
+        dev.device_id == tensor->device.device_id) {
+      tensors[index] = NDArray::FromExternalDLTensor(*tensor);
+    } else {
+      tensors[index] = NDArray::NewFromDLTensor(tensor, dev);
     }
-    NDArray ary = NDArray::Empty(shape, tensor->dtype, dev);
-    ary.CopyFrom(tensor);
-    tensors[index] = ary;
   } else {
     tensors[index] = CopyTo(inp_tensor, dev);
   }

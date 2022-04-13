@@ -171,9 +171,7 @@ struct NDArray::Internal {
     delete tensor;
   }
 
-  static void DLManagedTensorSelfDeleter(DLManagedTensor* tensor) {
-    delete tensor;
-  }
+  static void DLManagedTensorSelfDeleter(DLManagedTensor* tensor) { delete tensor; }
 };
 
 NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype) {
@@ -220,6 +218,16 @@ NDArray NDArray::FromExternalDLTensor(const DLTensor& dl_tensor) {
   data->dl_tensor.shape = const_cast<ShapeTuple::index_type*>(data->shape_.data());
 
   return NDArray(GetObjectPtr<Object>(data));
+}
+
+NDArray NDArray::NewFromDLTensor(DLTensor* tensor, Device dev) {
+  std::vector<int64_t> shape;
+  for (int64_t i = 0; i < tensor->ndim; i++) {
+    shape.push_back(tensor->shape[i]);
+  }
+  NDArray ary = NDArray::Empty(shape, tensor->dtype, dev);
+  ary.CopyFrom(tensor);
+  return ary;
 }
 
 NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
