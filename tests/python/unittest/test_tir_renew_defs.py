@@ -150,5 +150,19 @@ def test_undefined_buffer():
     _check_buffer_decl(_get_buffer_store_buffer(f1), _get_buffer_store_buffer(f2))
 
 
+def test_symbolic_func():
+    @T.prim_func
+    def symbolic_func(a: T.handle, b: T.handle, n: T.int32):
+        m = T.var("int32")
+        A = T.match_buffer(a, (n, m))
+        B = T.match_buffer(b, (n, m * 2))
+        for i, j in T.grid(n, m):
+            B[i, j * 2] = A[i, j]
+            B[i, j * 2 + 1] = A[i, j]
+
+    f1 = symbolic_func
+    f2 = tvm.tir.stmt_functor.renew_defs(f1)
+    tvm.ir.assert_structural_equal(f1, f2)
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
