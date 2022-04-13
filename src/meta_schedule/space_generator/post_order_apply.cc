@@ -138,7 +138,9 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
         }
 
         Optional<String> ann = tir::GetAnn<String>(sch->GetSRef(block_rv), "schedule_rule");
-        bool has_schedule_rule = ann.defined() && runtime::Registry::Get(ann.value()) != nullptr;
+        const runtime::PackedFunc* custom_schedule_fn =
+            ann.defined() ? runtime::Registry::Get(ann.value()) : nullptr;
+        const bool has_schedule_rule = custom_schedule_fn != nullptr;
 
         if (ann.defined() && !has_schedule_rule) {
           LOG(WARNING) << "Custom schedule rule not found, ignoring schedule_rule annotation: "
@@ -155,10 +157,9 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
         Array<tir::Schedule> applied{nullptr};
         if (sch_rule.defined()) {
           applied = sch_rule.value()->Apply(sch, /*block=*/block_rv);
-        } else if (has_schedule_rule) {
-          const runtime::PackedFunc* f = runtime::Registry::Get(ann.value());
-          CHECK(f) << "ValueError: Custom schedule rule not found: " << ann.value();
-          applied = (*f)(sch, block_rv);
+        } else {
+          ICHECK(custom_schedule_fn) << "ValueError: Custom schedule rule not found: " << ann.value();
+          applied = (*custom_schedule_fn)(sch, block_rv);
         }
 
         for (const tir::Schedule& sch : applied) {
