@@ -28,10 +28,6 @@ from ..strategy.generic import is_depthwise_conv2d
 from .register import register_pattern_table
 
 
-# global variable control wether offload concatenate
-offload_concat_ = False
-
-
 def is_arm_compute_runtime_enabled():
     """Check if the ACL graph executor is present.
 
@@ -63,15 +59,13 @@ def partition_for_arm_compute_lib(mod, params=None, offload_concat=False, **opts
     -------
     ret : annotated and partitioned module.
     """
-    global offload_concat_
-    offload_concat_ = offload_concat
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
 
     seq = tvm.transform.Sequential(
         [
             transform.InferType(),
-            transform.MergeComposite(arm_compute_lib_pattern_table()),
+            transform.MergeComposite(arm_compute_lib_pattern_table(offload_concat)),
             transform.AnnotateTarget("arm_compute_lib", False),
             transform.PartitionGraph(),
         ]
@@ -136,7 +130,7 @@ def preprocess_module(mod):
 
 
 @register_pattern_table("arm_compute_lib")
-def arm_compute_lib_pattern_table():
+def arm_compute_lib_pattern_table(offload_concat=False):
     """Get the ACL pattern table."""
 
     def conv_pattern():
@@ -273,6 +267,20 @@ def arm_compute_lib_pattern_table():
         """Check l2 pool2d pattern is supported by ACL."""
         pool = extract.args[0]
         return avg_pool2d(pool)
+
+    if offload_concat and not tvm.ir.Op.get("concatenate").get_attr("target.arm_compute_lib"):
+
+        @tvm.ir.register_op_attr("concatenate", "target.arm_compute_lib")
+        def concatenate(expr):
+            """Check if the external ACL codegen for concatenate should be used."""
+            attrs, type_args = expr.attrs, expr.type_args
+            for idx in range(len(type_args[0].fields)):
+                if type_args[0].fields[idx].dtype not in ["float32", "uint8"]:
+                    return False
+            # ACL concatenate only supports maximum 4 dimensions input tensor
+            if attrs.axis not in [-4, -3, -2, -1, 0, 1, 2, 3]:
+                return False
+            return True
 
     return [
         ("arm_compute_lib.conv2d", conv_pattern(), check_conv),
@@ -495,21 +503,6 @@ def qnn_add(expr):
         if typ.dtype != "uint8":
             return False
 
-    return True
-
-
-@tvm.ir.register_op_attr("concatenate", "target.arm_compute_lib")
-def concatenate(expr):
-    """Check if the external ACL codegen for concatenate should be used."""
-    if not offload_concat_:
-        return False
-    attrs, type_args = expr.attrs, expr.type_args
-    for idx in range(len(type_args[0].fields)):
-        if type_args[0].fields[idx].dtype not in ["float32", "uint8"]:
-            return False
-    # ACL concatenate only supports maximum 4 dimensions input tensor
-    if attrs.axis not in [-4, -3, -2, -1, 0, 1, 2, 3]:
-        return False
     return True
 
 
