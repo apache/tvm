@@ -85,10 +85,6 @@ previous_port = None
 
 
 def get_free_port():
-    # https://stackoverflow.com/a/52872579/2689797
-    def is_port_in_use(port: int) -> bool:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            return s.connect_ex(("localhost", port)) == 0
 
     global previous_port
     if previous_port is None:
@@ -96,7 +92,7 @@ def get_free_port():
     else:
         port = previous_port + 1
 
-    while is_port_in_use(port):
+    while tvm.contrib.hexagon.build._is_port_in_use(port):
         port = port + 1 if port < listen_port_max else listen_port_min
 
     previous_port = port

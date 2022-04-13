@@ -23,6 +23,7 @@ import multiprocessing as mp
 import os
 import pathlib
 import signal
+import socket
 import stat
 import subprocess
 from typing import Union
@@ -304,6 +305,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self._serial_number = serial_number
         adb_socket = rpc_info["adb_server_socket"] if rpc_info["adb_server_socket"] else "tcp:5037"
         self._adb_device_sub_cmd = ["adb", "-L", adb_socket, "-s", self._serial_number]
+        self.forwarded_ports_ = []
 
         super(HexagonLauncherAndroid, self).__init__(rpc_info, workspace)
 
@@ -356,26 +358,46 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         for item in self.ANDROID_HEXAGON_RPC_FILES:
             self._copy_to_remote(lib_dir / item, self._workspace / item)
 
-    def _run_server_script(self):
-        """Setup the ADB connection and execute the server script."""
+    def _process_forwarded_ports(self):
+        forwarded_ports = subprocess.check_output(self._adb_device_sub_cmd + ["forward", "--list"])
+        existing_forwards = []
+        for forward in str(forwarded_ports).split("\\n"):
+            entry = forward.split()
+            if len(entry) == 3:
+                _, local, _ = entry
+                existing_forwards.append(int(local.strip("tcp:")))
+        return existing_forwards
 
-        # Removed pre-defined forward/reverse rules
-        subprocess.check_call(self._adb_device_sub_cmd + ["forward", "--remove-all"])
-        subprocess.check_call(self._adb_device_sub_cmd + ["reverse", "--remove-all"])
+    def _forward_ports(self, rpc_server_port, existing_forwards):
+        # Enable port forward for RPC server. We forward the first ten open ports
+        # starting from the rpc_server_port
+        port = rpc_server_port
+        while len(self.forwarded_ports_) < 10:
+            if port not in existing_forwards and not _is_port_in_use(port):
+                subprocess.check_call(
+                    self._adb_device_sub_cmd + ["forward", f"tcp:{port}", f"tcp:{port}"]
+                )
+                self.forwarded_ports_.append(port)
+            port += 1
 
-        # Enable port reverse for RPC tracker
-        rpc_tracker_port = self._rpc_info["rpc_tracker_port"]
-        rpc_server_port = self._rpc_info["rpc_server_port"]
+    def _reverse_ports(self, rpc_tracker_port):
         subprocess.check_call(
             self._adb_device_sub_cmd
             + ["reverse", f"tcp:{rpc_tracker_port}", f"tcp:{rpc_tracker_port}"]
         )
-        # Enable port forward for RPC server. We forward 9 ports after the rpc_server_port.
-        for i in range(0, 10):
-            subprocess.check_call(
-                self._adb_device_sub_cmd
-                + ["forward", f"tcp:{rpc_server_port+i}", f"tcp:{rpc_server_port+i}"]
-            )
+
+    def _run_server_script(self):
+        """Setup the ADB connection and execute the server script."""
+
+        # Collect any existing adb port forwarding to avoid duplication
+        # with another running process
+        existing_forwards = self._process_forwarded_ports()
+        # Enable port reverse for RPC tracker
+        rpc_tracker_port = self._rpc_info["rpc_tracker_port"]
+        rpc_server_port = self._rpc_info["rpc_server_port"]
+
+        self._reverse_ports(rpc_tracker_port)
+        self._forward_ports(rpc_server_port, existing_forwards)
 
         # Run server and connect to tracker
         subprocess.Popen(
@@ -385,13 +407,27 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
             stderr=subprocess.PIPE,
         )
 
-    def start_server(self):
-        """Abstract method implementation. See description in HexagonLauncherRPC."""
-        self._copy_binaries()
-        self._run_server_script()
+    def _cleanup_port_forwarding(self):
+        # Removed pre-defined forward/reverse rules
+        rpc_tracker_port = self._rpc_info["rpc_tracker_port"]
+        subprocess.check_call(
+            self._adb_device_sub_cmd + ["reverse", "--remove", f"tcp:{rpc_tracker_port}"]
+        )
+        for port in self.forwarded_ports_:
+            subprocess.check_call(self._adb_device_sub_cmd + ["forward", "--remove", f"tcp:{port}"])
 
-    def stop_server(self):
-        """Abstract method implementation. See description in HexagonLauncherRPC."""
+    def _terminate_remote(self):
+        # Send interupt to main and child processes
+        subprocess.Popen(
+            self._adb_device_sub_cmd
+            + ["shell", f"pkill -l sigint -P `cat {self._workspace}/rpc_pid.txt`"]
+        )
+        subprocess.Popen(
+            self._adb_device_sub_cmd
+            + ["shell", f"kill -s sigint `cat {self._workspace}/rpc_pid.txt`"]
+        )
+        # Wait for processes to destruct cleanly after receiving the intrupt
+        subprocess.Popen(self._adb_device_sub_cmd + ["shell", "sleep", "0.1s"])
         # Kill process children
         subprocess.Popen(
             self._adb_device_sub_cmd + ["shell", f"pkill -P `cat {self._workspace}/rpc_pid.txt`"]
@@ -400,6 +436,16 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         subprocess.Popen(
             self._adb_device_sub_cmd + ["shell", f"kill `cat {self._workspace}/rpc_pid.txt`"]
         )
+
+    def start_server(self):
+        """Abstract method implementation. See description in HexagonLauncherRPC."""
+        self._copy_binaries()
+        self._run_server_script()
+
+    def stop_server(self):
+        """Abstract method implementation. See description in HexagonLauncherRPC."""
+        self._cleanup_port_forwarding()
+        self._terminate_remote()
 
 
 class HexagonLauncherSimulator(HexagonLauncherRPC):
@@ -499,6 +545,12 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
     def stop_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._server_process.terminate()
+
+
+# https://stackoverflow.com/a/52872579/2689797
+def _is_port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(("localhost", port)) == 0
 
 
 # pylint: disable=invalid-name
