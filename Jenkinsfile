@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-04-11T12:22:12.040444
+// Generated at 2022-04-12T18:13:54.765069
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -121,7 +121,7 @@ def init_git() {
     ).trim()
   }
   sh (
-    script: "git merge ${upstream_revision}",
+    script: "git -c user.name=user -c user.email=email@example.com merge ${upstream_revision}",
     label: 'Merge to origin/main'
   )
 

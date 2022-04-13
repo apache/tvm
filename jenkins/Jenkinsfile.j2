@@ -118,7 +118,7 @@ def init_git() {
     ).trim()
   }
   sh (
-    script: "git merge ${upstream_revision}",
+    script: "git -c user.name=user -c user.email=email@example.com merge ${upstream_revision}",
     label: 'Merge to origin/main'
   )
 
