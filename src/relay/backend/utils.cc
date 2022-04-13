@@ -211,6 +211,7 @@ Array<Pass> GetPassPrefix(bool is_homegeneous, bool is_vm) {
   // pass_seqs.push_back(parser::AnnotateSpans());
   Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
+  pass_seqs.push_back(transform::FoldExplicitPadding());
   pass_seqs.push_back(transform::ToBasicBlockNormalForm());
   // Run all dialect legalization passes.
   pass_seqs.push_back(relay::qnn::transform::Legalize());

@@ -159,6 +159,14 @@ TVM_DLL Pass RewriteAnnotatedOps(int fallback_device);
 TVM_DLL Pass ToBasicBlockNormalForm();
 
 /*!
+ * \brief FoldExplicitPadding finds explict padding before an op that can
+ * support implicit padding and fuses them.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass FoldExplicitPadding();
+
+/*!
  * \brief turn a dataflow graph into Administrative Normal Form, or A-Normal Form (ANF).
  *
  * It will turn an expression that is in a graph form (with sharing implicit),
