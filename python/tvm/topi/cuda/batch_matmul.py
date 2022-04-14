@@ -333,9 +333,6 @@ def schedule_batch_matmul_int8(cfg, outs):
     return s
 
 
-_dp4a = dp4a("shared", "shared", "local")
-
-
 def _schedule_batch_matmul_int8(cfg, s, output):
     input_x, input_y = s[output].op.input_tensors
     if len(input_y.op.input_tensors) == 1 and input_y.op.input_tensors[0] == input_x:
