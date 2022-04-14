@@ -186,6 +186,7 @@ class JSONRuntimeBase : public ModuleNode {
         for (size_t j = 0; j < nodes_[nid].GetOpShape().size(); ++j) {
           input_var_eid_.push_back(EntryID(nid, j));
         }
+        nodes_[nid].SetNumOutput(nodes_[nid].GetOpShape().size());
       } else {
         ICHECK_EQ(nodes_[nid].op_type_, "const");
         auto pos = std::find(std::begin(const_names_), std::end(const_names_), name);

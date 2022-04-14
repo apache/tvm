@@ -31,7 +31,7 @@ def enabled():
     return "cmsis-nn" in Target.list_kinds()
 
 
-def partition_for_cmsisnn(mod, params=None, **opts):
+def partition_for_cmsisnn(mod, params=None, mod_name="default", **opts):
     """Partition the graph greedily offloading supported
     operators on Cortex-M using CMSIS-NN
 
@@ -41,6 +41,8 @@ def partition_for_cmsisnn(mod, params=None, **opts):
         The module to run passes on.
     params : Optional[Dict[str, NDArray]]
         Constant input parameters.
+    mod_name: str, optional
+        The module name
 
     Returns
     -------
@@ -55,7 +57,7 @@ def partition_for_cmsisnn(mod, params=None, **opts):
             transform.InferType(),
             transform.MergeComposite(pattern_table()),
             transform.AnnotateTarget("cmsis-nn"),
-            transform.PartitionGraph(),
+            transform.PartitionGraph(mod_name=mod_name),
             GenerateCMSISNNConstants(),
             ScalarToTensorConstants(),
             ExtractConstantsFromPartitionedFunction(),

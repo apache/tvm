@@ -24,6 +24,7 @@ from tvm._ffi.base import TVMError
 from tvm.relay.qnn.op.canonicalizations import create_integer_lookup_op
 
 from ....topi.x86.utils import target_has_sse42
+from ....topi.utils import is_target
 from .. import op as reg
 
 #################################################
@@ -387,18 +388,6 @@ def is_aarch64_arm():
     return "aarch64" in target.attrs.get("mtriple", "")
 
 
-def is_vulkan():
-    """Checks whether we are compiling for a vulkan/spirv target."""
-    target = tvm.target.Target.current(allow_none=False)
-    return "vulkan" in target.keys
-
-
-def is_cuda():
-    """Checks whether we are compiling for a cuda target."""
-    target = tvm.target.Target.current(allow_none=False)
-    return "cuda" in target.keys
-
-
 ########################
 # ARM CPU legalizations.
 ########################
@@ -456,10 +445,10 @@ def _qnn_dense_legalize_intel_cpu(attrs, inputs, types):
 
 @qnn_conv2d_legalize.register(["cuda", "gpu"])
 def _qnn_conv2d_legalize_cuda(attrs, inputs, types):
-    if is_vulkan():
+    if is_target("vulkan"):
         # prefers the dtypes to be same. Mixed type is not yet supported.
         return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
-    if is_cuda():
+    if is_target(["cuda", "rocm"]):
         # CUDA prefers both datatypes to be int8.
         return helper_change_dtypes_to_int8(attrs, inputs, types, relay.qnn.op.conv2d)
     return None
@@ -467,11 +456,10 @@ def _qnn_conv2d_legalize_cuda(attrs, inputs, types):
 
 @qnn_dense_legalize.register(["cuda", "gpu"])
 def _qnn_dense_legalize_cuda(attrs, inputs, types):
-    if is_vulkan():
+    if is_target("vulkan"):
         # prefers the dtypes to be same. Mixed type is not yet supported.
         return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.dense)
-    if is_cuda():
+    if is_target(["cuda", "rocm"]):
         # CUDA prefers both datatypes to be the int8.
         return helper_change_dtypes_to_int8(attrs, inputs, types, relay.qnn.op.dense)
-
     return None

@@ -96,22 +96,25 @@ void ArgBinder::BindBuffer(const Buffer& arg, const Buffer& value, const std::st
                  << " required_alignment=" << arg->data_alignment
                  << ", provided_alignment=" << value->data_alignment;
   }
-  // bind pointer and offset.
-  if (is_zero(arg->elem_offset)) {
-    ICHECK(is_zero(value->elem_offset))
-        << "Trying to bind a Buffer with offset into one without offset "
-        << " required elem_offset=" << arg->elem_offset
-        << ", provided elem_offset=" << value->elem_offset;
-  }
 
-  this->Bind(arg->data, value->data, arg_name + ".data");
-  if (Bind_(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset", false)) {
-    if (arg->offset_factor > 1) {
-      PrimExpr offset = value->elem_offset;
-      PrimExpr factor = make_const(offset.dtype(), arg->offset_factor);
-      PrimExpr zero = make_zero(offset.dtype());
-      BinderAddAssert(&analyzer_, truncmod(offset, factor) == zero, arg_name + ".elem_offset",
-                      &asserts_);
+  if (value->elem_offset.defined()) {
+    // bind pointer and offset.
+    if (is_zero(arg->elem_offset)) {
+      ICHECK(is_zero(value->elem_offset))
+          << "Trying to bind a Buffer with offset into one without offset "
+          << " required elem_offset=" << arg->elem_offset
+          << ", provided elem_offset=" << value->elem_offset;
+    }
+
+    this->Bind(arg->data, value->data, arg_name + ".data");
+    if (Bind_(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset", false)) {
+      if (arg->offset_factor > 1) {
+        PrimExpr offset = value->elem_offset;
+        PrimExpr factor = make_const(offset.dtype(), arg->offset_factor);
+        PrimExpr zero = make_zero(offset.dtype());
+        BinderAddAssert(&analyzer_, truncmod(offset, factor) == zero, arg_name + ".elem_offset",
+                        &asserts_);
+      }
     }
   }
 
