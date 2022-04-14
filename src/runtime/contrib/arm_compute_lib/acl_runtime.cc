@@ -31,6 +31,7 @@
 #ifdef TVM_GRAPH_EXECUTOR_ARM_COMPUTE_LIB
 #include <arm_compute/core/Types.h>
 #include <arm_compute/runtime/NEON/functions/NEArithmeticAddition.h>
+#include <arm_compute/runtime/NEON/functions/NEConcatenateLayer.h>
 #include <arm_compute/runtime/NEON/functions/NEConvolutionLayer.h>
 #include <arm_compute/runtime/NEON/functions/NEDepthwiseConvolutionLayer.h>
 #include <arm_compute/runtime/NEON/functions/NEElementwiseOperations.h>
@@ -91,12 +92,21 @@ class ACLRuntime : public JSONRuntimeBase {
    * \return Status of inference.
    */
   void Run() override {
-    for (size_t i = 0; i < input_nodes_.size(); ++i) {
-      auto nid = input_nodes_[i];
-      uint32_t eid = EntryID(nid, 0);
+    for (size_t nid_idx = 0; nid_idx < input_nodes_.size(); ++nid_idx) {
+      auto nid = input_nodes_[nid_idx];
       if (nodes_[nid].GetOpType() == "input") {
-        void* data = data_entry_[eid]->data;
-        CheckACLError(layer_.inputs[i].allocator()->import_memory(data));
+        for (uint32_t eid_idx = 0; eid_idx < nodes_[nid].GetNumOutput(); eid_idx++) {
+          uint32_t eid = EntryID(nid, eid_idx);
+          void* data = data_entry_[eid]->data;
+          auto key = std::pair<uint32_t, uint32_t>(nid, eid_idx);
+          if (layer_.json_inputid_to_layer_inputid.count(key) > 0) {
+            CheckACLError(
+                layer_.inputs[layer_.json_inputid_to_layer_inputid[key]].allocator()->import_memory(
+                    data));
+          } else {
+            CheckACLError(layer_.inputs[nid_idx].allocator()->import_memory(data));
+          }
+        }
       }
     }
 
@@ -149,6 +159,8 @@ class ACLRuntime : public JSONRuntimeBase {
           CreateMaximumLayer(&layer_, node);
         } else if ("add" == op_name || "qnn.add" == op_name) {
           CreateAddLayer(&layer_, node);
+        } else if ("concatenate" == op_name) {
+          CreateConcatenateLayer(&layer_, node);
         } else {
           LOG(FATAL) << "Unsupported op: " << op_name;
         }
@@ -166,6 +178,9 @@ class ACLRuntime : public JSONRuntimeBase {
     std::shared_ptr<arm_compute::IFunction> function;
     std::vector<arm_compute::Tensor> inputs;
     std::vector<arm_compute::Tensor> outputs;
+    // maps the input index of JSON node to the index of the ACL layer's inputs
+    // this is optional (i.e.only when an operator uses the eid index)
+    std::map<std::pair<uint32_t, uint32_t>, uint32_t> json_inputid_to_layer_inputid;
   };
 
   /*!
@@ -175,17 +190,25 @@ class ACLRuntime : public JSONRuntimeBase {
    * \param tensor The tensor to represent.
    * \param scale (optional) The scale of the tensor as an input.
    * \param offset (optional) The offset of the tensor as an input.
+   * \param apply_dim_correction (Optional) Flag to state whether apply dimension correction after
+   * setting one dimension. E.g. when permuting NCHW -> NHWC, 1x1x2 would become 2x1x1, but
+   * _num_dimensions should be 3 rather than 1.
+   * \param increase_dim_unit (Optional) Set to true if new unit dimensions increase the number of
+   * dimensions of the shape.
    * \return ACL Tensor.
    */
   arm_compute::Tensor MakeACLTensorFromJSONEntry(const JSONGraphNodeEntry& tensor,
                                                  JSONGraphNodeEntry* scale = nullptr,
-                                                 JSONGraphNodeEntry* offset = nullptr) {
+                                                 JSONGraphNodeEntry* offset = nullptr,
+                                                 bool apply_dim_correction = true,
+                                                 bool increase_dim_unit = true) {
     JSONGraphNode node = nodes_[tensor.id_];
     void* node_data = nullptr;
     if (node.GetOpType() == "const") {
       node_data = data_entry_[EntryID(tensor)]->data;
     }
-    return MakeACLTensorFromJSONNode(node, scale, offset, node_data);
+    return MakeACLTensorFromJSONNode(node, scale, offset, node_data, apply_dim_correction,
+                                     increase_dim_unit, tensor.index_);
   }
 
   /*!
@@ -196,19 +219,26 @@ class ACLRuntime : public JSONRuntimeBase {
    * \param scale (optional) The scale of the tensor as an input.
    * \param offset (optional) The offset of the tensor as an input.
    * \param data (optional) Constant data of input node.
+   * \param apply_dim_correction (Optional) Flag to state whether apply dimension correction after
+   * setting one dimension. E.g. when permuting NCHW -> NHWC, 1x1x2 would become 2x1x1, but
+   * _num_dimensions should be 3 rather than 1.
+   * \param increase_dim_unit (Optional) Set to true if new unit dimensions increase the number of
+   * dimensions of the shape.
+   * \param entry_index The entry index.
    * \return ACL Tensor.
    */
-  arm_compute::Tensor MakeACLTensorFromJSONNode(const JSONGraphNode& node,
-                                                JSONGraphNodeEntry* scale = nullptr,
-                                                JSONGraphNodeEntry* offset = nullptr,
-                                                void* data = nullptr) {
+  arm_compute::Tensor MakeACLTensorFromJSONNode(
+      const JSONGraphNode& node, JSONGraphNodeEntry* scale = nullptr,
+      JSONGraphNodeEntry* offset = nullptr, void* data = nullptr, bool apply_dim_correction = true,
+      bool increase_dim_unit = true, uint32_t entry_index = 0) {
     const DLTensor* scale_data = nullptr;
     const DLTensor* offset_data = nullptr;
     if (scale && offset) {
       scale_data = data_entry_[EntryID(*scale)];
       offset_data = data_entry_[EntryID(*offset)];
     }
-    return MakeACLTensor(node, data, scale_data, offset_data);
+    return MakeACLTensor(node, data, scale_data, offset_data, apply_dim_correction,
+                         increase_dim_unit, entry_index);
   }
 
   /*!
@@ -508,6 +538,34 @@ class ACLRuntime : public JSONRuntimeBase {
     f->configure(&layer->inputs[0], &layer->inputs[1], &layer->outputs[0],
                  arm_compute::ConvertPolicy::SATURATE);
     layer->function = f;
+  }
+
+  /*!
+   * \brief Create a Concatenate layer.
+   *
+   * \param layer The ACL layer to build. Containing inputs, outputs and the ACL function.c
+   * \param node The JSON representation of the operator.
+   */
+  void CreateConcatenateLayer(CachedLayer* layer, const JSONGraphNode& node) {
+    std::vector<std::string> axis = node.GetAttr<std::vector<std::string>>("axis");
+    std::vector<const arm_compute::ITensor*> inputs;
+    for (auto input : node.GetInputs()) {
+      layer->inputs.push_back(MakeACLTensorFromJSONEntry(input, nullptr, nullptr, false));
+      layer->json_inputid_to_layer_inputid[std::pair<uint32_t, uint32_t>(input.id_, input.index_)] =
+          layer->inputs.size() - 1;
+    }
+    for (size_t i = 0; i < layer->inputs.size(); i++) {
+      inputs.push_back(&layer->inputs[i]);
+    }
+    layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
+    int dimNum = layer->inputs[0].info()->num_dimensions();
+    auto function = std::make_shared<arm_compute::NEConcatenateLayer>();
+    // the shape of input tensor will be reversed after passing to ACL
+    // for example a tensor with shape [1, 2, 3, 4] will be changed to
+    // [4, 3, 2, 1] at ACL side. So the axis here should be preprocessed.
+    auto a = std::stoi(axis[0]);
+    function->configure(inputs, &layer->outputs[0], a < 0 ? -a - 1 : dimNum - a - 1);
+    layer->function = function;
   }
 
   /*! \brief Allow ACL functions to request auxiliary memory from TVM. */
