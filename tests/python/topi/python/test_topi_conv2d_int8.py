@@ -524,7 +524,6 @@ def test_conv2d_nchw(in_dtype):
     with Int8Fallback():
         # ResNet18 workloads where channels in / out are multiple of oc_block_factor
         verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 56, 64, 3, 1, 1)
-        return
         verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 56, 64, 1, 1, 0)
         verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 56, 128, 3, 2, 1)
         verify_conv2d_NCHWc_int8(in_dtype, 1, 64, 56, 128, 1, 2, 0)
