@@ -118,7 +118,7 @@ def init_git() {
     ).trim()
   }
   sh (
-    script: "git merge ${upstream_revision}",
+    script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
     label: 'Merge to origin/main'
   )
 
