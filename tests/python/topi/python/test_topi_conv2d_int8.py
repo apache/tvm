@@ -353,7 +353,7 @@ def verify_conv2d_NCHWc_int8(
             4,
             False,
         ),
-        # Disable on CI since it does not support spirv int8 dot product or rocm
+        # Disable on CI since it does not support spirv int8 dot product
         # (
         #     "vulkan -from_device=0",
         #     lambda a, w, s, p, d, l, ol, o: topi.cuda.conv2d_NCHWc_int8(a, w, s, p, d, l, o),
