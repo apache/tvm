@@ -447,6 +447,41 @@ def test_batch_matmul_vnni():
         np.testing.assert_equal(out, ref)
 
 
+@pytest.mark.skip("Requires GFX10 AMDGPU")
+def test_batch_matmul_rocm_sdot4():
+    x_shape = (16, 32, 96)
+    y_shape = (16, 128, 96)
+
+    lhs_dtype = "int8"
+    x = relay.var("x", shape=x_shape, dtype=lhs_dtype)
+    y = relay.var("y", shape=y_shape, dtype="int8")
+    bmm = relay.nn.batch_matmul(x, y, out_dtype="int32")
+
+    mod = tvm.IRModule.from_expr(bmm)
+
+    target = "rocm -mattr=+dotprod"
+    with tvm.transform.PassContext(opt_level=3):
+        lib = relay.build(mod, target=target)
+
+    asm = lib.lib.imported_modules[0].get_source("asm")
+    assert "v_dot4_i32_i8" in asm
+
+    dev = tvm.device(target, 0)
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    x_np = np.random.uniform(1, 10, size=x_shape).astype(lhs_dtype)
+    y_np = np.random.uniform(1, 10, size=y_shape).astype("int8")
+
+    runtime.set_input("x", x_np)
+    runtime.set_input("y", y_np)
+    runtime.run()
+
+    out = runtime.get_output(0).numpy()
+    ref = tvm.topi.testing.batch_matmul(x_np, y_np, out_dtype="int32")
+
+    np.testing.assert_equal(out, ref)
+
+
 @tvm.testing.uses_gpu
 def test_shape_of():
     shape = (10, 5, 12)

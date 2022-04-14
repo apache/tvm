@@ -26,7 +26,7 @@ from .tensor_intrin import dp4a
 from ..nn.pad import pad
 from ..nn.conv2d import unpack_NCHWc_to_nchw
 from ..nn.utils import get_pad_tuple
-from ..utils import get_const_tuple, traverse_inline
+from ..utils import get_const_tuple, traverse_inline, is_target
 
 
 def conv2d_nchw_int8(data, kernel, strides, padding, dilation, out_dtype="int32"):
@@ -312,7 +312,7 @@ def _schedule_conv2d_NCHWc_int8(cfg, s, output):
     _, rc_block = s[conv].split(rc_block, factor=4)
     target = tvm.target.Target.current(allow_none=False)
     do_tensorize = True
-    if "vulkan" in target.keys:
+    if is_target(["vulkan", "rocm"]):
         do_tensorize = "+dotprod" in target.mattr or target.supports_integer_dot_product
     if do_tensorize:
         dtypes = (pad_data.dtype, packed_kernel.dtype)
