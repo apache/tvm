@@ -104,11 +104,13 @@ def get_tvm_output(graph, model_path, inputs: flow.tensor, target="llvm", dtype=
 
 
 def get_tvm_concat_output(
-    graph, model_path,
+    graph,
+    model_path,
     input1: flow.tensor,
     input2: flow.tensor,
     input3: flow.tensor,
-    target="llvm", dtype="float32"
+    target="llvm",
+    dtype="float32",
 ):
     input1_numpy = input1.numpy()
     input2_numpy = input2.numpy()
@@ -125,30 +127,32 @@ def get_tvm_concat_output(
         tvm.nd.array(input1_numpy.astype(dtype)),
         tvm.nd.array(input2_numpy.astype(dtype)),
         tvm.nd.array(input3_numpy.astype(dtype)),
-        **params
+        **params,
     ).numpy()
     return tvm_output
 
 
 def verify_conv(
-    model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.tensor(
+    model,
+    name="",
+    rtol=1e-5,
+    atol=1e-5,
+    inputs=flow.tensor(
         np.random.rand(1, 3, 224, 224),
         dtype=flow.float32,
     ),
-    device = "llvm"
+    device="llvm",
 ):
     if device == "cuda":
         model.to(device)
         inputs = inputs.to(device)
-    
+
     graph = OneFlowGraph(model)
     graph._compile(inputs)
 
-
     mkdir(MODEL_HOME)
     flow.save(model.state_dict(), MODEL_HOME)
-    
+
     out_flow = get_oneflow_output(graph, inputs)
     out_tvm = get_tvm_output(graph, MODEL_HOME, inputs, target=device)
     rmdir(MODEL_HOME)
@@ -158,12 +162,15 @@ def verify_conv(
 
 
 def verify_pool(
-    model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.tensor(
+    model,
+    name="",
+    rtol=1e-5,
+    atol=1e-5,
+    inputs=flow.tensor(
         np.random.rand(1, 3, 224, 224),
         dtype=flow.float32,
     ),
-    device = "llvm"
+    device="llvm",
 ):
     if device == "cuda":
         model.to(device)
@@ -184,12 +191,15 @@ def verify_pool(
 
 
 def verify_normalization(
-    model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.tensor(
+    model,
+    name="",
+    rtol=1e-5,
+    atol=1e-5,
+    inputs=flow.tensor(
         np.random.rand(1, 3, 224, 224),
         dtype=flow.float32,
     ),
-    device = "llvm"
+    device="llvm",
 ):
     if device == "cuda":
         model.to(device)
@@ -211,12 +221,15 @@ def verify_normalization(
 
 
 def verify_upsample(
-    model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.tensor(
+    model,
+    name="",
+    rtol=1e-5,
+    atol=1e-5,
+    inputs=flow.tensor(
         np.random.rand(1, 3, 50, 50),
         dtype=flow.float32,
     ),
-    device = "llvm"
+    device="llvm",
 ):
     if device == "cuda":
         model.to(device)
@@ -237,12 +250,15 @@ def verify_upsample(
 
 
 def verify_convtran(
-    model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.tensor(
+    model,
+    name="",
+    rtol=1e-5,
+    atol=1e-5,
+    inputs=flow.tensor(
         np.random.rand(1, 3, 50, 50),
         dtype=flow.float32,
     ),
-    device = "llvm"
+    device="llvm",
 ):
     if device == "cuda":
         model.to(device)
@@ -263,12 +279,15 @@ def verify_convtran(
 
 
 def verify_activation(
-    model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.tensor(
+    model,
+    name="",
+    rtol=1e-5,
+    atol=1e-5,
+    inputs=flow.tensor(
         np.random.rand(10, 10),
         dtype=flow.float32,
     ),
-    device = "llvm"
+    device="llvm",
 ):
     if device == "cuda":
         model.to(device)
@@ -289,12 +308,15 @@ def verify_activation(
 
 
 def verify_math(
-    model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.tensor(
+    model,
+    name="",
+    rtol=1e-5,
+    atol=1e-5,
+    inputs=flow.tensor(
         np.random.rand(100, 1),
         dtype=flow.float32,
     ),
-    device = "llvm"
+    device="llvm",
 ):
     if device == "cuda":
         model.to(device)
@@ -315,11 +337,14 @@ def verify_math(
 
 
 def verify_concat(
-    model, name="", rtol=1e-5, atol=1e-5,
-    inputs1 = flow.tensor(np.random.randn(2, 5, 5, 4), dtype=flow.float32),
-    inputs2 = flow.tensor(np.random.randn(2, 5, 5, 2), dtype=flow.float32),
-    inputs3 = flow.tensor(np.random.randn(2, 5, 5, 3), dtype=flow.float32),
-    device = "llvm"
+    model,
+    name="",
+    rtol=1e-5,
+    atol=1e-5,
+    inputs1=flow.tensor(np.random.randn(2, 5, 5, 4), dtype=flow.float32),
+    inputs2=flow.tensor(np.random.randn(2, 5, 5, 2), dtype=flow.float32),
+    inputs3=flow.tensor(np.random.randn(2, 5, 5, 3), dtype=flow.float32),
+    device="llvm",
 ):
     if device == "cuda":
         model.to(device)
@@ -391,7 +416,7 @@ def test_pool2d():
         def forward(self, x):
             x = self.pool(x)
             return x
-    
+
     if os.path.exists(MODEL_HOME):
         rmdir(MODEL_HOME)
 
@@ -411,14 +436,14 @@ def test_normalization():
         def __init__(self):
             super().__init__()
             self.normalization = flow.nn.BatchNorm2d(3)
-        
+
         def forward(self, x):
             x = self.normalization(x)
             return x
-    
+
     if os.path.exists(MODEL_HOME):
         rmdir(MODEL_HOME)
-    
+
     model = BatchNorm2dModel().eval()
 
     for device in ["llvm"]:
@@ -431,7 +456,7 @@ def test_upsample():
         def __init__(self):
             super().__init__()
             self.upsample = flow.nn.Upsample(scale_factor=2.0, mode="nearest")
-        
+
         def forward(self, x):
             x = self.upsample(x)
             return x
@@ -440,11 +465,11 @@ def test_upsample():
         def __init__(self):
             super().__init__()
             self.upsample = flow.nn.UpsamplingBilinear2d(scale_factor=2.0)
-        
+
         def forward(self, x):
             x = self.upsample(x)
             return x
-    
+
     if os.path.exists(MODEL_HOME):
         rmdir(MODEL_HOME)
 
@@ -466,7 +491,7 @@ def test_convtran():
         def forward(self, x):
             x = self.convtran(x)
             return x
-    
+
     if os.path.exists(MODEL_HOME):
         rmdir(MODEL_HOME)
 
@@ -624,7 +649,6 @@ def test_math():
         def forward(self, x):
             return flow.pow(x, 2.0)
 
-
     class Log(flow.nn.Module):
         def forward(self, x):
             return flow.log(x)
@@ -664,13 +688,12 @@ def test_slice():
             tup_list = [[None, None, None], [0, 5, 2], [0, 6, 3]]
             out = flow.slice(x, slice_tup_list=tup_list)
             return out
-    
+
     model = Slice().eval()
 
     for device in ["llvm"]:
         verify_math(
-            model, device=device,
-            inputs=flow.tensor(np.random.randn(3, 6, 9).astype(np.float32))
+            model, device=device, inputs=flow.tensor(np.random.randn(3, 6, 9).astype(np.float32))
         )
 
 
@@ -687,7 +710,6 @@ def test_concat():
         verify_concat(model, device=device)
 
 
-
 if __name__ == "__main__":
     test_conv2d()
     test_pool2d()
@@ -699,4 +721,3 @@ if __name__ == "__main__":
     test_slice()
     test_concat()
     rmdir("log")
-

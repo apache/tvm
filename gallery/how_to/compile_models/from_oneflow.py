@@ -56,17 +56,13 @@ class Generator(nn.Module):
         upsample_block_num = int(math.log(scale_factor, 2))
 
         super(Generator, self).__init__()
-        self.block1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=9, padding=4), nn.PReLU()
-        )
+        self.block1 = nn.Sequential(nn.Conv2d(3, 64, kernel_size=9, padding=4), nn.PReLU())
         self.block2 = ResidualBlock(64)
         self.block3 = ResidualBlock(64)
         self.block4 = ResidualBlock(64)
         self.block5 = ResidualBlock(64)
         self.block6 = ResidualBlock(64)
-        self.block7 = nn.Sequential(
-            nn.Conv2d(64, 64, kernel_size=3, padding=1), nn.PReLU()
-        )
+        self.block7 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=3, padding=1), nn.PReLU())
         block8 = [UpsampleBLock(64, 2) for _ in range(upsample_block_num)]
         block8.append(nn.Conv2d(64, 3, kernel_size=9, padding=4))
         block8.append(nn.Tanh())
@@ -82,7 +78,7 @@ class Generator(nn.Module):
         block7 = self.block7(block6)
         block8 = self.block8(block1 + block7)
 
-        return (block8 + 1.) / 2
+        return (block8 + 1.0) / 2
 
 
 class ResidualBlock(nn.Module):
@@ -107,9 +103,7 @@ class ResidualBlock(nn.Module):
 class UpsampleBLock(nn.Module):
     def __init__(self, in_channels, up_scale):
         super(UpsampleBLock, self).__init__()
-        self.conv = nn.Conv2d(
-            in_channels, in_channels * up_scale ** 2, kernel_size=3, padding=1
-        )
+        self.conv = nn.Conv2d(in_channels, in_channels * up_scale**2, kernel_size=3, padding=1)
         self.pixel_shuffle = nn.PixelShuffle(up_scale)
         self.prelu = nn.PReLU()
 
@@ -119,11 +113,14 @@ class UpsampleBLock(nn.Module):
         x = self.prelu(x)
         return x
 
+
 ######################################################################
 # Load a pretrained OneFlow model
 # -------------------------------
 # We will download and load a pretrained provided in this example: SRGAN.
-model_url = "https://oneflow-static.oss-cn-beijing.aliyuncs.com/train_data_zjlab/SRGAN_netG_epoch_4_99.zip"
+model_url = (
+    "https://oneflow-static.oss-cn-beijing.aliyuncs.com/train_data_zjlab/SRGAN_netG_epoch_4_99.zip"
+)
 model_file = "SRGAN_netG_epoch_4_99.zip"
 model_path = download_testdata(model_url, model_file, module="oneflow")
 
@@ -143,6 +140,7 @@ def load_image(image_path="", size=(224, 224)):
     img = np.ascontiguousarray(img).astype("float32") / 255
     img_flow = flow.Tensor(img).unsqueeze(0).permute(0, 3, 1, 2)
     return img_flow.numpy(), img_flow
+
 
 img_url = "https://oneflow-static.oss-cn-beijing.aliyuncs.com/train_data_zjlab/monarchx4.png"
 hr_url = "https://oneflow-static.oss-cn-beijing.aliyuncs.com/train_data_zjlab/monarch.png"
@@ -178,7 +176,7 @@ target = "cuda"
 with tvm.transform.PassContext(opt_level=10):
     intrp = relay.build_module.create_executor("graph", mod, tvm.cuda(0), target)
 
-tvm_output = intrp.evaluate()(tvm.nd.array(img.astype('float32')), **params).numpy()
+tvm_output = intrp.evaluate()(tvm.nd.array(img.astype("float32")), **params).numpy()
 
 ######################################################################
 # Display results
