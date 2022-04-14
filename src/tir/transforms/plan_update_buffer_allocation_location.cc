@@ -61,9 +61,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     for (const Buffer& buf : it->second) {
       buffer_data_to_buffer_.Set(buf->data, buf);
     }
-    Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<ForNode>();
-    ICHECK(op != nullptr);
+    auto node = Downcast<For>(StmtMutator::VisitStmt_(op));
 
     Array<Buffer> new_block_alloc_bufs;
     for (const Buffer& buf : it->second) {
@@ -73,10 +71,11 @@ class BufferAllocationLocator : public StmtExprMutator {
       }
     }
 
-    Stmt body = InjectOpaqueBlock(op->body, new_block_alloc_bufs);
-    ObjectPtr<ForNode> n = CopyOnWrite(op);
-    n->body = std::move(body);
-    return Stmt(n);
+    if (new_block_alloc_bufs.size()) {
+      node.CopyOnWrite()->body = InjectOpaqueBlock(node->body, new_block_alloc_bufs);
+    }
+
+    return std::move(node);
   }
 
   Stmt VisitStmt_(const BlockNode* op) final {
