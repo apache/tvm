@@ -346,45 +346,52 @@ def verify_conv2d_NCHWc_int8(
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
     targets = [
-        # (
-        #     "cuda",
-        #     lambda a, w, s, p, d, l, ol, o: topi.cuda.conv2d_NCHWc_int8(a, w, s, p, d, l, o),
-        #     topi.cuda.schedule_conv2d_NCHWc_int8,
-        #     4,
-        #     False,
-        # ),
-        # Disable on CI since it does not support spirv int8 dot product
         (
-            "rocm",
+            "cuda",
             lambda a, w, s, p, d, l, ol, o: topi.cuda.conv2d_NCHWc_int8(a, w, s, p, d, l, o),
             topi.cuda.schedule_conv2d_NCHWc_int8,
             4,
             False,
         ),
+        # Disable on CI since it does not support spirv int8 dot product or rocm
+        # (
+        #     "vulkan -from_device=0",
+        #     lambda a, w, s, p, d, l, ol, o: topi.cuda.conv2d_NCHWc_int8(a, w, s, p, d, l, o),
+        #     topi.cuda.schedule_conv2d_NCHWc_int8,
+        #     4,
+        #     False,
+        # ),
+        # (
+        #     "rocm",
+        #     lambda a, w, s, p, d, l, ol, o: topi.cuda.conv2d_NCHWc_int8(a, w, s, p, d, l, o),
+        #     topi.cuda.schedule_conv2d_NCHWc_int8,
+        #     4,
+        #     False,
+        # ),
     ]
 
     build_only_aarch64 = platform.machine() != "aarch64"
 
-    # targets.append(
-    #     (
-    #         "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon,+v8.2a,+dotprod",
-    #         topi.arm_cpu.conv2d_NCHWc_int8,
-    #         topi.arm_cpu.schedule_conv2d_NCHWc_int8,
-    #         8,
-    #         build_only_aarch64,
-    #     )
-    # )
+    targets.append(
+        (
+            "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon,+v8.2a,+dotprod",
+            topi.arm_cpu.conv2d_NCHWc_int8,
+            topi.arm_cpu.schedule_conv2d_NCHWc_int8,
+            8,
+            build_only_aarch64,
+        )
+    )
 
-    # if in_dtype == "int8":
-    #     targets.append(
-    #         (
-    #             "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon",
-    #             topi.arm_cpu.conv2d_NCHWc_int8,
-    #             topi.arm_cpu.schedule_conv2d_NCHWc_int8,
-    #             8,
-    #             build_only_aarch64,
-    #         )
-    #     )
+    if in_dtype == "int8":
+        targets.append(
+            (
+                "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon",
+                topi.arm_cpu.conv2d_NCHWc_int8,
+                topi.arm_cpu.schedule_conv2d_NCHWc_int8,
+                8,
+                build_only_aarch64,
+            )
+        )
 
     for target, compute, schedule, oc_block_factor, build_only in targets:
         check_target(target, compute, schedule, oc_block_factor, build_only)

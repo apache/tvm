@@ -24,7 +24,7 @@ from tvm.contrib import cublas
 from .tensor_intrin import dp4a
 from .. import tag
 from .. import generic
-from ..utils import traverse_inline, get_const_tuple
+from ..utils import traverse_inline, get_const_tuple, is_target
 
 logger = logging.getLogger("topi")
 
@@ -173,8 +173,8 @@ def _schedule_dense_int8(cfg, s, output):
     ko, kt = cfg["tile_k"].apply(s, CC, ko)
     target = tvm.target.Target.current(allow_none=False)
     do_tensorize = True
-    # if "vulkan" in target.keys or "rocm" in target.keys:
-    #     do_tensorize = "+dotprod" in target.mattr or target.supports_integer_dot_product
+    if is_target(["vulkan", "rocm"]):
+        do_tensorize = "+dotprod" in target.mattr or target.supports_integer_dot_product
 
     if do_tensorize:
         dtypes = (data.dtype, weight.dtype)
