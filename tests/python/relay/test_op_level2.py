@@ -1582,24 +1582,18 @@ def _test_upsampling3d(layout, method, coordinate_transformation_mode="half_pixe
 
     def get_shape():
         if layout == "NCDHW":
-            return (
-                (c, d, h, w),
-                (
-                    c,
-                    int(round(d * scale_d)),
-                    int(round(h * scale_h)),
-                    int(round(w * scale_w)),
-                ),
+            return (c, d, h, w), (
+                c,
+                int(round(d * scale_d)),
+                int(round(h * scale_h)),
+                int(round(w * scale_w)),
             )
         else:
-            return (
-                (d, h, w, c),
-                (
-                    int(round(d * scale_d)),
-                    int(round(h * scale_h)),
-                    int(round(w * scale_w)),
-                    c,
-                ),
+            return (d, h, w, c), (
+                int(round(d * scale_d)),
+                int(round(h * scale_h)),
+                int(round(w * scale_w)),
+                c,
             )
 
     ishape, oshape = get_shape()
