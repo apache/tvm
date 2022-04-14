@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-04-13T15:32:37.844476
+// Generated at 2022-04-14T17:16:16.585491
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -121,7 +121,7 @@ def init_git() {
     ).trim()
   }
   sh (
-    script: "git merge ${upstream_revision}",
+    script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
     label: 'Merge to origin/main'
   )
 
