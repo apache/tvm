@@ -77,7 +77,7 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     size_t i_axis = param->kernel_layout.operator std::string().find('I');
     ICHECK(o_axis != std::string::npos || i_axis != std::string::npos)
         << "Kernel layout attribute is not defined";
-    AssignType(types[5], DataType::Float(32), weight->shape[i_axis] * weight->shape[o_axis],
+    AssignType(types[5], DataType::Float(32), weight->shape[o_axis],
                reporter);  // weight_scale
   }
 

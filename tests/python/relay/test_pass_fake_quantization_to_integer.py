@@ -88,6 +88,31 @@ def test_fake_quantize_conv_per_channel():
         compare_fq_to_int(op, [x_np, w_np], allow_rounding_error=True)
 
 
+def test_fake_quantize_group_conv_per_channel():
+    for out_dtype in ["int8", "uint8"]:
+        channels = 24
+        x = relay.var("x", shape=[1, 16, 224, 224], dtype="int8")
+        w = relay.var("w", shape=[channels, 4, 3, 3], dtype="int8")
+        one = relay.const([1.0] * channels)
+        zero_point = relay.const([np.random.randint(0, 255)] * channels)
+
+        op = relay.op.nn.conv2d(
+            relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(0)),
+            relay.qnn.op.dequantize(
+                w, relay.const(np.random.random([channels]).astype("float32")), zero_point, axis=0
+            ),
+            kernel_size=[3, 3],
+            channels=channels,
+            groups=4,
+        )
+        op = relay.qnn.op.quantize(op, relay.const(1.0), relay.const(0), out_dtype=out_dtype)
+
+        x_np = np.random.randint(-128, 127, size=[1, 16, 224, 224], dtype="int8")
+        w_np = np.random.randint(-128, 127, size=[channels, 4, 3, 3], dtype="int8")
+
+        compare_fq_to_int(op, [x_np, w_np], allow_rounding_error=True)
+
+
 def test_fake_quantize_transposeconv():
     for out_dtype in ["int8", "uint8"]:
         x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
