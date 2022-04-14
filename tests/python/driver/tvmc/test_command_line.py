@@ -58,6 +58,10 @@ def test_tvmc_cl_workflow(keras_simple, tmpdir_factory):
     assert os.path.exists(output_path)
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_tvmc_cl_workflow_json_config(keras_simple, tmpdir_factory):
     pytest.importorskip("tensorflow")
     tune_config_file = "tune_config_test"

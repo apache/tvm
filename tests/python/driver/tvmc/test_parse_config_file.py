@@ -18,6 +18,7 @@ import pytest
 import os
 import shlex
 
+import tvm
 from tvm.driver.tvmc.main import _main
 from tvm.driver.tvmc.config_options import convert_config_json_to_cli
 
@@ -128,6 +129,7 @@ def test_parse_json_config_file_runtime():
     assert tokens == expected_tokens
 
 
+@tvm.testing.requires_cmsisnn
 def test_tvmc_cl_compile_run_config_file(tflite_mobilenet_v1_1_quant, tmpdir_factory):
     compile_config_file = "compile_config_test.json"
     pytest.importorskip("tflite")
