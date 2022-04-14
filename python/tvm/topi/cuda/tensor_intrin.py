@@ -71,7 +71,11 @@ def dp4a(x_scope="local", y_scope="local", z_scope="local", dtypes=("int8", "int
             vec_y = yy.vload(0, dtype=vec_y_dtype)
             prev_z = 0 if index == 0 else zz.vload(0)
 
-            new_z = tvm.tir.call_pure_extern(zz_dtype, "__dp4a", vec_x, vec_y, prev_z)
+            # new_z = tvm.tir.call_pure_extern(zz_dtype, "__dp4a", vec_x, vec_y, prev_z)
+            new_z = tvm.tir.call_llvm_pure_intrin(zz_dtype, "llvm.amdgcn.sdot4", tvm.tir.const(4, "uint32"),
+                                                  tvm.tir.call_intrin("int32", "tir.reinterpret", vec_x),
+                                                  tvm.tir.call_intrin("int32", "tir.reinterpret", vec_y),
+                                                  prev_z, True)
             ib.emit(zz.vstore(0, new_z))
 
             return ib.get()

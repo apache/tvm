@@ -34,7 +34,7 @@ logger = logging.getLogger("topi")
 @nn.conv2d_alter_layout.register(["cuda", "gpu"])
 def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     target = tvm.target.Target.current(allow_none=False)
-    doit = "vulkan" in target.keys or "cuda" in target.keys
+    doit = "vulkan" in target.keys or "cuda" in target.keys or "rocm" in target.keys
     if not doit:
         return None
     dispatch_ctx = autotvm.task.DispatchContext.current
@@ -87,7 +87,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     if cfg.is_fallback:  # if is fallback, clear query cache and return None
         autotvm.task.clear_fallback_cache(target, workload)
         do_new_layout = False
-        if "vulkan" in target.keys:
+        if "vulkan" in target.keys or "rocm" in target.keys:
             do_new_layout = "+dotprod" in target.mattr or target.supports_integer_dot_product
         if not do_new_layout:
             return None
@@ -351,7 +351,7 @@ def _conv2d_legalize(attrs, inputs, arg_types):
     """
 
     target = tvm.target.Target.current(allow_none=False)
-    doit = "vulkan" in target.keys or "cuda" in target.keys
+    doit = "vulkan" in target.keys or "cuda" in target.keys or "rocm" in target.keys
     if not doit:
         return None
     # Dilation not supported yet. Return None if dilation is not (1, 1)

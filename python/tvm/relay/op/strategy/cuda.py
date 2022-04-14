@@ -145,7 +145,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
             if (
-                (target.kind.name in ["cuda", "vulkan"])
+                (target.kind.name in ["cuda", "vulkan", "rocm"])
                 and data.dtype in ("int8", "uint8")
                 and kernel.dtype in ("int8", "uint8")
             ):
@@ -297,7 +297,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                                     Need to satisfy tensor core schedule."
                 )
         elif (
-            (target.kind.name in ["cuda", "vulkan"])
+            (target.kind.name in ["cuda", "vulkan", "rocm"])
             and layout == "NCHW4c"
             and data.dtype in ["int8", "uint8"]
         ):
@@ -376,7 +376,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             ic_chunk = in_channels // 4
 
             if (
-                (target.kind.name in ["cuda", "vulkan"])
+                (target.kind.name in ["cuda", "vulkan", "rocm"])
                 and data.dtype in ["int8", "uint8"]
                 and kernel.dtype in ["int8", "uint8"]
                 and channels % groups == 0
@@ -836,7 +836,7 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
     b, i = get_const_tuple(data.shape)
     o, _ = get_const_tuple(weights.shape)
     if (
-        target.kind.name in ["cuda", "vulkan"]
+        target.kind.name in ["cuda", "vulkan", "rocm"]
         and data.dtype == "int8"
         and weights.dtype == "int8"
         and out_type.dtype == "int32"

@@ -372,7 +372,7 @@ def _schedule_batch_matmul_int8(cfg, s, output):
     target = tvm.target.Target.current(allow_none=False)
     do_tensorize = True
 
-    if "vulkan" in target.keys:
+    if "vulkan" in target.keys or "rocm" in target.keys:
         do_tensorize = "+dotprod" in target.mattr or target.supports_integer_dot_product
 
     if do_tensorize:
