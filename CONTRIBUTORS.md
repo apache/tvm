@@ -46,6 +46,7 @@ We do encourage everyone to work anything they are interested in.
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
 - [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm - ethos-u, memory planner
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
+- [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574 - tir, tvm-script
 - [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
 - [Hao Lu](https://github.com/hlu1): @hlu1 - nnpack, frontends
@@ -152,6 +153,7 @@ We do encourage everyone to work anything they are interested in.
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
 - [Jorn Tuyls](https://github.com/jtuyls): @jtuyls
+- [Gavin Uberti](https://github.com/guberti): @guberti
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose
 - [Thomas Viehmann](https://github.com/t-vi): @t-vi
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun
@@ -166,6 +168,7 @@ We do encourage everyone to work anything they are interested in.
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene
 - [Bing Xu](https://github.com/antinucleon): @antinucleon
 - [Eddie Yan](https://github.com/eqy): @eqy
+- [Zihao Ye](https://github.com/yzh119): @yzh119
 - [Hao Yu](https://github.com/comaniac): @comaniac
 - [Joshua Z. Zhang](https://github.com/zhreshold): @zhreshold
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy

@@ -47,7 +47,7 @@ echo "Linting the C++ code..."
 tests/lint/cpplint.sh
 
 echo "clang-format check..."
-tests/lint/clang_format.sh
+tests/lint/git-clang-format.sh
 
 echo "Rust check..."
 tests/lint/rust_format.sh

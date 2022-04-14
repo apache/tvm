@@ -484,7 +484,7 @@ def _verify_cudnn_relay(expr):
     tvm.testing.assert_allclose(
         outputs[0],
         outputs[1],
-        rtol=1e-3,
+        rtol=1e-2,
     )
 
 
@@ -511,6 +511,70 @@ def test_relay_cudnn_softmax(shape, axis, dtype):
     x = tvm.relay.var("x", tvm.relay.TensorType(shape, dtype))
     softmax = relay.op.nn.softmax(x, axis=axis)
     _verify_cudnn_relay(softmax)
+
+
+@tvm.testing.requires_cuda
+@pytest.mark.parametrize(
+    "shape,axis",
+    [
+        ((32, 16), -1),
+        ((13, 27), 1),
+    ],
+)
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        "float32",
+        "float16",
+        "float64",
+    ],
+)
+def test_relay_cudnn_log_softmax(shape, axis, dtype):
+    x = tvm.relay.var("x", tvm.relay.TensorType(shape, dtype))
+    log_softmax = relay.op.nn.log_softmax(x, axis=axis)
+    _verify_cudnn_relay(log_softmax)
+
+
+@tvm.testing.requires_cuda
+@pytest.mark.parametrize(
+    "n,h,w,ci,co,groups",
+    [
+        (1, 16, 20, 8, 16, 1),
+        (10, 17, 19, 16, 8, 4),
+    ],
+)
+@pytest.mark.parametrize(
+    "kh,kw,padding",
+    [
+        (1, 1, (3, 1, 3, 1)),
+        (3, 3, (1, 2)),
+        (7, 2, (0, 0)),
+    ],
+)
+@pytest.mark.parametrize(
+    "strides,dilation,dtype",
+    [
+        ((1, 1), (1, 1), "float32"),
+        ((2, 1), (2, 2), "float16"),
+        ((3, 3), (1, 2), "float64"),
+    ],
+)
+def test_relay_cudnn_conv2d(n, h, w, ci, co, kh, kw, strides, dilation, padding, groups, dtype):
+    data = tvm.relay.var("data", tvm.relay.TensorType((n, ci, h, w), dtype))
+    weight = tvm.relay.var("weight", tvm.relay.TensorType((co, ci // groups, kh, kw), dtype))
+    conv2d = relay.op.nn.conv2d(
+        data,
+        weight,
+        groups=groups,
+        channels=co,
+        kernel_size=(kh, kw),
+        strides=strides,
+        dilation=dilation,
+        padding=padding,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+    )
+    _verify_cudnn_relay(conv2d)
 
 
 if __name__ == "__main__":

@@ -57,7 +57,6 @@ PrimFunc MakeUnpackedAPI(PrimFunc&& func) {
   const Stmt nop = Evaluate(0);
   std::vector<Stmt> device_init;
 
-
   // Collect variables and buffers to map between
   Array<Var> args;
   Map<Var, Buffer> new_buffer_map;
