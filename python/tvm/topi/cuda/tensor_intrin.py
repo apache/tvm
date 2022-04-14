@@ -18,7 +18,7 @@
 """Tensor intrinsics on CUDA."""
 import tvm
 from tvm import te
-from ..utils import traverse_inline, get_const_tuple, is_target
+from ..utils import is_target
 
 
 def dp4a(x_scope="local", y_scope="local", z_scope="local", dtypes=("int8", "int8")):

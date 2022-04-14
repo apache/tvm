@@ -17,7 +17,6 @@
 """Definition of ROCm operator strategy."""
 # pylint: disable=invalid-name,unused-argument,unused-wildcard-import,wildcard-import
 from tvm import topi
-from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
 from tvm.contrib.thrust import can_use_rocthrust
 from tvm.contrib import miopen
