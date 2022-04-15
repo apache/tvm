@@ -17,61 +17,55 @@
 
 # Hexagon backend runtime
 
-The Hexagon runtime is a part of the TVM runtime that facilitates communication between a host and a Hexagon device. There are two types of host/device arrangements that are supported:
-- X86/Linux host running Hexagon simulator,
-- Android/AArch64 host running on a physical device containing a Hexagon module (i.e. CSDP or ADSP).
+The Hexagon runtime implements the functionality necessary for executing ML
+models on Hexagon hardware (or emulation).
 
-The TVM runtime that contains Hexagon runtime is the one executing on host.  In either case, there will need to be a separate TVM runtime (i.e.  the `libtvm_runtime.so` library) compiled for execution on Hexagon.
+The prerequisite is to have Hexagon SDK installed, version 4.0.0 or later.
 
-The prerequisite is to have Hexagon SDK installed, preferably version 3.5.0 or later. The Hexagon SDK can be downloaded from https://developer.qualcomm.com/software/hexagon-dsp-sdk.
+It is also recommended to use as recent version of LLVM as possible, version
+7.0.0 being the minimum (based on community feedback).
 
-It is also recommended to use as recent version of LLVM as possible, version 7.0.0 being the minimum (based on community feedback).
+### Compiling TVM with support for Hexagon for host (x86)
 
-### Compiling TVM runtime for x86
-
-This will use Hexagon simulator, which is provided in the Hexagon SDK.
-
-When configuring TVM (cmake), set the following variables:
+TVM running on host can serve as a cross-compiler that produces machine code
+for Hexagon. To enable that, certain elements of both, the compiler and the
+runtime need to include Hexagon-specific functionality. For the compiler, it
+is code generation, and for the runtime, it is the ability to represent
+modules with Hexagon code. Since Hexagon codegen is based on LLVM, LLVM
+codegen needs to be enabled as well. The set of cmake options to enable
+Hexagon support is
 ```
 USE_LLVM=llvm-config
-USE_HEXAGON_DEVICE=sim
+USE_HEXAGON=ON
 USE_HEXAGON_SDK=/path/to/sdk
 ```
 
-You can then build the entire TVM with the usual command (e.g. `make`).
+### Compiling TVM runtime for non-x86
 
-### Compiling TVM runtime for Android
+Aside from x86, there are two other platforms where support for Hexagon may
+be relevant. One of them is obviously Hexagon itself, the other one is
+Android. Neither of these platforms supports the compiler side of TVM, only
+runtime, and so the only compiler-related cmake option from the x86 build
+above can be omitted: USE_LLVM.
 
-This will use FastRPC mechanism to communicate between the AArch64 host and Hexagon.
-
-When configuring TVM (cmake), set the following variables:
+Additionally, for Android, set the toolchain and target flags:
 ```
-USE_LLVM=llvm-config
-USE_HEXAGON_DEVICE=device
+ANDROID_ABI=aarch64-v8a
+ANDROID_PLATFORM=android-28
+CMAKE_TOOLCHAIN_FILE=/path/to/android-ndk/build/cmake/android.toolchain.cmake
+USE_HEXAGON=ON
+USE_HEXAGON_ARCH=v65|v66|v68|v69
 USE_HEXAGON_SDK=/path/to/sdk
 ```
 
-You will need Android clang toolchain to compile the runtime.  It is provided in Android NDK r19 or newer.
-
-Set the C/C++ compiler to the Android clang for aarch64, and pass `-DCMAKE_CXX_FLAGS='-stdlib=libc++'` to the cmake command.
-
-Only build the `runtime` component of TVM (e.g. `make runtime`), building the entire TVM will not work.
-
-### Compiling TVM runtime for Hexagon
-
-The TVM runtime executing on Hexagon does not need to have support for Hexagon device in it (as it is only for communication between host and Hexagon device). In fact, it's only needed for basic services (like thread control), and so it should not contain support for any devices.
-
-When configuring TVM (cmake), set the following variables:
+Building for Hexagon requires setting the C/C++ compiler to `hexagon-clang/++`:
 ```
-USE_RPC=OFF
-USE_LLVM=OFF
-USE_HEXAGON_DEVICE=OFF
+CMAKE_C_COMPILER=hexagon-clang
+CMAKE_CXX_COMPILER=hexagon-clang++
+USE_HEXAGON=ON
+USE_HEXAGON_ARCH=v65|v66|v68|v69
 USE_HEXAGON_SDK=/path/to/sdk
 ```
 
-Please note that while suport for a Hexagon device is disabled, the Hexagon SDK is still needed and the path to it needs to be passed to cmake.
-
-Set the C/C++ compiler to `hexagon-clang` (included in the Hexagon SDK), and set `CMAKE_CXX_FLAGS='-stdlib=libc++'`.
-
-As in the case of Android, only build the `runtime` component (e.g.  `make runtime`).
+As mentioned before, only build the `runtime` component (e.g. `make runtime`).
 

@@ -293,20 +293,17 @@ set(USE_PT_TVMDSOOP OFF)
 # Whether to use STL's std::unordered_map or TVM's POD compatible Map
 set(USE_FALLBACK_STL_MAP OFF)
 
-# Whether to use hexagon device
-set(USE_HEXAGON_DEVICE OFF)
+# Whether to enable Hexagon support
+set(USE_HEXAGON OFF)
 set(USE_HEXAGON_SDK /path/to/sdk)
 
-# Whether to build the hexagon launcher
-set(USE_HEXAGON_LAUNCHER OFF)
-
-# Whether to build the minimal support android rpc server for hexagon
-set(USE_HEXAGON_PROXY_RPC OFF)
+# Whether to build the minimal support android rpc server for Hexagon
+set(USE_HEXAGON_RPC OFF)
 
 # Hexagon architecture to target when compiling TVM itself (not the target for
 # compiling _by_ TVM). This applies to components like the TVM runtime, but is
 # also used to select correct include/library paths from the Hexagon SDK when
-# building offloading runtime for Android.
+# building runtime for Android.
 # Valid values are v65, v66, v68, v69.
 set(USE_HEXAGON_ARCH "v66")
 
