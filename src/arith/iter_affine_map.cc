@@ -173,12 +173,13 @@ class IterMapRewriter : public ExprMutator {
  public:
   using Parent = ExprMutator;
 
-  explicit IterMapRewriter(Analyzer* analyzer, const Map<Var, Range>& input_iters)
+  explicit IterMapRewriter(Analyzer* analyzer, const Map<Var, Range>& input_iters,
+                           bool simplify_trivial_iterators)
       : analyzer_(analyzer) {
     for (auto kv : input_iters) {
       const Var& var = kv.first;
       const Range& vrng = kv.second;
-      if (is_one(vrng->extent)) {
+      if (simplify_trivial_iterators && is_one(vrng->extent)) {
         var_map_[var] = IterSumExpr({}, vrng->min);
       } else if (is_zero(vrng->min)) {
         IterMark mark(var, vrng->extent);
@@ -892,7 +893,7 @@ bool IterRangeSanityCheck(const Map<Var, Range>& iter_ranges) {
 
 Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                  const PrimExpr& predicate, bool require_bijective,
-                                 arith::Analyzer* analyzer) {
+                                 arith::Analyzer* analyzer, bool simplify_trivial_iterators) {
   // Overall detection algorithm is divided into two steps:
   // - Step0: IterMapRewriter rewrites the expression to use IterMapExpr patterns.
   // - Step1: IterIndependenceChecker checks if the iterator are independent.
@@ -914,7 +915,7 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
       constraints.begin(), constraints.end(),
       [](const IterConstraint& a, const IterConstraint& b) { return a.expr_size < b.expr_size; });
 
-  IterMapRewriter rewriter(analyzer, constrained_input_iters);
+  IterMapRewriter rewriter(analyzer, constrained_input_iters, simplify_trivial_iterators);
   // Step0.0: rewrite constraints in the order from size-small ones to size-big ones
   for (const IterConstraint& constraint : constraints) {
     auto res = rewriter.RewriteIterConstraint(constraint.iter, constraint.lower_bound,
@@ -942,9 +943,11 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
 
 TVM_REGISTER_GLOBAL("arith.DetectIterMap")
     .set_body_typed([](const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
-                       const PrimExpr& input_pred, bool is_bijective) {
+                       const PrimExpr& input_pred, bool is_bijective,
+                       bool simplify_trivial_iterators) {
       arith::Analyzer ana;
-      return DetectIterMap(indices, input_iters, input_pred, is_bijective, &ana);
+      return DetectIterMap(indices, input_iters, input_pred, is_bijective, &ana,
+                           simplify_trivial_iterators);
     });
 
 PrimExpr IterMapRewriter::VisitExpr_(const VarNode* op) {
