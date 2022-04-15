@@ -943,9 +943,11 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
 
 TVM_REGISTER_GLOBAL("arith.DetectIterMap")
     .set_body_typed([](const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
-                       const PrimExpr& input_pred, bool is_bijective) {
+                       const PrimExpr& input_pred, bool is_bijective,
+                       bool simplify_trivial_iterators) {
       arith::Analyzer ana;
-      return DetectIterMap(indices, input_iters, input_pred, is_bijective, &ana);
+      return DetectIterMap(indices, input_iters, input_pred, is_bijective, &ana,
+                           simplify_trivial_iterators);
     });
 
 PrimExpr IterMapRewriter::VisitExpr_(const VarNode* op) {
