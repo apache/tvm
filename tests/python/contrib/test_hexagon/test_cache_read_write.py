@@ -81,9 +81,6 @@ def verify(hexagon_session, s, x, y, z, size):
         s, [x, y, z], tvm.target.Target(target_hexagon, host=target_hexagon), name="dmacpy"
     )
 
-    if hexagon_session is None:
-        pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
-
     mod = hexagon_session.load_module(func)
     xt = tvm.nd.array(
         np.random.randint(low=-128, high=127, size=size, dtype=x.dtype),
