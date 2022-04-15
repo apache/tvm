@@ -17,8 +17,8 @@
 """
 .. _microtvm-train-arduino:
 
-Training Vision Models for microTVM
-===================================
+Training Vision Models for microTVM on Arduino
+==============================================
 **Author**: `Gavin Uberti <https://github.com/guberti>`_
 
 This tutorial shows how MobileNetV1 models can be trained
@@ -31,17 +31,25 @@ deployed to Arduino using TVM.
 #
 #   This tutorial is best viewed as a Jupyter Notebook. You can download and run it locally
 #   using the link at the bottom of this page, or open it online for free using Google Colab.
+#   Click the icon below to open in Google Colab.
+#
+# .. image:: https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Google_Colaboratory_SVG_Logo.svg/800px-Google_Colaboratory_SVG_Logo.svg.png
+#      :align: center
+#      :target: https://colab.research.google.com/github/guberti/tvm-site/blob/asf-site/docs/_downloads/a7c7ea4b5017ae70db1f51dd8e6dcd82/micro_train.ipynb
 #
 # Motivation
 # ----------
 # When building IOT devices, we often want them to **see and understand** the world around them.
 # This can take many forms, but often times a device will want to know if a certain **kind of
-# object** is in its field of vision. For example:
-# * A security camera might look for **people**, so it can decide whether to save a video to memory.
-# * A traffic light might look for **cars**, so it can judge which lights should change first.
-# * A forest camera might want to look for a **kind of animal**, so they can estimate how large the animal population is.
+# object** is in its field of vision.
+#
+# For example, a security camera might look for **people**, so it can decide whether to save a video
+# to memory. A traffic light might look for **cars**, so it can judge which lights should change
+# first. Or a forest camera might look for a **kind of animal**, so they can estimate how large
+# the animal population is.
+#
 # To make these devices affordable, we would like them to need only a low-cost processor like the
-# `nRF52840 <https://www.nordicsemi.com/Products/nRF52840>`_ (costing $5 each on Mouser) or the `RP2040 <https://www.raspberrypi.com/products/rp2040/>`_ (just $1.45 each!).
+# `nRF52840 <https://www.nordicsemi.com/Products/nRF52840>`_ (costing five dollars each on Mouser) or the `RP2040 <https://www.raspberrypi.com/products/rp2040/>`_ (just $1.45 each!).
 #
 # These devices have very little memory (~250 KB RAM), meaning that no conventional edge AI
 # vision model (like MobileNet or EfficientNet) will be able to run. In this tutorial, we will
@@ -57,6 +65,7 @@ deployed to Arduino using TVM.
 #
 #     .. code-block:: bash
 #
+#       %%bash
 #       pip install -q tensorflow tflite pyserial
 #       pip install -q tlcpack-nightly -f https://tlcpack.ai/wheels
 #       apt-get -qq install imagemagick curl
@@ -91,11 +100,39 @@ else:
 # will all live. If running on Google Colab, we'll save everything in ``/root`` (aka ``~``) but you'll
 # probably want to store it elsewhere if running locally.
 
+import os
 FOLDER = "/root"
-# .. testsetup::
+os.environ["FOLDER"] = FOLDER
+# sphinx_gallery_start_ignore
+# Training a model takes a lot of disc space and CPU time, and I don't want to
+# slow down the build of the docs. To solve this problem, we'll mock the
+# problematic methods, but still run most of the code so it serves as a test.
+# Note that this mocking code will not show up on the webpage or Colab notebook.
 import tempfile
+import unittest
 
+# Disable Tensorflow's complaining about misconfigured GPU
+tf.get_logger().setLevel('INFO')
+
+# Do our work in a tempfile instead of the Colab root directory
 FOLDER = tempfile.mkdtemp()
+
+# Don't mess with environment variables for bash
+del os.environ["FOLDER"]
+
+# Rather than download our image files, we will just make blank ones.
+os.mkdir(FOLDER + "/images")
+os.mkdir(FOLDER + "/images/object")
+os.mkdir(FOLDER + "/images/random")
+from PIL import Image
+for category, color in [("object", 0), ("random", 255)]:
+    for i in range(48):
+        img = Image.new("RGB", (100, 100), (color, color, color))
+        img.save(FOLDER + f"/images/{category}/{i:05d}.jpg", "JPEG")
+
+# Make our models directory where the .tflite file will be saved
+os.mkdir(FOLDER + "/models")
+# sphinx_gallery_end_ignore
 
 ######################################################################
 # Downloading the Data
@@ -111,7 +148,7 @@ FOLDER = tempfile.mkdtemp()
 #
 # To get our car images, we'll be downloading the `Stanford Cars dataset <http://ai.stanford.edu/~jkrause/cars/car_dataset.html>`_,
 # which contains 16,185 full color images of cars. We'll also need images of random things that
-# aren't cars, so we'll use the `COCO 2017 <https://cocodataset.org/#home>` validation set (it's
+# aren't cars, so we'll use the `COCO 2017 <https://cocodataset.org/#home>`_ validation set (it's
 # smaller, and thus faster to download than the full training set. Training on the full data set
 # would yield better results). Note that there are some cars in the COCO 2017 data set, but it's
 # a small enough fraction not to matter - just keep in mind that this will drive down our percieved
@@ -143,29 +180,17 @@ FOLDER = tempfile.mkdtemp()
 #
 #     .. code-block:: bash
 #
+#       %%bash
 #       # Download and extract our car images
-#       mkdir -p {FOLDER}/images/object/
-#       curl "http://ai.stanford.edu/~jkrause/car196/car_ims.tgz" -o {FOLDER}/images/object.tgz
-#       tar -xf {FOLDER}/images/object.tgz --strip-components 1 -C {FOLDER}/images/object#
+#       mkdir -p $FOLDER/images/object/
+#       curl "http://ai.stanford.edu/~jkrause/car196/car_ims.tgz" -o $FOLDER/images/object.tgz
+#       tar -xf $FOLDER/images/object.tgz --strip-components 1 -C $FOLDER/images/object
 #
 #       # Download and extract other images
-#       mkdir -p {FOLDER}/images/random/
-#       curl "http://images.cocodataset.org/zips/val2017.zip" -o {FOLDER}/images/random.zip
-#       unzip -jqo {FOLDER}/images/random.zip -d {FOLDER}/images/random
-
-import os
-
-os.mkdir(FOLDER + "/images")
-os.mkdir(FOLDER + "/images/object")
-os.mkdir(FOLDER + "/images/random")
-from PIL import Image
-
-for category in ["object", "random"]:
-    for i in range(48):
-        img = Image.new("RGB", (100, 100), (255, 255, 255))
-        img.save(FOLDER + f"/images/{category}/{i:05d}.jpg", "JPEG")
-
-######################################################################
+#       mkdir -p $FOLDER/images/random/
+#       curl "http://images.cocodataset.org/zips/val2017.zip" -o $FOLDER/images/random.zip
+#       unzip -jqo $FOLDER/images/random.zip -d $FOLDER/images/random
+#
 # Loading the Data
 # ----------------
 # Currently, our data is stored on-disk as JPG files of various sizes. To train with it, we'll have
@@ -194,7 +219,7 @@ unscaled_dataset = tf.keras.utils.image_dataset_from_directory(
     batch_size=32,
     shuffle=True,
     label_mode="categorical",
-    image_size=(96, 96),
+    image_size=(64, 64),
 )
 rescale = tf.keras.layers.Rescaling(scale=1.0 / 255)
 full_dataset = unscaled_dataset.map(lambda im, lbl: (rescale(im), lbl))
@@ -287,15 +312,18 @@ validation_dataset = full_dataset.skip(len(train_dataset))
 #
 #     .. code-block:: bash
 #
-#       mkdir -p {FOLDER}/models
+#       %%bash
+#       mkdir -p $FOLDER/models
 #       curl "https://storage.googleapis.com/tensorflow/keras-applications/mobilenet/mobilenet_2_5_128_tf.h5" \
-#         -o {FOLDER}/models/mobilenet_2_5_128_tf.h5
+#         -o $FOLDER/models/mobilenet_2_5_128_tf.h5
+#
 
-IMAGE_SIZE = (96, 96, 3)
+IMAGE_SIZE = (64, 64, 3)
 WEIGHTS_PATH = FOLDER + "/models/mobilenet_2_5_128_tf.h5"
-# .. doctest::
-os.mkdir(FOLDER + "/models")
+# sphinx_gallery_start_ignore
+# Use random weights instead of ones from the file we did not download
 WEIGHTS_PATH = None
+# sphinx_gallery_end_ignore
 pretrained = tf.keras.applications.MobileNet(
     input_shape=IMAGE_SIZE, weights=WEIGHTS_PATH, alpha=0.25
 )
@@ -338,6 +366,10 @@ model.compile(
     loss="categorical_crossentropy",
     metrics=["accuracy"],
 )
+# sphinx_gallery_start_ignore
+# Skip training to save time
+model.fit = unittest.mock.create_autospec(model.fit)
+# sphinx_gallery_end_ignore
 model.fit(train_dataset, validation_data=validation_dataset, epochs=3, verbose=2)
 
 ######################################################################
@@ -365,11 +397,9 @@ model.fit(train_dataset, validation_data=validation_dataset, epochs=3, verbose=2
 
 converter = tf.lite.TFLiteConverter.from_keras_model(model)
 
-
 def representative_dataset():
     for image_batch, label_batch in full_dataset.take(3):
         yield [image_batch]
-
 
 converter.optimizations = [tf.lite.Optimize.DEFAULT]
 converter.representative_dataset = representative_dataset
@@ -383,17 +413,16 @@ quantized_model = converter.convert()
 # Download the Model if Desired
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 # We've now got a finished model, that you can use locally or in other tutorials (try autotuning
-# this model or viewing it on `https://netron.app/ <https://netron.app/>`_. If you're running this
-# tutorial on Google Colab, then the code below will let you download your ``.tflite`` model.
-#
-#     .. code-block:: python
-#
-#       from google.colab import files
-#       QUANTIZED_MODEL_PATH = '/root/models/quantized.tflite'
-#       with open(QUANTIZED_MODEL_PATH, 'wb') as f:
-#         f.write(quantized_model)
-#       files.download(QUANTIZED_MODEL_PATH)
-#
+# this model or viewing it on `https://netron.app/ <https://netron.app/>`_). But before we do
+# those things, we'll have to write it to a file (``quantized.tflite``). If you're running this
+# tutorial on Google Colab, you'll have to uncomment the last two lines to download the file
+# after writing it.
+
+QUANTIZED_MODEL_PATH = FOLDER + "/models/quantized.tflite"
+with open(QUANTIZED_MODEL_PATH, 'wb') as f:
+  f.write(quantized_model)
+#from google.colab import files
+#files.download(QUANTIZED_MODEL_PATH)
 
 ######################################################################
 # Compiling With TVM For Arduino
@@ -458,12 +487,15 @@ executor = tvm.relay.backend.Executor("aot", {"unpacked-api": True})
 # Convert to the MLF intermediate representation
 with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
     mod = tvm.relay.build(mod, target, runtime=runtime, executor=executor, params=params)
+# sphinx_gallery_start_ignore
+# Mock the generate project function so we can skip installing arduino-cli
+tvm.micro.generate_project = unittest.mock.create_autospec(
+    tvm.micro.generate_project,
+    return_value=unittest.mock.MagicMock()
+)
+# sphinx_gallery_end_ignore
 
 # Generate an Arduino project from the MLF intermediate representation
-from unittest.mock import create_autospec, MagicMock
-
-tvm.micro.generate_project = create_autospec(tvm.micro.generate_project, return_value=MagicMock())
-
 shutil.rmtree(FOLDER + "/models/project", ignore_errors=True)
 arduino_project = tvm.micro.generate_project(
     tvm.micro.get_microtvm_template_projects("arduino"),
@@ -475,6 +507,9 @@ arduino_project = tvm.micro.generate_project(
         "project_type": "example_project",
     },
 )
+# sphinx_gallery_start_ignore
+os.mkdir(FOLDER + "/models/project")
+# sphinx_gallery_end_ignore
 
 ######################################################################
 # Testing our Arduino Project
@@ -482,6 +517,11 @@ arduino_project = tvm.micro.generate_project(
 # Consider the following two 224x224 images from the author's camera roll - one of a car, one not.
 # We will test our Arduino project by loading both of these images, and executing the compiled model
 # on them both.
+#
+# .. image:: https://i.imgur.com/mLkmxBm.png
+#      :align: center
+#      :height: 200px
+#      :width: 600px
 #
 # Currently, these are 224x224 PNG images we can download from Imgur. Before we can feed in these
 # images, we'll need to resize and convert them to raw data, which can be done with ``imagemagick``.
@@ -502,6 +542,7 @@ arduino_project = tvm.micro.generate_project(
 #
 #     .. code-block:: bash
 #
+#       %%bash
 #       mkdir -p /root/tests
 #       curl "https://i.imgur.com/JBbEhxN.png" -o ~/tests/car_224.png
 #       convert ~/tests/car_224.png -resize 64 ~/tests/car_64.png
@@ -518,10 +559,11 @@ arduino_project = tvm.micro.generate_project(
 # --------------------------
 # We now need a little bit of Arduino code to read the two binary arrays we just generated, run the
 # model on them, and log the output to the serial monitor. This file will replace ``arduino_sketch.ino``
-# as the main file of our sketch. You'll have to copy this code in manually.
+# as the main file of our sketch. You'll have to copy this code in manually..
 #
 #     .. code-block:: c
 #
+#         %%writefile /root/models/project.ino
 #         #include "src/model.h"
 #         #include "car.c"
 #         #include "catan.c"
@@ -546,7 +588,7 @@ arduino_project = tvm.micro.generate_project(
 #           delay(1000);
 #         }
 #
-# Compiling our Code
+# Compiling Our Code
 # ^^^^^^^^^^^^^^^^^^
 # Now that our project has been generated, TVM's job is mostly done! We can still call
 # ``arduino_project.build()`` and ``arduino_project.upload()``, but these just use ``arduino-cli``'s
@@ -554,12 +596,52 @@ arduino_project = tvm.micro.generate_project(
 # subject for a different tutorial. To finish up, we'll first test that our program compiles does
 # not throw any compiler errors:
 
+shutil.rmtree(FOLDER + "/models/project/build", ignore_errors=True)
 arduino_project.build()
 print("Compilation succeeded!")
 
 ######################################################################
+# Uploading to Our Device
+# -----------------------
+# The very last step is uploading our sketch to an Arduino to make sure our code works properly.
+# Unfortunately, we can't do that from Google Colab, so we'll have to download our sketch. This is
+# simple enough to do - we'll just turn our project into a `.zip` archive, and call `files.download`.
+# If you're running on Google Colab, you'll have to uncomment the last two lines to download the file
+# after writing it.
+
+ZIP_FOLDER = FOLDER + "/models/project"
+shutil.make_archive(ZIP_FOLDER, 'zip', ZIP_FOLDER)
+#from google.colab import files
+#files.download("/root/models/project.zip")
+# sphinx_gallery_start_ignore
+# Run a few unit tests to make sure the Python code worked
+
+# Ensure transfer learn model was correctly assembled
+assert len(model.layers) == 5
+assert model.count_params() == 219058 # Only 219,058 of these are trainable
+
+assert len(quantized_model) >= 250000 # Quantized model will be 250 KB - 350 KB
+assert len(quantized_model) <= 350000 # Exact value depends on quantization
+
+# Assert .tflite and .zip files were written to disk
+assert os.path.isfile(FOLDER + "/models/quantized.tflite")
+assert os.path.isfile(FOLDER + "/models/project.zip")
+
+# Assert MLF file was correctly generated
+assert str(mod.executor) == "aot"
+
+# Remove the temporary folder we generated at the beginning
+shutil.rmtree(FOLDER)
+# sphinx_gallery_end_ignore
+
+
+######################################################################
+# From here, we'll need to open it in the Arduino IDE. You'll have to download the IDE as well as
+# the SDK for whichever board you are using. For certain boards like the Sony SPRESENSE, you may
+# have to change settings to control how much memory you want the board to use.
+#
 # Expected Results
-# ^^^^^^^^^^^^^^^^^^
+# ^^^^^^^^^^^^^^^^
 # If all works as expected, you should see the following output on a Serial monitor:
 #
 #     .. code-block::
@@ -587,3 +669,4 @@ print("Compilation succeeded!")
 # From here, we could modify the model to read live images from the camera - we have another
 # Arduino tutorial for how to do that `on GitHub <https://github.com/guberti/tvm-arduino-demos/tree/master/examples/person_detection>`_. Alternatively, we could also
 # `use TVM's autotuning capabilities <https://tvm.apache.org/docs/how_to/work_with_microtvm/micro_autotune.html>`_ to dramatically improve the model's performance.
+#
