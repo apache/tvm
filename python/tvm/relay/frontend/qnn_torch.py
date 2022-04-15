@@ -33,7 +33,7 @@ class QNNParam(object):
 
     def __init__(self, weight, bias, scale, zero_point):
         self.weight = weight
-        self.bias = None if not bias else bias.detach().numpy()
+        self.bias = None if bias is None else bias.detach().numpy()
         self.scale = _expr.const(scale)
         self.zero_point = _expr.const(zero_point, dtype="int32")
 
