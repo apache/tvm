@@ -72,18 +72,20 @@ def test_get_top_results_keep_results():
     assert len(sut[1]) == expected_number_of_results_per_line
 
 
+@pytest.mark.parametrize("use_vm", [True, False])
 def test_run_tflite_module__with_profile__valid_input(
-    tflite_mobilenet_v1_1_quant, tflite_compile_model, imagenet_cat
+    use_vm, tflite_mobilenet_v1_1_quant, tflite_compile_model, imagenet_cat
 ):
     # some CI environments wont offer TFLite, so skip in case it is not present
     pytest.importorskip("tflite")
 
     inputs = np.load(imagenet_cat)
+    input_dict = {"input": inputs["input"].astype("uint8")}
 
-    tflite_compiled_model = tflite_compile_model(tflite_mobilenet_v1_1_quant)
+    tflite_compiled_model = tflite_compile_model(tflite_mobilenet_v1_1_quant, use_vm=use_vm)
     result = tvmc.run(
         tflite_compiled_model,
-        inputs=inputs,
+        inputs=input_dict,
         hostname=None,
         device="cpu",
         profile=True,

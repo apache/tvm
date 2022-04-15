@@ -30,6 +30,7 @@ from tvm.relay.testing import byoc
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.backend import Executor, Runtime
 from tvm import WorkspaceMemoryPools, PoolInfo
+from tvm.micro import model_library_format as mlf
 from aot_test_utils import (
     AOTTestModel,
     AOTTestRunner,
@@ -39,6 +40,7 @@ from aot_test_utils import (
     compile_models,
     parametrize_aot_options,
     run_and_check,
+    create_relay_module_and_inputs_from_tflite_file,
 )
 
 
@@ -202,23 +204,6 @@ def test_byoc_microtvm(merge_compiler_regions):
     )
 
 
-def _get_relay_module_and_inputs_from_tflite_file(tflite_model_file):
-    with open(tflite_model_file, "rb") as f:
-        tflite_model_buf = f.read()
-    mod, params = convert_to_relay(tflite_model_buf)
-
-    inputs = dict()
-    for param in mod["main"].params:
-        name = str(param.name_hint)
-        data_shape = [int(i) for i in param.type_annotation.shape]
-        dtype = str(param.type_annotation.dtype)
-        in_min, in_max = (np.iinfo(dtype).min, np.iinfo(dtype).max)
-        data = np.random.randint(in_min, high=in_max, size=data_shape, dtype=dtype)
-        inputs[name] = data
-
-    return mod, inputs, params
-
-
 MOBILENET_V1_URL = (
     "https://storage.googleapis.com/download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
     "mobilenet_v1_1.0_224_quant.tflite",
@@ -253,7 +238,7 @@ def test_tflite_model_u1_usecase(model_url, usmp_algo, workspace_size):
         model_url[0],
         model_url[1],
     )
-    mod, inputs, params = _get_relay_module_and_inputs_from_tflite_file(tflite_model_file)
+    mod, inputs, params = create_relay_module_and_inputs_from_tflite_file(tflite_model_file)
     output_list = generate_ref_data(mod, inputs, params)
 
     compiled_test_mods = compile_models(
@@ -266,15 +251,16 @@ def test_tflite_model_u1_usecase(model_url, usmp_algo, workspace_size):
     for compiled_model in compiled_test_mods:
         check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
 
-    # Checking the workspace size
-    assert (
-        sum(
-            compiled_model.executor_factory.function_metadata[
-                "__tvm_main__"
-            ].workspace_sizes.values()
-        )
-        == workspace_size
+    # Checking the workspace size reported in model library format
+    mlf_memory_map = mlf._build_function_memory_map(
+        compiled_test_mods[0].executor_factory.function_metadata
     )
+    assert mlf_memory_map["main"][0]["workspace_size_bytes"] == workspace_size
+    # That should match to workspace size that will be codegen'd to the entry point.
+    allocated_pool_info = list(
+        dict(compiled_test_mods[0].executor_factory.executor_codegen_metadata.pool_inputs).values()
+    )[0]
+    assert allocated_pool_info.allocated_size == workspace_size
 
     run_and_check(
         models=compiled_test_mods,
@@ -324,7 +310,7 @@ def test_tflite_model_u3_usecase_single_external_pool(model_url, usmp_algo):
         model_url[0],
         model_url[1],
     )
-    mod, inputs, params = _get_relay_module_and_inputs_from_tflite_file(tflite_model_file)
+    mod, inputs, params = create_relay_module_and_inputs_from_tflite_file(tflite_model_file)
     output_list = generate_ref_data(mod, inputs, params)
 
     compiled_test_mods = compile_models(
@@ -384,7 +370,7 @@ def test_tflite_model_u3_usecase_two_external_pools(model_url, usmp_algo):
         model_url[0],
         model_url[1],
     )
-    mod, inputs, params = _get_relay_module_and_inputs_from_tflite_file(tflite_model_file)
+    mod, inputs, params = create_relay_module_and_inputs_from_tflite_file(tflite_model_file)
     output_list = generate_ref_data(mod, inputs, params)
 
     compiled_test_mods = compile_models(
@@ -438,14 +424,14 @@ def test_tflite_model_u2_usecase_two_models_with_a_single_external_pool(model_ur
         model_urls[0][0],
         model_urls[0][1],
     )
-    mod1, inputs1, params1 = _get_relay_module_and_inputs_from_tflite_file(tflite_model_file1)
+    mod1, inputs1, params1 = create_relay_module_and_inputs_from_tflite_file(tflite_model_file1)
     output_list1 = generate_ref_data(mod1, inputs1, params1)
 
     tflite_model_file2 = tf_testing.get_workload_official(
         model_urls[1][0],
         model_urls[1][1],
     )
-    mod2, inputs2, params2 = _get_relay_module_and_inputs_from_tflite_file(tflite_model_file2)
+    mod2, inputs2, params2 = create_relay_module_and_inputs_from_tflite_file(tflite_model_file2)
     output_list2 = generate_ref_data(mod2, inputs2, params2)
 
     compiled_test_mods = compile_models(

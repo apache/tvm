@@ -87,6 +87,8 @@ ALLOW_EXTENSION = {
     "ino",
     # linker scripts
     "ld",
+    # Jinja2 templates
+    "j2",
 }
 
 # List of file names allowed
@@ -102,7 +104,7 @@ ALLOW_FILE_NAME = {
     "log4j.properties",
     ".clang-format",
     ".gitmodules",
-    "CODEOWNERS",
+    "CODEOWNERSHIP",
     ".scalafmt.conf",
     "Cargo.lock",
     "with_the_same_user",

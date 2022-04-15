@@ -545,10 +545,8 @@ def wrap_compute_conv3d(topi_compute, need_layout=False, need_auto_scheduler_lay
         (dilation_d, dilation_h, dilation_w) = dilation
         if dilation_d < 1 or dilation_h < 1 or dilation_w < 1:
             raise ValueError("Dilation should be positive value")
-        if groups != 1:
-            raise ValueError("Not support arbitrary group number for conv3d")
 
-        args = [inputs[0], inputs[1], strides, padding, dilation]
+        args = [inputs[0], inputs[1], strides, padding, dilation, groups]
         if need_layout:
             args.append(layout)
         args.append(out_dtype)

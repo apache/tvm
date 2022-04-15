@@ -50,14 +50,16 @@ def compacted_elementwise_func(a: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def flattened_elementwise_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-    C = T.match_buffer(c, (16, 16), "float32")
+    A = T.match_buffer(a, 256, "float32")
+    C = T.match_buffer(c, 256, "float32")
+    T.preflattened_buffer(A, (16, 16), dtype="float32", data=A.data)
+    T.preflattened_buffer(C, (16, 16), dtype="float32", data=C.data)
     for i in T.serial(0, 16):
         B_new = T.allocate([16], "float32", "global")
         for j in T.serial(0, 16):
-            B_new[j] = T.load("float32", A.data, ((i * 16) + j)) + 1.0
+            B_new[j] = A[((i * 16) + j)] + 1.0
         for j in T.serial(0, 16):
-            C.data[((i * 16) + j)] = T.load("float32", B_new, j) * 2.0
+            C[((i * 16) + j)] = B_new[j] * 2.0
 
 
 @T.prim_func
@@ -85,8 +87,10 @@ def compacted_gpu_func(a: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def flattened_gpu_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-    C = T.match_buffer(c, (16, 16), "float32")
+    A = T.match_buffer(a, 256, "float32")
+    C = T.match_buffer(c, 256, "float32")
+    T.preflattened_buffer(A, (16, 16), dtype="float32", data=A.data)
+    T.preflattened_buffer(C, (16, 16), dtype="float32", data=C.data)
 
     i0 = T.env_thread("blockIdx.x")
     i1 = T.env_thread("threadIdx.x")
@@ -97,9 +101,9 @@ def flattened_gpu_func(a: T.handle, c: T.handle) -> None:
     T.launch_thread(i2, 2)
     B = T.allocate([16], "float32", "local")
     for j in range(0, 16):
-        B[j] = T.load("float32", A.data, i0 * 64 + i1 * 32 + i2 * 16 + j) + 1.0
+        B[j] = A[i0 * 64 + i1 * 32 + i2 * 16 + j] + 1.0
     for j in range(0, 16):
-        C.data[i0 * 64 + i1 * 32 + i2 * 16 + j] = T.load("float32", B, j) * 2.0
+        C[i0 * 64 + i1 * 32 + i2 * 16 + j] = B[j] * 2.0
 
 
 @T.prim_func
@@ -126,15 +130,17 @@ def compacted_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) ->
 
 @T.prim_func
 def flattened_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
-    A = T.match_buffer(a, (n, m), "float32")
-    C = T.match_buffer(c, (n, m), "float32")
+    A = T.match_buffer(a, n * m, "float32")
+    C = T.match_buffer(c, n * m, "float32")
+    T.preflattened_buffer(A, (n, m), "float32", data=A.data)
+    T.preflattened_buffer(C, (n, m), "float32", data=C.data)
 
     for i in range(0, n):
         B = T.allocate([m], "float32", "global")
         for j in range(0, m):
-            B[j] = T.load("float32", A.data, i * m + j) + 1.0
+            B[j] = A[i * m + j] + 1.0
         for j in range(0, m):
-            C.data[i * m + j] = T.load("float32", B, j) * 2.0
+            C[i * m + j] = B[j] * 2.0
 
 
 @T.prim_func
@@ -154,10 +160,12 @@ def compacted_predicate_func(a: T.handle, c: T.handle) -> None:
 def flattened_predicate_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (32), "float32")
     C = T.match_buffer(c, (32), "float32")
+    T.preflattened_buffer(A, (32), "float32", data=A.data)
+    T.preflattened_buffer(C, (32), "float32", data=C.data)
 
     for i, j in T.grid(5, 7):
         if i * 7 + j < 32:
-            C.data[i * 7 + j] = T.load("float32", A.data, i * 7 + j) + 1.0
+            C[i * 7 + j] = A[i * 7 + j] + 1.0
 
 
 @T.prim_func
@@ -176,9 +184,11 @@ def compacted_unit_loop_func(a: T.handle, c: T.handle) -> None:
 def flattened_unit_loop_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (32), "float32")
     C = T.match_buffer(c, (32), "float32")
+    T.preflattened_buffer(A, (32), "float32", data=A.data)
+    T.preflattened_buffer(C, (32), "float32", data=C.data)
 
     for x, z in T.grid(4, 8):
-        C.data[x * 8 + z] = T.load("float32", A.data, x * 8 + z) + 1.0
+        C[x * 8 + z] = A[x * 8 + z] + 1.0
 
 
 @T.prim_func
@@ -201,13 +211,15 @@ def compacted_multi_alloc_func(a: T.handle, d: T.handle) -> None:
 def flattened_multi_alloc_func(a: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (32), "float32")
     D = T.match_buffer(d, (32), "float32")
+    T.preflattened_buffer(A, (32), "float32", data=A.data)
+    T.preflattened_buffer(D, (32), "float32", data=D.data)
 
     for i in range(0, 32):
         B = T.allocate((32,), "float32", "global")
         C = T.allocate((32,), "float32", "global")
-        B[i] = T.load("float32", A.data, i) + 1.0
-        C[i] = T.load("float32", A.data, i) + T.load("float32", B, i)
-        D.data[i] = T.load("float32", C, i) * 2.0
+        B[i] = A[i] + 1.0
+        C[i] = A[i] + B[i]
+        D[i] = C[i] * 2.0
 
 
 @T.prim_func
@@ -235,16 +247,18 @@ def compacted_strided_buffer_func(a: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def flattened_strided_buffer_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-    C = T.match_buffer(c, (16, 16), "float32")
+    A = T.match_buffer(a, (256,), "float32")
+    C = T.match_buffer(c, (256,), "float32")
+    T.preflattened_buffer(A, [16, 16], dtype="float32", data=A.data)
+    T.preflattened_buffer(C, [16, 16], dtype="float32", data=C.data)
     for i0 in T.serial(0, 4):
         B_new = T.allocate([68], "float32", "global")
         for i1 in T.serial(0, 4):
             for j in T.serial(0, 16):
-                B_new[i1 * 17 + j] = T.load("float32", A.data, i0 * 64 + i1 * 16 + j) + 1.0
+                B_new[i1 * 17 + j] = A[i0 * 64 + i1 * 16 + j] + 1.0
         for i1 in T.serial(0, 4):
             for j in T.serial(0, 16):
-                C.data[i0 * 64 + i1 * 16 + j] = T.load("float32", B_new, i1 * 17 + j) * 2.0
+                C[i0 * 64 + i1 * 16 + j] = B_new[i1 * 17 + j] * 2.0
 
 
 @T.prim_func

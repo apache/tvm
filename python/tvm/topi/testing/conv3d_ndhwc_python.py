@@ -21,7 +21,7 @@ import scipy.signal
 from tvm.topi.nn.utils import get_pad_tuple3d
 
 
-def conv3d_ndhwc_python(a_np, w_np, stride, padding):
+def _conv3d_ndhwc_python(a_np, w_np, stride, padding):
     """Convolution 3D operator in NDHWC layout.
 
     Parameters
@@ -37,8 +37,6 @@ def conv3d_ndhwc_python(a_np, w_np, stride, padding):
 
     padding : int or str or a list/tuple of three ints
         Padding size, or ['VALID', 'SAME'], or [pad_depth, pad_height, pad_width]
-    groups : int
-        Number of groups
 
     Returns
     -------
@@ -66,13 +64,15 @@ def conv3d_ndhwc_python(a_np, w_np, stride, padding):
     # change the layout from NHWC to NCHW
     at = a_np.transpose((0, 4, 1, 2, 3))
     wt = w_np.transpose((4, 3, 0, 1, 2))
-    bt = np.zeros((batch, out_channel, out_depth, out_height, out_width))
+    bt = np.zeros((batch, out_channel, out_depth, out_height, out_width), dtype=a_np.dtype)
     # computation
     for n in range(batch):
         for f in range(out_channel):
             for c in range(in_channel):
                 if pad_d > 0 or pad_h > 0 or pad_w > 0:
-                    apad = np.zeros((in_depth + pad_d, in_height + pad_h, in_width + pad_w))
+                    apad = np.zeros(
+                        (in_depth + pad_d, in_height + pad_h, in_width + pad_w), dtype=a_np.dtype
+                    )
                     apad[
                         pad_front : pad_front + in_depth,
                         pad_top : pad_top + in_height,
@@ -83,3 +83,38 @@ def conv3d_ndhwc_python(a_np, w_np, stride, padding):
                 out = scipy.signal.convolve(apad, np.flip(wt[f, c]), mode="valid")
                 bt[n, f] += out[::stride_d, ::stride_h, ::stride_w]
     return bt.transpose((0, 2, 3, 4, 1))
+
+
+def conv3d_ndhwc_python(a_np, w_np, stride, padding, groups=1):
+    """Convolution 3D operator in NDHWC layout.
+
+    Parameters
+    ----------
+    a_np : numpy.ndarray
+        5-D with shape [batch, in_channel, in_depth, in_height, in_width]
+
+    w_np : numpy.ndarray
+        5-D with shape [num_filter, in_channel, filter_depth, filter_height, filter_width]
+
+    stride : int or a list/tuple of three ints
+        Stride size, or [stride_depth, stride_height, stride_width]
+
+    padding : int or str or a list/tuple of three ints
+        Padding size, or ['VALID', 'SAME'], or [pad_depth, pad_height, pad_width]
+
+    groups : int
+        Number of groups
+
+    Returns
+    -------
+    b_np : np.ndarray
+        5-D with shape [batch, out_channel, out_depth, out_height, out_width]
+    """
+    a_slices = np.array_split(a_np, groups, axis=4)
+    w_slices = np.array_split(w_np, groups, axis=4)
+    b_slices = [
+        _conv3d_ndhwc_python(a_slice, w_slice, stride, padding)
+        for a_slice, w_slice in zip(a_slices, w_slices)
+    ]
+    b_np = np.concatenate(b_slices, axis=4)
+    return b_np

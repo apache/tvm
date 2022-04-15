@@ -113,6 +113,17 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
             tvm.testing.assert_allclose(kout, tout, rtol=1e-5, atol=1e-5)
 
 
+def get_mobilenet(keras):
+    if hasattr(keras.applications, "MobileNet"):
+        # Keras 2.4.x and older
+        MobileNet = keras.applications.MobileNet
+    else:
+        # Keras 2.6.x and newer
+        MobileNet = keras.applications.mobilenet.MobileNet
+
+    return MobileNet
+
+
 @tvm.testing.uses_gpu
 class TestKeras:
     scenarios = [using_classic_keras, using_tensorflow_keras]
@@ -466,25 +477,48 @@ class TestKeras:
             verify_keras_frontend(keras_model, need_transpose=False)
 
     def test_forward_vgg16(self, keras, layout="NCHW"):
-        keras_model = keras.applications.VGG16(
+        if hasattr(keras.applications, "VGG16"):
+            # Keras 2.4.x and older
+            VGG16 = keras.applications.VGG16
+        else:
+            # Keras 2.6.x and newer
+            VGG16 = keras.applications.vgg16.VGG16
+
+        keras_model = VGG16(
             include_top=True, weights="imagenet", input_shape=(224, 224, 3), classes=1000
         )
         verify_keras_frontend(keras_model, layout=layout)
 
     def test_forward_xception(self, keras, layout="NCHW"):
-        keras_model = keras.applications.Xception(
+        if hasattr(keras.applications, "Xception"):
+            # Keras 2.4.x and older
+            Xception = keras.applications.Xception
+        else:
+            # Keras 2.6.x and newer
+            Xception = keras.applications.xception.Xception
+
+        keras_model = Xception(
             include_top=True, weights="imagenet", input_shape=(299, 299, 3), classes=1000
         )
         verify_keras_frontend(keras_model, layout=layout)
 
     def test_forward_resnet50(self, keras, layout="NCHW"):
-        keras_model = keras.applications.ResNet50(
+        if hasattr(keras.applications, "ResNet50"):
+            # Keras 2.4.x and older
+            ResNet50 = keras.applications.ResNet50
+        else:
+            # Keras 2.6.x and newer
+            ResNet50 = keras.applications.resnet.ResNet50
+
+        keras_model = ResNet50(
             include_top=True, weights="imagenet", input_shape=(224, 224, 3), classes=1000
         )
         verify_keras_frontend(keras_model, layout=layout)
 
     def test_forward_mobilenet(self, keras, layout="NCHW"):
-        keras_model = keras.applications.MobileNet(
+        MobileNet = get_mobilenet(keras)
+
+        keras_model = MobileNet(
             include_top=True, weights="imagenet", input_shape=(224, 224, 3), classes=1000
         )
         verify_keras_frontend(keras_model, layout=layout)
@@ -608,9 +642,9 @@ class TestKeras:
             verify_keras_frontend(keras_model, layout="NDHWC")
 
     def test_forward_nested_layers(self, keras):
-        sub_model = keras.applications.MobileNet(
-            include_top=False, weights="imagenet", input_shape=(224, 224, 3)
-        )
+        MobileNet = get_mobilenet(keras)
+
+        sub_model = MobileNet(include_top=False, weights="imagenet", input_shape=(224, 224, 3))
         keras_model = keras.Sequential(
             [
                 sub_model,

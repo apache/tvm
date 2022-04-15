@@ -78,14 +78,14 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetOutput(); });
   } else if (name == "run") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Run(args[0]); });
-  } else if (name == "stop") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Stop(); });
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Run(); });
+  } else if (name == "get_execute_count") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetExecutionCount(); });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc();
   }
-  return nullptr;
 }
 
 /*!
@@ -96,7 +96,6 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
 void PipelineExecutor::SetInput(std::string input_name, DLTensor* data_in) {
   std::pair<int, int> indexs = this->GetInputIndex(input_name);
   if (indexs.first < 0 || indexs.first >= static_cast<int>(runtimes_.size())) {
-    this->Stop();
     LOG(FATAL) << "input name " << input_name << " not found.";
   }
   runtimes_[indexs.first]->SetInput(indexs.second, data_in);
@@ -109,7 +108,6 @@ void PipelineExecutor::SetInput(std::string input_name, DLTensor* data_in) {
 NDArray PipelineExecutor::GetInput(std::string input_name) {
   std::pair<int, int> indexs = this->GetInputIndex(input_name);
   if (indexs.first < 0 || indexs.first >= static_cast<int>(runtimes_.size())) {
-    this->Stop();
     LOG(FATAL) << "input name " << input_name << " not found.";
   }
   return runtimes_[indexs.first]->GetInput(indexs.second);
@@ -142,22 +140,12 @@ int PipelineExecutor::GetParamsGroupPipelineMap(const std::string& name) {
   return param_connection_config[name];
 }
 
-/*!
- * \brief Run the pipeline executor.
- * \param serialized_mode Whether run the pipeline executor in serialized mode.
- */
-void PipelineExecutor::Run(bool serialized_mode) {
-  pipeline_scheduler_.PipelineRun(runtimes_, pipeline_config_, serialized_mode);
-}
+/*!\brief Run the pipeline executor.*/
+void PipelineExecutor::Run() { pipeline_scheduler_.PipelineRun(runtimes_, pipeline_config_); }
 /*!
  * \brief return A list of global output data.
  */
 Array<NDArray> PipelineExecutor::GetOutput(void) { return pipeline_scheduler_.PipelineGetOutput(); }
-/*!
- * \brief Stop the pipeline executor.
- */
-void PipelineExecutor::Stop() { pipeline_scheduler_.PipelineStop(); }
-
 /*!
  * \brief Use the mod_config information to create a graph runtime list.
  * \param mod_config The config information that generates by the export library function call.
@@ -242,6 +230,10 @@ std::pair<int, int> PipelineExecutor::GetInputIndex(const std::string& name) {
   auto gruntime = runtimes_[index.first];
   return std::make_pair(index.first, gruntime->GetInputIndex(index.second));
 }
+/*!
+ * \brief Getting the count of running pipeline.
+ */
+int PipelineExecutor::GetExecutionCount() { return runtimes_.back()->GetExecutionCount(); }
 /*!
  * \brief Initialize the pipeline executor with a list of modules to be pipelined
  *  and config in JSON format.

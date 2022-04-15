@@ -68,6 +68,8 @@ import ctypes
 import functools
 import logging
 import os
+import platform
+import shutil
 import sys
 import time
 import pickle
@@ -83,6 +85,10 @@ from tvm.contrib import nvcc, cudnn
 from tvm.error import TVMError
 from tvm.relay.op.contrib.ethosn import ethosn_available
 from tvm.relay.op.contrib import cmsisnn
+from tvm.relay.op.contrib import vitis_ai
+
+
+SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
 
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
@@ -212,7 +218,7 @@ def check_numerical_grads(
         wrong_percentage = int(100 * len(wrong_positions) / np.prod(grad.shape))
 
         dist = np.sqrt(np.sum((ngrad - grad) ** 2))
-        grad_norm = np.sqrt(np.sum(ngrad ** 2))
+        grad_norm = np.sqrt(np.sum(ngrad**2))
 
         if not (np.isfinite(dist) and np.isfinite(grad_norm)):
             raise ValueError(
@@ -516,6 +522,17 @@ def _compose(args, decs):
     return decs
 
 
+def slow(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        if SKIP_SLOW_TESTS:
+            pytest.skip("Skipping slow test since RUN_SLOW_TESTS environment variables is 'true'")
+        else:
+            fn(*args, **kwargs)
+
+    return wrapper
+
+
 def uses_gpu(*args):
     """Mark to differentiate tests that use the GPU in some capacity.
 
@@ -530,6 +547,22 @@ def uses_gpu(*args):
     """
     _uses_gpu = [pytest.mark.gpu]
     return _compose(args, _uses_gpu)
+
+
+def requires_x86(*args):
+    """Mark a test as requiring the x86 Architecture to run.
+
+    Tests with this mark will not be run unless on an x86 platform.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_x86 = [
+        pytest.mark.skipif(platform.machine() != "x86_64", reason="x86 Architecture Required"),
+    ]
+    return _compose(args, _requires_x86)
 
 
 def requires_gpu(*args):
@@ -635,6 +668,59 @@ def requires_nvptx(*args):
     return _compose(args, _requires_nvptx)
 
 
+def requires_nvcc_version(major_version, minor_version=0, release_version=0):
+    """Mark a test as requiring at least a specific version of nvcc.
+
+    Unit test marked with this decorator will run only if the
+    installed version of NVCC is at least `(major_version,
+    minor_version, release_version)`.
+
+    This also marks the test as requiring a cuda support.
+
+    Parameters
+    ----------
+    major_version: int
+
+        The major version of the (major,minor,release) version tuple.
+
+    minor_version: int
+
+        The minor version of the (major,minor,release) version tuple.
+
+    release_version: int
+
+        The release version of the (major,minor,release) version tuple.
+
+    """
+
+    try:
+        nvcc_version = nvcc.get_cuda_version()
+    except RuntimeError:
+        nvcc_version = (0, 0, 0)
+
+    min_version = (major_version, minor_version, release_version)
+    version_str = ".".join(str(v) for v in min_version)
+    requires = [
+        pytest.mark.skipif(nvcc_version < min_version, reason=f"Requires NVCC >= {version_str}"),
+        *requires_cuda(),
+    ]
+
+    def inner(func):
+        return _compose([func], requires)
+
+    return inner
+
+
+def skip_if_32bit(reason):
+    def decorator(*args):
+        if "32bit" in platform.architecture()[0]:
+            return _compose(args, [pytest.mark.skip(reason=reason)])
+
+        return _compose(args, [])
+
+    return decorator
+
+
 def requires_cudagraph(*args):
     """Mark a test as requiring the CUDA Graph Feature
 
@@ -680,7 +766,12 @@ def requires_corstone300(*args):
     f : function
         Function to mark
     """
-    _requires_corstone300 = [pytest.mark.corstone300]
+    _requires_corstone300 = [
+        pytest.mark.corstone300,
+        pytest.mark.skipif(
+            shutil.which("arm-none-eabi-gcc") is None, reason="ARM embedded toolchain unavailable"
+        ),
+    ]
     return _compose(args, _requires_corstone300)
 
 
@@ -859,6 +950,19 @@ def requires_cmsisnn(*args):
     """
 
     requirements = [pytest.mark.skipif(not cmsisnn.enabled(), reason="CMSIS NN not enabled")]
+    return _compose(args, requirements)
+
+
+def requires_vitis_ai(*args):
+    """Mark a test as requiring Vitis AI to run.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+
+    requirements = [pytest.mark.skipif(not vitis_ai.enabled(), reason="Vitis AI not enabled")]
     return _compose(args, requirements)
 
 

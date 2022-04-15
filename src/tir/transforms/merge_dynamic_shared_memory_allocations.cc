@@ -102,12 +102,17 @@ class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     alloc_info_[buf].level = level;
     StmtExprVisitor::VisitStmt_(op);
   }
+
   void VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+  }
+
+  void VisitStmt_(const BufferStoreNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
     StmtExprVisitor::VisitStmt_(op);
     // Add write access.
-    const VarNode* buf = op->buffer_var.get();
+    const VarNode* buf = op->buffer->data.get();
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
       ICHECK_LT(it->second.level, scope_.size());
@@ -122,6 +127,7 @@ class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
       linear_seq_.push_back(e);
     }
   }
+
   void VisitStmt_(const EvaluateNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
@@ -133,10 +139,15 @@ class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
       linear_seq_.push_back(e);
     }
   }
+
   void VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+  }
+
+  void VisitExpr_(const BufferLoadNode* op) final {
     // Add write access.
     StmtExprVisitor::VisitExpr_(op);
-    const VarNode* buf = op->buffer_var.get();
+    const VarNode* buf = op->buffer->data.get();
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
       ICHECK_LT(it->second.level, scope_.size()) << "Load memory in places other than store.";
@@ -145,10 +156,13 @@ class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
       }
     }
   }
+
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::address_of())) {
-      const LoadNode* l = op->args[0].as<LoadNode>();
-      this->VisitExpr(l->index);
+      const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
+      for (const auto& index : load->indices) {
+        this->VisitExpr(index);
+      }
     } else {
       StmtExprVisitor::VisitExpr_(op);
     }
@@ -294,22 +308,61 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const LoadNode* op) final {
-    if (IsDynamicSharedMemory(op->buffer_var)) {
-      PrimExpr offset = GetBufferOffset(op->buffer_var, op->dtype);
-      PrimExpr index = StmtExprMutator::VisitExpr(op->index);
-      return Load(op->dtype, merged_buf_var_, offset + index, op->predicate, op->span);
-    }
-    return StmtExprMutator::VisitExpr_(op);
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
-    if (IsDynamicSharedMemory(op->buffer_var)) {
-      PrimExpr offset = GetBufferOffset(op->buffer_var, op->value->dtype);
-      PrimExpr index = StmtExprMutator::VisitExpr(op->index);
-      PrimExpr value = StmtExprMutator::VisitExpr(op->value);
-      return Store(merged_buf_var_, value, offset + index, op->predicate, op->span);
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    if (IsDynamicSharedMemory(node->buffer->data)) {
+      ICHECK_EQ(node->indices.size(), 1)
+          << "MergeDynamicSharedMemoryAllocations expects flat memory buffers, "
+          << "and is to be run after "
+          << "StorageFlatten (TE schedules) or FlattenBuffer (TIR schedules)";
+      Array<PrimExpr> indices = {node->indices[0] +
+                                 this->GetBufferOffset(node->buffer->data, node->buffer->dtype)};
+
+      auto writer = node.CopyOnWrite();
+      writer->buffer = GetUpdatedBuffer(node->buffer);
+      writer->indices = indices;
     }
-    return StmtExprMutator::VisitStmt_(op);
+
+    return node;
+  }
+
+  Buffer GetUpdatedBuffer(Buffer buffer) {
+    auto key = buffer.get();
+    auto it = buffer_remap_.find(key);
+    if (it != buffer_remap_.end()) {
+      return it->second;
+    }
+
+    if (IsDynamicSharedMemory(buffer->data)) {
+      ICHECK_EQ(buffer->shape.size(), 1)
+          << "MergeDynamicSharedMemoryAllocations expects flat memory buffers, "
+          << "and is to be run after "
+          << "StorageFlatten (TE schedules) or FlattenBuffer (TIR schedules)";
+      auto writer = buffer.CopyOnWrite();
+      writer->data = merged_buf_var_;
+    }
+
+    buffer_remap_[key] = buffer;
+    return buffer;
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
@@ -447,7 +500,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
     uint64_t op_elem_bits = op->dtype.bits() * op->dtype.lanes();
-    uint64_t const_nbits = static_cast<uint64_t>(op->constant_allocation_size() * op_elem_bits);
+    uint64_t const_nbits = static_cast<uint64_t>(op->ConstantAllocationSize() * op_elem_bits);
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
     if (const_nbits > 0 && const_nbits <= 32) {
@@ -542,6 +595,8 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
   PrimExpr merged_alloc_size_{0};
   // The mapping from the original buffer var to its offset in the merged buffer
   std::unordered_map<const VarNode*, PrimExpr> buffer_byte_offsets_;
+  // The mapping from the original buffer objects to their location in the merged buffer.
+  std::unordered_map<const BufferNode*, Buffer> buffer_remap_;
   // The flag indicating whether the merged buffer has been allocated
   bool allocated_{false};
   // Locations of free ops.

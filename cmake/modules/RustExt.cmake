@@ -16,8 +16,8 @@
 # under the License.
 
 if(USE_RUST_EXT)
-    set(RUST_SRC_DIR "${CMAKE_SOURCE_DIR}/rust")
-    set(CARGO_OUT_DIR "${CMAKE_SOURCE_DIR}/rust/target")
+    set(RUST_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/rust")
+    set(CARGO_OUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/rust/target")
 
     if(USE_RUST_EXT STREQUAL "STATIC")
         set(COMPILER_EXT_PATH "${CARGO_OUT_DIR}/release/libcompiler_ext.a")

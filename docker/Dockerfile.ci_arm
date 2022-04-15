@@ -52,6 +52,22 @@ RUN bash /install/ubuntu_install_cmake_source.sh
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
 
+# TensorFlow deps
+COPY install/ubuntu_install_tensorflow_aarch64.sh /install/ubuntu_install_tensorflow_aarch64.sh
+RUN bash /install/ubuntu_install_tensorflow_aarch64.sh
+
+# TFLite deps
+COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
+RUN bash /install/ubuntu_install_tflite.sh
+
+# Caffe deps
+COPY install/ubuntu_install_boost.sh /install/ubuntu_install_boost.sh
+RUN bash /install/ubuntu_install_boost.sh
+
+# Caffe
+COPY install/ubuntu_install_caffe.sh /install/ubuntu_install_caffe.sh
+RUN bash /install/ubuntu_install_caffe.sh
+
 # AutoTVM deps
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
 RUN bash /install/ubuntu_install_redis.sh

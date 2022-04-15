@@ -433,7 +433,7 @@ class LoopPartitioner : public StmtMutator {
 
   std::pair<IntSet, ExpressionSet> GetIntervalAndCondset(const Partition& partitions,
                                                          const arith::IntervalSet& for_interval,
-                                                         bool cond_value);
+                                                         bool cond_value, bool has_partition_hint);
 
   inline Stmt MakeFor(const Object* op, PrimExpr extent, Stmt body);
 
@@ -448,7 +448,8 @@ class LoopPartitioner : public StmtMutator {
 // Returns an interval (in the first component) in which all the conditions
 // given in the second component provably have value given by cond_value
 std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
-    const Partition& partitions, const arith::IntervalSet& for_interval, bool cond_value) {
+    const Partition& partitions, const arith::IntervalSet& for_interval, bool cond_value,
+    bool has_partition_hint) {
   Array<IntSet> sets;
   ExpressionSet cond_set;
 
@@ -463,6 +464,32 @@ std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
     }
   }
   IntSet interval = sets.empty() ? IntSet::Nothing() : Intersect(sets);
+
+  // Try to find the intersection of the cond_intervals until the intersection
+  // is nothing when has_partition_hint is true.
+  if (interval.IsNothing() && has_partition_hint) {
+    arith::IntervalSet cond_intersection = arith::IntervalSet::Everything();
+    cond_set.clear();
+
+    for (const auto& kv : partitions) {
+      if (kv.first.second == cond_value) {
+        arith::IntervalSet cond_interval = Downcast<arith::IntervalSet>(kv.second);
+        arith::IntervalSet intersection = arith::Intersect(&analyzer_, cond_interval, for_interval);
+        if (!intersection->IsEmpty()) {
+          cond_intersection = arith::Intersect(&analyzer_, cond_intersection, cond_interval);
+          // Return the latest interval and cond_set if the cond_intersection is nothing.
+          if (!cond_intersection->IsEmpty()) {
+            cond_set.insert(kv.first.first);
+            interval = arith::IntervalSet(analyzer_.Simplify(cond_intersection->min_value),
+                                          analyzer_.Simplify(cond_intersection->max_value));
+          } else {
+            break;
+          }
+        }
+      }
+    }
+  }
+
   return std::make_pair(interval, cond_set);
 }
 
@@ -531,12 +558,12 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
   ExpressionSet cond_set;
   // find an interval in which all conditions on var are true
   std::tie(middle_interval, cond_set) =
-      GetIntervalAndCondset(finder.partitions, for_interval, true);
+      GetIntervalAndCondset(finder.partitions, for_interval, true, has_partition_hint_);
   if (middle_interval.IsNothing()) {
     // if such interval doesn't exist, find an interval in which all
     // conditions on var are false
     std::tie(middle_interval, cond_set) =
-        GetIntervalAndCondset(finder.partitions, for_interval, false);
+        GetIntervalAndCondset(finder.partitions, for_interval, false, has_partition_hint_);
     if (middle_interval.IsNothing())
       // we couldn't find an interval in which the conditions are provably true or false
       // Therefore, we can't partition the loop based on those conds

@@ -31,7 +31,7 @@ def enabled():
     return "cmsis-nn" in Target.list_kinds()
 
 
-def partition_for_cmsisnn(mod, params=None, **opts):
+def partition_for_cmsisnn(mod, params=None, mod_name="default", **opts):
     """Partition the graph greedily offloading supported
     operators on Cortex-M using CMSIS-NN
 
@@ -41,6 +41,8 @@ def partition_for_cmsisnn(mod, params=None, **opts):
         The module to run passes on.
     params : Optional[Dict[str, NDArray]]
         Constant input parameters.
+    mod_name: str, optional
+        The module name
 
     Returns
     -------
@@ -55,7 +57,7 @@ def partition_for_cmsisnn(mod, params=None, **opts):
             transform.InferType(),
             transform.MergeComposite(pattern_table()),
             transform.AnnotateTarget("cmsis-nn"),
-            transform.PartitionGraph(),
+            transform.PartitionGraph(mod_name=mod_name),
             GenerateCMSISNNConstants(),
             ScalarToTensorConstants(),
             ExtractConstantsFromPartitionedFunction(),
@@ -213,7 +215,7 @@ def pattern_table():
 
     def binary_op_pattern(op):
         """Matches QNN binary operation"""
-        return is_op(f"qnn.{op}")(
+        pattern = is_op(f"qnn.{op}")(
             wildcard(),
             wildcard(),
             is_constant(),
@@ -223,11 +225,16 @@ def pattern_table():
             is_constant(),
             is_constant(),
         )
+        return pattern.optional(is_op("clip"))
 
     def check_qnn_binary_op(pattern):
-        """Check if multiply is supported by CMSIS-NN."""
-        arg0 = pattern.args[0]
-        arg1 = pattern.args[1]
+        """Check if binary op is supported by CMSIS-NN."""
+        binary_op = pattern
+        if str(pattern.op.name) == "clip":
+            binary_op = pattern.args[0]
+
+        arg0 = binary_op.args[0]
+        arg1 = binary_op.args[1]
         both_args_scalar = False
         if (
             isinstance(arg0, tvm.relay.expr.Constant)

@@ -257,12 +257,11 @@ Array<Array<arith::IterMark>> CheckSubspaceDivisible(const IRModule& mod,
                                                      const LoopSubspaceCollector& collector,
                                                      arith::Analyzer* analyzer) {
   const Block& block = block_realize->block;
-  DiagnosticContext diag_ctx(DiagnosticContext::Default(mod));
 
   Array<Array<arith::IterMark>> division =
       arith::SubspaceDivide(block_realize->iter_values, collector.loop_var_domain,
                             collector.inner_loop_vars, block_realize->predicate,
-                            /*require_bijective=*/false, analyzer, diag_ctx);
+                            /*require_bijective=*/false, analyzer);
 
   if (division.empty()) {
     // If we can't do perfect subspace division, check if it is a trivial case of subspace division.
@@ -322,9 +321,8 @@ class BlockizedBindingExtractor {
         outer_iter_vars.push_back(outer_var);
         PrimExpr base = is_one(division[i][0]->extent) ? 0 : outer_var * division[i][1]->extent;
         // create iter var for the inner block
-        IterVar new_iter = iter_var;
-        auto* new_iter_node = new_iter.CopyOnWrite();
-        new_iter_node->dom = Range::FromMinExtent(0, division[i][1]->extent);
+        IterVar new_iter(Range::FromMinExtent(0, division[i][1]->extent), Var(iter_var->var),
+                         iter_var->iter_type, iter_var->thread_tag, iter_var->span);
         inner_iter_dom_map.Set(new_iter->var, arith::IntSet::FromRange(new_iter->dom));
         analyzer->Bind(new_iter->var, new_iter->dom);
         inner_iter_vars.push_back(new_iter);
@@ -497,6 +495,12 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
   Block new_block = Downcast<Block>(replacer(block));
 
   // Step 6: Generate the inner block.
+  bool outer_reduction = false;  // whether there are outer reduction iter vars.
+  for (const IterVar& iter_var : extractor.outer_iter_vars) {
+    if (iter_var->iter_type == kCommReduce) {
+      outer_reduction = true;
+    }
+  }
   BlockRealizeNode* inner_block_realize = block_realize.CopyOnWrite();
   inner_block_realize->iter_values = extractor.inner_bindings;
   inner_block_realize->predicate = inner_pred;
@@ -504,6 +508,20 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
   BlockNode* inner_block = inner_block_realize->block.CopyOnWrite();
   inner_block->iter_vars = extractor.inner_iter_vars;
   inner_block->init = NullOpt;
+  /* Add write regions to read regions if
+   * 1. there are outer reduction iter vars.
+   * 2. the init block is defined for current block.
+   */
+  if (outer_reduction && block->init.defined()) {
+    Array<BufferRegion> new_reads;
+    for (const BufferRegion& write_access : inner_block->writes) {
+      new_reads.push_back(write_access);
+    }
+    for (const BufferRegion& read_access : inner_block->reads) {
+      new_reads.push_back(read_access);
+    }
+    inner_block->reads = std::move(new_reads);
+  }
   block_sref_reuse.Set(block, inner_block_realize->block);
 
   // Step 6: Generate the outer block.

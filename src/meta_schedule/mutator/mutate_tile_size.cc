@@ -51,7 +51,7 @@ int64_t Product(const std::vector<int64_t>& array) {
   return result;
 }
 
-/*! \brief A mutator that mutates the decision of instruction Sample-Perfect-Tile */
+/*! \brief A mutator that mutates the tile size */
 class MutateTileSizeNode : public MutatorNode {
  public:
   void VisitAttrs(tvm::AttrVisitor* v) {}
@@ -66,10 +66,12 @@ class MutateTileSizeNode : public MutatorNode {
 };
 
 /*!
- * \brief Find the Sample-Perfect-Tile instructions and their decisions in the trace
+ * \brief Find a sample-perfect-tile decision in the trace
  * \param trace The trace
- * \param inst The instructions found
- * \param decision The decisions of the instructions found
+ * \param rand_state The random state
+ * \param inst The instruction selected
+ * \param decision The decision selected
+ * \return Whether a decision is found
  */
 void FindSamplePerfectTile(const Trace& trace, std::vector<Instruction>* inst,
                            std::vector<std::vector<int64_t>>* decision) {
@@ -92,13 +94,6 @@ void FindSamplePerfectTile(const Trace& trace, std::vector<Instruction>* inst,
   }
 }
 
-/*!
- * \brief Find all Sample-Categorical instructions (and their decisions) whose outputs are used for
- * cooperative fetch annotation
- * \param trace The trace
- * \param inst The instructions found
- * \param decision The decisions of the instructions found
- */
 void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
                          std::vector<int64_t>* decision) {
   static const InstructionKind& inst_sample_categorical = InstructionKind::Get("SampleCategorical");
@@ -137,17 +132,12 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
 }
 
 struct FactorMemo {
-  /*!
-   * \brief Find all factors of the input integer
-   * \param n The integer to be factorized
-   * \return The factors of the input integer
-   */
   static std::vector<int> Factorize(int n) {
     if (const std::vector<int>* result = Global()->Query(n)) {
       return *result;
     }
     std::vector<int> result;
-    for (int64_t i = 1; i * i < n; ++i) {
+    for (int64_t i = 1; i * i <= n; ++i) {
       if (n % i == 0) {
         result.push_back(i);
         if (i * i != n) {
@@ -162,17 +152,17 @@ struct FactorMemo {
 
  private:
   const std::vector<int>* Query(int n) {
-    std::unique_lock<std::mutex> lock(mutex);
-    auto it = memo.find(n);
-    if (it != memo.end()) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    auto it = memo_.find(n);
+    if (it != memo_.end()) {
       return &it->second;
     }
     return nullptr;
   }
 
   void Add(int n, std::vector<int> result) {
-    std::unique_lock<std::mutex> lock(mutex);
-    memo.emplace(n, std::move(result));
+    std::unique_lock<std::mutex> lock(mutex_);
+    memo_.emplace(n, std::move(result));
   }
 
   static FactorMemo* Global() {
@@ -180,8 +170,8 @@ struct FactorMemo {
     return &singleton;
   }
 
-  std::unordered_map<int, std::vector<int>> memo;
-  std::mutex mutex;
+  std::unordered_map<int, std::vector<int>> memo_;
+  std::mutex mutex_;
 };
 
 Optional<Trace> MutateSampleTileSize(const Trace& trace, Instruction inst,

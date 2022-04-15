@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -19,11 +19,11 @@
 set -x
 
 echo "===== JENKINS INFO ====="
-echo "$NODE_NAME"
-echo "$EXECUTOR_NUMBER"
-echo "$WORKSPACE"
-echo "$BUILD_NUMBER"
-echo "$WORKSPACE"
+echo "NODE_NAME=$NODE_NAME"
+echo "EXECUTOR_NUMBER=$EXECUTOR_NUMBER"
+echo "WORKSPACE=$WORKSPACE"
+echo "BUILD_NUMBER=$BUILD_NUMBER"
+echo "WORKSPACE=$WORKSPACE"
 
 echo "===== EC2 INFO ====="
 function ec2_metadata() {

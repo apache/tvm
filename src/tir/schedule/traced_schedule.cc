@@ -33,11 +33,12 @@ Schedule Schedule::Traced(IRModule mod, support::LinearCongruentialEngine::TRand
   return Schedule(std::move(n));
 }
 
-Schedule TracedScheduleNode::Copy() const {
+Schedule TracedScheduleNode::Copy() {
   ObjectPtr<TracedScheduleNode> n = make_object<TracedScheduleNode>();
   n->error_render_level_ = this->error_render_level_;
   ConcreteScheduleNode::Copy(&n->state_, &n->symbol_table_);
   n->analyzer_ = std::make_unique<arith::Analyzer>();  // new analyzer needed because it is stateful
+  n->rand_state_ = ForkSeed();
   n->trace_ = Trace(this->trace_->insts, this->trace_->decisions);
   return Schedule(std::move(n));
 }
@@ -425,6 +426,20 @@ void TracedScheduleNode::Unannotate(const BlockRV& block_rv, const String& ann_k
                                       /*inputs=*/{block_rv},
                                       /*attrs=*/{ann_key},
                                       /*outputs=*/{}));
+}
+
+/******** Schedule: Layout transformation ********/
+
+void TracedScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_index,
+                                         BufferIndexType buffer_index_type,
+                                         const IndexMap& index_map) {
+  ConcreteScheduleNode::TransformLayout(block_rv, buffer_index, buffer_index_type, index_map);
+  static const InstructionKind& kind = InstructionKind::Get("TransformLayout");
+  trace_->Append(
+      /*inst=*/Instruction(/*kind=*/kind,
+                           /*inputs=*/{block_rv},
+                           /*attrs=*/{Integer(buffer_index), Integer(buffer_index_type), index_map},
+                           /*outputs=*/{}));
 }
 
 /******** Schedule: Misc ********/

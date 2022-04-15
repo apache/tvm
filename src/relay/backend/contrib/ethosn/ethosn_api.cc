@@ -45,6 +45,14 @@ namespace relay {
 namespace contrib {
 namespace ethosn {
 
+sl::TensorInfo EthosnAPI::DefaultInputTensor(const Expr& expr) {
+  Call call = Downcast<Call>(expr);
+  const auto* dtype = call->args[0]->checked_type().as<TensorTypeNode>();
+  sl::DataType data_type;
+  Tvm2Npu(dtype->dtype, &data_type);
+  return sl::TensorInfo({}, data_type, sl::DataFormat::NHWC, {});
+}
+
 EthosnError EthosnAPI::QnnConv2d(const Expr& expr, ConvolutionParams* params) {
   Call requantize = Downcast<Call>(expr);
   Call bias_add = Downcast<Call>(requantize->args[0]);
@@ -108,7 +116,7 @@ EthosnError EthosnAPI::QnnConv2d(const Expr& expr, ConvolutionParams* params) {
   sl::Stride stride;
   err += Tvm2Npu(conv_attr->strides, &stride);
   // Dilation is not supported
-  std::array<uint32_t, 4> dilation = {1, 1, 1, 1};
+  std::array<uint32_t, 2> dilation = {1, 1};
   AsArray(conv_attr->dilation, &dilation);
   if (conv_attr->dilation.size() != 2 || dilation[0] != 1 || dilation[1] != 1) {
     err +=
@@ -267,6 +275,11 @@ EthosnError EthosnAPI::Reshape(const Expr& expr, ReshapeParams* params) {
   const auto* input_dtype = reshape->args[0]->checked_type().as<TensorTypeNode>();
   const auto& reshape_attrs = reshape->attrs.as<ReshapeAttrs>();
 
+  if (reshape_attrs->newshape.size() > params->new_shape.size()) {
+    return EthosnError(ErrStrm() << "reshape dimension=" << reshape_attrs->newshape.size()
+                                 << ", reshape dimension must be <= " << params->new_shape.size());
+  }
+
   sl::TensorShape input_tensor_shape = {1, 1, 1, 1};
   sl::DataType input_data_type;
   EthosnError err = Tvm2Npu(input_dtype->shape, &input_tensor_shape);
@@ -403,6 +416,34 @@ EthosnError EthosnAPI::Mean(const Expr& expr, MeanParams* params) {
   return err;
 }
 
+EthosnError EthosnAPI::Tanh(const Expr& expr, TanhParams* params) {
+  Call quantize = Downcast<Call>(expr);
+  Call tanh = Downcast<Call>(quantize->args[0]);
+  Call dequantize = Downcast<Call>(tanh->args[0]);
+  // Create input info
+  const auto* input_dtype = quantize->checked_type().as<TensorTypeNode>();
+  sl::TensorShape input_tensor_shape = {1, 1, 1, 1};
+  sl::DataType input_tensor_dtype;
+  EthosnError err = Tvm2Npu(input_dtype->shape, &input_tensor_shape);
+  err += Tvm2Npu(input_dtype->dtype, &input_tensor_dtype);
+  float input_sc;
+  int input_zp;
+  err += AsConstant(dequantize->args[2], &input_zp);
+  err += AsConstant(dequantize->args[1], &input_sc);
+  float output_sc;
+  int output_zp;
+  err += AsConstant(quantize->args[2], &output_zp);
+  err += AsConstant(quantize->args[1], &output_sc);
+  auto test_zp = input_dtype->dtype.is_uint() ? 128 : 0;
+  if (output_zp != test_zp || output_sc != 0.0078125f) {
+    err += EthosnError(ErrStrm() << "output quantization params=(" << output_zp << ", " << output_sc
+                                 << "), must = (" << test_zp << ", 1/256)");
+  }
+  params->input_info = sl::TensorInfo(input_tensor_shape, input_tensor_dtype, sl::DataFormat::NHWC,
+                                      sl::QuantizationInfo(input_zp, input_sc));
+  return err;
+}
+
 EthosnError EthosnAPI::Concatenate(const Expr& expr, ConcatenateParams* params) {
   Call call = Downcast<Call>(expr);
   const auto& attrs = call->attrs.as<ConcatenateAttrs>();
@@ -485,9 +526,6 @@ EthosnError EthosnAPI::DepthToSpace(const Expr& expr, DepthToSpaceParams* params
   EthosnError err = Tvm2Npu(input_dtype->shape, &input_tensor_shape);
   err += Tvm2Npu(input_dtype->dtype, &input_data_type);
   err += Tvm2Npu(attrs->layout, &input_data_format);
-  if (input_data_format != sl::DataFormat::NHWC) {
-    err += EthosnError(ErrStrm() << "layout=" << attrs->layout << ", layout must = NHWC");
-  }
   params->input_info = sl::TensorInfo(input_tensor_shape, input_data_type, input_data_format,
                                       params->input_info.m_QuantizationInfo);
   return err;
@@ -517,11 +555,11 @@ EthosnError EthosnAPI::Tvm2Npu(const Array<IndexExpr>& padding, sl::Padding* npu
   }
   switch (padding.size()) {
     case 1:
-      *npu_padding = sl::Padding(dim[0], dim[0], dim[0], dim[0]);
+      *npu_padding = sl::Padding(dim[3], dim[3], dim[3], dim[3]);
       break;
     case 2:
       // Height, width -> top, bottom, left, right
-      *npu_padding = sl::Padding(dim[0], dim[0], dim[1], dim[1]);
+      *npu_padding = sl::Padding(dim[3], dim[3], dim[2], dim[2]);
       break;
     case 4:
       // Top, left, bottom, right -> top, bottom, left, right
@@ -538,7 +576,7 @@ EthosnError EthosnAPI::Tvm2Npu(const Array<IndexExpr>& strides, sl::Stride* npu_
   if (strides.size() != 2) {
     return EthosnError(ErrStrm() << "stride size=" << strides.size() << ", stride size must = 2");
   }
-  std::array<uint32_t, 4> dim;
+  std::array<uint32_t, 2> dim;
   if (EthosnError err = AsArray<IndexExpr, uint32_t>(strides, &dim)) {
     return err;
   }
@@ -550,7 +588,7 @@ EthosnError EthosnAPI::Tvm2Npu(const Array<IndexExpr>& size, uint32_t* x, uint32
   if (size.size() != 2) {
     return EthosnError(ErrStrm() << "dimensions=" << size.size() << ", dimensions must = 2");
   }
-  std::array<uint32_t, 4> dim;
+  std::array<uint32_t, 2> dim;
   if (EthosnError err = AsArray<IndexExpr, uint32_t>(size, &dim)) {
     return err;
   }
@@ -647,11 +685,12 @@ EthosnError EthosnAPI::Tvm2Npu(const Array<Array<Integer>>& padding, sl::Padding
 // Convert an array of IntImmNodes into ValueT
 // IndexT type of Array indexing variable
 // ValueT type of resulting value
-template <typename IndexT, typename ValueT>
-EthosnError EthosnAPI::AsArray(const Array<IndexT>& arr, std::array<ValueT, 4>* v) {
-  if (arr.size() > 4)
-    return EthosnError(ErrStrm() << "dimensions=" << arr.size() << ", dimensions must be <= 4");
-  for (size_t i = 0; i < std::min(arr.size(), 4ul); i++) {
+// N The size of the output array
+template <typename IndexT, typename ValueT, size_t N>
+EthosnError EthosnAPI::AsArray(const Array<IndexT>& arr, std::array<ValueT, N>* v) {
+  if (arr.size() > N)
+    return EthosnError(ErrStrm() << "dimensions=" << arr.size() << ", dimensions must be <= " << N);
+  for (size_t i = 0; i < arr.size(); i++) {
     const PrimExpr& a = arr[i];
     const auto* intImm = a.as<IntImmNode>();
     if (intImm->value > std::numeric_limits<ValueT>::max()) {

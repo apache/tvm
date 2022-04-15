@@ -43,7 +43,10 @@ extern "C" {
 // TODO(mehrdadh): make this configurable.
 #define TVM_HEXAGON_RPC_BUFF_SIZE_BYTES 2 * 1024 * 1024
 
+// TODO(csulivan,adstraw,kparzysz-quic) This should be set on a TVM-wide basis.
+#if defined(__hexagon__)
 #define TVM_LOG_CUSTOMIZE 1
+#endif
 
 namespace tvm {
 namespace runtime {
@@ -275,9 +278,15 @@ AEEResult __QAIC_HEADER(hexagon_rpc_receive)(remote_handle64 _handle, unsigned c
   }
 }
 
+// Workaround for missing functions in 8.5.08
+extern "C" {
+__attribute__((weak)) void _Get_eh_data() {}
+__attribute__((weak)) void _Parse_fde_instr() {}
+}
+
 TVM_REGISTER_GLOBAL("tvm.hexagon.load_module")
     .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
       std::string soname = args[0];
       tvm::ObjectPtr<tvm::runtime::Library> n = tvm::runtime::CreateDSOLibraryObject(soname);
-      *rv = CreateModuleFromLibrary(n, tvm::runtime::hexagon::WrapPackedFunc);
+      *rv = CreateModuleFromLibrary(n);
     });

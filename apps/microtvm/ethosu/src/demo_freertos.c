@@ -49,8 +49,6 @@ int main(void) {
   uart_init();
   // NPU
   EthosuInit();
-  // TVM Memory Manager
-  StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
 
   // Queue for inferences
   xQueue = xQueueCreate(mainQUEUE_LENGTH, sizeof(uint8_t*));
@@ -106,7 +104,7 @@ static void prvInferenceTask(void* pvParameters) {
       .tfl_quantize = pucReceivedData,
   };
   struct tvmgen_default_outputs xOutputs = {
-      .output = output,
+      .MobilenetV2_Predictions_Reshape_11 = output,
   };
   struct ethosu_driver* xDriver = ethosu_reserve_driver();
   struct tvmgen_default_devices xDevices = {

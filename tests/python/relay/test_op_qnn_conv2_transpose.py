@@ -644,7 +644,7 @@ def test_broadcast_layout():
     func = relay.Function(relay.analysis.free_vars(func), func)
     mod = tvm.IRModule.from_expr(func)
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, params = relay.build(mod, "llvm -mcpu=skylake-avx512")
+        libs = relay.build(mod, "llvm -mcpu=skylake-avx512")
 
 
 def test_per_channel_kernel_scale():

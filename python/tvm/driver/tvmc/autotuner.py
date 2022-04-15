@@ -136,13 +136,13 @@ def add_tune_parser(subparsers, _):
     )
     parser.add_argument(
         "--enable-autoscheduler",
-        help="enable tuning the graph through the autoscheduler",
+        help="enable tuning the graph through the AutoScheduler tuner",
         action="store_true",
     )
 
     auto_scheduler_group = parser.add_argument_group(
-        "Autoscheduler options",
-        "Autoscheduler options, used when --enable-autoscheduler is provided",
+        "AutoScheduler options",
+        "AutoScheduler options, used when --enable-autoscheduler is provided",
     )
 
     auto_scheduler_group.add_argument(
@@ -204,8 +204,8 @@ def add_tune_parser(subparsers, _):
         action="store_true",
     )
     autotvm_group = parser.add_argument_group(
-        "autotvm options",
-        "autotvm options, used when the autoscheduler is not enabled",
+        "AutoTVM options",
+        "AutoTVM options, used when the AutoScheduler is not enabled",
     )
     autotvm_group.add_argument(
         "--tuner",

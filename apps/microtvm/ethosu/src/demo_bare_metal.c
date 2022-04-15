@@ -35,12 +35,9 @@ int main(int argc, char** argv) {
   printf("Starting Demo\n");
   EthosuInit();
 
-  printf("Allocating memory\n");
-  StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
-
   printf("Running inference\n");
   struct tvmgen_default_outputs outputs = {
-      .output = output,
+      .MobilenetV2_Predictions_Reshape_11 = output,
   };
   struct tvmgen_default_inputs inputs = {
       .tfl_quantize = input,

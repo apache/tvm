@@ -128,6 +128,16 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
              !rtype.is_float()) {
     // Cast int->float when the other operand is a float
     rhs = cast(ltype, rhs);
+  } else if (!ltype.is_bfloat16() &&
+             (rtype.is_bfloat16() ||
+              datatype::Registry::Global()->GetTypeRegistered(rtype.code()))) {
+    // Cast int->bfloat16 when the other operand is a bfloat16
+    lhs = cast(rtype, lhs);
+  } else if ((ltype.is_bfloat16() ||
+              datatype::Registry::Global()->GetTypeRegistered(ltype.code())) &&
+             !rtype.is_bfloat16()) {
+    // Cast int->bfloat16 when the other operand is a bfloat16
+    rhs = cast(ltype, rhs);
   } else if ((ltype.is_int() && rtype.is_int()) || (ltype.is_uint() && rtype.is_uint())) {
     // Promote int to higher bits e.g. int8 + int16 --> int16 + int16
     if (ltype.bits() < rtype.bits()) {
@@ -186,6 +196,8 @@ PrimExpr max_value(const DataType& dtype, Span span) {
     } else if (dtype.bits() == 16) {
       return FloatImm(dtype, 65504.0, span);
     }
+  } else if (dtype.is_bfloat16()) {
+    return FloatImm(dtype, std::numeric_limits<float>::max(), span);
   }
   LOG(FATAL) << "Cannot decide max_value for type" << dtype;
   return PrimExpr();
@@ -219,6 +231,8 @@ PrimExpr min_value(const DataType& dtype, Span span) {
     } else if (dtype.bits() == 16) {
       return FloatImm(dtype, -65504.0, span);
     }
+  } else if (dtype.is_bfloat16()) {
+    return FloatImm(dtype, std::numeric_limits<float>::lowest(), span);
   }
   LOG(FATAL) << "Cannot decide min_value for type" << dtype;
   return PrimExpr();
@@ -369,6 +383,8 @@ PrimExpr operator%(PrimExpr a, PrimExpr b) { return truncmod(a, b); }
 // TODO(tqchen): switch to floordiv
 PrimExpr indexdiv(PrimExpr a, PrimExpr b, Span span) { return floordiv(a, b, span); }
 
+PrimExpr shapediv(PrimExpr a, PrimExpr b, Span span) { return ceildiv(a, b, span); }
+
 PrimExpr indexmod(PrimExpr a, PrimExpr b, Span span) { return floormod(a, b, span); }
 
 PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span) {
@@ -378,6 +394,15 @@ PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span) {
   PrimExpr ret = arith::TryConstFold<tir::FloorDiv>(a, b);
   if (ret.defined()) return ret;
   return tir::FloorDiv(a, b, span);
+}
+
+PrimExpr ceildiv(PrimExpr a, PrimExpr b, Span span) {
+  ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
+  ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
+  BinaryOpMatchTypes(a, b, span);
+  PrimExpr ret = arith::TryConstFold<tir::FloorDiv>(a + b - 1, b);
+  if (ret.defined()) return ret;
+  return tir::FloorDiv(a + b - 1, b, span);
 }
 
 PrimExpr floormod(PrimExpr a, PrimExpr b, Span span) {

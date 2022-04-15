@@ -22,13 +22,18 @@
 
 #include <tvm/runtime/device_api.h>
 
+#include <map>
+#include <memory>
+#include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include "hexagon_buffer.h"
 
 namespace tvm {
 namespace runtime {
 namespace hexagon {
-
-class HexagonBuffer;
 
 /*!
  * \brief Hexagon Device API that is compiled and run on Hexagon.
@@ -67,11 +72,20 @@ class HexagonDeviceAPIv2 final : public DeviceAPI {
    */
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
 
-  //! Dereference workspace pool and erase from tracked workspace_allocations_.
+  //! Erase from tracked hexagon_buffer_map and free
   void FreeWorkspace(Device dev, void* data) final;
 
   /*!
    * \brief Allocate an Nd data space on device with memory scope support.
+   *
+   * If mem_scope is undefined or is "global", treat shape as the
+   * tensor shape, to be flattened into an allocation of 1-d physical
+   * memory.  This is done to maintain the semantics expected by callers of
+   * DeviceAPI::AllocDataSpace, in cases where it has a valid return value.
+   *
+   * For other values of mem_scope, the shape is the N-d physical
+   * shape of the allocation.
+   *
    * \param dev The device to perform the operation.
    * \param ndim The number of dimensions of allocated tensor.
    * \param shape The shape of allocated tensor.
@@ -81,6 +95,20 @@ class HexagonDeviceAPIv2 final : public DeviceAPI {
    */
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                        Optional<String> mem_scope) final;
+
+  /*!
+   * \brief Allocate an Nd VTCM workspace.
+   * \param dev The device to perform the operation.
+   * \param ndim The number of dimensions of allocated tensor.
+   * \param shape The shape of allocated tensor.
+   * \param dtype The element type.
+   * \return The allocated HexagonBuffer pointer.
+   */
+  void* AllocVtcmWorkspace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
+                           Optional<String> mem_scope);
+
+  //! \brief Free the allocated Nd VTCM workspace.
+  void FreeVtcmWorkspace(Device dev, void* ptr);
 
   /*!
    * \brief Copy data from one storage to another.
@@ -99,8 +127,23 @@ class HexagonDeviceAPIv2 final : public DeviceAPI {
                       TVMStreamHandle stream) final;
 
  private:
-  //! Lookup table for the HexagonBuffer managing a workspace allocation.
-  std::unordered_map<void*, HexagonBuffer*> workspace_allocations_;
+  /*! \brief Helper to allocate a HexagonBuffer and register the result
+   *  in the owned buffer map.
+   *  \return Raw data storage managed by the hexagon buffer
+   */
+  template <typename... Args>
+  void* AllocateHexagonBuffer(Args&&... args) {
+    auto buf = std::make_unique<HexagonBuffer>(std::forward<Args>(args)...);
+    void* ptr = buf->GetPointer();
+    hexagon_buffer_map_.insert({ptr, std::move(buf)});
+    return ptr;
+  }
+  /*! \brief Helper to free a HexagonBuffer and unregister the result
+   *  from the owned buffer map.
+   */
+  void FreeHexagonBuffer(void* ptr);
+  //! Lookup table for the HexagonBuffer managing an allocation.
+  std::unordered_map<void*, std::unique_ptr<HexagonBuffer>> hexagon_buffer_map_;
 };
 }  // namespace hexagon
 }  // namespace runtime

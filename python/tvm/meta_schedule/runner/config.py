@@ -45,7 +45,7 @@ class EvaluatorConfig(NamedTuple):
 
     number: int = 3
     repeat: int = 1
-    min_repeat_ms: int = 40
+    min_repeat_ms: int = 100
     enable_cpu_cache_flush: bool = False
 
     @staticmethod

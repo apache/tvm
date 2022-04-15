@@ -17,8 +17,12 @@
 
 .. _release_process:
 
-Apache TVM Release Process
-==========================
+Release Process
+===============
+
+.. contents::
+  :depth: 2
+  :local:
 
 The release manager role in TVM means you are responsible for a few different things:
 

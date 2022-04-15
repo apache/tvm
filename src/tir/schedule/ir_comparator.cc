@@ -125,9 +125,6 @@ bool TensorizeComparator::VisitStmt_(const BlockNode* op, const Stmt& other) {
     if (!CompareArray(op->iter_vars, rhs->iter_vars, &TensorizeComparator::CompareIterVar)) {
       return false;
     }
-    if (!CompareAnnotationMap(op->annotations, rhs->annotations)) {
-      return false;
-    }
     if (!CompareArray(op->alloc_buffers, rhs->alloc_buffers, &TensorizeComparator::CompareBuffer)) {
       return false;
     }
@@ -216,7 +213,6 @@ bool TensorizeComparator::DefEqual(const Var& lhs, const Var& rhs) {
 bool TensorizeComparator::CompareAnnotation(const std::pair<String, ObjectRef>& lhs,
                                             const std::pair<String, ObjectRef>& rhs) {
   if (lhs.first != rhs.first) return false;
-  if (!lhs.second.same_as(rhs.second)) return false;
   return VisitExpr(Downcast<PrimExpr>(lhs.second), Downcast<PrimExpr>(rhs.second));
 }
 

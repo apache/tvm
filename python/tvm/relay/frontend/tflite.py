@@ -30,9 +30,10 @@ from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
 from .. import qnn as _qnn
+from ..backend.name_transforms import sanitize_name
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
-from .common import to_int_list
+from .common import to_int_list, shape_of
 from .tflite_flexbuffer import FlexBufferDecoder
 
 __all__ = ["from_tflite"]
@@ -845,7 +846,7 @@ class OperatorConverter(object):
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
 
-        out = _op.shape_of(self.get_tensor_expr(input_tensors[0]))
+        out = shape_of(self.get_tensor_expr(input_tensors[0]))
 
         return out
 
@@ -1140,36 +1141,22 @@ class OperatorConverter(object):
 
     def convert_ceil(self, op):
         """Convert TFLite CEIL"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized CEIL operator is not supported yet.")
         return self._convert_unary_elemwise(_op.ceil, op)
 
     def convert_floor(self, op):
         """Convert TFLite FLOOR"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized FLOOR operator is not supported yet."
-            )
         return self._convert_unary_elemwise(_op.floor, op)
 
     def convert_round(self, op):
         """Convert TFLite ROUND"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized ROUND operator is not supported yet."
-            )
         return self._convert_unary_elemwise(_op.round, op)
 
     def convert_exp(self, op):
         """Convert TFLite EXP"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized EXP operator is not supported yet.")
         return self._convert_unary_elemwise(_op.exp, op)
 
     def convert_log(self, op):
         """Convert TFLite LOG"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized LOG operator is not supported yet.")
         return self._convert_unary_elemwise(_op.log, op)
 
     def convert_sin(self, op):
@@ -1178,14 +1165,10 @@ class OperatorConverter(object):
 
     def convert_tan(self, op):
         """Convert TFLite TAN"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized TAN operator is not supported yet.")
         return self._convert_unary_elemwise(_op.tan, op)
 
     def convert_cos(self, op):
         """Convert TFLite COS"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized COS operator is not supported yet.")
         return self._convert_unary_elemwise(_op.cos, op)
 
     def convert_sqrt(self, op):
@@ -1666,7 +1649,7 @@ class OperatorConverter(object):
                             if begin[index] < 0
                             else begin[index]
                         )
-                        m_end[final_index] = begin[index] + 1
+                        m_end[final_index] = m_begin[final_index] + 1
                         m_stride[final_index] = 1
                         fshape_indices.append(-2)
                     else:
@@ -1973,9 +1956,9 @@ class OperatorConverter(object):
         # Change the output shape calculation based on keep_dim option
         if keep_num_dims:
             input_shape = _infer_shape(self.get_tensor_expr(input_tensor))
-            output_shape = input_shape
+            output_shape = list(input_shape)
             output_shape[-1] = weight_tensor_shape[0]
-            out = _op.reshape(out, output_shape)
+            out = _op.reshape(out, tuple(output_shape))
 
         return out
 
@@ -2704,9 +2687,9 @@ class OperatorConverter(object):
         unpack_axis = unpack_options.Axis()
 
         # Relay doesn't support 'unpack' operator so we use 'split' & 'squeeze' instead.
-        # We have to do 'squeeze' along the split axis but Relay expects
-        # squeeze_axis to be either None or List.
-        squeeze_axis = None if unpack_axis == 0 else [unpack_axis]
+        # We have to do 'squeeze' along the split axis.
+        # Relay expects squeeze_axis to be List.
+        squeeze_axis = [unpack_axis]
 
         # Relay doesn't like TupleWrapper of 1 element so we isolate the case of unpacking
         # a tensor by an axis with len(axis) == 1. For reference see convert_split().
@@ -2846,11 +2829,15 @@ class OperatorConverter(object):
         alpha_tensor_type = alpha_tensor.tensor.Type()
         alpha_tensor_type_str = self.get_tensor_type_str(alpha_tensor_type)
         alpha_expr = self.exp_tab.new_const(
-            self.get_tensor_value(alpha_tensor).flatten(), dtype=alpha_tensor_type_str
+            self.get_tensor_value(alpha_tensor), dtype=alpha_tensor_type_str
         )
         in_expr = self.get_expr(input_tensor.tensor_idx)
-        out = _op.nn.prelu(in_expr, alpha_expr, axis=3)
+        data_shape = to_int_list(self.get_tensor_shape(input_tensor))
 
+        alpha_expr = _op.broadcast_to(alpha_expr, data_shape)
+        alpha_expr = _op.reshape(alpha_expr, [-1])
+        out = _op.nn.prelu(_op.reshape(in_expr, [-1]), alpha_expr, axis=0)
+        out = _op.reshape(out, data_shape)
         return out
 
     def convert_transpose_conv(self, op):
@@ -3769,6 +3756,15 @@ def from_tflite(model, shape_dict=None, dtype_dict=None, op_converter=OperatorCo
     params = {k: _nd.array(np.array(v)) for k, v in exp_tab.params.items()}
     outputs = [exp_tab.get_expr(get_tensor_name(subgraph, i)) for i in model_outputs]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-    func = _function.Function(analysis.free_vars(outputs), outputs)
+    attrs = tvm.ir.make_node(
+        "DictAttrs",
+        **{
+            "output_tensor_names": [
+                sanitize_name(get_tensor_name(subgraph, model_output))
+                for model_output in model_outputs
+            ]
+        },
+    )
+    func = _function.Function(analysis.free_vars(outputs), outputs, attrs=attrs)
     mod = IRModule.from_expr(func)
     return mod, params

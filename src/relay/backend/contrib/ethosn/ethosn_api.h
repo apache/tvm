@@ -96,6 +96,10 @@ struct MeanParams {
   sl::TensorInfo input_info;
 };
 
+struct TanhParams {
+  sl::TensorInfo input_info;
+};
+
 struct ConcatenateParams {
   sl::QuantizationInfo qInfo;
   sl::ConcatenationInfo concat_info = sl::ConcatenationInfo(1, qInfo);
@@ -179,6 +183,9 @@ class EthosnError {
  */
 class EthosnAPI {
  public:
+  /*! \brief Create a default input tensor */
+  static sl::TensorInfo DefaultInputTensor(const Expr& expr);
+
   /*! \brief Extract the Support Library convolution params from an ethos-n.qnn_conv2d func */
   static EthosnError QnnConv2d(const Expr& expr, ConvolutionParams* params);
   /*! \brief Extract the Support Library dense params from an ethos-n.qnn_fc func */
@@ -195,6 +202,8 @@ class EthosnAPI {
   static EthosnError Sigmoid(const Expr& expr, SigmoidParams* params);
   /*! \brief Extract the Support Library mean params from a mean func */
   static EthosnError Mean(const Expr& expr, MeanParams* params);
+  /*! \brief Extract the Support Library tanh params from a Relay an ethos-n tanh func */
+  static EthosnError Tanh(const Expr& expr, TanhParams* params);
   /*! \brief Extract the Support Library concatenate params from a Relay qnn.concatenate call */
   static EthosnError Concatenate(const Expr& expr, ConcatenateParams* params);
   /*! \brief Extract the Support Library split params from a Relay split call */
@@ -235,8 +244,8 @@ class EthosnAPI {
   // Convert an array of IntImmNodes into ValueT
   // IndexT type of Array indexing variable
   // ValueT type of resulting value
-  template <typename IndexT, typename ValueT>
-  static EthosnError AsArray(const Array<IndexT>& arr, std::array<ValueT, 4>* v);
+  template <typename IndexT, typename ValueT, size_t N>
+  static EthosnError AsArray(const Array<IndexT>& arr, std::array<ValueT, N>* v);
 
   // Get a T from a constant represented by a NDArray.
   template <typename T>

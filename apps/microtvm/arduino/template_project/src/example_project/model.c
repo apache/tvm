@@ -23,8 +23,9 @@
 #include "standalone_crt/include/dlpack/dlpack.h"
 #include "standalone_crt/include/tvm/runtime/crt/stack_allocator.h"
 
-// AOT memory array
-static uint8_t g_aot_memory[WORKSPACE_SIZE];
+// AOT memory array, stack allocator wants it aligned
+static uint8_t g_aot_memory[WORKSPACE_SIZE]
+    __attribute__((aligned(TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)));
 tvm_workspace_t app_workspace;
 
 // Blink code for debugging purposes
@@ -86,7 +87,7 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
 void TVMInitialize() { StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE); }
 
 void TVMExecute(void* input_data, void* output_data) {
-  int ret_val = tvmgen_default_run_model(input_data, output_data);
+  int ret_val = tvmgen_default___tvm_main__(input_data, output_data);
   if (ret_val != 0) {
     TVMPlatformAbort(kTvmErrorPlatformCheckFailure);
   }

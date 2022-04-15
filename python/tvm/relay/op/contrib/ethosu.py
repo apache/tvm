@@ -1074,8 +1074,28 @@ class LutActivationParams:
     """
 
     def __init__(self, func_body: Call):
-        self.ofm = TensorParams(func_body)
-        self.ifm = TensorParams(func_body.args[0].args[0].args[0])
+        from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
+        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
+
+        layout = "NHWC"
+
+        quantize = func_body
+        activation = quantize.args[0]
+        dequantize = activation.args[0]
+        in_var = dequantize.args[0]
+
+        self.ifm = TensorParams(
+            in_var,
+            layout=layout,
+            scale=dequantize.args[DequantizeArgs.IFM_SCALE.value],
+            zero_point=dequantize.args[DequantizeArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            quantize,
+            layout=layout,
+            scale=quantize.args[QuantizeArgs.OFM_SCALE.value],
+            zero_point=quantize.args[QuantizeArgs.OFM_ZERO_POINT.value],
+        )
 
     def is_valid(self):
         """
@@ -1114,6 +1134,28 @@ def sigmoid_pattern():
     sigmoid = is_op("sigmoid")(dequant)
     quant = is_op("qnn.quantize")(sigmoid, is_constant(), is_constant())
     return quant
+
+
+class LeakyReLUParams(LutActivationParams):
+    """
+    This class will parse a call to ethos-u.leaky_relu composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.leaky_relu"
+
+    def __init__(self, func_body: Call):
+        super().__init__(func_body)
+        self.alpha = func_body.args[0].attrs.alpha
+
+
+def leaky_relu_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for leaky relu.
+    """
+    dequantize = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+    leaky_relu = is_op("nn.leaky_relu")(dequantize)
+    return is_op("qnn.quantize")(leaky_relu, is_constant(), is_constant())
 
 
 class MeanParams:
@@ -1495,6 +1537,110 @@ def squeeze_pattern():
     return is_op("squeeze")(wildcard())
 
 
+class FullyConnectedParams:
+    """
+    This class will parse a call to an ethos-u.fully_connected composite
+    function and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.fully_connected"
+
+    @requires_vela
+    def __init__(self, func_body):
+        from tvm.relay.backend.contrib.ethosu.util import QDenseArgs  # type: ignore
+        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
+        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+
+        self.activation = None
+        if str(func_body.op) == "clip":
+            self.activation = func_body
+            requantize_op = self.activation.args[0]
+        else:
+            requantize_op = func_body
+
+        call = requantize_op.args[0]
+        if str(requantize_op.args[0].op) == "nn.bias_add":
+            bias_add = call
+            qnn_dense = call.args[0]
+        else:
+            bias_add = None
+            qnn_dense = call
+
+        # weights & biases are params as they should be constant
+        self.weights = TensorParams(
+            qnn_dense.args[QDenseArgs.WEIGHTS.value],
+            None,
+            qnn_dense.args[QDenseArgs.WEIGHTS_SCALE.value],
+            qnn_dense.args[QDenseArgs.WEIGHTS_ZERO_POINT.value],
+        )
+        self.biases = (
+            TensorParams(
+                bias_add.args[BiasAddArgs.BIASES.value],
+                None,
+                requantize_op.args[RequantArgs.IFM_SCALE.value],
+                requantize_op.args[RequantArgs.IFM_ZERO_POINT.value],
+            )
+            if bias_add
+            else None
+        )
+        self.ifm = TensorParams(
+            qnn_dense.args[QDenseArgs.IFM.value],
+            None,
+            qnn_dense.args[QDenseArgs.IFM_SCALE.value],
+            qnn_dense.args[QDenseArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            func_body,
+            None,
+            requantize_op.args[RequantArgs.OFM_SCALE.value],
+            requantize_op.args[RequantArgs.OFM_ZERO_POINT.value],
+        )
+
+    def is_valid(self) -> bool:
+        """
+        Checks whether Fully Connected has compatible attributes with HW
+        """
+
+        def check_weights_fc(weights):
+            """Checks whether weight tensor is compatible with HW"""
+            weights_limit = 127 * 65536
+            # A saturation upper bound check for accumulators
+            weights.values = weights.values - weights.q_params.zero_point
+            axis = 1
+            sum_weights = np.amax(np.sum(np.absolute(weights.values), axis=axis))
+            if not sum_weights <= weights_limit:
+                return False
+            return True
+
+        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
+            return False
+        if not check_weights_fc(self.weights):
+            return False
+        if not check_bias(self.biases):
+            return False
+        if not check_batch_size(self.ifm):
+            return False
+        # Check input shape
+        if not len(self.ifm.shape) == 2:
+            return False
+        # Check output shape
+        if not len(self.ofm.shape) == 2:
+            return False
+        return True
+
+
+def qnn_fc_pattern():
+    dense = is_op("qnn.dense")(
+        wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    optional_bias_add = is_op("nn.bias_add")(dense, is_constant())
+    req = is_op("qnn.requantize")(
+        dense | optional_bias_add, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    optional_clip = req.optional(is_op("clip"))
+    return optional_clip
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -1512,6 +1658,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             QnnConv2DTransposeParams.composite_name,
             qnn_conv2d_transpose_pattern(),
             lambda pat: QnnConv2DTransposeParams(pat).is_valid(),
+        ),
+        (
+            FullyConnectedParams.composite_name,
+            qnn_fc_pattern(),
+            lambda pat: FullyConnectedParams(pat).is_valid(),
         ),
         (
             MaxPool2DParams.composite_name,
@@ -1574,6 +1725,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             mean_pattern(),
             lambda pat: MeanParams(pat).is_valid(),
         ),
+        (
+            LeakyReLUParams.composite_name,
+            leaky_relu_pattern(),
+            lambda pat: LeakyReLUParams(pat).is_valid(),
+        ),
         (ConcatParams.composite_name, concat_pattern(), lambda pat: ConcatParams(pat).is_valid()),
         (
             SigmoidParams.composite_name,
@@ -1611,7 +1767,10 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
 # pylint: disable=unused-argument
 @requires_vela
 def partition_for_ethosu(
-    mod: tvm.ir.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None, **opts
+    mod: tvm.ir.IRModule,
+    params: Optional[Dict[str, tvm.runtime.NDArray]] = None,
+    mod_name: str = "default",
+    **opts,
 ):
     """This helper function partition the relay graph as produced by the
     relay frontend for a given model into external functions
@@ -1623,6 +1782,8 @@ def partition_for_ethosu(
         The IRModule that gets generated from a relay frontend
     params : Optional[Dict[str, tvm.runtime.NDArray]]
         Constant input parameters.
+    mod_name: str, optional
+        The module name
 
     Returns
     -------
@@ -1640,7 +1801,7 @@ def partition_for_ethosu(
     mod = relay.transform.AnnotateTarget("ethos-u")(mod)
     mod = relay.transform.MergeCompilerRegions()(mod)
     mod = relay.transform.InferType()(mod)
-    mod = relay.transform.PartitionGraph()(mod)
+    mod = relay.transform.PartitionGraph(mod_name)(mod)
     mod = relay.transform.InferType()(mod)
     mod = preprocess.preprocess_ext_io()(mod)
     return mod

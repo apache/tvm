@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -21,7 +21,7 @@ set -u
 
 source tests/scripts/setup-pytest-env.sh
 
-export TVM_TEST_TARGETS="llvm; llvm -device=arm_cpu; cuda; cuda -model=unknown -libs=cudnn"
+export TVM_TEST_TARGETS="llvm; cuda"
 
 # to avoid CI thread throttling.
 export TVM_BIND_THREADS=0

@@ -67,18 +67,6 @@ class HexagonBuffer {
    */
   HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment, Optional<String> scope);
 
-  /* \brief Construct a Hexagon Buffer from an external buffer.
-   *
-   * \param data The pointer to the external buffer.
-   *
-   * \param nbytes The size of the external buffer in bytes.
-   *
-   * \param scope Optional storage scope indicating the memory
-   * space in which to allocate. Defaults to global system
-   * memory (DDR).
-   */
-  explicit HexagonBuffer(void* data, size_t nbytes, Optional<String> scope);
-
   //! \brief Destruction deallocates the underlying allocations.
   ~HexagonBuffer();
 
@@ -94,8 +82,21 @@ class HexagonBuffer {
   //! \brief Prevent move assignment.
   HexagonBuffer& operator=(HexagonBuffer&&) = delete;
 
-  //! \brief Return pointer to allocations.
-  void** GetPointer();
+  /*! \brief Return data pointer into the buffer
+   *
+   * The returned pointer is intended for use as the runtime value
+   * corresponding to the `Var BufferNode::data` of a buffer.  The
+   * return type depends on the dimensionality of the buffer being
+   * accessed, and must be compatible with the usage defined in
+   * `CodeGenHexagon::CreateBufferPtr`.
+   *
+   * For a 1-d buffer, this pointer can be cast to a `T*` and accessed
+   * as a 1-d array (e.g. `static_cast<int32_t*>(GetPointer())[i]`).
+   * For a 2-d buffer, this pointer can be cast to a `T**` and
+   * accessed as a 2-d array
+   * (e.g. `static_cast<int32_t**>(GetPointer())[i][j]`).
+   */
+  void* GetPointer();
 
   //! \brief Memory scopes managed by a Hexagon Buffer.
   enum class StorageScope {
@@ -135,6 +136,9 @@ class HexagonBuffer {
   void CopyFrom(const HexagonBuffer& other, size_t nbytes);
 
  private:
+  //! \brief Return the total number of bytes in this buffer
+  size_t TotalBytes() const { return nbytes_per_allocation_ * allocations_.size(); }
+
   //! \brief Assign a storage scope to the buffer.
   void SetStorageScope(Optional<String> scope);
   /*! \brief Array of raw pointer allocations required by the buffer.
@@ -150,9 +154,45 @@ class HexagonBuffer {
   /*! \brief The underlying storage type in which the allocation
    *  resides.
    */
-  size_t nallocs_;
-  size_t nbytes_;
+  size_t ndim_;
+  size_t nbytes_per_allocation_;
   StorageScope storage_scope_;
+};
+
+/*! \brief Structure used to track/coalesce memory copies */
+struct MemoryCopy {
+  static std::vector<MemoryCopy> MergeAdjacent(std::vector<MemoryCopy> micro_copies);
+
+  MemoryCopy(void* dest, void* src, size_t num_bytes)
+      : dest(dest), src(src), num_bytes(num_bytes) {}
+
+  bool IsDirectlyBefore(const MemoryCopy& other) {
+    void* src_end = static_cast<unsigned char*>(src) + num_bytes;
+    void* dest_end = static_cast<unsigned char*>(dest) + num_bytes;
+    return (src_end == other.src) && (dest_end == other.dest);
+  }
+
+  void* dest;
+  void* src;
+  size_t num_bytes;
+};
+
+/*!
+ */
+struct BufferSet {
+  // Determine all copies that do not cross boundaries in either
+  // source or destination region.
+  static std::vector<MemoryCopy> MemoryCopies(const BufferSet& dest, const BufferSet& src,
+                                              size_t bytes_to_copy);
+
+  BufferSet(void* const* buffers, size_t num_regions, size_t region_size_bytes)
+      : buffers(buffers), num_regions(num_regions), region_size_bytes(region_size_bytes) {}
+
+  size_t TotalBytes() const { return num_regions * region_size_bytes; }
+
+  void* const* buffers;
+  size_t num_regions;
+  size_t region_size_bytes;
 };
 
 }  // namespace hexagon

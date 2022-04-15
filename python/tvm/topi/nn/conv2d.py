@@ -19,11 +19,11 @@
 """Conv2D operators"""
 from __future__ import absolute_import as _abs
 
-from collections import namedtuple
 import re
-from typing import Union, Sequence
-import numpy as np
+from collections import namedtuple
+from typing import Optional, Sequence, Union
 
+import numpy as np
 import tvm
 from tvm import auto_scheduler, te
 
@@ -313,62 +313,18 @@ def conv2d_nhwc(
     output : tvm.te.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
     """
-    assert isinstance(stride, int) or len(stride) == 2
-    assert isinstance(dilation, int) or len(dilation) == 2
-
-    if isinstance(stride, int):
-        stride_h = stride_w = stride
-    else:
-        stride_h, stride_w = stride
-
-    if isinstance(dilation, int):
-        dilation_h = dilation_w = dilation
-    else:
-        dilation_h, dilation_w = dilation
-
-    if auto_scheduler_rewritten_layout:
-        # Infer shape for the rewritten layout
-        kernel_h, kernel_w, channel, num_filter = auto_scheduler.get_shape_from_rewritten_layout(
-            auto_scheduler_rewritten_layout, ["ry", "rx", "rc", "ff"]
-        )
-        auto_scheduler.remove_index_check(Filter)
-    else:
-        kernel_h, kernel_w, channel, num_filter = Filter.shape
-
-    batch, in_height, in_width, in_channel = Input.shape
-    # compute the output shape
-    dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
-    dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
-    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
-        padding, (dilated_kernel_h, dilated_kernel_w)
+    return conv(
+        Input,
+        Filter,
+        stride,
+        padding,
+        dilation,
+        1,
+        "NHWC",
+        out_dtype,
+        auto_scheduler_rewritten_layout,
+        auto_scheduler_should_rewrite_layout=True,
     )
-    out_channel = num_filter
-    out_height = simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
-    out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
-    pad_before = [0, pad_top, pad_left, 0]
-    pad_after = [0, pad_down, pad_right, 0]
-    PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
-    rc = te.reduce_axis((0, in_channel), name="rc")
-    ry = te.reduce_axis((0, kernel_h), name="ry")
-    rx = te.reduce_axis((0, kernel_w), name="rx")
-    Output = te.compute(
-        (batch, out_height, out_width, out_channel),
-        lambda nn, yy, xx, ff: te.sum(
-            PaddedInput[
-                nn, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, rc
-            ].astype(out_dtype)
-            * Filter[ry, rx, rc, ff].astype(out_dtype),
-            axis=[ry, rx, rc],
-        ),
-        name="Conv2dOutput",
-        tag="conv2d_nhwc",
-        attrs={"layout_free_placeholders": [Filter]},
-    )
-
-    if auto_scheduler_rewritten_layout:
-        Output = auto_scheduler.rewrite_compute_body(Output, auto_scheduler_rewritten_layout)
-
-    return Output
 
 
 def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, out_dtype="float32"):
@@ -530,7 +486,6 @@ def conv2d_NCHWc_int8(
     oc_chunk, ic_chunk_group, kernel_height, kernel_width, _, oc_bn, _ = get_const_tuple(
         kernel.shape
     )
-    num_filter = oc_chunk * oc_bn
     groups = ic_chunk // ic_chunk_group
 
     dilated_kernel_h = (kernel_height - 1) * dilation_h + 1
@@ -581,6 +536,7 @@ def conv2d_NCHWc_int8(
             ),
             name="conv2d_NCHWc_int8",
             tag="conv2d_NCHWc_int8",
+            attrs={"schedule_rule": "meta_schedule.conv2d_NCHWc_int8"},
         )
     # for int8 group conv support
     ic_chunk = in_channel // ic_bn
@@ -603,6 +559,7 @@ def conv2d_NCHWc_int8(
         ),
         name="conv2d_NCHWc_int8",
         tag="conv2d_NCHWc_int8",
+        attrs={"schedule_rule": "meta_schedule.conv2d_NCHWc_int8"},
     )
 
 
@@ -758,6 +715,8 @@ def conv(
     groups: int,
     order: str,
     out_dtype: Union[str, None] = None,
+    auto_scheduler_rewritten_layout: Optional[str] = None,
+    auto_scheduler_should_rewrite_layout: bool = False,
 ):
     """Convolution operator in NCHW or NHWC layout.
 
@@ -795,6 +754,14 @@ def conv(
     out_dtype : str
         Elements are converted to this type before elementwise multiplication
         and summation.
+
+    auto_scheduler_should_rewrite_layout : bool
+        Should auto scheduler be allowed to rewrite the layout of the filter
+        tensor. Defaults to false. This can cause errors if used with grouped
+        convs.
+
+    auto_scheduler_rewritten_layout: str
+        Layout from autoscheduler's layout rewritting.
 
     Returns
     -------
@@ -840,6 +807,15 @@ def conv(
         permutation_to_kernel
     ].tolist()
 
+    # Autoscheduler may have messed with the input layout, so we extract the
+    # dimensions that it gives us
+    if auto_scheduler_rewritten_layout:
+        num_filter, _, *kernel_dimensions = auto_scheduler.get_shape_from_rewritten_layout(
+            auto_scheduler_rewritten_layout,
+            ["ff", "rc"] + [f"r{i}" for i in ["y", "x", "z"][: len(kernel_dimensions)]],
+        )
+        auto_scheduler.remove_index_check(filt)
+
     assert in_channel % groups == 0, "input channels must divide group size"
     assert num_filter % groups == 0, "output channels must divide group size"
 
@@ -858,15 +834,21 @@ def conv(
     pad_after = list(np.array([0, 0] + pad_end)[permutation_from])
     temp = pad(inp, pad_before, pad_after, name="pad_temp")
     rc = te.reduce_axis((0, in_channel // groups), name="rc")
-    rs = [te.reduce_axis((0, k), name=f"r{i}") for i, k in enumerate(kernel_dimensions)]
+    rs = [te.reduce_axis((0, k), name=f"r{i}") for i, k in zip(["y", "x", "z"], kernel_dimensions)]
 
     def compute(*args):
         nn, ff, *dim_indices = list(np.array(args)[permutation_to])
+
+        if groups == 1:
+            simplified_channel_index = rc
+        else:
+            simplified_channel_index = ff // (num_filter // groups) * (in_channel // groups) + rc
+
         return te.sum(
             temp.__getitem__(
                 tuple(
                     np.array(
-                        [nn, ff // (num_filter // groups) * (in_channel // groups) + rc]
+                        [nn, simplified_channel_index]
                         + [
                             di * stride + r * dil
                             for di, stride, r, dil in zip(dim_indices, strides, rs, dilations)
@@ -882,13 +864,20 @@ def conv(
             axis=np.array([rc, *rs])[permutation_from_reductions].tolist(),
         )
 
-    return te.compute(
+    out = te.compute(
         list(np.array([batch, out_channel] + out_dimensions)[permutation_from]),
         compute,
         # tag is expected to be lowercase
         tag=f"{'group_' if groups > 1 else ''}conv{dim}d_{order.lower()}",
         name=f"{'group_' if groups > 1 else ''}conv{dim}d_{order.lower()}",
+        attrs={"layout_free_placeholders": [filt]} if auto_scheduler_should_rewrite_layout else {},
+        varargs_names=list(np.array(["nn", "ff", "yy", "xx", "zz"])[permutation_from]),
     )
+    # if we used autoscheduler's changed layout we need to rewrite the ordering
+    # of the output dimensions
+    if auto_scheduler_rewritten_layout:
+        out = auto_scheduler.rewrite_compute_body(out, auto_scheduler_rewritten_layout)
+    return out
 
 
 def group_conv2d_nhwc(Input, Filter, stride, padding, dilation, groups, out_dtype=None):
@@ -1038,7 +1027,11 @@ def _conv2d_winograd_nhwc_impl(
 
     pad_extra = (nW - 1) * m + alpha - (H + pad_t + pad_b)
     data_pad = pad(
-        data, (0, pad_t, pad_l, 0), (0, pad_b + pad_extra, pad_r + pad_extra, 0), name="data_pad"
+        data,
+        (0, pad_t, pad_l, 0),
+        (0, pad_b + pad_extra, pad_r + pad_extra, 0),
+        name="data_pad",
+        attrs={"schedule_rule": "None"},
     )
 
     if not pre_computed:
@@ -1063,9 +1056,16 @@ def _conv2d_winograd_nhwc_impl(
             (p % nW) * m + nu
         ][ci],
         name="input_tile",
+        attrs={"schedule_rule": "None"},
     )
 
     # transform data
+    target = tvm.target.Target.current(allow_none=True)
+    if target is not None:
+        target_kind = "meta_schedule.winograd_data_pack." + target.kind.name
+    else:
+        target_kind = "None"
+
     r_a = te.reduce_axis((0, alpha), "r_a")
     r_b = te.reduce_axis((0, alpha), "r_b")
     data_pack = te.compute(
@@ -1074,7 +1074,10 @@ def _conv2d_winograd_nhwc_impl(
             input_tile[r_a][r_b][p][ci] * B[r_a][eps] * B[r_b][nu], axis=[r_a, r_b]
         ),
         name="data_pack",
-        attrs={"auto_scheduler_simplify_const_tensor_indices": ["eps", "nu", "r_a", "r_b"]},
+        attrs={
+            "auto_scheduler_simplify_const_tensor_indices": ["eps", "nu", "r_a", "r_b"],
+            "schedule_rule": target_kind,
+        },
         # the attrs are necessary hints for the auto-scheduler
     )
 
@@ -1101,7 +1104,10 @@ def _conv2d_winograd_nhwc_impl(
             bgemm[r_a][r_b][p][co] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]
         ),
         name="inverse",
-        attrs={"auto_scheduler_simplify_const_tensor_indices": ["vh", "vw", "r_a", "r_b"]},
+        attrs={
+            "auto_scheduler_simplify_const_tensor_indices": ["vh", "vw", "r_a", "r_b"],
+            "schedule_rule": "meta_schedule.winograd_inverse",
+        },
         # the attrs are necessary hints for the auto-scheduler
     )
 

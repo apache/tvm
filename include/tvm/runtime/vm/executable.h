@@ -219,6 +219,13 @@ class Executable : public ModuleNode {
   void SetLib(const runtime::Module& lib);
 
   /*!
+   * \brief Get VMFunction.
+   * \param func_name The function's name.
+   * \return VMFunction.
+   */
+  const VMFunction& GetVMFunctionWithName(const std::string& func_name) const;
+
+  /*!
    * \brief Get the arity of the VMFunction.
    * \param func Function name.
    * \return The number of parameters.

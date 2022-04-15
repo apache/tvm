@@ -175,7 +175,8 @@ mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 #
 # Under the hood, quantization specific operators are lowered to a sequence of
 # standard Relay operators before compilation.
-tvm_result, rt_mod = run_tvm_model(mod, params, input_name, inp, target="llvm")
+target = "llvm"
+tvm_result, rt_mod = run_tvm_model(mod, params, input_name, inp, target=target)
 
 ##########################################################################
 # Compare the output labels

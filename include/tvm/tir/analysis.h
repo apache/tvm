@@ -73,6 +73,20 @@ inline void VisitPrimFuncs(const IRModule& mod, FLambda fvisit) {
 }
 
 /*!
+ * \brief Estimate the FLOPs of a TIR fragment.
+ * \param stmt The TIR fragment to be estimated.
+ * \return The estimated FLOPs.
+ */
+TVM_DLL double EstimateTIRFlops(const Stmt& stmt);
+
+/*!
+ * \brief Estimate the FLOPs of TIRs in an IRModule.
+ * \param mod The IRModule to be estimated.
+ * \return The estimated FLOPs.
+ */
+TVM_DLL double EstimateTIRFlops(const IRModule& mod);
+
+/*!
  * \brief Find undefined vars in the statement.
  * \param stmt The function to be checked.
  * \param defs The vars that is defined.

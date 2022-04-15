@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 
+#include "block_config.h"
 #include "cascader_options.h"
 #include "common.h"
 #include "graph.h"
@@ -68,6 +69,21 @@ std::vector<std::vector<T>> EnumerateCombinations(std::vector<std::vector<T>> va
     }
   }
   return new_combs;
+}
+
+float GetTransferEfficiency(const Tensor& tensor, const std::vector<int>& block_shape,
+                            const MemoryRegion& memory) {
+  // The block_shape represents the shape of the data transfer required for each job. This is used
+  // to calculate how much of the block_shape is contiguous in memory (source memory for a read or
+  // destination memory for a write) and subsequently calculate how efficient each memory burst is.
+  const auto& shape = tensor->GetShape();
+  int burst_length = block_shape[block_shape.size() - 1];
+  if (block_shape[block_shape.size() - 1] == shape[shape.size() - 1]) {
+    burst_length *= block_shape[block_shape.size() - 2];
+  }
+
+  burst_length *= tensor->GetDataType().bytes();
+  return static_cast<float>(memory->burst_length) / std::min(burst_length, memory->burst_length);
 }
 
 std::vector<bool> GetCascadableAxes(const Part& part) {
@@ -322,6 +338,7 @@ std::vector<Plan> GenerateSinglePlans(
         int bandwidth_cycles = 0;
         int compute_cycles = 0;
         int mem2mem_cycles = 0;
+        int initial_mem2mem_cycles = 0;
 
         // Pick the correct performance info based on the BufferMode
         PerformanceInfo perf_info;
@@ -332,32 +349,52 @@ std::vector<Plan> GenerateSinglePlans(
         }
         // Calculate the bandwidth cycles by multiplying the bytes read/written by the
         // bandwidth of the memories
+        BlockConfig block_config = perf_info->block_config;
         for (size_t i = 0; i < input_configs.size(); i++) {
-          bandwidth_cycles +=
-              perf_info->read_bytes[i] / input_configs[i]->GetCopyRegion()->read_bandwidth;
+          Tensor tensor = input_configs[i]->GetTensor();
+          MemoryRegion home_region = input_configs[i]->GetHomeRegion();
+          MemoryRegion copy_region = input_configs[i]->GetCopyRegion();
+
           if (input_configs[i]->DoCopy()) {
             // This Tensor needs to be copied - Count stripes for this config
-            Tensor tensor = input_configs[i]->GetTensor();
             for (const auto& stripe_config : input_configs[i]->GetStripeConfigs()) {
               std::map<std::vector<int>, int> input_blocks = CountStripes(stripe_config, true);
+              bool first_block = true;
               for (const auto& block : input_blocks) {
                 int bytes_transferred = mul_reduce(block.first) * tensor->GetDataType().bytes() *
                                         tensor->GetCompressionRatio() * block.second;
-                int read_cycles =
-                    bytes_transferred * input_configs[i]->GetHomeRegion()->read_bandwidth;
-                int write_cycles =
-                    bytes_transferred * input_configs[i]->GetCopyRegion()->write_bandwidth;
+                int read_cycles = bytes_transferred * home_region->read_bandwidth +
+                                  input_configs[i]->GetHomeRegion()->read_latency;
+                int write_cycles = bytes_transferred * copy_region->write_bandwidth;
+
+                if (first_block) {
+                  first_block = false;
+                  initial_mem2mem_cycles += std::max(read_cycles, write_cycles);
+                }
                 mem2mem_cycles += std::max(read_cycles, write_cycles);
               }
             }
           }
+          float read_efficiency =
+              GetTransferEfficiency(tensor, block_config->GetInputBlockShape(), copy_region);
+          bandwidth_cycles +=
+              (perf_info->read_bytes[i] / copy_region->read_bandwidth) * read_efficiency;
         }
+        MemoryRegion write_region = output_config->GetCopyRegion();
+        float write_efficiency = GetTransferEfficiency(
+            output_config->GetTensor(), block_config->GetOutputBlockShape(), write_region);
+
         bandwidth_cycles +=
-            perf_info->write_bytes / output_config->GetCopyRegion()->write_bandwidth;
+            perf_info->write_bytes / write_region->write_bandwidth * write_efficiency;
         compute_cycles = perf_info->compute_cycles;
         // Take the max of compute and bandwidth cycles as we assume compute cycles
         // can hide memory latency
         int cycles = std::max(std::max(compute_cycles, bandwidth_cycles), mem2mem_cycles);
+        if (cycles > mem2mem_cycles) {
+          // NPU cycles are the bottleneck - add initial mem2mem transfer cycles
+          cycles += initial_mem2mem_cycles;
+        }
+
         int memory_usage =
             GetInteriorMemoryUsage(input_configs, output_config, options->cascade_region);
         plans.push_back(Plan(tensor_configs, open_configs, output_config, part_group,

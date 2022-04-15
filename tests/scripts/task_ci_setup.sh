@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -30,6 +30,7 @@ set -o pipefail
 #
 echo "Additional setup in ${CI_IMAGE_NAME}"
 
+# If these are changed also update tests/scripts/ci.py
 python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0
 
 # Rebuild standalone_crt in build/ tree. This file is not currently archived by pack_lib() in

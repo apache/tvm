@@ -27,11 +27,17 @@ from tvm.tir import isnan, isfinite, isinf
 from tvm.tir import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
 from tvm.tir import comm_reducer, min, max, sum
 
-from .schedule import Schedule, Stage, create_schedule, SpecializedCondition
+from .schedule import (
+    Schedule,
+    Stage,
+    create_schedule,
+    SpecializedCondition,
+    AXIS_SEPARATOR,
+)
 from .tensor import TensorSlice, Tensor
 from .tensor_intrin import decl_tensor_intrin
 from .tag import tag_scope
-from .operation import placeholder, compute, scan, extern, var, size_var
+from .operation import placeholder, compute, scan, extern, var, size_var, const
 from .operation import thread_axis, reduce_axis
 from .operation import create_prim_func, create_prim_func_from_outputs
 

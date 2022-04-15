@@ -22,6 +22,7 @@ from ast import arg
 import copy
 import json
 import logging
+import pathlib
 import os
 import re
 import shlex
@@ -97,10 +98,27 @@ def parse_virtualbox_devices():
     return devices
 
 
+VIRTUALBOX_USB_DEVICE_RE = (
+    "USBAttachVendorId[0-9]+=0x([0-9a-z]{4})\n" + "USBAttachProductId[0-9]+=0x([0-9a-z]{4})"
+)
+
+
+def parse_virtualbox_attached_usb_devices(vm_uuid):
+    output = subprocess.check_output(
+        ["VBoxManage", "showvminfo", "--machinereadable", vm_uuid], encoding="utf-8"
+    )
+
+    r = re.compile(VIRTUALBOX_USB_DEVICE_RE)
+    attached_usb_devices = r.findall(output, re.MULTILINE)
+
+    # List of couples (VendorId, ProductId) for all attached USB devices
+    return attached_usb_devices
+
+
 VIRTUALBOX_VID_PID_RE = re.compile(r"0x([0-9A-Fa-f]{4}).*")
 
 
-def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
+def attach_virtualbox(vm_uuid, vid_hex=None, pid_hex=None, serial=None):
     usb_devices = parse_virtualbox_devices()
     for dev in usb_devices:
         m = VIRTUALBOX_VID_PID_RE.match(dev["VendorId"])
@@ -122,6 +140,12 @@ def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
             and pid_hex == dev_pid_hex
             and (serial is None or serial == dev["SerialNumber"])
         ):
+            attached_devices = parse_virtualbox_attached_usb_devices(vm_uuid)
+            for vid, pid in parse_virtualbox_attached_usb_devices(vm_uuid):
+                if vid_hex == vid and pid_hex == pid:
+                    print(f"USB dev {vid_hex}:{pid_hex} already attached. Skipping attach.")
+                    return
+
             rule_args = [
                 "VBoxManage",
                 "usbfilter",
@@ -132,7 +156,7 @@ def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
                 "--name",
                 "test device",
                 "--target",
-                uuid,
+                vm_uuid,
                 "--vendorid",
                 vid_hex,
                 "--productid",
@@ -141,8 +165,7 @@ def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
             if serial is not None:
                 rule_args.extend(["--serialnumber", serial])
             subprocess.check_call(rule_args)
-            # TODO(mehrdadh): skip usb attach if it's already attached
-            subprocess.check_call(["VBoxManage", "controlvm", uuid, "usbattach", dev["UUID"]])
+            subprocess.check_call(["VBoxManage", "controlvm", vm_uuid, "usbattach", dev["UUID"]])
             return
 
     raise Exception(
@@ -251,19 +274,34 @@ def generate_packer_config(platform, file_path, providers):
 
 
 def build_command(args):
+    this_dir = pathlib.Path(THIS_DIR)
+    base_box_dir = this_dir / args.platform / "base-box"
+
     generate_packer_config(
         args.platform,
-        os.path.join(THIS_DIR, args.platform, "base-box", PACKER_FILE_NAME),
+        os.path.join(base_box_dir, PACKER_FILE_NAME),
         args.provider or ALL_PROVIDERS,
     )
     env = copy.copy(os.environ)
-    packer_args = ["packer", "build"]
+    packer_args = ["packer", "build", "-force"]
     env["PACKER_LOG"] = "1"
     env["PACKER_LOG_PATH"] = "packer.log"
     if args.debug_packer:
         packer_args += ["-debug"]
 
     packer_args += [PACKER_FILE_NAME]
+
+    box_package_exists = False
+    if not args.force:
+        box_package_dirs = [(base_box_dir / f"output-packer-{p}") for p in args.provider]
+        for box_package_dir in box_package_dirs:
+            if box_package_dir.exists():
+                print(f"A box package {box_package_dir} already exists. Refusing to overwrite it!")
+                box_package_exists = True
+
+    if box_package_exists:
+        sys.exit("One or more box packages exist (see list above). To rebuild use '--force'")
+
     subprocess.check_call(
         packer_args, cwd=os.path.join(THIS_DIR, args.platform, "base-box"), env=env
     )
@@ -503,6 +541,11 @@ def parse_args():
         "--debug-packer",
         action="store_true",
         help=("Run packer in debug mode, and write log to the base-box directory."),
+    )
+    parser_build.add_argument(
+        "--force",
+        action="store_true",
+        help=("Force rebuilding a base box from scratch if one already exists."),
     )
 
     # Options for test subcommand

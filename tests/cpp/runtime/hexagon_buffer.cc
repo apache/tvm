@@ -47,6 +47,224 @@ TEST(HexagonBuffer, invalid_scope) {
   EXPECT_THROW(HexagonBuffer hb(8 /* nbytes */, 8 /* alignment */, scope), InternalError);
 }
 
+TEST(HexagonBuffer, micro_copies_corresponding_regions) {
+  auto ptr = [](auto val) { return reinterpret_cast<void*>(val); };
+
+  std::vector<void*> src_ptr{ptr(0), ptr(16)};
+  BufferSet src(src_ptr.data(), src_ptr.size(), 16);
+
+  std::vector<void*> dest_ptr{ptr(64), ptr(80)};
+  BufferSet dest(dest_ptr.data(), dest_ptr.size(), 16);
+
+  auto micro_copies = BufferSet::MemoryCopies(dest, src, 32);
+  EXPECT_EQ(micro_copies.size(), 2);
+  for (size_t i = 0; i < micro_copies.size(); i++) {
+    EXPECT_EQ(micro_copies[i].src, ptr(16 * i));
+    EXPECT_EQ(micro_copies[i].dest, ptr(64 + 16 * i));
+    EXPECT_EQ(micro_copies[i].num_bytes, 16);
+  }
+}
+
+TEST(HexagonBuffer, micro_copies_src_bigger) {
+  auto ptr = [](auto val) { return reinterpret_cast<void*>(val); };
+
+  std::vector<void*> src_ptr{ptr(0), ptr(16)};
+  BufferSet src(src_ptr.data(), src_ptr.size(), 16);
+
+  std::vector<void*> dest_ptr{ptr(64), ptr(72), ptr(80), ptr(88)};
+  BufferSet dest(dest_ptr.data(), dest_ptr.size(), 8);
+
+  auto micro_copies = BufferSet::MemoryCopies(dest, src, 32);
+  EXPECT_EQ(micro_copies.size(), 4);
+  for (size_t i = 0; i < micro_copies.size(); i++) {
+    EXPECT_EQ(micro_copies[i].src, ptr(8 * i));
+    EXPECT_EQ(micro_copies[i].dest, ptr(64 + 8 * i));
+    EXPECT_EQ(micro_copies[i].num_bytes, 8);
+  }
+}
+
+TEST(HexagonBuffer, micro_copies_dest_bigger) {
+  auto ptr = [](auto val) { return reinterpret_cast<void*>(val); };
+
+  std::vector<void*> src_ptr{ptr(0), ptr(8), ptr(16), ptr(24)};
+  BufferSet src(src_ptr.data(), src_ptr.size(), 8);
+
+  std::vector<void*> dest_ptr{ptr(64), ptr(80)};
+  BufferSet dest(dest_ptr.data(), dest_ptr.size(), 16);
+
+  auto micro_copies = BufferSet::MemoryCopies(dest, src, 32);
+  EXPECT_EQ(micro_copies.size(), 4);
+  for (size_t i = 0; i < micro_copies.size(); i++) {
+    EXPECT_EQ(micro_copies[i].src, ptr(8 * i));
+    EXPECT_EQ(micro_copies[i].dest, ptr(64 + 8 * i));
+    EXPECT_EQ(micro_copies[i].num_bytes, 8);
+  }
+}
+
+TEST(HexagonBuffer, micro_copies_src_overlaps_dest_region) {
+  auto ptr = [](auto val) { return reinterpret_cast<void*>(val); };
+
+  std::vector<void*> src_ptr{ptr(0), ptr(16)};
+  BufferSet src(src_ptr.data(), src_ptr.size(), 16);
+
+  std::vector<void*> dest_ptr{ptr(64), ptr(76)};
+  BufferSet dest(dest_ptr.data(), dest_ptr.size(), 12);
+
+  auto micro_copies = BufferSet::MemoryCopies(dest, src, 24);
+  EXPECT_EQ(micro_copies.size(), 3);
+
+  // First region of source, first region of dest
+  EXPECT_EQ(micro_copies[0].src, ptr(0));
+  EXPECT_EQ(micro_copies[0].dest, ptr(64));
+  EXPECT_EQ(micro_copies[0].num_bytes, 12);
+
+  // First region of source, second region of dest
+  EXPECT_EQ(micro_copies[1].src, ptr(12));
+  EXPECT_EQ(micro_copies[1].dest, ptr(76));
+  EXPECT_EQ(micro_copies[1].num_bytes, 4);
+
+  // Second region of source, second region of dest
+  EXPECT_EQ(micro_copies[2].src, ptr(16));
+  EXPECT_EQ(micro_copies[2].dest, ptr(80));
+  EXPECT_EQ(micro_copies[2].num_bytes, 8);
+}
+
+TEST(HexagonBuffer, micro_copies_dest_overlaps_src_region) {
+  auto ptr = [](auto val) { return reinterpret_cast<void*>(val); };
+
+  std::vector<void*> src_ptr{ptr(0), ptr(12)};
+  BufferSet src(src_ptr.data(), src_ptr.size(), 12);
+
+  std::vector<void*> dest_ptr{ptr(64), ptr(80)};
+  BufferSet dest(dest_ptr.data(), dest_ptr.size(), 16);
+
+  auto micro_copies = BufferSet::MemoryCopies(dest, src, 24);
+  EXPECT_EQ(micro_copies.size(), 3);
+
+  // First region of source, first region of dest
+  EXPECT_EQ(micro_copies[0].src, ptr(0));
+  EXPECT_EQ(micro_copies[0].dest, ptr(64));
+  EXPECT_EQ(micro_copies[0].num_bytes, 12);
+
+  // Second region of source, first region of dest
+  EXPECT_EQ(micro_copies[1].src, ptr(12));
+  EXPECT_EQ(micro_copies[1].dest, ptr(76));
+  EXPECT_EQ(micro_copies[1].num_bytes, 4);
+
+  // Second region of source, second region of dest
+  EXPECT_EQ(micro_copies[2].src, ptr(16));
+  EXPECT_EQ(micro_copies[2].dest, ptr(80));
+  EXPECT_EQ(micro_copies[2].num_bytes, 8);
+}
+
+TEST(HexagonBuffer, micro_copies_discontiguous_regions) {
+  auto ptr = [](auto val) { return reinterpret_cast<void*>(val); };
+
+  // Stride of 16, but only first 11 bytes in each region belong to
+  // this buffer.
+  std::vector<void*> src_ptr{ptr(0), ptr(16)};
+  BufferSet src(src_ptr.data(), src_ptr.size(), 11);
+
+  std::vector<void*> dest_ptr{ptr(64), ptr(80)};
+  BufferSet dest(dest_ptr.data(), dest_ptr.size(), 13);
+
+  auto micro_copies = BufferSet::MemoryCopies(dest, src, 16);
+  EXPECT_EQ(micro_copies.size(), 3);
+
+  // First region of source, first region of dest
+  EXPECT_EQ(micro_copies[0].src, ptr(0));
+  EXPECT_EQ(micro_copies[0].dest, ptr(64));
+  EXPECT_EQ(micro_copies[0].num_bytes, 11);
+
+  // Second region of source, first region of dest
+  EXPECT_EQ(micro_copies[1].src, ptr(16));
+  EXPECT_EQ(micro_copies[1].dest, ptr(75));
+  EXPECT_EQ(micro_copies[1].num_bytes, 2);
+
+  // Second region of source, second region of dest
+  EXPECT_EQ(micro_copies[2].src, ptr(18));
+  EXPECT_EQ(micro_copies[2].dest, ptr(80));
+  EXPECT_EQ(micro_copies[2].num_bytes, 3);
+}
+
+TEST(HexagonBuffer, micro_copies_invalid_size) {
+  auto ptr = [](auto val) { return reinterpret_cast<void*>(val); };
+
+  std::vector<void*> src_ptr{ptr(0), ptr(16)};
+  std::vector<void*> dest_ptr{ptr(64), ptr(80)};
+
+  {
+    BufferSet src(src_ptr.data(), 1, 16);
+    BufferSet dest(dest_ptr.data(), 2, 16);
+    EXPECT_THROW(BufferSet::MemoryCopies(dest, src, 24), InternalError);
+  }
+
+  {
+    BufferSet src(src_ptr.data(), 2, 16);
+    BufferSet dest(dest_ptr.data(), 1, 16);
+    EXPECT_THROW(BufferSet::MemoryCopies(dest, src, 24), InternalError);
+  }
+}
+
+TEST(HexagonBuffer, macro_copies_adjacent_corresponding_regions_merged) {
+  auto ptr = [](auto val) { return reinterpret_cast<void*>(val); };
+
+  std::vector<void*> src_ptr{ptr(0), ptr(16)};
+  BufferSet src(src_ptr.data(), src_ptr.size(), 16);
+
+  std::vector<void*> dest_ptr{ptr(64), ptr(80)};
+  BufferSet dest(dest_ptr.data(), dest_ptr.size(), 16);
+
+  auto micro_copies = BufferSet::MemoryCopies(dest, src, 32);
+  auto macro_copies = MemoryCopy::MergeAdjacent(std::move(micro_copies));
+
+  ASSERT_EQ(macro_copies.size(), 1);
+  EXPECT_EQ(macro_copies[0].src, ptr(0));
+  EXPECT_EQ(macro_copies[0].dest, ptr(64));
+  EXPECT_EQ(macro_copies[0].num_bytes, 32);
+}
+
+TEST(HexagonBuffer, macro_copies_discontiguous_regions_not_merged) {
+  auto ptr = [](auto val) { return reinterpret_cast<void*>(val); };
+
+  std::vector<void*> src_ptr{ptr(0), ptr(16)};
+  BufferSet src(src_ptr.data(), src_ptr.size(), 12);
+
+  std::vector<void*> dest_ptr{ptr(64), ptr(80)};
+  BufferSet dest(dest_ptr.data(), dest_ptr.size(), 12);
+
+  auto micro_copies = BufferSet::MemoryCopies(dest, src, 24);
+  auto macro_copies = MemoryCopy::MergeAdjacent(std::move(micro_copies));
+
+  ASSERT_EQ(macro_copies.size(), 2);
+
+  EXPECT_EQ(macro_copies[0].src, ptr(0));
+  EXPECT_EQ(macro_copies[0].dest, ptr(64));
+  EXPECT_EQ(macro_copies[0].num_bytes, 12);
+
+  EXPECT_EQ(macro_copies[1].src, ptr(16));
+  EXPECT_EQ(macro_copies[1].dest, ptr(80));
+  EXPECT_EQ(macro_copies[1].num_bytes, 12);
+}
+
+TEST(HexagonBuffer, macro_copies_overlapping_regions_merged) {
+  auto ptr = [](auto val) { return reinterpret_cast<void*>(val); };
+
+  std::vector<void*> src_ptr{ptr(0), ptr(12)};
+  BufferSet src(src_ptr.data(), src_ptr.size(), 12);
+
+  std::vector<void*> dest_ptr{ptr(64), ptr(80)};
+  BufferSet dest(dest_ptr.data(), dest_ptr.size(), 16);
+
+  auto micro_copies = BufferSet::MemoryCopies(dest, src, 24);
+  auto macro_copies = MemoryCopy::MergeAdjacent(std::move(micro_copies));
+
+  ASSERT_EQ(macro_copies.size(), 1);
+  EXPECT_EQ(macro_copies[0].src, ptr(0));
+  EXPECT_EQ(macro_copies[0].dest, ptr(64));
+  EXPECT_EQ(macro_copies[0].num_bytes, 24);
+}
+
 TEST(HexagonBuffer, copy_from) {
   Optional<String> scope("global");
   HexagonBuffer hb(8 /* nbytes */, 8 /* alignment */, scope);
@@ -54,7 +272,7 @@ TEST(HexagonBuffer, copy_from) {
   std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
   hb.CopyFrom(data.data(), data.size());
 
-  uint8_t* ptr = static_cast<uint8_t*>(hb.GetPointer()[0]);
+  uint8_t* ptr = static_cast<uint8_t*>(hb.GetPointer());
   for (size_t i = 0; i < data.size(); ++i) {
     EXPECT_EQ(ptr[i], data[i]);
   }
@@ -103,17 +321,15 @@ TEST(HexagonBuffer, nd_copy_from) {
   std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
   hb.CopyFrom(data.data(), data.size());
 
-  uint8_t* ptr = static_cast<uint8_t*>(hb.GetPointer()[0]);
-  EXPECT_EQ(ptr[0], data[0]);
-  EXPECT_EQ(ptr[1], data[1]);
-  EXPECT_EQ(ptr[2], data[2]);
-  EXPECT_EQ(ptr[3], data[3]);
-
-  ptr = static_cast<uint8_t*>(hb.GetPointer()[1]);
-  EXPECT_EQ(ptr[0], data[4]);
-  EXPECT_EQ(ptr[1], data[5]);
-  EXPECT_EQ(ptr[2], data[6]);
-  EXPECT_EQ(ptr[3], data[7]);
+  uint8_t** ptr = static_cast<uint8_t**>(hb.GetPointer());
+  EXPECT_EQ(ptr[0][0], data[0]);
+  EXPECT_EQ(ptr[0][1], data[1]);
+  EXPECT_EQ(ptr[0][2], data[2]);
+  EXPECT_EQ(ptr[0][3], data[3]);
+  EXPECT_EQ(ptr[1][0], data[4]);
+  EXPECT_EQ(ptr[1][1], data[5]);
+  EXPECT_EQ(ptr[1][2], data[6]);
+  EXPECT_EQ(ptr[1][3], data[7]);
 }
 
 TEST(HexagonBuffer, 1d_copy_from_1d) {
@@ -127,7 +343,7 @@ TEST(HexagonBuffer, 1d_copy_from_1d) {
   from.CopyFrom(data.data(), data.size());
   to.CopyFrom(from, 8);
 
-  uint8_t* ptr = static_cast<uint8_t*>(to.GetPointer()[0]);
+  uint8_t* ptr = static_cast<uint8_t*>(to.GetPointer());
   for (size_t i = 0; i < data.size(); ++i) {
     EXPECT_EQ(ptr[i], data[i]);
   }
@@ -144,17 +360,15 @@ TEST(HexagonBuffer, 2d_copy_from_1d) {
   hb1d.CopyFrom(data.data(), data.size());
   hb2d.CopyFrom(hb1d, 8);
 
-  uint8_t* ptr = static_cast<uint8_t*>(hb2d.GetPointer()[0]);
-  EXPECT_EQ(ptr[0], data[0]);
-  EXPECT_EQ(ptr[1], data[1]);
-  EXPECT_EQ(ptr[2], data[2]);
-  EXPECT_EQ(ptr[3], data[3]);
-
-  ptr = static_cast<uint8_t*>(hb2d.GetPointer()[1]);
-  EXPECT_EQ(ptr[0], data[4]);
-  EXPECT_EQ(ptr[1], data[5]);
-  EXPECT_EQ(ptr[2], data[6]);
-  EXPECT_EQ(ptr[3], data[7]);
+  uint8_t** ptr = static_cast<uint8_t**>(hb2d.GetPointer());
+  EXPECT_EQ(ptr[0][0], data[0]);
+  EXPECT_EQ(ptr[0][1], data[1]);
+  EXPECT_EQ(ptr[0][2], data[2]);
+  EXPECT_EQ(ptr[0][3], data[3]);
+  EXPECT_EQ(ptr[1][0], data[4]);
+  EXPECT_EQ(ptr[1][1], data[5]);
+  EXPECT_EQ(ptr[1][2], data[6]);
+  EXPECT_EQ(ptr[1][3], data[7]);
 }
 
 TEST(HexagonBuffer, 1d_copy_from_2d) {
@@ -168,7 +382,7 @@ TEST(HexagonBuffer, 1d_copy_from_2d) {
   hb2d.CopyFrom(data.data(), data.size());
   hb1d.CopyFrom(hb2d, 8);
 
-  uint8_t* ptr = static_cast<uint8_t*>(hb1d.GetPointer()[0]);
+  uint8_t* ptr = static_cast<uint8_t*>(hb1d.GetPointer());
   for (size_t i = 0; i < data.size(); ++i) {
     EXPECT_EQ(ptr[i], data[i]);
   }
@@ -206,8 +420,17 @@ TEST(HexagonBuffer, md_copy_from_nd) {
   Optional<String> scope("global");
   HexagonBuffer hb3d(3 /* ndim */, 4 /* nbytes */, 8 /* alignment */, scope);
   HexagonBuffer hb4d(4 /* ndim */, 3 /* nbytes */, 8 /* alignment */, scope);
-  EXPECT_THROW(hb3d.CopyFrom(hb4d, 12), InternalError);
-  EXPECT_THROW(hb4d.CopyFrom(hb3d, 12), InternalError);
+
+  std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+
+  hb3d.CopyFrom(data.data(), data.size());
+  hb4d.CopyFrom(hb3d, data.size());
+
+  uint8_t** hb3d_ptr = static_cast<uint8_t**>(hb3d.GetPointer());
+  uint8_t** hb4d_ptr = static_cast<uint8_t**>(hb4d.GetPointer());
+  for (size_t i = 0; i < 12; i++) {
+    EXPECT_EQ(hb3d_ptr[i / 4][i % 4], hb4d_ptr[i / 3][i % 3]);
+  }
 }
 
 TEST(HexagonBuffer, copy_to) {
@@ -238,38 +461,4 @@ TEST(HexagonBuffer, nd_copy_to) {
   for (size_t i = 0; i < data_in.size(); ++i) {
     EXPECT_EQ(data_in[i], data_out[i]);
   }
-}
-
-TEST(HexagonBuffer, external) {
-  std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
-
-  Optional<String> def;
-  HexagonBuffer hb_default(data.data(), data.size(), def);
-  EXPECT_EQ(hb_default.GetPointer()[0], data.data());
-  EXPECT_EQ(hb_default.GetStorageScope(), HexagonBuffer::StorageScope::kDDR);
-
-  Optional<String> global("global");
-  HexagonBuffer hb_global(data.data(), data.size(), global);
-  EXPECT_EQ(hb_global.GetPointer()[0], data.data());
-  EXPECT_EQ(hb_global.GetStorageScope(), HexagonBuffer::StorageScope::kDDR);
-
-  Optional<String> vtcm("global.vtcm");
-  EXPECT_THROW(HexagonBuffer hb_vtcm(data.data(), data.size(), vtcm), InternalError);
-
-  Optional<String> invalid("invalid");
-  EXPECT_THROW(HexagonBuffer hb_vtcm(data.data(), data.size(), invalid), InternalError);
-}
-
-TEST(HexagonBuffer, external_copy) {
-  std::vector<uint8_t> data1{0, 1, 2, 3, 4, 5, 6, 7};
-  Optional<String> global("global");
-  HexagonBuffer hb_ext(data1.data(), data1.size(), global);
-
-  std::vector<uint8_t> data2{0, 1, 2, 3, 4, 5, 6, 7};
-  EXPECT_THROW(hb_ext.CopyTo(data2.data(), data2.size()), InternalError);
-  EXPECT_THROW(hb_ext.CopyFrom(data2.data(), data2.size()), InternalError);
-
-  HexagonBuffer hb(8 /* nbytes */, 8 /* alignment */, global);
-  EXPECT_THROW(hb.CopyFrom(hb_ext, 8), InternalError);
-  EXPECT_THROW(hb_ext.CopyFrom(hb, 8), InternalError);
 }

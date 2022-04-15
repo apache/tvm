@@ -15,3 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Hexagon APIs."""
+
+from .tools import *
+from .transform import *

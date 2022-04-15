@@ -619,6 +619,26 @@ def test_add_op_scalar(target, dev):
         check_result(target, dev, [x_data, y_data], x_data + y_data, mod)
 
 
+def test_add_op_scalar_float16(target, dev):
+    """
+    test_add_op_scalar_float16:
+        fn (x, y) {
+            return x + y;
+        }
+    """
+    mod = tvm.IRModule()
+    x = relay.var("x", shape=(), dtype="float16")  # Default to float16
+    y = relay.var("y", shape=(), dtype="float16")  # Default to float16
+    func = relay.Function([x, y], relay.op.add(x, y))
+    x_y_data = [
+        (np.array(10.0, dtype="float16"), np.array(1.0, dtype="float16")),
+        (np.float16(10.0), np.float16(1.0)),
+    ]
+    for (x_data, y_data) in x_y_data:
+        mod["main"] = func
+        check_result(target, dev, [x_data, y_data], x_data + y_data, mod)
+
+
 def test_add_op_scalar_int(target, dev):
     """
     test_add_op_scalar_int:
@@ -921,6 +941,155 @@ def test_get_input_index(target, dev):
     assert vm_factory.get_input_index(data_1) == 1
     assert vm_factory.get_input_index(data_0) == 0
     assert vm_factory.get_input_index("invalid") == -1
+
+
+def get_one_input_relay_mod(tensor_type, shape, data_name):
+    x = relay.var(data_name, shape=shape, dtype=tensor_type)
+    y = relay.exp(x)
+    f = relay.Function([x], y)
+    return IRModule.from_expr(f)
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_one_set_input(target, dev):
+    dtype = "float32"
+    in_shape = [1, 2, 3, 3]
+    in_data_name_0 = "d0"
+
+    mod = get_one_input_relay_mod(dtype, in_shape, in_data_name_0)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    exe = runtime.vm.VirtualMachine(vm_exec, dev)
+
+    data0_core = np.random.uniform(size=in_shape).astype(dtype)
+    data0 = tvm.nd.array(data0_core)
+    ref_res_core = np.exp(data0_core)
+    ref_res = tvm.nd.array(ref_res_core)
+
+    exe.set_input("main", data0)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    data_dict = {in_data_name_0: data0}
+    exe.set_input("main", **data_dict)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+
+def get_multiple_input_relay_mod(tensor_type, shape, data_name0, data_name1):
+    x, y = [relay.var(c, shape=shape, dtype=tensor_type) for c in [data_name0, data_name1]]
+    f = relay.Function([x, y], x + y)
+    return IRModule.from_expr(f)
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_multiple_set_input(target, dev):
+    dtype = "float32"
+    in_shape = [1, 2, 3, 3]
+    in_data_name_0 = "d0"
+    in_data_name_1 = "d1"
+
+    mod = get_multiple_input_relay_mod(dtype, in_shape, in_data_name_0, in_data_name_1)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    exe = runtime.vm.VirtualMachine(vm_exec, dev)
+
+    data0_core = np.random.uniform(size=in_shape).astype(dtype)
+    data0 = tvm.nd.array(data0_core)
+    data1_core = np.random.uniform(size=in_shape).astype(dtype)
+    data1 = tvm.nd.array(data1_core)
+    ref_res_core = data0_core + data1_core
+    ref_res = tvm.nd.array(ref_res_core)
+
+    exe.set_input("main", data0, data1)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    data_dict = {in_data_name_1: data1, in_data_name_0: data0}
+    exe.set_input("main", **data_dict)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_one_set_one_input(target, dev):
+    dtype = "float32"
+    in_shape = [1, 2, 3, 3]
+    in_data_name_0 = "d0"
+
+    mod = get_one_input_relay_mod(dtype, in_shape, in_data_name_0)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    exe = runtime.vm.VirtualMachine(vm_exec, dev)
+
+    data0_core = np.random.uniform(size=in_shape).astype(dtype)
+    data0 = tvm.nd.array(data0_core)
+    ref_res_core = np.exp(data0_core)
+    ref_res = tvm.nd.array(ref_res_core)
+
+    exe.set_one_input("main", 0, data0)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    exe.set_one_input("main", in_data_name_0, data0)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    data_dict = {in_data_name_0: data0}
+    exe.set_one_input("main", **data_dict)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_multiple_set_one_input(target, dev):
+    dtype = "float32"
+    in_shape = [1, 2, 3, 3]
+    in_data_name_0 = "d0"
+    in_data_name_1 = "d1"
+
+    mod = get_multiple_input_relay_mod(dtype, in_shape, in_data_name_0, in_data_name_1)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    exe = runtime.vm.VirtualMachine(vm_exec, dev)
+
+    data0_core = np.random.uniform(size=in_shape).astype(dtype)
+    data0 = tvm.nd.array(data0_core)
+    data1_core = np.random.uniform(size=in_shape).astype(dtype)
+    data1 = tvm.nd.array(data1_core)
+    ref_res_core = data0_core + data1_core
+    ref_res = tvm.nd.array(ref_res_core)
+
+    exe.set_one_input("main", 1, data1)
+    exe.set_one_input("main", 0, data0)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    exe.set_one_input("main", in_data_name_1, data1)
+    exe.set_one_input("main", in_data_name_0, data0)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    data_dict = {in_data_name_1: data1}
+    exe.set_one_input("main", **data_dict)
+    data_dict = {in_data_name_0: data0}
+    exe.set_one_input("main", **data_dict)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
 
 
 @tvm.testing.parametrize_targets("llvm")

@@ -233,6 +233,7 @@ def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, variable_newsha
     x = relay.var("x", shape=x_shape, dtype="float32")
     relu_x = relay.nn.relu(x)
     data = np.random.uniform(size=x_np_shape).astype("float32")
+    expected = data.reshape(out_shape)
     params = [x]
     args = [data]
 
@@ -245,7 +246,7 @@ def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, variable_newsha
     y = relay.reshape(relu_x, newshape=newshape)
     mod = tvm.IRModule()
     mod["main"] = relay.Function(params, y)
-    check_result(args, mod, data, flatten=True)
+    check_result(args, mod, expected)
 
 
 @tvm.testing.uses_gpu
@@ -257,6 +258,8 @@ def test_any_reshape():
     verify_any_reshape(any_dims(3), (0, -2), (2, 3, 4), (2, 3, 4))
     verify_any_reshape(any_dims(3), (-4, -1, 2, -3), (6, 3, 4), (3, 2, 12))
     verify_any_reshape(any_dims(3), (-4, 2, -1, -2), (6, 3, 4), (2, 3, 3, 4))
+    verify_any_reshape(any_dims(3), (1, -1, 0), (2, 3, 4), (1, 6, 4))
+    verify_any_reshape(any_dims(3), (-1, 1, 0), (2, 3, 4), (6, 1, 4))
 
 
 def verify_any_one_hot(indices_shape, indices_np_shape, depth, on_value, off_value, axis, dtype):

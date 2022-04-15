@@ -21,6 +21,7 @@ import argparse
 import re
 import datetime
 import json
+import textwrap
 from typing import Dict, Any, List
 
 from git_utils import git, GitHubRepo, parse_remote
@@ -32,6 +33,7 @@ def prs_query(user: str, repo: str, cursor: str = None):
     after = ""
     if cursor is not None:
         after = f', before:"{cursor}"'
+    time_keys = "createdAt updatedAt lastEditedAt publishedAt"
     return f"""
         {{
     repository(name: "{repo}", owner: "{user}") {{
@@ -43,27 +45,29 @@ def prs_query(user: str, repo: str, cursor: str = None):
             number
             url
             body
+            {time_keys}
             isDraft
             author {{
                 login
             }}
             reviews(last:100) {{
                 nodes {{
+                    {time_keys}
+                    bodyText
                     author {{ login }}
                     comments(last:100) {{
                         nodes {{
-                            updatedAt
+                            {time_keys}
                             bodyText
                         }}
                     }}
                 }}
             }}
-            publishedAt
             comments(last:100) {{
                 nodes {{
                     authorAssociation
                     bodyText
-                    updatedAt
+                    {time_keys}
                     author {{
                         login
                     }}
@@ -92,8 +96,27 @@ def find_reviewers(body: str) -> List[str]:
 
 
 def check_pr(pr, wait_time, now):
-    published_at = datetime.datetime.strptime(pr["publishedAt"], GIT_DATE_FORMAT)
-    last_action = published_at
+    last_action = None
+
+    author = pr["author"]["login"]
+
+    def update_last(new_time, description):
+        if isinstance(new_time, str):
+            new_time = datetime.datetime.strptime(new_time, GIT_DATE_FORMAT)
+        if new_time is None:
+            print(f"  time not found: {description}")
+            return
+        nonlocal last_action
+        if last_action is None or new_time > last_action[0]:
+            last_action = (new_time, description)
+
+    def check_obj(obj, name):
+        update_last(obj["publishedAt"], f"{name} publishedAt: {obj}")
+        update_last(obj["updatedAt"], f"{name} updatedAt: {obj}")
+        update_last(obj["lastEditedAt"], f"{name} lastEditedAt: {obj}")
+        update_last(obj["createdAt"], f"{name} lastEditedAt: {obj}")
+
+    check_obj(pr, "pr")
 
     # GitHub counts comments left as part of a review separately than standalone
     # comments
@@ -101,17 +124,16 @@ def check_pr(pr, wait_time, now):
     review_comments = []
     for review in reviews:
         review_comments += review["comments"]["nodes"]
+        check_obj(review, "review")
 
     # Collate all comments
     comments = pr["comments"]["nodes"] + review_comments
 
     # Find the last date of any comment
     for comment in comments:
-        commented_at = datetime.datetime.strptime(comment["updatedAt"], GIT_DATE_FORMAT)
-        if commented_at > last_action:
-            last_action = commented_at
+        check_obj(comment, "comment")
 
-    time_since_last_action = now - last_action
+    time_since_last_action = now - last_action[0]
 
     # Find reviewers in the PR's body
     pr_body_reviewers = find_reviewers(pr["body"])
@@ -125,33 +147,39 @@ def check_pr(pr, wait_time, now):
     review_reviewers = list(set(r["author"]["login"] for r in reviews))
 
     reviewers = cc_reviewers + review_reviewers + pr_body_reviewers
+    reviewers = list(set(reviewers))
+    reviewers = [r for r in reviewers if r != author]
 
     if time_since_last_action > wait_time:
         print(
-            "    Pinging reviewers",
+            "  Pinging reviewers",
             reviewers,
             "on",
             pr["url"],
             "since it has been",
             time_since_last_action,
-            "since anything happened on that PR",
+            f"since anything happened on that PR (last action: {last_action[1]})",
         )
         return reviewers
     else:
-        print(f"Not pinging PR {pr['number']}")
+        print(
+            f"  Not pinging PR {pr['number']} since it has been only {time_since_last_action} since the last action: {last_action[1]}"
+        )
 
     return None
 
 
-def ping_reviewers(pr, reviewers):
+def make_ping_message(pr, reviewers):
     reviewers = [f"@{r}" for r in reviewers]
+    author = f'@{pr["author"]["login"]}'
     text = (
         "It has been a while since this PR was updated, "
         + " ".join(reviewers)
-        + " please leave a review or address the outstanding comments"
+        + " please leave a review or address the outstanding comments. "
+        + f"{author} if this PR is still a work in progress, please [convert it to a draft](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/changing-the-stage-of-a-pull-request#converting-a-pull-request-to-a-draft)"
+        " until it is ready for review."
     )
-    r = github.post(f"issues/{pr['number']}/comments", {"body": text})
-    print(r)
+    return text
 
 
 if __name__ == "__main__":
@@ -206,22 +234,38 @@ if __name__ == "__main__":
         prs = r["data"]["repository"]["pullRequests"]["nodes"]
 
         # Don't look at draft PRs at all
-        prs = [pr for pr in prs if not pr["isDraft"]]
+        prs_to_check = []
+        for pr in prs:
+            if pr["isDraft"]:
+                print(f"Skipping #{pr['number']} since it's a draft")
+            elif pr["number"] <= cutoff_pr_number:
+                print(
+                    f"Skipping #{pr['number']} since it's too old ({pr['number']} <= {cutoff_pr_number})"
+                )
+            elif pr["author"]["login"] not in author_allowlist:
+                # [slow rollout]
+                print(
+                    f"Skipping #{pr['number']} since author {pr['author']['login']} is not in allowlist: {author_allowlist}"
+                )
+            else:
+                print(f"Checking #{pr['number']} since author is in {author_allowlist}")
+                prs_to_check.append(pr)
 
-        # Don't look at super old PRs
-        prs = [pr for pr in prs if pr["number"] > cutoff_pr_number]
-
-        # [slow rollout]
-        prs = [pr for pr in prs if pr["author"]["login"] in author_allowlist]
-
-        print(f"Checking {len(prs)} PRs: {[pr['number'] for pr in prs]}")
+        print(f"Summary: Checking {len(prs_to_check)} of {len(prs)} fetched")
 
         # Ping reviewers on each PR in the response if necessary
-        for pr in prs:
+        for pr in prs_to_check:
             print("Checking", pr["url"])
             reviewers = check_pr(pr, wait_time, now)
-            if reviewers is not None and not args.dry_run:
-                ping_reviewers(pr, reviewers)
+            if reviewers is not None:
+                message = make_ping_message(pr, reviewers)
+                if args.dry_run:
+                    print(
+                        f"Would have commented on #{pr['number']}:\n{textwrap.indent(message, prefix='  ')}"
+                    )
+                else:
+                    r = github.post(f"issues/{pr['number']}/comments", {"body": message})
+                    print(r)
 
         edges = r["data"]["repository"]["pullRequests"]["edges"]
         if len(edges) == 0:

@@ -134,16 +134,18 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
 class BlockPropertyError : public ScheduleError {
  public:
   /*!
-   * \brief Check that all the blocks under the specific stmt have affine bindings and only have
-   *     data-parallel or reduction block iters
+   * \brief Check that all the blocks under the specific stmt have affine bindings
+   *     wrt top loop sref and only have data-parallel or reduction block iters
    * \param self The state of the schedule
    * \param sref The sref to the specific stmt
    */
-  static void CheckBlockIterTypeAndAffineBinding(const ScheduleState& self,
+  static void CheckBlockIterTypeAndAffineBinding(const ScheduleState& self, const StmtSRefNode* top,
                                                  const StmtSRefNode* sref) {
     class BlockIterTypeAndAffineBindingChecker : public StmtVisitor {
      public:
-      explicit BlockIterTypeAndAffineBindingChecker(const ScheduleState& state) : state_(state) {}
+      explicit BlockIterTypeAndAffineBindingChecker(const ScheduleState& state,
+                                                    const StmtSRefNode* top)
+          : state_(state), top_(top) {}
 
      private:
       void VisitStmt_(const BlockNode* op) final {
@@ -151,13 +153,16 @@ class BlockPropertyError : public ScheduleError {
           if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
             throw BlockPropertyError(state_->mod, GetRef<Block>(op));
           }
-          CheckAffineBinding(state_, GetRef<Block>(op));
+          Optional<StmtSRef> high_exclusive =
+              top_->parent ? GetRef<StmtSRef>(top_->parent) : Optional<StmtSRef>(NullOpt);
+          CheckPartialAffineBinding(state_, GetRef<Block>(op), high_exclusive);
         }
       }
       const ScheduleState& state_;
+      const StmtSRefNode* top_;
     };
 
-    BlockIterTypeAndAffineBindingChecker checker(self);
+    BlockIterTypeAndAffineBindingChecker checker(self, top);
     checker(GetRef<Stmt>(sref->stmt));
   }
 
@@ -413,7 +418,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   for (int i = 0; i < n; i++) {
     const PrimExpr& factor = factors[i];
     Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i));
-    substitute_value = substitute_value * factor + var;
+    if (!is_one(factor)) substitute_value = substitute_value * factor + var;
     analyzer.Bind(var, Range::FromMinExtent(0, factor));
     new_loop_vars.emplace_back(std::move(var));
   }
@@ -505,11 +510,14 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   Var fused_var = loops[0]->loop_var.copy_with_suffix(suffix);
   Array<PrimExpr> substitute_value;
   substitute_value.resize(loops.size());
-  PrimExpr tot = fused_var;
-  for (int i = static_cast<int>(loops.size()) - 1; i >= 0; i--) {
-    substitute_value.Set(i, floormod(tot, loops[i]->extent));
-    tot = floordiv(tot, loops[i]->extent);
+  PrimExpr lower = 1;
+  for (int i = static_cast<int>(loops.size()) - 1; i > 0; i--) {
+    substitute_value.Set(i, is_one(loops[i]->extent)
+                                ? 0
+                                : floordiv(floormod(fused_var, lower * loops[i]->extent), lower));
+    lower = lower * loops[i]->extent;
   }
+  substitute_value.Set(0, is_one(loops[0]->extent) ? 0 : floordiv(fused_var, lower));
   Stmt new_stmt = loops.back()->body;
   Map<Block, Block> opaque_block_reuse;
   auto f_substitute = [&](const Var& v) -> Optional<PrimExpr> {
@@ -534,6 +542,7 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   self->Replace(loop_srefs[0], new_stmt, opaque_block_reuse);
   return self->stmt2ref.at(new_stmt.get());
 }
+
 /*!
  * \brief Collect an array of loop srefs into a set
  * \param self The schedule state
@@ -704,8 +713,8 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
   // Step 3. Collect all loops in the chain and check the loops are single-branch
   std::vector<const StmtSRefNode*> chain = GetLoopsInReorderRange(self, top, bottom);
   // Step 4. Check the block below has all its block_var to be data-parallel or reduction,
-  // and the block has an affine binding.
-  BlockPropertyError::CheckBlockIterTypeAndAffineBinding(self, bottom);
+  // and the block has an affine binding wrt top of the loop range.
+  BlockPropertyError::CheckBlockIterTypeAndAffineBinding(self, top, bottom);
   // Step 5. Replace the original loops with the reordered loops and check that outer loop is
   // not dependent on inner loop
   For new_loop = ConstructNewLoopChain(self, std::move(chain), ordered_loop_srefs, loop_srefs);

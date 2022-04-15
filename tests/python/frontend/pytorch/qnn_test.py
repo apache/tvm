@@ -743,9 +743,10 @@ def test_tuple_lowered():
             self.backbone = Backbone()
 
         def fuse_model(self):
+            fuse_modules_qat = getattr(torch.ao.quantization, "fuse_modules_qat", fuse_modules)
             for idx, m in enumerate(self.modules()):
                 if type(m) == ConvBnRelu:
-                    torch.quantization.fuse_modules(m, ["conv", "bn", "relu"], inplace=True)
+                    fuse_modules_qat(m, ["conv", "bn", "relu"], inplace=True)
 
         def forward(self, input):
             input = self.quant(input)

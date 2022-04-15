@@ -91,9 +91,19 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& prim_func) {
   // collect buffers in buffer_map
   memo_var_.clear();
   memo_buf_.clear();
-  for (const auto& it : op->buffer_map) {
-    memo_buf_[it.second] = AllocBuf(it.second);
+
+  // ordered vars associated with buffers, for consistent printing
+  std::vector<Var> buffer_vars_ordered;
+
+  for (Var v : op->params) {
+    auto buffer_map_find = op->buffer_map.find(v);
+    if (buffer_map_find != op->buffer_map.end()) {
+      auto map_data = *buffer_map_find;
+      buffer_vars_ordered.push_back(map_data.first);
+      memo_buf_[map_data.second] = AllocBuf(map_data.second);
+    }
   }
+
   // print PrimFunc
   Doc doc;
   doc << "primfn"
@@ -122,8 +132,8 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& prim_func) {
   if (memo_buf_.size() != 0) {
     Doc buffer_doc;
     std::vector<Doc> buffer_docs;
-    for (const auto& it : memo_buf_) {
-      const auto& buf = it.first;
+    for (const Var& v : buffer_vars_ordered) {
+      const Buffer buf = op->buffer_map[v];
       buffer_docs.push_back(BufferNode2Doc(buf.get(), Print(buf)));
     }
     buffer_doc << Doc::NewLine() << "buffers = {";
@@ -134,8 +144,9 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& prim_func) {
   if (op->buffer_map.size() != 0) {
     // print buffer_map
     std::vector<Doc> buffer_map_doc;
-    for (const auto& it : op->buffer_map) {
-      buffer_map_doc.push_back(Print(it.first) << ": " << Print(it.second));
+    for (const Var& v : buffer_vars_ordered) {
+      const Buffer buf = op->buffer_map[v];
+      buffer_map_doc.push_back(Print(v) << ": " << Print(buf));
     }
     doc << Doc::Indent(
         2, Doc::NewLine() << "buffer_map = {" << PrintSep(buffer_map_doc, Doc::Text(", ")) << "}");
@@ -222,6 +233,9 @@ Doc TIRTextPrinter::BufferNode2Doc(const BufferNode* buf, Doc doc) {
       << Print(buf->shape) << ", " << Print(buf->strides);
   if (!is_zero(buf->elem_offset)) {
     doc << ", elem_offset=" << Print(buf->elem_offset);
+  }
+  if (buf->axis_separators.size()) {
+    doc << ", axis_separators=" << Print(buf->axis_separators);
   }
   if (GetRef<Buffer>(buf).scope() != "global") {
     doc << ", scope=" << Doc::StrLiteral(GetRef<Buffer>(buf).scope());
@@ -511,6 +525,19 @@ Doc TIRTextPrinter::VisitStmt_(const AllocateNode* op) {
   if (!is_one(op->condition)) {
     doc << " if " << Print(op->condition);
   }
+  if (op->body->IsInstance<SeqStmtNode>()) {
+    doc << PrintBody(op->body);
+  } else {
+    doc << ";" << Doc::NewLine() << Print(op->body);
+  }
+  return doc;
+}
+
+Doc TIRTextPrinter::VisitStmt_(const AllocateConstNode* op) {
+  Doc doc;
+  doc << "constant(" << Print(op->buffer_var) << ", " << PrintDType(op->dtype) << ", "
+      << Print(op->extents) << ")";
+
   if (op->body->IsInstance<SeqStmtNode>()) {
     doc << PrintBody(op->body);
   } else {
