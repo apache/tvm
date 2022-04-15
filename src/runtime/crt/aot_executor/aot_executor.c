@@ -35,25 +35,25 @@
 
 static void DumpMetadata(TVMMetadata* md)
 {
-  fprintf(stderr, "%s:\n", __FUNCTION__);
-  fprintf(stderr, "\tmod_name=%s\n", md->mod_name);
-  fprintf(stderr, "\tversion=%ld\n", md->version);
-  fprintf(stderr, "\tnum_inputs=%ld\n", md->num_inputs);
-  fprintf(stderr, "\tnum_outputs=%ld\n", md->num_outputs);
-  fprintf(stderr, "\tnum_pools=%ld\n", md->num_pools);
+  LOG_DEBUG("%s:\n", __FUNCTION__);
+  LOG_DEBUG("\tmod_name=%s\n", md->mod_name);
+  LOG_DEBUG("\tversion=%ld\n", md->version);
+  LOG_DEBUG("\tnum_inputs=%ld\n", md->num_inputs);
+  LOG_DEBUG("\tnum_outputs=%ld\n", md->num_outputs);
+  LOG_DEBUG("\tnum_pools=%ld\n", md->num_pools);
 
   int i;
 
   for (i = 0; i < md->num_inputs; ++i) {
-    fprintf(stderr, "\tinput[%d]: %s\n", i, md->inputs[i].name);
+      LOG_DEBUG("\tinput[%d]: %s\n", i, md->inputs[i].name);
   }
 
   for (i = 0; i < md->num_outputs; ++i) {
-    fprintf(stderr, "\toutput[%d]: %s\n", i, md->outputs[i].name);
+      LOG_DEBUG("\toutput[%d]: %s\n", i, md->outputs[i].name);
   }
 
   for (i = 0; i < md->num_pools; ++i) {
-    fprintf(stderr, "\tpools[%d]: %s\n", i, md->pools[i].name);
+      LOG_DEBUG("\tpools[%d]: %s\n", i, md->pools[i].name);
   }
 }
 
@@ -158,7 +158,7 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
   int i;
   int arg_idx = 0;
   for (i = 0; i < md->num_inputs; ++i) {
-    fprintf(stderr, "\tinput allocate[%d]: %s\n", i, md->inputs[i].name);
+    LOG_DEBUG("input allocate[%d]: %s\n", i, md->inputs[i].name);
 
     status = TVMNDArray_Empty(md->inputs[i].num_shape, md->inputs[i].shape, md->inputs[i].dtype,
                               executor->device, &executor->args[arg_idx++]);
@@ -168,7 +168,7 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
   }
 
   for (i = 0; i < md->num_outputs; ++i) {
-    fprintf(stderr, "\toutput allocate[%d]: %s\n", i, md->outputs[i].name);
+    LOG_DEBUG("output allocate[%d]: %s\n", i, md->outputs[i].name);
 
     status = TVMNDArray_Empty(md->outputs[i].num_shape, md->outputs[i].shape, md->outputs[i].dtype,
                               executor->device, &executor->args[arg_idx++]);
@@ -178,7 +178,7 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
   }
 
   for (i = 0; i < md->num_pools; ++i) {
-    fprintf(stderr, "\tpools allocate[%d]: %s\n", i, md->pools[i].name);
+    LOG_DEBUG("pools allocate[%d]: %s\n", i, md->pools[i].name);
 
     status = TVMNDArray_Empty(md->pools[i].num_shape, md->pools[i].shape, md->pools[i].dtype,
                               executor->device, &executor->args[arg_idx++]);

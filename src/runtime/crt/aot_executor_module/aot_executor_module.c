@@ -50,7 +50,6 @@ int32_t TVMAotExecutorModule_Create(TVMValue* args, int* tcodes, int nargs, TVMV
   }
 
   if (tcodes[0] != kTVMModuleHandle || tcodes[1] != kDLDevice) {
-    fprintf(stderr, "%s: tcodes[0]: %d tcodes[1]: %d\n", __FUNCTION__, tcodes[0], tcodes[1]);
     return kTvmErrorFunctionCallWrongArgType;
   }
 
