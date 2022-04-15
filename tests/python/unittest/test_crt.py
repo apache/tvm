@@ -32,6 +32,7 @@ import tvm.relay
 import tvm.testing
 from tvm.target import Target
 from tvm.relay.backend import Runtime
+from tvm.relay.backend import Executor
 
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python

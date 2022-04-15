@@ -202,8 +202,9 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       code_ << "extern \"C\"\n";
       code_ << "#endif\n";
       code_ << "TVM_DLL int32_t " << fname.data();
-      code_ << "(TVMValue* args, int* type_code, int num_args, TVMValue* out_value, int* "
-               "out_type_code);\n";
+      code_ << "(TVMValue* args, int* type_code, int num_args, TVMValue* out_value, "
+               "int* out_type_code, void* resource_handle);\n";
+
     }
     code_ << "static TVMBackendPackedCFunc _tvm_func_array[] = {\n";
     for (auto f : func_names_) {
@@ -352,11 +353,11 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   void GenerateEntrypointForPackedAPI(const std::string& entrypoint_name,
                                       const std::string& run_func) {
     code_ << "TVM_DLL int32_t " << run_func;
-    code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
+    code_ << "(TVMValue* args, int* type_code, int num_args, TVMValue* out_value, int* "
              "out_type_code, void* resource_handle);\n\n";
 
     code_ << "int32_t " << entrypoint_name;
-    code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
+    code_ << "(TVMValue* args, int* type_code, int num_args, TVMValue* out_value, int* "
              "out_type_code, void* resource_handle) {\n";
 
     // We are creating a copy of the set of pointers
