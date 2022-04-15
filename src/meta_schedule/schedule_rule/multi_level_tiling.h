@@ -22,6 +22,9 @@
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/tir/schedule/schedule.h>
 
+#include <utility>
+#include <vector>
+
 #include "../../support/array.h"
 
 namespace tvm {
