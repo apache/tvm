@@ -42,6 +42,7 @@ COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_pac
 RUN bash /install/ubuntu_install_python_package.sh
 
 COPY install/ubuntu_install_sphinx.sh /install/ubuntu_install_sphinx.sh
+COPY install/sphinx_gallery_colab_fixes.patch /sphinx_gallery_colab_fixes.patch
 RUN bash /install/ubuntu_install_sphinx.sh
 
 # Enable doxygen for c++ doc build

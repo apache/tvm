@@ -29,5 +29,21 @@ pip3 install \
     matplotlib \
     sphinx==4.2.0 \
     sphinx_autodoc_annotation \
-    sphinx-gallery==0.4.0 \
     sphinx_rtd_theme
+
+cleanup() {
+  rm -rf /sphinx-gallery /sphinx_gallery_colab_fixes.patch
+}
+
+trap cleanup 0
+
+# We use a custom build of sphinx-gallery to enable open-in-Colab links
+# This integrates https://github.com/sphinx-gallery/sphinx-gallery/pull/941 and
+# https://github.com/sphinx-gallery/sphinx-gallery/pull/940 (if those are merged
+# into sphinx-gallery we can go back to using the official version)
+git clone https://github.com/sphinx-gallery/sphinx-gallery.git
+pushd sphinx-gallery
+git checkout b3bf338ceb2993b83a137905f5a50351be28a1f9
+cat /sphinx_gallery_colab_fixes.patch | patch -p1 -d .
+pip3 install .
+popd

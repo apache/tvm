@@ -1,0 +1,402 @@
+diff --git a/sphinx_gallery/gen_rst.py b/sphinx_gallery/gen_rst.py
+index a45e32d..e287b12 100644
+--- a/sphinx_gallery/gen_rst.py
++++ b/sphinx_gallery/gen_rst.py
+@@ -45,7 +45,8 @@ from .backreferences import (_write_backreferences, _thumbnail_div,
+                              identify_names)
+ from .downloads import CODE_DOWNLOAD
+ from .py_source_parser import (split_code_and_text_blocks,
+-                               remove_config_comments)
++                               remove_config_comments,
++                               remove_ignore_blocks)
+ 
+ from .notebook import jupyter_notebook, save_notebook
+ from .binder import check_binder_conf, gen_binder_rst
+@@ -1015,6 +1016,11 @@ def generate_file_rst(fname, target_dir, src_dir, gallery_conf,
+             for label, content, line_number in script_blocks
+         ]
+ 
++    script_blocks = [
++        (label, remove_ignore_blocks(content), line_number)
++        for label, content, line_number in script_blocks
++    ]
++
+     # Remove final empty block, which can occur after config comments
+     # are removed
+     if script_blocks[-1][1].isspace():
+diff --git a/sphinx_gallery/notebook.py b/sphinx_gallery/notebook.py
+index 8e5dc30..a3b6b98 100644
+--- a/sphinx_gallery/notebook.py
++++ b/sphinx_gallery/notebook.py
+@@ -15,12 +15,13 @@ from functools import partial
+ from itertools import count
+ import argparse
+ import base64
++import copy
+ import json
+ import mimetypes
+ import os
+ import re
+ import sys
+-import copy
++import textwrap
+ 
+ from sphinx.errors import ExtensionError
+ 
+@@ -69,6 +70,29 @@ def directive_fun(match, directive):
+                     match.group(1).strip()))
+ 
+ 
++def convert_code_to_md(text):
++    code_regex = r'[ \t]*\.\. code-block::[ \t]*([a-z]*)\n[ \t]*\n'
++    indent_regex = re.compile(r'[ \t]*')
++    while True:
++        code_block = re.search(code_regex, text)
++        if not code_block:
++            break
++        start_index = code_block.span()[1]
++        indent = indent_regex.search(text, start_index).group(0)
++        if not indent:
++            continue
++
++        # Find first non-empty, non-indented line
++        end = re.compile(fr'^(?!{re.escape(indent)})[ \t]*\S+', re.MULTILINE)
++        code_end_match = end.search(text, start_index)
++        end_index = code_end_match.start() if code_end_match else len(text)
++
++        contents = textwrap.dedent(text[start_index:end_index]).rstrip()
++        new_code = (f'```{code_block.group(1)}\n{contents}\n```\n')
++        text = text[:code_block.span()[0]] + new_code + text[end_index:]
++    return text
++
++
+ def rst2md(text, gallery_conf, target_dir, heading_levels):
+     """Converts the RST text from the examples docstrings and comments
+     into markdown text for the Jupyter notebooks
+@@ -149,6 +173,8 @@ def rst2md(text, gallery_conf, target_dir, heading_levels):
+             re.sub(image_opts, r' \1="\2"', match.group(2) or '')),
+         text)
+ 
++    text = convert_code_to_md(text)
++
+     return text
+ 
+ 
+@@ -244,6 +270,25 @@ def add_markdown_cell(work_notebook, markdown):
+     work_notebook["cells"].append(markdown_cell)
+ 
+ 
++def promote_jupyter_cell_magic(work_notebook, markdown):
++    # Regex detects all code blocks that use %% Jupyter cell magic
++    cell_magic_regex = r'\n?```\s*[a-z]*\n(%%(?:[\s\S]*?))\n?```\n?'
++
++    text_cell_start = 0
++    for magic_cell in re.finditer(cell_magic_regex, markdown):
++        # Extract the preceeding text block, and add it if non-empty
++        text_block = markdown[text_cell_start:magic_cell.span()[0]]
++        if text_block and not text_block.isspace():
++            add_markdown_cell(work_notebook, text_block)
++        text_cell_start = magic_cell.span()[1]
++
++        code_block = magic_cell.group(1)
++        add_code_cell(work_notebook, code_block)
++
++    # Return remaining text (which equals markdown if no magic cells exist)
++    return markdown[text_cell_start:]
++
++
+ def fill_notebook(work_notebook, script_blocks, gallery_conf, target_dir):
+     """Writes the Jupyter notebook cells
+ 
+@@ -269,7 +314,10 @@ def fill_notebook(work_notebook, script_blocks, gallery_conf, target_dir):
+                 markdown = pypandoc.convert_text(
+                     bcontent, to='md', format='rst', **gallery_conf["pypandoc"]
+                 )
+-            add_markdown_cell(work_notebook, markdown)
++
++            remaining = promote_jupyter_cell_magic(work_notebook, markdown)
++            if remaining and not remaining.isspace():
++                add_markdown_cell(work_notebook, remaining)
+ 
+ 
+ def save_notebook(work_notebook, write_file):
+diff --git a/sphinx_gallery/py_source_parser.py b/sphinx_gallery/py_source_parser.py
+index 8979184..5beda27 100644
+--- a/sphinx_gallery/py_source_parser.py
++++ b/sphinx_gallery/py_source_parser.py
+@@ -37,8 +37,15 @@ Example script with invalid Python syntax
+ #     # sphinx_gallery_thumbnail_number = 2
+ #
+ #     b = 2
++FLAG_START = r"^[\ \t]*#\s*"
+ INFILE_CONFIG_PATTERN = re.compile(
+-    r"^[\ \t]*#\s*sphinx_gallery_([A-Za-z0-9_]+)(\s*=\s*(.+))?[\ \t]*\n?",
++    FLAG_START + r"sphinx_gallery_([A-Za-z0-9_]+)(\s*=\s*(.+))?[\ \t]*\n?",
++    re.MULTILINE)
++
++START_IGNORE_FLAG = FLAG_START + "sphinx_gallery_start_ignore"
++END_IGNORE_FLAG = FLAG_START + "sphinx_gallery_end_ignore"
++IGNORE_BLOCK_PATTERN = re.compile(
++    rf"{START_IGNORE_FLAG}(?:[\s\S]*?){END_IGNORE_FLAG}\n?",
+     re.MULTILINE)
+ 
+ 
+@@ -203,6 +210,26 @@ def split_code_and_text_blocks(source_file, return_node=False):
+     return out
+ 
+ 
++def remove_ignore_blocks(code_block):
++    """
++    Return the content of *code_block* with ignored areas removed.
++
++    An ignore block starts with # sphinx_gallery_begin_ignore, and ends with
++    # sphinx_gallery_end_ignore. These lines and anything in between them will
++    be removed, but surrounding empty lines are preserved.
++
++    Parameters
++    ----------
++    code_block : str
++        A code segment.
++    """
++    num_start_flags = len(re.findall(START_IGNORE_FLAG, code_block))
++    num_end_flags = len(re.findall(END_IGNORE_FLAG, code_block))
++
++    assert num_start_flags == num_end_flags, "start/end ignore block mismatch!"
++    return re.subn(IGNORE_BLOCK_PATTERN, '', code_block)[0]
++
++
+ def remove_config_comments(code_block):
+     """
+     Return the content of *code_block* with in-file config comments removed.
+diff --git a/sphinx_gallery/tests/reference_parse.txt b/sphinx_gallery/tests/reference_parse.txt
+index a0e5010..ec1cd90 100644
+--- a/sphinx_gallery/tests/reference_parse.txt
++++ b/sphinx_gallery/tests/reference_parse.txt
+@@ -98,6 +98,13 @@
+ ('code',
+   '\n# another way to separate code blocks shown above\nB = 1\n\n',
+   86),
++('text',
++  'Code blocks containing Jupyter magic are executable\n'
++  '    .. code-block:: bash\n'
++  '\n'
++  '      %%bash\n'
++  '      # This could be run!\n\n',
++  91),
+ ('text',
+   'Last text block.\n'
+   '\n'
+@@ -106,4 +113,4 @@
+   '.. literalinclude:: plot_parse.py\n'
+   '\n'
+   '\n',
+-  91)]
+\ No newline at end of file
++  99)]
+diff --git a/sphinx_gallery/tests/test_gen_rst.py b/sphinx_gallery/tests/test_gen_rst.py
+index 3bbabca..ae67d43 100644
+--- a/sphinx_gallery/tests/test_gen_rst.py
++++ b/sphinx_gallery/tests/test_gen_rst.py
+@@ -42,6 +42,9 @@ CONTENT = [
+     '# sphinx_gallery_thumbnail_number = 1',
+     '# sphinx_gallery_defer_figures',
+     '# and now comes the module code',
++    '# sphinx_gallery_start_ignore',
++    'pass # Will be run but not rendered',
++    '# sphinx_gallery_end_ignore',
+     'import logging',
+     'import sys',
+     'from warnings import warn',
+@@ -457,6 +460,15 @@ def test_remove_config_comments(gallery_conf, req_pil):
+     assert '# sphinx_gallery_defer_figures' not in rst
+ 
+ 
++def test_remove_ignore_blocks(gallery_conf, req_pil):
++    """Test removal of ignore blocks."""
++    rst = _generate_rst(gallery_conf, 'test.py', CONTENT)
++    assert 'pass # Will be run but not rendered' in CONTENT
++    assert 'pass # Will be run but not rendered' not in rst
++    assert '# sphinx_gallery_start_ignore' in CONTENT
++    assert '# sphinx_gallery_start_ignore' not in rst
++
++
+ def test_dummy_image_error(gallery_conf, req_pil):
+     """Test correct error is raised if int not provided to
+     sphinx_gallery_dummy_images."""
+diff --git a/sphinx_gallery/tests/test_notebook.py b/sphinx_gallery/tests/test_notebook.py
+index f0d6830..f57983e 100644
+--- a/sphinx_gallery/tests/test_notebook.py
++++ b/sphinx_gallery/tests/test_notebook.py
+@@ -21,7 +21,8 @@ from sphinx.errors import ExtensionError
+ 
+ import sphinx_gallery.gen_rst as sg
+ from sphinx_gallery.notebook import (rst2md, jupyter_notebook, save_notebook,
+-                                     python_to_jupyter_cli)
++                                     promote_jupyter_cell_magic,
++                                     python_to_jupyter_cli,)
+ 
+ 
+ def test_latex_conversion(gallery_conf):
+@@ -41,6 +42,36 @@ def test_latex_conversion(gallery_conf):
+     assert align_eq_jmd == rst2md(align_eq, gallery_conf, "", {})
+ 
+ 
++def test_code_conversion():
++    """Use the ``` code format so Jupyter syntax highlighting works"""
++    rst = (
++        "\n"
++        "Regular text\n"
++        "    .. code-block:: bash\n"
++        "  \n"
++        "       # Bash code\n"
++        "\n"
++        "  More regular text\n"
++        ".. code-block:: cpp\n"
++        "\n"
++        "  //cpp code\n"
++        "\n"
++        "  //more cpp code\n"
++    )
++    assert rst2md(rst, {}, "", {}) == textwrap.dedent("""
++        Regular text
++        ```bash
++        # Bash code
++        ```
++          More regular text
++        ```cpp
++        //cpp code
++
++        //more cpp code
++        ```
++    """)
++
++
+ def test_convert(gallery_conf):
+     """Test ReST conversion"""
+     rst = """hello
+@@ -170,6 +201,43 @@ def test_headings():
+     assert "# White space above\n" in text
+ 
+ 
++def test_cell_magic_promotion():
++    markdown = textwrap.dedent("""\
++    # Should be rendered as text
++    ``` bash
++    # This should be rendered as normal
++    ```
++    ``` bash
++    %%bash
++    # bash magic
++    ```
++    ```cpp
++    %%writefile out.cpp
++    // This c++ cell magic will write a file
++    // There should NOT be a text block above this
++    ```
++    Interspersed text block
++    ```javascript
++    %%javascript
++    // Should also be a code block
++    // There should NOT be a trailing text block after this
++    ```
++    """)
++    work_notebook = {"cells": []}
++    promote_jupyter_cell_magic(work_notebook, markdown)
++    cells = work_notebook["cells"]
++
++    assert len(cells) == 5
++    assert cells[0]["cell_type"] == "markdown"
++    assert "``` bash" in cells[0]["source"][0]
++    assert cells[1]["cell_type"] == "code"
++    assert cells[1]["source"][0] == "%%bash\n# bash magic"
++    assert cells[2]["cell_type"] == "code"
++    assert cells[3]["cell_type"] == "markdown"
++    assert cells[3]["source"][0] == "Interspersed text block"
++    assert cells[4]["cell_type"] == "code"
++
++
+ @pytest.mark.parametrize(
+     'rst_path,md_path,prefix_enabled',
+     (('../_static/image.png', 'file://../_static/image.png', False),
+@@ -284,6 +352,16 @@ def test_jupyter_notebook(gallery_conf):
+     cell_src = example_nb.get('cells')[-1]['source'][0]
+     assert re.match("^Last text block.\n\nThat[\\\\]?'s all folks !", cell_src)
+ 
++    # Test Jupyter magic code blocks are promoted
++    bash_block = example_nb.get('cells')[-2]
++    assert bash_block['cell_type'] == 'code'
++    assert bash_block['source'][0] == '%%bash\n# This could be run!'
++
++    # Test text above Jupyter magic code blocks is intact
++    md_above_bash_block = example_nb.get('cells')[-3]
++    assert md_above_bash_block['cell_type'] == 'markdown'
++    assert 'Code blocks containing' in md_above_bash_block['source'][0]
++
+ 
+ ###############################################################################
+ # Notebook shell utility
+diff --git a/sphinx_gallery/tests/test_py_source_parser.py b/sphinx_gallery/tests/test_py_source_parser.py
+index 4424c06..b3000ed 100644
+--- a/sphinx_gallery/tests/test_py_source_parser.py
++++ b/sphinx_gallery/tests/test_py_source_parser.py
+@@ -12,6 +12,7 @@ from __future__ import division, absolute_import, print_function
+ 
+ import os.path as op
+ import pytest
++import textwrap
+ from sphinx.errors import ExtensionError
+ import sphinx_gallery.py_source_parser as sg
+ 
+@@ -82,3 +83,33 @@ def test_extract_file_config(content, file_conf, log_collector):
+ ])
+ def test_remove_config_comments(contents, result):
+     assert sg.remove_config_comments(contents) == result
++
++
++def test_remove_ignore_comments():
++    print(sg.IGNORE_BLOCK_PATTERN)
++    normal_code = "# Regular code\n# should\n# be untouched!"
++    assert sg.remove_ignore_blocks(normal_code) == normal_code
++
++    mismatched_code = "# sphinx_gallery_start_ignore"
++    with pytest.raises(AssertionError) as error:
++        sg.remove_ignore_blocks(mismatched_code)
++    assert "mismatch" in str(error)
++
++    code_with_ignores = textwrap.dedent("""\
++    # Indented ignores should work
++        # sphinx_gallery_start_ignore
++        # The variable name should do nothing
++        sphinx_gallery_end_ignore = 0
++        # sphinx_gallery_end_ignore
++
++    # New line above should stay intact
++    # sphinx_gallery_start_ignore
++    # sphinx_gallery_end_ignore
++    # Empty ignore blocks are fine too
++    """)
++    assert sg.remove_ignore_blocks(code_with_ignores) == textwrap.dedent("""\
++    # Indented ignores should work
++
++    # New line above should stay intact
++    # Empty ignore blocks are fine too
++    """)
+diff --git a/tutorials/plot_parse.py b/tutorials/plot_parse.py
+index 802c346..57f6314 100644
+--- a/tutorials/plot_parse.py
++++ b/tutorials/plot_parse.py
+@@ -87,6 +87,14 @@ print('one')
+ # another way to separate code blocks shown above
+ B = 1
+ 
++# %%
++# Code blocks containing Jupyter magic are executable
++#     .. code-block:: bash
++#
++#       %%bash
++#       # This could be run!
++#
++
+ # %%
+ # Last text block.
+ #
