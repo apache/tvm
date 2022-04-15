@@ -40,7 +40,7 @@ std::shared_ptr<GlobalRuntime> PipelineScheduler::PipelineInit(
   }
   // Creating the global runtime to represent the pipeline executor.
   global_runtime_ = std::make_shared<GlobalRuntime>(GLOBAL_MODULE_INDEX);
-  // Initialize the data structures that are used by pipeline logic.
+  // Initializing the data structures used by pipeline logic.
   global_runtime_->InitializePipeline(input_connection_config, runtimes);
   // Creating a list of NDArray in order to storage the outputs data.
   auto global_output_map = pipeline_config.GetGlobalConfigOutputBindings();

@@ -399,13 +399,16 @@ def test_pipeline():
                     customized_parameters_mod,
                     customized_parameters,
                 )
-                # Append the normal output into a list to do future correctness verification.
+                # Appending the normal output into the list in order to do future correctness
+                # checking.
                 normal_outputs.append(normal_output)
-                # Set the input data into pipeline executor.
+                # Setting the input data into the pipeline executor.
                 pipeline_module_test.set_input("data_a", data)
                 pipeline_module_test.set_input("data_b", data)
                 input_map = pipeline_module_test.get_input_pipeline_map("data_a")
-                # The input data will be set into runtime directly when the index of runtime is 0
+                # Checking whether the input setting of the first runtime is successful.
+                # The input of the rest of runtime will go into a queue and we can not check
+                # these input data here.
                 if input_map[0] == "0":
                     input_data = pipeline_module_test.get_input("data_a")
                     tvm.testing.assert_allclose(data, input_data.numpy())

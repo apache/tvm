@@ -549,7 +549,10 @@ struct InputConnectionConfig {
   std::unordered_map<std::string, std::pair<int, std::string>> input_connection;
   /*!\brief The map includes the global input name and global input index.*/
   std::unordered_map<std::string, int> input_name_index_map;
-  /*!\brief The map includes the runtime index and the pair of global and runtime input name.*/
+  /*!
+   * \brief The map not only includes the runtime index ,but also the pair of global interface
+   *  and runtime interface.
+   */
   std::unordered_map<int, std::vector<std::pair<std::string, std::string>>> input_runtime_map;
   std::pair<int, std::string> operator[](const std::string key) {
     if (input_connection.find(key) == input_connection.end()) {
@@ -558,7 +561,7 @@ struct InputConnectionConfig {
     return input_connection[key];
   }
   /*!
-   * \brief Get the global input index through the input name.
+   * \brief Getting the global input index through the input name.
    * \param input_name The global input name.
    */
   int GetInputIndex(std::string input_name) {
@@ -608,7 +611,8 @@ struct InputConnectionConfig {
       ICHECK(!global_interface_name.empty()) << "Invalid global interface name value";
       ICHECK(!module_interface_name.empty()) << "Invalid module interface name value";
       input_connection[global_interface_name] = make_pair(mod_idx, module_interface_name);
-      // Creating a map includes the runtime index and the pair of gloal and runtime interface.
+      // Creating a map which not only includes the runtime index, but also the pair of gloal
+      // interface, and runtime interface.
       input_runtime_map[mod_idx].push_back(
           std::make_pair(global_interface_name, module_interface_name));
     }
@@ -671,11 +675,11 @@ class BasicRuntime {
   explicit BasicRuntime(int runtime_idx) : runtime_idx_(runtime_idx) {}
   /*!\brief Return the index of the current module.*/
   int GetModuleIndex() { return runtime_idx_; }
-  /*!\brief Setting the data to this runtime via input index.*/
+  /*!\brief Setting the data into this runtime via the input index.*/
   virtual void SetInput(const int index, DLTensor* data_in) {}
   /*!
-   * \brief Notifying an input is ready.
-   * \param input_index The index of 'input interface' which is ready for data.
+   * \brief Sending a notification when data is ready.
+   * \param input_index The index of an input interface which have data ready.
    */
   virtual void ParentNotify(int input_index) {}
   /*!
@@ -700,11 +704,11 @@ class BasicRuntime {
   int runtime_idx_;
   /*!\brief A list of runtime which depends on the current runtime.*/
   std::unordered_map<int, ModuleInputPairList> children_;
-  /*!\brief A map including the runtime input index and the notification data structure.*/
+  /*!\brief The map includes the runtime input index and the notification data structure.*/
   std::unordered_map<int, std::shared_ptr<DataNotify>> parents_notify_;
   /*!
-   * \brief A list of SPSC input queues in which the input interface will poll the data sent from
-   *  other backend cores.
+   * \brief There is a list of SPSC input queues in which the input interface would poll the
+   *  data comed from other backend cores.
    */
   std::unordered_map<int, std::shared_ptr<ForwardQueue>> input_queue_;
 
@@ -726,10 +730,10 @@ class BasicRuntime {
   }
   /*!
    * \brief Forwarding the data into the child runtimes.
-   * \param forward_queue_map The map includes the id of queue and the forwarding queue.
+   * \param forward_queue_map The map includes the id and the queue.
    * \param child_runtime The child runtime.
    * \param child_input_index The child runtime index.
-   * \param data The data used for forwarding.
+   * \param data The data is used for forwarding.
    */
   bool ForwardData(const ForwardQueueMap* forward_queue_map,
                    std::shared_ptr<BasicRuntime> child_runtime, int child_input_index,
@@ -758,7 +762,8 @@ class BasicRuntime {
    * \brief Creating a forwarding queue for the pair of an output interface and an input interface.
    * \param forward_inf_idx The index of an interface which will send the forwarding data.
    * \param child_runtime The backend runtime which owns the input interface.
-   * \param input_index The index of an input interface which will receive the forwarding data.
+   * \param input_index The index of an input interface. This interface will receive the
+   * forwarding data.
    */
   void CreateForwardingQueue(int forward_inf_idx, std::shared_ptr<BasicRuntime> child_runtime,
                              int input_index) {
