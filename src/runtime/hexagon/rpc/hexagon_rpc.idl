@@ -25,4 +25,5 @@ typedef sequence<octet> buffer;
 interface hexagon_rpc : remote_handle64 {
   AEEResult send(in buffer data);
   AEEResult receive(rout buffer buf, rout int64_t buf_written_size);
+  AEEResult init(in uint32_t buff_size_bytes);
 };
