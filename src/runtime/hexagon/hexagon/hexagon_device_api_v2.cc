@@ -20,10 +20,6 @@
 /*!
  * \file hexagon_device_api_v2.cc
  */
-// TODO(csulivan,adstraw,kparzysz-quic) This should be set on a TVM-wide basis.
-#if defined(__hexagon__)
-#define TVM_LOG_CUSTOMIZE 1
-#endif
 
 #include "hexagon_device_api_v2.h"
 
