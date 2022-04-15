@@ -36,6 +36,7 @@
 #include <tvm/meta_schedule/tune_context.h>
 #include <tvm/node/node.h>
 #include <tvm/node/serialization.h>
+#include <tvm/runtime/container/optional.h>
 #include <tvm/support/parallel_for.h>
 #include <tvm/tir/schedule/schedule.h>
 
@@ -308,12 +309,19 @@ struct ThreadedTraceApply {
                               /*rand_state=*/ForkSeed(rand_state),
                               /*debug_mode=*/0,
                               /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
+
     trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
     sch->EnterPostproc();
+
     for (int i = 0; i < n_; ++i) {
       Item& item = items_[i];
-      if (!item.postproc->Apply(sch)) {
-        ++item.fail_counter;
+      try {
+        if (!item.postproc->Apply(sch)) {
+          ++item.fail_counter;
+          return NullOpt;
+        }
+      } catch (const std::exception& e) {
+        LOG(WARNING) << "ThreadedTraceApply::Apply failed with error " << e.what();
         return NullOpt;
       }
     }
