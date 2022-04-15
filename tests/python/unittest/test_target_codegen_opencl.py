@@ -139,8 +139,45 @@ def test_opencl_erf():
     check_erf(dev, 1, "float64")
 
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_opencl
+def test_opencl_type_casting():
+    def check_type_casting(ctx, n, dtype):
+        block_size = 4
+        C = te.compute(
+            (n,),
+            lambda i: tvm.tir.Select(
+                tvm.tir.all(
+                    *[
+                        i // block_size == tvm.tir.const(3, "int32"),
+                        i % block_size == tvm.tir.const(3, "int32"),
+                    ]
+                ),
+                tvm.tir.const(1, dtype),
+                tvm.tir.const(0, dtype),
+            ),
+            name="C",
+        )
+        s = te.create_schedule(C.op)
+        (tx, vx) = s[C].split(s[C].op.axis[0], factor=block_size)
+        s[C].vectorize(vx)
+        thrx = te.thread_axis("threadIdx.x")
+
+        s[C].bind(tx, thrx)
+        fun = tvm.build(s, [C], target)
+
+        c = tvm.nd.empty((n,), dtype, ctx)
+        # Only need to test compiling here
+        fun(c)
+
+    dev = tvm.device(target, 0)
+
+    check_type_casting(dev, 16, "float32")
+
+
 if __name__ == "__main__":
     test_opencl_ternary_expression()
     test_opencl_inf_nan()
     test_opencl_max()
     test_opencl_erf()
+    test_opencl_type_casting()
