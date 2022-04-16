@@ -321,6 +321,11 @@ inline Tensor reshape(const Tensor& x, Array<PrimExpr> newshape, std::string nam
   auto x_shape = x->shape;
   Array<PrimExpr> target_shape;
 
+  // if newshape is an empty tensor make it [0] instead.
+  if (newshape.empty()){
+    newshape.push_back(0); 
+  }
+
   for (const auto& ele : newshape) {
     if (ele.as<IntImmNode>()) {
       target_shape.push_back(cast(DataType::Int(32), ele));
