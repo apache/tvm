@@ -552,6 +552,154 @@ def test_compile_check_configs_composite_target(mock_pkg, mock_pc, mock_fe, mock
     )
 
 
+def test_compile_tflite_module_with_mod_name(tmpdir_factory, tflite_cnn_s_quantized):
+    pytest.importorskip("tflite")
+
+    output_dir = tmpdir_factory.mktemp("mlf")
+    tvmc_model = tvmc.load(tflite_cnn_s_quantized)
+
+    output_file_name = f"{output_dir}/file.tar"
+
+    tvmc.compiler.compile_model(
+        tvmc_model,
+        target=f"c -mcpu=cortex-m55",
+        runtime=Runtime("crt", {"system-lib": True}),
+        executor=Executor("aot"),
+        output_format="mlf",
+        package_path=output_file_name,
+        pass_context_configs=["tir.disable_vectorize=true"],
+        mod_name="classify",
+    )
+
+    # check that an MLF package was created
+    assert os.path.exists(output_file_name)
+
+    with tarfile.open(output_file_name) as mlf_package:
+        # check that the C source files have been named classify_lib*.c
+        c_source_files = [
+            name
+            for name in mlf_package.getnames()
+            if re.match(r"\./codegen/host/src/classify_lib\d+\.c", name)
+        ]
+        assert len(c_source_files) > 0
+
+        # check that "default" doesn't occur in any of the C source files
+        # check that function names are of the form "tvmgen_classify_*"
+        for file_name in c_source_files:
+            with mlf_package.extractfile(file_name) as f:
+                content = f.read()
+                assert b"default" not in content
+                assert b"tvmgen_classify_" in content
+
+        # check that tvmgen_classify_run() function exists
+        with mlf_package.extractfile("./codegen/host/src/classify_lib0.c") as f:
+            content = f.read()
+            assert b"tvmgen_classify_run(" in content
+
+
+@tvm.testing.requires_cmsisnn
+def test_compile_tflite_module_with_mod_name_and_cmsisnn(tmpdir_factory, tflite_cnn_s_quantized):
+    pytest.importorskip("tflite")
+
+    output_dir = tmpdir_factory.mktemp("mlf")
+    tvmc_model = tvmc.load(tflite_cnn_s_quantized)
+
+    output_file_name = f"{output_dir}/file.tar"
+
+    tvmc.compiler.compile_model(
+        tvmc_model,
+        target=f"cmsis-nn, c -mcpu=cortex-m55",
+        runtime=Runtime("crt", {"system-lib": True}),
+        executor=Executor("aot"),
+        output_format="mlf",
+        package_path=output_file_name,
+        pass_context_configs=["tir.disable_vectorize=true"],
+        mod_name="classify",
+    )
+
+    # check that an MLF package was created
+    assert os.path.exists(output_file_name)
+
+    with tarfile.open(output_file_name) as mlf_package:
+        # check that the C source files have been named classify_lib*.c
+        c_source_files = [
+            name
+            for name in mlf_package.getnames()
+            if re.match(r"\./codegen/host/src/classify_lib\d+\.c", name)
+        ]
+        assert len(c_source_files) > 0
+
+        # check that "default" doesn't occur in any of the C source files
+        # check that function names are of the form "tvmgen_classify_*"
+        for file_name in c_source_files:
+            with mlf_package.extractfile(file_name) as f:
+                content = f.read()
+                assert b"default" not in content
+                assert b"tvmgen_classify_" in content
+
+        # check that tvmgen_classify_run() function exists
+        with mlf_package.extractfile("./codegen/host/src/classify_lib0.c") as f:
+            content = f.read()
+            assert b"tvmgen_classify_run(" in content
+
+        # check that CMSIS-NN function names are of the form "tvmgen_classify_cmsis_nn_main_*"
+        with mlf_package.extractfile("./codegen/host/src/classify_lib2.c") as f:
+            content = f.read()
+            assert b"tvmgen_classify_cmsis_nn_main_" in content
+
+
+def test_compile_tflite_module_with_mod_name_and_ethosu(
+    tmpdir_factory, tflite_mobilenet_v1_1_quant
+):
+    pytest.importorskip("tflite")
+    pytest.importorskip("ethosu.vela")
+
+    output_dir = tmpdir_factory.mktemp("mlf")
+    tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
+    output_file_name = f"{output_dir}/file.tar"
+
+    tvmc.compiler.compile_model(
+        tvmc_model,
+        target=f"ethos-u -accelerator_config=ethos-u55-256, c -mcpu=cortex-m55",
+        runtime=Runtime("crt"),
+        executor=Executor("aot", {"unpacked-api": True}),
+        output_format="mlf",
+        package_path=output_file_name,
+        pass_context_configs=["tir.disable_vectorize=true"],
+        mod_name="classify",
+    )
+
+    # check that an MLF package was created
+    assert os.path.exists(output_file_name)
+
+    with tarfile.open(output_file_name) as mlf_package:
+        # check that the C source files have been named classify_lib*.c
+        c_source_files = [
+            name
+            for name in mlf_package.getnames()
+            if re.match(r"\./codegen/host/src/classify_lib\d+\.c", name)
+        ]
+        assert len(c_source_files) > 0
+
+        # check that "default" doesn't occur in any of the C source files
+        # check that function names are of the form "tvmgen_classify_*"
+        for file_name in c_source_files:
+            with mlf_package.extractfile(file_name) as f:
+                content = f.read()
+                assert b"default" not in content
+                assert b"tvmgen_classify_" in content
+
+        # check that tvmgen_classify_run() function exists
+        with mlf_package.extractfile("./codegen/host/src/classify_lib0.c") as f:
+            content = f.read()
+            assert b"tvmgen_classify_run(" in content
+
+        # check that microNPU function names are of the form "tvmgen_classify_ethos_u_main_*"
+        with mlf_package.extractfile("./codegen/host/src/classify_lib2.c") as f:
+            content = f.read()
+            assert b"tvmgen_classify_ethos_u_main_" in content
+
+
 if __name__ == "__main__":
     import sys
 

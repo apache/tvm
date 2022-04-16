@@ -249,6 +249,7 @@ def test_legalize_dense():
             a = before()
             a = run_opt_pass(a, transform.Legalize())
             b = run_opt_pass(expected(), transform.InferType())
+
         assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "Expected = \n" + str(b)
 
     # dense
@@ -259,7 +260,7 @@ def test_legalize_dense():
         _test_legalize_dense((8, 16), (31, 16), (0, 0, 1), dtype)
         _test_legalize_dense((7, 15), (31, 15), (1, 1, 1), dtype)
         _test_legalize_dense((3, 16), (32, 16), (5, 0, 0), dtype)
-        _test_legalize_dense((2, 16), (32, 16), (0, 0, 0), dtype, False)
+        _test_legalize_dense((1, 16), (32, 16), (0, 0, 0), dtype, False)
 
     # Test if units parameter is correctly updated
     _test_legalize_dense((8, 16), (30, 16), (0, 0, 2), "float16", units=30)

@@ -16,12 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-// TODO(csulivan,adstraw,kparzysz-quic) This should be set on a TVM-wide basis.
-#if defined(__hexagon__)
-#define TVM_LOG_CUSTOMIZE 1
-#endif
-
 #include "hexagon_buffer.h"
 
 #include <tvm/runtime/module.h>
@@ -92,19 +86,18 @@ struct VTCMAllocation : public Allocation {
     if (context_id_) {
       data_ = HAP_compute_res_attr_get_vtcm_ptr(&res_info);
       if (!data_) {
-        HEXAGON_PRINT(ERROR, "ERROR: Allocated VTCM ptr is null.");
+        LOG(ERROR) << "ERROR: Allocated VTCM ptr is null.";
         HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
         return;
       }
     } else {
-      HEXAGON_PRINT(ERROR, "ERROR: Unable to acquire requeisted resource.");
+      LOG(ERROR) << "ERROR: Unable to acquire requeisted resource.";
       return;
     }
-    // HEXAGON_PRINT(ALWAYS, "VTCMAllocation() - Context ID: %u, VTCM ptr: %p", context_id_, data_);
+    // LOG(INFO) << "VTCMAllocation() - Context ID: " << context_id_ << ", VTCM ptr: " << data_;
   }
   ~VTCMAllocation() {
-    // HEXAGON_PRINT(ALWAYS, "~VTCMAllocation() - Context ID: %u, VTCM ptr: %p", context_id_,
-    // data_);
+    // LOG(INFO) << "~VTCMAllocation() - Context ID: " << context_id_ << ", VTCM ptr: " << data_;
     HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
     data_ = nullptr;
   }
@@ -168,14 +161,6 @@ HexagonBuffer::HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
   }
 
   managed_allocations_.push_back(std::move(alloca));
-}
-
-HexagonBuffer::HexagonBuffer(void* data, size_t nbytes, Optional<String> scope)
-    : ndim_(1), nbytes_per_allocation_(nbytes) {
-  SetStorageScope(scope);
-  // disallow external VTCM allocations
-  CHECK(GetStorageScope() != HexagonBuffer::StorageScope::kVTCM);
-  allocations_.push_back(data);
 }
 
 HexagonBuffer::~HexagonBuffer() { managed_allocations_.clear(); }
@@ -283,8 +268,6 @@ void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& 
 }
 
 void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
-  CHECK(managed_allocations_.size() && "CopyTo not supported on unmanaged `external` allocations");
-
   BufferSet src(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
   BufferSet dest(&data, 1, nbytes);
 
@@ -292,9 +275,6 @@ void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
 }
 
 void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
-  CHECK(managed_allocations_.size() &&
-        "CopyFrom not supported on unmanaged `external` allocations");
-
   BufferSet src(&data, 1, nbytes);
   BufferSet dest(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
 
@@ -302,11 +282,6 @@ void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
 }
 
 void HexagonBuffer::CopyFrom(const HexagonBuffer& other, size_t nbytes) {
-  CHECK(managed_allocations_.size() &&
-        "CopyFrom not supported on unmanaged `external` allocations");
-  CHECK(other.managed_allocations_.size() &&
-        "CopyFrom not supported on unmanaged `external` allocations");
-
   BufferSet src(other.allocations_.data(), other.allocations_.size(), other.nbytes_per_allocation_);
   BufferSet dest(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
 

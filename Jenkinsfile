@@ -45,18 +45,18 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-04-11T12:22:12.040444
+// Generated at 2022-04-14T17:16:16.585491
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = 'tlcpack/ci-lint:v0.71'
-ci_gpu = 'tlcpack/ci-gpu:v0.84'
-ci_cpu = 'tlcpack/ci-cpu:v0.83'
+ci_gpu = 'tlcpack/ci-gpu:v0.85'
+ci_cpu = 'tlcpack/ci-cpu:v0.84'
 ci_wasm = 'tlcpack/ci-wasm:v0.73'
-ci_i386 = 'tlcpack/ci-i386:v0.76'
+ci_i386 = 'tlcpack/ci-i386:v0.77'
 ci_qemu = 'tlcpack/ci-qemu:v0.13'
-ci_arm = 'tlcpack/ci-arm:v0.09'
-ci_hexagon = 'tlcpack/ci-hexagon:v0.02'
+ci_arm = 'tlcpack/ci-arm:v0.10'
+ci_hexagon = 'tlcpack/ci-hexagon:v0.03'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -121,7 +121,7 @@ def init_git() {
     ).trim()
   }
   sh (
-    script: "git merge ${upstream_revision}",
+    script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
     label: 'Merge to origin/main'
   )
 
@@ -206,6 +206,7 @@ stage('Prepare') {
     ci_i386 = params.ci_i386_param ?: ci_i386
     ci_qemu = params.ci_qemu_param ?: ci_qemu
     ci_arm = params.ci_arm_param ?: ci_arm
+    ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
 
     sh (script: """
       echo "Docker images being used in this build:"
@@ -216,6 +217,7 @@ stage('Prepare') {
       echo " ci_i386 = ${ci_i386}"
       echo " ci_qemu = ${ci_qemu}"
       echo " ci_arm  = ${ci_arm}"
+      echo " ci_hexagon  = ${ci_hexagon}"
     """, label: 'Docker image names')
   }
 }

@@ -137,6 +137,11 @@ def add_compile_parser(subparsers, _):
         type=parse_pass_list_str,
         default="",
     )
+    parser.add_argument(
+        "--module-name",
+        default="default",
+        help="The output module name. Defaults to 'default'.",
+    )
 
 
 def drive_compile(args):
@@ -179,6 +184,7 @@ def drive_compile(args):
         disabled_pass=args.disabled_pass,
         pass_context_configs=args.pass_config,
         additional_target_options=reconstruct_target_args(args),
+        mod_name=args.module_name,
     )
 
     return 0
@@ -202,6 +208,7 @@ def compile_model(
     pass_context_configs: Optional[List[str]] = None,
     additional_target_options: Optional[Dict[str, Dict[str, Any]]] = None,
     use_vm: bool = False,
+    mod_name: Optional[str] = "default",
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -251,6 +258,8 @@ def compile_model(
         Additional target options in a dictionary to combine with initial Target arguments
     use_vm: bool
         Whether to use the VM to compile the model as opposed to the graph executor
+    mod_name: str, optional
+        The module name
 
     Returns
     -------
@@ -275,7 +284,7 @@ def compile_model(
         if codegen["config_key"] is not None:
             config[codegen["config_key"]] = codegen_from_cli["opts"]
         with tvm.transform.PassContext(config=config):
-            mod = partition_function(mod, params, **codegen_from_cli["opts"])
+            mod = partition_function(mod, params, mod_name=mod_name, **codegen_from_cli["opts"])
 
     if tuning_records and os.path.exists(tuning_records):
         logger.debug("tuning records file provided: %s", tuning_records)
@@ -300,6 +309,7 @@ def compile_model(
                         runtime=runtime,
                         params=params,
                         use_vm=use_vm,
+                        mod_name=mod_name,
                     )
         else:
             with autotvm.apply_history_best(tuning_records):
@@ -314,6 +324,7 @@ def compile_model(
                         runtime=runtime,
                         params=params,
                         use_vm=use_vm,
+                        mod_name=mod_name,
                     )
     else:
         with tvm.transform.PassContext(
@@ -327,6 +338,7 @@ def compile_model(
                 runtime=runtime,
                 params=params,
                 use_vm=use_vm,
+                mod_name=mod_name,
             )
 
     # Generate output dump files with sources
@@ -364,6 +376,7 @@ def build(
     runtime: Runtime,
     params: Dict[str, tvm.nd.NDArray],
     use_vm: bool,
+    mod_name: str,
 ):
     """
     Builds the model with the provided executor.
@@ -383,13 +396,17 @@ def build(
         A parameter dictionary for the model.
     use_vm: bool
         Whether to use the VM to compile the model as opposed to the graph executor
+    mod_name: str
+        The module name
 
     """
     if use_vm:
         logger.debug("building with vm compile")
         return relay.vm.compile(mod, target=tvm_target, params=params)
     logger.debug("building with relay build")
-    return relay.build(mod, target=tvm_target, executor=executor, runtime=runtime, params=params)
+    return relay.build(
+        mod, target=tvm_target, executor=executor, runtime=runtime, params=params, mod_name=mod_name
+    )
 
 
 def save_dumps(module_name: str, dumps: Dict[str, str], dump_root: str = "."):

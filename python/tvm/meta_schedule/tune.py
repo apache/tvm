@@ -411,7 +411,7 @@ class Parse:
         # pylint: disable=protected-access
         if target.kind.name == "llvm":
             return DefaultLLVM._sch_rules()
-        if target.kind.name == "cuda":
+        if target.kind.name in ["cuda", "rocm", "vulkan"]:
             return DefaultCUDA._sch_rules()
         # pylint: enable=protected-access
         raise ValueError(f"Unsupported target: {target}")
@@ -425,7 +425,7 @@ class Parse:
         # pylint: disable=protected-access
         if target.kind.name == "llvm":
             return DefaultLLVM._postproc()
-        if target.kind.name == "cuda":
+        if target.kind.name in ["cuda", "rocm", "vulkan"]:
             return DefaultCUDA._postproc()
         # pylint: enable=protected-access
         raise ValueError(f"Unsupported target: {target}")
@@ -444,7 +444,7 @@ class Parse:
         # pylint: disable=protected-access
         if target.kind.name == "llvm":
             return DefaultLLVM._mutator_probs()
-        if target.kind.name == "cuda":
+        if target.kind.name in ["cuda", "rocm", "vulkan"]:
             return DefaultCUDA._mutator_probs()
         # pylint: enable=protected-access
         raise ValueError(f"Unsupported target: {target}")

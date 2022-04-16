@@ -24,7 +24,7 @@ from tvm import relay
 from tvm.ir import Op
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
-from tvm.relay.dataflow_pattern import is_op, wildcard
+from tvm.relay.dataflow_pattern import is_op, wildcard, is_constant, is_tuple
 from tvm.relay.expr import Call, Constant, GlobalVar, Tuple
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 from tvm.relay.op.contrib.register import register_pattern_table
@@ -470,6 +470,9 @@ def conv1d_annotate_fn(expr):  # pylint: disable=unused-variable
 
     attrs, args = expr.attrs, expr.args
     if not is_supported_trt_dtype(args):
+        return False
+    if not isinstance(args[1], Constant):
+        logger.info("nn.conv1d: kernel argument must be constant.")
         return False
     if attrs.data_layout != "NCW":
         logger.info("nn.conv1d: data_layout is %s but must be NCW.", attrs.data_layout)
@@ -921,6 +924,9 @@ def conv3d_annotate_fn(expr):  # pylint: disable=unused-variable
     attrs, args = expr.attrs, expr.args
     if not is_supported_trt_dtype(args):
         return False
+    if not isinstance(args[1], Constant):
+        logger.info("nn.conv3d: kernel argument must be constant.")
+        return False
     if not trt_version_annotate_fn((6, 0, 1))(attrs, args, "nn.conv3d"):
         return False
     if attrs.data_layout != "NCDHW":
@@ -996,14 +1002,22 @@ def conv3d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
 
 def unary_op_pattern(op):
     """Matches unary operation"""
-    pattern = is_op(op)(wildcard())
-    return pattern
+    return is_op(op)(wildcard())
+
+
+def unary_op_pattern_with_any_tuple(op):
+    """Matches unary operation with literal tuple argument"""
+    return is_op(op)(is_tuple(None))
 
 
 def binary_op_pattern(op):
     """Matches binary operation"""
-    pattern = is_op(op)(wildcard(), wildcard())
-    return pattern
+    return is_op(op)(wildcard(), wildcard())
+
+
+def binary_op_pattern_with_const(op):
+    """Matches binary operation with rhs arg a constant"""
+    return is_op(op)(wildcard(), is_constant())
 
 
 @register_pattern_table("tensorrt")
@@ -1011,9 +1025,9 @@ def pattern_table():
     """Get the Tensorrt compiler pattern table for supported ops."""
 
     return [
-        ("tensorrt.nn.conv3d", binary_op_pattern("nn.conv3d"), conv3d_annotate_fn),
-        ("tensorrt.nn.conv2d", binary_op_pattern("nn.conv2d"), conv2d_annotate_fn),
-        ("tensorrt.nn.conv1d", binary_op_pattern("nn.conv1d"), conv1d_annotate_fn),
+        ("tensorrt.nn.conv3d", binary_op_pattern_with_const("nn.conv3d"), conv3d_annotate_fn),
+        ("tensorrt.nn.conv2d", binary_op_pattern_with_const("nn.conv2d"), conv2d_annotate_fn),
+        ("tensorrt.nn.conv1d", binary_op_pattern_with_const("nn.conv1d"), conv1d_annotate_fn),
         (
             "tensorrt.nn.conv2d_transpose",
             binary_op_pattern("nn.conv2d_transpose"),
@@ -1021,7 +1035,7 @@ def pattern_table():
         ),
         ("tensorrt.squeeze", binary_op_pattern("squeeze"), squeeze_annotate_fn),
         ("tensorrt.add", binary_op_pattern("add"), add_annotate_fn),
-        ("tensorrt.nn.dense", unary_op_pattern("nn.dense"), dense_annotate_fn),
+        ("tensorrt.nn.dense", binary_op_pattern_with_const("nn.dense"), dense_annotate_fn),
         ("tensorrt.bias_add", binary_op_pattern("nn.bias_add"), bias_add_annotate_fn),
         (
             "tensorrt.nn.batch_matmul",
@@ -1058,7 +1072,11 @@ def pattern_table():
         ("tensorrt.max", unary_op_pattern("max"), reduce_annotate_fn),
         ("tensorrt.min", unary_op_pattern("min"), reduce_annotate_fn),
         ("tensorrt.max", unary_op_pattern("max"), reduce_annotate_fn),
-        ("tensorrt.concatenate", unary_op_pattern("concatenate"), concatenate_annotate_fn),
+        (
+            "tensorrt.concatenate",
+            unary_op_pattern_with_any_tuple("concatenate"),
+            concatenate_annotate_fn,
+        ),
         ("tensorrt.expand_dims", unary_op_pattern("expand_dims"), expand_dims_annotate_fn),
         (
             "tensorrt.layout_transform",
