@@ -391,19 +391,19 @@ class Handler(server.ProjectAPIHandler):
         # Specify project to compile
         subprocess.run(compile_cmd, check=True)
 
-    BOARD_LIST_HEADERS = ("Port", "Type", "Board Name", "FQBN", "Core")
-
     def _get_arduino_cli_cmd(self, options: dict):
         arduino_cli_cmd = options.get("arduino_cli_cmd", ARDUINO_CLI_CMD)
         assert arduino_cli_cmd, "'arduino_cli_cmd' command not passed and not found by default!"
         return arduino_cli_cmd
 
-    def _parse_boards_tabular_str(self, tabular_str):
+    POSSIBLE_BOARD_LIST_HEADERS = ("Port", "Protocol", "Type", "Board Name", "FQBN", "Core")
+
+    def _parse_connected_boards(self, tabular_str):
         """Parses the tabular output from `arduino-cli board list` into a 2D array
 
         Examples
         --------
-        >>> list(_parse_boards_tabular_str(bytes(
+        >>> list(_parse_connected_boards(bytes(
         ...     "Port         Type              Board Name FQBN                          Core               \n"
         ...     "/dev/ttyS4   Serial Port       Unknown                                                     \n"
         ...     "/dev/ttyUSB0 Serial Port (USB) Spresense  SPRESENSE:spresense:spresense SPRESENSE:spresense\n"
@@ -414,20 +414,21 @@ class Handler(server.ProjectAPIHandler):
 
         """
 
-        str_rows = tabular_str.split("\n")[:-2]
-        header = str_rows[0]
-        indices = [header.index(h) for h in self.BOARD_LIST_HEADERS] + [len(header)]
+        # Which column headers are present depends on the version of arduino-cli
+        column_regex = r"\s*|".join(self.POSSIBLE_BOARD_LIST_HEADERS) + r"\s*"
+        str_rows = tabular_str.split("\n")
+        column_headers = list(re.finditer(column_regex, str_rows[0]))
+        assert len(column_headers) > 0
 
         for str_row in str_rows[1:]:
-            parsed_row = []
-            for cell_index in range(len(self.BOARD_LIST_HEADERS)):
-                start = indices[cell_index]
-                end = indices[cell_index + 1]
-                str_cell = str_row[start:end]
+            if not str_row.strip(): continue
+            device = {}
 
-                # Remove trailing whitespace used for padding
-                parsed_row.append(str_cell.rstrip())
-            yield parsed_row
+            for column in column_headers:
+                col_name = column.group(0).strip().lower()
+                device[col_name] = str_row[column.start():column.end()].strip()
+            yield device
+
 
     def _auto_detect_port(self, options):
         list_cmd = [self._get_arduino_cli_cmd(options), "board", "list"]
@@ -436,9 +437,9 @@ class Handler(server.ProjectAPIHandler):
         ).stdout.decode("utf-8")
 
         desired_fqbn = self._get_fqbn(options)
-        for line in self._parse_boards_tabular_str(list_cmd_output):
-            if line[3] == desired_fqbn:
-                return line[0]
+        for device in self._parse_connected_boards(list_cmd_output):
+            if device["fqbn"] == desired_fqbn:
+                return device["port"]
 
         # If no compatible boards, raise an error
         raise BoardAutodetectFailed()

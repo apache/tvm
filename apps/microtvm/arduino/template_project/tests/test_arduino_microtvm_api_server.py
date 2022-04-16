@@ -63,38 +63,60 @@ class TestGenerateProject:
         )
         assert valid_output == valid_arduino_import
 
-    BOARD_CONNECTED_OUTPUT = bytes(
+    BOARD_CONNECTED_V18 = (
         "Port         Type              Board Name          FQBN                        Core             \n"
         "/dev/ttyACM0 Serial Port (USB) Arduino Nano 33 BLE arduino:mbed_nano:nano33ble arduino:mbed_nano\n"
         "/dev/ttyACM1 Serial Port (USB) Arduino Nano 33     arduino:mbed_nano:nano33    arduino:mbed_nano\n"
         "/dev/ttyS4   Serial Port       Unknown                                                          \n"
-        "\n",
-        "utf-8",
+        "\n"
     )
-    BOARD_DISCONNECTED_OUTPUT = bytes(
+    # Format for arduino-cli v0.18.2
+    BOARD_DISCONNECTED_V18 = (
         "Port       Type        Board Name FQBN Core\n"
         "/dev/ttyS4 Serial Port Unknown             \n"
-        "\n",
-        "utf-8",
+        "\n"
+    )
+    # Format for arduino-cli v0.21.1 and above
+    BOARD_DISCONNECTED_V21 = (
+        "Port       Protocol Type        Board Name FQBN Core\n"
+        "/dev/ttyS4 serial   Serial Port Unknown\n"
+        "\n"
     )
 
+    def test_parse_connected_boards(self):
+        h = microtvm_api_server.Handler()
+        boards = h._parse_connected_boards(self.BOARD_DISCONNECTED_V18)
+        assert list(boards) == [{
+            "port": "/dev/ttyS4",
+            "type": "Serial Port",
+            "board name": "Unknown",
+            "fqbn": "",
+            "core": "",
+        }]
+
+
     @mock.patch("subprocess.run")
-    def test_auto_detect_port(self, mock_subprocess_run):
+    def test_auto_detect_port(self, sub_mock):
         process_mock = mock.Mock()
         handler = microtvm_api_server.Handler()
 
         # Test it returns the correct port when a board is connected
-        mock_subprocess_run.return_value.stdout = self.BOARD_CONNECTED_OUTPUT
+        sub_mock.return_value.stdout = bytes(self.BOARD_CONNECTED_V18, "utf-8")
         assert handler._auto_detect_port(self.DEFAULT_OPTIONS) == "/dev/ttyACM0"
 
         # Test it raises an exception when no board is connected
-        mock_subprocess_run.return_value.stdout = self.BOARD_DISCONNECTED_OUTPUT
+        sub_mock.return_value.stdout = bytes(self.BOARD_DISCONNECTED_V18, "utf-8")
+        with pytest.raises(microtvm_api_server.BoardAutodetectFailed):
+            handler._auto_detect_port(self.DEFAULT_OPTIONS)
+
+        # Should work with old or new arduino-cli version
+        sub_mock.return_value.stdout = bytes(self.BOARD_DISCONNECTED_V21, "utf-8")
         with pytest.raises(microtvm_api_server.BoardAutodetectFailed):
             handler._auto_detect_port(self.DEFAULT_OPTIONS)
 
         # Test that the FQBN needs to match EXACTLY
         handler._get_fqbn = mock.MagicMock(return_value="arduino:mbed_nano:nano33")
-        mock_subprocess_run.return_value.stdout = self.BOARD_CONNECTED_OUTPUT
+        sub_mock.return_value.stdout = bytes(self.BOARD_CONNECTED_V18, "utf-8")
         assert (
             handler._auto_detect_port({**self.DEFAULT_OPTIONS, "arduino_board": "nano33"})
             == "/dev/ttyACM1"
