@@ -365,6 +365,43 @@ def matmul_relu(var_A: T.handle, var_B: T.handle, var_compute: T.handle) -> None
             compute[i0_1, i1_1] = T.max(C[i0_1, i1_1], T.float32(0))
 
 
+@T.prim_func
+def inline_block_with_init(
+    A: T.Buffer[(1, 512, 7, 7), "float32"],
+    B: T.Buffer[(1, 512, 1, 1), "float32"],
+) -> None:
+    B_rf = T.alloc_buffer([1, 512, 1, 1, 49], dtype="float32")
+    for i0, i1, i2, i3, i4, i5 in T.grid(1, 512, 1, 1, 49, 1):
+        with T.block("tensor_rf"):
+            vi4 = T.axis.spatial(49, i4)
+            ax0 = T.axis.spatial(1, 0)
+            ax1 = T.axis.spatial(512, i1)
+            ax2 = T.axis.spatial(1, 0)
+            ax3 = T.axis.spatial(1, 0)
+            with T.init():
+                B_rf[ax0, ax1, ax2, ax3, vi4] = T.float32(0)
+            B_rf[ax0, ax1, ax2, ax3, vi4] = (
+                B_rf[ax0, ax1, ax2, ax3, vi4]
+                + A[
+                    ax0,
+                    ax1,
+                    ax2 * 7 + vi4 // 7,
+                    ax3 * 7 + vi4 % 7,
+                ]
+            )
+    for i0, i1 in T.grid(1, 512):
+        for ax0, ax1, ax2, ax3, ax4 in T.grid(49, 1, 1, 1, 1):
+            with T.block("tensor"):
+                vi4, ax0_1 = T.axis.remap("RS", [ax0, ax1])
+                ax1_1 = T.axis.spatial(512, i1 + ax2)
+                ax2_1, ax3_1 = T.axis.remap("SS", [ax3, ax4])
+                with T.init():
+                    B[ax0_1, ax1_1, ax2_1, ax3_1] = T.float32(0)
+                B[ax0_1, ax1_1, ax2_1, ax3_1] = (
+                    B[ax0_1, ax1_1, ax2_1, ax3_1] + B_rf[ax0_1, ax1_1, ax2_1, ax3_1, vi4]
+                )
+
+
 # pylint: enable=no-member,invalid-name,unused-variable
 
 
@@ -523,6 +560,13 @@ def test_compute_inline_with_opaque_access():
     BB = sch.get_block("BB")
     sch.compute_inline(BB)
     tvm.ir.assert_structural_equal(access_opaque_ptr_then_elemwise_inline, sch.mod["main"])
+
+
+def test_inline_block_with_init():
+    sch = tir.Schedule(inline_block_with_init, debug_mask="all")
+    block = sch.get_block(name="tensor_rf", func_name="main")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.compute_inline(block=block)
 
 
 if __name__ == "__main__":
