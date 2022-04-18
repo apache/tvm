@@ -56,7 +56,7 @@ class Session:
         launcher: "HexagonLauncherRPC",
         remote_kw: dict,
         session_name: str = "hexagon-rpc",
-        remote_stack_size_bytes: int = 128 * 1024,
+        remote_stack_size_bytes: int = 256 * 1024,  # Min size for main thread in QuRT/sim
     ):
         self._launcher = launcher
         self._session_name = session_name
