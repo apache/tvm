@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import tvm
-from tvm.script import tir as T
-from tvm import te, tir, topi
 import numpy as np
+import tvm
 import tvm.testing
+from tvm import te, tir, topi
+from tvm.script import tir as T
 
 
 def test_unique_name_complete_block():
@@ -473,6 +473,17 @@ def test_argmax_val_idx():
     _check_workload(te_argmax_val_idx, tir_argmax_val_idx)
 
 
+def test_int64_indices():
+    n = te.var("n", "int64")
+    A = te.placeholder((n,), name="A")
+    B = te.compute(A.shape, lambda *i: A(*i) + 1, name="B")
+    prim_func = te.create_prim_func([A, B])
+    loop = prim_func.body.block.body
+    assert loop.loop_var.dtype == "int64"
+    assert loop.min.dtype == "int64"
+    assert loop.extent.dtype == "int64"
+
+
 if __name__ == "__main__":
     test_unique_name_complete_block()
     test_unique_name_reduction_block()
@@ -488,3 +499,4 @@ if __name__ == "__main__":
     test_tensor_attr()
     test_argmax_idx_val()
     test_argmax_val_idx()
+    test_int64_indices()

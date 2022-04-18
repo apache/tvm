@@ -60,6 +60,44 @@ void ConvolutionForward(int mode, int format, int algo, int dims, int groups, co
       entry_ptr->conv_entry.output_desc, y->data));
 }
 
+void ConvolutionBiasActivationForward(int mode, int format, int algo, int dims, int groups, int act,
+                                      double coef, const int pad[], const int stride[],
+                                      const int dilation[], DLTensor* x, DLTensor* w, DLTensor* y,
+                                      DLTensor* bias, const std::string& conv_dtype) {
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+  // Set Mode
+  entry_ptr->conv_entry.mode = static_cast<cudnnConvolutionMode_t>(mode);
+  CUDNN_CALL(cudnnSetActivationDescriptor(entry_ptr->conv_entry.activation_desc,
+                                          static_cast<cudnnActivationMode_t>(act),
+                                          cudnnNanPropagation_t::CUDNN_NOT_PROPAGATE_NAN, coef));
+  CUDNN_CALL(cudnnSetTensor4dDescriptor(
+      entry_ptr->conv_entry.bias_desc, entry_ptr->conv_entry.tensor_format,
+      CuDNNDataType::DLTypeToCuDNNType(bias->dtype), 1, static_cast<int>(w->shape[0]), 1, 1));
+
+  SetConvDescriptors(entry_ptr, format, dims, groups, pad, stride, dilation, x->shape, w->shape,
+                     y->shape, x->dtype, conv_dtype);
+  // Set Device
+  entry_ptr->conv_entry.device = x->device;
+  // Set Algo
+  entry_ptr->conv_entry.fwd_algo = static_cast<cudnnConvolutionFwdAlgo_t>(algo);
+
+  // Set workspace
+  size_t workspace_size = 0;
+  CUDNN_CALL(cudnnGetConvolutionForwardWorkspaceSize(
+      entry_ptr->handle, entry_ptr->conv_entry.input_desc, entry_ptr->conv_entry.filter_desc,
+      entry_ptr->conv_entry.conv_desc, entry_ptr->conv_entry.output_desc,
+      entry_ptr->conv_entry.fwd_algo, &workspace_size));
+  entry_ptr->conv_entry.UpdateWorkspace(workspace_size);
+  CUDNN_CALL(cudnnConvolutionBiasActivationForward(
+      entry_ptr->handle, CuDNNDataType::GetConst<1>(entry_ptr->conv_entry.data_type),
+      entry_ptr->conv_entry.input_desc, x->data, entry_ptr->conv_entry.filter_desc, w->data,
+      entry_ptr->conv_entry.conv_desc, entry_ptr->conv_entry.fwd_algo,
+      entry_ptr->conv_entry.workspace, workspace_size,
+      CuDNNDataType::GetConst<0>(entry_ptr->conv_entry.data_type),
+      entry_ptr->conv_entry.output_desc, y->data, entry_ptr->conv_entry.bias_desc, bias->data,
+      entry_ptr->conv_entry.activation_desc, entry_ptr->conv_entry.output_desc, y->data));
+}
+
 void FindAlgo(int format, int dims, int groups, const int pad[], const int stride[],
               const int dilation[], const int x_dim[], const int w_dim[], const int y_dim[],
               const std::string& data_dtype, const std::string& conv_dtype, TVMRetValue* ret) {
@@ -124,6 +162,30 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
 
       ConvolutionForward(mode, format, algo, 2, groups, pad_v, stride_v, dilation_v, x, w, y,
                          conv_dtype);
+    });
+
+TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d+bias+act.forward")
+    .set_body([](TVMArgs args, TVMRetValue* ret) {
+      int mode = args[0];
+      int format = args[1];
+      int algo = args[2];
+      int pad_v[2], stride_v[2], dilation_v[2];
+      for (int i = 0; i < 2; i++) {
+        pad_v[i] = args[3 + i];
+        stride_v[i] = args[5 + i];
+        dilation_v[i] = args[7 + i];
+      }
+      int act = args[9];
+      double coef = args[10];
+      DLTensor* x = args[11];
+      DLTensor* w = args[12];
+      DLTensor* bias = args[13];
+      DLTensor* y = args[14];
+      std::string conv_dtype = args[15];
+      int groups = args[16];
+
+      ConvolutionBiasActivationForward(mode, format, algo, 2, groups, act, coef, pad_v, stride_v,
+                                       dilation_v, x, w, y, bias, conv_dtype);
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv3d.forward")

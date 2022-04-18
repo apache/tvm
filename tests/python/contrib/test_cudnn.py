@@ -461,10 +461,12 @@ def _verify_cudnn_relay(expr):
     for param in func.params:
         shape = [int(x) for x in param.checked_type.shape]
         input_data.append(
-            (param.name_hint, np.random.uniform(0, 32, size=shape).astype(param.checked_type.dtype))
+            (
+                param.name_hint,
+                np.random.uniform(-32, 32, size=shape).astype(param.checked_type.dtype),
+            )
         )
 
-    # Test against CPU reference
     cuda_config = (tvm.target.cuda(), tvm.cuda(), cudnn_mod)
     cpu_config = (tvm.target.Target("llvm"), tvm.cpu(), mod)
     outputs = []
@@ -484,7 +486,8 @@ def _verify_cudnn_relay(expr):
     tvm.testing.assert_allclose(
         outputs[0],
         outputs[1],
-        rtol=1e-2,
+        rtol=1e-3,
+        atol=30,
     )
 
 
@@ -575,6 +578,48 @@ def test_relay_cudnn_conv2d(n, h, w, ci, co, kh, kw, strides, dilation, padding,
         kernel_layout="OIHW",
     )
     _verify_cudnn_relay(conv2d)
+
+
+@tvm.testing.requires_cuda
+@pytest.mark.parametrize(
+    "n,h,w,ci,co,groups",
+    [
+        (1, 16, 20, 8, 16, 1),
+        (10, 17, 19, 16, 8, 4),
+    ],
+)
+@pytest.mark.parametrize(
+    "kh,kw,padding,strides,dilation,dtype",
+    [
+        (1, 1, (3, 1, 3, 1), (1, 1), (1, 1), "float32"),
+        (3, 3, (1, 2), (2, 1), (2, 2), "float16"),
+        (7, 2, (0, 0), (3, 3), (1, 2), "float64"),
+    ],
+)
+@pytest.mark.parametrize("activation", [True, False])
+def test_relay_cudnn_conv2d_bias_act(
+    n, h, w, ci, co, kh, kw, strides, dilation, padding, groups, dtype, activation
+):
+    data = tvm.relay.var("data", tvm.relay.TensorType((n, ci, h, w), dtype))
+    weight = tvm.relay.var("weight", tvm.relay.TensorType((co, ci // groups, kh, kw), dtype))
+    bias = relay.var("bias", relay.TensorType((co,), dtype))
+    conv2d = relay.op.nn.conv2d(
+        data,
+        weight,
+        groups=groups,
+        channels=co,
+        kernel_size=(kh, kw),
+        strides=strides,
+        dilation=dilation,
+        padding=padding,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+    )
+    out = relay.op.nn.bias_add(conv2d, bias)
+    if activation:
+        out = relay.op.nn.relu(out)
+
+    _verify_cudnn_relay(out)
 
 
 if __name__ == "__main__":

@@ -34,6 +34,7 @@ void SendToBuilder(const Builder& builder, const TuneContext& context) {
   Array<BuilderInput> inputs;
   inputs.reserve(candidates.size());
   for (const MeasureCandidate& candidate : candidates) {
+    ICHECK(candidate.defined()) << "Undefined MeasureCandidate found";
     inputs.push_back(BuilderInput(candidate->sch->mod(), target));
   }
   context->builder_results = builder->Build(inputs);
