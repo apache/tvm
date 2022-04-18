@@ -27,9 +27,9 @@ A quick solution is to install via pip
 
 .. code-block:: bash
 
-    python3 -m pip install -f https://release.oneflow.info oneflow==0.7.0+[PLATFORM]
+    python3 -m pip install -f https://release.oneflow.info oneflow==0.7.0+cpu
 
-All available [PLATFORM] could be seen at official site:
+or please refer to official site:
 https://github.com/Oneflow-Inc/oneflow
 
 Currently, TVM supports OneFlow 0.7.0. Other versions may be unstable.
