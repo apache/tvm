@@ -20,10 +20,6 @@
 /*!
  * \file hexagon_device_api_v2.cc
  */
-// TODO(csulivan,adstraw,kparzysz-quic) This should be set on a TVM-wide basis.
-#if defined(__hexagon__)
-#define TVM_LOG_CUSTOMIZE 1
-#endif
 
 #include "hexagon_device_api_v2.h"
 
@@ -229,6 +225,11 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.free_nd").set_body([](TVMArgs args, TVMR
   HexagonDeviceAPIv2* hexapi = HexagonDeviceAPIv2::Global();
   hexapi->FreeVtcmWorkspace(dev, ptr);
   *rv = static_cast<int32_t>(0);
+});
+
+TVM_REGISTER_GLOBAL("device_api.hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
+  DeviceAPI* ptr = HexagonDeviceAPIv2::Global();
+  *rv = static_cast<void*>(ptr);
 });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.v2").set_body([](TVMArgs args, TVMRetValue* rv) {

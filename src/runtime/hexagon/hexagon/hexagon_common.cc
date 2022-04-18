@@ -20,11 +20,6 @@
 /*!
  * \file hexagon_common.cc
  */
-// TODO(csulivan,adstraw,kparzysz-quic) This should be set on a TVM-wide basis.
-#if defined(__hexagon__)
-#define TVM_LOG_CUSTOMIZE 1
-#endif
-
 #include "hexagon_common.h"
 
 #include <tvm/runtime/logging.h>
@@ -80,10 +75,10 @@ std::vector<std::string> SplitString(const std::string& str, char delim) {
   return lines;
 }
 void HexagonLog(const std::string& file, int lineno, const std::string& message) {
-  HEXAGON_PRINT(ALWAYS, "%s:%d:", file.c_str(), lineno);
+  HEXAGON_PRINT(ALWAYS, "INFO: %s:%d:", file.c_str(), lineno);
   std::vector<std::string> err_lines = SplitString(message, '\n');
   for (auto& line : err_lines) {
-    HEXAGON_PRINT(ALWAYS, "%s", line.c_str());
+    HEXAGON_PRINT(ALWAYS, "INFO: %s", line.c_str());
   }
 }
 }  // namespace

@@ -16,7 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <unordered_map>
+#include "./multi_level_tiling.h"
+
+#include <tvm/meta_schedule/schedule_rule.h>
+
+#include <algorithm>
+#include <utility>
+#include <vector>
 
 #include "../utils.h"
 
@@ -51,181 +57,44 @@ namespace tvm {
 namespace meta_schedule {
 
 using tir::BlockRV;
-using tir::ExprRV;
 using tir::IterVarType;
 using tir::LoopRV;
 using tir::Schedule;
 
-/*!
- * \brief Configuration of data reuse type:
- * 0) kNoReuse: no reuse is allowed, then no cache_read/write is performed.
- * 1) kMayReuse: reuse is allowed, but no reuse is explored.
- * 2) kMustReuse: reuse is allowed and no reuse is not explored.
- */
-enum class ReuseType : int32_t {
-  kNoReuse = 0,
-  kMayReuse = 1,
-  kMustReuse = 2,
-};
-
-/*!
- * \brief Converts a string to ReuseType.
- * \param str The string to be converted.
- * \return The converted ReuseType.
- */
-ReuseType Str2ReuseType(const String& str) {
-  if (str == "no") {
-    return ReuseType::kNoReuse;
-  } else if (str == "may") {
-    return ReuseType::kMayReuse;
-  } else if (str == "must") {
-    return ReuseType::kMustReuse;
-  } else {
-    LOG(FATAL) << "ValueError: Unknown ReuseType: " << str;
-    throw;
+// Do nothing; Inherited from ScheduleRuleNode
+void MultiLevelTilingNode::InitializeWithTuneContext(const TuneContext& context) {
+  if (Optional<Integer> v = context->target.value()->GetAttr<Integer>("max_threads_per_block")) {
+    this->max_threads_per_block_ = v.value()->value;
+    if (Optional<Integer> v = context->target.value()->GetAttr<Integer>("thread_warp_size")) {
+      this->thread_warp_size_ = v.value()->value;
+    } else {
+      LOG(INFO) << "'thread_warp_size' is not defined in the target";
+    }
   }
 }
 
-/*! \brief Configuration of data reuse patterns */
-struct ReuseConfig {
-  /*! \brief Type of data reuse: no-reuse, may-reuse or must-reuse */
-  ReuseType req;
-  /*! \brief Which levels are caching stage inserted at */
-  std::vector<int> levels;
-  /*! \brief The storage scope */
-  String scope;
-
-  /*! \brief Default constructor: no data reuse */
-  ReuseConfig() : req(ReuseType::kNoReuse) {}
-
-  /*! \brief Construct from a configuration dictionary */
-  explicit ReuseConfig(const Map<String, ObjectRef>& config)
-      : req(Str2ReuseType(Downcast<String>(config.at("req")))),
-        levels(support::AsVector<Integer, int>(Downcast<Array<Integer>>(config.at("levels")))),
-        scope(Downcast<String>(config.at("scope"))) {
-    ICHECK_EQ(config.size(), 3);
+// Entry of the mega rule; Inherited from ScheduleRuleNode
+Array<Schedule> MultiLevelTilingNode::Apply(const Schedule& sch, const BlockRV& block_rv) {
+  if (!NeedsMultiLevelTiling(sch->state(), sch->GetSRef(block_rv))) {
+    return {sch};
   }
-};
+  sch->Annotate(block_rv, tir::attr::meta_schedule_tiling_structure, structure);
 
-/*! \brief The state of auto scheduling for the multi-level tiling rule */
-struct State {
-  /*! \brief The schedule to date */
-  Schedule sch;
-  /*! \brief The block to be tiled */
-  BlockRV block_rv;
-  /*! \brief The loop tiles */
-  Array<Array<LoopRV>> tiles;
-
-  /*! \brief Default constructor */
-  explicit State(Schedule sch, BlockRV block_rv, Optional<BlockRV> write_cache = NullOpt,
-                 bool write_cache_is_added = false, Array<Array<LoopRV>> tiles = {})
-      : sch(sch), block_rv(block_rv), tiles(tiles) {}
-};
-
-/*!
- * \brief Helper to apply a sub-rule to a list of auto scheduling states
- * \tparam FLambda The type of the sub-rule functor
- * \param states The list of states to be applied
- * \return The list of states after applying the sub-rule
- */
-template <class FLambda>
-std::vector<State> SubRule(std::vector<State> states, FLambda sub_rule) {
-  std::vector<State> results;
-  for (auto&& state : states) {
-    std::vector<State> next = sub_rule(std::move(state));
-    results.insert(results.end(),                          //
-                   std::make_move_iterator(next.begin()),  //
-                   std::make_move_iterator(next.end()));
+  Array<Schedule> results;
+  for (auto&& state : ApplySubRules({State(sch, block_rv)})) {
+    results.push_back(std::move(state.sch));
   }
   return results;
 }
 
-/*!
- * \brief The mega rule: multi-level tiling with data reuse
- */
-class MultiLevelTilingNode : public ScheduleRuleNode {
- public:
-  // SubRule 1. add write cache
-  inline std::vector<State> AddWriteReuse(State state) const;
-  // SubRule 2. tile the loop nest
-  inline std::vector<State> TileLoopNest(State state) const;
-  // SubRule 3. add read cache
-  inline std::vector<State> AddReadReuse(State state) const;
+std::vector<State> MultiLevelTilingNode::ApplySubRules(std::vector<State> states) {
+  states = SubRule(std::move(states), [&](State state) { return TileLoopNest(state); });
+  states = SubRule(std::move(states), [&](State state) { return AddWriteReuse(state); });
+  states = SubRule(std::move(states), [&](State state) { return AddReadReuse(state); });
+  return states;
+}
 
-  // Do nothing; Inherited from ScheduleRuleNode
-  void InitializeWithTuneContext(const TuneContext& context) final {
-    if (Optional<Integer> v = context->target.value()->GetAttr<Integer>("max_threads_per_block")) {
-      this->max_threads_per_block_ = v.value()->value;
-      if (Optional<Integer> v = context->target.value()->GetAttr<Integer>("thread_warp_size")) {
-        this->thread_warp_size_ = v.value()->value;
-      } else {
-        LOG(INFO) << "'thread_warp_size' is not defined in the target";
-      }
-    }
-  }
-
-  // Entry of the mega rule; Inherited from ScheduleRuleNode
-  Array<Schedule> Apply(const Schedule& sch, const BlockRV& block_rv) final {
-    if (!NeedsMultiLevelTiling(sch->state(), sch->GetSRef(block_rv))) {
-      return {sch};
-    }
-    sch->Annotate(block_rv, tir::attr::meta_schedule_tiling_structure, structure);
-
-    std::vector<State> states{State(sch, block_rv)};
-    states = SubRule(std::move(states), [&](State state) { return TileLoopNest(state); });
-    states = SubRule(std::move(states), [&](State state) { return AddWriteReuse(state); });
-    states = SubRule(std::move(states), [&](State state) { return AddReadReuse(state); });
-    Array<Schedule> results;
-    for (auto&& state : states) {
-      results.push_back(std::move(state.sch));
-    }
-    return results;
-  }
-
- public:
-  /*!
-   * \brief The tiling structure. Recommended:
-   * - 'SSRSRS' on CPU
-   * - 'SSSRRSRS' on GPU
-   */
-  String structure;
-  /*! \brief For each level of tiles, which thread axis it is bound to */
-  Array<String> tile_binds;
-  /*! \brief The maximum size of the innermost factor */
-  int max_innermost_factor;
-  /*! \brief The length of vector lane in vectorized cooperative fetching */
-  std::vector<int> vector_load_lens;
-  /*! \brief Data reuse configuration for reading */
-  ReuseConfig reuse_read_;
-  /*! \brief Data reuse configuration for writing */
-  ReuseConfig reuse_write_;
-  /*! \brief The indices of spatial tiles in `structure` */
-  std::vector<int> s_indices_;
-  /*! \brief The indices of reduction tiles in `structure` */
-  std::vector<int> r_indices_;
-  /*! \brief The size of the thread warp */
-  int thread_warp_size_;
-  /*! \brief The maximum number of threads to be used size of a thread warp */
-  int max_threads_per_block_;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("structure", &structure);
-    v->Visit("tile_binds", &tile_binds);
-    v->Visit("max_innermost_factor", &max_innermost_factor);
-    // `vector_load_lens` is not visited
-    // `reuse_read_` is not visited
-    // `reuse_write_` is not visited
-    // `s_indices_` is not visited
-    // `r_indices_` is not visited
-    // `thread_warp_size_` is not visited
-    // `max_threads_per_block` is not visited
-  }
-
-  static constexpr const char* _type_key = "meta_schedule.MultiLevelTiling";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MultiLevelTilingNode, ScheduleRuleNode);
-};
-
-inline std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
+std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
   const ReuseConfig& config = this->reuse_write_;
   if (config.req == ReuseType::kNoReuse) {
     return {std::move(state)};
@@ -274,7 +143,7 @@ inline std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const
   return results;
 }
 
-inline std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
+std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
   Schedule& sch = state.sch;
   const BlockRV& block_rv = state.block_rv;
   // Step 1. Assuming trivial binding, pair the loops and their iter-var-types
@@ -303,12 +172,12 @@ inline std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const 
     }
     // Do the split
     int n_tiles = idx->size();
-    Array<ExprRV> factors = sch->SamplePerfectTile(
+    Array<tir::ExprRV> factors = sch->SamplePerfectTile(
         /*loop=*/loop,
         /*n=*/n_tiles,
         /*max_innermost_factor=*/max_innermost_factor);
-    Array<LoopRV> splits = sch->Split(/*loop=*/loop,
-                                      /*factors=*/{factors.begin(), factors.end()});
+    Array<tir::LoopRV> splits = sch->Split(/*loop=*/loop,
+                                           /*factors=*/{factors.begin(), factors.end()});
     // Put every tile to its slot
     for (int j = 0; j < n_tiles; ++j) {
       tiles[idx->at(j)].push_back(splits[j]);
@@ -338,7 +207,7 @@ inline std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const 
   return {state};
 }
 
-inline std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const {
+std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const {
   const ReuseConfig& config = this->reuse_read_;
   if (config.req == ReuseType::kNoReuse) {
     return {std::move(state)};
@@ -370,7 +239,7 @@ inline std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const 
       if (!vector_load_lens.empty()) {
         int n = vector_load_lens.size();
         double prob = 1.0 / n;
-        ExprRV vector_load_len =
+        tir::ExprRV vector_load_len =
             sch->SampleCategorical(support::AsArray<int, Integer>(vector_load_lens),
                                    Array<FloatImm>(n, FloatImm(DataType::Float(64), prob)));
         sch->Annotate(cache_read_block, tir::attr::meta_schedule_cooperative_fetch,

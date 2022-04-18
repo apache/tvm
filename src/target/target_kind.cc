@@ -308,7 +308,11 @@ TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
     .add_attr_option<String>("mtriple")
     .add_attr_option<Array<String>>("mattr")
     .add_attr_option<Bool>("system-lib")
+    // TODO(masahi): Support querying from a target device
+    // On RDNA cards, thread_warp_size should be 32
     .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .add_attr_option<Integer>("max_threads_per_block", Integer(256))
+    .add_attr_option<Integer>("max_shared_memory_per_block", Integer(65536))
     .add_attr_option<Integer>("thread_warp_size", Integer(64))
     .set_default_keys({"rocm", "gpu"})
     .set_attrs_preprocessor(UpdateROCmAttrs);
@@ -350,6 +354,7 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Integer>("supported_subgroup_operations")
     // Physical device limits
     .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .add_attr_option<Integer>("max_threads_per_block", Integer(256))
     .add_attr_option<Integer>("thread_warp_size", Integer(1))
     .add_attr_option<Integer>("max_block_size_x")
     .add_attr_option<Integer>("max_block_size_y")
