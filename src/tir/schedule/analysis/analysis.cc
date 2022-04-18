@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/tir/expr.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -492,14 +494,18 @@ void CheckNotOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
   }
 }
 
-std::vector<IterVarType> GetBlockVarTypes(const StmtSRef& block_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+std::vector<IterVarType> GetBlockVarTypes(const BlockNode* block) {
   std::vector<IterVarType> results;
   results.reserve(block->iter_vars.size());
   for (const IterVar& iter_var : block->iter_vars) {
     results.push_back(iter_var->iter_type);
   }
   return results;
+}
+
+std::vector<IterVarType> GetBlockVarTypes(const StmtSRef& block_sref) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  return GetBlockVarTypes(block);
 }
 
 bool IsWriteCache(const StmtSRef& block_sref) {
@@ -2033,11 +2039,6 @@ TVM_REGISTER_NODE_TYPE(TensorizeInfoNode);
 Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
                                                 const tir::StmtSRef& block_sref,
                                                 const tir::PrimFunc& desc_func) {
-  // Try to do tiling automatically if possible
-  // Now the heuristic is that if block's block var binding is constant + loop var,
-  // in other words, with tir.block(..., vi=Ci+i, vj=Cj+j, vk=Ck+k), then we split and reorder
-  // i, j, k according to the loops outside desc_block
-  // Collect the loops outside block
   arith::Analyzer analyzer;
   const tir::BlockRealize& block = tir::GetBlockRealize(self, block_sref);
   // Step 1. Analyze desc_func, extract its block, loops and loop vars
@@ -2054,7 +2055,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
         desc_block = block;
         return false;
       }
-      // Extract the loops
+      // Extract loops
       if (const auto* loop = obj.as<tir::ForNode>()) {
         desc_loops.push_back(loop);
         desc_loop_vars.insert(loop->loop_var.get());
@@ -2068,8 +2069,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
     std::reverse(desc_loops.begin(), desc_loops.end());
     ICHECK(desc_block);
   }
-  // Step 2. Check if `desc_block` matches `block`
-  // Ignore the scope of buffers when comparing, since we can do cache_read/write
+  // Step 2. Collect loops from block_sref
   const tir::StmtSRef& scope_sref = GetScopeRoot(self, block_sref, false);
   const tir::BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
   std::vector<const tir::ForNode*> block_loops;
@@ -2088,32 +2088,33 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
     }
     std::reverse(block_loops.begin(), block_loops.end());
   }
-  // Step 4. Map from block loops to desc block loops
+  // Step 3. Map from block loops to desc block loops
   ObjectPtr<TensorizeInfoNode> ret = make_object<TensorizeInfoNode>();
-  int n_block_vars = block->iter_values.size();
-  int n_desc_vars = desc_block->iter_values.size();
-  int offset = n_block_vars - n_desc_vars;
+  const int n_block_vars = block->iter_values.size();
+  const int n_desc_vars = desc_block->iter_values.size();
+  const int offset = n_block_vars - n_desc_vars;
+
   if (offset < 0) {
     return NullOpt;
   }
 
-  std::vector<IterVarType> iter_types_desc;
-  for (const IterVar& iter_var : desc_block->block->iter_vars) {
-    iter_types_desc.push_back(iter_var->iter_type);
-  }
+  const std::vector<IterVarType> iter_types_block = GetBlockVarTypes(block_sref);
+  const std::vector<IterVarType> iter_types_desc = GetBlockVarTypes(desc_block->block.get());
 
-  std::vector<IterVarType> iter_types_block = GetBlockVarTypes(block_sref);
+  ICHECK(iter_types_block.size() == iter_types_desc.size());
   ICHECK(block_loops.size() == iter_types_block.size());
 
   int next_block_ind = block_loops.size() - 1;
   for (int i_desc = n_desc_vars - 1; i_desc >= 0; --i_desc) {
     const tir::ForNode* desc_loop = desc_loops[i_desc];
-    const auto* int_desc_extent = desc_loop->extent.as<IntImmNode>();
+    const IntImmNode* int_desc_extent = desc_loop->extent.as<IntImmNode>();
+    if (!int_desc_extent) continue;
 
     for (int i_block = next_block_ind; i_block >= 0; --i_block) {
       const tir::ForNode* block_loop = block_loops[i_block];
-      const auto* int_block_extent = block_loop->extent.as<IntImmNode>();
+      const IntImmNode* int_block_extent = block_loop->extent.as<IntImmNode>();
 
+      if (!int_block_extent) continue;
       if (int_block_extent->value % int_desc_extent->value != 0) continue;
       if (iter_types_block[i_block] != iter_types_desc[i_desc]) continue;
 
