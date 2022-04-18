@@ -64,13 +64,13 @@ class EvolutionarySearch(SearchStrategy):
         *,
         num_trials_per_iter: int,
         max_trials_per_task: int,
-        population_size: int,
-        init_measured_ratio: float,
-        init_min_unmeasured: int,
-        genetic_num_iters: int,
-        genetic_mutate_prob: float,
-        genetic_max_fail_count: int,
-        eps_greedy: float,
+        population_size: int = 2048,
+        init_measured_ratio: float = 0.2,
+        init_min_unmeasured: int = 50,
+        genetic_num_iters: int = 4,
+        genetic_mutate_prob: float = 0.85,
+        genetic_max_fail_count: int = 10,
+        eps_greedy: float = 0.05,
     ) -> None:
         """Constructor"""
         self.__init_handle_by_constructor__(

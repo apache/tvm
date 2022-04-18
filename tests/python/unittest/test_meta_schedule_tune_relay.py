@@ -20,14 +20,14 @@ import tempfile
 from os import path as osp
 from typing import List
 
-import numpy as np
+import numpy as np  # type: ignore
 import pytest
 import tvm
-from tvm import relay, tir
+from tvm import relay
 from tvm._ffi import register_func
 from tvm.contrib import graph_executor
 from tvm.ir import IRModule
-from tvm.meta_schedule import ApplyHistoryBest, ReplayTraceConfig
+from tvm.meta_schedule import ApplyHistoryBest, TuneConfig
 from tvm.meta_schedule.database import JSONDatabase, PyDatabase, TuningRecord, Workload
 from tvm.meta_schedule.relay_integration import extract_task_from_relay
 from tvm.meta_schedule.testing import apply_fixed_schedules
@@ -40,19 +40,19 @@ from tvm.tir.schedule import BlockRV, Schedule
 from tvm.tir.schedule.trace import Trace
 from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
-
 logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
+
 @tvm.script.ir_module
 class tvmgen_default_fused_layout_transform:
     @T.prim_func
-    def main(
-        placeholder: T.Buffer[(1, 3, 16, 16), "float32"],
-        T_layout_trans: T.Buffer[(1, 1, 16, 16, 3), "float32"],
-    ) -> None:
+    def main( # type: ignore
+        placeholder: T.Buffer[(1, 3, 16, 16), "float32"], # type: ignore
+        T_layout_trans: T.Buffer[(1, 1, 16, 16, 3), "float32"], # type: ignore
+    ) -> None: # type: ignore
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -63,7 +63,7 @@ class tvmgen_default_fused_layout_transform:
                 T.reads(placeholder[ax0, ax1 * 3 + ax4, ax2, ax3])
                 T.writes(T_layout_trans[ax0, ax1, ax2, ax3, ax4])
                 T_layout_trans[ax0, ax1, ax2, ax3, ax4] = T.if_then_else(
-                    ax0 < 1 and ax1 * 3 + ax4 < 3 and ax2 < 16 and ax3 < 16,
+                    ax0 < 1 and ax1 * 3 + ax4 < 3 and ax2 < 16 and ax3 < 16, # type: ignore
                     placeholder[ax0, ax1 * 3 + ax4, ax2, ax3],
                     T.float32(0),
                     dtype="float32",
@@ -73,7 +73,7 @@ class tvmgen_default_fused_layout_transform:
 @tvm.script.ir_module
 class tvmgen_default_fused_nn_contrib_conv2d_NCHWc:
     @T.prim_func
-    def main(placeholder: T.Buffer[(1, 1, 16, 16, 3), "float32"], placeholder_1: T.Buffer[(2, 1, 5, 5, 3, 4), "float32"], conv2d_NCHWc: T.Buffer[(1, 2, 16, 16, 4), "float32"]) -> None:
+    def main(placeholder: T.Buffer[(1, 1, 16, 16, 3), "float32"], placeholder_1: T.Buffer[(2, 1, 5, 5, 3, 4), "float32"], conv2d_NCHWc: T.Buffer[(1, 2, 16, 16, 4), "float32"]) -> None: # type: ignore
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -84,21 +84,21 @@ class tvmgen_default_fused_nn_contrib_conv2d_NCHWc:
                 i0_1, i1_1, i2_1, i3_1, i4_1 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(placeholder[i0_1, i1_1, i2_1 - 2, i3_1 - 2, i4_1])
                 T.writes(data_pad[i0_1, i1_1, i2_1, i3_1, i4_1])
-                data_pad[i0_1, i1_1, i2_1, i3_1, i4_1] = T.if_then_else(2 <= i2_1 and i2_1 < 18 and 2 <= i3_1 and i3_1 < 18, placeholder[i0_1, i1_1, i2_1 - 2, i3_1 - 2, i4_1], T.float32(0), dtype="float32")
+                data_pad[i0_1, i1_1, i2_1, i3_1, i4_1] = T.if_then_else(2 <= i2_1 and i2_1 < 18 and 2 <= i3_1 and i3_1 < 18, placeholder[i0_1, i1_1, i2_1 - 2, i3_1 - 2, i4_1], T.float32(0), dtype="float32") # type: ignore # pylint: disable=R1716
         for i0, i1, i2, i3, i4, i5, i6, i7 in T.grid(1, 2, 16, 16, 4, 3, 5, 5):
             with T.block("conv2d_NCHWc"):
                 n, oc_chunk, oh, ow, oc_block, ic, kh, kw = T.axis.remap("SSSSSRRR", [i0, i1, i2, i3, i4, i5, i6, i7])
-                T.reads(data_pad[n, ic // 3, oh + kh, ow + kw, ic % 3], placeholder_1[oc_chunk, ic // 3, kh, kw, ic % 3, oc_block])
+                T.reads(data_pad[n, ic // 3, oh + kh, ow + kw, ic % 3], placeholder_1[oc_chunk, ic // 3, kh, kw, ic % 3, oc_block]) # type: ignore
                 T.writes(conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block])
                 T.block_attr({"workload":["conv2d_NCHWc.x86", ["TENSOR", [1, 1, 16, 16, 3], "float32"], ["TENSOR", [2, 1, 5, 5, 3, 4], "float32"], [1, 1], [2, 2, 2, 2], [1, 1], "NCHW3c", "NCHW4c", "float32"]})
                 with T.init():
                     conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] = T.float32(0)
-                conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] + data_pad[n, ic // 3, oh + kh, ow + kw, ic % 3] * placeholder_1[oc_chunk, ic // 3, kh, kw, ic % 3, oc_block]
+                conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] + data_pad[n, ic // 3, oh + kh, ow + kw, ic % 3] * placeholder_1[oc_chunk, ic // 3, kh, kw, ic % 3, oc_block] # type: ignore
 
 @tvm.script.ir_module
 class tvmgen_default_fused_layout_transform_1:
     @T.prim_func
-    def main(placeholder: T.Buffer[(1, 2, 16, 16, 4), "float32"], T_layout_trans: T.Buffer[(1, 8, 16, 16), "float32"]) -> None:
+    def main(placeholder: T.Buffer[(1, 2, 16, 16, 4), "float32"], T_layout_trans: T.Buffer[(1, 8, 16, 16), "float32"]) -> None: # type: ignore
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -106,9 +106,9 @@ class tvmgen_default_fused_layout_transform_1:
         for i0, i1, i2, i3 in T.grid(1, 8, 16, 16):
             with T.block("T_layout_trans"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                T.reads(placeholder[ax0, ax1 // 4, ax2, ax3, ax1 % 4])
+                T.reads(placeholder[ax0, ax1 // 4, ax2, ax3, ax1 % 4]) # type: ignore
                 T.writes(T_layout_trans[ax0, ax1, ax2, ax3])
-                T_layout_trans[ax0, ax1, ax2, ax3] = T.if_then_else(ax0 < 1 and ax1 < 8 and ax2 < 16 and ax3 < 16, placeholder[ax0, ax1 // 4, ax2, ax3, ax1 % 4], T.float32(0), dtype="float32")
+                T_layout_trans[ax0, ax1, ax2, ax3] = T.if_then_else(ax0 < 1 and ax1 < 8 and ax2 < 16 and ax3 < 16, placeholder[ax0, ax1 // 4, ax2, ax3, ax1 % 4], T.float32(0), dtype="float32") # type: ignore
 
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
@@ -144,14 +144,19 @@ def test_meta_schedule_tune_relay(
             mod=mod,
             params=params,
             target=target,
-            config=ReplayTraceConfig(
+            config=TuneConfig(
+                strategy="evolutionary",
                 num_trials_per_iter=32,
-                max_trials_per_task=32,
+                max_trials_per_task=20000,
                 max_trials_global=20000,
+                search_strategy_config={
+                    "genetic_num_iters": 10,
+                },
             ),
             work_dir=work_dir,
             database=JSONDatabase(
-                osp.join(work_dir, "workload.json"), osp.join(work_dir, "records.json")
+                osp.join(work_dir, "workload.json"),
+                osp.join(work_dir, "records.json"),
             ),
         )
         # Compile without meta-scheduler for correctness check
@@ -330,7 +335,7 @@ def test_meta_schedule_relay_lowering():
         assert np.allclose(actual_output, expected_output, rtol=1e-4, atol=2e-4)
 
 
-def schedule_dense(dense_block, M, do_tune, sch):
+def schedule_dense(dense_block, M, do_tune, sch):  # pylint: disable=invalid-name
     """
     Manually schedule a dense block, created from TE compute op via CreatePrimFunc,
     using VNNI instruction.
@@ -392,7 +397,7 @@ def schedule_dense(dense_block, M, do_tune, sch):
 
 
 def manual_tir_common(do_tune=False):
-    M, N, K = 1024, 1024, 1024
+    M, N, K = 1024, 1024, 1024  # pylint: disable=invalid-name
     data_shape = (M, K)
     weight_shape = (N, K)
 
@@ -437,9 +442,10 @@ def manual_tir_common(do_tune=False):
                 extracted_tasks,
             )
         )
-        config = ReplayTraceConfig(
+        config = TuneConfig(
+            strategy="replay_trace",
             num_trials_per_iter=64,
-            max_trials_per_task=64,
+            max_trials_per_task=20000,
             max_trials_global=20000,
         )
 
@@ -447,7 +453,10 @@ def manual_tir_common(do_tune=False):
             # postprocs=lambda: [] is important to prevent default post processors from
             # tampering with the manual schedule.
             database = tune_extracted_tasks(
-                tune_tasks, target, config, work_dir=work_dir, postprocs=lambda: []
+                tune_tasks,
+                config,
+                work_dir=work_dir,
+                postprocs=lambda: [],
             )
     else:
 
@@ -457,7 +466,8 @@ def manual_tir_common(do_tune=False):
 
             block = sch.get_block("compute")
 
-            # Looks up schedule_rule annotation. See the comment in test_tune_relay_manual_tir_vnni().
+            # Looks up schedule_rule annotation.
+            # See the comment in test_tune_relay_manual_tir_vnni().
             schedule_rule = sch.get(block).annotations["schedule_rule"]
 
             assert "dense_vnni" in schedule_rule
@@ -473,6 +483,7 @@ def manual_tir_common(do_tune=False):
             opt_level=3,
             config={"relay.backend.use_meta_schedule": True},
         ):
+            # pylint: disable=W0105
             """
             The log should say
             Warning: Cannot find workload: tvmgen_default_fused_expand_dims
@@ -483,6 +494,7 @@ def manual_tir_common(do_tune=False):
             This means batch matmul and others are scheduled by TE, and dense (the one not warned)
             is found in the meta schedule tuning database during ApplyHistoryBest
             """
+            # pylint: enable=W0105
             lib = relay.build(relay_mod, target=target, params=params)
 
     runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
@@ -499,6 +511,7 @@ def manual_tir_common(do_tune=False):
 def test_tune_relay_manual_tir_vnni():
     manual_tir_common(do_tune=False)
 
+    # pylint: disable=W0105
     """
     We can inject and apply a custom TIR scheduling to a TE compute of interest, using
     the "schedule_rule" annotation. For example, in topi/x86/dense.py we have the following
@@ -510,17 +523,18 @@ def test_tune_relay_manual_tir_vnni():
     )
 
     When the meta scheduler encounters a TensorIR block with the "schedule_rule" annotation,
-    it looks up the packed func registry for a function that is associated with the given schedule rule
-    key ("meta_schedule.dense_vnni" in this example). The signature of such custom schedule functions
-    must be
+    it looks up the packed func registry for a function that is associated with the given schedule
+    rule key ("meta_schedule.dense_vnni" in this example). The signature of such custom schedule
+    functions must be
 
        (tir.schedule.Schedule, tir.schedule.BlockRV) -> [tir.schedule.Schedule].
 
-    The BlockRV argument corresponds to the TE compute annotated with "schedule_rlue".
+    The BlockRV argument corresponds to the TE compute annotated with "schedule_rule".
 
     The relevant code is in meta_schedule/space_generator/post_order_apply.cc.
 
     """
+    # pylint: enable=W0105
 
     def schedule_rule_dense_vnni(sch: Schedule, dense_block: BlockRV):
         schedule_dense(dense_block, None, True, sch)

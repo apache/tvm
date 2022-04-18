@@ -18,15 +18,12 @@
 import argparse
 import json
 import logging
-import os
 
 import numpy as np  # type: ignore
 import tvm
 from tvm import meta_schedule as ms
-from tvm.ir.transform import PassContext
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.relay_workload import get_network
-from tvm.relay import build as relay_build
 
 
 def _parse_args():
@@ -98,54 +95,6 @@ logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 ARGS = _parse_args()
 
 
-def tune_each_task(
-    mod,
-    target,
-    config,
-    runner,
-    work_dir,
-    params,
-):
-    extracted_tasks = ms.extract_task_from_relay(mod, target, params)
-    database = ms.database.JSONDatabase(
-        path_workload=os.path.join(work_dir, "default_database_workload.json"),
-        path_tuning_record=os.path.join(work_dir, "default_database_tuning_record.json"),
-    )
-    for task in extracted_tasks:
-        # pylint: disable=protected-access
-        tune_context = ms.tune.Parse._tune_context(
-            tune_context=None,
-            mod=ms.tune.Parse._mod(task.dispatched[0]),
-            target=target,
-            config=config,
-            task_name=task.task_name,
-            space_generator=None,
-            sch_rules=None,
-            postprocs=None,
-            mutator_probs=None,
-            num_threads=os.cpu_count(),
-        )
-        task_scheduler = ms.tune.Parse._task_scheduler(
-            None,
-            [tune_context],
-            task_weights=[1.0],
-            builder=ms.tune.Parse._builder(None),
-            runner=ms.tune.Parse._runner(runner),
-            database=database,
-            max_trials=config.max_trials_per_task,
-            cost_model=ms.tune.Parse._cost_model(None),
-            measure_callbacks=ms.tune.Parse._callbacks(None),
-        )
-        # pylint: enable=protected-access
-        task_scheduler.tune()
-    with target, ms.ApplyHistoryBest(database):
-        with PassContext(
-            opt_level=3,
-            config={"relay.backend.use_meta_schedule": True},
-        ):
-            return relay_build(mod, target=target, params=params)
-
-
 def main():
     mod, params, (input_name, input_shape, input_dtype) = get_network(
         ARGS.workload,
@@ -168,15 +117,14 @@ def main():
         alloc_repeat=alloc_repeat,
         max_workers=ARGS.rpc_workers,
     )
-    # lib = tune_each_task(
     lib = ms.tune_relay(
         mod=mod,
         target=ARGS.target,
-        config=ms.EvolutionarySearchConfig(
+        config=ms.TuneConfig(
+            strategy="evolutionary",
             num_trials_per_iter=64,
             max_trials_per_task=ARGS.num_trials,
             max_trials_global=ARGS.num_trials,
-            init_min_unmeasured=50,
         ),
         runner=runner,  # type: ignore
         work_dir=ARGS.work_dir,
