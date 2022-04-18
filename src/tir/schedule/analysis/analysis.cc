@@ -2101,7 +2101,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
   const std::vector<IterVarType> iter_types_block = GetBlockVarTypes(block_sref);
   const std::vector<IterVarType> iter_types_desc = GetBlockVarTypes(desc_block->block.get());
 
-  ICHECK(iter_types_block.size() == iter_types_desc.size());
+  ICHECK(desc_loops.size() == static_cast<size_t>(n_desc_vars));
   ICHECK(block_loops.size() == iter_types_block.size());
 
   int next_block_ind = block_loops.size() - 1;
