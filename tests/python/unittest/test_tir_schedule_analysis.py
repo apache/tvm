@@ -203,6 +203,9 @@ def test_get_tensorize_loop_mapping_conv2d_nchwc_vnni():
     desc_loop_to_sref = dict((v, k) for k, v in info.loop_map.items())
 
     desc_loops = collect_loops(dot_product_16x4_u8i8i32_desc)
+
+    # i4 corresonds to the inner output channel axis of the NCHWc output tensor
+    # for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):
     _, _, _, _, i4, _, _, _, _, i9 = s.get_loops(block)
 
     assert desc_loops[0] in desc_loop_to_sref and desc_loops[1] in desc_loop_to_sref
@@ -212,11 +215,11 @@ def test_get_tensorize_loop_mapping_conv2d_nchwc_vnni():
 
 def test_get_tensorize_loop_mapping_matmul_mma():
     @T.prim_func
-    def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
-        B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
-        C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
-
+    def matmul_16x16x16xf16f16f16_desc(
+        A: T.Buffer((16, 16), "float16", align=128, offset_factor=1),
+        B: T.Buffer((16, 16), "float16", align=128, offset_factor=1),
+        C: T.Buffer((16, 16), "float16", align=128, offset_factor=1),
+    ) -> None:
         with T.block("root"):
             T.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
             T.writes(C[0:16, 0:16])
@@ -236,11 +239,11 @@ def test_get_tensorize_loop_mapping_matmul_mma():
     s = Schedule(matmul)
     block = s.get_block("C")
 
-    info = get_tensorize_loop_mapping(s, block, mma_desc)
+    info = get_tensorize_loop_mapping(s, block, matmul_16x16x16xf16f16f16_desc)
 
     desc_loop_to_sref = dict((v, k) for k, v in info.loop_map.items())
 
-    desc_loops = collect_loops(mma_desc)
+    desc_loops = collect_loops(matmul_16x16x16xf16f16f16_desc)
     i0, i1, i2 = s.get_loops(block)
 
     for i in range(3):
@@ -252,8 +255,8 @@ def test_get_tensorize_loop_mapping_matmul_mma():
 
 
 if __name__ == "__main__":
-    # test_suggest_index_map_simple()
-    # test_suggest_index_map_bijective()
-    # test_get_tensorize_loop_mapping_dense_vnni()
-    # test_get_tensorize_loop_mapping_conv2d_nchwc_vnni()
+    test_suggest_index_map_simple()
+    test_suggest_index_map_bijective()
+    test_get_tensorize_loop_mapping_dense_vnni()
+    test_get_tensorize_loop_mapping_conv2d_nchwc_vnni()
     test_get_tensorize_loop_mapping_matmul_mma()
