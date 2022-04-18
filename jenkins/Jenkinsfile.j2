@@ -86,7 +86,7 @@ microtvm_lib = 'build/microtvm_template_projects.tar.gz, ' + tvm_lib
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS'
+docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 240
@@ -608,7 +608,13 @@ stage('Test') {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
   }
   parallel(
-  {% call m.sharded_test_step(name="unittest: GPU", num_shards=2, node="GPU", ws="tvm/ut-python-gpu") %}
+  {% call m.sharded_test_step(
+    name="unittest: GPU",
+    num_shards=2,
+    node="GPU",
+    ws="tvm/ut-python-gpu",
+    platform="gpu",
+  ) %}
     unpack_lib('gpu2', tvm_multilib)
     cpp_unittest(ci_gpu)
 
@@ -628,7 +634,13 @@ stage('Test') {
       label: 'Run Python GPU integration tests',
     )
   {% endcall %}
-  {% call m.sharded_test_step(name="integration: CPU", node="CPU", num_shards=2, ws="tvm/integration-python-cpu") %}
+  {% call m.sharded_test_step(
+    name="integration: CPU",
+    node="CPU",
+      num_shards=2,
+      ws="tvm/integration-python-cpu",
+      platform="cpu",
+    ) %}
     unpack_lib('cpu', tvm_multilib_tsim)
     ci_setup(ci_cpu)
     sh (
@@ -636,7 +648,11 @@ stage('Test') {
       label: 'Run CPU integration tests',
     )
   {% endcall %}
-  {% call m.test_step(name="unittest: CPU", node="CPU", ws="tvm/ut-python-cpu") %}
+  {% call m.test_step(
+    name="unittest: CPU",
+    node="CPU", ws="tvm/ut-python-cpu",
+    platform="cpu",
+  ) %}
     unpack_lib('cpu', tvm_multilib_tsim)
     ci_setup(ci_cpu)
     cpp_unittest(ci_cpu)
@@ -647,7 +663,13 @@ stage('Test') {
       label: 'Run VTA tests in TSIM',
     )
   {% endcall %}
-  {% call m.sharded_test_step(name="python: i386", node="CPU", num_shards=2, ws="tvm/integration-python-i386") %}
+  {% call m.sharded_test_step(
+    name="python: i386",
+    node="CPU",
+      num_shards=2,
+      ws="tvm/integration-python-i386",
+      platform="i386",
+    ) %}
     unpack_lib('i386', tvm_multilib)
     ci_setup(ci_i386)
     cpp_unittest(ci_i386)
@@ -658,7 +680,11 @@ stage('Test') {
     )
     fsim_test(ci_i386)
   {% endcall %}
-  {% call m.test_step(name="test: Hexagon", node="CPU", ws="tvm/test-hexagon") %}
+  {% call m.test_step(
+    name="test: Hexagon",
+    node="CPU", ws="tvm/test-hexagon",
+    platform="hexagon",
+  ) %}
     unpack_lib('hexagon', tvm_lib)
     ci_setup(ci_hexagon)
     cpp_unittest(ci_hexagon)
@@ -671,7 +697,11 @@ stage('Test') {
       label: 'Run Hexagon tests',
     )
   {% endcall %}
-  {% call m.test_step(name="test: QEMU", node="CPU", ws="tvm/test-qemu") %}
+  {% call m.test_step(
+    name="test: QEMU",
+    node="CPU", ws="tvm/test-qemu",
+    platform="qemu",
+  ) %}
     unpack_lib('qemu', microtvm_lib)
     sh(
       script: 'cd build && tar -xzvf microtvm_template_projects.tar.gz',
@@ -688,7 +718,12 @@ stage('Test') {
       label: 'Run microTVM demos',
     )
   {% endcall %}
-  {% call m.test_step(name="topi: aarch64", node="ARM", ws="tvm/ut-python-arm") %}
+  {% call m.test_step(
+    name="topi: aarch64",
+    node="ARM",
+    ws="tvm/ut-python-arm",
+    platform="arm",
+) %}
     unpack_lib('arm', tvm_multilib)
     ci_setup(ci_arm)
     cpp_unittest(ci_arm)
@@ -701,7 +736,12 @@ stage('Test') {
       label: 'Run TOPI tests',
     )
   {% endcall %}
-  {% call m.sharded_test_step(name="integration: aarch64", num_shards=2, node="ARM", ws="tvm/ut-python-arm") %}
+  {% call m.sharded_test_step(
+    name="integration: aarch64",
+    num_shards=2,
+    node="ARM", ws="tvm/ut-python-arm",
+    platform="arm",
+  ) %}
     unpack_lib('arm', tvm_multilib)
     ci_setup(ci_arm)
     python_unittest(ci_arm)
@@ -710,7 +750,13 @@ stage('Test') {
       label: 'Run CPU integration tests',
     )
   {% endcall %}
-  {% call m.sharded_test_step(name="topi: GPU", node="GPU", num_shards=2, ws="tvm/topi-python-gpu") %}
+  {% call m.sharded_test_step(
+    name="topi: GPU", 
+    node="GPU",
+    num_shards=2,
+    ws="tvm/topi-python-gpu",
+    platform="gpu",
+  ) %}
     unpack_lib('gpu', tvm_multilib)
     ci_setup(ci_gpu)
     sh (
@@ -718,7 +764,12 @@ stage('Test') {
       label: 'Run TOPI tests',
     )
   {% endcall %}
-  {% call m.sharded_test_step(name="frontend: GPU", node="GPU", num_shards=3, ws="tvm/frontend-python-gpu") %}
+  {% call m.sharded_test_step(
+    name="frontend: GPU", node="GPU",
+    num_shards=3,
+    ws="tvm/frontend-python-gpu",
+    platform="gpu",
+  ) %}
     unpack_lib('gpu', tvm_multilib)
     ci_setup(ci_gpu)
     sh (
@@ -726,7 +777,12 @@ stage('Test') {
       label: 'Run Python frontend tests',
     )
   {% endcall %}
-  {% call m.test_step(name="frontend: CPU", node="CPU", ws="tvm/frontend-python-cpu") %}
+  {% call m.test_step(
+    name="frontend: CPU",
+    node="CPU",
+    ws="tvm/frontend-python-cpu",
+    platform="cpu",
+) %}
     unpack_lib('cpu', tvm_multilib)
     ci_setup(ci_cpu)
     sh (
@@ -734,7 +790,12 @@ stage('Test') {
       label: 'Run Python frontend tests',
     )
   {% endcall %}
-  {% call m.test_step(name="frontend: aarch64", node="ARM", ws="tvm/frontend-python-arm") %}
+  {% call m.test_step(
+    name="frontend: aarch64",
+    node="ARM",
+    ws="tvm/frontend-python-arm",
+    platform="arm",
+) %}
     unpack_lib('arm', tvm_multilib)
     ci_setup(ci_arm)
     sh (

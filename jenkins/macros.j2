@@ -19,7 +19,7 @@
   "workspace/exec_${env.EXECUTOR_NUMBER}/{{ folder }}"
 {%- endmacro -%}
 
-{% macro sharded_test_step(name, num_shards, node, ws) %}
+{% macro sharded_test_step(name, num_shards, node, ws, platform) %}
 {% for shard_index in range(1, num_shards + 1) %}
   '{{ name }} {{ shard_index }} of {{ num_shards }}': {
     if (!skip_ci && is_docs_only_build != 1) {
@@ -29,6 +29,7 @@
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
+                'PLATFORM={{ platform }}',
                 'TVM_NUM_SHARDS={{ num_shards }}',
                 'TVM_SHARD_INDEX={{ shard_index - 1 }}'], {
                 {{ caller() | trim | indent(width=12) }}
@@ -47,7 +48,7 @@
 {% endmacro %}
 
 
-{% macro test_step(name, node, ws) %}
+{% macro test_step(name, node, ws, platform) %}
   '{{ name }}': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('{{ node }}') {
@@ -55,7 +56,9 @@
           timeout(time: max_time, unit: 'MINUTES') {
             try {
               init_git()
-              {{ caller() | indent(width=10) | trim }}
+              withEnv(['PLATFORM={{ platform }}'], {
+                {{ caller() | indent(width=12) | trim }}
+              })
             } finally {
               junit 'build/pytest-results/*.xml'
             }
