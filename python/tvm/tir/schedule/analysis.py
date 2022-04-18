@@ -65,6 +65,7 @@ def suggest_index_map(
 @tvm._ffi.register_object("tir.schedule.TensorizeInfo")
 class TensorizeInfo(Object):
     """Necessary information used for tensorization."""
+
     pass
 
 
