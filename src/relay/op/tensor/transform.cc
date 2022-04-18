@@ -637,11 +637,11 @@ Array<IndexExpr> InferNewShape(const Array<IndexExpr>& data_shape, const Attrs& 
       ++src_idx;
     } else if (svalue == 0) {
       if (allowzero) {
-        // keep same as > 0
+        // 0 means empty tensor, thus default behavior
         oshape.push_back(newshape[i]);
         ++src_idx;
       } else {
-        // treat zero as copy input axis shape
+        // 0 means to copy at equivilant position in data tensor
         ICHECK_LT(src_idx, ishape.size());
         used_input_dims.insert(src_idx);
         used_output_dims.insert(oshape.size());
@@ -916,7 +916,7 @@ Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& in
   return {topi::reshape(inputs[0], newshape)};
 }
 
-Expr MakeReshape(Expr data, Array<Integer> newshape, int allowzero) {
+Expr MakeReshape(Expr data, Array<Integer> newshape, bool allowzero) {
   auto attrs = make_object<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
   attrs->allowzero = allowzero;
