@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-04-19T10:04:53.134656
+// Generated at 2022-04-20T13:10:18.098416
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -89,7 +89,7 @@ microtvm_lib = 'build/microtvm_template_projects.tar.gz, ' + tvm_lib
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS'
+docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 240
@@ -623,6 +623,7 @@ stage('Test') {
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
+                'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=0'], {
                 unpack_lib('gpu2', tvm_multilib)
@@ -662,6 +663,7 @@ stage('Test') {
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
+                'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=1'], {
                 unpack_lib('gpu2', tvm_multilib)
@@ -701,6 +703,7 @@ stage('Test') {
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
+                'PLATFORM=cpu',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=0'], {
                 unpack_lib('cpu', tvm_multilib_tsim)
@@ -728,6 +731,7 @@ stage('Test') {
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
+                'PLATFORM=cpu',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=1'], {
                 unpack_lib('cpu', tvm_multilib_tsim)
@@ -754,15 +758,17 @@ stage('Test') {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
               init_git()
-              unpack_lib('cpu', tvm_multilib_tsim)
-              ci_setup(ci_cpu)
-              cpp_unittest(ci_cpu)
-              python_unittest(ci_cpu)
-              fsim_test(ci_cpu)
-              sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
-                label: 'Run VTA tests in TSIM',
-              )
+              withEnv(['PLATFORM=cpu'], {
+                unpack_lib('cpu', tvm_multilib_tsim)
+                ci_setup(ci_cpu)
+                cpp_unittest(ci_cpu)
+                python_unittest(ci_cpu)
+                fsim_test(ci_cpu)
+                sh (
+                  script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
+                  label: 'Run VTA tests in TSIM',
+                )
+              })
             } finally {
               junit 'build/pytest-results/*.xml'
             }
@@ -781,6 +787,7 @@ stage('Test') {
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
+                'PLATFORM=i386',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=0'], {
                 unpack_lib('i386', tvm_multilib)
@@ -811,6 +818,7 @@ stage('Test') {
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
+                'PLATFORM=i386',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=1'], {
                 unpack_lib('i386', tvm_multilib)
@@ -840,17 +848,19 @@ stage('Test') {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
               init_git()
-              unpack_lib('hexagon', tvm_lib)
-              ci_setup(ci_hexagon)
-              cpp_unittest(ci_hexagon)
-              sh (
-                script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
-                label: 'Build Hexagon API',
-              )
-              sh (
-                script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
-                label: 'Run Hexagon tests',
-              )
+              withEnv(['PLATFORM=hexagon'], {
+                unpack_lib('hexagon', tvm_lib)
+                ci_setup(ci_hexagon)
+                cpp_unittest(ci_hexagon)
+                sh (
+                  script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
+                  label: 'Build Hexagon API',
+                )
+                sh (
+                  script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+                  label: 'Run Hexagon tests',
+                )
+              })
             } finally {
               junit 'build/pytest-results/*.xml'
             }
@@ -868,21 +878,23 @@ stage('Test') {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
               init_git()
-              unpack_lib('qemu', microtvm_lib)
-              sh(
-                script: 'cd build && tar -xzvf microtvm_template_projects.tar.gz',
-                label: 'Unpack microtvm_template_projects'
-              )
-              ci_setup(ci_qemu)
-              cpp_unittest(ci_qemu)
-              sh (
-                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
-                label: 'Run microTVM tests',
-              )
-              sh (
-                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
-                label: 'Run microTVM demos',
-              )
+              withEnv(['PLATFORM=qemu'], {
+                unpack_lib('qemu', microtvm_lib)
+                sh(
+                  script: 'cd build && tar -xzvf microtvm_template_projects.tar.gz',
+                  label: 'Unpack microtvm_template_projects'
+                )
+                ci_setup(ci_qemu)
+                cpp_unittest(ci_qemu)
+                sh (
+                  script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
+                  label: 'Run microTVM tests',
+                )
+                sh (
+                  script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
+                  label: 'Run microTVM demos',
+                )
+              })
             } finally {
               junit 'build/pytest-results/*.xml'
             }
@@ -900,17 +912,19 @@ stage('Test') {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
               init_git()
-              unpack_lib('arm', tvm_multilib)
-              ci_setup(ci_arm)
-              cpp_unittest(ci_arm)
-              sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
-                label: 'Run test_arm_compute_lib test',
-              )
-              sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_topi.sh",
-                label: 'Run TOPI tests',
-              )
+              withEnv(['PLATFORM=arm'], {
+                unpack_lib('arm', tvm_multilib)
+                ci_setup(ci_arm)
+                cpp_unittest(ci_arm)
+                sh (
+                  script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
+                  label: 'Run test_arm_compute_lib test',
+                )
+                sh (
+                  script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_topi.sh",
+                  label: 'Run TOPI tests',
+                )
+              })
             } finally {
               junit 'build/pytest-results/*.xml'
             }
@@ -929,6 +943,7 @@ stage('Test') {
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
+                'PLATFORM=arm',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=0'], {
                 unpack_lib('arm', tvm_multilib)
@@ -957,6 +972,7 @@ stage('Test') {
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
+                'PLATFORM=arm',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=1'], {
                 unpack_lib('arm', tvm_multilib)
@@ -985,6 +1001,7 @@ stage('Test') {
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
+                'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=0'], {
                 unpack_lib('gpu', tvm_multilib)
@@ -1012,6 +1029,7 @@ stage('Test') {
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
+                'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=1'], {
                 unpack_lib('gpu', tvm_multilib)
@@ -1039,6 +1057,7 @@ stage('Test') {
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
+                'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=3',
                 'TVM_SHARD_INDEX=0'], {
                 unpack_lib('gpu', tvm_multilib)
@@ -1066,6 +1085,7 @@ stage('Test') {
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
+                'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=3',
                 'TVM_SHARD_INDEX=1'], {
                 unpack_lib('gpu', tvm_multilib)
@@ -1093,6 +1113,7 @@ stage('Test') {
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
+                'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=3',
                 'TVM_SHARD_INDEX=2'], {
                 unpack_lib('gpu', tvm_multilib)
@@ -1119,12 +1140,14 @@ stage('Test') {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
               init_git()
-              unpack_lib('cpu', tvm_multilib)
-              ci_setup(ci_cpu)
-              sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh",
-                label: 'Run Python frontend tests',
-              )
+              withEnv(['PLATFORM=cpu'], {
+                unpack_lib('cpu', tvm_multilib)
+                ci_setup(ci_cpu)
+                sh (
+                  script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh",
+                  label: 'Run Python frontend tests',
+                )
+              })
             } finally {
               junit 'build/pytest-results/*.xml'
             }
@@ -1142,12 +1165,14 @@ stage('Test') {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
               init_git()
-              unpack_lib('arm', tvm_multilib)
-              ci_setup(ci_arm)
-              sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
-                label: 'Run Python frontend tests',
-              )
+              withEnv(['PLATFORM=arm'], {
+                unpack_lib('arm', tvm_multilib)
+                ci_setup(ci_arm)
+                sh (
+                  script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
+                  label: 'Run Python frontend tests',
+                )
+              })
             } finally {
               junit 'build/pytest-results/*.xml'
             }
