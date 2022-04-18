@@ -63,6 +63,7 @@ class TestGenerateProject:
         )
         assert valid_output == valid_arduino_import
 
+    # Format for arduino-cli v0.18.2
     BOARD_CONNECTED_V18 = (
         "Port         Type              Board Name          FQBN                        Core             \n"
         "/dev/ttyACM0 Serial Port (USB) Arduino Nano 33 BLE arduino:mbed_nano:nano33ble arduino:mbed_nano\n"
@@ -70,13 +71,12 @@ class TestGenerateProject:
         "/dev/ttyS4   Serial Port       Unknown                                                          \n"
         "\n"
     )
-    # Format for arduino-cli v0.18.2
-    BOARD_DISCONNECTED_V18 = (
-        "Port       Type        Board Name FQBN Core\n"
-        "/dev/ttyS4 Serial Port Unknown             \n"
+    # Format for arduino-cli v0.21.1 and above
+    BOARD_CONNECTED_V21 = (
+        "Port         Protocol Type Board Name FQBN                        Core             \n"
+        "/dev/ttyACM0 serial                   arduino:mbed_nano:nano33ble arduino:mbed_nano\n"
         "\n"
     )
-    # Format for arduino-cli v0.21.1 and above
     BOARD_DISCONNECTED_V21 = (
         "Port       Protocol Type        Board Name FQBN Core\n"
         "/dev/ttyS4 serial   Serial Port Unknown\n"
@@ -85,13 +85,14 @@ class TestGenerateProject:
 
     def test_parse_connected_boards(self):
         h = microtvm_api_server.Handler()
-        boards = h._parse_connected_boards(self.BOARD_DISCONNECTED_V18)
+        boards = h._parse_connected_boards(self.BOARD_CONNECTED_V21)
         assert list(boards) == [{
-            "port": "/dev/ttyS4",
-            "type": "Serial Port",
-            "board name": "Unknown",
-            "fqbn": "",
-            "core": "",
+            "port": "/dev/ttyACM0",
+            "protocol": "serial",
+            "type": "",
+            "board name": "",
+            "fqbn": "arduino:mbed_nano:nano33ble",
+            "core": "arduino:mbed_nano",
         }]
 
 
@@ -105,9 +106,8 @@ class TestGenerateProject:
         assert handler._auto_detect_port(self.DEFAULT_OPTIONS) == "/dev/ttyACM0"
 
         # Test it raises an exception when no board is connected
-        sub_mock.return_value.stdout = bytes(self.BOARD_DISCONNECTED_V18, "utf-8")
-        with pytest.raises(microtvm_api_server.BoardAutodetectFailed):
-            handler._auto_detect_port(self.DEFAULT_OPTIONS)
+        sub_mock.return_value.stdout = bytes(self.BOARD_CONNECTED_V21, "utf-8")
+        assert handler._auto_detect_port(self.DEFAULT_OPTIONS) == "/dev/ttyACM0"
 
         # Should work with old or new arduino-cli version
         sub_mock.return_value.stdout = bytes(self.BOARD_DISCONNECTED_V21, "utf-8")
@@ -122,16 +122,29 @@ class TestGenerateProject:
             == "/dev/ttyACM1"
         )
 
+    CLI_VERSION = "arduino-cli  Version: 0.21.1 Commit: 9fcbb392 Date: 2022-02-24T15:41:45Z\n"
+
     @mock.patch("subprocess.run")
-    def test_flash(self, mock_subprocess_run):
+    def test_flash(self, mock_run):
+        mock_run.return_value.stdout = bytes(self.CLI_VERSION, "utf-8")
+
         handler = microtvm_api_server.Handler()
         handler._port = "/dev/ttyACM0"
 
         # Test no exception thrown when command works
         handler.flash(self.DEFAULT_OPTIONS)
-        mock_subprocess_run.assert_called_once()
+
+        # Test we checked version then called upload
+        assert mock_run.call_count == 2
+        assert mock_run.call_args_list[0][0] == (['arduino-cli', 'version'],)
+        assert mock_run.call_args_list[1][0][0][0:2] == ['arduino-cli', 'upload']
+        mock_run.reset_mock()
 
         # Test exception raised when `arduino-cli upload` returns error code
-        mock_subprocess_run.side_effect = subprocess.CalledProcessError(2, [])
+        mock_run.side_effect = subprocess.CalledProcessError(2, [])
         with pytest.raises(subprocess.CalledProcessError):
             handler.flash(self.DEFAULT_OPTIONS)
+
+        # Version information should be cached and not checked again
+        mock_run.assert_called_once()
+        assert mock_run.call_args[0][0][0:2] == ['arduino-cli', 'upload']

@@ -34,7 +34,6 @@ from string import Template
 import re
 
 import serial
-import serial.tools.list_ports
 from tvm.micro.project_api import server
 
 _LOG = logging.getLogger(__name__)
@@ -46,10 +45,7 @@ MODEL_LIBRARY_FORMAT_PATH = API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
 
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
-# Used to check Arduino CLI version installed on the host.
-# We only check two levels of the version.
-ARDUINO_CLI_VERSION = 0.18
-
+MIN_ARDUINO_CLI_VERSION = 0.18
 
 BOARDS = API_SERVER_DIR / "boards.json"
 
@@ -126,6 +122,7 @@ class Handler(server.ProjectAPIHandler):
         self._proc = None
         self._port = None
         self._serial = None
+        self._version = None
 
     def server_info_query(self, tvm_version):
         return server.ServerInfo(
@@ -314,25 +311,7 @@ class Handler(server.ProjectAPIHandler):
         # It's probably a standard C/C++ header
         return include_path
 
-    def _get_platform_version(self, arduino_cli_path: str) -> float:
-        # sample output of this command:
-        # 'arduino-cli alpha Version: 0.18.3 Commit: d710b642 Date: 2021-05-14T12:36:58Z\n'
-        version_output = subprocess.check_output([arduino_cli_path, "version"], encoding="utf-8")
-        full_version = re.findall(r"version: ([\.0-9]*)", version_output.lower())
-        full_version = full_version[0].split(".")
-        version = float(f"{full_version[0]}.{full_version[1]}")
-
-        return version
-
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
-        # Check Arduino version
-        version = self._get_platform_version(self._get_arduino_cli_cmd(options))
-        if version != ARDUINO_CLI_VERSION:
-            message = f"Arduino CLI version found is not supported: found {version}, expected {ARDUINO_CLI_VERSION}."
-            if options.get("warning_as_error") is not None and options["warning_as_error"]:
-                raise server.ServerError(message=message)
-            _LOG.warning(message)
-
         # Reference key directories with pathlib
         project_dir = pathlib.Path(project_dir)
         project_dir.mkdir()
@@ -368,11 +347,44 @@ class Handler(server.ProjectAPIHandler):
         # Recursively change includes
         self._convert_includes(project_dir, source_dir)
 
+    def _get_arduino_cli_cmd(self, options: dict):
+        arduino_cli_cmd = options.get("arduino_cli_cmd", ARDUINO_CLI_CMD)
+        assert arduino_cli_cmd, "'arduino_cli_cmd' command not passed and not found by default!"
+        return arduino_cli_cmd
+
+    def _get_platform_version(self, arduino_cli_path: str) -> float:
+        # sample output of this command:
+        # 'arduino-cli alpha Version: 0.18.3 Commit: d710b642 Date: 2021-05-14T12:36:58Z\n'
+        version_output = subprocess.run(
+            [arduino_cli_path, "version"], check=True, stdout=subprocess.PIPE
+        ).stdout.decode("utf-8")
+
+        full_version = re.findall(r"version: ([\.0-9]*)", version_output.lower())
+        full_version = full_version[0].split(".")
+        version = float(f"{full_version[0]}.{full_version[1]}")
+        return version
+
+    # This will only be run for build and upload
+    def _check_platform_version(self, options):
+        if not self._version:
+            cli_command = self._get_arduino_cli_cmd(options)
+            self._version = self._get_platform_version(cli_command)
+
+        if self._version < MIN_ARDUINO_CLI_VERSION:
+            message = (
+                f"Arduino CLI version too old: found {self._version}, "
+                f"need at least {ARDUINO_CLI_VERSION}."
+            )
+            if options.get("warning_as_error") is not None and options["warning_as_error"]:
+                raise server.ServerError(message=message)
+            _LOG.warning(message)
+
     def _get_fqbn(self, options):
         o = BOARD_PROPERTIES[options["arduino_board"]]
         return f"{o['package']}:{o['architecture']}:{o['board']}"
 
     def build(self, options):
+        self._check_platform_version(options)
         BUILD_DIR.mkdir()
 
         compile_cmd = [
@@ -390,11 +402,6 @@ class Handler(server.ProjectAPIHandler):
 
         # Specify project to compile
         subprocess.run(compile_cmd, check=True)
-
-    def _get_arduino_cli_cmd(self, options: dict):
-        arduino_cli_cmd = options.get("arduino_cli_cmd", ARDUINO_CLI_CMD)
-        assert arduino_cli_cmd, "'arduino_cli_cmd' command not passed and not found by default!"
-        return arduino_cli_cmd
 
     POSSIBLE_BOARD_LIST_HEADERS = ("Port", "Protocol", "Type", "Board Name", "FQBN", "Core")
 
@@ -438,6 +445,7 @@ class Handler(server.ProjectAPIHandler):
 
         desired_fqbn = self._get_fqbn(options)
         for device in self._parse_connected_boards(list_cmd_output):
+            print(device)
             if device["fqbn"] == desired_fqbn:
                 return device["port"]
 
@@ -454,6 +462,7 @@ class Handler(server.ProjectAPIHandler):
         return self._port
 
     def flash(self, options):
+        self._check_platform_version(options)
         port = self._get_arduino_port(options)
 
         upload_cmd = [
