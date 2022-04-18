@@ -519,7 +519,6 @@ void CodeGenLLVM::AddFunctionsOrdered(IterType begin, IterType end, ConvType pfu
   });
   for (auto& f : funcs) {
     auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    LOG(INFO) << "Adding " << static_cast<std::string>(global_symbol.value());
     AddFunction(f);
   }
 }
