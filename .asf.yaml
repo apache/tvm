@@ -45,6 +45,7 @@ github:
   # participation, permission is given on a three month
   # cycle. PMC may review and recycle slots when necessary.
   collaborators:
+    - hpanda-naut
     - denise-k
-    - tvm-bot  # For automated feedback in PR review.
     - driazati
+    - tvm-bot  # For automated feedback in PR review.

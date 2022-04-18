@@ -176,15 +176,16 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
   /*!\brief The dependency information of each graph runtime module of the pipeline.*/
   ConfigPipelineExecution pipeline_config_;
   /*!\brief The map of global input and subgraph input.*/
-  InputConnectionConfig input_connection_config;
+  InputConnectionConfig input_connection_config_;
   /*!\brief The map includes global parameters groups and runtime modules.*/
-  ParamConnectionConfig param_connection_config;
+  ParamConnectionConfig param_connection_config_;
   /*!\brief The module information used to create the graph runtimes.*/
   ModuleConfig mod_config_;
   /*!\brief How many outputs are in this pipeline executor.*/
   size_t num_outputs_ = 0;
   /*!The list of backend runtime module.*/
   std::vector<std::shared_ptr<BackendRuntime>> runtimes_;
+  std::shared_ptr<GlobalRuntime> global_runtime_;
   /*!\brief Json loader.*/
   void LoadConfig(dmlc::JSONReader* reader) {
     reader->BeginObject();
@@ -193,9 +194,9 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
       if (key == "module_connection") {
         reader->Read(&pipeline_config_);
       } else if (key == "input_connection") {
-        reader->Read(&input_connection_config);
+        reader->Read(&input_connection_config_);
       } else if (key == "param_connection") {
-        reader->Read(&param_connection_config);
+        reader->Read(&param_connection_config_);
       } else {
         LOG(FATAL) << "do not support key " << key;
       }

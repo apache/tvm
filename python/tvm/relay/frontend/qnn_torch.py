@@ -28,17 +28,12 @@ from .common import logger
 from .pytorch_utils import is_version_greater_than, getattr_attr_name
 
 
-class QNNParam:
+class QNNParam(object):
     """A placeholder for weight quantization parameters"""
 
     def __init__(self, weight, bias, scale, zero_point):
         self.weight = weight
-
-        if bias is not None:
-            self.bias = bias.detach().numpy()
-        else:
-            self.bias = None
-
+        self.bias = None if bias is None else bias.detach().numpy()
         self.scale = _expr.const(scale)
         self.zero_point = _expr.const(zero_point, dtype="int32")
 

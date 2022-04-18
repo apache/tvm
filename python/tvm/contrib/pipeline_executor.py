@@ -164,10 +164,7 @@ class PipelineModule(object):
         value : array_like.
             The input value
         """
-        v = self._get_input(key)
-        if v is None:
-            raise RuntimeError("Could not find '%s' in pipeline's inputs" % key)
-        v.copyfrom(value)
+        self._set_input(key, tvm.nd.array(value))
 
     def set_params(self, params_group_name, params_data):
         """Set the parameter group value given the parameter group name. Note that the parameter
