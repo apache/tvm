@@ -20,4 +20,6 @@ set -e
 set -u
 set -o pipefail
 
+pip3 install flowvision==0.1.0
+
 python3 -m pip install -f https://release.oneflow.info oneflow==0.7.0+cpu
