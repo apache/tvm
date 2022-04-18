@@ -34,6 +34,8 @@ from string import Template
 import re
 
 import serial
+import serial.tools.list_ports
+
 from tvm.micro.project_api import server
 
 _LOG = logging.getLogger(__name__)
@@ -445,7 +447,6 @@ class Handler(server.ProjectAPIHandler):
 
         desired_fqbn = self._get_fqbn(options)
         for device in self._parse_connected_boards(list_cmd_output):
-            print(device)
             if device["fqbn"] == desired_fqbn:
                 return device["port"]
 
