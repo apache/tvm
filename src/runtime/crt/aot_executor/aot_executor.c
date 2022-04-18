@@ -89,8 +89,8 @@ int TVMAotExecutor_Run(TVMAotExecutor* executor) {
   }
 
   // create main function name string, e.g. "tvmgen_default___tvm_main__"
-  snprintf(tvm_main_name, sizeof(tvm_main_name), "%s%s",
-            executor->metadata->mod_name, tvm_main_suffix);
+  snprintf(tvm_main_name, sizeof(tvm_main_name), "%s%s", executor->metadata->mod_name,
+           tvm_main_suffix);
 
   TVMPackedFunc tvm_main;
   TVMArgs temp_args;

@@ -167,21 +167,18 @@ def test_graph_executor():
         assert (out.numpy() == np.array([6, 10])).all()
 
     with _make_session(temp_dir, factory) as sess:
-        
+
         graph_mod_local = tvm.micro.create_local_graph_executor(
-                            factory.get_graph_json(),
-                            sess.get_system_lib(),
-                            sess.device)
+            factory.get_graph_json(), sess.get_system_lib(), sess.device
+        )
 
         do_test(graph_mod_local)
 
         graph_mod = tvm.contrib.graph_executor.create(
-                        factory.get_graph_json(),
-                        sess.get_system_lib(),
-                        sess.device)
+            factory.get_graph_json(), sess.get_system_lib(), sess.device
+        )
 
         do_test(graph_mod)
-
 
 
 @tvm.testing.requires_micro
@@ -209,7 +206,8 @@ def test_aot_executor():
 
     def do_test():
         aot_executor = tvm.runtime.executor.aot_executor.AotModule(
-            sess._rpc.get_function("tvm.aot_executor.create")(sess.get_system_lib(), sess.device))
+            sess._rpc.get_function("tvm.aot_executor.create")(sess.get_system_lib(), sess.device)
+        )
 
         assert aot_executor.get_input_index("a") == 0
         assert aot_executor.get_input_index("b") == 1
@@ -225,7 +223,7 @@ def test_aot_executor():
 
         print("A_data: " + str(A_data))
         print("B_data: " + str(B_data))
-        
+
         aot_executor.run()
 
         out = aot_executor.get_output(0)
