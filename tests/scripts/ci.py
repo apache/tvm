@@ -141,14 +141,6 @@ def check_gpu():
         )
 
 
-def check_build():
-    if (REPO_ROOT / "build").exists():
-        warnings.append(
-            "Existing build dir found may be interfering with the Docker "
-            "build (you may need to remove it)"
-        )
-
-
 def gen_name(s: str) -> str:
     # random 4 letters
     suffix = "".join([random.choice(string.ascii_lowercase) for i in range(5)])
@@ -245,7 +237,6 @@ def docs(
     interactive -- start a shell after running build / test scripts
     docker-image -- manually specify the docker image to use
     """
-    config = "./tests/scripts/task_config_build_gpu.sh"
     build_dir = get_build_dir("gpu")
     if cpu and full:
         clean_exit("--full cannot be used with --cpu")
@@ -253,12 +244,13 @@ def docs(
     extra_setup = []
     image = "ci_gpu" if docker_image is None else docker_image
     if cpu:
+        # TODO: Change this to tlcpack/docs once that is uploaded
         image = "ci_cpu" if docker_image is None else docker_image
         build_dir = get_build_dir("cpu")
-        config = " && ".join(
+        config_script = " && ".join(
             [
-                "mkdir -p build",
-                "pushd build",
+                f"mkdir -p {build_dir}",
+                f"pushd {build_dir}",
                 "cp ../cmake/config.cmake .",
                 # The docs import tvm.micro, so it has to be enabled in the build
                 "echo set\(USE_MICRO ON\) >> config.cmake",
@@ -287,9 +279,10 @@ def docs(
         ]
     else:
         check_gpu()
+        config_script = f"./tests/scripts/task_config_build_gpu.sh {build_dir}"
 
     scripts = extra_setup + [
-        config + f" {build_dir}",
+        config_script,
         f"./tests/scripts/task_build.py --build-dir {build_dir}",
     ]
 
@@ -307,7 +300,6 @@ def docs(
         "IS_LOCAL": "1",
         "TVM_LIBRARY_PATH": str(REPO_ROOT / build_dir),
     }
-    check_build()
     docker(name=gen_name("docs"), image=image, scripts=scripts, env=env, interactive=interactive)
 
 

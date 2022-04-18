@@ -99,6 +99,11 @@ if [[ "$1" == "--cache-from" ]]; then
     shift 1
 fi
 
+if [[ "$1" == "--cache" ]]; then
+    shift 1
+    DOCKER_NO_CACHE_ARG=
+fi
+
 if [[ "$1" == "--context-path" ]]; then
     DOCKER_CONTEXT_PATH="$2"
     echo "Using custom context path: ${DOCKER_CONTEXT_PATH}"
