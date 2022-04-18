@@ -18,10 +18,10 @@
 # pylint: disable=import-outside-toplevel
 import logging
 import os.path
-from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
 
 from tvm._ffi.registry import register_func
-from tvm.ir import IRModule, structural_hash
+from tvm.ir import IRModule
 from tvm.ir.transform import PassContext
 from tvm.runtime import Module, NDArray
 from tvm.target import Target
@@ -41,7 +41,7 @@ from .runner import LocalRunner, Runner
 from .schedule_rule import ScheduleRule
 from .search_strategy import EvolutionarySearch, ReplayFunc, ReplayTrace
 from .space_generator import PostOrderApply, SpaceGenerator
-from .task_scheduler import GradientBased, TaskScheduler
+from .task_scheduler import GradientBased, RoundRobin
 from .tune_context import TuneContext
 from .utils import autotvm_silencer
 
@@ -51,119 +51,6 @@ FnSpaceGenerator = Callable[[], SpaceGenerator]
 FnScheduleRule = Callable[[], List[ScheduleRule]]
 FnPostproc = Callable[[], List[Postproc]]
 FnMutatorProb = Callable[[], Dict[Mutator, float]]
-FnTaskScheduler = Callable[
-    [
-        List[TuneContext],
-        List[float],
-        Builder,
-        Runner,
-        Database,
-        CostModel,
-        List[MeasureCallback],
-    ],
-    TaskScheduler,
-]
-
-
-class ReplayFuncConfig(NamedTuple):
-    """Configuration for ReplayFunc
-
-    Parameters
-    ----------
-    num_trials_per_iter : int
-        Number of trials per iteration.
-    max_trials_per_task : int
-        Total number of trials for one task
-    max_trials_global : int
-        Total number of trials for all tasks in the task scheduler
-    """
-
-    num_trials_per_iter: int
-    max_trials_per_task: int
-    max_trials_global: int
-
-    def create_strategy(self) -> ReplayFunc:
-        return ReplayFunc(self.num_trials_per_iter, self.max_trials_per_task)
-
-
-class ReplayTraceConfig(NamedTuple):
-    """Configuration for ReplayTrace
-
-    Parameters
-    ----------
-    num_trials_per_iter : int
-        Number of trials per iteration.
-    max_trials_per_task : int
-        Total number of trials for one task
-    max_trials_global : int
-        Total number of trials for all tasks in the task scheduler
-    """
-
-    num_trials_per_iter: int
-    max_trials_per_task: int
-    max_trials_global: int
-
-    def create_strategy(self) -> ReplayTrace:
-        return ReplayTrace(self.num_trials_per_iter, self.max_trials_per_task)
-
-
-class EvolutionarySearchConfig(NamedTuple):
-    """Configuration for EvolutionarySearch
-
-    Parameters
-    ----------
-    num_trials_per_iter : int
-        Number of trials per iteration.
-    max_trials_per_task : int
-        Total number of trials.
-    max_trials_global : int
-        Total number of trials for all tasks in the task scheduler
-    population_size : int
-        The initial population of traces from measured samples and randomly generated samples.
-    init_measured_ratio : int
-        The ratio of measured samples in the initial population.
-    init_min_unmeasured : int
-        The minimal size of unmeasured population in the initial sampling.
-    genetic_num_iters : int
-        The number of iterations for genetic algorithm.
-    genetic_mutate_prob : float
-        The probability of mutation.
-    genetic_max_fail_count : int
-        The maximum number to retry mutation.
-    eps_greedy : float
-        The ratio of greedy selected samples in the final picks.
-    """
-
-    num_trials_per_iter: int
-    max_trials_per_task: int
-    max_trials_global: int
-    population_size: int = 2048
-    init_measured_ratio: float = 0.2
-    init_min_unmeasured: int = 50
-    genetic_num_iters: int = 4
-    genetic_mutate_prob: float = 0.85
-    genetic_max_fail_count: int = 10
-    eps_greedy: float = 0.05
-
-    def create_strategy(self) -> EvolutionarySearch:
-        return EvolutionarySearch(
-            num_trials_per_iter=self.num_trials_per_iter,
-            max_trials_per_task=self.max_trials_per_task,
-            population_size=self.population_size,
-            init_measured_ratio=self.init_measured_ratio,
-            init_min_unmeasured=self.init_min_unmeasured,
-            genetic_num_iters=self.genetic_num_iters,
-            genetic_mutate_prob=self.genetic_mutate_prob,
-            genetic_max_fail_count=self.genetic_max_fail_count,
-            eps_greedy=self.eps_greedy,
-        )
-
-
-SearchStrategyConfig = Union[
-    ReplayFuncConfig,
-    ReplayTraceConfig,
-    EvolutionarySearchConfig,
-]
 
 
 class DefaultLLVM:
@@ -337,10 +224,10 @@ class Parse:
         return runner
 
     @staticmethod
-    def _database(database: Union[None, Database], task_name: str, path: str) -> Database:
+    def _database(database: Union[None, Database], path: str) -> Database:
         if database is None:
-            path_workload = os.path.join(path, f"{task_name}_database_workload.json")
-            path_tuning_record = os.path.join(path, f"{task_name}_database_tuning_record.json")
+            path_workload = os.path.join(path, "database_workload.json")
+            path_tuning_record = os.path.join(path, "database_tuning_record.json")
             logger.info(
                 "Creating JSONDatabase. Workload at: %s. Tuning records at: %s",
                 path_workload,
@@ -449,279 +336,90 @@ class Parse:
         # pylint: enable=protected-access
         raise ValueError(f"Unsupported target: {target}")
 
-    @staticmethod
-    def _tune_context(
-        tune_context: Optional[TuneContext],
-        mod: IRModule,
-        target: Target,
-        config: SearchStrategyConfig,
-        task_name: str,
-        space_generator: Optional[FnSpaceGenerator],
-        sch_rules: Optional[FnScheduleRule],
-        postprocs: Optional[FnPostproc],
-        mutator_probs: Optional[FnMutatorProb],
-        num_threads: Optional[int],
-    ) -> TuneContext:
-        if tune_context is None:
-            return TuneContext(
-                mod=mod,
-                target=target,
-                # pylint: disable=protected-access
-                space_generator=Parse._space_generator(space_generator),
-                search_strategy=config.create_strategy(),
-                sch_rules=Parse._sch_rules(sch_rules, target),
-                postprocs=Parse._postproc(postprocs, target),
-                mutator_probs=Parse._mutator_probs(mutator_probs, target),
-                # pylint: enable=protected-access
-                task_name=task_name,
-                rand_state=-1,
-                num_threads=num_threads,
-            )
-        if not isinstance(tune_context, TuneContext):
-            raise TypeError(f"Expected `tune_context` to be TuneContext, but gets: {tune_context}")
-        return tune_context
 
-    @staticmethod
-    def _task_scheduler(
-        task_scheduler: Union[None, TaskScheduler, FnTaskScheduler],
-        tasks: List[TuneContext],
-        task_weights: List[float],
-        builder: Builder,
-        runner: Runner,
-        database: Database,
-        max_trials: int,
-        cost_model: CostModel,
-        measure_callbacks: List[MeasureCallback],
-    ):
-        if task_scheduler is None:
-            return GradientBased(
-                tasks=tasks,
-                task_weights=task_weights,
-                builder=builder,
-                runner=runner,
-                database=database,
-                max_trials=max_trials,
-                cost_model=cost_model,
-                measure_callbacks=measure_callbacks,
-            )
-        if callable(task_scheduler):
-            return task_scheduler(
-                tasks,
-                task_weights,
-                builder,
-                runner,
-                database,
-                cost_model,
-                measure_callbacks,
-            )
-        if not isinstance(task_scheduler, TaskScheduler):
-            raise TypeError(
-                f"Expected `task_scheduler` to be TaskScheduler, but gets: {task_scheduler}"
-            )
-        return task_scheduler
-
-
-def tune_tir(
-    mod: Union[IRModule, PrimFunc],
-    target: Union[str, Target],
-    config: SearchStrategyConfig,
-    work_dir: str,
-    *,
-    task_name: str = "main",
-    builder: Optional[Builder] = None,
-    runner: Optional[Runner] = None,
-    database: Optional[Database] = None,
-    cost_model: Optional[CostModel] = None,
-    measure_callbacks: Optional[List[MeasureCallback]] = None,
-    task_scheduler: Optional[TaskScheduler] = None,
-    space: Optional[FnSpaceGenerator] = None,
-    sch_rules: Optional[FnScheduleRule] = None,
-    postprocs: Optional[FnPostproc] = None,
-    mutator_probs: Optional[FnMutatorProb] = None,
-    num_threads: Optional[int] = None,
-) -> Optional[Schedule]:
-    """Tune a TIR IRModule with a given target.
+class TuneConfig(NamedTuple):
+    """Configuration for tuning
 
     Parameters
     ----------
-    mod : Union[IRModule, PrimFunc]
-        The module to tune.
-    target : Union[str, Target]
-        The target to tune for.
-    config : SearchStrategyConfig
-        The search strategy config.
-    work_dir : Optional[str]
-        The working directory to save intermediate results.
-    builder : Optional[Builder]
-        The builder to use.
-    runner : Optional[Runner]
-        The runner to use.
-    database : Optional[Database]
-        The database to use.
-    cost_model : Optional[CostModel]
-        The cost model to use.
-    measure_callbacks : Optional[List[MeasureCallback]]
-        The callbacks used during tuning.
-    f_tune_context : Optional[TYPE_F_TUNE_CONTEXT]
-        The function to create TuneContext.
-    f_task_scheduler : Optional[TYPE_F_TASK_SCHEDULER]
-        The function to create TaskScheduler.
-
-    Returns
-    -------
-    sch : Optional[Schedule]
-        The tuned schedule.
+    max_trials_global: int
+        Maximum number of trials to run.
+    num_trials_per_iter: int
+        Number of trials to run per iteration.
+    max_trials_per_task: Optional[int]
+        Maximum number of trials to run per task. If None, use `max_trials_global`.
+    task_scheduler: str = "gradient"
+        Task scheduler to use.
+        Valid options are: round_robin, gradient.
+    search_strategy: str = "evolutionary"
+        Search strategy to use.
+        Valid options are: evolutionary, replay_func, replay_trace.
+    task_scheduler_config: Optional[Dict[str, Any]] = None
+        Configuration for task scheduler.
+    search_strategy_config: Optional[Dict[str, Any]] = None
+        Configuration for search strategy.
     """
 
-    logger.info("Working directory: %s", work_dir)
-    # pylint: disable=protected-access
-    mod = Parse._mod(mod)
-    database = Parse._database(database, task_name, work_dir)
-    tune_context = Parse._tune_context(
-        tune_context=None,
-        mod=mod,
-        target=Parse._target(target),
-        config=config,
-        task_name=task_name,
-        space_generator=space,
-        sch_rules=sch_rules,
-        postprocs=postprocs,
-        mutator_probs=mutator_probs,
-        num_threads=num_threads,
-    )
-    task_scheduler = Parse._task_scheduler(
-        task_scheduler,
-        [tune_context],
-        task_weights=[1.0],
-        builder=Parse._builder(builder),
-        runner=Parse._runner(runner),
-        database=database,
-        max_trials=config.max_trials_global,
-        cost_model=Parse._cost_model(cost_model),
-        measure_callbacks=Parse._callbacks(measure_callbacks),
-    )
-    # pylint: enable=protected-access
-    task_scheduler.tune()
-    bests: List[TuningRecord] = database.get_top_k(
-        database.commit_workload(mod),
-        top_k=1,
-    )
-    if not bests:
-        return None
-    assert len(bests) == 1
-    sch = Schedule(mod)
-    bests[0].trace.apply_to_schedule(sch, remove_postproc=False)
-    task_scheduler.cost_model.save(os.path.join(work_dir, f"{task_name}.xgb"))
-    return sch
+    max_trials_global: int
+    num_trials_per_iter: int
+    max_trials_per_task: Optional[int] = None
+    task_scheduler: str = "gradient"
+    strategy: str = "evolutionary"
+    task_scheduler_config: Optional[Dict[str, Any]] = None
+    search_strategy_config: Optional[Dict[str, Any]] = None
 
+    def create_strategy(self, **kwargs):
+        """Create search strategy from configuration"""
+        cls_tbl = {
+            "evolutionary": EvolutionarySearch,
+            "replay_func": ReplayFunc,
+            "replay_trace": ReplayTrace,
+        }
+        if self.strategy not in cls_tbl:
+            raise ValueError(
+                f"Invalid search strategy: {self.strategy}. "
+                "Valid options are: {}".format(", ".join(cls_tbl.keys()))
+            )
+        # `max_trials_per_task` defaults to `max_trials_global`
+        max_trials_per_task = self.max_trials_per_task
+        if max_trials_per_task is None:
+            max_trials_per_task = self.max_trials_global
+        # `search_strategy_config` defaults to empty dict
+        config = self.search_strategy_config
+        if config is None:
+            config = {}
+        return cls_tbl[self.strategy](
+            num_trials_per_iter=self.num_trials_per_iter,
+            max_trials_per_task=max_trials_per_task,
+            **kwargs,
+            **config,
+        )
 
-def tune_te(
-    tensors: List[Tensor],
-    target: Union[str, Target],
-    config: SearchStrategyConfig,
-    work_dir: str,
-    *,
-    task_name: str = "main",
-    builder: Optional[Builder] = None,
-    runner: Optional[Runner] = None,
-    database: Optional[Database] = None,
-    cost_model: Optional[CostModel] = None,
-    measure_callbacks: Optional[List[MeasureCallback]] = None,
-    task_scheduler: Optional[TaskScheduler] = None,
-    space: Optional[FnSpaceGenerator] = None,
-    sch_rules: Optional[FnScheduleRule] = None,
-    postprocs: Optional[FnPostproc] = None,
-    mutator_probs: Optional[FnMutatorProb] = None,
-    num_threads: Optional[int] = None,
-) -> Optional[Schedule]:
-    """Tune a TE compute DAG with a given target.
-
-    Parameters
-    ----------
-    tensor : List[Tensor]
-        The list of input/output tensors of the TE compute DAG.
-    target : Union[str, Target]
-        The target to tune for.
-    config : SearchStrategyConfig
-        The search strategy config.
-    task_name : str
-        The name of the task.
-    work_dir : Optional[str]
-        The working directory to save intermediate results.
-    builder : Optional[Builder]
-        The builder to use.
-    runner : Optional[Runner]
-        The runner to use.
-    database : Optional[Database]
-        The database to use.
-    measure_callbacks : Optional[List[MeasureCallback]]
-        The callbacks used during tuning.
-    f_tune_context : Optional[TYPE_F_TUNE_CONTEXT]
-        The function to create TuneContext.
-    f_task_scheduler : Optional[TYPE_F_TASK_SCHEDULER]
-        The function to create TaskScheduler.
-
-    Returns
-    -------
-    sch : Optional[Schedule]
-        The tuned schedule.
-    """
-    return tune_tir(
-        mod=create_prim_func(tensors),
-        target=target,
-        config=config,
-        work_dir=work_dir,
-        task_name=task_name,
-        builder=builder,
-        runner=runner,
-        database=database,
-        cost_model=cost_model,
-        measure_callbacks=measure_callbacks,
-        task_scheduler=task_scheduler,
-        space=space,
-        sch_rules=sch_rules,
-        postprocs=postprocs,
-        mutator_probs=mutator_probs,
-        num_threads=num_threads,
-    )
-
-
-def deduplicate_extracted_tasks(
-    extracted_tasks: List[ExtractedTask],
-) -> Tuple[List[ExtractedTask], List[int]]:
-    """Remove duplicate extraced tasks.
-
-    Parameters
-    ----------
-    extracted_tasks : List[ExtractedTask]
-        The list of extraced tasks.
-
-    Returns
-    -------
-    tasks : Tuple[List[ExtractedTask], List[int]]
-        A tuple containing the deduplicated extraced tasks and the count for each task.
-    """
-    hash2idx: Dict[int, int] = {}
-    dedup: List[ExtractedTask] = []
-    count: List[int] = []
-
-    for task in extracted_tasks:
-        assert len(task.dispatched) == 1, "Only size 1 dispatched task list is supported for now"
-        mod = Parse._mod(task.dispatched[0])  # pylint: disable=protected-access
-        shash = structural_hash(mod)
-        if shash in hash2idx:
-            count[hash2idx[shash]] += 1
-        else:
-            hash2idx[shash] = len(dedup)
-            dedup.append(task)
-            count.append(1)
-    return dedup, count
+    def create_task_scheduler(self, **kwargs):
+        """Create task scheduler from configuration"""
+        cls_tbl = {
+            "round_robin": RoundRobin,
+            "gradient": GradientBased,
+        }
+        if self.task_scheduler not in cls_tbl:
+            raise ValueError(
+                f"Invalid task scheduler: {self.task_scheduler}. "
+                "Valid options are: {}".format(", ".join(cls_tbl.keys()))
+            )
+        # `task_scheduler_config` defaults to empty dict
+        config = self.task_scheduler_config
+        if config is None:
+            config = {}
+        return cls_tbl[self.task_scheduler](
+            max_trials=self.max_trials_global,
+            **kwargs,
+            **config,
+        )
 
 
 def tune_extracted_tasks(
     extracted_tasks: List[ExtractedTask],
-    target: Target,
-    config: SearchStrategyConfig,
+    config: TuneConfig,
     work_dir: str,
     *,
     builder: Optional[Builder] = None,
@@ -729,7 +427,6 @@ def tune_extracted_tasks(
     database: Optional[Database] = None,
     cost_model: Optional[CostModel] = None,
     measure_callbacks: Optional[List[MeasureCallback]] = None,
-    task_scheduler: Optional[TaskScheduler] = None,
     space: Optional[FnSpaceGenerator] = None,
     sch_rules: Optional[FnScheduleRule] = None,
     postprocs: Optional[FnPostproc] = None,
@@ -742,9 +439,7 @@ def tune_extracted_tasks(
     ----------
     extracted_tasks : List[ExtractedTask]
         The list of extraced tasks.
-    target : Union[str, Target]
-        The target to tune for.
-    config : SearchStrategyConfig
+    config : TuneConfig
         The search strategy config.
     work_dir : Optional[str]
         The working directory to save intermediate results.
@@ -777,53 +472,200 @@ def tune_extracted_tasks(
         The database containing all the tuning results.
 
     """
-    # deduplication
-    logger.info("Before task deduplication: %d tasks", len(extracted_tasks))
-    extracted_tasks, _ = deduplicate_extracted_tasks(extracted_tasks)
-    logger.info("After task deduplication: %d tasks", len(extracted_tasks))
+    logger.info("Working directory: %s", work_dir)
     # pylint: disable=protected-access
-    target = Parse._target(target)
+    database = Parse._database(database, work_dir)
+    builder = Parse._builder(builder)
+    runner = Parse._runner(runner)
+    cost_model = Parse._cost_model(cost_model)
+    measure_callbacks = Parse._callbacks(measure_callbacks)
     # parse the tuning contexts
     tune_contexts = []
     for task in extracted_tasks:
         assert len(task.dispatched) == 1, "Only size 1 dispatched task list is supported for now"
         tune_contexts.append(
-            Parse._tune_context(
-                tune_context=None,
+            TuneContext(
                 mod=Parse._mod(task.dispatched[0]),
-                target=target,
-                config=config,
+                target=task.target,
+                space_generator=Parse._space_generator(space),
+                search_strategy=config.create_strategy(),
+                sch_rules=Parse._sch_rules(sch_rules, task.target),
+                postprocs=Parse._postproc(postprocs, task.target),
+                mutator_probs=Parse._mutator_probs(mutator_probs, task.target),
                 task_name=task.task_name,
-                space_generator=space,
-                sch_rules=sch_rules,
-                postprocs=postprocs,
-                mutator_probs=mutator_probs,
                 num_threads=num_threads,
             )
         )
     # parse the task scheduler
-    database = Parse._database(database, "default", work_dir)
-    task_scheduler = Parse._task_scheduler(
-        task_scheduler,
-        tune_contexts,
-        task_weights=[float(t.weight) for t in extracted_tasks],
-        builder=Parse._builder(builder),
-        runner=Parse._runner(runner),
-        database=database,
-        max_trials=config.max_trials_global,
-        cost_model=Parse._cost_model(cost_model),
-        measure_callbacks=Parse._callbacks(measure_callbacks),
-    )
     # pylint: enable=protected-access
+    task_scheduler = config.create_task_scheduler(
+        tasks=tune_contexts,
+        task_weights=[float(t.weight) for t in extracted_tasks],
+        builder=builder,
+        runner=runner,
+        database=database,
+        cost_model=cost_model,
+        measure_callbacks=measure_callbacks,
+    )
     task_scheduler.tune()
-    task_scheduler.cost_model.save(os.path.join(work_dir, "cost_model.xgb"))
+    cost_model.save(os.path.join(work_dir, "cost_model.xgb"))
     return database
+
+
+def tune_tir(
+    mod: Union[IRModule, PrimFunc],
+    target: Union[str, Target],
+    config: TuneConfig,
+    work_dir: str,
+    *,
+    builder: Optional[Builder] = None,
+    runner: Optional[Runner] = None,
+    database: Optional[Database] = None,
+    cost_model: Optional[CostModel] = None,
+    measure_callbacks: Optional[List[MeasureCallback]] = None,
+    space: Optional[FnSpaceGenerator] = None,
+    sch_rules: Optional[FnScheduleRule] = None,
+    postprocs: Optional[FnPostproc] = None,
+    mutator_probs: Optional[FnMutatorProb] = None,
+    task_name: str = "main",
+    num_threads: Optional[int] = None,
+) -> Optional[Schedule]:
+    """Tune a TIR IRModule with a given target.
+
+    Parameters
+    ----------
+    mod : Union[IRModule, PrimFunc]
+        The module to tune.
+    target : Union[str, Target]
+        The target to tune for.
+    config : TuneConfig
+        The search strategy config.
+    work_dir : Optional[str]
+        The working directory to save intermediate results.
+    builder : Optional[Builder]
+        The builder to use.
+    runner : Optional[Runner]
+        The runner to use.
+    database : Optional[Database]
+        The database to use.
+    cost_model : Optional[CostModel]
+        The cost model to use.
+    measure_callbacks : Optional[List[MeasureCallback]]
+        The callbacks used during tuning.
+
+    Returns
+    -------
+    sch : Optional[Schedule]
+        The tuned schedule.
+    """
+    # pylint: disable=protected-access
+    mod = Parse._mod(mod)
+    target = Parse._target(target)
+    # pylint: enable=protected-access
+    database = tune_extracted_tasks(
+        extracted_tasks=[
+            ExtractedTask(
+                task_name=task_name,
+                mod=mod,
+                dispatched=[mod],
+                target=target,
+                weight=1,
+            ),
+        ],
+        config=config,
+        work_dir=work_dir,
+        builder=builder,
+        runner=runner,
+        database=database,
+        cost_model=cost_model,
+        measure_callbacks=measure_callbacks,
+        space=space,
+        sch_rules=sch_rules,
+        postprocs=postprocs,
+        mutator_probs=mutator_probs,
+        num_threads=num_threads,
+    )
+    bests: List[TuningRecord] = database.get_top_k(
+        database.commit_workload(mod),
+        top_k=1,
+    )
+    if not bests:
+        return None
+    assert len(bests) == 1
+    sch = Schedule(mod)
+    bests[0].trace.apply_to_schedule(sch, remove_postproc=False)
+    return sch
+
+
+def tune_te(
+    tensors: List[Tensor],
+    target: Union[str, Target],
+    config: TuneConfig,
+    work_dir: str,
+    *,
+    task_name: str = "main",
+    builder: Optional[Builder] = None,
+    runner: Optional[Runner] = None,
+    database: Optional[Database] = None,
+    cost_model: Optional[CostModel] = None,
+    measure_callbacks: Optional[List[MeasureCallback]] = None,
+    space: Optional[FnSpaceGenerator] = None,
+    sch_rules: Optional[FnScheduleRule] = None,
+    postprocs: Optional[FnPostproc] = None,
+    mutator_probs: Optional[FnMutatorProb] = None,
+    num_threads: Optional[int] = None,
+) -> Optional[Schedule]:
+    """Tune a TE compute DAG with a given target.
+
+    Parameters
+    ----------
+    tensor : List[Tensor]
+        The list of input/output tensors of the TE compute DAG.
+    target : Union[str, Target]
+        The target to tune for.
+    config : TuneConfig
+        The search strategy config.
+    task_name : str
+        The name of the task.
+    work_dir : Optional[str]
+        The working directory to save intermediate results.
+    builder : Optional[Builder]
+        The builder to use.
+    runner : Optional[Runner]
+        The runner to use.
+    database : Optional[Database]
+        The database to use.
+    measure_callbacks : Optional[List[MeasureCallback]]
+        The callbacks used during tuning.
+
+    Returns
+    -------
+    sch : Optional[Schedule]
+        The tuned schedule.
+    """
+    return tune_tir(
+        mod=create_prim_func(tensors),
+        target=target,
+        config=config,
+        work_dir=work_dir,
+        task_name=task_name,
+        builder=builder,
+        runner=runner,
+        database=database,
+        cost_model=cost_model,
+        measure_callbacks=measure_callbacks,
+        space=space,
+        sch_rules=sch_rules,
+        postprocs=postprocs,
+        mutator_probs=mutator_probs,
+        num_threads=num_threads,
+    )
 
 
 def tune_relay(
     mod: IRModule,
     target: Union[str, Target],
-    config: SearchStrategyConfig,
+    config: TuneConfig,
     work_dir: str,
     *,
     params: Optional[Dict[str, NDArray]] = None,
@@ -832,7 +674,6 @@ def tune_relay(
     database: Optional[Database] = None,
     cost_model: Optional[CostModel] = None,
     measure_callbacks: Optional[List[MeasureCallback]] = None,
-    task_scheduler: Optional[TaskScheduler] = None,
     space: Optional[FnSpaceGenerator] = None,
     sch_rules: Optional[FnScheduleRule] = None,
     postprocs: Optional[FnPostproc] = None,
@@ -847,7 +688,7 @@ def tune_relay(
         The module to tune.
     target : Union[str, Target]
         The target to tune for.
-    config : SearchStrategyConfig
+    config : TuneConfig
         The search strategy config.
     params : Optional[Dict[str, tvm.runtime.NDArray]]
         The associated parameters of the program
@@ -863,10 +704,6 @@ def tune_relay(
         The database to use.
     measure_callbacks : Optional[List[MeasureCallback]]
         The callbacks used during tuning.
-    f_tune_context : Optional[TYPE_F_TUNE_CONTEXT]
-        The function to create TuneContext.
-    f_task_scheduler : Optional[TYPE_F_TASK_SCHEDULER]
-        The function to create TaskScheduler.
 
     Returns
     -------
@@ -887,7 +724,6 @@ def tune_relay(
     extracted_tasks = extract_task_from_relay(mod, target, params)
     database = tune_extracted_tasks(
         extracted_tasks,
-        target,
         config,
         work_dir,
         builder=builder,
@@ -895,7 +731,6 @@ def tune_relay(
         database=database,
         cost_model=cost_model,
         measure_callbacks=measure_callbacks,
-        task_scheduler=task_scheduler,
         space=space,
         sch_rules=sch_rules,
         postprocs=postprocs,

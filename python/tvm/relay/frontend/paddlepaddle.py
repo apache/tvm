@@ -1231,9 +1231,17 @@ def convert_pool2d(g, op, block):
     # handle with special case
     # while kernel size less than input size
     # shrink kernel size to input size
-    if not isinstance(in_h, _op.Expr) and in_h < ksize[0]:
+    if (
+        not isinstance(in_h, _op.Expr)
+        and padding_algorithm == "EXPLICIT"
+        and in_h + paddings[0] + paddings[2] < ksize[0]
+    ):
         ksize[0] = in_h
-    if not isinstance(in_w, _op.Expr) and in_w < ksize[1]:
+    if (
+        not isinstance(in_w, _op.Expr)
+        and padding_algorithm == "EXPLICIT"
+        and in_w + paddings[1] + paddings[3] < ksize[1]
+    ):
         ksize[1] = in_w
 
     if not adaptive:
