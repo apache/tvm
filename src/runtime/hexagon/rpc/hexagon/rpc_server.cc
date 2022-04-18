@@ -40,8 +40,6 @@ extern "C" {
 #include "../../hexagon/hexagon_common.h"
 #include "hexagon_rpc.h"
 
-#define TVM_HEXAGON_RPC_BUFF_DEFAULT_SIZE_BYTES 2 * 1024 * 1024
-
 // TODO(csulivan,adstraw,kparzysz-quic) This should be set on a TVM-wide basis.
 #if defined(__hexagon__)
 #define TVM_LOG_CUSTOMIZE 1
@@ -197,10 +195,11 @@ class HexagonRPCServer {
 namespace {
 static tvm::runtime::hexagon::HexagonRPCServer* g_hexagon_rpc_server;
 tvm::runtime::hexagon::HexagonRPCServer* get_hexagon_rpc_server(
-    uint32_t rpc_receive_buff_size_bytes = TVM_HEXAGON_RPC_BUFF_DEFAULT_SIZE_BYTES) {
+    uint32_t rpc_receive_buff_size_bytes = 0) {
   if (g_hexagon_rpc_server) {
     return g_hexagon_rpc_server;
   }
+  CHECK_GT(rpc_receive_buff_size_bytes, 0) << "RPC receive buffer size is not valid.";
   static tvm::runtime::hexagon::HexagonRPCServer hexagon_rpc_server(
       new uint8_t[rpc_receive_buff_size_bytes], rpc_receive_buff_size_bytes);
   g_hexagon_rpc_server = &hexagon_rpc_server;
