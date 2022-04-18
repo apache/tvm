@@ -33,7 +33,6 @@ import time
 from string import Template
 import re
 
-import serial
 import serial.tools.list_ports
 
 from tvm.micro.project_api import server
@@ -430,14 +429,14 @@ class Handler(server.ProjectAPIHandler):
         assert len(column_headers) > 0
 
         for str_row in str_rows[1:]:
-            if not str_row.strip(): continue
+            if not str_row.strip():
+                continue
             device = {}
 
             for column in column_headers:
                 col_name = column.group(0).strip().lower()
-                device[col_name] = str_row[column.start():column.end()].strip()
+                device[col_name] = str_row[column.start() : column.end()].strip()
             yield device
-
 
     def _auto_detect_port(self, options):
         list_cmd = [self._get_arduino_cli_cmd(options), "board", "list"]

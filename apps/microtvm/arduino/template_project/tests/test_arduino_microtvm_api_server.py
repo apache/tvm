@@ -86,15 +86,16 @@ class TestGenerateProject:
     def test_parse_connected_boards(self):
         h = microtvm_api_server.Handler()
         boards = h._parse_connected_boards(self.BOARD_CONNECTED_V21)
-        assert list(boards) == [{
-            "port": "/dev/ttyACM0",
-            "protocol": "serial",
-            "type": "",
-            "board name": "",
-            "fqbn": "arduino:mbed_nano:nano33ble",
-            "core": "arduino:mbed_nano",
-        }]
-
+        assert list(boards) == [
+            {
+                "port": "/dev/ttyACM0",
+                "protocol": "serial",
+                "type": "",
+                "board name": "",
+                "fqbn": "arduino:mbed_nano:nano33ble",
+                "core": "arduino:mbed_nano",
+            }
+        ]
 
     @mock.patch("subprocess.run")
     def test_auto_detect_port(self, sub_mock):
@@ -136,8 +137,8 @@ class TestGenerateProject:
 
         # Test we checked version then called upload
         assert mock_run.call_count == 2
-        assert mock_run.call_args_list[0][0] == (['arduino-cli', 'version'],)
-        assert mock_run.call_args_list[1][0][0][0:2] == ['arduino-cli', 'upload']
+        assert mock_run.call_args_list[0][0] == (["arduino-cli", "version"],)
+        assert mock_run.call_args_list[1][0][0][0:2] == ["arduino-cli", "upload"]
         mock_run.reset_mock()
 
         # Test exception raised when `arduino-cli upload` returns error code
@@ -147,4 +148,4 @@ class TestGenerateProject:
 
         # Version information should be cached and not checked again
         mock_run.assert_called_once()
-        assert mock_run.call_args[0][0][0:2] == ['arduino-cli', 'upload']
+        assert mock_run.call_args[0][0][0:2] == ["arduino-cli", "upload"]
