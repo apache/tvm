@@ -27,6 +27,7 @@
 #include <tvm/runtime/registry.h>
 
 #include <chrono>
+#include <cmath>
 #include <sstream>
 
 #include "../graph_executor.h"
@@ -96,7 +97,7 @@ class GraphExecutorDebug : public GraphExecutor {
     for (size_t index = 0; index < time_sec_per_op.size(); index++) {
       double time = time_sec_per_op[index];
       // To have good behavior when calculating total time, etc.
-      if (isnan(time)) {
+      if (std::isnan(time)) {
         time = 0;
       }
       os << time << ",";
@@ -397,32 +398,32 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       *rv = this->RunIndividual(number, repeat, min_repeat_ms);
     });
   } else if (name == "run_individual_node") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      int node_index = args[0];
-      int number = args[1];
-      int repeat = args[2];
-      int min_repeat_ms = args[3];
-      ICHECK_GE(node_index, 0);
-      ICHECK_LT(node_index, nodes_.size());
-      ICHECK_GT(number, 0);
-      ICHECK_GT(repeat, 0);
-      ICHECK_GE(min_repeat_ms, 0);
-      std::vector<std::vector<double>> results =
-          this->RunIndividualNode(node_index, number, repeat, min_repeat_ms);
+    return TypedPackedFunc<std::string(int, int, int, int)>(
+        [sptr_to_self, this](int node_index, int number, int repeat, int min_repeat_ms) {
+          ICHECK_GE(node_index, 0);
+          ICHECK_LT(node_index, nodes_.size());
+          ICHECK_GT(number, 0);
+          ICHECK_GT(repeat, 0);
+          ICHECK_GE(min_repeat_ms, 0);
+          std::vector<std::vector<double>> results =
+              this->RunIndividualNode(node_index, number, repeat, min_repeat_ms);
 
-      std::stringstream s;
-      s.precision(6);  // down to microseconds
+          // Have problems returning FloatImm so serialize to string results as hack.
+          std::stringstream s;
 
-      for (std::vector<double>& row : results) {
-        for (double cur : row) {
-          s << cur << ", ";
-        }
-        s << "\n";
-      }
+          // use maximum precision available and use fixed representation
+          s << std::fixed;
+          s.precision(std::numeric_limits<double>::max_digits10);
 
-      // Have problems returning Integers and FloatImm so this is hack
-      *rv = s.str();
-    });
+          for (std::vector<double>& row : results) {
+            for (double cur : row) {
+              s << cur << ", ";
+            }
+            s << "\n";
+          }
+
+          return s.str();
+        });
   } else if (name == "profile") {
     return TypedPackedFunc<profiling::Report(Array<profiling::MetricCollector>)>(
         [sptr_to_self, this](Array<profiling::MetricCollector> collectors) {
