@@ -645,7 +645,7 @@ Array<IndexExpr> InferNewShape(const Array<IndexExpr>& data_shape, const Attrs& 
         ICHECK_LT(src_idx, ishape.size());
         used_input_dims.insert(src_idx);
         used_output_dims.insert(oshape.size());
-        oshape.push_back(ishape[src_idx++]); 
+        oshape.push_back(ishape[src_idx++]);
       }
     } else if (svalue == -1) {
       // inference based on rest

@@ -70,7 +70,7 @@ inline Array<PrimExpr> UnravelIndex(PrimExpr idx, Array<PrimExpr> shape) {
   std::vector<PrimExpr> indices;
 
   for (int i = static_cast<int>(shape.size()) - 1; i >= 0; --i) {
-    if (shape[i].as<IntImmNode>()->value == 0){
+    if (shape[i].as<IntImmNode>()->value == 0) {
       indices.push_back(0);
     } else {
       indices.push_back(indexmod(idx, shape[i]));

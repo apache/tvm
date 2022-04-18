@@ -470,7 +470,11 @@ def _reshape_shape_func_input_shape(data_shape, newshape, ndim, allowzero):
 def reshape_shape_func(attrs, inputs, out_ndims):
     newshape = get_const_tuple(attrs.newshape)
     allowzero = attrs.allowzero
-    return [_reshape_shape_func_input_shape(inputs[0], convert(newshape), out_ndims[0], convert(allowzero))]
+    return [
+        _reshape_shape_func_input_shape(
+            inputs[0], convert(newshape), out_ndims[0], convert(allowzero)
+        )
+    ]
 
 
 @script

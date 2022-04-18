@@ -286,7 +286,7 @@ def reshape(data, newshape, allowzero=False):
         The new shape. Should be compatible with the original shape.
 
     allowzero : Bool, optional
-        If true, then treat zero as true empty tensor rather than a copy instruction. 
+        If true, then treat zero as true empty tensor rather than a copy instruction.
 
     Returns
     -------
