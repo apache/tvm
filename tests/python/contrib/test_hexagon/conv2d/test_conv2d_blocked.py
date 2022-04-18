@@ -23,7 +23,7 @@ from tvm import te
 from tvm import topi
 from tvm.topi import testing
 
-from .infrastructure import (
+from ...infrastructure import (
     build_and_run,
     conv2d_compute,
     conv2d_verify,

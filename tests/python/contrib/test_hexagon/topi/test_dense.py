@@ -24,10 +24,8 @@ from tvm import topi
 from tvm import te
 import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
-from tvm.contrib.hexagon.build import HexagonLauncher
-import tvm.contrib.hexagon as hexagon
 
-from .conftest import requires_hexagon_toolchain
+from ..conftest import requires_hexagon_toolchain
 
 random_seed = tvm.testing.parameter(0)
 

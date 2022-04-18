@@ -23,10 +23,8 @@ import tvm
 from tvm import topi
 from tvm import te
 import tvm.topi.testing
-from tvm.contrib.hexagon.build import HexagonLauncher
-import tvm.contrib.hexagon as hexagon
 
-from .conftest import requires_hexagon_toolchain
+from ..conftest import requires_hexagon_toolchain
 
 
 in_shape, axis, keepdims, reduce_type, dtype = tvm.testing.parameters(

@@ -20,11 +20,8 @@ import numpy as np
 
 import tvm.testing
 from tvm import te
-from tvm.contrib import utils
-from tvm.contrib.hexagon.build import HexagonLauncher
-import tvm.contrib.hexagon as hexagon
 
-from .conftest import requires_hexagon_toolchain
+from ..conftest import requires_hexagon_toolchain
 
 
 def intrin_mem_copy(shape, dtype, dst_scope, src_scope):
