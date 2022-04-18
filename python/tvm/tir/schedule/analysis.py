@@ -56,3 +56,8 @@ def suggest_index_map(
         loops,
         predicate,
     )
+
+
+def get_tensorize_loop_mapping(state, block_sref, desc_func):
+    """TODO"""
+    return _ffi_api.GetTensorizeLoopMapping(state, block_sref, desc_func)  # type: ignore

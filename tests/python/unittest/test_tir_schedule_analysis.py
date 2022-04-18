@@ -17,18 +17,15 @@
 # pylint: disable=missing-docstring
 from typing import List
 
-from tvm.tir import (
-    Evaluate,
-    For,
-    ForKind,
-    IndexMap,
-    Var,
-    decl_buffer,
-    floordiv,
-    floormod,
-)
+import tvm
+from tvm.tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
+
+
+from tvm.tir import Evaluate, For, ForKind, IndexMap, Var, decl_buffer, floordiv, floormod, Schedule
 from tvm.tir.analysis import expr_deep_equal
-from tvm.tir.schedule.analysis import suggest_index_map
+from tvm.tir.schedule.analysis import suggest_index_map, get_tensorize_loop_mapping
+from tvm.script import tir as T
+from tvm.tir.stmt_functor import pre_order_visit
 
 
 def _make_vars(*args: str) -> List[Var]:
@@ -102,6 +99,62 @@ def test_suggest_index_map_bijective():
     _assert_equal_index_map(index_map, expected_index_map)
 
 
+@tvm.script.ir_module
+class DenseVNNIModule:
+    @T.prim_func
+    def main(
+        placeholder: T.Buffer[(1024, 1024), "uint8"],
+        placeholder_1: T.Buffer[(64, 256, 16, 4), "int8"],
+        compute: T.Buffer[(1024, 1024), "int32"],
+    ) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            for i0, i1, i2 in T.grid(1024, 1024, 1024):
+                with T.block("compute"):
+                    i, j, k = T.axis.remap("SSR", [i0, i1, i2])
+                    T.reads(placeholder[i, k], placeholder_1[j // 16, k // 4, j % 16, k % 4])
+                    T.writes(compute[i, j])
+                    with T.init():
+                        compute[i, j] = 0
+                    compute[i, j] = compute[i, j] + T.cast(placeholder[i, k], "int32") * T.cast(
+                        placeholder_1[j // 16, k // 4, j % 16, k % 4], "int32"
+                    )
+
+
+def collect_loops(prim_func):
+    loops = []
+
+    def callback(node):
+        if isinstance(node, tvm.tir.For):
+            loops.append(node)
+        return True
+
+    pre_order_visit(prim_func.body, callback)
+
+    return loops
+
+
+def test_get_tensorize_loop_mapping():
+    s = Schedule(DenseVNNIModule)
+    block = s.get_block("compute")
+
+    info = get_tensorize_loop_mapping(s, block, dot_product_16x4_u8i8i32_desc)
+
+    desc_loop_to_sref = dict((v, k) for k, v in info.loop_map.items())
+
+    desc_loops = collect_loops(dot_product_16x4_u8i8i32_desc)
+    _, loop_j, loop_k = s.get_loops(block)
+
+    assert desc_loops[0] in desc_loop_to_sref and desc_loops[1] in desc_loop_to_sref
+    assert s.get(desc_loop_to_sref[desc_loops[0]]) == s.get(loop_j)
+    assert s.get(desc_loop_to_sref[desc_loops[1]]) == s.get(loop_k)
+
+
 if __name__ == "__main__":
-    test_suggest_index_map_simple()
-    test_suggest_index_map_bijective()
+    # test_suggest_index_map_simple()
+    # test_suggest_index_map_bijective()
+    test_get_tensorize_loop_mapping()
