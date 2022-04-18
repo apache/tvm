@@ -282,8 +282,10 @@ class GraphModuleDebug(graph_executor.GraphModule):
         ret = self._run_individual(number, repeat, min_repeat_ms)
         return ret.strip(",").split(",") if ret else []
 
-    def run_individual_node(self, index, number, repeat=1, min_repeat_ms=0):
+    def run_individual_node(self, index, number=10, repeat=1, min_repeat_ms=0):
         """Benchmark a single node in the serialized graph.
+
+        This does not do any data transfers and uses arrays already on the device.
 
         Parameters
         ----------
