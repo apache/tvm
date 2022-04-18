@@ -23,7 +23,7 @@ from tvm.tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
 
 from tvm.tir import Evaluate, For, ForKind, IndexMap, Var, decl_buffer, floordiv, floormod, Schedule
 from tvm.tir.analysis import expr_deep_equal
-from tvm.tir.schedule.analysis import suggest_index_map, get_tensorize_loop_mapping
+from tvm.tir.schedule.analysis import suggest_index_map, get_tensorize_loop_mapping, TensorizeInfo
 from tvm.script import tir as T
 from tvm.tir.stmt_functor import pre_order_visit
 from tvm.meta_schedule.testing import te_workload
@@ -183,6 +183,8 @@ def test_get_tensorize_loop_mapping_dense_vnni():
     block = s.get_block("compute")
 
     info = get_tensorize_loop_mapping(s, block, dot_product_16x4_u8i8i32_desc)
+
+    assert isinstance(info, TensorizeInfo)
 
     desc_loop_to_sref = dict((v, k) for k, v in info.loop_map.items())
 

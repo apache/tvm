@@ -20,9 +20,13 @@ from typing import List, Optional
 from ..buffer import Buffer
 from ..stmt import For
 from ..expr import PrimExpr
-from ..function import IndexMap
+from ..function import IndexMap, PrimFunc
 
 from . import _ffi_api
+from .schedule import Schedule, BlockRV
+
+import tvm._ffi
+from tvm.runtime import Object
 
 
 def suggest_index_map(
@@ -58,6 +62,27 @@ def suggest_index_map(
     )
 
 
-def get_tensorize_loop_mapping(state, block_sref, desc_func):
-    """TODO"""
-    return _ffi_api.GetTensorizeLoopMapping(state, block_sref, desc_func)  # type: ignore
+@tvm._ffi.register_object("tir.schedule.TensorizeInfo")
+class TensorizeInfo(Object):
+    """Necessary information used for tensorization."""
+    pass
+
+
+def get_tensorize_loop_mapping(sch: Schedule, block: BlockRV, desc_func: PrimFunc) -> TensorizeInfo:
+    """Establish a mapping between loops in a target block and an intrinsic description
+
+    Parameters
+    ----------
+    sch : Schedule
+        The schedule to be tensorized
+    block : BlockRV
+        The target block to match against
+    desc_func : PrimFunc
+        The prim func describing the computation to be tensorized
+
+    Returns
+    -------
+    tensorize_info : Optional[TensorizeInfo]
+        TensorizeInfo structure if a valid mapping is found, None otherwise
+    """
+    return _ffi_api.GetTensorizeLoopMapping(sch, block, desc_func)  # type: ignore

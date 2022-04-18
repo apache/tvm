@@ -659,9 +659,9 @@ Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region, const P
 /*! \brief Necessary information used for tensorization */
 class TensorizeInfoNode : public Object {
  public:
-  /*! \brief Maps block loops to desc loops */
+  /*! \brief Maps loops in a target block to the ones in an intrinsic description */
   Map<tir::StmtSRef, tir::For> loop_map;
-  /*! \brief Maps loops in desc to its index, outer to inner */
+  /*! \brief Maps loops in an intrinsic description to its index, outer to inner */
   Map<tir::For, Integer> desc_loop_indexer;
 
   void VisitAttrs(AttrVisitor* v) {
@@ -669,7 +669,7 @@ class TensorizeInfoNode : public Object {
     v->Visit("desc_loop_indexer", &desc_loop_indexer);
   }
 
-  static constexpr const char* _type_key = "tir.analysis.TensorizeInfo";
+  static constexpr const char* _type_key = "tir.schedule.TensorizeInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorizeInfoNode, Object);
 };
 
@@ -678,6 +678,13 @@ class TensorizeInfo : public ObjectRef {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TensorizeInfo, ObjectRef, TensorizeInfoNode);
 };
 
+/*!
+ * \brief Establish a mapping between loops in a target block and an intrinsic description
+ * \param self The schedule state to be tensorized
+ * \param block_sref The target block to match against
+ * \param desc_func The prim func describing the computation to be tensorized
+ * \return TensorizeInfo structure if a valid mapping is found, NullOpt otherwise
+ */
 Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
                                                 const tir::StmtSRef& block_sref,
                                                 const tir::PrimFunc& desc_func);
