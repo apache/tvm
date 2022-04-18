@@ -139,7 +139,8 @@ int main(int argc, char** argv) {
            "failed to register GraphExecutor TVMModule");
 #endif
 
-  CHECK_EQ(TVMAotExecutorModule_Register(), kTvmErrorNoError, "failed to register AoT Executor TVMModule");
+  CHECK_EQ(TVMAotExecutorModule_Register(), kTvmErrorNoError,
+           "failed to register AoT Executor TVMModule");
 
   int error = TVMFuncRegisterGlobal("tvm.testing.reset_server",
                                     (TVMFunctionHandle)&testonly_reset_server, 0);

@@ -24,6 +24,7 @@
  * \brief implement AoT executor in C
  */
 
+#include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/aot_executor.h>
 #include <tvm/runtime/crt/logging.h>
@@ -31,10 +32,7 @@
 #include <tvm/runtime/crt/packed_func.h>
 #include <tvm/runtime/crt/page_allocator.h>
 
-#include <string.h>
-
-static void DumpMetadata(TVMMetadata* md)
-{
+static void DumpMetadata(TVMMetadata* md) {
   LOG_DEBUG("%s:\n", __FUNCTION__);
   LOG_DEBUG("\tmod_name=%s\n", md->mod_name);
   LOG_DEBUG("\tversion=%ld\n", md->version);
@@ -45,21 +43,19 @@ static void DumpMetadata(TVMMetadata* md)
   int i;
 
   for (i = 0; i < md->num_inputs; ++i) {
-      LOG_DEBUG("\tinput[%d]: %s\n", i, md->inputs[i].name);
+    LOG_DEBUG("\tinput[%d]: %s\n", i, md->inputs[i].name);
   }
 
   for (i = 0; i < md->num_outputs; ++i) {
-      LOG_DEBUG("\toutput[%d]: %s\n", i, md->outputs[i].name);
+    LOG_DEBUG("\toutput[%d]: %s\n", i, md->outputs[i].name);
   }
 
   for (i = 0; i < md->num_pools; ++i) {
-      LOG_DEBUG("\tpools[%d]: %s\n", i, md->pools[i].name);
+    LOG_DEBUG("\tpools[%d]: %s\n", i, md->pools[i].name);
   }
 }
 
-int TVMAotExecutor_GetNumInputs(TVMAotExecutor* executor) {
-  return executor->metadata->num_inputs;
-}
+int TVMAotExecutor_GetNumInputs(TVMAotExecutor* executor) { return executor->metadata->num_inputs; }
 
 int TVMAotExecutor_GetNumOutputs(TVMAotExecutor* executor) {
   return executor->metadata->num_outputs;
@@ -81,7 +77,6 @@ int TVMAotExecutor_GetInputIndex(TVMAotExecutor* executor, const char* name) {
 }
 
 int TVMAotExecutor_Run(TVMAotExecutor* executor) {
-
   const char* tvm_main_suffix = "___tvm_main__";
   char tvm_main_name[TVM_CRT_MAX_STRLEN_FUNCTION_NAME];
   const size_t max_strlen = TVM_CRT_MAX_STRLEN_FUNCTION_NAME;
@@ -93,8 +88,9 @@ int TVMAotExecutor_Run(TVMAotExecutor* executor) {
     CHECK_LT(len, max_strlen, "tvm_main name too long %ld\n", len);
   }
 
-  strncpy(tvm_main_name, executor->metadata->mod_name, (max_strlen-strlen(tvm_main_suffix)-1));
-  strcat(tvm_main_name, tvm_main_suffix);
+  // create main function name string, e.g. "tvmgen_default___tvm_main__"
+  snprintf(tvm_main_name, sizeof(tvm_main_name), "%s%s",
+            executor->metadata->mod_name, tvm_main_suffix);
 
   TVMPackedFunc tvm_main;
   TVMArgs temp_args;
@@ -108,11 +104,11 @@ int TVMAotExecutor_Run(TVMAotExecutor* executor) {
   }
   temp_args.values_count = executor->num_args;
 
-  int status = TVMPackedFunc_InitModuleFunc(&tvm_main, executor->module_handle,
-                                            tvm_main_name, &temp_args);
+  int status =
+      TVMPackedFunc_InitModuleFunc(&tvm_main, executor->module_handle, tvm_main_name, &temp_args);
 
   if (status != 0) {
-      return status;
+    return status;
   }
 
   CHECK_EQ(tvm_main.Call(&tvm_main), 0, "call to %s failed", tvm_main_name);
@@ -122,7 +118,6 @@ int TVMAotExecutor_Run(TVMAotExecutor* executor) {
 
 int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
                         const DLDevice* device) {
-
   executor->module_handle = module_handle;
   executor->device = *device;
 
@@ -132,7 +127,7 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
   TVMArgs temp_args;
   temp_args.values_count = 0;
 
-  int status = TVMPackedFunc_InitModuleFunc(&get_c_metadata, executor->module_handle, 
+  int status = TVMPackedFunc_InitModuleFunc(&get_c_metadata, executor->module_handle,
                                             "get_c_metadata", &temp_args);
   if (status != 0) {
     return status;
@@ -141,7 +136,7 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
   CHECK_EQ(get_c_metadata.Call(&get_c_metadata), 0, "get_c_metadata");
 
   // save the returned pointer to the top-level metadata
-  executor->metadata = (TVMMetadata *)get_c_metadata.ret_value.values[0].v_handle;
+  executor->metadata = (TVMMetadata*)get_c_metadata.ret_value.values[0].v_handle;
 
   TVMMetadata* md = executor->metadata;
 
@@ -150,7 +145,7 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
   executor->num_args = md->num_inputs + md->num_outputs + md->num_pools;
 
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(executor->num_args * sizeof(*executor->args),
-                                                  executor->device, (void **)(&executor->args));
+                                                  executor->device, (void**)(&executor->args));
   if (err != kTvmErrorNoError) {
     return -1;
   }
@@ -190,9 +185,8 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
   return status;
 }
 
-int TVMAotExecutor_Create(TVMModuleHandle module_handle,
-                          const DLDevice* device, TVMAotExecutor** executor) {
-
+int TVMAotExecutor_Create(TVMModuleHandle module_handle, const DLDevice* device,
+                          TVMAotExecutor** executor) {
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(**executor), *device, (void**)executor);
   if (err != kTvmErrorNoError) {
     return -1;
@@ -204,7 +198,6 @@ int TVMAotExecutor_Create(TVMModuleHandle module_handle,
 }
 
 int TVMAotExecutor_Release(TVMAotExecutor* executor, const DLDevice device) {
-
   int status;
 
   if (executor->num_args > 0) {
@@ -220,7 +213,7 @@ int TVMAotExecutor_Release(TVMAotExecutor* executor, const DLDevice device) {
     // free TVMNDArray argument list
     status = TVMPlatformMemoryFree(executor->args, executor->device);
     if (status != 0) {
-        return status;
+      return status;
     }
   }
 

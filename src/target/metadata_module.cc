@@ -79,8 +79,7 @@ static runtime::metadata::Metadata ConvertMetaData(
 }
 
 static runtime::Module CreateCrtMetadataModule(
-    runtime::Module target_module, Target target, relay::Runtime runtime,
-    relay::Executor executor,
+    runtime::Module target_module, Target target, relay::Runtime runtime, relay::Executor executor,
     relay::backend::ExecutorCodegenMetadata metadata,
     Array<runtime::Module> non_crt_exportable_modules,
     Array<runtime::Module> crt_exportable_modules,
@@ -111,8 +110,8 @@ static runtime::Module CreateCrtMetadataModule(
     }
 
     crt_exportable_modules.push_back(target_module);
-    target_module =
-        CreateCSourceCrtMetadataModule(crt_exportable_modules, target, runtime, metadata, aot_metadata);
+    target_module = CreateCSourceCrtMetadataModule(crt_exportable_modules, target, runtime,
+                                                   metadata, aot_metadata);
   } else if (target->kind->name == "llvm") {
 #ifdef TVM_LLVM_VERSION
     crt_exportable_modules.push_back(target_module);

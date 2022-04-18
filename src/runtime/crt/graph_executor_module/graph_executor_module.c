@@ -103,7 +103,6 @@ int32_t TVMGraphExecutorModule_GetInput(TVMValue* args, int* tcodes, int nargs,
 int32_t TVMGraphExecutorModule_GetInputIndex(TVMValue* args, int* tcodes, int nargs,
                                              TVMValue* ret_values, int* ret_tcodes,
                                              void* resource_handle) {
-
   int index = TVMGraphExecutor_GetInputIndex(graph_executor.executor, args[0].v_str);
 
   if (index < 0) {
@@ -217,16 +216,16 @@ int32_t TVMGraphExecutorModule_NotImplemented(TVMValue* args, int* tcodes, int n
 }
 
 static const TVMBackendPackedCFunc graph_executor_registry_funcs[] = {
-    &TVMGraphExecutorModule_GetInput,      
+    &TVMGraphExecutorModule_GetInput,
     &TVMGraphExecutorModule_GetInputIndex,
-    &TVMGraphExecutorModule_NotImplemented,    // get_input_info
+    &TVMGraphExecutorModule_NotImplemented,  // get_input_info
     &TVMGraphExecutorModule_GetNumInputs,
     &TVMGraphExecutorModule_GetNumOutputs,
     &TVMGraphExecutorModule_GetOutput,
     &TVMGraphExecutorModule_LoadParams,
     &TVMGraphExecutorModule_Run,
     &TVMGraphExecutorModule_SetInput,
-    &TVMGraphExecutorModule_NotImplemented,    // share_params
+    &TVMGraphExecutorModule_NotImplemented,  // share_params
 };
 
 static const TVMFuncRegistry graph_executor_registry = {

@@ -25,8 +25,8 @@
 #ifndef TVM_TARGET_METADATA_MODULE_H_
 #define TVM_TARGET_METADATA_MODULE_H_
 
-#include <tvm/relay/runtime.h>
 #include <tvm/relay/executor.h>
+#include <tvm/relay/runtime.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/target/target.h>
@@ -55,8 +55,7 @@ namespace codegen {
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& params, runtime::Module target_module,
     const Array<runtime::Module>& ext_modules, Target target, tvm::relay::Runtime runtime,
-    tvm::relay::Executor executor,
-    relay::backend::ExecutorCodegenMetadata metadata);
+    tvm::relay::Executor executor, relay::backend::ExecutorCodegenMetadata metadata);
 
 }  // namespace codegen
 }  // namespace tvm

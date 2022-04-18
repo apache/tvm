@@ -24,12 +24,11 @@
  * \brief wrap aot_executor into a TVMModule for use with RPC.
  */
 
-#include <tvm/runtime/crt/func_registry.h>
+#include <stdio.h>
 #include <tvm/runtime/crt/aot_executor.h>
 #include <tvm/runtime/crt/aot_executor_module.h>
+#include <tvm/runtime/crt/func_registry.h>
 #include <tvm/runtime/crt/module.h>
-
-#include <stdio.h>
 
 typedef struct {
   TVMModule mod;
@@ -40,7 +39,6 @@ static AotExecutorModule aot_executor;
 
 int32_t TVMAotExecutorModule_Create(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
                                     int* ret_tcodes, void* resource_handle) {
-
   if (aot_executor.executor != NULL) {
     return kTvmErrorExecutorModuleAlreadyCreated;
   }
@@ -80,10 +78,8 @@ int32_t TVMAotExecutorModule_NotImplemented(TVMValue* args, int* tcodes, int nar
   return kTvmErrorFunctionCallNotImplemented;
 }
 
-int32_t TVMAotExecutorModule_GetInput(TVMValue* args, int* tcodes, int nargs,
-                                      TVMValue* ret_values, int* ret_tcodes,
-                                      void* resource_handle) {
-
+int32_t TVMAotExecutorModule_GetInput(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
+                                      int* ret_tcodes, void* resource_handle) {
   int index = TVMAotExecutor_GetInputIndex(aot_executor.executor, args[0].v_str);
 
   if (index < 0) {
@@ -96,10 +92,8 @@ int32_t TVMAotExecutorModule_GetInput(TVMValue* args, int* tcodes, int nargs,
   return 0;
 }
 
-int32_t TVMAotExecutorModule_GetOutput(TVMValue* args, int* tcodes, int nargs,
-                                       TVMValue* ret_values, int* ret_tcodes,
-                                       void* resource_handle) {
-
+int32_t TVMAotExecutorModule_GetOutput(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
+                                       int* ret_tcodes, void* resource_handle) {
   if (nargs != 1) {
     return kTvmErrorFunctionCallNumArguments;
   }
@@ -120,7 +114,6 @@ int32_t TVMAotExecutorModule_GetOutput(TVMValue* args, int* tcodes, int nargs,
 int32_t TVMAotExecutorModule_GetInputIndex(TVMValue* args, int* tcodes, int nargs,
                                            TVMValue* ret_values, int* ret_tcodes,
                                            void* resource_handle) {
-
   if (nargs != 1) {
     return kTvmErrorFunctionCallNumArguments;
   }
@@ -137,8 +130,8 @@ int32_t TVMAotExecutorModule_GetInputIndex(TVMValue* args, int* tcodes, int narg
 }
 
 int32_t TVMAotExecutorModule_GetNumInputs(TVMValue* args, int* tcodes, int nargs,
-                                            TVMValue* ret_values, int* ret_tcodes,
-                                            void* resource_handle) {
+                                          TVMValue* ret_values, int* ret_tcodes,
+                                          void* resource_handle) {
   if (nargs != 0) {
     return kTvmErrorFunctionCallNumArguments;
   }
@@ -149,8 +142,8 @@ int32_t TVMAotExecutorModule_GetNumInputs(TVMValue* args, int* tcodes, int nargs
 }
 
 int32_t TVMAotExecutorModule_GetNumOutputs(TVMValue* args, int* tcodes, int nargs,
-                                             TVMValue* ret_values, int* ret_tcodes,
-                                             void* resource_handle) {
+                                           TVMValue* ret_values, int* ret_tcodes,
+                                           void* resource_handle) {
   if (nargs != 0) {
     return kTvmErrorFunctionCallNumArguments;
   }
@@ -160,10 +153,8 @@ int32_t TVMAotExecutorModule_GetNumOutputs(TVMValue* args, int* tcodes, int narg
   return 0;
 }
 
-int32_t TVMAotExecutorModule_Run(TVMValue* args, int* tcodes, int nargs,
-                                 TVMValue* ret_values, int* ret_tcodes,
-                                 void* resource_handle) {
-
+int32_t TVMAotExecutorModule_Run(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
+                                 int* ret_tcodes, void* resource_handle) {
   if (nargs != 0) {
     return kTvmErrorFunctionCallNumArguments;
   }
@@ -172,16 +163,16 @@ int32_t TVMAotExecutorModule_Run(TVMValue* args, int* tcodes, int nargs,
 }
 
 static const TVMBackendPackedCFunc aot_executor_registry_funcs[] = {
-    &TVMAotExecutorModule_GetInput,           // get_input
-    &TVMAotExecutorModule_GetInputIndex,      // get_input_index
-    &TVMAotExecutorModule_NotImplemented,     // get_input_info (do not implement)
-    &TVMAotExecutorModule_GetNumInputs,       // get_num_inputs
-    &TVMAotExecutorModule_GetNumOutputs,      // get_num_outputs
-    &TVMAotExecutorModule_GetOutput,          // get_output
-    &TVMAotExecutorModule_NotImplemented,     // load_params (do not implement)
-    &TVMAotExecutorModule_Run,                // run
-    &TVMAotExecutorModule_NotImplemented,     // set_input
-    &TVMAotExecutorModule_NotImplemented,     // share_params (do not implement)
+    &TVMAotExecutorModule_GetInput,        // get_input
+    &TVMAotExecutorModule_GetInputIndex,   // get_input_index
+    &TVMAotExecutorModule_NotImplemented,  // get_input_info (do not implement)
+    &TVMAotExecutorModule_GetNumInputs,    // get_num_inputs
+    &TVMAotExecutorModule_GetNumOutputs,   // get_num_outputs
+    &TVMAotExecutorModule_GetOutput,       // get_output
+    &TVMAotExecutorModule_NotImplemented,  // load_params (do not implement)
+    &TVMAotExecutorModule_Run,             // run
+    &TVMAotExecutorModule_NotImplemented,  // set_input
+    &TVMAotExecutorModule_NotImplemented,  // share_params (do not implement)
 };
 
 static const TVMFuncRegistry aot_executor_registry = {

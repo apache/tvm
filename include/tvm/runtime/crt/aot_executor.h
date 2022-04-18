@@ -29,8 +29,8 @@ extern "C" {
 #endif
 
 #include <dlpack/dlpack.h>
-#include <tvm/runtime/metadata.h>
 #include <tvm/runtime/crt/internal/common/ndarray.h>
+#include <tvm/runtime/metadata.h>
 
 typedef struct TVMMetadata TVMMetadata;
 
@@ -54,8 +54,8 @@ typedef struct TVMAotExecutor {
  * \param executor Pointer which receives a pointer to the newly-created instance.
  * \return 0 if successful.
  */
-int TVMAotExecutor_Create(TVMModuleHandle module_handle,
-                          const DLDevice* devices, TVMAotExecutor** executor);
+int TVMAotExecutor_Create(TVMModuleHandle module_handle, const DLDevice* devices,
+                          TVMAotExecutor** executor);
 
 int TVMAotExecutor_Release(TVMAotExecutor* executor, const DLDevice device);
 

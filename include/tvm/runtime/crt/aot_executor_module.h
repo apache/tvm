@@ -39,4 +39,4 @@ tvm_crt_error_t TVMAotExecutorModule_Register();
 }  // extern "C"
 #endif
 
-#endif  // TVM_RUNTIME_CRT_GRAPH_EXECUTOR_MODULE_H_
+#endif  // TVM_RUNTIME_CRT_AOT_EXECUTOR_MODULE_H_
