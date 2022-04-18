@@ -72,7 +72,7 @@ def get_tvm_output_with_vm(
         convert_config=convert_config,
     )
     print("HELLLOOOOOO", input_data)
-    exit()
+    print("HELLLOOOOOO", mod)
 
     result = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(
         *input_data, **params

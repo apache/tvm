@@ -296,7 +296,7 @@ def reshape(data, newshape, allowzero=False):
     if isinstance(newshape, Constant):
         newshape = list(newshape.data.numpy())
     if isinstance(newshape, Expr):
-        return _dyn_make.reshape(data, newshape)
+        return _dyn_make.reshape(data, newshape, allowzero)
     if isinstance(newshape, int):
         newshape = [newshape]
     if isinstance(newshape, (tuple, list)):
