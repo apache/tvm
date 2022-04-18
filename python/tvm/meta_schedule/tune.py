@@ -346,17 +346,17 @@ class TuneConfig(NamedTuple):
         Maximum number of trials to run.
     num_trials_per_iter: int
         Number of trials to run per iteration.
-    max_trials_per_task: int
-        Maximum number of trials to run per task.
-    task_scheduler: str
+    max_trials_per_task: Optional[int]
+        Maximum number of trials to run per task. If None, use `max_trials_global`.
+    task_scheduler: str = "gradient"
         Task scheduler to use.
         Valid options are: round_robin, gradient.
-    search_strategy: str
+    search_strategy: str = "evolutionary"
         Search strategy to use.
         Valid options are: evolutionary, replay_func, replay_trace.
-    task_scheduler_config: Dict[str, Any]
+    task_scheduler_config: Optional[Dict[str, Any]] = None
         Configuration for task scheduler.
-    search_strategy_config: Dict[str, Any]
+    search_strategy_config: Optional[Dict[str, Any]] = None
         Configuration for search strategy.
     """
 
@@ -365,8 +365,8 @@ class TuneConfig(NamedTuple):
     max_trials_per_task: Optional[int] = None
     task_scheduler: str = "gradient"
     strategy: str = "evolutionary"
-    task_scheduler_config: Dict[str, Any] = {}
-    search_strategy_config: Dict[str, Any] = {}
+    task_scheduler_config: Optional[Dict[str, Any]] = None
+    search_strategy_config: Optional[Dict[str, Any]] = None
 
     def create_strategy(self, **kwargs):
         """Create search strategy from configuration"""
@@ -380,14 +380,19 @@ class TuneConfig(NamedTuple):
                 f"Invalid search strategy: {self.strategy}. "
                 "Valid options are: {}".format(", ".join(cls_tbl.keys()))
             )
+        # `max_trials_per_task` defaults to `max_trials_global`
         max_trials_per_task = self.max_trials_per_task
         if max_trials_per_task is None:
             max_trials_per_task = self.max_trials_global
+        # `search_strategy_config` defaults to empty dict
+        config = self.search_strategy_config
+        if config is None:
+            config = {}
         return cls_tbl[self.strategy](
             num_trials_per_iter=self.num_trials_per_iter,
             max_trials_per_task=max_trials_per_task,
             **kwargs,
-            **self.search_strategy_config,
+            **config,
         )
 
     def create_task_scheduler(self, **kwargs):
@@ -401,10 +406,14 @@ class TuneConfig(NamedTuple):
                 f"Invalid task scheduler: {self.task_scheduler}. "
                 "Valid options are: {}".format(", ".join(cls_tbl.keys()))
             )
+        # `task_scheduler_config` defaults to empty dict
+        config = self.task_scheduler_config
+        if config is None:
+            config = {}
         return cls_tbl[self.task_scheduler](
             max_trials=self.max_trials_global,
             **kwargs,
-            **self.task_scheduler_config,
+            **config,
         )
 
 
