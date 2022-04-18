@@ -26,6 +26,8 @@ from tvm.tir.analysis import expr_deep_equal
 from tvm.tir.schedule.analysis import suggest_index_map, get_tensorize_loop_mapping
 from tvm.script import tir as T
 from tvm.tir.stmt_functor import pre_order_visit
+from tvm.meta_schedule.testing import te_workload
+from tvm.te import create_prim_func
 
 
 def _make_vars(*args: str) -> List[Var]:
@@ -208,8 +210,50 @@ def test_get_tensorize_loop_mapping_conv2d_nchwc_vnni():
     assert s.get(desc_loop_to_sref[desc_loops[1]]) == s.get(i9)
 
 
+def test_get_tensorize_loop_mapping_matmul_mma():
+    @T.prim_func
+    def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
+        B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
+        C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
+
+        with T.block("root"):
+            T.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
+            T.writes(C[0:16, 0:16])
+            for i, j, k in T.grid(16, 16, 16):
+                with T.block("update"):
+                    vii, vjj, vkk = T.axis.remap("SSR", [i, j, k])
+                    C[vii, vjj] = C[vii, vjj] + A[vii, vkk] * B[vjj, vkk]
+
+    matmul = create_prim_func(
+        te_workload.matmul_relu(
+            n=512,
+            m=512,
+            k=512,
+        )
+    )
+
+    s = Schedule(matmul)
+    block = s.get_block("C")
+
+    info = get_tensorize_loop_mapping(s, block, mma_desc)
+
+    desc_loop_to_sref = dict((v, k) for k, v in info.loop_map.items())
+
+    desc_loops = collect_loops(mma_desc)
+    i0, i1, i2 = s.get_loops(block)
+
+    for i in range(3):
+        assert desc_loops[i] in desc_loop_to_sref
+
+    assert s.get(desc_loop_to_sref[desc_loops[0]]) == s.get(i0)
+    assert s.get(desc_loop_to_sref[desc_loops[1]]) == s.get(i1)
+    assert s.get(desc_loop_to_sref[desc_loops[2]]) == s.get(i2)
+
+
 if __name__ == "__main__":
     # test_suggest_index_map_simple()
     # test_suggest_index_map_bijective()
     # test_get_tensorize_loop_mapping_dense_vnni()
-    test_get_tensorize_loop_mapping_conv2d_nchwc_vnni()
+    # test_get_tensorize_loop_mapping_conv2d_nchwc_vnni()
+    test_get_tensorize_loop_mapping_matmul_mma()
