@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-set -e
-
-# check lastest change, for squash merge into main
-./tests/lint/git-clang-format.sh HEAD~1
-# chekc against origin/main for PRs.
-./tests/lint/git-clang-format.sh origin/main
+# pylint: disable=unused-import
+"""Intrinsics for tensorization."""
+from .x86 import *
+from .arm_cpu import *
+from .dot_product_common import *
+from .rocm import *

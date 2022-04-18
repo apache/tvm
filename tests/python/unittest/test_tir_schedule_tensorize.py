@@ -19,9 +19,16 @@ import sys
 import pytest
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import tir, te
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.tensor_intrin import (
+    VNNI_DOT_16x4_INTRIN,
+    ARM_DOT_4x4_i8_NEON_INTRIN,
+    ARM_DOT_4x4_i8_SDOT_INTRIN,
+    AMDGPU_SDOT4_INTRIN,
+    DP4A_INTRIN,
+)
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
@@ -529,6 +536,113 @@ def test_tensorize_with_annotation():
     s.tensorize(ii, "test_annotated_mma_intrin")
     tvm.ir.assert_structural_equal(annotated_tensorized_matmul, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
+
+
+def get_matmul_packed(m, n, k, lhs_type, int32_lanes):
+    X = te.placeholder((m, k), name="X", dtype=lhs_type)
+    packed_W = te.placeholder((n // int32_lanes, k // 4, int32_lanes, 4), name="packedW", dtype="int8")
+
+    ak = te.reduce_axis((0, k), name="k")
+    matmul = te.compute(
+        (m, n),
+        lambda i, j: te.sum(
+            X[i, ak].astype("int32")
+            * packed_W[
+                tvm.tir.indexdiv(j, 16), tvm.tir.indexdiv(ak, 4), j % 16, ak % 4
+            ].astype("int32"),
+            axis=ak,
+        ),
+        name="compute",
+    )
+
+    return te.create_prim_func([X, packed_W, matmul])
+
+
+def test_tensorize_vnni():
+    m, n, k = 128, 128, 128
+
+    func = get_matmul_packed(m, n, k, "uint8", 16)
+
+    sch = tir.Schedule(func, debug_mask="all")
+    block = sch.get_block("compute")
+    _, j, k = sch.get_loops(block)
+
+    _, ji = sch.split(j, factors=[None, 16])
+    ko, ki = sch.split(k, factors=[None, 4])
+    sch.reorder(ko, ji, ki)
+
+    sch.decompose_reduction(block, ko)
+    sch.tensorize(ji, VNNI_DOT_16x4_INTRIN)
+
+    verify_trace_roundtrip(sch=sch, mod=func)
+
+
+def test_tensorize_arm_dot():
+    m, n, k = 128, 128, 128
+
+    func = get_matmul_packed(m, n, k, "int8", 4)
+
+    for intrin in [ARM_DOT_4x4_i8_SDOT_INTRIN, ARM_DOT_4x4_i8_NEON_INTRIN]:
+        sch = tir.Schedule(func, debug_mask="all")
+        block = sch.get_block("compute")
+        _, j, k = sch.get_loops(block)
+
+        _, ji = sch.split(j, factors=[None, 4])
+        ko, ki = sch.split(k, factors=[None, 4])
+        sch.reorder(ko, ji, ki)
+
+        sch.decompose_reduction(block, ko)
+        sch.tensorize(ji, intrin)
+
+        verify_trace_roundtrip(sch=sch, mod=func)
+
+
+def test_tensorize_dpa4():
+    m, n, k = 128, 128, 128
+
+    X = te.placeholder((m, k), name="X", dtype="int8")
+    W = te.placeholder((n, k), name="W", dtype="int8")
+    ak = te.reduce_axis((0, k), name="k")
+
+    matmul = te.compute(
+        (m, n),
+        lambda i, j: te.sum(
+            X[i, ak].astype("int32")
+            * W[j, ak].astype("int32"),
+            axis=ak,
+        ),
+        name="compute",
+    )
+
+    func = te.create_prim_func([X, W, matmul])
+
+    for intrin in [AMDGPU_SDOT4_INTRIN, DP4A_INTRIN]:
+        sch = tir.Schedule(func, debug_mask="all")
+        block = sch.get_block("compute")
+        i, j, k = sch.get_loops(block)
+
+        by, ty, yi = sch.split(i, factors=sch.sample_perfect_tile(i, n=3))
+        bx, tx, xi = sch.split(j, factors=sch.sample_perfect_tile(j, n=3))
+        ko, ki = sch.split(k, [None, 4])
+        ko, kt = sch.split(ko, factors=sch.sample_perfect_tile(ko, n=2))
+
+        sch.reorder(by, bx, ty, tx, yi, xi)
+
+        CC = sch.cache_write(block, 0, "local")
+        sch.reverse_compute_at(CC, tx)
+
+        def fetch_to_shared(block, idx):
+            block_read = sch.cache_read(block, idx, "shared")
+            sch.compute_at(block_read, ko, True)
+            return block_read
+
+        fetch_to_shared(block, 0)
+        fetch_to_shared(block, 1)
+
+        sch.decompose_reduction(block, ko)
+        sch.tensorize(ki, intrin)
+
+        verify_trace_roundtrip(sch=sch, mod=func)
 
 
 if __name__ == "__main__":

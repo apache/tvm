@@ -290,7 +290,7 @@ def generate_ref_data_tflite(model):
 
 
 def create_conv2d_tflite_model(ifm_shape, kernel_shape, strides, dilation, padding, activation):
-    """ This method prepares TFlite graph with a single Conv2d layer """
+    """This method prepares TFlite graph with a single Conv2d layer"""
     import tensorflow as tf
 
     class Model(tf.Module):

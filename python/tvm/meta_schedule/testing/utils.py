@@ -14,31 +14,31 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Testing utilitiy functions in meta schedule"""
+"""Testing utility functions in meta schedule"""
 import random
-from typing import List, Optional, Callable, Dict, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import tvm
-from tvm.relay import Function as RelayFunc
-from tvm.tir import Schedule
-from tvm.target import Target
-from tvm.runtime import NDArray
+from tvm.ir import IRModule
 from tvm.meta_schedule import TuneContext  # pylint: disable=unused-import
-from tvm.meta_schedule.utils import derived_object
+from tvm.meta_schedule.builder import BuilderInput, BuilderResult, PyBuilder
+from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
+from tvm.meta_schedule.extracted_task import ExtractedTask
 from tvm.meta_schedule.mutator.mutator import PyMutator
-from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
-from tvm.meta_schedule.builder import PyBuilder, BuilderInput, BuilderResult
+from tvm.meta_schedule.relay_integration import extract_task_from_relay
 from tvm.meta_schedule.runner import (
+    PyRunner,
+    PyRunnerFuture,
+    RunnerFuture,
     RunnerInput,
     RunnerResult,
-    RunnerFuture,
-    PyRunnerFuture,
-    PyRunner,
 )
-from tvm.meta_schedule.tune import Parse, extract_task_from_relay
-from tvm.meta_schedule.integration import ExtractedTask
-
-from tvm.ir import IRModule
+from tvm.meta_schedule.tune import Parse
+from tvm.meta_schedule.utils import derived_object
+from tvm.relay import Function as RelayFunc
+from tvm.runtime import NDArray
+from tvm.target import Target
+from tvm.tir import Schedule
 from tvm.tir.schedule import Trace
 
 

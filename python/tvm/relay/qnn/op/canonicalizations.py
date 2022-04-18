@@ -75,7 +75,7 @@ def create_integer_lookup_table(
     # inputs_quantized = np.array(range(dtype_info.min, dtype_info.max + 1)).astype(in_dtype)
 
     # First generate a list of all num_bit integer patterns
-    inputs_quantized = np.array(range(0, 2 ** num_bits), dtype=f"uint{num_bits}")
+    inputs_quantized = np.array(range(0, 2**num_bits), dtype=f"uint{num_bits}")
 
     # Reinterpret bits as the real datatype
     # Note what we are doing here is a bit tricky, the canonical view of our lookup table

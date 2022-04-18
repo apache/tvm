@@ -37,9 +37,9 @@ update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
 # Pin pip and setuptools versions
 # Hashes generated via:
 #   $ pip download <package>==<version>
-#   $ pip hash --algorithm sha512 <package>.whl
+#   $ pip hash --algorithm sha256 <package>.whl
 cat <<EOF > base-requirements.txt
-pip==19.3.1 --hash=sha256:6917c65fc3769ecdc61405d3dfd97afdedd75808d200b2838d7d961cebc0c2c7
+pip==22.0.4 --hash=sha256:c6aca0f2f081363f689f041d90dab2a07a9a07fb840284db2218117a52da800b
 setuptools==58.4.0 --hash=sha256:e8b1d3127a0441fb99a130bcc3c2bf256c2d3ead3aba8fd400e5cbbaf788e036
 EOF
 pip3 install -r base-requirements.txt

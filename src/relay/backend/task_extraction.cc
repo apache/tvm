@@ -17,16 +17,15 @@
  * under the License.
  */
 
-#include <tvm/meta_schedule/integration.h>
+#include <tvm/meta_schedule/extracted_task.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/function.h>
 #include <tvm/target/target.h>
 
 #include "../../te/operation/create_primfunc.h"
-#include "te_compiler_cache.h"
-#include "tvm/runtime/ndarray.h"
-#include "utils.h"
+#include "./te_compiler_cache.h"
+#include "./utils.h"
 
 namespace tvm {
 namespace relay {

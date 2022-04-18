@@ -24,11 +24,10 @@ from tvm import relay
 from tvm.ir import Op
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
-from tvm.relay.dataflow_pattern import is_op, wildcard
-from tvm.relay.expr import Call, Constant, GlobalVar, Tuple, TupleGetItem, Var
+from tvm.relay.dataflow_pattern import is_op, wildcard, is_constant, is_tuple
+from tvm.relay.expr import Call, Constant, GlobalVar, Tuple
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 from tvm.relay.op.contrib.register import register_pattern_table
-from tvm.relay.op.transform import split
 
 logger = logging.getLogger("TensorRT")
 supported_types = ["float32", "float16"]
@@ -236,6 +235,36 @@ def get_pass_order(use_patterns):
     )
 
 
+def check_type_dynamism(type, op_name):  # pylint: disable=redefined-builtin
+    r"""
+    Check for dynamic TensorType for an input op
+
+    Parameters
+    ----------
+    type: checked_type of the op
+    op_name: str
+        Name of the op for debugging pursposes.
+    Returns
+    -------
+    ret: bool
+        True if arg dynamic type not suppot in TRT, False otherwise
+    """
+
+    if isinstance(type, tvm.ir.TensorType):
+        # assumes dim 0 is for batch and can be dynamic
+        for dim_shape in type.shape[1:]:
+            if isinstance(dim_shape, tvm.tir.expr.Any):
+                return True
+    elif isinstance(type, tvm.ir.TupleType):
+        for field_type in type.fields:
+            if check_type_dynamism(field_type, op_name):
+                return True
+    else:
+        logger.info("Arg not supported in TensorRT for %s with type %s", op_name, type)
+        return True
+    return False
+
+
 def check_dynamism(args, op_name):
     """
     Check for dynamism inside any of the args in the op.
@@ -253,14 +282,7 @@ def check_dynamism(args, op_name):
         True if dynamism is present, False otherwise
     """
     for arg in args:
-        if isinstance(arg, (Call, Var, Constant, TupleGetItem)):
-            for dim_shape in arg.checked_type.shape[1:]:
-                if isinstance(dim_shape, tvm.tir.expr.Any):
-                    return True
-        elif isinstance(arg, Tuple):
-            return check_dynamism(arg.fields, op_name)
-        else:
-            logger.info("Arg not supported in TensorRT for %s with type %s", op_name, type(arg))
+        if check_type_dynamism(arg.checked_type, op_name):
             return True
     return False
 
@@ -355,6 +377,7 @@ _register_external_op_helper_with_checker("prod", reduce_annotate_fn)
 _register_external_op_helper_with_checker("max", reduce_annotate_fn)
 _register_external_op_helper_with_checker("min", reduce_annotate_fn)
 _register_external_op_helper_with_checker("mean", reduce_annotate_fn)
+_register_external_op_helper_with_checker("variance", reduce_annotate_fn)
 
 
 def trt_version_annotate_fn(version):
@@ -448,6 +471,9 @@ def conv1d_annotate_fn(expr):  # pylint: disable=unused-variable
     attrs, args = expr.attrs, expr.args
     if not is_supported_trt_dtype(args):
         return False
+    if not isinstance(args[1], Constant):
+        logger.info("nn.conv1d: kernel argument must be constant.")
+        return False
     if attrs.data_layout != "NCW":
         logger.info("nn.conv1d: data_layout is %s but must be NCW.", attrs.data_layout)
         return False
@@ -463,6 +489,9 @@ def conv2d_annotate_fn(expr):  # pylint: disable=unused-variable
 
     attrs, args = expr.attrs, expr.args
     if not is_supported_trt_dtype(args):
+        return False
+    if not isinstance(args[1], Constant):
+        logger.info("nn.conv2d: kernel argument must be constant.")
         return False
     if attrs.data_layout != "NCHW":
         logger.info("nn.conv2d: data_layout is %s but must be NCHW.", attrs.data_layout)
@@ -482,6 +511,9 @@ def dense_annotate_fn(expr):  # pylint: disable=unused-variable
 
     args = expr.args
     if not is_supported_trt_dtype(args):
+        return False
+    if not isinstance(args[1], Constant):
+        logger.info("nn.dense: weight must be constant")
         return False
     input_rank = len(args[0].checked_type.shape)
     weight_rank = len(args[1].checked_type.shape)
@@ -790,7 +822,9 @@ def pad_annotate_fn(expr):  # pylint: disable=unused-variable
     if not is_supported_trt_dtype(args):
         return False
     pad_value = args[1]
-    assert isinstance(pad_value, relay.Constant)
+    if not isinstance(pad_value, relay.Constant):
+        logger.info("nn.pad: pad argument must be constant")
+        return False
     pad_value = pad_value.data.numpy().item()
     if attrs.pad_mode != "constant":
         logger.info("nn.pad: pad mode is %s but must be constant.", attrs.pad_mode)
@@ -890,6 +924,9 @@ def conv3d_annotate_fn(expr):  # pylint: disable=unused-variable
     attrs, args = expr.attrs, expr.args
     if not is_supported_trt_dtype(args):
         return False
+    if not isinstance(args[1], Constant):
+        logger.info("nn.conv3d: kernel argument must be constant.")
+        return False
     if not trt_version_annotate_fn((6, 0, 1))(attrs, args, "nn.conv3d"):
         return False
     if attrs.data_layout != "NCDHW":
@@ -965,14 +1002,22 @@ def conv3d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
 
 def unary_op_pattern(op):
     """Matches unary operation"""
-    pattern = is_op(op)(wildcard())
-    return pattern
+    return is_op(op)(wildcard())
+
+
+def unary_op_pattern_with_any_tuple(op):
+    """Matches unary operation with literal tuple argument"""
+    return is_op(op)(is_tuple(None))
 
 
 def binary_op_pattern(op):
     """Matches binary operation"""
-    pattern = is_op(op)(wildcard(), wildcard())
-    return pattern
+    return is_op(op)(wildcard(), wildcard())
+
+
+def binary_op_pattern_with_const(op):
+    """Matches binary operation with rhs arg a constant"""
+    return is_op(op)(wildcard(), is_constant())
 
 
 @register_pattern_table("tensorrt")
@@ -980,9 +1025,9 @@ def pattern_table():
     """Get the Tensorrt compiler pattern table for supported ops."""
 
     return [
-        ("tensorrt.nn.conv3d", binary_op_pattern("nn.conv3d"), conv3d_annotate_fn),
-        ("tensorrt.nn.conv2d", binary_op_pattern("nn.conv2d"), conv2d_annotate_fn),
-        ("tensorrt.nn.conv1d", binary_op_pattern("nn.conv1d"), conv1d_annotate_fn),
+        ("tensorrt.nn.conv3d", binary_op_pattern_with_const("nn.conv3d"), conv3d_annotate_fn),
+        ("tensorrt.nn.conv2d", binary_op_pattern_with_const("nn.conv2d"), conv2d_annotate_fn),
+        ("tensorrt.nn.conv1d", binary_op_pattern_with_const("nn.conv1d"), conv1d_annotate_fn),
         (
             "tensorrt.nn.conv2d_transpose",
             binary_op_pattern("nn.conv2d_transpose"),
@@ -990,7 +1035,7 @@ def pattern_table():
         ),
         ("tensorrt.squeeze", binary_op_pattern("squeeze"), squeeze_annotate_fn),
         ("tensorrt.add", binary_op_pattern("add"), add_annotate_fn),
-        ("tensorrt.nn.dense", unary_op_pattern("nn.dense"), dense_annotate_fn),
+        ("tensorrt.nn.dense", binary_op_pattern_with_const("nn.dense"), dense_annotate_fn),
         ("tensorrt.bias_add", binary_op_pattern("nn.bias_add"), bias_add_annotate_fn),
         (
             "tensorrt.nn.batch_matmul",
@@ -999,8 +1044,6 @@ def pattern_table():
         ),
         ("tensorrt.divide", binary_op_pattern("divide")),
         ("tensorrt.multiply", binary_op_pattern("multiply")),
-        ("tensorrt.split", unary_op_pattern("split")),
-        ("tensorrt.reshape", unary_op_pattern("reshape")),
         ("tensorrt.nn.relu", unary_op_pattern("nn.relu")),
         (
             "tensorrt.nn.leaky_relu",
@@ -1029,7 +1072,11 @@ def pattern_table():
         ("tensorrt.max", unary_op_pattern("max"), reduce_annotate_fn),
         ("tensorrt.min", unary_op_pattern("min"), reduce_annotate_fn),
         ("tensorrt.max", unary_op_pattern("max"), reduce_annotate_fn),
-        ("tensorrt.concatenate", unary_op_pattern("concatenate"), concatenate_annotate_fn),
+        (
+            "tensorrt.concatenate",
+            unary_op_pattern_with_any_tuple("concatenate"),
+            concatenate_annotate_fn,
+        ),
         ("tensorrt.expand_dims", unary_op_pattern("expand_dims"), expand_dims_annotate_fn),
         (
             "tensorrt.layout_transform",
@@ -1038,7 +1085,7 @@ def pattern_table():
         ),
         ("tensorrt.transpose", unary_op_pattern("transpose"), transpose_annotate_fn),
         ("tensorrt.reshape", unary_op_pattern("reshape"), reshape_annotate_fn),
-        ("tensorrt.split", unary_op_pattern("split"), split),
+        ("tensorrt.split", unary_op_pattern("split"), split_annotate_fn),
         ("tensorrt.nn.pad", unary_op_pattern("nn.pad"), pad_annotate_fn),
         ("tensorrt.strided_slice", unary_op_pattern("strided_slice"), strided_slice_annotate_fn),
         (

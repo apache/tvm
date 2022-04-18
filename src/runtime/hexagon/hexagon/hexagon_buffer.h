@@ -67,18 +67,6 @@ class HexagonBuffer {
    */
   HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment, Optional<String> scope);
 
-  /* \brief Construct a Hexagon Buffer from an external buffer.
-   *
-   * \param data The pointer to the external buffer.
-   *
-   * \param nbytes The size of the external buffer in bytes.
-   *
-   * \param scope Optional storage scope indicating the memory
-   * space in which to allocate. Defaults to global system
-   * memory (DDR).
-   */
-  explicit HexagonBuffer(void* data, size_t nbytes, Optional<String> scope);
-
   //! \brief Destruction deallocates the underlying allocations.
   ~HexagonBuffer();
 

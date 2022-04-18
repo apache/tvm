@@ -23,7 +23,6 @@ This class include methods to parse the custom operator to extract
 the command stream and perform an equivalency check for single operator
 test cases.
 """
-from distutils.version import LooseVersion
 from typing import List
 
 import os
@@ -45,6 +44,7 @@ from tvm.topi.nn.utils import get_pad_tuple
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.backend.contrib.ethosu import preprocess
+import tvm.relay.testing.tf as tf_testing
 
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tests.python.relay.aot.aot_test_utils import (
@@ -202,14 +202,10 @@ def generate_ref_data_tflite(model):
     """
     expected_output_data = {}
 
-    # older versions of TFLite don't give access to reference kernels
-    if tf.__version__ < LooseVersion("2.5.0"):
-        interpreter = tf.lite.Interpreter(model_content=model)
-    else:
-        interpreter = tf.lite.Interpreter(
-            model_content=model,
-            experimental_op_resolver_type=tf.lite.experimental.OpResolverType.BUILTIN_REF,
-        )
+    interpreter = tf.lite.Interpreter(
+        model_content=model,
+        experimental_op_resolver_type=tf.lite.experimental.OpResolverType.BUILTIN_REF,
+    )
 
     interpreter.allocate_tensors()
 
@@ -230,8 +226,12 @@ def generate_ref_data_tflite(model):
         )
         for input_detail in input_details
     }
-    for index, value in enumerate(input_data.values()):
-        interpreter.set_tensor(index, value)
+    input_index = {input_detail["name"]: input_detail["index"] for input_detail in input_details}
+
+    for input_name in input_data.keys():
+        data = input_data[input_name]
+        index = input_index[input_name]
+        interpreter.set_tensor(index, data)
     interpreter.invoke()
 
     expected_output_data = {
@@ -240,6 +240,14 @@ def generate_ref_data_tflite(model):
     }
 
     return input_data, expected_output_data
+
+
+def get_tflite_model(model_url):
+    """Get a TFLite model from URL."""
+    tflite_model_file = tf_testing.get_workload_official(model_url[0], model_url[1])
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    return tflite_model_buf
 
 
 def get_tflite_graph(tf_func, shapes, ranges=None):
