@@ -107,9 +107,7 @@ class DenseVNNIModule:
         placeholder_1: T.Buffer[(64, 256, 16, 4), "int8"],
         compute: T.Buffer[(1024, 1024), "int32"],
     ) -> None:
-        # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        # body
         with T.block("root"):
             T.reads()
             T.writes()
@@ -125,6 +123,46 @@ class DenseVNNIModule:
                     )
 
 
+@tvm.script.ir_module
+class Conv2dNCHWcVNNIModule:
+    @T.prim_func
+    def main(
+        placeholder: T.Buffer[(1, 4, 56, 56, 16), "uint8"],
+        placeholder_1: T.Buffer[(16, 4, 1, 1, 4, 16, 4), "int8"],
+        conv2d_NCHWc_int8: T.Buffer[(1, 16, 56, 56, 16), "int32"],
+    ) -> None:
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):
+            with T.block("conv2d_NCHWc_int8"):
+                (
+                    n,
+                    oc_chunk,
+                    oh,
+                    ow,
+                    oc_block,
+                    kh,
+                    kw,
+                    ic_outer,
+                    ic_f_inner,
+                    ic_s_inner,
+                ) = T.axis.remap("SSSSSRRRRR", [i0, i1, i2, i3, i4, i5, i6, i7, i8, i9])
+                T.reads(
+                    placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
+                    placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
+                )
+                T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block])
+                with T.init():
+                    conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = 0
+                conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc_int8[
+                    n, oc_chunk, oh, ow, oc_block
+                ] + T.cast(
+                    placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner], "int32"
+                ) * T.cast(
+                    placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
+                    "int32",
+                )
+
+
 def collect_loops(prim_func):
     loops = []
 
@@ -138,7 +176,7 @@ def collect_loops(prim_func):
     return loops
 
 
-def test_get_tensorize_loop_mapping():
+def test_get_tensorize_loop_mapping_dense_vnni():
     s = Schedule(DenseVNNIModule)
     block = s.get_block("compute")
 
@@ -154,7 +192,24 @@ def test_get_tensorize_loop_mapping():
     assert s.get(desc_loop_to_sref[desc_loops[1]]) == s.get(loop_k)
 
 
+def test_get_tensorize_loop_mapping_conv2d_nchwc_vnni():
+    s = Schedule(Conv2dNCHWcVNNIModule)
+    block = s.get_block("conv2d_NCHWc_int8")
+
+    info = get_tensorize_loop_mapping(s, block, dot_product_16x4_u8i8i32_desc)
+
+    desc_loop_to_sref = dict((v, k) for k, v in info.loop_map.items())
+
+    desc_loops = collect_loops(dot_product_16x4_u8i8i32_desc)
+    _, _, _, _, i4, _, _, _, _, i9 = s.get_loops(block)
+
+    assert desc_loops[0] in desc_loop_to_sref and desc_loops[1] in desc_loop_to_sref
+    assert s.get(desc_loop_to_sref[desc_loops[0]]) == s.get(i4)
+    assert s.get(desc_loop_to_sref[desc_loops[1]]) == s.get(i9)
+
+
 if __name__ == "__main__":
     # test_suggest_index_map_simple()
     # test_suggest_index_map_bijective()
-    test_get_tensorize_loop_mapping()
+    # test_get_tensorize_loop_mapping_dense_vnni()
+    test_get_tensorize_loop_mapping_conv2d_nchwc_vnni()
