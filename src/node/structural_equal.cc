@@ -34,10 +34,10 @@ namespace tvm {
 bool ReflectionVTable::SEqualReduce(const Object* self, const Object* other,
                                     SEqualReducer equal) const {
   uint32_t tindex = self->type_index();
-  if (tindex >= fsequal_reduce_.size() || fsequal_reduce_[tindex] == nullptr) {
-    LOG(FATAL) << "TypeError: SEqualReduce of " << self->GetTypeKey()
-               << " is not registered via TVM_REGISTER_NODE_TYPE."
-               << " Did you forget to set _type_has_method_sequal_reduce=true?";
+  ICHECK(!(tindex >= fsequal_reduce_.size() || fsequal_reduce_[tindex] == nullptr))
+    << "TypeError: SEqualReduce of " << self->GetTypeKey()
+    << " is not registered via TVM_REGISTER_NODE_TYPE."
+    << " Did you forget to set _type_has_method_sequal_reduce=true?";
   }
   return fsequal_reduce_[tindex](self, other, equal);
 }
@@ -119,12 +119,11 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
  protected:
   // Check the result.
   bool CheckResult(bool result, const ObjectRef& lhs, const ObjectRef& rhs) {
-    if (assert_mode_ && !result) {
-      LOG(FATAL) << "ValueError: StructuralEqual check failed, caused by lhs:" << std::endl
-                 << PrettyPrint(lhs) << std::endl
-                 << "and rhs:" << std::endl
-                 << PrettyPrint(rhs);
-    }
+    CHECK(!(assert_mode_ && !result))
+      << "ValueError: StructuralEqual check failed, caused by lhs:" << std::endl
+      << PrettyPrint(lhs) << std::endl
+      << "and rhs:" << std::endl
+      << PrettyPrint(rhs);
     return result;
   }
   /*!
