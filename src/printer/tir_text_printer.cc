@@ -152,16 +152,6 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& prim_func) {
         2, Doc::NewLine() << "buffer_map = {" << PrintSep(buffer_map_doc, Doc::Text(", ")) << "}");
   }
 
-  if (op->preflattened_buffer_map.size() != 0) {
-    // print preflattened_buffer_map
-    std::vector<Doc> preflattened_buffer_map_doc;
-    for (auto& v : op->preflattened_buffer_map) {
-      preflattened_buffer_map_doc.push_back(Print(v.first) << ": " << Print(v.second));
-    }
-    doc << Doc::Indent(2, Doc::NewLine()
-                              << "preflattened_buffer_map = {"
-                              << PrintSep(preflattened_buffer_map_doc, Doc::Text(", ")) << "}");
-  }
   doc << PrintBody(op->body);
   return doc;
 }
