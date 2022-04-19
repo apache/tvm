@@ -613,28 +613,6 @@ def test_non_integer_typed_block_iter():
     check_error(non_integer_typed_block_iter, 3)
 
 
-def preflattened_buffer_map_align_nonint(foo: T.handle):
-    foo_1 = T.match_buffer(foo, [1])
-    T.preflattened_buffer(
-        foo_1, [1], align="bar"
-    )  # check_error: align: want int or IntImm, got 'bar'
-
-
-def test_preflattened_buffer_map_align():
-    check_error(preflattened_buffer_map_align_nonint, 3)
-
-
-def preflattened_buffer_map_offset_factor_nonint(foo: T.handle):
-    foo_1 = T.match_buffer(foo, [1])
-    T.preflattened_buffer(
-        foo_1, [1], offset_factor="bar"
-    )  # check_error: offset_factor: want int or IntImm, got 'bar'
-
-
-def test_preflattened_buffer_map_offset_factor():
-    check_error(preflattened_buffer_map_offset_factor_nonint, 3)
-
-
 def strided_buffer_region(A: T.handle):
     # do not allow stride in buffer region
     A = T.match_buffer((128, 128), "int32")
