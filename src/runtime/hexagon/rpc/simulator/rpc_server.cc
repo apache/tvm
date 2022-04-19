@@ -27,7 +27,7 @@
 
 #include "../../../library_module.h"
 #include "../../../minrpc/minrpc_server.h"
-#include "../../hexagon/hexagon_common.h"
+#include "../../hexagon_common.h"
 #include "hexagon_sim_proto.h"
 #include "tvm/runtime/packed_func.h"
 #include "tvm/runtime/registry.h"

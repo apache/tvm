@@ -31,7 +31,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../library_module.h"
+#include "../library_module.h"
 #include "hexagon_buffer.h"
 
 #if defined(__hexagon__)
@@ -97,5 +97,6 @@ TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon").set_body([](TVMArgs args,
   ObjectPtr<Library> n = CreateDSOLibraryObject(args[0]);
   *rv = CreateModuleFromLibrary(n);
 });
+
 }  // namespace runtime
 }  // namespace tvm

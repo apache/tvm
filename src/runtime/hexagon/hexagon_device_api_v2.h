@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_DEVICE_API_V2_H_
-#define TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_DEVICE_API_V2_H_
+#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_DEVICE_API_V2_H_
+#define TVM_RUNTIME_HEXAGON_HEXAGON_DEVICE_API_V2_H_
 
 #include <tvm/runtime/device_api.h>
 
@@ -148,4 +148,4 @@ class HexagonDeviceAPIv2 final : public DeviceAPI {
 }  // namespace hexagon
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_DEVICE_API_V2_H_
+#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_DEVICE_API_V2_H_
