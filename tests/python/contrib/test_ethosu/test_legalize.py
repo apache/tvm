@@ -573,6 +573,7 @@ def test_tflite_binary_elemwise_legalize(
     reversed_operands,
     activation_function,
 ):
+    np.random.seed(0)
     dtype = "int8"
 
     def create_tflite_graph():
