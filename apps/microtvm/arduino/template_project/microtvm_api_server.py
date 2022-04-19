@@ -360,8 +360,11 @@ class Handler(server.ProjectAPIHandler):
         version_output = subprocess.run(
             [arduino_cli_path, "version"], check=True, stdout=subprocess.PIPE
         ).stdout.decode("utf-8")
-
         str_version = re.search(r"Version: ([\.0-9]*)", version_output).group(1)
+
+        # Using too low a version should raise an error. Note that naively
+        # comparing floats will fail here: 0.7 > 0.21, but 0.21 is a higher
+        # version (hence we need version.parse)
         return version.parse(str_version)
 
     # This will only be run for build and upload

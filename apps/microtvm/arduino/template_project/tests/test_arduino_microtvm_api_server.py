@@ -136,9 +136,6 @@ class TestGenerateProject:
         handler._check_platform_version(self.DEFAULT_OPTIONS)
         assert handler._version == version.parse("0.21.1")
 
-        # Using too low a version should raise an error. Note that naively
-        # comparing floats will fail here: 0.7 > 0.21, but 0.21 is a higher
-        # version (hence we need packaging.version)
         handler = microtvm_api_server.Handler()
         mock_run.return_value.stdout = bytes(self.BAD_CLI_VERSION, "utf-8")
         with pytest.raises(server.ServerError) as error:
