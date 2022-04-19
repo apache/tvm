@@ -18,6 +18,8 @@
 import sys
 
 import pytest
+
+import tvm
 from tvm.ir import assert_structural_equal
 from tvm.script import tir as T
 from tvm.script.parser import from_source
@@ -233,6 +235,76 @@ def test_match_buffer_int64():
     original = match_buffer_int64
     after_roundtrip = match_buffer_int64_after_roundtrip
     assert_structural_equal(original, after_roundtrip, True)
+
+
+def test_primfunc_with_numeric_parameter():
+    # A parameter accessed in the body of the PrimFunc must be passed
+    # in
+    @T.prim_func(params={"N": 16})
+    def func_with_parameter(A: T.Buffer[(1,), "int32"]):
+        for i in T.serial(N):
+            A[0] = A[0] + i
+
+    @T.prim_func
+    def func_without_parameter(A: T.Buffer[(1,), "int32"]):
+        for i in T.serial(16):
+            A[0] = A[0] + i
+
+    assert_structural_equal(func_with_parameter, func_without_parameter)
+
+
+def test_primfunc_with_numeric_shape_parameter():
+    # A parameter used in the argument list must also be within the
+    # parent scope.  This is because names in the argument list is
+    # resolved twice, once by the python interpreter and once by
+    # tvmscript.  Only the value passed to tvmscript as a parameter is
+    # used in the generated PrimFunc.
+    A_size = 16
+
+    @T.prim_func(params={"A_size": 256})
+    def func_with_parameter(A: T.Buffer[(A_size,), "int32"]):
+        T.evaluate(A[0])
+
+    @T.prim_func
+    def func_without_parameter(A: T.Buffer[(256,), "int32"]):
+        T.evaluate(A[0])
+
+    assert_structural_equal(func_with_parameter, func_without_parameter)
+
+
+def test_primfunc_with_tuple_shape_parameter():
+    # Parameters can be any type supported by tvm.runtime.convert.
+    A_shape = (16, 16)
+
+    @T.prim_func(params={"A_shape": A_shape})
+    def func_with_parameter(A: T.Buffer[A_shape, "int32"]):
+        T.evaluate(A[0, 0])
+
+    @T.prim_func
+    def func_without_parameter(A: T.Buffer[(16, 16), "int32"]):
+        T.evaluate(A[0, 0])
+
+    assert_structural_equal(func_with_parameter, func_without_parameter)
+
+
+def test_irmodule_parameter():
+    # Parameters can occur within T.prim_func definitions within an
+    # `ir_module` annotation.
+    A_shape = (16, 16)
+
+    @tvm.script.ir_module
+    class module_with_parameter:
+        @T.prim_func(params={"A_shape": A_shape})
+        def func(A: T.Buffer[A_shape, "int32"]):
+            T.evaluate(A[0, 0])
+
+    @tvm.script.ir_module
+    class module_without_parameter:
+        @T.prim_func
+        def func(A: T.Buffer[(16, 16), "int32"]):
+            T.evaluate(A[0, 0])
+
+    assert_structural_equal(module_with_parameter, module_without_parameter)
 
 
 if __name__ == "__main__":
