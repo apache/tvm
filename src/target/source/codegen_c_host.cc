@@ -273,7 +273,7 @@ std::string CodeGenCHost::GetPackedName(const CallNode* op) {
 CodeGenCHost::FunctionInfo CodeGenCHost::GetFunctionInfo(const CallNode* op,
                                                          bool has_resource_handle) {
   const StringImmNode* s = op->args[0].as<StringImmNode>();
-  ICHECK(s != nullptr) << "tvm_call_{c}packed_lowered expects first argument as function name";
+  ICHECK(s != nullptr) << "tvm_call_[c]packed_lowered expects first argument as function name";
   int64_t begin = op->args[3].as<IntImmNode>()->value;
   int64_t end = op->args[4].as<IntImmNode>()->value;
   int64_t num_args = end - begin;
@@ -281,10 +281,30 @@ CodeGenCHost::FunctionInfo CodeGenCHost::GetFunctionInfo(const CallNode* op,
   std::string func_name = s->value;
 
   if (has_resource_handle) {
-    std::string resource_handle_name = op->args[5].as<StringImmNode>()->value;
-    return {func_name, num_args - 1, resource_handle_name};
+    const StringImmNode* resource_handle_var = op->args[5].as<StringImmNode>();
+    if (resource_handle_var != nullptr) {
+      std::string resource_handle_name = resource_handle_var->value;
+      return {func_name, num_args - 1, resource_handle_name};
+    } else {
+      // The final arg should be "(void*) NULL" to indicate the empty resource_handle.
+      num_args--;
+
+      const CallNode* reinterpret_call = op->args[5].as<CallNode>();
+      ICHECK_NE(reinterpret_call, (void*)nullptr)
+          << "At CallNode to " << s
+          << "arg 5: Expect either StringImm naming the resource_handle var from interface API or "
+          << "reinterpret(0); got: " << op->args[5];
+      ICHECK_EQ(reinterpret_call->op, builtin::reinterpret())
+          << "At CallNode to " << s
+          << "arg 5: Expect either StringImm naming the resource_handle var from interface API or "
+          << "reinterpret(0); got: " << op->args[5];
+      ICHECK(is_zero(reinterpret_call->args[0])) << "At CallNode to " << s
+                                                 << " arg 5: Expect either StringImm naming the "
+                                                    "resource_handle var from interface API, or "
+                                                 << "zero; got " << op->args[5];
+    }
   }
-  return {func_name, num_args};
+  return {func_name, num_args, "NULL"};
 }
 
 void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
