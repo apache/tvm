@@ -52,41 +52,43 @@ class QuRTThread {
   typedef std::function<void()> Callback;
 
  public:
-  explicit QuRTThread(Callback worker_callback) : f(worker_callback) {
+  explicit QuRTThread(Callback worker_callback) : f_(worker_callback) {
     static int id = 1;
     qurt_thread_attr_t attr;
     char name[32];
-    posix_memalign(&stack, HEXAGON_STACK_ALIGNMENT, HEXAGON_STACK_SIZE);
+    int ret = posix_memalign(&stack_, HEXAGON_STACK_ALIGNMENT, HEXAGON_STACK_SIZE);
+    CHECK_EQ(ret, 0);
     qurt_thread_attr_init(&attr);
     qurt_thread_attr_set_stack_size(&attr, HEXAGON_STACK_SIZE);
-    qurt_thread_attr_set_stack_addr(&attr, stack);
+    qurt_thread_attr_set_stack_addr(&attr, stack_);
     snprintf(name, sizeof(name), "worker %d", id++);
     qurt_thread_attr_set_name(&attr, name);
-    qurt_thread_create(&thread, &attr, (void (*)(void*))run_func, this);
+    ret = qurt_thread_create(&thread_, &attr, (void (*)(void*))RunFunction, this);
+    CHECK_EQ(ret, QURT_EOK);
   }
-  QuRTThread(QuRTThread&& other) : thread(other.thread), f(other.f), stack(other.stack) {
-    other.thread = 0;
+  QuRTThread(QuRTThread&& other) : thread_(other.thread_), f_(other.f_), stack_(other.stack_) {
+    other.thread_ = 0;
   }
   ~QuRTThread() {
-    if (thread) {
+    if (thread_) {
       join();
-      free(stack);
+      free(stack_);
     }
   }
-  bool joinable() const { return qurt_thread_get_id() != thread; }
+  bool joinable() const { return qurt_thread_get_id() != thread_; }
   void join() {
     int status;
-    qurt_thread_join(thread, &status);
+    qurt_thread_join(thread_, &status);
   }
 
  private:
-  static void run_func(QuRTThread* t) {
-    t->f();
+  static void RunFunction(QuRTThread* t) {
+    t->f_();
     qurt_thread_exit(QURT_EOK);
   }
-  qurt_thread_t thread;
-  Callback f;
-  void* stack;
+  qurt_thread_t thread_;
+  Callback f_;
+  void* stack_;
 };
 #endif  // __hexagon__
 thread_local int max_concurrency = 0;
@@ -334,6 +336,9 @@ int ThreadGroup::Configure(AffinityMode mode, int nthreads, bool exclude_worker0
 
 void Yield() {
 #ifdef __hexagon__
+  // QuRT doesn't have a yield API, so instead we sleep for the minimum amount
+  // of time to let the OS schedule another thread. std::this_thread::yield()
+  // compiles down to an empty function.
   qurt_sleep(1);
 #else
   std::this_thread::yield();
