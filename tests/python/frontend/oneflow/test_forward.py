@@ -710,7 +710,7 @@ def test_concat():
         verify_concat(model, device=device)
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
     # test_conv2d()
     # test_pool2d()
     # test_normalization()
