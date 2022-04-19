@@ -711,13 +711,13 @@ def test_concat():
 
 
 # if __name__ == "__main__":
-    # test_conv2d()
-    # test_pool2d()
-    # test_normalization()
-    # test_upsample()
-    # test_convtran()
-    # test_activation()
-    # test_math()
-    # test_slice()
-    # test_concat()
-    # rmdir("log")
+# test_conv2d()
+# test_pool2d()
+# test_normalization()
+# test_upsample()
+# test_convtran()
+# test_activation()
+# test_math()
+# test_slice()
+# test_concat()
+# rmdir("log")
