@@ -22,7 +22,6 @@ import os
 import re
 import copy
 import warnings
-from collections import OrderedDict
 
 import numpy as np
 import tvm
@@ -1530,7 +1529,7 @@ class OneflowGraph(object):
             if "_output." not in o:
                 new_o = o.replace("-" + op_name, "_output")
                 new_o = new_o.replace("-" + new_o.split("-")[-1], ".0")
-                for k, v in self._shape.items():
+                for k in self._shape.keys():
                     if new_o in k:
                         self._shape[o] = self._shape[k]
                         self._dtype[o] = self._dtype[k]
