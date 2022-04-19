@@ -421,7 +421,6 @@ class Pool(OnnxOpConverter):
             out = _op.squeeze(out, axis=[0])
         return out
 
-
     @classmethod
     def _run_calculation(cls, inputs, attr, params):
         """Helper method to return the processed input data and AttrCvt object"""
