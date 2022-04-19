@@ -240,20 +240,24 @@ def test_get_tensorize_loop_mapping_matmul_mma():
 
     s = Schedule(matmul)
     block = s.get_block("C")
-
-    info = get_tensorize_loop_mapping(s, block, matmul_16x16x16xf16f16f16_desc)
-
-    desc_loop_to_sref = dict((v, k) for k, v in info.loop_map.items())
-
-    desc_loops = collect_loops(matmul_16x16x16xf16f16f16_desc)
     i0, i1, i2 = s.get_loops(block)
+    desc_loops = collect_loops(matmul_16x16x16xf16f16f16_desc)
 
-    for i in range(3):
-        assert desc_loops[i] in desc_loop_to_sref
+    for do_reorder in [True, False]:
+        # Mapping should be invariant to the loop permutation
+        if do_reorder:
+            s.reorder(i2, i0, i1)
 
-    assert s.get(desc_loop_to_sref[desc_loops[0]]) == s.get(i0)
-    assert s.get(desc_loop_to_sref[desc_loops[1]]) == s.get(i1)
-    assert s.get(desc_loop_to_sref[desc_loops[2]]) == s.get(i2)
+        info = get_tensorize_loop_mapping(s, block, matmul_16x16x16xf16f16f16_desc)
+        assert info is not None
+        desc_loop_to_sref = dict((v, k) for k, v in info.loop_map.items())
+
+        for i in range(3):
+            assert desc_loops[i] in desc_loop_to_sref
+
+        assert s.get(desc_loop_to_sref[desc_loops[0]]) == s.get(i0)
+        assert s.get(desc_loop_to_sref[desc_loops[1]]) == s.get(i1)
+        assert s.get(desc_loop_to_sref[desc_loops[2]]) == s.get(i2)
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/runtime/container/optional.h>
 #include <tvm/tir/expr.h>
 
 #include "../utils.h"
@@ -2106,22 +2107,58 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
 
   int next_block_ind = block_loops.size() - 1;
   for (int i_desc = n_desc_vars - 1; i_desc >= 0; --i_desc) {
-    const tir::ForNode* desc_loop = desc_loops[i_desc];
+    // Step 4.2. Find the corresponding loop of the i-th block var of desc
+    const PrimExpr& desc_bind = desc_block->iter_values[i_desc];
+    const tir::ForNode* desc_loop = nullptr;
+    IterVarType iter_type_desc;
+    for (int i = 0, n = desc_loops.size(); i < n; ++i) {
+      // Check if desc_bind = loops[i]->loop_var + stuff-irrelevant-of-loop-vars
+      PrimExpr r = analyzer.Simplify(desc_bind - desc_loops[i]->loop_var);
+      if (!UsesVar(r,
+                   [&desc_loop_vars](const VarNode* var) { return desc_loop_vars.count(var); })) {
+        desc_loop = desc_loops[i];
+        iter_type_desc = iter_types_desc[i];
+        break;
+      }
+    }
+    if (desc_loop == nullptr || desc_loop->extent.as<IntImmNode>() == nullptr) {
+      return NullOpt;
+    }
+
     const IntImmNode* int_desc_extent = desc_loop->extent.as<IntImmNode>();
-    if (!int_desc_extent) continue;
 
+    const tir::ForNode* block_loop = nullptr;
+
+    PrimExpr block_bind;
     for (int i_block = next_block_ind; i_block >= 0; --i_block) {
-      const tir::ForNode* block_loop = block_loops[i_block];
-      const IntImmNode* int_block_extent = block_loop->extent.as<IntImmNode>();
+      if (iter_types_block[i_block] == iter_type_desc) {
+        next_block_ind = i_block - 1;
+        block_bind = block->iter_values[i_block];
+        break;
+      }
+    }
 
-      if (!int_block_extent) continue;
-      if (int_block_extent->value % int_desc_extent->value != 0) continue;
-      if (iter_types_block[i_block] != iter_types_desc[i_desc]) continue;
+    for (int i = 0, n = block_loops.size(); i < n; ++i) {
+      PrimExpr r = analyzer.Simplify(block_bind - block_loops[i]->loop_var);
+      if (!UsesVar(r,
+                   [&block_loop_vars](const VarNode* var) { return block_loop_vars.count(var); })) {
+        block_loop = block_loops[i];
+        const IntImmNode* int_block_extent = block_loop->extent.as<IntImmNode>();
 
-      const tir::StmtSRef& block_loop_sref = self->stmt2ref[block_loop];
-      ret->loop_map.Set(block_loop_sref, GetRef<tir::For>(desc_loop));
-      next_block_ind = i_block - 1;
-      break;
+        if (!int_block_extent || int_block_extent->value % int_desc_extent->value != 0) {
+          return NullOpt;
+        }
+
+        const tir::StmtSRef& block_loop_sref = self->stmt2ref[block_loop];
+        auto it = ret->loop_map.find(block_loop_sref);
+        if (it == ret->loop_map.end()) {
+          ret->loop_map.Set(block_loop_sref, GetRef<tir::For>(desc_loop));
+        } else if ((*it).second.get() != desc_loop) {
+          return NullOpt;
+        }
+
+        break;
+      }
     }
   }
 
