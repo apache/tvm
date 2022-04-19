@@ -111,6 +111,7 @@ We do encourage everyone to work anything they are interested in.
 - [Hua Jiang](https://github.com/huajsj): @huajsj
 - [Ziheng Jiang](https://github.com/ZihengJiang): @ZihengJiang
 - [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm
+- [Elen Kalda](https://github.com/ekalda): @ekalda
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574
