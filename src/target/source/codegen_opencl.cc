@@ -327,10 +327,6 @@ void CodeGenOpenCL::PrintRestrict(const Var& v, std::ostream& os) {
 
 std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType target) {
   if (from == target) return value;
-  return CastTo(value, target);
-}
-
-std::string CodeGenOpenCL::CastTo(std::string value, DataType target) {
   std::ostringstream os;
   if (target.lanes() == 1) {
     os << "((";
@@ -514,30 +510,6 @@ void CodeGenOpenCL::VisitExpr_(const MinNode* op, std::ostream& os) {
 
 void CodeGenOpenCL::VisitExpr_(const MaxNode* op, std::ostream& os) {
   PrintBinaryExpr(op, "max", os, this);
-}
-
-void CodeGenOpenCL::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
-                                     std::ostream& os) {
-  std::ostringstream oss;
-  if (isalpha(op[0])) {
-    os << op << "(";
-    this->PrintExpr(lhs, oss);
-    os << CastTo(oss.str(), t);
-    oss.str("");
-    os << ", ";
-    this->PrintExpr(rhs, oss);
-    os << CastTo(oss.str(), t);
-    os << ")";
-  } else {
-    os << "(";
-    this->PrintExpr(lhs, oss);
-    os << CastTo(oss.str(), t);
-    oss.str("");
-    os << ' ' << op << ' ';
-    this->PrintExpr(rhs, oss);
-    os << CastTo(oss.str(), t);
-    os << ")";
-  }
 }
 
 void CodeGenOpenCL::SetTextureScope(
