@@ -50,7 +50,7 @@ from tvm.contrib.download import download_testdata
 
 ######################################################################
 # Load a pretrained OneFlow model and save model
-# -------------------------------
+# ----------------------------------------------
 model_name = "resnet18"
 model = getattr(flowvision.models, model_name)(pretrained=True)
 model = model.eval()
