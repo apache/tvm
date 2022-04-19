@@ -1682,6 +1682,7 @@ def convert_scale(g, op, block):
     if np.isclose(scale, 1.0) and np.isclose(bias, 0.0):
         out = x
     else:
+        x = _op.cast(x, dtype="float32")
         if np.isclose(bias, 0.0):
             out = x * _expr.const(np.array(scale).astype("float32"))
         elif np.isclose(scale, 1.0):
