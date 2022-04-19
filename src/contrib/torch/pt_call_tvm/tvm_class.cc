@@ -679,6 +679,208 @@ static auto __tvm_dsoop_vm_runtime_registry =
               return ptr;
             });
 
+/*! \brief Class holding necessary components to call TVM runtime */
+class TVMScriptRuntimeModulePack {
+ public:
+  /*!
+   * \brief Constructor.
+   *
+   * \param path Encoded path of graph runtime assets.
+   * \param device_type int64_t, kDLCPU or kDLCUDA.
+   * \param device_id int64_t.
+   */
+  explicit TVMScriptRuntimeModulePack(std::string path, int64_t device_type, int64_t device_id)
+      : path_(std::move(path)) {
+    // LOG(INFO) << "[TvmGraphModule] loading module at path: [" << path_ << "] on device ["
+              // << (device_type == kDLCUDA ? "cuda:" : "cpu:") << device_id << "]...";
+    std::string lib_path, params_path;
+    DecodePaths(path_, &lib_path, &params_path);
+
+    // NO graph information
+
+    // load runtime module
+    tvm::runtime::Module lib = tvm::runtime::Module::LoadFromFile(lib_path);
+
+    // would get a GraphModule
+    const auto runtime_create = *tvm::runtime::Registry::Get("tvm.graph_executor.create_no_graph");
+
+    // read params data
+    std::ifstream params_in(params_path, std::ios::binary);
+    std::string params_data((std::istreambuf_iterator<char>(params_in)),
+                            std::istreambuf_iterator<char>());
+    params_in.close();
+    TVMByteArray params_arr;
+    params_arr.data = params_data.c_str();
+    params_arr.size = params_data.length();
+
+    // set devices
+    module_ = runtime_create(lib);
+    const tvm::runtime::PackedFunc load_params = module_.GetFunction("load_params");
+    load_params(params_arr);
+
+    set_input = module_.GetFunction("set_input_zero_copy");
+    run = module_.GetFunction("run");
+    get_output = module_.GetFunction("get_output");
+    set_output = module_.GetFunction("set_output_zero_copy");
+    num_outputs_ = module_.GetFunction("get_num_outputs")();
+  }
+
+  static constexpr char kPathDelimiter = '|';
+
+  /*!
+   * \brief Decode lib_path, graph_path, params_path from encoded path.
+   *
+   * \param path The encoded path, concated with `kPathDelimiter`.
+   * \param lib_path The path of .so lib file.
+   * \param params_path The path of params data.
+   */
+  static void DecodePaths(const std::string& path, std::string* lib_path,
+                          std::string* params_path) {
+    std::vector<std::string> paths;
+    for (size_t i = 0, pre = 0, lim = path.size(); i <= lim; ++i) {
+      if (i == lim || path.at(i) == kPathDelimiter) {
+        paths.push_back(path.substr(pre, i - pre));
+        pre = i + 1;
+      }
+    }
+    CHECK_EQ(paths.size(), 2u);
+    *lib_path = paths.at(0);
+    *params_path = paths.at(1);
+  }
+
+  /*!
+   * \brief Encode lib_path, graph_path, params_path by concat then with `kPathDelimiter`.
+   *
+   * \param lib_path The path of .so lib file.
+   * \param graph_path The path of graph.json.
+   * \param params_path The path of params data.
+   *
+   * \return The encoded path, concated with `kPathDelimiter`.
+   */
+  static std::string EncodePaths(const std::string& lib_path, const std::string& params_path) {
+    return lib_path + kPathDelimiter + kPathDelimiter + params_path;
+  }
+
+  const std::string& path() const { return path_; }
+
+  const int64_t num_outputs() const { return num_outputs_; }
+
+  tvm::runtime::PackedFunc set_input;
+  tvm::runtime::PackedFunc run;
+  tvm::runtime::PackedFunc get_output;
+  tvm::runtime::PackedFunc set_output;
+
+ private:
+  tvm::runtime::Module module_;
+  int64_t num_outputs_;
+  std::string path_;
+};
+
+/*! \brief Pytorch custom class to call TVM graph runtime */
+class TVMScriptRuntimeClass : public BaseTvmClass {
+ public:
+  TVMScriptRuntimeClass(const int64_t num_inputs, const int64_t num_outputs,
+                       const std::string& device)
+      : BaseTvmClass(num_inputs, num_outputs, device) {
+      }
+
+  /*!
+   * \brief Module forward.
+   *
+   * \param inputs Inputs with type List[Tensor].
+   *
+   * \return outputs with type List[Tensor].
+   */
+  c10::List<at::Tensor> forward(const c10::List<at::Tensor>& inputs) override {
+    // TODO : need to call DLpack
+  }
+
+  /*!
+   * \brief Load TVM graph runtime module.
+   *
+   * \param shapes Input shapes. List[List[int]].
+   * \param lib_path Path of .so lib file.
+   * \param params_path Path of params data file.
+   */
+  void LoadTvmModule(const c10::List<c10::List<int64_t>>& shapes, const std::string& lib_path,
+                     const std::string& params_path) {
+    std::string path = TVMScriptRuntimeModulePack::EncodePaths(lib_path, params_path);
+    auto shape_repr = TvmShapeRepr(shapes);
+    auto it_find = tvm_modules_.find(shape_repr);
+    if (it_find != tvm_modules_.end()) {
+      tvm_modules_.erase(it_find);
+    }
+    const auto it =
+        tvm_modules_.emplace(shape_repr, TVMScriptRuntimeModulePack(path, device_type_, device_id_)).first;
+    if (it->second.num_outputs() != num_outputs_) {
+      LOG(FATAL) << "tvm class num outputs mismatch, expected " << num_outputs_ << ", got "
+                 << it->second.num_outputs();
+    }
+  }
+
+  // Not needed 
+  // const std::map<std::string, TVMScriptRuntimeModulePack>& tvm_modules() const { return tvm_modules_; }
+
+
+  /*!
+   * \brief Serialize TVM modules to shape map.
+   *
+   * \return shape_path_map Dict of shape_repr to path.
+   */
+  c10::Dict<std::string, std::string> SerializeTvmModules() const override {
+    // TODO : should I need this one?
+    c10::Dict<std::string, std::string> dummy_map;
+    return dummy_map;
+  }
+
+  /*!
+   * \brief Deserialize TVM modules from shape map.
+   *
+   * \param shape_path_map Dict of shape_repr to path.
+   */
+  void DeserializeTvmModules(const c10::Dict<std::string, std::string>& shape_path_map) override {
+    // TODO : should I need this one?
+    return;
+  }
+
+  /*!
+   * \brief Move the TVM modules to given device.
+   *
+   * \param device String repr of the device to be moved to.
+   */
+  void to(const std::string& device) override {
+    if (device != this->device()) {
+      auto torch_device = torch::Device(device);
+      device_type_ = torch_device.is_cuda() ? kDLCUDA : kDLCPU;
+      device_id_ = torch_device.index();
+      DeserializeTvmModules(SerializeTvmModules());
+    }
+  }
+
+ private:
+  // std::map<std::string, TVMScriptRuntimeModulePack> tvm_modules_;
+};
+
+static auto __tvm_dsoop_tvmscirpt_runtime_registry =
+    torch::jit::class_<TVMScriptRuntimeClass>("tvm_dsoop", "TVMScriptModule")
+    .def(torch::init<const int64_t, const int64_t, const std::string&>())
+    .def("load_tvm_module", &TVMScriptRuntimeClass::LoadTvmModule)
+    .def("forward", &TVMScriptRuntimeClass::forward)
+    .def_pickle(
+            [](const c10::intrusive_ptr<TVMScriptRuntimeClass>& self) -> SerializeTuple {
+              return std::make_tuple(self->num_inputs(), self->num_outputs(), self->device(),
+                                     self->SerializeTvmModules());
+            },
+            [](SerializeTuple tuple) -> c10::intrusive_ptr<TVMScriptRuntimeClass> {
+              auto ptr = c10::make_intrusive<TVMScriptRuntimeClass>(
+                  /*num_inputs=*/std::get<0>(tuple),
+                  /*num_outputs=*/std::get<1>(tuple),
+                  /*device=*/std::get<2>(tuple));
+              ptr->DeserializeTvmModules(std::get<3>(tuple));
+              return ptr;
+            });
+  // TODO : should is correct ?
+
 static auto __tvm_shape_repr_fn_registry =
     torch::RegisterOperators("tvm_dsoop::tvm_shape_repr", &BaseTvmClass::TvmShapeRepr);
 }  // namespace pytorch

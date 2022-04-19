@@ -65,6 +65,9 @@ def create(graph_json_str, libmod, device):
 
     return GraphModule(fcreate(graph_json_str, libmod, *device_type_id))
 
+def create_no_graph(libmod : tvm.runtime.Module):
+    return GraphModule(libmod)
+
 
 def get_device(libmod, device):
     """Parse and validate all the device(s).
