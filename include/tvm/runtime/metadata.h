@@ -116,6 +116,7 @@ class MetadataNode : public MetadataBaseNode {
  public:
   explicit MetadataNode(const struct ::TVMMetadata* data) : data_{data} {}
   static constexpr const char* _type_key = "metadata.MetadataNode";
+  const char* get_c_struct_name() const override;
   inline int64_t version() const { return int64_t(data_->version); }
   inline int64_t num_inputs() const { return data_->num_inputs; }
   ArrayAccessor<struct TVMTensorInfo, TensorInfo> inputs();
@@ -141,6 +142,7 @@ class TensorInfoNode : public MetadataBaseNode {
  public:
   explicit TensorInfoNode(const struct ::TVMTensorInfo* data) : data_{data} {}
   static constexpr const char* _type_key = "metadata.TensorInfoNode";
+  const char* get_c_struct_name() const override;
   inline ::tvm::runtime::String name() const { return ::tvm::runtime::String(data_->name); }
   inline int64_t num_shape() const { return data_->num_shape; }
   inline ::tvm::support::Span<const int64_t, int64_t> shape() const {

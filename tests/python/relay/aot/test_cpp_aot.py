@@ -24,20 +24,10 @@ import numpy as np
 import pytest
 
 import tvm
-from tvm import relay, TVMError
-from tvm.ir.module import IRModule
-from tvm.relay import backend, testing, transform
-from tvm.relay.testing import byoc
-from tvm.relay.op.annotation import compiler_begin, compiler_end
-from aot_test_utils import (
-    AOTTestModel,
-    AOT_DEFAULT_RUNNER,
-    generate_ref_data,
-    convert_to_relay,
-    compile_and_run,
-    compile_models,
-    parametrize_aot_options,
-)
+from tvm import IRModule
+from tvm import relay
+from tvm.relay import backend, testing
+from aot_test_utils import AOT_DEFAULT_RUNNER, AOTTestModel, generate_ref_data, compile_and_run
 
 
 def test_error_c_interface():
@@ -51,25 +41,22 @@ def test_error_c_interface():
     with pytest.raises(
         tvm.TVMError,
         match=re.escape(
-            'Either need interface_api == "packed" (got: c) or '
-            "unpacked-api == true (got: (bool)0) when targeting "
-            "c runtime"
+            'Need unpacked-api == false (got: 0) and interface-api == "packed" (got: c) when '
+            "targeting c++ runtime"
         ),
     ):
-        compile_and_run(
-            AOTTestModel(
-                module=IRModule.from_expr(func), inputs={}, outputs=generate_ref_data(func, {})
-            ),
-            test_runner,
-            interface_api,
-            use_unpacked_api,
+        tvm.relay.build(
+            IRModule.from_expr(func),
+            target="llvm",
+            executor=backend.Executor("aot", {"interface-api": "c"}),
         )
 
 
 enable_usmp = tvm.testing.parameter(True, False)
+target_kind = tvm.testing.parameter("c", "llvm")
 
 
-def test_conv2d(enable_usmp):
+def test_conv2d(enable_usmp, target_kind):
     RELAY_MODEL = textwrap.dedent(
         """\
         #[version = "0.0.5"]
@@ -117,7 +104,7 @@ def test_conv2d(enable_usmp):
         mod = tvm.relay.build(
             ir_mod,
             params=params,
-            target="c",
+            target=target_kind,
             executor=backend.Executor("aot", {"interface-api": "packed"}),
         )
 
@@ -131,18 +118,20 @@ def test_conv2d(enable_usmp):
     assert (runner.get_output(0).asnumpy() == list(ref_outputs.values())[0]).all()
 
 
-def test_mobilenet():
+def test_mobilenet(enable_usmp, target_kind):
     ir_mod, params = testing.mobilenet.get_workload(batch_size=1)
     data_shape = [int(x) for x in ir_mod["main"].checked_type.arg_types[0].shape]
     data = np.random.uniform(size=data_shape).astype("float32")
     inputs = {"data": data}
     ref_outputs = generate_ref_data(ir_mod, inputs, params)
 
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+    with tvm.transform.PassContext(
+        opt_level=3, config={"tir.disable_vectorize": True, "tir.usmp.enable": enable_usmp}
+    ):
         mod = tvm.relay.build(
             ir_mod,
             params=params,
-            target="c",
+            target=target_kind,
             executor=backend.Executor("aot", {"interface-api": "packed"}),
         )
 
