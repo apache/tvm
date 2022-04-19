@@ -50,14 +50,16 @@ class RenewDefMutator : public StmtExprMutator {
     for (const auto& param : func->params) {
       params.push_back(generator.ReDefineVar(param));
     }
-    // Redefine buffers
+    // Redefine buffers in order
+    // TODO(Siyuan Feng): checking var is used after define
     Map<tir::Var, Buffer> buffer_map;
-    for (const auto& kv : func->buffer_map) {
-      const Var& param = kv.first;
-      const Buffer& buffer = kv.second;
-      Var new_param = Downcast<Var>(generator.VisitExpr(param));
-      Buffer new_buffer = generator.VisitBuffer(buffer, true);
-      buffer_map.Set(new_param, new_buffer);
+    for (const auto& param : func->params) {
+      if (param->dtype.is_handle()) {
+        const Buffer& buffer = func->buffer_map.at(param);
+        Var new_param = Downcast<Var>(generator.VisitExpr(param));
+        Buffer new_buffer = generator.VisitBuffer(buffer, true);
+        buffer_map.Set(new_param, new_buffer);
+      }
     }
     // Visit body
     Stmt body = generator(func->body);
@@ -133,7 +135,7 @@ class RenewDefMutator : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();
     ICHECK(op != nullptr);
-    Buffer buffer = VisitDeclBuffer(op->buffer);
+    Buffer buffer = VisitDeclOrRemapBuffer(op->buffer);
     if (buffer.same_as(op->buffer)) {
       return stmt;
     } else {
@@ -147,7 +149,7 @@ class RenewDefMutator : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<BufferLoadNode>();
     ICHECK(op != nullptr);
-    Buffer buffer = VisitDeclBuffer(op->buffer);
+    Buffer buffer = VisitDeclOrRemapBuffer(op->buffer);
     if (buffer.same_as(op->buffer)) {
       return expr;
     } else {
@@ -230,7 +232,7 @@ class RenewDefMutator : public StmtExprMutator {
     return new_iter_var;
   }
 
-  Buffer VisitDeclBuffer(const Buffer& buffer) {
+  Buffer VisitDeclOrRemapBuffer(const Buffer& buffer) {
     // Due to a recent PR, we can allow undefined buffer appearing in BufferLoad/Store.
     // We need to remap them but will not create new var
     auto it = remap_.find(buffer);

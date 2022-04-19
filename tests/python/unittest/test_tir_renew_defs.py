@@ -133,7 +133,9 @@ def test_match_buffer():
 def test_undefined_buffer():
     @T.prim_func
     def access_alloc():
+        # Buffer A should be remapped
         A = T.allocate([128], "float16", "global")
+        # check if buffer var also get remapped
         T.evaluate(A.data)
         for i in range(128):
             A[i] = A[i] + T.float16(1.0)
