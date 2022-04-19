@@ -44,6 +44,8 @@ namespace metadata {
  */
 class MetadataBaseNode : public ::tvm::runtime::Object {
  public:
+  virtual const char* get_c_struct_name() const = 0;
+
   static constexpr const char* _type_key = "metadata.MetadataBaseNode";
   TVM_DECLARE_BASE_OBJECT_INFO(MetadataBaseNode, ::tvm::runtime::Object);
 };
@@ -157,7 +159,7 @@ class ArrayAccessor<const char*, ::tvm::runtime::String> {
  *
  * These are separate from TIR DataType because TIR does not model structs.
  */
-enum MetadataTypeIndex : uint8_t {
+enum MetadataKind : uint8_t {
   kUint64 = 0,
   kInt64 = 1,
   kBool = 2,
@@ -173,12 +175,29 @@ enum MetadataTypeIndex : uint8_t {
  */
 class MetadataArrayNode : public MetadataBaseNode {
  public:
-  MetadataArrayNode(Array<ObjectRef> array, MetadataTypeIndex type_index, const char* struct_name)
-      : array(::std::move(array)), type_index{type_index}, struct_name{struct_name} {}
+  MetadataArrayNode(Array<ObjectRef> array, MetadataKind kind, const char* type_key)
+      : array(::std::move(array)), kind{kind}, type_key{type_key} {}
+
+  const char* get_c_struct_name() const final;
+
+  std::string get_element_c_struct_name() const {
+    CHECK(kind == MetadataKind::kMetadata)
+        << "cannot get struct name for MetadataArray with kind=" << kind;
+    constexpr int prefix_size = sizeof("metadata.") - 1;
+    constexpr int suffix_size = sizeof("Node") - 1;
+    std::string type_key_str(type_key);
+    return std::string("TVM") +
+           type_key_str.substr(prefix_size, type_key_str.size() - prefix_size - suffix_size);
+  }
 
   Array<ObjectRef> array;
-  MetadataTypeIndex type_index;
-  const char* struct_name;
+
+  /*! \brief Describes the storage class of the emitted struct member. */
+  MetadataKind kind;
+
+  /*! \brief When `kind` is Metadata, type_key of the MetadataBaseNode used with this array. */
+  const char* type_key;
+
   static constexpr const char* _type_key = "metadata.MetadataArrayNode";
   TVM_DECLARE_BASE_OBJECT_INFO(MetadataArrayNode, MetadataBaseNode);
 };
@@ -186,7 +205,7 @@ class MetadataArrayNode : public MetadataBaseNode {
 /*! \brief Reference class for MetadataArray. */
 class MetadataArray : public MetadataBase {
  public:
-  MetadataArray(Array<ObjectRef> array, MetadataTypeIndex type_index, const char* struct_name);
+  MetadataArray(Array<ObjectRef> array, MetadataKind kind, const char* struct_name);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(MetadataArray, MetadataBase, MetadataArrayNode);
 };

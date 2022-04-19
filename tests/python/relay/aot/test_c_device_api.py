@@ -143,6 +143,7 @@ def test_device_api_hooks_unpacked_api(device_api_main_func):
         + " device_context_ethos_u))\n"
     )
     # Open Device
+    print("main func", repr(main_func.body))
     assert (
         str(main_func.body[1][0][0][0])
         == "tir.tvm_check_return(0, -1, tir.call_extern("
@@ -239,23 +240,11 @@ def test_without_device_api_packed_api(non_device_api_main_func):
 
     main_func = non_device_api_main_func(interface_api="packed", use_unpacked_api=False)
     assert str(main_func.body) == (
-        'let tvm_value_3 = tir.tvm_stack_alloca("array", 1)\n'
-        'let tvm_value_2 = tir.tvm_stack_alloca("array", 1)\n'
-        'let tvm_value_1 = tir.tvm_stack_alloca("array", 1)\n'
-        'let tvm_value_0 = tir.tvm_stack_alloca("array", 1)\n'
-        "tir.tvm_struct_set(tvm_value_0, 0, 1, x_buffer_var)\n"
-        "tir.tvm_struct_set(tvm_value_0, 0, 10, 1)\n"
-        "tir.tvm_struct_set(tvm_value_0, 0, 9, 0)\n"
-        "tir.tvm_struct_set(tvm_value_1, 0, 1, y_buffer_var)\n"
-        "tir.tvm_struct_set(tvm_value_1, 0, 10, 1)\n"
-        "tir.tvm_struct_set(tvm_value_1, 0, 9, 0)\n"
-        "tir.tvm_struct_set(tvm_value_2, 0, 1, output_buffer_var)\n"
-        "tir.tvm_struct_set(tvm_value_2, 0, 10, 1)\n"
-        "tir.tvm_struct_set(tvm_value_2, 0, 9, 0)\n"
-        "tir.tvm_struct_set(tvm_value_3, 0, 1, tir.reinterpret((uint64)0))\n"
-        "tir.tvm_struct_set(tvm_value_3, 0, 10, 1)\n"
-        "tir.tvm_struct_set(tvm_value_3, 0, 9, 0)\n"
-        'tir.tvm_call_cpacked("tvmgen_default_fused_multiply", tvm_value_0, tvm_value_1, tvm_value_2, tvm_value_3)\n'
+        'tir.tvm_call_cpacked("tvmgen_default_fused_multiply", '
+        "tir.tvm_stack_make_array(x_buffer_var, tir.tvm_stack_make_shape(10, 10), tir.reinterpret((uint64)0), (uint32)2, float32(0), 0), "
+        "tir.tvm_stack_make_array(y_buffer_var, tir.tvm_stack_make_shape(1, 10), tir.reinterpret((uint64)0), (uint32)2, float32(0), 0), "
+        "tir.tvm_stack_make_array(output_buffer_var, tir.tvm_stack_make_shape(10, 10), tir.reinterpret((uint64)0), (uint32)2, float32(0), 0), "
+        "tir.reinterpret((uint64)0))\n"
     )
 
 

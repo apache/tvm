@@ -16,32 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-/*!
- * \file llvm_module.h
- * \brief Declares top-level shared functions related to the LLVM codegen.
+/*
+ * \file src/runtime/packed_func.cc
+ * \brief Implementation of non-inlinable PackedFunc pieces.
  */
-
-#ifndef TVM_TARGET_LLVM_LLVM_MODULE_H_
-#define TVM_TARGET_LLVM_LLVM_MODULE_H_
-
-#include <tvm/runtime/module.h>
-#include <tvm/target/target.h>
-
-#ifdef TVM_LLVM_VERSION
+#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 
 namespace tvm {
-namespace codegen {
+namespace runtime {
 
-runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata, Target target,
-                                            tvm::relay::Runtime runtime);
+TVM_REGISTER_OBJECT_TYPE(PackedFuncObj);
 
-runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
-                                            tvm::relay::Runtime runtime);
-
-}  // namespace codegen
+}  // namespace runtime
 }  // namespace tvm
-
-#endif  // TVM_LLVM_VERSION
-
-#endif  // TVM_TARGET_LLVM_LLVM_MODULE_H_
