@@ -27,8 +27,6 @@
 #include "inputs.h"
 #include "outputs.h"
 
-int abs(int v) { return v * ((v > 0) - (v < 0)); }
-
 int main(int argc, char** argv) {
   uart_init();
   printf("Starting Demo\n");
