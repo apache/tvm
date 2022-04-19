@@ -243,7 +243,7 @@ def test_get_tensorize_loop_mapping_matmul_mma():
     i0, i1, i2 = s.get_loops(block)
     desc_loops = collect_loops(matmul_16x16x16xf16f16f16_desc)
 
-    for do_reorder in [True, False]:
+    for do_reorder in [False, True]:
         # Mapping should be invariant to the loop permutation
         if do_reorder:
             s.reorder(i2, i0, i1)
