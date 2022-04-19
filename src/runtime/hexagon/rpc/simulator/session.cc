@@ -1313,6 +1313,8 @@ detail::Optional<HEXAPI_Nullptr> SimulatorRPCChannel::to_nullptr(const detail::M
 
 TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
+      ICHECK(args.size() >= 4) << args.size() << " is less than 4";
+
       std::string session_name = args[0];
       int stack_size = args[1];
       std::string sim_args = args[2];

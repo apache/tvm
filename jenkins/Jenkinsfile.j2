@@ -611,41 +611,27 @@ stage('Test') {
   environment {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
   }
-  parallel 'unittest: GPU': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('TensorCore') {
-        ws({{ m.per_exec_ws('tvm/ut-python-gpu') }}) {
-          try {
-            init_git()
-            unpack_lib('gpu2', tvm_multilib)
-            cpp_unittest(ci_gpu)
+  parallel(
+  {% call m.sharded_test_step(name="unittest: GPU", num_shards=2, node="GPU", ws="tvm/ut-python-gpu") %}
+    unpack_lib('gpu2', tvm_multilib)
+    cpp_unittest(ci_gpu)
 
-            unpack_lib('gpu', tvm_multilib)
-            timeout(time: max_time, unit: 'MINUTES') {
-              ci_setup(ci_gpu)
-              cpp_unittest(ci_gpu)
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
-                label: 'Run Java unit tests',
-              )
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
-                label: 'Run Python GPU unit tests',
-              )
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
-                label: 'Run Python GPU integration tests',
-              )
-            }
-          } finally {
-            junit 'build/pytest-results/*.xml'
-          }
-        }
-      }
-    } else {
-      Utils.markStageSkippedForConditional('unittest: GPU')
-    }
-  },
+    unpack_lib('gpu', tvm_multilib)
+    ci_setup(ci_gpu)
+    cpp_unittest(ci_gpu)
+    sh (
+      script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
+      label: 'Run Java unit tests',
+    )
+    sh (
+      script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
+      label: 'Run Python GPU unit tests',
+    )
+    sh (
+      script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
+      label: 'Run Python GPU integration tests',
+    )
+  {% endcall %}
   {% call m.sharded_test_step(name="integration: CPU", node="CPU", num_shards=2, ws="tvm/integration-python-cpu") %}
     unpack_lib('cpu', tvm_multilib_tsim)
     ci_setup(ci_cpu)
@@ -654,58 +640,28 @@ stage('Test') {
       label: 'Run CPU integration tests',
     )
   {% endcall %}
-  'unittest: CPU': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
-        ws({{ m.per_exec_ws('tvm/ut-python-cpu') }}) {
-          try {
-            init_git()
-            unpack_lib('cpu', tvm_multilib_tsim)
-            timeout(time: max_time, unit: 'MINUTES') {
-              ci_setup(ci_cpu)
-              cpp_unittest(ci_cpu)
-              python_unittest(ci_cpu)
-              fsim_test(ci_cpu)
-              sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
-                label: 'Run VTA tests in TSIM',
-              )
-            }
-          } finally {
-            junit 'build/pytest-results/*.xml'
-          }
-        }
-      }
-    } else {
-      Utils.markStageSkippedForConditional('unittest: CPU')
-    }
-  },
-  'python3: i386': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
-        ws({{ m.per_exec_ws('tvm/ut-python-i386') }}) {
-          try {
-            init_git()
-            unpack_lib('i386', tvm_multilib)
-            timeout(time: max_time, unit: 'MINUTES') {
-              ci_setup(ci_i386)
-              cpp_unittest(ci_i386)
-              python_unittest(ci_i386)
-              sh (
-                script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
-                label: 'Run i386 integration tests',
-              )
-              fsim_test(ci_i386)
-            }
-          } finally {
-            junit 'build/pytest-results/*.xml'
-          }
-        }
-      }
-    } else {
-      Utils.markStageSkippedForConditional('python3: i386')
-    }
-  },
+  {% call m.test_step(name="unittest: CPU", node="CPU", ws="tvm/ut-python-cpu") %}
+    unpack_lib('cpu', tvm_multilib_tsim)
+    ci_setup(ci_cpu)
+    cpp_unittest(ci_cpu)
+    python_unittest(ci_cpu)
+    fsim_test(ci_cpu)
+    sh (
+      script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
+      label: 'Run VTA tests in TSIM',
+    )
+  {% endcall %}
+  {% call m.sharded_test_step(name="python: i386", node="CPU", num_shards=2, ws="tvm/integration-python-i386") %}
+    unpack_lib('i386', tvm_multilib)
+    ci_setup(ci_i386)
+    cpp_unittest(ci_i386)
+    python_unittest(ci_i386)
+    sh (
+      script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
+      label: 'Run i386 integration tests',
+    )
+    fsim_test(ci_i386)
+  {% endcall %}
   {% call m.test_step(name="test: Hexagon", node="CPU", ws="tvm/test-hexagon") %}
     unpack_lib('hexagon', tvm_lib)
     ci_setup(ci_hexagon)
@@ -778,52 +734,22 @@ stage('Test') {
       label: 'Run Python frontend tests',
     )
   {% endcall %}
-  'frontend: CPU': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
-        ws({{ m.per_exec_ws('tvm/frontend-python-cpu') }}) {
-          try {
-            init_git()
-            unpack_lib('cpu', tvm_multilib)
-            timeout(time: max_time, unit: 'MINUTES') {
-              ci_setup(ci_cpu)
-              sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh",
-                label: 'Run Python frontend tests',
-              )
-            }
-          } finally {
-            junit 'build/pytest-results/*.xml'
-          }
-        }
-      }
-    } else {
-      Utils.markStageSkippedForConditional('frontend: CPU')
-    }
-  },
-  'frontend: aarch64': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('ARM') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
-          try {
-            init_git()
-            unpack_lib('arm', tvm_multilib)
-            timeout(time: max_time, unit: 'MINUTES') {
-              ci_setup(ci_arm)
-              sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
-                label: 'Run Python frontend tests',
-              )
-            }
-          } finally {
-            junit 'build/pytest-results/*.xml'
-          }
-        }
-      }
-    } else {
-      Utils.markStageSkippedForConditional('frontend: aarch64')
-    }
-  },
+  {% call m.test_step(name="frontend: CPU", node="CPU", ws="tvm/frontend-python-cpu") %}
+    unpack_lib('cpu', tvm_multilib)
+    ci_setup(ci_cpu)
+    sh (
+      script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh",
+      label: 'Run Python frontend tests',
+    )
+  {% endcall %}
+  {% call m.test_step(name="frontend: aarch64", node="ARM", ws="tvm/frontend-python-arm") %}
+    unpack_lib('arm', tvm_multilib)
+    ci_setup(ci_arm)
+    sh (
+      script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
+      label: 'Run Python frontend tests',
+    )
+  {% endcall %}
   'docs: GPU': {
     if (!skip_ci) {
       node('TensorCore') {
@@ -842,7 +768,8 @@ stage('Test') {
         }
       }
     }
-  }
+  },
+  )
 }
 
 /*

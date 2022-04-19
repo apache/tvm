@@ -321,7 +321,7 @@ def test_aot_executor(hexagon_session):
             params=params,
             target=tvm.target.Target(target_hexagon, host="c"),
             runtime=Runtime("cpp"),
-            executor=Executor("aot", {"unpacked-api": False, "interface-api": "c"}),
+            executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )
 
     if hexagon_session is None:
@@ -401,7 +401,7 @@ def test_aot_executor_multiple_conv2d(hexagon_session):
             params=params,
             target=tvm.target.Target(target_hexagon, host="c"),
             runtime=Runtime("cpp"),
-            executor=Executor("aot", {"unpacked-api": False, "interface-api": "c"}),
+            executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )
 
     if hexagon_session is None:
