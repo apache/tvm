@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-04-15T11:19:32.757632
+// Generated at 2022-04-15T21:28:54.806304
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -850,10 +850,6 @@ stage('Test') {
               sh (
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
-              )
-              sh (
-                script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon_simulator.sh",
-                label: 'Run Hexagon tests on simulator',
               )
             } finally {
               junit 'build/pytest-results/*.xml'

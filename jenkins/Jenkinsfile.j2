@@ -674,10 +674,6 @@ stage('Test') {
       script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
       label: 'Run Hexagon tests',
     )
-    sh (
-      script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon_simulator.sh",
-      label: 'Run Hexagon tests on simulator',
-    )
   {% endcall %}
   {% call m.test_step(name="test: QEMU", node="CPU", ws="tvm/test-qemu") %}
     unpack_lib('qemu', microtvm_lib)
