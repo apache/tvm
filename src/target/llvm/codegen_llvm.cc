@@ -37,6 +37,7 @@
 #include "codegen_cpu.h"
 #include "codegen_params.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm_common.h"
 namespace tvm {
 namespace codegen {
 
@@ -134,11 +135,11 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(global_symbol.defined())
       << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
-  ICHECK(module_->getFunction(static_cast<std::string>(global_symbol.value())) == nullptr)
-      << "Function " << global_symbol << " already exist in module";
-
-  function_ = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                                     global_symbol.value().operator std::string(), module_.get());
+  function_ = module_->getFunction(static_cast<std::string>(global_symbol.value()));
+  if (function_ == nullptr) {
+    function_ = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
+                                       global_symbol.value().operator std::string(), module_.get());
+  }
   function_->setCallingConv(llvm::CallingConv::C);
   function_->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
 
@@ -191,6 +192,19 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   }
 }
 
+llvm::GlobalVariable* CodeGenLLVM::GetLinkedParamSymbol(const std::string& param_name,
+                                                        llvm::ConstantArray* array) {
+  std::string symbol_name = std::string(::tvm::runtime::symbol::tvm_param_prefix) + param_name;
+  llvm::GlobalVariable* var = module_->getGlobalVariable(symbol_name, true /* AllowInternal */);
+  if (var == nullptr) {
+    CHECK(array != nullptr) << "Expect param symbol " << symbol_name
+                            << " to either be defined or for the array to be supplied";
+    var = new llvm::GlobalVariable(*module_, static_cast<llvm::Type*>(array->getType()), true,
+                                   llvm::GlobalValue::InternalLinkage, array, symbol_name);
+  }
+  return var;
+}
+
 void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
   // It would be nice to de-dupe these declarations frm src/tir/transforms/make_packed_api.cc,
   // but they are at a different layer in the compiler...
@@ -209,22 +223,13 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
   llvm::BasicBlock* entry = llvm::BasicBlock::Create(*ctx_, "entry", function);
   builder_->SetInsertPoint(entry);
 
-  auto getArg = [function](int i) -> llvm::Argument* {
-#if TVM_LLVM_VERSION >= 100
-    return function->getArg(i);
-#elif TVM_LLVM_VERSION >= 50
-    return &function->arg_begin()[i];
-#else
-    return &*std::next(function->arg_begin(), i);
-#endif
-  };
-
   llvm::Type* t_int64_p = t_int64_->getPointerTo(GetGlobalAddressSpace());
-  llvm::Value* sid = builder_->CreateLoad(t_int64_, builder_->CreateBitCast(getArg(0), t_int64_p));
+  llvm::Value* sid =
+      builder_->CreateLoad(t_int64_, builder_->CreateBitCast(GetArg(function, 0), t_int64_p));
 
-  auto ret_tcode = builder_->CreateBitCast(getArg(4), t_int_p);
-  auto ret_value =
-      builder_->CreateBitCast(getArg(3), t_void_p_->getPointerTo(GetGlobalAddressSpace()));
+  auto ret_tcode = builder_->CreateBitCast(GetArg(function, 4), t_int_p);
+  auto ret_value = builder_->CreateBitCast(GetArg(function, 3),
+                                           t_void_p_->getPointerTo(GetGlobalAddressSpace()));
 
   llvm::BasicBlock* default_block = llvm::BasicBlock::Create(*ctx_, "default_block", function);
   llvm::SwitchInst* switch_inst = builder_->CreateSwitch(sid, default_block, params.size() + 1);
@@ -236,9 +241,7 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
   // Add data to the global section.
   for (auto kv : params) {
     auto array = NDArrayToLLVMArray(ctx_, kv.second->param);
-    std::string symbol_name = std::string(::tvm::runtime::symbol::tvm_param_prefix) + kv.first;
-    llvm::GlobalVariable* param_symbol = new llvm::GlobalVariable(
-        *module_, array->getType(), true, llvm::GlobalValue::InternalLinkage, array, symbol_name);
+    llvm::GlobalVariable* param_symbol = GetLinkedParamSymbol(kv.first, array);
     auto dtype = tvm::runtime::DataType(kv.second->param->dtype);
     size_t align = std::max(tvm::runtime::GetVectorBytes(dtype), tvm::runtime::kAllocAlignment);
 #if TVM_LLVM_VERSION >= 100
@@ -246,8 +249,10 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
 #else
     param_symbol->setAlignment(align);
 #endif
+    param_symbol->setInitializer(array);
 
-    llvm::BasicBlock* case_block = llvm::BasicBlock::Create(*ctx_, "case_" + symbol_name, function);
+    llvm::BasicBlock* case_block =
+        llvm::BasicBlock::Create(*ctx_, "case_" + param_symbol->getName(), function);
     switch_inst->addCase(
         llvm::cast<llvm::ConstantInt>(llvm::ConstantInt::get(t_int64_, kv.second->id)), case_block);
     builder_->SetInsertPoint(case_block);
@@ -388,6 +393,7 @@ void CodeGenLLVM::Optimize() {
     fpass.run(*it);
   }
   fpass.doFinalization();
+  // PrintModule(module_.get());
   mpass.run(*module_);
 }
 
@@ -770,21 +776,27 @@ llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* va
   }
 }
 
-llvm::Constant* CodeGenLLVM::GetConstString(const std::string& str) {
-  auto it = str_map_.find(str);
-  if (it != str_map_.end()) return it->second;
-  llvm::Type* type = llvm::ArrayType::get(t_char_, str.length() + 1);
-  llvm::GlobalVariable* global = new llvm::GlobalVariable(
-      *module_, type, true, llvm::GlobalValue::PrivateLinkage, nullptr, ".str");
+llvm::Constant* CodeGenLLVM::GetGlobalConstant(llvm::Constant* const_data, const std::string& name,
+                                               llvm::GlobalValue::LinkageTypes linkage_type) {
+  llvm::Type* ty = const_data->getType();
+  llvm::GlobalVariable* global =
+      new llvm::GlobalVariable(*module_, ty, true, linkage_type, const_data, name);
 #if TVM_LLVM_VERSION >= 100
   global->setAlignment(llvm::Align(1));
 #else
   global->setAlignment(1);
 #endif
-  global->setInitializer(llvm::ConstantDataArray::getString(*ctx_, str));
   llvm::Constant* zero = ConstInt32(0);
   llvm::Constant* indices[] = {zero, zero};
-  llvm::Constant* ptr = llvm::ConstantExpr::getGetElementPtr(type, global, indices);
+  llvm::Constant* ptr = llvm::ConstantExpr::getGetElementPtr(ty, global, indices);
+  return ptr;
+}
+
+llvm::Constant* CodeGenLLVM::GetConstString(const std::string& str) {
+  auto it = str_map_.find(str);
+  if (it != str_map_.end()) return it->second;
+  auto llvm_str = llvm::ConstantDataArray::getString(*ctx_, str);
+  auto ptr = GetGlobalConstant(llvm_str, ".str", llvm::GlobalValue::PrivateLinkage);
   str_map_[str] = ptr;
   return ptr;
 }
@@ -1407,7 +1419,9 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
 llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
   if (auto* ptr_op = op->op.as<OpNode>()) {
     auto call_op = GetRef<Op>(ptr_op);
-    if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
+    if (op->op.same_as(builtin_lookup_param_)) {
+      return GetLinkedParamSymbol(Downcast<StringImm>(op->args[0])->value, nullptr);
+    } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       // call extern intrinsic
       ICHECK_GE(op->args.size(), 1U);
       auto global_symbol = Downcast<StringImm>(op->args[0]);
@@ -1418,7 +1432,10 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
       return this->CreateCallExtern(GetType(GetRef<PrimExpr>(op)), op_attr_global_symbol_[call_op],
                                     op->args, false);
     } else {
-      return CreateIntrinsic(op);
+      VLOG(2) << "CreateIntrinsic: " << GetRef<Call>(op);
+      auto x = CreateIntrinsic(op);
+      VLOG(2) << "CreateIntrinsic done";
+      return x;
     }
   } else {
     ICHECK(op->op.as<GlobalVarNode>());
@@ -1563,7 +1580,7 @@ void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
   ICHECK(!is_zero(op->condition));
   llvm::Value* buf = nullptr;
 
-  size_t constant_size = op->ConstantAllocationSize();
+  int32_t constant_size = op->ConstantAllocationSize();
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation";
   StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
   if (constant_size % 4 == 0 && info.alignment == 0) {
