@@ -233,9 +233,10 @@ class RenewDefMutator : public StmtExprMutator {
   }
 
   Buffer VisitDeclOrRemapBuffer(const Buffer& buffer) {
-    // If the buffer has been remapped, return the remapped buffer, otherwise, return the declared one
-    // Due to a recent PR, we can allow undefined buffer appearing in BufferLoad/Store.
-    // We need to remap them but will not create new var
+    // If the buffer has been remapped, return the remapped buffer, otherwise,
+    // return the declared one.
+    // Due to a recent PR, we can allow undefined buffer appearing in BufferLoad/Store. We need
+    // to remap them but will not create new var
     auto it = remap_.find(buffer);
     if (it != remap_.end()) {
       return Downcast<Buffer>((*it).second);
