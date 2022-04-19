@@ -63,9 +63,16 @@ namespace tir {
 
 // Var
 Var::Var(String name_hint, DataType dtype, Span span) {
+  // If the dtype uniquely determines the allowed type, then set it.
+  // If dtype is handle, the type annotation should be PointerType,
+  // but this constructor doesn't have enough information to determine
+  // the pointed-to type.
+  Type type_annotation = dtype.is_handle() ? Type() : PrimType(dtype);
+
   auto n = make_object<VarNode>();
   n->name_hint = std::move(name_hint);
   n->dtype = std::move(dtype);
+  n->type_annotation = std::move(type_annotation);
   n->span = std::move(span);
   data_ = std::move(n);
 }
