@@ -327,6 +327,10 @@ void CodeGenOpenCL::PrintRestrict(const Var& v, std::ostream& os) {
 
 std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType target) {
   if (from == target) return value;
+  return CastTo(value, target);
+}
+
+std::string CodeGenOpenCL::CastTo(std::string value, DataType target) {
   std::ostringstream os;
   if (target.lanes() == 1) {
     os << "((";
@@ -510,6 +514,40 @@ void CodeGenOpenCL::VisitExpr_(const MinNode* op, std::ostream& os) {
 
 void CodeGenOpenCL::VisitExpr_(const MaxNode* op, std::ostream& os) {
   PrintBinaryExpr(op, "max", os, this);
+}
+
+void CodeGenOpenCL::VisitExpr_(const AndNode* op, std::ostream& os) {
+  std::ostringstream oss;
+  os << "(";
+  this->PrintExpr(op->a, oss);
+  os << CastTo(oss.str(), op->dtype);
+  oss.str("");
+  os << " && ";
+  this->PrintExpr(op->b, oss);
+  os << CastTo(oss.str(), op->dtype);
+  os << ")";
+}
+
+void CodeGenOpenCL::VisitExpr_(const OrNode* op, std::ostream& os) {
+  std::ostringstream oss;
+  os << "(";
+  this->PrintExpr(op->a, oss);
+  os << CastTo(oss.str(), op->dtype);
+  oss.str("");
+  os << " || ";
+  this->PrintExpr(op->b, oss);
+  os << CastTo(oss.str(), op->dtype);
+  os << ")";
+}
+
+void CodeGenOpenCL::VisitExpr_(const SelectNode* op, std::ostream& os) {
+  os << "select(";
+  PrintExpr(op->false_value, os);
+  os << ", ";
+  PrintExpr(op->true_value, os);
+  os << ", ";
+  PrintExpr(op->condition, os);
+  os << ")";
 }
 
 void CodeGenOpenCL::SetTextureScope(
