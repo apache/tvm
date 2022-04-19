@@ -33,6 +33,7 @@ import time
 from string import Template
 import re
 
+from packaging import version
 import serial.tools.list_ports
 
 from tvm.micro.project_api import server
@@ -46,7 +47,7 @@ MODEL_LIBRARY_FORMAT_PATH = API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
 
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
-MIN_ARDUINO_CLI_VERSION = 0.18
+MIN_ARDUINO_CLI_VERSION = version.parse("0.18.0")
 
 BOARDS = API_SERVER_DIR / "boards.json"
 
@@ -110,7 +111,7 @@ PROJECT_OPTIONS = [
     ),
     server.ProjectOption(
         "warning_as_error",
-        optional=["generate_project"],
+        optional=["build", "flash"],
         type="bool",
         help="Treat warnings as errors and raise an Exception.",
     ),
@@ -360,10 +361,8 @@ class Handler(server.ProjectAPIHandler):
             [arduino_cli_path, "version"], check=True, stdout=subprocess.PIPE
         ).stdout.decode("utf-8")
 
-        full_version = re.findall(r"version: ([\.0-9]*)", version_output.lower())
-        full_version = full_version[0].split(".")
-        version = float(f"{full_version[0]}.{full_version[1]}")
-        return version
+        str_version = re.search(r"Version: ([\.0-9]*)", version_output).group(1)
+        return version.parse(str_version)
 
     # This will only be run for build and upload
     def _check_platform_version(self, options):
@@ -374,7 +373,7 @@ class Handler(server.ProjectAPIHandler):
         if self._version < MIN_ARDUINO_CLI_VERSION:
             message = (
                 f"Arduino CLI version too old: found {self._version}, "
-                f"need at least {ARDUINO_CLI_VERSION}."
+                f"need at least {str(MIN_ARDUINO_CLI_VERSION)}."
             )
             if options.get("warning_as_error") is not None and options["warning_as_error"]:
                 raise server.ServerError(message=message)

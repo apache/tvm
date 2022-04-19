@@ -20,7 +20,10 @@ import sys
 from pathlib import Path
 from unittest import mock
 
+from packaging import version
 import pytest
+
+from tvm.micro.project_api import server
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import microtvm_api_server
@@ -98,36 +101,52 @@ class TestGenerateProject:
         ]
 
     @mock.patch("subprocess.run")
-    def test_auto_detect_port(self, sub_mock):
+    def test_auto_detect_port(self, mock_run):
         process_mock = mock.Mock()
         handler = microtvm_api_server.Handler()
 
         # Test it returns the correct port when a board is connected
-        sub_mock.return_value.stdout = bytes(self.BOARD_CONNECTED_V18, "utf-8")
-        assert handler._auto_detect_port(self.DEFAULT_OPTIONS) == "/dev/ttyACM0"
-
-        # Test it raises an exception when no board is connected
-        sub_mock.return_value.stdout = bytes(self.BOARD_CONNECTED_V21, "utf-8")
+        mock_run.return_value.stdout = bytes(self.BOARD_CONNECTED_V18, "utf-8")
         assert handler._auto_detect_port(self.DEFAULT_OPTIONS) == "/dev/ttyACM0"
 
         # Should work with old or new arduino-cli version
-        sub_mock.return_value.stdout = bytes(self.BOARD_DISCONNECTED_V21, "utf-8")
+        mock_run.return_value.stdout = bytes(self.BOARD_CONNECTED_V21, "utf-8")
+        assert handler._auto_detect_port(self.DEFAULT_OPTIONS) == "/dev/ttyACM0"
+
+        # Test it raises an exception when no board is connected
+        mock_run.return_value.stdout = bytes(self.BOARD_DISCONNECTED_V21, "utf-8")
         with pytest.raises(microtvm_api_server.BoardAutodetectFailed):
             handler._auto_detect_port(self.DEFAULT_OPTIONS)
 
         # Test that the FQBN needs to match EXACTLY
         handler._get_fqbn = mock.MagicMock(return_value="arduino:mbed_nano:nano33")
-        sub_mock.return_value.stdout = bytes(self.BOARD_CONNECTED_V18, "utf-8")
+        mock_run.return_value.stdout = bytes(self.BOARD_CONNECTED_V18, "utf-8")
         assert (
             handler._auto_detect_port({**self.DEFAULT_OPTIONS, "arduino_board": "nano33"})
             == "/dev/ttyACM1"
         )
 
-    CLI_VERSION = "arduino-cli  Version: 0.21.1 Commit: 9fcbb392 Date: 2022-02-24T15:41:45Z\n"
+    BAD_CLI_VERSION = "arduino-cli  Version: 0.7.1 Commit: 7668c465 Date: 2019-12-31T18:24:32Z\n"
+    GOOD_CLI_VERSION = "arduino-cli  Version: 0.21.1 Commit: 9fcbb392 Date: 2022-02-24T15:41:45Z\n"
+
+    @mock.patch("subprocess.run")
+    def test_auto_detect_port(self, mock_run):
+        handler = microtvm_api_server.Handler()
+        mock_run.return_value.stdout = bytes(self.GOOD_CLI_VERSION, "utf-8")
+        handler._check_platform_version(self.DEFAULT_OPTIONS)
+        assert handler._version == version.parse("0.21.1")
+
+        # Using too low a version should raise an error. Note that naively
+        # comparing floats will fail here: 0.7 > 0.21, but 0.21 is a higher
+        # version (hence we need packaging.version)
+        handler = microtvm_api_server.Handler()
+        mock_run.return_value.stdout = bytes(self.BAD_CLI_VERSION, "utf-8")
+        with pytest.raises(server.ServerError) as error:
+            handler._check_platform_version({"warning_as_error": True})
 
     @mock.patch("subprocess.run")
     def test_flash(self, mock_run):
-        mock_run.return_value.stdout = bytes(self.CLI_VERSION, "utf-8")
+        mock_run.return_value.stdout = bytes(self.GOOD_CLI_VERSION, "utf-8")
 
         handler = microtvm_api_server.Handler()
         handler._port = "/dev/ttyACM0"
