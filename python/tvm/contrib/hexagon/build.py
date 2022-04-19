@@ -111,6 +111,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         }
         self._rpc_info.update(rpc_info)
         self._workspace = self._create_workspace(workspace)
+        self._device_key = self.HEXAGON_REMOTE_DEVICE_KEY
 
     @abc.abstractmethod
     def start_server(self):
@@ -194,7 +195,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
             "port": self._rpc_info["rpc_tracker_port"],
             "priority": 0,
             "timeout": 0,
-            "key": self.HEXAGON_REMOTE_DEVICE_KEY,
+            "key": self._device_key,
         }
         return Session(self, hexagon_remote_kw)
 
@@ -282,10 +283,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
     ]
 
     def __init__(
-        self,
-        serial_number: str,
-        rpc_info: dict,
-        workspace: Union[str, pathlib.Path] = None,
+        self, serial_number: str, rpc_info: dict, workspace: Union[str, pathlib.Path] = None
     ):
         """Configure a new HexagonLauncherAndroid
 
@@ -340,9 +338,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
                             "<RPC_TRACKER_PORT>", str(self._rpc_info["rpc_tracker_port"])
                         )
                     if "<HEXAGON_REMOTE_DEVICE_KEY>" in line:
-                        line = line.replace(
-                            "<HEXAGON_REMOTE_DEVICE_KEY>", self.HEXAGON_REMOTE_DEVICE_KEY
-                        )
+                        line = line.replace("<HEXAGON_REMOTE_DEVICE_KEY>", self._device_key)
                     if "<RPC_SERVER_PORT>" in line:
                         line = line.replace(
                             "<RPC_SERVER_PORT>", str(self._rpc_info["rpc_server_port"])
@@ -505,16 +501,18 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
             self._copy_to_remote(lib_dir / item, self._workspace / item)
         # Copy libc++ from the toolchain to the workspace
         self._copy_libcxx(self._workspace)
+        self._device_key = self.HEXAGON_REMOTE_DEVICE_KEY + "." + str(os.getpid())
 
         rpc_tracker_host = self._rpc_info["rpc_tracker_host"]
         rpc_tracker_port = self._rpc_info["rpc_tracker_port"]
         rpc_server_port = self._rpc_info["rpc_server_port"]
         server_exe = os.path.join(".", "tvm_rpc_x86")
+
         args = [
             "server",
             f"--tracker={rpc_tracker_host}:{rpc_tracker_port}",
             f"--port={rpc_server_port}",
-            f"--key={self.HEXAGON_REMOTE_DEVICE_KEY}",
+            f"--key={self._device_key}",
             "--timeout=0",
         ]
 
@@ -554,11 +552,7 @@ def _is_port_in_use(port: int) -> bool:
 
 
 # pylint: disable=invalid-name
-def HexagonLauncher(
-    serial_number: str,
-    rpc_info: dict,
-    workspace: Union[str, pathlib.Path] = None,
-):
+def HexagonLauncher(serial_number: str, rpc_info: dict, workspace: Union[str, pathlib.Path] = None):
     if serial_number == "simulator":
         return HexagonLauncherSimulator(rpc_info, workspace)
     return HexagonLauncherAndroid(serial_number, rpc_info, workspace)

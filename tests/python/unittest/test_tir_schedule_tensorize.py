@@ -26,6 +26,8 @@ from tvm.tir.tensor_intrin import (
     VNNI_DOT_16x4_INTRIN,
     ARM_DOT_4x4_i8_NEON_INTRIN,
     ARM_DOT_4x4_i8_SDOT_INTRIN,
+    AMDGPU_SDOT4_INTRIN,
+    DP4A_INTRIN,
 )
 
 # fmt: off
@@ -591,6 +593,54 @@ def test_tensorize_arm_dot():
 
         sch.decompose_reduction(block, ko)
         sch.tensorize(ji, intrin)
+
+        verify_trace_roundtrip(sch=sch, mod=func)
+
+
+def test_tensorize_dpa4():
+    m, n, k = 128, 128, 128
+
+    X = te.placeholder((m, k), name="X", dtype="int8")
+    W = te.placeholder((n, k), name="W", dtype="int8")
+    ak = te.reduce_axis((0, k), name="k")
+
+    matmul = te.compute(
+        (m, n),
+        lambda i, j: te.sum(
+            X[i, ak].astype("int32")
+            * W[j, ak].astype("int32"),
+            axis=ak,
+        ),
+        name="compute",
+    )
+
+    func = te.create_prim_func([X, W, matmul])
+
+    for intrin in [AMDGPU_SDOT4_INTRIN, DP4A_INTRIN]:
+        sch = tir.Schedule(func, debug_mask="all")
+        block = sch.get_block("compute")
+        i, j, k = sch.get_loops(block)
+
+        by, ty, yi = sch.split(i, factors=sch.sample_perfect_tile(i, n=3))
+        bx, tx, xi = sch.split(j, factors=sch.sample_perfect_tile(j, n=3))
+        ko, ki = sch.split(k, [None, 4])
+        ko, kt = sch.split(ko, factors=sch.sample_perfect_tile(ko, n=2))
+
+        sch.reorder(by, bx, ty, tx, yi, xi)
+
+        CC = sch.cache_write(block, 0, "local")
+        sch.reverse_compute_at(CC, tx)
+
+        def fetch_to_shared(block, idx):
+            block_read = sch.cache_read(block, idx, "shared")
+            sch.compute_at(block_read, ko, True)
+            return block_read
+
+        fetch_to_shared(block, 0)
+        fetch_to_shared(block, 1)
+
+        sch.decompose_reduction(block, ko)
+        sch.tensorize(ki, intrin)
 
         verify_trace_roundtrip(sch=sch, mod=func)
 
