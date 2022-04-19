@@ -67,7 +67,9 @@ class TensorizeInfo(Object):
     """Necessary information used for tensorization."""
 
 
-def get_tensorize_loop_mapping(sch: Schedule, block: BlockRV, desc_func: PrimFunc) -> Optional[TensorizeInfo]:
+def get_tensorize_loop_mapping(
+    sch: Schedule, block: BlockRV, desc_func: PrimFunc
+) -> Optional[TensorizeInfo]:
     """Establish a mapping between loops in a target block and an intrinsic description
 
     Parameters
