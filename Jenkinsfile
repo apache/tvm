@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-04-15T21:28:54.806304
+// Generated at 2022-04-19T10:04:53.134656
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -1160,7 +1160,7 @@ stage('Test') {
   },
   'docs: GPU': {
     if (!skip_ci) {
-      node('TensorCore') {
+      node('GPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/docs-python-gpu") {
           init_git()
           unpack_lib('gpu', tvm_multilib)

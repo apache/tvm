@@ -748,7 +748,7 @@ stage('Test') {
   {% endcall %}
   'docs: GPU': {
     if (!skip_ci) {
-      node('TensorCore') {
+      node('GPU') {
         ws({{ m.per_exec_ws('tvm/docs-python-gpu') }}) {
           init_git()
           unpack_lib('gpu', tvm_multilib)
