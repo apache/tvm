@@ -40,9 +40,6 @@ extern "C" {
 #include "../../hexagon/hexagon_common.h"
 #include "hexagon_rpc.h"
 
-// TODO(mehrdadh): make this configurable.
-#define TVM_HEXAGON_RPC_BUFF_SIZE_BYTES 2 * 1024 * 1024
-
 namespace tvm {
 namespace runtime {
 namespace hexagon {
@@ -190,10 +187,17 @@ class HexagonRPCServer {
 }  // namespace tvm
 
 namespace {
-tvm::runtime::hexagon::HexagonRPCServer* get_hexagon_rpc_server() {
-  static tvm::runtime::hexagon::HexagonRPCServer g_hexagon_rpc_server(
-      new uint8_t[TVM_HEXAGON_RPC_BUFF_SIZE_BYTES], TVM_HEXAGON_RPC_BUFF_SIZE_BYTES);
-  return &g_hexagon_rpc_server;
+static tvm::runtime::hexagon::HexagonRPCServer* g_hexagon_rpc_server;
+tvm::runtime::hexagon::HexagonRPCServer* get_hexagon_rpc_server(
+    uint32_t rpc_receive_buff_size_bytes = 0) {
+  if (g_hexagon_rpc_server) {
+    return g_hexagon_rpc_server;
+  }
+  CHECK_GT(rpc_receive_buff_size_bytes, 0) << "RPC receive buffer size is not valid.";
+  static tvm::runtime::hexagon::HexagonRPCServer hexagon_rpc_server(
+      new uint8_t[rpc_receive_buff_size_bytes], rpc_receive_buff_size_bytes);
+  g_hexagon_rpc_server = &hexagon_rpc_server;
+  return g_hexagon_rpc_server;
 }
 }  // namespace
 
@@ -216,7 +220,6 @@ int __QAIC_HEADER(hexagon_rpc_open)(const char* uri, remote_handle64* handle) {
     return AEE_ENOMEMORY;
   }
   reset_device_api();
-  get_hexagon_rpc_server();
 
   return AEE_SUCCESS;
 }
@@ -226,6 +229,11 @@ int __QAIC_HEADER(hexagon_rpc_close)(remote_handle64 handle) {
   if (handle) {
     free(reinterpret_cast<void*>(static_cast<uintptr_t>(handle)));
   }
+  return AEE_SUCCESS;
+}
+
+int __QAIC_HEADER(hexagon_rpc_init)(remote_handle64 _h, uint32_t buff_size_bytes) {
+  get_hexagon_rpc_server(buff_size_bytes);
   return AEE_SUCCESS;
 }
 
