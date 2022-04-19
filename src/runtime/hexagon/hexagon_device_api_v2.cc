@@ -35,6 +35,8 @@
 #include "hexagon_buffer.h"
 #include "hexagon_common.h"
 
+#include "gtest/gtest.h"
+
 namespace tvm {
 namespace runtime {
 namespace hexagon {
@@ -244,6 +246,15 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.v2").set_body([](TVMArgs args, TVMRetVal
   DeviceAPI* ptr = HexagonDeviceAPIv2::Global();
   *rv = static_cast<void*>(ptr);
 });
+
+TEST(HexagonDeviceApi, my_first_test) {
+  ASSERT_EQ(42, 42);
+}
+
+TVM_REGISTER_GLOBAL("device_api.hexagon.run_all_tests").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = RUN_ALL_TESTS();
+});
+
 
 }  // namespace hexagon
 }  // namespace runtime
