@@ -295,7 +295,7 @@ def get_shape(tensor):
 
 
 def get_dtype(tensor):
-    """Get tensor's shape."""
+    """Get tensor's dtype."""
     if isinstance(tensor, relay.expr.Var):
         return tensor.type_annotation.dtype
     if isinstance(tensor, relay.expr.Constant):
