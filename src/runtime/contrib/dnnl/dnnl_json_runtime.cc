@@ -138,7 +138,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
                                                        {"ldio", tag::ldio},
                                                        {"ldoi", tag::ldoi},
                                                        {"ldgo", tag::ldgo},
-                                                       {"format_tag_last", tag::format_tag_last},
                                                        {"nCdhw16c", tag::nCdhw16c},
                                                        {"nCdhw4c", tag::nCdhw4c},
                                                        {"nCdhw8c", tag::nCdhw8c},
