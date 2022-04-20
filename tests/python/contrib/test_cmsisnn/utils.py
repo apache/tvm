@@ -226,6 +226,7 @@ def make_qnn_relu(expr, fused_activation_fn, scale, zero_point, dtype):
     if fused_activation_fn == "RELU":
         return tvm.relay.op.clip(expr, a_min=max(qmin, quantize(0.0)), a_max=qmax)
 
+
 def generate_random_input_data(seed, shape, dtype):
     """
     Generates randomized input numpy arrays based on shape and dtype
