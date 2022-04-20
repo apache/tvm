@@ -92,12 +92,30 @@ def qnn_conv2d_transpose_legalize(attrs, inputs, types):
     # Collect the input exprs.
     data, kernel, input_zero_point, kernel_zero_point, _, _ = inputs
 
-    shift_data = relay.subtract(
-        relay.cast(data, dtype="int16"), relay.cast(input_zero_point, "int16")
-    )
-    shift_kernel = relay.subtract(
-        relay.cast(kernel, dtype="int16"), relay.cast(kernel_zero_point, "int16")
-    )
+    # If input zero point is a scalar, we can directly subtract it.
+    if len(types[2].shape) == 0:
+        shift_data = relay.subtract(
+            relay.cast(data, dtype="int16"), relay.cast(input_zero_point, "int16")
+        )
+    # Otherwise it needs to be broadcast.
+    else:
+        shift_data = relay.nn.bias_add(
+            relay.cast(data, dtype="int16"),
+            -relay.cast(input_zero_point, dtype="int16"),
+        )
+
+    # If kernel zero point is a scalar, we can directly subtract it.
+    if len(types[3].shape) == 0:
+        shift_kernel = relay.subtract(
+            relay.cast(kernel, dtype="int16"), relay.cast(kernel_zero_point, "int16")
+        )
+    # Otherwise it needs to be broadcast.
+    else:
+        shift_kernel = relay.nn.bias_add(
+            relay.cast(kernel, dtype="int16"),
+            -relay.cast(kernel_zero_point, dtype="int16"),
+        )
+
     return relay.nn.conv2d_transpose(shift_data, shift_kernel, **attrs)
 
 

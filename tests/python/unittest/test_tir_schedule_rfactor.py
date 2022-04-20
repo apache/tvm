@@ -472,9 +472,7 @@ def rowsum_zero_dim_rfactor(a: T.handle, b: T.handle) -> None:
     for i in range(128):
         with T.block("B_rf"):
             vi0 = T.axis.S(128, i)
-            with T.init():
-                B_rf[vi0] = 0.0
-            B_rf[vi0] = B_rf[vi0] + A[vi0]
+            B_rf[vi0] = A[vi0]
 
     for i in range(128):
         with T.block("B"):
@@ -604,6 +602,56 @@ def multiple_reduction_blocks_rfactor(a: T.handle, f: T.handle) -> None:
                     with T.init():
                         F[fi, fj] = 0.0
                     F[fi, fj] = (F[fi, fj] + A[fi, fj, fk]) + E[fi, fj]
+
+
+@T.prim_func
+def rfactor_spatial_only(
+    A: T.Buffer[(1, 512, 7, 7), "float32"],
+    B: T.Buffer[(1, 512, 1, 1), "float32"],
+) -> None:
+    for _i0, i1, _i2, _i3, i4, _i5 in T.grid(1, 512, 1, 1, 49, 1):
+        with T.block("acc"):
+            ax0 = T.axis.spatial(1, 0)
+            ax1 = T.axis.spatial(512, i1)
+            ax2 = T.axis.spatial(1, 0)
+            ax3 = T.axis.spatial(1, 0)
+            rv0 = T.axis.reduce(7, i4 // 7)
+            rv1 = T.axis.reduce(7, i4 % 7)
+            T.reads(A[ax0, ax1, ax2 * 7 + rv0, ax3 * 7 + rv1])
+            T.writes(B[ax0, ax1, ax2, ax3])
+            with T.init():
+                B[ax0, ax1, ax2, ax3] = T.float32(0)
+            B[ax0, ax1, ax2, ax3] = (
+                B[ax0, ax1, ax2, ax3] + A[ax0, ax1, ax2 * 7 + rv0, ax3 * 7 + rv1]
+            )
+
+
+@T.prim_func
+def rfactor_spatial_only_after(
+    A: T.Buffer[(1, 512, 7, 7), "float32"],
+    B: T.Buffer[(1, 512, 1, 1), "float32"],
+) -> None:
+    # body
+    # with T.block("root")
+    B_rf = T.alloc_buffer([1, 512, 1, 1, 49], dtype="float32")
+    for _i0, i1, _i2, _i3, i4, _i5 in T.grid(1, 512, 1, 1, 49, 1):
+        with T.block("acc_rf"):
+            vi4 = T.axis.spatial(49, i4)
+            ax0 = T.axis.spatial(1, 0)
+            ax1 = T.axis.spatial(512, i1)
+            ax2 = T.axis.spatial(1, 0)
+            ax3 = T.axis.spatial(1, 0)
+            B_rf[ax0, ax1, ax2, ax3, vi4] = A[ax0, ax1, ax2 * 7 + vi4 // 7, ax3 * 7 + vi4 % 7]
+    for _i0, i1, _i2, _i3, i4, _i5 in T.grid(1, 512, 1, 1, 49, 1):
+        with T.block("acc"):
+            vi4 = T.axis.reduce(49, i4)
+            ax0 = T.axis.spatial(1, 0)
+            ax1 = T.axis.spatial(512, i1)
+            ax2 = T.axis.spatial(1, 0)
+            ax3 = T.axis.spatial(1, 0)
+            with T.init():
+                B[ax0, ax1, ax2, ax3] = T.float32(0)
+            B[ax0, ax1, ax2, ax3] = B[ax0, ax1, ax2, ax3] + B_rf[ax0, ax1, ax2, ax3, vi4]
 
 
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
@@ -798,6 +846,15 @@ def test_reduction_rfactor_with_annotation():
     assert s.get(rf_block).same_as(s.get(s.get_block("C_rf")))
     assert s.get(C).same_as(s.get(s.get_block("C")))
     verify_trace_roundtrip(s, mod=square_sum_with_annotation)
+
+
+def test_reduction_rfactor_spatial_only():
+    s = tir.Schedule(rfactor_spatial_only, debug_mask="all")
+    block = s.get_block(name="acc", func_name="main")
+    _, _, _, _, loop, _ = s.get_loops(block)
+    s.rfactor(loop=loop, factor_axis=4)
+    tvm.ir.assert_structural_equal(s.mod["main"], rfactor_spatial_only_after)
+    verify_trace_roundtrip(s, mod=rfactor_spatial_only)
 
 
 if __name__ == "__main__":

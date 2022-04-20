@@ -63,10 +63,7 @@ if __name__ == "__main__":
         logging.info("===== sccache stats =====")
         sh.run("sccache --show-stats")
 
-    if "CI" in os.environ:
-        executors = int(os.environ["CI_NUM_EXECUTORS"])
-    else:
-        executors = int(os.environ.get("CI_NUM_EXECUTORS", 1))
+    executors = int(os.environ.get("CI_NUM_EXECUTORS", 1))
 
     nproc = multiprocessing.cpu_count()
 

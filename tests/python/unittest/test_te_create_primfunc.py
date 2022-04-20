@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import tvm
-from tvm.script import tir as T
-from tvm import te, tir, topi
 import numpy as np
+import tvm
 import tvm.testing
+from tvm import te, tir, topi
+from tvm.script import tir as T
 
 
 def test_unique_name_complete_block():
@@ -371,6 +371,46 @@ def test_tensor_attr():
     tvm.ir.assert_structural_equal(func, rt_func)
 
 
+@T.prim_func
+def expected_layout_attr(
+    A: T.Buffer[(128, 128), "float32"],
+    B: T.Buffer[(128, 128), "float32"],
+    D: T.Buffer[(128, 128), "float32"],
+) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_placeholders": [1]})
+    C = T.alloc_buffer([128, 128], dtype="float32")
+    for i0, i1, i2 in T.grid(128, 128, 128):
+        with T.block("C"):
+            x, y, k = T.axis.remap("SSR", [i0, i1, i2])
+            with T.init():
+                C[x, y] = T.float32(0)
+            C[x, y] = C[x, y] + A[x, k] * B[y, k]
+    for i0, i1 in T.grid(128, 128):
+        with T.block("D"):
+            x, y = T.axis.remap("SS", [i0, i1])
+            D[x, y] = C[x, y] + T.float32(1)
+
+
+def test_tensor_layout_attr():
+    k = te.reduce_axis((0, 128), "k")
+    A = te.placeholder((128, 128), name="A")
+    B = te.placeholder((128, 128), name="B")
+    C = te.compute(
+        (128, 128),
+        lambda x, y: te.sum(A[x, k] * B[y, k], axis=k),
+        name="C",
+        attrs={"layout_free_placeholders": [B]},
+    )
+    D = te.compute(
+        (128, 128),
+        lambda x, y: C[x, y] + 1,
+        name="D",
+        attrs={"layout_free_placeholders": [C]},
+    )
+    func = te.create_prim_func([A, B, D])
+    tvm.ir.assert_structural_equal(func, expected_layout_attr)
+
+
 def te_argmax_idx_val():
     def f_combine(x, y):
         lhs = tvm.tir.Select((x[1] >= y[1]), x[0], y[0])
@@ -473,6 +513,17 @@ def test_argmax_val_idx():
     _check_workload(te_argmax_val_idx, tir_argmax_val_idx)
 
 
+def test_int64_indices():
+    n = te.var("n", "int64")
+    A = te.placeholder((n,), name="A")
+    B = te.compute(A.shape, lambda *i: A(*i) + 1, name="B")
+    prim_func = te.create_prim_func([A, B])
+    loop = prim_func.body.block.body
+    assert loop.loop_var.dtype == "int64"
+    assert loop.min.dtype == "int64"
+    assert loop.extent.dtype == "int64"
+
+
 if __name__ == "__main__":
     test_unique_name_complete_block()
     test_unique_name_reduction_block()
@@ -486,5 +537,7 @@ if __name__ == "__main__":
     test_constant()
     test_select_simplify()
     test_tensor_attr()
+    test_tensor_layout_attr()
     test_argmax_idx_val()
     test_argmax_val_idx()
+    test_int64_indices()

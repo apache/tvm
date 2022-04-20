@@ -34,10 +34,9 @@ _lrn_schedule = {
 }
 
 
-def verify_lrn(shape, size, axis, bias, alpha, beta):
-    A = te.placeholder(shape, name="A")
+def verify_lrn(shape, size, axis, bias, alpha, beta, dtype="float32", rtol=1e-5, atol=1e-5):
+    A = te.placeholder(shape, dtype=dtype, name="A")
     B = topi.nn.lrn(A, size, axis, alpha, beta, bias)
-    dtype = A.dtype
 
     a_np = np.random.uniform(size=shape).astype(dtype)
     b_np = tvm.topi.testing.lrn_python(a_np, size, axis, bias, alpha, beta)
@@ -55,7 +54,7 @@ def verify_lrn(shape, size, axis, bias, alpha, beta):
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), dev)
         f = tvm.build(s, [A, B], device)
         f(a, b)
-        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=rtol, atol=atol)
 
     for device in ["llvm", "cuda", "opencl", "metal", "rocm", "vulkan", "nvptx"]:
         check_device(device)
@@ -66,6 +65,7 @@ def test_lrn():
     verify_lrn((1, 3, 5, 5), 3, 1, 1.0, 1.0, 0.5)
     verify_lrn((1, 3, 5, 5), 3, 3, 1.0, 1.0, 0.5)
     verify_lrn((1, 3, 20, 20), 3, 1, 2.0, 1.0, 0.75)
+    verify_lrn((1, 3, 5, 5), 3, 3, 1.0, 1.0, 0.5, dtype="float16", rtol=1e-3, atol=1e-3)
 
 
 if __name__ == "__main__":

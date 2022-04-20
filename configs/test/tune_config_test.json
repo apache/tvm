@@ -1,0 +1,6 @@
+{
+    "targets": [
+        { "kind": "llvm" }
+    ],
+    "trials": "2"
+}

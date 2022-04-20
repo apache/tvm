@@ -308,14 +308,14 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
     cg->SetFastMathFlag(fmf);
 
+    if (found_linked_params) {
+      cg->LinkParameters(linked_params);
+    }
     cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
     if (entry_func.length() != 0) {
       cg->AddMainFunction(entry_func);
     }
 
-    if (found_linked_params) {
-      cg->LinkParameters(linked_params);
-    }
     module_ = cg->Finish();
     module_->addModuleFlag(llvm::Module::Warning, "tvm_target",
                            llvm::MDString::get(*ctx_, LLVMTargetToString(target)));
@@ -526,6 +526,41 @@ TVM_REGISTER_GLOBAL("codegen.codegen_blob")
       n->Init(std::move(p.first), p.second);
       return runtime::Module(n);
     });
+
+runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata, Target target,
+                                            tvm::relay::Runtime runtime) {
+  InitializeLLVM();
+  auto tm = GetLLVMTargetMachine(target);
+  bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
+  auto ctx = std::make_shared<llvm::LLVMContext>();
+  std::unique_ptr<CodeGenCPU> cg{new CodeGenCPU()};
+
+  cg->Init("TVMMetadataMod", tm.get(), ctx.get(), system_lib, system_lib,
+           false /* target_c_runtime */);
+
+  cg->DefineMetadata(metadata);
+  auto mod = cg->Finish();
+  mod->addModuleFlag(llvm::Module::Warning, "tvm_target",
+                     llvm::MDString::get(*ctx, LLVMTargetToString(target)));
+  mod->addModuleFlag(llvm::Module::Override, "Debug Info Version", llvm::DEBUG_METADATA_VERSION);
+
+  if (tm->getTargetTriple().isOSDarwin()) {
+    mod->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
+  }
+
+  std::string verify_errors_storage;
+  llvm::raw_string_ostream verify_errors(verify_errors_storage);
+  LOG_IF(FATAL, llvm::verifyModule(*mod, &verify_errors))
+      << "LLVM module verification failed with the following errors: \n"
+      << verify_errors.str();
+
+  auto n = make_object<LLVMModuleNode>();
+  n->Init(std::move(mod), ctx);
+
+  auto meta_mod = MetadataModuleCreate(metadata);
+  meta_mod->Import(runtime::Module(n));
+  return meta_mod;
+}
 
 runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
                                             tvm::relay::Runtime runtime) {
