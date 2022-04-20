@@ -91,7 +91,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
  private:
-  tag layout2tag(std::string layout, bool is_weight = false) {
+  tag layout2tag(std::string layout) {
     static const std::map<std::string, tag> str2tag = {{"nc", tag::nc},
                                                        {"cn", tag::cn},
                                                        {"tn", tag::tn},
