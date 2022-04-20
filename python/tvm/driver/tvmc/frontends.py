@@ -313,13 +313,21 @@ class RelayFrontend(Frontend):
             logger.warning("Supplied shape_dict argument ignored for text frontend")
         ir_mod = parser.fromtext(text)
 
-        def _gen_params(ir_mod):
+        if shape_dict:
+            input_names = shape_dict.keys()
+        else:
+            input_names = []
+
+        def _gen_params(ir_mod, skip_names=None):
             """Populate the all the params in the mode with ones."""
             main_func = ir_mod["main"]
             shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
             type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
             params = {}
             for name, shape in shape_dict.items():
+                if skip_names and name in skip_names:
+                    continue
+
                 if "int" in type_dict[name]:
                     data = np.random.randint(128, size=shape, dtype=type_dict[name])
                 else:
@@ -328,7 +336,7 @@ class RelayFrontend(Frontend):
             return params
 
         logger.warning("Parameters in the relay module will be initialized with ones.")
-        params = _gen_params(ir_mod)
+        params = _gen_params(ir_mod, skip_names=input_names)
 
         return ir_mod, params
 
