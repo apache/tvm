@@ -338,7 +338,7 @@ Buffer Buffer::GetFlattenedBuffer() const {
   // input axis.
   for (size_t i = 0; (i + 1) < self->axis_separators.size(); i++) {
     auto sep = self->axis_separators[i]->value;
-    auto next_sep = self->axis_separators[i]->value;
+    auto next_sep = self->axis_separators[i + 1]->value;
     ICHECK_LT(sep, next_sep) << "Axis separators must be in strictly increasing order.";
   }
   if (self->axis_separators.size()) {
@@ -460,7 +460,6 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
   begins = SimplifyArray(&ana, begins);
   Array<PrimExpr> elem_offset = n->ElemOffset(begins);
   elem_offset.MutateByApply([&](const PrimExpr& expr) { return ana.Simplify(expr); });
-  ICHECK_EQ(elem_offset.size(), 1) << "MakeSlice currently supports only flat 1-d memory.";
 
   Array<PrimExpr> strides = n->strides;
   if (strides.size() == 0) {
@@ -480,8 +479,20 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
       return MakeStrideView().MakeSlice(begins, extents);
     }
   }
-  return Buffer(n->data, n->dtype, extents, strides, elem_offset[0], n->name + "_slice",
-                n->data_alignment, 0, n->buffer_type);
+  Buffer slice(n->data, n->dtype, extents, strides, elem_offset[0], n->name + "_slice",
+               n->data_alignment, 0, n->buffer_type);
+
+  // Buffer must be constructed with a singular element offset which means there is no
+  // support for n-dimensional buffers where n > 1.  Insert sentinel value for
+  // ArgBinder::BindBuffer to state that any usage of element offset is invalid
+  // in this case.  This allows for construction of a Buffer with multiple element offsets
+  // but disallows any usage of those element offsets.  See PR #10816 for discussion on
+  // supporting multiple element offsets in TIR Buffer.
+  // TODO(Lunderberg): Remove if/when TIR supports multiple element offsets in TIR Buffer
+  if (elem_offset.size() != 1) {
+    slice.CopyOnWrite()->elem_offset = PrimExpr();
+  }
+  return slice;
 }
 
 PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes,

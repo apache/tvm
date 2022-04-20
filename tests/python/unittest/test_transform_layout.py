@@ -225,11 +225,13 @@ class Test2DPhysicalLayout:
         "1d_A",
         "2d_A",
         "2d_rev_A",
+        "3d_A",
     )
     transform_B = tvm.testing.parameter(
         "1d_B",
         "2d_B",
         "2d_rev_B",
+        "3d_B",
     )
 
     @staticmethod
@@ -254,6 +256,8 @@ class Test2DPhysicalLayout:
             return lambda i, j, k: [i, j, te.AXIS_SEPARATOR, k]
         elif name == "2d_rev":
             return lambda i, j, k: [k, j, te.AXIS_SEPARATOR, i]
+        elif name == "3d":
+            return lambda i, j, k: [i, te.AXIS_SEPARATOR, j, te.AXIS_SEPARATOR, k]
         else:
             raise ValueError(f"Unknown transformation: {name}")
 
@@ -268,6 +272,8 @@ class Test2DPhysicalLayout:
             return [i * logical_shape[1] + j, k]
         elif name == "2d_rev":
             return [k * logical_shape[1] + j, i]
+        elif name == "3d":
+            return [i, j, k]
         else:
             raise ValueError(f"Unknown transformation: {name}")
 
@@ -537,6 +543,36 @@ def test_transform_with_reduction():
     # When present, the failure occurred during tvm.lower, during the
     # call to `tvm::te::PassDownBitMaskOr`.
     tvm.lower(s, [A, B])
+
+
+shape, transform = tvm.testing.parameters(
+    ([1, 8], lambda n, i: [i, n]),
+    ([1, 1, 8], lambda i, j, k: [j, te.AXIS_SEPARATOR, i, k]),
+    ([1, 1, 8], lambda i, j, k: [i, te.AXIS_SEPARATOR, j, k]),
+)
+
+
+def test_size_one_buffer(shape, transform):
+    # This test is to catch a failure mode that occurred if a
+    # transformation were applied to a te.compute buffer, and one of
+    # the dimensions of the buffer was 1.  Prior to bugfix,
+    # arith::DetectIterMap would fold the variable as a constant,
+    # causing an error when attempting to solve for the variable using
+    # arith::InverseAffineIterMap.
+
+    dtype = "int8"
+    A = te.placeholder(shape, dtype, name="A")
+    B = te.compute(
+        shape=A.shape,
+        fcompute=lambda *indices: A[indices].astype(dtype),
+        name="B",
+    )
+    s = te.create_schedule(B.op)
+
+    # If layout transformation is on the output buffer, and any
+    # dimension of the output buffer is 1, failure occurs in
+    # CheckFusePattern.
+    s[B].transform_layout(transform)
 
 
 if __name__ == "__main__":

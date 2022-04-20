@@ -658,7 +658,7 @@ def convert_gelu(g, op, block):
     x = g.get_node(op.input("X")[0])
     out = x * (
         _expr.const(0.5, dtype="float32")
-        + _op.erf(x * _expr.const(0.5 ** 0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
+        + _op.erf(x * _expr.const(0.5**0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
     )
     g.add_node(op.output("Out")[0], out)
 
@@ -1231,9 +1231,17 @@ def convert_pool2d(g, op, block):
     # handle with special case
     # while kernel size less than input size
     # shrink kernel size to input size
-    if not isinstance(in_h, _op.Expr) and in_h < ksize[0]:
+    if (
+        not isinstance(in_h, _op.Expr)
+        and padding_algorithm == "EXPLICIT"
+        and in_h + paddings[0] + paddings[2] < ksize[0]
+    ):
         ksize[0] = in_h
-    if not isinstance(in_w, _op.Expr) and in_w < ksize[1]:
+    if (
+        not isinstance(in_w, _op.Expr)
+        and padding_algorithm == "EXPLICIT"
+        and in_w + paddings[1] + paddings[3] < ksize[1]
+    ):
         ksize[1] = in_w
 
     if not adaptive:
@@ -1672,7 +1680,7 @@ def convert_scale(g, op, block):
     bias_after_scale = op.attr("bias_after_scale")
     x = g.get_node(op.input("X")[0])
     if np.isclose(scale, 1.0) and np.isclose(bias, 0.0):
-        out = _op.copy(x)
+        out = x
     else:
         if np.isclose(bias, 0.0):
             out = x * _expr.const(np.array(scale).astype("float32"))

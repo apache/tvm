@@ -30,6 +30,8 @@
 #include <sstream>
 #include <vector>
 
+#include "../support/str_escape.h"
+
 namespace tvm {
 
 /*!
@@ -129,9 +131,8 @@ Doc Doc::Indent(int indent, Doc doc) {
 }
 
 Doc Doc::StrLiteral(const std::string& value, std::string quote) {
-  // TODO(@M.K.): add escape.
   Doc doc;
-  return doc << quote << value << quote;
+  return doc << quote << support::StrEscape(value) << quote;
 }
 
 Doc Doc::PyBoolLiteral(bool value) {

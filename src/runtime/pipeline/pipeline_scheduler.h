@@ -41,15 +41,14 @@ class PipelineScheduler {
    * \param modules The list of graph executor module.
    * \param pipeline_config The dependency information of each graph executor module.
    */
-  std::vector<std::shared_ptr<BackendRuntime>> PipelineInit(
-      const std::vector<Module>& modules, const ConfigPipelineExecution& pipeline_config);
+  std::shared_ptr<GlobalRuntime> PipelineInit(const std::vector<Module>& modules,
+                                              const ConfigPipelineExecution& pipeline_config,
+                                              const InputConnectionConfig& input_connection_config);
   /*!
    * \brief Running the pipeline logic.
    * \param runtimes A list of backend runtime modules.
-   * \param pipeline_config The dependency configuration of each runtime module.
    */
-  void PipelineRun(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
-                   ConfigPipelineExecution pipeline_config);
+  void PipelineRun(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes);
   /*!
    * \brief Get a list of outputs.
    */

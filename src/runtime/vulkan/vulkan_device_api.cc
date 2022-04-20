@@ -367,6 +367,7 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
                       &copy_info);
     });
     stream.Synchronize();
+    stream.ProfilerReset();
     if (!device.coherent_staging) {
       VkMappedMemoryRange mrange;
       mrange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
@@ -413,6 +414,8 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
       vkCmdCopyBuffer(state->cmd_buffer_, staging_buffer.vk_buf.buffer, to_buf->buffer, 1,
                       &copy_info);
     });
+
+    stream.ProfilerReady();
     // TODO(tulloch): should we instead make the staging buffer a property of the
     // Stream? This would allow us to elide synchronizations here.
     stream.Synchronize();

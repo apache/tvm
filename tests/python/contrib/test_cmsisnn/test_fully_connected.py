@@ -100,7 +100,6 @@ def make_model(
 
 
 @tvm.testing.requires_cmsisnn
-@pytest.mark.xfail(strict=False, reason="Flaky test: https://github.com/apache/tvm/issues/10213")
 @pytest.mark.parametrize("in_shape", [(2, 28), (1, 64)])
 @pytest.mark.parametrize("out_channels", [12, 128])
 @pytest.mark.parametrize("enable_bias", [False, True])

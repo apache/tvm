@@ -56,7 +56,8 @@ class VisitableMetadataNode : public ::tvm::runtime::metadata::MetadataNode {
       inputs_array.push_back(::tvm::runtime::metadata::TensorInfo{inputs_accessor[i]});
     }
     ::tvm::runtime::metadata::MetadataArray inputs_metadata_array{
-        inputs_array, ::tvm::runtime::metadata::MetadataTypeIndex::kMetadata, "TVMTensorInfo"};
+        inputs_array, ::tvm::runtime::metadata::MetadataKind::kMetadata,
+        ::tvm::runtime::metadata::TensorInfoNode::_type_key};
     v->Visit("inputs", &inputs_metadata_array);
     int64_t num_inputs_cpp = num_inputs();
     v->Visit("num_inputs", &num_inputs_cpp);
@@ -67,7 +68,8 @@ class VisitableMetadataNode : public ::tvm::runtime::metadata::MetadataNode {
       outputs_array.push_back(::tvm::runtime::metadata::TensorInfo{outputs_accessor[i]});
     }
     ::tvm::runtime::metadata::MetadataArray outputs_metadata_array{
-        outputs_array, ::tvm::runtime::metadata::MetadataTypeIndex::kMetadata, "TVMTensorInfo"};
+        outputs_array, ::tvm::runtime::metadata::MetadataKind::kMetadata,
+        ::tvm::runtime::metadata::TensorInfoNode::_type_key};
     v->Visit("outputs", &outputs_metadata_array);
     int64_t num_outputs_cpp = num_outputs();
     v->Visit("num_outputs", &num_outputs_cpp);
@@ -78,7 +80,8 @@ class VisitableMetadataNode : public ::tvm::runtime::metadata::MetadataNode {
       pools_array.push_back(::tvm::runtime::metadata::TensorInfo{pools_accessor[i]});
     }
     ::tvm::runtime::metadata::MetadataArray pools_metadata_array{
-        pools_array, ::tvm::runtime::metadata::MetadataTypeIndex::kMetadata, "TVMTensorInfo"};
+        pools_array, ::tvm::runtime::metadata::MetadataKind::kMetadata,
+        ::tvm::runtime::metadata::TensorInfoNode::_type_key};
     v->Visit("pools", &pools_metadata_array);
     int64_t num_pools_cpp = num_pools();
     v->Visit("num_pools", &num_pools_cpp);
@@ -156,7 +159,7 @@ class VisitableTensorInfoNode : public ::tvm::runtime::metadata::TensorInfoNode 
       shape_array.push_back(::tvm::Integer{static_cast<int>(shape_accessor[i])});
     }
     ::tvm::runtime::metadata::MetadataArray shape_metadata_array{
-        shape_array, ::tvm::runtime::metadata::MetadataTypeIndex::kInt64, nullptr};
+        shape_array, ::tvm::runtime::metadata::MetadataKind::kInt64, nullptr};
     v->Visit("shape", &shape_metadata_array);
     int64_t num_shape_cpp = num_shape();
     v->Visit("num_shape", &num_shape_cpp);

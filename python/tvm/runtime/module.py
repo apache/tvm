@@ -574,4 +574,15 @@ def enabled(target):
     return _ffi_api.RuntimeEnabled(target)
 
 
+def num_threads() -> int:
+    """Get the number of threads in use by the TVM runtime.
+
+    Returns
+    -------
+    int
+        Number of threads in use.
+    """
+    return _ffi_api.NumThreads()
+
+
 _set_class_module(Module)

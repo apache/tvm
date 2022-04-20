@@ -29,7 +29,6 @@ function(find_and_set_linker use_alternative_linker)
 
   macro(add_to_linker_flags flag)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${flag}" PARENT_SCOPE)
-    set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} ${flag}" PARENT_SCOPE)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${flag}" PARENT_SCOPE)
     set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} ${flag}" PARENT_SCOPE)
     message(STATUS "Added \"${flag}\" to linker flags " ${CMAKE_SHARED_LINKER_FLAGS})

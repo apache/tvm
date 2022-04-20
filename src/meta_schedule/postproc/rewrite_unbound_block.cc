@@ -61,6 +61,11 @@ BindType GetBindType(const StmtSRef& block_sref, int* fuse_first_num) {
         i_thread_idx = i;
       }
     }
+    if (loop->kind != tir::ForKind::kSerial) {
+      if (i_multi_child == -1) {
+        i_multi_child = i;
+      }
+    }
     if (!IsSingleStmt(loop->body)) {
       if (i_multi_child == -1) {
         i_multi_child = i + 1;

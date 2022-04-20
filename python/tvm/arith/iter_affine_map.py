@@ -88,7 +88,13 @@ class IterSumExpr(IterMapExpr):
         self.__init_handle_by_constructor__(_ffi_api.IterSumExpr, args, base)
 
 
-def detect_iter_map(indices, input_iters, predicate=True, require_bijective=False):
+def detect_iter_map(
+    indices,
+    input_iters,
+    predicate=True,
+    require_bijective=False,
+    simplify_trivial_iterators=True,
+):
     """Detect if indices can be written as mapped iters from input iters
 
     Parameters
@@ -105,13 +111,20 @@ def detect_iter_map(indices, input_iters, predicate=True, require_bijective=Fals
     require_bijective : bool
         A boolean flag that indicates whether the mapping should be bijective
 
+    simplify_trivial_iterators: bool
+        If true, iterators with extent of 1 will be replaced with a
+        constant value.
+
     Returns
     -------
     results : List[IterSumExpr]
         The iter map matching result.
         Empty array if no match can be found.
+
     """
-    return _ffi_api.DetectIterMap(indices, input_iters, predicate, require_bijective)
+    return _ffi_api.DetectIterMap(
+        indices, input_iters, predicate, require_bijective, simplify_trivial_iterators
+    )
 
 
 def normalize_iter_map_to_expr(expr):

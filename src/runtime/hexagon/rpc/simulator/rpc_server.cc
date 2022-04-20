@@ -321,5 +321,5 @@ TVM_REGISTER_GLOBAL("tvm.hexagon.load_module")
     .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
       std::string soname = args[0];
       tvm::ObjectPtr<tvm::runtime::Library> n = tvm::runtime::CreateDSOLibraryObject(soname);
-      *rv = CreateModuleFromLibrary(n, tvm::runtime::hexagon::WrapPackedFunc);
+      *rv = CreateModuleFromLibrary(n);
     });

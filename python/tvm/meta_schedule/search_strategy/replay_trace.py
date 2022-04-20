@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Replay Trace Search Strategy"""
-from typing import NamedTuple
-
 from tvm._ffi import register_object
 
 from .. import _ffi_api
@@ -34,7 +32,7 @@ class ReplayTrace(SearchStrategy):
     num_trials_per_iter : int
         Number of trials per iteration.
     max_trials_per_task : int
-        Total number of trials.
+        Total number of trials for one task
     """
 
     num_trials_per_iter: int
@@ -47,14 +45,3 @@ class ReplayTrace(SearchStrategy):
             num_trials_per_iter,
             max_trials_per_task,
         )
-
-
-class ReplayTraceConfig(NamedTuple):
-    """Configuration for ReplayTrace"""
-
-    num_trials_per_iter: int
-    max_trials_per_task: int
-    max_trials_global: int
-
-    def create_strategy(self) -> ReplayTrace:
-        return ReplayTrace(self.num_trials_per_iter, self.max_trials_per_task)

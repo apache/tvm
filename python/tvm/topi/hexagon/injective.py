@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,9 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
+"""Schedule for injective operators"""
 
-# check lastest change, for squash merge into main
-./tests/lint/git-clang-format.sh HEAD~1
-# chekc against origin/main for PRs.
-./tests/lint/git-clang-format.sh origin/main
+import tvm
+
+
+def schedule_injective(outs):
+    """Schedule for injective op.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of injective in the format
+        of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    outs = [outs] if isinstance(outs, tvm.te.tensor.Tensor) else outs
+    s = tvm.te.create_schedule([x.op for x in outs])
+    tvm.te.schedule.AutoInlineInjective(s)
+    return s
+
+
+def schedule_softmax(outs):
+    return schedule_injective(outs)

@@ -24,7 +24,6 @@ import numpy as np
 import pytest
 
 pytest.importorskip("pyxir")
-import pyxir.contrib.target.DPUCADX8G
 import pyxir.contrib.target.DPUCZDX8G
 
 import tvm

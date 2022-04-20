@@ -60,7 +60,7 @@ def test_error_c_interface_with_packed_api():
         tvm.TVMError,
         match=re.escape(
             'Either need interface_api == "packed" (got: c) or '
-            "unpacked-api == true (got: (bool)0) when targeting "
+            "unpacked-api == true (got: 0) when targeting "
             "c runtime"
         ),
     ):
@@ -819,10 +819,6 @@ def test_constants_alignment(constants_byte_alignment):
     assert f'__attribute__((section(".rodata.tvm"), aligned({constants_byte_alignment})))' in source
 
 
-@pytest.mark.skipif(
-    platform.machine() == "aarch64",
-    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
-)
 def test_output_tensor_names():
     """Test that the output names generated match those in the model"""
     pytest.importorskip("tflite")

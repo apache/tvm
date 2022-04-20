@@ -78,7 +78,7 @@ def test_meta_schedule_measure_callback():
 
     measure_callback = FancyMeasureCallback()
     measure_callback.apply(
-        RoundRobin([], DummyBuilder(), DummyRunner(), DummyDatabase(), max_trials=1),
+        RoundRobin([], [], DummyBuilder(), DummyRunner(), DummyDatabase(), max_trials=1),
         0,
         [MeasureCandidate(Schedule(Matmul), None)],
         [BuilderResult("test_build", None)],
@@ -102,7 +102,7 @@ def test_meta_schedule_measure_callback_fail():
     measure_callback = FailingMeasureCallback()
     with pytest.raises(ValueError, match="test"):
         measure_callback.apply(
-            RoundRobin([], DummyBuilder(), DummyRunner(), DummyDatabase(), max_trials=1),
+            RoundRobin([], [], DummyBuilder(), DummyRunner(), DummyDatabase(), max_trials=1),
             0,
             [MeasureCandidate(Schedule(Matmul), None)],
             [BuilderResult("test_build", None)],

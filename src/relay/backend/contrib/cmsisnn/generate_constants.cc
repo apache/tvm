@@ -123,8 +123,8 @@ class GenerateConstantsMutator : public MixedModeMutator {
     // Obtain input and output scales from Relay's Requantization
     int64_t out_channels = conv2d_attrs->channels.as<IntImmNode>()->value;
     float output_scale = GetScalarFromConstant<float>(requantize_call->args[3]);
-    auto input_scales = tvm::relay::qnn::GetFloatVectorFromConstant(requantize_call->args[1]);
-    ICHECK(input_scales.size() == static_cast<size_t>(out_channels));
+    auto input_scale = GetScalarFromConstant<float>(conv2d_call->args[4]);
+    auto filter_scales = tvm::relay::qnn::GetFloatVectorFromConstant(conv2d_call->args[5]);
 
     // Calculate requantization multiplier and shift
     Device dev{DLDeviceType::kDLCPU, 0};
@@ -134,10 +134,10 @@ class GenerateConstantsMutator : public MixedModeMutator {
     int32_t* multiplier = static_cast<int32_t*>(multiplier_nda->data);
     int32_t* shift = static_cast<int32_t*>(shift_nda->data);
     for (int i = 0; i < out_channels; ++i) {
-      double quantized_multiplier =
-          static_cast<double>(input_scales[i]) / static_cast<double>(output_scale);
+      double effective_output_scale =
+          static_cast<double>(input_scale) * filter_scales[i] / static_cast<double>(output_scale);
       std::tie(*(multiplier + i), *(shift + i)) =
-          tvm::relay::qnn::GetFixedPointMultiplierShift(quantized_multiplier);
+          tvm::relay::qnn::GetFixedPointMultiplierShift(effective_output_scale);
     }
 
     // Create constants from requantization multiplier and shift
