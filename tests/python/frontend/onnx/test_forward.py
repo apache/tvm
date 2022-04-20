@@ -2848,14 +2848,14 @@ def test_convtranspose(target, dev):
                 helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
                 helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_shape)),
             ],
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 1] + list(output_shape))],
+            outputs=[
+                helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 1] + list(output_shape))
+            ],
         )
 
         model = helper.make_model(graph, producer_name="convtranspose_output_shape_test")
 
-        verify_with_ort(
-            model, [x_shape, w_shape], use_vm=True, target=target, dev=dev
-        )
+        verify_with_ort(model, [x_shape, w_shape], use_vm=True, target=target, dev=dev)
 
     def verify_convtranspose_with_padding(
         x_shape,
@@ -3041,6 +3041,7 @@ def test_convtranspose(target, dev):
                 repeat(1, D),
                 auto_pad="SAME_LOWER",
             )
+
 
 @tvm.testing.parametrize_targets
 def test_unsqueeze_constant(target, dev):
