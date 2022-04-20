@@ -21,7 +21,45 @@ manipulate json config file to work with TVMC
 """
 import os
 import json
+
+from tvm._ffi import libinfo
 from tvm.driver.tvmc import TVMCException
+
+CONFIGS_JSON_DIR = None
+
+
+class ConfigsJsonNotFoundError(TVMCException):
+    """Raised when the JSON configs dirtree cannot be found."""
+
+
+def get_configs_json_dir() -> str:
+    """Find the 'configs' directory, containing the JSON files used to configure tvmc
+    with persistent argument settings.
+
+    Returns
+    -------
+    str :
+        The path to the 'configs' directory
+    """
+    global CONFIGS_JSON_DIR
+    if CONFIGS_JSON_DIR is None:
+        candidate_paths = []
+        candidate_paths.extend(libinfo.find_lib_path())
+        # When running from source, the configs directory will be located one directory above the
+        # native libraries, so covering that case.
+        candidate_paths.extend(
+            [os.path.abspath(os.path.join(lib_path, "..")) for lib_path in libinfo.find_lib_path()]
+        )
+        for path in candidate_paths:
+            configs_path = os.path.join(os.path.dirname(path), "configs")
+            if os.path.isdir(configs_path):
+                CONFIGS_JSON_DIR = configs_path
+                break
+
+        else:
+            raise ConfigsJsonNotFoundError()
+
+    return CONFIGS_JSON_DIR
 
 
 def find_json_file(name, path):
@@ -69,9 +107,7 @@ def read_and_convert_json_into_dict(config_args):
         if os.path.isfile(config_args.config):
             json_config_file = config_args.config
         else:
-            config_dir = os.path.abspath(
-                os.path.join(os.path.realpath(__file__), "..", "..", "..", "..", "..", "configs")
-            )
+            config_dir = get_configs_json_dir()
             json_config_file = find_json_file(config_args.config, config_dir)
         return json.load(open(json_config_file, "rb"))
 
