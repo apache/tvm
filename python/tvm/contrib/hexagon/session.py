@@ -44,7 +44,9 @@ class Session:
         Remote configs for RPC tracker.
 
     session_name : str
-        Hexagon RPC session name. Options are [hexagon-rpc, cpu-rpc]
+        Hexagon RPC session name. Options are [hexagon-rpc, cpu-rpc].
+        `hexagon-rpc` is used with hexagon target and `cpu-rpc` used with
+        hexagon as a sub-target of LLVM.
 
     remote_stack_size_bytes : int
         The stack size of the remote device, to be passed to
