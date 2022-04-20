@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import torch
 import tvm
 import tvm.testing
-import torch
 import onnx
 import io
 import sys

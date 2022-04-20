@@ -19,26 +19,26 @@
 """Vitis-AI codegen tests"""
 
 import sys
-import numpy as np
 
+import numpy as np
 import pytest
 
 pytest.importorskip("pyxir")
 import pyxir.contrib.target.DPUCADF8H
 import pyxir.contrib.target.DPUCAHX8H
 import pyxir.contrib.target.DPUCAHX8L
-import pyxir.contrib.target.DPUCVDX8H
 import pyxir.contrib.target.DPUCVDX8G
+import pyxir.contrib.target.DPUCVDX8H
 import pyxir.contrib.target.DPUCZDX8G
-
 import tvm
 from tvm import relay
-from tvm.relay import transform
-from tvm.relay.op.contrib.vitis_ai import annotation
-from tvm.relay.build_module import bind_params_by_name
+from tvm.testing import requires_vitis_ai
 from tvm.contrib.target import vitis_ai
+from tvm.relay import transform
+from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.op.contrib.vitis_ai import annotation
 
-from .infrastructure import skip_test, verify_codegen
+from .infrastructure import verify_codegen
 
 
 def set_func_attr(func, compile_name, symbol_name):
@@ -49,6 +49,7 @@ def set_func_attr(func, compile_name, symbol_name):
     return func
 
 
+@requires_vitis_ai
 @pytest.mark.parametrize(
     "dpu_target",
     ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
@@ -67,6 +68,7 @@ def test_conv2d(dpu_target):
     verify_codegen(mod, params=params, dpu_target=dpu_target, tvm_ops=2)
 
 
+@requires_vitis_ai
 @pytest.mark.parametrize("dpu_target", ["DPUCAHX8L", "DPUCZDX8G-zcu104"])
 def test_depthwise_conv(dpu_target):
     """Test depthwise_conv operator for Vitis-AI DPUCZDX8G-zcu104 target"""
@@ -85,6 +87,7 @@ def test_depthwise_conv(dpu_target):
     verify_codegen(mod, params=params, dpu_target=dpu_target, tvm_ops=2)
 
 
+@requires_vitis_ai
 @pytest.mark.parametrize(
     "dpu_target",
     ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
@@ -105,6 +108,7 @@ def test_bias_add(dpu_target):
     verify_codegen(mod, params=params, dpu_target=dpu_target)
 
 
+@requires_vitis_ai
 @pytest.mark.parametrize(
     "dpu_target",
     ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
@@ -121,6 +125,7 @@ def test_relu(dpu_target):
     verify_codegen(mod, dpu_target=dpu_target, num_vitis_ai_modules=0, tvm_ops=1)
 
 
+@requires_vitis_ai
 @pytest.mark.parametrize(
     "dpu_target",
     ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
@@ -145,6 +150,7 @@ def test_batchnorm(dpu_target):
     verify_codegen(mod, params=params, dpu_target=dpu_target)
 
 
+@requires_vitis_ai
 @pytest.mark.parametrize(
     "dpu_target",
     ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
@@ -161,6 +167,7 @@ def test_add(dpu_target):
     verify_codegen(mod, dpu_target=dpu_target)
 
 
+@requires_vitis_ai
 @pytest.mark.parametrize(
     "dpu_target",
     ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
@@ -177,6 +184,7 @@ def test_global_avg_pool2d(dpu_target):
     verify_codegen(mod, dpu_target=dpu_target)
 
 
+@requires_vitis_ai
 @pytest.mark.parametrize(
     "dpu_target",
     ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
@@ -193,6 +201,7 @@ def test_avg_pool2d(dpu_target):
     verify_codegen(mod, dpu_target=dpu_target)
 
 
+@requires_vitis_ai
 @pytest.mark.parametrize(
     "dpu_target",
     ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
@@ -209,6 +218,7 @@ def test_max_pool2d(dpu_target):
     verify_codegen(mod, dpu_target=dpu_target)
 
 
+@requires_vitis_ai
 @pytest.mark.parametrize(
     "dpu_target",
     ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
@@ -225,6 +235,7 @@ def test_global_max_pool2d(dpu_target):
     verify_codegen(mod, dpu_target=dpu_target)
 
 
+@requires_vitis_ai
 @pytest.mark.parametrize(
     "dpu_target",
     ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
@@ -241,6 +252,13 @@ def test_upsampling(dpu_target):
     verify_codegen(mod, dpu_target=dpu_target)
 
 
+@pytest.mark.skip(
+    reason="I and O used to be mixed up in kernel layouts in TVM."
+    "This is fixed, but vitis needs to adopt the new convention."
+    "To change, simply remove this line:"
+    "https://github.com/Xilinx/pyxir/blob/bef661d6d77adcdbd2cf4163f2cf3a1d31d40406/"
+    "python/pyxir/frontend/tvm/relay_tools/relay_l2_convolution.py#L380"
+)
 @pytest.mark.parametrize(
     "dpu_target",
     ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
@@ -253,7 +271,14 @@ def test_conv2d_transpose(dpu_target):
     x = relay.var("x", shape=dshape)
     w = relay.const(np.zeros(kshape, dtype="float32"))
     y = relay.nn.conv2d_transpose(
-        x, w, channels=10, kernel_size=(3, 3), strides=(1, 1), padding=(1, 1)
+        x,
+        w,
+        channels=10,
+        kernel_size=(3, 3),
+        strides=(1, 1),
+        padding=(1, 1),
+        data_layout="NCHW",
+        kernel_layout="IOHW",
     )
     func = relay.Function([x], y)
     params = {}
@@ -264,6 +289,7 @@ def test_conv2d_transpose(dpu_target):
     verify_codegen(mod, params=params, dpu_target=dpu_target)
 
 
+@requires_vitis_ai
 @pytest.mark.parametrize(
     "dpu_target",
     ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],

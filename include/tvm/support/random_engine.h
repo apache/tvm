@@ -29,6 +29,7 @@
 #include <tvm/runtime/logging.h>
 
 #include <cstdint>  // for uint64_t
+#include <random>
 
 namespace tvm {
 namespace support {
@@ -74,6 +75,12 @@ class LinearCongruentialEngine {
   static constexpr result_type max() { return modulus - 1; }
 
   /*!
+   * \brief Get a device random state
+   * \return The random state
+   */
+  static TRandState DeviceRandom() { return (std::random_device()()) % modulus; }
+
+  /*!
    * \brief Operator to move the random state to the next and return the new random state. According
    *  to definition of linear congruential engine, the new random state value is computed as
    *  new_random_state = (current_random_state * multiplier + increment) % modulus.
@@ -92,14 +99,15 @@ class LinearCongruentialEngine {
    * \brief Change the start random state of RNG with the seed of a new random state value.
    * \param rand_state The random state given in result_type.
    */
-  void Seed(TRandState rand_state = 1) {
-    rand_state %= modulus;  // Make sure the seed is within the range of modulus.
-    if (rand_state == 0)
-      rand_state = 1;  // Avoid getting all 0 given the current parameter set.
-    else if (rand_state < 0)
-      rand_state += modulus;             // Make sure the rand state is non-negative.
-    ICHECK(rand_state_ptr_ != nullptr);  // Make sure the pointer is not null.
-    *rand_state_ptr_ = rand_state;       // Change pointed random state to given random state value.
+  void Seed(TRandState rand_state) {
+    if (rand_state == -1) {
+      rand_state = DeviceRandom();
+    } else if (rand_state == 0) {
+      rand_state = 1;
+    }
+    ICHECK(rand_state >= 0) << "The random state should be nonnegative";
+    ICHECK(rand_state_ptr_ != nullptr);
+    *rand_state_ptr_ = rand_state % modulus;
   }
 
   /*!
@@ -107,7 +115,7 @@ class LinearCongruentialEngine {
    * \return The forked seed.
    */
   TRandState ForkSeed() {
-    // In order for reproducibility, we computer the new seed using RNG's random state and a
+    // In order for reproducibility, we compute the new seed using RNG's random state and a
     // different set of parameters. Note that both 32767 and 1999999973 are prime numbers.
     return ((*this)() * 32767) % 1999999973;
   }

@@ -190,18 +190,16 @@ useful for fusing operators. ``kOpaque`` tells TVM to not bother trying to fuse 
 While we've now defined the interface for our operations we still need to define 
 how to perform the actual calculations for cumulative sum and product. 
 
-Writing this code is outside the scope of the tutorial. For now, we assume
-we have a well tested implementation for the operation's compute. For 
-more details on how to do this, we recommend looking up the tutorials
-on `tensor expressions`_, `TVM's operator inventory (topi)`_ and looking at the 
-example cumulative sum and product implementations found in `python/tvm/topi/scan.py`_ 
-and the gpu versions in `python/tvm/topi/cuda/scan.py`_. In the case of our cumulative 
-sum and product operations we write things directly in `TIR`_ which is the 
+Writing this code is outside the scope of the tutorial. For now, we assume we
+have a well tested implementation for the operation's compute. For more details
+on how to do this, we recommend looking up the tutorials on :ref:`tensor
+expressions <tutorial-tensor-expr-get-started>`, :ref:`TVM's operator inventory
+(topi) <tutorial-topi>` and looking at the example cumulative sum and product
+implementations found in `python/tvm/topi/scan.py`_ and the gpu versions in
+`python/tvm/topi/cuda/scan.py`_. In the case of our cumulative sum and product
+operations we write things directly in :ref:`TIR <api-python-tir>` which is the
 representation where tensor expressions and topi will lower into.
 
-.. _tensor expressions: https://tvm.apache.org/docs/tutorials/get_started/tensor_expr_get_started.html
-.. _TVM's operator inventory (topi): https://tvm.apache.org/docs/tutorials/topi/intro_topi.html
-.. _TIR: https://tvm.apache.org/docs/dev/index.html?highlight=tir#tvm-tir
 .. _python/tvm/topi/scan.py: https://github.com/apache/tvm/blob/main/python/tvm/topi/scan.py
 .. _python/tvm/topi/cuda/scan.py: https://github.com/apache/tvm/blob/main/python/tvm/topi/cuda/scan.py
 

@@ -205,12 +205,52 @@ class DataTypeRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
-    PrimExpr value = this->VisitExpr(op->value);
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    BufferStore store = GetRef<BufferStore>(op);
+
+    auto value = this->VisitExpr(op->value);
+    auto indices = VisitIndices(op->indices);
+
+    if (!value.same_as(op->value) || !indices.same_as(op->indices)) {
+      auto writer = store.CopyOnWrite();
+      writer->value = value;
+      writer->indices = indices;
+    }
+
+    return std::move(store);
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    BufferLoad load = GetRef<BufferLoad>(op);
+
+    auto indices = VisitIndices(op->indices);
+
+    if (!indices.same_as(op->indices)) {
+      auto writer = load.CopyOnWrite();
+      writer->indices = indices;
+    }
+
+    return std::move(load);
+  }
+
+  Array<PrimExpr> VisitIndices(Array<PrimExpr> indices) {
     is_index_ = true;
-    PrimExpr index = this->VisitExpr(op->index);
+
+    auto fmutate = [this](const PrimExpr& index) { return this->VisitExpr(index); };
+    indices.MutateByApply(fmutate);
+
     is_index_ = false;
-    Stmt s = Store(op->buffer_var, op->value, index, op->predicate);
-    return StmtExprMutator::VisitStmt_(s.as<StoreNode>());
+
+    return indices;
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
@@ -236,7 +276,17 @@ class DataTypeRewriter : public StmtExprMutator {
       PrimExpr e = VisitExpr(iv->var);
       Var var = Downcast<Var>(e);
       if (ivmap_.find(iv) == ivmap_.end()) {
-        ivmap_[iv] = IterVar(iv->dom, var, iv->iter_type, iv->thread_tag);
+        Range dom = iv->dom;
+        if (dom.defined()) {
+          PrimExpr extend = dom->extent;
+          if (extend.dtype().is_int() && var.dtype().is_int() &&
+              var.dtype().bits() != extend.dtype().bits()) {
+            int bits = std::max(extend.dtype().bits(), var.dtype().bits());
+            DataType dtype = var.dtype().with_bits(bits);
+            dom = Range(cast(dtype, dom->min), cast(dtype, extend), dom->span);
+          }
+        }
+        ivmap_[iv] = IterVar(dom, var, iv->iter_type, iv->thread_tag);
       }
       return AttrStmt(ivmap_[iv], op->attr_key, cast(var.dtype(), op->value), op->body);
     }
@@ -253,6 +303,41 @@ class DataTypeRewriter : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
+  PrimExpr VisitExpr_(const SelectNode* op) final {
+    PrimExpr condition = this->VisitExpr(op->condition);
+    PrimExpr true_value = this->VisitExpr(op->true_value);
+    PrimExpr false_value = this->VisitExpr(op->false_value);
+    if (condition.same_as(op->condition) && true_value.same_as(op->true_value) &&
+        false_value.same_as(op->false_value)) {
+      return GetRef<PrimExpr>(op);
+    } else {
+      if (op->true_value.dtype().is_int() && op->false_value.dtype().is_int()) {
+        int bits = std::max(true_value.dtype().bits(), false_value.dtype().bits());
+        DataType dtype = true_value.dtype().with_bits(bits);
+        if (true_value.dtype() != dtype) true_value = cast(dtype, true_value);
+        if (false_value.dtype() != dtype) false_value = cast(dtype, false_value);
+      }
+      return Select(condition, true_value, false_value);
+    }
+  }
+
+  PrimExpr VisitExpr_(const RampNode* op) final {
+    PrimExpr base = VisitExpr(op->base);
+    PrimExpr stride = VisitExpr(op->stride);
+    if (base.same_as(op->base) && stride.same_as(op->stride)) {
+      return GetRef<PrimExpr>(op);
+    } else {
+      if (base.dtype().is_int()) {
+        ICHECK(stride.dtype().is_int()) << "Ramp base is int but stride is " << stride.dtype();
+        int bits = std::max(base.dtype().bits(), stride.dtype().bits());
+        DataType dtype = base.dtype().with_bits(bits);
+        if (base.dtype() != dtype) base = cast(dtype, base);
+        if (stride.dtype() != dtype) stride = cast(dtype, stride);
+      }
+      return Ramp(base, stride, op->lanes);
+    }
+  }
+
   PrimExpr VisitExpr_(const SizeVarNode* op) final {
     if (visitor_.vmap.find(op) != visitor_.vmap.end()) {
       if (vmap_.find(op) == vmap_.end()) {
@@ -261,14 +346,6 @@ class DataTypeRewriter : public StmtExprMutator {
       return vmap_[op];
     }
     return StmtExprMutator::VisitExpr_(op);
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    is_index_ = true;
-    PrimExpr index = this->VisitExpr(op->index);
-    is_index_ = false;
-    PrimExpr e = Load(op->dtype, op->buffer_var, index, op->predicate);
-    return StmtExprMutator::VisitExpr_(e.as<LoadNode>());
   }
 
   PrimExpr VisitExpr_(const IntImmNode* op) final {

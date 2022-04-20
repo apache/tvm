@@ -382,6 +382,47 @@ inline TFunc WithAttrs(TFunc input, Map<String, ObjectRef> attrs) {
   return input;
 }
 
+/*!
+ * \brief Copy the function or module, but removes the specified
+ *        attribute.
+ *
+ * \param input The thing to annotate (BaseFunc or IRModule)
+ * \param attr_key The attribute key.
+ *
+ * \tparam TFunc The corresponding function or module type.
+ *
+ * \returns The new function or module with removed attribute.
+ *
+ * \note This function performs copy on write optimization for func and module.
+ *       If we move a uniquely referenced func or module into WithoutAttr,
+ *       then no additional copy will be performed.
+ *
+ *       This is also why we make it as a function instead of a member function
+ *       and why we pass by value in the first argument.
+ *
+ * \code
+ *
+ *  // Recommended way to trigger copy on write
+ *  func = WithoutAttr(std::move(func), "key1");
+ *  func = WithoutAttr(std::move(func), "key2");
+ *
+ * \endcode
+ */
+template <typename TFunc>
+inline TFunc WithoutAttr(TFunc input, const std::string& attr_key) {
+  using TNode = typename TFunc::ContainerType;
+  static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
+
+  if (input->attrs.defined()) {
+    TNode* node = input.CopyOnWrite();
+    node->attrs.CopyOnWrite()->dict.erase(attr_key);
+    if (node->attrs->dict.size() == 0) {
+      node->attrs = NullValue<DictAttrs>();
+    }
+  }
+  return input;
+}
+
 // Namespace containing detail implementations
 namespace detail {
 using runtime::TVMArgValue;
@@ -489,7 +530,7 @@ struct AttrInitEntry {
   ~AttrInitEntry() DMLC_THROW_EXCEPTION {
     if (value_missing_) {
       std::ostringstream os;
-      os << type_key_ << ": Cannot find required field \'" << key_ << "\' during initialization."
+      os << type_key_ << ": Cannot find required field \'" << key_ << "\' during initialization. "
          << "If the key is defined check that its type matches the declared type.";
       throw AttrError(os.str());
     }
@@ -806,7 +847,7 @@ class AttrsNode : public BaseAttrsNode {
     ICHECK_EQ(args.size() % 2, 0);
     const int kLinearSearchBound = 16;
     int hit_count = 0;
-    // applies two stratgies to lookup
+    // applies two strategies to lookup
     if (args.size() < kLinearSearchBound) {
       // linear search.
       auto ffind = [&args](const char* key, runtime::TVMArgValue* val) {

@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import tvm
-from tvm.script import tir as T
-from tvm import te, tir
 import numpy as np
+import tvm
 import tvm.testing
+from tvm import te, tir, topi
+from tvm.script import tir as T
 
 
-def test_unique_name():
+def test_unique_name_complete_block():
     A = te.placeholder((16, 16), name="A")
     B = te.compute((16, 16), lambda x, y: A[x, y] * 2, name="main")
     C = te.compute((16, 16), lambda x, y: B[x, y] + 1, name="main")
@@ -30,6 +30,18 @@ def test_unique_name():
     s = tir.Schedule(func, debug_mask="all")
     assert isinstance(s.get_sref(s.get_block("main")), tir.schedule.StmtSRef)
     assert isinstance(s.get_sref(s.get_block("main_1")), tir.schedule.StmtSRef)
+
+
+def test_unique_name_reduction_block():
+    k1 = te.reduce_axis((0, 16), "k1")
+    k2 = te.reduce_axis((0, 16), "k2")
+    A = te.placeholder((16, 16), name="A")
+    B = te.compute((16,), lambda i: te.sum(A[i, k1], axis=k1), name="sum")
+    C = te.compute((), lambda: te.sum(B[k2], axis=k2), name="sum")
+    func = te.create_prim_func([A, C])
+    s = tir.Schedule(func, debug_mask="all")
+    assert isinstance(s.get_sref(s.get_block("sum")), tir.schedule.StmtSRef)
+    assert isinstance(s.get_sref(s.get_block("sum_1")), tir.schedule.StmtSRef)
 
 
 def _check_workload(te_workload, tir_workload):
@@ -50,14 +62,17 @@ def te_matmul():
 
 @T.prim_func
 def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
 
-    with T.block([128, 128, T.reduce_axis(0, 128)]) as [i, j, k]:
-        with T.init():
-            C[i, j] = 0.0
-        C[i, j] += A[i, k] * B[j, k]
+    for i0, j0, k0 in T.grid(128, 128, 128):
+        with T.block():
+            i, j, k = T.axis.remap("SSR", [i0, j0, k0])
+            with T.init():
+                C[i, j] = 0.0
+            C[i, j] += A[i, k] * B[j, k]
 
 
 def test_matmul():
@@ -73,14 +88,19 @@ def te_element_wise():
 
 @T.prim_func
 def tir_element_wise(a: T.handle, c: T.handle) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
     B = T.alloc_buffer((128, 128))
 
-    with T.block([128, 128]) as [i, j]:
-        B[i, j] = A[i, j] * 2.0
-    with T.block([128, 128]) as [i, j]:
-        C[i, j] = B[i, j] + 1.0
+    for i0, j0 in T.grid(128, 128):
+        with T.block():
+            i, j = T.axis.remap("SS", [i0, j0])
+            B[i, j] = A[i, j] * 2.0
+    for i0, j0 in T.grid(128, 128):
+        with T.block():
+            i, j = T.axis.remap("SS", [i0, j0])
+            C[i, j] = B[i, j] + 1.0
 
 
 def test_element_wise():
@@ -120,24 +140,27 @@ def te_conv2d():
 
 @T.prim_func
 def tir_conv2d(a: T.handle, w: T.handle, b: T.handle) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
     A = T.match_buffer(a, [16, 16, 14, 14])
     W = T.match_buffer(w, [16, 3, 3, 32])
     B = T.match_buffer(b, [16, 32, 14, 14])
     Apad = T.alloc_buffer([16, 16, 16, 16])
 
-    with T.block([16, 16, 16, 16], "Apad") as [nn, cc, yy, xx]:
-        Apad[nn, cc, yy, xx] = T.if_then_else(
-            yy >= 1 and yy - 1 < 14 and xx >= 1 and xx - 1 < 14,
-            A[nn, cc, yy - 1, xx - 1],
-            0.0,
-            dtype="float32",
-        )
-    with T.block(
-        [16, 32, 14, 14, T.reduce_axis(0, 16), T.reduce_axis(0, 3), T.reduce_axis(0, 3)], "B"
-    ) as [nn, ff, yy, xx, rc, ry, rx]:
-        with T.init():
-            B[nn, ff, yy, xx] = 0.0
-        B[nn, ff, yy, xx] += Apad[nn, rc, yy + ry, xx + rx] * W[rc, ry, rx, ff]
+    for n, c, y, x in T.grid(16, 16, 16, 16):
+        with T.block("Apad"):
+            nn, cc, yy, xx = T.axis.remap("SSSS", [n, c, y, x])
+            Apad[nn, cc, yy, xx] = T.if_then_else(
+                1 <= yy and yy < 15 and 1 <= xx and xx < 15,
+                A[nn, cc, yy - 1, xx - 1],
+                0.0,
+                dtype="float32",
+            )
+    for n, f, y, x, kc, ky, kx in T.grid(16, 32, 14, 14, 16, 3, 3):
+        with T.block("B"):
+            nn, ff, yy, xx, rc, ry, rx = T.axis.remap("SSSSRRR", [n, f, y, x, kc, ky, kx])
+            with T.init():
+                B[nn, ff, yy, xx] = 0.0
+            B[nn, ff, yy, xx] += Apad[nn, rc, yy + ry, xx + rx] * W[rc, ry, rx, ff]
 
 
 def test_conv2d():
@@ -155,6 +178,7 @@ def te_multi_output():
 
 @T.prim_func
 def tir_multi_output(a0: T.handle, a1: T.handle, b0: T.handle, b1: T.handle) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
     m = T.var("int32")
     n = T.var("int32")
     A0 = T.match_buffer(a0, (m, n))
@@ -163,9 +187,11 @@ def tir_multi_output(a0: T.handle, a1: T.handle, b0: T.handle, b1: T.handle) -> 
     B1 = T.match_buffer(b1, (m, n))
 
     for i0, i1 in T.grid(m, n):
-        with T.block([m, n], "B.v0") as [i, j]:
+        with T.block("B.v0"):
+            i, j = T.axis.remap("SS", [i0, i1])
             B0[i, j] = A0[i, j] + 2.0
-        with T.block([m, n], "B.v1") as [i, j]:
+        with T.block("B.v1"):
+            i, j = T.axis.remap("SS", [i0, i1])
             B1[i, j] = A1[i, j] * 3.0
 
 
@@ -189,11 +215,12 @@ def te_extern():
 
 @T.prim_func
 def tir_extern(a: T.handle, b: T.handle, c: T.handle) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
     # body
-    with T.block([], "C"):
+    with T.block("C"):
         T.reads([A[0:128, 0:128], B[0:128, 0:128]])
         T.writes([C[0:128, 0:128]])
         T.evaluate(
@@ -247,14 +274,17 @@ def te_reordered_matmul():
 
 @T.prim_func
 def tir_reordered_matmul(c: T.handle, a: T.handle, b: T.handle) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
 
-    with T.block([128, 128, T.reduce_axis(0, 128)]) as [i, j, k]:
-        with T.init():
-            C[i, j] = 0.0
-        C[i, j] += A[i, k] * B[j, k]
+    for i0, j0, k0 in T.grid(128, 128, 128):
+        with T.block():
+            i, j, k = T.axis.remap("SSR", [i0, j0, k0])
+            with T.init():
+                C[i, j] = 0.0
+            C[i, j] += A[i, k] * B[j, k]
 
 
 def test_arg_order():
@@ -315,8 +345,188 @@ def test_data_dependent_access():
     tvm.testing.assert_allclose(a_np[b_np], c.numpy())
 
 
+def test_select_simplify():
+    placeholder = te.placeholder([1, 128, 10, 10, 4], dtype="float32")
+    tensor = topi.nn.adaptive_pool(placeholder, [1, 1], "avg", "NCHW4c")
+    result = te.create_prim_func([placeholder, tensor])
+    script_func = result.script()
+    # There should be no Select
+    assert script_func.find("Select") == -1
+    # There should be no undefined vars
+    assert script_func.find("Var") == -1
+
+
+def test_tensor_attr():
+    k = te.reduce_axis((0, 128), "k")
+    A = te.placeholder((128, 128), name="A")
+    B = te.placeholder((128, 128), name="B")
+    C = te.compute(
+        (128, 128),
+        lambda x, y: te.sum(A[x, k] * B[y, k], axis=k),
+        name="C",
+        attrs={"layout_free_placeholders": [B]},
+    )
+    func = te.create_prim_func([A, B, C])
+    rt_func = tvm.script.from_source(func.script())
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
+@T.prim_func
+def expected_layout_attr(
+    A: T.Buffer[(128, 128), "float32"],
+    B: T.Buffer[(128, 128), "float32"],
+    D: T.Buffer[(128, 128), "float32"],
+) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_placeholders": [1]})
+    C = T.alloc_buffer([128, 128], dtype="float32")
+    for i0, i1, i2 in T.grid(128, 128, 128):
+        with T.block("C"):
+            x, y, k = T.axis.remap("SSR", [i0, i1, i2])
+            with T.init():
+                C[x, y] = T.float32(0)
+            C[x, y] = C[x, y] + A[x, k] * B[y, k]
+    for i0, i1 in T.grid(128, 128):
+        with T.block("D"):
+            x, y = T.axis.remap("SS", [i0, i1])
+            D[x, y] = C[x, y] + T.float32(1)
+
+
+def test_tensor_layout_attr():
+    k = te.reduce_axis((0, 128), "k")
+    A = te.placeholder((128, 128), name="A")
+    B = te.placeholder((128, 128), name="B")
+    C = te.compute(
+        (128, 128),
+        lambda x, y: te.sum(A[x, k] * B[y, k], axis=k),
+        name="C",
+        attrs={"layout_free_placeholders": [B]},
+    )
+    D = te.compute(
+        (128, 128),
+        lambda x, y: C[x, y] + 1,
+        name="D",
+        attrs={"layout_free_placeholders": [C]},
+    )
+    func = te.create_prim_func([A, B, D])
+    tvm.ir.assert_structural_equal(func, expected_layout_attr)
+
+
+def te_argmax_idx_val():
+    def f_combine(x, y):
+        lhs = tvm.tir.Select((x[1] >= y[1]), x[0], y[0])
+        rhs = tvm.tir.Select((x[1] >= y[1]), x[1], y[1])
+        return lhs, rhs
+
+    def f_identity(dtype0: tvm.DataType, dtype1: tvm.DataType):
+        return tvm.tir.const(-1, dtype0), tvm.te.min_value(dtype1)
+
+    argmax = te.comm_reducer(f_combine, f_identity, name="argmax")
+
+    m = te.var("m")
+    n = te.var("n")
+    idx = te.placeholder((m, n), name="idx", dtype="int32")
+    val = te.placeholder((m, n), name="val", dtype="float32")
+    k = te.reduce_axis((0, n), "k")
+    max_idx, max_val = te.compute(
+        (m,), lambda i: argmax((idx[i, k], val[i, k]), axis=k), name="argmax"
+    )
+    return [idx, val, max_idx, max_val]
+
+
+@T.prim_func
+def tir_argmax_idx_val(
+    var_idx: T.handle, var_val: T.handle, var_argmax_v0: T.handle, var_argmax_v1: T.handle
+) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    m = T.var("int32")
+    n = T.var("int32")
+    idx = T.match_buffer(var_idx, [m, n], dtype="int32")
+    val = T.match_buffer(var_val, [m, n], dtype="float32")
+    argmax_v0 = T.match_buffer(var_argmax_v0, [m], dtype="int32")
+    argmax_v1 = T.match_buffer(var_argmax_v1, [m], dtype="float32")
+    for i0, i1 in T.grid(m, n):
+        with T.block("argmax"):
+            i, k = T.axis.remap("SR", [i0, i1])
+            T.reads(val[i, k], idx[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = T.int32(-1)
+                argmax_v1[i] = T.min_value("float32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = v_argmax_v1
+
+
+def te_argmax_val_idx():
+    def f_combine(x, y):
+        lhs = tvm.tir.Select((x[0] >= y[0]), x[0], y[0])
+        rhs = tvm.tir.Select((x[0] >= y[0]), x[1], y[1])
+        return lhs, rhs
+
+    def f_identity(dtype0: tvm.DataType, dtype1: tvm.DataType):
+        return tvm.te.min_value(dtype0), tvm.tir.const(-1, dtype1)
+
+    argmax = te.comm_reducer(f_combine, f_identity, name="argmax")
+
+    m = te.var("m")
+    n = te.var("n")
+    val = te.placeholder((m, n), name="val", dtype="float32")
+    idx = te.placeholder((m, n), name="idx", dtype="int32")
+    k = te.reduce_axis((0, n), "k")
+    max_val, max_idx = te.compute(
+        (m,), lambda i: argmax((val[i, k], idx[i, k]), axis=k), name="argmax"
+    )
+    return [val, idx, max_val, max_idx]
+
+
+@T.prim_func
+def tir_argmax_val_idx(
+    var_val: T.handle, var_idx: T.handle, var_argmax_v0: T.handle, var_argmax_v1: T.handle
+) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    m = T.var("int32")
+    n = T.var("int32")
+    val = T.match_buffer(var_val, [m, n], dtype="float32")
+    idx = T.match_buffer(var_idx, [m, n], dtype="int32")
+    argmax_v0 = T.match_buffer(var_argmax_v0, [m], dtype="float32")
+    argmax_v1 = T.match_buffer(var_argmax_v1, [m], dtype="int32")
+    for i0, i1 in T.grid(m, n):
+        with T.block("argmax"):
+            i, k = T.axis.remap("SR", [i0, i1])
+            T.reads(val[i, k], idx[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = T.min_value("float32")
+                argmax_v1[i] = T.int32(-1)
+            v_argmax_v0: T.float32 = T.Select(argmax_v0[i] >= val[i, k], argmax_v0[i], val[i, k])
+            v_argmax_v1: T.int32 = T.Select(argmax_v0[i] >= val[i, k], argmax_v1[i], idx[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = v_argmax_v1
+
+
+def test_argmax_idx_val():
+    _check_workload(te_argmax_idx_val, tir_argmax_idx_val)
+
+
+def test_argmax_val_idx():
+    _check_workload(te_argmax_val_idx, tir_argmax_val_idx)
+
+
+def test_int64_indices():
+    n = te.var("n", "int64")
+    A = te.placeholder((n,), name="A")
+    B = te.compute(A.shape, lambda *i: A(*i) + 1, name="B")
+    prim_func = te.create_prim_func([A, B])
+    loop = prim_func.body.block.body
+    assert loop.loop_var.dtype == "int64"
+    assert loop.min.dtype == "int64"
+    assert loop.extent.dtype == "int64"
+
+
 if __name__ == "__main__":
-    test_unique_name()
+    test_unique_name_complete_block()
+    test_unique_name_reduction_block()
     test_matmul()
     test_element_wise()
     test_conv2d()
@@ -325,3 +535,9 @@ if __name__ == "__main__":
     test_arg_order()
     test_error_reporting()
     test_constant()
+    test_select_simplify()
+    test_tensor_attr()
+    test_tensor_layout_attr()
+    test_argmax_idx_val()
+    test_argmax_val_idx()
+    test_int64_indices()

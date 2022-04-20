@@ -20,10 +20,11 @@
 #ifndef TVM_PARSER_PARSER_H_
 #define TVM_PARSER_PARSER_H_
 /*!
- * \file parser.h
+ * \file include/tvm/parser/parser.h
  * \brief A parser for TVM IR.
  */
 #include <tvm/ir/module.h>
+#include <tvm/ir/transform.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
@@ -38,6 +39,13 @@ using MetaTable = Map<String, Array<ObjectRef>>;
 IRModule ParseModule(const std::string& file_name, const std::string& file_content,
                      const Optional<IRModule>& init_module = Optional<IRModule>(),
                      const MetaTable& init_meta_table = MetaTable());
+
+/*!
+ * \brief This pass pretty-prints mod then parses it back so as to establish spans and sources
+ * for all Relay sub-expressions. This improves error and debugging diagnostics downstream for
+ * modules constructed programaticaly rather than textually.
+ */
+transform::Pass AnnotateSpans();
 
 }  // namespace parser
 }  // namespace tvm

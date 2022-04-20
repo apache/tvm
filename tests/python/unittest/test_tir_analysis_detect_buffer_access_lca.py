@@ -25,17 +25,23 @@ def buffer_load_store_func(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, (128, 128), "float32")
     C = T.alloc_buffer((128, 128), "float32")
     D = T.alloc_buffer((128, 128), "float32")
-    with T.block([128, 128]) as [i, j]:
-        A[i, j] = T.float32(0)
-    with T.block([32, 32, T.reduce_axis(0, 32)]) as [i, j, k]:
-        with T.init():
+    for ii, jj in T.grid(128, 128):
+        with T.block():
+            i, j = T.axis.remap("SS", [ii, jj])
+            A[i, j] = T.float32(0)
+    for i0, j0, k0 in T.grid(32, 32, 32):
+        with T.block():
+            i, j, k = T.axis.remap("SSR", [i0, j0, k0])
+            with T.init():
+                for ii, jj in T.grid(4, 4):
+                    B[i * 4 + ii, j * 4 + jj] = A[i * 4 + ii, j * 4 + jj]
             for ii, jj in T.grid(4, 4):
-                B[i * 4 + ii, j * 4 + jj] = A[i * 4 + ii, j * 4 + jj]
-        for ii, jj in T.grid(4, 4):
-            for kk in range(0, 4):
-                B[i * 4 + ii, j * 4 + jj] += C[i * 4 + ii, k * 4 + kk]
-            for kk in range(0, 4):
-                B[i * 4 + ii, j * 4 + jj] += D[j * 4 + jj, k * 4 + kk] * C[i * 4 + ii, k * 4 + kk]
+                for kk in range(0, 4):
+                    B[i * 4 + ii, j * 4 + jj] += C[i * 4 + ii, k * 4 + kk]
+                for kk in range(0, 4):
+                    B[i * 4 + ii, j * 4 + jj] += (
+                        D[j * 4 + jj, k * 4 + kk] * C[i * 4 + ii, k * 4 + kk]
+                    )
 
 
 @T.prim_func
@@ -43,45 +49,48 @@ def buffer_opaque_access(b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [16, 16], "float32")
     C = T.match_buffer(c, [16, 16], "float32")
 
-    with T.block([]):
+    with T.block():
         T.reads([])
         T.writes(B[0:16, 0:16])
         A = T.allocate([256], "float32", "global")
         for i, j in T.grid(16, 16):
-            T.store(A, i * 16 + j, 1)
+            A[i * 16 + j] = 1
         for i in range(0, 16):
             for j in range(0, 16):
-                T.evaluate(T.load("float32", A, i * 16 + j))
+                T.evaluate(A[i * 16 + j])
             for j in range(0, 16):
                 T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, T.float32(0), dtype="handle"))
 
     for i, j in T.grid(16, 16):
-        with T.block([16, 16]) as [vi, vj]:
-            T.bind(vi, i)
-            T.bind(vj, j)
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj]
 
 
 @T.prim_func
 def lca_is_func_root(a: T.handle) -> None:
     A = T.match_buffer(a, [0, 0], "float32")
-    A.data[0] = 1.0
+    A[0, 0] = 1.0
 
 
 @T.prim_func
 def match_buffer_func(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     B = T.match_buffer(b, (128, 128), "float32")
-    with T.block([8, 8], "block") as [vi, vj]:
-        T.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
-        T.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-        B0 = T.match_buffer(B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4))
-        B1 = T.match_buffer(B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8))
-        with T.block([16, 16], "AAA") as [i, j]:
-            AA = T.match_buffer(A[i, j], ())
-            AA[()] = 1.0
-        T.evaluate(B0.data)
-        T.evaluate(B1.data)
+    for i, j in T.grid(8, 8):
+        with T.block("block"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
+            T.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+            B0 = T.match_buffer(B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4))
+            B1 = T.match_buffer(B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8))
+            for ii, jj in T.grid(16, 16):
+                with T.block("AAA"):
+                    vii, vjj = T.axis.remap("SS", [ii, jj])
+                    AA = T.match_buffer(A[vii, vjj], ())
+                    AA[()] = 1.0
+            T.evaluate(B0.data)
+            T.evaluate(B1.data)
 
 
 def test_buffer_load_store():

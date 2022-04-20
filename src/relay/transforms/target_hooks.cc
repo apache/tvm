@@ -41,8 +41,9 @@ class TargetHookVisitor : public tvm::relay::MixedModeVisitor {
 
   std::vector<Pass> Visit(const IRModule& ir_mod) {
     for (const auto& it : ir_mod->functions) {
-      const BaseFunc& base_func = it.second;
-      VisitExpr(base_func);
+      if (const auto* function_node = it.second.as<FunctionNode>()) {
+        VisitExpr(GetRef<Function>(function_node));
+      }
     }
     return pass_list_;
   }

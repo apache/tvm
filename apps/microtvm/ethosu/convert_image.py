@@ -34,8 +34,9 @@ def create_header_file(name, section, tensor_name, tensor_data, output_path):
         header_file.write(
             "#include <tvmgen_default.h>\n"
             + f"const size_t {tensor_name}_len = {tensor_data.size};\n"
-            + f'uint8_t {tensor_name}[] __attribute__((section("{section}"), aligned(16))) = "'
+            + f'int8_t {tensor_name}[] __attribute__((section("{section}"), aligned(16))) = "'
         )
+
         data_hexstr = tensor_data.tobytes().hex()
         for i in range(0, len(data_hexstr), 2):
             header_file.write(f"\\x{data_hexstr[i:i+2]}")
@@ -52,14 +53,15 @@ def create_headers(image_name):
     resized_image = Image.open(img_path).resize((224, 224))
     img_data = np.asarray(resized_image).astype("float32")
 
-    # Convert input to NCHW
-    img_data = np.transpose(img_data, (2, 0, 1))
+    # # Add the batch dimension, as we are expecting 4-dimensional input: NCHW.
+    img_data = np.expand_dims(img_data, axis=0)
 
     # Create input header file
-    input_data = img_data.astype(np.uint8)
+    input_data = img_data - 128
+    input_data = input_data.astype(np.int8)
     create_header_file("inputs", "ethosu_scratch", "input", input_data, "./include")
     # Create output header file
-    output_data = np.zeros([1001], np.uint8)
+    output_data = np.zeros([1001], np.int8)
     create_header_file(
         "outputs",
         "output_data_sec",

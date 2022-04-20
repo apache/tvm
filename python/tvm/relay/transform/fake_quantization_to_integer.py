@@ -15,10 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """Relay functions for rewriting fake quantized ops."""
+import numpy as np
 import tvm
 from tvm import relay
 from tvm.ir import TensorAffineType, TupleAffineType
+
+# import to register canonicalization funcs for fq2i
+# pylint: disable=unused-import
+from tvm.relay.qnn.op import canonicalizations
 from tvm.tir import bijective_layout
+
 from ..op import register_fake_quantization_to_integer
 
 
@@ -32,6 +38,16 @@ def get_zeros(scale):
 
 def infer_shape(expr):
     return relay.transform.InferType()(tvm.IRModule.from_expr(expr))["main"].body.checked_type.shape
+
+
+def approx_equal(x, y):
+    x = fold_constant(x)
+    y = fold_constant(y)
+    if isinstance(x, relay.Constant) and isinstance(y, relay.Constant):
+        equal = np.allclose(x.data.asnumpy(), y.data.asnumpy())
+    else:
+        equal = tvm.ir.structural_equal(x, y)
+    return equal
 
 
 @register_fake_quantization_to_integer("qnn.dequantize")
@@ -50,8 +66,8 @@ def quantize(expr, type_map):
     in_scale = fold_constant(t.scale)
     in_zero_point = fold_constant(t.zero_point)
     if not (
-        tvm.ir.structural_equal(in_scale, expr.args[1])
-        and tvm.ir.structural_equal(in_zero_point, expr.args[2])
+        approx_equal(in_scale, expr.args[1])
+        and approx_equal(in_zero_point, expr.args[2])
         and tvm.ir.structural_equal(t.dtype, expr.attrs.out_dtype)
     ):
         out = relay.qnn.op.requantize(
@@ -88,6 +104,34 @@ register_unary_identity("expand_dims")
 register_unary_identity("nn.max_pool2d")
 register_unary_identity("nn.batch_flatten")
 register_unary_identity("nn.depth_to_space")
+register_unary_identity("max")
+register_unary_identity("min")
+register_unary_identity("image.resize2d")
+
+
+@register_fake_quantization_to_integer("abs")
+def abs_(expr, type_map):
+    """Rewrite an abs op"""
+    assert len(expr.args) == 1
+    arg = expr.args[0]
+    t = type_map[arg]
+
+    min_value = relay.const(np.iinfo(t.dtype).min, t.dtype)
+    one = relay.const(1, t.dtype)
+    out = relay.op.where(relay.op.equal(min_value, arg), arg + one, arg)
+    out = relay.op.abs(out)
+    return [out, t]
+
+
+@register_fake_quantization_to_integer("nn.adaptive_avg_pool1d")
+def adaptive_avgpool1d(expr, type_map):
+    """Rewrite an adaptive avgpool op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+    arg = relay.op.cast(arg, "int32")
+    out = relay.op.nn.adaptive_avg_pool1d(arg)
+    out = relay.op.cast(out, t.dtype)
+    return [out, t]
 
 
 @register_fake_quantization_to_integer("nn.avg_pool2d")
@@ -112,6 +156,16 @@ def global_avgpool2d(expr, type_map):
     return [out, t]
 
 
+@register_fake_quantization_to_integer("broadcast_to")
+def broadcast_to(expr, type_map):
+    """Rewrite a broadcast_to op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+    shape = expr.attrs.shape
+    out = relay.op.broadcast_to(arg, shape)
+    return [out, t]
+
+
 @register_fake_quantization_to_integer("nn.bias_add")
 def bias_add(expr, type_map):
     """Rewrite a bias_add op"""
@@ -121,8 +175,8 @@ def bias_add(expr, type_map):
     in_scale = fold_constant(x_t.scale)
     in_zero_point = fold_constant(x_t.zero_point)
     if not (
-        tvm.ir.structural_equal(x_t.scale, b_t.scale)
-        and tvm.ir.structural_equal(x_t.zero_point, b_t.zero_point)
+        approx_equal(x_t.scale, b_t.scale)
+        and approx_equal(x_t.zero_point, b_t.zero_point)
         and tvm.ir.structural_equal(x_t.dtype, b_t.dtype)
     ):
         b = relay.qnn.op.requantize(
@@ -149,6 +203,25 @@ def conv2d(expr, type_map):
     conv_scale = fold_constant(x_t.scale * w_t.scale)
     conv_zp = get_zeros(conv_scale)
     out = relay.qnn.op.conv2d(
+        x, weight, x_t.zero_point, w_t.zero_point, x_t.scale, w_t.scale, **attrs
+    )
+    out_layout = attrs["out_layout"] if attrs["out_layout"] != "" else attrs["data_layout"]
+    out_axis = bijective_layout(out_layout, "NCHW").backward_index(list(range(4)))[1]
+    return [out, TensorAffineType(conv_scale, conv_zp, out.attrs.out_dtype, out_axis.value)]
+
+
+@register_fake_quantization_to_integer("nn.conv2d_transpose")
+def conv2d_transpose(expr, type_map):
+    """Rewrite a conv2d_transpose op"""
+    attrs = {**expr.attrs}
+    attrs.pop("out_dtype")
+    x, weight = expr.args
+    x_t = type_map[x]
+    w_t = type_map[weight]
+    conv_scale = fold_constant(x_t.scale * w_t.scale)
+    conv_zp = get_zeros(conv_scale)
+
+    out = relay.qnn.op.conv2d_transpose(
         x, weight, x_t.zero_point, w_t.zero_point, x_t.scale, w_t.scale, **attrs
     )
     out_layout = attrs["out_layout"] if attrs["out_layout"] != "" else attrs["data_layout"]
@@ -206,6 +279,16 @@ def concat(expr, type_map):
         **expr.attrs,
     )
     return [out, out_type]
+
+
+@register_fake_quantization_to_integer("topk")
+def topk(expr, type_map):
+    """Rewrite a topk op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+    attrs = {**expr.attrs}
+    assert "ret_type" in attrs and attrs["ret_type"] == "values"
+    return [expr, t]
 
 
 @register_fake_quantization_to_integer("split")
@@ -277,6 +360,16 @@ def relu(expr, type_map):
     return [relay.op.maximum(arg, fold_constant(zero)), t]
 
 
+@register_fake_quantization_to_integer("nn.leaky_relu")
+def leaky_relu(expr, type_map):
+    """Rewrite a leaky relu op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+    alpha = expr.attrs.alpha
+    output = relay.qnn.op.leaky_relu(expr, alpha, t.scale, t.zero_point)
+    return [output, t]
+
+
 @register_fake_quantization_to_integer("nn.pad")
 def pad(expr, type_map):
     """Rewite an nn.pad op"""
@@ -305,6 +398,18 @@ def pad(expr, type_map):
         pad_value = relay.qnn.op.quantize(pad_value, t.scale, t.zero_point)
 
     out = relay.op.nn.pad(arg, pad_value=pad_value, **expr.attrs)
+    return [out, t]
+
+
+@register_fake_quantization_to_integer("mean")
+def mean(expr, type_map):
+    """Rewrite a mean op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+
+    arg = relay.op.cast(arg, "int32")
+    out = relay.op.mean(arg, **expr.attrs)
+    out = relay.op.cast(out, t.dtype)
     return [out, t]
 
 
@@ -360,7 +465,10 @@ def register_binary_qnn(op_name, op):
             right_t.zero_point,
             out_t.scale,
             out_t.zero_point,
+            left_t.axis,
+            right_t.axis,
         )
+
         return [out, out_t]
 
     return register_fake_quantization_to_integer(op_name, binary)
@@ -407,3 +515,30 @@ def register_binary_identity(op_name, op):
 
 register_binary_identity("minimum", relay.op.minimum)
 register_binary_identity("maximum", relay.op.maximum)
+
+
+def register_unary_qnn(op_name, op):
+    """Rewrite a unary op"""
+
+    def unary(expr, type_map):
+        arg = expr.args[0]
+        x_t = type_map[arg]
+        out_t = type_map[expr]
+        out = op(
+            arg,
+            x_t.scale,
+            x_t.zero_point,
+            out_t.scale,
+            out_t.zero_point,
+        )
+        return [out, x_t]
+
+    return register_fake_quantization_to_integer(op_name, unary)
+
+
+register_unary_qnn("sqrt", relay.qnn.op.sqrt)
+register_unary_qnn("rsqrt", relay.qnn.op.rsqrt)
+register_unary_qnn("exp", relay.qnn.op.exp)
+register_unary_qnn("erf", relay.qnn.op.erf)
+register_unary_qnn("sigmoid", relay.qnn.op.sigmoid)
+register_unary_qnn("tanh", relay.qnn.op.tanh)

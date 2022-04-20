@@ -81,6 +81,17 @@ set(USE_METAL OFF)
 # - /path/to/vulkan-sdk: use specific path to vulkan-sdk
 set(USE_VULKAN OFF)
 
+# Whether to use spirv-tools.and SPIRV-Headers from Khronos github or gitlab.
+#
+# Possible values:
+# - OFF: not to use
+# - /path/to/install: path to your khronis spirv-tools and SPIRV-Headers installation directory
+#
+set(USE_KHRONOS_SPIRV OFF)
+
+# whether enable SPIRV_KHR_DOT_PRODUCT
+set(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT OFF)
+
 # Whether enable OpenGL runtime
 set(USE_OPENGL OFF)
 
@@ -231,6 +242,10 @@ set(USE_ETHOSN_HW OFF)
 # Whether to build with Arm(R) Ethos(TM)-U NPU codegen support
 set(USE_ETHOSU OFF)
 
+# Whether to build with CMSIS-NN external library support.
+# See https://github.com/ARM-software/CMSIS_5
+set(USE_CMSISNN OFF)
+
 # Whether to build with TensorRT codegen or runtime
 # Examples are available here: docs/deploy/tensorrt.rst.
 #
@@ -272,18 +287,24 @@ set(USE_THRUST OFF)
 # Whether to build the TensorFlow TVMDSOOp module
 set(USE_TF_TVMDSOOP OFF)
 
+# Whether to build the PyTorch custom class module
+set(USE_PT_TVMDSOOP OFF)
+
 # Whether to use STL's std::unordered_map or TVM's POD compatible Map
 set(USE_FALLBACK_STL_MAP OFF)
 
-# Whether to use hexagon device
-set(USE_HEXAGON_DEVICE OFF)
+# Whether to enable Hexagon support
+set(USE_HEXAGON OFF)
 set(USE_HEXAGON_SDK /path/to/sdk)
+
+# Whether to build the minimal support android rpc server for Hexagon
+set(USE_HEXAGON_RPC OFF)
 
 # Hexagon architecture to target when compiling TVM itself (not the target for
 # compiling _by_ TVM). This applies to components like the TVM runtime, but is
 # also used to select correct include/library paths from the Hexagon SDK when
-# building offloading runtime for Android.
-# Valid values are v60, v62, v65, v66, v68.
+# building runtime for Android.
+# Valid values are v65, v66, v68, v69.
 set(USE_HEXAGON_ARCH "v66")
 
 # Whether to use ONNX codegen
@@ -344,3 +365,15 @@ set(USE_PAPI OFF)
 # Note that cmake will use `find_package` to find GTest. Please use cmake's
 # predefined variables to specify the path to the GTest package if needed.
 set(USE_GTEST AUTO)
+
+# Enable using CUTLASS as a BYOC backend
+# Need to have USE_CUDA=ON
+set(USE_CUTLASS OFF)
+
+# Enable to show a summary of TVM options
+set(SUMMARIZE OFF)
+
+# Whether to use LibTorch as backend
+# To enable pass the path to the root libtorch (or PyTorch) directory
+# OFF or /path/to/torch/
+set(USE_LIBTORCH OFF)

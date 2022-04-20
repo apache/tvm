@@ -211,33 +211,44 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
   }
 
   Expr Atomic(const Expr& e, const Var& v) {
-    Expr annotated_expr = MaybeOnDevice(e, GetInScopeDeviceType(e), /*is_fixed=*/true);
+    Expr annotated_expr = MaybeOnDeviceFixed(e, GetVirtualDevice(e));
     return v.defined() ? GetScope(e)->let_list->Push(v, annotated_expr) : annotated_expr;
   }
 
   // Bind expression `now` to var `v` if the original expression is in the include set, or if
   // v is already defined (e.g. coming from a Let expression). Otherwise return `now` directly
   Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
-    Expr annotated_expr = MaybeOnDevice(now, GetInScopeDeviceType(orig), /*is_fixed=*/true);
-    Var var = v.defined() ? v : Var(String("x"), Type());
+    Expr annotated_expr = MaybeOnDeviceFixed(now, GetVirtualDevice(orig));
+    Var var = v.defined() ? v : Var::GenSym();
     bool not_included = include_set_ && include_set_->find(orig) == include_set_->end();
     if (!v.defined() && not_included) {
       return annotated_expr;
+    } else if (const LetNode* let = AsIgnoringOnDevice<LetNode>(now)) {
+      // Instead of making a nested binding "let var = (let x = ...; bindings...; body)", we push
+      // the inner bindings into the outer scope and bind body to var, giving
+      // "let x = ...; bindings...; let var = body;" as the resulting bindings.
+      Expr e = GetRef<Expr>(let);
+      while (const LetNode* inner_let = AsIgnoringOnDevice<LetNode>(e)) {
+        GetScope(orig)->let_list->Push(inner_let->var, inner_let->value);
+        e = inner_let->body;
+      }
+      Expr annotated_body = MaybeOnDeviceFixed(e, GetVirtualDevice(orig));
+      return GetScope(orig)->let_list->Push(var, annotated_body);
     } else {
       return GetScope(orig)->let_list->Push(var, annotated_expr);
     }
   }
 
   Expr VisitExpr_(const CallNode* c, const Var& v) final {
-    auto props = GetOnDeviceProps(c);
-    if (props.body.defined() && props.is_fixed) {
+    OnDeviceProps props = GetOnDeviceProps(c);
+    if (props.body.defined() && props.is_fixed()) {
       // Keep track of expression device type for lexically enclosing sub-expressions.
-      PushDeviceType(props.device_type);
+      PushVirtualDevice(props.virtual_device);
       Expr body = VisitExpr(props.body, v);
       // We are done with this sub-expression.
-      PopDeviceType();
+      PopVirtualDevice();
       // Preserve the "on_device" annotations.
-      return OnDevice(body, props.device_type, props.is_fixed);
+      return OnDeviceWithProps(body, props);
     }
 
     Expr e = GetRef<Expr>(c);
@@ -248,13 +259,14 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
     return Compound(e, Call(VisitExpr(c->op), args, c->attrs, c->type_args), v);
   }
 
-  Expr VisitExpr_(const TupleNode* t, const Var& v) final {
-    Expr e = GetRef<Expr>(t);
-    std::vector<Expr> fields;
-    for (const auto& a : t->fields) {
+  Expr VisitExpr_(const TupleNode* tuple_node, const Var& v) final {
+    Expr e = GetRef<Expr>(tuple_node);
+    Array<Expr> fields;
+    fields.reserve(tuple_node->fields.size());
+    for (const auto& a : tuple_node->fields) {
       fields.push_back(VisitExpr(a));
     }
-    return Compound(e, Tuple(fields), v);
+    return Compound(e, WithFields(GetRef<Tuple>(tuple_node), fields), v);
   }
 
   Expr VisitExpr_(const TupleGetItemNode* t, const Var& v) final {
@@ -292,19 +304,19 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
     } else {
       // Keep track of expression and bound variable device types for lexically enclosing
       // sub-expressions.
-      PushDeviceType(GetFunctionResultDeviceType(f));
-      for (size_t i = 0; i < f->params.size(); ++i) {
-        PushBoundVar(f->params[i], GetFunctionParamDeviceType(f, i));
+      PushVirtualDevice(f->virtual_device());
+      for (auto param : f->params) {
+        PushBoundVar(param, param->virtual_device());
       }
       EnterFunctionBody();
-      ret = Function(f->params, GetSubScope(e, 0)->let_list->Get(VisitExpr(f->body)), f->ret_type,
-                     f->type_params, f->attrs);
+      ret = WithFields(GetRef<Function>(f), f->params,
+                       GetSubScope(e, 0)->let_list->Get(VisitExpr(f->body)));
       // We are done with this function.
       ExitFunctionBody();
       for (size_t i = 0; i < f->params.size(); ++i) {
         PopBoundVar(f->params[i]);
       }
-      PopDeviceType();
+      PopVirtualDevice();
     }
     if (function_nesting() == 0) {
       ICHECK(!v.defined());
@@ -319,7 +331,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
   Expr VisitExpr_(const LetNode* l, const Var& v) final {
     Expr e = GetRef<Expr>(l);
     // Keep track of bound variable device types for lexically enclosing sub-expressions.
-    PushBoundVar(l->var, GetInScopeDeviceType(l->value));
+    PushBoundVar(l->var, GetVirtualDevice(l->value));
     VisitExpr(l->value, l->var);
     Expr ret = GetSubScope(e, 0)->let_list->Get(VisitExpr(l->body));
     // We are done with these sub-expressions.

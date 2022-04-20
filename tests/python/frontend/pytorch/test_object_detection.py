@@ -19,6 +19,9 @@
 import numpy as np
 import cv2
 
+import torch
+import torchvision
+
 import tvm
 
 import tvm.testing
@@ -30,9 +33,6 @@ from tvm.relay.frontend.pytorch_utils import (
     rewrite_scatter_to_gather,
 )
 from tvm.contrib.download import download
-
-import torch
-import torchvision
 
 in_size = 300
 

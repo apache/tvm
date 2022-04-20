@@ -47,10 +47,12 @@ class MatmulModule:
         A = T.match_buffer(a, (1024, 1024), "float32")
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
-        with T.block([1024, 1024, T.reduce_axis(0, 1024)], "matmul") as [vi, vj, vk]:
-            with T.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        for i, j, k in T.grid(1024, 1024, 1024):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
 @script.ir_module
@@ -64,12 +66,16 @@ class MatmulReluModule:
         B = T.match_buffer(b, (1024, 1024), "float32")
         D = T.match_buffer(d, (1024, 1024), "float32")
         C = T.alloc_buffer((1024, 1024), "float32")
-        with T.block([1024, 1024, T.reduce_axis(0, 1024)], "matmul") as [vi, vj, vk]:
-            with T.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
-        with T.block([1024, 1024], "relu") as [vi, vj]:
-            D[vi, vj] = T.max(C[vi, vj], 0.0)
+        for i, j, k in T.grid(1024, 1024, 1024):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        for i, j in T.grid(1024, 1024):
+            with T.block("relu"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
 @script.ir_module
@@ -82,10 +88,12 @@ class BatchMatmulModule:
         A = T.match_buffer(a, [16, 128, 128])
         B = T.match_buffer(b, [16, 128, 128])
         C = T.match_buffer(c, [16, 128, 128])
-        with T.block([16, 128, 128, T.reduce_axis(0, 128)], "update") as [vn, vi, vj, vk]:
-            with T.init():
-                C[vn, vi, vj] = 0.0
-            C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
+        for n, i, j, k in T.grid(16, 128, 128, 128):
+            with T.block("update"):
+                vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
+                with T.init():
+                    C[vn, vi, vj] = 0.0
+                C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
 
 
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
@@ -155,7 +163,7 @@ def test_meta_schedule_error_handle_build_func():
 
     def initializer():
         @register_func("meta_schedule.builder.test_build")
-        def test_build(mod: Module, target: Target) -> None:  # pylint: disable=unused-variable
+        def test_build(mod: Module, target: Target, _) -> None:  # pylint: disable=unused-variable
             raise ValueError("Builder intended Test Error (build func).")
 
     builder = LocalBuilder(f_build="meta_schedule.builder.test_build", initializer=initializer)
@@ -193,7 +201,7 @@ def test_meta_schedule_error_handle_time_out():
 
     def initializer():
         @register_func("meta_schedule.builder.test_time_out")
-        def timeout_build(mod, target):  # pylint: disable=unused-argument, unused-variable
+        def timeout_build(mod, target, _):  # pylint: disable=unused-argument, unused-variable
             time.sleep(2)
 
     builder = LocalBuilder(

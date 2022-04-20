@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument
-"""Extract information from the convolution operators in TIR."""
+"""Extract parameters from the convolution operators in TIR."""
 import tvm
 from ..vela_api import SCALE_BIAS_LENGTH
 from .utils import get_outer_loops, get_op_attrs, get_base_address, get_loads, get_stores
@@ -46,6 +46,8 @@ def get_conv2d_params(stmt, producers, consumers):
     replace_pointer : tvm.tir.Var
         The output pointer of the DMA write operation, which is to replace
         the convolution output pointer.
+    is_allocator : bool
+        Whether this operator allocates its output.
 
     """
     attrs, body = get_op_attrs(stmt)
@@ -53,15 +55,17 @@ def get_conv2d_params(stmt, producers, consumers):
     rh = inner
     rw = rh.body
     rc = rw.body
-    # loads = [output, input, weights, scale_bias, scale_bias]
+    # loads = [output, input, weights, scale_bias, scale_bias, LUT, LUT]
     loads = get_loads(rc.body)
     # stores = [output]
     stores = get_stores(rc.body)
-    input_pointer = loads[1].buffer_var
-    output_pointer = stores[0].buffer_var
+    input_pointer = loads[1].buffer.data
+    output_pointer = stores[0].buffer.data
     # Get feature map info
     serial_ifm, serial_padding = get_ifm_params(input_pointer, producers)
-    serial_ofm, replace_pointer = get_ofm_params(output_pointer, consumers)
+    serial_ofm, serial_block_config, replace_pointer, is_allocator = get_ofm_params(
+        output_pointer, consumers, producers
+    )
     # Get kernel info
     serial_kernel = SerialKernel(
         width=int(rw.extent),
@@ -73,16 +77,16 @@ def get_conv2d_params(stmt, producers, consumers):
     )
     # Get scale_bias info
     scale_bias_load = loads[3]
-    scale_bias_base = get_base_address(scale_bias_load.index)
+    scale_bias_base = [get_base_address(index) for index in scale_bias_load.indices]
     serial_scale_bias = SerialAddressRange(
-        address=tvm.tir.Load("uint8", scale_bias_load.buffer_var, scale_bias_base),
+        address=tvm.tir.BufferLoad(scale_bias_load.buffer, scale_bias_base),
         length=SCALE_BIAS_LENGTH * serial_ofm[3],
     )
     # Get weight info
     weight_load = loads[2]
-    weight_base = get_base_address(weight_load.index)
+    weight_base = [get_base_address(index) for index in weight_load.indices]
     serial_weight = SerialAddressRange(
-        address=tvm.tir.Load("uint8", weight_load.buffer_var, weight_base),
+        address=tvm.tir.BufferLoad(weight_load.buffer, weight_base),
         length=serial_ofm[3] * serial_kernel[0] * serial_kernel[1] * rc.extent,
     )
     # Get activation info
@@ -99,8 +103,11 @@ def get_conv2d_params(stmt, producers, consumers):
             scale_bias=serial_scale_bias,
             padding=serial_padding,
             activation=serial_activation,
-            upscale="NONE",
+            rounding_mode=attrs["rounding_mode"],
+            upscale=attrs["upscale"],
+            block_config=serial_block_config,
         ),
         output_pointer,
         replace_pointer,
+        is_allocator,
     )

@@ -16,10 +16,12 @@
 # under the License.
 """TVM Script Parser Intrinsic Classes"""
 # pylint: disable=redefined-builtin, relative-beyond-top-level
+import builtins
 from typing import List, Any
 
 import tvm.tir
 from ..registry import register
+from ...target import codegen
 from ..utils import get_param_list, tvm_span_from_synr
 
 
@@ -101,6 +103,16 @@ def float64(imm, span):
 
 
 @register
+def int32x16(imm, span):
+    return imm.astype("int32x16", span)
+
+
+@register
+def int32x4(imm, span):
+    return imm.astype("int32x4", span)
+
+
+@register
 def min_value(dtype, span):
     return tvm.tir.min_value(dtype, span)
 
@@ -118,6 +130,11 @@ def floordiv(x, y, span):
 @register
 def floormod(x, y, span):
     return tvm.tir.floormod(x, y, span)
+
+
+@register
+def truncmod(x, y, span):
+    return tvm.tir.truncmod(x, y, span)
 
 
 @register
@@ -211,3 +228,26 @@ class StoreIntrin(Intrin):
             return tvm.tir.Store(var, value, index, predicate, span)
 
         super().__init__(store, stmt=True)
+
+
+@register
+def comm_reducer(lambda_io, identities, span):
+    """Create a CommReducer from lambda inputs/outputs and the identities"""
+    lambda_input = lambda_io[0]
+    lambda_output = lambda_io[1]
+
+    num_args = len(lambda_input)
+    num_arg_per_group = num_args // 2
+    x = [lambda_input[i] for i in builtins.range(0, num_arg_per_group)]
+    y = [lambda_input[i] for i in builtins.range(num_arg_per_group, num_args)]
+
+    if not isinstance(lambda_output, tuple):
+        lambda_output = (lambda_output,)
+
+    return tvm.tir.CommReducer(x, y, lambda_output, identities, span)
+
+
+@register
+def llvm_lookup_intrinsic_id(name, span):
+    # pylint: disable=unused-argument
+    return codegen.llvm_lookup_intrinsic_id(name)

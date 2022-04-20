@@ -40,7 +40,7 @@ def evaluate_network(network, target, target_host, repeat):
 
     print_progress("%-20s building..." % network)
     with tvm.transform.PassContext(opt_level=3):
-        lib = relay.build(net, target=target, target_host=target_host, params=params)
+        lib = relay.build(net, target=tvm.target.Target(target, host=target_host), params=params)
 
     tmp = tempdir()
     if "android" in str(target):

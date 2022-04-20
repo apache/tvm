@@ -17,13 +17,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/relay/attrs/call.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/memory.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
+
+#include "../../../op/call/call.h"
 
 namespace tvm {
 namespace relay {
@@ -33,17 +37,14 @@ namespace example_target_hooks {
 class ConvertAddToSubtract : public MixedModeMutator {
  public:
   explicit ConvertAddToSubtract(IRModule ir_module, Target host_target)
-      : ir_module_(ir_module), host_target_(host_target) {}
+      : ir_module_(ir_module),
+        host_target_(host_target),
+        custom_target_(Target("example_target_hook")) {}
 
   IRModule Mutate() {
     GlobalVar main_global_var = ir_module_->GetGlobalVar("main");
-    BaseFunc main = ir_module_->Lookup(main_global_var);
-    Function main_func = GetRef<Function>(main.as<FunctionNode>());
-
-    // Copy everything across and mutate the body
-    Function mutated_main =
-        Function(main_func->params, VisitExpr(main_func->body), main_func->ret_type,
-                 main_func->type_params, main_func->attrs, main_func->span);
+    Function main = GetRef<Function>(ir_module_->Lookup(main_global_var).as<FunctionNode>());
+    Function mutated_main = WithFields(main, main->params, VisitExpr(main->body));
 
     ir_module_->Update(main_global_var, mutated_main);
 
@@ -51,8 +52,8 @@ class ConvertAddToSubtract : public MixedModeMutator {
   }
 
  private:
-  tir::Load LoadIndex(const tir::Buffer& buffer, const PrimExpr& index) {
-    return tir::Load(DataType::Float(32), buffer->data, index, tir::const_true());
+  tir::BufferLoad LoadIndex(const tir::Buffer& buffer, const PrimExpr& index) {
+    return tir::BufferLoad(buffer, {index});
   }
 
   void ReplaceAddWithSubtractPrimFunc(const GlobalVar& new_global_var, const Function& func) {
@@ -70,7 +71,7 @@ class ConvertAddToSubtract : public MixedModeMutator {
 
     te::Var index("index", DataType::Int(32));
     tir::Sub indexed_sub = tir::Sub(LoadIndex(x_buffer, index), LoadIndex(y_buffer, index));
-    tir::Stmt math_body = tir::Store(out_buffer->data, indexed_sub, index, tir::const_true());
+    tir::Stmt math_body = tir::BufferStore(out_buffer, indexed_sub, {index});
     tir::Stmt math_loop = tir::For(index, 0, 8, tir::ForKind::kSerial, math_body);
 
     Map<tir::Var, tir::Buffer> buffer_map = {
@@ -80,8 +81,16 @@ class ConvertAddToSubtract : public MixedModeMutator {
     };
 
     tir::PrimFunc replacement_func = tir::PrimFunc({x_var, y_var, out_var}, math_loop, VoidType(),
-                                                   buffer_map, DictAttrs(dict_attrs));
-    replacement_func = WithAttr(replacement_func, ::tvm::attr::kTarget, host_target_);
+                                                   buffer_map, {}, DictAttrs(dict_attrs));
+
+    // Switch to TIRToRuntime hook for testing
+    Bool tir_to_runtime = func->GetAttr<Bool>("tir_to_runtime").value_or(Bool(false));
+    if (tir_to_runtime) {
+      replacement_func = WithAttr(replacement_func, ::tvm::attr::kTarget, custom_target_);
+    } else {
+      replacement_func = WithAttr(replacement_func, ::tvm::attr::kTarget, host_target_);
+    }
+
     ir_module_->Add(new_global_var, replacement_func);
   }
 
@@ -99,7 +108,13 @@ class ConvertAddToSubtract : public MixedModeMutator {
         GlobalVar new_global_var(func_name.value());
         new_global_var->checked_type_ = func->checked_type();
         ReplaceAddWithSubtractPrimFunc(new_global_var, GetRef<Function>(func));
-        return Call(new_global_var, call->args, call->attrs, call->type_args, call->span);
+
+        // Since we are replacing the Relay function with a call to a TIR function, we must use the
+        // call_lowered op.
+        CallLoweredAttrs attrs;
+        attrs.metadata.Set("relay_attrs", call->attrs);
+        ICHECK(call->type_args.empty()) << "lowered functions cannot be polymorphic";
+        return CallLowered(std::move(new_global_var), call->args, std::move(attrs), call->span);
       }
     }
 
@@ -109,6 +124,7 @@ class ConvertAddToSubtract : public MixedModeMutator {
  public:
   IRModule ir_module_;
   Target host_target_;
+  Target custom_target_;
 };
 
 transform::Pass RelayToTIR() {
@@ -123,9 +139,4 @@ transform::Pass RelayToTIR() {
 }  // namespace example_target_hooks
 }  // namespace contrib
 }  // namespace relay
-
-TVM_REGISTER_TARGET_KIND("example_target_hook", kDLCPU)
-    .set_attr<tvm::transform::Pass>("RelayToTIR",
-                                    relay::contrib::example_target_hooks::RelayToTIR());
-
 }  // namespace tvm

@@ -125,12 +125,18 @@ class RunnerFutureNode : public runtime::Object {
    * \brief Check whether the runner has finished.
    * \return A boolean indicating whether the runner has finished.
    */
-  bool Done() const { return f_done(); }
+  bool Done() const {
+    ICHECK(f_done != nullptr) << "PyRunnerFuture's Done method not implemented!";
+    return f_done();
+  }
   /*!
    * \brief Fetch the runner's output if it is ready.
    * \return The runner's output.
    */
-  RunnerResult Result() const { return f_result(); }
+  RunnerResult Result() const {
+    ICHECK(f_result != nullptr) << "PyRunnerFuture's Result method not implemented!";
+    return f_result();
+  }
 
   static constexpr const char* _type_key = "meta_schedule.RunnerFuture";
   TVM_DECLARE_FINAL_OBJECT_INFO(RunnerFutureNode, runtime::Object);
@@ -207,7 +213,10 @@ class PyRunnerNode : public RunnerNode {
     // `f_run` is not visited
   }
 
-  Array<RunnerFuture> Run(Array<RunnerInput> runner_inputs) final { return f_run(runner_inputs); }
+  Array<RunnerFuture> Run(Array<RunnerInput> runner_inputs) final {
+    ICHECK(f_run != nullptr) << "PyRunner's Run method not implemented!";
+    return f_run(runner_inputs);
+  }
 
   static constexpr const char* _type_key = "meta_schedule.PyRunner";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyRunnerNode, RunnerNode);

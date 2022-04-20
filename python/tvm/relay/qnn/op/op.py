@@ -20,7 +20,10 @@ import tvm.ir
 
 
 def register_qnn_legalize(op_name, legal_op=None, level=10):
-    """Register legal transformation function for a QNN op
+    """Register legal transformation function for a QNN op.
+
+    This helps QNN match hardware intrinsics better and is run before
+    canonicalization.
 
     Parameters
     ----------
@@ -34,3 +37,23 @@ def register_qnn_legalize(op_name, legal_op=None, level=10):
         The priority level
     """
     return tvm.ir.register_op_attr(op_name, "FTVMQnnLegalize", legal_op, level)
+
+
+def register_qnn_canonicalize(op_name, legal_op=None, level=10):
+    """Register canonicalization function for a QNN op.
+
+    This transforms QNN ops to mainline Relay components.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator
+
+    legal_op: function (Attrs, List[Expr], List[relay.Type]) -> Expr
+        The function for transforming an expr to another expr.
+
+    level : int
+        The priority level
+    """
+
+    return tvm.ir.register_op_attr(op_name, "FTVMQnnCanonicalize", legal_op, level)

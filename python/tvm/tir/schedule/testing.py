@@ -17,18 +17,17 @@
 """Testing utilities for the TensorIR schedule API"""
 from typing import Union
 
-from tvm import tir
 from tvm.ir import IRModule, structural_equal
 from tvm.tir import PrimFunc
-from tvm.tir.schedule import Trace
+from tvm.tir.schedule import Trace, Schedule
 
 
 def verify_trace_roundtrip(
-    sch: tir.Schedule,
+    sch: Schedule,
     mod: Union[PrimFunc, IRModule],
     *,
     debug_mask: Union[str, int] = "all",
-) -> tir.Schedule:
+) -> Schedule:
     """Serialize a traced schedule to JSON, then replay the JSON trace by applying to
     a fresh new schedule, verifying the reproducibility of scheduling.
 
@@ -51,7 +50,7 @@ def verify_trace_roundtrip(
     assert trace is not None
     json_obj = trace.as_json()
     # Step 2. Apply the JSON trace to a new schedule, then check if it reproduces the scheduling
-    new_sch = tir.Schedule(mod=mod, debug_mask=debug_mask)
+    new_sch = Schedule(mod=mod, debug_mask=debug_mask)
     Trace.apply_json_to_schedule(json_obj=json_obj, sch=new_sch)
     assert structural_equal(new_sch.mod, sch.mod)
     # Step 3. Check the consistency of the text format between the old and new traces

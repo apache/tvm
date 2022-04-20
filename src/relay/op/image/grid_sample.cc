@@ -116,10 +116,11 @@ bool GridSampleRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 // Positional relay function to create affine_grid operator
 // used by frontend FFI.
-Expr MakeGridSample(Expr data, Expr grid, String method, String layout) {
+Expr MakeGridSample(Expr data, Expr grid, String method, String layout, String padding_mode) {
   auto attrs = make_object<GridSampleAttrs>();
   attrs->method = std::move(method);
   attrs->layout = std::move(layout);
+  attrs->padding_mode = std::move(padding_mode);
   static const Op& op = Op::Get("image.grid_sample");
   return Call(op, {data, grid}, Attrs(attrs), {});
 }

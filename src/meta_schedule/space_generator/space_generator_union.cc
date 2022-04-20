@@ -29,10 +29,10 @@ class SpaceGeneratorUnionNode : public SpaceGeneratorNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("space_generators", &space_generators); }
 
-  void InitializeWithTuneContext(const TuneContext& tune_context) final {
+  void InitializeWithTuneContext(const TuneContext& context) final {
     // Initialize each space generator.
     for (const SpaceGenerator& space_generator : space_generators) {
-      space_generator->InitializeWithTuneContext(tune_context);
+      space_generator->InitializeWithTuneContext(context);
     }
   }
 

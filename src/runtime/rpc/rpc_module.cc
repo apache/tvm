@@ -179,7 +179,7 @@ class RPCModuleNode final : public ModuleNode {
       return WrapRemoteFunc(sess_->GetFunction(name));
     } else {
       InitRemoteFunc(&remote_mod_get_function_, "tvm.rpc.server.ModuleGetFunction");
-      return remote_mod_get_function_(GetRef<Module>(this), name, false);
+      return remote_mod_get_function_(GetRef<Module>(this), name, true);
     }
   }
 
@@ -432,7 +432,7 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
                 << "Cannot find " << f_preproc_name << " in the global function";
             f_preproc = *pf_preproc;
           }
-          PackedFunc pf = m.GetFunction(name, false);
+          PackedFunc pf = m.GetFunction(name, true);
           CHECK(pf != nullptr) << "Cannot find " << name << " in the global registry";
           return WrapTimeEvaluator(pf, dev, number, repeat, min_repeat_ms, f_preproc);
         }

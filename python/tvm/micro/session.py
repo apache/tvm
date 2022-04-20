@@ -73,7 +73,7 @@ class Session:
         ----------
         transport_context_manager : ContextManager[transport.Transport]
             If given, `flasher` and `binary` should not be given. On entry, this context manager
-            should establish a tarnsport between this TVM instance and the device.
+            should establish a transport between this TVM instance and the device.
         session_name : str
             Name of the session, used for debugging.
         timeout_override : TransportTimeouts

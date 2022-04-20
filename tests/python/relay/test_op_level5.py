@@ -17,6 +17,7 @@
 """ Support level5 operator test cases.
 """
 import math
+import platform
 import sys
 
 import numpy as np
@@ -40,7 +41,7 @@ def test_resize1d_infer_type():
     assert zz.checked_type == relay.TensorType((n, c, tw), "int8")
 
     x = relay.var("x", relay.TensorType((n, c, w), "int8"))
-    z = relay.image.resize1d(x, (200,), "NCW", "linear", "align_corners")
+    z = relay.image.resize1d(x, (200,), None, "NCW", "linear", "align_corners")
     assert "size=" in z.astext()
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, 200), "int8")
@@ -83,7 +84,7 @@ class TestResize1D:
         )
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         z = relay.image.resize1d(
-            x, size, layout, interpolate_method, coordinate_transformation_mode=coord_trans
+            x, size, None, layout, interpolate_method, coordinate_transformation_mode=coord_trans
         )
         assert "size=" in z.astext()
         zz = run_infer_type(z)
@@ -104,7 +105,7 @@ def test_resize2d_infer_type():
     assert zz.checked_type == relay.TensorType((n, c, th, tw), "int8")
 
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
-    z = relay.image.resize2d(x, (100, 200), "NCHW", "linear", "align_corners")
+    z = relay.image.resize2d(x, (100, 200), None, "NCHW", "linear", "align_corners")
     assert "size=" in z.astext()
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, 100, 200), "int8")
@@ -148,7 +149,7 @@ class TestResize2D:
         )
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         z = relay.image.resize2d(
-            x, size, layout, interpolate_method, coordinate_transformation_mode=coord_trans
+            x, size, None, layout, interpolate_method, coordinate_transformation_mode=coord_trans
         )
         assert "size=" in z.astext()
         zz = run_infer_type(z)
@@ -175,7 +176,7 @@ def test_resize3d_infer_type():
     assert zz.checked_type == relay.TensorType((n, c, td, th, tw), "int8")
 
     x = relay.var("x", relay.TensorType((n, c, d, h, w), "int8"))
-    z = relay.image.resize3d(x, (10, 10, 20), "NCDHW", "linear", "align_corners")
+    z = relay.image.resize3d(x, (10, 10, 20), None, "NCDHW", "linear", "align_corners")
     assert "size=" in z.astext()
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, 10, 10, 20), "int8")
@@ -204,7 +205,7 @@ class TestResize3D:
             x_data, (scale, scale, scale), layout, interpolate_method, coord_trans
         )
         x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.image.resize3d(x, size, layout, interpolate_method, coord_trans)
+        z = relay.image.resize3d(x, size, None, layout, interpolate_method, coord_trans)
         assert "size=" in z.astext()
         zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
@@ -220,6 +221,10 @@ class TestCropAndResize:
     interpolate_method = tvm.testing.parameter("bilinear", "nearest_neighbor")
     layout = tvm.testing.parameter("NHWC", "NCHW")
 
+    @pytest.mark.skipif(
+        platform.machine() == "aarch64",
+        reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+    )
     def test_crop_and_resize(self, target, dev, executor_kind, layout, interpolate_method):
         target_kind = tvm.target.Target(target).kind.name
         if (
@@ -773,7 +778,6 @@ def test_roi_align():
             mode=mode,
         )
         for target, dev in tvm.testing.enabled_targets():
-            print("test on", target)
             op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
                 np_data, np_rois
             )
@@ -1393,20 +1397,24 @@ def test_affine_grid():
 
 @tvm.testing.uses_gpu
 def test_grid_sample():
-    def verify_grid_sample(data_shape, grid_shape):
+    def verify_grid_sample(data_shape, grid_shape, padding_mode="zeros"):
         dtype = "float32"
         batch, channel, _, _ = data_shape
         _, _, out_height, out_width = grid_shape
         data = relay.var("data", relay.ty.TensorType(data_shape, dtype))
         grid = relay.var("grid", relay.ty.TensorType(grid_shape, dtype))
-        y = relay.image.grid_sample(data, grid, method="bilinear", layout="NCHW")
+        y = relay.image.grid_sample(
+            data, grid, method="bilinear", layout="NCHW", padding_mode=padding_mode
+        )
         yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType((batch, channel, out_height, out_width), dtype)
         func = relay.Function([data, grid], y)
 
         data_np = np.random.uniform(size=data_shape).astype(dtype)
         grid_np = np.random.uniform(size=grid_shape, low=-1.5, high=1.5).astype(dtype)
-        ref_res = tvm.topi.testing.grid_sample_nchw_python(data_np, grid_np, method="bilinear")
+        ref_res = tvm.topi.testing.grid_sample_nchw_python(
+            data_np, grid_np, method="bilinear", padding_mode=padding_mode
+        )
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
@@ -1417,6 +1425,8 @@ def test_grid_sample():
 
     verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8))
     verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32))
+    verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8), "border")
+    verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32), "border")
 
 
 @tvm.testing.uses_gpu

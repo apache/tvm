@@ -16,7 +16,8 @@
 # under the License.
 
 if(USE_CMSISNN)
+  add_definitions(-DTVM_USE_CMSISNN)
   message(STATUS "Build with CMSIS-NN support")
-  file(GLOB RELAY_CONTRIB_CMSISNN_SRCS src/relay/backend/contrib/cmsisnn/*.cc)
+  tvm_file_glob(GLOB RELAY_CONTRIB_CMSISNN_SRCS src/relay/backend/contrib/cmsisnn/*.cc)
   list(APPEND COMPILER_SRCS ${RELAY_CONTRIB_CMSISNN_SRCS})
 endif(USE_CMSISNN)

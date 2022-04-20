@@ -50,7 +50,7 @@ class Module1:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         placeholder_3 = T.match_buffer(
-            placeholder, [1, 8, 8, 3], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder, [192], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
         placeholder_4 = T.match_buffer(
             placeholder_1, [48], dtype="uint8", elem_offset=0, align=128, offset_factor=1
@@ -59,7 +59,7 @@ class Module1:
             placeholder_2, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1
         )
         ethosu_conv2d_1 = T.match_buffer(
-            ethosu_conv2d, [1, 8, 8, 16], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            ethosu_conv2d, [1024], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
         # body
         T.evaluate(
@@ -72,7 +72,7 @@ class Module1:
                 8,
                 0,
                 8,
-                T.load("uint8", placeholder_3.data, 0),
+                placeholder_3[0],
                 0,
                 0,
                 0,
@@ -89,7 +89,7 @@ class Module1:
                 8,
                 0,
                 8,
-                T.load("uint8", ethosu_conv2d_1.data, 0),
+                ethosu_conv2d_1[0],
                 0,
                 0,
                 0,
@@ -105,10 +105,10 @@ class Module1:
                 1,
                 1,
                 1,
-                T.load("uint8", placeholder_4.data, 0),
+                placeholder_4[0],
                 0,
                 12,
-                T.load("uint8", placeholder_5.data, 0),
+                placeholder_5[0],
                 0,
                 0,
                 0,
@@ -117,6 +117,7 @@ class Module1:
                 "CLIP",
                 0,
                 0,
+                "TFL",
                 "NONE",
                 dtype="uint8",
             )
@@ -141,10 +142,10 @@ class Module2:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         placeholder_3 = T.match_buffer(
-            placeholder, [1, 8, 8, 3], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder, [192], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
         placeholder_4 = T.match_buffer(
-            placeholder_1, [16, 1, 1, 3], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder_1, [48], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
         placeholder_5 = T.match_buffer(
             placeholder_2, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1
@@ -154,7 +155,7 @@ class Module2:
             placeholder_6, [16], dtype="float32", elem_offset=0, align=128, offset_factor=1
         )
         ethosu_conv2d_1 = T.match_buffer(
-            ethosu_conv2d, [1, 8, 8, 16], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            ethosu_conv2d, [1024], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
         # body
         T.evaluate(
@@ -167,7 +168,7 @@ class Module2:
                 8,
                 0,
                 8,
-                T.load("uint8", placeholder_3.data, 0),
+                placeholder_3[0],
                 0,
                 0,
                 0,
@@ -184,7 +185,7 @@ class Module2:
                 8,
                 0,
                 8,
-                T.load("uint8", ethosu_conv2d_1.data, 0),
+                ethosu_conv2d_1[0],
                 0,
                 0,
                 0,
@@ -200,10 +201,10 @@ class Module2:
                 1,
                 1,
                 1,
-                T.load("uint8", placeholder_4.data, 0),
+                placeholder_4[0],
                 0,
                 12,
-                T.load("uint8", placeholder_5.data, 0),
+                placeholder_5[0],
                 0,
                 0,
                 0,
@@ -212,6 +213,7 @@ class Module2:
                 "CLIP",
                 0,
                 0,
+                "TFL",
                 "NONE",
                 dtype="uint8",
             )
@@ -354,18 +356,17 @@ def test_compress_weights():
             max = np.iinfo(ifm_dtype).max
             min = np.iinfo(ifm_dtype).min
             values = np.random.randint(min, max, test_vec["shape"], ifm_dtype)
-            compressed_weights = vela_api.compress_weights(
+            vela_api.compress_weights(
                 weights=values,
                 weights_zp=test_vec["zero_point"],
                 weights_layout=test_vec["layout"],
                 ifm_bitdepth=ifm_bitdepth,
                 block_depth=test_vec["block_depth"],
                 dilation=test_vec["dilation"],
-                accel_type=test_vec["accel"],
+                accel_config=test_vec["accel"],
                 is_depthwise=test_vec["is_depthwise"],
             )
             return mock_npu_encode_weights
-        return None
 
     for tv in test_vecs:
         mock_obj = create_mock(tv)

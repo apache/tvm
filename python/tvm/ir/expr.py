@@ -64,8 +64,8 @@ class GlobalVar(RelayExpr):
         The name of the variable.
     """
 
-    def __init__(self, name_hint):
-        self.__init_handle_by_constructor__(_ffi_api.GlobalVar, name_hint)
+    def __init__(self, name_hint, type_annot=None):
+        self.__init_handle_by_constructor__(_ffi_api.GlobalVar, name_hint, type_annot)
 
     def __call__(self, *args):
         """Call the global variable.

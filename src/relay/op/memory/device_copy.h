@@ -28,6 +28,10 @@
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/expr.h>
 
+#include <utility>
+
+#include "../call/call.h"
+
 namespace tvm {
 namespace relay {
 
@@ -35,41 +39,42 @@ namespace relay {
 const Op& DeviceCopyOp();
 
 /*!
- * \brief Wraps \p expr in a "device_copy" CallNode indicating it should be evaluated on
- * a device of type \p src_dev_type but then copied to a device of type \p dst_dev_type.
+ * \brief Wraps \p expr in a "device_copy" CallNode indicating it should be evaluated and
+ * stored at \p src_virtual_device but then copied to \p dst_virtual_device.
  */
-Expr DeviceCopy(Expr expr, DLDeviceType src_dev_type, DLDeviceType dst_dev_type);
+Expr DeviceCopy(Expr expr, VirtualDevice src_virtual_device, VirtualDevice dst_virtual_device);
 
 /*!
- * \brief Wraps \p expr in a "device_copy" CallNode indicating it should be evaluated on
- * a device of type \p src_dev_type but then copied to a device of type \p dst_dev_type.
- * However, return \p expr directly if \p src_dev_type equals \p dst_dev_type.
+ * \brief Wraps \p expr in a "device_copy" CallNode indicating it should be evaluated and
+ * stored at \p src_virtual_device but then copied to \p dst_virtual_device.However, return \p expr
+ * directly if \p src_virtual_device and \p dst_virtual_device are (structurally) the same.
  */
-Expr MaybeDeviceCopy(Expr expr, DLDeviceType src_dev_type, DLDeviceType dst_dev_type);
+Expr MaybeDeviceCopy(Expr expr, VirtualDevice src_virtual_device, VirtualDevice dst_virtual_device);
 
 /*! \brief Result of \p GetDeviceCopyProps. */
 struct DeviceCopyProps {
   Expr body;  // = null
-  DLDeviceType src_dev_type = kInvalidDeviceType;
-  DLDeviceType dst_dev_type = kInvalidDeviceType;
+  VirtualDevice src_virtual_device = VirtualDevice::FullyUnconstrained();
+  VirtualDevice dst_virtual_device = VirtualDevice::FullyUnconstrained();
 
   DeviceCopyProps() = default;
 
-  DeviceCopyProps(const Expr& body, DLDeviceType srcDevType, DLDeviceType dstDevType)
-      : body(body), src_dev_type(srcDevType), dst_dev_type(dstDevType) {}
+  DeviceCopyProps(Expr body, VirtualDevice src_virtual_device, VirtualDevice dst_virtual_device)
+      : body(std::move(body)),
+        src_virtual_device(std::move(src_virtual_device)),
+        dst_virtual_device(std::move(dst_virtual_device)) {}
 };
 
 /*!
- * \brief Returns the body expression, source, and destination device types for \p call_node if it
- * is a "device_copy" CallNode. Otherwise returns the null expression and \p kInvalidDeviceType
- * device types.
+ * \brief Returns the body expression, source, and destination \p VirtualDevices for \p call_node
+ * if it is a "device_copy" CallNode. Otherwise returns the null expression and unconstrained
+ * virtual device.
  */
 DeviceCopyProps GetDeviceCopyProps(const CallNode* call_node);
 
 /*!
- * \brief Returns the body expression, source, and destination device types for \p expr if it
- * is a "device_copy" CallNode. Otherwise returns the null expression and \p kInvalidDeviceType
- * device types.
+ * \brief Returns the body expression, source, and destination \p VirtualDevices for \p expr if it
+ * is a "device_copy" Call. Otherwise returns the null expression and unconstrained virtual device.
  */
 DeviceCopyProps GetDeviceCopyProps(const Expr& expr);
 

@@ -21,7 +21,6 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relay, te
-from tvm.relay import create_executor, transform
 from tvm.relay.testing import check_grad, run_infer_type
 
 
@@ -41,7 +40,16 @@ def verify_func(func, data, ref_res, target_device=tvm.testing.enabled_targets()
                     tvm.testing.assert_allclose(op_result.numpy(), ref_result, rtol=1e-5)
             else:
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
-            relay.backend.compile_engine.get().clear()
+            relay.backend.te_compiler.get().clear()
+
+
+def check_on_vm(target, dev, args, expected_result, mod):
+    """
+    Check that evaluating `expr` applied to the arguments produces
+    `result` on Relay VM.
+    """
+    rts_result = relay.create_executor("vm", device=dev, target=target, mod=mod).evaluate()(*args)
+    tvm.testing.assert_allclose(expected_result, rts_result.numpy())
 
 
 @tvm.testing.uses_gpu
@@ -251,7 +259,8 @@ def test_dyn_sparse_to_dense():
     verify_sparse_to_dense(
         [0, 1, 4], [3.1, 3.1, 3.1], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1]
     )  # floats
-    verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])  # default value not specified
+    # default value not specified
+    verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])
 
 
 @pytest.mark.parametrize(
@@ -409,5 +418,59 @@ def test_sparse_fill_empty_rows(
     )
 
 
+def test_dyn_copy():
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+    mod = tvm.parser.fromtext(
+        """
+        #[version = "0.0.5"]
+        def @main(%x: Tensor[(?, 3), int64]) -> Tensor[(?, 3), int64] {
+          copy(%x)
+        }
+        """
+    )
+    x_data = np.random.rand(15, 3).astype("int64")
+    expected = x_data
+    check_on_vm(target, dev, [x_data], expected, mod)
+
+
+def test_dyn_copy_scalar():
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+    mod = tvm.parser.fromtext(
+        """
+        #[version = "0.0.5"]
+        def @main(%x: int32, %y: Tensor[(?), int32]) -> Tensor[(?), int32] {
+          %0 = copy(%x);
+          %1 = expand_dims(%0, axis=0);
+          %2 = (%y, %1);
+          concatenate(%2)
+        }
+        """
+    )
+    x_data = 3
+    y_data = np.random.rand(7).astype("int32")
+    expected = np.concatenate((y_data, np.expand_dims(x_data, axis=0)))
+    check_on_vm(target, dev, [x_data, y_data], expected, mod)
+
+
+def test_dyn_cast():
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+    mod = tvm.parser.fromtext(
+        """
+        #[version = "0.0.5"]
+        def @main(%x: Tensor[(?, 3), int64]) -> Tensor[(?, 3), int32] {
+          cast(%x, dtype="int32")
+        }
+        """
+    )
+    x_data = np.random.rand(15, 3).astype("int64")
+    expected = x_data.astype("int32")
+    check_on_vm(target, dev, [x_data], expected, mod)
+
+
 if __name__ == "__main__":
-    pytest.main([__file__])
+    import sys
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

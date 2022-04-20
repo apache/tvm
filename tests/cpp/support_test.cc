@@ -56,5 +56,11 @@ TEST(HashTests, HashStability) {
   EXPECT_EQ(::tvm::support::HashCombine(e, f), 2722928432);
 }
 
+TEST(StartsWithTests, Basic) {
+  EXPECT_TRUE(::tvm::support::StartsWith("abc", "abc"));
+  EXPECT_TRUE(::tvm::support::StartsWith("abcd", "abc"));
+  EXPECT_FALSE(::tvm::support::StartsWith("abc", "abcd"));
+}
+
 }  // namespace test
 }  // namespace tvm

@@ -176,4 +176,5 @@ def _schedule_conv_NCHWc_int8(s, cfg, data_vec, kernel_vec, conv_out, last):
         last,
         int32_lanes=get_simd_32bit_lanes(),
         intrin=dot_16x1x16_uint8_int8_int32(),
+        inline_fused=True,
     )

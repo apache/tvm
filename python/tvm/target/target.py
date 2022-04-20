@@ -22,7 +22,9 @@ import warnings
 
 import tvm._ffi
 from tvm._ffi import register_func as _register_func
-from tvm.runtime import Object
+from tvm.runtime import Object, convert
+from tvm.runtime.container import String
+from tvm.ir.container import Map
 
 from . import _ffi_api
 
@@ -30,6 +32,16 @@ from . import _ffi_api
 @tvm._ffi.register_object
 class TargetKind(Object):
     """Kind of a compilation target"""
+
+    @property
+    def options(self):
+        """Returns the dict of available option names and types"""
+        return dict(_ffi_api.ListTargetKindOptions(self))
+
+    @staticmethod
+    def options_from_name(kind_name: str):
+        """Returns the dict of available option names and types from a name of TargetKind"""
+        return dict(_ffi_api.ListTargetKindOptionsFromName(kind_name))
 
 
 @tvm._ffi.register_object
@@ -97,10 +109,14 @@ class Target(Object):
             When using a dictionary or json string to configure target, the possible values are
             same as target.
         """
-        if target is None or not isinstance(target, (dict, str, Target)):
+        if isinstance(target, (dict, str)):
+            target = convert(target)
+        if isinstance(host, (dict, str)):
+            host = convert(host)
+        if target is None or not isinstance(target, (Map, String, Target)):
             raise ValueError("target has to be a string or dictionary.")
         if host is not None:
-            if not isinstance(host, (dict, str, Target)):
+            if not isinstance(host, (Map, String, Target)):
                 raise ValueError("target host has to be a string or dictionary.")
             self.__init_handle_by_constructor__(_ffi_api.Target, Target(target), Target(host))
         else:
@@ -135,11 +151,18 @@ class Target(Object):
         return _ffi_api.TargetCurrent(allow_none)
 
     @property
+    def arch(self):
+        """Returns the cuda arch from the target if it exists."""
+        return str(self.attrs.get("arch", ""))
+
+    @property
     def max_num_threads(self):
+        """Returns the max_num_threads from the target if it exists."""
         return int(self.attrs["max_num_threads"])
 
     @property
     def thread_warp_size(self):
+        """Returns the thread_warp_size from the target if it exists."""
         return int(self.attrs["thread_warp_size"])
 
     @property
@@ -166,8 +189,29 @@ class Target(Object):
         return list(self.attrs.get("mattr", []))
 
     @property
+    def supports_integer_dot_product(self):
+        if self.attrs.get("supports_integer_dot_product", []):
+            return bool(self.attrs["supports_integer_dot_product"])
+        return False
+
+    @property
     def libs(self):
         return list(self.attrs.get("libs", []))
+
+    def get_kind_attr(self, attr_name):
+        """Get additional attribute about the target kind.
+
+        Parameters
+        ----------
+        attr_name : str
+            The attribute name.
+
+        Returns
+        -------
+        value : object
+            The attribute value
+        """
+        return _ffi_api.TargetKindGetAttr(self.kind, attr_name)
 
     @staticmethod
     def list_kinds():
@@ -189,15 +233,19 @@ class Target(Object):
         target_is_dict_key : Bool
             When the type of target is dict, whether Target is the key (Otherwise the value)
         """
+        if isinstance(target, (dict, str)):
+            target = convert(target)
+        if isinstance(host, (dict, str)):
+            host = convert(host)
         if target is None:
             assert host is None, "Target host is not empty when target is empty."
             return target, host
-        if isinstance(target, dict) and "kind" not in target:
+        if isinstance(target, Map) and "kind" not in target:
             new_target = {}
             for tgt, mod in target.items():
                 if not target_is_dict_key:
                     tgt, mod = mod, tgt
-                if isinstance(tgt, (dict, str, Target)):
+                if isinstance(tgt, (Map, String, Target)):
                     tgt, host = Target.check_and_update_host_consist(tgt, host)
                 if not target_is_dict_key:
                     tgt, mod = mod, tgt
@@ -210,8 +258,6 @@ class Target(Object):
 
 
 # TODO(@tvm-team): Deprecate the helper functions below. Encourage the usage of config dict instead.
-
-
 def _merge_opts(opts, new_opts):
     """Helper function to merge options"""
     if isinstance(new_opts, str):
@@ -223,17 +269,23 @@ def _merge_opts(opts, new_opts):
     return opts
 
 
-def cuda(model="unknown", options=None):
+def cuda(model="unknown", arch=None, options=None):
     """Returns a cuda target.
 
     Parameters
     ----------
     model: str
         The model of cuda device (e.g. 1080ti)
+    arch: str
+        The cuda architecture (e.g. sm_61)
     options : str or list of str
         Additional options
     """
     opts = _merge_opts(["-model=%s" % model], options)
+    if arch:
+        opts = _merge_opts(["-arch=%s" % arch], opts)
+    if not any(["-arch" in opt for opt in opts]):
+        warnings.warn("Try specifying cuda arch by adding 'arch=sm_xx' to your target.")
     return Target(" ".join(["cuda"] + opts))
 
 
@@ -288,11 +340,13 @@ MICRO_SUPPORTED_MODELS = {
     "esp32": [],
     "imxrt10xx": ["-mcpu=cortex-m7"],
     "mps2_an521": ["-mcpu=cortex-m33"],
+    "mps3_an547": ["-mcpu=cortex-m55"],
     "nrf52840": ["-mcpu=cortex-m4"],
     "nrf5340dk": ["-mcpu=cortex-m33"],
     "sam3x8e": ["-mcpu=cortex-m3"],
     "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
     "stm32l4r5zi": ["-mcpu=cortex-m4"],
+    "stm32u5xx": ["-mcpu=cortex-m33"],
     "zynq_mp_r5": ["-mcpu=cortex-r5"],
 }
 
@@ -311,12 +365,9 @@ def micro(model="unknown", options=None):
     if model not in MICRO_SUPPORTED_MODELS:
         raise ValueError(f"Model {model} not supported by tvm.target.micro.")
     opts = _merge_opts(
-        MICRO_SUPPORTED_MODELS[model] + ["-runtime=c", f"-model={model}"],
+        MICRO_SUPPORTED_MODELS[model] + [f"-model={model}"],
         options,
     )
-
-    if (not options) or (options and not any("-executor=aot" in o for o in options)):
-        opts = _merge_opts(opts, "--system-lib")
 
     # NOTE: in the future, the default micro target will be LLVM except when
     # external dependencies are present.
@@ -483,8 +534,14 @@ def hexagon(cpu_ver="v66", **kwargs):
         error if invalid. Does not affect codegen.
     llvm_options : str or list of str (default: None)
         User defined compiler arguments.
+    use_qfloat : bool (default: True for cpu_ver >= v68, False otherwise)
+        Whether to use QFloat HVX instructions.
+    use_ieee_fp : bool (default: False)
+        Whether to use IEEE HVX instructions
     link_params : bool (default: False)
         Whether to link graph parameters into the LLVM module.
+
+    Note: Floating point support in HVX requires LLVM 14+.
     """
 
     # Some of the target parameters correspond to target kind attributes
@@ -495,8 +552,13 @@ def hexagon(cpu_ver="v66", **kwargs):
     # Example compiler arguments
     # llvm -mtriple=hexagon -mcpu=hexagonv66 -mattr=+hvxv66,+hvx-length128b
 
+    def get_arch_version(cpu_ver):
+        m = re.match(r"v([0-9]+).*", cpu_ver)
+        assert m
+        return int(m.group(1))
+
     # Check for valid codegen cpu
-    valid_hex = ["v60", "v62", "v65", "v66", "v67", "v67t", "v68"]
+    valid_hex = ["v65", "v66", "v67", "v67t", "v68", "v69"]
     try:
         cpu_ver = cpu_ver[cpu_ver.index("v") :].lower()
         assert cpu_ver in valid_hex
@@ -505,10 +567,13 @@ def hexagon(cpu_ver="v66", **kwargs):
         raise ValueError(msg.format(cpu_ver, valid_hex)) from None
 
     # Target configuration:
+    arch_version = get_arch_version(cpu_ver)
     config = {
         "hvx": 128,
         "sim_options": None,
         "llvm_options": None,
+        "use_qfloat": arch_version >= 68,
+        "use_ieee_fp": False,
         "link_params": False,
     }
     config.update(kwargs)
@@ -533,6 +598,10 @@ def hexagon(cpu_ver="v66", **kwargs):
         # Process the options that affect target features and return the
         # target feature string.
         def create_target_features(config):
+            features = {
+                "use_qfloat": "hvx-qfloat",
+                "use_ieee_fp": "hvx-ieee-fp",
+            }
             tfs = []
             if config["hvx"] > 0:
                 valid_hvx = [0, 64, 128]
@@ -541,6 +610,11 @@ def hexagon(cpu_ver="v66", **kwargs):
                 tfs += ["+hvx" + cpu_ver, "+hvx-length" + str(config["hvx"]) + "b"]
             else:
                 tfs += ["-hvx"]
+            # All the additional features happen to only apply to v68+.
+            # Don't bother applying them (even with '-') to lower versions.
+            if arch_version >= 68:
+                tfs += ["-+"[config[f]] + features[f] for f in features]
+
             return "-mattr=" + ",".join(tfs) if tfs else ""
 
         return target + mcpu + " " + create_target_features(config)

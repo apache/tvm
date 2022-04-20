@@ -20,13 +20,12 @@ import sys
 
 import numpy as np
 import pytest
-
 import tvm
 import tvm.testing
 import tvm.topi.testing
-
 from tvm import autotvm, relay, te
-from tvm.contrib import utils
+from tvm.contrib import utils, cudnn
+from tvm.ir.module import IRModule
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
 from tvm.topi.cuda.conv3d_winograd import _infer_tile_size
@@ -838,36 +837,58 @@ def test_conv2d_transpose_infer_type():
 
 @tvm.testing.uses_gpu
 def test_conv2d_transpose_nchw_run():
-    dshape = (1, 3, 18, 18)
-    kshape = (3, 10, 3, 3)
-    oshape = (1, 10, 36, 36)
-    x = relay.var("x", shape=dshape)
-    w = relay.var("w")
-    y = relay.nn.conv2d_transpose(
-        x, w, channels=10, kernel_size=(3, 3), strides=(2, 2), padding=(1, 1), output_padding=(1, 1)
-    )
-    func = relay.Function([x, w], y)
-    dtype = "float32"
-    data = np.random.uniform(size=dshape).astype(dtype)
-    kernel = np.random.uniform(size=kshape).astype(dtype)
-    ref_res = tvm.topi.testing.conv2d_transpose_nchw_python(data, kernel, 2, 1, (1, 1))
+    k_layouts = {"OIHW": (10, 3, 3, 3), "IOHW": (3, 10, 3, 3)}
+    output_padding = (1, 1)
 
-    for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-            data, kernel
+    for k_layout, kshape in k_layouts.items():
+        dshape = (1, 3, 18, 18)
+        x = relay.var("x", shape=dshape)
+        w = relay.var("w")
+        y = relay.nn.conv2d_transpose(
+            x,
+            w,
+            channels=10,
+            kernel_size=(3, 3),
+            strides=(2, 2),
+            padding=(1, 1),
+            output_padding=output_padding,
+            kernel_layout=k_layout,
+            data_layout="NCHW",
         )
-        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
+        func = relay.Function([x, w], y)
+        dtype = "float32"
+        data = np.random.uniform(size=dshape).astype(dtype)
+        kernel = np.random.uniform(size=kshape).astype(dtype)
+
+        if k_layout != "IOHW":
+            # Must be OIHW so switch
+            kernel_iohw = np.transpose(kernel, [1, 0, 2, 3])
+        else:
+            kernel_iohw = kernel
+
+        ref_res = tvm.topi.testing.conv2d_transpose_nchw_python(
+            data, kernel_iohw, 2, 1, output_padding
+        )
+
+        enabled_targets = tvm.testing.enabled_targets()
+
+        if cudnn.exists() and k_layout == "IOHW":
+            enabled_targets.append(("cuda -libs=cudnn", tvm.cuda(0)))
+
+        for target, dev in enabled_targets:
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                data, kernel
+            )
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
 def test_conv2d_transpose_nhwc_run():
     dshape_nhwc = (1, 18, 18, 3)
     kshape_hwoi = (3, 3, 10, 3)
-    oshape_nhwc = (1, 36, 36, 10)
     x = relay.var("x", shape=dshape_nhwc)
     w = relay.var("w")
-    # kshape and kernel_layout should have swapped IO.
-    # kshape is HWOI and kernel_layout is HWIO
+
     y = relay.nn.conv2d_transpose(
         x,
         w,
@@ -877,13 +898,12 @@ def test_conv2d_transpose_nhwc_run():
         padding=(1, 1),
         output_padding=(1, 1),
         data_layout="NHWC",
-        kernel_layout="HWIO",
+        kernel_layout="HWOI",
     )
     func = relay.Function([x, w], y)
     dtype = "float32"
     data = np.random.uniform(size=dshape_nhwc).astype(dtype)
     kernel = np.random.uniform(size=kshape_hwoi).astype(dtype)
-    # use true kshape layout here - HWOI
 
     ref_res = tvm.topi.testing.conv2d_transpose_nhwc_python(
         data, kernel, "HWOI", 2, 1, output_padding=(1, 1)
@@ -894,6 +914,43 @@ def test_conv2d_transpose_nhwc_run():
             data, kernel
         )
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+
+@tvm.testing.uses_gpu
+def test_conv2d_transpose_nhwc_cudnn():
+    if not cudnn.exists():
+        return
+
+    dshape_nhwc = (1, 18, 18, 3)
+    kshape_ihwo = (3, 3, 3, 10)
+    x = relay.var("x", shape=dshape_nhwc)
+    w = relay.var("w", shape=kshape_ihwo)
+
+    y = relay.nn.conv2d_transpose(
+        x,
+        w,
+        channels=10,
+        kernel_size=(3, 3),
+        strides=(2, 2),
+        padding=(1, 1),
+        output_padding=(1, 1),
+        data_layout="NHWC",
+        kernel_layout="IHWO",
+    )
+    func = relay.Function([x, w], y)
+    dtype = "float32"
+    data = np.random.uniform(size=dshape_nhwc).astype(dtype)
+    kernel = np.random.uniform(size=kshape_ihwo).astype(dtype)
+
+    ref_res = tvm.topi.testing.conv2d_transpose_nhwc_python(
+        data, np.transpose(kernel, [1, 2, 3, 0]), "HWOI", 2, 1, output_padding=(1, 1)
+    )
+
+    target = "cuda -libs=cudnn"
+    dev = tvm.cuda(0)
+
+    op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data, kernel)
+    tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -1380,16 +1437,16 @@ def test_pad_run_dynamic_pad_value():
 
 
 @tvm.testing.uses_gpu
-def test_lrn():
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+def test_lrn(dtype):
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
-    x = relay.var("x", shape=(n, c, h, w))
+    x = relay.var("x", shape=(n, c, h, w), dtype=dtype)
     y = relay.nn.lrn(x, size=10, axis=2, bias=0.5, alpha=0.00001, beta=0.75)
     "alpha=" in y.astext()
     yy = run_infer_type(y)
-    assert yy.checked_type == relay.TensorType((n, c, h, w))
+    assert yy.checked_type == relay.TensorType((n, c, h, w), dtype)
 
     shape = (1, 5, 10, 10)
-    dtype = "float32"
     x = relay.var("x", relay.TensorType(shape, dtype))
     size = 5
     axis = 1
@@ -1587,6 +1644,7 @@ def test_upsampling3d():
     _test_upsampling3d("NDHWC", "trilinear", "align_corners")
 
 
+@tvm.testing.requires_x86
 @pytest.mark.skipif(tvm.target.codegen.llvm_version_major() < 8, reason="Requires LLVM 8")
 class TestConv2DInt8Intrinsics:
     supported_targets = [
@@ -1884,6 +1942,56 @@ def test_correlation():
         padding=2,
         is_multiply=False,
     )
+
+
+@pytest.mark.skip("Requires GFX10 AMDGPU")
+def test_conv2d_rocm_sdot4():
+    d_shape = (1, 64, 56, 56)
+    w_shape = (64, 64, 3, 3)
+    padding = (1, 1)
+    strides = (1, 1)
+    data_dtype = "int8"
+    weight_dtype = "int8"
+    out_dtype = "int32"
+
+    data = relay.var("data", shape=d_shape, dtype=data_dtype)
+    weight = relay.var("weight", shape=w_shape, dtype=weight_dtype)
+    out_channel = w_shape[0]
+    conv2d = relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=w_shape[2:],
+        channels=out_channel,
+        padding=padding,
+        strides=strides,
+        out_dtype=out_dtype,
+    )
+
+    mod = tvm.IRModule.from_expr(conv2d)
+
+    data_np = np.random.uniform(1, 10, d_shape).astype("int8")
+    weight_np = np.random.uniform(1, 10, size=w_shape).astype("int8")
+
+    target = "rocm -mattr=+dotprod"
+    with tvm.transform.PassContext(opt_level=3):
+        lib = relay.build(mod, target=target, params={"weight": weight_np})
+
+    asm = lib.lib.imported_modules[0].get_source("asm")
+    assert "v_dot4_i32_i8" in asm
+
+    dev = tvm.device(target, 0)
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    runtime.set_input("data", data_np)
+    runtime.run()
+
+    out = runtime.get_output(0).numpy()
+
+    ref = tvm.topi.testing.conv2d_nchw_python(
+        data_np.astype("int32"), weight_np.astype("int32"), strides, padding
+    )
+
+    np.testing.assert_equal(out, ref)
 
 
 if __name__ == "__main__":

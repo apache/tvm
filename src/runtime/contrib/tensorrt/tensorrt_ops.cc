@@ -49,6 +49,7 @@ nvinfer1::ITensor* TensorRTOpConverter::Reshape(TensorRTOpConverterParams* param
   auto layer = params->network->addShuffle(*input);
   ICHECK(layer != nullptr);
   layer->setReshapeDimensions(VectorToTrtDims(new_shape));
+  layer->setOutputType(0, input->getType());
   return layer->getOutput(0);
 }
 
@@ -99,7 +100,8 @@ nvinfer1::ITensor* TensorRTOpConverter::CreateScalar(
   std::fill_n(dims.d, dims.nbDims, 1);
   float* values = new float[1];
   values[0] = value;
-  nvinfer1::Weights weights{nvinfer1::DataType::kFLOAT, static_cast<void*>(values), 1};
+  const nvinfer1::DataType weight_type = params->inputs.at(1).weight.type;
+  nvinfer1::Weights weights{weight_type, static_cast<void*>(values), 1};
   params->trt_weights->push_back(weights);
   return params->network->addConstant(dims, weights)->getOutput(0);
 }
@@ -226,6 +228,57 @@ class ElementWiseBinaryOpConverter : public TensorRTOpConverter {
   }
 };
 
+class Conv1DOpConverter : public TensorRTOpConverter {
+ public:
+  Conv1DOpConverter() : TensorRTOpConverter({kTensor, kWeight}) {}
+
+  void Convert(TensorRTOpConverterParams* params) const {
+    auto input_tensor = params->inputs.at(0).tensor;
+    auto input_dims = TrtDimsToVector(input_tensor->getDimensions());
+    auto weight_shape = params->inputs.at(1).weight_shape;
+    ICHECK_EQ(params->node.GetAttr<std::vector<std::string>>("data_layout")[0], "NCW");
+    ICHECK_EQ(params->node.GetAttr<std::vector<std::string>>("kernel_layout")[0], "OIW");
+    auto str_strides = params->node.GetAttr<std::vector<std::string>>("strides");
+    auto str_dilation = params->node.GetAttr<std::vector<std::string>>("dilation");
+    auto str_padding = params->node.GetAttr<std::vector<std::string>>("padding");
+    int groups = std::stoi(params->node.GetAttr<std::vector<std::string>>("groups")[0]);
+    int channels = weight_shape[0];
+    if (params->node.HasAttr("channels") &&
+        !params->node.GetAttr<std::vector<std::string>>("channels")[0].empty()) {
+      channels = std::stoi(params->node.GetAttr<std::vector<std::string>>("channels")[0]);
+    }
+
+    auto shuffle_layer = params->network->addShuffle(*input_tensor);
+    std::vector<int> new_shape = {input_dims[0], input_dims[1], 1};
+    shuffle_layer->setReshapeDimensions(VectorToTrtDims(new_shape));
+    input_tensor = shuffle_layer->getOutput(0);
+
+    const auto kernel_size = nvinfer1::DimsHW(weight_shape[2], 1);
+    const nvinfer1::DataType weight_type = params->inputs.at(1).weight.type;
+
+    nvinfer1::Weights bias{weight_type, nullptr, 0};
+
+    auto conv_layer = params->network->addConvolution(*input_tensor, channels, kernel_size,
+                                                      params->inputs.at(1).weight, bias);
+    ICHECK(conv_layer != nullptr);
+    conv_layer->setPadding(nvinfer1::DimsHW(std::stoi(str_padding[0]), 0));
+    ICHECK_EQ(str_strides.size(), 1);
+    const auto strides = nvinfer1::DimsHW(std::stoi(str_strides[0]), 1);
+    conv_layer->setStride(strides);
+    ICHECK_EQ(str_dilation.size(), 1);
+    const auto dilation = nvinfer1::DimsHW(std::stoi(str_dilation[0]), 1);
+    conv_layer->setDilation(dilation);
+    conv_layer->setNbGroups(groups);
+    input_tensor = conv_layer->getOutput(0);
+
+    auto conv_output_dims = TrtDimsToVector(input_tensor->getDimensions());
+    std::vector<int> back_shape = {0, 0};
+    auto shuffle_back_layer = params->network->addShuffle(*input_tensor);
+    shuffle_back_layer->setReshapeDimensions(VectorToTrtDims(back_shape));
+    params->outputs.push_back(shuffle_back_layer->getOutput(0));
+  }
+};
+
 class Conv2DOpConverter : public TensorRTOpConverter {
  public:
   Conv2DOpConverter() : TensorRTOpConverter({kTensor, kWeight}) {}
@@ -264,7 +317,8 @@ class Conv2DOpConverter : public TensorRTOpConverter {
 #endif
 
     const auto kernel_size = nvinfer1::DimsHW(weight_shape[2], weight_shape[3]);
-    nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
+    const nvinfer1::DataType weight_type = params->inputs.at(1).weight.type;
+    nvinfer1::Weights bias{weight_type, nullptr, 0};
     auto conv_layer = params->network->addConvolution(*input_tensor, channels, kernel_size,
                                                       params->inputs.at(1).weight, bias);
     ICHECK(conv_layer != nullptr);
@@ -312,7 +366,8 @@ class Conv3DOpConverter : public TensorRTOpConverter {
     const int num_outputs =
         std::stoi(params->node.GetAttr<std::vector<std::string>>("channels")[0]);
     const auto kernel_size = nvinfer1::Dims3(weight_shape[2], weight_shape[3], weight_shape[4]);
-    nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
+    const nvinfer1::DataType weight_type = params->inputs.at(1).weight.type;
+    nvinfer1::Weights bias{weight_type, nullptr, 0};
     auto conv_layer = params->network->addConvolutionNd(*input_tensor, num_outputs, kernel_size,
                                                         params->inputs.at(1).weight, bias);
     ICHECK(conv_layer != nullptr);
@@ -355,7 +410,8 @@ class DenseOpConverter : public TensorRTOpConverter {
     // Weights are in KC format.
     ICHECK_EQ(params->inputs.at(1).weight_shape.size(), 2);
     const int num_units = params->inputs.at(1).weight_shape[0];
-    nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
+    const nvinfer1::DataType weight_type = params->inputs.at(1).weight.type;
+    nvinfer1::Weights bias{weight_type, nullptr, 0};
     nvinfer1::IFullyConnectedLayer* fc_layer = params->network->addFullyConnected(
         *input_tensor, num_units, params->inputs.at(1).weight, bias);
     ICHECK(fc_layer != nullptr);
@@ -417,12 +473,15 @@ class BatchNormOpConverter : public TensorRTOpConverter {
     }
 
     void* weight_scale_ptr = new float[gamma.count];
-    nvinfer1::Weights weight_scale{nvinfer1::DataType::kFLOAT, weight_scale_ptr, gamma.count};
+    const nvinfer1::DataType weight_type_scale = params->inputs.at(1).weight.type;
+    nvinfer1::Weights weight_scale{weight_type_scale, weight_scale_ptr, gamma.count};
     params->trt_weights->push_back(weight_scale);
     void* weight_shift_ptr = new float[gamma.count];
-    nvinfer1::Weights weight_shift{nvinfer1::DataType::kFLOAT, weight_shift_ptr, gamma.count};
+    const nvinfer1::DataType weight_type_shift = params->inputs.at(2).weight.type;
+    nvinfer1::Weights weight_shift{weight_type_shift, weight_shift_ptr, gamma.count};
     params->trt_weights->push_back(weight_shift);
-    nvinfer1::Weights power{nvinfer1::DataType::kFLOAT, nullptr, 0};
+    const nvinfer1::DataType weight_type_power = params->inputs.at(3).weight.type;
+    nvinfer1::Weights power{weight_type_power, nullptr, 0};
 
     // fill in the content of weights for the Scale layer
     const float* gamma_ptr = reinterpret_cast<const float*>(gamma.values);
@@ -862,8 +921,10 @@ class BiasAddOpConverter : public TensorRTOpConverter {
       input_tensor = Reshape(params, input_tensor, new_shape);
     }
 
-    nvinfer1::Weights shift{nvinfer1::DataType::kFLOAT, nullptr, 0};
-    nvinfer1::Weights power{nvinfer1::DataType::kFLOAT, nullptr, 0};
+    const nvinfer1::DataType weight_type = params->inputs.at(1).weight.type;
+
+    nvinfer1::Weights shift{weight_type, nullptr, 0};
+    nvinfer1::Weights power{weight_type, nullptr, 0};
     nvinfer1::IScaleLayer* scale_layer = params->network->addScale(
         *input_tensor, nvinfer1::ScaleMode::kCHANNEL, params->inputs.at(1).weight, shift, power);
     ICHECK(scale_layer != nullptr);
@@ -913,7 +974,8 @@ class Conv2DTransposeOpConverter : public TensorRTOpConverter {
     const int num_outputs =
         std::stoi(params->node.GetAttr<std::vector<std::string>>("channels")[0]);
     const auto kernel_size = nvinfer1::DimsHW(weight_shape[2], weight_shape[3]);
-    nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
+    const nvinfer1::DataType weight_type = params->inputs.at(1).weight.type;
+    nvinfer1::Weights bias{weight_type, nullptr, 0};
     auto deconv_layer = params->network->addDeconvolution(*input_tensor, num_outputs, kernel_size,
                                                           params->inputs.at(1).weight, bias);
     ICHECK(deconv_layer != nullptr);
@@ -971,7 +1033,8 @@ class Conv3DTransposeOpConverter : public TensorRTOpConverter {
     const int num_outputs =
         std::stoi(params->node.GetAttr<std::vector<std::string>>("channels")[0]);
     const auto kernel_size = nvinfer1::Dims3(weight_shape[2], weight_shape[3], weight_shape[4]);
-    nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
+    const nvinfer1::DataType weight_type = params->inputs.at(1).weight.type;
+    nvinfer1::Weights bias{weight_type, nullptr, 0};
     auto deconv_layer = params->network->addDeconvolutionNd(*input_tensor, num_outputs, kernel_size,
                                                             params->inputs.at(1).weight, bias);
     ICHECK(deconv_layer != nullptr);
@@ -1198,6 +1261,7 @@ GetOpConverters() {
   map->emplace("nn.batch_norm", std::make_shared<BatchNormOpConverter>());
   map->emplace("nn.layer_norm", std::make_shared<LayerNormOpConverter>());
   map->emplace("nn.softmax", std::make_shared<SoftmaxOpConverter>());
+  map->emplace("nn.conv1d", std::make_shared<Conv1DOpConverter>());
   map->emplace("nn.conv2d", std::make_shared<Conv2DOpConverter>());
   map->emplace("nn.dense", std::make_shared<DenseOpConverter>());
   map->emplace("nn.bias_add", std::make_shared<BiasAddOpConverter>());

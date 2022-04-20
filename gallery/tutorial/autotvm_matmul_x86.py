@@ -242,7 +242,7 @@ def matmul(N, L, M, dtype):
 
 
 ################################################################################
-# .. note:: More Explanation on :code:`cfg.define_split`
+# .. admonition:: More Explanation on :code:`cfg.define_split`
 #
 #  In this template, :code:`cfg.define_split("tile_y", y, num_outputs=2)` will
 #  enumerate all possible combinations that can split axis y into two axes with

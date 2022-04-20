@@ -113,21 +113,16 @@ class ForwardRewriter : private MixedModeMutator {
     }
   }
 
-  Expr Rewrite_(const TupleNode* op, const Expr& post) final {
+  Expr Rewrite_(const TupleNode* tuple_node, const Expr& post) final {
     tvm::Array<Expr> fields;
-    bool all_fields_unchanged = true;
-    const auto* post_node = post.as<TupleNode>();
-    for (size_t i = 0; i < op->fields.size(); ++i) {
-      auto new_field = this->GetTempExpr(op->fields[i], post_node->fields[i]);
-      fields.push_back(new_field);
-      all_fields_unchanged &= new_field.same_as(op->fields[i]);
+    fields.reserve(tuple_node->fields.size());
+
+    const auto* post_tuple_node = post.as<TupleNode>();
+    for (size_t i = 0; i < tuple_node->fields.size(); ++i) {
+      fields.push_back(this->GetTempExpr(tuple_node->fields[i], post_tuple_node->fields[i]));
     }
 
-    if (all_fields_unchanged) {
-      return GetRef<Expr>(op);
-    } else {
-      return Tuple(fields);
-    }
+    return WithFields(GetRef<Tuple>(tuple_node), fields);
   }
 
   Expr Rewrite_(const CallNode* call_node, const Expr& post) final {
@@ -141,6 +136,9 @@ class ForwardRewriter : private MixedModeMutator {
     }
     const auto* post_node = post.as<CallNode>();
     auto new_op = post_node->op;
+    if (new_op->IsInstance<FunctionNode>()) {
+      new_op = realizer_.Realize(new_op);
+    }
     bool unchanged = call_node->op.same_as(new_op);
 
     Array<Expr> call_args;

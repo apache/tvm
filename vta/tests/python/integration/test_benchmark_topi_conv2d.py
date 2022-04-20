@@ -217,12 +217,19 @@ def run_conv2d(env, remote, wl, target, check_correctness=True, print_ir=False, 
 
     # Build
     if "vta" in target.keys:
-        mod = vta.build(
-            s, [data, kernel, bias, res], target=target, target_host=env.target_host, name="conv2d"
-        )
+        with vta.build_config(disabled_pass={"tir.CommonSubexprElimTIR"}):
+            mod = vta.build(
+                s,
+                [data, kernel, bias, res],
+                target=tvm.target.Target(target, host=env.target_host),
+                name="conv2d",
+            )
     else:
         mod = tvm.build(
-            s, [data, kernel, bias, res], target=target, target_host=env.target_host, name="conv2d"
+            s,
+            [data, kernel, bias, res],
+            target=tvm.target.Target(target, host=env.target_host),
+            name="conv2d",
         )
     temp = utils.tempdir()
     mod.save(temp.relpath("conv2d.o"))
@@ -276,7 +283,7 @@ def run_conv2d(env, remote, wl, target, check_correctness=True, print_ir=False, 
         res_ref = res_ref.astype(env.out_dtype)
         correct = np.allclose(res_orig, res_ref)
 
-    gops = (num_ops / cost.mean) / float(10 ** 9)
+    gops = (num_ops / cost.mean) / float(10**9)
     status = "PASSED" if correct else "FAILED"
     if "arm_cpu" in target.keys:
         device = "CPU"

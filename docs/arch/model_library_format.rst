@@ -15,6 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
+.. _model_library_format:
+
 Model Library Format
 ====================
 

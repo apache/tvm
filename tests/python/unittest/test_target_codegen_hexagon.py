@@ -28,7 +28,7 @@ import tvm.contrib.hexagon as hexagon
 
 @pytest.fixture(autouse=True)
 def register_linker():
-    original_linker = tvm.contrib.hexagon.hexagon_link()
+    original_linker = hexagon.hexagon_link()
     # Register a phony linker, so that we can test codegen without a Hexagon toolchain.
     hexagon.register_linker(lambda: "/bin/true")
     yield None
@@ -133,7 +133,7 @@ def test_linked_params_codegen():
     target = tvm.target.hexagon("v68", link_params=True)
 
     with tvm.transform.PassContext(opt_level=3):
-        lib = tvm.relay.build(mod, target=target, target_host=target, params=params)
+        lib = tvm.relay.build(mod, target=target, params=params)
         llvm_ir = lib.get_lib().get_source("ll")
 
     # The definition of the parameter:

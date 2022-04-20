@@ -22,6 +22,7 @@ Decorator and utilities for the integration with TOPI and Relay
 """
 import threading
 import logging
+import warnings
 
 import tvm
 from tvm.autotvm.task.dispatcher import DispatchContext, FallbackContext
@@ -33,7 +34,7 @@ logger = logging.getLogger("autotvm")
 
 
 # TODO(moreau89) find a more elegant way to lower for VTAs
-def _lower(mod, target, params):
+def _lower(mod, target, params, opt_level=3):
     """Helper to lower VTA properly."""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
@@ -42,16 +43,19 @@ def _lower(mod, target, params):
     if hasattr(target, "device_name") and target.device_name == "vta":
         import vta
 
-        with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
+        with vta.build_config(opt_level=opt_level, disabled_pass={"AlterOpLayout"}):
             mod, _ = relay.optimize(mod, target, params)
             grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
-            grc.codegen(mod["main"])
+            grc.codegen(mod, mod["main"])
             return
 
-    compiler = relay.vm.VMCompiler()
-    if params:
-        compiler.set_params(params)
-    compiler.lower(mod, target=target)
+    # Alter op layout code has been written expecting that tuning is applied
+    # without it, so we disable AlterOpLayout to maintain that behavior.
+    with tvm.transform.PassContext(opt_level=opt_level, disabled_pass={"AlterOpLayout"}):
+        compiler = relay.vm.VMCompiler()
+        if params:
+            compiler.set_params(params)
+        compiler.lower(mod, target=target)
 
 
 def extract_from_program(mod, params, target, target_host=None, ops=None):
@@ -77,6 +81,11 @@ def extract_from_program(mod, params, target, target_host=None, ops=None):
     task: Array of autotvm.task.Task
         collected tasks
     """
+    if target_host is not None:
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
+        )
     target, target_host = Target.check_and_update_host_consist(target, target_host)
     return extract_from_multiple_program([mod], [params], target, ops=ops)
 
@@ -127,12 +136,12 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
             assert isinstance(
                 mod, tvm.IRModule
             ), "only support relay Module or Function to be tuned"
-            relay.backend.compile_engine.get().clear()
+            relay.backend.te_compiler.get().clear()
             # wrap build call in thread to avoid multiprocessing problems
             build_thread = threading.Thread(target=_lower, args=(mod, target, param))
             build_thread.start()
             build_thread.join()
-            relay.backend.compile_engine.get().clear()
+            relay.backend.te_compiler.get().clear()
             # Clear the warning message cache in FallbackContext
             if isinstance(DispatchContext.current, FallbackContext):
                 DispatchContext.current.memory = {}

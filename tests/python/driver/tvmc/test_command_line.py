@@ -14,12 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import platform
 import pytest
 import os
 
 from tvm.driver.tvmc.main import _main
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_tvmc_cl_workflow(keras_simple, tmpdir_factory):
     pytest.importorskip("tensorflow")
 
@@ -40,6 +45,42 @@ def test_tvmc_cl_workflow(keras_simple, tmpdir_factory):
     compile_str = (
         f"tvmc compile --target llvm --tuning-records {log_path} "
         f"--output {package_path} {keras_simple}"
+    )
+    compile_args = compile_str.split(" ")[1:]
+    _main(compile_args)
+    assert os.path.exists(package_path)
+
+    # Test running the model
+    output_path = os.path.join(tmpdir, "predictions.npz")
+    run_str = f"tvmc run --end-to-end --outputs {output_path} {package_path}"
+    run_args = run_str.split(" ")[1:]
+    _main(run_args)
+    assert os.path.exists(output_path)
+
+
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
+def test_tvmc_cl_workflow_json_config(keras_simple, tmpdir_factory):
+    pytest.importorskip("tensorflow")
+    tune_config_file = "tune_config_test"
+    tmpdir = tmpdir_factory.mktemp("data")
+
+    # Test model tuning
+    log_path = os.path.join(tmpdir, "keras-autotuner_records.json")
+    tuning_str = (
+        f"tvmc tune --config {tune_config_file} --output {log_path} "
+        f"--enable-autoscheduler {keras_simple}"
+    )
+    tuning_args = tuning_str.split(" ")[1:]
+    _main(tuning_args)
+    assert os.path.exists(log_path)
+
+    # Test model compilation
+    package_path = os.path.join(tmpdir, "keras-tvm.tar")
+    compile_str = (
+        f"tvmc compile --tuning-records {log_path} " f"--output {package_path} {keras_simple}"
     )
     compile_args = compile_str.split(" ")[1:]
     _main(compile_args)

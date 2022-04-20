@@ -25,6 +25,8 @@
 #ifndef TVM_RELAY_OP_MEMORY_MEMORY_H_
 #define TVM_RELAY_OP_MEMORY_MEMORY_H_
 
+#include <tvm/target/virtual_device.h>
+
 #include <vector>
 
 #include "tvm/relay/expr.h"
@@ -32,7 +34,9 @@
 namespace tvm {
 namespace relay {
 
-Expr AllocStorage(Expr size, Expr alignment, Device dev, DataType dtype_hint);
+Expr AllocStorage(Expr size, Expr alignment, VirtualDevice virtual_device, DataType dtype_hint);
+/*! \brief Returns the "memory.alloc_tensor" operator. */
+const Op& MemoryAllocTensorOp();
 Expr AllocTensor(Expr storage, Expr offset, tvm::relay::Expr shape, DataType dtype,
                  Array<IndexExpr> assert_shape);
 Expr ToTupleType(const Type& ty, const std::vector<Expr>& exprs);

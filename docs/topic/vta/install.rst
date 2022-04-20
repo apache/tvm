@@ -30,8 +30,8 @@ We present three installation guides, each extending on the previous one:
 VTA Simulator Installation
 --------------------------
 
-You need `TVM installed <https://tvm.apache.org/docs/install/index.html>`_ on your machine.
-For a quick and easy start, checkout the `Docker Guide <https://tvm.apache.org/docs/install/docker.html>`_.
+You need :ref:`TVM installed <installation>` on your machine.  For a quick and
+easy start, checkout the :ref:`Docker Guide <docker-images>`.
 
 You'll need to set the following paths to use VTA:
 
@@ -65,7 +65,7 @@ To ensure that you've properly installed the VTA python package, run the followi
 
    python <tvm root>/vta/tests/python/integration/test_benchmark_topi_conv2d.py
 
-You are invited to try out our `VTA programming tutorials <https://tvm.apache.org/docs/vta/tutorials/index.html>`_.
+You are invited to try out our :ref:`VTA programming tutorials <vta-tutorials>`.
 
    **Note**: You'll notice that for every convolution layer, the throughput gets reported in GOPS. These numbers are actually the computational throughput that the simulator achieves, by evaluating the convolutions in software.
 
@@ -222,9 +222,7 @@ The performance metrics measured on the Pynq board will be reported for each con
 
 **Tip**: You can track progress of the FPGA programming and the runtime rebuilding steps by looking at the RPC server's logging messages in your Pynq ``ssh`` session.
 
-You can also try out our `VTA programming tutorials <https://tvm.apache.org/docs/vta/tutorials/index.html>`_.
-
-
+You can also try out our :ref:`VTA programming tutorials <vta-tutorials>`.
 
 Intel DE10 FPGA Setup
 ---------------------

@@ -259,7 +259,7 @@ bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   ICHECK(param != nullptr);
 
   ICHECK_EQ(data->shape.size(), 2) << "Only 2D data is supported";
-  ICHECK_EQ(weight->shape.size(), 3) << "Weight is not packed";
+  ICHECK(weight->shape.size() == 3 || weight->shape.size() == 4) << "Expect weight to be 3D or 4D";
 
   Array<tvm::PrimExpr> oshape = data->shape;
   oshape.Set(1, weight->shape[0] * weight->shape[2]);
@@ -733,7 +733,8 @@ bool BatchNormRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   reporter->Assign(types[4], TensorType({axis_size}, data->dtype));
 
   // output is a tuple of the normed data (same shape as input), new running mean,
-  // and new running average (the latter two are both vectors of length dim)
+  // new running variance, saved mean and saved variance (the latter are all
+  // vectors of length dim)
   std::vector<Type> fields;
   auto vec_ty = TensorType(Array<IndexExpr>({data->shape[axis]}), data->dtype);
   fields.push_back(TensorType(data->shape, data->dtype));
@@ -1164,7 +1165,8 @@ bool NLLLossRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                                      << ", weights shape = " << weights->shape);
     return false;
   }
-  if (!(predictions->dtype == weights->dtype && predictions->dtype.is_float())) {
+  if (!(predictions->dtype == weights->dtype &&
+        (predictions->dtype.is_float() || predictions->dtype.is_bfloat16()))) {
     reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
                                      << "NLLLossRel: predictions and weights should"
                                      << " be of the same floating type.");

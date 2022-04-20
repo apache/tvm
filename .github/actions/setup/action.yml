@@ -1,0 +1,22 @@
+runs:
+ using: "composite"
+ steps:
+  - uses: actions/cache@v1
+    env:
+      CACHE_NUMBER: 0
+    with:
+      path: ~/conda_pkgs_dir
+      key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('conda/build-environment.yaml') }}
+  - uses: conda-incubator/setup-miniconda@v2
+    with:
+      activate-environment: tvm-build
+      channel-priority: strict
+      environment-file: conda/build-environment.yaml
+      auto-activate-base: false
+      use-only-tar-bz2: true
+  - name: Conda info
+    shell: pwsh
+    run: |
+      conda info
+      conda list
+

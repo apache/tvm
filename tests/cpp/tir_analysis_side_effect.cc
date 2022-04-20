@@ -25,10 +25,9 @@
 
 TEST(SimplePasses, SideEffect) {
   using namespace tvm;
-  auto A = tir::Var("A", DataType::Handle());
+  auto buf = tir::decl_buffer({16}, DataType::Float(32));
   auto i = tir::Var("i", DataType::Int(32));
-  ICHECK(tir::SideEffect(tir::Load(DataType::Float(32), A, i, tir::const_true(1))) ==
-         tir::CallEffectKind::kReadState);
+  ICHECK(tir::SideEffect(tir::BufferLoad(buf, {i})) == tir::CallEffectKind::kReadState);
   ICHECK(tir::SideEffect(exp(tir::Cast(DataType::Float(32), i + 1))) == tir::CallEffectKind::kPure);
   ICHECK(tir::SideEffect(tir::Call(DataType::Handle(), tir::builtin::tvm_storage_sync(), {})) ==
          tir::CallEffectKind::kUpdateState);

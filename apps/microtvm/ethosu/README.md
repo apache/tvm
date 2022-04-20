@@ -16,11 +16,11 @@
 <!--- under the License. -->
 
 
-Running TVM on bare metal Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU
-========================================================================
+Running TVM on bare metal Arm(R) Cortex(R)-M55 CPU, Ethos(TM)-U55 NPU and CMSIS-NN
+==================================================================================
 
 This folder contains an example of how to use TVM to run a model
-on bare metal Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU.
+on bare metal Cortex(R)-M55 CPU, Ethos(TM)-U55 NPU and CMSIS-NN.
 
 Prerequisites
 -------------
@@ -43,20 +43,30 @@ If the demo is not run in the ci_cpu Docker container, then you will need the fo
 
 You will also need TVM which can either be:
   - Built from source (see [Install from Source](https://tvm.apache.org/docs/install/from_source.html))
+    - When building from source, the following need to be set in config.cmake:
+      - set(USE_ETHOSU ON)
+      - set(USE_CMSISNN ON)
+      - set(USE_MICRO ON)
+      - set(USE_LLVM ON)
   - Installed from TLCPack(see [TLCPack](https://tlcpack.ai/))
 
 You will need to update your PATH environment variable to include the path to cmake 3.19.5 and the FVP.
 For example if you've installed these in ```/opt/arm``` , then you would do the following:
 ```bash
-export PATH=/opt/arm/FVP_Corstone_SSE-300_Ethos-U55/models/Linux64_GCC-6.4:/opt/arm/cmake/bin:$PATH
+export PATH=/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4:/opt/arm/cmake/bin:$PATH
 ```
 
 Running the demo application
 ----------------------------
-Type the following command to run the demo application:
+Type the following command to run the bare metal demo application ([src/demo_bare_metal.c](./src/demo_bare_metal.c)):
 
 ```bash
 ./run_demo.sh
+```
+
+To run the demo using FreeRTOS task scheduling and queues ([src/demo_freertos.c](./src/demo_freertos.c)), specify the path to FreeRTOS using `--freertos_path`, for example:
+```
+./run_demo.sh --freertos_path /opt/freertos/FreeRTOSv202112.00/
 ```
 
 If the Ethos(TM)-U driver and/or CMSIS have not been installed in /opt/arm/ethosu then
@@ -68,15 +78,15 @@ the locations for these can be specified as arguments to run_demo.sh, for exampl
 ```
 
 This will:
-- Download a quantized mobilenet v1 model
-- Use tvmc to compile the model for Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU
-- Download an image of a kitten to run the model on
+- Download a quantized (int8) mobilenet v2 model
+- Use tvmc to compile the model for Cortex(R)-M55 CPU, Ethos(TM)-U55 NPU and CMSIS-NN
+- Download an image of a penguin to run the model on
 - Create a C header file inputs.c containing the image data as a C array
 - Create a C header file outputs.c containing a C array where the output of inference will be stored
 - Build the Ethos(TM)-U55 core driver
 - Build the demo application
 - Run the demo application on a Fixed Virtual Platform (FVP) based on Arm(R) Corstone(TM)-300 software
-- The application will display what the image has been classified as e.g. "The image has been classified as 'tabby'"
+- The application will display what the image has been classified as e.g. "The image has been classified as 'king penguin'"
 
 Using your own image
 --------------------
@@ -86,6 +96,6 @@ image to be converted into an array of bytes for consumption by the model.
 The demo can be modified to use an image of your choice by changing the following lines in run_demo.sh
 
 ```bash
-curl -sS https://s3.amazonaws.com/model-server/inputs/kitten.jpg -o ./kitten.jpg
-python3 ./convert_image.py ./kitten.jpg
+curl -sS https://upload.wikimedia.org/wikipedia/commons/1/18/Falkland_Islands_Penguins_29.jpg -o penguin.jpg
+python3 ./convert_image.py ./build/penguin.jpg
 ```

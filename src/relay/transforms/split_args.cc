@@ -37,14 +37,14 @@ class ArgumentSplitter : public ExprRewriter {
   Expr Rewrite_(const CallNode* call, const Expr& post) final {
     if (max_function_args_ < 0) return post;
     if (call->op == concat_op_) {
-      auto op = call->args[0].as<TupleNode>();
+      auto tuple_node = call->args[0].as<TupleNode>();
       const auto param = call->attrs.as<ConcatenateAttrs>();
       int outputsNum = 1;
       if (const auto* tuple_type = call->checked_type().as<TupleTypeNode>()) {
         outputsNum = tuple_type->fields.size();
       }
       const int limit = max_function_args_ - outputsNum;
-      int argsNum = op->fields.size();
+      int argsNum = tuple_node->fields.size();
       if (argsNum < limit) return post;
       int splitNum = argsNum / limit;
       splitNum = (argsNum % limit) ? splitNum + 1 : splitNum;
@@ -54,16 +54,18 @@ class ArgumentSplitter : public ExprRewriter {
         int startIdx = i * limit;
         int argsCount = std::min(limit, argsNum - startIdx);
         tvm::Array<Expr> args;
+        args.reserve(argsCount);
+
         for (int j = 0; j < argsCount; ++j) {
-          args.push_back(op->fields[j + startIdx]);
+          args.push_back(tuple_node->fields[j + startIdx]);
         }
-        Tuple tuple(args);
-        Expr body = MakeConcatenate(tuple, param->axis);
+        Tuple new_tuple = WithFields(GetRef<Tuple>(tuple_node), args);
+        Expr body = MakeConcatenate(new_tuple, param->axis);
         splitted[i] = StopFusion(body);
       }
-      tvm::Array<Expr> tupleArgs(splitted);
-      Tuple tuple(tupleArgs);
-      return MakeConcatenate(tuple, param->axis);
+      tvm::Array<Expr> tuple_args(splitted);
+      Tuple new_tuple = WithFields(GetRef<Tuple>(tuple_node), tuple_args);
+      return MakeConcatenate(new_tuple, param->axis);
     }
     return post;
   }
@@ -83,7 +85,8 @@ namespace transform {
 Pass SplitArgs(int max_function_args) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(SplitArgs(f, max_function_args));
+        auto r = Downcast<Function>(SplitArgs(f, max_function_args));
+        return m->attrs.defined() ? WithAttrs(r, {m->attrs->dict}) : r;
       };
   return CreateFunctionPass(pass_func, 1, "SplitArgs", {"InferType"});
 }

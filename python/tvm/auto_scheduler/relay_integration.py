@@ -25,9 +25,12 @@ Integrate auto_scheduler into relay. It implements the following items:
 import json
 import logging
 import threading
+import traceback
+import warnings
 
 import tvm
 from tvm import autotvm, transform
+from tvm._ffi.base import TVMError
 from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
 from tvm.target import Target
@@ -45,7 +48,7 @@ from .workload_registry import register_workload_tensors
 logger = logging.getLogger("auto_scheduler")
 
 
-def call_all_topi_funcs(mod, params, target, opt_level=3):
+def call_all_topi_funcs(mod, params, target, error_list, opt_level=3):
     """Call all TOPI compute to extract auto_scheduler tasks in a Relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
@@ -58,7 +61,6 @@ def call_all_topi_funcs(mod, params, target, opt_level=3):
         opt_level=opt_level,
         config={
             "relay.backend.use_auto_scheduler": True,
-            "relay.backend.disable_compile_engine_cache": True,
         },
         disabled_pass={"AutoSchedulerLayoutRewrite"},
     ):
@@ -66,9 +68,12 @@ def call_all_topi_funcs(mod, params, target, opt_level=3):
         if params:
             compiler.set_params(params)
         mod = tvm.IRModule.from_expr(mod) if isinstance(mod, relay.Function) else mod
-        compiler.lower(mod, target)
-
-    autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
+        try:
+            compiler.lower(mod, target)
+        except TVMError:
+            error_list.append(f"{traceback.format_exc()}")
+        finally:
+            autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
 
 def extract_tasks(
@@ -110,6 +115,11 @@ def extract_tasks(
         The weight (i.e. the number of appearance) of extracted tasks
     """
     # pylint: disable=import-outside-toplevel
+    if target_host is not None:
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
+        )
 
     target, target_host = Target.check_and_update_host_consist(target, target_host)
 
@@ -121,14 +131,21 @@ def extract_tasks(
     dispatch_ctx = DispatchContext.current
     old_verbose = dispatch_ctx.verbose
     dispatch_ctx.verbose = 0
+
+    errors = []
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
         build_thread = threading.Thread(
-            target=call_all_topi_funcs, args=(mod, params, target, opt_level)
+            target=call_all_topi_funcs, args=(mod, params, target, errors, opt_level)
         )
         build_thread.start()
         build_thread.join()
+
+    if errors:
+        error_strings = ["Task extraction had the following errors:"] + errors
+        raise TVMError("\n".join(error_strings))
+
     dispatch_ctx.verbose = old_verbose
 
     # create search tasks
@@ -165,7 +182,8 @@ class TracingMode:
     """Two modes for tracing"""
 
     EXTRACT_TASK = 0  # trace all topi calls to extract tasks
-    EXTRACT_COMPLEX_TASK_ONLY = 1  # same as EXTRACT_TASK but ignore the task without complex ops
+    # same as EXTRACT_TASK but ignore the task without complex ops
+    EXTRACT_COMPLEX_TASK_ONLY = 1
     PREPARE_LAYOUT_REWRITE = 2  # trace topi calls to prepare layout rewrite
 
 
@@ -311,9 +329,9 @@ def auto_schedule_topi(func_name, outs):
     """
 
     # pylint: disable=import-outside-toplevel
-    from tvm.auto_scheduler.measure import (
+    from tvm.auto_scheduler.measure import (  # lazily import to avoid recursive dependency
         prepare_input_map,
-    )  # lazily import to avoid recursive dependency
+    )
 
     io_tensors, has_layout_free, has_complex_op = traverse_to_get_io_tensors(outs)
     if not io_tensors:  # The compute includes dynamic shapes which are not supported yet.
@@ -464,4 +482,10 @@ def is_auto_scheduler_enabled():
     enabled: bool
         Whether the auto-scheduler is enabled
     """
-    return PassContext.current().config.get("relay.backend.use_auto_scheduler", False)
+    return PassContext.current().config.get(
+        "relay.backend.use_auto_scheduler",
+        False,
+    ) or PassContext.current().config.get(
+        "relay.backend.use_meta_schedule",
+        False,
+    )

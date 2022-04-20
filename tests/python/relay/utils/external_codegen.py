@@ -24,7 +24,6 @@ import pytest
 import tvm
 from tvm import relay, runtime
 from tvm.contrib import utils
-from tests.python.relay.aot.aot_test_utils import AOTTestModel, compile_and_run
 
 
 skip_windows = pytest.mark.skipif(sys.platform == "win32", reason="Skip test on Windows for now")
@@ -111,7 +110,7 @@ def check_aot_executor_result(
     use_unpacked_api = False
     test_runner = AOT_DEFAULT_RUNNER
     compile_and_run(
-        AOTTestModel(module=mod, inputs=map_inputs, outputs=[result]),
+        AOTTestModel(module=mod, inputs=map_inputs, outputs={"output": result}),
         test_runner,
         interface_api,
         use_unpacked_api,

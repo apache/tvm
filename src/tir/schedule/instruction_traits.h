@@ -56,12 +56,12 @@ namespace tir {
  *      const Array<String>& outputs);
  *
  *   // Convertible to `InstructionKindNode::FInstructionAttrsAsJSON`
- *   static Array<ObjectRef> AttrsAsJSON(
+ *   static ObjectRef AttrsAsJSON(
  *      const Array<ObjectRef>& attrs);
  *
  *   // Convertible to `InstructionKindNode::FInstructionAttrsFromJSON`
  *   static Array<ObjectRef> AttrsFromJSON(
- *      const Array<ObjectRef>& attrs_record);
+ *      const ObjectRef& attrs_record);
  * };
  *
  * TVM_REGISTER_INST_KIND_TRAITS(SomeInstructionKindTraits);
@@ -193,10 +193,12 @@ class PythonAPICall {
    * \param method_name The name of the schedule API to be called
    */
   explicit PythonAPICall(String method_name) : method_name_(method_name), output_(NullOpt) {}
-  /*! \brief Add an intger input */
+  /*! \brief Add an integer input */
   inline void Input(String arg_name, int arg);
-  /*! \brief Add an intger input */
+  /*! \brief Add an integer input */
   inline void Input(String arg_name, int64_t arg);
+  /*! \brief Add a bool input */
+  inline void Input(String arg_name, bool arg);
   /*! \brief Add a double input */
   inline void Input(String arg_name, double arg);
   /*! \brief Add an input random variable */
@@ -460,6 +462,17 @@ void PythonAPICall::Input(String arg_name, int arg) {
 void PythonAPICall::Input(String arg_name, int64_t arg) {
   arg_names_.emplace_back(std::move(arg_name));
   args_.push_back(std::to_string(arg));
+}
+
+void PythonAPICall::Input(String arg_name, bool arg) {
+  static const char* true_str = "True";
+  static const char* false_str = "False";
+  arg_names_.emplace_back(std::move(arg_name));
+  if (arg) {
+    args_.push_back(true_str);
+  } else {
+    args_.push_back(false_str);
+  }
 }
 
 void PythonAPICall::Input(String arg_name, double arg) {

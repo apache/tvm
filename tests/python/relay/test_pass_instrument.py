@@ -59,9 +59,11 @@ def test_pass_timing_instrument():
     assert profiles == ""
 
 
-def test_custom_instrument():
-    @pass_instrument
-    class MyTest:
+instrument_definition_type = tvm.testing.parameter("decorator", "subclass")
+
+
+def test_custom_instrument(instrument_definition_type):
+    class BaseTest:
         def __init__(self):
             self.events = []
 
@@ -76,6 +78,16 @@ def test_custom_instrument():
 
         def run_after_pass(self, mod, info):
             self.events.append("run after " + info.name)
+
+    if instrument_definition_type == "decorator":
+        MyTest = pass_instrument(BaseTest)
+
+    elif instrument_definition_type == "subclass":
+
+        class MyTest(BaseTest, tvm.ir.instrument.PassInstrument):
+            def __init__(self):
+                BaseTest.__init__(self)
+                tvm.ir.instrument.PassInstrument.__init__(self)
 
     mod = get_test_model()
     my_test = MyTest()
@@ -224,7 +236,7 @@ def test_enter_pass_ctx_exception():
     # Make sure we get correct PassContext
     cur_pass_ctx = tvm.transform.PassContext.current()
     assert pass_ctx != cur_pass_ctx
-    assert cur_pass_ctx.instruments == None
+    assert not cur_pass_ctx.instruments
 
 
 def test_enter_pass_ctx_exception_global():

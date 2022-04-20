@@ -94,6 +94,7 @@
   server_.port = self.proxyPort.text.intValue;
   server_.key = self.proxyKey.text;
   server_.custom_addr = [NSString stringWithUTF8String:args.custom_addr];
+  server_.verbose = args.verbose;
   server_.delegate = self;
 
   [server_ start];

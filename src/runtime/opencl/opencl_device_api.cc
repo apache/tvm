@@ -20,7 +20,9 @@
 /*!
  * \file opencl_device_api.cc
  */
+#include <dmlc/parameter.h>
 #include <dmlc/thread_local.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include "opencl_common.h"
@@ -122,7 +124,8 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
                corresponding to the number of SIMD entries the heardware configures.
                We need to figure out a way to query this information from the hardware.
       */
-      *rv = 1;
+      const int warp_size = dmlc::GetEnv("TVM_OPENCL_WARP_SIZE", 1);
+      *rv = warp_size;
       break;
     }
     case kMaxSharedMemoryPerBlock: {
@@ -196,6 +199,10 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
   ICHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
   cl::BufferDescriptor* desc = new cl::BufferDescriptor;
+  // CL_INVALID_BUFFER_SIZE if size is 0.
+  if (size == 0) {
+    size = 1;
+  }
   desc->buffer = clCreateBuffer(this->context, CL_MEM_READ_WRITE, size, nullptr, &err_code);
   desc->layout = cl::BufferDescriptor::MemoryLayout::kBuffer1D;
   OPENCL_CHECK_ERROR(err_code);
@@ -419,19 +426,31 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
   ICHECK_EQ(this->queues.size(), 0U);
   for (size_t i = 0; i < this->devices.size(); ++i) {
     cl_device_id did = this->devices[i];
+#ifdef USE_PROFILER
+    this->queues.push_back(
+        clCreateCommandQueue(this->context, did, CL_QUEUE_PROFILING_ENABLE, &err_code));
+#else
     this->queues.push_back(clCreateCommandQueue(this->context, did, 0, &err_code));
+#endif
     OPENCL_CHECK_ERROR(err_code);
   }
+  this->events.resize(this->devices.size());
   initialized_ = true;
 }
 
-TVM_REGISTER_GLOBAL("device_api.opencl.AllocTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
-  int device_type = args[0];
-  int device_id = args[1];
-  int width = args[2];
-  int height = args[3];
-  int dtype_code_hint = args[4];
-  int dtype_bits_hint = args[5];
+TVM_REGISTER_GLOBAL("device_api.opencl.alloc_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int32_t device_type = args[0];
+  int32_t device_id = args[1];
+  int32_t dtype_code_hint = args[2];
+  int32_t dtype_bits_hint = args[3];
+  std::string scope = args[4];
+  CHECK(scope.find("texture") != std::string::npos);
+  int64_t ndim = args[5];
+  CHECK_EQ(ndim, 2);
+  int64_t* shape = static_cast<int64_t*>(static_cast<void*>(args[6]));
+  int64_t width = shape[0];
+  int64_t height = shape[1];
+
   Device dev;
   dev.device_type = static_cast<DLDeviceType>(device_type);
   dev.device_id = device_id;
@@ -446,10 +465,12 @@ TVM_REGISTER_GLOBAL("device_api.opencl.AllocTexture").set_body([](TVMArgs args, 
                                    type_hint);
 });
 
-TVM_REGISTER_GLOBAL("device_api.opencl.FreeTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
-  int device_type = args[0];
-  int device_id = args[1];
-  void* data = args[2];
+TVM_REGISTER_GLOBAL("device_api.opencl.free_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int32_t device_type = args[0];
+  int32_t device_id = args[1];
+  std::string scope = args[2];
+  CHECK(scope.find("texture") != std::string::npos);
+  void* data = args[3];
   OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
   Device dev;
   dev.device_type = static_cast<DLDeviceType>(device_type);
@@ -462,6 +483,14 @@ TVM_REGISTER_GLOBAL("device_api.opencl").set_body([](TVMArgs args, TVMRetValue* 
   DeviceAPI* ptr = OpenCLWorkspace::Global();
   *rv = static_cast<void*>(ptr);
 });
+
+#ifdef USE_PROFILER
+TVM_REGISTER_OBJECT_TYPE(OpenCLTimerNode);
+
+TVM_REGISTER_GLOBAL("profiling.timer.opencl").set_body_typed([](Device dev) {
+  return Timer(make_object<OpenCLTimerNode>(dev));
+});
+#endif
 
 }  // namespace cl
 }  // namespace runtime

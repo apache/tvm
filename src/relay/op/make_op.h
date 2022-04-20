@@ -101,9 +101,10 @@ Expr MakeZeros(Array<Integer> shape, DataType dtype);
 
 Expr MakeOneHot(Expr indices, Expr on_value, Expr off_value, int depth, int axis, DataType dtype);
 
-Expr MakeResize2D(Expr data, Array<IndexExpr> size, String layout, String method,
-                  String coordinate_transformation_mode, String rounding_method, double cubic_alpha,
-                  int cubic_exclude, DataType out_dtype);
+Expr MakeResize2D(Expr data, Array<IndexExpr> size, Array<FloatImm> roi, String layout,
+                  String method, String coordinate_transformation_mode, String rounding_method,
+                  double cubic_alpha, int cubic_exclude, double extrapolation_value,
+                  DataType out_dtype);
 
 Expr MakeSparseToDense(Expr indices, Array<Integer> output_shape, Expr values, Expr default_value);
 

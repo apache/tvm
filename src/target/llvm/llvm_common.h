@@ -27,7 +27,6 @@
 #ifdef _MSC_VER
 #pragma warning(disable : 4141 4291 4146 4624)
 #endif
-
 #ifdef TVM_LLVM_VERSION
 
 #include <llvm/Analysis/TargetTransformInfo.h>
@@ -72,7 +71,11 @@
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Host.h>
 #include <llvm/Support/MemoryBuffer.h>
+#if TVM_LLVM_VERSION >= 140
+#include <llvm/MC/TargetRegistry.h>
+#else
 #include <llvm/Support/TargetRegistry.h>
+#endif
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
@@ -122,6 +125,8 @@ std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target,
  * \return The raw string format for the TVM LLVM target
  */
 std::string LLVMTargetToString(const Target& target);
+
+void PrintModule(const llvm::Module* mod);
 
 }  // namespace codegen
 }  // namespace tvm

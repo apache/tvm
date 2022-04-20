@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -20,5 +20,6 @@ export TVM_TEST_TARGETS="cuda;opencl;metal;rocm;nvptx;opencl -device=mali,aocl_s
 export PYTEST_ADDOPTS="-m gpu $PYTEST_ADDOPTS"
 export TVM_RELAY_TEST_TARGETS="cuda"
 export TVM_INTEGRATION_TESTSUITE_NAME=python-integration-gpu
+export TVM_INTEGRATION_GPU_ONLY=1
 
 ./tests/scripts/task_python_integration.sh

@@ -152,8 +152,18 @@ TEST(TargetCreation, DeduplicateKeys) {
   ICHECK_EQ(target->GetAttr<Bool>("link-params"), false);
 }
 
-TEST(TargetKindRegistryListTargetKinds, Basic) {
+TEST(TargetKindRegistry, ListTargetKinds) {
   Array<String> names = TargetKindRegEntry::ListTargetKinds();
   ICHECK_EQ(names.empty(), false);
   ICHECK_EQ(std::count(std::begin(names), std::end(names), "llvm"), 1);
+}
+
+TEST(TargetKindRegistry, ListTargetOptions) {
+  TargetKind llvm = TargetKind::Get("llvm").value();
+  Map<String, String> attrs = TargetKindRegEntry::ListTargetKindOptions(llvm);
+  ICHECK_EQ(attrs.empty(), false);
+
+  ICHECK_EQ(attrs["mattr"], "Array");
+  ICHECK_EQ(attrs["mcpu"], "runtime.String");
+  ICHECK_EQ(attrs["system-lib"], "IntImm");
 }

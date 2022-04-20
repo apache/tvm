@@ -49,6 +49,7 @@
 #define TVM_ARITH_ITER_AFFINE_MAP_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/expr.h>
 #include <tvm/tir/var.h>
 
@@ -275,13 +276,15 @@ class IterSumExpr : public IterMapExpr {
  * \param predicate The predicate constraints on the input iterators
  * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
  * \param analyzer Analyzer used to get context information.
+ * \param simplify_trivial_iterators If true, iterators with extent of
+ *           1 will be replaced with a constant value.
  *
  * \return The detected pattern if a match exists,
  *         otherwise return an empty array.
  */
 Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                  const PrimExpr& predicate, bool require_bijective,
-                                 arith::Analyzer* analyzer);
+                                 arith::Analyzer* analyzer, bool simplify_trivial_iterators = true);
 /*!
  * \brief Use IterVarMap detector to rewrite and simplify the indices
  *
@@ -345,6 +348,13 @@ Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
                                       const Map<Var, Range>& input_iters,
                                       const Array<Var>& sub_iters, const PrimExpr& predicate,
                                       bool require_bijective, arith::Analyzer* analyzer);
+
+/*!
+ * \brief Given an IterMapExpr, transform it to normal PrimExpr.
+ * \param expr The input IterMapExpr.
+ * \return The corresponding normal PrimExpr.
+ */
+PrimExpr NormalizeIterMapToExpr(const IterMapExpr& expr);
 
 }  // namespace arith
 }  // namespace tvm
