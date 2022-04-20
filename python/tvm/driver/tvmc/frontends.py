@@ -23,6 +23,7 @@ loading the tool.
 import logging
 import os
 import sys
+import re
 import importlib
 from abc import ABC
 from abc import abstractmethod
@@ -309,8 +310,30 @@ class RelayFrontend(Frontend):
     def load(self, path, shape_dict=None, **kwargs):
         with open(path, "r", encoding="utf-8") as relay_text:
             text = relay_text.read()
-        if shape_dict is not None:
-            logger.warning("Supplied shape_dict argument ignored for text frontend")
+        if shape_dict is None:
+            logger.warning(
+                "Specify --input-shapes to ensure that model inputs "
+                "will not be considered as constants."
+            )
+
+        def _validate_text(text):
+            """Check the provided file contents.
+            The relay.txt artifact contained in the MLF is missing the version header and
+            the metadata which is required to use meta[relay.Constant]."""
+
+            if re.compile(r".*\#\[version\.*").match(text) is None:
+                raise TVMCException(
+                    "The relay model does not include the required version information."
+                )
+            if re.compile(r".*meta\[.+\].*", re.DOTALL).match(text):
+                if "#[metadata]" not in text:
+                    raise TVMCException(
+                        "The relay model does not include the required #[metadata] section. "
+                        "Use ir_mod.astext(show_meta_data=True) to export compatible code."
+                    )
+
+        _validate_text(text)
+
         ir_mod = parser.fromtext(text)
 
         if shape_dict:
@@ -335,7 +358,6 @@ class RelayFrontend(Frontend):
                 params[name] = data
             return params
 
-        logger.warning("Parameters in the relay module will be initialized with ones.")
         params = _gen_params(ir_mod, skip_names=input_names)
 
         return ir_mod, params
