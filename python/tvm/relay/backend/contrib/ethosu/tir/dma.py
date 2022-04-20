@@ -195,15 +195,15 @@ def create_tiles(stmt: tvm.tir.stmt.AttrStmt) -> Tiles:
     // attr [iter_var(i0, )] pragma_layout = "NHCWB16"
     // attr [iter_var(i0, )] pragma_scale = 1f
     for (i0, 0, 1) {
-        for (i1, 0, 6) {
-            for (i2, 0, 1) {
-                for (i3, 0, 1) {
-                    for (i4, 0, 16) {
-                        ethosu_read[((i1*16) + i4)] = ethosu_write[((floormod((i1 + 4), 6)*16) + i4)]
-                    }
-                }
+      for (i1, 0, 6) {
+        for (i2, 0, 1) {
+          for (i3, 0, 1) {
+            for (i4, 0, 16) {
+              ethosu_read[((i1*16) + i4)] = ethosu_write[((floormod((i1 + 4), 6)*16) + i4)]
             }
+          }
         }
+      }
     }
 
     You can see from the floormod expression floormod((i1 + 4), 6)
@@ -266,7 +266,7 @@ def create_tiles(stmt: tvm.tir.stmt.AttrStmt) -> Tiles:
                     address_1=0,
                     address_2=tvm.tir.BufferLoad(inner.value.buffer, [0]),
                 )
-            elif rolling_var == w.loop_var and _compute_stride(w) == stride:
+            if rolling_var == w.loop_var and _compute_stride(w) == stride:
                 return Tiles(
                     height_0=h.extent,
                     height_1=h.extent,
