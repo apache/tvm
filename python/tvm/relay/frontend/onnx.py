@@ -677,9 +677,12 @@ class ConvTranspose(OnnxOpConverter):
         data = inputs[0]
         input_shape = infer_shape(data)
         ndim = len(input_shape)
-        if "auto_pad" in attr:
-            attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
-            if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
+        if "pads" not in attr:
+             assert "auto_pad" in attr or "output_shape" in attr
+        if "auto_pad" in attr or "output_shape" in attr:
+            if "auto_pad" in attr:
+                attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
+            if "output_shape" in attr or attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
                 # Warning: Convolution does not yet support dynamic shapes,
                 # one will need to run dynamic_to_static on this model after import
                 kernel_shape = attr["kernel_shape"]
@@ -690,11 +693,16 @@ class ConvTranspose(OnnxOpConverter):
                 total_pad = [0] * kndim
                 for i in range(kndim):
                     total_pad[i] = (
-                        output_padding[i] + ((kernel_shape[i] - 1) * dilations[i] + 1) - strides[i]
+                        strides[i] * (input_shape[ndim - kndim + i] - 1) + output_padding[i] + \
+                            ((kernel_shape[i] - 1) * dilations[i] + 1) - attr["output_shape"][i]
                     )
                 left = [p // 2 for p in total_pad]
                 right = [total_pad[i] - left[i] for i in range(kndim)]
-                if "LOWER" in attr["auto_pad"]:
+                if "output_shape" in attr and "auto_pad" not in attr:
+                    # assert left[0] == right[0] and left[1] == right[1],\
+                    #     "attribute auto_pad is not configured!"
+                    pad = left + right
+                elif "LOWER" in attr["auto_pad"]:
                     pad = left + right
                 else:
                     pad = right + left
@@ -706,7 +714,8 @@ class ConvTranspose(OnnxOpConverter):
             else:
                 msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
                 raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
-            attr.pop("auto_pad")
+            if "auto_pad" in attr:
+                attr.pop("auto_pad")
 
         out = AttrCvt(
             op_name=dimension_picker("conv", "_transpose"),
