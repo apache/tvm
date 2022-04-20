@@ -262,6 +262,8 @@ Array<Pass> GetPassPrefix(bool is_homegeneous, bool is_vm) {
   // Fast math optimizations.
   pass_seqs.push_back(transform::FastMath());
   pass_seqs.push_back(transform::FoldConstant());
+
+  pass_seqs.push_back(transform::FlattenAtrousConv());
   return pass_seqs;
 }
 
