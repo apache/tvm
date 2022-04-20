@@ -792,6 +792,10 @@ TVM_REGISTER_GLOBAL("tir.PostOrderVisit").set_body_typed([](ObjectRef node, Pack
   tir::PostOrderVisit(node, [f](const ObjectRef& n) { f(n); });
 });
 
+TVM_REGISTER_GLOBAL("tir.PreOrderVisit").set_body_typed([](ObjectRef node, PackedFunc f) {
+  tir::PreOrderVisit(node, [f](const ObjectRef& n) { return f(n); });
+});
+
 TVM_REGISTER_GLOBAL("tir.Substitute")
     .set_body_typed([](ObjectRef node, Map<Var, PrimExpr> vmap) -> ObjectRef {
       if (node->IsInstance<StmtNode>()) {
