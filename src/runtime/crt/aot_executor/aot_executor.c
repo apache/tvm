@@ -24,6 +24,7 @@
  * \brief implement AoT executor in C
  */
 
+#include <inttypes.h>
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/aot_executor.h>
@@ -35,10 +36,10 @@
 static void DumpMetadata(TVMMetadata* md) {
   LOG_DEBUG("%s:\n", __FUNCTION__);
   LOG_DEBUG("\tmod_name=%s\n", md->mod_name);
-  LOG_DEBUG("\tversion=%ld\n", md->version);
-  LOG_DEBUG("\tnum_inputs=%ld\n", md->num_inputs);
-  LOG_DEBUG("\tnum_outputs=%ld\n", md->num_outputs);
-  LOG_DEBUG("\tnum_pools=%ld\n", md->num_pools);
+  LOG_DEBUG("\tversion=%" PRId64 "\n", md->version);
+  LOG_DEBUG("\tnum_inputs=%" PRId64 "\n", md->num_inputs);
+  LOG_DEBUG("\tnum_outputs=%" PRId64 "\n", md->num_outputs);
+  LOG_DEBUG("\tnum_pools=%" PRId64 "\n", md->num_pools);
 
   int i;
 
@@ -85,7 +86,7 @@ int TVMAotExecutor_Run(TVMAotExecutor* executor) {
     size_t len = strnlen(executor->metadata->mod_name, max_strlen);
     len += strnlen(tvm_main_suffix, max_strlen);
 
-    CHECK_LT(len, max_strlen, "tvm_main name too long %ld\n", len);
+    CHECK_LT(len, max_strlen, "tvm_main name too long %zu\n", len);
   }
 
   // create main function name string, e.g. "tvmgen_default___tvm_main__"
@@ -95,7 +96,7 @@ int TVMAotExecutor_Run(TVMAotExecutor* executor) {
   TVMPackedFunc tvm_main;
   TVMArgs temp_args;
 
-  CHECK_LE(executor->num_args, TVM_CRT_MAX_ARGS, "too many args %ld\n", executor->num_args);
+  CHECK_LE(executor->num_args, TVM_CRT_MAX_ARGS, "too many args %" PRId64 "\n", executor->num_args);
 
   int i;
   for (i = 0; i < executor->num_args; ++i) {
