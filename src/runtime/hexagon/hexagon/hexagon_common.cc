@@ -99,3 +99,4 @@ TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon").set_body([](TVMArgs args,
 });
 }  // namespace runtime
 }  // namespace tvm
+// test
