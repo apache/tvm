@@ -320,7 +320,10 @@ class RelayFrontend(Frontend):
             type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
             params = {}
             for name, shape in shape_dict.items():
-                data = np.ones(shape).astype(type_dict[name])
+                if "int" in type_dict[name]:
+                    data = np.random.randint(128, size=shape, dtype=type_dict[name])
+                else:
+                    data = np.random.uniform(-1, 1, size=shape).astype(type_dict[name])
                 params[name] = data
             return params
 
