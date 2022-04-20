@@ -201,6 +201,15 @@ def get_package_data_files():
     return ["relay/std/prelude.rly", "relay/std/core.rly"]
 
 
+def long_description_contents():
+    with open(
+        os.path.abspath(os.path.join(CURRENT_DIR, "..", "README.md")), encoding="utf-8"
+    ) as readme:
+        description = readme.read()
+
+    return description
+
+
 # Temporarily add this directory to the path so we can import the requirements generator
 # tool.
 sys.path.insert(0, os.path.dirname(__file__))
@@ -217,6 +226,8 @@ setup(
     name="tvm",
     version=__version__,
     description="TVM: An End to End Tensor IR/DSL Stack for Deep Learning Systems",
+    long_description=long_description_contents(),
+    long_description_content_type="text/markdown",
     zip_safe=False,
     entry_points={"console_scripts": ["tvmc = tvm.driver.tvmc.main:main"]},
     install_requires=requirements["core"][1],
