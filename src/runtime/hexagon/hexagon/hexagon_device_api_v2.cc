@@ -84,6 +84,7 @@ void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, int ndim, const int64_t* sh
 
 void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
                                          DLDataType type_hint) {
+  // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU;
   bool is_valid_device = (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
                          (DLDeviceType(dev.device_type) == kDLCPU);
   CHECK(is_valid_device) << "dev.device_type: " << dev.device_type;
@@ -94,6 +95,7 @@ void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, size_t nbytes, size_t align
 }
 
 void HexagonDeviceAPIv2::FreeDataSpace(Device dev, void* ptr) {
+  // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU;
   bool is_valid_device = (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
                          (DLDeviceType(dev.device_type) == kDLCPU);
   CHECK(is_valid_device) << "dev.device_type: " << dev.device_type;
@@ -107,6 +109,7 @@ struct HexagonWorkspacePool : public WorkspacePool {
 };
 
 void* HexagonDeviceAPIv2::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
+  // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU;
   bool is_valid_device = (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
                          (DLDeviceType(dev.device_type) == kDLCPU);
   CHECK(is_valid_device) << "dev.device_type: " << dev.device_type;
@@ -114,6 +117,7 @@ void* HexagonDeviceAPIv2::AllocWorkspace(Device dev, size_t size, DLDataType typ
 }
 
 void HexagonDeviceAPIv2::FreeWorkspace(Device dev, void* data) {
+  // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU;
   bool is_valid_device = (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
                          (DLDeviceType(dev.device_type) == kDLCPU);
   CHECK(is_valid_device) << "dev.device_type: " << dev.device_type;

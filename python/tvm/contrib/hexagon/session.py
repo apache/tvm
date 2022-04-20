@@ -44,7 +44,7 @@ class Session:
         Remote configs for RPC tracker.
 
     session_name : str
-        Hexagon RPC session name.
+        Hexagon RPC session name. Options are [hexagon-rpc, cpu-rpc]
 
     remote_stack_size_bytes : int
         The stack size of the remote device, to be passed to
@@ -91,7 +91,10 @@ class Session:
             elif self._session_name == "hexagon-rpc":
                 self.device = self._rpc.hexagon(0)
             else:
-                raise RuntimeError(f"Incorrect session name: {self._session_name}")
+                raise RuntimeError(
+                    f"Incorrect session name: {self._session_name}.\n"
+                    f"Options for session name are [hexagon-rpc, cpu-rpc]."
+                )
             return self
 
         except RuntimeError as exception:
@@ -317,7 +320,10 @@ class Session:
                     cc=hexagon.hexagon_clang_plus(),
                 )
             else:
-                raise ValueError("Incorrect Target kind.")
+                raise ValueError(
+                    f"Incorrect Target kind.\n"
+                    f"Target kind should be from these options: [hexagon, llvm]."
+                )
 
             self.upload(binary_path, binary_name)
 

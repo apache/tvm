@@ -274,11 +274,13 @@ def _workaround_create_aot_shared():
 def get_target_and_session(target_kind: str):
     if target_kind == "c":
         target_hexagon = tvm.target.hexagon("v68")
-        session_key = "hexagon-rpc"
+        session_name = "hexagon-rpc"
     elif target_kind.startswith("llvm"):
         target_hexagon = target_kind
-        session_key = "cpu-rpc"
-    return target_hexagon, session_key
+        session_name = "cpu-rpc"
+    else:
+        assert False, "Incorrect target_kind: {target_kind}. Options are [c, llvm]."
+    return target_hexagon, session_name
 
 
 @requires_hexagon_toolchain
@@ -301,7 +303,7 @@ def test_aot_executor(hexagon_launcher, aot_target_kind):
     relay_mod = tvm.IRModule.from_expr(f)
     relay_mod = relay.transform.InferType()(relay_mod)
 
-    target_hexagon, session_key = get_target_and_session(aot_target_kind)
+    target_hexagon, session_name = get_target_and_session(aot_target_kind)
 
     weight_data = np.random.rand(w_shape[0], w_shape[1], w_shape[2], w_shape[3]).astype(dtype=dtype)
     input_data = np.random.rand(
@@ -320,12 +322,11 @@ def test_aot_executor(hexagon_launcher, aot_target_kind):
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )
 
-    hexagon_session = hexagon_launcher.start_session(name=session_key)
-    hexagon_session.__enter__()
-    aot_mod = hexagon_session.get_executor_from_factory(lowered)
-    aot_mod.set_input(**inputs)
-    aot_mod.run()
-    hexagon_output = aot_mod.get_output(0).numpy()
+    with hexagon_launcher.start_session(session_name=session_name) as hexagon_session:
+        aot_mod = hexagon_session.get_executor_from_factory(lowered)
+        aot_mod.set_input(**inputs)
+        aot_mod.run()
+        hexagon_output = aot_mod.get_output(0).numpy()
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):
@@ -375,7 +376,7 @@ def test_aot_executor_multiple_conv2d(hexagon_launcher, aot_target_kind):
     relay_mod = tvm.IRModule.from_expr(f)
     relay_mod = relay.transform.InferType()(relay_mod)
 
-    target_hexagon, session_key = get_target_and_session(aot_target_kind)
+    target_hexagon, session_name = get_target_and_session(aot_target_kind)
 
     weight1_data = np.random.rand(w1_shape[0], w1_shape[1], w1_shape[2], w1_shape[3]).astype(
         dtype=dtype
@@ -399,12 +400,11 @@ def test_aot_executor_multiple_conv2d(hexagon_launcher, aot_target_kind):
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )
 
-    hexagon_session = hexagon_launcher.start_session(name=session_key)
-    hexagon_session.__enter__()
-    aot_mod = hexagon_session.get_executor_from_factory(lowered)
-    aot_mod.set_input(**inputs)
-    aot_mod.run()
-    hexagon_output = aot_mod.get_output(0).numpy()
+    with hexagon_launcher.start_session(session_name=session_name) as hexagon_session:
+        aot_mod = hexagon_session.get_executor_from_factory(lowered)
+        aot_mod.set_input(**inputs)
+        aot_mod.run()
+        hexagon_output = aot_mod.get_output(0).numpy()
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):

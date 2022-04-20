@@ -58,7 +58,7 @@ class HexagonIOHandler {
         read_buffer_size_bytes_{read_buffer_size_bytes},
         write_buffer_available_length_{0} {}
 
-  void MessageStart(size_t message_size_bytes) { LOG(INFO) << "MessageStart called."; }
+  void MessageStart(size_t message_size_bytes) {}
 
   ssize_t PosixWrite(const uint8_t* buf, size_t write_len_bytes) {
     LOG(INFO) << "HexagonIOHandler PosixWrite called, write_len_bytes(" << write_len_bytes << ")";
@@ -159,8 +159,9 @@ class HexagonRPCServer {
    * Otherwise, returns -1;
    */
   int64_t Write(const uint8_t* data, size_t data_size_bytes) {
-    if (io_.SetReadBuffer(data, data_size_bytes) != AEE_SUCCESS) {
-      LOG(ERROR) << "ERROR: SetReadBuffer failed";
+    AEEResult rc = io_.SetReadBuffer(data, data_size_bytes);
+    if (rc != AEE_SUCCESS) {
+      LOG(ERROR) << "ERROR: SetReadBuffer failed: " << rc;
       return -1;
     }
 
@@ -216,6 +217,7 @@ const tvm::runtime::PackedFunc get_runtime_func(const std::string& name) {
 void reset_device_api() {
   const tvm::runtime::PackedFunc api = get_runtime_func("device_api.hexagon.v2");
   tvm::runtime::Registry::Register("device_api.hexagon", true).set_body(api);
+  // Registering device_api.cpu as device_api.hexagon.v2 since we use hexagon as sub-target of LLVM.
   tvm::runtime::Registry::Register("device_api.cpu", true).set_body(api);
 }
 
