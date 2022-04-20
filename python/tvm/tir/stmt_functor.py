@@ -58,6 +58,18 @@ def post_order_visit(stmt, fvisit):
     return _ffi_api.PostOrderVisit(stmt, fvisit)  # type: ignore
 
 
+def pre_order_visit(stmt, fvisit):
+    """Recursive pre-order visit on stmt AST, applying fvisit on each node.
+       If fvisit returns False, it won't visit the children of the node.
+
+    Parameters
+    ----------
+    fvisit: function of the signature Object -> bool
+        The visitor function.
+    """
+    return _ffi_api.PreOrderVisit(stmt, fvisit)  # type: ignore
+
+
 def substitute(node, vmap):
     """Substitute the var specified by vmap.
 
