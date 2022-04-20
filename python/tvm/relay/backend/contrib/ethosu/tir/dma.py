@@ -177,6 +177,46 @@ class Tiles(NamedTuple):
 
 
 def create_tiles(stmt: tvm.tir.stmt.AttrStmt) -> Tiles:
+    """Given an AttrStmt this function returns a Tiles instance
+    containing the tiles' addresses and dimensions.
+
+    When rolling buffers are not used only tile0 is used.
+    Otherwise, when rolling buffers are used, the statement contains
+    modulo arithmetic operations, which are unsupported by the NPU.
+    To support this scenario more than one tile is used.
+    In particular, when the rolling variable is the height one
+    tile0 and tile2 are used, otherwise, when the rolling variable
+    is the width one, tile0 and tile1 are used.
+
+    As an example consider this statement:
+
+    // attr [iter_var(i0, )] pragma_op = "ethosu_read"
+    // attr [iter_var(i0, )] pragma_zero_point = 0
+    // attr [iter_var(i0, )] pragma_layout = "NHCWB16"
+    // attr [iter_var(i0, )] pragma_scale = 1f
+    for (i0, 0, 1) {
+        for (i1, 0, 6) {
+            for (i2, 0, 1) {
+                for (i3, 0, 1) {
+                    for (i4, 0, 16) {
+                        ethosu_read[((i1*16) + i4)] = ethosu_write[((floormod((i1 + 4), 6)*16) + i4)]
+                    }
+                }
+            }
+        }
+    }
+
+    You can see from the floormod expression floormod((i1 + 4), 6)
+    that the rolling variable is i1, that is, the height one.
+    In this case tile0 and tile2 are used.
+    The height of tile0 will be 6 - 4 = 2, and height of tile2 will be 4.
+    Both the width of tile0 and tile2 will be equal to the extent of the width variable.
+    Also, the addresses are set accordingly.
+    When the rolling variable is the width one a simmetric approach will be used.
+
+    It is worth mentioning that only the height of tile0, the height of tile1,
+    and the width of tile0 must be computed, the other ones can be inferred.
+    """
     attrs, body = get_op_attrs(stmt)
     _, h, w, _, _, inner = get_outer_loops(body, attrs["layout"])
     base_address = [get_base_address(index) for index in inner.value.indices]
