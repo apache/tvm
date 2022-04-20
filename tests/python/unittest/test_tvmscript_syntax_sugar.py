@@ -241,19 +241,12 @@ def test_letstmt_bufferload_without_type_annotation():
     # buf[indices] is done by generating a BufferSlice object, which
     # handles both store and load cases.  BufferSlice is not a
     # PrimExpr, and implements BufferSlice.dtype explicitly.
+
+    # Failure occurred during parsing of the tvmscript.
     @T.prim_func
     def func_without_type_annotation(A: T.Buffer[(1,), "int32"]):
-        x: T.int32 = A[0]
-        T.evaluate(x)
-
-    @T.prim_func
-    def func_with_type_annotation(A: T.Buffer[(1,), "int32"]):
         x = A[0]
         T.evaluate(x)
-
-    assert_structural_equal(
-        func_without_type_annotation, func_with_type_annotation, map_free_vars=True
-    )
 
 
 if __name__ == "__main__":
