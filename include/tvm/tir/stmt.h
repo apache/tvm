@@ -996,12 +996,12 @@ class WhileNode : public StmtNode {
   }
 
   bool SEqualReduce(const WhileNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(condition, other->condition) && equal.DefEqual(body, other->body);
+    return equal(condition, other->condition) && equal(body, other->body);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(condition);
-    hash_reduce.DefHash(body);
+    hash_reduce(condition);
+    hash_reduce(body);
   }
 
   static constexpr const char* _type_key = "tir.While";

@@ -100,5 +100,50 @@ def test_simplify_conv_pad():
     validate(ndim, [[0, 0]] * 2 + [i_pad] * ndim, 0, "edge", orig_pad * ndim, "NCHW")
 
 
+def fold_pad_qconv2d():
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype="int8")
+        weight = relay.var("weight", shape=(3, 3, 64, 64), dtype="int8")
+        input_zero_point = 10
+        pad = relay.nn.pad(x, [[0, 0], [1, 1], [1, 1], [0, 0]], pad_value=input_zero_point)
+        return relay.qnn.op.conv2d(
+            pad,
+            weight,
+            relay.const(input_zero_point, "int32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "float32"),
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(0, 0),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype="int8")
+        weight = relay.var("weight", shape=(3, 3, 64, 64), dtype="int8")
+        input_zero_point = 10
+        return relay.qnn.op.conv2d(
+            x,
+            weight,
+            relay.const(input_zero_point, "int32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "float32"),
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+
+    a = run_opt_pass(before(), relay.transform.FoldExplicitPadding())
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b, map_free_vars=True), "Actual = \n" + str(a)
+
+
 if __name__ == "__main__":
     test_simplify_conv_pad()
+    fold_pad_qconv2d()

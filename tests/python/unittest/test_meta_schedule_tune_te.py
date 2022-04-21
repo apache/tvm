@@ -19,7 +19,7 @@ import logging
 import tempfile
 
 import pytest
-from tvm.meta_schedule import ReplayTraceConfig, tune_te
+from tvm.meta_schedule import TuneConfig, tune_te
 from tvm.meta_schedule.testing import te_workload
 from tvm.target.target import Target
 from tvm.tir import Schedule
@@ -34,7 +34,8 @@ def test_tune_matmul():
         sch: Schedule = tune_te(
             tensors=te_workload.batch_matmul_nkkm(B=1, N=128, M=128, K=128),
             target=Target("llvm --num-cores=16"),
-            config=ReplayTraceConfig(
+            config=TuneConfig(
+                strategy="replay_trace",
                 num_trials_per_iter=32,
                 max_trials_per_task=32,
                 max_trials_global=32,

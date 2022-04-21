@@ -22,7 +22,7 @@ FROM ubuntu:18.04
 
 RUN apt-get update --fix-missing
 
-RUN apt-get update && apt-get install -y wget git sudo make
+RUN apt-get update && apt-get install -y wget git sudo make parallel
 
 COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
 RUN bash /install/ubuntu1804_install_python.sh

@@ -827,7 +827,7 @@ class PyTorchOpConverter:
         # with tanh and third order polynomials, but this is "true" gelu
         return data * (
             _expr.const(0.5, dtype=dtype)
-            + _op.erf(data * _expr.const(0.5 ** 0.5, dtype=dtype)) * _expr.const(0.5, dtype=dtype)
+            + _op.erf(data * _expr.const(0.5**0.5, dtype=dtype)) * _expr.const(0.5, dtype=dtype)
         )
 
     def selu(self, inputs, input_types):

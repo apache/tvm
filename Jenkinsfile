@@ -45,18 +45,18 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-04-07T13:50:22.427152
+// Generated at 2022-04-19T10:04:53.134656
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:v0.69'
-ci_gpu = 'tlcpack/ci-gpu:v0.84'
-ci_cpu = 'tlcpack/ci-cpu:v0.83'
+ci_lint = 'tlcpack/ci-lint:v0.71'
+ci_gpu = 'tlcpack/ci-gpu:v0.85'
+ci_cpu = 'tlcpack/ci-cpu:v0.84'
 ci_wasm = 'tlcpack/ci-wasm:v0.73'
-ci_i386 = 'tlcpack/ci-i386:v0.76'
+ci_i386 = 'tlcpack/ci-i386:v0.77'
 ci_qemu = 'tlcpack/ci-qemu:v0.13'
-ci_arm = 'tlcpack/ci-arm:v0.09'
-ci_hexagon = 'tlcpack/ci-hexagon:v0.02'
+ci_arm = 'tlcpack/ci-arm:v0.10'
+ci_hexagon = 'tlcpack/ci-hexagon:v0.03'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -85,6 +85,7 @@ tvm_multilib = 'build/libtvm.so, ' +
 
 tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
                tvm_multilib
+microtvm_lib = 'build/microtvm_template_projects.tar.gz, ' + tvm_lib
 upstream_revision = null
 
 // command to start a docker container
@@ -120,7 +121,7 @@ def init_git() {
     ).trim()
   }
   sh (
-    script: "git merge ${upstream_revision}",
+    script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
     label: 'Merge to origin/main'
   )
 
@@ -205,6 +206,7 @@ stage('Prepare') {
     ci_i386 = params.ci_i386_param ?: ci_i386
     ci_qemu = params.ci_qemu_param ?: ci_qemu
     ci_arm = params.ci_arm_param ?: ci_arm
+    ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
 
     sh (script: """
       echo "Docker images being used in this build:"
@@ -215,6 +217,7 @@ stage('Prepare') {
       echo " ci_i386 = ${ci_i386}"
       echo " ci_qemu = ${ci_qemu}"
       echo " ci_arm  = ${ci_arm}"
+      echo " ci_hexagon  = ${ci_hexagon}"
     """, label: 'Docker image names')
   }
 }
@@ -576,23 +579,12 @@ stage('Build') {
             script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh build",
             label: 'Create QEMU cmake config',
           )
-          try {
-            make(ci_qemu, 'build', '-j2')
-            cpp_unittest(ci_qemu)
-            timeout(time: max_time, unit: 'MINUTES') {
-              ci_setup(ci_qemu)
-              sh (
-                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
-                label: 'Run microTVM tests',
-              )
-              sh (
-                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
-                label: 'Run microTVM demos',
-              )
-            }
-          } finally {
-            junit 'build/pytest-results/*.xml'
-          }
+          make(ci_qemu, 'build', '-j2')
+          sh(
+            script: 'cd build && tar -czvf microtvm_template_projects.tar.gz microtvm_template_projects/',
+            label: 'Compress microtvm_template_projects'
+          )
+          pack_lib('qemu', microtvm_lib)
         }
       }
      } else {
@@ -608,24 +600,8 @@ stage('Build') {
             script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
             label: 'Create Hexagon cmake config',
           )
-          try {
-            make(ci_hexagon, 'build', '-j2')
-            cpp_unittest(ci_hexagon)
-            sh (
-              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
-              label: 'Build Hexagon API',
-            )
-            sh (
-              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
-              label: 'Run Hexagon tests',
-            )
-            sh (
-              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon_simulator.sh",
-              label: 'Run Hexagon tests on simulator',
-            )
-          } finally {
-            junit 'build/pytest-results/*.xml'
-          }
+          make(ci_hexagon, 'build', '-j2')
+          pack_lib('hexagon', tvm_lib)
         }
       }
      } else {
@@ -638,31 +614,36 @@ stage('Test') {
   environment {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
   }
-  parallel 'unittest: GPU': {
+  parallel(
+  'unittest: GPU 1 of 2': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('TensorCore') {
+      node('GPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-gpu") {
           try {
             init_git()
-            unpack_lib('gpu2', tvm_multilib)
-            cpp_unittest(ci_gpu)
-
-            unpack_lib('gpu', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
-              ci_setup(ci_gpu)
-              cpp_unittest(ci_gpu)
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
-                label: 'Run Java unit tests',
-              )
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
-                label: 'Run Python GPU unit tests',
-              )
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
-                label: 'Run Python GPU integration tests',
-              )
+              withEnv([
+                'TVM_NUM_SHARDS=2',
+                'TVM_SHARD_INDEX=0'], {
+                unpack_lib('gpu2', tvm_multilib)
+                cpp_unittest(ci_gpu)
+
+                unpack_lib('gpu', tvm_multilib)
+                ci_setup(ci_gpu)
+                cpp_unittest(ci_gpu)
+                sh (
+                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
+                  label: 'Run Java unit tests',
+                )
+                sh (
+                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
+                  label: 'Run Python GPU unit tests',
+                )
+                sh (
+                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
+                  label: 'Run Python GPU integration tests',
+                )
+              })
             }
           } finally {
             junit 'build/pytest-results/*.xml'
@@ -670,7 +651,46 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('unittest: GPU')
+      Utils.markStageSkippedForConditional('unittest: GPU 1 of 2')
+    }
+  },
+  'unittest: GPU 2 of 2': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('GPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-gpu") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'TVM_NUM_SHARDS=2',
+                'TVM_SHARD_INDEX=1'], {
+                unpack_lib('gpu2', tvm_multilib)
+                cpp_unittest(ci_gpu)
+
+                unpack_lib('gpu', tvm_multilib)
+                ci_setup(ci_gpu)
+                cpp_unittest(ci_gpu)
+                sh (
+                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
+                  label: 'Run Java unit tests',
+                )
+                sh (
+                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
+                  label: 'Run Python GPU unit tests',
+                )
+                sh (
+                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
+                  label: 'Run Python GPU integration tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('unittest: GPU 2 of 2')
     }
   },
   'integration: CPU 1 of 2': {
@@ -731,10 +751,10 @@ stage('Test') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-cpu") {
-          try {
-            init_git()
-            unpack_lib('cpu', tvm_multilib_tsim)
-            timeout(time: max_time, unit: 'MINUTES') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            try {
+              init_git()
+              unpack_lib('cpu', tvm_multilib_tsim)
               ci_setup(ci_cpu)
               cpp_unittest(ci_cpu)
               python_unittest(ci_cpu)
@@ -743,9 +763,9 @@ stage('Test') {
                 script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
                 label: 'Run VTA tests in TSIM',
               )
+            } finally {
+              junit 'build/pytest-results/*.xml'
             }
-          } finally {
-            junit 'build/pytest-results/*.xml'
           }
         }
       }
@@ -753,22 +773,26 @@ stage('Test') {
       Utils.markStageSkippedForConditional('unittest: CPU')
     }
   },
-  'python3: i386': {
+  'python: i386 1 of 2': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-i386") {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
           try {
             init_git()
-            unpack_lib('i386', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
-              ci_setup(ci_i386)
-              cpp_unittest(ci_i386)
-              python_unittest(ci_i386)
-              sh (
-                script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
-                label: 'Run i386 integration tests',
-              )
-              fsim_test(ci_i386)
+              withEnv([
+                'TVM_NUM_SHARDS=2',
+                'TVM_SHARD_INDEX=0'], {
+                unpack_lib('i386', tvm_multilib)
+                ci_setup(ci_i386)
+                cpp_unittest(ci_i386)
+                python_unittest(ci_i386)
+                sh (
+                  script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
+                  label: 'Run i386 integration tests',
+                )
+                fsim_test(ci_i386)
+              })
             }
           } finally {
             junit 'build/pytest-results/*.xml'
@@ -776,7 +800,97 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('python3: i386')
+      Utils.markStageSkippedForConditional('python: i386 1 of 2')
+    }
+  },
+  'python: i386 2 of 2': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'TVM_NUM_SHARDS=2',
+                'TVM_SHARD_INDEX=1'], {
+                unpack_lib('i386', tvm_multilib)
+                ci_setup(ci_i386)
+                cpp_unittest(ci_i386)
+                python_unittest(ci_i386)
+                sh (
+                  script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
+                  label: 'Run i386 integration tests',
+                )
+                fsim_test(ci_i386)
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('python: i386 2 of 2')
+    }
+  },
+  'test: Hexagon': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
+          timeout(time: max_time, unit: 'MINUTES') {
+            try {
+              init_git()
+              unpack_lib('hexagon', tvm_lib)
+              ci_setup(ci_hexagon)
+              cpp_unittest(ci_hexagon)
+              sh (
+                script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
+                label: 'Build Hexagon API',
+              )
+              sh (
+                script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+                label: 'Run Hexagon tests',
+              )
+            } finally {
+              junit 'build/pytest-results/*.xml'
+            }
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('test: Hexagon')
+    }
+  },
+  'test: QEMU': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-qemu") {
+          timeout(time: max_time, unit: 'MINUTES') {
+            try {
+              init_git()
+              unpack_lib('qemu', microtvm_lib)
+              sh(
+                script: 'cd build && tar -xzvf microtvm_template_projects.tar.gz',
+                label: 'Unpack microtvm_template_projects'
+              )
+              ci_setup(ci_qemu)
+              cpp_unittest(ci_qemu)
+              sh (
+                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+              sh (
+                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
+                label: 'Run microTVM demos',
+              )
+            } finally {
+              junit 'build/pytest-results/*.xml'
+            }
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('test: QEMU')
     }
   },
   'topi: aarch64': {
@@ -1002,18 +1116,18 @@ stage('Test') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-cpu") {
-          try {
-            init_git()
-            unpack_lib('cpu', tvm_multilib)
-            timeout(time: max_time, unit: 'MINUTES') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            try {
+              init_git()
+              unpack_lib('cpu', tvm_multilib)
               ci_setup(ci_cpu)
               sh (
                 script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh",
                 label: 'Run Python frontend tests',
               )
+            } finally {
+              junit 'build/pytest-results/*.xml'
             }
-          } finally {
-            junit 'build/pytest-results/*.xml'
           }
         }
       }
@@ -1024,19 +1138,19 @@ stage('Test') {
   'frontend: aarch64': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('ARM') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
-          try {
-            init_git()
-            unpack_lib('arm', tvm_multilib)
-            timeout(time: max_time, unit: 'MINUTES') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
+          timeout(time: max_time, unit: 'MINUTES') {
+            try {
+              init_git()
+              unpack_lib('arm', tvm_multilib)
               ci_setup(ci_arm)
               sh (
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
                 label: 'Run Python frontend tests',
               )
+            } finally {
+              junit 'build/pytest-results/*.xml'
             }
-          } finally {
-            junit 'build/pytest-results/*.xml'
           }
         }
       }
@@ -1046,7 +1160,7 @@ stage('Test') {
   },
   'docs: GPU': {
     if (!skip_ci) {
-      node('TensorCore') {
+      node('GPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/docs-python-gpu") {
           init_git()
           unpack_lib('gpu', tvm_multilib)
@@ -1062,7 +1176,8 @@ stage('Test') {
         }
       }
     }
-  }
+  },
+  )
 }
 
 /*

@@ -211,7 +211,7 @@ class SchedulePostProc : public StmtExprMutator {
         }
       }
     } else if (op->attr_key == tir::attr::buffer_bind_scope) {
-      Array<ObjectRef> tuple = Downcast<Array<ObjectRef> >(op->node);
+      Array<ObjectRef> tuple = Downcast<Array<ObjectRef>>(op->node);
       Tensor tensor = Downcast<Tensor>(tuple[1]);
       auto it = replace_op_.find(tensor->op.get());
       if (it != replace_op_.end()) {

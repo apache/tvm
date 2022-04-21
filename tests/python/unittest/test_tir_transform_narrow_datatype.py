@@ -67,13 +67,13 @@ def test_basic():
     # i32 -> i32
     check(2, 2, 32, "int32")
     # i32 + i32 is not promoted to i64 even if overflow
-    check(2 ** 16, 2 ** 16, 32, "int32")
+    check(2**16, 2**16, 32, "int32")
     # i64 -> i32
     check(const(2, dtype="int64"), const(2, dtype="int64"), 32, "int32")
-    check(const(2 ** 16, dtype="int64"), const(2 ** 16, dtype="int64"), 32, "int64")
+    check(const(2**16, dtype="int64"), const(2**16, dtype="int64"), 32, "int64")
     # i32 -> i16
     check(2, 2, 16, "int16")
-    check(2 ** 10, 2 ** 10, 16, "int32")
+    check(2**10, 2**10, 16, "int32")
 
     # symbolic shape
     check(te.size_var(name="m", dtype="int32"), te.size_var(name="n", dtype="int32"), 32, "int32")
@@ -100,7 +100,7 @@ def test_thread_axis():
     # i32 -> i32
     check(2, 32, target_bits=32, target_dtype="int32")
     check(
-        2 ** 30,
+        2**30,
         32,  # i32 + i32 is not promoted to i64 even in the case of overflow
         target_bits=32,
         target_dtype="int32",
@@ -108,14 +108,14 @@ def test_thread_axis():
     # i64 -> i32
     check(const(2, dtype="int64"), const(32, dtype="int64"), target_bits=32, target_dtype="int32")
     check(
-        const(2 ** 30, dtype="int64"),
+        const(2**30, dtype="int64"),
         const(32, dtype="int64"),
         target_bits=32,
         target_dtype="int64",
     )
     # i32 -> i16
     check(2, 32, target_bits=16, target_dtype="int16")
-    check(2 ** 14, 32, target_bits=16, target_dtype="int32")
+    check(2**14, 32, target_bits=16, target_dtype="int32")
 
 
 def test_multilanes():
@@ -133,14 +133,14 @@ def test_multilanes():
         assert stmt.seq[0].loop_var.dtype == target_dtype
 
     # i32 -> i32
-    check(const(2 ** 10, dtype="int32"), 2, target_bits=32, target_dtype="int32")
-    check(const(2 ** 32, dtype="int32"), 2, target_bits=32, target_dtype="int32")
+    check(const(2**10, dtype="int32"), 2, target_bits=32, target_dtype="int32")
+    check(const(2**32, dtype="int32"), 2, target_bits=32, target_dtype="int32")
     # i64 -> i32
-    check(const(2 ** 10, dtype="int64"), 2, target_bits=32, target_dtype="int32")
-    check(const(2 ** 32, dtype="int64"), 2, target_bits=32, target_dtype="int64")
+    check(const(2**10, dtype="int64"), 2, target_bits=32, target_dtype="int32")
+    check(const(2**32, dtype="int64"), 2, target_bits=32, target_dtype="int64")
     # i32 -> i16
-    check(const(2 ** 10, dtype="int32"), 2, target_bits=16, target_dtype="int16")
-    check(const(2 ** 16, dtype="int32"), 2, target_bits=16, target_dtype="int32")
+    check(const(2**10, dtype="int32"), 2, target_bits=16, target_dtype="int16")
+    check(const(2**16, dtype="int32"), 2, target_bits=16, target_dtype="int32")
 
 
 def test_reduce():
@@ -158,7 +158,7 @@ def test_reduce():
     check(const(64, dtype="int64"), 32, "int32")
     # i32 -> i16
     check(const(64, dtype="int32"), 16, "int16")
-    check(const(2 ** 16, dtype="int32"), 16, "int32")
+    check(const(2**16, dtype="int32"), 16, "int32")
     # symbolic
     check(te.var("n", dtype="int32"), 32, "int32")
     check(te.var("n", dtype="int64"), 32, "int64")
@@ -181,10 +181,10 @@ def test_slice():
         assert stmt.body.loop_var.dtype == target_dtype
 
     # The maximum index is (2**15 * 2**15 - 1) * 2 <= 2**31 - 1
-    check(const(2 ** 15, "int64"), const(2 ** 15, "int64"), target_bits=32, target_dtype="int32")
+    check(const(2**15, "int64"), const(2**15, "int64"), target_bits=32, target_dtype="int32")
     # The maximum index is (2**15 * 2**15 - 1 + 2**15) * 2 > 2**31 - 1
     check(
-        const(2 ** 15, "int64"), const((2 ** 15 + 1), "int64"), target_bits=32, target_dtype="int64"
+        const(2**15, "int64"), const((2**15 + 1), "int64"), target_bits=32, target_dtype="int64"
     )
 
 
@@ -208,23 +208,23 @@ def test_relay_basic():
             assert stmt.body.loop_var.dtype == target_dtype
 
     check(
-        (const(2 ** 16, "int64"), const(2 ** 15 + 1, "int64")),
-        (1, const(2 ** 15 + 1, "int64")),
+        (const(2**16, "int64"), const(2**15 + 1, "int64")),
+        (1, const(2**15 + 1, "int64")),
         target_bits=32,
         target_dtype="int64",
     )
     check(
-        (const(2 ** 16, "int64"), const(2 ** 15, "int64")),
-        (1, const(2 ** 15, "int64")),
+        (const(2**16, "int64"), const(2**15, "int64")),
+        (1, const(2**15, "int64")),
         target_bits=32,
         target_dtype="int32",
     )
     check(
-        (const(2 ** 31, "int64"),), (const(2 ** 31, "int64"),), target_bits=32, target_dtype="int32"
+        (const(2**31, "int64"),), (const(2**31, "int64"),), target_bits=32, target_dtype="int32"
     )
     check(
-        (const(2 ** 31 + 1, "int64"),),
-        (const(2 ** 31 + 1, "int64"),),
+        (const(2**31 + 1, "int64"),),
+        (const(2**31 + 1, "int64"),),
         target_bits=32,
         target_dtype="int64",
     )
@@ -245,14 +245,14 @@ def test_relay_take():
         assert stmt.value.indices[0].dtype == target_dtype
 
     check(
-        (const(2 ** 16, "int64"), const(2 ** 15 + 1, "int64")),
+        (const(2**16, "int64"), const(2**15 + 1, "int64")),
         relay.const(0, dtype="int64"),
         target_bits=32,
         target_dtype="int32",
     )
     check(
-        (const(2 ** 16, "int64"), const(2 ** 15 + 1, "int64")),
-        relay.const(2 ** 31, dtype="int64"),
+        (const(2**16, "int64"), const(2**15 + 1, "int64")),
+        relay.const(2**31, dtype="int64"),
         target_bits=32,
         target_dtype="int64",
     )
@@ -271,7 +271,7 @@ def test_ramp_dtype_consistency():
     """
     n = tvm.tir.IntImm("int64", 4)
     m = tvm.tir.IntImm("int64", 2)
-    A = te.compute((n, m), lambda i, j: tvm.tir.Cast("int64", 2 ** 31 - 1) * i, name="A")
+    A = te.compute((n, m), lambda i, j: tvm.tir.Cast("int64", 2**31 - 1) * i, name="A")
     s = te.create_schedule(A.op)
     s[A].vectorize(A.op.axis[1])
     lower_sch(s, [A], 32, extra_passes=[tvm.tir.transform.VectorizeLoop()])

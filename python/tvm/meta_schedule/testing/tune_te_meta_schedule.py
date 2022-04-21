@@ -100,11 +100,11 @@ def main():
     sch: Optional[tir.Schedule] = ms.tune_tir(
         mod=create_te_workload(ARGS.workload, 0),
         target=ARGS.target,
-        config=ms.EvolutionarySearchConfig(
+        config=ms.TuneConfig(
+            strategy="evolutionary",
             num_trials_per_iter=64,
             max_trials_per_task=ARGS.num_trials,
             max_trials_global=ARGS.num_trials,
-            init_min_unmeasured=50,
         ),
         runner=runner,  # type: ignore
         task_name=ARGS.workload,
