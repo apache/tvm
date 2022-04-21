@@ -31,8 +31,6 @@ from tvm import WorkspaceMemoryPools, PoolInfo
 
 from .. import infra
 
-ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32"]
-
 
 def _get_ethosu_workspace_size(mod, params, accel_type, pool_size, enable_cascader):
     enable_usmp = True
