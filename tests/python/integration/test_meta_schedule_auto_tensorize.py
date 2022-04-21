@@ -36,8 +36,8 @@ import tvm.topi.testing
 
 config = ms.TuneConfig(
     strategy="evolutionary",
-    num_trials_per_iter=64,
-    max_trials_per_task=64,
+    num_trials_per_iter=32,
+    max_trials_per_task=32,
     max_trials_global=20000,
 )
 
@@ -227,7 +227,7 @@ def _test_conv2d(data_dtype, sch_rules, postprocs, target):
 
     relay_mod = tvm.IRModule.from_expr(conv2d)
 
-    data_np = np.random.uniform(1, 10, d_shape).astype("uint8")
+    data_np = np.random.uniform(1, 10, d_shape).astype(data_dtype)
     weight_np = np.random.uniform(1, 10, size=w_shape).astype("int8")
 
     tune_and_test(relay_mod, data_np, weight_np, "conv2d", target, sch_rules, postprocs)
