@@ -144,35 +144,8 @@ def layout_transform_2d(n):
 
 @requires_hexagon_toolchain
 def test_cache_read_write_2d(hexagon_session):
-    size = 128
-    outer_shape = (size,)
-    factor = 16
-    inner_shape = (factor,)
-    dtype = "int8"
-
-    x = te.placeholder(shape=outer_shape, dtype=dtype, name="x")
-    y = te.placeholder(shape=outer_shape, dtype=dtype, name="y")
-    z = te.compute(outer_shape, lambda i: x[i] + y[i], name="z")
-    s = te.create_schedule(z.op)
-
-    x_vtcm = s.cache_read(x, "global.vtcm", [z])
-    y_vtcm = s.cache_read(y, "global.vtcm", [z])
-    z_vtcm = s.cache_write(z, "global.vtcm")
-
-    layout_x_vtcm = s[x_vtcm].transform_layout(layout_transform_2d)
-    layout_y_vtcm = s[y_vtcm].transform_layout(layout_transform_2d)
-    layout_z_vtcm = s[z_vtcm].transform_layout(layout_transform_2d)
-
-    mem_copy_read = intrin_mem_copy(inner_shape, dtype, "global.vtcm", "global")
-    s[x_vtcm].tensorize(layout_x_vtcm[1], mem_copy_read)
-    s[y_vtcm].tensorize(layout_y_vtcm[1], mem_copy_read)
-
-    # The loop schedule over `z` is not modified when calling `transform_layout`
-    # on `z_vtcm` above therefore we must call `split` to modify the loop schedule
-    # over `z` to match the layout of `z_vtcm` such that we can accurately write
-    # `z_vtcm` back to `z` using memory copy intrinsic
-    zouter, zinner = s[z].split(z.op.axis[0], factor=factor)
-    mem_copy_write = intrin_mem_copy(inner_shape, dtype, "global", "global.vtcm")
-    s[z].tensorize(zinner, mem_copy_write)
-
-    verify(hexagon_session, s, x, y, z, size)
+    func = hexagon_session._rpc.get_function("hexagon.run_all_tests")
+    x = func()
+    print("PRETTY SURE I JUST RAN MY TEST, PRINTING THE RETURN VALUE")
+    print(x)
+    np.testing.assert_equal(x, 0)

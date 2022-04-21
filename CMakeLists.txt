@@ -602,8 +602,9 @@ include(FetchContent)
 FetchContent_Declare(googletest SOURCE_DIR "/local/mnt/workspace/Qualcomm/Hexagon_SDK/4.5.0.3/utils/googletest/gtest")
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
-include(GoogleTest)
 target_link_libraries(tvm_runtime PUBLIC gtest)
+target_link_libraries(tvm PUBLIC gtest) # is this necessary if we move the tests out of device api?
+include_directories("/local/mnt/workspace/Qualcomm/Hexagon_SDK/4.5.0.3/utils/googletest/gtest/include")
 
 # Set flags for clang
 include(cmake/modules/ClangFlags.cmake)
@@ -656,6 +657,7 @@ add_custom_target(runtime DEPENDS tvm_runtime)
 # Installation rules
 install(TARGETS tvm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
+install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 
 if (INSTALL_DEV)
   install(

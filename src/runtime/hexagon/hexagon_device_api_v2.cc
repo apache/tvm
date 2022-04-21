@@ -251,7 +251,7 @@ TEST(HexagonDeviceApi, my_first_test) {
   ASSERT_EQ(42, 42);
 }
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.run_all_tests").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("hexagon.run_all_tests").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = RUN_ALL_TESTS();
 });
 
