@@ -78,6 +78,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
 
         mod = tvm.tir.transform.Simplify()(mod)
         mod = ethosu_passes.RemoveConcatenates()(mod)
+        mod = tvm.tir.transform.InjectRollingBuffer()(mod)
         mod = tvm.tir.transform.StorageFlatten(64)(mod)
         mod = tvm.tir.transform.UnrollLoop()(mod)
         mod = tvm.tir.transform.Simplify()(mod)
