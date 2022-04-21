@@ -67,7 +67,7 @@ def test_cpu_matmul():
 
     """
     lowered IR:
-    
+
     Placeholder: A, B
     parallel i.0 (0,32)
       parallel j.0 (0,64)
@@ -78,8 +78,8 @@ def test_cpu_matmul():
     """
 
     # check touched memory in bytes, touched unique memory in bytes, reuse distance, etc.
-    assert fequal(fea_dict[c_name + ".bytes"], math.log2(512**3 * 4 + 1))
-    assert fequal(fea_dict[b_name + ".unique_bytes"], math.log2(512**2 * 4 + 1))
+    assert fequal(fea_dict[c_name + ".bytes"], math.log2(512 ** 3 * 4 + 1))
+    assert fequal(fea_dict[b_name + ".unique_bytes"], math.log2(512 ** 2 * 4 + 1))
     assert fequal(fea_dict[c_name + ".reuse_dis_iter"], math.log2(8 * 16 + 1))
     assert fequal(fea_dict[c_name + ".reuse_dis_bytes"], math.log2((8 * 16 + 8 + 16) * 4 + 1))
     assert fequal(fea_dict[c_name + ".reuse_ct"], math.log2(512 + 1))
@@ -209,14 +209,14 @@ def tir_matmul(
 ) -> None:
     # function attr dict
     T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-    A = T.buffer_decl([16384], dtype="float32", data=A.data)
-    B = T.buffer_decl([16384], dtype="float32", data=B.data)
-    C = T.buffer_decl([16384], dtype="float32", data=C.data)
+    A_flat = T.buffer_decl([16384], dtype="float32", data=A.data)
+    B_flat = T.buffer_decl([16384], dtype="float32", data=B.data)
+    C_flat = T.buffer_decl([16384], dtype="float32", data=C.data)
     # body
     for x, y in T.grid(128, 128):
-        C[x * 128 + y] = T.float32(0)
+        C_flat[x * 128 + y] = T.float32(0)
         for k in T.serial(128):
-            C[x * 128 + y] = C[x * 128 + y] + A[x * 128 + k] * B[y * 128 + k]
+            C_flat[x * 128 + y] = C_flat[x * 128 + y] + A_flat[x * 128 + k] * B_flat[y * 128 + k]
 
 
 def test_primfunc_without_lowering():

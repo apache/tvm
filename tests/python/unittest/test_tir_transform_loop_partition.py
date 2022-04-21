@@ -572,16 +572,16 @@ def partitioned_concat_3(
     placeholder_2: T.Buffer[(1, 32, 28, 28), "int8"],
     T_concat: T.Buffer[(1, 128, 28, 28), "int8"],
 ) -> None:
-    placeholder = T.buffer_decl([50176], "int8", data=placeholder.data)
-    placeholder_1 = T.buffer_decl([25088], "int8", data=placeholder_1.data)
-    placeholder_2 = T.buffer_decl([25088], "int8", data=placeholder_2.data)
-    T_concat = T.buffer_decl([100352], "int8", data=T_concat.data)
+    placeholder_flat = T.buffer_decl([50176], "int8", data=placeholder.data)
+    placeholder_1_flat = T.buffer_decl([25088], "int8", data=placeholder_1.data)
+    placeholder_2_flat = T.buffer_decl([25088], "int8", data=placeholder_2.data)
+    T_concat_flat = T.buffer_decl([100352], "int8", data=T_concat.data)
     for i1, i2, i3 in T.grid(64, 28, 28):
-        T_concat[i1 * 784 + i2 * 28 + i3] = placeholder[i1 * 784 + i2 * 28 + i3]
+        T_concat_flat[i1 * 784 + i2 * 28 + i3] = placeholder_flat[i1 * 784 + i2 * 28 + i3]
     for i1, i2, i3 in T.grid(32, 28, 28):
-        T_concat[i1 * 784 + i2 * 28 + i3 + 50176] = placeholder_1[i1 * 784 + i2 * 28 + i3]
+        T_concat_flat[i1 * 784 + i2 * 28 + i3 + 50176] = placeholder_1_flat[i1 * 784 + i2 * 28 + i3]
     for i1, i2, i3 in T.grid(32, 28, 28):
-        T_concat[i1 * 784 + i2 * 28 + i3 + 75264] = placeholder_2[i1 * 784 + i2 * 28 + i3]
+        T_concat_flat[i1 * 784 + i2 * 28 + i3 + 75264] = placeholder_2_flat[i1 * 784 + i2 * 28 + i3]
 
 
 @T.prim_func
@@ -591,18 +591,22 @@ def concat_func_3(
     placeholder_2: T.Buffer[(1, 32, 28, 28), "int8"],
     T_concat: T.Buffer[(1, 128, 28, 28), "int8"],
 ) -> None:
-    placeholder = T.buffer_decl([50176], "int8", data=placeholder.data)
-    placeholder_1 = T.buffer_decl([25088], "int8", data=placeholder_1.data)
-    placeholder_2 = T.buffer_decl([25088], "int8", data=placeholder_2.data)
-    T_concat = T.buffer_decl([100352], "int8", data=T_concat.data)
+    placeholder_flat = T.buffer_decl([50176], "int8", data=placeholder.data)
+    placeholder_1_flat = T.buffer_decl([25088], "int8", data=placeholder_1.data)
+    placeholder_2_flat = T.buffer_decl([25088], "int8", data=placeholder_2.data)
+    T_concat_flat = T.buffer_decl([100352], "int8", data=T_concat.data)
     for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
         for i2, i3 in T.grid(28, 28):
             if 96 <= i1:
-                T_concat[i1 * 784 + i2 * 28 + i3] = placeholder_2[i1 * 784 + i2 * 28 + i3 - 75264]
+                T_concat_flat[i1 * 784 + i2 * 28 + i3] = placeholder_2_flat[
+                    i1 * 784 + i2 * 28 + i3 - 75264
+                ]
             if 64 <= i1 and i1 < 96:
-                T_concat[i1 * 784 + i2 * 28 + i3] = placeholder_1[i1 * 784 + i2 * 28 + i3 - 50176]
+                T_concat_flat[i1 * 784 + i2 * 28 + i3] = placeholder_1_flat[
+                    i1 * 784 + i2 * 28 + i3 - 50176
+                ]
             if i1 < 64:
-                T_concat[i1 * 784 + i2 * 28 + i3] = placeholder[i1 * 784 + i2 * 28 + i3]
+                T_concat_flat[i1 * 784 + i2 * 28 + i3] = placeholder_flat[i1 * 784 + i2 * 28 + i3]
 
 
 def test_condition_mutually_exclusive():
