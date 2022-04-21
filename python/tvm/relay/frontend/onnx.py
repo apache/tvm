@@ -702,7 +702,9 @@ class ConvTranspose(OnnxOpConverter):
                 else:
                     for i in range(kndim):
                         total_pad[i] = (
-                            output_padding[i] + ((kernel_shape[i] - 1) * dilations[i] + 1) - strides[i]
+                            output_padding[i]
+                            + ((kernel_shape[i] - 1) * dilations[i] + 1)
+                            - strides[i]
                         )
                 left = [p // 2 for p in total_pad]
                 right = [total_pad[i] - left[i] for i in range(kndim)]
