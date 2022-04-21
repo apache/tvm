@@ -36,47 +36,8 @@
 namespace tvm {
 namespace codegen {
 
-// TODO(areusch,masahi): Unify metadata representation and remove the need for this function
 static runtime::metadata::Metadata ConvertMetaData(
-    relay::backend::ExecutorCodegenMetadata metadata) {
-  ICHECK(metadata.defined());
-  ICHECK_NOTNULL(metadata->pool_inputs);
-
-  std::vector<runtime::metadata::TensorInfo> inputs;
-  for (size_t i = 0; i < metadata->inputs.size(); ++i) {
-    auto v = metadata->inputs[i];
-    auto ttype = metadata->input_tensor_types[i];
-    inputs.push_back(
-        runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
-            v->name_hint, relay::backend::ShapeToJSON(ttype->shape), ttype->dtype)));
-  }
-
-  std::vector<runtime::metadata::TensorInfo> outputs;
-  auto output_ttypes = metadata->output_tensor_types;
-  for (size_t i = 0; i < output_ttypes.size(); ++i) {
-    auto ttype = output_ttypes[i];
-    std::stringstream name;
-    name << "output" << i;
-    outputs.push_back(
-        runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
-            name.str(), relay::backend::ShapeToJSON(ttype->shape), ttype->dtype)));
-  }
-
-  std::vector<runtime::metadata::TensorInfo> pools;
-  for (size_t i = 0; i < metadata->pools.size(); ++i) {
-    auto var = metadata->pools[i];
-    pools.push_back(
-        runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
-            var->name_hint,
-            std::vector<int64_t>{metadata->pool_inputs.value()[var]->allocated_size},
-            tvm::runtime::DataType{kDLUInt, 8, 1})));
-  }
-
-  auto n = make_object<target::metadata::InMemoryMetadataNode>(
-      runtime::metadata::kMetadataVersion, inputs, outputs, pools, metadata->mod_name);
-
-  return runtime::metadata::Metadata(std::move(n));
-}
+    relay::backend::ExecutorCodegenMetadata metadata);
 
 static runtime::Module CreateCrtMetadataModule(
     runtime::Module target_module, Target target, relay::Runtime runtime, relay::Executor executor,
@@ -122,6 +83,48 @@ static runtime::Module CreateCrtMetadataModule(
   }
 
   return target_module;
+}
+
+// TODO(areusch,masahi): Unify metadata representation and remove the need for this function
+static runtime::metadata::Metadata ConvertMetaData(
+    relay::backend::ExecutorCodegenMetadata metadata) {
+  ICHECK(metadata.defined());
+  ICHECK_NOTNULL(metadata->pool_inputs);
+
+  std::vector<runtime::metadata::TensorInfo> inputs;
+  for (size_t i = 0; i < metadata->inputs.size(); ++i) {
+    auto v = metadata->inputs[i];
+    auto ttype = metadata->input_tensor_types[i];
+    inputs.push_back(
+        runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
+            v->name_hint, relay::backend::ShapeToJSON(ttype->shape), ttype->dtype)));
+  }
+
+  std::vector<runtime::metadata::TensorInfo> outputs;
+  auto output_ttypes = metadata->output_tensor_types;
+  for (size_t i = 0; i < output_ttypes.size(); ++i) {
+    auto ttype = output_ttypes[i];
+    std::stringstream name;
+    name << "output" << i;
+    outputs.push_back(
+        runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
+            name.str(), relay::backend::ShapeToJSON(ttype->shape), ttype->dtype)));
+  }
+
+  std::vector<runtime::metadata::TensorInfo> pools;
+  for (size_t i = 0; i < metadata->pools.size(); ++i) {
+    auto var = metadata->pools[i];
+    pools.push_back(
+        runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
+            var->name_hint,
+            std::vector<int64_t>{metadata->pool_inputs.value()[var]->allocated_size},
+            tvm::runtime::DataType{kDLUInt, 8, 1})));
+  }
+
+  auto n = make_object<target::metadata::InMemoryMetadataNode>(
+      runtime::metadata::kMetadataVersion, inputs, outputs, pools, metadata->mod_name);
+
+  return runtime::metadata::Metadata(std::move(n));
 }
 
 static runtime::Module CreateCppMetadataModule(

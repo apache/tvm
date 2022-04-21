@@ -35,9 +35,9 @@ extern "C" {
 typedef struct TVMMetadata TVMMetadata;
 
 typedef struct TVMAotExecutor {
-  /*! \brief The top-level metadata structure */
+  /*! \brief The top-level metadata structure supplied by the generated code */
   TVMMetadata* metadata;
-  /*! \brief The code module that contains both host and device code */
+  /*! \brief The code module that contains the compiled model */
   TVMModuleHandle module_handle;
   /*! \brief The device type */
   DLDevice device;

@@ -221,20 +221,14 @@ def test_aot_executor():
         A_data = aot_executor.get_input("a").copyfrom(A_np)
         B_data = aot_executor.get_input("b").copyfrom(B_np)
 
-        print("A_data: " + str(A_data))
-        print("B_data: " + str(B_data))
-
         aot_executor.run()
 
         out = aot_executor.get_output(0)
-        print("out: " + str(out))
         assert (out.numpy() == np.array([6, 10])).all()
 
         B_np_new = np.array([[5, 8]])
         aot_executor.set_input("b", B_np_new)
         assert (B_data.numpy() == B_np_new).all()
-
-        print("B_data: " + str(B_data))
 
     with _make_session(temp_dir, factory) as sess:
         do_test()
