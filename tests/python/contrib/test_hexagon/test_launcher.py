@@ -46,9 +46,6 @@ def test_add(hexagon_session):
         sched, [A, B, C], tvm.target.Target(target_hexagon, host=target_hexagon), name="add"
     )
 
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
-
     mod = hexagon_session.load_module(func)
 
     A_data = tvm.nd.array(np.array([2, 3], dtype=dtype), device=hexagon_session.device)
@@ -73,9 +70,6 @@ def test_add_vtcm(hexagon_session):
     func = tvm.build(
         sched, [A, B, C], tvm.target.Target(target_hexagon, host=target_hexagon), name="add"
     )
-
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
 
     mod = hexagon_session.load_module(func)
     A_data = tvm.nd.empty(A.shape, A.dtype, hexagon_session.device, "global.vtcm")
@@ -109,9 +103,6 @@ class TestMatMul:
         func = tvm.build(
             schedule, [X, Y, Z], tvm.target.Target(target_hexagon, host=target_hexagon)
         )
-
-        if hexagon_session is None:
-            pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
 
         mod = hexagon_session.load_module(func)
 
@@ -169,9 +160,6 @@ def test_graph_executor(hexagon_session):
             runtime=runtime,
             executor=executor,
         )
-
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
     graph_mod = hexagon_session.get_executor_from_factory(lowered)
     graph_mod.set_input(**params)
@@ -236,9 +224,6 @@ def test_graph_executor_multiple_conv2d(hexagon_session):
             runtime=runtime,
             executor=executor,
         )
-
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
     weight1_data = np.random.rand(w1_shape[0], w1_shape[1], w1_shape[2], w1_shape[3]).astype(
         dtype=dtype
@@ -324,9 +309,6 @@ def test_aot_executor(hexagon_session):
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )
 
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
-
     aot_mod = hexagon_session.get_executor_from_factory(lowered)
     aot_mod.set_input(**inputs)
     aot_mod.run()
@@ -403,9 +385,6 @@ def test_aot_executor_multiple_conv2d(hexagon_session):
             runtime=Runtime("cpp"),
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )
-
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
 
     aot_mod = hexagon_session.get_executor_from_factory(lowered)
     aot_mod.set_input(**inputs)

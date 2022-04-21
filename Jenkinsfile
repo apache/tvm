@@ -45,12 +45,12 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-04-15T11:19:32.757632
+// Generated at 2022-04-21T08:18:57.400427
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = 'tlcpack/ci-lint:v0.71'
-ci_gpu = 'tlcpack/ci-gpu:v0.85'
+ci_gpu = 'tlcpack/ci-gpu:v0.86'
 ci_cpu = 'tlcpack/ci-cpu:v0.84'
 ci_wasm = 'tlcpack/ci-wasm:v0.73'
 ci_i386 = 'tlcpack/ci-i386:v0.77'
@@ -851,10 +851,6 @@ stage('Test') {
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
               )
-              sh (
-                script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon_simulator.sh",
-                label: 'Run Hexagon tests on simulator',
-              )
             } finally {
               junit 'build/pytest-results/*.xml'
             }
@@ -1164,7 +1160,7 @@ stage('Test') {
   },
   'docs: GPU': {
     if (!skip_ci) {
-      node('TensorCore') {
+      node('GPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/docs-python-gpu") {
           init_git()
           unpack_lib('gpu', tvm_multilib)

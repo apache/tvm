@@ -19,6 +19,7 @@
 #ifndef TVM_TIR_SCHEDULE_TRANSFORM_H_
 #define TVM_TIR_SCHEDULE_TRANSFORM_H_
 
+#include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/state.h>
 
 namespace tvm {
@@ -103,6 +104,18 @@ Array<MatchBufferRegion> ReplaceBuffer(Array<MatchBufferRegion> match_buffers, c
  */
 void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_sref,
                           Stmt* src_stmt, Stmt* tgt_stmt);
+
+/*!
+ * \brief Tile a subset of loops in the block according to the given tensor intrinsic.
+ * \param self The schedule to which tiling is applied
+ * \param block_rv The block whose subset of loops will be tiled
+ * \param intrin_name The name of a tensor intrinsic, must be registerd via
+ * TensorIntrin.register(...) beforehand
+ * \return LoopRV corresponding to the outermost loop of a
+ * block tiled according to the given intrin, NullOpt if a valid loop mapping is not found
+ */
+Optional<tir::LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::BlockRV& block_rv,
+                                           const String& intrin_name);
 
 }  // namespace tir
 }  // namespace tvm

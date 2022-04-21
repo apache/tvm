@@ -188,7 +188,7 @@ MaybeRange<T> to_range(const MaybeString& str) {
 
 class SimulatorRPCChannel final : public RPCChannel {
  public:
-  SimulatorRPCChannel(std::string args);
+  SimulatorRPCChannel(int stack_size, std::string args);
   ~SimulatorRPCChannel() final;
   size_t Send(const void* data, size_t size) final;
   size_t Recv(void* data, size_t size) final;
@@ -520,7 +520,7 @@ detail::Optional<HEXAPI_Cpu> SimulatorRPCChannel::GetCPU(const detail::MaybeStri
       .Default(none);
 }
 
-SimulatorRPCChannel::SimulatorRPCChannel(std::string args) {
+SimulatorRPCChannel::SimulatorRPCChannel(int stack_size, std::string args) {
   const auto* api_v2 = tvm::runtime::Registry::Get("device_api.hexagon.v2");
   ICHECK(api_v2 != nullptr);
   tvm::runtime::Registry::Register("device_api.hexagon", true).set_body(*api_v2);
@@ -573,7 +573,9 @@ SimulatorRPCChannel::SimulatorRPCChannel(std::string args) {
   CHECKED_CALL(ConfigureCosim, cosim_file_);
   CHECKED_CALL(ConfigureExecutableBinary, sdk.runelf.c_str());
 
-  std::string cmdline = sdk.runelf + " " + sdk.runmain + " -- libhexagon_rpc_sim.so";
+  std::string stack_arg =
+      stack_size > 0 ? std::string(" -stack_size=") + std::to_string(stack_size) : "";
+  std::string cmdline = sdk.runelf + " " + sdk.runmain + stack_arg + " -- libhexagon_rpc_sim.so";
   char* parg = &cmdline[0];
   CHECKED_CALL(ConfigureAppCommandLine, 1, &parg);
 
@@ -1314,9 +1316,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
       ICHECK(args.size() >= 4) << args.size() << " is less than 4";
 
       std::string session_name = args[0];
-      // For target, the second parameter is remote_stack_size_bytes, ignore it.
+      int stack_size = args[1];
       std::string sim_args = args[2];
-      auto channel = std::make_unique<SimulatorRPCChannel>(sim_args);
+      auto channel = std::make_unique<SimulatorRPCChannel>(stack_size, sim_args);
       std::shared_ptr<RPCEndpoint> endpoint =
           RPCEndpoint::Create(std::move(channel), session_name, "", nullptr);
       std::shared_ptr<RPCSession> session = CreateClientSession(endpoint);
