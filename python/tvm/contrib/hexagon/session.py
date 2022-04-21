@@ -65,7 +65,7 @@ class Session:
         self._rpc_receive_buffer_size_bytes: int = rpc_receive_buffer_size_bytes
         self._remote_kw: dict = remote_kw
         self._rpc = None
-        self._device = None
+        self._requires_cpu_device = False
 
     def __enter__(self):
         if self._rpc:
@@ -98,13 +98,8 @@ class Session:
     def device(self):
         """Session device."""
 
-        if hasattr(self, "_device") and self._device is not None:
+        if hasattr(self, "_device"):
             return self._device
-
-        if not hasattr(self, "_requires_cpu_device"):
-            assert (
-                False
-            ), "Device type is not set. 'set_device_type' should be called before accessing device."
 
         if self._requires_cpu_device:
             self._device = self._rpc.cpu(0)
@@ -195,7 +190,7 @@ class Session:
         """
 
         graph_mod = self.load_module(module_name)
-        self.set_device_type(graph_mod)
+        self._set_device_type(graph_mod)
         return tvm.contrib.graph_executor.create(graph_json, graph_mod, self.device)
 
     def get_aot_executor(
@@ -223,7 +218,7 @@ class Session:
         """
 
         aot_mod = self.load_module(module_name)
-        self.set_device_type(aot_mod)
+        self._set_device_type(aot_mod)
         return tvm.runtime.executor.AotModule(aot_mod["default"](self.device))
 
     def get_executor_from_factory(self, module: ExecutorFactoryModule):
@@ -244,7 +239,7 @@ class Session:
 
         raise TypeError(f"Unsupported executor type: {type(module)}")
 
-    def set_device_type(self, module: Union[str, pathlib.Path, GraphExecutorFactoryModule]):
+    def _set_device_type(self, module: Union[str, pathlib.Path, GraphExecutorFactoryModule]):
         """Set session device type(hexagon, cpu) based on target in module.
 
         Parameters
@@ -293,7 +288,6 @@ class Session:
 
         graph_json = module.get_graph_json()
         graph_mod = self.load_module(module.get_lib())
-        self.set_device_type(module)
 
         return tvm.contrib.graph_executor.create(graph_json, graph_mod, self.device)
 
@@ -328,7 +322,7 @@ class Session:
             if "hexagon" in target.keys
         )
 
-        self.set_device_type(module)
+        self._set_device_type(module)
 
         for target in module.target.values():
             target_type = str(target).split()[0]

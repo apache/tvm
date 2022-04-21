@@ -43,7 +43,6 @@ def test_add(hexagon_session):
     )
 
     mod = hexagon_session.load_module(func)
-    hexagon_session.set_device_type(mod)
 
     A_data = tvm.nd.array(np.array([2, 3], dtype=dtype), device=hexagon_session.device)
     assert (A_data.numpy() == np.array([2, 3])).all()
@@ -69,7 +68,6 @@ def test_add_vtcm(hexagon_session):
     )
 
     mod = hexagon_session.load_module(func)
-    hexagon_session.set_device_type(mod)
 
     A_data = tvm.nd.empty(A.shape, A.dtype, hexagon_session.device, "global.vtcm")
     A_data.copyfrom(np.array([2, 3]))
@@ -104,7 +102,6 @@ class TestMatMul:
         )
 
         mod = hexagon_session.load_module(func)
-        hexagon_session.set_device_type(mod)
 
         x = np.random.uniform(size=[i.value for i in X.shape]).astype(X.dtype)
         y = np.random.uniform(size=[i.value for i in Y.shape]).astype(Y.dtype)
