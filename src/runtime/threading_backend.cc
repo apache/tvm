@@ -52,12 +52,15 @@ class QuRTThread {
   typedef std::function<void()> Callback;
 
  public:
-  explicit QuRTThread(Callback worker_callback) : f_(worker_callback) {
+  explicit QuRTThread(Callback worker_callback) : worker_callback_(worker_callback) {
     static int id = 1;
     qurt_thread_attr_t attr;
     char name[32];
     int ret = posix_memalign(&stack_, HEXAGON_STACK_ALIGNMENT, HEXAGON_STACK_SIZE);
     CHECK_EQ(ret, 0);
+    // When a std::function<> is cast to bool,
+    // it indicates whether it stores a callable target
+    CHECK_EQ((bool)worker_callback_, true);
     qurt_thread_attr_init(&attr);
     qurt_thread_attr_set_stack_size(&attr, HEXAGON_STACK_SIZE);
     qurt_thread_attr_set_stack_addr(&attr, stack_);
@@ -66,12 +69,18 @@ class QuRTThread {
     ret = qurt_thread_create(&thread_, &attr, (void (*)(void*))RunFunction, this);
     CHECK_EQ(ret, QURT_EOK);
   }
-  QuRTThread(QuRTThread&& other) : thread_(other.thread_), f_(other.f_), stack_(other.stack_) {
+  QuRTThread(QuRTThread&& other)
+      : thread_(other.thread_),
+        worker_callback_(std::move(other.worker_callback_)),
+        stack_(other.stack_) {
     other.thread_ = 0;
+    other.stack_ = nullptr;
   }
   ~QuRTThread() {
     if (thread_) {
       join();
+    }
+    if (stack_) {
       free(stack_);
     }
   }
@@ -82,13 +91,13 @@ class QuRTThread {
   }
 
  private:
-  static void RunFunction(QuRTThread* t) {
-    t->f_();
+  static void RunFunction(QuRTThread* qrt_thread) {
+    qrt_thread->worker_callback_();
     qurt_thread_exit(QURT_EOK);
   }
   qurt_thread_t thread_;
-  Callback f_;
-  void* stack_;
+  Callback worker_callback_;
+  void* stack_ = nullptr;
 };
 #endif  // __hexagon__
 thread_local int max_concurrency = 0;
