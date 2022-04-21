@@ -27,7 +27,6 @@ from tvm.relay.qnn.op.qnn import quantize, dequantize
 # https://github.com/apache/incubator-mxnet/blob/master/src/operator/quantization/quantization_utils.h#L38-L39
 zero_centered_uint8_quantized_range = np.float32(255.5)
 zero_centered_int8_quantized_range = np.float32(127.5)
-# The one in the machine means infinity
 INT32_max = float(np.iinfo(np.int32).max)
 
 
@@ -48,8 +47,7 @@ def _get_mkldnn_scale(data_min, data_max, quantized_range):
     -------
     scale : A floating point number which acts as the scale for quantization.
     """
-    real_range = np.max([np.abs(np.float32(data_min)),
-                        np.abs(np.float32(data_max))])
+    real_range = np.max([np.abs(np.float32(data_min)), np.abs(np.float32(data_max))])
     scale = np.where(
         real_range == 0.0,
         1.0 / INT32_max,
@@ -170,8 +168,7 @@ def get_mkldnn_int8_scale(range_min, range_max):
     scale : A float32 number which acts as the scale for quantization.
     """
 
-    scale = _get_mkldnn_scale(range_min, range_max,
-                              zero_centered_int8_quantized_range)
+    scale = _get_mkldnn_scale(range_min, range_max, zero_centered_int8_quantized_range)
     return np.float32(scale)
 
 
@@ -192,8 +189,7 @@ def get_mkldnn_uint8_scale(range_min, range_max):
     scale : A float32 number which acts as the scale for quantization.
     """
 
-    scale = _get_mkldnn_scale(range_min, range_max,
-                              zero_centered_uint8_quantized_range)
+    scale = _get_mkldnn_scale(range_min, range_max, zero_centered_uint8_quantized_range)
     return np.float32(scale)
 
 
@@ -226,8 +222,7 @@ def quantize_conv_weights_bias_channel_mkldnn_from_var(
     """
 
     quantized_range = zero_centered_int8_quantized_range
-    real_vector_range = np.maximum(np.absolute(
-        min_vector_range), np.absolute(max_vector_range))
+    real_vector_range = np.maximum(np.absolute(min_vector_range), np.absolute(max_vector_range))
     # If real_vector_range is 0, then to avoid division by 0 in scaling,
     # make real_vector INT32_max
     vector_scale = np.where(
@@ -240,9 +235,7 @@ def quantize_conv_weights_bias_channel_mkldnn_from_var(
     if bias is not None:
         common = 2.0 * bias.astype("float32") * (1 / data_scale)
         vector_scale_min = np.where(
-            bias > 0, common /
-            INT32_max, common /
-            float(np.iinfo(np.int32).min)
+            bias > 0, common / INT32_max, common / float(np.iinfo(np.int32).min)
         )
         vector_scale = np.maximum(vector_scale, vector_scale_min)
 
@@ -264,8 +257,7 @@ def get_mkldnn_requantize_scale_outDtype(min_output_range, max_output_range, out
         if out_dtype == "int8"
         else zero_centered_uint8_quantized_range
     )
-    out_range = np.max([np.abs(np.float32(min_output_range)),
-                       np.abs(np.float32(max_output_range))])
+    out_range = np.max([np.abs(np.float32(min_output_range)), np.abs(np.float32(max_output_range))])
     output_scale = quantized_out_range / out_range
     requantize_scale = np.float32(1 / output_scale)
     return requantize_scale
@@ -326,8 +318,7 @@ def quantize_mxnet_min_max(data, min_range, max_range, out_dtype="int8"):
     elif out_dtype == "int8":
         return _quantize_mkldnn_min_max_int8(data, min_range, max_range)
     else:
-        raise ValueError(
-            "Expected out_dtype to be int8 or uint8 but was  %s" % out_dtype)
+        raise ValueError("Expected out_dtype to be int8 or uint8 but was  %s" % out_dtype)
 
 
 def _dequantize_zero_centered(data, data_min, data_max, quantized_range):
@@ -353,8 +344,7 @@ def _dequantize_zero_centered(data, data_min, data_max, quantized_range):
         The computed result.
     """
 
-    real_range = np.max([np.abs(np.float32(data_min)),
-                        np.abs(np.float32(data_max))])
+    real_range = np.max([np.abs(np.float32(data_min)), np.abs(np.float32(data_max))])
     scale = relay.const(np.divide(real_range, quantized_range), "float32")
     zero_point = relay.const(0, "int32")
     return dequantize(data, scale, zero_point)
@@ -457,5 +447,4 @@ def dequantize_mxnet_min_max(data, min_range, max_range, in_dtype="int8"):
     elif in_dtype == "int8":
         return _dequantize_mkldnn_min_max_int8(data, min_range, max_range)
     else:
-        raise ValueError(
-            "Expected out_dtype to be int8 or uint8 but was  %s" % in_dtype)
+        raise ValueError("Expected out_dtype to be int8 or uint8 but was  %s" % in_dtype)
