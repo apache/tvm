@@ -19,12 +19,18 @@
 from tvm._ffi.registry import register_object
 from .. import _ffi_api
 from .postproc import Postproc
-import tvm.tir.tensor_intrin
 
 
 @register_object("meta_schedule.RewriteTensorize")
 class RewriteTensorize(Postproc):
-    """A postprocessor that tensorize related components."""
+    """A postprocessor that applies tensorization to annotated blocks.
+
+    Parameters
+    ----------
+    vectorize_init_loop : bool
+       Whether or not vectorize the initialization loop produced by decompose_reduction
+
+    """
 
     def __init__(self, vectorize_init_loop=False) -> None:
         self.__init_handle_by_constructor__(

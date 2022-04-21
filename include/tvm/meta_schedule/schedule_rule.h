@@ -151,14 +151,19 @@ class ScheduleRule : public runtime::ObjectRef {
                                                Optional<Map<String, ObjectRef>> reuse_read,  //
                                                Optional<Map<String, ObjectRef>> reuse_write);
 
+  /*!
+   * \brief Extension of MultiLevelTiling for auto-tensorizing with a single intrinsic.
+   * \param intrin_name The name of a tensor intrinsic, must be registerd via
+   * TensorIntrin.register(...) beforehand
+
+   * Other parameters are the same as MultiLevelTiling above.
+
+   * \return The schedule rule created
+   */
   TVM_DLL static ScheduleRule MultiLevelTilingWithIntrin(
-      String intrin_name,                           //
-      String structure,                             //
-      Optional<Array<String>> tile_binds,           //
-      Optional<Integer> max_innermost_factor,       //
-      Optional<Array<Integer>> vector_load_lens,    //
-      Optional<Map<String, ObjectRef>> reuse_read,  //
-      Optional<Map<String, ObjectRef>> reuse_write);
+      String intrin_name, String structure, Optional<Array<String>> tile_binds,
+      Optional<Integer> max_innermost_factor, Optional<Array<Integer>> vector_load_lens,
+      Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write);
 
   /*!
    * \brief Create a rule: add-rfactor to some blocks if needed

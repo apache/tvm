@@ -1510,7 +1510,7 @@ constexpr const char* meta_schedule_unroll_explicit = "meta_schedule.unroll_expl
 constexpr const char* meta_schedule_unroll_implicit = "meta_schedule.unroll_implicit";
 
 /*!
- * \brief Mark that the block should be further rewritten using tensorization.
+ * \brief Mark that a block should be further rewritten using tensorization.
  */
 constexpr const char* meta_schedule_auto_tensorize = "meta_schedule.auto_tensorize";
 
