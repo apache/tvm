@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm
+from tvm import te
 from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
 from tvm.meta_schedule.testing import te_workload
 from tvm.meta_schedule.testing.schedule_rule import (
@@ -27,7 +28,7 @@ from tvm.meta_schedule import schedule_rule
 from tvm.script import tir as T
 from tvm.te import create_prim_func
 from tvm.target import Target
-from tvm.tir.tensor_intrin import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
+from tvm.tir.tensor_intrin import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN, DP4A_INTRIN
 
 
 def _create_context(mod, target, rule) -> TuneContext:
@@ -474,18 +475,96 @@ sch.reorder(l42, l50, l58, l66, l74, l43, l51, l59, l67, l75, l80, l84, l88, l92
     check_trace(spaces, expected)
 
 
-# from tvm.tir.schedule import Trace
+def test_multi_level_tiling_dense_dpa4():
+    m, n, k = 128, 128, 128
 
-# for space in spaces:
-#     print("-------------------")
-#     trace = Trace(space.trace.insts, {})
-#     trace = trace.simplified(remove_postproc=True)
+    X = te.placeholder((m, k), name="X", dtype="int8")
+    W = te.placeholder((n, k), name="W", dtype="int8")
+    ak = te.reduce_axis((0, k), name="k")
+
+    matmul = te.compute(
+        (m, n),
+        lambda i, j: te.sum(
+            X[i, ak].astype("int32") * W[j, ak].astype("int32"),
+            axis=ak,
+        ),
+        name="compute",
+    )
+
+    func = te.create_prim_func([X, W, matmul])
+
+    ctx = _create_context(
+        func,
+        target=tvm.target.Target("cuda"),
+        rule=schedule_rule.MultiLevelTilingWithIntrin(
+            DP4A_INTRIN,
+            structure="SSSRRSRS",
+            tile_binds=["blockIdx.x", "vthread.x", "threadIdx.x"],
+            max_innermost_factor=64,
+            vector_load_lens=[1, 2, 3, 4],
+            reuse_read=schedule_rule.ReuseType(
+                req="must",
+                levels=[4],
+                scope="shared",
+            ),
+            reuse_write=schedule_rule.ReuseType(
+                req="must",
+                levels=[3],
+                scope="local",
+            ),
+        ),
+    )
+
+    spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
+
+    expected = [
+        """b0 = sch.get_block(name="compute", func_name="main")
+sch.annotate(block_or_loop=b0, ann_key="meta_schedule.tiling_structure", ann_val="SSSRRSRS")
+l1, l2, l3 = sch.get_loops(block=b0)
+l4, l5 = sch.split(loop=l3, factors=[32, 4])
+sch.reorder(l5)
+b6 = sch.blockize(loop=l5)
+sch.annotate(block_or_loop=b6, ann_key="meta_schedule.auto_tensorize", ann_val="dp4a")
+l7, l8, l9 = sch.get_loops(block=b6)
+v10, v11, v12, v13, v14 = sch.sample_perfect_tile(loop=l7, n=5, max_innermost_factor=64)
+l15, l16, l17, l18, l19 = sch.split(loop=l7, factors=[v10, v11, v12, v13, v14])
+v20, v21, v22, v23, v24 = sch.sample_perfect_tile(loop=l8, n=5, max_innermost_factor=64)
+l25, l26, l27, l28, l29 = sch.split(loop=l8, factors=[v20, v21, v22, v23, v24])
+v30, v31, v32 = sch.sample_perfect_tile(loop=l9, n=3, max_innermost_factor=64)
+l33, l34, l35 = sch.split(loop=l9, factors=[v30, v31, v32])
+sch.reorder(l15, l25, l16, l26, l17, l27, l33, l34, l18, l28, l35, l19, l29)
+l36 = sch.fuse(l15, l25)
+sch.bind(loop=l36, thread_axis="blockIdx.x")
+l37 = sch.fuse(l16, l26)
+sch.bind(loop=l37, thread_axis="vthread.x")
+l38 = sch.fuse(l17, l27)
+sch.bind(loop=l38, thread_axis="threadIdx.x")
+b39 = sch.cache_write(block=b6, write_buffer_index=0, storage_scope="local")
+sch.reverse_compute_at(block=b39, loop=l38, preserve_unit_loops=True)
+b40 = sch.cache_read(block=b6, read_buffer_index=0, storage_scope="shared")
+sch.compute_at(block=b40, loop=l33, preserve_unit_loops=True)
+l41, l42, l43, l44, l45, l46 = sch.get_loops(block=b40)
+l47 = sch.fuse(l45, l46)
+v48 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])
+sch.annotate(block_or_loop=b40, ann_key="meta_schedule.cooperative_fetch", ann_val=v48)
+b49 = sch.cache_read(block=b6, read_buffer_index=1, storage_scope="shared")
+sch.compute_at(block=b49, loop=l33, preserve_unit_loops=True)
+l50, l51, l52, l53, l54, l55 = sch.get_loops(block=b49)
+l56 = sch.fuse(l54, l55)
+v57 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])
+sch.annotate(block_or_loop=b49, ann_key="meta_schedule.cooperative_fetch", ann_val=v57)""".split(
+            "\n"
+        )
+    ]
+
+    check_trace(spaces, expected)
 
 
 if __name__ == "__main__":
-    # test_cpu_matmul()
-    # test_cpu_matmul_relu()
-    # test_cuda_matmul()
-    # test_cuda_matmul_relu()
-    # test_cuda_sum_with_trivial_block_iter()
+    test_cpu_matmul()
+    test_cpu_matmul_relu()
+    test_cuda_matmul()
+    test_cuda_matmul_relu()
+    test_cuda_sum_with_trivial_block_iter()
     test_multi_level_tiling_conv2d_nchwc_vnni()
+    test_multi_level_tiling_dense_dpa4()
