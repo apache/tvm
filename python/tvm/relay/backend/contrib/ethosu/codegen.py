@@ -365,7 +365,7 @@ def _create_cascader(
 
 def _ethos_u55_cascader(sram) -> Callable:
     # TODO(ekalda): Extract the flash info from ConstantPools once it is implemented
-    flash = MemoryRegion(name="FLASH", size=10 ** 7, read_bandwidth=4, write_bandwidth=4)
+    flash = MemoryRegion(name="FLASH", size=10**7, read_bandwidth=4, write_bandwidth=4)
 
     device_config = EthosuDeviceConfig(util.get_accelerator_config())
     cascader_options = CascaderOptions(

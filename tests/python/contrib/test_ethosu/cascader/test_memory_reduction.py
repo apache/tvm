@@ -208,7 +208,7 @@ def test_depthwise2d_conv2d_pooling(
     mod = partition_for_ethosu(relay_module, params)
 
     # Run the graph without the cascader, with lots of memory
-    pool_size = 10 ** 6
+    pool_size = 10**6
     workspace_size_cascader_disabled = _get_ethosu_workspace_size(
         mod, params, accel_type, pool_size, enable_cascader=False
     )
