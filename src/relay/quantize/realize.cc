@@ -32,51 +32,13 @@
 #include "../op/annotation/annotation.h"
 #include "../qnn/utils.h"
 #include "./quantize.h"
+#include "./realize.h"
 
 namespace tvm {
 namespace relay {
 namespace quantize {
 
 using namespace relay::transform;
-
-class QRealizeExpr;
-class QRealizeIntExpr;
-
-class QRealizeExprNode : public TempExprNode {
- public:
-  Expr data;
-  static constexpr const char* _type_key = "relay.quantize.QRealizeExpr";
-  TVM_DECLARE_BASE_OBJECT_INFO(QRealizeExprNode, TempExprNode);
-};
-
-class QRealizeExpr : public TempExpr {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(QRealizeExpr, TempExpr, QRealizeExprNode);
-};
-
-class QRealizeIntExprNode : public QRealizeExprNode {
- public:
-  Expr dom_scale;
-  DataType dtype;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("data", &data);
-    v->Visit("dom_scale", &dom_scale);
-    v->Visit("dtype", &dtype);
-  }
-
-  Expr Realize() const final;
-
-  static constexpr const char* _type_key = "relay.quantize.QRealizeIntExpr";
-  TVM_DECLARE_FINAL_OBJECT_INFO(QRealizeIntExprNode, QRealizeExprNode);
-};
-
-class QRealizeIntExpr : public QRealizeExpr {
- public:
-  TVM_DLL QRealizeIntExpr(Expr data, Expr dom_scale, DataType dtype);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(QRealizeIntExpr, QRealizeExpr, QRealizeIntExprNode);
-};
 
 Expr QRealizeIntExprNode::Realize() const {
   Expr data = this->data;
