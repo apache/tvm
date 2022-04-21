@@ -327,6 +327,7 @@ def test_vnni_bert_int8():
 
 
 @tvm.testing.requires_gpu
+@pytest.mark.skip("Slow on CI")
 def test_dp4a_bert_int8():
     _test_bert_int8("nvidia/geforce-rtx-3070", sch_rules_for_dp4a, postprocs_for_dp4a)
 
