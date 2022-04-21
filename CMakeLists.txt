@@ -599,11 +599,12 @@ target_link_libraries(tvm PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
 include(FetchContent)
-FetchContent_Declare(googletest SOURCE_DIR "/local/mnt/workspace/Qualcomm/Hexagon_SDK/4.5.0.3/utils/googletest/gtest")
+FetchContent_Declare(googletest SOURCE_DIR "${USE_HEXAGON_SDK}/utils/googletest/gtest")
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 target_link_libraries(tvm_runtime PUBLIC gtest)
-include_directories("/local/mnt/workspace/Qualcomm/Hexagon_SDK/4.5.0.3/utils/googletest/gtest/include")
+target_link_libraries(tvm PUBLIC gtest) # workaround
+include_directories("${USE_HEXAGON_SDK}/utils/googletest/gtest/include")
 
 # Set flags for clang
 include(cmake/modules/ClangFlags.cmake)
