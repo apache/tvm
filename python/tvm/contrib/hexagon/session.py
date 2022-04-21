@@ -66,6 +66,7 @@ class Session:
         self._remote_kw: dict = remote_kw
         self._rpc = None
         self._requires_cpu_device = False
+        self._device = None
 
     def __enter__(self):
         if self._rpc:
@@ -98,7 +99,7 @@ class Session:
     def device(self):
         """Session device."""
 
-        if hasattr(self, "_device"):
+        if self._device is not None:
             return self._device
 
         if self._requires_cpu_device:
