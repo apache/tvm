@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-
+import tvm
 from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
 from tvm.meta_schedule.testing import te_workload
 from tvm.meta_schedule.testing.schedule_rule import (
@@ -23,9 +23,11 @@ from tvm.meta_schedule.testing.schedule_rule import (
 )
 from tvm.meta_schedule.testing.space_generation import check_trace
 from tvm.meta_schedule.tune_context import TuneContext
+from tvm.meta_schedule import schedule_rule
 from tvm.script import tir as T
 from tvm.te import create_prim_func
 from tvm.target import Target
+from tvm.tir.tensor_intrin import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 
 def _create_context(mod, target, rule) -> TuneContext:
@@ -301,9 +303,189 @@ def test_cuda_sum_with_trivial_block_iter():
     check_trace(spaces, expected)
 
 
+@tvm.script.ir_module
+class Conv2dNCHWcVNNIModule:
+    @T.prim_func
+    def main(
+        placeholder: T.Buffer[(1, 4, 56, 56, 16), "uint8"],
+        placeholder_1: T.Buffer[(16, 4, 1, 1, 4, 16, 4), "int8"],
+        conv2d_NCHWc_int8: T.Buffer[(1, 16, 56, 56, 16), "int32"],
+    ) -> None:
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):
+            with T.block("conv2d_NCHWc_int8"):
+                (
+                    n,
+                    oc_chunk,
+                    oh,
+                    ow,
+                    oc_block,
+                    kh,
+                    kw,
+                    ic_outer,
+                    ic_f_inner,
+                    ic_s_inner,
+                ) = T.axis.remap("SSSSSRRRRR", [i0, i1, i2, i3, i4, i5, i6, i7, i8, i9])
+                T.reads(
+                    placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
+                    placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
+                )
+                T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block])
+                with T.init():
+                    conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = 0
+                conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc_int8[
+                    n, oc_chunk, oh, ow, oc_block
+                ] + T.cast(
+                    placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner], "int32"
+                ) * T.cast(
+                    placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
+                    "int32",
+                )
+
+
+def test_multi_level_tiling_conv2d_nchwc_vnni():
+    target = "llvm -mcpu=cascadelake -num-cores 4"
+    ctx = _create_context(
+        Conv2dNCHWcVNNIModule,
+        target=tvm.target.Target(target),
+        rule=schedule_rule.MultiLevelTilingWithIntrin(
+            VNNI_INTRIN,
+            structure="SSRSRS",
+            tile_binds=None,
+            max_innermost_factor=64,
+            vector_load_lens=None,
+            reuse_read=None,
+            reuse_write=schedule_rule.ReuseType(
+                req="may",
+                levels=[1, 2],
+                scope="global",
+            ),
+        ),
+    )
+
+    spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
+
+    expected = [
+        """b0 = sch.get_block(name="conv2d_NCHWc_int8", func_name="main")
+sch.annotate(block_or_loop=b0, ann_key="meta_schedule.tiling_structure", ann_val="SSRSRS")
+l1, l2, l3, l4, l5, l6, l7, l8, l9, l10 = sch.get_loops(block=b0)
+l11, l12 = sch.split(loop=l10, factors=[1, 4])
+l13, l14 = sch.split(loop=l5, factors=[1, 16])
+l15, l16, l17, l18, l19, l20, l21, l22, l23, l24, l25, l26 = sch.get_loops(block=b0)
+sch.reorder(l21, l22, l23, l24, l25, l14, l12)
+b27 = sch.blockize(loop=l14)
+sch.annotate(block_or_loop=b27, ann_key="meta_schedule.auto_tensorize", ann_val="dot_16x4_vnni")
+l28, l29, l30, l31, l32, l33, l34, l35, l36, l37 = sch.get_loops(block=b27)
+v38, v39, v40, v41 = sch.sample_perfect_tile(loop=l28, n=4, max_innermost_factor=64)
+l42, l43, l44, l45 = sch.split(loop=l28, factors=[v38, v39, v40, v41])
+v46, v47, v48, v49 = sch.sample_perfect_tile(loop=l29, n=4, max_innermost_factor=64)
+l50, l51, l52, l53 = sch.split(loop=l29, factors=[v46, v47, v48, v49])
+v54, v55, v56, v57 = sch.sample_perfect_tile(loop=l30, n=4, max_innermost_factor=64)
+l58, l59, l60, l61 = sch.split(loop=l30, factors=[v54, v55, v56, v57])
+v62, v63, v64, v65 = sch.sample_perfect_tile(loop=l31, n=4, max_innermost_factor=64)
+l66, l67, l68, l69 = sch.split(loop=l31, factors=[v62, v63, v64, v65])
+v70, v71, v72, v73 = sch.sample_perfect_tile(loop=l32, n=4, max_innermost_factor=64)
+l74, l75, l76, l77 = sch.split(loop=l32, factors=[v70, v71, v72, v73])
+v78, v79 = sch.sample_perfect_tile(loop=l33, n=2, max_innermost_factor=64)
+l80, l81 = sch.split(loop=l33, factors=[v78, v79])
+v82, v83 = sch.sample_perfect_tile(loop=l34, n=2, max_innermost_factor=64)
+l84, l85 = sch.split(loop=l34, factors=[v82, v83])
+v86, v87 = sch.sample_perfect_tile(loop=l35, n=2, max_innermost_factor=64)
+l88, l89 = sch.split(loop=l35, factors=[v86, v87])
+v90, v91 = sch.sample_perfect_tile(loop=l36, n=2, max_innermost_factor=64)
+l92, l93 = sch.split(loop=l36, factors=[v90, v91])
+v94, v95 = sch.sample_perfect_tile(loop=l37, n=2, max_innermost_factor=64)
+l96, l97 = sch.split(loop=l37, factors=[v94, v95])
+sch.reorder(l42, l50, l58, l66, l74, l43, l51, l59, l67, l75, l80, l84, l88, l92, l96, l44, l52, l60, l68, l76, l81, l85, l89, l93, l97, l45, l53, l61, l69, l77)
+b98 = sch.cache_write(block=b27, write_buffer_index=0, storage_scope="global")
+sch.reverse_compute_at(block=b98, loop=l75, preserve_unit_loops=True)""".split(
+            "\n"
+        ),
+        """b0 = sch.get_block(name="conv2d_NCHWc_int8", func_name="main")
+sch.annotate(block_or_loop=b0, ann_key="meta_schedule.tiling_structure", ann_val="SSRSRS")
+l1, l2, l3, l4, l5, l6, l7, l8, l9, l10 = sch.get_loops(block=b0)
+l11, l12 = sch.split(loop=l10, factors=[1, 4])
+l13, l14 = sch.split(loop=l5, factors=[1, 16])
+l15, l16, l17, l18, l19, l20, l21, l22, l23, l24, l25, l26 = sch.get_loops(block=b0)
+sch.reorder(l21, l22, l23, l24, l25, l14, l12)
+b27 = sch.blockize(loop=l14)
+sch.annotate(block_or_loop=b27, ann_key="meta_schedule.auto_tensorize", ann_val="dot_16x4_vnni")
+l28, l29, l30, l31, l32, l33, l34, l35, l36, l37 = sch.get_loops(block=b27)
+v38, v39, v40, v41 = sch.sample_perfect_tile(loop=l28, n=4, max_innermost_factor=64)
+l42, l43, l44, l45 = sch.split(loop=l28, factors=[v38, v39, v40, v41])
+v46, v47, v48, v49 = sch.sample_perfect_tile(loop=l29, n=4, max_innermost_factor=64)
+l50, l51, l52, l53 = sch.split(loop=l29, factors=[v46, v47, v48, v49])
+v54, v55, v56, v57 = sch.sample_perfect_tile(loop=l30, n=4, max_innermost_factor=64)
+l58, l59, l60, l61 = sch.split(loop=l30, factors=[v54, v55, v56, v57])
+v62, v63, v64, v65 = sch.sample_perfect_tile(loop=l31, n=4, max_innermost_factor=64)
+l66, l67, l68, l69 = sch.split(loop=l31, factors=[v62, v63, v64, v65])
+v70, v71, v72, v73 = sch.sample_perfect_tile(loop=l32, n=4, max_innermost_factor=64)
+l74, l75, l76, l77 = sch.split(loop=l32, factors=[v70, v71, v72, v73])
+v78, v79 = sch.sample_perfect_tile(loop=l33, n=2, max_innermost_factor=64)
+l80, l81 = sch.split(loop=l33, factors=[v78, v79])
+v82, v83 = sch.sample_perfect_tile(loop=l34, n=2, max_innermost_factor=64)
+l84, l85 = sch.split(loop=l34, factors=[v82, v83])
+v86, v87 = sch.sample_perfect_tile(loop=l35, n=2, max_innermost_factor=64)
+l88, l89 = sch.split(loop=l35, factors=[v86, v87])
+v90, v91 = sch.sample_perfect_tile(loop=l36, n=2, max_innermost_factor=64)
+l92, l93 = sch.split(loop=l36, factors=[v90, v91])
+v94, v95 = sch.sample_perfect_tile(loop=l37, n=2, max_innermost_factor=64)
+l96, l97 = sch.split(loop=l37, factors=[v94, v95])
+sch.reorder(l42, l50, l58, l66, l74, l43, l51, l59, l67, l75, l80, l84, l88, l92, l96, l44, l52, l60, l68, l76, l81, l85, l89, l93, l97, l45, l53, l61, l69, l77)
+b98 = sch.cache_write(block=b27, write_buffer_index=0, storage_scope="global")
+sch.reverse_compute_at(block=b98, loop=l74, preserve_unit_loops=True)""".split(
+            "\n"
+        ),
+        """b0 = sch.get_block(name="conv2d_NCHWc_int8", func_name="main")
+sch.annotate(block_or_loop=b0, ann_key="meta_schedule.tiling_structure", ann_val="SSRSRS")
+l1, l2, l3, l4, l5, l6, l7, l8, l9, l10 = sch.get_loops(block=b0)
+l11, l12 = sch.split(loop=l10, factors=[1, 4])
+l13, l14 = sch.split(loop=l5, factors=[1, 16])
+l15, l16, l17, l18, l19, l20, l21, l22, l23, l24, l25, l26 = sch.get_loops(block=b0)
+sch.reorder(l21, l22, l23, l24, l25, l14, l12)
+b27 = sch.blockize(loop=l14)
+sch.annotate(block_or_loop=b27, ann_key="meta_schedule.auto_tensorize", ann_val="dot_16x4_vnni")
+l28, l29, l30, l31, l32, l33, l34, l35, l36, l37 = sch.get_loops(block=b27)
+v38, v39, v40, v41 = sch.sample_perfect_tile(loop=l28, n=4, max_innermost_factor=64)
+l42, l43, l44, l45 = sch.split(loop=l28, factors=[v38, v39, v40, v41])
+v46, v47, v48, v49 = sch.sample_perfect_tile(loop=l29, n=4, max_innermost_factor=64)
+l50, l51, l52, l53 = sch.split(loop=l29, factors=[v46, v47, v48, v49])
+v54, v55, v56, v57 = sch.sample_perfect_tile(loop=l30, n=4, max_innermost_factor=64)
+l58, l59, l60, l61 = sch.split(loop=l30, factors=[v54, v55, v56, v57])
+v62, v63, v64, v65 = sch.sample_perfect_tile(loop=l31, n=4, max_innermost_factor=64)
+l66, l67, l68, l69 = sch.split(loop=l31, factors=[v62, v63, v64, v65])
+v70, v71, v72, v73 = sch.sample_perfect_tile(loop=l32, n=4, max_innermost_factor=64)
+l74, l75, l76, l77 = sch.split(loop=l32, factors=[v70, v71, v72, v73])
+v78, v79 = sch.sample_perfect_tile(loop=l33, n=2, max_innermost_factor=64)
+l80, l81 = sch.split(loop=l33, factors=[v78, v79])
+v82, v83 = sch.sample_perfect_tile(loop=l34, n=2, max_innermost_factor=64)
+l84, l85 = sch.split(loop=l34, factors=[v82, v83])
+v86, v87 = sch.sample_perfect_tile(loop=l35, n=2, max_innermost_factor=64)
+l88, l89 = sch.split(loop=l35, factors=[v86, v87])
+v90, v91 = sch.sample_perfect_tile(loop=l36, n=2, max_innermost_factor=64)
+l92, l93 = sch.split(loop=l36, factors=[v90, v91])
+v94, v95 = sch.sample_perfect_tile(loop=l37, n=2, max_innermost_factor=64)
+l96, l97 = sch.split(loop=l37, factors=[v94, v95])
+sch.reorder(l42, l50, l58, l66, l74, l43, l51, l59, l67, l75, l80, l84, l88, l92, l96, l44, l52, l60, l68, l76, l81, l85, l89, l93, l97, l45, l53, l61, l69, l77)""".split(
+            "\n"
+        ),
+    ]
+
+    check_trace(spaces, expected)
+
+
+# from tvm.tir.schedule import Trace
+
+# for space in spaces:
+#     print("-------------------")
+#     trace = Trace(space.trace.insts, {})
+#     trace = trace.simplified(remove_postproc=True)
+
+
 if __name__ == "__main__":
-    test_cpu_matmul()
-    test_cpu_matmul_relu()
-    test_cuda_matmul()
-    test_cuda_matmul_relu()
-    test_cuda_sum_with_trivial_block_iter()
+    # test_cpu_matmul()
+    # test_cpu_matmul_relu()
+    # test_cuda_matmul()
+    # test_cuda_matmul_relu()
+    # test_cuda_sum_with_trivial_block_iter()
+    test_multi_level_tiling_conv2d_nchwc_vnni()
