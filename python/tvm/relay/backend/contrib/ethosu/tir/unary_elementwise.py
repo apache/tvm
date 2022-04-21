@@ -22,19 +22,16 @@ from .dma import get_ifm_params, get_ofm_params
 from .spec import SerialActivation, SerialUnaryElementwise
 
 
-def get_unary_elementwise_params(stmt, producers, consumers):
+def get_unary_elementwise_params(stmt, producers_consumers):
     """Get the parameters necessary to construct a call_extern for a unary_elementwise.
 
     Parameters
     ----------
     stmt : tvm.tir.AttrStmt
         The outermost attribute statement of a unary elementwise loop nest.
-    producers : dict of tvm.tir.Var to tvm.tir.AttrStmt
-        A dictionary to associate pointers with the loop nest
-        that produces their values.
-    consumers : dict of tvm.tir.Var to tvm.tir.AttrStmt
-        A dictionary to associate pointers with the loop nest
-        that consumes their values.
+    producers_consumers: ProducersConsumers
+        It associates pointers with the loop nest that produces
+        their values and with the loop nest that consumes their values.
 
     Returns
     -------
@@ -60,9 +57,9 @@ def get_unary_elementwise_params(stmt, producers, consumers):
         input_pointer = inner.value.b.args[0].buffer.data
     output_pointer = inner.buffer.data
     # Get feature map info
-    serial_ifm, _ = get_ifm_params(input_pointer, producers)
+    serial_ifm, _ = get_ifm_params(input_pointer, producers_consumers, stmt)
     serial_ofm, serial_block_config, replace_pointer, is_allocator = get_ofm_params(
-        output_pointer, consumers, producers
+        output_pointer, producers_consumers, stmt
     )
     # Get activation info
     serial_activation = SerialActivation(
