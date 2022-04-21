@@ -18,7 +18,11 @@
  */
 
 #include <gtest/gtest.h>
+<<<<<<< HEAD:tests/cpp/runtime/hexagon_buffer.cc
 #include <hexagon/hexagon_buffer.h>
+=======
+#include "hexagon_buffer.h"
+>>>>>>> 499d5ee4d (HexagonBuffer tests running in sim):src/runtime/hexagon/hexagon/hexagon_buffer_tests.cc
 #include <tvm/runtime/container/optional.h>
 
 using namespace tvm::runtime;
