@@ -135,10 +135,11 @@ postprocs_for_dp4a = [
 
 
 def tune_and_test(relay_mod, data_np, weight_np, op_name, target, sch_rules, postprocs):
-    dev = tvm.device(target, 0)
+    tgt = "cuda" if "nvidia" in target else target
+    dev = tvm.device(tgt, 0)
 
     ref = (
-        relay.create_executor("vm", mod=relay_mod, device=dev, target=target)
+        relay.create_executor("vm", mod=relay_mod, device=dev, target=tgt)
         .evaluate()(*[data_np, weight_np])
         .numpy()
     )
@@ -267,7 +268,7 @@ def _test_bert_int8(target, sch_rules, postprocs):
         ):
             lib = relay.build(relay_mod, target=target, params=params)
 
-    dev = tvm.device(target, 0)
+    dev = tvm.device("cuda" if "nvidia" in target else target, 0)
     runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
     inputs = []
@@ -290,6 +291,8 @@ def test_vnni_dense():
 @tvm.testing.requires_gpu
 def test_dp4a_dense():
     _test_dense("int8", sch_rules_for_dp4a, postprocs_for_dp4a, "nvidia/geforce-rtx-3070")
+
+    # Uncomment to test on vulkan or rocm target
     # _test_dense(
     #     "int8", sch_rules_for_dp4a, postprocs_for_dp4a, "vulkan -from_device=0"
     # )
@@ -308,6 +311,8 @@ def test_vnni_conv2d():
 @tvm.testing.requires_gpu
 def test_dp4a_conv2d():
     _test_dense("int8", sch_rules_for_dp4a, postprocs_for_dp4a, "nvidia/geforce-rtx-3070")
+
+    # Uncomment to test on vulkan or rocm target
     # _test_conv2d(
     #     "int8", sch_rules_for_dp4a, postprocs_for_dp4a, "vulkan -from_device=0"
     # )
@@ -324,6 +329,8 @@ def test_vnni_bert_int8():
 @tvm.testing.requires_gpu
 def test_dp4a_bert_int8():
     _test_bert_int8("nvidia/geforce-rtx-3070", sch_rules_for_dp4a, postprocs_for_dp4a)
+
+    # Uncomment to test on vulkan or rocm target
     # _test_bert_int8("vulkan -from_device=0", sch_rules_for_dp4a, postprocs_for_dp4a)
     # _test_bert_int8("rocm", sch_rules_for_sdot4, postprocs_for_dp4a)
 
