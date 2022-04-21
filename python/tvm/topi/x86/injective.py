@@ -17,11 +17,13 @@
 # pylint: disable=invalid-name
 """x86 declaration and schedules."""
 from tvm import te
+from tvm.topi import tag
 from tvm.tir import IntImm
+from tvm.topi.generic.injective import schedule_injective_from_existing
 from ..utils import is_empty_shape
 
 
-def schedule_injective_from_existing(sch, out):
+def schedule_injective_from_existing_ref(sch, out):
     """Schedule for injective op from existing schedule.
 
     Parameters
@@ -60,7 +62,7 @@ def schedule_injective_from_existing(sch, out):
 
 
 def schedule_injective(outs):
-    """X86 schedule for injective op.
+    """X86 reference schedule for injective op.
 
     Parameters
     ----------
@@ -79,7 +81,7 @@ def schedule_injective(outs):
     te.schedule.AutoInlineInjective(s)
 
     if not is_empty_shape(x.shape):
-        schedule_injective_from_existing(s, x)
+        schedule_injective_from_existing_ref(s, x)
     return s
 
 
@@ -129,6 +131,39 @@ def schedule_concatenate(outs):
         s[x].parallel(fused)
     else:
         s[x].parallel(s[x].op.axis[0])
+    return s
+
+
+def schedule_concatenate_cpu(outs):
+    """X86 schedule for concatenate op.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of injective in the format
+          of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+    scheduled_ops = []
+
+    def traverse(op):
+        if tag.is_injective(op.tag):
+            schedule_injective_from_existing(s, op.output(0))
+        for tensor in op.input_tensors:
+            if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                traverse(tensor.op)
+        scheduled_ops.append(op)
+
+    for out in outs:
+        traverse(out.op)
+
     return s
 
 

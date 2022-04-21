@@ -1748,6 +1748,15 @@ def wrap_compute_scanop(topi_compute):
     return _compute_scanop
 
 
+def wrap_compute_concat(topi_compute):
+    """Wrap concatenate topi compute"""
+
+    def _compute_concat(attrs, inputs, _):
+        return [topi_compute(inputs, attrs.axis)]
+
+    return _compute_concat
+
+
 @override_native_generic_func("cumsum_strategy")
 def cumsum_strategy(attrs, inputs, out_type, target):
     """cumsum generic strategy"""
@@ -1757,6 +1766,38 @@ def cumsum_strategy(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="cumsum.generic",
     )
+    return strategy
+
+
+@override_native_generic_func("concat_strategy")
+def concatenate_strategy(attrs, inputs, out_type, target):
+    """concatenate generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_concat(topi.concatenate),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="concatenate",
+    )
+    return strategy
+
+
+@concatenate_strategy.register(["cpu"])
+def concatenate_strategy_cpu(attrs, inputs, out_type, target):
+    """concatenate x86 strategy"""
+    strategy = _op.OpStrategy()
+    use_old_concat = False
+    if use_old_concat:
+        strategy.add_implementation(
+            wrap_compute_concat(topi.transform.concatenate),
+            wrap_topi_schedule(topi.x86.injective.schedule_concatenate),
+            name="concatenate.generic",
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_concat(topi.x86.concatenate),
+            wrap_topi_schedule(topi.x86.schedule_concatenate_cpu),
+            name="concatenate.cpu",
+        )
     return strategy
 
 
