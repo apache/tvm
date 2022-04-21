@@ -717,6 +717,44 @@ def hexagon(cpu_ver="v66", **kwargs):
     return Target(" ".join(["hexagon"] + args_list))
 
 
+STM32_SUPPORTED_SERIES = {
+    # High-Performance
+    "stm32H7xx": ["-device=arm_cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
+    "stm32F7xx": ["-device=arm_cpu", "-mcpu=cortex-m7"],
+    "stm32F4xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32F2xx": ["-device=arm_cpu", "-mcpu=cortex-m3"],
+    # Mainstream
+    "stm32G0xx": ["-device=arm_cpu", "-mcpu=cortex-m0+"],
+    "stm32F0xx": ["-device=arm_cpu", "-mcpu=cortex-m0"],
+    "stm32F1xx": ["-device=arm_cpu", "-mcpu=cortex-m3"],
+    "stm32G4xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32F3xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
+    # Low-power
+    "stm32U5xx": ["-device=arm_cpu", "-mcpu=cortex-m33"],
+    "stm32L5xx": ["-device=arm_cpu", "-mcpu=cortex-m33"],
+    "stm32L4xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32L1xx": ["-device=arm_cpu", "-mcpu=cortex-m3"],
+    "stm32L0xx": ["-device=arm_cpu", "-mcpu=cortex-m0+"],
+}
+
+
+def stm32(series="unknown", options=None):
+    """Returns a STM32 target.
+
+    Parameters
+    ----------
+    series: str
+        Series name of a STM32 board series, eg. stm32H7xx or stm32F4xx
+    options : str or list of str
+        Additional options
+    """
+
+    if series not in STM32_SUPPORTED_SERIES:
+        raise ValueError(f"Series {series} is not supported by tvm.target.stm32.")
+    opts = _merge_opts(STM32_SUPPORTED_SERIES[series], options)
+    return Target(" ".join(["c"] + opts))
+
+
 def create(target):
     """Deprecated. Use the constructor of :py:mod:`tvm.target.Target` directly."""
     warnings.warn("tvm.target.create() is being deprecated. Please use tvm.target.Target() instead")
