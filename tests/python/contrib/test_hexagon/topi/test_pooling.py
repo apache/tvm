@@ -57,7 +57,7 @@ class TestAdaptivePool:
     )
 
     @requires_hexagon_toolchain
-    def test_adaptive_pool(hexagon_session, dshape, out_size, pool_type, layout):
+    def test_adaptive_pool(self, hexagon_session, dshape, out_size, pool_type, layout):
         dtype = "float32"
         np_data = np.random.uniform(low=0, high=255, size=dshape).astype(dtype)
         np_out = tvm.topi.testing.adaptive_pool(np_data, out_size, pool_type, layout)
@@ -234,6 +234,7 @@ class TestPool1D:
 
     @requires_hexagon_toolchain
     def test_pool1d(
+        self,
         hexagon_session,
         input_shape,
         kernel,
@@ -310,6 +311,7 @@ class TestPool2D:
 
     @requires_hexagon_toolchain
     def test_pool2d(
+        self,
         hexagon_session,
         input_shape,
         kernel,
@@ -707,6 +709,7 @@ class TestPool3D:
 
     @requires_hexagon_toolchain
     def test_pool3d(
+        self,
         hexagon_session,
         input_shape,
         kernel,

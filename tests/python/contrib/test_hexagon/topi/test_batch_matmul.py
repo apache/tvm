@@ -46,7 +46,7 @@ class TestMatMulFloat:
 
     # TODO(mehrdadh): add dynamic testing
     @requires_hexagon_toolchain
-    def test_batch_matmul(hexagon_session, x_batch, y_batch, M, N, K, dtype):
+    def test_batch_matmul(self, hexagon_session, x_batch, y_batch, M, N, K, dtype):
         if dtype == "float16":
             pytest.xfail("float16 is not supported.")
 
@@ -98,7 +98,7 @@ class TestMatMulInt8:
     )
 
     @requires_hexagon_toolchain
-    def test_batch_matmul_int8(hexagon_session, x_batch, y_batch, M, N, K):
+    def test_batch_matmul_int8(self, hexagon_session, x_batch, y_batch, M, N, K):
         dtype = "int8"
         out_dtype = "int8"
         assert x_batch == y_batch or x_batch == 1 or y_batch == 1
