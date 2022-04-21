@@ -78,8 +78,8 @@ def test_cpu_matmul():
     """
 
     # check touched memory in bytes, touched unique memory in bytes, reuse distance, etc.
-    assert fequal(fea_dict[c_name + ".bytes"], math.log2(512 ** 3 * 4 + 1))
-    assert fequal(fea_dict[b_name + ".unique_bytes"], math.log2(512 ** 2 * 4 + 1))
+    assert fequal(fea_dict[c_name + ".bytes"], math.log2(512**3 * 4 + 1))
+    assert fequal(fea_dict[b_name + ".unique_bytes"], math.log2(512**2 * 4 + 1))
     assert fequal(fea_dict[c_name + ".reuse_dis_iter"], math.log2(8 * 16 + 1))
     assert fequal(fea_dict[c_name + ".reuse_dis_bytes"], math.log2((8 * 16 + 8 + 16) * 4 + 1))
     assert fequal(fea_dict[c_name + ".reuse_ct"], math.log2(512 + 1))
