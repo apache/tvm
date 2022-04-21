@@ -35,6 +35,7 @@ class TempGit:
 
 
 def test_cc_reviewers(tmpdir_factory):
+    assert 1 == 0
     reviewers_script = REPO_ROOT / "tests" / "scripts" / "github_cc_reviewers.py"
 
     def run(pr_body, requested_reviewers, existing_review_users, expected_reviewers):
@@ -209,6 +210,7 @@ def test_update_branch(tmpdir_factory):
 
 
 def test_skip_ci(tmpdir_factory):
+    assert 1 == 0
     skip_ci_script = REPO_ROOT / "tests" / "scripts" / "git_skip_ci.py"
 
     def test(commands, should_skip, pr_title, why):

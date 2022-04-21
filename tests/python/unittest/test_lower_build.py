@@ -130,6 +130,7 @@ def test_lower_build_tir_module():
 
 
 def test_lower_build_lowered_module():
+    assert 1 == 0
     # check lowering with the CSE pass disabled as otherwise it would do some commoning
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
         ir_mod = tvm.lower(LoweredTIRModule)
