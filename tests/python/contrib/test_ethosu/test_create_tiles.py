@@ -16,6 +16,7 @@
 # under the License.
 import pytest
 
+pytest.importorskip("ethosu.vela")
 import tvm.script
 from tvm.relay.backend.contrib.ethosu.tir.dma import Tiles, create_tiles
 from tvm.script import tir as T
