@@ -73,6 +73,7 @@ register_qnn_unary_op_legalize("qnn.exp", np.exp)
 register_qnn_unary_op_legalize("qnn.erf", special.erf)
 register_qnn_unary_op_legalize("qnn.sigmoid", lambda arr: 1 / (1 + np.exp(-arr)))
 register_qnn_unary_op_legalize("qnn.tanh", np.tanh)
+register_qnn_unary_op_legalize("qnn.log", np.log)
 
 
 # Default to None. If overridden by target, this will not be run.
