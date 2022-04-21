@@ -27,13 +27,7 @@
 #ifndef TVM_RELAY_QUANTIZE_REALIZE_H_
 #define TVM_RELAY_QUANTIZE_REALIZE_H_
 
-#include <tvm/relay/analysis.h>
-#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/transform.h>
-
-#include "../qnn/utils.h"
-#include "../transforms/pattern_utils.h"
-#include "./quantize.h"
 
 namespace tvm {
 namespace relay {
