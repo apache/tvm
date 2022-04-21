@@ -210,21 +210,11 @@ aot_host_target = tvm.testing.parameter(
 )
 
 
-@pytest.fixture()
+@tvm.testing.fixture
 def aot_target(aot_host_target):
     if aot_host_target == "c":
         yield tvm.target.hexagon("v68")
     elif aot_host_target.startswith("llvm"):
         yield aot_host_target
-    else:
-        assert False, "Incorrect AoT host target: {aot_host_target}. Options are [c, llvm]."
-
-
-@pytest.fixture()
-def rpc_session_name(aot_host_target):
-    if aot_host_target == "c":
-        yield "hexagon-rpc"
-    elif aot_host_target.startswith("llvm"):
-        yield "cpu-rpc"
     else:
         assert False, "Incorrect AoT host target: {aot_host_target}. Options are [c, llvm]."

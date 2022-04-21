@@ -43,6 +43,7 @@ def test_add(hexagon_session):
     )
 
     mod = hexagon_session.load_module(func)
+    hexagon_session.set_device_type(mod)
 
     A_data = tvm.nd.array(np.array([2, 3], dtype=dtype), device=hexagon_session.device)
     assert (A_data.numpy() == np.array([2, 3])).all()
@@ -68,6 +69,8 @@ def test_add_vtcm(hexagon_session):
     )
 
     mod = hexagon_session.load_module(func)
+    hexagon_session.set_device_type(mod)
+
     A_data = tvm.nd.empty(A.shape, A.dtype, hexagon_session.device, "global.vtcm")
     A_data.copyfrom(np.array([2, 3]))
 
@@ -101,6 +104,7 @@ class TestMatMul:
         )
 
         mod = hexagon_session.load_module(func)
+        hexagon_session.set_device_type(mod)
 
         x = np.random.uniform(size=[i.value for i in X.shape]).astype(X.dtype)
         y = np.random.uniform(size=[i.value for i in Y.shape]).astype(Y.dtype)
@@ -267,7 +271,7 @@ def _workaround_create_aot_shared():
 
 
 @requires_hexagon_toolchain
-def test_aot_executor(hexagon_launcher, aot_host_target, aot_target, rpc_session_name):
+def test_aot_executor(hexagon_session, aot_host_target, aot_target):
     dtype = "float32"
     input_shape = (1, 128, 128, 3)
     w_shape = (5, 5, 3, 8)
@@ -303,11 +307,10 @@ def test_aot_executor(hexagon_launcher, aot_host_target, aot_target, rpc_session
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )
 
-    with hexagon_launcher.start_session(session_name=rpc_session_name) as hexagon_session:
-        aot_mod = hexagon_session.get_executor_from_factory(lowered)
-        aot_mod.set_input(**inputs)
-        aot_mod.run()
-        hexagon_output = aot_mod.get_output(0).numpy()
+    aot_mod = hexagon_session.get_executor_from_factory(lowered)
+    aot_mod.set_input(**inputs)
+    aot_mod.run()
+    hexagon_output = aot_mod.get_output(0).numpy()
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):
@@ -327,9 +330,7 @@ def test_aot_executor(hexagon_launcher, aot_host_target, aot_target, rpc_session
 
 
 @requires_hexagon_toolchain
-def test_aot_executor_multiple_conv2d(
-    hexagon_launcher, aot_host_target, aot_target, rpc_session_name
-):
+def test_aot_executor_multiple_conv2d(hexagon_session, aot_host_target, aot_target):
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
@@ -381,11 +382,10 @@ def test_aot_executor_multiple_conv2d(
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )
 
-    with hexagon_launcher.start_session(session_name=rpc_session_name) as hexagon_session:
-        aot_mod = hexagon_session.get_executor_from_factory(lowered)
-        aot_mod.set_input(**inputs)
-        aot_mod.run()
-        hexagon_output = aot_mod.get_output(0).numpy()
+    aot_mod = hexagon_session.get_executor_from_factory(lowered)
+    aot_mod.set_input(**inputs)
+    aot_mod.run()
+    hexagon_output = aot_mod.get_output(0).numpy()
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):

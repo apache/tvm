@@ -44,9 +44,7 @@ class Session:
         Remote configs for RPC tracker.
 
     session_name : str
-        Hexagon RPC session name. Options are [hexagon-rpc, cpu-rpc].
-        `hexagon-rpc` is used with hexagon target and `cpu-rpc` used with
-        hexagon as a sub-target of LLVM.
+        Hexagon RPC session name.
 
     remote_stack_size_bytes : int
         The stack size of the remote device, to be passed to
@@ -67,10 +65,10 @@ class Session:
         self._rpc_receive_buffer_size_bytes: int = rpc_receive_buffer_size_bytes
         self._remote_kw: dict = remote_kw
         self._rpc = None
-        self.device = None
+        self._device = None
 
     def __enter__(self):
-        if self.device:
+        if self._rpc:
             # Already initialized
             return self
 
@@ -88,15 +86,6 @@ class Session:
                     self._rpc_receive_buffer_size_bytes,
                 ],
             )
-            if self._session_name == "cpu-rpc":
-                self.device = self._rpc.cpu(0)
-            elif self._session_name == "hexagon-rpc":
-                self.device = self._rpc.hexagon(0)
-            else:
-                raise RuntimeError(
-                    f"Incorrect session name: {self._session_name}.\n"
-                    f"Options for session name are [hexagon-rpc, cpu-rpc]."
-                )
             return self
 
         except RuntimeError as exception:
@@ -104,6 +93,25 @@ class Session:
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         pass
+
+    @property
+    def device(self):
+        """Session device."""
+
+        if hasattr(self, "_device") and self._device is not None:
+            return self._device
+
+        if not hasattr(self, "_requires_cpu_device"):
+            assert (
+                False
+            ), "Device type is not set. 'set_device_type' should be called before accessing device."
+
+        if self._requires_cpu_device:
+            self._device = self._rpc.cpu(0)
+        else:
+            self._device = self._rpc.hexagon(0)
+
+        return self._device
 
     def upload(self, local_path: Union[str, pathlib.Path], remote_filename: str):
         """Upload a local file to the remote workspace.
@@ -143,9 +151,7 @@ class Session:
             TVM module object.
         """
 
-        assert (
-            self.device is not None
-        ), "Hexagon session must be started using __enter__ prior to use"
+        assert self._rpc is not None, "Hexagon session must be started using __enter__ prior to use"
 
         if isinstance(module, tvm.runtime.Module):
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -189,6 +195,7 @@ class Session:
         """
 
         graph_mod = self.load_module(module_name)
+        self.set_device_type(graph_mod)
         return tvm.contrib.graph_executor.create(graph_json, graph_mod, self.device)
 
     def get_aot_executor(
@@ -216,6 +223,7 @@ class Session:
         """
 
         aot_mod = self.load_module(module_name)
+        self.set_device_type(aot_mod)
         return tvm.runtime.executor.AotModule(aot_mod["default"](self.device))
 
     def get_executor_from_factory(self, module: ExecutorFactoryModule):
@@ -235,6 +243,28 @@ class Session:
             return self._graph_executor_from_factory(module)
 
         raise TypeError(f"Unsupported executor type: {type(module)}")
+
+    def set_device_type(self, module: Union[str, pathlib.Path, GraphExecutorFactoryModule]):
+        """Set session device type(hexagon, cpu) based on target in module.
+
+        Parameters
+        ----------
+
+        module: TVMModule
+            TVM module object.
+        """
+        # for cases when module is a single schedule without target attribute.
+        if not hasattr(module, "target"):
+            self._requires_cpu_device = False
+        else:
+            assert len(module.target.values()) == 1
+            for target in module.target.values():
+                target_type = str(target).split()[0]
+
+            if target_type == "llvm":
+                self._requires_cpu_device = True
+            else:
+                self._requires_cpu_device = False
 
     def _graph_executor_from_factory(
         self,
@@ -263,6 +293,7 @@ class Session:
 
         graph_json = module.get_graph_json()
         graph_mod = self.load_module(module.get_lib())
+        self.set_device_type(module)
 
         return tvm.contrib.graph_executor.create(graph_json, graph_mod, self.device)
 
@@ -296,10 +327,11 @@ class Session:
             for target in module.target.values()
             if "hexagon" in target.keys
         )
-        assert len(module.target.values()) == 1
+
+        self.set_device_type(module)
 
         for target in module.target.values():
-            target_kind = str(target).split()[0]
+            target_type = str(target).split()[0]
 
         assert hexagon_arch, "No hexagon target architecture found"
         assert len(hexagon_arch) == 1, f"Inconsistent hexagon architecture found, {hexagon_arch}"
@@ -310,13 +342,13 @@ class Session:
             binary_name = "test_binary.so"
             binary_path = temp_dir / binary_name
 
-            if target_kind == "hexagon":
+            if target_type == "hexagon":
                 module.export_library(
                     str(binary_path),
                     fcompile=hexagon.create_aot_shared,
                     hexagon_arch=hexagon_arch,
                 )
-            elif target_kind == "llvm":
+            elif target_type == "llvm":
                 module.export_library(
                     str(binary_path),
                     cc=hexagon.hexagon_clang_plus(),
