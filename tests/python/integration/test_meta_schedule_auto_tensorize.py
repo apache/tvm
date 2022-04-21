@@ -25,7 +25,11 @@ from tvm.meta_schedule import ApplyHistoryBest
 from tvm.meta_schedule import schedule_rule, postproc
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
 from tvm import meta_schedule as ms
-from tvm.tir.tensor_intrin import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN, DP4A_INTRIN
+from tvm.tir.tensor_intrin import (
+    VNNI_DOT_16x4_INTRIN as VNNI_INTRIN,
+    DP4A_INTRIN,
+    AMDGPU_SDOT4_INTRIN,
+)
 import tempfile
 import tvm.topi.testing
 
@@ -70,6 +74,48 @@ sch_rules_for_vnni = [
     schedule_rule.RandomComputeLocation(),
 ]
 
+
+def get_sch_rules_for_dp4a(intrin):
+    return [
+        schedule_rule.MultiLevelTilingWithIntrin(
+            intrin,
+            structure="SSSRRSRS",
+            tile_binds=["blockIdx.x", "vthread.x", "threadIdx.x"],
+            max_innermost_factor=64,
+            vector_load_lens=[1, 2, 3, 4],
+            reuse_read=schedule_rule.ReuseType(
+                req="must",
+                levels=[4],
+                scope="shared",
+            ),
+            reuse_write=schedule_rule.ReuseType(
+                req="must",
+                levels=[3],
+                scope="local",
+            ),
+        ),
+        schedule_rule.AutoInline(
+            into_producer=True,
+            into_consumer=True,
+            inline_const_tensor=True,
+            disallow_if_then_else=False,
+            require_injective=False,
+            require_ordered=False,
+            disallow_op=None,
+        ),
+        schedule_rule.CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512]),
+        schedule_rule.ParallelizeVectorizeUnroll(
+            max_jobs_per_core=-1,  # disable parallelize
+            max_vectorize_extent=-1,  # disable vectorize
+            unroll_max_steps=[0, 16, 64, 512, 1024],
+            unroll_explicit=True,
+        ),
+    ]
+
+
+sch_rules_for_dp4a = get_sch_rules_for_dp4a(DP4A_INTRIN)
+sch_rules_for_sdot4 = get_sch_rules_for_dp4a(AMDGPU_SDOT4_INTRIN)
+
 postprocs_for_vnni = [
     postproc.DisallowDynamicLoop(),
     postproc.RewriteParallelVectorizeUnroll(),
@@ -77,14 +123,24 @@ postprocs_for_vnni = [
     postproc.RewriteTensorize(vectorize_init_loop=True),
 ]
 
+postprocs_for_dp4a = [
+    postproc.DisallowDynamicLoop(),
+    postproc.RewriteCooperativeFetch(),
+    postproc.RewriteUnboundBlock(),
+    postproc.RewriteParallelVectorizeUnroll(),
+    postproc.RewriteReductionBlock(),
+    postproc.RewriteTensorize(),
+    postproc.VerifyGPUCode(),
+]
 
-def tune_vnni(relay_mod, data_np, weight_np, op_name):
-    target = "llvm -mcpu=cascadelake -num-cores 4"
+
+def tune_and_test(relay_mod, data_np, weight_np, op_name, target, sch_rules, postprocs):
     dev = tvm.device(target, 0)
 
     ref = (
         relay.create_executor("vm", mod=relay_mod, device=dev, target=target)
-        .evaluate()(*[data_np, weight_np]).numpy()
+        .evaluate()(*[data_np, weight_np])
+        .numpy()
     )
 
     params = {"weight": weight_np}
@@ -103,8 +159,8 @@ def tune_vnni(relay_mod, data_np, weight_np, op_name):
             tune_tasks,
             config,
             work_dir=work_dir,
-            sch_rules=lambda: sch_rules_for_vnni,
-            postprocs=lambda: postprocs_for_vnni,
+            sch_rules=lambda: sch_rules,
+            postprocs=lambda: postprocs,
         )
 
     with ApplyHistoryBest(database):
@@ -114,8 +170,9 @@ def tune_vnni(relay_mod, data_np, weight_np, op_name):
         ):
             lib = relay.build(relay_mod, target=target, params=params)
 
-    asm = lib.lib.get_source("asm")
-    assert "vpdpbusd" in asm
+    if "cascadelake" in target:
+        asm = lib.lib.get_source("asm")
+        assert "vpdpbusd" in asm
 
     runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
@@ -127,13 +184,11 @@ def tune_vnni(relay_mod, data_np, weight_np, op_name):
     np.testing.assert_equal(out, ref)
 
 
-@pytest.mark.skip("Requires cascadelake")
-def test_vnni_dense():
+def _test_dense(data_dtype, sch_rules, postprocs, target):
     M, N, K = 1024, 1024, 1024
     data_shape = (M, K)
     weight_shape = (N, K)
 
-    data_dtype = "uint8"
     weight_dtype = "int8"
     out_dtype = "int32"
 
@@ -146,15 +201,13 @@ def test_vnni_dense():
     data_np = np.random.uniform(1, 10, size=data_shape).astype(data_dtype)
     weight_np = np.random.uniform(1, 10, size=weight_shape).astype(weight_dtype)
 
-    tune_vnni(relay_mod, data_np, weight_np, "dense")
+    tune_and_test(relay_mod, data_np, weight_np, "dense", target, sch_rules, postprocs)
 
 
-@pytest.mark.skip("Requires cascadelake")
-def test_vnni_conv2d():
+def _test_conv2d(data_dtype, sch_rules, postprocs, target):
     d_shape = (1, 64, 56, 56)
     w_shape = (64, 64, 3, 3)
 
-    data_dtype = "uint8"
     weight_dtype = "int8"
     out_dtype = "int32"
 
@@ -176,16 +229,13 @@ def test_vnni_conv2d():
     data_np = np.random.uniform(1, 10, d_shape).astype("uint8")
     weight_np = np.random.uniform(1, 10, size=w_shape).astype("int8")
 
-    tune_vnni(relay_mod, data_np, weight_np, "conv2d")
+    tune_and_test(relay_mod, data_np, weight_np, "conv2d", target, sch_rules, postprocs)
 
 
-@pytest.mark.skip("Requires cascadelake")
-def test_bert_int8():
+def _test_bert_int8(target, sch_rules, postprocs):
     relay_mod, params, input_info = load_quantized_bert_base()
 
     relay_mod = relay.transform.FastMath()(relay_mod)
-
-    target = "llvm -mcpu=cascadelake -num-cores 4"
 
     extracted_tasks = extract_task_from_relay(relay_mod, target, params)
 
@@ -206,9 +256,8 @@ def test_bert_int8():
             tune_tasks,
             config,
             work_dir=work_dir,
-            sch_rules=lambda: sch_rules_for_vnni,
-            postprocs=lambda: postprocs_for_vnni,
-
+            sch_rules=lambda: sch_rules,
+            postprocs=lambda: postprocs,
         )
 
     with ApplyHistoryBest(database):
@@ -231,7 +280,58 @@ def test_bert_int8():
     print(runtime.benchmark(dev, number=1, repeat=50).mean)
 
 
+@pytest.mark.skip("Requires cascadelake")
+def test_vnni_dense():
+    _test_dense(
+        "uint8", sch_rules_for_vnni, postprocs_for_vnni, "llvm -mcpu=cascadelake -num-cores 4"
+    )
+
+
+@tvm.testing.requires_gpu
+def test_dp4a_dense():
+    _test_dense("int8", sch_rules_for_dp4a, postprocs_for_dp4a, "nvidia/geforce-rtx-3070")
+    # _test_dense(
+    #     "int8", sch_rules_for_dp4a, postprocs_for_dp4a, "vulkan -from_device=0"
+    # )
+    # _test_dense(
+    #     "int8", sch_rules_for_sdot4, postprocs_for_dp4a, "rocm"
+    # )
+
+
+@pytest.mark.skip("Requires cascadelake")
+def test_vnni_conv2d():
+    _test_conv2d(
+        "uint8", sch_rules_for_vnni, postprocs_for_vnni, "llvm -mcpu=cascadelake -num-cores 4"
+    )
+
+
+@tvm.testing.requires_gpu
+def test_dp4a_conv2d():
+    _test_dense("int8", sch_rules_for_dp4a, postprocs_for_dp4a, "nvidia/geforce-rtx-3070")
+    # _test_conv2d(
+    #     "int8", sch_rules_for_dp4a, postprocs_for_dp4a, "vulkan -from_device=0"
+    # )
+    # _test_conv2d(
+    #     "int8", sch_rules_for_sdot4, postprocs_for_dp4a, "rocm"
+    # )
+
+
+@pytest.mark.skip("Requires cascadelake")
+def test_vnni_bert_int8():
+    _test_bert_int8("llvm -mcpu=cascadelake -num-cores 4", sch_rules_for_vnni, postprocs_for_vnni)
+
+
+@tvm.testing.requires_gpu
+def test_dp4a_bert_int8():
+    _test_bert_int8("nvidia/geforce-rtx-3070", sch_rules_for_dp4a, postprocs_for_dp4a)
+    # _test_bert_int8("vulkan -from_device=0", sch_rules_for_dp4a, postprocs_for_dp4a)
+    # _test_bert_int8("rocm", sch_rules_for_sdot4, postprocs_for_dp4a)
+
+
 if __name__ == "__main__":
-    # test_vnni_dense()
-    # test_vnni_conv2d()
-    test_bert_int8()
+    test_vnni_dense()
+    test_vnni_conv2d()
+    test_vnni_bert_int8()
+    test_dp4a_dense()
+    test_dp4a_conv2d()
+    test_dp4a_bert_int8()
