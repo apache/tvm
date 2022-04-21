@@ -22,10 +22,15 @@ import tvm
 from tvm import relay
 from tvm.relay.backend.contrib.ethosu.tir.compiler import LowerToTIR
 from tvm.relay.backend.contrib.ethosu.tir.scheduler import copy_constants
-from tvm.contrib.ethosu.cascader import cascade, EthosuDeviceConfig, CascaderOptions, MemoryRegion
+from tvm.contrib.ethosu.cascader import (
+    cascade,
+    EthosuDeviceConfig,
+    CascaderOptions,
+    MemoryRegion,
+    extract_memory_info,
+)
 from tvm.relay.backend.contrib.ethosu.legalize import LegalizeEthosU
-from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator
-from tvm.relay.backend.contrib.ethosu import util
+from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator, util
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 # pylint: disable=unused-import
@@ -379,34 +384,6 @@ def _ethos_u55_cascader(sram) -> Callable:
     )
 
 
-def _extract_memory_info(memory_pool):
-    size = int(memory_pool.size_hint_bytes)
-    read_bandwidth = int(memory_pool.read_bandwidth_bytes_per_cycle)
-    write_bandwidth = int(memory_pool.write_bandwidth_bytes_per_cycle)
-
-    for param in (size, read_bandwidth, write_bandwidth):
-        assert param != -1, f"{param} needs to be specified for the cascader."
-
-    name_to_burst_lenght = {
-        target.kind.name: burst for target, burst in memory_pool.target_burst_bytes.items()
-    }
-
-    try:
-        burst_length = int(name_to_burst_lenght["ethos-u"])
-    except KeyError:
-        burst_length = 1
-
-    return MemoryRegion(
-        name=memory_pool.pool_name,
-        size=size,
-        read_bandwidth=read_bandwidth,
-        write_bandwidth=write_bandwidth,
-        read_latency=int(memory_pool.read_latency_cycles),
-        write_latency=int(memory_pool.write_latency_cycles),
-        burst_length=burst_length,
-    )
-
-
 @tvm._ffi.register_func("relay.ext.ethos-u.relay_to_tir")
 def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
     """
@@ -453,7 +430,7 @@ def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
             len(workspace_memory_pools.pools) == 1
         ), "Exactly one workspace pool needs to be provided for the U55 cascader"
 
-        sram = _extract_memory_info(workspace_memory_pools.pools[0])
+        sram = extract_memory_info(workspace_memory_pools.pools[0])
         tir_mod = LowerToTIR(_ethos_u55_cascader(sram))(mod)
     else:
         tir_mod = LowerToTIR(copy_constants())(mod)

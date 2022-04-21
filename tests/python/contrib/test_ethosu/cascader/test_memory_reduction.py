@@ -87,8 +87,18 @@ def _get_ethosu_workspace_size(mod, params, accel_type, pool_size, enable_cascad
     return mlf_memory_map["main"][0]["workspace_size_bytes"]
 
 
-@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
-def test_double_conv2d(accel_type):
+@pytest.mark.parametrize(
+    "accel_type, expected_ws_size_without_cascader, expected_ws_size_with_cascader",
+    [
+        ("ethos-u55-256", 1067408, 14096),
+        ("ethos-u55-128", 1067408, 3968),
+        ("ethos-u55-64", 1067408, 2272),
+        ("ethos-u55-32", 1067392, 2256),
+    ],
+)
+def test_double_conv2d(
+    accel_type, expected_ws_size_without_cascader, expected_ws_size_with_cascader
+):
     np.random.seed(1)
     ifm_shape = (1, 321, 212, 6)
 
@@ -136,21 +146,24 @@ def test_double_conv2d(accel_type):
         mod, params, accel_type, pool_size, enable_cascader=True
     )
 
-    assert workspace_size_cascader_enabled < workspace_size_cascader_disabled
+    assert workspace_size_cascader_disabled == expected_ws_size_without_cascader
+    assert workspace_size_cascader_enabled == expected_ws_size_with_cascader
 
 
 # TODO(ekalda): Fix a bug in the block config selection that selects block config that is too large
 # for the smaller accelerators
 @pytest.mark.parametrize(
-    "accel_type",
-    (
-        "ethos-u55-256",
-        "ethos-u55-128",
-        pytest.param("ethos-u55-64", marks=pytest.mark.xfail),
-        pytest.param("ethos-u55-32", marks=pytest.mark.xfail),
-    ),
+    "accel_type, expected_ws_size_without_cascader, expected_ws_size_with_cascader",
+    [
+        ("ethos-u55-256", 180096, 5024),
+        ("ethos-u55-128", 180096, 4832),
+        pytest.param("ethos-u55-64", 180096, 4832, marks=pytest.mark.xfail),
+        pytest.param("ethos-u55-32", 180096, 4832, marks=pytest.mark.xfail),
+    ],
 )
-def test_depthwise2d_conv2d_pooling(accel_type):
+def test_depthwise2d_conv2d_pooling(
+    accel_type, expected_ws_size_without_cascader, expected_ws_size_with_cascader
+):
     np.random.seed(2)
     ifm_shape = (1, 80, 75, 3)
 
@@ -208,4 +221,5 @@ def test_depthwise2d_conv2d_pooling(accel_type):
         mod, params, accel_type, pool_size, enable_cascader=True
     )
 
-    assert workspace_size_cascader_enabled < workspace_size_cascader_disabled
+    assert workspace_size_cascader_disabled == expected_ws_size_without_cascader
+    assert workspace_size_cascader_enabled == expected_ws_size_with_cascader
