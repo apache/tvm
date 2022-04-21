@@ -63,7 +63,7 @@ from .._ffi.base import py_str
 from . import base
 from .base import RPC_TRACKER_MAGIC, TrackerCode
 
-logger = logging.getLogger("RPCTracker")
+logger = logging.getLogger(__name__)
 
 
 class Scheduler(object):

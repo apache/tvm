@@ -31,7 +31,7 @@ from .model_based_tuner import CostModel, FeatureCache
 
 xgb = None
 
-logger = logging.getLogger("autotvm")
+logger = logging.getLogger(__name__)
 
 
 class XGBoostCostModel(CostModel):

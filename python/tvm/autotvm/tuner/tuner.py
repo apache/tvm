@@ -26,7 +26,7 @@ from ..utils import format_si_prefix
 
 from ..env import GLOBAL_SCOPE
 
-logger = logging.getLogger("autotvm")
+logger = logging.getLogger(__name__)
 
 
 class Tuner(object):

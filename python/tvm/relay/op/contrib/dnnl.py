@@ -44,7 +44,7 @@ from ... import _ffi_api
 from ...dataflow_pattern import wildcard, is_op
 from .register import register_pattern_table
 
-logger = logging.getLogger("DNNL")
+logger = logging.getLogger(__name__)
 
 
 def _register_external_op_helper(op_name, supported=True):

@@ -31,7 +31,7 @@ from ..nn.utils import get_pad_tuple
 from ..utils import get_const_tuple, traverse_inline
 from . import conv2d_avx_1x1, conv2d_avx_common
 
-logger = logging.getLogger("topi")
+logger = logging.getLogger(__name__)
 
 
 def _get_default_config(

@@ -26,7 +26,7 @@ import tvm.arith
 from tvm.tir import expr
 from tvm.contrib.popen_pool import PopenPoolExecutor
 
-logger = logging.getLogger("autotvm")
+logger = logging.getLogger(__name__)
 
 
 class EmptyContext(object):

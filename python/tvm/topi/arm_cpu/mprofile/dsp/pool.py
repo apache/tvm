@@ -33,7 +33,7 @@ from .micro_kernel.avg_pool import (
     sum_impl,
 )
 
-logger = logging.getLogger("topi")
+logger = logging.getLogger(__name__)
 
 
 def schedule_maxpool_1d_nwc(s, op):

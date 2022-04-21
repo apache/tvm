@@ -59,7 +59,7 @@ PACKAGE_VERSION = {
     "amd_apu": "v0.01",
 }
 
-logger = logging.getLogger("autotvm")
+logger = logging.getLogger(__name__)
 
 
 def _alias(name):

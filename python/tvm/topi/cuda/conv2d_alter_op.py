@@ -28,7 +28,7 @@ from .tensorcore_alter_op import pad_to_tensorcore
 from ..nn import conv2d_legalize
 
 
-logger = logging.getLogger("topi")
+logger = logging.getLogger(__name__)
 
 
 @nn.conv2d_alter_layout.register(["cuda", "gpu"])

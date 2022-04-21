@@ -37,7 +37,7 @@ from .search_policy import PreloadMeasuredStates, SketchPolicy
 from .search_task import SearchTask, TuningOptions
 from .utils import calc_workload_dis_factor, decode_workload_key
 
-logger = logging.getLogger("auto_scheduler")
+logger = logging.getLogger(__name__)
 
 
 class DispatchContext(object):

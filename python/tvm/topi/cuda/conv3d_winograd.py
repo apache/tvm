@@ -26,7 +26,7 @@ from .. import nn
 from ..utils import get_const_int, get_const_tuple, traverse_inline, simplify
 from ..nn.winograd_util import winograd_transform_matrices
 
-logger = logging.getLogger("conv3d_winograd")
+logger = logging.getLogger(__name__)
 
 
 def _infer_tile_size(data, kernel):

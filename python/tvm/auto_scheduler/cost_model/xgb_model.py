@@ -30,7 +30,7 @@ from ..measure_record import RecordReader
 
 xgb = None
 
-logger = logging.getLogger("auto_scheduler")
+logger = logging.getLogger(__name__)
 
 
 class XGBDMatrixContext:

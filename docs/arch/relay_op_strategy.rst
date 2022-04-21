@@ -278,5 +278,5 @@ model to learn which implementation is used for each operator.
 
 .. code:: python
 
-    logging.getLogger("te_compiler").setLevel(logging.INFO)
-    logging.getLogger("te_compiler").addHandler(logging.StreamHandler(sys.stdout))
+    logging.getLogger("tvm.relay.backend.te_compiler").setLevel(logging.INFO)
+    logging.getLogger("tvm.relay.backend.te_compiler").addHandler(logging.StreamHandler(sys.stdout))

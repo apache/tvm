@@ -25,7 +25,7 @@ from tvm.topi.utils import get_const_float, get_const_int, get_const_tuple, get_
 
 from .. import op as _op
 
-logger = logging.getLogger("strategy")
+logger = logging.getLogger(__name__)
 
 
 def naive_schedule(_, outs, target):

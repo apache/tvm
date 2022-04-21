@@ -32,7 +32,7 @@ from .conv2d_int8 import is_int8_hw_support
 from .arm_utils import get_tiling_B_interleaved_t
 from ..generic.conv2d import conv2d_alter_int8_common
 
-logger = logging.getLogger("topi")
+logger = logging.getLogger(__name__)
 
 
 def interleave_transpose_weights(inputs, data, kernel, interleave_A):

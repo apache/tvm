@@ -21,7 +21,7 @@ import tvm
 from tvm import te, auto_scheduler
 from ..utils import get_const_tuple
 
-logger = logging.getLogger("topi")
+logger = logging.getLogger(__name__)
 
 
 def batch_matmul(

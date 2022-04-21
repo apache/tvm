@@ -38,7 +38,7 @@ RPC_CODE_DUPLICATE = RPC_MAGIC + 1
 # cannot found matched key in server
 RPC_CODE_MISMATCH = RPC_MAGIC + 2
 
-logger = logging.getLogger("RPCServer")
+logger = logging.getLogger(__name__)
 
 
 class TrackerCode(object):

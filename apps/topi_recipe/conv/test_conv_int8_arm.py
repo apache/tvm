@@ -24,7 +24,7 @@ from tvm import te
 from tvm import topi
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-LOGGER = logging.getLogger("test_conv_int8_intel")
+LOGGER = logging.getLogger(__name__)
 LOGGER.disabled = False
 
 # All the WORKLOADS from Resnet except first layer

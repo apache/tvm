@@ -37,7 +37,7 @@ import numpy as np
 from .space import FallbackConfigEntity
 from .. import env as _env
 
-logger = logging.getLogger("autotvm")
+logger = logging.getLogger(__name__)
 
 
 class DispatchContext(object):

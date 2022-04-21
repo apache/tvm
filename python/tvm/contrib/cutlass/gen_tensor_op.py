@@ -30,7 +30,7 @@ from .library import (
     EpilogueFunctor,
 )
 
-logger = logging.getLogger("cutlass")
+logger = logging.getLogger(__name__)
 
 
 dtype_map = {

@@ -39,7 +39,7 @@ from .measure import MeasureInput, MeasureResult
 
 AUTOTVM_LOG_VERSION = 0.2
 _old_version_warning = True
-logger = logging.getLogger("autotvm")
+logger = logging.getLogger(__name__)
 
 try:  # convert unicode to str for python2
     _unicode = unicode

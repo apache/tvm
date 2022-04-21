@@ -28,7 +28,7 @@ from tvm.target import Target
 from .generic import *
 from .. import op as _op
 
-logger = logging.getLogger("strategy")
+logger = logging.getLogger(__name__)
 
 _NCHWc_matcher = re.compile("^NCHW[0-9]+c$")
 _OIHWio_matcher = re.compile("^OIHW[0-9]+i[0-9]+o$")

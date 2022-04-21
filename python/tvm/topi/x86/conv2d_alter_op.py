@@ -30,7 +30,7 @@ from ..utils import get_const_tuple
 from ..nn import conv2d_legalize, conv2d_alter_layout
 from ..generic.conv2d import conv2d_alter_int8_common
 
-logger = logging.getLogger("topi")
+logger = logging.getLogger(__name__)
 
 _NCHWc_matcher = re.compile("^NCHW[0-9]+c$")
 _OIHWio_matcher = re.compile("^OIHW[0-9]+i[0-9]+o$")

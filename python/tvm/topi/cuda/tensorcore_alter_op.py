@@ -23,7 +23,7 @@ from tvm import relay, tir
 
 from .. import nn
 
-logger = logging.getLogger("topi")
+logger = logging.getLogger(__name__)
 
 
 @nn.batch_matmul_legalize.register("cuda")

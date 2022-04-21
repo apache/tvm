@@ -32,7 +32,7 @@ from tvm.relay.backend.contrib.ethosu import util  # type: ignore
 from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator as tirtocs
 
 # pylint: disable=invalid-name
-logger = logging.getLogger("Ethos-U")
+logger = logging.getLogger(__name__)
 
 VELA_TO_NP_DTYPES = {
     vapi.NpuDataType.UINT8: np.uint8,

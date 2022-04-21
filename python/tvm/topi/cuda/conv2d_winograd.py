@@ -27,7 +27,7 @@ from ..nn.conv2d import _conv2d_winograd_nhwc_impl, conv2d_winograd_nhwc
 from ..nn.winograd_util import winograd_transform_matrices
 from ..utils import get_const_int, get_const_tuple, traverse_inline
 
-logger = logging.getLogger("conv2d_winograd")
+logger = logging.getLogger(__name__)
 
 
 def _infer_tile_size(data, kernel, layout="NCHW"):

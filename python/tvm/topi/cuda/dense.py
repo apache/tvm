@@ -26,7 +26,7 @@ from .. import tag
 from .. import generic
 from ..utils import traverse_inline, get_const_tuple, is_target
 
-logger = logging.getLogger("topi")
+logger = logging.getLogger(__name__)
 
 
 def _matmul_cublas_common(

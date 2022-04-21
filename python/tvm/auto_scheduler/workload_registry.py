@@ -39,7 +39,7 @@ from tvm.runtime._ffi_node_api import LoadJSON, SaveJSON
 
 from .utils import deserialize_args, get_func_name, serialize_args
 
-logger = logging.getLogger("auto_scheduler")
+logger = logging.getLogger(__name__)
 
 # Global workload function and hash key registry
 # It stores two types of workload:

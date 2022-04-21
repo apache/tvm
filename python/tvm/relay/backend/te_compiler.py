@@ -30,8 +30,8 @@ from .. import function as _function
 from .. import ty as _ty
 from . import _backend
 
-logger = logging.getLogger("te_compiler")
-autotvm_logger = logging.getLogger("autotvm")
+logger = logging.getLogger(__name__)
+autotvm_logger = logging.getLogger(__name__)
 
 _first_warning = True
 

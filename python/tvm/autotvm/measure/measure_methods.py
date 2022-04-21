@@ -51,7 +51,7 @@ from ..task.space import InstantiationError
 from ..utils import get_const_tuple
 from .measure import Builder, MeasureErrorNo, MeasureResult, Runner
 
-logger = logging.getLogger("autotvm")
+logger = logging.getLogger(__name__)
 
 
 class BuildResult(namedtuple("BuildResult", ("filename", "arg_info", "error", "time_cost"))):

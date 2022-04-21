@@ -32,7 +32,7 @@ from ..nn.conv2d import conv2d_winograd_nhwc, _conv2d_winograd_nhwc_impl
 from ..arm_cpu.conv2d_spatial_pack import conv2d_spatial_pack_nchw
 from ..arm_cpu.conv2d_spatial_pack import conv2d_spatial_pack_nhwc
 
-logger = logging.getLogger("topi")
+logger = logging.getLogger(__name__)
 
 
 @autotvm.register_topi_compute("conv2d_nchw_spatial_pack.mali")

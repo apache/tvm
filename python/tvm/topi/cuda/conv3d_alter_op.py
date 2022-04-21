@@ -27,7 +27,7 @@ from .. import nn
 from ..utils import get_const_tuple
 from .conv3d_winograd import _infer_tile_size
 
-logger = logging.getLogger("topi")
+logger = logging.getLogger(__name__)
 
 
 @nn.conv3d_alter_layout.register(["cuda", "gpu"])
