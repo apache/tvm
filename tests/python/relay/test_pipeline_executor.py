@@ -372,6 +372,7 @@ def test_pipeline():
             assert module_index == 0
             # Using the parameters group name to set parameters.
             pipeline_module_test.set_params("param_0", customized_parameters)
+            normal_outputs = []
             for round in range(0, len(datas)):
                 data = datas[round]
                 # Getting the result without setting customized parameters.
@@ -398,27 +399,37 @@ def test_pipeline():
                     customized_parameters_mod,
                     customized_parameters,
                 )
+                # Appending the normal output into the list in order to do future correctness
+                # checking.
+                normal_outputs.append(normal_output)
+                # Setting the input data into the pipeline executor.
                 pipeline_module_test.set_input("data_a", data)
                 pipeline_module_test.set_input("data_b", data)
-                input_data = pipeline_module_test.get_input("data_a")
-                tvm.testing.assert_allclose(data, input_data.numpy())
+                input_map = pipeline_module_test.get_input_pipeline_map("data_a")
+                # Checking whether the input setting of the first runtime is successful.
+                # The input of the rest of runtime will go into a queue and we can not check
+                # these input data here.
+                if input_map[0] == "0":
+                    input_data = pipeline_module_test.get_input("data_a")
+                    tvm.testing.assert_allclose(data, input_data.numpy())
                 # Running the pipeline executor in the pipeline mode.
                 pipeline_module_test.run()
 
+            for k in range(0, len(datas)):
                 statistic_time = 0
                 outputs = pipeline_module_test.get_output()
                 while len(outputs) == 0:
                     outputs = pipeline_module_test.get_output()
                     statistic_time = statistic_time + 1
                     # Setting the timeout to 10 seconds.
-                    assert statistic_time < 10
+                    assert statistic_time < 5
                     time.sleep(1)
 
                 for i in range(len(outputs)):
-                    tvm.testing.assert_allclose(normal_output[i], outputs[i].numpy())
+                    tvm.testing.assert_allclose(normal_outputs[k][i], outputs[i].numpy())
                     assert not (normal_output[i] == wrong_output[i]).all()
 
-                assert pipeline_module_test.num_executing_pipeline == round + 1
+                    assert pipeline_module_test.num_executing_pipeline == round + 1
 
             # Reset the cpu affinity after a test.
             reset_cpu_affinity(affinity)

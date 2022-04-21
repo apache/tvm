@@ -16,12 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-// TODO(csulivan,adstraw,kparzysz-quic) This should be set on a TVM-wide basis.
-#if defined(__hexagon__)
-#define TVM_LOG_CUSTOMIZE 1
-#endif
-
 #include "hexagon_buffer.h"
 
 #include <tvm/runtime/module.h>
@@ -92,19 +86,18 @@ struct VTCMAllocation : public Allocation {
     if (context_id_) {
       data_ = HAP_compute_res_attr_get_vtcm_ptr(&res_info);
       if (!data_) {
-        HEXAGON_PRINT(ERROR, "ERROR: Allocated VTCM ptr is null.");
+        LOG(ERROR) << "ERROR: Allocated VTCM ptr is null.";
         HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
         return;
       }
     } else {
-      HEXAGON_PRINT(ERROR, "ERROR: Unable to acquire requeisted resource.");
+      LOG(ERROR) << "ERROR: Unable to acquire requeisted resource.";
       return;
     }
-    // HEXAGON_PRINT(ALWAYS, "VTCMAllocation() - Context ID: %u, VTCM ptr: %p", context_id_, data_);
+    // LOG(INFO) << "VTCMAllocation() - Context ID: " << context_id_ << ", VTCM ptr: " << data_;
   }
   ~VTCMAllocation() {
-    // HEXAGON_PRINT(ALWAYS, "~VTCMAllocation() - Context ID: %u, VTCM ptr: %p", context_id_,
-    // data_);
+    // LOG(INFO) << "~VTCMAllocation() - Context ID: " << context_id_ << ", VTCM ptr: " << data_;
     HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
     data_ = nullptr;
   }

@@ -145,6 +145,7 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name]
     )
     _scheduler = RoundRobin(
         tasks=[context],
+        task_weights=[1.0],
         builder=ms.builder.LocalBuilder(),
         runner=ms.runner.LocalRunner(),
         database=DummyDatabase(),
@@ -207,6 +208,7 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
     )
     _scheduler = RoundRobin(
         tasks=[context],
+        task_weights=[1.0],
         builder=ms.builder.LocalBuilder(),
         runner=ms.runner.LocalRunner(),
         database=DummyDatabase(),
