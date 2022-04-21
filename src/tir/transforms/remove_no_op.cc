@@ -33,7 +33,7 @@
 namespace tvm {
 namespace tir {
 
-// Mark the statment of each stage.
+// Mark the statement of each stage.
 class NoOpRemover : public StmtMutator {
  public:
   Stmt VisitStmt_(const LetStmtNode* op) final {
