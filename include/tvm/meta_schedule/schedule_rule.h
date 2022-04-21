@@ -150,6 +150,16 @@ class ScheduleRule : public runtime::ObjectRef {
                                                Optional<Array<Integer>> vector_load_lens,    //
                                                Optional<Map<String, ObjectRef>> reuse_read,  //
                                                Optional<Map<String, ObjectRef>> reuse_write);
+
+  TVM_DLL static ScheduleRule MultiLevelTilingWithIntrin(
+      String intrin_name,                           //
+      String structure,                             //
+      Optional<Array<String>> tile_binds,           //
+      Optional<Integer> max_innermost_factor,       //
+      Optional<Array<Integer>> vector_load_lens,    //
+      Optional<Map<String, ObjectRef>> reuse_read,  //
+      Optional<Map<String, ObjectRef>> reuse_write);
+
   /*!
    * \brief Create a rule: add-rfactor to some blocks if needed
    * \param max_jobs_per_core The maximum number of jobs to be launched per CPU core. It sets the
