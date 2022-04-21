@@ -475,6 +475,12 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
 
 TVM_REGISTER_GLOBAL("target.build.hexagon").set_body_typed(BuildHexagon);
 
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_hexagon")
+    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+      CodeGenLLVM* cg = new CodeGenHexagon();
+      *rv = static_cast<void*>(cg);
+    });
+
 }  // namespace codegen
 }  // namespace tvm
 
