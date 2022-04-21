@@ -32,7 +32,7 @@ void ApplyTensorization(const tir::Schedule& sch, const String& func_name,
                         const tir::PrimFuncNode* func, bool vectorize_init_loop) {
   std::vector<std::pair<std::string, std::function<void(tir::BlockRV)>>> jobs;
 
-  tir::PostOrderVisit(func->body, [=, &jobs](const ObjectRef& obj) -> bool {
+  tir::PostOrderVisit(func->body, [=, &jobs](const ObjectRef& obj) {
     if (const auto* block = obj.as<tir::BlockNode>()) {
       tir::StmtSRef block_sref = sch->GetSRef(block);
       if (Optional<String> intrin_name =
@@ -57,7 +57,6 @@ void ApplyTensorization(const tir::Schedule& sch, const String& func_name,
         }
       }
     }
-    return true;
   });
 
   for (auto kv : jobs) {
