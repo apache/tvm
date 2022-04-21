@@ -118,9 +118,9 @@ int TVMAotExecutor_Run(TVMAotExecutor* executor) {
 }
 
 int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
-                        const DLDevice* device) {
+                        const DLDevice device) {
   executor->module_handle = module_handle;
-  executor->device = *device;
+  executor->device = device;
 
   // get a pointer to the PackedFunc get_c_metadata() which gives us access to the top-level
   // metadata structure
@@ -186,9 +186,9 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
   return status;
 }
 
-int TVMAotExecutor_Create(TVMModuleHandle module_handle, const DLDevice* device,
+int TVMAotExecutor_Create(TVMModuleHandle module_handle, const DLDevice device,
                           TVMAotExecutor** executor) {
-  tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(**executor), *device, (void**)executor);
+  tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(**executor), device, (void**)executor);
   if (err != kTvmErrorNoError) {
     return -1;
   }

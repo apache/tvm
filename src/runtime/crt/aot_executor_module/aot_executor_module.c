@@ -57,14 +57,14 @@ int32_t TVMAotExecutorModule_Create(TVMValue* args, int* tcodes, int nargs, TVMV
     return kTvmErrorExecutorModuleBadContext;
   }
 
-  TVMAotExecutor_Create(args[0].v_handle, &dev, &aot_executor.executor);
+  TVMAotExecutor_Create(args[0].v_handle, dev, &aot_executor.executor);
 
   TVMModuleHandle out_mod;
-  int ret_value = TVMModCreateFromCModule(&aot_executor.mod, &out_mod);
-  if (ret_value != 0) {
+  int status = TVMModCreateFromCModule(&aot_executor.mod, &out_mod);
+  if (status != 0) {
     ret_tcodes[0] = kTVMNullptr;
     TVMAotExecutor_Release(aot_executor.executor, dev);
-    return ret_value;
+    return status;
   }
 
   ret_values[0].v_handle = out_mod;

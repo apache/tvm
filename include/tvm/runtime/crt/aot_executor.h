@@ -50,21 +50,53 @@ typedef struct TVMAotExecutor {
  * \brief Allocate a new AotExecutor with TVMPlatformMemoryAllocate and initialize it.
  *
  * \param module_handle TVM Module that exposes the functions to call.
- * \param devices runtime execution device.
+ * \param device Runtime execution device, only supports device type kDLCPU, index 0.
  * \param executor Pointer which receives a pointer to the newly-created instance.
  * \return 0 if successful.
  */
-int TVMAotExecutor_Create(TVMModuleHandle module_handle, const DLDevice* devices,
+int TVMAotExecutor_Create(TVMModuleHandle module_handle, const DLDevice device,
                           TVMAotExecutor** executor);
 
+/*!
+ * \brief Release the AoT executor created by TVMAotExecutor_Create().
+ *
+ * \param executor Pointer to executor instance, created by TVMAotExecutor_Create().
+ * \param device Runtime execution device, only supports device type kDLCPU, index 0.
+ * \return 0 if successful.
+ */
 int TVMAotExecutor_Release(TVMAotExecutor* executor, const DLDevice device);
 
+/*!
+ * \brief Return the number of inputs.
+ *
+ * \param executor Pointer to executor instance, created by TVMAotExecutor_Create().
+ * \return Number of inputs.
+ */
 int TVMAotExecutor_GetNumInputs(TVMAotExecutor* executor);
 
+/*!
+ * \brief Return the number of outputs.
+ *
+ * \param executor Pointer to executor instance, created by TVMAotExecutor_Create().
+ * \return Number of outputs.
+ */
 int TVMAotExecutor_GetNumOutputs(TVMAotExecutor* executor);
 
+/*!
+ * \brief Return the input index of the specified input name
+ *
+ * \param executor Pointer to executor instance, created by TVMAotExecutor_Create().
+ * \param name Input name for retrieving index.
+ * \return Input index.
+ */
 int TVMAotExecutor_GetInputIndex(TVMAotExecutor* executor, const char* name);
 
+/*!
+ * \brief Run the generated program.
+ *
+ * \param executor Pointer to executor instance, created by TVMAotExecutor_Create().
+ * \return 0 if successful.
+ */
 int TVMAotExecutor_Run(TVMAotExecutor* executor);
 
 #ifdef __cplusplus
