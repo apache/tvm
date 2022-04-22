@@ -19,7 +19,6 @@ import os
 import sys
 import pytest
 import numpy as np
-import onnx
 
 import tvm.testing
 from tvm import te
@@ -31,6 +30,8 @@ from .conftest import requires_hexagon_toolchain
 
 @requires_hexagon_toolchain
 def test_mobilenet(hexagon_session):
+    import onnx
+
     dtype = "float32"
     model_url = "https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv2-7.onnx"
     model_path = tvm.contrib.download.download_testdata(
