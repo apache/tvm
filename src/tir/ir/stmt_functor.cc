@@ -690,9 +690,10 @@ class IRSubstitute : public StmtExprMutator {
       return it->second;
     }
 
-    if (auto mapped_var = vmap_(buf->data)) {
+    auto new_buffer_var = vmap_(buf->data);
+    if (new_buffer_var.defined() && !new_buffer_var.value().same_as(buf->data)) {
       auto writer = buf.CopyOnWrite();
-      writer->data = Downcast<Var>(mapped_var);
+      writer->data = Downcast<Var>(new_buffer_var);
     }
 
     buf_remap_[key] = buf;
