@@ -274,9 +274,7 @@ def assert_prim_expr_equal(lhs, rhs):
         The left operand.
     """
     ana = tvm.arith.Analyzer()
-    res = ana.simplify(lhs - rhs)
-    equal = isinstance(res, tvm.tir.IntImm) and res.value == 0
-    if not equal:
+    if not ana.can_prove_equal(lhs, rhs):
         raise ValueError("{} and {} are not equal".format(lhs, rhs))
 
 

@@ -850,8 +850,8 @@ def test_inverse_affine_iter_map():
     assert len(res) == 2
     l0_inverse = floormod(floordiv(outputs[0], 4), 16) + outputs[1] * 16
     l1_inverse = floormod(outputs[0], 4) + outputs[2] * 4
-    assert analyzer.simplify(res[l0[0]] - l0_inverse) == 0
-    assert analyzer.simplify(res[l1[0]] - l1_inverse) == 0
+    assert analyzer.can_prove_equal(res[l0[0]], l0_inverse)
+    assert analyzer.can_prove_equal(res[l1[0]], l1_inverse)
 
     # compound case
     l0_0, l0_1 = isplit(l0, 16)
@@ -873,9 +873,9 @@ def test_inverse_affine_iter_map():
         floormod(outputs[0], 4) * 16 + floormod(floordiv(outputs[0], 16), 4) * 4 + outputs[2]
     )
 
-    assert analyzer.simplify(res[l0[0]] - l0_inverse) == 0
-    assert analyzer.simplify(res[l1[0]] - l1_inverse) == 0
-    assert analyzer.simplify(res[l2[0]] - l2_inverse) == 0
+    assert analyzer.can_prove_equal(res[l0[0]], l0_inverse)
+    assert analyzer.can_prove_equal(res[l1[0]], l1_inverse)
+    assert analyzer.can_prove_equal(res[l2[0]], l2_inverse)
 
     # diamond-shape DAG
     l0_0, l0_1 = isplit(l0, 16)
@@ -890,7 +890,7 @@ def test_inverse_affine_iter_map():
     l1_inverse = floormod(outputs[0], 8) * 8 + floormod(floordiv(outputs[0], 8), 8)
     l0_inverse = floormod(l1_inverse, 4) * 16 + floormod(floordiv(l1_inverse, 4), 16)
 
-    assert analyzer.simplify(res[l0[0]] - l0_inverse) == 0
+    assert analyzer.can_prove_equal(res[l0[0]], l0_inverse)
 
 
 def test_free_variables():
