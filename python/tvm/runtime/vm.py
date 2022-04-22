@@ -399,6 +399,7 @@ class VirtualMachine(object):
         self._get_input_index = self.module["get_input_index"]
         self._set_input = self.module["set_input"]
         self._set_one_input = self.module["set_one_input"]
+        self._set_outputs = self.module["set_outputs"]
         self._setup_device(device, memory_cfg)
 
     def _setup_device(self, dev, memory_cfg):
@@ -559,6 +560,24 @@ class VirtualMachine(object):
         if args or kwargs:
             self.set_input(func_name, *args, **kwargs)
         self._invoke_stateful(func_name)
+
+    def invoke_with_outputs(self, func_name, *args):
+        """Invoke a function with pre-allocated outputs tensors.
+        It requires use set_input method before.
+
+        This invoke method allows to avoid excess copying if memory for output tensors
+        was allocated before inference.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+
+        args : list[tvm.runtime.NDArray] or list[DLTensor]
+            The output tensors of the function.
+        """
+        self._set_outputs(func_name, *args)
+        self._invoke(func_name)
 
     def get_outputs(self):
         """Get the outputs from a call to :py:func`invoke_stateful`.

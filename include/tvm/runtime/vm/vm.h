@@ -282,6 +282,13 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
   void SetOneInput(std::string name, const TVMArgValue& tag, const TVMArgValue& tensor);
 
   /*!
+   * \brief Set pre-allocated outputs to a function.
+   * \param name The function name
+   * \param args outputs to the function.
+   */
+  void SetOutputs(std::string name, TVMArgs args);
+
+  /*!
    * \brief Internal hook for profiling the start of an op.
    *
    * This hook is only called on certain ops that are likely to take a
@@ -356,6 +363,9 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
   ObjectPtr<Executable> exec_;
   /*! \brief The function name to inputs mapping. */
   std::unordered_map<std::string, std::vector<ObjectRef>> inputs_;
+  bool set_outputs_enabled_ = false;
+  /*! \brief The function name to pre-allocated outputs mapping. */
+  std::unordered_map<std::string, std::vector<ObjectRef>> outputs_;
   /*!
    * \brief The "physical" devices the VM can execute primitives on. All "device indexes"
    * are w.r.t. this vector. Each entry in this vector must match the corresponding entry

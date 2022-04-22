@@ -224,6 +224,9 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
                                 << "(func_name, index or name, tensor)";
       SetOneInput(args[0], args[1], args[2]);
     });
+  } else if (name == "set_outputs") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetOutputs(args[0], args); });
   } else if (name == "load_late_bound_consts") {
     return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.size(), 1);
@@ -270,6 +273,10 @@ void VirtualMachine::SetOneInput(std::string func_name, const TVMArgValue& tag,
   CreateInputsOrCheckSize(func_name, params_num);
   Device dev = GetDevice(vm_func.param_device_indexes[inp_index]);
   SetInputTensorWithIndex(inputs_[func_name], tensor, inp_index, dev);
+}
+
+void VirtualMachine::SetOutputs(std::string name, TVMArgs args) {
+  set_outputs_enabled_ = true;
 }
 
 int64_t VirtualMachine::GetInputIndexFromVMFunction(const std::string& func_name,
@@ -765,6 +772,7 @@ void VirtualMachine::RunLoop() {
         auto caller_return_register = frames_.back().caller_return_register;
 
         if (PopFrame() == frame_start) {
+          set_outputs_enabled_ = false;
           return;
           // Otherwise we are just returning from a local call.
         } else {
