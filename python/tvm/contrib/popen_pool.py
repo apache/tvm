@@ -93,8 +93,10 @@ class PopenWorker:
     initargs: Tuple[object]
         A tuple of args for the initializer
 
-    maximum_uses: int or None
-        The maximum number of times a process can be used before being recycled
+    maximum_uses: Optional[int]
+        The maximum number of times a process can be used before being recycled,
+        i.e. killed and restarted. If `None`, the process will be reused until
+        an operation times out.
     """
 
     def __init__(self, initializer=None, initargs=(), maximum_uses=None):
@@ -312,8 +314,10 @@ class PopenPoolExecutor:
     initargs: Tuple[object]
         A tuple of args for the initializer
 
-    maximum_process_uses: int or None
-        The maximum number of times each process can be used before being recycled
+    maximum_process_uses: Optional[int]
+        The maximum number of times each process can be used before being recycled,
+        i.e. killed and restarted. If `None`, processes will be reused until an
+        operation times out.
 
     Note
     ----
