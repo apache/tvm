@@ -1424,9 +1424,9 @@ class OperatorConverter(object):
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
         lhs_tensor = input_tensors[0]
-        lhs_expr = self.get_expr(lhs_tensor.tensor_idx)
+        lhs_expr = self.get_tensor_expr(lhs_tensor)
         rhs_tensor = input_tensors[1]
-        rhs_expr = self.get_expr(rhs_tensor.tensor_idx)
+        rhs_expr = self.get_tensor_expr(rhs_tensor)
         out = relay_op(lhs_expr, rhs_expr)
 
         return out
