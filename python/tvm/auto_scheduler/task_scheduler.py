@@ -577,8 +577,12 @@ class PrintTableInfo(TaskSchedulerCallback):
             return
 
         _ffi_api.PrintTitle("Task Scheduler")
-        print("|  ID  | Latency (ms) | Speed (GFLOPS) | Trials |")
-        print("-------------------------------------------------")
+        print(
+            "|  ID  |                           Task Name                           | Latency (ms) | Speed (GFLOPS) | Trials |"
+        )
+        print(
+            "-----------------------------------------------------------------------------------------------------------------"
+        )
 
         # content
         for i in range(len(task_scheduler.tasks)):
@@ -588,6 +592,7 @@ class PrintTableInfo(TaskSchedulerCallback):
                 if task_scheduler.best_costs[i] < 1e9
                 else "-"
             )
+            task_name = task_scheduler.task[i].desc
             speed_str = (
                 "%.2f"
                 % (task_scheduler.tasks[i].compute_dag.flop_ct / task_scheduler.best_costs[i] / 1e9)
@@ -595,8 +600,13 @@ class PrintTableInfo(TaskSchedulerCallback):
                 else "-"
             )
             trials_str = "%d" % (task_scheduler.task_cts[i] * task_scheduler.num_measures_per_round)
-            print("| %4s | %12s | % 14s | %6s |" % (id_str, latency_str, speed_str, trials_str))
-        print("-------------------------------------------------")
+            print(
+                "| %4s | %40s | %12s | % 14s | %6s |"
+                % (id_str, task_name, latency_str, speed_str, trials_str)
+            )
+        print(
+            "-----------------------------------------------------------------------------------------------------------------"
+        )
 
         # overall info
         if all(cost < 1e9 for cost in task_scheduler.best_costs):
@@ -605,12 +615,7 @@ class PrintTableInfo(TaskSchedulerCallback):
             total_latency_str = "-"
         print(
             "Estimated total latency: %s ms\tTrials: %d\tUsed time : %.0f s\tNext ID: %d\t"
-            % (
-                total_latency_str,
-                task_scheduler.ct,
-                time.time() - task_scheduler.tic,
-                task_id,
-            )
+            % (total_latency_str, task_scheduler.ct, time.time() - task_scheduler.tic, task_id,)
         )
 
 
@@ -638,10 +643,6 @@ class LogEstimatedLatency(TaskSchedulerCallback):
         with open(self.log_file, "a") as filep:
             filep.write(
                 "ElapsedTime(s)\t%.0f\tEstimatedLatency(ms)\t%s\tTrials\t%d\n"
-                % (
-                    time.time() - task_scheduler.tic,
-                    total_latency_str,
-                    task_scheduler.ct,
-                )
+                % (time.time() - task_scheduler.tic, total_latency_str, task_scheduler.ct,)
             )
             filep.flush()
