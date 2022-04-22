@@ -17,17 +17,8 @@
  * under the License.
  */
 
-#include "../hexagon_buffer.h"
-
 #include <gtest/gtest.h>
-<<<<<<<< HEAD:src/runtime/hexagon/hexagon_buffer_tests.cc
-<<<<<<< HEAD:tests/cpp/runtime/hexagon_buffer.cc
-#include <hexagon/hexagon_buffer.h>
-=======
-#include "hexagon_buffer.h"
->>>>>>> 499d5ee4d (HexagonBuffer tests running in sim):src/runtime/hexagon/hexagon/hexagon_buffer_tests.cc
-========
->>>>>>>> 2300f1904 (move to new tests directory):src/runtime/hexagon/hexagon/tests/hexagon_buffer_tests.cc
+#include "../hexagon_buffer.h"
 #include <tvm/runtime/container/optional.h>
 
 using namespace tvm::runtime;

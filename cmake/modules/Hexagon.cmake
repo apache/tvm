@@ -123,6 +123,7 @@ endfunction()
 # Common sources for TVM runtime with Hexagon support
 file_glob_append(RUNTIME_HEXAGON_SRCS
   "${TVMRT_SOURCE_DIR}/hexagon/*.cc"
+  "${TVMRT_SOURCE_DIR}/hexagon/tests/*.cc"
 )
 
 
