@@ -30,6 +30,7 @@
 #include <cmath>
 #include <sstream>
 
+#include "../../rpc/rpc_session.h"
 #include "../graph_executor.h"
 
 namespace tvm {
@@ -69,19 +70,9 @@ class GraphExecutorDebug : public GraphExecutor {
       }
     } else {
       for (size_t index = 0; index < op_execs_.size(); ++index) {
-        std::vector<std::vector<double>> results =
-            RunIndividualNode(index, number, repeat, min_repeat_ms);
-
-        double total = 0.0;
+        std::vector<double> results = RunIndividualNode(index, number, repeat, min_repeat_ms);
         for (size_t cur_repeat = 0; cur_repeat < results.size(); cur_repeat++) {
-          std::vector<double>& timings = results[cur_repeat];
-          double total_in_trial = 0;
-          for (double t : timings) {
-            total_in_trial += t;
-          }
-          total_in_trial /= timings.size();
-          total += total_in_trial;
-          time_sec_per_op[index] = total / results.size();
+          time_sec_per_op[index] = results[cur_repeat];
 
           LOG(INFO) << "Iteration: " << cur_repeat;
           int op = 0;
@@ -105,51 +96,33 @@ class GraphExecutorDebug : public GraphExecutor {
     return os.str();
   }
 
-  std::vector<std::vector<double>> RunIndividualNode(int node_index, int number, int repeat,
-                                                     int min_repeat_ms) {
-    // warmup run
-    // GraphExecutor::Run();
+  std::vector<double> RunIndividualNode(int node_index, int number, int repeat, int min_repeat_ms) {
     std::string tkey = module_->type_key();
 
     // results_in_seconds[a][b] is the bth index run of the ath index repeat
-    std::vector<std::vector<double>> results_in_seconds;
+    std::vector<double> results_in_seconds(repeat, 0);
 
     if (tkey == "rpc") {
       LOG(FATAL) << "RPC measurements should not use RunIndividualNode!";
     }
 
-    for (int i = 0; i < repeat; ++i) {
-      std::vector<Timer> op_timers;
-      double duration_ms = 0.0;
-
-      // Keep timing operations, upping number of repeats until we reach min_repeat_ms
-      do {
-        op_timers.clear();
-        if (duration_ms > 0.0) {
-          number = static_cast<int>(std::max((min_repeat_ms / (duration_ms / number) + 1),
-                                             number * 1.618));  // 1.618 is chosen by random
-        }
-
-        std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds>
-            tbegin, tend;
-        tbegin = std::chrono::high_resolution_clock::now();
-        for (int k = 0; k < number; k++) {
-          if (op_execs_[node_index]) {
-            op_timers.push_back(RunOpHost(node_index));
-          }
-        }
-        tend = std::chrono::high_resolution_clock::now();
-        duration_ms =
-            std::chrono::duration_cast<std::chrono::duration<double>>(tend - tbegin).count() * 1000;
-      } while (duration_ms < min_repeat_ms);
-
-      std::vector<double> timings_in_seconds;
-      for (Timer t : op_timers) {
-        timings_in_seconds.push_back(t->SyncAndGetElapsedNanos() / 1e9);
-      }
-      results_in_seconds.push_back(timings_in_seconds);
+    if (!op_execs_[node_index]) {
+      // don't return anything...
+      return results_in_seconds;
     }
 
+    // assume host runs things which is first device
+    Device& d = devices_[0];
+    PackedFunc time_evaluator = WrapTimeEvaluator(
+        TypedPackedFunc<void()>([this, node_index]() { this->RunOpHost(node_index); }), d, number,
+        repeat, min_repeat_ms);
+    std::string result = time_evaluator();
+    const double* results_arr = reinterpret_cast<const double*>(result.data());
+    size_t double_bytes = sizeof(double);
+    assert(result.size() / double_bytes == repeat);
+    for (int i = 0; i < result.size() / double_bytes; i++) {
+      results_in_seconds[i] = results_arr[i];
+    }
     return results_in_seconds;
   }
 
@@ -405,7 +378,7 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
           ICHECK_GT(number, 0);
           ICHECK_GT(repeat, 0);
           ICHECK_GE(min_repeat_ms, 0);
-          std::vector<std::vector<double>> results =
+          std::vector<double> results =
               this->RunIndividualNode(node_index, number, repeat, min_repeat_ms);
 
           // Have problems returning FloatImm so serialize to string results as hack.
@@ -415,11 +388,8 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
           s << std::fixed;
           s.precision(std::numeric_limits<double>::max_digits10);
 
-          for (std::vector<double>& row : results) {
-            for (double cur : row) {
-              s << cur << ", ";
-            }
-            s << "\n";
+          for (double cur : results) {
+            s << cur << ", ";
           }
 
           return s.str();

@@ -24,6 +24,7 @@ import tempfile
 import tvm._ffi
 from tvm._ffi.base import string_types
 from tvm.contrib import graph_executor
+from tvm.runtime.module import BenchmarkResult
 
 from ...runtime.profiling import Report
 from . import debug_result
@@ -293,32 +294,37 @@ class GraphModuleDebug(graph_executor.GraphModule):
             The index of the node, see `self.debug_datum.get_graph_nodes`
 
         number: int
-            The number of times to run the node to get a benchmark result.
+            The number of times to run this function for taking average.
+            We call these runs as one `repeat` of measurement.
 
-        repeat: int
-            The number of times to benchmark the nodes.
+        repeat: int, optional
+            The number of times to repeat the measurement.
+            In total, the function will be invoked (1 + number x repeat) times,
+            where the first one is warm up and will be discarded.
+            The returned result contains `repeat` costs,
+            each of which is an average of `number` costs.
 
-        min_repeat_ms: int
-            The minimum consecutive runtime of the node for a benchmark result.
+        min_repeat_ms: int, optional
+            The minimum duration of one `repeat` in milliseconds.
+            By default, one `repeat` contains `number` runs. If this parameter is set,
+            the parameters `number` will be dynamically adjusted to meet the
+            minimum duration requirement of one `repeat`.
+            i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+            will be automatically increased.
 
         Returns
         -------
-        A list of dimensions `number` x `repeat` each one the runtime of the node
-            in seconds.
+        A module BenchmarkResult
         """
         # Results are returned as serialized strings which we deserialize
         ret = self._run_individual_node(index, number, repeat, min_repeat_ms)
         answer = []
-        for line in ret.split("\n"):
-            cur_results = []
-            if line.strip() == "":
+        for value in ret.split(","):
+            if value.strip() == "":
                 continue
-            for value in line.split(","):
-                if value.strip() == "":
-                    continue
-                cur_results.append(float(value))
-            answer.append(cur_results)
-        return answer
+            answer.append(float(value))
+
+        return BenchmarkResult(answer)
 
     def profile(self, collectors=None, **input_dict):
         """Run forward execution of the graph and collect overall and per-op
