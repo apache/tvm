@@ -21,7 +21,6 @@
 from tvm import topi
 from .generic import *
 from .. import op as _op
-from .generic import is_depthwise_conv2d
 
 # --- Op strategy registration
 
@@ -84,7 +83,7 @@ def conv2d_strategy_hexagon(attrs, inputs, out_type, target):
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
     else:  # group_conv2d
-        raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
+        raise RuntimeError(f"Unsupported group_conv2d layout {layout}")
 
     return strategy
 
