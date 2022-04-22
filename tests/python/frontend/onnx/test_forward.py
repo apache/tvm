@@ -5101,7 +5101,6 @@ unsupported_onnx_tests = [
     "test_castlike_STRING_to_FLOAT_expanded",
     "test_convtranspose_autopad_same",
     "test_convtranspose_dilations",
-    "test_convtranspose_output_shape",
     "test_cumsum_1d",
     "test_cumsum_1d_exclusive",
     "test_cumsum_1d_reverse",
