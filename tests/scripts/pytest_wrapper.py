@@ -22,6 +22,9 @@ from pathlib import Path
 from typing import List, Optional
 import os
 import urllib.parse
+import logging
+
+from cmd_utils import init_log
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -101,6 +104,7 @@ def show_failure_help(failed_suites: List[str]) -> None:
         print("No test failures detected")
         return
 
+    print(f"Report flaky test shortcut: {make_issue_url(failed_node_ids)}")
     print("=============================== PYTEST FAILURES ================================")
     print(
         "These pytest suites failed to execute. The results can be found in the "
@@ -116,18 +120,15 @@ def show_failure_help(failed_suites: List[str]) -> None:
     print(textwrap.indent(repro, prefix="    "))
     print("")
 
-    print(
-        "If you believe these test failures are spurious or are not due to this change, "
-        f"please file an issue: {make_issue_url(failed_node_ids)}"
-    )
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Print information about a failed pytest run")
     args, other = parser.parse_known_args()
+    init_log()
+
     try:
         show_failure_help(failed_suites=other)
     except Exception as e:
         # This script shouldn't ever introduce failures since it's just there to
         # add extra information, so ignore any errors
-        print(e)
+        logging.error(str(e))
