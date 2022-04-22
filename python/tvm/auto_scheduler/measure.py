@@ -583,6 +583,9 @@ class LocalRPCMeasureContext:
             enable_cpu_cache_flush,
             device,
         )
+        self.key = device_key
+        self.host = "127.0.0.1"
+        self.port = self.tracker.port
         # Wait for the processes to start
         time.sleep(0.5)
 
@@ -1211,6 +1214,66 @@ def _rpc_run_worker(args):
     return res
 
 
+def rpc_runner_run_parallel(args):
+    """Run function of RPCRunner to test the performance of the input BuildResults.
+
+    Parameters
+    ----------
+    args : Tuple[MeasureInput, BuildResult, ...]
+        Parallel number plus the rest of the arguments to `rpc_runner_run`.
+    Returns
+    -------
+    res : map[_rpc_run_worker]
+        The parallel rpc worker.
+    """
+    (
+        n_parallel,
+        inputs,
+        build_results,
+        key,
+        host,
+        port,
+        priority,
+        timeout,
+        number,
+        repeat,
+        min_repeat_ms,
+        cooldown_interval,
+        enable_cpu_cache_flush,
+        verbose,
+        device_id,
+    ) = args
+    # This pool is not doing computationally intensive work, so we can use threads
+    pool = multiprocessing.pool.ThreadPool(n_parallel)
+    tuple_res = pool.map(
+        _rpc_run_worker,
+        [
+            (
+                inp.serialize(),
+                build_res,
+                key,
+                host,
+                port,
+                priority,
+                timeout,
+                number,
+                repeat,
+                min_repeat_ms,
+                cooldown_interval,
+                enable_cpu_cache_flush,
+                verbose,
+                device_id,
+            )
+            for inp, build_res in zip(inputs, build_results)
+        ],
+    )
+    pool.terminate()
+    pool.join()
+    del pool
+
+    return tuple_res
+
+
 @tvm._ffi.register_func("auto_scheduler.rpc_runner.run")
 def rpc_runner_run(
     inputs,
@@ -1285,7 +1348,7 @@ def rpc_runner_run(
         The measure results of these MeasureInputs.
     """
     assert len(inputs) == len(build_results), "Measure input size should be equal to build results"
-    # This pool is not doing computationally intensive work, so we can use threads
+
     executor = PopenPoolExecutor(n_parallel)
     tuple_res = executor.map_with_error_catching(
         _rpc_run_worker,
