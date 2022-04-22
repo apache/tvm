@@ -18,7 +18,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <hexagon/hexagon/hexagon_buffer.h>
+#include <hexagon/hexagon_buffer.h>
 #include <tvm/runtime/container/optional.h>
 
 using namespace tvm::runtime;

@@ -31,7 +31,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "../../workspace_pool.h"
+#include "../workspace_pool.h"
 #include "hexagon_buffer.h"
 #include "hexagon_common.h"
 

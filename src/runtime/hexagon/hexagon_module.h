@@ -43,26 +43,22 @@ namespace runtime {
  * \param obj_str       String with the object file data.
  * \param ir_str        String with the disassembled LLVM IR source.
  * \param bc_str        String with the bitcode LLVM IR.
- * \param packed_c_abi  Set of names of functions using PackedC calling
- *                      convention.
  */
 Module HexagonModuleCreate(std::string data, std::string fmt,
                            std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
-                           std::string obj_str, std::string ir_str, std::string bc_str,
-                           const std::set<std::string>& packed_c_abi);
+                           std::string obj_str, std::string ir_str, std::string bc_str);
 
 /*!
-  \brief Module implementation for managing cross compiled hexagon
-         binaries on a host machine. Base class for the HexagonModuleNode
-         used in offload mode. See docstring for HexagonModuleCreate for
+  \brief Module implementation for compiled Hexagon binaries. It is suitable
+         for managing cross-compiled Hexagon code on a host machine.
+         See docstring for HexagonModuleCreate for
          construction parameter details.
  */
-class HexagonHostModuleNode : public runtime::ModuleNode {
+class HexagonModuleNode : public runtime::ModuleNode {
  public:
-  HexagonHostModuleNode(std::string data, std::string fmt,
-                        std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
-                        std::string obj_str, std::string ir_str, std::string bc_str,
-                        const std::set<std::string>& packed_c_abi);
+  HexagonModuleNode(std::string data, std::string fmt,
+                    std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
+                    std::string obj_str, std::string ir_str, std::string bc_str);
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override;
   std::string GetSource(const std::string& format) override;
   const char* type_key() const final { return "hexagon"; }
@@ -77,7 +73,6 @@ class HexagonHostModuleNode : public runtime::ModuleNode {
   std::string obj_;
   std::string ir_;
   std::string bc_;
-  std::set<std::string> packed_c_abi_funcs_;
 };
 
 }  // namespace runtime

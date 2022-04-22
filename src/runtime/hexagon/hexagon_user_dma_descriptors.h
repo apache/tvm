@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_USER_DMA_DESCRIPTORS_H_
-#define TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_USER_DMA_DESCRIPTORS_H_
+#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_USER_DMA_DESCRIPTORS_H_
+#define TVM_RUNTIME_HEXAGON_HEXAGON_USER_DMA_DESCRIPTORS_H_
 
 namespace tvm {
 namespace runtime {
@@ -318,4 +318,4 @@ inline void dma_desc_set_dstwidthoffset(void* dma_desc_ptr, unsigned int v) {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_USER_DMA_DESCRIPTORS_H_
+#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_USER_DMA_DESCRIPTORS_H_
