@@ -22,7 +22,7 @@
 #
 # Usage: build.sh <CONTAINER_TYPE> [--tag <DOCKER_IMAGE_TAG>]
 #                [--dockerfile <DOCKERFILE_PATH>] [-it]
-#                [--net=host] [--cache-from <IMAGE_NAME>]
+#                [--net=host] [--cache-from <IMAGE_NAME>] [--cache]
 #                [--name CONTAINER_NAME] [--context-path <CONTEXT_PATH>]
 #                [--spec DOCKER_IMAGE_SPEC]
 #                [<COMMAND>]

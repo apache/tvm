@@ -219,31 +219,26 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
 def docs(
     tutorial_pattern: Optional[str] = None,
     full: bool = False,
-    cpu: bool = False,
     interactive: bool = False,
     skip_build: bool = False,
     docker_image: Optional[str] = None,
 ) -> None:
     """
     Build the documentation from gallery/ and docs/. By default this builds only
-    the Python docs.
+    the Python docs without any tutorials.
 
     arguments:
-    full -- Build all language docs, not just Python
-    precheck -- Run Sphinx precheck script
-    tutorial-pattern -- Regex for which tutorials to execute when building docs (can also be set via TVM_TUTORIAL_EXEC_PATTERN)
-    cpu -- Run with the ci-cpu image and use CMake defaults for building TVM (if no GPUs are available)
+    full -- Build all language docs, not just Python (this will use the 'ci_gpu' Docker image)
+    tutorial-pattern -- Regex for which tutorials to execute when building docs (this will use the 'ci_gpu' Docker image)
     skip_build -- skip build and setup scripts
     interactive -- start a shell after running build / test scripts
     docker-image -- manually specify the docker image to use
     """
     build_dir = get_build_dir("gpu")
-    if cpu and full:
-        clean_exit("--full cannot be used with --cpu")
 
     extra_setup = []
     image = "ci_gpu" if docker_image is None else docker_image
-    if cpu:
+    if not full and tutorial_pattern is None:
         # TODO: Change this to tlcpack/docs once that is uploaded
         image = "ci_cpu" if docker_image is None else docker_image
         build_dir = get_build_dir("cpu")
