@@ -34,7 +34,6 @@ MODEL_HOME = "test_model"
 
 
 def mkdir(path):
-    # init
     path = path.strip()
     path = path.rstrip("\\")
 
