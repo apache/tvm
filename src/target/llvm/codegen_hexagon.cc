@@ -280,6 +280,59 @@ void ProcessLLVMOptions(const std::vector<std::string>& llvm_vec) {
 
   llvm::cl::ParseCommandLineOptions(llvm_vec.size(), args);
 }
+
+struct CodeGenOptions {
+  explicit CodeGenOptions(const Optional<Array<String>>& opts);
+  bool emit_asm_ = false;
+  bool emit_obj_ = true;
+  bool emit_so_ = true;
+  bool emit_llvm_ = true;
+};
+
+CodeGenOptions::CodeGenOptions(const Optional<Array<String>>& opts) {
+  // The supported options are
+  //   emit-asm=0|1
+  //   emit-obj=0|1
+  //   emit-so=0|1
+  //   emit-llvm=0|1
+  // with 1 being the default value, if not specified.
+  // Right now parsing is specifically handling these cases, and may need to
+  // be generalized in the future.
+  if (!opts) return;
+
+  for (std::string op : opts.value()) {
+    bool val = true;
+    size_t eq = op.find('=');
+    if (eq != std::string::npos) {
+      char* end_pos;
+      int v = std::strtol(&op[eq + 1], &end_pos, 10);
+      std::string op_name = op.substr(0, eq);
+      if (end_pos != op.c_str() + op.size() || (v != 0 && v != 1)) {
+        LOG(WARNING) << "Invalid value '" << op.substr(eq + 1) << "' for option " << op_name
+                     << ", ignoring option";
+        continue;
+      }
+      val = static_cast<bool>(v);
+      op = op_name;
+    }
+    if (op == "emit-asm") {
+      emit_asm_ = val;
+    } else if (op == "emit-obj") {
+      emit_obj_ = val;
+    } else if (op == "emit-so") {
+      emit_so_ = val;
+    } else if (op == "emit-llvm") {
+      emit_llvm_ = val;
+    } else {
+      LOG(WARNING) << "Ignoring unknown option: " << op;
+    }
+  }
+  if (emit_so_ && !emit_obj_) {
+    LOG(WARNING) << "Emitting shared library requires emitting object code, setting emit-obj=1";
+    emit_obj_ = true;
+  }
+}
+
 }  // namespace
 
 runtime::Module BuildHexagon(IRModule mod, Target target) {
@@ -310,6 +363,8 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
         break;
     }
   }
+
+  CodeGenOptions cg_opt(target->GetAttr<Array<String>>("codegen-options"));
 
   // The vector of LLVM options is treated at "argv" from "main(argc, argv)". The entry at
   // position 0 is the name of the executable, and is ignored by the LLVM cl::option parser.
@@ -422,12 +477,20 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
     return std::make_pair(file.error(), std::string(file_name.c_str()));
   };
 
-  std::string asm_str = EmitToString(*module.get(), Asm);
-  std::string obj_str = EmitToString(*module.get(), Obj);
-  std::string ir_str = EmitToString(*module.get(), IR);
-  std::string bc_str = EmitToString(*module.get(), BC);
+  std::string asm_str = cg_opt.emit_asm_ ? EmitToString(*module.get(), Asm) : "";
+  std::string obj_str = cg_opt.emit_obj_ ? EmitToString(*module.get(), Obj) : "";
+  std::string ir_str = cg_opt.emit_llvm_ ? EmitToString(*module.get(), IR) : "";
+  std::string bc_str = cg_opt.emit_llvm_ ? EmitToString(*module.get(), BC) : "";
 
-  std::string o_name = SaveToFile(obj_str, "o").second;
+  std::string o_name = cg_opt.emit_obj_ ? SaveToFile(obj_str, "o").second : "";
+
+  if (!cg_opt.emit_so_) {
+    // If the shared object has not been generated, return an empty module.
+    std::string empty;
+    return runtime::HexagonModuleCreate(empty, empty, {}, empty, empty, empty, empty);
+  }
+
+  ICHECK(cg_opt.emit_obj_) << "Must generate object code when shared library is required";
   std::string so_name(o_name, 0, o_name.size() - 1);
   so_name += "so";
 

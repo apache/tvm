@@ -398,6 +398,7 @@ TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Bool>("link-params", Bool(false))
     .add_attr_option<Array<String>>("llvm-options")
+    .add_attr_option<Array<String>>("codegen-options")
     .set_default_keys({"hexagon"});
 
 TVM_REGISTER_TARGET_KIND("stackvm", kDLCPU)  // line break

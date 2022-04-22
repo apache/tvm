@@ -534,6 +534,8 @@ def hexagon(cpu_ver="v66", **kwargs):
         error if invalid. Does not affect codegen.
     llvm_options : str or list of str (default: None)
         User defined compiler arguments.
+    codegen_options : str or list of str (default: None)
+        Options for TVM codegen.
     use_qfloat : bool (default: True for cpu_ver >= v68, False otherwise)
         Whether to use QFloat HVX instructions.
     use_ieee_fp : bool (default: False)
@@ -572,6 +574,7 @@ def hexagon(cpu_ver="v66", **kwargs):
         "hvx": 128,
         "sim_options": None,
         "llvm_options": None,
+        "codegen_options": None,
         "use_qfloat": arch_version >= 68,
         "use_ieee_fp": False,
         "link_params": False,
@@ -682,7 +685,7 @@ def hexagon(cpu_ver="v66", **kwargs):
     def create_llvm_options(cpu_ver, config):  # pylint: disable=unused-argument
         """Create LLVM options string."""
 
-        llvm_options = config["llvm_options"]
+        llvm_options = config["llvm_options"] or ""
 
         # TVM's option parser doesn't allow '=' in values, but '=' can
         # appear in LLVM flags. Replace it with '@', since it's unlikely
@@ -696,10 +699,10 @@ def hexagon(cpu_ver="v66", **kwargs):
     def create_tvm_options(cpu_ver, config):  # pylint: disable=unused-argument
         """Create TVM target features string."""
 
-        features = {
-            "link_params": "link-params",
-        }
-        opts = ""
+        codegen_options = (config["codegen_options"] or "").strip()
+        opts = "--codegen-options=" + ",".join(codegen_options.split()) if codegen_options else ""
+
+        features = {"link_params": "link-params"}
         for k in config:
             if k in features:
                 opts += " --" + features[k] + "=" + str(config[k])

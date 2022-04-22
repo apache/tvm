@@ -61,6 +61,7 @@ std::string HexagonModuleNode::GetSource(const std::string& format) {
 void HexagonModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
   std::string fmt = runtime::GetFileFormat(file_name, format);
   if (fmt == "so" || fmt == "dll" || fmt == "hexagon") {
+    ICHECK(!data_.empty()) << "Module code not available";
     std::string meta_file = GetMetaFilePath(file_name);
     SaveMetaDataToFile(meta_file, fmap_);
 #if !defined(__APPLE__)
