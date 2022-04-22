@@ -598,13 +598,15 @@ endif()
 target_link_libraries(tvm PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
-include(FetchContent)
-FetchContent_Declare(googletest SOURCE_DIR "${USE_HEXAGON_SDK}/utils/googletest/gtest")
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
-target_link_libraries(tvm_runtime PUBLIC gtest)
-target_link_libraries(tvm PUBLIC gtest) # workaround
-include_directories("${USE_HEXAGON_SDK}/utils/googletest/gtest/include")
+if(BUILD_FOR_HEXAGON)
+  include(FetchContent)
+  FetchContent_Declare(googletest SOURCE_DIR "${USE_HEXAGON_SDK}/utils/googletest/gtest")
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
+  target_link_libraries(tvm_runtime PUBLIC gtest)
+  target_link_libraries(tvm PUBLIC gtest) # workaround
+  include_directories("${USE_HEXAGON_SDK}/utils/googletest/gtest/include")
+endif()
 
 # Set flags for clang
 include(cmake/modules/ClangFlags.cmake)
@@ -642,7 +644,6 @@ if(GTEST_FOUND)
   tvm_file_glob(GLOB_RECURSE TEST_SRCS tests/cpp/*.cc)
   add_executable(cpptest ${TEST_SRCS})
   # include runtime files for unit testing
-  target_include_directories(cpptest PUBLIC "src/runtime")
   target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main GTest::gmock pthread dl)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
@@ -657,7 +658,9 @@ add_custom_target(runtime DEPENDS tvm_runtime)
 # Installation rules
 install(TARGETS tvm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
-install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
+if(BUILD_FOR_HEXAGON)
+  install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
+endif()
 
 if (INSTALL_DEV)
   install(
