@@ -578,10 +578,13 @@ class PrintTableInfo(TaskSchedulerCallback):
 
         _ffi_api.PrintTitle("Task Scheduler")
         print(
-            "|  ID  |                       Task Description                        | Latency (ms) | Speed (GFLOPS) | Trials |"
+            "|  ID  "
+            "|                       Task Description                        "
+            "| Latency (ms) | Speed (GFLOPS) | Trials |"
         )
         print(
-            "-----------------------------------------------------------------------------------------------------------------"
+            "-----------------------------------------------------------------"
+            "------------------------------------------------"
         )
 
         # content
