@@ -202,3 +202,19 @@ def terminate_rpc_servers():
     yield []
     if serial == "simulator":
         os.system("ps ax | grep tvm_rpc_x86 | awk '{print $1}' | xargs kill")
+
+
+aot_host_target = tvm.testing.parameter(
+    "c",
+    "llvm -keys=hexagon -link-params=0 -mattr=+hvxv68,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp -mcpu=hexagonv68 -mtriple=hexagon",
+)
+
+
+@tvm.testing.fixture
+def aot_target(aot_host_target):
+    if aot_host_target == "c":
+        yield tvm.target.hexagon("v68")
+    elif aot_host_target.startswith("llvm"):
+        yield aot_host_target
+    else:
+        assert False, "Incorrect AoT host target: {aot_host_target}. Options are [c, llvm]."
