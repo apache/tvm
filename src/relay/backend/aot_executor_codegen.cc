@@ -1234,11 +1234,11 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
     Target target_host;
     for (const auto& it : tmp) {
       auto dev_type = it.first.as<tir::IntImmNode>();
-      if (!target_host.defined() && it.second->kind->device_type == kDLCPU) {
+      // TODO(tvm-team): AoT only works with kDLCPU device type. We can remove kDLHexagon
+      // here once we refactored kDLHexagon to kDLCPU.
+      if (!target_host.defined() && ((it.second->kind->device_type == kDLCPU) ||
+                                     (it.second->kind->device_type == kDLHexagon))) {
         target_host = it.second;
-      }
-      if (!target_host.defined() && it.second->kind->device_type == kDLHexagon) {
-        target_host = *(new Target("c"));
       }
       ICHECK(dev_type);
       targets[static_cast<DLDeviceType>(dev_type->value)] = it.second;
