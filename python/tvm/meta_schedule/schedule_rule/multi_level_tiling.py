@@ -86,13 +86,12 @@ class MultiLevelTiling(ScheduleRule):
 
 @register_object("meta_schedule.MultiLevelTilingWithIntrin")
 class MultiLevelTilingWithIntrin(ScheduleRule):
-    """Multi-level tiling with reuse.
+    """Extension of MultiLevelTiling for auto-tensorizing with a single intrinsic.
 
     Parameters
     ----------
     intrin_name : str
         The name of a tensor intrinsic, must be registerd via TensorIntrin.register(...) beforehand
-
     structure : str
         The tiling structure. Recommended:
         - 'SSRSRS' on CPU
