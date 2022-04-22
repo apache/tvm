@@ -850,8 +850,8 @@ def test_inverse_affine_iter_map():
     assert len(res) == 2
     l0_inverse = floormod(floordiv(outputs[0], 4), 16) + outputs[1] * 16
     l1_inverse = floormod(outputs[0], 4) + outputs[2] * 4
-    assert analyzer.simplify(res[l0[0]] - l0_inverse) == 0
-    assert analyzer.simplify(res[l1[0]] - l1_inverse) == 0
+    assert analyzer.can_prove_equal(res[l0[0]], l0_inverse)
+    assert analyzer.can_prove_equal(res[l1[0]], l1_inverse)
 
     # compound case
     l0_0, l0_1 = isplit(l0, 16)

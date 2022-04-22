@@ -185,6 +185,9 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
         auto fexit = [ctx](TVMArgs, TVMRetValue*) mutable { ctx.reset(); };
         *ret = PackedFunc(fexit);
       });
+    } else if (name == "can_prove_equal") {
+      return PackedFunc(
+          [self](TVMArgs args, TVMRetValue* ret) { *ret = self->CanProveEqual(args[0], args[1]); });
     }
     return PackedFunc();
   };
