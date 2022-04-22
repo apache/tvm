@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "../utils.h"
-#include "tvm/meta_schedule/schedule_rule.h"
 
 namespace tvm {
 namespace tir {
