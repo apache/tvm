@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_USER_DMA_INSTRUCTIONS_H_
-#define TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_USER_DMA_INSTRUCTIONS_H_
+#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_USER_DMA_INSTRUCTIONS_H_
+#define TVM_RUNTIME_HEXAGON_HEXAGON_USER_DMA_INSTRUCTIONS_H_
 
 namespace tvm {
 namespace runtime {
@@ -76,4 +76,4 @@ inline void dmcfgwr(unsigned int dmindex, unsigned int data) {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_USER_DMA_INSTRUCTIONS_H_
+#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_USER_DMA_INSTRUCTIONS_H_

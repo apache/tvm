@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_USER_DMA_REGISTERS_H_
-#define TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_USER_DMA_REGISTERS_H_
+#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_USER_DMA_REGISTERS_H_
+#define TVM_RUNTIME_HEXAGON_HEXAGON_USER_DMA_REGISTERS_H_
 
 namespace tvm {
 namespace runtime {
@@ -275,4 +275,4 @@ static inline unsigned int dm5_get_syndrone_addr(unsigned int cfg) {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_USER_DMA_REGISTERS_H_
+#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_USER_DMA_REGISTERS_H_

@@ -320,17 +320,7 @@ tvm_file_glob(GLOB RUNTIME_SRCS
 )
 
 if(BUILD_FOR_HEXAGON)
-  # Add file implementing posix_memalign when building the runtime as
-  # a shared library.
-  # This function is actually defined in the static libc, but when linking
-  # a shared library, libc is not linked into it. Some runtime systems
-  # don't implement posix_runtime, which causes runtime failires.
-  # To avoid this issue, Hexagon runtime contains an implementation of
-  # posix_memalign, but it should only be used with the dynamic TVM
-  # runtime, since it would cause multiple definition errors with the
-  # static one.
   if(NOT BUILD_STATIC_RUNTIME)
-    list(APPEND RUNTIME_SRCS src/runtime/hexagon/android/hexagon_posix.cc)
     # Allow undefined symbols (there will be some from libc).
     set(TVM_NO_UNDEFINED_SYMBOLS "")
   endif()

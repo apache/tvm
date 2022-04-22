@@ -46,13 +46,6 @@
 namespace tvm {
 namespace codegen {
 
-static std::string get_name(const PrimFunc& f) {
-  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
-  ICHECK(global_symbol.defined())
-      << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
-  return std::string(global_symbol.value());
-}
-
 // Hexagon code generation
 class CodeGenHexagon final : public CodeGenCPU {
  public:
@@ -268,16 +261,6 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::V
 }
 
 namespace {
-// Check if the function matches the TVMBackendPackedCFunc prototype.
-bool UsesExportABI(const PrimFunc& f) {
-  if (f->attrs.defined()) {
-    auto it = f->attrs->dict.find("calling_conv");
-    return it != f->attrs->dict.end() &&
-           Downcast<Integer>((*it).second) == CallingConv::kCPackedFunc;
-  }
-  return false;
-}
-
 DMLC_ATTRIBUTE_UNUSED std::ostream& operator<<(std::ostream& os, const llvm::Module& m) {
   std::string ms;
   llvm::raw_string_ostream sos(ms);
@@ -297,7 +280,6 @@ void ProcessLLVMOptions(const std::vector<std::string>& llvm_vec) {
 
   llvm::cl::ParseCommandLineOptions(llvm_vec.size(), args);
 }
-
 }  // namespace
 
 runtime::Module BuildHexagon(IRModule mod, Target target) {
@@ -463,14 +445,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   int rc = (*f)(so_name, o_names, extra_args);
   ICHECK(rc == 0) << "Failed to link " << so_name;
 
-  // Move it to ExtractFuncInfo?
-  std::set<std::string> export_abi;
-  for (auto kv : mod->functions) {
-    auto f = Downcast<PrimFunc>(kv.second);
-    if (UsesExportABI(f)) export_abi.insert(get_name(f));
-  }
-  return HexagonModuleCreate(so_name, "so", ExtractFuncInfo(mod), asm_str, obj_str, ir_str, bc_str,
-                             export_abi);
+  return HexagonModuleCreate(so_name, "so", ExtractFuncInfo(mod), asm_str, obj_str, ir_str, bc_str);
 }
 
 TVM_REGISTER_GLOBAL("target.build.hexagon").set_body_typed(BuildHexagon);
