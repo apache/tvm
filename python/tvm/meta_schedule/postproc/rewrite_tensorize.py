@@ -29,7 +29,6 @@ class RewriteTensorize(Postproc):
     ----------
     vectorize_init_loop : bool
        Whether or not vectorize the initialization loop produced by DecomposeReduction
-
     """
 
     def __init__(self, vectorize_init_loop=False) -> None:
