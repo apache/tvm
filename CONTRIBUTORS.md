@@ -135,6 +135,7 @@ We do encourage everyone to work anything they are interested in.
 - [Jiawei Liu](https://github.com/ganler): @ganler
 - [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies
 - [Wei Pan](https://github.com/wpan11nv): @wpan11nv
+- [Ashutosh Parkhi](https://github.com/ashutosh-arm): @ashutosh-arm
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
