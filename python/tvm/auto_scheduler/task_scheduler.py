@@ -592,7 +592,7 @@ class PrintTableInfo(TaskSchedulerCallback):
                 if task_scheduler.best_costs[i] < 1e9
                 else "-"
             )
-            task_name = task_scheduler.task[i].desc
+            task_name = task_scheduler.tasks[i].desc
             speed_str = (
                 "%.2f"
                 % (task_scheduler.tasks[i].compute_dag.flop_ct / task_scheduler.best_costs[i] / 1e9)
@@ -601,7 +601,7 @@ class PrintTableInfo(TaskSchedulerCallback):
             )
             trials_str = "%d" % (task_scheduler.task_cts[i] * task_scheduler.num_measures_per_round)
             print(
-                "| %4s | %40s | %12s | % 14s | %6s |"
+                "| %4s | %61s | %12s | % 14s | %6s |"
                 % (id_str, task_name, latency_str, speed_str, trials_str)
             )
         print(
