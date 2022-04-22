@@ -39,12 +39,6 @@ from tvm.relay.backend.contrib.ethosu import op
 
 from . import _ffi_api
 
-# We are currently using copy_constants scheduler In the long run,
-# this should be a single intelligent and a composite scheduler
-# that can perform scheduling based on user inputs such as
-# scratch memory size.
-SCHEDULER = copy_constants
-
 
 class OptimizeLUTs(ExprMutator):
     """A pass to merge an identity operator with a LUT based activation function with
