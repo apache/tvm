@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/container/base.h>
+#include <tvm/meta_schedule/postproc.h>
 
 #include <algorithm>
 
@@ -91,14 +91,15 @@ bool RewriteTensorizeNode::Apply(const tir::Schedule& sch) {
   return true;
 }
 
-Postproc RewriteTensorize(bool vectorize_init_loop) {
+Postproc Postproc::RewriteTensorize(bool vectorize_init_loop) {
   ObjectPtr<RewriteTensorizeNode> n = make_object<RewriteTensorizeNode>();
   n->vectorize_init_loop = vectorize_init_loop;
   return Postproc(n);
 }
 
 TVM_REGISTER_NODE_TYPE(RewriteTensorizeNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocRewriteTensorize").set_body_typed(RewriteTensorize);
+TVM_REGISTER_GLOBAL("meta_schedule.PostprocRewriteTensorize")
+    .set_body_typed(Postproc::RewriteTensorize);
 
 }  // namespace meta_schedule
 }  // namespace tvm

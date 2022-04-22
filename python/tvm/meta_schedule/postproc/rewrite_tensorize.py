@@ -28,7 +28,7 @@ class RewriteTensorize(Postproc):
     Parameters
     ----------
     vectorize_init_loop : bool
-       Whether or not vectorize the initialization loop produced by decompose_reduction
+       Whether or not vectorize the initialization loop produced by DecomposeReduction
 
     """
 
