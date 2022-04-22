@@ -297,6 +297,36 @@ class IndexMap(Object):
         final_indices = mapping_function(*args)
         return IndexMap(args, final_indices)
 
+    def is_equivalent_to(self, other_map: "IndexMap") -> bool:
+        """Return if the index maps are equivalent.
+
+        Parameters
+        ----------
+        other_map: IndexMap
+
+            The IndexMap to which the comparison should be made.
+
+        Returns
+        -------
+        is_equivalent: bool
+
+            True if the two mappings represent the same
+            transformation, otherwise False
+        """
+        if len(self.initial_indices) != len(other_map.initial_indices):
+            return False
+        if len(self.final_indices) != len(other_map.final_indices):
+            return False
+
+        analyzer = tvm.arith.Analyzer()
+
+        mapped_other_final_indices = other_map.map_indices(self.initial_indices)
+        for self_index, other_index in zip(self.final_indices, mapped_other_final_indices):
+            if not analyzer.can_prove_equal(self_index, other_index):
+                return False
+
+        return True
+
     def map_indices(self, indices: List[PrimExpr]) -> List[PrimExpr]:
         """Apply the index map to a set of indices
 
