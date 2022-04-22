@@ -346,6 +346,12 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
   void SetInputTensorWithIndex(std::vector<ObjectRef>& tensors,  // NOLINT(*)
                                const TVMArgValue& tensor, int index, Device dev);
 
+  /*!
+   * \brief Get index of outputs in register_file from frame
+   * \return index
+   */
+  Index GetResultRegisterIndex();
+
  protected:
   /*! \brief The virtual machine's packed function table. */
   std::vector<PackedFunc> packed_funcs_;

@@ -525,6 +525,15 @@ int64_t VirtualMachine::LoadScalarInt(Index r) const {
   return result;
 }
 
+Index VirtualMachine::GetResultRegisterIndex() {
+  Index op_index = 0;
+  while (code_[op_index].op != Opcode::Ret) {
+    ++op_index;
+  }
+
+  return code_[op_index].result;
+}
+
 void VirtualMachine::RunLoop() {
   ICHECK(this->exec_);
   ICHECK(this->code_);
