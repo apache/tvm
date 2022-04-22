@@ -359,7 +359,7 @@ TEST(IRF, Substitute) {
   }
 
   {
-    // test identity substition
+    // test identity substitution
     PrimExpr expr = fmaketest();
     auto f_subst = [&](const Var& var) -> Optional<PrimExpr> { return var; };
     PrimExpr new_expr = Substitute(expr, f_subst);
