@@ -575,7 +575,7 @@ class PipelineRewriter : public StmtExprMutator {
 
 /*!
  * \brief Build the dependency graph among a array of blocks.
- * \param[in] seq The SeqStmt
+ * \param[in] blocks The array of blocks.
  * \param[out] dep_src2dst Optional, a map to store dependency edges from the source to the
  * destination.
  * \param[out] dep_dst2src Optional, a map to store dependency edges from the
