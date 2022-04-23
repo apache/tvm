@@ -534,7 +534,10 @@ class PipelineRewriter : public StmtExprMutator {
         subst_map.Set(pipeline_loop_->loop_var, skewed_loop_var);
       } else {
         // normalize loop range
-        subst_map.Set(pipeline_loop_->loop_var, skewed_loop_var + (start - pipeline_loop_->min));
+        PrimExpr delta = start - pipeline_loop_->min;
+        subst_map.Set(pipeline_loop_->loop_var, skewed_loop_var + delta);
+        Var loop_iter = Downcast<Var>(new_loop_var);
+        inbound = Substitute(inbound, Map<Var, PrimExpr>{{loop_iter, loop_iter + delta}});
       }
       new_block = Downcast<Block>(Substitute(new_block, subst_map));
       stmts.push_back(BlockRealize({}, inbound, new_block));

@@ -27,6 +27,7 @@ def _check(original, transformed):
     mod = tvm.IRModule.from_expr(func)
     mod = tvm.tir.transform.InjectSoftwarePipeline()(mod)
     mod = tvm.tir.transform.Simplify()(mod)
+    print(mod["main"].script())
     tvm.ir.assert_structural_equal(mod["main"], transformed, True)
 
 
@@ -130,6 +131,90 @@ def transformed_simple_compute(
                 T.reads([B[1, tx, 0]])
                 T.writes([C[tx, 15]])
                 C[tx, 15] = B[1, tx, 0] + T.float32(1)
+
+
+@T.prim_func
+def three_stage_compute(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]):
+    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+        for i in T.serial(
+            0,
+            16,
+            annotations={
+                "software_pipeline_stage": [0, 1, 2],
+                "software_pipeline_order": [0, 1, 2],
+            },
+        ):
+            with T.block():
+                T.reads(A[tx, i])
+                T.writes(D[tx, i])
+                B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+                C = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+                with T.block():
+                    T.reads(A[tx, i])
+                    T.writes(B[tx, 0])
+                    B[tx, 0] = A[tx, i] * T.float32(2)
+                with T.block():
+                    T.reads(B[tx, 0])
+                    T.writes(C[tx, 0])
+                    C[tx, 0] = A[tx, 0] + T.float32(2)
+                with T.block():
+                    T.reads(C[tx, 0])
+                    T.writes(D[tx, i])
+                    D[tx, i] = C[tx, 0] + T.float32(1)
+
+
+@T.prim_func
+def transformed_three_stage_compute(
+    A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]
+) -> None:
+    for tx in T.thread_binding(16, thread="threadIdx.x"):
+        with T.block():
+            T.reads(A[tx, 0:16])
+            T.writes(D[tx, 0:16])
+            B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            C = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            with T.block():
+                T.reads(A[tx, 0:2], B[0:2, tx, 0])
+                T.writes(B[0:2, tx, 0], C[0:2, tx, 0])
+                for i in T.unroll(2):
+                    with T.block():
+                        T.reads(A[tx, i])
+                        T.writes(B[0:2, tx, 0])
+                        B[i, tx, 0] = A[tx, i] * T.float32(2)
+                    with T.block():
+                        T.where(1 <= i)
+                        T.reads(B[0:2, tx, 0])
+                        T.writes(C[0:2, tx, 0])
+                        C[(i + 1) % 2, tx, 0] = A[tx, 0] + T.float32(2)
+            with T.block():
+                T.reads(A[tx, 2:16], B[0:2, tx, 0], C[0:2, tx, 0])
+                T.writes(B[0:2, tx, 0], C[0:2, tx, 0], D[tx, 0:14])
+                for i in T.serial(14):
+                    with T.block():
+                        T.reads(A[tx, i + 2])
+                        T.writes(B[0:2, tx, 0])
+                        B[i % 2, tx, 0] = A[tx, i + 2] * T.float32(2)
+                    with T.block():
+                        T.reads(B[0:2, tx, 0])
+                        T.writes(C[0:2, tx, 0])
+                        C[(i + 1) % 2, tx, 0] = A[tx, 0] + T.float32(2)
+                    with T.block():
+                        T.reads(C[0:2, tx, 0])
+                        T.writes(D[tx, i])
+                        D[tx, i] = C[i % 2, tx, 0] + T.float32(1)
+            with T.block():
+                T.reads(B[0:2, tx, 0], C[0:2, tx, 0])
+                T.writes(C[0:2, tx, 0], D[tx, 14:16])
+                for i in T.unroll(2):
+                    with T.block():
+                        T.where(i < 1)
+                        T.reads(B[0:2, tx, 0])
+                        T.writes(C[0:2, tx, 0])
+                        C[(i + 1) % 2, tx, 0] = A[tx, 0] + T.float32(2)
+                    with T.block():
+                        T.reads(C[0:2, tx, 0])
+                        T.writes(D[tx, i + 14])
+                        D[tx, i + 14] = C[i, tx, 0] + T.float32(1)
 
 
 @T.prim_func
@@ -899,6 +984,10 @@ def test_simple_compute():
 
 def test_trivial_pipeline():
     _check(trivial_pipeline, transformed_trivial_pipeline)
+
+
+def test_three_stage_compute():
+    _check(three_stage_compute, transformed_three_stage_compute)
 
 
 def test_dag_interleaving():
