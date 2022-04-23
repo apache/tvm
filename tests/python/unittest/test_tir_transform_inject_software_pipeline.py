@@ -27,7 +27,6 @@ def _check(original, transformed):
     mod = tvm.IRModule.from_expr(func)
     mod = tvm.tir.transform.InjectSoftwarePipeline()(mod)
     mod = tvm.tir.transform.Simplify()(mod)
-    print(mod["main"].script())
     tvm.ir.assert_structural_equal(mod["main"], transformed, True)
 
 
