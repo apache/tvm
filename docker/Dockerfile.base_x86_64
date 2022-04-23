@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,30 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+# CI docker CPU env
+FROM ubuntu:18.04
 
-# install libraries for building c++ core on ubuntu
-apt-get update --fix-missing && apt-get install -y --no-install-recommends \
-    apt-transport-https \
-    ca-certificates \
-    cmake \
-    curl \
-    g++ \
-    gdb \
-    git \
-    graphviz \
-    libcurl4-openssl-dev \
-    libopenblas-dev \
-    libssl-dev \
-    libtinfo-dev \
-    libz-dev \
-    lsb-core \
-    make \
-    ninja-build \
-    parallel \
-    pkg-config \
-    sudo \
-    unzip \
-    wget \
+COPY python/bootstrap-requirements-x86_64.txt /install/python/bootstrap-requirements.txt
+COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
+RUN bash /install/ubuntu1804_install_python.sh
+
+COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
+RUN bash /install/ubuntu_install_core.sh

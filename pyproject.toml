@@ -46,3 +46,9 @@ exclude = '''
   )/
 )
 '''
+
+[tool.poetry]
+name = "apache-tvm"
+authors = []
+version = "0.8.0"
+description = "Open source Deep Learning compliation toolkit"
