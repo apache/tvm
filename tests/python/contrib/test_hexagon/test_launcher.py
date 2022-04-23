@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
 import sys
 import pytest
 import numpy as np
@@ -24,7 +23,6 @@ import tvm.testing
 from tvm import te
 from tvm import relay
 from tvm.relay.backend import Executor, Runtime
-import tvm.contrib.hexagon as hexagon
 
 from .conftest import requires_hexagon_toolchain
 
@@ -254,17 +252,6 @@ def test_graph_executor_multiple_conv2d(hexagon_session):
     expected_output = llvm_graph_mod.get_output(0).numpy()
 
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
-
-
-def _workaround_create_aot_shared():
-    # The C codegen uses TVM/RT functions directly. On Hexagon it should use
-    # functions pointers via __TVMxyz variables. This workaround makes the
-    # runtime symbols visible to the compiled shared library.
-    extra_link_flags = os.environ.get("HEXAGON_SHARED_LINK_FLAGS")
-    extra_options = str(extra_link_flags).split() if extra_link_flags else []
-    return lambda so_name, files, hexagon_arch, options: hexagon.create_aot_shared(
-        so_name, files, hexagon_arch, options=extra_options + options
-    )
 
 
 @requires_hexagon_toolchain
