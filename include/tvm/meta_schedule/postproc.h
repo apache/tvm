@@ -151,7 +151,8 @@ class Postproc : public runtime::ObjectRef {
   /*!
    * \brief Create a postprocessor that applies tensorization to annotated blocks
    * \param vectorize_init_loop Whether or not vectorize the initialization loop produced by
-   * DecomposeReduction \return The postprocessor created.
+   * DecomposeReduction
+   * \return The postprocessor created.
    */
   TVM_DLL static Postproc RewriteTensorize(bool vectorize_init_loop = false);
 
