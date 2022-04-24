@@ -365,6 +365,7 @@ sphinx_gallery_conf = {
     "min_reported_time": 60,
     "expected_failing_examples": [],
     "reset_modules": ("matplotlib", "seaborn", force_gc),
+    "promote_jupyter_magic": True,
 }
 
 autodoc_default_options = {

@@ -102,36 +102,9 @@ else:
 
 import os
 FOLDER = "/root"
-os.environ["FOLDER"] = FOLDER
 # sphinx_gallery_start_ignore
-# Training a model takes a lot of disc space and CPU time, and I don't want to
-# slow down the build of the docs. To solve this problem, we'll mock the
-# problematic methods, but still run most of the code so it serves as a test.
-# Note that this mocking code will not show up on the webpage or Colab notebook.
 import tempfile
-import unittest
-
-# Disable Tensorflow's complaining about misconfigured GPU
-tf.get_logger().setLevel('INFO')
-
-# Do our work in a tempfile instead of the Colab root directory
 FOLDER = tempfile.mkdtemp()
-
-# Don't mess with environment variables for bash
-del os.environ["FOLDER"]
-
-# Rather than download our image files, we will just make blank ones.
-os.mkdir(FOLDER + "/images")
-os.mkdir(FOLDER + "/images/object")
-os.mkdir(FOLDER + "/images/random")
-from PIL import Image
-for category, color in [("object", 0), ("random", 255)]:
-    for i in range(48):
-        img = Image.new("RGB", (100, 100), (color, color, color))
-        img.save(FOLDER + f"/images/{category}/{i:05d}.jpg", "JPEG")
-
-# Make our models directory where the .tflite file will be saved
-os.mkdir(FOLDER + "/models")
 # sphinx_gallery_end_ignore
 
 ######################################################################
@@ -172,25 +145,33 @@ os.mkdir(FOLDER + "/models")
 #         │   │   └── 000000581781.jpg
 #         │   └── random.zip
 #
-# We should also note that Stanford cars has 16k images, while the COCO 2017 validation set is 5k
+# We should also note that Stanford cars has 8k images, while the COCO 2017 validation set is 5k
 # images - it is not a 50/50 split! If we wanted to, we could weight these classes differently
 # during training to correct for this, but training will still work if we ignore it. It should
 # take about **2 minutes** to download the Stanford Cars, while COCO 2017 validation will take
 # **1 minute**.
-#
-#     .. code-block:: bash
-#
-#       %%bash
-#       # Download and extract our car images
-#       mkdir -p $FOLDER/images/object/
-#       curl "http://ai.stanford.edu/~jkrause/car196/car_ims.tgz" -o $FOLDER/images/object.tgz
-#       tar -xf $FOLDER/images/object.tgz --strip-components 1 -C $FOLDER/images/object
-#
-#       # Download and extract other images
-#       mkdir -p $FOLDER/images/random/
-#       curl "http://images.cocodataset.org/zips/val2017.zip" -o $FOLDER/images/random.zip
-#       unzip -jqo $FOLDER/images/random.zip -d $FOLDER/images/random
-#
+
+import os
+import shutil
+import urllib.request
+
+# Download datasets
+os.makedirs(f"{FOLDER}/images")
+urllib.request.urlretrieve(
+    "http://ai.stanford.edu/~jkrause/car196/cars_train.tgz",
+    f"{FOLDER}/images/target.tgz"
+)
+urllib.request.urlretrieve(
+    "http://images.cocodataset.org/zips/val2017.zip",
+    f"{FOLDER}/images/random.zip"
+)
+
+# Extract them and rename their folders
+shutil.unpack_archive(f"{FOLDER}/images/target.tgz", f"{FOLDER}/images")
+shutil.unpack_archive(f"{FOLDER}/images/random.zip", f"{FOLDER}/images")
+shutil.move(f"{FOLDER}/images/cars_train", f"{FOLDER}/images/target")
+shutil.move(f"{FOLDER}/images/val2017", f"{FOLDER}/images/random")
+
 # Loading the Data
 # ----------------
 # Currently, our data is stored on-disk as JPG files of various sizes. To train with it, we'll have
@@ -212,14 +193,13 @@ os.mkdir(FOLDER + "/models")
 # instead of ``0`` to ``255``. We need to be careful not to rescale our categorical labels though, so
 # we'll use a ``lambda`` function.
 
-import tensorflow as tf
-
+IMAGE_SIZE = (64, 64, 3)
 unscaled_dataset = tf.keras.utils.image_dataset_from_directory(
-    FOLDER + "/images",
+    f"{FOLDER}/images",
     batch_size=32,
     shuffle=True,
     label_mode="categorical",
-    image_size=(64, 64),
+    image_size=IMAGE_SIZE[0:2],
 )
 rescale = tf.keras.layers.Rescaling(scale=1.0 / 255)
 full_dataset = unscaled_dataset.map(lambda im, lbl: (rescale(im), lbl))
@@ -232,11 +212,13 @@ full_dataset = unscaled_dataset.map(lambda im, lbl: (rescale(im), lbl))
 # objects to other stuff? We can display some examples from our datasets using ``matplotlib``:
 
 import matplotlib.pyplot as plt
-from os import listdir
 
-print("/images/random contains %d images" % len(listdir(FOLDER + "/images/random/")))
-print("/images/target contains %d images" % len(listdir(FOLDER + "/images/object/")))
+num_target_class = len(os.listdir(f"{FOLDER}/images/target/"))
+num_random_class = len(os.listdir(f"{FOLDER}/images/random/"))
+print(f"{FOLDER}/images/target contains {num_target_class} images")
+print(f"{FOLDER}/images/random contains {num_random_class} images")
 
+# Show some samples and their labels
 SAMPLES_TO_SHOW = 10
 plt.figure(figsize=(20, 10))
 for i, (image, label) in enumerate(unscaled_dataset.unbatch()):
@@ -309,21 +291,14 @@ validation_dataset = full_dataset.skip(len(train_dataset))
 #
 # Source MobileNets for transfer learning have been `pretrained by the Tensorflow folks <https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.md>`_, so we
 # can just download the one closest to what we want (the 128x128 input model with 0.25 depth scale).
-#
-#     .. code-block:: bash
-#
-#       %%bash
-#       mkdir -p $FOLDER/models
-#       curl "https://storage.googleapis.com/tensorflow/keras-applications/mobilenet/mobilenet_2_5_128_tf.h5" \
-#         -o $FOLDER/models/mobilenet_2_5_128_tf.h5
-#
 
-IMAGE_SIZE = (64, 64, 3)
-WEIGHTS_PATH = FOLDER + "/models/mobilenet_2_5_128_tf.h5"
-# sphinx_gallery_start_ignore
-# Use random weights instead of ones from the file we did not download
-WEIGHTS_PATH = None
-# sphinx_gallery_end_ignore
+os.makedirs(f"{FOLDER}/models")
+WEIGHTS_PATH = f"{FOLDER}/models/mobilenet_2_5_128_tf.h5"
+urllib.request.urlretrieve(
+    "https://storage.googleapis.com/tensorflow/keras-applications/mobilenet/mobilenet_2_5_128_tf.h5",
+    WEIGHTS_PATH
+)
+
 pretrained = tf.keras.applications.MobileNet(
     input_shape=IMAGE_SIZE, weights=WEIGHTS_PATH, alpha=0.25
 )
@@ -366,11 +341,7 @@ model.compile(
     loss="categorical_crossentropy",
     metrics=["accuracy"],
 )
-# sphinx_gallery_start_ignore
-# Skip training to save time
-model.fit = unittest.mock.create_autospec(model.fit)
-# sphinx_gallery_end_ignore
-model.fit(train_dataset, validation_data=validation_dataset, epochs=3, verbose=2)
+#model.fit(train_dataset, validation_data=validation_dataset, epochs=3, verbose=2)
 
 ######################################################################
 # Quantization
@@ -398,7 +369,7 @@ model.fit(train_dataset, validation_data=validation_dataset, epochs=3, verbose=2
 converter = tf.lite.TFLiteConverter.from_keras_model(model)
 
 def representative_dataset():
-    for image_batch, label_batch in full_dataset.take(3):
+    for image_batch, label_batch in full_dataset.take(10):
         yield [image_batch]
 
 converter.optimizations = [tf.lite.Optimize.DEFAULT]
@@ -418,7 +389,7 @@ quantized_model = converter.convert()
 # tutorial on Google Colab, you'll have to uncomment the last two lines to download the file
 # after writing it.
 
-QUANTIZED_MODEL_PATH = FOLDER + "/models/quantized.tflite"
+QUANTIZED_MODEL_PATH = f"{FOLDER}/models/quantized.tflite"
 with open(QUANTIZED_MODEL_PATH, 'wb') as f:
   f.write(quantized_model)
 #from google.colab import files
@@ -487,29 +458,19 @@ executor = tvm.relay.backend.Executor("aot", {"unpacked-api": True})
 # Convert to the MLF intermediate representation
 with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
     mod = tvm.relay.build(mod, target, runtime=runtime, executor=executor, params=params)
-# sphinx_gallery_start_ignore
-# Mock the generate project function so we can skip installing arduino-cli
-tvm.micro.generate_project = unittest.mock.create_autospec(
-    tvm.micro.generate_project,
-    return_value=unittest.mock.MagicMock()
-)
-# sphinx_gallery_end_ignore
 
 # Generate an Arduino project from the MLF intermediate representation
-shutil.rmtree(FOLDER + "/models/project", ignore_errors=True)
+shutil.rmtree(f"{FOLDER}/models/project", ignore_errors=True)
 arduino_project = tvm.micro.generate_project(
     tvm.micro.get_microtvm_template_projects("arduino"),
     mod,
-    FOLDER + "/models/project",
+    f"{FOLDER}/models/project",
     {
         "arduino_board": "nano33ble",
         "arduino_cli_cmd": "/content/bin/arduino-cli",
         "project_type": "example_project",
     },
 )
-# sphinx_gallery_start_ignore
-os.mkdir(FOLDER + "/models/project")
-# sphinx_gallery_end_ignore
 
 ######################################################################
 # Testing our Arduino Project
@@ -596,7 +557,7 @@ os.mkdir(FOLDER + "/models/project")
 # subject for a different tutorial. To finish up, we'll first test that our program compiles does
 # not throw any compiler errors:
 
-shutil.rmtree(FOLDER + "/models/project/build", ignore_errors=True)
+shutil.rmtree("{FOLDER}/models/project/build", ignore_errors=True)
 arduino_project.build()
 print("Compilation succeeded!")
 
@@ -609,10 +570,10 @@ print("Compilation succeeded!")
 # If you're running on Google Colab, you'll have to uncomment the last two lines to download the file
 # after writing it.
 
-ZIP_FOLDER = FOLDER + "/models/project"
+ZIP_FOLDER = "{FOLDER}/models/project"
 shutil.make_archive(ZIP_FOLDER, 'zip', ZIP_FOLDER)
 #from google.colab import files
-#files.download("/root/models/project.zip")
+#files.download(f"{FOLDER}/models/project.zip")
 # sphinx_gallery_start_ignore
 # Run a few unit tests to make sure the Python code worked
 
@@ -624,8 +585,8 @@ assert len(quantized_model) >= 250000 # Quantized model will be 250 KB - 350 KB
 assert len(quantized_model) <= 350000 # Exact value depends on quantization
 
 # Assert .tflite and .zip files were written to disk
-assert os.path.isfile(FOLDER + "/models/quantized.tflite")
-assert os.path.isfile(FOLDER + "/models/project.zip")
+assert os.path.isfile("{FOLDER}/models/quantized.tflite")
+assert os.path.isfile("{FOLDER}/models/project.zip")
 
 # Assert MLF file was correctly generated
 assert str(mod.executor) == "aot"

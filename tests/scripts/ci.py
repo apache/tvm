@@ -260,7 +260,7 @@ def docs(
             "tlcpack-sphinx-addon==0.2.1",
             "synr==0.5.0",
             "image==1.5.33",
-            "git+https://github.com/guberti/sphinx-gallery.git",
+            "git+https://github.com/guberti/sphinx-gallery.git@ipynb-include-bash",
             "sphinx-rtd-theme==1.0.0",
             "matplotlib==3.3.4",
             "commonmark==0.9.1",
