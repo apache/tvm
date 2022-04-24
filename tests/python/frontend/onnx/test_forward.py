@@ -5047,10 +5047,8 @@ unsupported_onnx_tests = [
     "test_cumsum_2d_negative_axis",
     "test_det_2d",
     "test_det_nd",
-    "test_dropout_default",
     "test_dropout_default_mask",
     "test_dropout_default_mask_ratio",
-    "test_dropout_default_ratio",
     "test_gru_batchwise",
     "test_identity_sequence",
     "test_if_seq",
@@ -6563,6 +6561,36 @@ def test_LinearRegressor(target, dev):
     verify_LinearRegressor((10, 3), (30), (10), targets=10, batch=10)
     verify_LinearRegressor((1, 4), (3), (1))
 
+@tvm.testing.parametrize_targets
+def test_dropout(target, dev):
+    def verify_dropout_radio(input_shape, ratio=0.5):
+        low = np.iinfo(np.int64).min
+        high = np.iinfo(np.int64).max
+        seed = np.random.randint(low, high)
+        data = np.random.uniform(size=input_shape).astype("float32")
+
+        nodes = [
+             make_constant_node("ratio", onnx.TensorProto.FLOAT, (), [ratio])
+        ]
+        nodes.append(helper.make_node("Dropout", ["data", "ratio"], ["output"], seed=seed))
+
+        graph = helper.make_graph(
+            nodes,
+            "dropout_test",
+            inputs=[
+                helper.make_tensor_value_info("data", TensorProto.FLOAT, list(input_shape)),
+            ],
+            outputs=[
+                helper.make_tensor_value_info(
+                    "output", TensorProto.FLOAT, list(input_shape)
+                )
+            ],
+        )
+        model = helper.make_model(graph, producer_name="dropout_test")
+        verify_with_ort_with_inputs(model, [data], freeze_params=True, target=target, dev=dev, use_vm=True)
+    verify_dropout_radio((1,1,64,64))
+    verify_dropout_radio((1,1,64,64), 0.4)
+
 
 if __name__ == "__main__":
     test_flatten()
@@ -6661,3 +6689,4 @@ if __name__ == "__main__":
     test_random_normal()
     test_random_normal_like()
     test_LinearRegressor()
+    test_dropout()

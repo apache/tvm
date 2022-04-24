@@ -4559,6 +4559,20 @@ class Unique(OnnxOpConverter):
         # ONNX unique returns unique, indices, inverse_indices, (optional) counts
         return _expr.TupleWrapper(_expr.Tuple([unique_vals, indices, inverse_indices, counts]), 4)
 
+class Dropout(OnnxOpConverter):
+    '''Operator converter for Dropout'''
+
+    @classmethod
+    def _impl_v12(cls, inputs, attr, params):
+        data = inputs[0]
+        if "ratio" in attr:
+            ratio = attr["ratio"]
+            return _op.nn.dropout(data, ratio)
+        if len(inputs) == 2 or len(inputs) == 3:
+            if isinstance(inputs[1], _expr.Constant):
+                ratio = inputs[1].data.numpy().item()
+                return _op.nn.dropout(data, ratio)
+        return _op.nn.dropout(data)
 
 class Einsum(OnnxOpConverter):
     """Operator converter for Einsum"""
@@ -5093,7 +5107,7 @@ def _get_convert_map(opset):
         "BatchNormalization": BatchNorm.get_converter(opset),
         "InstanceNormalization": InstanceNorm.get_converter(opset),
         # 'LpNormalization'
-        "Dropout": AttrCvt("dropout", {"ratio": "rate"}, ignores=["is_test"]),
+        "Dropout": Dropout.get_converter(opset),
         "Flatten": Flatten.get_converter(opset),
         "LRN": LRN.get_converter(opset),
         # Recurrent Layers
