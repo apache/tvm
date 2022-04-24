@@ -134,6 +134,22 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     ancestor_loops_.pop_back();
   }
 
+  void VisitStmt_(const LetStmtNode* op) final {
+    StmtExprVisitor::VisitExpr(op->value);
+    dom_analyzer_.Bind(op->var, op->value);
+    dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(op->value));
+    StmtExprVisitor::VisitStmt(op->body);
+    dom_map_.erase(op->var.get());
+  }
+
+  void VisitExpr_(const LetNode* op) final {
+    StmtExprVisitor::VisitExpr(op->value);
+    dom_analyzer_.Bind(op->var, op->value);
+    dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(op->value));
+    StmtExprVisitor::VisitExpr(op->body);
+    dom_map_.erase(op->var.get());
+  }
+
   void VisitStmt_(const IfThenElseNode* op) final {
     // Visit condition
     StmtExprVisitor::VisitExpr(op->condition);

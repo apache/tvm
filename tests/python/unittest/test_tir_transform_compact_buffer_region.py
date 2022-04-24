@@ -14,8 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+import sys
 import tvm
-from tvm import tir, te
+from tvm import te
 from tvm.script import tir as T
 
 
@@ -668,19 +670,22 @@ def test_narrow_shape():
     _check(narrow_shape, compacted_narrow_shape)
 
 
+def test_compact_with_let_binding():
+    @T.prim_func
+    def func_with_let_binding():
+        A = T.alloc_buffer((64, 8), "float32")
+        B = T.alloc_buffer((64, 8), "float32")
+        C = T.alloc_buffer((8, 8), "float32")
+        for rk in range(64):
+            for rii, rjj in T.grid(8, 8):
+                C[rii, rjj] = T.float32(0)
+            for riijj in T.serial(8 * 8):
+                rii: T.int32 = riijj // 8
+                rjj: T.int32 = riijj % 8
+                C[rii, rjj] += A[rk, rii] * B[rk, rjj]
+
+    _check(func_with_let_binding, func_with_let_binding)
+
+
 if __name__ == "__main__":
-    test_elementwise()
-    test_unschedulable_block()
-    test_param_access()
-    test_shared_mem()
-    test_warp_mem()
-    test_symbolic()
-    test_complex()
-    test_match_buffer()
-    test_storage_align()
-    test_lower_te()
-    test_padding_pattern()
-    test_mem_access_in_branch_func()
-    test_opaque_access_annotated_func()
-    test_sparse_read_cache()
-    test_narrow_shape()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

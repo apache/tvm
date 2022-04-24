@@ -226,6 +226,7 @@ def alloc_buffer(
 """
 special_stmt - Reads/Writes
 """
+
 @overload
 def reads(read_regions: List[BufferSlice]) -> None: ...
 @overload
@@ -337,6 +338,7 @@ def Assert(condition: Union[PrimExpr, builtins.bool], message: str) -> PrimExpr:
 """
 Scope handler - Loops
 """
+
 @overload
 def serial(
     begin: Union[PrimExpr, int],

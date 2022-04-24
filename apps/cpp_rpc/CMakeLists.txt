@@ -45,7 +45,7 @@ target_include_directories(
   PUBLIC DMLC_PATH
 )
 
-if (BUILD_FOR_ANDROID AND USE_HEXAGON_SDK)
+if (BUILD_FOR_ANDROID AND USE_HEXAGON)
   get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
     DSPRPC_LIB DSPRPC_LIB_DIRS
   )

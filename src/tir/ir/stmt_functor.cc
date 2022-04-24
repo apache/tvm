@@ -690,9 +690,10 @@ class IRSubstitute : public StmtExprMutator {
       return it->second;
     }
 
-    if (auto mapped_var = vmap_(buf->data)) {
+    auto new_buffer_var = vmap_(buf->data);
+    if (new_buffer_var.defined() && !new_buffer_var.value().same_as(buf->data)) {
       auto writer = buf.CopyOnWrite();
-      writer->data = Downcast<Var>(mapped_var);
+      writer->data = Downcast<Var>(new_buffer_var);
     }
 
     buf_remap_[key] = buf;
@@ -790,6 +791,10 @@ TVM_REGISTER_GLOBAL("tir.IRTransform").set_body_typed(IRTransform);
 
 TVM_REGISTER_GLOBAL("tir.PostOrderVisit").set_body_typed([](ObjectRef node, PackedFunc f) {
   tir::PostOrderVisit(node, [f](const ObjectRef& n) { f(n); });
+});
+
+TVM_REGISTER_GLOBAL("tir.PreOrderVisit").set_body_typed([](ObjectRef node, PackedFunc f) {
+  tir::PreOrderVisit(node, [f](const ObjectRef& n) { return f(n); });
 });
 
 TVM_REGISTER_GLOBAL("tir.Substitute")

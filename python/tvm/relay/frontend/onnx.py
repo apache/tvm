@@ -410,8 +410,16 @@ class Pool(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        data = inputs[0]
+        input_shape = infer_shape(data)
+        ndim = len(input_shape)
+
         attr_cvt, data = cls._run_calculation(inputs, attr, params)
-        return attr_cvt([data], attr, params)
+        out = attr_cvt([data], attr, params)
+
+        if ndim - len(attr["kernel_shape"]) == 1:
+            out = _op.squeeze(out, axis=[0])
+        return out
 
     @classmethod
     def _run_calculation(cls, inputs, attr, params):
@@ -463,6 +471,10 @@ class Pool(OnnxOpConverter):
                 attr["storage_order"], dims=(len(input_shape) - 2), op_name=cls.name
             )
         else:
+            if ndim - len(attr["kernel_shape"]) == 1:
+                data = _op.expand_dims(data, axis=0)
+                input_shape = [1] + list(input_shape)
+
             attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2), op_name=cls.name)
 
         return (

@@ -84,9 +84,9 @@ if(NOT USE_HEXAGON)
   if(BUILD_FOR_HOST)
     list(APPEND COMPILER_SRCS src/target/opt/build_hexagon_off.cc)
   endif()
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_buffer.cc)
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_common.cc)
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_user_dma.cc)
+  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_buffer.cc)
+  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_common.cc)
+  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_user_dma.cc)
   return()
 endif()
 
@@ -122,9 +122,7 @@ endfunction()
 
 # Common sources for TVM runtime with Hexagon support
 file_glob_append(RUNTIME_HEXAGON_SRCS
-  "${TVMRT_SOURCE_DIR}/hexagon/hexagon_module.cc"
-  "${TVMRT_SOURCE_DIR}/hexagon/hexagon/*.cc"
-  "${TVMRT_SOURCE_DIR}/hexagon/host/*.cc"
+  "${TVMRT_SOURCE_DIR}/hexagon/*.cc"
 )
 
 

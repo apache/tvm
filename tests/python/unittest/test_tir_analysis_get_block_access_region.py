@@ -291,13 +291,9 @@ def test_access_of_padding_pattern():
     def do_compare_buffer_region(region, expect):
         assert region.buffer == expect.buffer
         analyzer = tvm.arith.Analyzer()
-        for k, rng in enumerate(region.region):
-            tvm.ir.assert_structural_equal(
-                analyzer.simplify(rng.min), analyzer.simplify(expect.region[k].min)
-            )
-            tvm.ir.assert_structural_equal(
-                analyzer.simplify(rng.extent), analyzer.simplify(expect.region[k].extent)
-            )
+        for observed_range, expected_range in zip(region.region, expect.region):
+            analyzer.can_prove_equal(observed_range.min, expected_range.min)
+            analyzer.can_prove_equal(observed_range.extent, expected_range.extent)
 
     def do_check_block(block_name):
         block = s.get_sref(s.get_block(block_name)).stmt

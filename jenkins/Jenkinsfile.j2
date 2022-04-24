@@ -52,7 +52,7 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = 'tlcpack/ci-lint:v0.71'
-ci_gpu = 'tlcpack/ci-gpu:v0.85'
+ci_gpu = 'tlcpack/ci-gpu:v0.86'
 ci_cpu = 'tlcpack/ci-cpu:v0.84'
 ci_wasm = 'tlcpack/ci-wasm:v0.73'
 ci_i386 = 'tlcpack/ci-i386:v0.77'
@@ -193,35 +193,31 @@ if (currentBuild.getBuildCauses().toString().contains('BranchIndexingCause')) {
 
 cancel_previous_build()
 
-stage('Prepare') {
+
+stage('Lint') {
   node('CPU') {
-    // When something is provided in ci_*_param, use it, otherwise default with ci_*
-    ci_lint = params.ci_lint_param ?: ci_lint
-    ci_cpu = params.ci_cpu_param ?: ci_cpu
-    ci_gpu = params.ci_gpu_param ?: ci_gpu
-    ci_wasm = params.ci_wasm_param ?: ci_wasm
-    ci_i386 = params.ci_i386_param ?: ci_i386
-    ci_qemu = params.ci_qemu_param ?: ci_qemu
-    ci_arm = params.ci_arm_param ?: ci_arm
-    ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
+    timeout(time: max_time, unit: 'MINUTES') {
+      ci_lint = params.ci_lint_param ?: ci_lint
+      ci_cpu = params.ci_cpu_param ?: ci_cpu
+      ci_gpu = params.ci_gpu_param ?: ci_gpu
+      ci_wasm = params.ci_wasm_param ?: ci_wasm
+      ci_i386 = params.ci_i386_param ?: ci_i386
+      ci_qemu = params.ci_qemu_param ?: ci_qemu
+      ci_arm = params.ci_arm_param ?: ci_arm
+      ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
 
-    sh (script: """
-      echo "Docker images being used in this build:"
-      echo " ci_lint = ${ci_lint}"
-      echo " ci_cpu  = ${ci_cpu}"
-      echo " ci_gpu  = ${ci_gpu}"
-      echo " ci_wasm = ${ci_wasm}"
-      echo " ci_i386 = ${ci_i386}"
-      echo " ci_qemu = ${ci_qemu}"
-      echo " ci_arm  = ${ci_arm}"
-      echo " ci_hexagon  = ${ci_hexagon}"
-    """, label: 'Docker image names')
-  }
-}
+      sh (script: """
+        echo "Docker images being used in this build:"
+        echo " ci_lint = ${ci_lint}"
+        echo " ci_cpu  = ${ci_cpu}"
+        echo " ci_gpu  = ${ci_gpu}"
+        echo " ci_wasm = ${ci_wasm}"
+        echo " ci_i386 = ${ci_i386}"
+        echo " ci_qemu = ${ci_qemu}"
+        echo " ci_arm  = ${ci_arm}"
+        echo " ci_hexagon  = ${ci_hexagon}"
+      """, label: 'Docker image names')
 
-stage('Sanity Check') {
-  timeout(time: max_time, unit: 'MINUTES') {
-    node('CPU') {
       ws({{ m.per_exec_ws('tvm/sanity') }}) {
         init_git()
         is_docs_only_build = sh (
@@ -674,10 +670,6 @@ stage('Test') {
       script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
       label: 'Run Hexagon tests',
     )
-    sh (
-      script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon_simulator.sh",
-      label: 'Run Hexagon tests on simulator',
-    )
   {% endcall %}
   {% call m.test_step(name="test: QEMU", node="CPU", ws="tvm/test-qemu") %}
     unpack_lib('qemu', microtvm_lib)
@@ -752,7 +744,7 @@ stage('Test') {
   {% endcall %}
   'docs: GPU': {
     if (!skip_ci) {
-      node('TensorCore') {
+      node('GPU') {
         ws({{ m.per_exec_ws('tvm/docs-python-gpu') }}) {
           init_git()
           unpack_lib('gpu', tvm_multilib)

@@ -15,20 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
-import pathlib
 import sys
 import pytest
 import numpy as np
-import logging
 
 import tvm.testing
 from tvm import te
 from tvm import relay
 from tvm.relay.backend import Executor, Runtime
-from tvm.contrib import utils, ndk
-from tvm.contrib.hexagon.build import HexagonLauncher
-import tvm.contrib.hexagon as hexagon
 
 from .conftest import requires_hexagon_toolchain
 
@@ -45,9 +39,6 @@ def test_add(hexagon_session):
     func = tvm.build(
         sched, [A, B, C], tvm.target.Target(target_hexagon, host=target_hexagon), name="add"
     )
-
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
 
     mod = hexagon_session.load_module(func)
 
@@ -74,10 +65,8 @@ def test_add_vtcm(hexagon_session):
         sched, [A, B, C], tvm.target.Target(target_hexagon, host=target_hexagon), name="add"
     )
 
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
-
     mod = hexagon_session.load_module(func)
+
     A_data = tvm.nd.empty(A.shape, A.dtype, hexagon_session.device, "global.vtcm")
     A_data.copyfrom(np.array([2, 3]))
 
@@ -109,9 +98,6 @@ class TestMatMul:
         func = tvm.build(
             schedule, [X, Y, Z], tvm.target.Target(target_hexagon, host=target_hexagon)
         )
-
-        if hexagon_session is None:
-            pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
 
         mod = hexagon_session.load_module(func)
 
@@ -169,9 +155,6 @@ def test_graph_executor(hexagon_session):
             runtime=runtime,
             executor=executor,
         )
-
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
     graph_mod = hexagon_session.get_executor_from_factory(lowered)
     graph_mod.set_input(**params)
@@ -237,9 +220,6 @@ def test_graph_executor_multiple_conv2d(hexagon_session):
             executor=executor,
         )
 
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
-
     weight1_data = np.random.rand(w1_shape[0], w1_shape[1], w1_shape[2], w1_shape[3]).astype(
         dtype=dtype
     )
@@ -274,19 +254,8 @@ def test_graph_executor_multiple_conv2d(hexagon_session):
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 
-def _workaround_create_aot_shared():
-    # The C codegen uses TVM/RT functions directly. On Hexagon it should use
-    # functions pointers via __TVMxyz variables. This workaround makes the
-    # runtime symbols visible to the compiled shared library.
-    extra_link_flags = os.environ.get("HEXAGON_SHARED_LINK_FLAGS")
-    extra_options = str(extra_link_flags).split() if extra_link_flags else []
-    return lambda so_name, files, hexagon_arch, options: hexagon.create_aot_shared(
-        so_name, files, hexagon_arch, options=extra_options + options
-    )
-
-
 @requires_hexagon_toolchain
-def test_aot_executor(hexagon_session):
+def test_aot_executor(hexagon_session, aot_host_target, aot_target):
     dtype = "float32"
     input_shape = (1, 128, 128, 3)
     w_shape = (5, 5, 3, 8)
@@ -305,8 +274,6 @@ def test_aot_executor(hexagon_session):
     relay_mod = tvm.IRModule.from_expr(f)
     relay_mod = relay.transform.InferType()(relay_mod)
 
-    target_hexagon = tvm.target.hexagon("v68")
-
     weight_data = np.random.rand(w_shape[0], w_shape[1], w_shape[2], w_shape[3]).astype(dtype=dtype)
     input_data = np.random.rand(
         input_shape[0], input_shape[1], input_shape[2], input_shape[3]
@@ -319,13 +286,10 @@ def test_aot_executor(hexagon_session):
         lowered = tvm.relay.build(
             relay_mod,
             params=params,
-            target=tvm.target.Target(target_hexagon, host="c"),
+            target=tvm.target.Target(aot_target, host=aot_host_target),
             runtime=Runtime("cpp"),
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )
-
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
 
     aot_mod = hexagon_session.get_executor_from_factory(lowered)
     aot_mod.set_input(**inputs)
@@ -350,7 +314,7 @@ def test_aot_executor(hexagon_session):
 
 
 @requires_hexagon_toolchain
-def test_aot_executor_multiple_conv2d(hexagon_session):
+def test_aot_executor_multiple_conv2d(hexagon_session, aot_host_target, aot_target):
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
@@ -380,8 +344,6 @@ def test_aot_executor_multiple_conv2d(hexagon_session):
     relay_mod = tvm.IRModule.from_expr(f)
     relay_mod = relay.transform.InferType()(relay_mod)
 
-    target_hexagon = tvm.target.hexagon("v68")
-
     weight1_data = np.random.rand(w1_shape[0], w1_shape[1], w1_shape[2], w1_shape[3]).astype(
         dtype=dtype
     )
@@ -399,13 +361,10 @@ def test_aot_executor_multiple_conv2d(hexagon_session):
         lowered = tvm.relay.build(
             relay_mod,
             params=params,
-            target=tvm.target.Target(target_hexagon, host="c"),
+            target=tvm.target.Target(aot_target, host=aot_host_target),
             runtime=Runtime("cpp"),
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )
-
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
 
     aot_mod = hexagon_session.get_executor_from_factory(lowered)
     aot_mod.set_input(**inputs)

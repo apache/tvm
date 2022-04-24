@@ -52,3 +52,11 @@ def schedule_conv2d(outs, layout="NHWC"):
         return schedule_conv2d_nchw(outs)
 
     raise ValueError(f"Unexpected layout={layout}")
+
+
+def schedule_depthwise_conv2d_nchw(outs):
+    return schedule_conv2d_nchw(outs)
+
+
+def schedule_depthwise_conv2d_nhwc(out):
+    return schedule_conv2d_nhwc(out)
