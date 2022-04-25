@@ -115,9 +115,9 @@
       {
         "body": "@tvm-bot merge",
         "updatedAt": "2022-03-25T22:13:50Z",
-        "authorCanPushToRepository": true,
+        "authorCanPushToRepository": false,
         "commit": {
-          "oid": "abc12345"
+          "oid": "6f04bcf57d07f915a98fd91178f04d9e92a09fcd"
         },
         "author": {
           "login": "kparzysz-quic"

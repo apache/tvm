@@ -44,11 +44,15 @@ PR_QUERY = """
           title
           body
           state
+          author {
+            login
+          }
           comments(last: 100) {
             pageInfo {
               hasPreviousPage
             }
             nodes {
+              authorAssociation
               author {
                 login
               }
@@ -113,6 +117,9 @@ PR_QUERY = """
               authorCanPushToRepository
               commit {
                 oid
+              }
+              author {
+                login
               }
               state
             }
@@ -355,6 +362,27 @@ class PR:
 
         self.github.put(url, data=data)
 
+    def comment_can_merge(self, comment: Dict[str, Any]) -> bool:
+        """
+        Check if a comment was left by the PR author or by a committer
+        """
+        print(comment)
+        print(self.raw)
+        if comment["author"]["login"] == self.raw["author"]["login"]:
+            logging.info(f"Comment {comment} was from author and is mergable")
+            return True
+
+        if comment.get("authorAssociation", "") == "CONTRIBUTOR":
+            logging.info(f"Comment {comment} was from committer commment and is mergable")
+            return True
+
+        if comment.get("authorCanPushToRepository", False):
+            logging.info(f"Comment {comment} was from a committer review comment and is mergable")
+            return True
+
+        logging.info(f"Comment {comment} was not from author or committers and is not mergable")
+        return False
+
     def merge_requested(self) -> bool:
         """
         Check if this PR has had a merge requested
@@ -373,11 +401,15 @@ class PR:
             "stop the merge",
         ]
 
-        def parse_action(s: str) -> Optional[str]:
-            if any(f"@tvm-bot {c}" in s for c in merge_commands):
+        def parse_action(comment: Dict[str, Any]) -> Optional[str]:
+            if not self.comment_can_merge(comment):
+                return None
+
+            body = comment["body"]
+            if any(f"@tvm-bot {c}" in body for c in merge_commands):
                 return "merge"
 
-            if any(f"@tvm-bot {c}" in s for c in cancel_commands):
+            if any(f"@tvm-bot {c}" in body for c in cancel_commands):
                 return "cancel"
 
             return None
@@ -385,14 +417,14 @@ class PR:
         # Check regular comments
         all_comments = []
         for comment in self.raw["comments"]["nodes"]:
-            all_comments.append((comment["updatedAt"], comment["body"]))
+            all_comments.append(comment)
 
         # Check top-level review comments
         for review in self.reviews():
-            all_comments.append((review["updatedAt"], review["body"]))
+            all_comments.append(review)
 
-        all_comments = sorted(all_comments, key=lambda x: x[0])
-        actions = [parse_action(body) for _, body in all_comments]
+        all_comments = sorted(all_comments, key=lambda comment: comment["updatedAt"])
+        actions = [parse_action(comment) for comment in all_comments]
         logging.info(f"Found these tvm-bot actions: {actions}")
         actions = [a for a in actions if a is not None]
 
@@ -465,7 +497,7 @@ class PR:
 
 
 if __name__ == "__main__":
-    help = "Automatically tag people based on PR / issue labels"
+    help = "Automatically tag people based on PR / issue labels (for local development, setting DEBUG=1 will fetch and cache a PR)"
     parser = argparse.ArgumentParser(description=help)
     parser.add_argument("--remote", default="origin", help="ssh remote to parse")
     parser.add_argument("--pr", required=True, help="pr number to check")

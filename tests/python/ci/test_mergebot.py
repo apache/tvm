@@ -40,36 +40,47 @@ test_data = {
         "number": 10786,
         "filename": "pr10786-merges.json",
         "expected": "Dry run, would have merged with url=pulls/10786/merge",
+        "detail": "Everything is fine so this PR will merge",
     },
     "no-request": {
         "number": 10786,
         "filename": "pr10786-nottriggered.json",
         "expected": "No merge requested, exiting",
+        "detail": "A PR for which the mergebot runs but no merge is requested",
     },
     "bad-ci": {
         "number": 10786,
         "filename": "pr10786-badci.json",
         "expected": "Cannot merge, these CI jobs are not successful on",
+        "detail": "A PR which failed CI and cannot merge",
     },
     "old-review": {
         "number": 10786,
         "filename": "pr10786-oldreview.json",
         "expected": "Cannot merge, did not find any approving reviews",
+        "detail": "A PR with passing CI and approving reviews on an old commit so it cannot merge",
     },
     "missing-job": {
         "number": 10786,
         "filename": "pr10786-missing-job.json",
         "expected": "Cannot merge, missing expected jobs",
+        "detail": "PR missing an expected CI job and cannot merge",
+    },
+    "invalid-author": {
+        "number": 10786,
+        "filename": "pr10786-invalid-author.json",
+        "expected": "No merge requested, exiting",
+        "detail": "Merge requester is not a committer and cannot merge",
     },
 }
 
 
 @pytest.mark.parametrize(
-    ["number", "filename", "expected"],
+    ["number", "filename", "expected", "detail"],
     [tuple(d.values()) for d in test_data.values()],
     ids=test_data.keys(),
 )
-def test_mergebot(tmpdir_factory, number, filename, expected):
+def test_mergebot(tmpdir_factory, number, filename, expected, detail):
     mergebot_script = REPO_ROOT / "tests" / "scripts" / "github_mergebot.py"
     test_json_dir = Path(__file__).resolve().parent / "sample_prs"
 
