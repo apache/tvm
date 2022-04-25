@@ -206,7 +206,7 @@ class TVMScriptParser(Transformer):
         ----------
         message : str
             Error message
-        span : Union[synr.ast.Span, tvm.ir.Span】
+        span : Union[synr.ast.Span, tvm.ir.Span]
             Location of the error
         """
         if isinstance(span, tvm.ir.Span):
