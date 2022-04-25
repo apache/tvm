@@ -2317,19 +2317,19 @@ class Softmax(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get("axis", 1)
-        ndim = len(infer_shape(inputs[0]))
+        in_shape = infer_shape(inputs[0])
+        ndim = len(in_shape)
         if axis < 0:
             axis += ndim
-        # Older ONNX Softmax op does not properly support inputs of dimension > 2
-        # But we can use our softmax when the axis is -1
-        if axis == ndim - 1:
-            return _op.nn.softmax(inputs[0], axis=axis)
-
-        axes = list(range(axis, ndim))
-        x = inputs[0]
-        m = _op.max(x, axes, keepdims=True)
-        e = _op.exp(x - m)
-        return e / _op.sum(e, axes, keepdims=True)
+        if axis == 0:
+            reshape_shape = [-1]
+        else:
+            axis_val = [in_shape[i] for i in range(axis)]
+            reshape_shape = [np.prod(axis_val)] + [-1]
+        data_reshape = _op.reshape(inputs[0], newshape=reshape_shape)
+        out = _op.nn.softmax(data_reshape, axis=-1)
+        out = _op.reshape(out, newshape=in_shape)
+        return out
 
     @classmethod
     def _impl_v13(cls, inputs, attr, _):
