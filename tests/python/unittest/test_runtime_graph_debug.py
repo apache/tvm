@@ -30,19 +30,41 @@ from tvm._ffi.base import TVMError
 from tvm.contrib import utils
 from tvm.contrib.debugger import debug_executor
 
-# Constants for creating simple graphs
-n = 4
-A = te.placeholder((n,), name="A")
-B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-s = te.create_schedule(B.op)
 
-mlib = tvm.build(s, [A, B], "llvm", name="myadd")
+# Constants for creating simple graphs, fixtures to avoid free globals
+@pytest.fixture
+def n():
+    return 4
 
 
-def myadd(*args):
-    to_return = mlib["myadd"](*args)
-    time.sleep(0.25)
-    return to_return
+@pytest.fixture
+def A(n):
+    return te.placeholder((n,), name="A")
+
+
+@pytest.fixture
+def B(A):
+    return te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
+
+
+@pytest.fixture
+def s(B):
+    return te.create_schedule(B.op)
+
+
+@pytest.fixture
+def mlib(s, A, B):
+    return tvm.build(s, [A, B], "llvm", name="myadd")
+
+
+@pytest.fixture
+def myadd(mlib):
+    def _myadd(*args):
+        to_return = mlib["myadd"](*args)
+        time.sleep(0.25)
+        return to_return
+
+    return _myadd
 
 
 @pytest.fixture
@@ -77,7 +99,7 @@ def graph():
 
 @tvm.testing.requires_llvm
 @tvm.testing.requires_rpc
-def test_end_to_end_graph_simple(graph):
+def test_end_to_end_graph_simple(graph, n, A, B, s, myadd):
     def check_verify():
         mlib_proxy = tvm.support.FrontendTestModule()
         mlib_proxy["myadd"] = myadd
@@ -192,12 +214,13 @@ def test_end_to_end_graph_simple(graph):
 
 
 @tvm.testing.requires_llvm
-def test_run_single_node(graph):
+def test_run_single_node(graph, n, A, myadd):
     mlib_proxy = tvm.support.FrontendTestModule()
     mlib_proxy["myadd"] = myadd
     try:
         mod: debug_executor.GraphModuleDebug = debug_executor.create(graph, mlib_proxy, tvm.cpu(0))
     except ValueError:
+        # If TVM is not built with the profiler, this will hit, in that case skip test.
         return
 
     a = np.random.uniform(size=(n,)).astype(A.dtype)
@@ -208,11 +231,11 @@ def test_run_single_node(graph):
     assert mod.debug_datum.get_graph_nodes()[1]["op"] == "myadd"
 
     # Running a node with no associated function should return instantly and have 0 runtime
-    mod.run_individual_node(0, number=1).mean == 0
+    assert mod.run_individual_node(0, number=1).mean == 0
 
     # Meanwhile the actual function should take some time, more time if you run it more times
     repeat_1_result = mod.run_individual_node(1, repeat=1)
-    repeat_1_result.mean > 0
+    assert repeat_1_result.mean > 0
 
     # Running multiple times (10) should take longer than 1 time
     repeat_3_results = mod.run_individual_node(1, repeat=3)
