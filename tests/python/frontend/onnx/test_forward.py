@@ -6561,6 +6561,7 @@ def test_LinearRegressor(target, dev):
     verify_LinearRegressor((10, 3), (30), (10), targets=10, batch=10)
     verify_LinearRegressor((1, 4), (3), (1))
 
+
 @tvm.testing.parametrize_targets
 def test_dropout(target, dev):
     def verify_dropout_radio(input_shape, ratio=0.5):
@@ -6569,9 +6570,7 @@ def test_dropout(target, dev):
         seed = np.random.randint(low, high)
         data = np.random.uniform(size=input_shape).astype("float32")
 
-        nodes = [
-             make_constant_node("ratio", onnx.TensorProto.FLOAT, (), [ratio])
-        ]
+        nodes = [make_constant_node("ratio", onnx.TensorProto.FLOAT, (), [ratio])]
         nodes.append(helper.make_node("Dropout", ["data", "ratio"], ["output"], seed=seed))
 
         graph = helper.make_graph(
@@ -6580,16 +6579,15 @@ def test_dropout(target, dev):
             inputs=[
                 helper.make_tensor_value_info("data", TensorProto.FLOAT, list(input_shape)),
             ],
-            outputs=[
-                helper.make_tensor_value_info(
-                    "output", TensorProto.FLOAT, list(input_shape)
-                )
-            ],
+            outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, list(input_shape))],
         )
         model = helper.make_model(graph, producer_name="dropout_test")
-        verify_with_ort_with_inputs(model, [data], freeze_params=True, target=target, dev=dev, use_vm=True)
-    verify_dropout_radio((1,1,64,64))
-    verify_dropout_radio((1,1,64,64), 0.4)
+        verify_with_ort_with_inputs(
+                model, [data], freeze_params=True, target=target, dev=dev, use_vm=True
+        )
+
+    verify_dropout_radio((1, 1, 64, 64))
+    verify_dropout_radio((1, 1, 64, 64), 0.4)
 
 
 if __name__ == "__main__":

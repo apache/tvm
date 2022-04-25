@@ -4559,8 +4559,9 @@ class Unique(OnnxOpConverter):
         # ONNX unique returns unique, indices, inverse_indices, (optional) counts
         return _expr.TupleWrapper(_expr.Tuple([unique_vals, indices, inverse_indices, counts]), 4)
 
+
 class Dropout(OnnxOpConverter):
-    '''Operator converter for Dropout'''
+    """Operator converter for Dropout"""
 
     @classmethod
     def _impl_v12(cls, inputs, attr, params):
@@ -4572,7 +4573,10 @@ class Dropout(OnnxOpConverter):
             if isinstance(inputs[1], _expr.Constant):
                 ratio = inputs[1].data.numpy().item()
                 return _op.nn.dropout(data, ratio)
+            else:
+                raise ValueError("Dynamic dropouty is not supported yet!")
         return _op.nn.dropout(data)
+
 
 class Einsum(OnnxOpConverter):
     """Operator converter for Einsum"""
