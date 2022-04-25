@@ -605,7 +605,7 @@ stage('Build') {
   },
   'BUILD: Hexagon': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws({{ m.per_exec_ws('tvm/build-hexagon') }}) {
           init_git()
           sh (
@@ -681,7 +681,8 @@ stage('Test') {
   {% endcall %}
   {% call m.test_step(
     name="unittest: CPU",
-    node="CPU", ws="tvm/ut-python-cpu",
+    node="CPU-SMALL",
+    ws="tvm/ut-python-cpu",
     platform="cpu",
   ) %}
     unpack_lib('cpu', tvm_multilib_tsim)
@@ -696,11 +697,11 @@ stage('Test') {
   {% endcall %}
   {% call(shard_index, num_shards) m.sharded_test_step(
     name="python: i386",
-    node="CPU",
-      num_shards=3,
-      ws="tvm/integration-python-i386",
-      platform="i386",
-    ) %}
+    node="CPU-SMALL",
+    num_shards=3,
+    ws="tvm/integration-python-i386",
+    platform="i386",
+  ) %}
     unpack_lib('i386', tvm_multilib)
     ci_setup(ci_i386)
     {% if shard_index == 1 %}
@@ -715,7 +716,8 @@ stage('Test') {
   {% endcall %}
   {% call(shard_index, num_shards) m.sharded_test_step(
     name="test: Hexagon",
-    node="CPU", ws="tvm/test-hexagon",
+    node="CPU-SMALL",
+    ws="tvm/test-hexagon",
     platform="hexagon",
     num_shards=4,
   ) %}
@@ -735,7 +737,8 @@ stage('Test') {
   {% endcall %}
   {% call m.test_step(
     name="test: QEMU",
-    node="CPU", ws="tvm/test-qemu",
+    node="CPU-SMALL",
+    ws="tvm/test-qemu",
     platform="qemu",
   ) %}
     unpack_lib('qemu', tvm_lib)
