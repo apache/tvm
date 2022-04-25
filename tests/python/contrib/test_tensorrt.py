@@ -1327,10 +1327,7 @@ def test_maskrcnn_resnet50(run_module) -> None:
         """
         input_shape = (1, 3, in_size, in_size)
         img_path = "test_street_small.jpg"
-        img_url = (
-            "https://raw.githubusercontent.com/dmlc/web-data/"
-            "master/gluoncv/detection/street_small.jpg"
-        )
+        img_url = "https://raw.githubusercontent.com/dmlc/web-data/master/gluoncv/detection/street_small.jpg"
         download(img_url, img_path)
         import cv2
 
