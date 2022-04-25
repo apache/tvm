@@ -318,7 +318,7 @@ The community also continues to bring high quality improvements to the existing 
 * Tutorial: Using the template-free auto-scheduler on CPU (#6488)
 
 #### BYOC
-* External codegen support in Relay (#4482)，(#4544)
+* External codegen support in Relay (#4482), (#4544)
 * Bring Your Own Codegen Guide -- Part 1 #4602
 * Bring Your Own Codegen Guide -- Part 2 #4718
 * Relay annotation and partitioning for external compilers #4570
@@ -2140,7 +2140,7 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 * Increate the robuteness of CI test (#2841, #2798, #2793, #2788, #2781, #2727, #2710, #2711, #2923)
 * Improve conda build (#2742)
 * Add caffe2 nnvm frontend to CI (#3018)
-* Use bridge network and expose port on macOS when launch docker image (#3086）
+* Use bridge network and expose port on macOS when launch docker image (#3086)
 * Run DarkNet tests (#2673)
 * Add file type check (#3116)
 * Always run cpptest during build to ensure library correctness (#3147)
