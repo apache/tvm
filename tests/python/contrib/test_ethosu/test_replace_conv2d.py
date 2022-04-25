@@ -765,7 +765,7 @@ def test_conv2d_inline_reshape(trial):
 
 
 # TODO(@mbaret) Fix this case
-@pytest.mark.xfail(raises=TypeError, strict=True)
+@pytest.mark.xfail(raises=Exception, strict=True)
 def test_conv2d_big_pad():
     def _get_func():
         ifm_shape = (1, 2, 2, 8)

@@ -288,7 +288,7 @@ class EthosuDeviceConfig:
         input_shape: _Shape,
         dtype: str,
         op_type: str,
-        is_partkernel: bool,
+        partkernel: bool,
         stride_h: int,
         stride_w: int,
         dilated_kernel_h: int,
@@ -310,7 +310,7 @@ class EthosuDeviceConfig:
 
         if op_type == "ethosu_conv2d":
             if dtype == "int8":
-                if is_partkernel:
+                if partkernel:
                     depth = self._align(min(32, input_shape.depth), 8)
                 else:
                     depth = self._align(min(16, input_shape.depth), 8)
@@ -336,7 +336,7 @@ class EthosuDeviceConfig:
         dilated_kernel_h: int,
         dilated_kernel_w: int,
         ifm_dtype: str,
-        is_partkernel: bool = False,
+        partkernel: bool = False,
     ) -> List[int]:
         """Calculate the total number of subkernels and their sizes
 
@@ -351,7 +351,7 @@ class EthosuDeviceConfig:
             Width of dilated kernel
         ifm_dtype: str
             Datatype of the Input Feature Map tensor (IFM)
-        is_partkernel: bool
+        partkernel: bool
             Flag showing whether part-kernel first traversal is used
 
         Returns
@@ -368,7 +368,7 @@ class EthosuDeviceConfig:
         kernel_steps = []
         for y, x in subkernels:
             subkernel_elements = x * y
-            if op_type == "ethosu_conv2d" and is_partkernel:
+            if op_type == "ethosu_conv2d" and partkernel:
                 # Part-kernel-first traversal conv2d
                 divisor = 4 if ifm_dtype == "int8" else 2
                 kernel_steps.append(int(_round_up_div(subkernel_elements, divisor)))
@@ -509,29 +509,31 @@ class EthosuDeviceConfig:
             banks_available -= 2
 
         # Split the block in half until it fits into SHRAM
+        max_height, max_width, max_depth = self._max_block_shape.as_list()[1:]
         if output_layout == "NHCWB16":
             split_order = (a for a in [1, 3, 2])
             output_block = [
                 output_shape[0],
-                min(output_shape[1], self._max_block_shape.height),
-                min(output_shape[2] * output_shape[4], self._max_block_shape.depth),
-                min(output_shape[3], self._max_block_shape.width),
+                _round_up(min(output_shape[1], max_height), self._micro_block.height),
+                min(output_shape[2] * output_shape[4], max_depth),
+                _round_up(min(output_shape[3], max_width), self._micro_block.width),
                 16,
             ]
         else:
             split_order = (a for a in [1, 2, 3])
             output_block = [
                 output_shape[0],
-                min(output_shape[1], self._max_block_shape.height),
-                min(output_shape[2], self._max_block_shape.width),
-                min(output_shape[3], self._max_block_shape.depth),
+                _round_up(min(output_shape[1], max_height), self._micro_block.height),
+                _round_up(min(output_shape[2], max_width), self._micro_block.width),
+                _round_up(min(output_shape[3], max_depth), self._micro_block.depth),
             ]
         split_axis = next(split_order)
+
+        offset = [0] * len(output_block)
+        stripes = [1] * len(output_block)
+        order = [1, 2, 4, 3, 0] if output_layout == "NHCWB16" else [1, 2, 3, 4]
         while True:
             # Create stripe config for output block
-            offset = [0] * len(output_block)
-            stripes = [1] * len(output_block)
-            order = [1, 2, 4, 3, 0] if output_layout == "NHCWB16" else [1, 2, 3, 4]
             output_stripe_config = StripeConfig(
                 output_block, output_block, output_block, order, stripes, offset
             )
@@ -564,10 +566,12 @@ class EthosuDeviceConfig:
                 block_config.append(BlockConfig(output_block, output_block, 0, output_cycles))
                 break
 
-            if output_block[split_axis] == 1:
+            if output_block[split_axis] == self._micro_block.as_list()[split_axis]:
                 split_axis = next(split_order)
 
-            output_block[split_axis] = _round_up_div(output_block[split_axis], 2)
+            output_block[split_axis] = _round_up(
+                _round_up_div(output_block[split_axis], 2), self._micro_block.as_list()[split_axis]
+            )
 
         return block_config
 
@@ -670,9 +674,9 @@ class EthosuDeviceConfig:
 
         # Input block depth has additional limitations for operators that require full input depth
         input_block_depth = 0
-        is_partkernel = self.is_partkernel(op_type, ifm_channels, ifm_dtype, kernel_h * kernel_w)
+        partkernel = self.is_partkernel(op_type, ifm_channels, ifm_dtype, kernel_h * kernel_w)
         if op_type == "ethosu_conv2d":
-            if is_partkernel:
+            if partkernel:
                 input_block_depth = min(ifm_channels, 16)
             else:
                 input_block_depth = min(ifm_channels, 32)
@@ -745,7 +749,8 @@ class EthosuDeviceConfig:
                             kernel_h,
                             kernel_w,
                             ifm_channels,
-                            is_partkernel,
+                            "int8",
+                            partkernel,
                         )
                         block_config = BlockConfig(
                             input_block_shape.as_list(), output_block, compute_cycles, output_cycles
@@ -767,7 +772,7 @@ class EthosuDeviceConfig:
         kernel_w: int,
         input_channels: int,
         ifm_dtype: str,
-        is_partkernel: bool = False,
+        partkernel: bool = False,
     ) -> Tuple[int, int]:
         # Calculate the amount of micro blocks per block, per axis
         num_quantum_x = _round_up_div(block_shape.width, self._micro_block.width)
@@ -775,7 +780,7 @@ class EthosuDeviceConfig:
         num_quantum_z = _round_up_div(block_shape.depth, self._micro_block.depth)
         num_quantum_xy = num_quantum_x * num_quantum_y
 
-        kernel_steps = self.get_kernel_steps(op_type, kernel_h, kernel_w, ifm_dtype, is_partkernel)
+        kernel_steps = self.get_kernel_steps(op_type, kernel_h, kernel_w, ifm_dtype, partkernel)
 
         wd_cycles = self._get_weight_decoder_cycles(op_type)
         delay_cycles = self._get_delay_cycles(op_type, ifm_dtype)
@@ -794,7 +799,7 @@ class EthosuDeviceConfig:
                 elif subkernel_steps > 1:
                     compute_cycles += delay_cycles * (subkernel_steps - 1) * num_quantum_z
 
-        if is_partkernel:
+        if partkernel:
             compute_cycles *= _round_up_div(input_block_shape.depth, 8)
 
         if op_type == "ethosu_conv2d":
