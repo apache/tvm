@@ -4573,8 +4573,9 @@ class Dropout(OnnxOpConverter):
             if isinstance(inputs[1], _expr.Constant):
                 ratio = inputs[1].data.numpy().item()
                 return _op.nn.dropout(data, ratio)
-            else:
-                raise ValueError("Dynamic dropouty is not supported yet!")
+
+            raise ValueError("Dynamic dropouty is not supported yet!")
+
         return _op.nn.dropout(data)
 
 
