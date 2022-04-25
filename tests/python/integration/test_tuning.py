@@ -39,7 +39,7 @@ def setup_module():
         assert N == 1, "Only consider batch_size = 1 in this template"
 
         data = te.placeholder((N, CI, H, W), name="data")
-        kernel = te.placeholder((CO, CI, KH, KW), name="kernel")
+        kernel = te.placeholder((CO, CI, KH, KW), name="kernel_")
 
         rc = te.reduce_axis((0, CI), name="rc")
         ry = te.reduce_axis((0, KH), name="ry")
