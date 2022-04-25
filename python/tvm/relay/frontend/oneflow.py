@@ -1718,7 +1718,7 @@ class OneflowGraph(object):
         Parameters
         ----------
         op_name : str
-            Operator name, such as conv2d、relu
+            Operator name, such as conv2d and relu
         node_inputs : list of tvm.relay.function.Function
             List of inputs.
         op_attr : dict
