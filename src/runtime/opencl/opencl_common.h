@@ -229,6 +229,8 @@ class OpenCLWorkspace : public DeviceAPI {
   cl_context context{nullptr};
   // whether the workspace it initialized.
   bool initialized_{false};
+  // whether the workspace is in profiling mode.
+  bool profiling{false};
   // the device type
   std::string device_type;
   // the devices
@@ -422,19 +424,38 @@ class OpenCLTimerNode : public TimerNode {
   virtual void Start() {
     cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).clear();
     this->duration = 0;
+
+    if (!cl::OpenCLWorkspace::Global()->profiling) {
+      // Very first call of Start() leads to the recreation of
+      // OpenCL command queue in profiling mode
+      OPENCL_CALL(clFlush(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
+      OPENCL_CALL(clFinish(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
+      OPENCL_CALL(clReleaseCommandQueue(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
+
+      cl_int err_code;
+      cl_device_id did = cl::OpenCLWorkspace::Global()->devices[dev_.device_id];
+      auto profiling_queue = clCreateCommandQueue(cl::OpenCLWorkspace::Global()->context,
+                                                  did,
+                                                  CL_QUEUE_PROFILING_ENABLE,
+                                                  &err_code);
+      OPENCL_CHECK_ERROR(err_code);
+      cl::OpenCLWorkspace::Global()->queues[dev_.device_id] = profiling_queue;
+      cl::OpenCLWorkspace::Global()->profiling = true;
+    }
   }
   // Timer stop
   virtual void Stop() {
     std::vector<cl_event> evt_queue = cl::OpenCLWorkspace::Global()->GetEventQueue(dev_);
     cl_ulong start, end;
-    OPENCL_CALL(clWaitForEvents(1, &(cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).back())));
-    for (auto& kevt : evt_queue) {
-      OPENCL_CALL(clGetEventProfilingInfo(kevt, CL_PROFILING_COMMAND_START, sizeof(cl_ulong),
-                                          &start, nullptr));
-      OPENCL_CALL(
-          clGetEventProfilingInfo(kevt, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, nullptr));
-      this->duration += (end - start);
-    }
+    if (cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).size() > 0) {
+      OPENCL_CALL(clWaitForEvents(1, &(cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).back())));
+      for (auto& kevt : evt_queue) {
+        OPENCL_CALL(clGetEventProfilingInfo(kevt, CL_PROFILING_COMMAND_START, sizeof(cl_ulong),
+                                            &start, nullptr));
+        OPENCL_CALL(clGetEventProfilingInfo(kevt, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end,
+                                            nullptr));
+        this->duration += (end - start);
+      }
   }
   virtual int64_t SyncAndGetElapsedNanos() { return this->duration; }
   // destructor
