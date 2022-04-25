@@ -6583,7 +6583,7 @@ def test_dropout(target, dev):
         )
         model = helper.make_model(graph, producer_name="dropout_test")
         verify_with_ort_with_inputs(
-                model, [data], freeze_params=True, target=target, dev=dev, use_vm=True
+            model, [data], freeze_params=True, target=target, dev=dev, use_vm=True
         )
 
     verify_dropout_radio((1, 1, 64, 64))
