@@ -194,7 +194,7 @@ class LowerToTIR:
     def transform_npu_function(self, _, func: relay.Function) -> relay.Function:
         """Lower NPU functions to TIR."""
 
-        tir_mod, const_dict = _lower_to_tir(func, self.scheduler())
+        tir_mod, const_dict = _lower_to_tir(func, self.scheduler)
 
         for param in const_dict.keys():
             const_dict[param] = tvm.nd.array(const_dict[param])
