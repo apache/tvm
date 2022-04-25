@@ -260,9 +260,10 @@ def schedule_cache_reads(sch):
         return False
 
     for stage in sch.stages:
-        if _detect_cache_read(stage):
-            fax = stage.fuse(*stage.op.axis)
-            stage.pragma(fax, "op", "ethosu_copy")
+        if stage.attach_type != 2:  # Not inlined
+            if _detect_cache_read(stage):
+                fax = stage.fuse(*stage.op.axis)
+                stage.pragma(fax, "op", "ethosu_copy")
 
 
 def inline_no_ops(cached_func, sch):
