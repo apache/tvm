@@ -318,7 +318,7 @@ The community also continues to bring high quality improvements to the existing 
 * Tutorial: Using the template-free auto-scheduler on CPU (#6488)
 
 #### BYOC
-* External codegen support in Relay (#4482)，(#4544)
+* External codegen support in Relay (#4482), (#4544)
 * Bring Your Own Codegen Guide -- Part 1 #4602
 * Bring Your Own Codegen Guide -- Part 2 #4718
 * Relay annotation and partitioning for external compilers #4570

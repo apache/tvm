@@ -1453,7 +1453,7 @@ class OneflowGraph(object):
         import oneflow
 
         model = oneflow.load(model_dir_path)
-        # model_array: keys: layer_name，values: dict('path', 'params')
+        # model_array: keys: layer_name, values: dict('path', 'params')
         for layer_name in model:
             layer = model[layer_name]
             layer_node = {}
