@@ -1081,10 +1081,15 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       if (lowered_main_func->body->IsInstance<TupleNode>()) {
         Tuple output_tuple = Downcast<Tuple>(lowered_main_func->body);
         for (unsigned i = 0; i < output_tuple->fields.size(); i++) {
-          CreateIOVar(output_tuple->fields[i], output_tensor_names[i]);
+          // AoT Executor Codegen does not create these names,
+          // thus should be used as they are provided.
+          CreateIOVar(output_tuple->fields[i], output_tensor_names[i],
+                      /*use_unique_name = */ false);
         }
       } else {
-        CreateIOVar(lowered_main_func->body, output_tensor_names[0]);
+        // AoT Executor Codegen does not create these names,
+        // thus should be used as they are provided.
+        CreateIOVar(lowered_main_func->body, output_tensor_names[0], /*use_unique_name = */ false);
       }
     } else {
       // If output tensor names are not provided we will generate output(x)
