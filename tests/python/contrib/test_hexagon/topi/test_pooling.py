@@ -30,11 +30,11 @@ from ..conftest import requires_hexagon_toolchain
 
 class TestAdaptivePool:
     dshape, out_size, pool_type, layout = tvm.testing.parameters(
-        ((1, 3, 224, 224), (1, 1), "max", "NCHW"),
-        ((1, 3, 224, 224), (1, 1), "avg", "NCHW"),
+        ((1, 3, 112, 112), (1, 1), "max", "NCHW"),
+        ((1, 3, 112, 112), (1, 1), "avg", "NCHW"),
         ((1, 14, 56, 78), (34, 13), "max", "NCHW"),
         ((1, 5, 46, 97), (4, 96), "avg", "NCHW"),
-        ((1, 224, 224, 3), (1, 1), "max", "NHWC"),
+        ((1, 112, 112, 3), (1, 1), "max", "NHWC"),
         ((1, 5, 46, 97), (4, 96), "avg", "NHWC"),
         ((1, 16, 32, 32, 32), (1, 1, 1), "max", "NCDHW"),
         ((1, 16, 32, 32, 32), (1, 1, 1), "avg", "NCDHW"),
@@ -44,13 +44,13 @@ class TestAdaptivePool:
             (7, 8, 9),
             "avg",
             "NCDHW",
-        ),  # this fails if TVM_HEXAGON_RPC_BUFF_SIZE_BYTES < 5MB
+        ),
         (
             (1, 16, 64, 32, 32),
             (8, 16, 16),
             "avg",
             "NCDHW",
-        ),  # this fails if TVM_HEXAGON_RPC_BUFF_SIZE_BYTES < 5MB
+        ),
         ((1, 16, 32, 32, 32), (1, 1, 1), "avg", "NDHWC"),
         ((1, 16, 32, 32, 32), (2, 2, 2), "max", "NDHWC"),
         ((1, 16, 32, 32, 32), (2, 4, 4), "max", "NDHWC"),
