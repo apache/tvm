@@ -1427,9 +1427,7 @@ class Reshape(OnnxOpConverter):
 
     @classmethod
     def _impl_v5(cls, inputs, attr, params):
-        allowzero = False
-        if "allowzero" in attr:
-            allowzero = attr["allowzero"]
+        allowzero = attr.get('allowzero', False)
         if get_name(inputs[1]) in params:
             shape = tuple(params[inputs[1].name_hint].numpy().astype("int32"))
             out = _op.reshape(inputs[0], shape, allowzero=allowzero)
