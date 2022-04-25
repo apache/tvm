@@ -226,6 +226,7 @@ def docs(
     cpu: bool = False,
     interactive: bool = False,
     skip_build: bool = False,
+    docker_image: Optional[str] = None,
 ) -> None:
     """
     Build the documentation from gallery/ and docs/. By default this builds only
@@ -238,6 +239,7 @@ def docs(
     cpu -- Run with the ci-cpu image and use CMake defaults for building TVM (if no GPUs are available)
     skip_build -- skip build and setup scripts
     interactive -- start a shell after running build / test scripts
+    docker-image -- manually specify the docker image to use
     """
     config = "./tests/scripts/task_config_build_gpu.sh"
     build_dir = get_build_dir("gpu")
@@ -245,9 +247,9 @@ def docs(
         clean_exit("--full cannot be used with --cpu")
 
     extra_setup = []
-    image = "ci_gpu"
+    image = "ci_gpu" if docker_image is None else docker_image
     if cpu:
-        image = "ci_cpu"
+        image = "ci_cpu" if docker_image is None else docker_image
         build_dir = get_build_dir("cpu")
         config = " && ".join(
             [
@@ -319,13 +321,14 @@ def serve_docs(directory: str = "_docs") -> None:
     cmd([sys.executable, "-m", "http.server"], cwd=directory_path)
 
 
-def lint(interactive: bool = False, fix: bool = False) -> None:
+def lint(interactive: bool = False, fix: bool = False, docker_image: Optional[str] = None) -> None:
     """
     Run CI's Sanity Check step
 
     arguments:
     interactive -- start a shell after running build / test scripts
     fix -- where possible (currently black and clang-format) edit files in place with formatting fixes
+    docker-image -- manually specify the docker image to use
     """
     env = {}
     if fix:
@@ -334,7 +337,7 @@ def lint(interactive: bool = False, fix: bool = False) -> None:
 
     docker(
         name=gen_name(f"ci-lint"),
-        image="ci_lint",
+        image="ci_lint" if docker_image is None else docker_image,
         scripts=["./tests/scripts/task_lint.sh"],
         env=env,
         interactive=interactive,
@@ -359,13 +362,18 @@ def generate_command(
     """
 
     def fn(
-        tests: Optional[List[str]], skip_build: bool = False, interactive: bool = False, **kwargs
+        tests: Optional[List[str]],
+        skip_build: bool = False,
+        interactive: bool = False,
+        docker_image: Optional[str] = None,
+        **kwargs,
     ) -> None:
         """
         arguments:
         tests -- pytest test IDs (e.g. tests/python or tests/python/a_file.py::a_test[param=1])
         skip_build -- skip build and setup scripts
         interactive -- start a shell after running build / test scripts
+        docker-image -- manually specify the docker image to use
         """
         if precheck is not None:
             precheck()
@@ -396,7 +404,7 @@ def generate_command(
 
         docker(
             name=gen_name(f"ci-{name}"),
-            image=f"ci_{name}",
+            image=f"ci_{name}" if docker_image is None else docker_image,
             scripts=scripts,
             env={
                 # Need to specify the library path manually or else TVM can't
