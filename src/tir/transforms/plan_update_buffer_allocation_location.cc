@@ -35,17 +35,18 @@ class BufferAllocationLocator : public StmtExprMutator {
  public:
   explicit BufferAllocationLocator(const PrimFunc& func) {
     Map<Buffer, Optional<Stmt>> buffer_lca = DetectBufferAccessLCA(func);
-    std::unordered_set<const BufferNode*> arg_buffers;
+
+    std::unordered_set<const VarNode*> arg_buffer_vars;
     for (const auto& kv : func->buffer_map) {
       const Buffer& buffer = kv.second;
-      arg_buffers.emplace(buffer.get());
+      arg_buffer_vars.emplace(buffer->data.get());
       buffer_data_to_buffer_.Set(buffer->data, buffer);
     }
     // create buffers to be allocated at each stmts
     for (const auto& kv : buffer_lca) {
       const Buffer& buffer = kv.first;
       const StmtNode* stmt = kv.second.get();
-      if (arg_buffers.count(buffer.get())) {
+      if (arg_buffer_vars.count(buffer->data.get())) {
         continue;
       }
       alloc_buffers_[stmt].push_back(buffer);
