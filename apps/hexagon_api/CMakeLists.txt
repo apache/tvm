@@ -28,7 +28,7 @@ file(MAKE_DIRECTORY ${HEXAGON_API_BINARY_DIR})
 
 ExternalProject_Add(x86_tvm_runtime_rpc
   SOURCE_DIR "${TVM_SOURCE_DIR}"
-  BUILD_COMMAND $(MAKE) runtime tvm_rpc
+  BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} runtime tvm_rpc
   CMAKE_ARGS
     "-DUSE_HEXAGON_TOOLCHAIN=${USE_HEXAGON_TOOLCHAIN}"
     "-DCMAKE_CXX_STANDARD=14"
@@ -56,7 +56,7 @@ ExternalProject_Add_Step(x86_tvm_runtime_rpc copy_rpc_server
 
 ExternalProject_Add(android_tvm_runtime_rpc
   SOURCE_DIR "${TVM_SOURCE_DIR}"
-  BUILD_COMMAND $(MAKE) runtime tvm_rpc
+  BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} runtime tvm_rpc
   CMAKE_ARGS
     "-DCMAKE_TOOLCHAIN_FILE=${USE_ANDROID_TOOLCHAIN}"
     "-DANDROID_PLATFORM=${ANDROID_PLATFORM}"
@@ -95,7 +95,7 @@ ExternalProject_Add_Step(android_tvm_runtime_rpc copy_rpc_server
 
 ExternalProject_Add(hexagon_tvm_runtime_rpc
   SOURCE_DIR "${TVM_SOURCE_DIR}"
-  BUILD_COMMAND $(MAKE) runtime hexagon_rpc_sim
+  BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} runtime hexagon_rpc_sim
   CMAKE_ARGS
     "-DCMAKE_C_COMPILER=${USE_HEXAGON_TOOLCHAIN}/bin/hexagon-clang"
     "-DCMAKE_CXX_COMPILER=${USE_HEXAGON_TOOLCHAIN}/bin/hexagon-clang++"

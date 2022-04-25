@@ -77,7 +77,7 @@ add_library(launcher_rpc_skel SHARED
 
 ExternalProject_Add(static_hexagon_tvm_runtime
   SOURCE_DIR "${TVM_SOURCE_DIR}"
-  BUILD_COMMAND $(MAKE) runtime
+  BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} runtime
   CMAKE_ARGS
   "-DBUILD_STATIC_RUNTIME=ON"
   "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"

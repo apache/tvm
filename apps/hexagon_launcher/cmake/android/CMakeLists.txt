@@ -69,7 +69,7 @@ add_executable(launcher_android
 
 ExternalProject_Add(android_tvm_runtime
   SOURCE_DIR "${TVM_SOURCE_DIR}"
-  BUILD_COMMAND $(MAKE) runtime
+  BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} runtime
   CMAKE_ARGS
   "-DANDROID_ABI=${ANDROID_ABI}"
   "-DANDROID_PLATFORM=${ANDROID_PLATFORM}"

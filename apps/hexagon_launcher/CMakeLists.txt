@@ -39,7 +39,7 @@ endforeach()
 
 ExternalProject_Add(android_launcher_binaries
   SOURCE_DIR "${LAUNCHER_SOURCE_DIR}/cmake/android"
-  BUILD_COMMAND $(MAKE)
+  BUILD_COMMAND ${CMAKE_MAKE_PROGRAM}
   CMAKE_ARGS
   "-DCMAKE_TOOLCHAIN_FILE=${USE_ANDROID_TOOLCHAIN}"
   "-DANDROID_PLATFORM=${ANDROID_PLATFORM}"
@@ -60,7 +60,7 @@ ExternalProject_Add_Step(android_launcher_binaries copy_binaries
 
 ExternalProject_Add(hexagon_launcher_binaries
   SOURCE_DIR "${LAUNCHER_SOURCE_DIR}/cmake/hexagon"
-  BUILD_COMMAND $(MAKE)
+  BUILD_COMMAND ${CMAKE_MAKE_PROGRAM}
   CMAKE_ARGS
   "-DCMAKE_C_COMPILER=${USE_HEXAGON_TOOLCHAIN}/bin/hexagon-clang"
   "-DCMAKE_CXX_COMPILER=${USE_HEXAGON_TOOLCHAIN}/bin/hexagon-clang++"
