@@ -203,7 +203,7 @@ def get_package_data_files():
 
 def long_description_contents():
     with open(
-        os.path.abspath(os.path.join(CURRENT_DIR, "..", "README.md")), encoding="utf-8"
+        pathlib.Path(CURRENT_DIR).resolve().parent / "README.md", encoding="utf-8"
     ) as readme:
         description = readme.read()
 
