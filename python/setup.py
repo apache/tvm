@@ -20,6 +20,7 @@ import os
 import shutil
 import sys
 import sysconfig
+import pathlib
 import platform
 
 from setuptools import find_packages
@@ -202,9 +203,7 @@ def get_package_data_files():
 
 
 def long_description_contents():
-    with open(
-        pathlib.Path(CURRENT_DIR).resolve().parent / "README.md", encoding="utf-8"
-    ) as readme:
+    with open(pathlib.Path(CURRENT_DIR).resolve().parent / "README.md", encoding="utf-8") as readme:
         description = readme.read()
 
     return description
@@ -228,10 +227,10 @@ setup(
     description="TVM: An End to End Tensor IR/DSL Stack for Deep Learning Systems",
     long_description=long_description_contents(),
     long_description_content_type="text/markdown",
-    url='https://tvm.apache.org/',
-    download_url='https://github.com/apache/tvm/tags',
-    author='Apache TVM',
-    license='Apache',
+    url="https://tvm.apache.org/",
+    download_url="https://github.com/apache/tvm/tags",
+    author="Apache TVM",
+    license="Apache",
     # See https://pypi.org/classifiers/
     classifiers=[
         "License :: OSI Approved :: Apache Software License",
@@ -240,7 +239,7 @@ setup(
         "Intended Audience :: Education",
         "Intended Audience :: Science/Research",
     ],
-    keywords='machine learning',
+    keywords="machine learning",
     zip_safe=False,
     entry_points={"console_scripts": ["tvmc = tvm.driver.tvmc.main:main"]},
     install_requires=requirements["core"][1],
@@ -249,7 +248,6 @@ setup(
     package_dir={"tvm": "tvm"},
     package_data={"tvm": get_package_data_files()},
     distclass=BinaryDistribution,
-    url="https://github.com/apache/tvm",
     ext_modules=config_cython(),
     **setup_kwargs,
 )
