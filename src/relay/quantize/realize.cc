@@ -25,6 +25,8 @@
  *   graph.
  */
 
+#include "./realize.h"
+
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/transform.h>
@@ -32,7 +34,6 @@
 #include "../op/annotation/annotation.h"
 #include "../qnn/utils.h"
 #include "./quantize.h"
-#include "./realize.h"
 
 namespace tvm {
 namespace relay {
