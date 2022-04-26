@@ -21,6 +21,7 @@ import logging
 import numpy as np
 
 import tvm
+import tvm.runtime
 from tvm.ir import IRModule
 from tvm.topi.utils import get_const_tuple
 
@@ -550,7 +551,7 @@ def infer_value(input_val, params, mod=None):
         func = _function.Function(analysis.free_vars(input_val), input_val)
         with tvm.transform.PassContext(opt_level=0):
             lib = tvm.relay.build(func, target="llvm", params=params)
-        dev = tvm.cpu(0)
+        dev = tvm.runtime.cpu(0)
         m = graph_executor.GraphModule(lib["default"](dev))
         m.run()
         return m.get_output(0)
@@ -563,7 +564,7 @@ def infer_value(input_val, params, mod=None):
         for param in mod["main"].params:
             inputs.append(params[param.name_hint])
         result = tvm.relay.create_executor(
-            "debug", mod=mod, device=tvm.cpu(), target="llvm"
+            "debug", mod=mod, device=tvm.runtime.cpu(), target="llvm"
         ).evaluate()(*inputs)
         return result
 

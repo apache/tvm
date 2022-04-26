@@ -33,6 +33,7 @@ To connect to the graph executor, we use a printer that converts our graph forma
 into TVM's JSON format. The resulting string can be loaded by
 contrib.graph_executor or any other TVM runtime compatible systems.
 """
+import tvm.runtime
 from tvm.runtime.ndarray import empty
 from tvm.relay import _build_module
 from tvm.target import Target
@@ -91,7 +92,7 @@ class GraphExecutorCodegen(object):
         params = {}
         for key in param_names:
             arr = self._get_param_by_name(key)
-            param = empty(arr.shape, dtype=arr.dtype, device=arr.device)
+            param = empty(arr.shape, dtype=arr.dtype, device=tvm.runtime.device)
             arr.copyto(param)
             params[key] = param
         return graph_json, lowered_func, params

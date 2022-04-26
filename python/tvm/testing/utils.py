@@ -77,6 +77,7 @@ import pytest
 import numpy as np
 import tvm
 import tvm.arith
+import tvm.runtime
 import tvm.tir
 import tvm.te
 import tvm._ffi
@@ -406,7 +407,7 @@ def _get_targets(target_str=None):
             is_runnable = is_enabled and cudnn.exists()
         else:
             is_enabled = tvm.runtime.enabled(target_kind)
-            is_runnable = is_enabled and tvm.device(target_kind).exist
+            is_runnable = is_enabled and tvm.runtime.device(target_kind).exist
 
         targets.append(
             {
@@ -507,7 +508,7 @@ def enabled_targets():
         A list of pairs of all enabled devices and the associated context
 
     """
-    return [(t["target"], tvm.device(t["target"])) for t in _get_targets() if t["is_runnable"]]
+    return [(t["target"], tvm.runtime.device(t["target"])) for t in _get_targets() if t["is_runnable"]]
 
 
 def _compose(args, decs):
@@ -575,11 +576,11 @@ def requires_gpu(*args):
     """
     _requires_gpu = [
         pytest.mark.skipif(
-            not tvm.cuda().exist
-            and not tvm.rocm().exist
-            and not tvm.opencl().exist
-            and not tvm.metal().exist
-            and not tvm.vulkan().exist,
+            not tvm.runtime.cuda().exist
+            and not tvm.runtime.rocm().exist
+            and not tvm.runtime.opencl().exist
+            and not tvm.runtime.metal().exist
+            and not tvm.runtime.vulkan().exist,
             reason="No GPU present",
         ),
         *uses_gpu(),
@@ -840,7 +841,7 @@ def requires_tensorcore(*args):
     _requires_tensorcore = [
         pytest.mark.tensorcore,
         pytest.mark.skipif(
-            not tvm.cuda().exist or not nvcc.have_tensorcore(tvm.cuda(0).compute_version),
+            not tvm.runtime.cuda().exist or not nvcc.have_tensorcore(tvm.runtime.cuda(0).compute_version),
             reason="No tensorcore present",
         ),
         *requires_gpu(),

@@ -39,6 +39,7 @@ import multiprocessing
 import logging
 
 import tvm._ffi
+import tvm.runtime
 from tvm.runtime import Object, module, ndarray
 from tvm.driver import build_module
 from tvm.ir import transform
@@ -891,7 +892,7 @@ def _timed_eval_func(
     error_msg = None
     try:
         func = module.load_module(build_res.filename)
-        dev = ndarray.device(str(inp.task.target), device)
+        dev = tvm.runtime.device(str(inp.task.target), device)
         # Limitation:
         # We can not get PackFunction directly in the remote mode as it is wrapped
         # under the std::function. We could lift the restriction later once we fold

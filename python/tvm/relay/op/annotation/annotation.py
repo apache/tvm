@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Annotation operations."""
+import tvm.runtime
 from tvm import target
-from tvm.runtime import ndarray as _nd
 from tvm.runtime import Device as _Device
 
 from . import _make
@@ -27,7 +27,7 @@ def _make_virtual_device(device):
     if isinstance(device, _Device):
         return target.VirtualDevice(device)
     if isinstance(device, str):
-        return target.VirtualDevice(_nd.device(device))
+        return target.VirtualDevice(tvm.runtime.device(device))
     raise ValueError("expecting a Device or device name, but received a %s" % (type(device)))
 
 

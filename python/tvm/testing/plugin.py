@@ -35,6 +35,7 @@ import pytest
 import _pytest
 
 import tvm
+import tvm.runtime
 from tvm.testing import utils
 
 
@@ -81,7 +82,7 @@ def pytest_collection_modifyitems(config, items):
 @pytest.fixture
 def dev(target):
     """Give access to the device to tests that need it."""
-    return tvm.device(target)
+    return tvm.runtime.device(target)
 
 
 def pytest_sessionfinish(session, exitstatus):

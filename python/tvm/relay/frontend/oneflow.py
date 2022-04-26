@@ -25,6 +25,7 @@ import warnings
 
 import numpy as np
 import tvm
+import tvm.runtime
 from tvm.ir import IRModule
 from tvm.topi.utils import get_const_tuple
 

@@ -16,8 +16,8 @@
 # under the License.
 """Basic tensor operations."""
 # pylint: disable=redefined-builtin, unused-argument
+import tvm.runtime
 from tvm import target
-from tvm.runtime import ndarray as _nd
 from tvm.runtime import Device as _Device
 from tvm.te.hybrid import script
 
@@ -31,7 +31,7 @@ def _make_virtual_device(device):
     if isinstance(device, _Device):
         return target.VirtualDevice(device)
     if isinstance(device, str):
-        return target.VirtualDevice(_nd.device(device))
+        return target.VirtualDevice(tvm.runtime.device(device))
     raise ValueError("expecting a Device or device name, but received a %s" % (type(device)))
 
 

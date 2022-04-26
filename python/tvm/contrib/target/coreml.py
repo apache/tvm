@@ -21,6 +21,7 @@ import os
 import shutil
 
 import tvm._ffi
+import tvm.runtime
 from ...relay.expr_functor import ExprVisitor
 from .. import xcode, coreml_runtime
 
@@ -244,5 +245,5 @@ def coreml_compiler(func):
         shutil.rmtree(mlmodelc_path)
     builder.compile(model_dir)
 
-    dev = tvm.cpu(0)
+    dev = tvm.runtime.cpu(0)
     return coreml_runtime.create(name, mlmodelc_path, dev).module

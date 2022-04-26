@@ -21,10 +21,10 @@ import warnings
 
 from typing import Union, Optional, List, Mapping
 
+import tvm.runtime
 import tvm.tir
 
 from tvm.runtime import Module
-from tvm.runtime import ndarray
 from tvm.ir import container
 from tvm.tir import PrimFunc
 from tvm.ir.module import IRModule
@@ -266,8 +266,8 @@ def build(
     if not target_host:
         for tar, mod in annotated_mods.items():
             tar = Target(tar)
-            device_type = ndarray.device(tar.kind.name, 0).device_type
-            if device_type == ndarray.cpu(0).device_type:
+            device_type = tvm.runtime.device(tar.kind.name, 0).device_type
+            if device_type == tvm.runtime.cpu(0).device_type:
                 target_host = tar
                 break
     if not target_host:

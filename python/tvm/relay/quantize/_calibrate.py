@@ -21,6 +21,7 @@ import multiprocessing as mp
 import numpy as np
 import tvm
 import tvm.driver
+import tvm.runtime
 from tvm.ir import IRModule
 
 from . import _quantize
@@ -39,10 +40,10 @@ def _get_profile_runtime(mod):
 
     if tvm.target.Target.current():
         target = tvm.target.Target.current()
-        dev = tvm.device(target.kind.name)
+        dev = tvm.runtime.device(target.kind.name)
     else:
         target = "llvm"
-        dev = tvm.device(target)
+        dev = tvm.runtime.device(target)
 
     with tvm.transform.PassContext(opt_level=3):
         lib = _build_module.build(func, target=target)

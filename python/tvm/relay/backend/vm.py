@@ -25,6 +25,7 @@ import warnings
 import numpy as np
 
 import tvm
+import tvm.runtime
 import tvm.runtime.ndarray as _nd
 import tvm.runtime.vm as vm_rt
 from tvm import autotvm
@@ -229,7 +230,7 @@ class VMCompiler(object):
 
         tgts = {}
         for dev, tgt in target.items():
-            dev_type = tvm.tir.IntImm("int32", tvm.nd.device(dev).device_type)
+            dev_type = tvm.tir.IntImm("int32", tvm.runtime.device(dev).device_type)
             if isinstance(tgt, str):
                 tgt = tvm.target.Target(tgt)
 
@@ -245,7 +246,7 @@ class VMCompiler(object):
                 if tgt.host is not None:
                     return tgt.host
             for device_type, tgt in target.items():
-                if device_type.value == tvm.nd.cpu(0).device_type:
+                if device_type.value == tvm.runtime.cpu(0).device_type:
                     target_host = tgt
                     break
         if not target_host:

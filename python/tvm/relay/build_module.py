@@ -21,6 +21,8 @@ from a Relay expression.
 import warnings
 
 import numpy as np
+
+import tvm.runtime
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext
 from tvm.target import Target
@@ -69,11 +71,11 @@ def build_target_by_device_type_map(target):
 
     tgts = {}
     if isinstance(target, (str, Target)):
-        dev_type = tvm_expr.IntImm("int32", _nd.device(str(target)).device_type)
+        dev_type = tvm_expr.IntImm("int32", tvm.runtime.device(str(target)).device_type)
         tgts[dev_type] = Target(target)
     elif isinstance(target, dict):
         for dev, tgt in target.items():
-            dev_type = tvm_expr.IntImm("int32", _nd.device(dev).device_type)
+            dev_type = tvm_expr.IntImm("int32", tvm.runtime.device(dev).device_type)
             tgts[dev_type] = Target(tgt)
     else:
         raise TypeError(
@@ -644,7 +646,7 @@ class GraphExecutor(_interpreter.Executor):
             gmodule.run()
             flattened = []
             for i in range(gmodule.get_num_outputs()):
-                flattened.append(gmodule.get_output(i).copyto(_nd.cpu(0)))
+                flattened.append(gmodule.get_output(i).copyto(tvm.runtime.cpu(0)))
             unflattened = _unflatten(iter(flattened), ret_type)
             return unflattened
 
@@ -712,7 +714,7 @@ class AotExecutor(_interpreter.Executor):
             gmodule.run()
             flattened = []
             for i in range(gmodule.get_num_outputs()):
-                flattened.append(gmodule.get_output(i).copyto(_nd.cpu(0)))
+                flattened.append(gmodule.get_output(i).copyto(tvm.runtime.cpu(0)))
             unflattened = _unflatten(iter(flattened), ret_type)
             return unflattened
 
@@ -765,9 +767,9 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
     if mod is None:
         mod = IRModule()
     if device is not None:
-        assert device.device_type == _nd.device(str(target), 0).device_type
+        assert device.device_type == tvm.runtime.device(str(target), 0).device_type
     else:
-        device = _nd.device(str(target), 0)
+        device = tvm.runtime.device(str(target), 0)
 
     if params is not None:
         mod = IRModule.from_expr(bind_params_by_name(mod["main"], params))
