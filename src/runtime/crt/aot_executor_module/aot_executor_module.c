@@ -43,11 +43,11 @@ int32_t TVMAotExecutorModule_Create(TVMValue* args, int* tcodes, int nargs, TVMV
     return kTvmErrorExecutorModuleAlreadyCreated;
   }
 
-  if (nargs != 2) {
+  if (nargs != 3) {
     return kTvmErrorFunctionCallNumArguments;
   }
 
-  if (tcodes[0] != kTVMModuleHandle || tcodes[1] != kDLDevice) {
+  if (tcodes[0] != kTVMModuleHandle || tcodes[1] != kDLDevice || tcodes[2] != kTVMStr) {
     return kTvmErrorFunctionCallWrongArgType;
   }
 
@@ -57,7 +57,7 @@ int32_t TVMAotExecutorModule_Create(TVMValue* args, int* tcodes, int nargs, TVMV
     return kTvmErrorExecutorModuleBadContext;
   }
 
-  TVMAotExecutor_Create(args[0].v_handle, dev, &aot_executor.executor);
+  TVMAotExecutor_Create(args[0].v_handle, dev, &aot_executor.executor, args[2].v_str);
 
   TVMModuleHandle out_mod;
   int status = TVMModCreateFromCModule(&aot_executor.mod, &out_mod);

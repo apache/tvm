@@ -80,9 +80,9 @@ int TVMAotExecutor_GetInputIndex(TVMAotExecutor* executor, const char* name) {
 int TVMAotExecutor_Run(TVMAotExecutor* executor) {
   const char* tvm_main_suffix = "___tvm_main__";
   char tvm_main_name[TVM_CRT_MAX_STRLEN_FUNCTION_NAME];
-  const size_t max_strlen = TVM_CRT_MAX_STRLEN_FUNCTION_NAME;
 
   {
+    const size_t max_strlen = TVM_CRT_MAX_STRLEN_FUNCTION_NAME;
     size_t len = strnlen(executor->metadata->mod_name, max_strlen);
     len += strnlen(tvm_main_suffix, max_strlen);
 
@@ -118,7 +118,7 @@ int TVMAotExecutor_Run(TVMAotExecutor* executor) {
 }
 
 int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
-                        const DLDevice device) {
+                        const DLDevice device, const char* module_name) {
   executor->module_handle = module_handle;
   executor->device = device;
 
@@ -128,8 +128,25 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
   TVMArgs temp_args;
   temp_args.values_count = 0;
 
+  const char* tvmgen_prefix = "tvmgen_";
+  const char* get_c_metdata_suffix = "_get_c_metadata";
+  char get_c_metdata_name[TVM_CRT_MAX_STRLEN_FUNCTION_NAME];
+
+  {
+    size_t max_strlen = TVM_CRT_MAX_STRLEN_FUNCTION_NAME;
+    size_t len = strnlen(tvmgen_prefix, max_strlen);
+    len += strnlen(module_name, max_strlen);
+    len += strnlen(get_c_metdata_suffix, max_strlen);
+
+    CHECK_LT(len, max_strlen, "get_c_metadata name too long %zu\n", len);
+  }
+
+  // create get_c_metadata() function name string, e.g. "tvmgen_default_get_c_metadata()"
+  snprintf(get_c_metdata_name, sizeof(get_c_metdata_name), "%s%s%s", tvmgen_prefix, module_name,
+           get_c_metdata_suffix);
+
   int status = TVMPackedFunc_InitModuleFunc(&get_c_metadata, executor->module_handle,
-                                            "get_c_metadata", &temp_args);
+                                            get_c_metdata_name, &temp_args);
   if (status != 0) {
     return status;
   }
@@ -187,7 +204,7 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
 }
 
 int TVMAotExecutor_Create(TVMModuleHandle module_handle, const DLDevice device,
-                          TVMAotExecutor** executor) {
+                          TVMAotExecutor** executor, const char* module_name) {
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(**executor), device, (void**)executor);
   if (err != kTvmErrorNoError) {
     return -1;
@@ -195,7 +212,7 @@ int TVMAotExecutor_Create(TVMModuleHandle module_handle, const DLDevice device,
 
   memset(*executor, 0, sizeof(**executor));
 
-  return TVMAotExecutor_Init(*executor, module_handle, device);
+  return TVMAotExecutor_Init(*executor, module_handle, device, module_name);
 }
 
 int TVMAotExecutor_Release(TVMAotExecutor* executor, const DLDevice device) {

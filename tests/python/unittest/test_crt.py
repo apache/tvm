@@ -206,7 +206,9 @@ def test_aot_executor():
 
     def do_test():
         aot_executor = tvm.runtime.executor.aot_executor.AotModule(
-            sess._rpc.get_function("tvm.aot_executor.create")(sess.get_system_lib(), sess.device)
+            sess._rpc.get_function("tvm.aot_executor.create")(
+                sess.get_system_lib(), sess.device, "default"
+            )
         )
 
         assert aot_executor.get_input_index("a") == 0

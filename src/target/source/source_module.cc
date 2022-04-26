@@ -756,11 +756,14 @@ runtime::Module CreateAotMetadataModule(runtime::metadata::Metadata aot_metadata
   MetadataSerializer serializer;
   serializer.CodegenMetadata(aot_metadata);
   std::stringstream lookup_func;
+  const std::string get_c_metadata_func_mangled = runtime::get_name_mangled(
+      aot_metadata->mod_name(), ::tvm::runtime::symbol::tvm_get_c_metadata);
+
   lookup_func << "#ifdef __cplusplus\n"
               << "extern \"C\"\n"
               << "#endif\n";
 
-  lookup_func << "TVM_DLL int32_t " << ::tvm::runtime::symbol::tvm_get_c_metadata
+  lookup_func << "TVM_DLL int32_t " << get_c_metadata_func_mangled
               << "(TVMValue* arg_values, int* arg_tcodes, int "
                  "num_args, TVMValue* ret_values, int* ret_tcodes, void* resource_handle) {"
               << std::endl;
@@ -769,7 +772,7 @@ runtime::Module CreateAotMetadataModule(runtime::metadata::Metadata aot_metadata
   lookup_func << "    ret_tcodes[0] = kTVMOpaqueHandle;" << std::endl;
   lookup_func << "    return 0;" << std::endl;
   lookup_func << "};" << std::endl;
-  std::vector<String> func_names{::tvm::runtime::symbol::tvm_get_c_metadata};
+  std::vector<String> func_names{get_c_metadata_func_mangled};
   return CSourceModuleCreate(serializer.GetOutput() + lookup_func.str(), "c", func_names,
                              Array<String>());
 }

@@ -52,10 +52,11 @@ typedef struct TVMAotExecutor {
  * \param module_handle TVM Module that exposes the functions to call.
  * \param device Runtime execution device, only supports device type kDLCPU, index 0.
  * \param executor Pointer which receives a pointer to the newly-created instance.
+ * \param module_name TVM Module name prefix, typically "default".
  * \return 0 if successful.
  */
 int TVMAotExecutor_Create(TVMModuleHandle module_handle, const DLDevice device,
-                          TVMAotExecutor** executor);
+                          TVMAotExecutor** executor, const char* module_name);
 
 /*!
  * \brief Release the AoT executor created by TVMAotExecutor_Create().
