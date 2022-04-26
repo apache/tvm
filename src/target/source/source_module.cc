@@ -251,6 +251,26 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     }
   }
 
+  void GenerateIOWorkspaceMapFunction(const std::string& struct_type,
+                                      const std::string& function_name,
+                                      const Array<String>& tensor_names) {
+    std::string map_function = runtime::get_name_mangled(metadata_->mod_name, function_name);
+    code_ << "struct " << struct_type << " " << map_function << "(\n";
+    std::string pools_struct = runtime::get_name_mangled(metadata_->mod_name, "workspace_pools");
+    code_ << "  struct " << pools_struct << "* workspace_pools\n";
+    code_ << "\n){\n";
+    code_ << "struct " << struct_type << " ret = {\n";
+    for (const String& name : tensor_names) {
+      tir::usmp::PoolAllocation pool_allocation = metadata_->io_pool_allocations[name];
+      code_ << "\t." << name << " = "
+            << "&((uint8_t*)workspace_pools->" << pool_allocation->pool_info->pool_name << ")["
+            << pool_allocation->byte_offset << "],\n";
+    }
+    code_ << "};\n";
+    code_ << "return ret;\n";
+    code_ << "}\n\n";
+  }
+
   bool IsInternalWorkspaceBuffer(const tir::Var& pool_var) {
     if (metadata_->pool_inputs.defined()) {
       Map<tir::Var, tir::usmp::AllocatedPoolInfo> allocated_pool_infos =
@@ -271,16 +291,18 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
     {
       std::stringstream call_args_ss;
-      for (const tir::Var& input_var : metadata_->inputs) {
-        if (input_var->type_annotation.defined()) {
-          codegen_c_base_.PrintType(input_var->type_annotation, call_args_ss);
-        } else {
-          codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
+      if (metadata_->io_pool_allocations.empty()) {
+        for (const tir::Var& input_var : metadata_->inputs) {
+          if (input_var->type_annotation.defined()) {
+            codegen_c_base_.PrintType(input_var->type_annotation, call_args_ss);
+          } else {
+            codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
+          }
+          call_args_ss << " " << input_var->name_hint << ",";
         }
-        call_args_ss << " " << input_var->name_hint << ",";
-      }
-      for (unsigned int i = 0; i < metadata_->outputs.size(); ++i) {
-        call_args_ss << "void* output" << i << ",";
+        for (unsigned int i = 0; i < metadata_->outputs.size(); ++i) {
+          call_args_ss << "void* output" << i << ",";
+        }
       }
       for (const tir::Var& pool_var : metadata_->pools) {
         if (pool_var->type_annotation.defined()) {
@@ -303,12 +325,14 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
     {
       std::stringstream call_args_ss;
-      for (unsigned int i = 0; i < metadata_->inputs.size(); ++i) {
-        call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << i << "].v_handle))[0].data,";
-      }
-      for (unsigned int i = 0; i < metadata_->outputs.size(); ++i) {
-        int j = metadata_->inputs.size() + i;
-        call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << j << "].v_handle))[0].data,";
+      if (metadata_->io_pool_allocations.empty()) {
+        for (unsigned int i = 0; i < metadata_->inputs.size(); ++i) {
+          call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << i << "].v_handle))[0].data,";
+        }
+        for (unsigned int i = 0; i < metadata_->outputs.size(); ++i) {
+          int j = metadata_->inputs.size() + i;
+          call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << j << "].v_handle))[0].data,";
+        }
       }
       for (const tir::Var& pool_var : metadata_->pools) {
         if (IsInternalWorkspaceBuffer(pool_var)) {
@@ -329,15 +353,17 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     int entrypoint_arg_count = 0;
     int run_func_arg_count = 0;
 
-    for (unsigned int i = 0; i < metadata_->inputs.size(); i++) {
-      run_func_to_entry_point_args[run_func_arg_count] = Integer(entrypoint_arg_count);
-      entrypoint_arg_count++;
-      run_func_arg_count++;
-    }
-    for (unsigned int i = 0; i < metadata_->outputs.size(); i++) {
-      run_func_to_entry_point_args[run_func_arg_count] = Integer(entrypoint_arg_count);
-      entrypoint_arg_count++;
-      run_func_arg_count++;
+    if (metadata_->io_pool_allocations.empty()) {
+      for (unsigned int i = 0; i < metadata_->inputs.size(); i++) {
+        run_func_to_entry_point_args[run_func_arg_count] = Integer(entrypoint_arg_count);
+        entrypoint_arg_count++;
+        run_func_arg_count++;
+      }
+      for (unsigned int i = 0; i < metadata_->outputs.size(); i++) {
+        run_func_to_entry_point_args[run_func_arg_count] = Integer(entrypoint_arg_count);
+        entrypoint_arg_count++;
+        run_func_arg_count++;
+      }
     }
     for (const tir::Var& pool_var : metadata_->pools) {
       if (IsInternalWorkspaceBuffer(pool_var)) {
@@ -361,8 +387,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
              "out_type_code, void* resource_handle) {\n";
 
     // We are creating a copy of the set of pointers
-    size_t number_of_io_tensors =
-        metadata_->inputs.size() + metadata_->outputs.size() + metadata_->pools.size();
+    size_t number_of_io_tensors = metadata_->inputs.size() + metadata_->outputs.size() +
+                                  metadata_->pools.size() - metadata_->io_pool_allocations.size();
     code_ << "TVMValue tensors[" << number_of_io_tensors << "];\n";
 
     std::unordered_map<int, ObjectRef> run_func_to_entry_point_args =
@@ -390,19 +416,33 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   void GenerateCInterfaceEntrypoint(const std::string& entrypoint_name, const std::string& run_func,
                                     const std::string& mod_name) {
     code_ << "#include <" << mod_name << ".h>\n";
+    if (!metadata_->io_pool_allocations.empty()) {
+      const std::string input_struct_type =
+          runtime::get_name_mangled(metadata_->mod_name, "inputs");
+      Array<String> input_tensor_names;
+      for (const tir::Var& input_var : metadata_->inputs) {
+        input_tensor_names.push_back(input_var->name_hint);
+      }
+      GenerateIOWorkspaceMapFunction(input_struct_type, "map_inputs", input_tensor_names);
+      const std::string output_struct_type =
+          runtime::get_name_mangled(metadata_->mod_name, "outputs");
+      GenerateIOWorkspaceMapFunction(output_struct_type, "map_outputs", metadata_->outputs);
+    }
     code_ << "TVM_DLL int32_t " << run_func << "(";
     {
       std::stringstream call_args_ss;
-      for (const tir::Var& input_var : metadata_->inputs) {
-        if (input_var->type_annotation.defined()) {
-          codegen_c_base_.PrintType(input_var->type_annotation, call_args_ss);
-        } else {
-          codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
+      if (metadata_->io_pool_allocations.empty()) {
+        for (const tir::Var& input_var : metadata_->inputs) {
+          if (input_var->type_annotation.defined()) {
+            codegen_c_base_.PrintType(input_var->type_annotation, call_args_ss);
+          } else {
+            codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
+          }
+          call_args_ss << " " << relay::backend::SanitizeName(input_var->name_hint) << ",";
         }
-        call_args_ss << " " << relay::backend::SanitizeName(input_var->name_hint) << ",";
-      }
-      for (unsigned int i = 0; i < metadata_->outputs.size(); ++i) {
-        call_args_ss << "void* output" << i << ",";
+        for (unsigned int i = 0; i < metadata_->outputs.size(); ++i) {
+          call_args_ss << "void* output" << i << ",";
+        }
       }
       for (const tir::Var& pool_var : metadata_->pools) {
         if (pool_var->type_annotation.defined()) {
@@ -424,8 +464,10 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << "int32_t " << entrypoint_name << "(";
     {
       std::stringstream call_args_ss;
-      call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "inputs") << "* inputs,";
-      call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs,";
+      if (metadata_->io_pool_allocations.empty()) {
+        call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "inputs") << "* inputs,";
+        call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs,";
+      }
       if (!metadata_->pools.empty()) {
         bool is_external_pools_present = false;
         for (tir::Var pool_var : metadata_->pools) {
@@ -452,12 +494,14 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
     {
       std::stringstream call_args_ss;
-      for (const auto& input : metadata_->inputs) {
-        call_args_ss << "inputs->" << relay::backend::SanitizeName(input->name_hint) << ",";
-      }
-      for (const auto& output : metadata_->outputs) {
-        call_args_ss << "outputs->" << relay::backend::SanitizeName(output);
-        call_args_ss << ",";
+      if (metadata_->io_pool_allocations.empty()) {
+        for (const auto& input : metadata_->inputs) {
+          call_args_ss << "inputs->" << relay::backend::SanitizeName(input->name_hint) << ",";
+        }
+        for (const auto& output : metadata_->outputs) {
+          call_args_ss << "outputs->" << relay::backend::SanitizeName(output);
+          call_args_ss << ",";
+        }
       }
 
       for (const tir::Var& pool_var : metadata_->pools) {
