@@ -36,6 +36,8 @@ class TFLiteModel:
         self.dtype_dict = {}
 
     def create_conv2d_single(self, kernel_shape, strides, padding, dilation, activation):
+        """Returns tf.function that creates TFLite Conv2d layer"""
+
         @tf.function
         def conv2d_single_function(ifm_tensor):
             """Returns TFLite Conv2d layer"""
