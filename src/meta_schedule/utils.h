@@ -70,19 +70,19 @@ class PyLogMessage {
   }
   TVM_NO_INLINE ~PyLogMessage() {
     if (this->logging_func.defined()) {
-      if (logging_level == "INFO")
-        LOG_INFO << stream_.str();
-      else if (logging_level == "WARNING")
-        LOG_WARNING << stream_.str();
-      else if (logging_level == "ERROR")
-        LOG_ERROR << stream_.str();
-      else if (logging_level == "FATAL")
-        LOG_FATAL << stream_.str();
-      else
-        LOG_FATAL << "Wrong logging level, expected (INFO, WARNING, ERROR, FATAL), but got \""
-                  << logging_level << "\"!";
-    } else {
       logging_func.value()(logging_level, stream_.str());
+    } else {
+      if (logging_level == "INFO")
+        LOG(INFO) << stream_.str();
+      else if (logging_level == "WARNING")
+        LOG(WARNING) << stream_.str();
+      else if (logging_level == "ERROR")
+        LOG(ERROR) << stream_.str();
+      else if (logging_level == "FATAL")
+        LOG(FATAL) << stream_.str();
+      else
+        LOG(FATAL) << "Wrong logging level, expected (INFO, WARNING, ERROR, FATAL), but got \""
+                   << logging_level << "\"!";
     }
   }
   std::ostringstream& stream() { return stream_; }
