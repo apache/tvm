@@ -977,10 +977,6 @@ inline const int64_t* as_const_int(const PrimExpr& x) {
   if (!x.defined()) return nullptr;
   if (const tir::IntImmNode* op = x.as<tir::IntImmNode>()) {
     return &(op->value);
-  } else if (const auto* op = x.as<tir::BroadcastNode>()) {
-    if (const auto* opv = op->value.as<tir::IntImmNode>()) {
-      return &(opv->value);
-    }
   }
 
   return nullptr;
