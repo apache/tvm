@@ -291,7 +291,7 @@ def numpyasarray(np_data):
     arr.dtype = DataType(np.dtype(data.dtype).name)
     arr.ndim = data.ndim
     # CPU device
-    arr.device = device(1, 0)
+    arr.device = devices.device(1, 0)
     return arr, shape
 
 
