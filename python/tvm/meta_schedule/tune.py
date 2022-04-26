@@ -182,16 +182,18 @@ class Parse:
     """Parse tuning configuration from user inputs."""
 
     @staticmethod
-    def _logger(log_dir: str, name: str, **kwargs) -> logging.Logger:
-        handler = logging.FileHandler(osp.join(log_dir, name + ".log"))
-        if "formatter" in kwargs:
-            formatter = kwargs["formatter"]
-        else:
-            formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-        handler.setFormatter(formatter)
+    def _logger(name: str, **kwargs) -> logging.Logger:
+        if "log_dir" not in kwargs:
+            raise ValueError("Cannot find log directory `log_dir` in the logging config")
+        handler = logging.FileHandler(osp.join(kwargs["log_dir"], name + ".log"))
+        if "formatter" not in kwargs:
+            raise ValueError("Cannot find log formatter `formatter` in the logging config")
+        handler.setFormatter(kwargs["formatter"])
         logger = logging.getLogger(name)
         logger.addHandler(handler)
         logger.addHandler(logging.StreamHandler())
+        logger.info("Log printing %s to %s", name, osp.join(kwargs["log_dir"], name + ".log"))
+        logger.setLevel(logging.INFO)
         return logger
 
     @staticmethod
@@ -432,6 +434,13 @@ class TuneConfig(NamedTuple):
             **config,
         )
 
+    def create_logger_config(self, **kwargs):
+        config = kwargs if self.logger_config is None else self.logger_config
+        config = {**config, **kwargs}
+        if "formatter" not in config:
+            config["formatter"] = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+        return config
+
 
 def tune_extracted_tasks(
     extracted_tasks: List[ExtractedTask],
@@ -491,7 +500,8 @@ def tune_extracted_tasks(
     # pylint: disable=protected-access
     log_dir = osp.join(work_dir, "logs")
     os.mkdir(log_dir)
-    logger = Parse._logger(log_dir=work_dir, name="task_scheduler", **config.logger_config)
+    logger_config = config.create_logger_config(log_dir=log_dir)
+    logger = Parse._logger(name="task_scheduler", **logger_config)
     logger.info("Working directory: %s", work_dir)
     database = Parse._database(database, work_dir)
     builder = Parse._builder(builder)
@@ -513,9 +523,8 @@ def tune_extracted_tasks(
                 mutator_probs=Parse._mutator_probs(mutator_probs, task.target),
                 task_name=task.task_name,
                 logger=Parse._logger(
-                    log_dir=log_dir,
                     name="_".join(["task", str(i).zfill(4), task.task_name]),
-                    **config.logger_config,
+                    **logger_config,
                 ),
                 num_threads=num_threads,
             )

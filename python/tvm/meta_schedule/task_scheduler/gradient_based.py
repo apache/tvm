@@ -19,6 +19,7 @@ import logging
 from typing import TYPE_CHECKING, List, Optional
 
 from tvm._ffi import register_object
+from tvm.meta_schedule.utils import make_logging_func
 
 from .. import _ffi_api
 from ..builder import Builder
@@ -91,7 +92,7 @@ class GradientBased(TaskScheduler):
             max_trials,
             cost_model,
             measure_callbacks,
-            logger,
+            make_logging_func(logger),
             alpha,
             window_size,
             seed,
