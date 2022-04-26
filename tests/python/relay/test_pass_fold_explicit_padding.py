@@ -144,6 +144,35 @@ def fold_pad_qconv2d():
     assert tvm.ir.structural_equal(a, b, map_free_vars=True), "Actual = \n" + str(a)
 
 
+def test_pad_qconv2d_no_fold():
+    def get_expr():
+        x = relay.var("x", shape=(1, 1, 2, 2), dtype="int8")
+        weight = relay.var("weight", shape=(1, 1, 2, 2), dtype="int8")
+        # Pad value and input zp are not equal
+        pad_value = 1
+        input_zero_point = 0
+        pad = relay.nn.pad(x, [[0, 0], [0, 0], [1, 1], [1, 1]], pad_value=pad_value)
+        return relay.qnn.op.conv2d(
+            pad,
+            weight,
+            relay.const(input_zero_point, "int32"),
+            relay.const(0, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "float32"),
+            channels=1,
+            kernel_size=(2, 2),
+            padding=(0, 0),
+        )
+
+    a = run_opt_pass(get_expr(), relay.transform.FoldExplicitPadding())
+    b = run_opt_pass(get_expr(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b, map_free_vars=True), (
+        "\nActual = \n" + str(a) + "\nExpected = \n" + str(b)
+    )
+
+
 if __name__ == "__main__":
     test_simplify_conv_pad()
     fold_pad_qconv2d()
+    test_pad_qconv2d_no_fold()
