@@ -16,11 +16,12 @@
 # under the License.
 """Meta Schedule tuning context."""
 
+import logging
 from typing import Optional, List, Dict, TYPE_CHECKING
 
 from tvm import IRModule
 from tvm._ffi import register_object
-from tvm.meta_schedule.utils import cpu_count
+from tvm.meta_schedule.utils import cpu_count, make_logging_func
 from tvm.runtime import Object
 from tvm.target import Target
 from tvm.tir import PrimFunc
@@ -84,6 +85,7 @@ class TuneContext(Object):
     postprocs: List["Postproc"]
     mutator_probs: Optional[Dict["Mutator", float]]
     task_name: str
+    logger: logging.Logger
     rand_state: int
     num_threads: int
 
@@ -100,11 +102,13 @@ class TuneContext(Object):
         task_name: str = "main",
         rand_state: int = -1,
         num_threads: Optional[int] = None,
+        logger: logging.Logger = None,
     ):
         if isinstance(mod, PrimFunc):
             mod = IRModule.from_expr(mod)
         if num_threads is None:
             num_threads = cpu_count()
+        self.logger = logger
 
         self.__init_handle_by_constructor__(
             _ffi_api.TuneContext,  # type: ignore # pylint: disable=no-member
@@ -116,6 +120,7 @@ class TuneContext(Object):
             postprocs,
             mutator_probs,
             task_name,
+            make_logging_func(self.logger),
             rand_state,
             num_threads,
         )

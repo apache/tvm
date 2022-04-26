@@ -17,7 +17,8 @@
 """User-facing Tuning API"""
 # pylint: disable=import-outside-toplevel
 import logging
-import os.path
+import os
+import os.path as osp
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
 
 from tvm._ffi.registry import register_func
@@ -44,8 +45,6 @@ from .space_generator import PostOrderApply, SpaceGenerator
 from .task_scheduler import GradientBased, RoundRobin
 from .tune_context import TuneContext
 from .utils import autotvm_silencer
-
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 FnSpaceGenerator = Callable[[], SpaceGenerator]
 FnScheduleRule = Callable[[], List[ScheduleRule]]
@@ -183,6 +182,26 @@ class Parse:
     """Parse tuning configuration from user inputs."""
 
     @staticmethod
+    def _get_task_scheduler_logger():
+        logger = logging.getLogger("task_scheduler")
+        if logger is None:
+            raise ValueError("Task scheduler logger is not instantiated.")
+        return logger
+
+    @staticmethod
+    def _logger(log_dir: str, name: str, **kwargs) -> logging.Logger:
+        handler = logging.FileHandler(osp.join(log_dir, name + ".log"))
+        if "formatter" in kwargs:
+            formatter = kwargs["formatter"]
+        else:
+            formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+        handler.setFormatter(formatter)
+        logger = logging.getLogger(name)
+        logger.addHandler(handler)
+        logger.addHandler(logging.StreamHandler())
+        return logger
+
+    @staticmethod
     @register_func("tvm.meta_schedule.tune.parse_mod")  # for use in ApplyHistoryBest
     def _mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
         if isinstance(mod, PrimFunc):
@@ -226,8 +245,9 @@ class Parse:
     @staticmethod
     def _database(database: Union[None, Database], path: str) -> Database:
         if database is None:
-            path_workload = os.path.join(path, "database_workload.json")
-            path_tuning_record = os.path.join(path, "database_tuning_record.json")
+            path_workload = osp.join(path, "database_workload.json")
+            path_tuning_record = osp.join(path, "database_tuning_record.json")
+            logger = Parse._get_task_scheduler_logger()
             logger.info(
                 "Creating JSONDatabase. Workload at: %s. Tuning records at: %s",
                 path_workload,
@@ -358,6 +378,8 @@ class TuneConfig(NamedTuple):
         Configuration for task scheduler.
     search_strategy_config: Optional[Dict[str, Any]] = None
         Configuration for search strategy.
+    logger_config: Optional[Dict[str, Any]] = None
+        Configuration for logger.
     """
 
     max_trials_global: int
@@ -367,6 +389,7 @@ class TuneConfig(NamedTuple):
     strategy: str = "evolutionary"
     task_scheduler_config: Optional[Dict[str, Any]] = None
     search_strategy_config: Optional[Dict[str, Any]] = None
+    logger_config: Optional[Dict[str, Any]] = None
 
     def create_strategy(self, **kwargs):
         """Create search strategy from configuration"""
@@ -472,8 +495,11 @@ def tune_extracted_tasks(
         The database containing all the tuning results.
 
     """
-    logger.info("Working directory: %s", work_dir)
     # pylint: disable=protected-access
+    log_dir = osp.join(work_dir, "logs")
+    os.mkdir(log_dir)
+    logger = Parse._logger(log_dir=work_dir, name="task_scheduler", **config.logger_config)
+    logger.info("Working directory: %s", work_dir)
     database = Parse._database(database, work_dir)
     builder = Parse._builder(builder)
     runner = Parse._runner(runner)
@@ -481,7 +507,7 @@ def tune_extracted_tasks(
     measure_callbacks = Parse._callbacks(measure_callbacks)
     # parse the tuning contexts
     tune_contexts = []
-    for task in extracted_tasks:
+    for i, task in enumerate(extracted_tasks):
         assert len(task.dispatched) == 1, "Only size 1 dispatched task list is supported for now"
         tune_contexts.append(
             TuneContext(
@@ -493,6 +519,11 @@ def tune_extracted_tasks(
                 postprocs=Parse._postproc(postprocs, task.target),
                 mutator_probs=Parse._mutator_probs(mutator_probs, task.target),
                 task_name=task.task_name,
+                logger=Parse._logger(
+                    log_dir=log_dir,
+                    name="_".join(["task", str(i).zfill(4), task.task_name]),
+                    **config.logger_config,
+                ),
                 num_threads=num_threads,
             )
         )
@@ -508,7 +539,7 @@ def tune_extracted_tasks(
         measure_callbacks=measure_callbacks,
     )
     task_scheduler.tune()
-    cost_model.save(os.path.join(work_dir, "cost_model.xgb"))
+    cost_model.save(osp.join(work_dir, "cost_model.xgb"))
     return database
 
 
@@ -712,14 +743,11 @@ def tune_relay(
     """
     # pylint: disable=import-outside-toplevel
     from tvm.relay import build as relay_build
-
     from .relay_integration import extract_task_from_relay
 
-    # pylint: enable=import-outside-toplevel
-
-    logger.info("Working directory: %s", work_dir)
-    # pylint: disable=protected-access
+    # pylint: disable=protected-access, enable=import-outside-toplevel
     target = Parse._target(target)
+    # pylint: enable=protected-access,
     # parse the tuning contexts
     extracted_tasks = extract_task_from_relay(mod, target, params)
     database = tune_extracted_tasks(

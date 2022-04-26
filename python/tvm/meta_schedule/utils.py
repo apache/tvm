@@ -17,7 +17,9 @@
 """Utilities for meta schedule"""
 import ctypes
 import json
+import logging
 import os
+from re import I
 import shutil
 from contextlib import contextmanager
 from typing import Any, Callable, List, Optional, Union
@@ -368,3 +370,30 @@ def autotvm_silencer():
         yield
     finally:
         autotvm.GLOBAL_SCOPE.silent = silent
+
+
+def make_logging_func(logger: logging.Logger):
+    """Get the logging function.
+    Parameters
+    ----------
+    logger : logging.Logger
+        The logger instance.
+    Returns
+    -------
+    result : Callable
+        The function to do the specified level of logging.
+    """
+    if logger is None:
+        return None
+
+    level2log = {
+        "INFO": logger.info,
+        "WARNING": logger.warning,
+        "ERROR": logger.error,
+        # "FATAL": logger.critical,
+    }
+
+    def logging_func(level: str, msg: str):
+        level2log[level.upper()](msg)
+
+    return logging_func

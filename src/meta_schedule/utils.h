@@ -53,7 +53,46 @@
 #include "../tir/schedule/primitive.h"
 #include "../tir/schedule/utils.h"
 
+#define TVM_PY_LOG(log_level, logging_func) \
+  PyLogMessage(__FILE__, __LINE__, logging_func, #log_level).stream()
 namespace tvm {
+
+/*!
+ * \brief Class to accumulate an log message on the python side. Do not use directly, instead use
+ * TVM_PY_LOG(INFO), TVM_PY_LOG(WARNING), TVM_PY_ERROR(INFO).
+ */
+class PyLogMessage {
+ public:
+  PyLogMessage(const std::string& file, int lineno, Optional<PackedFunc> logging_func,
+               std ::string logging_level) {
+    this->logging_func = logging_func;
+    this->logging_level = logging_level;
+  }
+  TVM_NO_INLINE ~PyLogMessage() {
+    if (this->logging_func.defined()) {
+      if (logging_level == "INFO")
+        LOG_INFO << stream_.str();
+      else if (logging_level == "WARNING")
+        LOG_WARNING << stream_.str();
+      else if (logging_level == "ERROR")
+        LOG_ERROR << stream_.str();
+      else if (logging_level == "FATAL")
+        LOG_FATAL << stream_.str();
+      else
+        LOG_FATAL << "Wrong logging level, expected (INFO, WARNING, ERROR, FATAL), but got \""
+                  << logging_level << "\"!";
+    } else {
+      logging_func.value()(logging_level, stream_.str());
+    }
+  }
+  std::ostringstream& stream() { return stream_; }
+
+ private:
+  std::ostringstream stream_;
+  Optional<PackedFunc> logging_func;
+  std::string logging_level;
+};
+
 namespace meta_schedule {
 
 /*! \brief The type of the random state */
