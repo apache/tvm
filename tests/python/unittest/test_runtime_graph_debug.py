@@ -99,14 +99,14 @@ def graph():
 
 @tvm.testing.requires_llvm
 @tvm.testing.requires_rpc
+@pytest.mark.skipif(
+    tvm.support.libinfo()["USE_PROFILER"] != "ON", reason="TVM was not built with profiler support"
+)
 def test_end_to_end_graph_simple(graph, n, A, B, s, myadd):
     def check_verify():
         mlib_proxy = tvm.support.FrontendTestModule()
         mlib_proxy["myadd"] = myadd
-        try:
-            mod = debug_executor.create(graph, mlib_proxy, tvm.cpu(0))
-        except ValueError:
-            return
+        mod = debug_executor.create(graph, mlib_proxy, tvm.cpu(0))
 
         a = np.random.uniform(size=(n,)).astype(A.dtype)
         mod.set_input(x=a)
@@ -214,14 +214,13 @@ def test_end_to_end_graph_simple(graph, n, A, B, s, myadd):
 
 
 @tvm.testing.requires_llvm
+@pytest.mark.skipif(
+    tvm.support.libinfo()["USE_PROFILER"] != "ON", reason="TVM was not built with profiler support"
+)
 def test_run_single_node(graph, n, A, myadd):
     mlib_proxy = tvm.support.FrontendTestModule()
     mlib_proxy["myadd"] = myadd
-    try:
-        mod: debug_executor.GraphModuleDebug = debug_executor.create(graph, mlib_proxy, tvm.cpu(0))
-    except ValueError:
-        # If TVM is not built with the profiler, this will hit, in that case skip test.
-        return
+    mod: debug_executor.GraphModuleDebug = debug_executor.create(graph, mlib_proxy, tvm.cpu(0))
 
     a = np.random.uniform(size=(n,)).astype(A.dtype)
     mod.set_input(x=a)
