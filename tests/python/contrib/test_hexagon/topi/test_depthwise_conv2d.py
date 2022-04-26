@@ -153,26 +153,13 @@ class BaseDepthwiseConv2D:
     (e.g. implemented only for llvm).
     """
 
-    # layout = tvm.testing.parameter("NCHW", "NHWC")
-
-    # (batch, in_channel, in_size, channel_multiplier, kernel, stride) = tvm.testing.parameters(
-    #     (1, 728, 32, 1, 3, 1),
-    #     (4, 256, 64, 2, 5, 2),
-    # )
-    # padding = tvm.testing.parameter("SAME", "VALID")
-    # dilation = tvm.testing.parameter(1, 2)
-
     use_scale_shift = tvm.testing.parameter(False, ids=["no_scale_shift"])
     apply_relu = tvm.testing.parameter(False, ids=["no_relu"])
-
-    run_after_compile = True
 
     @requires_hexagon_toolchain
     def test_conv2d(
         self,
         hexagon_session,
-        target,
-        dev,
         in_dtype,
         out_dtype,
         layout,
@@ -272,7 +259,7 @@ class BaseDepthwiseConv2D:
             tvm.testing.assert_allclose(output_np, output_tvm.numpy(), **tol)
 
 
-class TestDepthwiseConv2D_MobilenetWorkloads_small(BaseDepthwiseConv2D):
+class TestDepthwiseConv2D_MobilenetWorkloads(BaseDepthwiseConv2D):
     """Extra tests to verify functionality for workloads used by mobilenet."""
 
     layout = tvm.testing.parameter("NCHW", "NHWC")
@@ -288,23 +275,18 @@ class TestDepthwiseConv2D_MobilenetWorkloads_small(BaseDepthwiseConv2D):
         (64, 112, 2),
         (128, 56, 1),
         (128, 56, 2),
+        (256, 28, 1),
     )
 
-# class TestDepthwiseConv2D_MobilenetWorkloads_large(BaseDepthwiseConv2D):
-#     """Extra tests to verify functionality for workloads used by mobilenet."""
+class TestDepthwiseConv2D_More(BaseDepthwiseConv2D):
 
-#     layout = tvm.testing.parameter("NCHW", "NHWC")
+    layout = tvm.testing.parameter("NCHW", "NHWC")
+    use_scale_shift = tvm.testing.parameter(True, False, ids=["with_scale_shift", "no_scale_shift"])
+    apply_relu = tvm.testing.parameter(True, False, ids=["with_relu", "no_relu"])
 
-#     batch = tvm.testing.parameter(1)
-#     channel_multiplier = tvm.testing.parameter(1)
-#     kernel = tvm.testing.parameter(3)
-#     padding = tvm.testing.parameter("SAME")
-#     dilation = tvm.testing.parameter(1)
-
-#     in_channel, in_size, stride = tvm.testing.parameters(
-#         (256, 28, 1),
-#         (256, 28, 2),
-#         (512, 14, 1),
-#         (512, 14, 2),
-#         (1024, 7, 1),
-#     )
+    (batch, in_channel, in_size, channel_multiplier, kernel, stride) = tvm.testing.parameters(
+        (1, 64, 32, 1, 3, 1),
+        (1, 128, 64, 2, 5, 2),
+    )
+    padding = tvm.testing.parameter("VALID")
+    dilation = tvm.testing.parameter(1)
