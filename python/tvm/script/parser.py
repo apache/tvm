@@ -574,32 +574,33 @@ class TVMScriptParser(Transformer):
                 arg_list = self.parse_arg_list(func, node.rhs)
                 func.handle(node, self.context, arg_list, node.rhs.func_name.span)
                 return self.parse_body(node)
-            else:
-                value = self.transform(node.rhs)
-                if len(node.lhs) == 1 and not isinstance(node.lhs[0], ast.Var):
-                    # This is a little confusing because it only is true when
-                    # we have taken this branch. We might need to clarify what
-                    # exectly is allowed in Assignments in tvmscript.
-                    self.report_error(
-                        "Left hand side of assignment must be an unqualified variable",
-                        node.span,
-                    )
-                ast_var = node.lhs[0]
-
-                if node.ty is None and hasattr(value, "dtype"):
-                    var_ty = value.dtype
-                else:
-                    var_ty = self.parse_type(node.ty, ast_var)
-
-                var = tvm.te.var(
-                    ast_var.id.name,
-                    var_ty,
-                    span=tvm_span_from_synr(ast_var.span),
+        if isinstance(node.rhs, (ast.Call, ast.Constant)):
+            # Pattern 4 of let binding
+            value = self.transform(node.rhs)
+            if len(node.lhs) == 1 and not isinstance(node.lhs[0], ast.Var):
+                # This is a little confusing because it only is true when
+                # we have taken this branch. We might need to clarify what
+                # exectly is allowed in Assignments in tvmscript.
+                self.report_error(
+                    "Left hand side of assignment must be an unqualified variable",
+                    node.span,
                 )
-                self.context.update_symbol(var.name, var, node)
-                body = self.parse_body(node)
-                self.context.remove_symbol(var.name)
-                return tvm.tir.LetStmt(var, value, body, span=tvm_span_from_synr(node.span))
+            ast_var = node.lhs[0]
+
+            if node.ty is None and hasattr(value, "dtype"):
+                var_ty = value.dtype
+            else:
+                var_ty = self.parse_type(node.ty, ast_var)
+
+            var = tvm.te.var(
+                ast_var.id.name,
+                var_ty,
+                span=tvm_span_from_synr(ast_var.span),
+            )
+            self.context.update_symbol(var.name, var, node)
+            body = self.parse_body(node)
+            self.context.remove_symbol(var.name)
+            return tvm.tir.LetStmt(var, value, body, span=tvm_span_from_synr(node.span))
 
         self.report_error(
             """Assignments should be either
