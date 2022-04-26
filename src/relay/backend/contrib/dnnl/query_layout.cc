@@ -34,9 +34,9 @@
 #include <regex>
 #include <sstream>
 
+#include "../../../../runtime/contrib/dnnl/dnnl_utils.h"
 #include "../../utils.h"
 #include "dnnl.hpp"
-#include "../../../../runtime/contrib/dnnl/dnnl_utils.h"
 namespace tvm {
 namespace relay {
 namespace contrib {

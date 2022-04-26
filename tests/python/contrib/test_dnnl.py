@@ -181,7 +181,9 @@ def run_and_verify(mod, input, params, target, run_module, subgraph_num=None, te
         assert_result_dict_holds(result_dict)
 
 
-def run_and_verify_func(config, run_module, subgraph_num=None, target="llvm", dtype="float32", test_bf16=True):
+def run_and_verify_func(
+    config, run_module, subgraph_num=None, target="llvm", dtype="float32", test_bf16=True
+):
     """Test a Relay func by compiling, running, and comparing TVM and DNNL outputs.
     Parameters
     ----------
@@ -199,7 +201,13 @@ def run_and_verify_func(config, run_module, subgraph_num=None, target="llvm", dt
         if k not in is_param
     }
     run_and_verify(
-        f, input_dict, params, subgraph_num=subgraph_num, target=target, run_module=run_module, test_bf16=test_bf16
+        f,
+        input_dict,
+        params,
+        subgraph_num=subgraph_num,
+        target=target,
+        run_module=run_module,
+        test_bf16=test_bf16,
     )
 
 
