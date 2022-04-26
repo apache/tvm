@@ -36,13 +36,14 @@
 
 #include "../../utils.h"
 #include "dnnl.hpp"
-
-using dim_t = dnnl_dim_t;
-using dims_t = dnnl_dims_t;
-
+#include "../../../../runtime/contrib/dnnl/dnnl_utils.h"
 namespace tvm {
 namespace relay {
 namespace contrib {
+
+using dim_t = dnnl_dim_t;
+using dims_t = dnnl_dims_t;
+using tvm::runtime::contrib::dtype_dl2dnnl;
 
 template <typename T, typename U>
 inline void array_set(T* arr, const U& val, size_t size) {
@@ -189,32 +190,6 @@ void check_layout(bool var, bool ref) {
   }
 }
 
-using dt = dnnl::memory::data_type;
-dt dtype_dl2dnnl(DLDataType dltype) {
-  dt dnnl_type = dt::undef;
-  if (dltype.code == DataType::TypeCode::kFloat) {
-    if (dltype.bits == 16) {
-      dnnl_type = dt::f16;
-    } else if (dltype.bits == 32) {
-      dnnl_type = dt::f32;
-    }
-  } else if (dltype.code == DataType::TypeCode::kBFloat && dltype.bits == 16) {
-    dnnl_type = dt::bf16;
-  } else if (dltype.code == DataType::TypeCode::kInt) {
-    if (dltype.bits == 8) {
-      dnnl_type = dt::s8;
-    } else if (dltype.bits == 32) {
-      dnnl_type = dt::s32;
-    }
-  } else if (dltype.code == DataType::TypeCode::kUInt && dltype.bits == 8) {
-    dnnl_type = dt::u8;
-  }
-  if (dnnl_type == dt::undef) {
-    LOG_ERROR << "unsupported datatype: code=" << dltype.code << ", bits=" << dltype.bits;
-  }
-  return dnnl_type;
-}
-
 std::string get_optimal_layout_for_conv(std::string data_layout, std::string kernel_layout,
                                         std::string weight_shape, std::string out_shape,
                                         std::string paddings, std::string strides,
@@ -274,7 +249,7 @@ std::string get_optimal_layout_for_conv(std::string data_layout, std::string ker
   dnnl::memory::dims conv_padding_l = padding_dims_l;
   dnnl::memory::dims conv_padding_r = padding_dims_r;
 
-  dt dnnl_dtype = dtype_dl2dnnl(tvm::runtime::String2DLDataType(dtype));
+  auto dnnl_dtype = dtype_dl2dnnl(tvm::runtime::String2DLDataType(dtype));
   auto conv_src_md = dnnl::memory::desc({conv_src_dims}, dnnl_dtype, tag::any);
   auto conv_weights_md = dnnl::memory::desc({conv_weights_dims}, dnnl_dtype, tag::any);
   auto conv_dst_md = dnnl::memory::desc({conv_dst_dims}, dnnl_dtype, tag::any);
@@ -310,7 +285,6 @@ std::string get_optimal_layout_for_conv_transpose(std::string data_layout,
   dnnl::engine eng(dnnl::engine::kind::cpu, 0);
   dnnl::stream s(eng);
   using tag = dnnl::memory::format_tag;
-  using dt = dnnl::memory::data_type;
 
   dnnl::memory::dim groups = std::stoi(G);
   dnnl::memory::dims weight_dims_ = str2dims(weight_shape);
@@ -364,7 +338,7 @@ std::string get_optimal_layout_for_conv_transpose(std::string data_layout,
   dnnl::memory::dims deconv_padding_l = padding_dims_l;
   dnnl::memory::dims deconv_padding_r = padding_dims_r;
 
-  dt dnnl_dtype = dtype_dl2dnnl(tvm::runtime::String2DLDataType(dtype));
+  auto dnnl_dtype = dtype_dl2dnnl(tvm::runtime::String2DLDataType(dtype));
   auto deconv_src_md = dnnl::memory::desc({deconv_src_dims}, dnnl_dtype, tag::any);
   auto deconv_weights_md = dnnl::memory::desc({deconv_weights_dims}, dnnl_dtype, tag::any);
   auto deconv_dst_md = dnnl::memory::desc({deconv_dst_dims}, dnnl_dtype, tag::any);
