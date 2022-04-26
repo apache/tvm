@@ -16,6 +16,7 @@
 # under the License.
 """Round Robin Task Scheduler"""
 
+import logging
 from typing import TYPE_CHECKING, List, Optional
 
 from tvm._ffi import register_object
@@ -48,6 +49,8 @@ class RoundRobin(TaskScheduler):
         The database of the scheduler.
     measure_callbacks: Optional[List[MeasureCallback]] = None
         The list of measure callbacks of the scheduler.
+    logger: Optional[logging.Logger]
+        The logger of the task scheduler.
     """
 
     def __init__(
@@ -61,6 +64,7 @@ class RoundRobin(TaskScheduler):
         *,
         cost_model: Optional[CostModel] = None,
         measure_callbacks: Optional[List[MeasureCallback]] = None,
+        logger: Optional[logging.Logger] = None,
     ) -> None:
         """Constructor.
 
@@ -82,6 +86,8 @@ class RoundRobin(TaskScheduler):
             The cost model.
         measure_callbacks: Optional[List[MeasureCallback]]
             The list of measure callbacks of the scheduler.
+        logger: Optional[logging.Logger]
+            The logger of the task scheduler.
         """
         del task_weights
         self.__init_handle_by_constructor__(
@@ -93,4 +99,5 @@ class RoundRobin(TaskScheduler):
             max_trials,
             cost_model,
             measure_callbacks,
+            logger,
         )

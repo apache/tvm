@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Local builder that compile on the local host"""
-import logging
 import os
 import tempfile
 from typing import Callable, Dict, List, Optional, Union
@@ -26,10 +25,15 @@ from tvm.runtime import Module, NDArray, load_param_dict, save_param_dict
 from tvm.target import Target
 
 from ...contrib.popen_pool import MapResult, PopenPoolExecutor, StatusKind
-from ..utils import cpu_count, derived_object, get_global_func_with_default_on_worker
+from ..utils import (
+    cpu_count,
+    derived_object,
+    get_global_func_with_default_on_worker,
+    get_global_logger,
+)
 from .builder import BuilderInput, BuilderResult, PyBuilder
 
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+logger = get_global_logger()  # pylint: disable=invalid-name
 
 
 T_BUILD = Callable[  # pylint: disable=invalid-name

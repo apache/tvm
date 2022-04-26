@@ -63,6 +63,8 @@ class TuneContext(Object):
         Mutators and their probability mass.
     task_name : Optional[str] = None
         The name of the tuning task.
+    logger : logging.Logger
+        The logger for the tuning task.
     rand_state : int = -1
         The random state.
         Need to be in integer in [1, 2^31-1], -1 means using random number.
@@ -120,7 +122,7 @@ class TuneContext(Object):
             postprocs,
             mutator_probs,
             task_name,
-            make_logging_func(self.logger),
+            make_logging_func(logger),
             rand_state,
             num_threads,
         )

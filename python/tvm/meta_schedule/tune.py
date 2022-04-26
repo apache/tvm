@@ -44,7 +44,7 @@ from .search_strategy import EvolutionarySearch, ReplayFunc, ReplayTrace
 from .space_generator import PostOrderApply, SpaceGenerator
 from .task_scheduler import GradientBased, RoundRobin
 from .tune_context import TuneContext
-from .utils import autotvm_silencer
+from .utils import autotvm_silencer, get_global_logger
 
 FnSpaceGenerator = Callable[[], SpaceGenerator]
 FnScheduleRule = Callable[[], List[ScheduleRule]]
@@ -182,13 +182,6 @@ class Parse:
     """Parse tuning configuration from user inputs."""
 
     @staticmethod
-    def _get_task_scheduler_logger():
-        logger = logging.getLogger("task_scheduler")
-        if logger is None:
-            raise ValueError("Task scheduler logger is not instantiated.")
-        return logger
-
-    @staticmethod
     def _logger(log_dir: str, name: str, **kwargs) -> logging.Logger:
         handler = logging.FileHandler(osp.join(log_dir, name + ".log"))
         if "formatter" in kwargs:
@@ -247,7 +240,7 @@ class Parse:
         if database is None:
             path_workload = osp.join(path, "database_workload.json")
             path_tuning_record = osp.join(path, "database_tuning_record.json")
-            logger = Parse._get_task_scheduler_logger()
+            logger = get_global_logger()
             logger.info(
                 "Creating JSONDatabase. Workload at: %s. Tuning records at: %s",
                 path_workload,
@@ -537,6 +530,7 @@ def tune_extracted_tasks(
         database=database,
         cost_model=cost_model,
         measure_callbacks=measure_callbacks,
+        logger=logger,
     )
     task_scheduler.tune()
     cost_model.save(osp.join(work_dir, "cost_model.xgb"))

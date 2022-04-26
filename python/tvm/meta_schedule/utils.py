@@ -19,10 +19,9 @@ import ctypes
 import json
 import logging
 import os
-from re import I
 import shutil
 from contextlib import contextmanager
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, List, Callable, Optional, Union
 
 import psutil  # type: ignore
 from tvm._ffi import get_global_func, register_func
@@ -341,8 +340,11 @@ def shash2hex(mod: IRModule) -> str:
 
 def _get_default_str(obj: Any) -> str:
     return (
-        f"meta_schedule.{obj.__class__.__name__}" + f"({_to_hex_address(obj._outer().handle)})"
-    )  # type: ignore
+        # pylint: disable=protected-access
+        f"meta_schedule.{obj.__class__.__name__}"
+        + f"({_to_hex_address(obj._outer().handle)})"  # type: ignore
+        # pylint: enable=protected-access
+    )
 
 
 def _to_hex_address(handle: ctypes.c_void_p) -> str:
@@ -397,3 +399,10 @@ def make_logging_func(logger: logging.Logger):
         level2log[level.upper()](msg)
 
     return logging_func
+
+
+def get_global_logger():
+    logger = logging.getLogger("task_scheduler")
+    if logger is None:
+        raise ValueError("Task scheduler logger is not instantiated.")
+    return logger

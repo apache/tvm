@@ -29,7 +29,8 @@ namespace meta_schedule {
  */
 void SendToBuilder(const Builder& builder, const TuneContext& context) {
   Array<MeasureCandidate> candidates = context->measure_candidates.value();
-  LOG(INFO) << "Sending " << candidates.size() << " sample(s) to builder";
+  TVM_PY_LOG(INFO, context->logging_func)
+      << "Sending " << candidates.size() << " sample(s) to builder";
   Target target = context->target.value();
   Array<BuilderInput> inputs;
   inputs.reserve(candidates.size());
@@ -51,7 +52,8 @@ void SendToBuilder(const Builder& builder, const TuneContext& context) {
 void SendToRunner(const Runner& runner, const TuneContext& context) {
   Array<MeasureCandidate> candidates = context->measure_candidates.value();
   Array<BuilderResult> builder_results = context->builder_results.value();
-  LOG(INFO) << "Sending " << candidates.size() << " sample(s) to runner";
+  TVM_PY_LOG(INFO, context->logging_func)
+      << "Sending " << candidates.size() << " sample(s) to runner";
   Target target = context->target.value();
   ICHECK_EQ(candidates.size(), builder_results.size());
   int n = candidates.size();
@@ -94,24 +96,26 @@ void SendToRunner(const Runner& runner, const TuneContext& context) {
 
 void TaskSchedulerNode::InitializeTask(int task_id) {
   TuneContext task = this->tasks[task_id];
-  LOG(INFO) << "Initializing Task #" << task_id << ": " << task->task_name;
+  TVM_PY_LOG(INFO, task->logging_func)
+      << "Initializing Task #" << task_id << ": " << task->task_name;
   CHECK(task->mod.defined()) << "ValueError: Require `context.mod`, but it is not defined";
   CHECK(task->space_generator.defined())
       << "ValueError: Require `context.space_generator`, but it is not defined";
   CHECK(task->search_strategy.defined())
       << "ValueError: Require `context.search_strategy`, but it is not defined";
-  LOG(INFO) << "\n" << tir::AsTVMScript(task->mod);
+  TVM_PY_LOG(INFO, task->logging_func) << "\n" << tir::AsTVMScript(task->mod);
   task->Initialize();
   Array<tir::Schedule> design_spaces =
       task->space_generator.value()->GenerateDesignSpace(task->mod.value());
-  LOG(INFO) << "Total " << design_spaces.size() << " design space(s) generated";
+  TVM_PY_LOG(INFO, task->logging_func)
+      << "Total " << design_spaces.size() << " design space(s) generated";
   for (int i = 0, n = design_spaces.size(); i < n; ++i) {
     tir::Schedule sch = design_spaces[i];
     tir::Trace trace = sch->trace().value();
     trace = trace->Simplified(true);
-    LOG(INFO) << "Design space #" << i << ":\n"
-              << tir::AsTVMScript(sch->mod()) << "\n"
-              << Concat(trace->AsPython(false), "\n");
+    TVM_PY_LOG(INFO, task->logging_func) << "Design space #" << i << ":\n"
+                                         << tir::AsTVMScript(sch->mod()) << "\n"
+                                         << Concat(trace->AsPython(false), "\n");
   }
   task->search_strategy.value()->PreTuning(design_spaces);
 }
@@ -123,7 +127,8 @@ void TaskSchedulerNode::Tune() {
   }
   int running_tasks = tasks.size();
   for (int task_id; num_trials_already < max_trials && (task_id = NextTaskId()) != -1;) {
-    LOG(INFO) << "Scheduler picks Task #" << task_id << ": " << tasks[task_id]->task_name;
+    TVM_PY_LOG(INFO, this->logging_func)
+        << "Scheduler picks Task #" << task_id << ": " << tasks[task_id]->task_name;
     TuneContext task = tasks[task_id];
     ICHECK(!task->is_terminated);
     ICHECK(!task->runner_futures.defined());
@@ -136,7 +141,8 @@ void TaskSchedulerNode::Tune() {
       ICHECK(!task->is_terminated);
       task->is_terminated = true;
       --running_tasks;
-      LOG(INFO) << "Task #" << task_id << " has finished. Remaining task(s): " << running_tasks;
+      TVM_PY_LOG(INFO, this->logging_func)
+          << "Task #" << task_id << " has finished. Remaining task(s): " << running_tasks;
     }
   }
   for (int task_id = 0; task_id < n_tasks; ++task_id) {
@@ -147,7 +153,8 @@ void TaskSchedulerNode::Tune() {
       }
       task->is_terminated = true;
       --running_tasks;
-      LOG(INFO) << "Task #" << task_id << " has finished. Remaining task(s): " << running_tasks;
+      TVM_PY_LOG(INFO, this->logging_func)
+          << "Task #" << task_id << " has finished. Remaining task(s): " << running_tasks;
     }
     task->search_strategy.value()->PostTuning();
   }
@@ -200,6 +207,7 @@ TaskScheduler TaskScheduler::PyTaskScheduler(
     int max_trials,                                             //
     Optional<CostModel> cost_model,                             //
     Optional<Array<MeasureCallback>> measure_callbacks,         //
+    Optional<PackedFunc> logging_func,                          //
     PyTaskSchedulerNode::FTune f_tune,                          //
     PyTaskSchedulerNode::FInitializeTask f_initialize_task,     //
     PyTaskSchedulerNode::FTouchTask f_touch_task,               //
@@ -217,6 +225,7 @@ TaskScheduler TaskScheduler::PyTaskScheduler(
   } else {
     n->measure_callbacks = {};
   }
+  n->logging_func = logging_func;
   n->num_trials_already = 0;
   n->f_tune = f_tune;
   n->f_initialize_task = f_initialize_task;

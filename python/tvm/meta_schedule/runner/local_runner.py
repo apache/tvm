@@ -16,14 +16,13 @@
 # under the License.
 """Local Runner"""
 from contextlib import contextmanager
-import logging
 from typing import Callable, List, Optional, Union
 
 import tvm
 
 from ...contrib.popen_pool import PopenPoolExecutor
 from ...runtime import Device, Module
-from ..utils import derived_object, get_global_func_with_default_on_worker
+from ..utils import derived_object, get_global_func_with_default_on_worker, get_global_logger
 from .config import EvaluatorConfig
 from .runner import PyRunner, RunnerFuture, RunnerInput, RunnerResult, PyRunnerFuture
 from .utils import (
@@ -33,7 +32,7 @@ from .utils import (
     run_evaluator_common,
 )
 
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+logger = get_global_logger()
 
 
 T_ALLOC_ARGUMENT = Callable[  # pylint: disable=invalid-name
@@ -293,7 +292,7 @@ class LocalRunner(PyRunner):
             try:
                 result: List[float] = future.result()
                 error_message: str = None
-            except TimeoutError as exception:
+            except TimeoutError:
                 result = None
                 error_message = f"LocalRunner: Timeout, killed after {self.timeout_sec} seconds\n"
             except Exception as exception:  # pylint: disable=broad-except

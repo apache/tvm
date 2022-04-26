@@ -360,7 +360,7 @@ struct ThreadedTraceApply {
           return NullOpt;
         }
       } catch (const std::exception& e) {
-        LOG(WARNING) << "ThreadedTraceApply::Apply failed with error " << e.what();
+        DLOG(WARNING) << "ThreadedTraceApply::Apply failed with error " << e.what();
         return NullOpt;
       }
     }
@@ -394,6 +394,8 @@ struct ThreadedTraceApply {
   int n_;
   /*! \brief The pointer to the list of postprocessor items. */
   Item* items_;
+  /*! \brief The logging function to use. */
+  Optional<PackedFunc> logging_func;
 };
 
 /*!
