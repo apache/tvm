@@ -495,8 +495,8 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
   return slice;
 }
 
-PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes,
-                            PrimExpr offset) const {
+PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes, PrimExpr offset,
+                            Optional<PrimExpr> input_extent) const {
   const BufferNode* self = operator->();
   ICHECK(self != nullptr);
   PrimExpr e_dtype;
@@ -518,6 +518,10 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
     elem_offset = self->elem_offset / make_const(self->elem_offset.dtype(), content_lanes);
   } else {
     e_dtype = tir::TypeAnnotation(self->dtype);
+  }
+
+  if (input_extent.defined()) {
+    extent = input_extent.value();
   }
   Array<PrimExpr> acc_args{e_dtype, self->data, elem_offset, extent,
                            make_const(DataType::Int(32), access_mask)};

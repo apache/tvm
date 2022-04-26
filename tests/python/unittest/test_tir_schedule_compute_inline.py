@@ -183,11 +183,7 @@ def opaque_access_load(a: T.handle, c: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(B[0:128, 0:128])
             T.writes(C[0:128, 0:128])
-            T.evaluate(
-                T.tvm_access_ptr(
-                    T.type_annotation(dtype="float32"), B.data, 0, 128, 1, dtype="handle"
-                )
-            )
+            T.evaluate(B.access_ptr("r", extent=128))
             C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -205,16 +201,8 @@ def opaque_access_store(a: T.handle, c: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(B[0:128, 0:128])
             T.writes(C[0:128, 0:128])
-            T.evaluate(
-                T.tvm_access_ptr(
-                    T.type_annotation(dtype="float32"), B.data, 0, 128, 1, dtype="handle"
-                )
-            )
-            T.evaluate(
-                T.tvm_access_ptr(
-                    T.type_annotation(dtype="float32"), C.data, 0, 128, 2, dtype="handle"
-                )
-            )
+            T.evaluate(B.access_ptr("r", extent=128))
+            T.evaluate(C.access_ptr("w", extent=128))
             C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -296,14 +284,8 @@ def access_opaque_ptr_then_elemwise(a: T.handle, b: T.handle) -> None:
         # annotated opaque partial access
         T.reads(A[0:512])
         T.writes(A_cache[0:512])
-        T.evaluate(
-            T.tvm_access_ptr(T.type_annotation(dtype="float32"), A.data, 0, 512, 1, dtype="handle")
-        )
-        T.evaluate(
-            T.tvm_access_ptr(
-                T.type_annotation(dtype="float32"), A_cache.data, 0, 512, 2, dtype="handle"
-            )
-        )
+        T.evaluate(A.access_ptr("r", extent=512))
+        T.evaluate(A_cache.access_ptr("w", extent=512))
     for i in range(512):
         with T.block("BB"):
             vi = T.axis.remap("S", [i])
@@ -323,14 +305,8 @@ def access_opaque_ptr_then_elemwise_inline(a: T.handle, b: T.handle) -> None:
         # annotated opaque partial access should be kept
         T.reads(A[0:512])
         T.writes([A_cache[0:512]])
-        T.evaluate(
-            T.tvm_access_ptr(T.type_annotation(dtype="float32"), A.data, 0, 512, 1, dtype="handle")
-        )
-        T.evaluate(
-            T.tvm_access_ptr(
-                T.type_annotation(dtype="float32"), A_cache.data, 0, 512, 2, dtype="handle"
-            )
-        )
+        T.evaluate(A.access_ptr("r", extent=512))
+        T.evaluate(A_cache.access_ptr("w", extent=512))
     for i in T.serial(0, 512):
         with T.block("B"):
             vi = T.axis.spatial(512, i)
@@ -398,6 +374,7 @@ def inline_block_with_init(
                 )
 
 
+@T.prim_func
 def exp_exp_opaque_access_with_tvm_access_ptr(
     lookup_table: T.Buffer[(1024,), "int8"],
     x: T.Buffer[(16,), "float16"],
@@ -614,7 +591,6 @@ def test_compute_inline_opaque_access_with_tvm_access_ptr():
     sch = tir.Schedule(exp_exp_opaque_access_with_tvm_access_ptr, debug_mask="all")
     compute = sch.get_block("compute")
     sch.compute_inline(compute)
-    print(sch.mod.script())
     tvm.ir.assert_structural_equal(
         exp_exp_opaque_access_with_tvm_access_ptr_inlined, sch.mod["main"]
     )
