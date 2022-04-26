@@ -35,6 +35,7 @@ class TargetHookVisitor : public tvm::relay::MixedModeVisitor {
   std::vector<Pass> pass_list_;
   /*! \brief Attribute map for all registered targets */
   TargetKindAttrMap<Pass> target_attr_map_;
+  using tvm::relay::MixedModeVisitor::VisitExpr_;
 
  public:
   TargetHookVisitor() : target_attr_map_(tvm::TargetKind::GetAttrMap<Pass>("RelayToTIR")) {}
@@ -46,6 +47,18 @@ class TargetHookVisitor : public tvm::relay::MixedModeVisitor {
       }
     }
     return pass_list_;
+  }
+
+  void VisitExpr_(const LetNode* op) final {
+    auto pre_visit = [this](const LetNode* op) {
+      this->VisitExpr(op->var);
+      this->VisitExpr(op->value);
+    };
+    auto post_visit = [this](const LetNode* op) {
+      this->VisitExpr(op->body);
+      this->visit_counter_[op] += 1;
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
   }
 
   void VisitExpr_(const CallNode* call) override {
