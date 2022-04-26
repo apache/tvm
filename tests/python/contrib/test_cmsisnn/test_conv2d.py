@@ -317,9 +317,10 @@ def test_conv2d_int8_tflite(ifm_shape, kernel_shape, strides, dilation, padding,
     from tvm.relay.testing.tflite import TFLiteModel
 
     tfl_model = TFLiteModel(dtype)
-    tfl_model.create_tflite_model(
-        "conv2d_single", ifm_shape, kernel_shape, strides, padding, dilation, activation
+    conv2d_function = tfl_model.create_conv2d_single(
+        kernel_shape, strides, padding, dilation, activation
     )
+    tfl_model.create_tflite_model(conv2d_function, [ifm_shape])
     relay_mod, relay_params = tfl_model.convert_to_relay()
 
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(relay_mod, relay_params)

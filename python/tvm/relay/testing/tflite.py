@@ -35,44 +35,53 @@ class TFLiteModel:
         self.shape_dict = {}
         self.dtype_dict = {}
 
-    @tf.function
-    def conv2d_single_function(self, ifm_tensor, args):
-        """Returns TFLite Conv2d layer"""
-        assert len(args) == 6, "Conv2D needs (ifm_shape, kernel_shape, strides, padding, dilation)"
-        _, kernel_shape, strides, padding, dilation, activation = args
-        op = tf.nn.conv2d(
-            ifm_tensor,
-            filters=tf.constant(
-                np.random.uniform(size=[kernel_shape[0], kernel_shape[1], 3, 3]),
-                dtype=tf.float32,
-            ),
-            strides=[1, strides[0], strides[1], 1],
-            padding=padding,
-            dilations=dilation,
-        )
-        if activation == "RELU":
-            op = tf.nn.relu(op)
-        elif activation == "NONE":
-            pass
-        else:
-            assert False, "Unsupported activation {}".format(activation)
-        return op
+    def create_conv2d_single(self, kernel_shape, strides, padding, dilation, activation):
+        @tf.function
+        def conv2d_single_function(ifm_tensor):
+            """Returns TFLite Conv2d layer"""
+            op = tf.nn.conv2d(
+                ifm_tensor,
+                filters=tf.constant(
+                    np.random.uniform(size=[kernel_shape[0], kernel_shape[1], 3, 3]),
+                    dtype=tf.float32,
+                ),
+                strides=[1, strides[0], strides[1], 1],
+                padding=padding,
+                dilations=dilation,
+            )
+            if activation == "RELU":
+                op = tf.nn.relu(op)
+            elif activation == "NONE":
+                pass
+            else:
+                assert False, "Unsupported activation {}".format(activation)
+            return op
 
-    def create_tflite_model(self, op_type, *args):
-        """Returns TFLite serial graph, Relay module, Relay params based on op_type"""
-        concrete_func = None
-        input_shape = None
-        if op_type == "conv2d_single":
-            input_shape = args[0]
-            ifm_tensor = tf.TensorSpec(input_shape, dtype=tf.float32, name="input")
-            concrete_func = self.conv2d_single_function.get_concrete_function(ifm_tensor, args)
-        else:
-            assert False, "Unsupported op_type {}".format(op_type)
+        return conv2d_single_function
+
+    def create_tflite_model(self, tfl_function, shapes, ranges=None):
+        """Creates TFLite serial graph"""
+        tensor_specs = []
+        for i, shape in enumerate(shapes):
+            input_name = "input_" + str(i)
+            self.shape_dict.update({input_name: shape})
+            self.dtype_dict.update({input_name: self.dtype})
+            tensor_specs.append(tf.TensorSpec(shape, dtype=tf.float32, name=input_name))
+        concrete_func = tfl_function.get_concrete_function(*tensor_specs)
+
+        if not ranges:
+            ranges = [(0, 1) for _ in shapes]
 
         def representative_dataset():
             for _ in range(100):
-                data = np.random.rand(*tuple(input_shape))
-                yield [data.astype(np.float32)]
+                inputs = []
+                for i, shape in enumerate(shapes):
+                    data = np.random.uniform(
+                        low=ranges[i][0], high=ranges[i][1], size=tuple(shape)
+                    ).astype("float32")
+                    inputs.append(data)
+
+                yield inputs
 
         converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
@@ -81,8 +90,6 @@ class TFLiteModel:
         converter.inference_input_type = tf.int8
         converter.inference_output_type = tf.int8
         self.serial_model = converter.convert()
-        self.shape_dict = {"input": input_shape}
-        self.dtype_dict = {"input": self.dtype}
 
     def convert_to_relay(self):
         """Converts TFLite serialized graph into Relay"""
