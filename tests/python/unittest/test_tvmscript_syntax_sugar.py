@@ -249,5 +249,21 @@ def test_letstmt_bufferload_without_type_annotation():
         T.evaluate(x)
 
 
+def test_letstmt_bind_with_constant():
+    @T.prim_func
+    def constant_binds():
+        x = 1
+        y = 42.0
+        T.evaluate(T.cast(x, "float32") + y)
+
+    @T.prim_func
+    def constant_binds_wrapped():
+        x = T.int32(1)
+        y = T.float32(42.0)
+        T.evaluate(T.cast(x, "float32") + y)
+
+    assert_structural_equal(constant_binds, constant_binds_wrapped)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
