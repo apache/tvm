@@ -428,7 +428,7 @@ def check_arm_qemu() -> None:
                 """
         You must run a one-time setup to use ARM containers on x86 via QEMU:
 
-            sudo apt install -y sudo apt-get install qemu binfmt-support qemu-user-static
+            sudo apt install -y qemu binfmt-support qemu-user-static
             docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
         See https://www.stereolabs.com/docs/docker/building-arm-container-on-x86/ for details""".strip(
