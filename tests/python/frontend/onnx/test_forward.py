@@ -1599,6 +1599,10 @@ def test_softmax(target, dev):
 
     verify_softmax((1, 10), None)
     verify_softmax((1, 10), 1)
+    verify_softmax((1, 2, 3, 10), 0)
+    verify_softmax((1, 2, 3, 10), 2)
+    verify_softmax((1, 2, 3, 4, 10), 3)
+    verify_softmax((1, 2, 3, 4, 10), 4)
 
 
 @tvm.testing.parametrize_targets
