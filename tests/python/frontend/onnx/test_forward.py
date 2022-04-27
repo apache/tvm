@@ -5518,7 +5518,7 @@ def test_embedlayernormalization(target, dev):
 
     hidden_size = 384
     batch_size = 4
-    sequence_length = 4
+    sequence_length = 3
     vocab_size = 5
 
     input_ids = np.full((batch_size, sequence_length), 3).astype("int32")
