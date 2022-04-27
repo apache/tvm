@@ -20,11 +20,12 @@ set -e
 set -u
 set -o pipefail
 
-old_dir=`pwd`
+pre_dir=`pwd`
 
-cd /usr/local/
-current_dir=`pwd`
+build_dir="/usr/local/"
+install_dir="/usr/local/"
 
+cd ${build_dir}
 rls_tag=$(curl -s https://github.com/oneapi-src/oneDNN/releases/latest \
     | cut -d '"' -f 2 \
     | grep -o '[^\/]*$')
@@ -32,7 +33,7 @@ dnnl_ver=`echo ${rls_tag} | sed 's/v//g'`
 echo "The latest oneDNN release is version ${dnnl_ver} with tag '${rls_tag}'"
 
 tar_file="${rls_tag}.tar.gz"
-src_dir="${current_dir}/oneDNN-${dnnl_ver}"
+src_dir="${build_dir}/oneDNN-${dnnl_ver}"
 
 if [ -d ${src_dir} ]; then
     echo "source files exist."
@@ -42,16 +43,15 @@ else
     else 
         echo "downloading ${tar_file}."
         tar_url="https://github.com/oneapi-src/oneDNN/archive/refs/tags/${tar_file}"
-        wget ${tar_url} ${tar_file}
+        wget ${tar_url}
     fi
     tar -xzvf ${tar_file}
 fi
 
-install_dir="/usr/local/"
 cd ${src_dir}
 cmake . -DCMAKE_INSTALL_PREFIX=${install_dir} && make -j16 && make install
 
-cd ${current_dir}
+cd ${build_dir}
 rm -rf ${tar_file} ${src_dir}
 
-cd ${old_dir}
+cd ${pre_dir}
