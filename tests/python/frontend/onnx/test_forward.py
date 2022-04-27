@@ -5980,10 +5980,7 @@ def test_qlinearleakyrelu(target, dev):
         )
         model = helper.make_model(graph, producer_name="qlinearRelu_test")
         args = (model, ["X"], [in_array.shape], target, dev)
-        if dev == "cuda":
-            quantize_and_verify_with_ort(*args, rtol=1e-2, atol=1e-2)
-        else:
-            quantize_and_verify_with_ort(*args)
+        quantize_and_verify_with_ort(*args, rtol=1e-2, atol=1e-2)
 
     verify_qlinearleakyrelu([2, 4, 5, 6], {"alpha": 0.25})
     verify_qlinearleakyrelu([6, 5, 6, 7], {"alpha": 0.35})
@@ -6008,7 +6005,7 @@ def test_qlinearsigmoid(target, dev):
             outputs=[helper.make_tensor_value_info("B", TensorProto.FLOAT, list(a_shape))],
         )
         model = helper.make_model(graph, producer_name="qlinearsigmoid_test")
-        quantize_and_verify_with_ort(model, ["a"], [a_shape], target, dev)
+        quantize_and_verify_with_ort(model, ["a"], [a_shape], target, dev, rtol=1e-2, atol=1e-2)
 
     verify_qlinearsigmoid([4, 2])
     verify_qlinearsigmoid([5])
