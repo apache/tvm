@@ -45,7 +45,7 @@ def _reshape_shape_func_input_data(data_shape, newshape, ndim, allowzero):
     for i in const_range(len(newshape)):
         if skip > 0:
             skip -= 1
-        elif newshape[i] == 0:
+        elif newshape[i] > 0:
             out[dst_idx] = int64(newshape[i])
             src_idx += 1
             dst_idx += 1
