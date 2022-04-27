@@ -154,9 +154,6 @@ class BaseDepthwiseConv2D:
     (e.g. implemented only for llvm).
     """
 
-    use_scale_shift = tvm.testing.parameter(False, ids=["no_scale_shift"])
-    apply_relu = tvm.testing.parameter(False, ids=["no_relu"])
-
     @requires_hexagon_toolchain
     def test_conv2d(
         self,
@@ -266,6 +263,8 @@ class TestDepthwiseConv2D_MobilenetWorkloads(BaseDepthwiseConv2D):
     """Extra tests to verify functionality for workloads used by mobilenet."""
 
     layout = tvm.testing.parameter("NCHW", "NHWC")
+    use_scale_shift = tvm.testing.parameter(False, ids=["no_scale_shift"])
+    apply_relu = tvm.testing.parameter(False, ids=["no_relu"])
 
     batch = tvm.testing.parameter(1)
     channel_multiplier = tvm.testing.parameter(1)
@@ -282,7 +281,7 @@ class TestDepthwiseConv2D_MobilenetWorkloads(BaseDepthwiseConv2D):
     )
 
 
-class TestDepthwiseConv2D_More(BaseDepthwiseConv2D):
+class TestDepthwiseConv2D(BaseDepthwiseConv2D):
 
     layout = tvm.testing.parameter("NCHW", "NHWC")
     use_scale_shift = tvm.testing.parameter(True, False, ids=["with_scale_shift", "no_scale_shift"])
@@ -294,3 +293,6 @@ class TestDepthwiseConv2D_More(BaseDepthwiseConv2D):
     )
     padding = tvm.testing.parameter("VALID")
     dilation = tvm.testing.parameter(1)
+
+
+# TODO(hexagon-team): add TestDepthwiseConv2D_NCHWc test.
