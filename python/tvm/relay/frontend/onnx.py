@@ -892,7 +892,7 @@ class EmbedLayerNormalization(OnnxOpConverter):
             assert segment_emb
 
         if pos_ids is None:
-            pos_ids = _op.const([list(range(seq_len))] * seq_len, dtype="int32")
+            pos_ids = _op.const([list(range(seq_len))] * batch_size, dtype="int32")
 
         word_vec = _op.take(word_emb, input_ids, axis=0)
         segment_vec = _op.take(segment_emb, segment_ids, axis=0)
