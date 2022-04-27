@@ -182,18 +182,22 @@ class Parse:
     """Parse tuning configuration from user inputs."""
 
     @staticmethod
-    def _logger(name: str, **kwargs) -> logging.Logger:
+    def _logger(name: str, stream: bool = True, **kwargs) -> logging.Logger:
         if "log_dir" not in kwargs:
             raise ValueError("Cannot find log directory `log_dir` in the logging config")
-        handler = logging.FileHandler(osp.join(kwargs["log_dir"], name + ".log"))
         if "formatter" not in kwargs:
             raise ValueError("Cannot find log formatter `formatter` in the logging config")
-        handler.setFormatter(kwargs["formatter"])
         logger = logging.getLogger(name)
+        logger.propagate = False
+        handler = logging.FileHandler(osp.join(kwargs["log_dir"], name + ".log"))
+        handler.setFormatter(kwargs["formatter"])
         logger.addHandler(handler)
-        logger.addHandler(logging.StreamHandler())
-        logger.info("Log printing %s to %s", name, osp.join(kwargs["log_dir"], name + ".log"))
+        if stream:
+            handler = logging.StreamHandler()
+            handler.setFormatter(kwargs["formatter"])
+            logger.addHandler(handler)
         logger.setLevel(logging.INFO)
+        logger.info("Log printing %s to %s", name, osp.join(kwargs["log_dir"], name + ".log"))
         return logger
 
     @staticmethod
@@ -438,7 +442,9 @@ class TuneConfig(NamedTuple):
         config = kwargs if self.logger_config is None else self.logger_config
         config = {**config, **kwargs}
         if "formatter" not in config:
-            config["formatter"] = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+            config["formatter"] = logging.Formatter(
+                "%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+            )
         return config
 
 
@@ -524,6 +530,7 @@ def tune_extracted_tasks(
                 task_name=task.task_name,
                 logger=Parse._logger(
                     name="_".join(["task", str(i).zfill(4), task.task_name]),
+                    stream=False,
                     **logger_config,
                 ),
                 num_threads=num_threads,
