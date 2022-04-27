@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-04-22T12:59:15.071304
+// Generated at 2022-04-27T09:06:39.799194
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -92,7 +92,7 @@ upstream_revision = null
 docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM'
 docker_build = 'docker/build.sh'
 // timeout in minutes
-max_time = 240
+max_time = 120
 rebuild_docker_images = false
 
 def per_exec_ws(folder) {
@@ -196,7 +196,7 @@ if (currentBuild.getBuildCauses().toString().contains('BranchIndexingCause')) {
 
 cancel_previous_build()
 
-
+def lint() {
 stage('Lint') {
   node('CPU') {
     timeout(time: max_time, unit: 'MINUTES') {
@@ -252,6 +252,12 @@ stage('Lint') {
     }
   }
 }
+}
+
+// [note: method size]
+// This has to be extracted into a method due to JVM limitations on the size of
+// a method (so the code can't all be inlined)
+lint()
 
 def build_image(image_name) {
   hash = sh(
@@ -465,6 +471,7 @@ def cpp_unittest(image) {
   )
 }
 
+def build() {
 stage('Build') {
   environment {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
@@ -605,7 +612,12 @@ stage('Build') {
     }
   }
 }
+}
 
+// [note: method size]
+build()
+
+def test() {
 stage('Test') {
   environment {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
@@ -837,17 +849,20 @@ stage('Test') {
       Utils.markStageSkippedForConditional('python: i386 2 of 2')
     }
   },
-  'test: Hexagon': {
+  'test: Hexagon 1 of 4': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
-          timeout(time: max_time, unit: 'MINUTES') {
-            try {
-              init_git()
-              withEnv(['PLATFORM=hexagon'], {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=hexagon',
+                'TVM_NUM_SHARDS=4',
+                'TVM_SHARD_INDEX=0'], {
                 unpack_lib('hexagon', tvm_lib)
                 ci_setup(ci_hexagon)
-                cpp_unittest(ci_hexagon)
+                  cpp_unittest(ci_hexagon)
                 sh (
                   script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
                   label: 'Build Hexagon API',
@@ -857,14 +872,110 @@ stage('Test') {
                   label: 'Run Hexagon tests',
                 )
               })
-            } finally {
-              junit 'build/pytest-results/*.xml'
             }
+          } finally {
+            junit 'build/pytest-results/*.xml'
           }
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('test: Hexagon')
+      Utils.markStageSkippedForConditional('test: Hexagon 1 of 4')
+    }
+  },
+  'test: Hexagon 2 of 4': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=hexagon',
+                'TVM_NUM_SHARDS=4',
+                'TVM_SHARD_INDEX=1'], {
+                unpack_lib('hexagon', tvm_lib)
+                ci_setup(ci_hexagon)
+                sh (
+                  script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
+                  label: 'Build Hexagon API',
+                )
+                sh (
+                  script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+                  label: 'Run Hexagon tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('test: Hexagon 2 of 4')
+    }
+  },
+  'test: Hexagon 3 of 4': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=hexagon',
+                'TVM_NUM_SHARDS=4',
+                'TVM_SHARD_INDEX=2'], {
+                unpack_lib('hexagon', tvm_lib)
+                ci_setup(ci_hexagon)
+                sh (
+                  script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
+                  label: 'Build Hexagon API',
+                )
+                sh (
+                  script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+                  label: 'Run Hexagon tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('test: Hexagon 3 of 4')
+    }
+  },
+  'test: Hexagon 4 of 4': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=hexagon',
+                'TVM_NUM_SHARDS=4',
+                'TVM_SHARD_INDEX=3'], {
+                unpack_lib('hexagon', tvm_lib)
+                ci_setup(ci_hexagon)
+                sh (
+                  script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
+                  label: 'Build Hexagon API',
+                )
+                sh (
+                  script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+                  label: 'Run Hexagon tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('test: Hexagon 4 of 4')
     }
   },
   'test: QEMU': {
@@ -1185,7 +1296,7 @@ stage('Test') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/docs-python-gpu") {
           init_git()
           unpack_lib('gpu', tvm_multilib)
-          timeout(time: max_time, unit: 'MINUTES') {
+          timeout(time: 180, unit: 'MINUTES') {
             ci_setup(ci_gpu)
             sh (
               script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh",
@@ -1200,6 +1311,10 @@ stage('Test') {
   },
   )
 }
+}
+
+// [note: method size]
+test()
 
 /*
 stage('Build packages') {
