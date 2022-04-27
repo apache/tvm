@@ -75,7 +75,7 @@ curl --retry 64 -sSL ${gcc_arm_url} | tar -C /opt/arm/gcc-arm-none-eabi --strip-
 export PATH="/opt/arm/gcc-arm-none-eabi/bin:${PATH}"
 
 # Clone Arm(R) Ethos(TM)-U NPU driver stack
-mkdir "${ethosu_dir}"
+mkdir -p "${ethosu_dir}"
 cd "${ethosu_dir}"
 git clone "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-driver" core_driver
 cd core_driver
