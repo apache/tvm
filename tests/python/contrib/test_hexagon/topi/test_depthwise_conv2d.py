@@ -36,6 +36,7 @@ in_dtype, out_dtype = tvm.testing.parameters(
     ("float32", "float32"),
 )
 
+
 @tvm.testing.fixture
 def input_shape(layout, batch, in_channel, in_size, filter_shape):
     if layout == "NCHW":
@@ -180,7 +181,6 @@ class BaseDepthwiseConv2D:
     ):
         target_hexagon = tvm.target.hexagon("v68")
 
-
         # Transform the padding argument from 'str' to 'tuple' to
         # match the "workload" tuple in TopHub.  Which padding_args to
         # use for each layout chosen to reproduce previous behavior.
@@ -220,7 +220,6 @@ class BaseDepthwiseConv2D:
                 out_dtype,
             )
 
-
         with tvm.target.Target(target_hexagon):
             # Declare, build schedule
             if layout == "NCHW":
@@ -238,7 +237,11 @@ class BaseDepthwiseConv2D:
             s = fschedule([C])
 
             # Build and run
-            f = tvm.build(s, [Input, Filter, Scale, Shift, C], tvm.target.Target(target_hexagon, host=target_hexagon))
+            f = tvm.build(
+                s,
+                [Input, Filter, Scale, Shift, C],
+                tvm.target.Target(target_hexagon, host=target_hexagon),
+            )
             mod = hexagon_session.load_module(f)
 
             input_np, filter_np, scale_np, shift_np, output_np = ref_data
@@ -278,6 +281,7 @@ class TestDepthwiseConv2D_MobilenetWorkloads(BaseDepthwiseConv2D):
         (256, 28, 1),
     )
 
+
 class TestDepthwiseConv2D_More(BaseDepthwiseConv2D):
 
     layout = tvm.testing.parameter("NCHW", "NHWC")
@@ -290,4 +294,3 @@ class TestDepthwiseConv2D_More(BaseDepthwiseConv2D):
     )
     padding = tvm.testing.parameter("VALID")
     dilation = tvm.testing.parameter(1)
-    
