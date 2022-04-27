@@ -456,10 +456,28 @@ class OpenCLTimerNode : public TimerNode {
                                             nullptr));
         this->duration += (end - start);
       }
+    }
   }
   virtual int64_t SyncAndGetElapsedNanos() { return this->duration; }
   // destructor
-  virtual ~OpenCLTimerNode() {}
+  virtual ~OpenCLTimerNode() {
+    if (cl::OpenCLWorkspace::Global()->profiling) {
+      // Profiling session ends, recreate clCommandQueue
+      OPENCL_CALL(clFlush(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
+      OPENCL_CALL(clFinish(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
+      OPENCL_CALL(clReleaseCommandQueue(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
+
+      cl_int err_code;
+      cl_device_id did = cl::OpenCLWorkspace::Global()->devices[dev_.device_id];
+      auto normal_queue = clCreateCommandQueue(cl::OpenCLWorkspace::Global()->context,
+                                               did,
+                                               0,
+                                               &err_code);
+      OPENCL_CHECK_ERROR(err_code);
+      cl::OpenCLWorkspace::Global()->queues[dev_.device_id] = normal_queue;
+      cl::OpenCLWorkspace::Global()->profiling = false;
+    }
+  }
   // constructor
   OpenCLTimerNode() {}
   explicit OpenCLTimerNode(Device dev) : dev_(dev) {}
