@@ -34,16 +34,11 @@ python3 tests/scripts/task_build.py \
     --sccache-bucket tvm-sccache-prod \
     --cmake-target cpptest
 
-# "make crttest" requires USE_MICRO to be enabled, which is not always the case.
-if grep crttest build/Makefile > /dev/null; then
-    make crttest  # NOTE: don't parallelize, due to issue with build deps.
-fi
-
-if grep crttest build/build.ninja > /dev/null; then
-    pushd build
-    ninja crttest
-    popd
-fi
+# crttest requires USE_MICRO to be enabled, which is currently the case
+# with all CI configs
+pushd build
+ninja crttest
+popd
 
 
 pushd build

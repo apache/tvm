@@ -189,7 +189,12 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
 
     docker_bash = REPO_ROOT / "docker" / "bash.sh"
 
-    command = [docker_bash, "-t", "--name", name]
+    command = [docker_bash]
+    if sys.stdout.isatty():
+        command.append("-t")
+
+    command.append("--name")
+    command.append(name)
     if interactive:
         command.append("-i")
         scripts = ["interact() {", "  bash", "}", "trap interact 0", ""] + scripts
@@ -286,7 +291,6 @@ def docs(
     scripts = extra_setup + [
         config + f" {build_dir}",
         f"./tests/scripts/task_build.py --build-dir {build_dir}",
-        "python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0",
     ]
 
     if skip_build:
@@ -385,9 +389,6 @@ def generate_command(
             scripts = [
                 f"./tests/scripts/task_config_build_{name}.sh {get_build_dir(name)}",
                 f"./tests/scripts/task_build.py --build-dir {get_build_dir(name)}",
-                # This can be removed once https://github.com/apache/tvm/pull/10257
-                # is merged and added to the Docker images
-                "python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0",
             ]
 
         # Check that a test suite was not used alongside specific test names
