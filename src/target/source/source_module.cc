@@ -752,18 +752,25 @@ class MetadataSerializer : public AttrVisitor {
 };
 
 namespace {
-runtime::Module CreateAotMetadataModule(runtime::metadata::Metadata aot_metadata) {
+runtime::Module CreateAotMetadataModule(runtime::metadata::Metadata aot_metadata,
+                                        bool is_c_runtime) {
   MetadataSerializer serializer;
   serializer.CodegenMetadata(aot_metadata);
   std::stringstream lookup_func;
-  const std::string get_c_metadata_func_mangled = runtime::get_name_mangled(
-      aot_metadata->mod_name(), ::tvm::runtime::symbol::tvm_get_c_metadata);
+  std::string get_c_metadata_func_name;
+
+  if (is_c_runtime == true) {
+    get_c_metadata_func_name = runtime::get_name_mangled(
+        aot_metadata->mod_name(), ::tvm::runtime::symbol::tvm_get_c_metadata);
+  } else {
+    get_c_metadata_func_name = ::tvm::runtime::symbol::tvm_get_c_metadata;
+  }
 
   lookup_func << "#ifdef __cplusplus\n"
               << "extern \"C\"\n"
               << "#endif\n";
 
-  lookup_func << "TVM_DLL int32_t " << get_c_metadata_func_mangled
+  lookup_func << "TVM_DLL int32_t " << get_c_metadata_func_name
               << "(TVMValue* arg_values, int* arg_tcodes, int "
                  "num_args, TVMValue* ret_values, int* ret_tcodes, void* resource_handle) {"
               << std::endl;
@@ -772,7 +779,7 @@ runtime::Module CreateAotMetadataModule(runtime::metadata::Metadata aot_metadata
   lookup_func << "    ret_tcodes[0] = kTVMOpaqueHandle;" << std::endl;
   lookup_func << "    return 0;" << std::endl;
   lookup_func << "};" << std::endl;
-  std::vector<String> func_names{get_c_metadata_func_mangled};
+  std::vector<String> func_names{get_c_metadata_func_name};
   return CSourceModuleCreate(serializer.GetOutput() + lookup_func.str(), "c", func_names,
                              Array<String>());
 }
@@ -784,7 +791,7 @@ runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& mod
                                                runtime::metadata::Metadata aot_metadata) {
   Array<runtime::Module> final_modules(modules);
   if (aot_metadata.defined()) {
-    final_modules.push_back(CreateAotMetadataModule(aot_metadata));
+    final_modules.push_back(CreateAotMetadataModule(aot_metadata, true));
   }
 
   Array<String> func_names;
@@ -826,7 +833,7 @@ runtime::Module CreateCSourceCppMetadataModule(runtime::metadata::Metadata metad
   lookup_func << "};" << std::endl;
 
   auto mod = MetadataModuleCreate(metadata);
-  mod->Import(CreateAotMetadataModule(metadata));
+  mod->Import(CreateAotMetadataModule(metadata, false));
   return mod;
 }
 
