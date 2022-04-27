@@ -89,7 +89,7 @@ upstream_revision = null
 docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM'
 docker_build = 'docker/build.sh'
 // timeout in minutes
-max_time = 240
+max_time = 120
 rebuild_docker_images = false
 
 def per_exec_ws(folder) {
@@ -193,7 +193,7 @@ if (currentBuild.getBuildCauses().toString().contains('BranchIndexingCause')) {
 
 cancel_previous_build()
 
-
+def lint() {
 stage('Lint') {
   node('CPU') {
     timeout(time: max_time, unit: 'MINUTES') {
@@ -249,6 +249,12 @@ stage('Lint') {
     }
   }
 }
+}
+
+// [note: method size]
+// This has to be extracted into a method due to JVM limitations on the size of
+// a method (so the code can't all be inlined)
+lint()
 
 def build_image(image_name) {
   hash = sh(
@@ -462,6 +468,7 @@ def cpp_unittest(image) {
   )
 }
 
+def build() {
 stage('Build') {
   environment {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
@@ -602,13 +609,18 @@ stage('Build') {
     }
   }
 }
+}
 
+// [note: method size]
+build()
+
+def test() {
 stage('Test') {
   environment {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
   }
   parallel(
-  {% call m.sharded_test_step(
+  {% call(shard_index) m.sharded_test_step(
     name="unittest: GPU",
     num_shards=2,
     node="GPU",
@@ -634,7 +646,7 @@ stage('Test') {
       label: 'Run Python GPU integration tests',
     )
   {% endcall %}
-  {% call m.sharded_test_step(
+  {% call(shard_index) m.sharded_test_step(
     name="integration: CPU",
     node="CPU",
       num_shards=2,
@@ -663,7 +675,7 @@ stage('Test') {
       label: 'Run VTA tests in TSIM',
     )
   {% endcall %}
-  {% call m.sharded_test_step(
+  {% call(shard_index) m.sharded_test_step(
     name="python: i386",
     node="CPU",
       num_shards=2,
@@ -680,14 +692,17 @@ stage('Test') {
     )
     fsim_test(ci_i386)
   {% endcall %}
-  {% call m.test_step(
+  {% call(shard_index) m.sharded_test_step(
     name="test: Hexagon",
     node="CPU", ws="tvm/test-hexagon",
     platform="hexagon",
+    num_shards=4,
   ) %}
     unpack_lib('hexagon', tvm_lib)
     ci_setup(ci_hexagon)
-    cpp_unittest(ci_hexagon)
+    {% if shard_index == 1 %}
+      cpp_unittest(ci_hexagon)
+    {% endif %}
     sh (
       script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
       label: 'Build Hexagon API',
@@ -736,7 +751,7 @@ stage('Test') {
       label: 'Run TOPI tests',
     )
   {% endcall %}
-  {% call m.sharded_test_step(
+  {% call(shard_index) m.sharded_test_step(
     name="integration: aarch64",
     num_shards=2,
     node="ARM", ws="tvm/ut-python-arm",
@@ -750,7 +765,7 @@ stage('Test') {
       label: 'Run CPU integration tests',
     )
   {% endcall %}
-  {% call m.sharded_test_step(
+  {% call(shard_index) m.sharded_test_step(
     name="topi: GPU", 
     node="GPU",
     num_shards=2,
@@ -764,7 +779,7 @@ stage('Test') {
       label: 'Run TOPI tests',
     )
   {% endcall %}
-  {% call m.sharded_test_step(
+  {% call(shard_index) m.sharded_test_step(
     name="frontend: GPU", node="GPU",
     num_shards=3,
     ws="tvm/frontend-python-gpu",
@@ -809,7 +824,7 @@ stage('Test') {
         ws({{ m.per_exec_ws('tvm/docs-python-gpu') }}) {
           init_git()
           unpack_lib('gpu', tvm_multilib)
-          timeout(time: max_time, unit: 'MINUTES') {
+          timeout(time: 180, unit: 'MINUTES') {
             ci_setup(ci_gpu)
             sh (
               script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh",
@@ -824,6 +839,10 @@ stage('Test') {
   },
   )
 }
+}
+
+// [note: method size]
+test()
 
 /*
 stage('Build packages') {
