@@ -33,7 +33,7 @@ deployed to Arduino using TVM.
 #   using the link at the bottom of this page, or open it online for free using Google Colab.
 #   Click the icon below to open in Google Colab.
 #
-# .. image:: https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Google_Colaboratory_SVG_Logo.svg/800px-Google_Colaboratory_SVG_Logo.svg.png
+# .. image:: https://raw.githubusercontent.com/guberti/web-data/micro-train-tutorial-data/images/utilities/colab_button.png
 #      :align: center
 #      :target: https://colab.research.google.com/github/guberti/tvm-site/blob/asf-site/docs/_downloads/a7c7ea4b5017ae70db1f51dd8e6dcd82/micro_train.ipynb
 #
@@ -101,9 +101,11 @@ else:
 # probably want to store it elsewhere if running locally.
 
 import os
+
 FOLDER = "/root"
 # sphinx_gallery_start_ignore
 import tempfile
+
 FOLDER = tempfile.mkdtemp()
 # sphinx_gallery_end_ignore
 
@@ -158,12 +160,10 @@ import urllib.request
 # Download datasets
 os.makedirs(f"{FOLDER}/images")
 urllib.request.urlretrieve(
-    "http://ai.stanford.edu/~jkrause/car196/cars_train.tgz",
-    f"{FOLDER}/images/target.tgz"
+    "http://ai.stanford.edu/~jkrause/car196/cars_train.tgz", f"{FOLDER}/images/target.tgz"
 )
 urllib.request.urlretrieve(
-    "http://images.cocodataset.org/zips/val2017.zip",
-    f"{FOLDER}/images/random.zip"
+    "http://images.cocodataset.org/zips/val2017.zip", f"{FOLDER}/images/random.zip"
 )
 
 # Extract them and rename their folders
@@ -296,7 +296,7 @@ os.makedirs(f"{FOLDER}/models")
 WEIGHTS_PATH = f"{FOLDER}/models/mobilenet_2_5_128_tf.h5"
 urllib.request.urlretrieve(
     "https://storage.googleapis.com/tensorflow/keras-applications/mobilenet/mobilenet_2_5_128_tf.h5",
-    WEIGHTS_PATH
+    WEIGHTS_PATH,
 )
 
 pretrained = tf.keras.applications.MobileNet(
@@ -341,7 +341,7 @@ model.compile(
     loss="categorical_crossentropy",
     metrics=["accuracy"],
 )
-#model.fit(train_dataset, validation_data=validation_dataset, epochs=3, verbose=2)
+# model.fit(train_dataset, validation_data=validation_dataset, epochs=3, verbose=2)
 
 ######################################################################
 # Quantization
@@ -368,9 +368,11 @@ model.compile(
 
 converter = tf.lite.TFLiteConverter.from_keras_model(model)
 
+
 def representative_dataset():
     for image_batch, label_batch in full_dataset.take(10):
         yield [image_batch]
+
 
 converter.optimizations = [tf.lite.Optimize.DEFAULT]
 converter.representative_dataset = representative_dataset
@@ -390,10 +392,10 @@ quantized_model = converter.convert()
 # after writing it.
 
 QUANTIZED_MODEL_PATH = f"{FOLDER}/models/quantized.tflite"
-with open(QUANTIZED_MODEL_PATH, 'wb') as f:
-  f.write(quantized_model)
-#from google.colab import files
-#files.download(QUANTIZED_MODEL_PATH)
+with open(QUANTIZED_MODEL_PATH, "wb") as f:
+    f.write(quantized_model)
+# from google.colab import files
+# files.download(QUANTIZED_MODEL_PATH)
 
 ######################################################################
 # Compiling With TVM For Arduino
@@ -479,7 +481,7 @@ arduino_project = tvm.micro.generate_project(
 # We will test our Arduino project by loading both of these images, and executing the compiled model
 # on them both.
 #
-# .. image:: https://i.imgur.com/mLkmxBm.png
+# .. image:: https://raw.githubusercontent.com/guberti/web-data/micro-train-tutorial-data/testdata/microTVM/data/model_train_images_combined.png
 #      :align: center
 #      :height: 200px
 #      :width: 600px
@@ -571,18 +573,18 @@ print("Compilation succeeded!")
 # after writing it.
 
 ZIP_FOLDER = "{FOLDER}/models/project"
-shutil.make_archive(ZIP_FOLDER, 'zip', ZIP_FOLDER)
-#from google.colab import files
-#files.download(f"{FOLDER}/models/project.zip")
+shutil.make_archive(ZIP_FOLDER, "zip", ZIP_FOLDER)
+# from google.colab import files
+# files.download(f"{FOLDER}/models/project.zip")
 # sphinx_gallery_start_ignore
 # Run a few unit tests to make sure the Python code worked
 
 # Ensure transfer learn model was correctly assembled
 assert len(model.layers) == 5
-assert model.count_params() == 219058 # Only 219,058 of these are trainable
+assert model.count_params() == 219058  # Only 219,058 of these are trainable
 
-assert len(quantized_model) >= 250000 # Quantized model will be 250 KB - 350 KB
-assert len(quantized_model) <= 350000 # Exact value depends on quantization
+assert len(quantized_model) >= 250000  # Quantized model will be 250 KB - 350 KB
+assert len(quantized_model) <= 350000  # Exact value depends on quantization
 
 # Assert .tflite and .zip files were written to disk
 assert os.path.isfile("{FOLDER}/models/quantized.tflite")
