@@ -49,8 +49,9 @@ class SimplifyConvPad {
     conv1d_ = IsOp("nn.conv1d");
     conv2d_ = IsOp("nn.conv2d");
     conv3d_ = IsOp("nn.conv3d");
+    contrib_conv2d_nchwc_ = IsOp("nn.contrib_conv2d_NCHWc");
 
-    conv_ = (conv1d_ || conv2d_ || conv3d_)({pad_, w_});
+    conv_ = (conv1d_ || conv2d_ || conv3d_ || contrib_conv2d_nchwc_)({pad_, w_});
 
     input_zero_point_ = IsWildcard();
     kernel_zero_point_ = IsWildcard();
@@ -59,8 +60,16 @@ class SimplifyConvPad {
 
     qconv2d_ = IsOp("qnn.conv2d")(
         {pad_, w_, input_zero_point_, kernel_zero_point_, input_scale_, kernel_scale_});
+      
+    avg_pool1d_ = IsOp("nn.avg_pool1d");
+    avg_pool2d_ = IsOp("nn.avg_pool2d");
+    avg_pool3d_ = IsOp("nn.avg_pool3d");
+    max_pool1d_ = IsOp("nn.max_pool1d");
+    max_pool2d_ = IsOp("nn.max_pool2d");
+    max_pool3d_ = IsOp("nn.max_pool3d");
+    pool_ = (avg_pool1d_ || avg_pool2d_ || avg_pool3d_ || max_pool1d_ || max_pool2d_ || max_pool3d_)({pad_});
 
-    pattern_ = conv_ || qconv2d_;
+    pattern_ = conv_ || qconv2d_ || pool_;
   }
 
   template <typename T>
@@ -183,11 +192,20 @@ class SimplifyConvPad {
   DFPattern conv1d_;
   DFPattern conv2d_;
   DFPattern conv3d_;
+  DFPattern contrib_conv2d_nchwc_;
   DFPattern qconv2d_;
   DFPattern input_zero_point_;
   DFPattern kernel_zero_point_;
   DFPattern input_scale_;
   DFPattern kernel_scale_;
+  /*! \brief Pattern pool */
+  DFPattern pool_;
+  DFPattern avg_pool1d_;
+  DFPattern avg_pool2d_;
+  DFPattern avg_pool3d_;
+  DFPattern max_pool1d_;
+  DFPattern max_pool2d_;
+  DFPattern max_pool3d_;
 };
 
 class SimplifyExplicitPadding {
