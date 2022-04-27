@@ -51,4 +51,7 @@ install_dir="/usr/local/"
 cd ${src_dir}
 cmake . -DCMAKE_INSTALL_PREFIX=${install_dir} && make -j16 && make install
 
+cd ${current_dir}
+rm -rf ${tar_file} ${src_dir}
+
 cd ${old_dir}
