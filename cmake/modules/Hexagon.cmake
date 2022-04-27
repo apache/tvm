@@ -116,13 +116,13 @@ function(add_hexagon_wrapper_paths)
   link_directories("${HEXAGON_TOOLCHAIN}/lib/iss")
 endfunction()
 
-
-# Common sources for TVM runtime with Hexagon support
-file_glob_append(RUNTIME_HEXAGON_SRCS
-  "${TVMRT_SOURCE_DIR}/hexagon/*.cc"
-  "${TVMRT_SOURCE_DIR}/hexagon/tests/*.cc"
-)
-
+if(BUILD_FOR_HEXAGON OR BUILD_FOR_ANDROID OR USE_HEXAGON_RPC)
+  # Common sources for TVM runtime with Hexagon support
+  file_glob_append(RUNTIME_HEXAGON_SRCS
+    "${TVMRT_SOURCE_DIR}/hexagon/*.cc"
+    "${TVMRT_SOURCE_DIR}/hexagon/tests/*.cc"
+  )
+endif()
 
 if(BUILD_FOR_HEXAGON)
   get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
