@@ -16,7 +16,6 @@
 # under the License.
 """Pipeline executor that executes a series of modules in a pipeline fashion."""
 import json
-import os
 from tvm._ffi import get_global_func
 from tvm.contrib import graph_executor
 
