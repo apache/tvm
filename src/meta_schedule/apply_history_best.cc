@@ -124,7 +124,6 @@ Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModu
     }
   }
   TVM_PY_LOG(WARNING, logging_func) << "Cannot find workload: " << task_name;
-  TVM_PY_LOG(INFO, logging_func) << tir::AsTVMScript(prim_mod);
   return NullOpt;
 }
 

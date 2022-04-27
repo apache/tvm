@@ -360,7 +360,8 @@ struct ThreadedTraceApply {
           return NullOpt;
         }
       } catch (const std::exception& e) {
-        DLOG(WARNING) << "ThreadedTraceApply::Apply failed with error " << e.what();
+        // Used in multi-thread, only output to screen but failure summary sent to logging
+        LOG(WARNING) << "ThreadedTraceApply::Apply failed with error " << e.what();
         return NullOpt;
       }
     }
