@@ -20,10 +20,35 @@ set -e
 set -u
 set -o pipefail
 
+old_dir=`pwd`
+
 cd /usr/local/
-wget -q https://github.com/oneapi-src/oneDNN/releases/download/v2.2/dnnl_lnx_2.2.0_cpu_gomp.tgz
-tar -xzf dnnl_lnx_2.2.0_cpu_gomp.tgz
-mv dnnl_lnx_2.2.0_cpu_gomp/include/* /usr/local/include/
-mv dnnl_lnx_2.2.0_cpu_gomp/lib/libdnnl* /usr/local/lib/
-rm -rf dnnl_lnx_2.2.0_cpu_gomp.tgz dnnl_lnx_2.2.0_cpu_gomp
-cd -
+current_dir=`pwd`
+
+rls_tag=$(curl -s https://github.com/oneapi-src/oneDNN/releases/latest \
+    | cut -d '"' -f 2 \
+    | grep -o '[^\/]*$')
+dnnl_ver=`echo ${rls_tag} | sed 's/v//g'`
+echo "The latest oneDNN release is version ${dnnl_ver} with tag '${rls_tag}'"
+
+tar_file="${rls_tag}.tar.gz"
+src_dir="${current_dir}/oneDNN-${dnnl_ver}"
+
+if [ -d ${src_dir} ]; then
+    echo "source files exist."
+else
+    if [ -f ${tar_file} ]; then
+        echo "${tar_file} exists, skip downloading."
+    else 
+        echo "downloading ${tar_file}."
+        tar_url="https://github.com/oneapi-src/oneDNN/archive/refs/tags/${tar_file}"
+        wget ${tar_url} ${tar_file}
+    fi
+    tar -xzvf ${tar_file}
+fi
+
+install_dir="/usr/local/"
+cd ${src_dir}
+cmake . -DCMAKE_INSTALL_PREFIX=${install_dir} && make -j16 && make install
+
+cd ${old_dir}
