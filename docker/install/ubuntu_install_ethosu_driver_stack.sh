@@ -24,7 +24,6 @@ fvp_dir="/opt/arm/FVP_Corstone_SSE-300"
 cmake_dir="/opt/arm/cmake"
 ethosu_dir="/opt/arm/ethosu"
 ethosu_driver_ver="21.11"
-cmsis_ver="5.8.0"
 
 mkdir -p /opt/arm
 
@@ -87,18 +86,12 @@ git clone "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-platform" core_
 cd core_platform
 git checkout tags/${ethosu_driver_ver}
 
-# Clone CMSIS
-cd "${ethosu_dir}"
-git clone "https://github.com/ARM-software/CMSIS_5.git" cmsis
-cd cmsis
-git checkout -f tags/${cmsis_ver}
-
 # Build Driver
 mkdir ${ethosu_dir}/core_driver/build && cd ${ethosu_dir}/core_driver/build
 cmake -DCMAKE_TOOLCHAIN_FILE=${ethosu_dir}/core_platform/cmake/toolchain/arm-none-eabi-gcc.cmake -DETHOSU_LOG_SEVERITY=debug -DTARGET_CPU=cortex-m55 ..
 make
 
 # Build NN Library
-mkdir ${ethosu_dir}/cmsis/CMSIS/NN/build/ && cd ${ethosu_dir}/cmsis/CMSIS/NN/build/
+mkdir ${CMSIS_PATH}/CMSIS/NN/build/ && cd ${CMSIS_PATH}/CMSIS/NN/build/
 cmake .. -DCMAKE_TOOLCHAIN_FILE=${ethosu_dir}/core_platform/cmake/toolchain/arm-none-eabi-gcc.cmake -DTARGET_CPU=cortex-m55 -DBUILD_CMSIS_NN_FUNCTIONS=YES
 make
