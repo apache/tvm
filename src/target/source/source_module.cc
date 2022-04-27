@@ -716,6 +716,7 @@ class MetadataSerializer : public AttrVisitor {
       auto arr = std::get<1>(item);
 
       // Prepend const with everything except C-string, which needs appending.
+      code_ << "static ";
       if (arr->kind != MetadataKind::kString) {
         code_ << "const ";
       }
@@ -733,7 +734,7 @@ class MetadataSerializer : public AttrVisitor {
 
     // Finally, emit overall struct.
     address_.push_back(metadata::kMetadataGlobalSymbol);
-    code_ << "const struct TVMMetadata " << metadata::AddressFromParts(address_) << " = {"
+    code_ << "static const struct TVMMetadata " << metadata::AddressFromParts(address_) << " = {"
           << std::endl;
     Visit(nullptr, &metadata);
     code_ << "};" << std::endl;
