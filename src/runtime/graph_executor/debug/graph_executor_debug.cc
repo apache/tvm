@@ -119,8 +119,7 @@ class GraphExecutorDebug : public GraphExecutor {
     std::string result = time_evaluator();
     const double* results_arr = reinterpret_cast<const double*>(result.data());
     size_t double_bytes = sizeof(double);
-    assert(result.size() / double_bytes == repeat);
-    for (int i = 0; i < result.size() / double_bytes; i++) {
+    for (size_t i = 0; i < result.size() / double_bytes; i++) {
       results_in_seconds[i] = results_arr[i];
     }
     return results_in_seconds;
