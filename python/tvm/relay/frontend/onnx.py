@@ -102,6 +102,11 @@ def get_type(elem_type):
     except ImportError as e:
         raise ImportError("Unable to import onnx which is required {}".format(e))
 
+    # Onnx mapping converts bfloat16 to float16 because
+    # numpy does not have a bfloat16 data type. However,
+    # tvm has one, so we force the return type to be bfloat16
+    if elem_type == 16:
+        return "bfloat16"
     return str(TENSOR_TYPE_TO_NP_TYPE[elem_type])
 
 
@@ -1474,7 +1479,7 @@ class Cast(OnnxOpConverter):
         except ImportError as e:
             raise ImportError("Unable to import onnx.mapping which is required {}".format(e))
         return AttrCvt(op_name="cast", transforms={"to": "dtype"})(inputs, attr)
-
+        
 
 class Unsqueeze(OnnxOpConverter):
     """Operator converter for Unsqueeze."""
