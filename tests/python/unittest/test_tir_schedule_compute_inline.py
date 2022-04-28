@@ -183,11 +183,7 @@ def opaque_access_load(a: T.handle, c: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(B[0:128, 0:128])
             T.writes(C[0:128, 0:128])
-            T.evaluate(
-                T.tvm_access_ptr(
-                    T.type_annotation(dtype="float32"), B.data, 0, 128, "r", dtype="handle"
-                )
-            )
+            T.evaluate(B.access_ptr("r", extent=128))
             C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -205,16 +201,8 @@ def opaque_access_store(a: T.handle, c: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(B[0:128, 0:128])
             T.writes(C[0:128, 0:128])
-            T.evaluate(
-                T.tvm_access_ptr(
-                    T.type_annotation(dtype="float32"), B.data, 0, 128, "r", dtype="handle"
-                )
-            )
-            T.evaluate(
-                T.tvm_access_ptr(
-                    T.type_annotation(dtype="float32"), C.data, 0, 128, "w", dtype="handle"
-                )
-            )
+            T.evaluate(B.access_ptr("r", extent=128))
+            T.evaluate(C.access_ptr("w", extent=128))
             C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -296,16 +284,8 @@ def access_opaque_ptr_then_elemwise(a: T.handle, b: T.handle) -> None:
         # annotated opaque partial access
         T.reads(A[0:512])
         T.writes(A_cache[0:512])
-        T.evaluate(
-            T.tvm_access_ptr(
-                T.type_annotation(dtype="float32"), A.data, 0, 512, "r", dtype="handle"
-            )
-        )
-        T.evaluate(
-            T.tvm_access_ptr(
-                T.type_annotation(dtype="float32"), A_cache.data, 0, 512, "w", dtype="handle"
-            )
-        )
+        T.evaluate(A.access_ptr("r", extent=512))
+        T.evaluate(A_cache.access_ptr("w", extent=512))
     for i in range(512):
         with T.block("BB"):
             vi = T.axis.remap("S", [i])
@@ -325,16 +305,8 @@ def access_opaque_ptr_then_elemwise_inline(a: T.handle, b: T.handle) -> None:
         # annotated opaque partial access should be kept
         T.reads(A[0:512])
         T.writes([A_cache[0:512]])
-        T.evaluate(
-            T.tvm_access_ptr(
-                T.type_annotation(dtype="float32"), A.data, 0, 512, "r", dtype="handle"
-            )
-        )
-        T.evaluate(
-            T.tvm_access_ptr(
-                T.type_annotation(dtype="float32"), A_cache.data, 0, 512, "w", dtype="handle"
-            )
-        )
+        T.evaluate(A.access_ptr("r", extent=512))
+        T.evaluate(A_cache.access_ptr("w", extent=512))
     for i in T.serial(0, 512):
         with T.block("B"):
             vi = T.axis.spatial(512, i)
@@ -400,6 +372,51 @@ def inline_block_with_init(
                 B[ax0_1, ax1_1, ax2_1, ax3_1] = (
                     B[ax0_1, ax1_1, ax2_1, ax3_1] + B_rf[ax0_1, ax1_1, ax2_1, ax3_1, vi4]
                 )
+
+
+@T.prim_func
+def exp_exp_opaque_access_with_tvm_access_ptr(
+    lookup_table: T.Buffer[(1024,), "int8"],
+    x: T.Buffer[(16,), "float16"],
+    compute: T.Buffer[(16,), "float16"],
+) -> None:
+    compute_1 = T.alloc_buffer([16], dtype="float16")
+    for i0 in T.serial(16):
+        with T.block("compute"):
+            i0_1 = T.axis.spatial(16, i0)
+            T.reads(x[i0_1])
+            T.writes(compute_1[i0_1])
+            compute_1[i0_1] = T.exp(x[i0_1], dtype="float16")
+    for i0 in T.serial(16):
+        with T.block("compute_1"):
+            i0_2 = T.axis.spatial(16, i0)
+            T.reads(compute_1[i0_2], lookup_table[0:1024])
+            T.writes(compute[i0_2])
+            compute[i0_2] = T.exp(
+                compute_1[i0_2],
+                lookup_table.access_ptr("r"),
+                dtype="float16",
+            )
+
+
+@T.prim_func
+def exp_exp_opaque_access_with_tvm_access_ptr_inlined(
+    lookup_table: T.Buffer[(1024,), "int8"],
+    x: T.Buffer[(16,), "float16"],
+    compute: T.Buffer[(16,), "float16"],
+) -> None:
+    for i0 in T.serial(16):
+        with T.block("compute_1"):
+            i0_1 = T.axis.spatial(16, i0)
+            # Do not put the opaque access to new write region when opaque access
+            # wrapped with a tvm_access_ptr and the access mask set to "read only"
+            T.reads(x[i0_1], lookup_table[0:1024])
+            T.writes(compute[i0_1])
+            compute[i0_1] = T.exp(
+                T.exp(x[i0_1], dtype="float16"),
+                lookup_table.access_ptr("r"),
+                dtype="float16",
+            )
 
 
 # pylint: enable=no-member,invalid-name,unused-variable
@@ -567,6 +584,16 @@ def test_inline_block_with_init():
     block = sch.get_block(name="tensor_rf", func_name="main")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.compute_inline(block=block)
+
+
+def test_compute_inline_opaque_access_with_tvm_access_ptr():
+    """Test opaque access with tvm_access_ptr after compute inline"""
+    sch = tir.Schedule(exp_exp_opaque_access_with_tvm_access_ptr, debug_mask="all")
+    compute = sch.get_block("compute")
+    sch.compute_inline(compute)
+    tvm.ir.assert_structural_equal(
+        exp_exp_opaque_access_with_tvm_access_ptr_inlined, sch.mod["main"]
+    )
 
 
 if __name__ == "__main__":

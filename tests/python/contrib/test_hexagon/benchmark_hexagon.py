@@ -163,19 +163,6 @@ def test_elemwise_add(android_serial_number, hexagon_launcher):
         version_name = f"dtype:{dtype}-schedtype:{sched_type}-memscope:{mem_scope}-numvecs:{num_vectors_per_tensor}"
         print(f"CONFIGURATION: {version_name}")
 
-        if num_vectors_per_tensor == 1 and mem_scope == "global.vtcm":
-            # 2022-04-12 (cconvey): There's currently a bug in which TVM doesn't
-            # recognize the mapping of 1D memory <--> 2D memory as being bijective
-            # when num_vectors_per_tensor == 1.
-            br.record_skip(
-                dtype,
-                sched_type,
-                mem_scope,
-                num_vectors_per_tensor,
-                f"Expect to hit bug where 1D-2D bijective transform not recognized.",
-            )
-            return
-
         if num_vectors_per_tensor == 2048 and mem_scope == "global.vtcm":
             br.record_skip(
                 dtype,

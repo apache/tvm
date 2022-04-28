@@ -16,16 +16,18 @@
 # under the License.
 """Graph debug runtime executes TVM debug packed functions."""
 
-import os
-import tempfile
-import shutil
 import logging
-import tvm._ffi
+import os
+import shutil
+import tempfile
 
+import tvm._ffi
 from tvm._ffi.base import string_types
 from tvm.contrib import graph_executor
-from . import debug_result
+from tvm.runtime.module import BenchmarkResult
+
 from ...runtime.profiling import Report
+from . import debug_result
 
 _DUMP_ROOT_PREFIX = "tvmdbg_"
 _DUMP_PATH_PREFIX = "_tvmdbg_"
@@ -111,6 +113,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         self._dump_root = dump_root
         self._dump_path = None
         self._run_individual = module["run_individual"]
+        self._run_individual_node = module["run_individual_node"]
         self._debug_get_output = module["debug_get_output"]
         self._execute_node = module["execute_node"]
         self._get_node_output = module["get_node_output"]
@@ -223,7 +226,6 @@ class GraphModuleDebug(graph_executor.GraphModule):
         """Execute the node specified with index will be executed.
         Each debug output will be copied to the buffer
         Time consumed for each execution will be set as debug output.
-
         """
         # Get timing.
         self.debug_datum._time_list = [[float(t)] for t in self.run_individual(10, 1, 1)]
@@ -280,6 +282,49 @@ class GraphModuleDebug(graph_executor.GraphModule):
     def run_individual(self, number, repeat=1, min_repeat_ms=0):
         ret = self._run_individual(number, repeat, min_repeat_ms)
         return ret.strip(",").split(",") if ret else []
+
+    def run_individual_node(self, index, number=10, repeat=1, min_repeat_ms=0):
+        """Benchmark a single node in the serialized graph.
+
+        This does not do any data transfers and uses arrays already on the device.
+
+        Parameters
+        ----------
+        index : int
+            The index of the node, see `self.debug_datum.get_graph_nodes`
+
+        number: int
+            The number of times to run this function for taking average.
+            We call these runs as one `repeat` of measurement.
+
+        repeat: int, optional
+            The number of times to repeat the measurement.
+            In total, the function will be invoked (1 + number x repeat) times,
+            where the first one is warm up and will be discarded.
+            The returned result contains `repeat` costs,
+            each of which is an average of `number` costs.
+
+        min_repeat_ms: int, optional
+            The minimum duration of one `repeat` in milliseconds.
+            By default, one `repeat` contains `number` runs. If this parameter is set,
+            the parameters `number` will be dynamically adjusted to meet the
+            minimum duration requirement of one `repeat`.
+            i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+            will be automatically increased.
+
+        Returns
+        -------
+        A module BenchmarkResult
+        """
+        # Results are returned as serialized strings which we deserialize
+        ret = self._run_individual_node(index, number, repeat, min_repeat_ms)
+        answer = []
+        for value in ret.split(","):
+            if value.strip() == "":
+                continue
+            answer.append(float(value))
+
+        return BenchmarkResult(answer)
 
     def profile(self, collectors=None, **input_dict):
         """Run forward execution of the graph and collect overall and per-op

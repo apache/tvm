@@ -22,6 +22,7 @@ import numpy as np
 
 from tvm import te
 from tvm import tir
+from tvm import PoolInfo
 from .cascader_options import CascaderOptions
 from .graph import CascaderGraph, Part, Tensor, TESubgraph
 from .parts import EthosuPart
@@ -44,7 +45,7 @@ def tile_nd(
     tensor : te.Tensor
         The tensor to apply the tiling to.
     tile : Tuple[int, ...]
-        The N-dimensional tile size.
+        The N-dimensional tile size
 
     Returns
     -------
@@ -78,8 +79,8 @@ def stripe_part(
         include_inputs=False,
     )
     g.compute_at(sch[te_output_tensor], outer_indices[-1])
-    for ax in outer_indices:
-        sch[te_output_tensor].unroll(ax)
+    for axis in outer_indices:
+        sch[te_output_tensor].unroll(axis)
 
     return sch[te_output_tensor], outer_indices[-1]
 
@@ -196,6 +197,35 @@ def choose_proposal(proposals: List[Proposal], cascade_region: MemoryRegion):
             break
 
     return proposal_choice
+
+
+def extract_memory_info(memory_pool: PoolInfo) -> MemoryRegion:
+    "Create a MemoryRegion based on the info in the memory pool"
+    size = int(memory_pool.size_hint_bytes)
+    read_bandwidth = int(memory_pool.read_bandwidth_bytes_per_cycle)
+    write_bandwidth = int(memory_pool.write_bandwidth_bytes_per_cycle)
+
+    for param in (size, read_bandwidth, write_bandwidth):
+        assert param != -1, f"{param} needs to be specified for the cascader."
+
+    name_to_burst_lenght = {
+        target.kind.name: burst for target, burst in memory_pool.target_burst_bytes.items()
+    }
+
+    try:
+        burst_length = int(name_to_burst_lenght["ethos-u"])
+    except KeyError:
+        burst_length = 1
+
+    return MemoryRegion(
+        name=memory_pool.pool_name,
+        size=size,
+        read_bandwidth=read_bandwidth,
+        write_bandwidth=write_bandwidth,
+        read_latency=int(memory_pool.read_latency_cycles),
+        write_latency=int(memory_pool.write_latency_cycles),
+        burst_length=burst_length,
+    )
 
 
 def cascade(

@@ -274,19 +274,26 @@ def test_affine_grid():
 
 @tvm.testing.uses_gpu
 def test_grid_sample():
-    def verify_grid_sample(data_shape, grid_shape, padding_mode="zeros"):
+    def verify_grid_sample(
+        data_shape,
+        grid_shape,
+        method="bilinear",
+        layout="NCHW",
+        padding_mode="zeros",
+        align_corners=True,
+    ):
         dtype = "float32"
         data = te.placeholder(data_shape, dtype=dtype)
         grid = te.placeholder(grid_shape, dtype=dtype)
-        out = topi.image.grid_sample(data, grid, "bilinear", padding_mode=padding_mode)
+        out = topi.image.grid_sample(data, grid, method, layout, padding_mode, align_corners)
 
         @memoize("topi.tests.test_grid_sample.verify_grid_sample")
         def get_ref_data():
             data_np = np.random.uniform(size=data_shape).astype(dtype)
             # allow grid values to be out-of-bound
             grid_np = np.random.uniform(size=grid_shape, low=-1.5, high=1.5).astype(dtype)
-            out_np = tvm.topi.testing.grid_sample_nchw_python(
-                data_np, grid_np, "bilinear", padding_mode
+            out_np = tvm.topi.testing.grid_sample_python(
+                data_np, grid_np, method, layout, padding_mode, align_corners
             )
             return data_np, grid_np, out_np
 
@@ -307,9 +314,28 @@ def test_grid_sample():
         for target, dev in tvm.testing.enabled_targets():
             check_target(target, dev)
 
-    verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8))
-    verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32), "border")
-    verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8), "border")
+    methods = ["nearest", "bilinear", "bicubic"]
+    padding_modes = ["zeros", "border", "reflection"]
+    align_corners = [True, False]
+    data_2D_shape = (4, 4, 8, 8)
+    grid_2D_shape = (4, 2, 16, 16)
+    layout_2D = "NCHW"
+    data_3D_shape = (4, 4, 8, 8, 8)
+    grid_3D_shape = (4, 3, 16, 16, 16)
+    layout_3D = "NCDHW"
+
+    for _method in methods:
+        for _padding in padding_modes:
+            for _align in align_corners:
+                verify_grid_sample(
+                    data_2D_shape, grid_2D_shape, _method, layout_2D, _padding, _align
+                )
+
+                # 3D "bicubic"(tricubic) is not supported in pytorch
+                if _method != "bicubic":
+                    verify_grid_sample(
+                        data_3D_shape, grid_3D_shape, _method, layout_3D, _padding, _align
+                    )
 
 
 if __name__ == "__main__":

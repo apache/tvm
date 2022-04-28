@@ -22,7 +22,6 @@ from tvm import topi
 from .generic import *
 from .. import op as _op
 
-
 # --- Op strategy registration
 
 
@@ -44,27 +43,49 @@ def conv2d_strategy_hexagon(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     data_layout = attrs.data_layout
     kernel_layout = attrs.kernel_layout
+    groups = attrs.groups
+    data, kernel = inputs
+    layout = attrs.data_layout
 
-    if data_layout == "NHWC" and kernel_layout == "HWIO":
-        strategy.add_implementation(
-            wrap_compute_conv2d(topi.nn.conv2d_nhwc),
-            wrap_topi_schedule(topi.hexagon.schedule_conv2d_nhwc),
-            name="conv2d_nhwc.hexagon",
-        )
-        return strategy
+    if groups == 1:
+        if data_layout == "NHWC" and kernel_layout == "HWIO":
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.nn.conv2d_nhwc),
+                wrap_topi_schedule(topi.hexagon.schedule_conv2d_nhwc),
+                name="conv2d_nhwc.hexagon",
+            )
+        elif data_layout == "NCHW" and kernel_layout == "OIHW":
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.nn.conv2d_nchw),
+                wrap_topi_schedule(topi.hexagon.schedule_conv2d_nchw),
+                name="conv2d_nchw.hexagon",
+            )
+        else:
+            raise RuntimeError(
+                f"Unsupported layouts: data_layout:{data_layout}, kernel_layout:{kernel_layout}, "
+                f"groups:{attrs.groups}"
+            )
+    elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
+        if layout == "NCHW":
+            assert kernel_layout == "OIHW"
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nchw),
+                wrap_topi_schedule(topi.hexagon.schedule_depthwise_conv2d_nchw),
+                name="depthwise_conv2d_nchw.generic",
+            )
+        elif layout == "NHWC":
+            assert kernel_layout == "HWOI"
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
+                wrap_topi_schedule(topi.hexagon.schedule_depthwise_conv2d_nhwc),
+                name="depthwise_conv2d_nhwc.generic",
+            )
+        else:
+            raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
+    else:  # group_conv2d
+        raise RuntimeError(f"Unsupported group_conv2d layout {layout}")
 
-    if data_layout == "NCHW" and kernel_layout == "OIHW":
-        strategy.add_implementation(
-            wrap_compute_conv2d(topi.nn.conv2d_nchw),
-            wrap_topi_schedule(topi.hexagon.schedule_conv2d_nchw),
-            name="conv2d_nchw.hexagon",
-        )
-        return strategy
-
-    raise RuntimeError(
-        f"Unsupported layouts: data_layout:{data_layout}, kernel_layout:{kernel_layout}, "
-        f"groups:{attrs.groups}"
-    )
+    return strategy
 
 
 @dense_strategy.register("hexagon")
@@ -101,16 +122,16 @@ def schedule_adaptive_pool_hexagon(attrs, outs, target):
         return topi.hexagon.schedule_adaptive_pool(outs)
 
 
-@schedule_concatenate.register("hexagon")
-def schedule_concatenate_hexagon(attrs, outs, target):
-    """Schedule concatenate ops for Hexagon"""
+@schedule_injective.register("hexagon")
+def schedule_injective_hexagon(attrs, outs, target):
+    """Schedule injective ops for Hexagon"""
     with target:
         return topi.hexagon.schedule_injective(outs)
 
 
-@schedule_injective.register("hexagon")
-def schedule_injective_hexagon(attrs, outs, target):
-    """Schedule injective ops for Hexagon"""
+@schedule_concatenate.register("hexagon")
+def schedule_concatenate_hexagon(attrs, outs, target):
+    """Schedule concatenate ops for Hexagon"""
     with target:
         return topi.hexagon.schedule_injective(outs)
 

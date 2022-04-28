@@ -136,5 +136,68 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
   throw OnlyLeafError(self->mod, GetRef<Block>(leaf_block), GetRef<Block>(scope_block));
 }
 
+Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::BlockRV& block_rv,
+                                      const String& intrin_name) {
+  Optional<tir::TensorizeInfo> opt_tensorize_info = GetTensorizeLoopMapping(
+      sch->state(), sch->GetSRef(block_rv), tir::TensorIntrin::Get(intrin_name)->desc);
+  if (!opt_tensorize_info) return NullOpt;
+  const tir::TensorizeInfoNode* info = opt_tensorize_info.value().get();
+  // Construct a mapping from tir loops back to LoopRVs
+  Map<tir::StmtSRef, LoopRV> loop2rv;
+  {
+    Array<LoopRV> loop_rvs = sch->GetLoops(block_rv);
+    for (const LoopRV& loop_rv : loop_rvs) {
+      loop2rv.Set(sch->GetSRef(loop_rv), loop_rv);
+    }
+  }
+  // Split the loops
+  arith::Analyzer analyzer;
+  std::unordered_set<const tir::StmtSRefNode*> inner_loops;
+  std::vector<LoopRV> reorder_suffix;
+  reorder_suffix.resize(info->loop_map.size());
+  for (const auto& kv : info->loop_map) {
+    // Extract mapping (block_loop => desc_loop)
+    const tir::StmtSRef& block_loop_sref = kv.first;
+    const tir::ForNode* block_loop = block_loop_sref->StmtAs<tir::ForNode>();
+    const tir::ForNode* desc_loop = kv.second.get();
+    ICHECK(block_loop != nullptr && desc_loop != nullptr);
+    // Extract the loop extent
+    PrimExpr block_extent = analyzer.Simplify(block_loop->extent);
+    PrimExpr desc_extent = analyzer.Simplify(desc_loop->extent);
+    const auto* int_block_extent = block_extent.as<IntImmNode>();
+    const auto* int_desc_extent = desc_extent.as<IntImmNode>();
+    ICHECK(int_block_extent != nullptr && int_desc_extent != nullptr);
+    // Check divisibility
+    int64_t total = int_block_extent->value;
+    int64_t inner = int_desc_extent->value;
+    ICHECK_EQ(total % inner, 0);
+    int64_t outer = int_block_extent->value / int_desc_extent->value;
+    // Do the split
+    Array<LoopRV> split = sch->Split(loop2rv.at(block_loop_sref), {Integer(outer), Integer(inner)});
+    ICHECK_EQ(split.size(), 2);
+    inner_loops.insert(sch->GetSRef(split[1]).operator->());
+    // The inner split will be reordered to the loop domain that is tensorized
+    int desc_loop_index = info->desc_loop_indexer.at(GetRef<tir::For>(desc_loop));
+    reorder_suffix[desc_loop_index] = split[1];
+  }
+  // Reorder the loops
+  std::vector<LoopRV> reorder_list;
+  bool meet = false;
+  Array<LoopRV> all_loops = sch->GetLoops(block_rv);
+  for (const LoopRV& loop : all_loops) {
+    if (inner_loops.count(sch->GetSRef(loop).operator->())) {
+      meet = true;
+    } else if (meet) {
+      reorder_list.push_back(loop);
+    }
+  }
+  reorder_list.insert(reorder_list.end(), reorder_suffix.begin(), reorder_suffix.end());
+  sch->Reorder(reorder_list);
+  ICHECK(!reorder_suffix.empty());
+  return reorder_suffix[0];
+}
+
+TVM_REGISTER_GLOBAL("tir.schedule.TileWithTensorIntrin").set_body_typed(TileWithTensorIntrin);
+
 }  // namespace tir
 }  // namespace tvm

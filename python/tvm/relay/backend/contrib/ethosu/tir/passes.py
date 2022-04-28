@@ -29,6 +29,7 @@ from .identity import get_identity_params
 from .unary_elementwise import get_unary_elementwise_params
 from .transform import get_copy_params
 from .utils import get_weights_buffer, get_scale_bias_buffer
+from .producers_consumers import ProducersConsumers
 
 from .. import _ffi_api
 
@@ -66,12 +67,15 @@ def ReplaceOperators():
         "ethosu_identity": get_identity_params,
         "ethosu_unary_elementwise": get_unary_elementwise_params,
     }
-    pointer_to_producer = {}
-    pointer_to_consumer = {}
+    producers_consumers = ProducersConsumers()
     replace_output_pointer = {}
     pointer_to_extents = {}
 
     ReplaceInfo = namedtuple("ReplaceInfo", ["pointer", "reallocate"])
+
+    def _find_pointer_to_extent(stmt):
+        if isinstance(stmt, tvm.tir.Allocate):
+            pointer_to_extents[stmt.buffer_var] = stmt.extents
 
     def _resolve_pointers(stmt):
         """This pass determines information about the pointers present in the IR.
@@ -87,17 +91,22 @@ def ReplaceOperators():
             if isinstance(stmt, tvm.tir.BufferLoad):
                 loads.append(stmt.buffer.data)
 
-        if isinstance(stmt, tvm.tir.Allocate):
-            pointer_to_extents[stmt.buffer_var] = stmt.extents
-            if isinstance(stmt.body[0], tvm.tir.AttrStmt):
-                if stmt.body[0].attr_key == "pragma_op":
-                    pointer_to_producer[stmt.buffer_var] = stmt.body[0]
+        buffer_var = None
 
-        elif isinstance(stmt, tvm.tir.AttrStmt):
+        def _get_buffer_var(stmt):
+            if isinstance(stmt, tvm.tir.BufferStore):
+                nonlocal buffer_var
+                buffer_var = stmt.buffer.data
+
+        if isinstance(stmt, tvm.tir.AttrStmt):
             if stmt.attr_key == "pragma_op":
+                tvm.tir.stmt_functor.post_order_visit(stmt, _get_buffer_var)
+                producers_consumers.add_producer(buffer_var, stmt)
+
                 tvm.tir.stmt_functor.post_order_visit(stmt, _get_loads)
                 for load_pointer in loads:
-                    pointer_to_consumer[load_pointer] = stmt
+                    if load_pointer != buffer_var:
+                        producers_consumers.add_consumer(load_pointer, stmt)
 
     def _replace_operator(stmt):
         """Replace operators with call_externs, having derived the parameters
@@ -122,7 +131,7 @@ def ReplaceOperators():
                 # Get the parameters for the extern call
                 param_func = op_map[op_name]
                 info, output_pointer, replace_pointer, is_allocator = param_func(
-                    stmt, pointer_to_producer, pointer_to_consumer
+                    stmt, producers_consumers
                 )
                 if replace_pointer is not None:
                     replace_output_pointer[output_pointer] = ReplaceInfo(
@@ -141,42 +150,25 @@ def ReplaceOperators():
         independently but instead get compiled into the operator they're associated with,
         e.g. a conv2d.
 
-        There are potentially 3 parts to remove for an operator: the memory scope, the
-        allocate for its output and the compute nest itself. For the memory scope and
+        There are potentially 2 parts to remove for an operator:
+        the allocate for its output and the compute nest itself. For the
         allocate, we can check if the pointer they reference is produced by a 'no compile'
         operator. For the compute nest, we can just check the op pragma."""
         if isinstance(stmt, tvm.tir.AttrStmt):
-            # Remove memory scopes
-            if stmt.node in pointer_to_producer:
-                producer_attr = pointer_to_producer[stmt.node]
-                if (
-                    producer_attr.attr_key == "pragma_op"
-                    and producer_attr.value.value not in op_map
-                ):
-                    return stmt.body
-
             # Remove compute nests
             if stmt.attr_key == "pragma_op" and stmt.value.value not in op_map:
                 return tvm.tir.Evaluate(0)
 
         if isinstance(stmt, tvm.tir.Allocate):
             # Remove allocates
-            if stmt.buffer_var in pointer_to_producer:
-                op_attr = pointer_to_producer[stmt.buffer_var]
-                if op_attr.attr_key == "pragma_op" and op_attr.value.value not in op_map:
+            producer = producers_consumers.get_last_producer(stmt.buffer_var)
+            if producer:
+                if producer.attr_key == "pragma_op" and producer.value.value not in op_map:
                     return stmt.body
+
         return None
 
     def _replace_pointers(stmt):
-        if isinstance(stmt, tvm.tir.AttrStmt):
-            # If the attribute references a pointer that needs replacing
-            if stmt.node in replace_output_pointer:
-                replace_pointer, reallocate = replace_output_pointer[stmt.node]
-                if not reallocate:
-                    return stmt.body
-                # Otherwise, rewrite the memory scope attribute with the new pointer
-                return tvm.tir.AttrStmt(replace_pointer, stmt.attr_key, stmt.value, stmt.body)
-
         if isinstance(stmt, tvm.tir.Allocate):
             # If the allocate allocates a pointer that needs replacing
             if stmt.buffer_var in replace_output_pointer:
@@ -201,7 +193,9 @@ def ReplaceOperators():
         return result or _replace_pointers(stmt)
 
     def _ftransform(f, mod, ctx):
+        tvm.tir.stmt_functor.post_order_visit(f.body, _find_pointer_to_extent)
         tvm.tir.stmt_functor.post_order_visit(f.body, _resolve_pointers)
+        producers_consumers.add_allocate_variables(pointer_to_extents.keys())
         return f.with_body(
             tvm.tir.stmt_functor.ir_transform(
                 f.body, None, _post_transform, ["tir.AttrStmt", "tir.Allocate"]
