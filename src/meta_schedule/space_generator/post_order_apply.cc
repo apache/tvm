@@ -80,7 +80,7 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   /*! \brief The schedule rules to be applied in order. */
   Array<ScheduleRule> sch_rules_{nullptr};
   /*! \brief The logging function to use. */
-  Optional<PackedFunc> logging_func;
+  PackedFunc logging_func;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `rand_state_` is not visited

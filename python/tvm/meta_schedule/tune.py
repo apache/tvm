@@ -516,6 +516,7 @@ def tune_extracted_tasks(
     measure_callbacks = Parse._callbacks(measure_callbacks)
     # parse the tuning contexts
     tune_contexts = []
+    max_width = len(str(len(extracted_tasks) - 1))
     for i, task in enumerate(extracted_tasks):
         assert len(task.dispatched) == 1, "Only size 1 dispatched task list is supported for now"
         tune_contexts.append(
@@ -529,7 +530,7 @@ def tune_extracted_tasks(
                 mutator_probs=Parse._mutator_probs(mutator_probs, task.target),
                 task_name=task.task_name,
                 logger=Parse._logger(
-                    name="_".join(["task", str(i).zfill(4), task.task_name]),
+                    name="_".join(["task", str(i).zfill(max_width), task.task_name]),
                     stream=False,
                     **logger_config,
                 ),

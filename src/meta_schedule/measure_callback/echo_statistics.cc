@@ -39,9 +39,9 @@ struct TaskInfo {
   double best_ms = kMaxTime;
   double best_gflops = 0.0;
   int error_count = 0;
-  Optional<PackedFunc> logging_func;
+  PackedFunc logging_func;
 
-  explicit TaskInfo(const String& name, Optional<PackedFunc> logging_func)
+  explicit TaskInfo(const String& name, PackedFunc logging_func)
       : name(name), logging_func(logging_func) {}
 
   void Update(double run_ms) {

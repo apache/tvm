@@ -55,7 +55,7 @@ class TuneContextNode : public runtime::Object {
   /*! \brief The name of the tuning task. */
   Optional<String> task_name;
   /*! \brief The tuning task's logging function. t*/
-  Optional<PackedFunc> logging_func;
+  PackedFunc logging_func;
   /*! \brief The random state. */
   support::LinearCongruentialEngine::TRandState rand_state;
   /*! \brief The number of threads to be used. */
@@ -125,7 +125,7 @@ class TuneContext : public runtime::ObjectRef {
                                Optional<Array<Postproc>> postprocs,                       //
                                Optional<Map<Mutator, FloatImm>> mutator_probs,            //
                                Optional<String> task_name,                                //
-                               Optional<PackedFunc> logging_func,                         //
+                               PackedFunc logging_func,                                   //
                                support::LinearCongruentialEngine::TRandState rand_state,  //
                                int num_threads);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TuneContext, ObjectRef, TuneContextNode);

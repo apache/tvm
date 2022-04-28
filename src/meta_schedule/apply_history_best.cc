@@ -87,7 +87,7 @@ void ApplyHistoryBest::ExitWithScope() {
 
 /**************** ApplyHistoryBest ****************/
 
-ApplyHistoryBest::ApplyHistoryBest(Database database, Optional<PackedFunc> logging_func) {
+ApplyHistoryBest::ApplyHistoryBest(Database database, PackedFunc logging_func) {
   ObjectPtr<ApplyHistoryBestNode> n = make_object<ApplyHistoryBestNode>();
   n->database = database;
   n->logging_func = logging_func;
@@ -129,7 +129,7 @@ Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModu
 
 TVM_REGISTER_NODE_TYPE(ApplyHistoryBestNode);
 TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBest")
-    .set_body_typed([](Database database, Optional<PackedFunc> logging_func) -> ApplyHistoryBest {
+    .set_body_typed([](Database database, PackedFunc logging_func) -> ApplyHistoryBest {
       return ApplyHistoryBest(database, logging_func);
     });
 TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBestEnterScope")

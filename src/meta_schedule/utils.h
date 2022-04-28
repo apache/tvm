@@ -53,8 +53,8 @@
 #include "../tir/schedule/primitive.h"
 #include "../tir/schedule/utils.h"
 
-#define TVM_PY_LOG(log_level, logging_func) \
-  PyLogMessage(__FILE__, __LINE__, logging_func, #log_level).stream()
+#define TVM_PY_LOG(logging_level, logging_func) \
+  PyLogMessage(__FILE__, __LINE__, logging_func, PyLogMessage::Level::logging_level).stream()
 namespace tvm {
 
 /*!
@@ -63,34 +63,37 @@ namespace tvm {
  */
 class PyLogMessage {
  public:
-  PyLogMessage(const std::string& file, int lineno, Optional<PackedFunc> logging_func,
-               std ::string logging_level) {
+  enum class Level : int32_t {
+    INFO = 20,
+    WARNING = 30,
+    ERROR = 40,
+    // FATAL not included
+  };
+
+  PyLogMessage(const std::string& file, int lineno, PackedFunc logging_func, Level logging_level) {
     this->logging_func = logging_func;
     this->logging_level = logging_level;
   }
   TVM_NO_INLINE ~PyLogMessage() {
     if (this->logging_func.defined()) {
-      logging_func.value()(logging_level, stream_.str());
+      logging_func(static_cast<int>(logging_level), stream_.str());
     } else {
-      if (logging_level == "INFO")
+      if (logging_level == Level::INFO)
         LOG(INFO) << stream_.str();
-      else if (logging_level == "WARNING")
+      else if (logging_level == Level::WARNING)
         LOG(WARNING) << stream_.str();
-      else if (logging_level == "ERROR")
+      else if (logging_level == Level::ERROR)
         LOG(ERROR) << stream_.str();
-      else if (logging_level == "FATAL")
-        LOG(FATAL) << stream_.str();
       else
-        LOG(FATAL) << "Wrong logging level, expected (INFO, WARNING, ERROR, FATAL), but got \""
-                   << logging_level << "\"!";
+        LOG(FATAL) << stream_.str();
     }
   }
   std::ostringstream& stream() { return stream_; }
 
  private:
   std::ostringstream stream_;
-  Optional<PackedFunc> logging_func;
-  std::string logging_level;
+  PackedFunc logging_func;
+  Level logging_level;
 };
 
 namespace meta_schedule {
@@ -396,7 +399,7 @@ struct ThreadedTraceApply {
   /*! \brief The pointer to the list of postprocessor items. */
   Item* items_;
   /*! \brief The logging function to use. */
-  Optional<PackedFunc> logging_func;
+  PackedFunc logging_func;
 };
 
 /*!

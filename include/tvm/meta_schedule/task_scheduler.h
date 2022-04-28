@@ -84,7 +84,7 @@ class TaskSchedulerNode : public runtime::Object {
   /*! \brief The number of trials already conducted. */
   int num_trials_already;
   /*! \brief The tuning task's logging function. t*/
-  Optional<PackedFunc> logging_func;
+  PackedFunc logging_func;
 
   /*! \brief The default destructor. */
   virtual ~TaskSchedulerNode() = default;
@@ -247,7 +247,7 @@ class TaskScheduler : public runtime::ObjectRef {
                                           int max_trials,                                      //
                                           Optional<CostModel> cost_model,                      //
                                           Optional<Array<MeasureCallback>> measure_callbacks,  //
-                                          Optional<PackedFunc> logging_func);
+                                          PackedFunc logging_func);
   /*!
    * \brief Create a task scheduler that fetches tasks in a gradient based fashion.
    * \param tasks The tasks to be tuned.
@@ -272,7 +272,7 @@ class TaskScheduler : public runtime::ObjectRef {
                                              int max_trials,                                      //
                                              Optional<CostModel> cost_model,                      //
                                              Optional<Array<MeasureCallback>> measure_callbacks,  //
-                                             Optional<PackedFunc> logging_func,                   //
+                                             PackedFunc logging_func,                             //
                                              double alpha,                                        //
                                              int window_size,                                     //
                                              support::LinearCongruentialEngine::TRandState seed);
@@ -301,7 +301,7 @@ class TaskScheduler : public runtime::ObjectRef {
       int max_trials,                                             //
       Optional<CostModel> cost_model,                             //
       Optional<Array<MeasureCallback>> measure_callbacks,         //
-      Optional<PackedFunc> logging_func,                          //
+      PackedFunc logging_func,                                    //
       PyTaskSchedulerNode::FTune f_tune,                          //
       PyTaskSchedulerNode::FInitializeTask f_initialize_task,     //
       PyTaskSchedulerNode::FTouchTask f_touch_task,               //

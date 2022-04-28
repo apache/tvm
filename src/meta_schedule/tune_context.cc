@@ -31,7 +31,7 @@ TuneContext::TuneContext(Optional<IRModule> mod,                                
                          Optional<Array<Postproc>> postprocs,                       //
                          Optional<Map<Mutator, FloatImm>> mutator_probs,            //
                          Optional<String> task_name,                                //
-                         Optional<PackedFunc> logging_func,                         //
+                         PackedFunc logging_func,                                   //
                          support::LinearCongruentialEngine::TRandState rand_state,  //
                          int num_threads) {
   ObjectPtr<TuneContextNode> n = make_object<TuneContextNode>();
@@ -81,7 +81,7 @@ TVM_REGISTER_GLOBAL("meta_schedule.TuneContext")
                        Optional<Array<Postproc>> postprocs,                       //
                        Optional<Map<Mutator, FloatImm>> mutator_probs,            //
                        Optional<String> task_name,                                //
-                       Optional<PackedFunc> logging_func,                         //
+                       PackedFunc logging_func,                                   //
                        support::LinearCongruentialEngine::TRandState rand_state,  //
                        int num_threads) -> TuneContext {
       return TuneContext(mod, target, space_generator, search_strategy, sch_rules, postprocs,

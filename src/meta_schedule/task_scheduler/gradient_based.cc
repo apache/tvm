@@ -184,7 +184,7 @@ TaskScheduler TaskScheduler::GradientBased(Array<TuneContext> tasks,            
                                            int max_trials,                                      //
                                            Optional<CostModel> cost_model,                      //
                                            Optional<Array<MeasureCallback>> measure_callbacks,  //
-                                           Optional<PackedFunc> logging_func,                   //
+                                           PackedFunc logging_func,                             //
                                            double alpha,                                        //
                                            int window_size,                                     //
                                            support::LinearCongruentialEngine::TRandState seed) {

@@ -27,10 +27,9 @@ namespace meta_schedule {
  * \param context The tuning context.
  * \param candidates The measure candidates.
  */
-void SendToBuilder(const Builder& builder, const TuneContext& context) {
+void SendToBuilder(const Builder& builder, const TuneContext& context, PackedFunc logging_func) {
   Array<MeasureCandidate> candidates = context->measure_candidates.value();
-  TVM_PY_LOG(INFO, context->logging_func)
-      << "Sending " << candidates.size() << " sample(s) to builder";
+  TVM_PY_LOG(INFO, logging_func) << "Sending " << candidates.size() << " sample(s) to builder";
   Target target = context->target.value();
   Array<BuilderInput> inputs;
   inputs.reserve(candidates.size());
@@ -49,11 +48,10 @@ void SendToBuilder(const Builder& builder, const TuneContext& context) {
  * \param builder_results The builder results.
  * \return An array of the runner results.
  */
-void SendToRunner(const Runner& runner, const TuneContext& context) {
+void SendToRunner(const Runner& runner, const TuneContext& context, PackedFunc logging_func) {
   Array<MeasureCandidate> candidates = context->measure_candidates.value();
   Array<BuilderResult> builder_results = context->builder_results.value();
-  TVM_PY_LOG(INFO, context->logging_func)
-      << "Sending " << candidates.size() << " sample(s) to runner";
+  TVM_PY_LOG(INFO, logging_func) << "Sending " << candidates.size() << " sample(s) to runner";
   Target target = context->target.value();
   ICHECK_EQ(candidates.size(), builder_results.size());
   int n = candidates.size();
@@ -135,8 +133,8 @@ void TaskSchedulerNode::Tune() {
     SearchStrategy strategy = task->search_strategy.value();
     if ((task->measure_candidates = strategy->GenerateMeasureCandidates()).defined()) {
       num_trials_already += task->measure_candidates.value().size();
-      SendToBuilder(this->builder, task);
-      SendToRunner(this->runner, task);
+      SendToBuilder(this->builder, task, this->logging_func);
+      SendToRunner(this->runner, task, this->logging_func);
     } else {
       ICHECK(!task->is_terminated);
       task->is_terminated = true;
@@ -207,7 +205,7 @@ TaskScheduler TaskScheduler::PyTaskScheduler(
     int max_trials,                                             //
     Optional<CostModel> cost_model,                             //
     Optional<Array<MeasureCallback>> measure_callbacks,         //
-    Optional<PackedFunc> logging_func,                          //
+    PackedFunc logging_func,                                    //
     PyTaskSchedulerNode::FTune f_tune,                          //
     PyTaskSchedulerNode::FInitializeTask f_initialize_task,     //
     PyTaskSchedulerNode::FTouchTask f_touch_task,               //

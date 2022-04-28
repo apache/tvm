@@ -389,14 +389,14 @@ def make_logging_func(logger: logging.Logger):
         return None
 
     level2log = {
-        "INFO": logger.info,
-        "WARNING": logger.warning,
-        "ERROR": logger.error,
-        # "FATAL": logger.critical,
+        logging.INFO: logger.info,
+        logging.WARNING: logger.warning,
+        logging.ERROR: logger.error,
+        # logging.FATAL not included
     }
 
-    def logging_func(level: str, msg: str):
-        level2log[level.upper()](msg)
+    def logging_func(level: int, msg: str):
+        level2log[level](msg)
 
     return logging_func
 
