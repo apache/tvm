@@ -27,8 +27,10 @@
 #include <tvm/runtime/registry.h>
 
 #include <chrono>
+#include <cmath>
 #include <sstream>
 
+#include "../../rpc/rpc_session.h"
 #include "../graph_executor.h"
 
 namespace tvm {
@@ -67,44 +69,14 @@ class GraphExecutorDebug : public GraphExecutor {
         time_sec_per_op[index] += RunOpRPC(index, number, repeat, min_repeat_ms);
       }
     } else {
-      for (int i = 0; i < repeat; ++i) {
-        std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds>
-            tbegin, tend;
-        double duration_ms = 0.0;
-        do {
-          std::fill(time_sec_per_op.begin(), time_sec_per_op.end(), 0);
-          if (duration_ms > 0.0) {
-            number = static_cast<int>(std::max((min_repeat_ms / (duration_ms / number) + 1),
-                                               number * 1.618));  // 1.618 is chosen by random
-          }
-          tbegin = std::chrono::high_resolution_clock::now();
-          std::vector<std::vector<Timer>> op_timers;
-          for (size_t index = 0; index < op_execs_.size(); index++) {
-            op_timers.push_back({});
-          }
-          for (int k = 0; k < number; k++) {
-            for (size_t index = 0; index < op_execs_.size(); ++index) {
-              if (op_execs_[index]) {
-                op_timers[index].push_back(RunOpHost(index));
-              }
-            }
-          }
-          for (size_t index = 0; index < op_execs_.size(); ++index) {
-            for (auto t : op_timers[index]) {
-              time_sec_per_op[index] += t->SyncAndGetElapsedNanos() / 1e9;
-            }
-          }
-          tend = std::chrono::high_resolution_clock::now();
-          duration_ms =
-              std::chrono::duration_cast<std::chrono::duration<double>>(tend - tbegin).count() *
-              1000;
-        } while (duration_ms < min_repeat_ms);
+      for (size_t index = 0; index < op_execs_.size(); ++index) {
+        std::vector<double> results = RunIndividualNode(index, number, repeat, min_repeat_ms);
+        for (size_t cur_repeat = 0; cur_repeat < results.size(); cur_repeat++) {
+          time_sec_per_op[index] = results[cur_repeat];
 
-        LOG(INFO) << "Iteration: " << i;
-        int op = 0;
-        for (size_t index = 0; index < time_sec_per_op.size(); index++) {
+          LOG(INFO) << "Iteration: " << cur_repeat;
+          int op = 0;
           if (op_execs_[index]) {
-            time_sec_per_op[index] /= number;
             LOG(INFO) << "Op #" << op++ << " " << GetNodeName(index) << ": "
                       << time_sec_per_op[index] * 1e6 << " us/iter";
           }
@@ -114,15 +86,50 @@ class GraphExecutorDebug : public GraphExecutor {
 
     std::ostringstream os;
     for (size_t index = 0; index < time_sec_per_op.size(); index++) {
-      os << time_sec_per_op[index] << ",";
+      double time = time_sec_per_op[index];
+      // To have good behavior when calculating total time, etc.
+      if (std::isnan(time)) {
+        time = 0;
+      }
+      os << time << ",";
     }
     return os.str();
   }
 
+  std::vector<double> RunIndividualNode(int node_index, int number, int repeat, int min_repeat_ms) {
+    std::string tkey = module_->type_key();
+
+    // results_in_seconds[a][b] is the bth index run of the ath index repeat
+    std::vector<double> results_in_seconds(repeat, 0);
+
+    if (tkey == "rpc") {
+      LOG(FATAL) << "RPC measurements should not use RunIndividualNode!";
+    }
+
+    if (!op_execs_[node_index]) {
+      // don't return anything...
+      return results_in_seconds;
+    }
+
+    // assume host runs things which is first device
+    Device& d = devices_[0];
+    PackedFunc time_evaluator = WrapTimeEvaluator(
+        TypedPackedFunc<void()>([this, node_index]() { this->RunOpHost(node_index); }), d, number,
+        repeat, min_repeat_ms);
+    std::string result = time_evaluator();
+    const double* results_arr = reinterpret_cast<const double*>(result.data());
+    size_t double_bytes = sizeof(double);
+    for (size_t i = 0; i < result.size() / double_bytes; i++) {
+      results_in_seconds[i] = results_arr[i];
+    }
+    return results_in_seconds;
+  }
+
   double RunOpRPC(int index, int number, int repeat, int min_repeat_ms) {
-    // Right now we expect either "tvm_op" for nodes which run PackedFunc or "null" for nodes which
-    // represent inputs/parameters to the graph. Other types may be supported in the future, but
-    // consideration would be needed as to how to do that over RPC before we support it here.
+    // Right now we expect either "tvm_op" for nodes which run PackedFunc or "null" for nodes
+    // which represent inputs/parameters to the graph. Other types may be supported in the
+    // future, but consideration would be needed as to how to do that over RPC before we support
+    // it here.
     if (nodes_[index].op_type != "tvm_op") {
       CHECK_EQ(nodes_[index].op_type, "null")
           << "Don't know how to run op type " << nodes_[index].op_type
@@ -362,6 +369,30 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       ICHECK_GE(min_repeat_ms, 0);
       *rv = this->RunIndividual(number, repeat, min_repeat_ms);
     });
+  } else if (name == "run_individual_node") {
+    return TypedPackedFunc<std::string(int, int, int, int)>(
+        [sptr_to_self, this](int node_index, int number, int repeat, int min_repeat_ms) {
+          ICHECK_GE(node_index, 0);
+          ICHECK_LT(node_index, nodes_.size());
+          ICHECK_GT(number, 0);
+          ICHECK_GT(repeat, 0);
+          ICHECK_GE(min_repeat_ms, 0);
+          std::vector<double> results =
+              this->RunIndividualNode(node_index, number, repeat, min_repeat_ms);
+
+          // Have problems returning FloatImm so serialize to string results as hack.
+          std::stringstream s;
+
+          // use maximum precision available and use fixed representation
+          s << std::fixed;
+          s.precision(std::numeric_limits<double>::max_digits10);
+
+          for (double cur : results) {
+            s << cur << ", ";
+          }
+
+          return s.str();
+        });
   } else if (name == "profile") {
     return TypedPackedFunc<profiling::Report(Array<profiling::MetricCollector>)>(
         [sptr_to_self, this](Array<profiling::MetricCollector> collectors) {
