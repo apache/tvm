@@ -18,11 +18,9 @@
 import sys
 import datetime
 import itertools
-import json
 import logging
 import os
 import pathlib
-import platform
 import re
 import shutil
 import subprocess
@@ -38,12 +36,13 @@ pytest.importorskip("tvm.micro")
 import tvm
 from tvm import relay
 from tvm import te
+from tvm import autotvm
 from tvm.contrib import utils, graph_executor
 from tvm.relay.backend import te_compiler, Executor, Runtime
 from tvm.relay.backend.te_compiler import TECompiler
 from tvm.relay.backend.utils import mangle_module_name
 from tvm.micro import export_model_library_format
-from tvm.micro.testing import mlf_extract_workspace_size_bytes
+from tvm.micro.testing.utils import mlf_extract_workspace_size_bytes
 
 _LOG = logging.getLogger(__name__)
 
@@ -683,6 +682,7 @@ def compile_models(
     use_runtime_executor: bool = True,
     target: tvm.target.Target = tvm.target.Target("c"),
     workspace_memory_pools=None,
+    schedule_name: str = None,
 ) -> List[AOTCompiledTestModel]:
     """
     This method generates runtime.Modules for the tests
@@ -708,31 +708,52 @@ def compile_models(
 
     compiled_mods = list()
     for model in models:
-        with tvm.transform.PassContext(opt_level=3, config=config):
-            # TODO(Mousius) - Remove once executor/runtime are fully removed from Target
-            if use_runtime_executor:
-                executor_factory = tvm.relay.build(
-                    model.module,
-                    target,
-                    executor=executor,
-                    runtime=runtime,
-                    workspace_memory_pools=workspace_memory_pools,
-                    params=model.params,
-                    mod_name=model.name,
-                )
-                compiled_mods.append(
-                    AOTCompiledTestModel(model=model, executor_factory=executor_factory)
-                )
-            else:
-                executor_factory = tvm.relay.build(
-                    model.module,
-                    tvm.target.Target(target, host=target),
-                    params=model.params,
-                    mod_name=model.name,
-                )
-                compiled_mods.append(
-                    AOTCompiledTestModel(model=model, executor_factory=executor_factory)
-                )
+        if schedule_name:
+            # Testing with deterministic schedule
+            task_list = autotvm.task.extract_from_program(
+                model.module, target=target, params=model.params
+            )
+            with tvm.autotvm.apply_fixed_config(task_list, schedule_name):
+                with tvm.transform.PassContext(opt_level=3, config=config):
+                    if use_runtime_executor:
+                        executor_factory = tvm.relay.build(
+                            model.module,
+                            target,
+                            executor=executor,
+                            runtime=runtime,
+                            workspace_memory_pools=workspace_memory_pools,
+                            params=model.params,
+                            mod_name=model.name,
+                        )
+                        compiled_mods.append(
+                            AOTCompiledTestModel(model=model, executor_factory=executor_factory)
+                        )
+        else:
+            with tvm.transform.PassContext(opt_level=3, config=config):
+                # TODO(Mousius) - Remove once executor/runtime are fully removed from Target
+                if use_runtime_executor:
+                    executor_factory = tvm.relay.build(
+                        model.module,
+                        target,
+                        executor=executor,
+                        runtime=runtime,
+                        workspace_memory_pools=workspace_memory_pools,
+                        params=model.params,
+                        mod_name=model.name,
+                    )
+                    compiled_mods.append(
+                        AOTCompiledTestModel(model=model, executor_factory=executor_factory)
+                    )
+                else:
+                    executor_factory = tvm.relay.build(
+                        model.module,
+                        tvm.target.Target(target, host=target),
+                        params=model.params,
+                        mod_name=model.name,
+                    )
+                    compiled_mods.append(
+                        AOTCompiledTestModel(model=model, executor_factory=executor_factory)
+                    )
     return compiled_mods
 
 
@@ -830,8 +851,9 @@ def run_and_check(
 
         # Verify that compiles fine
         file_dir = os.path.dirname(os.path.abspath(__file__))
+        makefile_dir = os.path.join(file_dir, "../../../../tests/python/relay/aot")
         codegen_path = os.path.join(base_path, "codegen")
-        makefile = os.path.join(file_dir, f"{runner.makefile}.mk")
+        makefile = os.path.join(makefile_dir, f"{runner.makefile}.mk")
         fvp_dir = "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/"
         # TODO(@grant-arm): Remove once ci_cpu docker image has been updated to FVP_Corstone_SSE
         if not os.path.isdir(fvp_dir):
@@ -843,7 +865,7 @@ def run_and_check(
             f"make -f {makefile} build_dir={build_path}"
             + f" CFLAGS='{cflags}'"
             + f" TVM_ROOT={file_dir}/../../../.."
-            + f" AOT_TEST_ROOT={file_dir}"
+            + f" AOT_TEST_ROOT={makefile_dir}"
             + f" CODEGEN_ROOT={codegen_path}"
             + f" STANDALONE_CRT_DIR={tvm.micro.get_standalone_crt_dir()}"
             + f" FVP_DIR={fvp_dir}"
@@ -895,6 +917,7 @@ def compile_and_run(
     target_opts: Dict = None,
     test_dir: str = None,
     verbose: bool = False,
+    schedule_name: str = None,
 ):
     """This is a wrapper API to compile and run models as test for AoT
 
@@ -919,6 +942,7 @@ def compile_and_run(
         pass_config=runner.pass_config,
         use_runtime_executor=use_runtime_executor,
         target=tvm.target.Target(target),
+        schedule_name=schedule_name,
     )
 
     run_and_check(

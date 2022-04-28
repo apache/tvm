@@ -24,7 +24,7 @@ from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
 
-from tests.python.relay.aot.aot_test_utils import (
+from tvm.micro.testing.aot_test_utils import (
     AOTTestModel,
     AOT_CORSTONE300_RUNNER,
     AOT_USMP_CORSTONE300_RUNNER,

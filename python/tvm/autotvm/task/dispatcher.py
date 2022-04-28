@@ -178,6 +178,50 @@ class ApplyConfig(DispatchContext):
         self._config = cfg
 
 
+class ApplyFixedConfig(DispatchContext):
+    """Apply a config of a deterministic schedule.
+
+    Parameters
+    ----------
+    tasks : list[tvm.autotvm.task.task.Task]
+        List of autoTVM tasks.
+    schedule_name : str
+        Name of schedule to use.
+    """
+
+    def __init__(self, tasks, schedule_name: str):
+        super(ApplyFixedConfig, self).__init__()
+        self._schedule_name = schedule_name
+        self._tasks = tasks
+        self.workload = None
+
+    def _query_inside(self, target, workload):
+        """Override query"""
+        self.workload = workload
+
+        # Creat a config from correct task
+        for task in self._tasks:
+            if task.name == workload[0]:
+                config = task.config_space.get(0)
+                break
+
+        if not config:
+            raise RuntimeError(
+                "workload: %s does not exist in %s" % (str(workload), str(self._tasks))
+            )
+        # Add low cost to the target schedule and high cost to others.
+        if workload[0] == self._schedule_name:
+            config.cost = 0.000001
+        else:
+            config.cost = 100000
+        return config
+
+    def update(self, target, workload, cfg):
+        """Override update"""
+        self.workload = workload
+        self._config = cfg
+
+
 class ApplyHistoryBest(DispatchContext):
     """
     Apply the history best config
