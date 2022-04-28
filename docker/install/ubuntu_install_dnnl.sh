@@ -49,7 +49,10 @@ else
 fi
 
 cd ${src_dir}
-cmake . -DCMAKE_INSTALL_PREFIX=${install_dir} && make -j16 && make install
+NPROC=$(nproc)
+cmake . -GNinja -DCMAKE_INSTALL_PREFIX=${install_dir}
+make -j"$NPROC"
+make install
 
 cd ${build_dir}
 rm -rf ${tar_file} ${src_dir}
