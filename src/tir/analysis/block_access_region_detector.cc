@@ -181,6 +181,34 @@ void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
 }
 
 void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
+  if (op->op.same_as(builtin::tvm_access_ptr())) {
+    const VarNode* buffer_var = op->args[1].as<VarNode>();
+    const IntImmNode* access_mask = op->args[4].as<IntImmNode>();
+    if (buffer_var && access_mask) {
+      auto it = buffer_var_map_.find(GetRef<Var>(buffer_var));
+      if (it != buffer_var_map_.end()) {
+        const Buffer& buffer = (*it).second;
+        const BufferRegion buffer_region = BufferRegion::FullRegion(buffer);
+        const Region& region = buffer_region->region;
+        std::vector<arith::IntSet> int_set;
+        int_set.reserve(region.size());
+        for (const Range& range : region) {
+          int_set.push_back(arith::EvalSet(range, dom_map_));
+        }
+        // read access, write access or opaque access
+        if ((access_mask->value & 1) && (access_mask->value & 2)) {
+          Update(&opaque_buffers_, &opaque_regions_, buffer, int_set);
+        } else if (access_mask->value & 1) {
+          Update(&read_buffers_, &read_regions_, buffer, int_set);
+        } else if (access_mask->value & 2) {
+          Update(&writes_buffers_, &write_regions_, buffer, int_set);
+        }
+      }
+    } else {
+      StmtExprVisitor::VisitExpr_(op);
+    }
+    return;
+  }
   if (op->op.same_as(builtin::if_then_else())) {
     VisitExpr(op->args[0]);
     {
