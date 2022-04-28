@@ -198,9 +198,9 @@ class Parse:
         if "task_level" in kwargs:
             logger.setLevel(getattr(logging, kwargs["task_level"]))
         if "task_stream" in kwargs and kwargs["task_stream"]:
-            handler = logging.StreamHandler()
-            handler.setFormatter(kwargs["formatter"])
-            logger.addHandler(handler)
+            stream_handler = logging.StreamHandler()
+            stream_handler.setFormatter(kwargs["formatter"])
+            logger.addHandler(stream_handler)
         logger.info("Log printing %s to %s", name, osp.join(kwargs["log_dir"], name + ".log"))
         return logger
 
