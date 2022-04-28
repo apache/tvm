@@ -23,6 +23,7 @@ set -o pipefail
 # install libraries for building c++ core on ubuntu
 apt-get update && apt-get install -y --no-install-recommends \
     apt-transport-https \
+    ca-certificates \
     cmake \
     curl \
     g++ \
