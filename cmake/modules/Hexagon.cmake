@@ -120,7 +120,6 @@ if(BUILD_FOR_HEXAGON OR USE_HEXAGON_RPC)
   # Common sources for TVM runtime with Hexagon support
   file_glob_append(RUNTIME_HEXAGON_SRCS
     "${TVMRT_SOURCE_DIR}/hexagon/*.cc"
-    "${TVMRT_SOURCE_DIR}/hexagon/tests/*.cc"
   )
 else()
   file_glob_append(RUNTIME_HEXAGON_SRCS
@@ -129,6 +128,9 @@ else()
 endif()
 
 if(BUILD_FOR_HEXAGON)
+  file_glob_append(RUNTIME_HEXAGON_SRCS
+    "${TVMRT_SOURCE_DIR}/hexagon/tests/*.cc"
+  )
   get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
     SDK_INCLUDE   SDK_INCLUDE_DIRS
     QURT_INCLUDE  QURT_INCLUDE_DIRS

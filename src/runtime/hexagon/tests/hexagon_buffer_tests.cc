@@ -17,8 +17,6 @@
  * under the License.
  */
 
-#if defined(__hexagon__)
-
 #include <gtest/gtest.h>
 #include <tvm/runtime/container/optional.h>
 
@@ -465,5 +463,3 @@ TEST(HexagonBuffer, nd_copy_to) {
     EXPECT_EQ(data_in[i], data_out[i]);
   }
 }
-
-#endif
