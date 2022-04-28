@@ -401,11 +401,6 @@ def assign_addresses(buffer_info, npu_ops, scratch_region_map):
 
     def replace_npu_fm_with_address(npu_fm):
         assert isinstance(npu_fm.tiles.addresses[0], tvm.tir.BufferLoad)
-        # We currently does not support tiles
-        # Change this when tiles are needed
-        # (i.e. when using rolling buffers)
-        assert npu_fm.tiles.addresses[1:] == [0, 0, 0]
-        npu_fm.tiles.addresses[1:] = [0, 0, 0]
         buffer = npu_fm.tiles.addresses[0].buffer.data
         if buffer in scratch_region_map.keys():
             address = scratch_region_map[buffer].offset
@@ -421,6 +416,13 @@ def assign_addresses(buffer_info, npu_ops, scratch_region_map):
             np.iinfo(np.dtype(npu_fm.tiles.addresses[0])).bits // 8
         )
         npu_fm.tiles.addresses[0] = address + int(index)
+        npu_fm.tiles.addresses[1] = (
+            address if isinstance(npu_fm.tiles.addresses[1], tvm.tir.BufferLoad) else 0
+        )
+        npu_fm.tiles.addresses[2] = (
+            address if isinstance(npu_fm.tiles.addresses[2], tvm.tir.BufferLoad) else 0
+        )
+        npu_fm.tiles.addresses[3] = 0
         npu_fm.region = region
         return npu_fm
 

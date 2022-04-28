@@ -121,6 +121,13 @@ struct NDArray::Internal {
     }
     delete ptr;
   }
+  // Deleter for NDArray based on external DLTensor
+  // The memory is allocated from outside and it is assumed that
+  // responsibility for its freeing is also outside
+  static void SelfDeleter(Object* ptr_obj) {
+    auto* ptr = static_cast<NDArray::Container*>(ptr_obj);
+    delete ptr;
+  }
   // Local create function which allocates tensor metadata
   // but does not allocate space for the data.
   static NDArray Create(ShapeTuple shape, DLDataType dtype, Device dev) {
@@ -196,6 +203,30 @@ NDArray NDArray::Empty(ShapeTuple shape, DLDataType dtype, Device dev, Optional<
       DeviceAPI::Get(ret->device)
           ->AllocDataSpace(ret->device, shape.size(), shape.data(), ret->dtype, mem_scope);
   return ret;
+}
+
+NDArray NDArray::FromExternalDLTensor(const DLTensor& dl_tensor) {
+  NDArray::Container* data = new NDArray::Container();
+
+  data->SetDeleter(Internal::SelfDeleter);
+  data->dl_tensor = dl_tensor;
+  std::vector<ShapeTuple::index_type> shape;
+  shape.resize(data->dl_tensor.ndim);
+  shape.assign(data->dl_tensor.shape, data->dl_tensor.shape + data->dl_tensor.ndim);
+  data->shape_ = ShapeTuple(shape);
+  data->dl_tensor.shape = const_cast<ShapeTuple::index_type*>(data->shape_.data());
+
+  return NDArray(GetObjectPtr<Object>(data));
+}
+
+NDArray NDArray::NewFromDLTensor(DLTensor* tensor, Device dev) {
+  std::vector<int64_t> shape;
+  for (int64_t i = 0; i < tensor->ndim; i++) {
+    shape.push_back(tensor->shape[i]);
+  }
+  NDArray ary = NDArray::Empty(shape, tensor->dtype, dev);
+  ary.CopyFrom(tensor);
+  return ary;
 }
 
 NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {

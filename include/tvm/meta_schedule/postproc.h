@@ -149,10 +149,12 @@ class Postproc : public runtime::ObjectRef {
    */
   TVM_DLL static Postproc RewriteUnboundBlock(int max_threadblock);
   /*!
-   * \brief Create a postprocessor that tensorize Tensor Core related components
+   * \brief Create a postprocessor that applies tensorization to annotated blocks
+   * \param vectorize_init_loop Whether or not vectorize the initialization loop produced by
+   * DecomposeReduction
    * \return The postprocessor created.
    */
-  TVM_DLL static Postproc RewriteTensorCore();
+  TVM_DLL static Postproc RewriteTensorize(bool vectorize_init_loop = false);
 
   /*!
    * \brief Creates a postprocessor that verifies if the GPU code is correct

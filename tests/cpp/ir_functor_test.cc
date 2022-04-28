@@ -325,3 +325,45 @@ TEST(IRF, StmtMutator) {
     ICHECK(new_block->match_buffers[0]->source->region[0]->min.same_as(x));
   }
 }
+
+TEST(IRF, Substitute) {
+  using namespace tvm;
+  using namespace tvm::tir;
+  DataType dtype = DataType::Float(32);
+  Var x("x", PointerType(PrimType(dtype), ""));
+  auto fmaketest = [&]() {
+    Buffer buffer{/*data=*/x,
+                  /*dtype=*/DataType::Float(32),
+                  /*shape=*/{},
+                  /*strides=*/{},
+                  /*elem_offset=*/NullValue<PrimExpr>(),
+                  /*name=*/"buf",
+                  /*data_alignment=*/1,
+                  /*offset_factor=*/1,
+                  /*buffer_type=*/BufferType::kDefault};
+    return BufferLoad(buffer, {});
+  };
+
+  {
+    // test substitute buffer var
+    Var y = x.copy_with_suffix("subst");
+    BufferLoad buffer_load = fmaketest();
+    auto f_subst = [&](const Var& var) -> Optional<PrimExpr> {
+      if (var.same_as(x)) {
+        return y;
+      }
+      return NullOpt;
+    };
+    BufferLoad new_buffer_load = Downcast<BufferLoad>(Substitute(buffer_load, f_subst));
+    ICHECK(new_buffer_load->buffer->data.same_as(y));
+  }
+
+  {
+    // test identity substitution
+    PrimExpr expr = fmaketest();
+    auto f_subst = [&](const Var& var) -> Optional<PrimExpr> { return var; };
+    PrimExpr new_expr = Substitute(expr, f_subst);
+    // the expression is not changed
+    ICHECK(new_expr.same_as(expr));
+  }
+}

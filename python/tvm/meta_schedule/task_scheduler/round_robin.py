@@ -53,10 +53,12 @@ class RoundRobin(TaskScheduler):
     def __init__(
         self,
         tasks: List["TuneContext"],
+        task_weights: List[float],
         builder: Builder,
         runner: Runner,
         database: Database,
         max_trials: int,
+        *,
         cost_model: Optional[CostModel] = None,
         measure_callbacks: Optional[List[MeasureCallback]] = None,
     ) -> None:
@@ -66,6 +68,8 @@ class RoundRobin(TaskScheduler):
         ----------
         tasks : List[TuneContext]
             List of tasks to schedule.
+        task_weights : List[float]
+            List of weights for each task. Not used in round robin.
         builder : Builder
             The builder.
         runner : Runner
@@ -79,6 +83,7 @@ class RoundRobin(TaskScheduler):
         measure_callbacks: Optional[List[MeasureCallback]]
             The list of measure callbacks of the scheduler.
         """
+        del task_weights
         self.__init_handle_by_constructor__(
             _ffi_api.TaskSchedulerRoundRobin,  # type: ignore # pylint: disable=no-member
             tasks,

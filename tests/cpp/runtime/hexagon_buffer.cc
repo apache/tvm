@@ -18,7 +18,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <hexagon/hexagon/hexagon_buffer.h>
+#include <hexagon/hexagon_buffer.h>
 #include <tvm/runtime/container/optional.h>
 
 using namespace tvm::runtime;
@@ -461,38 +461,4 @@ TEST(HexagonBuffer, nd_copy_to) {
   for (size_t i = 0; i < data_in.size(); ++i) {
     EXPECT_EQ(data_in[i], data_out[i]);
   }
-}
-
-TEST(HexagonBuffer, external) {
-  std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
-
-  Optional<String> def;
-  HexagonBuffer hb_default(data.data(), data.size(), def);
-  EXPECT_EQ(hb_default.GetPointer(), data.data());
-  EXPECT_EQ(hb_default.GetStorageScope(), HexagonBuffer::StorageScope::kDDR);
-
-  Optional<String> global("global");
-  HexagonBuffer hb_global(data.data(), data.size(), global);
-  EXPECT_EQ(hb_global.GetPointer(), data.data());
-  EXPECT_EQ(hb_global.GetStorageScope(), HexagonBuffer::StorageScope::kDDR);
-
-  Optional<String> vtcm("global.vtcm");
-  EXPECT_THROW(HexagonBuffer hb_vtcm(data.data(), data.size(), vtcm), InternalError);
-
-  Optional<String> invalid("invalid");
-  EXPECT_THROW(HexagonBuffer hb_vtcm(data.data(), data.size(), invalid), InternalError);
-}
-
-TEST(HexagonBuffer, external_copy) {
-  std::vector<uint8_t> data1{0, 1, 2, 3, 4, 5, 6, 7};
-  Optional<String> global("global");
-  HexagonBuffer hb_ext(data1.data(), data1.size(), global);
-
-  std::vector<uint8_t> data2{0, 1, 2, 3, 4, 5, 6, 7};
-  EXPECT_THROW(hb_ext.CopyTo(data2.data(), data2.size()), InternalError);
-  EXPECT_THROW(hb_ext.CopyFrom(data2.data(), data2.size()), InternalError);
-
-  HexagonBuffer hb(8 /* nbytes */, 8 /* alignment */, global);
-  EXPECT_THROW(hb.CopyFrom(hb_ext, 8), InternalError);
-  EXPECT_THROW(hb_ext.CopyFrom(hb, 8), InternalError);
 }

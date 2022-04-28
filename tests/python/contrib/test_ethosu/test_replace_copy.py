@@ -22,7 +22,7 @@ from tvm.script import tir as T
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
-from tvm.relay.backend.contrib.ethosu.tir.scheduler import copy_constants, Convolution2DCompute
+from tvm.relay.backend.contrib.ethosu.tir.scheduler import copy_constants, OperatorCompute
 
 from .infra import make_ethosu_conv2d
 
@@ -106,10 +106,10 @@ def test_weight_stream():
         weight = cached_func.inputs[1]
         scale_bias = cached_func.inputs[2]
         out = cached_func.outputs[0]
-        conv_compute = Convolution2DCompute.from_output(out)
+        conv_compute = OperatorCompute.from_output(out)
         co = conv_compute.split(sch, 3, 10)
-        cache_weight = sch.cache_read(weight, "global", [conv_compute.conv2d])
-        cache_scale_bias = sch.cache_read(scale_bias, "global", [conv_compute.conv2d])
+        cache_weight = sch.cache_read(weight, "global", [conv_compute.op])
+        cache_scale_bias = sch.cache_read(scale_bias, "global", [conv_compute.op])
         sch[cache_weight].compute_at(sch[out], co)
         sch[cache_scale_bias].compute_at(sch[out], co)
 

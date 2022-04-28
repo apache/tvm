@@ -76,6 +76,12 @@ def test_buffer_access_ptr_extent():
     aptr = Ab.access_ptr("rw", offset=100)
     assert tvm.ir.structural_equal(aptr.args[3], Ab.strides[0] * m - 100)
 
+    # Test extent from input params
+    aptr = Ab.access_ptr("rw", extent=200)
+    assert tvm.ir.structural_equal(aptr.args[3], 200)
+    aptr = Ab.access_ptr("rw", offset=100, extent=100)
+    assert tvm.ir.structural_equal(aptr.args[3], 100)
+
 
 def test_buffer_vload():
     m = te.size_var("m")

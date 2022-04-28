@@ -1437,16 +1437,16 @@ def test_pad_run_dynamic_pad_value():
 
 
 @tvm.testing.uses_gpu
-def test_lrn():
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+def test_lrn(dtype):
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
-    x = relay.var("x", shape=(n, c, h, w))
+    x = relay.var("x", shape=(n, c, h, w), dtype=dtype)
     y = relay.nn.lrn(x, size=10, axis=2, bias=0.5, alpha=0.00001, beta=0.75)
     "alpha=" in y.astext()
     yy = run_infer_type(y)
-    assert yy.checked_type == relay.TensorType((n, c, h, w))
+    assert yy.checked_type == relay.TensorType((n, c, h, w), dtype)
 
     shape = (1, 5, 10, 10)
-    dtype = "float32"
     x = relay.var("x", relay.TensorType(shape, dtype))
     size = 5
     axis = 1
@@ -1942,6 +1942,56 @@ def test_correlation():
         padding=2,
         is_multiply=False,
     )
+
+
+@pytest.mark.skip("Requires GFX10 AMDGPU")
+def test_conv2d_rocm_sdot4():
+    d_shape = (1, 64, 56, 56)
+    w_shape = (64, 64, 3, 3)
+    padding = (1, 1)
+    strides = (1, 1)
+    data_dtype = "int8"
+    weight_dtype = "int8"
+    out_dtype = "int32"
+
+    data = relay.var("data", shape=d_shape, dtype=data_dtype)
+    weight = relay.var("weight", shape=w_shape, dtype=weight_dtype)
+    out_channel = w_shape[0]
+    conv2d = relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=w_shape[2:],
+        channels=out_channel,
+        padding=padding,
+        strides=strides,
+        out_dtype=out_dtype,
+    )
+
+    mod = tvm.IRModule.from_expr(conv2d)
+
+    data_np = np.random.uniform(1, 10, d_shape).astype("int8")
+    weight_np = np.random.uniform(1, 10, size=w_shape).astype("int8")
+
+    target = "rocm -mattr=+dotprod"
+    with tvm.transform.PassContext(opt_level=3):
+        lib = relay.build(mod, target=target, params={"weight": weight_np})
+
+    asm = lib.lib.imported_modules[0].get_source("asm")
+    assert "v_dot4_i32_i8" in asm
+
+    dev = tvm.device(target, 0)
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    runtime.set_input("data", data_np)
+    runtime.run()
+
+    out = runtime.get_output(0).numpy()
+
+    ref = tvm.topi.testing.conv2d_nchw_python(
+        data_np.astype("int32"), weight_np.astype("int32"), strides, padding
+    )
+
+    np.testing.assert_equal(out, ref)
 
 
 if __name__ == "__main__":

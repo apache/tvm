@@ -169,6 +169,16 @@ AOT_USMP_CORSTONE300_RUNNER = AOTTestRunner(
     },
 )
 
+NP_TYPE_TO_C = {
+    "int8": "int8_t",
+    "uint8": "uint8_t",
+    "int16": "int16_t",
+    "uint16": "uint16_t",
+    "int32": "int32_t",
+    "uint32": "uint32_t",
+    "float32": "float",
+}
+
 
 def mangle_name(mod_name, name):
     mod_name = mangle_module_name(mod_name)
@@ -429,11 +439,14 @@ def emit_main_data_setup(main_file, input_map, output_map, mod_name):
     main_file.write("};\n")
 
 
-def emit_main_c_interface_call(main_file, devices, workspace_pool_names, mod_name):
+def emit_main_c_interface_call(
+    main_file, devices, workspace_pool_names, mod_name, use_workspace_io
+):
     sub_strings = list()
     sub_strings.append(f'{mangle_name(mod_name,"run")}(')
-    sub_strings.append(f'&{mangle_name(mod_name,"inputs")}, ')
-    sub_strings.append(f'&{mangle_name(mod_name,"outputs")}, ')
+    if not use_workspace_io:
+        sub_strings.append(f'&{mangle_name(mod_name,"inputs")}, ')
+        sub_strings.append(f'&{mangle_name(mod_name,"outputs")}, ')
     if workspace_pool_names:
         sub_strings.append(f'&{mangle_name(mod_name,"workspace_pools")}, ')
     if devices:
@@ -500,10 +513,9 @@ def emit_main_packed_call(main_file, input_map, output_list, mod_name):
     main_file.write("\n")
 
 
-def emit_main_compare(main_file, outputs, output_tolerance, mod_name):
+def emit_main_compare(main_file, outputs, output_tolerance, mod_name, use_interface_c=False):
     for key in outputs:
         sanitized_tensor_name = re.sub(r"\W", "_", key)
-        actual_data_name = mangle_name(mod_name, f"output_data_{sanitized_tensor_name}")
         expected_data_name = mangle_name(mod_name, f"expected_output_data_{sanitized_tensor_name}")
         is_float_dtype = outputs[key].dtype == "float32"
 
@@ -513,9 +525,19 @@ def emit_main_compare(main_file, outputs, output_tolerance, mod_name):
             comparison_function = "fabs"
             tolerance = output_tolerance or 0.001
 
+        data_length_var_name = (
+            mangle_name(mod_name, f"output_data_{sanitized_tensor_name}") + "_len"
+        )
+        if use_interface_c:
+            c_type = NP_TYPE_TO_C[str(outputs[key].dtype)]
+            actual_data_name = f"(({c_type}*)" + mangle_name(
+                mod_name, f"outputs.{sanitized_tensor_name})"
+            )
+        else:
+            actual_data_name = mangle_name(mod_name, f"output_data_{sanitized_tensor_name}")
         main_file.write(
             f"""
-            for (int i = 0; i<{actual_data_name}_len; i++) {{
+            for (int i = 0; i<{data_length_var_name}; i++) {{
                 if ({comparison_function}({actual_data_name}[i]-{expected_data_name}[i]) > {tolerance}) {{
                     printf("{AOT_FAILURE_TOKEN}\\n");
                     return -1;
@@ -563,6 +585,7 @@ def create_main(
     interface_api,
     workspace_bytes,
     use_stack_allocator=True,
+    use_workspace_io=False,
 ):
     file_path = pathlib.Path(f"{output_path}/" + test_name).resolve()
     # create header file
@@ -605,9 +628,12 @@ def create_main(
                         if not allocated_pool.pool_info.is_internal
                     ]
                 emit_main_device_structs(main_file, devices, model.name)
-                emit_main_workspace_pool_structs(main_file, workspace_pool_names, model.name)
-                emit_main_data_structs(main_file, model.inputs, model.outputs, model.name)
-                emit_main_c_interface_call(main_file, devices, workspace_pool_names, model.name)
+                if not use_workspace_io:
+                    emit_main_workspace_pool_structs(main_file, workspace_pool_names, model.name)
+                    emit_main_data_structs(main_file, model.inputs, model.outputs, model.name)
+                emit_main_c_interface_call(
+                    main_file, devices, workspace_pool_names, model.name, use_workspace_io
+                )
         else:
             emit_main_fake_packed_values(main_file)
             for compiled_model in compiled_models:
@@ -617,7 +643,9 @@ def create_main(
 
         for compiled_model in compiled_models:
             model = compiled_model.model
-            emit_main_compare(main_file, model.outputs, model.output_tolerance, model.name)
+            emit_main_compare(
+                main_file, model.outputs, model.output_tolerance, model.name, interface_api == "c"
+            )
         emit_main_epilogue(main_file, custom_epilogue)
 
 
@@ -627,15 +655,6 @@ def create_header_file(tensor_name, npy_data, output_path, data_linkage):
     It is used to capture the tensor data (for both inputs and expected outputs) to be bundled into the standalone application.
     """
     file_path = pathlib.Path(f"{output_path}/" + tensor_name).resolve()
-    np_type_to_c = {
-        "int8": "int8_t",
-        "uint8": "uint8_t",
-        "int16": "int16_t",
-        "uint16": "uint16_t",
-        "int32": "int32_t",
-        "uint32": "uint32_t",
-        "float32": "float",
-    }
     # create header file
     raw_path = file_path.with_suffix(".h").resolve()
     with open(raw_path, "w") as header_file:
@@ -646,7 +665,7 @@ def create_header_file(tensor_name, npy_data, output_path, data_linkage):
 
         emit_data_linkage(header_file, data_linkage)
 
-        header_file.write(f"{np_type_to_c[str(npy_data.dtype)]} {tensor_name}[] =")
+        header_file.write(f"{NP_TYPE_TO_C[str(npy_data.dtype)]} {tensor_name}[] =")
 
         header_file.write("{")
         for i in np.ndindex(npy_data.shape):
@@ -726,6 +745,7 @@ def run_and_check(
     data_linkage: AOTDataLinkage = None,
     test_dir: str = None,
     verbose: bool = False,
+    use_workspace_io: bool = False,
 ):
     """
     This method uses the original test data and compiled runtime.Modules
@@ -805,6 +825,7 @@ def run_and_check(
             interface_api,
             workspace_bytes,
             use_stack_allocator,
+            use_workspace_io,
         )
 
         # Verify that compiles fine
@@ -931,11 +952,8 @@ def generate_ref_data(mod, input_data, params=None, target="llvm"):
         main = mod
     else:
         main = mod["main"]
-    if main.attrs == None or main.attrs["output_tensor_names"] == None:
-        if output_count == 1:
-            output_tensor_names = ["output"]
-        else:
-            output_tensor_names = [f"output{i}" for i in range(output_count)]
+    if main.attrs is None or main.attrs["output_tensor_names"] is None:
+        output_tensor_names = ["output" if i == 0 else f"output{i+1}" for i in range(output_count)]
     else:
         output_tensor_names = main.attrs["output_tensor_names"]
 

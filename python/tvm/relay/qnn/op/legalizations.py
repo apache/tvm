@@ -24,6 +24,7 @@ from tvm._ffi.base import TVMError
 from tvm.relay.qnn.op.canonicalizations import create_integer_lookup_op
 
 from ....topi.x86.utils import target_has_sse42
+from ....topi.utils import is_target
 from .. import op as reg
 
 #################################################
@@ -72,6 +73,7 @@ register_qnn_unary_op_legalize("qnn.exp", np.exp)
 register_qnn_unary_op_legalize("qnn.erf", special.erf)
 register_qnn_unary_op_legalize("qnn.sigmoid", lambda arr: 1 / (1 + np.exp(-arr)))
 register_qnn_unary_op_legalize("qnn.tanh", np.tanh)
+register_qnn_unary_op_legalize("qnn.log", np.log)
 
 
 # Default to None. If overridden by target, this will not be run.
@@ -91,12 +93,30 @@ def qnn_conv2d_transpose_legalize(attrs, inputs, types):
     # Collect the input exprs.
     data, kernel, input_zero_point, kernel_zero_point, _, _ = inputs
 
-    shift_data = relay.subtract(
-        relay.cast(data, dtype="int16"), relay.cast(input_zero_point, "int16")
-    )
-    shift_kernel = relay.subtract(
-        relay.cast(kernel, dtype="int16"), relay.cast(kernel_zero_point, "int16")
-    )
+    # If input zero point is a scalar, we can directly subtract it.
+    if len(types[2].shape) == 0:
+        shift_data = relay.subtract(
+            relay.cast(data, dtype="int16"), relay.cast(input_zero_point, "int16")
+        )
+    # Otherwise it needs to be broadcast.
+    else:
+        shift_data = relay.nn.bias_add(
+            relay.cast(data, dtype="int16"),
+            -relay.cast(input_zero_point, dtype="int16"),
+        )
+
+    # If kernel zero point is a scalar, we can directly subtract it.
+    if len(types[3].shape) == 0:
+        shift_kernel = relay.subtract(
+            relay.cast(kernel, dtype="int16"), relay.cast(kernel_zero_point, "int16")
+        )
+    # Otherwise it needs to be broadcast.
+    else:
+        shift_kernel = relay.nn.bias_add(
+            relay.cast(kernel, dtype="int16"),
+            -relay.cast(kernel_zero_point, dtype="int16"),
+        )
+
     return relay.nn.conv2d_transpose(shift_data, shift_kernel, **attrs)
 
 
@@ -387,18 +407,6 @@ def is_aarch64_arm():
     return "aarch64" in target.attrs.get("mtriple", "")
 
 
-def is_vulkan():
-    """Checks whether we are compiling for a vulkan/spirv target."""
-    target = tvm.target.Target.current(allow_none=False)
-    return "vulkan" in target.keys
-
-
-def is_cuda():
-    """Checks whether we are compiling for a cuda target."""
-    target = tvm.target.Target.current(allow_none=False)
-    return "cuda" in target.keys
-
-
 ########################
 # ARM CPU legalizations.
 ########################
@@ -456,10 +464,10 @@ def _qnn_dense_legalize_intel_cpu(attrs, inputs, types):
 
 @qnn_conv2d_legalize.register(["cuda", "gpu"])
 def _qnn_conv2d_legalize_cuda(attrs, inputs, types):
-    if is_vulkan():
+    if is_target("vulkan"):
         # prefers the dtypes to be same. Mixed type is not yet supported.
         return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
-    if is_cuda():
+    if is_target(["cuda", "rocm"]):
         # CUDA prefers both datatypes to be int8.
         return helper_change_dtypes_to_int8(attrs, inputs, types, relay.qnn.op.conv2d)
     return None
@@ -467,11 +475,10 @@ def _qnn_conv2d_legalize_cuda(attrs, inputs, types):
 
 @qnn_dense_legalize.register(["cuda", "gpu"])
 def _qnn_dense_legalize_cuda(attrs, inputs, types):
-    if is_vulkan():
+    if is_target("vulkan"):
         # prefers the dtypes to be same. Mixed type is not yet supported.
         return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.dense)
-    if is_cuda():
+    if is_target(["cuda", "rocm"]):
         # CUDA prefers both datatypes to be the int8.
         return helper_change_dtypes_to_int8(attrs, inputs, types, relay.qnn.op.dense)
-
     return None

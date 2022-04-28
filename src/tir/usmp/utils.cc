@@ -37,12 +37,13 @@ namespace tir {
 namespace usmp {
 
 BufferInfo::BufferInfo(String name_hint, Integer size_bytes, Array<PoolInfo> pool_candidates,
-                       Integer alignment) {
+                       Integer alignment, BufferInfoKind kind) {
   auto bufinfo_node = make_object<BufferInfoNode>();
   bufinfo_node->name_hint = name_hint;
   bufinfo_node->size_bytes = size_bytes;
   bufinfo_node->pool_candidates = pool_candidates;
   bufinfo_node->alignment = alignment;
+  bufinfo_node->kind = kind;
   data_ = std::move(bufinfo_node);
 }
 
@@ -65,10 +66,15 @@ TVM_REGISTER_GLOBAL("tir.usmp.BufferInfoSetConflicts")
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<BufferInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const BufferInfoNode*>(ref.get());
+      std::unordered_map<BufferInfoKind, String> toString = {
+          {BufferInfoKind::kIntermediate, "kIntermediate"},
+          {BufferInfoKind::kInput, "kInput"},
+          {BufferInfoKind::kOutput, "kOutput"}};
       p->stream << "BufferInfoNode(\n"
                 << "name_hint=" << node->name_hint << ",\n  size_bytes=" << node->size_bytes
                 << ",\n  pool_candidates=" << node->pool_candidates
-                << ",\n  alignment=" << node->alignment << ")";
+                << ",\n  alignment=" << node->alignment << ",\n  kind=" << toString[node->kind]
+                << ")";
     });
 
 BufferInfoAnalysis::BufferInfoAnalysis(Map<BufferInfo, tir::Stmt> buffer_info_stmts,
@@ -159,6 +165,19 @@ Map<Stmt, PoolAllocation> AssignStmtPoolAllocations(
     ret.Set(stmt_, pa);
   }
   return ret;
+}
+
+Map<String, PoolAllocation> GetIOPoolAllocations(
+    const Map<BufferInfo, PoolAllocation>& buffer_info_to_pool_allocation) {
+  Map<String, PoolAllocation> io_tensor_name_to_pool_allocation;
+  for (const auto& kv : buffer_info_to_pool_allocation) {
+    BufferInfo buffer_info = kv.first;
+    PoolAllocation pool_allocation = kv.second;
+    if (buffer_info->kind != BufferInfoKind::kIntermediate) {
+      io_tensor_name_to_pool_allocation.Set(buffer_info->name_hint, pool_allocation);
+    }
+  }
+  return io_tensor_name_to_pool_allocation;
 }
 
 Integer CalculateExtentsSize(const AllocateNode* op) {

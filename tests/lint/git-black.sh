@@ -17,7 +17,7 @@
 # under the License.
 set -euo pipefail
 
-INPLACE_FORMAT=false
+INPLACE_FORMAT=${INPLACE_FORMAT:=false}
 LINT_ALL_FILES=true
 REVISION=
 

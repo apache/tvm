@@ -545,5 +545,35 @@ def test_transform_with_reduction():
     tvm.lower(s, [A, B])
 
 
+shape, transform = tvm.testing.parameters(
+    ([1, 8], lambda n, i: [i, n]),
+    ([1, 1, 8], lambda i, j, k: [j, te.AXIS_SEPARATOR, i, k]),
+    ([1, 1, 8], lambda i, j, k: [i, te.AXIS_SEPARATOR, j, k]),
+)
+
+
+def test_size_one_buffer(shape, transform):
+    # This test is to catch a failure mode that occurred if a
+    # transformation were applied to a te.compute buffer, and one of
+    # the dimensions of the buffer was 1.  Prior to bugfix,
+    # arith::DetectIterMap would fold the variable as a constant,
+    # causing an error when attempting to solve for the variable using
+    # arith::InverseAffineIterMap.
+
+    dtype = "int8"
+    A = te.placeholder(shape, dtype, name="A")
+    B = te.compute(
+        shape=A.shape,
+        fcompute=lambda *indices: A[indices].astype(dtype),
+        name="B",
+    )
+    s = te.create_schedule(B.op)
+
+    # If layout transformation is on the output buffer, and any
+    # dimension of the output buffer is 1, failure occurs in
+    # CheckFusePattern.
+    s[B].transform_layout(transform)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main(sys.argv))

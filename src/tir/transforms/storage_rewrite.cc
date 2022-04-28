@@ -226,6 +226,8 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
 
   void VisitStmt_(const AssertStmtNode* op) final { VisitNewScope(op); }
 
+  void VisitStmt_(const LetStmtNode* op) final { VisitNewScope(op); }
+
   // linearized access sequence.
   std::vector<StmtEntry> linear_seq_;
   // The storage scope of each buffer

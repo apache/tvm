@@ -157,6 +157,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       {"IODHW8i8o", tag::any},
       {"ODHWI8o", tag::Odhwi8o},
       {"ODHWI16o", tag::Odhwi16o},
+      {"ODHWI32o", tag::Odhwi32o},
+      {"ODHWI48o", tag::Odhwi48o},
+      {"ODHWI64o", tag::Odhwi64o},
   };
 
   bool ParsingOpName(const std::string op_name, dnnl::primitive_attr attr) {
@@ -342,7 +345,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     if (layout_dict.find(kernel_layout) == layout_dict.end()) {
       layout_dict.insert({kernel_layout, tag::any});
-      LOG(WARNING) << "Unregistered kernel layout for conv: " << data_layout
+      LOG(WARNING) << "Unregistered kernel layout for conv: " << kernel_layout
                    << ", transfer to tag::any";
     }
 
@@ -382,7 +385,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     auto conv_bias_md = dnnl::memory::desc(bias_dims, dt::f32, tag::any);
     auto conv_dst_md = dnnl::memory::desc(dst_dims, dt::f32, tag::any);
 
-    // Covn2d description.
+    // Conv description.
     auto conv_desc =
         has_bias ? dnnl::convolution_forward::desc(
                        dnnl::prop_kind::forward_inference, dnnl::algorithm::convolution_direct,

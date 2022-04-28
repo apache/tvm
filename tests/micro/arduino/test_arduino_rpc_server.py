@@ -63,8 +63,9 @@ def _make_sess_from_op(
     model, arduino_board, arduino_cli_cmd, workspace_dir, op_name, sched, arg_bufs, build_config
 ):
     target = tvm.target.target.micro(model)
+    runtime = Runtime("crt", {"system-lib": True})
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.build(sched, arg_bufs, target=target, name=op_name)
+        mod = tvm.build(sched, arg_bufs, target=target, runtime=runtime, name=op_name)
 
     return _make_session(model, arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config)
 
@@ -152,8 +153,9 @@ def test_relay(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     func = relay.Function([x], z)
 
     target = tvm.target.target.micro(model)
+    runtime = Runtime("crt", {"system-lib": True})
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(func, target=target)
+        mod = tvm.relay.build(func, target=target, runtime=runtime)
 
     with _make_session(model, board, arduino_cli_cmd, workspace_dir, mod, build_config) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
@@ -192,9 +194,9 @@ def test_onnx(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)
 
     target = tvm.target.target.micro(model)
+    runtime = Runtime("crt", {"system-lib": True})
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         executor = Executor("graph", {"link-params": True})
-        runtime = Runtime("crt", {"system-lib": True})
         lowered = relay.build(relay_mod, target, params=params, executor=executor, runtime=runtime)
         graph = lowered.get_graph_json()
 
@@ -233,8 +235,9 @@ def check_result(
     """Helper function to verify results"""
     TOL = 1e-5
     target = tvm.target.target.micro(model)
+    runtime = Runtime("crt", {"system-lib": True})
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(relay_mod, target=target)
+        mod = tvm.relay.build(relay_mod, target=target, runtime=runtime)
 
     with _make_session(
         model, arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config
