@@ -261,7 +261,7 @@ def build_image(image_name) {
     returnStdout: true,
     script: 'git log -1 --format=\'%h\''
   ).trim()
-  def full_name = "${image_name}:${env.BRANCH_NAME}-${hash}"
+  def full_name = "${image_name}:${env.BRANCH_NAME}-${hash}-${env.BUILD_NUMBER}"
   sh(
     script: "${docker_build} ${image_name} --spec ${full_name}",
     label: 'Build docker image'
@@ -766,7 +766,7 @@ stage('Test') {
     )
   {% endcall %}
   {% call(shard_index) m.sharded_test_step(
-    name="topi: GPU", 
+    name="topi: GPU",
     node="GPU",
     num_shards=2,
     ws="tvm/topi-python-gpu",
