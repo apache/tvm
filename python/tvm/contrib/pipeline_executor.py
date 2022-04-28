@@ -16,6 +16,8 @@
 # under the License.
 """Pipeline executor that executes a series of modules in a pipeline fashion."""
 import json
+import os
+from tvm import runtime
 from tvm._ffi import get_global_func
 from tvm.contrib import graph_executor
 
@@ -255,3 +257,60 @@ class PipelineExecutorFactoryModule(object):
             mods[lib_index] = lib.module
 
         return mods, json.dumps(mod_config)
+
+    def export_library(self, directory_path):
+        """Export the pipeline executor into disk files.
+
+        Parameters
+        ----------
+        directory_path : str
+            Export the files to this directory.
+        """
+        if not self.pipeline_mods:
+            raise RuntimeError("The pipeline executor has not been initialized.")
+
+        # Check if the directory_path exists.
+        if not os.path.exists(directory_path):
+            raise RuntimeError("The directory {directory_path} does not exist.")
+        # Create an load configuration.
+        load_config_file_name = "{}/load_config".format(directory_path)
+        pipeline_config_file_name = "{}/pipeline_config".format(directory_path)
+        config = {}
+        config["load_config"] = load_config_file_name
+        config["pipeline_config"] = pipeline_config_file_name
+        load_config = []
+        # Export the library, JSON, and parameter into files, then export these files path
+        # into a configuration file.
+        for lib_index in self.pipeline_mods:
+            mconfig = {}
+            mconfig["mod_idx"] = lib_index
+            mconfig["lib_name"] = "{}/lib{}.so".format(directory_path, lib_index)
+            mconfig["json_name"] = "{}/json{}".format(directory_path, lib_index)
+            mconfig["params_name"] = "{}/params{}".format(directory_path, lib_index)
+            mconfig["dev"] = "{},{}".format(
+                self.pipeline_mods[lib_index]["dev"].device_type,
+                self.pipeline_mods[lib_index]["dev"].device_id,
+            )
+
+            # Get the graph, lib, and parameters from GraphExecutorFactoryModule.
+            lib = self.pipeline_mods[lib_index]["lib"]
+            # Export the lib, graph, and parameters to disk.
+            lib.export_library(mconfig["lib_name"])
+            with open(mconfig["json_name"], "w") as file_handle:
+                file_handle.write(lib.graph_json)
+            with open(mconfig["params_name"], "wb") as file_handle:
+                file_handle.write(runtime.save_param_dict(lib.params))
+
+            load_config.append(mconfig)
+
+        with open(load_config_file_name, "w") as file_handle:
+            json.dump(load_config, file_handle)
+
+        with open(pipeline_config_file_name, "w") as file_handle:
+            json.dump(self.mods_config, file_handle)
+
+        config_file_name = "{}/config".format(directory_path)
+        with open(config_file_name, "w") as file_handle:
+            json.dump(config, file_handle)
+
+        return config_file_name

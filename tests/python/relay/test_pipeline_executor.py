@@ -359,9 +359,7 @@ def test_pipeline():
             # If the directory does not exist, create it.
             if not os.path.exists(directory_path):
                 os.makedirs(directory_path)
-            config_file_name = pipeline_executor_build.export_library(
-                pipeline_mod_factory, directory_path
-            )
+            config_file_name = pipeline_mod_factory.export_library(directory_path)
 
             # Use the output of build to create and initialize PipelineModule.
             pipeline_module = pipeline_executor.PipelineModule(pipeline_mod_factory)
