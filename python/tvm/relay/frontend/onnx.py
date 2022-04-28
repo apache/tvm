@@ -324,7 +324,8 @@ def matmul_out_dtype(inputs, out_dtype):
             0,
         )
         return _op.reshape(output, fold_constant(final_shape))
-    elif a_rank == 1:
+
+    if a_rank == 1:
         return _op.multiply(inputs[0], inputs[1])
 
     # Otherwise a simple dense op will get the job done.
