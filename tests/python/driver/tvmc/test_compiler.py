@@ -378,6 +378,26 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
     assert os.path.exists(dumps_path)
 
 
+@tvm.testing.requires_opencl
+def test_compile_opencl_with_host(tflite_mobilenet_v1_0_25_128):
+    pytest.importorskip("tflite")
+    tvmc_model = tvmc.load(tflite_mobilenet_v1_0_25_128)
+    tvmc_package = tvmc.compile(
+        tvmc_model,
+        target="opencl",
+        target_host="llvm",
+        desired_layout="NCHW",
+    )
+    dumps_path = tvmc_package.package_path + ".asm"
+
+    # check for output types
+    assert type(tvmc_package) is TVMCPackage
+    assert type(tvmc_package.graph) is str
+    assert type(tvmc_package.lib_path) is str
+    assert type(tvmc_package.params) is bytearray
+    assert os.path.exists(dumps_path)
+
+
 @pytest.mark.skipif(
     not ethosn_available(),
     reason="--target=Ethos(TM)-N78 is not available. TVM built with 'USE_ETHOSN OFF'",
