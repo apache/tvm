@@ -309,6 +309,8 @@ Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, R
  * the affine transformation specified by `iter_map` will be applied to `outputs` and the result
  * will be {l0: ((output_0*16) + output_1)}.
  *
+ * The range of `outputs` should be the same as the output range of the affine transmation.
+ *
  * \sa DetectIterMap
  *
  * \param iter_map The bijective affine iter map.
