@@ -219,7 +219,6 @@ class NDArray(NDArrayBase):
         if dtype == "int4":
             dtype = "int8"
         if dtype == "bfloat16":
-            # breakpoint()
             dtype = "uint16"
         np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags["C_CONTIGUOUS"]
