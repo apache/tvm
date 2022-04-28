@@ -40,7 +40,9 @@ from tvm.tir.schedule import BlockRV, Schedule
 from tvm.tir.schedule.trace import Trace
 from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
-logging.basicConfig()
+logging.basicConfig(
+    format="%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+)
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument

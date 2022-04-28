@@ -399,10 +399,3 @@ def make_logging_func(logger: logging.Logger):
         level2log[level](msg)
 
     return logging_func
-
-
-def get_global_logger():
-    logger = logging.getLogger("task_scheduler")
-    if logger is None:
-        raise ValueError("Task scheduler logger is not instantiated.")
-    return logger

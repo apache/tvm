@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """RPC Runner"""
+import logging
 import concurrent.futures
 import os.path as osp
 from contextlib import contextmanager
@@ -28,7 +29,6 @@ from ..utils import (
     derived_object,
     get_global_func_on_rpc_session,
     get_global_func_with_default_on_worker,
-    get_global_logger,
 )
 from .config import EvaluatorConfig, RPCConfig
 from .runner import PyRunner, PyRunnerFuture, RunnerFuture, RunnerInput, RunnerResult
@@ -39,7 +39,8 @@ from .utils import (
     run_evaluator_common,
 )
 
-logger = get_global_logger()
+
+logger = logging.getLogger("tvm.meta_schedule")
 
 T_CREATE_SESSION = Callable[  # pylint: disable=invalid-name
     [RPCConfig],  # The RPC configuration

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Workloads in Relay IR"""
+import logging
 import multiprocessing
 import os
 import pickle
@@ -25,11 +26,11 @@ import tvm.relay.testing
 from tvm import relay
 from tvm.ir import IRModule
 from tvm.meta_schedule import ExtractedTask, extract_task_from_relay
-from tvm.meta_schedule.utils import get_global_logger
 from tvm.runtime import NDArray, load_param_dict, save_param_dict
 from tvm.target import Target
 
-logger = get_global_logger()
+
+logger = logging.getLogger("tvm.meta_schedule")
 
 
 def _get_network(

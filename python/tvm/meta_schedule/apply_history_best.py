@@ -20,12 +20,14 @@ from typing import List, Optional, Union
 
 from tvm._ffi import register_object
 from tvm.ir import IRModule
-from tvm.meta_schedule.utils import get_global_logger, make_logging_func
+from tvm.meta_schedule.utils import make_logging_func
 from tvm.runtime import Object
 from tvm.target import Target
 
 from . import _ffi_api
 from .database import Database
+
+logger = logging.getLogger("tvm.meta_schedule")
 
 
 @register_object("meta_schedule.ApplyHistoryBest")
@@ -43,9 +45,9 @@ class ApplyHistoryBest(Object):
     database: Database
     logger: logging.Logger
 
-    def __init__(self, database: Database, logger: logging.Logger = get_global_logger()) -> None:
+    def __init__(self, database: Database) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ApplyHistoryBest, database, make_logging_func(logger)  # type: ignore # pylint: disable=no-member
+            _ffi_api.ApplyHistoryBest, database, logger  # type: ignore # pylint: disable=no-member
         )
 
     def query(

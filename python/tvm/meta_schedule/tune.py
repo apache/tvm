@@ -17,7 +17,7 @@
 """User-facing Tuning API"""
 # pylint: disable=import-outside-toplevel
 import logging
-import os
+from pathlib import Path
 import os.path as osp
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
 
@@ -44,12 +44,15 @@ from .search_strategy import EvolutionarySearch, ReplayFunc, ReplayTrace
 from .space_generator import PostOrderApply, SpaceGenerator
 from .task_scheduler import GradientBased, RoundRobin
 from .tune_context import TuneContext
-from .utils import autotvm_silencer, get_global_logger
+from .utils import autotvm_silencer
+
 
 FnSpaceGenerator = Callable[[], SpaceGenerator]
 FnScheduleRule = Callable[[], List[ScheduleRule]]
 FnPostproc = Callable[[], List[Postproc]]
 FnMutatorProb = Callable[[], Dict[Mutator, float]]
+
+logger = logging.getLogger("tvm.meta_schedule")
 
 
 class DefaultLLVM:
@@ -182,21 +185,23 @@ class Parse:
     """Parse tuning configuration from user inputs."""
 
     @staticmethod
-    def _logger(name: str, stream: bool = True, **kwargs) -> logging.Logger:
+    def _logger(name: str, **kwargs) -> logging.Logger:
+        logger = logging.getLogger(name)  # pylint: disable=redefined-outer-name
         if "log_dir" not in kwargs:
             raise ValueError("Cannot find log directory `log_dir` in the logging config")
-        if "formatter" not in kwargs:
-            raise ValueError("Cannot find log formatter `formatter` in the logging config")
-        logger = logging.getLogger(name)
-        logger.propagate = False
-        handler = logging.FileHandler(osp.join(kwargs["log_dir"], name + ".log"))
-        handler.setFormatter(kwargs["formatter"])
-        logger.addHandler(handler)
-        if stream:
+        else:
+            handler = logging.FileHandler(osp.join(kwargs["log_dir"], name + ".log"))
+            logger.addHandler(handler)
+        if "propagate" in kwargs:
+            logger.propagate = kwargs["propagate"]
+        if "formatter" in kwargs:
+            handler.setFormatter(kwargs["formatter"])
+        if "task_level" in kwargs:
+            logger.setLevel(getattr(logging, kwargs["task_level"]))
+        if "task_stream" in kwargs and kwargs["task_stream"]:
             handler = logging.StreamHandler()
             handler.setFormatter(kwargs["formatter"])
             logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
         logger.info("Log printing %s to %s", name, osp.join(kwargs["log_dir"], name + ".log"))
         return logger
 
@@ -246,7 +251,6 @@ class Parse:
         if database is None:
             path_workload = osp.join(path, "database_workload.json")
             path_tuning_record = osp.join(path, "database_tuning_record.json")
-            logger = get_global_logger()
             logger.info(
                 "Creating JSONDatabase. Workload at: %s. Tuning records at: %s",
                 path_workload,
@@ -440,12 +444,7 @@ class TuneConfig(NamedTuple):
 
     def create_logger_config(self, **kwargs):
         config = kwargs if self.logger_config is None else self.logger_config
-        config = {**config, **kwargs}
-        if "formatter" not in config:
-            config["formatter"] = logging.Formatter(
-                "%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-            )
-        return config
+        return {**kwargs, **config}
 
 
 def tune_extracted_tasks(
@@ -505,9 +504,25 @@ def tune_extracted_tasks(
     """
     # pylint: disable=protected-access
     log_dir = osp.join(work_dir, "logs")
-    os.mkdir(log_dir)
-    logger_config = config.create_logger_config(log_dir=log_dir)
-    logger = Parse._logger(name="task_scheduler", **logger_config)
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
+    logger_config = config.create_logger_config(
+        log_dir=log_dir,
+        propagate=False,
+        task_level="INFO",
+        task_stream=False,
+        formatter=logging.Formatter(
+            "%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        ),
+    )
+    handler = logging.FileHandler(osp.join(log_dir, "tvm.meta_schedule.task_scheduler.log"))
+    logger.addHandler(handler)
+    if logger.level not in [logging.DEBUG, logging.INFO]:
+        logger.critical(
+            "Logging level set to %s, please set to logging.INFO"
+            " or logging.DEBUG to view full log.",
+            logging._levelToName[logger.level],
+        )
+    logger.info("Logging directory: %s", log_dir)
     logger.info("Working directory: %s", work_dir)
     database = Parse._database(database, work_dir)
     builder = Parse._builder(builder)
@@ -530,8 +545,8 @@ def tune_extracted_tasks(
                 mutator_probs=Parse._mutator_probs(mutator_probs, task.target),
                 task_name=task.task_name,
                 logger=Parse._logger(
-                    name="_".join(["task", str(i).zfill(max_width), task.task_name]),
-                    stream=False,
+                    name="tvm.meta_schedule."
+                    + "_".join(["task", str(i).zfill(max_width), task.task_name]),
                     **logger_config,
                 ),
                 num_threads=num_threads,

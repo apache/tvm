@@ -17,6 +17,7 @@
 """
 XGBoost-based cost model
 """
+import logging
 import os
 import tempfile
 from collections import OrderedDict
@@ -31,7 +32,7 @@ from ..cost_model import PyCostModel
 from ..feature_extractor import FeatureExtractor
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
-from ..utils import cpu_count, derived_object, get_global_logger, shash2hex
+from ..utils import cpu_count, derived_object, shash2hex
 from .metric import max_curve
 
 if TYPE_CHECKING:
@@ -40,7 +41,7 @@ if TYPE_CHECKING:
     from ..tune_context import TuneContext
 
 
-logger = get_global_logger()
+logger = logging.getLogger("tvm.meta_schedule")
 
 
 def make_metric_sorter(focused_metric):

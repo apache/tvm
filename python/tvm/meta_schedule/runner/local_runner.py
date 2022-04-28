@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Local Runner"""
+import logging
 from contextlib import contextmanager
 from typing import Callable, List, Optional, Union
 
@@ -22,7 +23,7 @@ import tvm
 
 from ...contrib.popen_pool import PopenPoolExecutor
 from ...runtime import Device, Module
-from ..utils import derived_object, get_global_func_with_default_on_worker, get_global_logger
+from ..utils import derived_object, get_global_func_with_default_on_worker
 from .config import EvaluatorConfig
 from .runner import PyRunner, RunnerFuture, RunnerInput, RunnerResult, PyRunnerFuture
 from .utils import (
@@ -32,7 +33,8 @@ from .utils import (
     run_evaluator_common,
 )
 
-logger = get_global_logger()
+
+logger = logging.getLogger("tvm.meta_schedule")
 
 
 T_ALLOC_ARGUMENT = Callable[  # pylint: disable=invalid-name

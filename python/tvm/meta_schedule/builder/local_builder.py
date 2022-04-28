@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Local builder that compile on the local host"""
+import logging
 import os
 import tempfile
 from typing import Callable, Dict, List, Optional, Union
@@ -29,11 +30,10 @@ from ..utils import (
     cpu_count,
     derived_object,
     get_global_func_with_default_on_worker,
-    get_global_logger,
 )
 from .builder import BuilderInput, BuilderResult, PyBuilder
 
-logger = get_global_logger()  # pylint: disable=invalid-name
+logger = logging.getLogger("tvm.meta_schedule")
 
 
 T_BUILD = Callable[  # pylint: disable=invalid-name
