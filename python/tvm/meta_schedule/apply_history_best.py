@@ -20,14 +20,13 @@ from typing import List, Optional, Union
 
 from tvm._ffi import register_object
 from tvm.ir import IRModule
-from tvm.meta_schedule.utils import make_logging_func
 from tvm.runtime import Object
 from tvm.target import Target
 
 from . import _ffi_api
 from .database import Database
 
-logger = logging.getLogger("tvm.meta_schedule")
+logger = logging.getLogger("tvm.meta_schedule")  # pylint: disable=invalid-name
 
 
 @register_object("meta_schedule.ApplyHistoryBest")

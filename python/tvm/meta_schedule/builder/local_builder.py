@@ -33,7 +33,7 @@ from ..utils import (
 )
 from .builder import BuilderInput, BuilderResult, PyBuilder
 
-logger = logging.getLogger("tvm.meta_schedule")
+logger = logging.getLogger("tvm.meta_schedule")  # pylint: disable=invalid-name
 
 
 T_BUILD = Callable[  # pylint: disable=invalid-name

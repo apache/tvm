@@ -52,7 +52,7 @@ FnScheduleRule = Callable[[], List[ScheduleRule]]
 FnPostproc = Callable[[], List[Postproc]]
 FnMutatorProb = Callable[[], Dict[Mutator, float]]
 
-logger = logging.getLogger("tvm.meta_schedule")
+logger = logging.getLogger("tvm.meta_schedule")  # pylint: disable=invalid-name
 
 
 class DefaultLLVM:

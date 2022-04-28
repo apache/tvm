@@ -30,7 +30,7 @@ from tvm.runtime import NDArray, load_param_dict, save_param_dict
 from tvm.target import Target
 
 
-logger = logging.getLogger("tvm.meta_schedule")
+logger = logging.getLogger("tvm.meta_schedule")  # pylint: disable=invalid-name
 
 
 def _get_network(
