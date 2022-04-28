@@ -26,6 +26,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include "../support/utils.h"
 #include "const_fold.h"
@@ -174,8 +175,11 @@ class IterMapRewriter : public ExprMutator {
   using Parent = ExprMutator;
 
   explicit IterMapRewriter(Analyzer* analyzer, const Map<Var, Range>& input_iters,
-                           bool simplify_trivial_iterators)
-      : analyzer_(analyzer) {
+                           bool simplify_trivial_iterators, Array<String>* errors)
+      : analyzer_(analyzer),
+        errors_(*errors),
+        requires_padding_(const_false()),
+        padding_predicate_(const_false()) {
     for (auto kv : input_iters) {
       const Var& var = kv.first;
       const Range& vrng = kv.second;
@@ -195,18 +199,17 @@ class IterMapRewriter : public ExprMutator {
     }
   }
 
-  size_t unresolved_count() const { return errors_.size(); }
-
-  void print_errors() const {
-    for (const auto& err : errors_) {
-      std::cout << "Error: " << err << std::endl;
-    }
-  }
-
-  std::vector<std::string> errors() const { return errors_; }
+  PrimExpr padding_predicate() const { return padding_predicate_; }
+  PrimExpr requires_padding() const { return requires_padding_; }
 
   IterSumExpr Rewrite(const PrimExpr& expr) {
     return NormalizeToIterWithOffset(ToIterSumExpr(DirectMutate(expr)));
+  }
+
+  void UpdatePadding(const PrimExpr& expr) {
+    update_iterator_padding_ = true;
+    DirectMutate(expr);
+    update_iterator_padding_ = false;
   }
 
   IterSumExpr RewriteIterConstraint(const PrimExpr& expr,
@@ -242,6 +245,7 @@ class IterMapRewriter : public ExprMutator {
     // All the splits that refers to the iter_mark covers its extent.
     // The splits do not overlap with each other.
     collector.Collect(bindings);
+
     for (const IterMark& mark : collector.visited_) {
       if (TryNormalizeSplits(mark, collector.mark2splits_[mark], require_bijective).empty()) {
         return false;
@@ -318,6 +322,22 @@ class IterMapRewriter : public ExprMutator {
   PrimExpr VisitExpr_(const FloorModNode* op) final;
 
  private:
+  // Preprocessing common to both FloorDiv and FloorMod
+  IterSumExpr PreprocessDividend(IterMapExpr dividend);
+
+  // Create an iterator that represents the expression (split+base), with
+  // padding such that the iterator's extents are evenly divisible by
+  // `divisor`.
+  //
+  // If iterators can have padding added through UpdatePadding, pad a
+  // dividend out to be evenly divisible.  Otherwise, validate that the
+  // padding previously defined for the split using UpdatePadding can be
+  // used.  If no such previous padding exists, return an empty
+  // IterMark.
+  IterSplitExpr PadDividendToDivisor(IterSplitExpr split, PrimExpr base, PrimExpr divisor);
+
+  friend struct ErrorLogger;
+
   /* \brief Utility class for logging errors.
    *
    * It is not an error for IterMapRewriter to receive an expression that
@@ -328,7 +348,6 @@ class IterMapRewriter : public ExprMutator {
    * report an unrepresentable TIR graph, which may be used in error
    * messages at the calling scope.
    */
-  friend struct ErrorLogger;
   class ErrorLogger {
    public:
     explicit ErrorLogger(IterMapRewriter* rewriter) : rewriter(rewriter) {}
@@ -343,6 +362,19 @@ class IterMapRewriter : public ExprMutator {
    private:
     IterMapRewriter* rewriter;
     std::ostringstream os;
+  };
+
+  struct IterPaddingInfo {
+    IterPaddingInfo() : var_extent("extent") {}
+    // Used and collected during first pass
+    IterSplitExpr unpadded;
+    Var var_extent;
+    std::vector<PrimExpr> divisors;
+
+    // Defined on first encounter in second pass
+    IterSplitExpr padded;
+    PrimExpr left_pad;
+    PrimExpr right_pad;
   };
 
   // temp hash for de-duplication purposes.
@@ -382,11 +414,57 @@ class IterMapRewriter : public ExprMutator {
   // Internal analyzer
   Analyzer* analyzer_;
   // Error messages for each unresolved expression.
-  std::vector<std::string> errors_;
+  Array<String>& errors_;
   // The var map
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> var_map_;
   // input iter marks
   std::vector<IterMark> input_marks_;
+
+  // Map from an IterSumExpr containing padding to the IterMark
+  // representing the padded version.
+  std::unordered_map<IterSumExpr, IterPaddingInfo, IterSumHash, IterSumEqual> padded_iter_map_;
+
+  /* If allow_padding_ is true, allow the extents of the IterMap to be
+   * padded beyond the original iterators.
+   *
+   * For example, if allow_padding_ is true, the expressions i//4 and
+   * i%4, where i is on the range [0,18), would be represented as
+   * IterSplit(i, lower_factor=4, extent=5) and IterSplit(i, extent=4).
+   * This representation would be forbidden if allow_padding_ is false,
+   * because lower_factor=4 does not evenly divide the original extent of
+   * 18.
+   */
+  bool update_iterator_padding_{false};
+
+  /* A boolean expression that is true if any padding has been introduced
+   * by the transformation, and false otherwise.
+   *
+   * Example: [i//4, i%4], i in range [0,16)
+   *     requires_padding_ will be false
+   *
+   * Example: [i//4, i%4], i in range [0,18)
+   *     requires_padding_ will be true
+   *
+   * Example: [i//4, i%4], i in range [0,N)
+   *     requires_padding_ will be the expression N%4==0
+   */
+  PrimExpr requires_padding_;
+
+  /* A boolean expression that is true for any padding that has been
+   * introduced, and false otherwise. If allow_padding_ is false,
+   * padding_predicate_ will always be false.
+   *
+   * Example: [i//4, i%4], i in range [0,16)
+   *     padding_predicate_ will be false
+   *
+   * Example: [i//4, i%4], i in range [0,18)
+   *     padding_predicate_ will be `(i//4 == 3) && (i%4 >= 2)`
+   *
+   * Example: [i//4, i%4], i in range [0,N)
+   *     padding_predicate_ will be `(N%4!=0) && (i//4 == (N+3)//4-1) && (i%4 >= N%4)`
+   */
+  PrimExpr padding_predicate_;
+
   // The map for sum that maps flattened form to IterMark with normal form and extent (and possibly
   // an extra offset)
   // Example(1): expr = i*9 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
@@ -465,8 +543,9 @@ class IterMapRewriter : public ExprMutator {
       size_t j = 0;
       for (; j < splits.size(); ++j) {
         if (used[j]) continue;
-        if (!used[j] && analyzer_->CanProveEqual(splits[j]->lower_factor, expected_lower_factor))
+        if (!used[j] && analyzer_->CanProveEqual(splits[j]->lower_factor, expected_lower_factor)) {
           break;
+        }
       }
       if (j == splits.size()) {
         // we do not allow incomplete split if the bindings should be bijective
@@ -483,6 +562,7 @@ class IterMapRewriter : public ExprMutator {
           return Array<IterSplitExpr>();
         }
       }
+
       used[j] = true;
       iters.push_back(splits[j]);
       expected_lower_factor = splits[j]->lower_factor * splits[j]->extent;
@@ -493,9 +573,23 @@ class IterMapRewriter : public ExprMutator {
     // Case 2. bijective is not required.
     //         We check the extent we calculate is a factor of the extent of the mark
     //         For example, y \in [0, 24) [(y / 2) % 6, y % 2] is valid, but y \in [0, 25) is not.
-    if ((require_bijective && !analyzer_->CanProveEqual(expected_lower_factor, mark->extent)) ||
-        (!require_bijective && !CanProveDivisible(mark->extent, expected_lower_factor))) {
-      return Array<IterSplitExpr>();
+    if (require_bijective) {
+      if (!analyzer_->CanProveEqual(expected_lower_factor, mark->extent)) {
+        return Array<IterSplitExpr>();
+      }
+    } else {
+      // This still requires that the splits can be part of a
+      // bijective transformation, even if they are not sufficient to
+      // form a bijective transformation.
+      //
+      // TODO: Why is this condition used, and what is it intended to allow?
+      //
+      // if (!CanProveDivisible(mark->extent, expected_lower_factor)) {
+      //   std::cout << "Expected resulting lower factor " << expected_lower_factor
+      //             << " to be divisible by the extent of the parent mark " << mark->extent
+      //             << std::endl;
+      //   return Array<IterSplitExpr>();
+      // }
     }
     return Array<IterSplitExpr>(iters.rbegin(), iters.rend());
   }
@@ -718,15 +812,10 @@ class IterMapRewriter : public ExprMutator {
     }
   }
 
-  bool CanProveDivisible(const PrimExpr& lhs, const PrimExpr& rhs) {
-    const auto* clhs = lhs.as<IntImmNode>();
-    const auto* crhs = rhs.as<IntImmNode>();
-    if (clhs && crhs) return clhs->value % crhs->value == 0;
-    return analyzer_->CanProveEqual(lhs, rhs) || analyzer_->CanProve(floormod(lhs, rhs) == 0);
-  }
+  bool CanProveDivisible(const PrimExpr& lhs, const PrimExpr& rhs);
 
-  PrimExpr SplitFloorDivConst(IterSplitExpr lhs, PrimExpr rhs, const PrimExpr& orig);
-  PrimExpr SplitFloorModConst(IterSplitExpr lhs, PrimExpr rhs, const PrimExpr& orig);
+  PrimExpr SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, PrimExpr rhs);
+  PrimExpr SplitFloorModConst(IterSplitExpr lhs, PrimExpr base, PrimExpr rhs);
 
   static void AddToLhs(IterSumExprNode* lhs, IterSplitExpr rhs, int sign) {
     tir::ExprDeepEqual equal;
@@ -931,17 +1020,37 @@ bool IterRangeSanityCheck(const Map<Var, Range>& iter_ranges) {
 Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                  const PrimExpr& predicate, bool require_bijective,
                                  arith::Analyzer* analyzer, bool simplify_trivial_iterators) {
+  auto padded_result = DetectPaddedIterMap(indices, input_iters, predicate, require_bijective,
+                                           analyzer, simplify_trivial_iterators);
+  if (padded_result.errors.size()) {
+    return Array<IterSumExpr>();
+  }
+  if (!analyzer->CanProve(!padded_result.requires_padding)) {
+    return Array<IterSumExpr>();
+  }
+  return padded_result.indices;
+}
+
+PaddedIterMapResult DetectPaddedIterMap(const Array<PrimExpr>& indices,
+                                        const Map<Var, Range>& input_iters,
+                                        const PrimExpr& predicate, bool require_bijective,
+                                        arith::Analyzer* analyzer,
+                                        bool simplify_trivial_iterators) {
+  PaddedIterMapResult result;
+
   // Overall detection algorithm is divided into two steps:
   // - Step0: IterMapRewriter rewrites the expression to use IterMapExpr patterns.
   // - Step1: IterIndependenceChecker checks if the iterator are independent.
   if (!IterRangeSanityCheck(input_iters)) {
-    return Array<IterSumExpr>();
+    result.errors.push_back("Invalid iterators.  Iterators may not be expressions of each other.");
+    return result;
   }
   Map<Var, Range> constrained_input_iters = input_iters;
   std::vector<IterConstraint> constraints;
   if (!is_one(predicate) &&
       !MatchBoundConstraints(predicate, &constrained_input_iters, &constraints)) {
-    return Array<IterSumExpr>();
+    result.errors.push_back("Could not parse predicate as constraints on the input iterators.");
+    return result;
   }
   // We have to make sure when we visit an iterator, all the constraints related with its successors
   // in the iter var graph has been visited, where the expression of this iterator will contain the
@@ -954,33 +1063,51 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
       constraints.begin(), constraints.end(),
       [](const IterConstraint& a, const IterConstraint& b) { return a.expr_size < b.expr_size; });
 
-  IterMapRewriter rewriter(analyzer, constrained_input_iters, simplify_trivial_iterators);
+  IterMapRewriter rewriter(analyzer, constrained_input_iters, simplify_trivial_iterators,
+                           &result.errors);
   // Step0.0: rewrite constraints in the order from size-small ones to size-big ones
   for (const IterConstraint& constraint : constraints) {
     auto res = rewriter.RewriteIterConstraint(constraint.iter, constraint.lower_bound,
                                               constraint.upper_bound);
-    if (rewriter.unresolved_count() != 0) {
-      return Array<IterSumExpr>();
+    if (result.errors.size()) {
+      return result;
     }
   }
   if (!rewriter.CheckConstraints()) {
-    return Array<IterSumExpr>();
+    result.errors.push_back("Invalid constraints.");
+    return result;
   }
 
-  // Step0.1: rewrite indices
-  Array<IterSumExpr> results;
-  for (PrimExpr value : indices) {
-    results.push_back(rewriter.Rewrite(value));
-    if (rewriter.unresolved_count() != 0) {
-      return Array<IterSumExpr>();
+  // Step0.1: Check each index to determine required padding
+  bool allow_padding = !require_bijective;
+  if (allow_padding) {
+    for (PrimExpr value : indices) {
+      rewriter.UpdatePadding(value);
     }
   }
-  // Step1: IterIndependenceChecker checks if the iterator are independent.
-  if (!rewriter.CheckMapping(results, require_bijective)) {
-    return Array<IterSumExpr>();
+
+  // Step0.2: rewrite indices
+  for (PrimExpr value : indices) {
+    result.indices.push_back(rewriter.Rewrite(value));
+    if (result.errors.size()) {
+      return result;
+    }
   }
 
-  return results;
+  result.requires_padding = rewriter.requires_padding();
+  result.padding_predicate = rewriter.padding_predicate();
+
+  // Step1: IterIndependenceChecker checks if the iterator are independent.
+  if (!rewriter.CheckMapping(result.indices, require_bijective)) {
+    if (require_bijective) {
+      result.errors.push_back("Index mapping does not form a bijective transform.");
+    } else {
+      result.errors.push_back("Mapped indices are not independent.");
+    }
+    return result;
+  }
+
+  return result;
 }
 
 TVM_REGISTER_GLOBAL("arith.DetectIterMap")
@@ -1113,17 +1240,199 @@ PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
   }
 }
 
-PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr rhs,
-                                             const PrimExpr& orig) {
-  // floordiv(x*scale, rhs)
-  if (is_one(rhs)) return std::move(lhs);
+IterSumExpr IterMapRewriter::PreprocessDividend(IterMapExpr dividend) {
+  if (dividend->IsInstance<IterSplitExprNode>()) {
+    auto split = Downcast<IterSplitExpr>(dividend);
+    return IterSumExpr({split}, make_zero(split.dtype()));
+  } else if (dividend->IsInstance<IterSumExprNode>()) {
+    auto opt_fused = TryFuseIters(Downcast<IterSumExpr>(dividend));
+    if (!opt_fused) {
+      ErrorLogger(this) << "Dividend  " << tvm::PrettyPrint(dividend)
+                        << ", can't be written as a single fused IterSum";
+      return IterSumExpr();
+    }
+
+    IterSumExpr fused = opt_fused.value();
+
+    ICHECK_EQ(fused->args.size(), 1U);
+    return fused;
+  } else {
+    LOG(FATAL) << "Unsupported subclass of IterMarkExpr";
+    return IterSumExpr();
+  }
+}
+
+IterSplitExpr IterMapRewriter::PadDividendToDivisor(IterSplitExpr split, PrimExpr base,
+                                                    PrimExpr divisor) {
+  // If FloorDiv: (((source//lower_factor) % extent) + base) // divisor
+  // If FloorMod: (((source//lower_factor) % extent) + base) % divisor
+
+  IterSumExpr lookup_key({split}, 0);
+
+  auto modified_divisor = [&]() {
+    if (update_iterator_padding_) {
+      return divisor;
+    }
+
+    auto it = padded_iter_map_.find(lookup_key);
+    if (it == padded_iter_map_.end()) {
+      return divisor;
+    }
+
+    const std::vector<PrimExpr>& divisors = it->second.divisors;
+    PrimExpr largest_divisor = divisor;
+    for (const auto& other : divisors) {
+      if (CanProveDivisible(other, largest_divisor)) {
+        // New one is bigger, use it
+        largest_divisor = other;
+      } else if (CanProveDivisible(largest_divisor, other)) {
+        // Current is bigger, keep it
+      } else {
+        ErrorLogger(this) << "Iterator appears in multiple terms with incompatible divisors "
+                          << tvm::PrettyPrint(largest_divisor) << " and "
+                          << tvm::PrettyPrint(other);
+      }
+    }
+    return largest_divisor;
+  }();
+
+  divisor = modified_divisor;
+
+  // First, adding any padding that is on the lower side of a
+  // FloorDiv/FloorMod, such that floormod(iter-left_pad,divisor) == 0
+  // when iter==0.
+
+  PrimExpr left_pad;
+
+  if (is_zero(base)) {
+    // Padding on the left is unnecessary if base is known to be zero.
+    left_pad = make_zero(base->dtype);
+  } else {
+    left_pad = floormod(base, divisor);
+  }
+
+  // Next, adding any padding that is on the upper side of a
+  // FloorDiv/FloorMod, such that floormod(left_pad + iter + right_pad, divisor) == 0
+  // when iter==extent.
+
+  PrimExpr right_edge = left_pad + split->extent;
+  PrimExpr right_pad;
+
+  if (CanProveDivisible(right_edge, divisor)) {
+    // Padding on the right is unnecessary if the extent is a multiple of
+    // the divisor.
+    right_pad = 0;
+  } else {
+    right_pad = floormod(-right_edge, divisor);
+  }
+
+  if (is_zero(left_pad) && is_zero(right_pad)) {
+    return split;
+  }
+
+  if (update_iterator_padding_) {
+    // In the first pass, the primary goal is to collect all the divisors
+    // that may be used for padding.  These will impact the divisor used
+    // to determine padding in the second pass.
+    IterPaddingInfo& info = padded_iter_map_[lookup_key];
+
+    info.unpadded = split;
+    info.divisors.push_back(divisor);
+
+    // If an iterator contains padding, it may require a subsequent
+    // iterator to also require padding.  Therefore, introduce a variable
+    // for the extent.
+
+    // PrimExpr padded_extent = left_pad + split->extent + right_pad;
+    // PrimExpr padded_extent = Var("N", divisor.dtype())*divisor;
+    PrimExpr padded_extent = info.var_extent;
+
+    IterSumExpr as_sum({split}, base);
+    IterMark mark(as_sum, padded_extent);
+    IterSplitExpr new_split(mark);
+
+    return new_split;
+  }
+
+  // Any padding that is required during parsing should have been found
+  // during the first pass that determines the GCD.
+  auto it = padded_iter_map_.find(lookup_key);
+  if (it == padded_iter_map_.end()) {
+    ErrorLogger(this) << "Dividend has extent " << tvm::PrettyPrint(split->extent) << " and offset "
+                      << tvm::PrettyPrint(base) << ", which requires padding for divisor "
+                      << tvm::PrettyPrint(divisor) << ".";
+    return IterSplitExpr();
+  }
+  IterPaddingInfo& info = it->second;
+
+  if (info.padded.defined()) {
+    // A previous visit already applied padding to this iterator.
+    // (e.g. Visiting `(i+1)//4`, then visiting `(i+1)%4`).
+    ICHECK(analyzer_->CanProveEqual(info.left_pad, left_pad));
+    ICHECK(analyzer_->CanProveEqual(info.right_pad, right_pad));
+
+    return info.padded;
+  }
+
+  // This is the first encounter with the iterator during the second pass.
+
+  IterMark mark(IterSumExpr({split}, base), left_pad + split->extent + right_pad);
+  info.padded = IterSplitExpr(mark);
+  info.left_pad = left_pad;
+  info.right_pad = right_pad;
+
+  auto left_padding_introduced = (left_pad != 0);
+  // Equivalent to (0 <= split < left_pad), but easier to simplify in
+  // terms of the transformed variables.
+  auto left_padding_predicate =
+      left_padding_introduced &&
+      (floordiv(info.padded, divisor) == 0 && floormod(info.padded, divisor) < left_pad);
+
+  PrimExpr nparts = ceildiv(right_edge, divisor);
+
+  auto right_padding_introduced = (right_pad != 0);
+
+  // Equivalent to (right_edge <= split < right_edge+right_pad), but
+  // easier to simplify in terms of the transformed variables.
+  auto right_padding_predicate =
+      right_padding_introduced && (floordiv(info.padded, divisor) == nparts - 1 &&
+                                   floormod(info.padded, divisor) >= floormod(right_edge, divisor));
+
+  requires_padding_ = requires_padding_ || (left_padding_introduced || right_padding_introduced);
+  padding_predicate_ = padding_predicate_ || (left_padding_predicate || right_padding_predicate);
+
+  return info.padded;
+}
+
+PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, PrimExpr rhs) {
+  // (lhs + base) // rhs
+
+  if (is_one(rhs)) {
+    if (is_zero(base)) {
+      // floordiv(x, 1) = x
+      return std::move(lhs);
+    } else {
+      // floordiv(x+y, 1) = x+y
+      return IterSumExpr({lhs}, base);
+    }
+  }
+
   if (!is_one(lhs->scale)) {
-    if (CanProveDivisible(lhs->scale, rhs)) {
+    if (CanProveDivisible(lhs->scale, rhs) && is_zero(base)) {
       // floordiv(x*c1*c2, c2) = x*c1, c1=scale/rhs
       lhs.CopyOnWrite()->scale = floordiv(lhs->scale, rhs);
       return std::move(lhs);
-    } else if (CanProveDivisible(rhs, lhs->scale)) {
+    } else if (CanProveDivisible(lhs->scale, rhs) && CanProveDivisible(base, rhs)) {
+      // floordiv(x*c1*c2 + y*c2, c2) = x*c1 + y, c1=scale/rhs
+      lhs.CopyOnWrite()->scale = floordiv(lhs->scale, rhs);
+      return IterSumExpr({lhs}, floordiv(base, rhs));
+    } else if (CanProveDivisible(rhs, lhs->scale) && is_zero(base)) {
       // floordiv(x*c1, c1*c2) = floordiv(x, c2), c2=rhs/scale
+      rhs = floordiv(rhs, lhs->scale);
+      lhs.CopyOnWrite()->scale = make_const(rhs->dtype, 1);
+    } else if (CanProveDivisible(rhs, lhs->scale) && CanProveDivisible(base, lhs->scale)) {
+      // floordiv(x*c1 + y*c1, c1*c2) = floordiv(x+y, c2), c2=rhs/scale
+      base = floordiv(base, lhs->scale);
       rhs = floordiv(rhs, lhs->scale);
       lhs.CopyOnWrite()->scale = make_const(rhs->dtype, 1);
     } else {
@@ -1132,31 +1441,29 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr rhs,
                         << tvm::PrettyPrint(lhs->scale) << " and the divisor "
                         << tvm::PrettyPrint(rhs)
                         << " cannot be simplified to remove the scaling factor.";
-      return orig;
+      return PrimExpr();
     }
   }
 
   // We handle scale!=1 in above code, hence we only consider floordiv(x, rhs) below
-  // where x=floormod(floordiv(iter, lower_factor), extent)
-  if (CanProveDivisible(lhs->extent, rhs)) {
-    // floordiv(floormod(floordiv(iter, lower_factor), c1c2), c1)
-    // = floordiv(floormod(y, c1c2), c1), where y=floordiv(iter, lower_factor)
-    // = floordiv(floormod(sc1c2+tc1+u, c1c2), c1), where y=sc1c2+tc1+u, t<c2, u<c1
-    // = t
-    // = floormod(sc2+t, c2)
-    // = floormod(floordiv(y, c1), c2)
-    // = floormod(floordiv(iter, lower_factor*c1), c2), where c1=rhs, c2=extent/rhs
-    auto* ptr_lhs = lhs.CopyOnWrite();
-    ptr_lhs->lower_factor *= rhs;
-    ptr_lhs->extent = analyzer_->Simplify(floordiv(ptr_lhs->extent, rhs));
-    return std::move(lhs);
-  } else {
-    // mark as unresolved.
-    ErrorLogger(this) << "Cannot represent as IterMap: the numerator's extent, "
-                      << tvm::PrettyPrint(lhs->extent) << " is not a multiple of the divisor, "
-                      << tvm::PrettyPrint(rhs) << ".";
-    return orig;
+  // where x=floormod(floordiv(iter, lower_factor), extent) + base
+
+  IterSplitExpr padded = PadDividendToDivisor(lhs, base, rhs);
+  if (!padded.defined()) {
+    return PrimExpr();
   }
+
+  // floordiv(floormod(floordiv(iter, lower_factor), c1c2), c1)
+  // = floordiv(floormod(y, c1c2), c1), where y=floordiv(iter, lower_factor)
+  // = floordiv(floormod(sc1c2+tc1+u, c1c2), c1), where y=sc1c2+tc1+u, t<c2, u<c1
+  // = t
+  // = floormod(sc2+t, c2)
+  // = floormod(floordiv(y, c1), c2)
+  // = floormod(floordiv(iter, lower_factor*c1), c2), where c1=rhs, c2=extent/rhs
+  return IterSplitExpr(padded->source,
+                       /* lower_factor = */ padded->lower_factor * rhs,
+                       /* extent = */ analyzer_->Simplify(floordiv(padded->extent, rhs)),
+                       /* scale = */ padded->scale);
 }
 
 PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
@@ -1187,65 +1494,60 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
     return GetRef<PrimExpr>(op);
   }
 
-  if (a->IsInstance<IterSumExprNode>()) {
-    IterSumExpr ret = Downcast<IterSumExpr>(a);
-    if (Optional<IterSumExpr> opt = TryFuseIters(ret)) {
-      IterSumExpr sum = opt.value();
-      if (!is_zero(sum->base)) {
-        ErrorLogger(this) << "Cannot represent as an IterMap: the dividend in "
-                          << tvm::PrettyPrint(GetRef<FloorDiv>(op)) << " has a non-zero offset.";
-        return GetRef<PrimExpr>(op);
-      }
-      ICHECK_EQ(sum->args.size(), 1U);
-      return SplitFloorDivConst(sum->args[0], b, GetRef<PrimExpr>(op));
-    } else {
-      ErrorLogger(this) << "Cannot represent as an IterMap: the dividend in "
-                        << tvm::PrettyPrint(GetRef<FloorDiv>(op))
-                        << " cannot be represented as a single fused iterator";
-      return GetRef<PrimExpr>(op);
-    }
-  } else {
-    ICHECK(a->IsInstance<IterSplitExprNode>());
-    IterSplitExpr ret = Downcast<IterSplitExpr>(std::move(a));
-    return SplitFloorDivConst(ret, b, GetRef<PrimExpr>(op));
+  IterSumExpr preprocessed = PreprocessDividend(Downcast<IterMapExpr>(a));
+  if (!preprocessed.defined()) {
+    return GetRef<PrimExpr>(op);
   }
+  PrimExpr remainder = SplitFloorDivConst(preprocessed->args[0], preprocessed->base, b);
+  if (!remainder.defined()) {
+    return GetRef<PrimExpr>(op);
+  }
+  return remainder;
 }
 
-PrimExpr IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, PrimExpr rhs,
-                                             const PrimExpr& orig) {
-  // floormod(x*scale, rhs)
-  if (is_one(rhs)) return make_zero(lhs->dtype);
+PrimExpr IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, PrimExpr base, PrimExpr rhs) {
+  // (lhs + base) % rhs
+
+  if (is_one(rhs)) {
+    // floormod(x, 1) = 0
+    return make_zero(lhs->dtype);
+  }
+
   if (!is_one(lhs->scale)) {
-    // floormod(x*c1*c2, c1) = 0
-    if (CanProveDivisible(lhs->scale, rhs)) {
+    if (CanProveDivisible(lhs->scale, rhs) && CanProveDivisible(base, rhs)) {
+      // floormod(x*c1*c2, c1) = 0
       return make_zero(lhs->dtype);
-    } else if (CanProveDivisible(rhs, lhs->scale)) {
+    } else if (CanProveDivisible(rhs, lhs->scale) && is_zero(base)) {
       // floormod(x*c1, c1*c2) = (floormod(x, c2)) * c1, where c2 = rhs/scale
       rhs = floordiv(rhs, lhs->scale);
+    } else if (CanProveDivisible(rhs, lhs->scale) && CanProveDivisible(base, lhs->scale)) {
+      // floormod(x*c1 + y*c1, c1*c2) = (floormod(x+y, c2)) * c1, where c2 = rhs/scale
+      rhs = floordiv(rhs, lhs->scale);
+      base = floordiv(base, lhs->scale);
     } else {
       // mark as unresolved.
       ErrorLogger(this)
           << "Cannot represent as IterMap: the left-hand side of FloorMod has a scaling factor, "
           << tvm::PrettyPrint(lhs->scale) << " and the right-hand " << tvm::PrettyPrint(rhs)
           << " cannot be used to simplify out the scaling factor.";
-      return orig;
+      return PrimExpr();
     }
   }
 
-  // floormod(x, rhs) where x=floormod(floordiv(iter, lower_factor), extent)
-  if (CanProveDivisible(lhs->extent, rhs)) {
-    // floormod(floormod(floordiv(iter, lower_factor), c1c2), c1)
-    // = floormod(floordiv(iter, lower_factor), c1), where c1=rhs
-    lhs.CopyOnWrite()->extent = rhs;
-    return std::move(lhs);
-  } else {
-    // mark as unresolved.
-    ErrorLogger(this) << "Cannot represent as IterMap: the left-hand side of FloorMod has extent "
-                      << tvm::PrettyPrint(lhs->extent)
-                      << " which does not evenly divide the right-hand side, "
-                      << tvm::PrettyPrint(rhs) << ".";
-    return orig;
+  // We handle scale!=1 in above code, hence we only consider floormod(x, rhs) below
+  // where x=floormod(floordiv(iter, lower_factor), extent) + base
+
+  IterSplitExpr padded = PadDividendToDivisor(lhs, base, rhs);
+  if (!padded.defined()) {
+    return PrimExpr();
   }
+
+  // floormod(floormod(floordiv(iter, lower_factor), c1c2), c1)
+  // = floormod(floordiv(iter, lower_factor), c1), where c1=rhs
+  return IterSplitExpr(padded->source,
+                       /* lower_factor = */ padded->lower_factor,
+                       /* extent = */ rhs,
+                       /* scale = */ padded->scale);
 }
 
 PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
@@ -1276,27 +1578,16 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
     return GetRef<PrimExpr>(op);
   }
 
-  if (a->IsInstance<IterSumExprNode>()) {
-    IterSumExpr ret = Downcast<IterSumExpr>(a);
-    if (Optional<IterSumExpr> opt = TryFuseIters(ret)) {
-      IterSumExpr sum = opt.value();
-      if (!is_zero(sum->base)) {
-        ErrorLogger(this) << "Cannot represent as an IterMap: the left-hand side of FloorMod in "
-                          << tvm::PrettyPrint(GetRef<FloorMod>(op)) << " has a non-zero offset.";
-        return GetRef<PrimExpr>(op);
-      }
-      return SplitFloorModConst(sum->args[0], b, GetRef<PrimExpr>(op));
-    } else {
-      ErrorLogger(this) << "Cannot represent as an IterMap: the left-hand side of FloorMod in "
-                        << tvm::PrettyPrint(GetRef<FloorMod>(op))
-                        << " cannot be represented as a single fused iterator";
-      return GetRef<PrimExpr>(op);
-    }
-  } else {
-    ICHECK(a->IsInstance<IterSplitExprNode>());
-    IterSplitExpr ret = Downcast<IterSplitExpr>(std::move(a));
-    return SplitFloorModConst(ret, b, GetRef<PrimExpr>(op));
+  IterSumExpr preprocessed = PreprocessDividend(Downcast<IterMapExpr>(a));
+  if (!preprocessed.defined()) {
+    return GetRef<PrimExpr>(op);
   }
+
+  PrimExpr remainder = SplitFloorModConst(preprocessed->args[0], preprocessed->base, b);
+  if (!remainder.defined()) {
+    return GetRef<PrimExpr>(op);
+  }
+  return remainder;
 }
 
 /*! * \brief Given an expression that may contain IterVarMapExpr, transform it to normal PrimExpr.
@@ -1350,6 +1641,21 @@ class IterMapToExprNormalizer : public ExprMutator {
  private:
   Analyzer* analyzer_;
 };
+
+bool IterMapRewriter::CanProveDivisible(const PrimExpr& lhs, const PrimExpr& rhs) {
+  const auto* clhs = lhs.as<IntImmNode>();
+  const auto* crhs = rhs.as<IntImmNode>();
+  if (clhs && crhs) {
+    return clhs->value % crhs->value == 0;
+  }
+
+  IterMapToExprNormalizer normalizer(analyzer_);
+  PrimExpr dividend = normalizer.Convert(lhs);
+  PrimExpr divisor = normalizer.Convert(rhs);
+
+  return analyzer_->CanProveEqual(dividend, divisor) ||
+         analyzer_->CanProve(floormod(dividend, divisor) == 0);
+}
 
 PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr) {
   arith::Analyzer analyzer;
