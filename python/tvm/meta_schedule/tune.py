@@ -186,12 +186,11 @@ class Parse:
 
     @staticmethod
     def _logger(name: str, **kwargs) -> logging.Logger:
-        logger = logging.getLogger(name)  # pylint: disable=redefined-outer-name
         if "log_dir" not in kwargs:
-            raise ValueError("Cannot find log directory `log_dir` in the logging config")
-        else:
-            handler = logging.FileHandler(osp.join(kwargs["log_dir"], name + ".log"))
-            logger.addHandler(handler)
+            raise ValueError("Cannot find log directory `log_dir` in the logging configuration!")
+        logger = logging.getLogger(name)  # pylint: disable=redefined-outer-name
+        handler = logging.FileHandler(osp.join(kwargs["log_dir"], name + ".log"))
+        logger.addHandler(handler)
         if "propagate" in kwargs:
             logger.propagate = kwargs["propagate"]
         if "formatter" in kwargs:
