@@ -1188,6 +1188,49 @@ def _q_multiply_shift_arm(op):
     return tvm.tir.Select(s < 0, out_1, out_2)
 
 
+def _q_multiply_shift_arm2(op):
+    """
+    Implementation of q_multiply_shift_arm through arm intrinsics
+    sqrdmulh and srshl when q == 31.
+
+    Please note that this is introducing a small round-up error for
+    some corner cases. This is because we are rounding twice instead
+    than only once. I.e.:
+
+        * original q_multiply_shift: round(x*y*2^-s)
+        * arm q_multiply_shift: round(round(x*y)*2^-s)
+    """
+    x = op.args[0]
+    y = op.args[1]
+    q = op.args[2]
+    s = op.args[3]
+
+    # Don't use this intrinsic if we don't have a int32x4 vector
+    # or if we are not multiplying q31 numbers
+    if x.dtype != "int32x4" or q.value != 31:
+        return op
+
+    # Case 1, shift is negative
+    sqrdmulh = tvm.tir.call_llvm_intrin(
+        op.dtype, "llvm.aarch64.neon.sqdmulh", tvm.tir.const(2, "uint32"), x, y
+    )
+
+    fixup = (sqrdmulh & (-s)) >> 31
+    fixed_up_x = sqrdmulh + fixup
+    out_1 = tvm.tir.call_llvm_intrin(
+        op.dtype, "llvm.aarch64.neon.srshl", tvm.tir.const(2, "uint32"), sqrdmulh, s
+    )
+
+    # Case 2, shift is positive
+    x = x * (1 << (s))
+    out_2 = tvm.tir.call_llvm_intrin(
+        op.dtype, "llvm.aarch64.neon.sqrdmulh", tvm.tir.const(2, "uint32"), x, y
+    )
+
+    # Select depending on the shift
+    return tvm.tir.Select(s < 0, out_1, out_2)
+
+
 register_intrin_lowering(
-    "tir.q_multiply_shift", target="llvm.aarch64", f=_q_multiply_shift_arm, level=99
+    "tir.q_multiply_shift", target="llvm.aarch64", f=_q_multiply_shift_arm2, level=99
 )
