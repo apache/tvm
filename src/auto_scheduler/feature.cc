@@ -751,22 +751,22 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     FeatureSet& fea = buffer_features[buffer];
 
     // Computation related features
-    fea.float_mad = outer_loop_prod_ * math_op_counter.float_mad;
-    fea.float_addsub = outer_loop_prod_ * math_op_counter.float_addsub;
-    fea.float_mul = outer_loop_prod_ * math_op_counter.float_mul;
-    fea.float_divmod = outer_loop_prod_ * math_op_counter.float_divmod;
-    fea.float_cmp = outer_loop_prod_ * math_op_counter.float_cmp;
-    fea.float_math_func = outer_loop_prod_ * math_op_counter.float_math_func;
-    fea.float_other_func = outer_loop_prod_ * math_op_counter.float_other_func;
-    fea.int_mad = outer_loop_prod_ * math_op_counter.int_mad;
-    fea.int_addsub = outer_loop_prod_ * math_op_counter.int_addsub;
-    fea.int_mul = outer_loop_prod_ * math_op_counter.int_mul;
-    fea.int_divmod = outer_loop_prod_ * math_op_counter.int_divmod;
-    fea.int_math_func = outer_loop_prod_ * math_op_counter.int_math_func;
-    fea.int_cmp = outer_loop_prod_ * math_op_counter.int_cmp;
-    fea.int_other_func = outer_loop_prod_ * math_op_counter.int_other_func;
-    fea.bool_op = outer_loop_prod_ * math_op_counter.bool_op;
-    fea.select_op = outer_loop_prod_ * math_op_counter.select_op;
+    fea.float_mad += outer_loop_prod_ * math_op_counter.float_mad;
+    fea.float_addsub += outer_loop_prod_ * math_op_counter.float_addsub;
+    fea.float_mul += outer_loop_prod_ * math_op_counter.float_mul;
+    fea.float_divmod += outer_loop_prod_ * math_op_counter.float_divmod;
+    fea.float_cmp += outer_loop_prod_ * math_op_counter.float_cmp;
+    fea.float_math_func += outer_loop_prod_ * math_op_counter.float_math_func;
+    fea.float_other_func += outer_loop_prod_ * math_op_counter.float_other_func;
+    fea.int_mad += outer_loop_prod_ * math_op_counter.int_mad;
+    fea.int_addsub += outer_loop_prod_ * math_op_counter.int_addsub;
+    fea.int_mul += outer_loop_prod_ * math_op_counter.int_mul;
+    fea.int_divmod += outer_loop_prod_ * math_op_counter.int_divmod;
+    fea.int_math_func += outer_loop_prod_ * math_op_counter.int_math_func;
+    fea.int_cmp += outer_loop_prod_ * math_op_counter.int_cmp;
+    fea.int_other_func += outer_loop_prod_ * math_op_counter.int_other_func;
+    fea.bool_op += outer_loop_prod_ * math_op_counter.bool_op;
+    fea.select_op += outer_loop_prod_ * math_op_counter.select_op;
 
     fea.vec_len = fea.unroll_len = fea.parallel_len = 0.0f;
     fea.vec_type = fea.unroll_type = fea.parallel_type = AnnotationPosType::kPosNone;
