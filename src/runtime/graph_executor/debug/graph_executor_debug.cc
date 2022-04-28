@@ -113,7 +113,7 @@ class GraphExecutorDebug : public GraphExecutor {
 
     // assume host runs things which is first device
     Device& d = devices_[0];
-    PackedFunc time_evaluator = WrapTimeEvaluator(
+    PackedFunc time_evaluator = profiling::WrapTimeEvaluator(
         TypedPackedFunc<void()>([this, node_index]() { this->RunOpHost(node_index); }), d, number,
         repeat, min_repeat_ms);
     std::string result = time_evaluator();
