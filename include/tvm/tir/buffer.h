@@ -186,10 +186,11 @@ class Buffer : public ObjectRef {
    * \param ptr_type The type of the pointer.
    * \param content_lanes The number of lanes for the (data) type.
    * \param offset The offset of ptr.
+   * \param input_extent The extent of ptr.
    */
   TVM_DLL PrimExpr access_ptr(int access_mask, DataType ptr_type = DataType::Handle(),
-                              int content_lanes = 1,
-                              PrimExpr offset = IntImm(DataType::Int(32), 0)) const;
+                              int content_lanes = 1, PrimExpr offset = IntImm(DataType::Int(32), 0),
+                              Optional<PrimExpr> input_extent = NullOpt) const;
   /*!
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index
