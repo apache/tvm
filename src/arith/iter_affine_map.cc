@@ -195,7 +195,15 @@ class IterMapRewriter : public ExprMutator {
     }
   }
 
-  size_t unresolved_count() const { return unresolved_count_; }
+  size_t unresolved_count() const { return errors_.size(); }
+
+  void print_errors() const {
+    for (const auto& err : errors_) {
+      std::cout << "Error: " << err << std::endl;
+    }
+  }
+
+  std::vector<std::string> errors() const { return errors_; }
 
   IterSumExpr Rewrite(const PrimExpr& expr) {
     return NormalizeToIterWithOffset(ToIterSumExpr(DirectMutate(expr)));
@@ -292,7 +300,9 @@ class IterMapRewriter : public ExprMutator {
   PrimExpr VisitExpr(const PrimExpr& input_expr) final {
     auto expr = ExprMutator::VisitExpr(input_expr);
     if (expr->IsInstance<IterMapExprNode>()) {
-      unresolved_count_++;
+      ErrorLogger(this) << "IterMapExpr or subclasses should only result from calls in "
+                        << "IterMapRewriter using DirectMutate.  "
+                        << "Indirect return occurred in " << tvm::PrettyPrint(input_expr);
     }
     return expr;
   }
@@ -308,6 +318,33 @@ class IterMapRewriter : public ExprMutator {
   PrimExpr VisitExpr_(const FloorModNode* op) final;
 
  private:
+  /* \brief Utility class for logging errors.
+   *
+   * It is not an error for IterMapRewriter to receive an expression that
+   * cannot be represented as an IterSumExpr.  In these cases,
+   * IterMapRewriter returns the unrepresentable portions of the TIR graph
+   * without modification.  As a result, the usual ICHECK or LOG(FATAL)
+   * macros cannot be used.  Instead, ErrorLogger(this) can be used to
+   * report an unrepresentable TIR graph, which may be used in error
+   * messages at the calling scope.
+   */
+  friend struct ErrorLogger;
+  class ErrorLogger {
+   public:
+    explicit ErrorLogger(IterMapRewriter* rewriter) : rewriter(rewriter) {}
+    ~ErrorLogger() { rewriter->errors_.push_back(os.str()); }
+
+    template <typename T>
+    ErrorLogger& operator<<(T&& t) {
+      os << std::forward<T>(t);
+      return *this;
+    }
+
+   private:
+    IterMapRewriter* rewriter;
+    std::ostringstream os;
+  };
+
   // temp hash for de-duplication purposes.
   struct IterSumHash {
     size_t operator()(const IterSumExpr& value) const {
@@ -344,8 +381,8 @@ class IterMapRewriter : public ExprMutator {
 
   // Internal analyzer
   Analyzer* analyzer_;
-  // Counter to keep track of unresolved cases.
-  int unresolved_count_{0};
+  // Error messages for each unresolved expression.
+  std::vector<std::string> errors_;
   // The var map
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> var_map_;
   // input iter marks
@@ -520,7 +557,7 @@ class IterMapRewriter : public ExprMutator {
       expr.CopyOnWrite()->base = base + iter_min;
       return expr;
     }
-    unresolved_count_++;
+    ErrorLogger(this) << "Could not normalize iterators using the constraints given.";
     return expr;
   }
 
@@ -536,7 +573,7 @@ class IterMapRewriter : public ExprMutator {
     if (opt.defined()) {
       return opt.value();
     } else {
-      unresolved_count_++;
+      ErrorLogger(this) << "Could not normalize iterators";
       return expr;
     }
   }
@@ -897,7 +934,9 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
   // Overall detection algorithm is divided into two steps:
   // - Step0: IterMapRewriter rewrites the expression to use IterMapExpr patterns.
   // - Step1: IterIndependenceChecker checks if the iterator are independent.
-  if (!IterRangeSanityCheck(input_iters)) return Array<IterSumExpr>();
+  if (!IterRangeSanityCheck(input_iters)) {
+    return Array<IterSumExpr>();
+  }
   Map<Var, Range> constrained_input_iters = input_iters;
   std::vector<IterConstraint> constraints;
   if (!is_one(predicate) &&
@@ -920,11 +959,14 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
   for (const IterConstraint& constraint : constraints) {
     auto res = rewriter.RewriteIterConstraint(constraint.iter, constraint.lower_bound,
                                               constraint.upper_bound);
-    if (rewriter.unresolved_count() != 0) return Array<IterSumExpr>();
+    if (rewriter.unresolved_count() != 0) {
+      return Array<IterSumExpr>();
+    }
   }
   if (!rewriter.CheckConstraints()) {
     return Array<IterSumExpr>();
   }
+
   // Step0.1: rewrite indices
   Array<IterSumExpr> results;
   for (PrimExpr value : indices) {
@@ -1050,7 +1092,8 @@ PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
 
   if (a->IsInstance<IterMapExprNode>() && b->IsInstance<IterMapExprNode>()) {
     // cannot multiply two iterators, mark as unresolved.
-    unresolved_count_++;
+    ErrorLogger(this) << "Product of two iterators cannot be represented as an IterMap, "
+                      << "occurs in " << tvm::PrettyPrint(GetRef<Mul>(op));
     return GetRef<PrimExpr>(op);
   }
 
@@ -1079,16 +1122,17 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr rhs,
       // floordiv(x*c1*c2, c2) = x*c1, c1=scale/rhs
       lhs.CopyOnWrite()->scale = floordiv(lhs->scale, rhs);
       return std::move(lhs);
+    } else if (CanProveDivisible(rhs, lhs->scale)) {
+      // floordiv(x*c1, c1*c2) = floordiv(x, c2), c2=rhs/scale
+      rhs = floordiv(rhs, lhs->scale);
+      lhs.CopyOnWrite()->scale = make_const(rhs->dtype, 1);
     } else {
-      if (CanProveDivisible(rhs, lhs->scale)) {
-        // floordiv(x*c1, c1*c2) = floordiv(x, c2), c2=rhs/scale
-        rhs = floordiv(rhs, lhs->scale);
-        lhs.CopyOnWrite()->scale = make_const(rhs->dtype, 1);
-      } else {
-        // mark as unresolved.
-        unresolved_count_++;
-        return orig;
-      }
+      // mark as unresolved.
+      ErrorLogger(this) << "Cannot represent as IterMap: the numerator's scaling factor, "
+                        << tvm::PrettyPrint(lhs->scale) << " and the divisor "
+                        << tvm::PrettyPrint(rhs)
+                        << " cannot be simplified to remove the scaling factor.";
+      return orig;
     }
   }
 
@@ -1108,7 +1152,9 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr rhs,
     return std::move(lhs);
   } else {
     // mark as unresolved.
-    unresolved_count_++;
+    ErrorLogger(this) << "Cannot represent as IterMap: the numerator's extent, "
+                      << tvm::PrettyPrint(lhs->extent) << " is not a multiple of the divisor, "
+                      << tvm::PrettyPrint(rhs) << ".";
     return orig;
   }
 }
@@ -1136,7 +1182,8 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
 
   if (b->IsInstance<IterMapExprNode>()) {
     // cannot divide an iterator, mark as unresolved.
-    unresolved_count_++;
+    ErrorLogger(this) << "Cannot represent as an IterMap: the divisor in " << GetRef<PrimExpr>(op)
+                      << " may not be an iterator";
     return GetRef<PrimExpr>(op);
   }
 
@@ -1145,13 +1192,16 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
     if (Optional<IterSumExpr> opt = TryFuseIters(ret)) {
       IterSumExpr sum = opt.value();
       if (!is_zero(sum->base)) {
-        unresolved_count_++;
+        ErrorLogger(this) << "Cannot represent as an IterMap: the dividend in "
+                          << tvm::PrettyPrint(GetRef<FloorDiv>(op)) << " has a non-zero offset.";
         return GetRef<PrimExpr>(op);
       }
       ICHECK_EQ(sum->args.size(), 1U);
       return SplitFloorDivConst(sum->args[0], b, GetRef<PrimExpr>(op));
     } else {
-      unresolved_count_++;
+      ErrorLogger(this) << "Cannot represent as an IterMap: the dividend in "
+                        << tvm::PrettyPrint(GetRef<FloorDiv>(op))
+                        << " cannot be represented as a single fused iterator";
       return GetRef<PrimExpr>(op);
     }
   } else {
@@ -1169,15 +1219,16 @@ PrimExpr IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, PrimExpr rhs,
     // floormod(x*c1*c2, c1) = 0
     if (CanProveDivisible(lhs->scale, rhs)) {
       return make_zero(lhs->dtype);
+    } else if (CanProveDivisible(rhs, lhs->scale)) {
+      // floormod(x*c1, c1*c2) = (floormod(x, c2)) * c1, where c2 = rhs/scale
+      rhs = floordiv(rhs, lhs->scale);
     } else {
-      if (CanProveDivisible(rhs, lhs->scale)) {
-        // floormod(x*c1, c1*c2) = (floormod(x, c2)) * c1, where c2 = rhs/scale
-        rhs = floordiv(rhs, lhs->scale);
-      } else {
-        // mark as unresolved.
-        unresolved_count_++;
-        return orig;
-      }
+      // mark as unresolved.
+      ErrorLogger(this)
+          << "Cannot represent as IterMap: the left-hand side of FloorMod has a scaling factor, "
+          << tvm::PrettyPrint(lhs->scale) << " and the right-hand " << tvm::PrettyPrint(rhs)
+          << " cannot be used to simplify out the scaling factor.";
+      return orig;
     }
   }
 
@@ -1189,7 +1240,10 @@ PrimExpr IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, PrimExpr rhs,
     return std::move(lhs);
   } else {
     // mark as unresolved.
-    unresolved_count_++;
+    ErrorLogger(this) << "Cannot represent as IterMap: the left-hand side of FloorMod has extent "
+                      << tvm::PrettyPrint(lhs->extent)
+                      << " which does not evenly divide the right-hand side, "
+                      << tvm::PrettyPrint(rhs) << ".";
     return orig;
   }
 }
@@ -1217,7 +1271,8 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
 
   if (b->IsInstance<IterMapExprNode>()) {
     // cannot mod an iterator, mark as unresolved.
-    unresolved_count_++;
+    ErrorLogger(this) << "Cannot represent as an IterMap: the right-hand side of FloorMod in "
+                      << GetRef<PrimExpr>(op) << " may not be an iterator";
     return GetRef<PrimExpr>(op);
   }
 
@@ -1226,12 +1281,15 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
     if (Optional<IterSumExpr> opt = TryFuseIters(ret)) {
       IterSumExpr sum = opt.value();
       if (!is_zero(sum->base)) {
-        unresolved_count_++;
+        ErrorLogger(this) << "Cannot represent as an IterMap: the left-hand side of FloorMod in "
+                          << tvm::PrettyPrint(GetRef<FloorMod>(op)) << " has a non-zero offset.";
         return GetRef<PrimExpr>(op);
       }
       return SplitFloorModConst(sum->args[0], b, GetRef<PrimExpr>(op));
     } else {
-      unresolved_count_++;
+      ErrorLogger(this) << "Cannot represent as an IterMap: the left-hand side of FloorMod in "
+                        << tvm::PrettyPrint(GetRef<FloorMod>(op))
+                        << " cannot be represented as a single fused iterator";
       return GetRef<PrimExpr>(op);
     }
   } else {
