@@ -1299,12 +1299,13 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
   }
 }
 
-/*! * \brief Given an IterVarMapExpr, transform it to normal PrimExpr. */
+/*! * \brief Given an expression that may contain IterVarMapExpr, transform it to normal PrimExpr.
+ */
 class IterMapToExprNormalizer : public ExprMutator {
  public:
   explicit IterMapToExprNormalizer(Analyzer* analyzer) : analyzer_(analyzer) {}
 
-  PrimExpr Convert(const IterMapExpr& expr) { return VisitExpr(expr); }
+  PrimExpr Convert(const PrimExpr& expr) { return VisitExpr(expr); }
 
  private:
   /*! \brief Override VisitExpr for iter expr type processing */
@@ -1350,15 +1351,13 @@ class IterMapToExprNormalizer : public ExprMutator {
   Analyzer* analyzer_;
 };
 
-PrimExpr NormalizeIterMapToExpr(const IterMapExpr& expr) {
+PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr) {
   arith::Analyzer analyzer;
   IterMapToExprNormalizer normalizer(&analyzer);
   return normalizer.Convert(expr);
 }
 
-TVM_REGISTER_GLOBAL("arith.NormalizeIterMapToExpr").set_body_typed([](const IterMapExpr& expr) {
-  return NormalizeIterMapToExpr(expr);
-});
+TVM_REGISTER_GLOBAL("arith.NormalizeIterMapToExpr").set_body_typed(NormalizeIterMapToExpr);
 
 Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                 const PrimExpr& input_pred, bool require_bijective) {

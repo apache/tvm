@@ -352,11 +352,11 @@ Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
                                       bool require_bijective, arith::Analyzer* analyzer);
 
 /*!
- * \brief Given an IterMapExpr, transform it to normal PrimExpr.
- * \param expr The input IterMapExpr.
+ * \brief Given an expression that may contain IterMapExpr, transform it to normal PrimExpr.
+ * \param expr The input expression, which may containg IterMapExpr.
  * \return The corresponding normal PrimExpr.
  */
-PrimExpr NormalizeIterMapToExpr(const IterMapExpr& expr);
+PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr);
 
 }  // namespace arith
 }  // namespace tvm
