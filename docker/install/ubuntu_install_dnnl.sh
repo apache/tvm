@@ -24,6 +24,7 @@ pre_dir=`pwd`
 
 build_dir="/usr/local/"
 install_dir="/usr/local/"
+pinned_tag="v2.6" # unset or set to "" to build latest release
 
 cd ${build_dir}
 rls_tag=$(curl -s https://github.com/oneapi-src/oneDNN/releases/latest \
@@ -31,6 +32,12 @@ rls_tag=$(curl -s https://github.com/oneapi-src/oneDNN/releases/latest \
     | grep -o '[^\/]*$')
 dnnl_ver=`echo ${rls_tag} | sed 's/v//g'`
 echo "The latest oneDNN release is version ${dnnl_ver} with tag '${rls_tag}'"
+
+if [[ -v pinned_tag && -n ${pinned_tag} ]]; then
+    rls_tag=${pinned_tag}
+    dnnl_ver=`echo ${rls_tag} | sed 's/v//g'`
+    echo "Using pinned oneDNN release version ${dnnl_ver} with tag '${rls_tag}'"
+fi
 
 tar_file="${rls_tag}.tar.gz"
 src_dir="${build_dir}/oneDNN-${dnnl_ver}"
@@ -45,16 +52,16 @@ else
         tar_url="https://github.com/oneapi-src/oneDNN/archive/refs/tags/${tar_file}"
         wget ${tar_url}
     fi
+    echo "extracting source files."
     tar -xzvf ${tar_file}
 fi
 
 cd ${src_dir}
-NPROC=$(nproc)
-cmake . -GNinja -DCMAKE_INSTALL_PREFIX=${install_dir}
-make -j"$NPROC"
+cmake . -DCMAKE_INSTALL_PREFIX="${install_dir}"
+make -j"$(nproc)"
 make install
 
 cd ${build_dir}
-rm -rf ${tar_file} ${src_dir}
+rm -rfv ${tar_file} ${src_dir}
 
 cd ${pre_dir}
