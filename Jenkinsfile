@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-04-28T10:29:38.389939
+// Generated at 2022-04-29T08:49:28.997200
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -75,17 +75,8 @@ properties([
   ])
 ])
 
-// tvm libraries
-tvm_runtime = 'build/libtvm_runtime.so, build/config.cmake'
-tvm_lib = 'build/libtvm.so, ' + tvm_runtime
-// LLVM upstream lib
-tvm_multilib = 'build/libtvm.so, ' +
-               'build/libvta_fsim.so, ' +
-               tvm_runtime
-
-tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
-               tvm_multilib
-microtvm_lib = 'build/microtvm_template_projects.tar.gz, ' + tvm_lib
+// Global variable assigned during Sanity Check that holds the sha1 which should be
+// merged into the PR in all branches.
 upstream_revision = null
 
 // command to start a docker container
@@ -418,6 +409,19 @@ def make(docker_type, path, make_flag) {
   }
 }
 
+// Specifications to Jenkins "stash" command for use with various pack_ and unpack_ functions.
+tvm_runtime = 'build/libtvm_runtime.so, build/config.cmake'  // use libtvm_runtime.so.
+tvm_lib = 'build/libtvm.so, ' + tvm_runtime  // use libtvm.so to run the full compiler.
+// LLVM upstream lib
+tvm_multilib = 'build/libtvm.so, ' +
+               'build/libvta_fsim.so, ' +
+               tvm_runtime
+
+tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
+                    tvm_multilib
+
+microtvm_tar_gz = 'build/microtvm_template_projects.tar.gz'
+
 // pack libraries for later use
 def pack_lib(name, libs) {
   sh (script: """
@@ -434,6 +438,23 @@ def unpack_lib(name, libs) {
      echo "Unpacked ${libs} from ${name}"
      echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
      """, label: 'Unstash libraries and show md5')
+}
+
+// compress microtvm template projects and pack the tar.
+def pack_microtvm_template_projects(name) {
+  sh(
+    script: 'cd build && tar -czvf microtvm_template_projects.tar.gz microtvm_template_projects/',
+    label: 'Compress microtvm_template_projects'
+  )
+  pack_lib(name + '-microtvm-libs', microtvm_tar_gz)
+}
+
+def unpack_microtvm_template_projects(name) {
+  unpack_lib(name + '-microtvm-libs', microtvm_tar_gz)
+  sh(
+    script: 'cd build && tar -xzvf microtvm_template_projects.tar.gz',
+    label: 'Unpack microtvm_template_projects'
+  )
 }
 
 def ci_setup(image) {
@@ -484,6 +505,7 @@ stage('Build') {
           sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
           make("${ci_gpu} --no-gpu", 'build', '-j2')
           pack_lib('gpu', tvm_multilib)
+          pack_microtvm_template_projects('gpu')
           // compiler test
           sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
           make("${ci_gpu} --no-gpu", 'build2', '-j2')
@@ -583,11 +605,8 @@ stage('Build') {
             label: 'Create QEMU cmake config',
           )
           make(ci_qemu, 'build', '-j2')
-          sh(
-            script: 'cd build && tar -czvf microtvm_template_projects.tar.gz microtvm_template_projects/',
-            label: 'Compress microtvm_template_projects'
-          )
-          pack_lib('qemu', microtvm_lib)
+          pack_lib('qemu', tvm_lib)
+          pack_microtvm_template_projects('qemu')
         }
       }
      } else {
@@ -986,11 +1005,8 @@ stage('Test') {
             try {
               init_git()
               withEnv(['PLATFORM=qemu'], {
-                unpack_lib('qemu', microtvm_lib)
-                sh(
-                  script: 'cd build && tar -xzvf microtvm_template_projects.tar.gz',
-                  label: 'Unpack microtvm_template_projects'
-                )
+                unpack_lib('qemu', tvm_lib)
+                unpack_microtvm_template_projects('qemu')
                 ci_setup(ci_qemu)
                 cpp_unittest(ci_qemu)
                 sh (
@@ -1296,6 +1312,7 @@ stage('Test') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/docs-python-gpu") {
           init_git()
           unpack_lib('gpu', tvm_multilib)
+          unpack_microtvm_template_projects('gpu')
           timeout(time: 180, unit: 'MINUTES') {
             ci_setup(ci_gpu)
             sh (
