@@ -19,8 +19,6 @@ import numpy as np
 import pytest
 import sys
 
-pytestmark = pytest.mark.skip(reason="These tests take too long")
-
 import tvm
 from tvm import topi
 from tvm import te
@@ -28,7 +26,11 @@ import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.nn.utils import get_pad_tuple
 
-from ..conftest import requires_hexagon_toolchain
+from ..conftest import android_serial_number, requires_hexagon_toolchain
+
+pytestmark = pytest.mark.skipif(
+    android_serial_number() == "simulator", reason="These tests take too long"
+)
 
 
 dtype = tvm.testing.parameter("float32")
