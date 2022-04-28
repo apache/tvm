@@ -1724,7 +1724,7 @@ class Cast(OnnxOpConverter):
             except ImportError as e:
                 raise ImportError("Unable to import onnx.mapping which is required {}".format(e))
         return AttrCvt(op_name="cast", transforms={"to": "dtype"})(inputs, attr)
-        
+
 
 class Unsqueeze(OnnxOpConverter):
     """Operator converter for Unsqueeze."""
