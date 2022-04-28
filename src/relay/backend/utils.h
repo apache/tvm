@@ -241,6 +241,7 @@ struct ConstantUpdater : public ExprVisitor {
 
   void VisitExpr_(const ConstantNode* cn) final {
     std::string name = symbol_ + "_const_" + std::to_string(const_idx_++);
+    VLOG(1) << "Binding " << name << " to constant of type " << PrettyPrint(cn->checked_type());
     (*params_)[name] = cn->data;
   }
 
@@ -515,11 +516,11 @@ inline bool IsMetaScheduleEnabled() {
  * difference. This function unifies the shared optimization pass prefix between vm and graph
  * runtime, and returns the pass prefix given the backend type.
  *
- * \param is_homogenous True if all primitives are to be executed on the same device and target.
+ * \param is_homogeneous True if all primitives are to be executed on the same device and target.
  * \param is_vm True if passes are to be used for the vm executor.
  * \return An array of passes.
  */
-Array<Pass> GetPassPrefix(bool is_homogenous, bool is_vm);
+Array<Pass> GetPassPrefix(bool is_homogeneous, bool is_vm);
 
 /*! \brief Target hash function */
 struct TargetStrHash {

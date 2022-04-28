@@ -773,7 +773,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     } else {
       // The target corresponding to the call_node expression's annotation.
       VirtualDevice virtual_device = GetVirtualDevice(GetRef<Call>(call_node));
-      ICHECK(!virtual_device->IsFullyUnconstrained());
+      ICHECK(!virtual_device->IsFullyUnconstrained()) << PrettyPrint(GetRef<Call>(call_node));
       target = virtual_device->target;
       ICHECK(target.defined());
     }
@@ -803,36 +803,6 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
   const Op& debug_op_;
 };
 
-Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets) {
-  if (targets.size() == 1) {
-    // The homogeneous execution case, return the only target.
-    const auto& it = targets.begin();
-    return (*it).second;
-  } else {
-    // The heterogeneous execution case, return the target associated with the
-    // given device type.
-    // If "dev_type" equals to 0, the device name only can be got from
-    // "targets", and it may not be "llvm", so here just set it to "unknown".
-    std::string dev_name = "unknown";
-    if (dev_type != 0) {
-      dev_name = runtime::DeviceName(dev_type);
-    }
-
-    if (targets.count(dev_type) == 0) {
-      std::stringstream msg;
-      msg << "No target is specified for provided device name: `" << dev_name << "`\n\n"
-          << dev_name << " mapped to device type (" << dev_type
-          << ") which was not found in the target map.\n"
-          << "Availible targets: \n";
-      for (auto target : targets) {
-        msg << "  " << target.first << "-> " << target.second << "\n";
-      }
-      LOG(FATAL) << msg.str();
-    }
-    return targets[dev_type];
-  }
-}
-
 Pass LowerTensorExpr(const String& module_name, TECompiler compiler, ProcessFn process_fn,
                      VirtualDevice host_virtual_device) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
@@ -844,15 +814,12 @@ Pass LowerTensorExpr(const String& module_name, TECompiler compiler, ProcessFn p
   return CreateFunctionPass(pass_func, 0, "LowerTensorExpr", {});
 }
 
-backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMap targets,
+backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, const CompilationConfig& config,
                                               Map<Expr, backend::StorageInfo> storage_info_map) {
   Function func = Downcast<Function>(mod->Lookup("main"));
 
   VLOG_CONTEXT << "UpdateMainWorkspaceSize";
   VLOG(1) << "calculating FunctionInfo for main:" << std::endl << PrettyPrint(func);
-  for (const auto& kv : targets) {
-    VLOG(1) << "  target " << kv.first << " = " << kv.second->str();
-  }
 
   // This is a Map<device,Map<storage_id, size>>
   // TODO(mbs): Collapsing VirtualDevices to just device type.
@@ -952,25 +919,24 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
   Map<Target, Function> relay_primfuncs;
 
   // Initialize all target workspaces to zero
-  for (const auto& kv : targets) {
-    auto tgt = kv.second;
-    workspace_sizes.Set(tgt, 0);
+  for (const auto& target : config->primitive_targets) {
+    workspace_sizes.Set(target, 0);
   }
 
   for (const auto& dev_and_size : device_workspace) {
-    auto tgt = tec::GetTargetFromInteger(dev_and_size.first, targets);
-    workspace_sizes.Set(tgt, dev_and_size.second);
-    relay_primfuncs.Set(tgt, func);
+    Target target = config->FindPrimitiveTargetOrFail(dev_and_size.first);
+    workspace_sizes.Set(target, dev_and_size.second);
+    relay_primfuncs.Set(target, func);
   }
   for (const auto& dev_and_size : device_io) {
-    auto tgt = tec::GetTargetFromInteger(dev_and_size.first, targets);
-    io_sizes.Set(tgt, dev_and_size.second);
+    Target target = config->FindPrimitiveTargetOrFail(dev_and_size.first);
+    io_sizes.Set(target, dev_and_size.second);
   }
 
   for (const auto& dev_and_size : device_consts) {
-    auto tgt = tec::GetTargetFromInteger(dev_and_size.first, targets);
-    ICHECK_EQ(constant_sizes.count(tgt), 0);
-    constant_sizes.Set(tgt, dev_and_size.second);
+    Target target = config->FindPrimitiveTargetOrFail(dev_and_size.first);
+    ICHECK_EQ(constant_sizes.count(target), 0);
+    constant_sizes.Set(target, dev_and_size.second);
   }
 
   backend::FunctionInfo func_info(std::move(workspace_sizes), std::move(io_sizes),
