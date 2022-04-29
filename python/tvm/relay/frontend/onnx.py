@@ -324,6 +324,10 @@ def matmul_out_dtype(inputs, out_dtype):
             0,
         )
         return _op.reshape(output, fold_constant(final_shape))
+
+    if a_rank == 1:
+        return _op.squeeze(_op.nn.matmul(_op.expand_dims(inputs[0], axis=0), inputs[1]), axis=[0])
+
     # Otherwise a simple dense op will get the job done.
     input_1_t = _op.transpose(inputs[1], axes=(1, 0))
     return _op.nn.dense(inputs[0], input_1_t, out_dtype=out_dtype)
