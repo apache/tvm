@@ -25,13 +25,13 @@
 #define TVM_RUNTIME_METADATA_H_
 
 #include <inttypes.h>
-#ifdef __cplusplus
+#ifdef TVM_IS_CPP_RUNTIME
 #include <memory>
 #include <string>
 #include <vector>
 #endif
 #include <tvm/runtime/c_runtime_api.h>
-#ifdef __cplusplus
+#ifdef TVM_IS_CPP_RUNTIME
 #include <tvm/runtime/metadata_base.h>
 #include <tvm/support/span.h>
 #endif
@@ -39,7 +39,7 @@
 // Version number recorded in emitted artifacts for runtime checking.
 #define TVM_METADATA_VERSION 1
 
-#ifdef __cplusplus
+#ifdef TVM_IS_CPP_RUNTIME
 namespace tvm {
 namespace runtime {
 namespace metadata {
@@ -102,7 +102,7 @@ struct TVMTensorInfo {
   /*! \brief Data type of one element of this tensor. */
   DLDataType dtype;
 };
-#ifdef __cplusplus
+#ifdef TVM_IS_CPP_RUNTIME
 }  // extern "C"
 #include <tvm/runtime/object.h>
 namespace tvm {
@@ -166,6 +166,6 @@ class TensorInfo : public MetadataBase {
 }  // namespace metadata
 }  // namespace runtime
 }  // namespace tvm
-#endif  // defined(__cplusplus)
+#endif  // defined(TVM_IS_CPP_RUNTIME)
 
 #endif  // TVM_RUNTIME_METADATA_H_

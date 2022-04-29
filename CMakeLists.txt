@@ -538,6 +538,10 @@ target_compile_definitions(tvm_libinfo_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm
 target_compile_definitions(tvm PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 target_compile_definitions(tvm_runtime PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 
+# used to differentiate between CPP and C runtimes
+target_compile_definitions(tvm_objs PUBLIC TVM_IS_CPP_RUNTIME)
+target_compile_definitions(tvm_runtime_objs PUBLIC TVM_IS_CPP_RUNTIME)
+
 # logging option for libbacktrace
 include(cmake/modules/Logging.cmake)
 
