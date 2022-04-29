@@ -26,7 +26,7 @@ from tvm.target import Target
 from . import _ffi_api
 from .database import Database
 
-logger = logging.getLogger("tvm.meta_schedule")  # pylint: disable=invalid-name
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 @register_object("meta_schedule.ApplyHistoryBest")
@@ -37,12 +37,9 @@ class ApplyHistoryBest(Object):
     ----------
     database : Database
         The database to be queried from
-    logger : logging.Logger
-        The logger to be used
     """
 
     database: Database
-    logger: logging.Logger
 
     def __init__(self, database: Database) -> None:
         self.__init_handle_by_constructor__(

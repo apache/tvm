@@ -52,7 +52,7 @@ FnScheduleRule = Callable[[], List[ScheduleRule]]
 FnPostproc = Callable[[], List[Postproc]]
 FnMutatorProb = Callable[[], Dict[Mutator, float]]
 
-logger = logging.getLogger("tvm.meta_schedule")  # pylint: disable=invalid-name
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class DefaultLLVM:
@@ -513,10 +513,12 @@ def tune_extracted_tasks(
             "%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
         ),
     )
-    handler = logging.FileHandler(osp.join(log_dir, "tvm.meta_schedule.task_scheduler.log"))
-    logger.addHandler(handler)
-    if logger.level not in [logging.DEBUG, logging.INFO]:
-        logger.critical(
+    global_logger = logging.getLogger("tvm.meta_schedule")
+    global_logger.addHandler(
+        logging.FileHandler(osp.join(log_dir, "tvm.meta_schedule.task_scheduler.log"))
+    )
+    if global_logger.level not in [logging.DEBUG, logging.INFO]:
+        global_logger.critical(
             "Logging level set to %s, please set to logging.INFO"
             " or logging.DEBUG to view full log.",
             logging._levelToName[logger.level],
@@ -561,7 +563,6 @@ def tune_extracted_tasks(
         database=database,
         cost_model=cost_model,
         measure_callbacks=measure_callbacks,
-        logger=logger,
     )
     task_scheduler.tune()
     cost_model.save(osp.join(work_dir, "cost_model.xgb"))

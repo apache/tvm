@@ -98,7 +98,7 @@ class TaskSchedulerNode : public runtime::Object {
     v->Visit("cost_model", &cost_model);
     v->Visit("measure_callbacks", &measure_callbacks);
     v->Visit("num_trials_already", &num_trials_already);
-    // v->Visit("logging_func", &logging_func);
+    // `logging_func` is not visited
   }
 
   /*! \brief Auto-tuning. */

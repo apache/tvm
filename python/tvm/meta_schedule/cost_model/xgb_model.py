@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from ..tune_context import TuneContext
 
 
-logger = logging.getLogger("tvm.meta_schedule")  # pylint: disable=invalid-name
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 def make_metric_sorter(focused_metric):

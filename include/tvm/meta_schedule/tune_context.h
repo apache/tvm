@@ -87,7 +87,7 @@ class TuneContextNode : public runtime::Object {
     v->Visit("builder_results", &builder_results);
     v->Visit("runner_futures", &runner_futures);
     v->Visit("measure_candidates", &measure_candidates);
-    // v->Visit("logging_func", &logging_func);
+    // `logging_func` is not visited
   }
 
   /*! \brief Initialize members that needs initialization with tune context. */

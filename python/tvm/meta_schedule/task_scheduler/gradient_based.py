@@ -19,7 +19,6 @@ import logging
 from typing import TYPE_CHECKING, List, Optional
 
 from tvm._ffi import register_object
-from tvm.meta_schedule.utils import make_logging_func
 
 from .. import _ffi_api
 from ..builder import Builder
@@ -27,10 +26,13 @@ from ..cost_model import CostModel
 from ..database import Database
 from ..measure_callback import MeasureCallback
 from ..runner import Runner
+from ..utils import make_logging_func
 from .task_scheduler import TaskScheduler
 
 if TYPE_CHECKING:
     from ..tune_context import TuneContext
+
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 @register_object("meta_schedule.GradientBased")
@@ -48,7 +50,6 @@ class GradientBased(TaskScheduler):
         *,
         cost_model: Optional[CostModel] = None,
         measure_callbacks: Optional[List[MeasureCallback]] = None,
-        logger: Optional[logging.Logger] = None,
         alpha: float = 0.2,
         window_size: int = 3,
         seed: int = -1,
@@ -73,8 +74,6 @@ class GradientBased(TaskScheduler):
             The cost model of the scheduler.
         measure_callbacks : Optional[List[MeasureCallback]] = None
             The list of measure callbacks of the scheduler.
-        logger: Optional[logging.Logger]
-            The logger of the task scheduler.
         alpha : float = 0.2
             The parameter alpha in gradient computation.
         window_size : int = 3

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Workloads in Relay IR"""
+# pylint: disable=import-outside-toplevel
 import logging
 import multiprocessing
 import os
@@ -30,7 +31,7 @@ from tvm.runtime import NDArray, load_param_dict, save_param_dict
 from tvm.target import Target
 
 
-logger = logging.getLogger("tvm.meta_schedule")  # pylint: disable=invalid-name
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 def _get_network(
@@ -54,8 +55,6 @@ def _get_network(
         "resnet3d_18",
         "vgg_16",
     ]:
-        # pylint: disable=import-outside-toplevel
-
         import torch  # type: ignore
         from torchvision import models  # type: ignore
 
@@ -106,7 +105,6 @@ def _get_network(
     elif name in ["bert_tiny", "bert_base", "bert_medium", "bert_large"]:
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
         # pip3 install transformers==3.5 torch==1.7
-        # pylint: disable=import-outside-toplevel
         import torch  # type: ignore
         import transformers  # type: ignore
 

@@ -40,7 +40,7 @@ from .utils import (
 )
 
 
-logger = logging.getLogger("tvm.meta_schedule")  # pylint: disable=invalid-name
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 T_CREATE_SESSION = Callable[  # pylint: disable=invalid-name
     [RPCConfig],  # The RPC configuration
