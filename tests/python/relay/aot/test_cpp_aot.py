@@ -145,6 +145,26 @@ def test_mobilenet(enable_usmp, target_kind):
     assert (runner.get_output(0).asnumpy() == list(ref_outputs.values())[0]).all()
 
 
+def test_module_list():
+    x = tvm.relay.var("x", tvm.relay.TensorType([1], dtype="float32"))
+    expr = tvm.relay.add(x, tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32"))))
+    mod = tvm.relay.build(
+        tvm.IRModule.from_expr(tvm.relay.Function([x], expr)),
+        target="c",
+        executor=tvm.relay.backend.Executor("aot", {"interface-api": "packed"}),
+    )
+    temp_dir = tvm.contrib.utils.TempDirectory()
+    test_so_path = temp_dir / "test.so"
+    mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
+    loaded_mod = tvm.runtime.load_module(test_so_path)
+    module_list = loaded_mod.get_function("module_list")
+    # At the moment, relay produces a single module with the name "default".
+    names_expected = ["default"]
+    names_obtained = sorted(module_list())
+    assert len(names_obtained) == len(names_expected)
+    assert all([x == y for (x, y) in zip(names_obtained, names_expected)])
+
+
 def test_create_executor():
     x = tvm.relay.var("x", tvm.relay.TensorType([1], dtype="float32"))
     expr = tvm.relay.add(x, tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32"))))
