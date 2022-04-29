@@ -434,10 +434,8 @@ class OpenCLTimerNode : public TimerNode {
 
       cl_int err_code;
       cl_device_id did = cl::OpenCLWorkspace::Global()->devices[dev_.device_id];
-      auto profiling_queue = clCreateCommandQueue(cl::OpenCLWorkspace::Global()->context,
-                                                  did,
-                                                  CL_QUEUE_PROFILING_ENABLE,
-                                                  &err_code);
+      auto profiling_queue = clCreateCommandQueue(cl::OpenCLWorkspace::Global()->context, did,
+                                                  CL_QUEUE_PROFILING_ENABLE, &err_code);
       OPENCL_CHECK_ERROR(err_code);
       cl::OpenCLWorkspace::Global()->queues[dev_.device_id] = profiling_queue;
       cl::OpenCLWorkspace::Global()->profiling = true;
@@ -470,10 +468,8 @@ class OpenCLTimerNode : public TimerNode {
 
       cl_int err_code;
       cl_device_id did = cl::OpenCLWorkspace::Global()->devices[dev_.device_id];
-      auto normal_queue = clCreateCommandQueue(cl::OpenCLWorkspace::Global()->context,
-                                               did,
-                                               0,
-                                               &err_code);
+      auto normal_queue =
+          clCreateCommandQueue(cl::OpenCLWorkspace::Global()->context, did, 0, &err_code);
       OPENCL_CHECK_ERROR(err_code);
       cl::OpenCLWorkspace::Global()->queues[dev_.device_id] = normal_queue;
       cl::OpenCLWorkspace::Global()->profiling = false;
