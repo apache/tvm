@@ -144,8 +144,8 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
       const PrimExpr& dom_extent = analyzer->Simplify(iter_var->dom->extent);
       Range iter_var_dom = Range::FromMinExtent(dom_min, dom_extent);
       analyzer->Bind(new_var, iter_var_dom);
-      iter_vars.push_back(IterVar(iter_var_dom, new_var,
-                                  iter_var->iter_type, iter_var->thread_tag, iter_var->span));
+      iter_vars.push_back(IterVar(iter_var_dom, new_var, iter_var->iter_type, iter_var->thread_tag,
+                                  iter_var->span));
     }
   };
   f_push_block_vars(compute_op->axis);
