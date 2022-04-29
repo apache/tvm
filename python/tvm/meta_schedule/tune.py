@@ -46,13 +46,12 @@ from .task_scheduler import GradientBased, RoundRobin
 from .tune_context import TuneContext
 from .utils import autotvm_silencer
 
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 FnSpaceGenerator = Callable[[], SpaceGenerator]
 FnScheduleRule = Callable[[], List[ScheduleRule]]
 FnPostproc = Callable[[], List[Postproc]]
 FnMutatorProb = Callable[[], Dict[Mutator, float]]
-
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class DefaultLLVM:

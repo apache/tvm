@@ -30,7 +30,6 @@ from tvm.meta_schedule import ExtractedTask, extract_task_from_relay
 from tvm.runtime import NDArray, load_param_dict, save_param_dict
 from tvm.target import Target
 
-
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 

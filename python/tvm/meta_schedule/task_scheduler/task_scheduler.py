@@ -32,6 +32,9 @@ from ..runner import Runner, RunnerResult
 from ..tune_context import TuneContext
 
 
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+
+
 @register_object("meta_schedule.TaskScheduler")
 class TaskScheduler(Object):
     """The abstract task scheduler interface.
@@ -52,8 +55,6 @@ class TaskScheduler(Object):
         The cost model used for search.
     measure_callbacks: List[MeasureCallback] = None
         The list of measure callbacks of the scheduler.
-    logger: Optional[logging.Logger]
-        The logger of the task scheduler.
     num_trials_already : int
         The number of trials already conducted.
     """
@@ -66,7 +67,6 @@ class TaskScheduler(Object):
     cost_model: Optional[CostModel]
     measure_callbacks: List[MeasureCallback]
     num_trials_already: int
-    logger: Optional[logging.Logger]
 
     def tune(self) -> None:
         """Auto-tuning."""
@@ -136,7 +136,6 @@ class _PyTaskScheduler(TaskScheduler):
         max_trials: int,
         cost_model: Optional[CostModel] = None,
         measure_callbacks: Optional[List[MeasureCallback]] = None,
-        logger: Optional[logging.Logger] = None,
         f_tune: Callable = None,
         f_initialize_task: Callable = None,
         f_touch_task: Callable = None,
@@ -181,7 +180,6 @@ class PyTaskScheduler:
             "max_trials",
             "cost_model",
             "measure_callbacks",
-            "logger",
         ],
         "methods": [
             "tune",
@@ -201,7 +199,6 @@ class PyTaskScheduler:
         max_trials: int,
         cost_model: Optional[CostModel] = None,
         measure_callbacks: Optional[List[MeasureCallback]] = None,
-        logger: Optional[logging.Logger] = None,
     ):
         self.tasks = tasks
         self.builder = builder
@@ -210,7 +207,6 @@ class PyTaskScheduler:
         self.max_trials = max_trials
         self.cost_model = cost_model
         self.measure_callbacks = measure_callbacks
-        self.logger = logger
 
     def tune(self) -> None:
         """Auto-tuning."""

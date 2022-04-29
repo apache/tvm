@@ -39,8 +39,8 @@ from .utils import (
     run_evaluator_common,
 )
 
-
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+
 
 T_CREATE_SESSION = Callable[  # pylint: disable=invalid-name
     [RPCConfig],  # The RPC configuration

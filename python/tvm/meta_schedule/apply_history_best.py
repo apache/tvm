@@ -25,6 +25,7 @@ from tvm.target import Target
 
 from . import _ffi_api
 from .database import Database
+from .utils import make_logging_func
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -43,7 +44,7 @@ class ApplyHistoryBest(Object):
 
     def __init__(self, database: Database) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ApplyHistoryBest, database, logger  # type: ignore # pylint: disable=no-member
+            _ffi_api.ApplyHistoryBest, database, make_logging_func(logger)  # type: ignore # pylint: disable=no-member
         )
 
     def query(
