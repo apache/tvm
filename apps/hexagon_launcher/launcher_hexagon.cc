@@ -39,8 +39,8 @@ static std::unique_ptr<Model> TheModel;
 
 static AEEResult error_too_small(const std::string& func_name, const std::string& value_name,
                                  int given, int needed) {
-  LOG(ERROR) << "ERROR: " << func_name.c_str() << ": " << value_name.c_str()
-             << " value too small (" << given << "), need at least " << needed;
+  LOG(ERROR) << "ERROR: " << func_name.c_str() << ": " << value_name.c_str() << " value too small ("
+             << given << "), need at least " << needed;
   return AEE_EBADPARM;
 }
 
