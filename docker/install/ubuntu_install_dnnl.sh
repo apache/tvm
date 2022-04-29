@@ -21,9 +21,9 @@ set -u
 set -o pipefail
 
 cd /usr/local/
-wget -q https://github.com/oneapi-src/oneDNN/releases/download/v1.5/dnnl_lnx_1.5.0_cpu_gomp.tgz
-tar -xzf dnnl_lnx_1.5.0_cpu_gomp.tgz
-mv dnnl_lnx_1.5.0_cpu_gomp/include/* /usr/local/include/
-mv dnnl_lnx_1.5.0_cpu_gomp/lib/libdnnl* /usr/local/lib/
-rm -rf dnnl_lnx_1.5.0_cpu_gomp.tgz dnnl_lnx_1.5.0_cpu_gomp
+wget -q https://github.com/oneapi-src/oneDNN/releases/download/v2.2/dnnl_lnx_2.2.0_cpu_gomp.tgz
+tar -xzf dnnl_lnx_2.2.0_cpu_gomp.tgz
+mv dnnl_lnx_2.2.0_cpu_gomp/include/* /usr/local/include/
+mv dnnl_lnx_2.2.0_cpu_gomp/lib/libdnnl* /usr/local/lib/
+rm -rf dnnl_lnx_2.2.0_cpu_gomp.tgz dnnl_lnx_2.2.0_cpu_gomp
 cd -

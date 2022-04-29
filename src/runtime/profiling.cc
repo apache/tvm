@@ -283,11 +283,11 @@ void print_metric(std::ostream& os, ObjectRef o) {
        << "\"" << Downcast<String>(o) << "\""
        << "}";
   } else if (const CountNode* n = o.as<CountNode>()) {
-    os << "{\"count\":" << std::to_string(n->value) << "}";
+    os << "{\"count\":" << n->value << "}";
   } else if (const DurationNode* n = o.as<DurationNode>()) {
-    os << "{\"microseconds\":" << std::to_string(n->microseconds) << "}";
+    os << "{\"microseconds\":" << std::setprecision(17) << std::fixed << n->microseconds << "}";
   } else if (const PercentNode* n = o.as<PercentNode>()) {
-    os << "{\"percent\":" << std::to_string(n->percent) << "}";
+    os << "{\"percent\":" << std::setprecision(17) << std::fixed << n->percent << "}";
   } else {
     LOG(FATAL) << "Unprintable type " << o->GetTypeKey();
   }
@@ -677,6 +677,68 @@ TVM_REGISTER_GLOBAL("runtime.profiling.FromJSON").set_body_typed(Report::FromJSO
 TVM_REGISTER_GLOBAL("runtime.profiling.DeviceWrapper").set_body_typed([](Device dev) {
   return DeviceWrapper(dev);
 });
+
+PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
+                           int warmup_iters, Array<MetricCollector> collectors) {
+  // Module::GetFunction is not const, so this lambda has to be mutable
+  return PackedFunc([=](TVMArgs args, TVMRetValue* ret) mutable {
+    PackedFunc f = mod.GetFunction(func_name);
+    CHECK(f.defined()) << "There is no function called \"" << func_name << "\" in the module";
+    Device dev{static_cast<DLDeviceType>(device_type), device_id};
+
+    // warmup
+    for (int i = 0; i < warmup_iters; i++) {
+      f.CallPacked(args, ret);
+    }
+
+    for (auto& collector : collectors) {
+      collector->Init({DeviceWrapper(dev)});
+    }
+    std::vector<Map<String, ObjectRef>> results;
+    results.reserve(collectors.size());
+    std::vector<std::pair<MetricCollector, ObjectRef>> collector_data;
+    collector_data.reserve(collectors.size());
+    for (auto& collector : collectors) {
+      ObjectRef o = collector->Start(dev);
+      // If not defined, then the collector cannot time this device.
+      if (o.defined()) {
+        collector_data.push_back({collector, o});
+      }
+    }
+
+    // TODO(tkonolige): repeated calls if the runtime is small?
+    f.CallPacked(args, ret);
+
+    for (auto& kv : collector_data) {
+      results.push_back(kv.first->Stop(kv.second));
+    }
+    Map<String, ObjectRef> combined_results;
+    for (auto m : results) {
+      for (auto p : m) {
+        // assume that there is no shared metric name between collectors
+        combined_results.Set(p.first, p.second);
+      }
+    }
+    *ret = combined_results;
+  });
+}
+
+TVM_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
+    .set_body_typed<PackedFunc(Module, String, int, int, int,
+                               Array<MetricCollector>)>([](Module mod, String func_name,
+                                                           int device_type, int device_id,
+                                                           int warmup_iters,
+                                                           Array<MetricCollector> collectors) {
+      if (mod->type_key() == std::string("rpc")) {
+        LOG(FATAL)
+            << "Profiling a module over RPC is not yet supported";  // because we can't send
+                                                                    // MetricCollectors over rpc.
+        throw;
+      } else {
+        return ProfileFunction(mod, func_name, device_type, device_id, warmup_iters, collectors);
+      }
+    });
+
 }  // namespace profiling
 }  // namespace runtime
 }  // namespace tvm

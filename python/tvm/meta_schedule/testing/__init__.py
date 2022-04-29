@@ -15,5 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Testing utilities in meta schedule"""
-from .local_rpc import LocalRPC
-from .relay_workload import get_network
+from .utils import (
+    DummyDatabase,
+    DummyBuilder,
+    DummyRunner,
+    DummyRunnerFuture,
+    DummyMutator,
+    apply_fixed_schedules,
+)

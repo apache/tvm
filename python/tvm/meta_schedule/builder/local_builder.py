@@ -15,20 +15,42 @@
 # specific language governing permissions and limitations
 # under the License.
 """Local builder that compile on the local host"""
+import logging
 import os
 import tempfile
-from typing import Callable, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 from tvm._ffi import register_func
 from tvm.ir import IRModule
-from tvm.runtime import Module
+from tvm.runtime import Module, NDArray, load_param_dict, save_param_dict
 from tvm.target import Target
 
 from ...contrib.popen_pool import MapResult, PopenPoolExecutor, StatusKind
-from ..utils import cpu_count, get_global_func_with_default_on_worker
+from ..utils import cpu_count, derived_object, get_global_func_with_default_on_worker
 from .builder import BuilderInput, BuilderResult, PyBuilder
 
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
+
+T_BUILD = Callable[  # pylint: disable=invalid-name
+    [IRModule, Target, Optional[Dict[str, NDArray]]], Module
+]
+T_EXPORT = Callable[[Module], str]  # pylint: disable=invalid-name
+
+
+def _serialize_params(params: Optional[Dict[str, NDArray]]) -> Optional[bytearray]:
+    if params is None:
+        return None
+    return save_param_dict(params)
+
+
+def _deserialize_params(params: Optional[bytearray]) -> Optional[Dict[str, NDArray]]:
+    if params is None:
+        return None
+    return load_param_dict(params)
+
+
+@derived_object
 class LocalBuilder(PyBuilder):
     """A builder that builds the given input on local host.
 
@@ -38,10 +60,10 @@ class LocalBuilder(PyBuilder):
         The process pool to run the build.
     timeout_sec : float
         The timeout in seconds for the build.
-    f_build : Union[None, str, LocalBuilder.T_BUILD]
+    f_build : Union[None, str, T_BUILD]
         Name of the build function to be used.
         Defaults to `meta_schedule.builder.default_build`.
-    f_export : Union[None, str, LocalBuilder.T_EXPORT]
+    f_export : Union[None, str, T_EXPORT]
         Name of the export function to be used.
         Defaults to `meta_schedule.builder.default_export`.
 
@@ -52,7 +74,11 @@ class LocalBuilder(PyBuilder):
 
         .. code-block:: python
 
-        def default_build(mod: IRModule, target: Target) -> Module:
+        def default_build(
+            mod: IRModule,
+            target: Target,
+            params: Optional[Dict[str, NDArray]]
+        ) -> Module:
             ...
 
     T_EXPORT : typing._GenericAlias
@@ -70,9 +96,6 @@ class LocalBuilder(PyBuilder):
     if there are extra functions to be registered,
     please send the registration logic via initializer.
     """
-
-    T_BUILD = Callable[[IRModule, Target], Module]
-    T_EXPORT = Callable[[Module], str]
 
     pool: PopenPoolExecutor
     timeout_sec: float
@@ -97,10 +120,10 @@ class LocalBuilder(PyBuilder):
             Defaults to number of CPUs.
         timeout_sec : float
             The timeout in seconds for the build.
-        f_build : LocalBuilder.T_BUILD
+        f_build : T_BUILD
             Name of the build function to be used.
             Defaults to `meta_schedule.builder.default_build`.
-        f_export : LocalBuilder.T_EXPORT
+        f_export : T_EXPORT
             Name of the export function to be used.
             Defaults to `meta_schedule.builder.default_export`.
         initializer : Optional[Callable[[], None]]
@@ -109,7 +132,8 @@ class LocalBuilder(PyBuilder):
         super().__init__()
 
         if max_workers is None:
-            max_workers = cpu_count()
+            max_workers = cpu_count(logical=True)
+        logger.info("LocalBuilder: max_workers = %d", max_workers)
 
         self.pool = PopenPoolExecutor(
             max_workers=max_workers,
@@ -127,13 +151,14 @@ class LocalBuilder(PyBuilder):
 
         # Dispatch the build inputs to the worker processes.
         for map_result in self.pool.map_with_error_catching(
-            lambda x: LocalBuilder._worker_func(*x),
+            lambda x: _worker_func(*x),
             [
                 (
                     self.f_build,
                     self.f_export,
                     build_input.mod,
                     build_input.target,
+                    _serialize_params(build_input.params),
                 )
                 for build_input in build_inputs
             ],
@@ -166,31 +191,32 @@ class LocalBuilder(PyBuilder):
         value = self.pool.submit(_check, self.f_build, self.f_export)
         value.result()
 
-    @staticmethod
-    def _worker_func(
-        _f_build: Union[None, str, T_BUILD],
-        _f_export: Union[None, str, T_EXPORT],
-        mod: IRModule,
-        target: Target,
-    ) -> str:
-        # Step 0. Get the registered functions
-        f_build: LocalBuilder.T_BUILD = get_global_func_with_default_on_worker(
-            _f_build,
-            default_build,
-        )
-        f_export: LocalBuilder.T_EXPORT = get_global_func_with_default_on_worker(
-            _f_export,
-            default_export,
-        )
-        # Step 1. Build the IRModule
-        rt_mod: Module = f_build(mod, target)
-        # Step 2. Export the Module
-        artifact_path: str = f_export(rt_mod)
-        return artifact_path
+
+def _worker_func(
+    _f_build: Union[None, str, T_BUILD],
+    _f_export: Union[None, str, T_EXPORT],
+    mod: IRModule,
+    target: Target,
+    params: Optional[bytearray],
+) -> str:
+    # Step 0. Get the registered functions
+    f_build: T_BUILD = get_global_func_with_default_on_worker(
+        _f_build,
+        default_build,
+    )
+    f_export: T_EXPORT = get_global_func_with_default_on_worker(
+        _f_export,
+        default_export,
+    )
+    # Step 1. Build the IRModule
+    rt_mod: Module = f_build(mod, target, _deserialize_params(params))
+    # Step 2. Export the Module
+    artifact_path: str = f_export(rt_mod)
+    return artifact_path
 
 
 @register_func("meta_schedule.builder.default_build")
-def default_build(mod: IRModule, target: Target) -> Module:
+def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, NDArray]]) -> Module:
     """Default build function.
 
     Parameters
@@ -199,6 +225,8 @@ def default_build(mod: IRModule, target: Target) -> Module:
         The IRModule to be built.
     target : Target
         The target to be built.
+    _params : Optional[Dict[str, NDArray]]
+        The parameters to be used for the build. Must be None.
 
     Returns
     -------
@@ -209,7 +237,6 @@ def default_build(mod: IRModule, target: Target) -> Module:
     from tvm.driver import build as tvm_build
 
     # pylint: enable=import-outside-toplevel
-
     return tvm_build(mod, target=target)
 
 

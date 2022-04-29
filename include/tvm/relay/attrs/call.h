@@ -39,7 +39,9 @@ struct CallLoweredAttrs : public tvm::AttrsNode<CallLoweredAttrs> {
   Map<String, ObjectRef> metadata;
 
   TVM_DECLARE_ATTRS(CallLoweredAttrs, "relay.attrs.CallLoweredAttrs") {
-    TVM_ATTR_FIELD(metadata).describe("Metadata attached to the lowered function call.");
+    TVM_ATTR_FIELD(metadata)
+        .describe("Metadata attached to the lowered function call.")
+        .set_default(Map<String, ObjectRef>());
   }
 };
 

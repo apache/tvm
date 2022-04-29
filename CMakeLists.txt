@@ -3,6 +3,8 @@ project(tvm C CXX)
 
 # Utility functions
 include(cmake/utils/Utils.cmake)
+include(cmake/utils/Summary.cmake)
+include(cmake/utils/Linker.cmake)
 include(cmake/utils/FindCUDA.cmake)
 include(cmake/utils/FindOpenCL.cmake)
 include(cmake/utils/FindVulkan.cmake)
@@ -25,19 +27,29 @@ endif()
 tvm_option(USE_CUDA "Build with CUDA" OFF)
 tvm_option(USE_OPENCL "Build with OpenCL" OFF)
 tvm_option(USE_VULKAN "Build with Vulkan" OFF)
+
+
+# Whether to use spirv-tools.and SPIRV-Headers from Khronos github or gitlab.
+#
+# Possible values:
+# - OFF: not to use
+# - /path/to/install: path to your khronis spirv-tools and SPIRV-Headers installation directory
+#
+tvm_option(USE_KHRONOS_SPIRV "Whether to use spirv-tools.and SPIRV-Headers from Khronos github or gitlab" OFF)
+tvm_option(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT "whether enable SPIRV_KHR_DOT_PRODUCT" OFF)
 tvm_option(USE_METAL "Build with Metal" OFF)
 tvm_option(USE_ROCM "Build with ROCM" OFF)
 tvm_option(ROCM_PATH "The path to rocm" /opt/rocm)
-tvm_option(USE_HEXAGON_DEVICE "Build with Hexagon device support in TVM runtime" OFF)
-tvm_option(USE_HEXAGON_SDK "Path to the Hexagon SDK root (required for Hexagon support in TVM runtime or for building TVM runtime for Hexagon)" /path/to/sdk)
-tvm_option(USE_HEXAGON_LAUNCHER "Build the Hexagon graph launcher application" OFF)
-tvm_option(USE_HEXAGON_PROXY_RPC "Build the Hexagon Proxy RPC server application" OFF)
+tvm_option(USE_HEXAGON "Build with Hexagon support" OFF)
+tvm_option(USE_HEXAGON_SDK "Path to the Hexagon SDK root (required for Hexagon support)" /path/to/sdk)
+tvm_option(USE_HEXAGON_RPC "Enable Hexagon RPC using minRPC implementation over Android." OFF)
 tvm_option(USE_RPC "Build with RPC" ON)
 tvm_option(USE_THREADS "Build with thread support" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
 tvm_option(USE_GRAPH_EXECUTOR "Build with tiny graph executor" ON)
 tvm_option(USE_GRAPH_EXECUTOR_CUDA_GRAPH "Build with tiny graph executor with CUDA Graph for GPUs" OFF)
+tvm_option(USE_AOT_EXECUTOR "Build with AOT executor" ON)
 tvm_option(USE_PROFILER "Build profiler for the VM and graph executor" ON)
 tvm_option(USE_OPENMP "Build with OpenMP thread pool implementation" OFF)
 tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
@@ -56,6 +68,8 @@ tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack t
 tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
 tvm_option(USE_PAPI "Use Performance Application Programming Interface (PAPI) to read performance counters" OFF)
 tvm_option(USE_GTEST "Use GoogleTest for C++ sanity tests" AUTO)
+tvm_option(USE_CUSTOM_LOGGING "Use user-defined custom logging, tvm::runtime::detail::LogFatalImpl and tvm::runtime::detail::LogMessageImpl must be implemented" OFF)
+tvm_option(USE_ALTERNATIVE_LINKER "Use 'mold' or 'lld' if found when invoking compiler to link artifact" AUTO)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -78,6 +92,7 @@ tvm_option(USE_MIOPEN "Build with ROCM:MIOpen" OFF)
 tvm_option(USE_ROCBLAS "Build with ROCM:RoCBLAS" OFF)
 tvm_option(USE_SORT "Build with sort support" ON)
 tvm_option(USE_NNPACK "Build with nnpack support" OFF)
+tvm_option(USE_LIBTORCH "Build with libtorch support" OFF)
 tvm_option(USE_RANDOM "Build with random support" ON)
 tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime support" OFF)
 tvm_option(USE_CPP_RPC "Build CPP RPC" OFF)
@@ -93,6 +108,7 @@ tvm_option(USE_TENSORRT_CODEGEN "Build with TensorRT Codegen support" OFF)
 tvm_option(USE_TENSORRT_RUNTIME "Build with TensorRT runtime" OFF)
 tvm_option(USE_RUST_EXT "Build with Rust based compiler extensions, STATIC, DYNAMIC, or OFF" OFF)
 tvm_option(USE_VITIS_AI "Build with VITIS-AI Codegen support" OFF)
+tvm_option(SUMMARIZE "Print CMake option summary after configuring" OFF)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
@@ -106,6 +122,16 @@ include_directories(SYSTEM ${PICOJSON_PATH})
 # initial variables
 set(TVM_LINKER_LIBS "")
 set(TVM_RUNTIME_LINKER_LIBS "")
+
+
+# Check if this is being run on its own or as a subdirectory for another project
+# If we update to CMake 2.21+, we can use PROJECT_IS_TOP_LEVEL instead
+get_directory_property(IS_SUBPROJECT PARENT_DIRECTORY)
+
+if(NOT IS_SUBPROJECT AND NOT DEFINED "${CMAKE_EXPORT_COMPILE_COMMANDS}")
+  # If not set manually, change the default to ON
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endif()
 
 # Generic compilation options
 if(MSVC)
@@ -230,20 +256,14 @@ if(NOT BUILD_FOR_HEXAGON)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
 endif()
 
-if(BUILD_FOR_ANDROID)
-  # EmuTLS on Android is in libgcc. Without it linked in, libtvm_runtime.so
-  # won't load on Android due to missing __emutls_XXX symbols.
-  list(APPEND TVM_RUNTIME_LINKER_LIBS "gcc")
-endif()
-
 # add source group
-FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc")
-FILE(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h")
+tvm_file_glob(GLOB_RECURSE GROUP_SOURCE "src/*.cc")
+tvm_file_glob(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h")
 assign_source_group("Source" ${GROUP_SOURCE})
 assign_source_group("Include" ${GROUP_INCLUDE})
 
 # Source file lists
-file(GLOB_RECURSE COMPILER_SRCS
+tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/auto_scheduler/*.cc
     src/meta_schedule/*.cc
     src/node/*.cc
@@ -259,29 +279,29 @@ file(GLOB_RECURSE COMPILER_SRCS
     src/support/*.cc
     )
 
-file(GLOB CODEGEN_SRCS
+tvm_file_glob(GLOB CODEGEN_SRCS
   src/target/*.cc
   src/target/source/*.cc
     )
 
 list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
 
-file(GLOB_RECURSE RELAY_OP_SRCS
+tvm_file_glob(GLOB_RECURSE RELAY_OP_SRCS
     src/relay/op/*.cc
     )
-file(GLOB_RECURSE RELAY_PASS_SRCS
+tvm_file_glob(GLOB_RECURSE RELAY_PASS_SRCS
     src/relay/analysis/*.cc
     src/relay/transforms/*.cc
     src/relay/quantize/*.cc
     )
-file(GLOB RELAY_BACKEND_SRCS
+tvm_file_glob(GLOB RELAY_BACKEND_SRCS
     src/relay/backend/*.cc
     src/relay/backend/vm/*.cc
     )
-file(GLOB_RECURSE RELAY_IR_SRCS
+tvm_file_glob(GLOB_RECURSE RELAY_IR_SRCS
     src/relay/ir/*.cc
     )
-file(GLOB_RECURSE RELAY_QNN_SRCS
+tvm_file_glob(GLOB_RECURSE RELAY_QNN_SRCS
     src/relay/qnn/*.cc
 )
 list(APPEND COMPILER_SRCS ${RELAY_OP_SRCS})
@@ -290,11 +310,11 @@ list(APPEND COMPILER_SRCS ${RELAY_BACKEND_SRCS})
 list(APPEND COMPILER_SRCS ${RELAY_IR_SRCS})
 list(APPEND COMPILER_SRCS ${RELAY_QNN_SRCS})
 
-file(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
+tvm_file_glob(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
 list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
 
-file(GLOB RUNTIME_SRCS
+tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
 )
@@ -310,7 +330,7 @@ if(BUILD_FOR_HEXAGON)
   # runtime, since it would cause multiple definition errors with the
   # static one.
   if(NOT BUILD_STATIC_RUNTIME)
-    list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
+    list(APPEND RUNTIME_SRCS src/runtime/hexagon/android/hexagon_posix.cc)
     # Allow undefined symbols (there will be some from libc).
     set(TVM_NO_UNDEFINED_SYMBOLS "")
   endif()
@@ -330,12 +350,12 @@ endif()
 
 if(USE_RPC)
   message(STATUS "Build with RPC support...")
-  file(GLOB RUNTIME_RPC_SRCS src/runtime/rpc/*.cc)
+  tvm_file_glob(GLOB RUNTIME_RPC_SRCS src/runtime/rpc/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_RPC_SRCS})
 endif(USE_RPC)
 
-file(GLOB STACKVM_RUNTIME_SRCS src/runtime/stackvm/*.cc)
-file(GLOB STACKVM_CODEGEN_SRCS src/target/stackvm/*.cc)
+tvm_file_glob(GLOB STACKVM_RUNTIME_SRCS src/runtime/stackvm/*.cc)
+tvm_file_glob(GLOB STACKVM_CODEGEN_SRCS src/target/stackvm/*.cc)
 list(APPEND COMPILER_SRCS ${STACKVM_CODEGEN_SRCS})
 if(USE_STACKVM_RUNTIME)
   message(STATUS "Build with stackvm support in runtime...")
@@ -360,7 +380,7 @@ endif(USE_GRAPH_RUNTIME_DEBUG AND NOT DEFINED USE_PROFILER)
 
 if(USE_GRAPH_EXECUTOR)
   message(STATUS "Build with Graph Executor support...")
-  file(GLOB RUNTIME_GRAPH_EXECUTOR_SRCS src/runtime/graph_executor/*.cc)
+  tvm_file_glob(GLOB RUNTIME_GRAPH_EXECUTOR_SRCS src/runtime/graph_executor/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_EXECUTOR_SRCS})
 
 endif(USE_GRAPH_EXECUTOR)
@@ -380,14 +400,22 @@ endif()
 if(USE_PROFILER)
   message(STATUS "Build with profiler...")
 
-  file(GLOB RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS src/runtime/graph_executor/debug/*.cc)
+  add_definitions(-DUSE_PROFILER=1)
+  tvm_file_glob(GLOB RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS src/runtime/graph_executor/debug/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS})
   set_source_files_properties(${RUNTIME_GRAPH_EXECUTOR_SRCS}
     PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_EXECUTOR_DEBUG")
 
-  file(GLOB RUNTIME_VM_PROFILER_SRCS src/runtime/vm/profiler/*.cc)
+  tvm_file_glob(GLOB RUNTIME_VM_PROFILER_SRCS src/runtime/vm/profiler/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
 endif(USE_PROFILER)
+
+if(USE_AOT_EXECUTOR)
+  message(STATUS "Build with AOT Executor support...")
+  file(GLOB RUNTIME_AOT_EXECUTOR_SRCS src/runtime/aot_executor/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_AOT_EXECUTOR_SRCS})
+
+endif(USE_AOT_EXECUTOR)
 
 # Enable ctest if gtest is available
 if(USE_GTEST)
@@ -410,7 +438,7 @@ endif()
 
 if(USE_PIPELINE_EXECUTOR)
   message(STATUS "Build with Pipeline Executor support...")
-  file(GLOB RUNTIME_PIPELINE_SRCS src/runtime/pipeline/*.cc)
+  tvm_file_glob(GLOB RUNTIME_PIPELINE_SRCS src/runtime/pipeline/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_PIPELINE_SRCS})
 endif(USE_PIPELINE_EXECUTOR)
 
@@ -420,7 +448,7 @@ include(cmake/modules/StandaloneCrt.cmake)
 include(cmake/modules/Zephyr.cmake)
 include(cmake/modules/Arduino.cmake)
 include(cmake/modules/CUDA.cmake)
-include(cmake/modules/Hexagon.cmake)
+include(cmake/modules/Hexagon.cmake) # This must come before logging.cmake
 include(cmake/modules/OpenCL.cmake)
 include(cmake/modules/OpenMP.cmake)
 include(cmake/modules/Vulkan.cmake)
@@ -433,7 +461,6 @@ include(cmake/modules/contrib/CMSISNN.cmake)
 include(cmake/modules/contrib/EthosU.cmake)
 include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/CODEGENC.cmake)
-include(cmake/modules/contrib/Custom_Target.cmake)
 include(cmake/modules/contrib/DNNL.cmake)
 include(cmake/modules/contrib/CUTLASS.cmake)
 include(cmake/modules/contrib/ExampleTargetHooks.cmake)
@@ -442,6 +469,7 @@ include(cmake/modules/contrib/Posit.cmake)
 include(cmake/modules/contrib/MicroStandaloneRuntime.cmake)
 include(cmake/modules/contrib/Sort.cmake)
 include(cmake/modules/contrib/NNPack.cmake)
+include(cmake/modules/contrib/LibTorch.cmake)
 include(cmake/modules/contrib/HybridDump.cmake)
 include(cmake/modules/contrib/TFLite.cmake)
 include(cmake/modules/contrib/TF_TVMDSOOP.cmake)
@@ -477,6 +505,7 @@ add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
 add_library(tvm_libinfo_objs OBJECT ${LIBINFO_FILE})
 
 add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
+target_include_directories(tvm PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 if(BUILD_STATIC_RUNTIME)
@@ -491,6 +520,7 @@ else()
   add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
   set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 endif()
+target_include_directories(tvm_runtime PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 
 target_compile_definitions(tvm_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
@@ -547,12 +577,6 @@ else()
   target_compile_definitions(tvm_libinfo_objs PRIVATE "USE_FALLBACK_STL_MAP=0")
 endif(USE_FALLBACK_STL_MAP)
 
-if(BUILD_FOR_HEXAGON)
-  # Wrap pthread_create to allow setting custom stack size.
-  set_property(TARGET tvm_runtime APPEND PROPERTY LINK_FLAGS
-                        "-Wl,--wrap=pthread_create")
-endif()
-
 if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
   message(STATUS "Build with thread support...")
   set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
@@ -567,17 +591,6 @@ target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
 # Set flags for clang
 include(cmake/modules/ClangFlags.cmake)
-
-# Related headers
-target_include_directories(
-  tvm
-  PUBLIC "topi/include")
-target_include_directories(
-  tvm_objs
-  PUBLIC "topi/include")
-target_include_directories(
-  tvm_libinfo_objs
-  PUBLIC "topi/include")
 set(CRC16_INCLUDE_PATH "3rdparty/libcrc/include")
 target_include_directorieS(
   tvm_objs
@@ -602,17 +615,22 @@ if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   # once minimum CMake version is bumped up to 3.13 or above.
   target_link_libraries(tvm PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
   target_link_libraries(tvm_runtime PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_compile_definitions(tvm_allvisible PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
+  target_compile_definitions(tvm_allvisible PUBLIC $<TARGET_PROPERTY:tvm,INTERFACE_COMPILE_DEFINITONS>)
+  target_compile_definitions(tvm_allvisible PRIVATE $<TARGET_PROPERTY:tvm,COMPILE_DEFINITONS>)
 endif()
 
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
 # targets that give the user an informative error message.
 if(GTEST_FOUND)
-  file(GLOB_RECURSE TEST_SRCS tests/cpp/*.cc)
+  tvm_file_glob(GLOB_RECURSE TEST_SRCS tests/cpp/*.cc)
   add_executable(cpptest ${TEST_SRCS})
+  # include runtime files for unit testing
+  target_include_directories(cpptest PUBLIC "src/runtime")
   target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main pthread dl)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
+  # For some reason, compile definitions are not propagated correctly, so we manually add them here
+  target_compile_definitions(cpptest PUBLIC $<TARGET_PROPERTY:tvm,INTERFACE_COMPILE_DEFINITIONS>)
   gtest_discover_tests(cpptest)
 endif()
 
@@ -620,32 +638,55 @@ endif()
 add_custom_target(runtime DEPENDS tvm_runtime)
 
 # Installation rules
-install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})
-install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
+install(TARGETS tvm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
+install(TARGETS tvm_runtime EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 
 if (INSTALL_DEV)
   install(
-    DIRECTORY "include/." DESTINATION "include"
+    DIRECTORY "include/" DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
   )
   install(
-    DIRECTORY "3rdparty/dlpack/include/." DESTINATION "include"
+    DIRECTORY "3rdparty/dlpack/include/" DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
     )
   install(
-    DIRECTORY "3rdparty/dmlc-core/include/." DESTINATION "include"
+    DIRECTORY "3rdparty/dmlc-core/include/" DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
     )
 else(INSTALL_DEV)
   install(
-    DIRECTORY "include/tvm/runtime/." DESTINATION "include/tvm/runtime"
+    DIRECTORY "include/tvm/runtime/" DESTINATION "include/tvm/runtime"
     FILES_MATCHING
     PATTERN "*.h"
     )
 endif(INSTALL_DEV)
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+set(PROJECT_CONFIG_CONTENT "@PACKAGE_INIT@\n")
+string(APPEND PROJECT_CONFIG_CONTENT "include(CMakeFindDependencyMacro)\n")
+string(APPEND PROJECT_CONFIG_CONTENT "find_dependency(Threads REQUIRED)\n")
+string(APPEND PROJECT_CONFIG_CONTENT
+       "include(\"\${CMAKE_CURRENT_LIST_DIR}/${PROJECT_NAME}Targets.cmake\")")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/temp_config_file.cmake" ${PROJECT_CONFIG_CONTENT})
+
+install(EXPORT ${PROJECT_NAME}Targets
+  NAMESPACE ${PROJECT_NAME}::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
+
+# Create config for find_package()
+configure_package_config_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/temp_config_file.cmake" ${PROJECT_NAME}Config.cmake
+  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
+
+install(
+  FILES
+  "${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
 
 # More target definitions
 if(MSVC)
@@ -685,6 +726,18 @@ if(APPLE AND TVM_IS_DEBUG_BUILD)
 		  )
 endif()
 
+if(BUILD_FOR_HEXAGON)
+  # Wrap pthread_create to allow setting custom stack size.
+  set_property(TARGET tvm_runtime APPEND PROPERTY LINK_FLAGS
+                        "-Wl,--wrap=pthread_create")
+  # Link tvm_runtime into the RPC skel library. Make sure it's built
+  # as a part of the "runtime" target.
+  if(USE_HEXAGON_RPC)
+    target_link_libraries(hexagon_rpc_skel -Wl,--whole-archive tvm_runtime -Wl,--no-whole-archive)
+    add_dependencies(runtime hexagon_rpc_skel)
+  endif()
+endif()
+
 #Caches the build.
 #Note that ccache-3.x doesn't support nvcc well, so CUDA kernels may never hit the cache and still
 #need to be re-compiled every time. Using ccache 4.0+ can resolve this issue.
@@ -713,3 +766,9 @@ if(USE_CCACHE) # True for AUTO, ON, /path/to/ccache
   # Set the flag for ccache
   set(CXX_COMPILER_LAUNCHER PATH_TO_CCACHE)
 endif(USE_CCACHE)
+
+find_and_set_linker(${USE_ALTERNATIVE_LINKER})
+
+if(${SUMMARIZE})
+  print_summary()
+endif()

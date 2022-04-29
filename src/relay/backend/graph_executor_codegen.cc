@@ -245,7 +245,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
           // lowering process directly.
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
         },
-        config->host_se_scope)(mod);
+        config->host_virtual_device)(mod);
 
     Optional<backend::FunctionInfo> main_func_info =
         lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
@@ -290,25 +290,15 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     // This is the point where we separate the functions in the module by target
     ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);
     ret.external_mods = external_modules.value();
+    ret.metadata =
+        ExecutorCodegenMetadata({} /* inputs */, {} /* input_tensor_types */, {} /* outputs */,
+                                {} /* output_tensor_types */, {} /* pools */, {} /* devices */,
+                                runtime::kTvmExecutorGraph /* executor */, mod_name_ /* mod_name */,
+                                "packed" /* interface_api */, Bool(false) /* unpacked_api */);
     return ret;
   }
 
  protected:
-  /*!
-   * \brief Extract shape from expr to vector<int64_t>
-   *
-   * \param shape
-   * \return std::vector<int64_t>
-   */
-  std::vector<int64_t> _ShapeToJSON(tvm::Array<IndexExpr> shape) {
-    std::vector<int64_t> ret;
-    for (IndexExpr dim : shape) {
-      const int64_t* pval = tir::as_const_int(dim);
-      ret.push_back(*pval);
-    }
-    return ret;
-  }
-
   /*!
    * \brief Add node to graph
    *
@@ -328,10 +318,10 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     node->attrs_["storage_id"] = std::move(storage_ids);
     // type
     std::vector<int64_t> device_types;
-    for (const auto& se_scope : storage_info->se_scopes) {
+    for (const auto& virtual_device : storage_info->virtual_devices) {
       // TODO(mbs): Keeping only the device type.
-      ICHECK_GT(se_scope->device_type(), 0);
-      device_types.push_back(se_scope->device_type());
+      ICHECK_GT(virtual_device->device_type(), 0);
+      device_types.push_back(virtual_device->device_type());
     }
     size_t num_unknown_devices = std::count(device_types.begin(), device_types.end(), 0);
     if (num_unknown_devices != 0 && num_unknown_devices != device_types.size()) {
@@ -352,7 +342,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       for (size_t i = 0; i < tuple_type->fields.size(); ++i) {
         if (const auto* typ = tuple_type->fields[i].as<TensorTypeNode>()) {
           ret.push_back(GraphNodeRef(node_id, i));
-          shape.emplace_back(_ShapeToJSON(typ->shape));
+          shape.emplace_back(ShapeToJSON(typ->shape));
           dtype.emplace_back(DType2String(typ->dtype));
         } else {
           LOG(FATAL) << "type " << checked_type->GetTypeKey() << " not supported";
@@ -369,7 +359,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     if (const auto* tensor_type = checked_type.as<TensorTypeNode>()) {
       ShapeVector shape;
       std::vector<std::string> dtype;
-      shape.emplace_back(_ShapeToJSON(tensor_type->shape));
+      shape.emplace_back(ShapeToJSON(tensor_type->shape));
       dtype.emplace_back(DType2String(tensor_type->dtype));
       node->attrs_["shape"] = shape;
       node->attrs_["dtype"] = dtype;
@@ -694,9 +684,8 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
         *rv = this->output_.external_mods;
       });
     } else if (name == "get_devices") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = Array<String>(); });
-    } else if (name == "get_metadata") {
+      return PackedFunc([sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = Array<String>(); });
+    } else if (name == "get_executor_codegen_metadata") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->output_.metadata; });
     } else if (name == "get_function_metadata") {

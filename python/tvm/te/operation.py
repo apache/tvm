@@ -18,6 +18,7 @@
 # pylint: disable=invalid-name
 from numbers import Integral as _Integral
 from typing import List, Union
+import inspect
 
 import tvm._ffi
 from tvm._ffi.base import string_types
@@ -55,7 +56,7 @@ def placeholder(shape, dtype=None, name="placeholder"):
     return _ffi_api.Placeholder(shape, dtype, name)
 
 
-def compute(shape, fcompute, name="compute", tag="", attrs=None):
+def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=None):
     """Construct a new tensor by computing over the shape domain.
 
     The compute rule is result[axis] = fcompute(axis)
@@ -77,6 +78,10 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
     attrs: dict, optional
         The additional auxiliary attributes about the compute.
 
+    varargs_names: list, optional
+        The names to use for each of the varargs. If not supplied, the varargs
+        will be called i1, i2, ...
+
     Returns
     -------
     tensor: Tensor
@@ -89,18 +94,37 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
     shape = (shape,) if isinstance(shape, tvm.tir.PrimExpr) else shape
     # for python3
     shape = tuple([int(s) if isinstance(s, float) else s for s in shape])
-    ndim = len(shape)
-    code = fcompute.__code__
+    out_ndim = len(shape)
 
-    out_ndim = ndim
-    if code.co_argcount == 0:
-        arg_names = ["i%d" % i for i in range(ndim)]
+    argspec = inspect.getfullargspec(fcompute)
+    if len(argspec.args) == 0 and argspec.varargs is None:
+        arg_names = ["i%d" % i for i in range(out_ndim)]
+    elif argspec.varargs is not None:
+        # if there is a varargs, it takes the remaining dimensions of out_ndim
+        num_remaining_args = out_ndim - len(argspec.args)
+        if varargs_names is not None:
+            if len(varargs_names) != num_remaining_args:
+                raise RuntimeError(
+                    f"Number of varargs ({num_remaining_args}) does not match number"
+                    f"of varargs_names ({len(varargs_names)})"
+                )
+            arg_names = argspec.args + varargs_names
+        else:
+            arg_names = argspec.args + [f"i{i}" for i in range(out_ndim - len(argspec.args))]
     else:
-        arg_names = code.co_varnames[: code.co_argcount]
-        out_ndim = code.co_argcount
+        arg_names = argspec.args
+        # if there are fewer args than out dimensions, the remaining dimensions
+        # are implicitly broadcast
+        out_ndim = len(arg_names)
+    assert argspec.varkw is None, "Variable keyword arguments not supported in fcompute"
+    assert argspec.defaults is None, "Default arguments not supported in fcompute"
+    assert len(argspec.kwonlyargs) == 0, "Keyword arguments are not supported in fcompute"
 
     if out_ndim != len(arg_names):
-        raise ValueError("fcompute do not match dimension, ndim=%d" % ndim)
+        raise ValueError(
+            "Number of args to fcompute does not match dimension, "
+            "args=%d, dimension=%d" % (len(arg_names), out_ndim)
+        )
 
     dim_var = [tvm.tir.IterVar((0, s), x, 0) for x, s in zip(arg_names, shape[:out_ndim])]
     body = fcompute(*[v.var for v in dim_var])
@@ -349,6 +373,28 @@ def var(name="tindex", dtype="int32", span=None):
         The result symbolic variable.
     """
     return tvm.tir.Var(name, dtype, span)
+
+
+def const(dtype="int32", span=None):
+    """Create a new constant with specified name and dtype
+
+    Parameters
+    ----------
+    name : str
+        The name
+
+    dtype : str
+        The data type
+
+    span : Optional[Span]
+        The location of this variable in the source.
+
+    Returns
+    -------
+    var : Var
+        The result symbolic variable.
+    """
+    return tvm.tir.const(dtype, span)
 
 
 def size_var(name="size", dtype="int32", span=None):

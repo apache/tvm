@@ -50,7 +50,7 @@ class Module1:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         placeholder_3 = T.match_buffer(
-            placeholder, [1, 8, 8, 3], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder, [192], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
         placeholder_4 = T.match_buffer(
             placeholder_1, [48], dtype="uint8", elem_offset=0, align=128, offset_factor=1
@@ -59,7 +59,7 @@ class Module1:
             placeholder_2, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1
         )
         ethosu_conv2d_1 = T.match_buffer(
-            ethosu_conv2d, [1, 8, 8, 16], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            ethosu_conv2d, [1024], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
         # body
         T.evaluate(
@@ -72,7 +72,7 @@ class Module1:
                 8,
                 0,
                 8,
-                T.load("uint8", placeholder_3.data, 0),
+                placeholder_3[0],
                 0,
                 0,
                 0,
@@ -89,7 +89,7 @@ class Module1:
                 8,
                 0,
                 8,
-                T.load("uint8", ethosu_conv2d_1.data, 0),
+                ethosu_conv2d_1[0],
                 0,
                 0,
                 0,
@@ -105,10 +105,10 @@ class Module1:
                 1,
                 1,
                 1,
-                T.load("uint8", placeholder_4.data, 0),
+                placeholder_4[0],
                 0,
                 12,
-                T.load("uint8", placeholder_5.data, 0),
+                placeholder_5[0],
                 0,
                 0,
                 0,
@@ -142,10 +142,10 @@ class Module2:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         placeholder_3 = T.match_buffer(
-            placeholder, [1, 8, 8, 3], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder, [192], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
         placeholder_4 = T.match_buffer(
-            placeholder_1, [16, 1, 1, 3], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder_1, [48], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
         placeholder_5 = T.match_buffer(
             placeholder_2, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1
@@ -155,7 +155,7 @@ class Module2:
             placeholder_6, [16], dtype="float32", elem_offset=0, align=128, offset_factor=1
         )
         ethosu_conv2d_1 = T.match_buffer(
-            ethosu_conv2d, [1, 8, 8, 16], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            ethosu_conv2d, [1024], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
         # body
         T.evaluate(
@@ -168,7 +168,7 @@ class Module2:
                 8,
                 0,
                 8,
-                T.load("uint8", placeholder_3.data, 0),
+                placeholder_3[0],
                 0,
                 0,
                 0,
@@ -185,7 +185,7 @@ class Module2:
                 8,
                 0,
                 8,
-                T.load("uint8", ethosu_conv2d_1.data, 0),
+                ethosu_conv2d_1[0],
                 0,
                 0,
                 0,
@@ -201,10 +201,10 @@ class Module2:
                 1,
                 1,
                 1,
-                T.load("uint8", placeholder_4.data, 0),
+                placeholder_4[0],
                 0,
                 12,
-                T.load("uint8", placeholder_5.data, 0),
+                placeholder_5[0],
                 0,
                 0,
                 0,

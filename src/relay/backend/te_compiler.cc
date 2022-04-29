@@ -33,6 +33,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
+#include <tvm/tir/transform.h>
 #include <tvm/topi/tags.h>
 
 #include <functional>
@@ -100,6 +101,7 @@ class TECompilerImpl : public TECompilerNode {
   }
 
   IRModule GetLoweredFunctions() {
+    VLOG(1) << "GetLoweredFunctions";
     IRModule mod;
     // Extract lowered functions from the cache
     for (const auto& it : cache_) {
@@ -164,8 +166,15 @@ class TECompilerImpl : public TECompilerNode {
         for (const auto& kv2 : kv1.second->cached_func->funcs->functions) {
           if (const auto* function_node = kv2.second.as<FunctionNode>()) {
             // Abandon the existing function annotations.
-            Function function(function_node->params, function_node->body, function_node->ret_type,
-                              function_node->type_params, /*attrs=*/{}, function_node->span);
+
+            // Unfortuantely, Optional<DictAttrs>() is indistinguishable from
+            // NullValue<DictAttrs>(), and DictAttrs() is nullptr, so to erase the attributes, we
+            // need pass in DictAttrs<Map<String, ObjectRef>()), which is a DictAttrs containing no
+            // attributes.
+            Function function =
+                WithFields(GetRef<Function>(function_node), function_node->params,
+                           function_node->body, function_node->ret_type, function_node->type_params,
+                           /* erase attributes */ DictAttrs(Map<String, ObjectRef>()));
             // Mark function as 'extern' using the "ExternalSymbol" attribute.
             function = WithAttr(std::move(function), attr::kExternalSymbol, kv2.first->name_hint);
             module->Add(kv2.first, function);
@@ -313,14 +322,23 @@ class TECompilerImpl : public TECompilerNode {
     });
 
     if (value->cached_func->prim_func.defined()) {
-      VLOG(1) << "already have PrimFunc";
-      value->cached_func->funcs->Add(value->cached_func->prim_fn_var,
-                                     value->cached_func->prim_func.value());
+      VLOG(1) << "Lowering PrimFunc";
+      IRModule lowered = tvm::LowerPrimFunc(value->cached_func->prim_func.value(),
+                                            value->cached_func->prim_fn_var->name_hint, false);
+      ICHECK_EQ(lowered->functions.size(), 1);
+      for (const auto& kv : lowered->functions) {
+        value->cached_func->funcs->Add(value->cached_func->prim_fn_var, kv.second);
+      }
     } else {
       // NOTE: array will copy on write.
       Array<te::Tensor> all_args = Array<te::Tensor>(value->cached_func->inputs);
       for (te::Tensor arg : value->cached_func->outputs) {
         all_args.push_back(arg);
+      }
+      Array<runtime::NDArray> all_consts;
+      for (auto kv : value->cached_func->constant_tensors) {
+        all_args.push_back(kv.second);
+        all_consts.push_back(kv.first->data);
       }
       // lower the function
       std::unordered_map<te::Tensor, tir::Buffer> binds;
@@ -328,6 +346,7 @@ class TECompilerImpl : public TECompilerNode {
       VLOG(1) << "scheduling";
       IRModule scheduled_module =
           tvm::LowerSchedule(value->cached_func->schedule, all_args, func_name, binds);
+      scheduled_module->Update(tir::transform::BindParams(all_consts)(scheduled_module));
       // Unfortunately the above machinery creates its own GlobalVars instead of using *the*
       // GlobalVar we established above. Fix this before the confusion spreads any further.
       // TODO(mbs): LowerSchedule should be given prim_fn_gvar instead of func_name.
@@ -335,7 +354,14 @@ class TECompilerImpl : public TECompilerNode {
         GlobalVar global_var = kv.first->name_hint == value->cached_func->prim_fn_var->name_hint
                                    ? value->cached_func->prim_fn_var
                                    : kv.first;
-        value->cached_func->funcs->Add(global_var, kv.second);
+        auto func = kv.second;
+        // Propagate the structural hash of the relay function to the tir
+        // function so associations can be made between the two.
+        Optional<String> hash = key->source_func->attrs.GetAttr<String>("hash");
+        if (hash) {
+          func = WithAttrs(Downcast<tir::PrimFunc>(func), {{String("hash"), hash.value()}});
+        }
+        value->cached_func->funcs->Add(global_var, func);
       }
       ICHECK(value->cached_func->funcs->Lookup(value->cached_func->prim_fn_var)
                  .as<tir::PrimFuncNode>());
@@ -350,7 +376,7 @@ class TECompilerImpl : public TECompilerNode {
 
   // implement lowered shape func
   CCacheValue LowerShapeFuncInternal(const CCacheKey& key) {
-    VLOG(1) << "lowering dynamic shape function:" << std::endl
+    VLOG(1) << "lowering dynamic shape function for:" << std::endl
             << PrettyPrint(key->source_func) << std::endl
             << "for target:" << std::endl
             << key->target->ToDebugString();
@@ -503,13 +529,13 @@ using AnalysisRemapping = std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual
 class LowerTensorExprMutator : public DeviceAwareExprMutator {
  public:
   LowerTensorExprMutator(const IRModule& module, ProcessFn process_fn, String module_name,
-                         TECompiler compiler, SEScope host_se_scope)
+                         TECompiler compiler, VirtualDevice host_virtual_device)
       : DeviceAwareExprMutator(module),
         module_(module),
         process_fn_(std::move(process_fn)),
         module_name_(std::move(module_name)),
         compiler_(std::move(compiler)),
-        host_se_scope_(std::move(host_se_scope)),
+        host_virtual_device_(std::move(host_virtual_device)),
         debug_op_(Op::Get("debug")) {}
 
   /*!
@@ -560,8 +586,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
    * to the TIR implementation, and attributes to attach to the call to identify it as
    * a TIR call.
    */
-  Expr MakeLoweredCall(Function func, Array<Expr> visited_args, Array<Type> type_args, Span span,
-                       Target target) {
+  Expr MakeLoweredCall(Function func, Array<Expr> visited_args, Span span, Target target) {
     CCacheKey key = CCacheKey(func, target);
     CachedFunc cfunc = compiler_->Lower(key, module_name_);
     ICHECK(cfunc.defined());
@@ -594,34 +619,34 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     func_with_metadata = WithAttr(func_with_metadata, tvm::attr::kTarget, cfunc->target);
     this->process_fn_(func_with_metadata);
 
-    auto call_lowered_attrs = make_object<CallLoweredAttrs>();
+    CallLoweredAttrs call_lowered_attrs;
 
     // Non-External Relay Function
     // TODO(mbs): "reshape" cleanup.
     if (!opt_compiler && func->HasNonzeroAttr(attr::kReshapeOnly)) {
-      call_lowered_attrs->metadata.Set(attr::kReshapeOnly, tvm::Integer(1));
+      call_lowered_attrs.metadata.Set(attr::kReshapeOnly, tvm::Integer(1));
     }
 
-    call_lowered_attrs->metadata.Set("relay_attrs", func->attrs);
-    call_lowered_attrs->metadata.Set("all_prim_fn_vars", all_prim_fn_vars);
+    call_lowered_attrs.metadata.Set("relay_attrs", func->attrs);
+    call_lowered_attrs.metadata.Set("all_prim_fn_vars", all_prim_fn_vars);
 
     if (IsDynamic(func->ret_type)) {
       // Also lower the companion dynamic shape function.
       // Shape function keys use the underlying primitive function as their 'function',
       // but the generic 'cpu' target as the target since all shape functions run
       // on the host cpu irrespective of where the primitive runs.
-      CCacheKey shape_key(func, host_se_scope_->target);
+      CCacheKey shape_key(func, host_virtual_device_->target);
       CachedFunc lowered_shape_func = compiler_->LowerShapeFunc(shape_key);
 
       // Capture the shape function's global var and parameters 'states' in call
       // annotations so calling convention can be recovered.
       // TODO(mbs): Shape cleanup.
-      call_lowered_attrs->metadata.Set("prim_shape_fn_var", lowered_shape_func->prim_fn_var);
-      call_lowered_attrs->metadata.Set("prim_shape_fn_states",
-                                       lowered_shape_func->shape_func_param_states);
-      call_lowered_attrs->metadata.Set(
-          "prim_shape_fn_num_inputs", Integer(static_cast<int>(lowered_shape_func->inputs.size())));
-      call_lowered_attrs->metadata.Set(
+      call_lowered_attrs.metadata.Set("prim_shape_fn_var", lowered_shape_func->prim_fn_var);
+      call_lowered_attrs.metadata.Set("prim_shape_fn_states",
+                                      lowered_shape_func->shape_func_param_states);
+      call_lowered_attrs.metadata.Set("prim_shape_fn_num_inputs",
+                                      Integer(static_cast<int>(lowered_shape_func->inputs.size())));
+      call_lowered_attrs.metadata.Set(
           "prim_shape_fn_num_outputs",
           Integer(static_cast<int>(lowered_shape_func->outputs.size())));
       Array<GlobalVar> all_prim_shape_fn_vars;
@@ -629,11 +654,11 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
         CHECK(kv.second.as<tir::PrimFuncNode>()) << "must be a prim fn";
         all_prim_shape_fn_vars.push_back(kv.first);
       }
-      call_lowered_attrs->metadata.Set("all_prim_shape_fn_vars", all_prim_shape_fn_vars);
+      call_lowered_attrs.metadata.Set("all_prim_shape_fn_vars", all_prim_shape_fn_vars);
     }
 
-    return CallLowered(cfunc->prim_fn_var, std::move(visited_args), Attrs(call_lowered_attrs),
-                       type_args, std::move(span));
+    return CallLowered(cfunc->prim_fn_var, std::move(visited_args), std::move(call_lowered_attrs),
+                       std::move(span));
   }
 
   std::pair<Var, Expr> PreVisitLetBinding_(const Var& var, const Expr& value) final {
@@ -708,8 +733,8 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       DeviceCopyProps device_copy_props = GetDeviceCopyProps(function_node->body);
       if (device_copy_props.body.defined()) {
         ICHECK_EQ(new_args.size(), 1);
-        return DeviceCopy(new_args[0], device_copy_props.src_se_scope,
-                          device_copy_props.dst_se_scope);
+        return DeviceCopy(new_args[0], device_copy_props.src_virtual_device,
+                          device_copy_props.dst_virtual_device);
       }
     }
 
@@ -729,12 +754,13 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
                                                               });
 
       ICHECK(!IsDynamic(call_node->checked_type()));
-      auto call_lowered_attrs = make_object<CallLoweredAttrs>();
-      call_lowered_attrs->metadata.Set("relay_attrs", primitive_func->attrs);
+      CallLoweredAttrs call_lowered_attrs;
+      call_lowered_attrs.metadata.Set("relay_attrs", primitive_func->attrs);
 
       process_fn_(func_with_metadata);
-      return CallLowered(call_node->op, std::move(new_args), Attrs(std::move(call_lowered_attrs)),
-                         call_node->type_args, call_node->span);
+      ICHECK(call_node->type_args.empty()) << "lowered functions cannot be polymorphic";
+      return CallLowered(prim_func_var, std::move(new_args), std::move(call_lowered_attrs),
+                         call_node->span);
     }
 
     // Typical case: call to fused primitive Relay Function.
@@ -746,16 +772,16 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       target = Target("ext_dev");
     } else {
       // The target corresponding to the call_node expression's annotation.
-      SEScope se_scope = GetSEScope(GetRef<Call>(call_node));
-      ICHECK(!se_scope->IsFullyUnconstrained());
-      target = se_scope->target;
+      VirtualDevice virtual_device = GetVirtualDevice(GetRef<Call>(call_node));
+      ICHECK(!virtual_device->IsFullyUnconstrained());
+      target = virtual_device->target;
       ICHECK(target.defined());
     }
 
     // Lower the primitive function for that target.
     Function function = Downcast<Function>(primitive_func);
-    return MakeLoweredCall(function, std::move(new_args), call_node->type_args, call_node->span,
-                           target);
+    ICHECK(call_node->type_args.empty()) << "lowered functions cannot be polymorphic";
+    return MakeLoweredCall(function, std::move(new_args), call_node->span, target);
   }
 
   IRModule module_;
@@ -769,10 +795,10 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
   String module_name_;
   TECompiler compiler_;
   /*!
-   * \brief The \p SEScope for the host, which is where all shape-related data and computation
+   * \brief The \p VirtualDevice for the host, which is where all shape-related data and computation
    * must live.
    */
-  SEScope host_se_scope_;
+  VirtualDevice host_virtual_device_;
   // Cache ops that need to be frequently used later to reduce lookup overhead.
   const Op& debug_op_;
 };
@@ -808,10 +834,11 @@ Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets) {
 }
 
 Pass LowerTensorExpr(const String& module_name, TECompiler compiler, ProcessFn process_fn,
-                     SEScope host_se_scope) {
+                     VirtualDevice host_virtual_device) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function func, IRModule module, PassContext ctx) {
-        LowerTensorExprMutator lower_te(module, process_fn, module_name, compiler, host_se_scope);
+        LowerTensorExprMutator lower_te(module, process_fn, module_name, compiler,
+                                        host_virtual_device);
         return Downcast<Function>(lower_te.Mutate(func));
       };
   return CreateFunctionPass(pass_func, 0, "LowerTensorExpr", {});
@@ -828,7 +855,7 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
   }
 
   // This is a Map<device,Map<storage_id, size>>
-  // TODO(mbs): Collapsing SEScopes to just device type.
+  // TODO(mbs): Collapsing VirtualDevices to just device type.
   std::unordered_map<DLDeviceType, std::unordered_map<int, int>, backend::EnumClassHash>
       sid_workspace;
   // This is a Map<device, size_of_inputs_and_outputs>
@@ -841,10 +868,10 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
   for (const auto& kv : storage_info_map) {
     const backend::StorageInfo& storage_info = kv.second;
     const std::vector<int64_t>& storage_ids = storage_info->storage_ids;
-    const std::vector<SEScope>& se_scopes = storage_info->se_scopes;
-    CHECK_EQ(storage_ids.size(), se_scopes.size());
-    for (uint32_t i = 0; i < se_scopes.size(); i++) {
-      DLDeviceType device_type = se_scopes[i]->device_type();
+    const std::vector<VirtualDevice>& virtual_devices = storage_info->virtual_devices;
+    CHECK_EQ(storage_ids.size(), virtual_devices.size());
+    for (uint32_t i = 0; i < virtual_devices.size(); i++) {
+      DLDeviceType device_type = virtual_devices[i]->device_type();
       sid_workspace[device_type][storage_ids[i]] = 0;
       device_io[device_type] = 0;
       device_consts[device_type] = 0;
@@ -877,18 +904,18 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
             << "has size " << size_bytes << " and storage info:" << std::endl
             << storage_info;
     const std::vector<int64_t>& storage_ids = storage_info->storage_ids;
-    const std::vector<SEScope>& se_scopes = storage_info->se_scopes;
+    const std::vector<VirtualDevice>& virtual_devices = storage_info->virtual_devices;
 
     if (expr->IsInstance<ConstantNode>()) {
-      for (const auto& se_scope : se_scopes) {
-        DLDeviceType device_type = se_scope->device_type();
+      for (const auto& virtual_device : virtual_devices) {
+        DLDeviceType device_type = virtual_device->device_type();
         ICHECK_EQ(device_consts.count(device_type), 1);
         device_consts[device_type] += size_bytes;
       }
     } else if (expr->IsInstance<VarNode>() || expr.same_as(func->body)) {
-      CHECK_GE(se_scopes.size(), 1) << "must be at least one device";
-      for (const auto& se_scope : se_scopes) {
-        DLDeviceType device_type = se_scope->device_type();
+      CHECK(size_bytes == 0 || virtual_devices.size() >= 1) << "must be at least one device";
+      for (const auto& virtual_device : virtual_devices) {
+        DLDeviceType device_type = virtual_device->device_type();
         device_io[device_type] += size_bytes;
       }
     } else {
@@ -899,7 +926,7 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
         // Here we record the largest size of the tensor
         // that share the same storage id, because storage_id will
         // be shared between multiple tensors that are not live simultaneously.
-        DLDeviceType device_type = se_scopes[i]->device_type();
+        DLDeviceType device_type = virtual_devices[i]->device_type();
         if (size_bytes > sid_workspace[device_type][storage_ids[i]]) {
           sid_workspace[device_type][storage_ids[i]] = size_bytes;
         }
@@ -1045,7 +1072,7 @@ void UpdateFunctionMetadata(BaseFunc func,
 }
 
 IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn process_fn,
-                 SEScope host_se_scope) {
+                 VirtualDevice host_virtual_device) {
   TECompiler compiler(module);
 
   // TODO(mbs): This is all unnecessarily convoluted. Better would be to accumulate the rewritten
@@ -1061,7 +1088,7 @@ IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn pr
   //  - Calls to functions tagged with "Primitive" are compiled to PrimFuncs, and calls updated
   //    (using call_lowered convention).
   IRModule updated_module = LowerTensorExpr(module_name, compiler, std::move(process_fn),
-                                            std::move(host_se_scope))(module);
+                                            std::move(host_virtual_device))(module);
 
   // The Functions tagged with "Compiler" are now residing in the cache ready to be
   // compiled by LowerExternalFunctions. However we still need a record of them in the
@@ -1161,15 +1188,17 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod) {
   return per_target_modules;
 }
 
-Pass LowerTEPass(const String& module_name, ProcessFn process_fn, SEScope host_se_scope) {
+Pass LowerTEPass(const String& module_name, ProcessFn process_fn,
+                 VirtualDevice host_virtual_device) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule module,
                                                                             PassContext ctx) {
-    return LowerTE(module, module_name, process_fn, host_se_scope);
+    return LowerTE(module, module_name, process_fn, host_virtual_device);
   };
 
   return tvm::transform::Sequential(
       {tvm::relay::transform::RelayToTIRTargetHook(),
-       tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {"InferType"}), InferType()});
+       tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {"InferType"}), InferType(),
+       tvm::tir::transform::ExtractPrimFuncConstants()});
 }
 }  // namespace tec
 }  // namespace relay

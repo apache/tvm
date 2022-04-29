@@ -157,6 +157,20 @@ def pattern_table():
         pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
         return pattern
 
+    def qnn_mean_pattern():
+        pattern = is_op("cast")(wildcard())
+        pattern = is_op("mean")(pattern)
+        pattern = is_op("qnn.requantize")(
+            pattern, is_constant(), is_constant(), is_constant(), is_constant()
+        )
+        return pattern
+
+    def qnn_tanh_pattern():
+        pattern = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+        pattern = is_op("tanh")(pattern)
+        pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
+        return pattern
+
     def check_conv2d(extract):
         """Check if a conv2d is supported by Ethos-N."""
         if not ethosn_available():
@@ -178,21 +192,34 @@ def pattern_table():
 
         return support.avg_pool2d(extract)
 
+    def check_mean(extract):
+        """Check if mean is supported by Ethos-N."""
+        if not ethosn_available():
+            return False
+
+        return support.mean(extract)
+
     def check_sigmoid(extract):
         """Check if a sigmoid is supported by Ethos-N."""
         if not ethosn_available():
             return False
 
-        if extract.attrs.out_dtype != "uint8":
+        return support.sigmoid(extract)
+
+    def check_tanh(extract):
+        """Check if tanh is supported by Ethos-N."""
+        if not ethosn_available():
             return False
 
-        return support.sigmoid(extract)
+        return support.tanh(extract)
 
     return [
         ("ethos-n.qnn_conv2d", qnn_conv_pattern(), check_conv2d),
         ("ethos-n.qnn_avg_pool2d", qnn_avg_pool2d_pattern(), check_avg_pool2d),
         ("ethos-n.qnn_sigmoid", qnn_sigmoid_pattern(), check_sigmoid),
         ("ethos-n.qnn_fc", qnn_fc_pattern(), check_fc),
+        ("ethos-n.qnn_mean", qnn_mean_pattern(), check_mean),
+        ("ethos-n.qnn_tanh", qnn_tanh_pattern(), check_tanh),
     ]
 
 

@@ -35,7 +35,7 @@ if(NOT ${USE_LLVM} MATCHES ${IS_FALSE_PATTERN})
   message(STATUS "Set TVM_LLVM_VERSION=" ${TVM_LLVM_VERSION})
   # Set flags that are only needed for LLVM target
   add_definitions(-DTVM_LLVM_VERSION=${TVM_LLVM_VERSION})
-  file(GLOB COMPILER_LLVM_SRCS src/target/llvm/*.cc)
+  tvm_file_glob(GLOB COMPILER_LLVM_SRCS src/target/llvm/*.cc)
   list(APPEND TVM_LINKER_LIBS ${LLVM_LIBS})
   list(APPEND COMPILER_SRCS ${COMPILER_LLVM_SRCS})
   if(NOT MSVC)

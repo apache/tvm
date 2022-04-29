@@ -17,8 +17,12 @@
 
 .. _doc_guide:
 
-Write Documentation for TVM
-===========================
+Documentation
+=============
+
+.. contents::
+  :depth: 2
+  :local:
 
 TVM documentation loosely follows the `formal documentation style described by
 Divio <https://documentation.divio.com>`_. This system has been chosen because
@@ -26,7 +30,8 @@ it is a "simple, comprehensive and nearly universally-applicable scheme. It is
 proven in practice across a wide variety of fields and applications."
 
 This document describes the organization of TVM documentation, and how to write
-new documentation.
+new documentation. See `docs/README.md <https://github.com/apache/tvm/tree/main/docs#build-locally>`_
+for instructions on building the docs.
 
 The Four Document Types
 ***********************
@@ -40,8 +45,8 @@ without necessarily explaining why the software works the way it does. Those
 explanations can be saved for other document types. An introductory tutorial
 focuses on a successful first experience. These are the most important docs to
 turning newcomers into new users and developers. A fully end-to-end
-tutorial&mdash; from installing TVM and supporting ML software, to creating and
-training a model, to compiling to different architectures&mdash;will give a new
+tutorial — from installing TVM and supporting ML software, to creating and
+training a model, to compiling to different architectures — will give a new
 user the opportunity to use TVM in the most efficient way possible. A tutorial
 teaches a beginner something they need to know. This is in contrast with a
 how-to, which is meant to be an answer to a question that a user with some
@@ -92,7 +97,7 @@ Within these documents you can explore contradictory and conflicting position,
 and help the reader make sense of how and why the software was built the way it
 is. It's not the place for how-tos and descriptions on how to accomplish tasks.
 They instead focus on higher level concepts that help with the understanding of
-the project.  Generally these are written by the architects and developers of
+the project. Generally these are written by the architects and developers of
 the project, but can useful to help both users and developers to have a deeper
 understanding of why the software works the way it does, and how to contribute
 to it in ways that are consistent with the underlying design principles.
@@ -124,18 +129,22 @@ Technical Details
 *****************
 
 We use the `Sphinx <http://sphinx-doc.org>`_ for the main documentation.
-Sphinx support both the reStructuredText and markdown.  When possible, we
-encourage to use reStructuredText as it has richer features.  Note that the
-python doc-string and tutorials allow you to embed reStructuredText syntax.
+Sphinx supports both reStructuredText and markdown. When possible, we
+encourage reStructuredText as it has richer features. Note that the
+Python doc-string and tutorials allow you to embed reStructuredText syntax.
+
+See
+`docs/README.md <https://github.com/apache/tvm/tree/main/docs#build-locally>`_
+for instructions on building the docs.
 
 
 Python Reference Documentation
 ------------------------------
 
-We use `numpydoc <https://numpydoc.readthedocs.io/en/latest/>`_ format to
-document the function and classes.  The following snippet gives an example
-docstring.  We always document all the public functions, when necessary,
-provide an usage example of the features we support(as shown below).
+We use the `numpydoc <https://numpydoc.readthedocs.io/en/latest/>`_ format to
+document the function and classes. The following snippet gives an example
+docstring. We always document all the public functions, when necessary,
+provide an usage example of the features we support (as shown below).
 
 .. code:: python
 
@@ -167,19 +176,19 @@ provide an usage example of the features we support(as shown below).
         """
         return rv1
 
-Be careful to leave blank lines between sections of your documents.  In the
-above case, there has to be a blank line before `Parameters`, `Returns` and
-`Examples` in order for the doc to be built correctly. To add a new function to
-the doc, we need to add the `sphinx.autodoc
-<http://www.sphinx-doc.org/en/master/ext/autodoc.html>`_ rules to the
-`docs/api/python <https://github.com/apache/tvm/tree/main/docs/api/python>`_).
+Be careful to leave blank lines between sections of your documents. In the
+above case, there has to be a blank line before ``Parameters``, ``Returns`` and
+``Examples`` in order for the doc to be built correctly. To add a new function to
+the docs, we need to add the `sphinx.autodoc
+<http://www.sphinx-doc.org/en/master/ext/autodoc.html>`_ rules to
+`docs/reference/api/python <https://github.com/apache/tvm/tree/main/docs/reference/api/python>`_).
 You can refer to the existing files under this folder on how to add the
 functions.
 
 C++ Reference Documentation
 ---------------------------
 
-We use the doxgen format to document c++ functions.  The following snippet
+We use the doxygen format to document c++ functions. The following snippet
 shows an example of c++ docstring.
 
 .. code:: c++
@@ -200,15 +209,15 @@ add comments about code logics to improve readability.
 Sphinx Gallery How-Tos
 ----------------------
 
-We use the `sphinx-gallery <https://sphinx-gallery.github.io/>`_ to build many
-python how-tos.  You can find the source code under `gallery
-<https://github.com/apache/tvm/tree/main/gallery>`_ quite self explanatory.
+We use `sphinx-gallery <https://sphinx-gallery.github.io/>`_ to build many
+Python how-tos. You can find the source code under `gallery
+<https://github.com/apache/tvm/tree/main/gallery>`_.
 One thing that worth noting is that the comment blocks are written in
 reStructuredText instead of markdown so be aware of the syntax.
 
-The how-to code will run on our build server to generate the document page.  So
+The how-to code will run on our build server to generate the document page. So
 we may have a restriction like not being able to access a remote Raspberry Pi,
-in such case add a flag variable to the tutorial (e.g. `use_rasp`) and allow
+in such case add a flag variable to the tutorial (e.g. ``use_rasp``) and allow
 users to easily switch to the real device by changing one flag. Then use the
 existing environment to demonstrate the usage.
 
@@ -218,7 +227,7 @@ If you add a new categorization of how-to, you will need to add references to
 
 Refer to Another Location in the Document
 -----------------------------------------
-Please use sphinx's `:ref:` markup to refer to another location in the same doc.
+Please use sphinx's ``:ref:`` markup to refer to another location in the same doc.
 
 .. code-block:: rst
 
@@ -228,3 +237,21 @@ Please use sphinx's `:ref:` markup to refer to another location in the same doc.
    ----------
 
    You can use :ref:`document-my-section-tag` to refer to My Section.
+
+Documents with Images / Figures
+-------------------------------
+reStructuredText's `figure <https://docutils.sourceforge.io/docs/ref/rst/directives.html#figure>`_
+and `image <https://docutils.sourceforge.io/docs/ref/rst/directives.html#image>`_
+elements allow a document to include an image URL.
+
+Image files created for TVM documentation should reside in the `<https://github.com/tlc-pack/web-data>`_
+repository, while the `.rst` files *using* those images should reside in the main TVM repostitory
+(`<https://github.com/apache/tvm>`_).
+
+This will require two Github Pull Requests, one for the image files and another for the `.rst` files.
+Discussion between the contributor and reviewers may be necessary to coordinate the review process.
+
+*IMPORTANT NOTE:* When using two Pull Requests as described above, please merge the
+Pull Request in `<https://github.com/tlc-pack/web-data>`_ *before* merging
+the Pull Request in `<https://github.com/apache/tvm>`_.
+This helps ensure that all URL links in TVM's online documentation are valid.

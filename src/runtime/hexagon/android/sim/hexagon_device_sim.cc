@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <deque>
 #include <iomanip>
+#include <iterator>
 #include <locale>
 #include <memory>
 #include <sstream>

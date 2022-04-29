@@ -39,6 +39,9 @@ namespace tvm {
 
 using tvm::runtime::String;
 
+// Forward-declare VirtualDevice to avoid circular imports.
+class VirtualDevice;
+
 /*!
  * \brief Base type of all the expressions.
  * \sa Expr
@@ -165,6 +168,43 @@ class RelayExprNode : public BaseExprNode {
   template <typename TTypeNode>
   inline const TTypeNode* type_as() const;
 
+  /*!
+   * \brief The virtual device (VirtualDevice) for this node (the result of device planning).
+   * For first-order expressions (non functions), this describes where the result of evaluating the
+   * expression should be stored. Note that currently, all composite first-order values (tuples,
+   * references, ADTs) must be stored on the same virtual device. This means that it is not possible
+   * to store two tuple fields on different devices, so we only need one virtual device for these
+   * types.
+   *
+   * For expressions that have the function type, the virtual device describes where the result of
+   * the call to the function or closure is stored (instead of where the function itself is stored).
+   * For example, the virtual device of f = fn(x) { body } is the virtual device of f(y), not where
+   * the function itself is stored. Note that f(y)'s virtual device will be the same as the virtual
+   * device of body. For more details, see the documentation in
+   * src/relay/transforms/device_planner.cc.
+   *
+   * The VirtualDevice's Target field describes how the body of the function should be compiled.
+   *
+   * Set to VirtualDevice::FullyUnconstrained by default.
+   *
+   * \note Unfortunately, the type of virtual_device_ needs to be ObjectRef to avoid a circular
+   * import.
+   */
+  mutable ObjectRef virtual_device_;
+
+  /*!
+   * \return The virtual device (VirtualDevice).
+   * If the virtual device is not defined, returns VirtualDevice::FullyUnconstrained().
+   * Note that for function types, the virtual device is the device where the result of a
+   * call to the function is stored, not where the function itself lives.
+   * For example, the virtual device of f = fn(x) { body } is the virtual device of f(y), not where
+   * the function itself is stored. Note that f(y)'s virtual device will be the same as the virtual
+   * device of body.
+   *
+   * See the documentation of the virtual_device_ field (above) for more details.
+   */
+  VirtualDevice virtual_device() const;
+
   static constexpr const char* _type_key = "RelayExpr";
   static constexpr const uint32_t _type_child_slots = 22;
   TVM_DECLARE_BASE_OBJECT_INFO(RelayExprNode, BaseExprNode);
@@ -195,6 +235,7 @@ class GlobalVarNode : public RelayExprNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -219,7 +260,7 @@ class GlobalVarNode : public RelayExprNode {
  */
 class GlobalVar : public RelayExpr {
  public:
-  TVM_DLL explicit GlobalVar(String name_hint);
+  TVM_DLL explicit GlobalVar(String name_hint, Type type = {});
 
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelayExpr, GlobalVarNode);
 };
@@ -343,6 +384,12 @@ inline Bool operator&&(const Bool& a, bool b) { return Bool(a.operator bool() &&
 inline Bool operator&&(bool a, const Bool& b) { return Bool(a && b.operator bool()); }
 inline Bool operator&&(const Bool& a, const Bool& b) {
   return Bool(a.operator bool() && b.operator bool());
+}
+
+inline bool operator==(const Bool& a, bool b) { return a.operator bool() == b; }
+inline bool operator==(bool a, const Bool& b) { return a == b.operator bool(); }
+inline bool operator==(const Bool& a, const Bool& b) {
+  return a.operator bool() == b.operator bool();
 }
 
 /*!

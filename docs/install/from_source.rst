@@ -60,7 +60,7 @@ It is also possible to :ref:`build the runtime <deploy-and-integration>` library
 The minimal building requirements for the ``TVM`` libraries are:
 
    - A recent c++ compiler supporting C++ 14 (g++-5 or higher)
-   - CMake 3.5 or higher
+   - CMake 3.10 or higher
    - We highly recommend to build with LLVM to enable all the features.
    - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
    - On macOS, you may want to install `Homebrew <https://brew.sh>`_ to easily install and manage dependencies.
@@ -212,7 +212,8 @@ If you are already using conda as your package manager and wish to directly buil
 Building on Windows
 ~~~~~~~~~~~~~~~~~~~
 TVM support build via MSVC using cmake. You will need to ontain a visual studio compiler.
-The minimum required VS version is **Visual Studio Community 2015 Update 3**.
+The minimum required VS version is **Visual Studio Enterprise 2019** (NOTE: we test
+against GitHub Actions' `Windows 2019 Runner <https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md>`_, so see that page for full details.
 We recommend following :ref:`build-with-conda` to obtain necessary dependencies and
 get an activated tvm-build environment. Then you can run the following command to build
 

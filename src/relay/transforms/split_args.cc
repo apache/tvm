@@ -59,12 +59,12 @@ class ArgumentSplitter : public ExprRewriter {
         for (int j = 0; j < argsCount; ++j) {
           args.push_back(tuple_node->fields[j + startIdx]);
         }
-        Tuple new_tuple = WithFields(GetRef<Tuple>(tuple_node), std::move(args));
+        Tuple new_tuple = WithFields(GetRef<Tuple>(tuple_node), args);
         Expr body = MakeConcatenate(new_tuple, param->axis);
         splitted[i] = StopFusion(body);
       }
       tvm::Array<Expr> tuple_args(splitted);
-      Tuple new_tuple = WithFields(GetRef<Tuple>(tuple_node), std::move(tuple_args));
+      Tuple new_tuple = WithFields(GetRef<Tuple>(tuple_node), tuple_args);
       return MakeConcatenate(new_tuple, param->axis);
     }
     return post;
@@ -85,7 +85,8 @@ namespace transform {
 Pass SplitArgs(int max_function_args) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(SplitArgs(f, max_function_args));
+        auto r = Downcast<Function>(SplitArgs(f, max_function_args));
+        return m->attrs.defined() ? WithAttrs(r, {m->attrs->dict}) : r;
       };
   return CreateFunctionPass(pass_func, 1, "SplitArgs", {"InferType"});
 }

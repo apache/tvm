@@ -27,11 +27,11 @@ from ..expr import Tuple, Expr, Constant
 from . import op as reg
 
 
-def _make_se_scope(device):
+def _make_virtual_device(device):
     if isinstance(device, _Device):
-        return target.make_se_scope(device)
+        return target.VirtualDevice(device)
     if isinstance(device, str):
-        return target.make_se_scope(_nd.device(device))
+        return target.VirtualDevice(_nd.device(device))
     raise ValueError("expecting a Device or device name, but received a %s" % (type(device)))
 
 
@@ -611,6 +611,24 @@ def floor_divide(lhs, rhs):
     return _make.floor_divide(lhs, rhs)
 
 
+def trunc_divide(lhs, rhs):
+    """Trunc division with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.trunc_divide(lhs, rhs)
+
+
 def power(lhs, rhs):
     """Power with numpy-style broadcasting.
 
@@ -663,6 +681,24 @@ def floor_mod(lhs, rhs):
         The computed result.
     """
     return _make.floor_mod(lhs, rhs)
+
+
+def trunc_mod(lhs, rhs):
+    """Trunc mod with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.trunc_mod(lhs, rhs)
 
 
 def logical_and(lhs, rhs):
@@ -1178,8 +1214,18 @@ def copy(data):
 
 
 @script
-def _copy_shape_func(data_shape):
-    return data_shape
+def _copy_shape_func_tensor(data_shape):
+    ndim = data_shape.shape[0]
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(ndim):
+        out[i] = data_shape[i]
+    return out
+
+
+@script
+def _copy_shape_func_scalar(data_shape):
+    out = output_tensor((), "int64")
+    return out
 
 
 @reg.register_shape_func("copy", False)
@@ -1187,7 +1233,10 @@ def copy_shape_func(attrs, inputs, _):
     """
     Shape function for copy op.
     """
-    return [_copy_shape_func(inputs[0])]
+    input = inputs[0]
+    if len(input.shape) == 0:
+        return [_copy_shape_func_scalar(input)]
+    return [_copy_shape_func_tensor(input)]
 
 
 def device_copy(data, src_device, dst_device):
@@ -1211,7 +1260,9 @@ def device_copy(data, src_device, dst_device):
     result : tvm.relay.Expr
         The copied result.
     """
-    return _make.DeviceCopy(data, _make_se_scope(src_device), _make_se_scope(dst_device))
+    return _make.DeviceCopy(
+        data, _make_virtual_device(src_device), _make_virtual_device(dst_device)
+    )
 
 
 def shape_of(data, dtype="int32"):

@@ -69,7 +69,7 @@ class DFPatternRewriteComposer {
  public:
   template <typename T, typename... Args>
   inline void AddRewrite(Args... args) {
-    rewrites_.push_back(std::make_shared<T, Args...>(&args...));
+    rewrites_.push_back(std::make_shared<T, Args&...>(args...));
   }
 
   inline Array<DFPatternCallback> MakeCallbacks() const {

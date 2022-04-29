@@ -77,16 +77,18 @@ def get_binary_elementwise_params(
 
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
     op = ignore_cast(inner.value)
-    input_pointer = ignore_cast(op.a).buffer_var
-    input_pointer1 = ignore_cast(op.b).buffer_var
+    input_pointer = ignore_cast(op.a).buffer.data
+    input_pointer1 = ignore_cast(op.b).buffer.data
 
     if reversed_operands:
         input_pointer, input_pointer1 = input_pointer1, input_pointer
-    output_pointer = inner.buffer_var
+    output_pointer = inner.buffer.data
     # Get feature map info
     serial_ifm, _ = get_ifm_params(input_pointer, producers)
     serial_ifm2, _ = get_ifm_params(input_pointer1, producers)
-    serial_ofm, replace_pointer, is_allocator = get_ofm_params(output_pointer, consumers, producers)
+    serial_ofm, serial_block_config, replace_pointer, is_allocator = get_ofm_params(
+        output_pointer, consumers, producers
+    )
     # Get activation info
     serial_activation = SerialActivation(
         op=attrs["activation"], clip_min=attrs["clip_min"], clip_max=attrs["clip_max"]
@@ -100,6 +102,7 @@ def get_binary_elementwise_params(
             reversed_operands=reversed_operands,
             activation=serial_activation,
             rounding_mode=attrs["rounding_mode"],
+            block_config=serial_block_config,
         ),
         output_pointer,
         replace_pointer,

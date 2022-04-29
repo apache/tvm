@@ -567,6 +567,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
         p->stream << ", ";
         p->Print(s);
       }
+      p->stream << ')';
     });
 
 // Sub-class RewriteSimplifier::Impl to take benefit of
@@ -982,9 +983,13 @@ SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, 
     return lhs;
   }
   if (cval % lhs->scale == 0) {
-    // (x * c1) % (c2 * c1) => (x % c2) * c1
+    // The rationale:
+    //   (index % upper) / lower * scale % cval, given cval = scaled_cval * scale
+    //   by the rule (x * c1) % (c2 * c1) => (x % c2) * c1,
+    // = (index % upper) / lower % scaled_cval * scale
+    //   by the rule (x / c1) % c2  =>  (x % (c1 * c2)) / c1,
+    // = (index % upper) % (new_upper_factor) / lower * scale
     int64_t scaled_cval = cval / lhs->scale;
-    //  (x / c1) % c2  =>  (x % (c1 * c2)) / c2
     int64_t new_upper_factor = lhs->lower_factor * scaled_cval;
     // try to see if we can reduce the existing upper modular.
     if (lhs->upper_factor == SplitExprNode::kPosInf || lhs->upper_factor % new_upper_factor == 0) {
@@ -995,11 +1000,13 @@ SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, 
       if (new_upper_factor < lhs->upper_factor && lhs->upper_factor != SplitExprNode::kPosInf) {
         auto updated = ToSplitExpr(this->VisitExpr(
             ModImpl(lhs->index, make_const(lhs.dtype(), new_upper_factor), div_mode)));
-        updated.CopyOnWrite()->scale = lhs->scale;
         // re-apply the lower_factor
         if (lhs->lower_factor != 1) {
-          return SplitDivConst(updated, lhs->lower_factor, div_mode);
+          auto ret = SplitDivConst(updated, lhs->lower_factor, div_mode);
+          ret.CopyOnWrite()->MulToSelf(lhs->scale);
+          return ret;
         } else {
+          updated.CopyOnWrite()->MulToSelf(lhs->scale);
           return updated;
         }
       } else {

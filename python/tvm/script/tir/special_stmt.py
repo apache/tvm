@@ -24,11 +24,10 @@ from synr import ast
 from tvm.ir.expr import PrimExpr, Range
 
 import tvm.tir
-from tvm.runtime import Object
-from tvm import te
+from tvm.runtime import Object, String
 from tvm.target import Target
 from tvm.ir import Span
-from tvm.tir import IntImm, IterVar
+from tvm.tir import IntImm, IterVar, Var
 
 from .node import BufferSlice
 from .utils import buffer_slice_to_region
@@ -317,8 +316,7 @@ class BlockReads(SpecialStmt):
 
     def __init__(self):
         def reads(
-            read_regions: Union[BufferSlice, List[BufferSlice]],
-            *other_regions: BufferSlice,
+            *read_regions: Union[BufferSlice, List[BufferSlice]],
             span: Span = None,
         ):
             assert self.context, "call 'exit_scope' before 'enter_scope'"
@@ -335,16 +333,18 @@ class BlockReads(SpecialStmt):
                     + str(", ".join(str(x) for x in block_scope.reads)),
                     span,
                 )
-            if isinstance(read_regions, BufferSlice):
-                read_regions = [read_regions]
-                for region in other_regions:
-                    read_regions.append(region)
-            if not isinstance(read_regions, list):
-                self.context.report_error(
-                    "Incorrect input type. "
-                    + f"Expected BufferSlice or List[BufferSlice], but got {type(read_regions)}",
-                    span,
-                )
+            if len(read_regions) > 1:
+                for read_region in read_regions:
+                    if not isinstance(read_region, BufferSlice):
+                        self.context.report_error(
+                            "Incorrect input type. Expected *BufferSlice or List[BufferSlice],"
+                            + f" but got {type(read_regions)}",
+                            span,
+                        )
+            elif len(read_regions) == 1:
+                if isinstance(read_regions[0], list):
+                    read_regions = read_regions[0]
+
             block_scope.reads = read_regions
 
         super().__init__(reads, def_symbol=False)
@@ -368,8 +368,7 @@ class BlockWrites(SpecialStmt):
 
     def __init__(self):
         def writes(
-            write_region: Union[BufferSlice, List[BufferSlice]],
-            *other_region: BufferSlice,
+            *write_regions: Union[BufferSlice, List[BufferSlice]],
             span: Span = None,
         ):
             assert self.context, "call 'exit_scope' before 'enter_scope'"
@@ -386,19 +385,18 @@ class BlockWrites(SpecialStmt):
                     + str(", ".join(str(x) for x in block_scope.writes)),
                     span,
                 )
-            if isinstance(write_region, list):
-                pass
-            elif isinstance(write_region, BufferSlice):
-                write_region = [write_region]
-                for region in other_region:
-                    write_region.append(region)
-            else:
-                self.context.report_error(
-                    "Incorrect input type. "
-                    + f"Expected BufferSlice or List[BufferSlice], but got {type(write_region)}",
-                    span,
-                )
-            block_scope.writes = write_region
+            if len(write_regions) > 1:
+                for write_region in write_regions:
+                    if not isinstance(write_region, BufferSlice):
+                        self.context.report_error(
+                            "Incorrect input type. Expected *BufferSlice or List[BufferSlice],"
+                            + f" but got {type(write_regions)}",
+                            span,
+                        )
+            elif len(write_regions) == 1:
+                if isinstance(write_regions[0], list):
+                    write_regions = write_regions[0]
+            block_scope.writes = write_regions
 
         super().__init__(writes, def_symbol=False)
 
@@ -431,8 +429,7 @@ class BlockAttr(SpecialStmt):
                     span,
                 )
             attrs = {
-                key: tvm.tir.StringImm(val) if isinstance(val, str) else val
-                for key, val in attrs.items()
+                key: String(val) if isinstance(val, str) else val for key, val in attrs.items()
             }
             block_scope.annotations = attrs
 
@@ -488,7 +485,6 @@ class BlockAxis(SpecialStmt):
         if var_name in [iter_var.var.name for iter_var in block_scope.iter_vars]:
             self.context.report_error("Duplicate block axis " + var_name, self.node.span)
 
-        block_var = tvm.tir.Var(var_name, dtype="int32")
         dom = tvm.runtime.convert(dom)
         if isinstance(dom, PrimExpr):
             dom = tvm.ir.Range(dom)
@@ -499,6 +495,7 @@ class BlockAxis(SpecialStmt):
                 f"Block axis domain expected PrimExpr or Range, but got {type(dom)}",
                 self.node.span,
             )
+        block_var = tvm.tir.Var(var_name, dtype=dom.extent.dtype)
         value = tvm.runtime.convert(value)
         if not isinstance(value, PrimExpr):
             self.context.report_error(
@@ -802,7 +799,7 @@ class VarDef(SpecialStmt):
                 self.context.report_error(
                     f"VarDef expected assign to only one var, but got {names}", span
                 )
-            v = te.var(names[0], dtype, span=span)
+            v = Var(names[0], dtype, span=span)
             self.context.update_symbol(v.name, v, self.node)
 
         super().__init__(var, def_symbol=True)
@@ -823,7 +820,7 @@ class BufferVarDef(SpecialStmt):
                     f"VarDef expected assign to only one var, but got {names}", span
                 )
             ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
-            v = te.var(names[0], ptr_type, span=span)
+            v = Var(names[0], ptr_type, span=span)
             self.context.update_symbol(v.name, v, self.node)
 
         super().__init__(buffer_var, def_symbol=True)
@@ -843,7 +840,7 @@ class EnvThread(SpecialStmt):
                 self.context.report_error(
                     f"VarDef expected assign to only one var, but got {names}", span
                 )
-            v = te.var(names[0], span=span)
+            v = Var(names[0], dtype="int32", span=span)
             self.context.func_var_env_dict[v] = env_name
             self.context.update_symbol(v.name, v, self.node)
 
@@ -864,6 +861,60 @@ class FuncAttr(SpecialStmt):
             self.context.func_dict_attr = dict_attr
 
         super().__init__(func_attr, def_symbol=False)
+
+
+@register
+class PreflattenedBufferMap(SpecialStmt):
+    """Special Stmt for declaring the PrimFunc::preflattened_buffer_map
+
+    Example
+    -------
+    .. code-block:: python
+         T.preflattened_buffer_map({})
+    """
+
+    def __init__(self):
+        def preflattened_buffer(
+            postflattened,
+            shape,
+            dtype="float32",
+            data=None,
+            strides=None,
+            elem_offset=None,
+            scope="global",
+            align=-1,
+            offset_factor=0,
+            buffer_type="default",
+            span=None,
+        ):
+
+            param = None
+            for key, value in self.context.func_buffer_map.items():
+                if value.same_as(postflattened):
+                    param = key
+
+            assert (
+                param is not None
+            ), f"Post-flatten buffer {postflattened.name} does not appear in the buffer map."
+
+            buffer_name: str = f"{postflattened.name}_preflatten"
+            preflattened = tvm.tir.decl_buffer(
+                shape,
+                dtype,
+                buffer_name,
+                data,
+                strides,
+                elem_offset,
+                scope,
+                align,
+                offset_factor,
+                buffer_type,
+                span=span,
+            )
+
+            self.context.func_preflattened_buffer_map[param] = preflattened
+
+        super().__init__(preflattened_buffer, def_symbol=False)
 
 
 @register

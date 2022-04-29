@@ -50,27 +50,29 @@ class DFPatternNode : public Object {
 class DFPattern : public ObjectRef {
  public:
   /*! \brief Syntatic Sugar for creating a CallPattern */
-  DFPattern operator()(const std::vector<DFPattern>& args);
+  DFPattern operator()(const std::vector<DFPattern>& args) const;
   /*! \brief Syntatic Sugar for creating a CallPattern with an "add" op */
-  DFPattern operator+(const DFPattern& other);
+  DFPattern operator+(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating a CallPattern with a "subtract" op */
-  DFPattern operator-(const DFPattern& other);
+  DFPattern operator-(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating a CallPattern with a "multiply" op */
-  DFPattern operator*(const DFPattern& other);
+  DFPattern operator*(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating a CallPattern with a "divide" op */
-  DFPattern operator/(const DFPattern& other);
+  DFPattern operator/(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating an AltPattern */
-  DFPattern operator||(const DFPattern& other);
+  DFPattern operator||(const DFPattern& other) const;
+  /*! \brief Syntatic Sugar for creating an Optional Pattern */
+  DFPattern Optional(const std::function<DFPattern(const DFPattern&)>& func) const;
   /*! \brief Syntatic Sugar for creating an AttrPattern */
-  DFPattern HasAttr(const Map<String, ObjectRef>& attrs);
+  DFPattern HasAttr(const Map<String, ObjectRef>& attrs) const;
   /*! \brief Syntatic Sugar for creating a TypePattern */
-  DFPattern HasType(const Type& type);
+  DFPattern HasType(const Type& type) const;
   /*! \brief Syntatic Sugar for creating a DataTypePattern with a DataType */
-  DFPattern HasDtype(const DataType& dtype);
+  DFPattern HasDtype(const DataType& dtype) const;
   /*! \brief Syntatic Sugar for creating a DataTypePattern with a data type's name */
-  DFPattern HasDtype(const std::string& dtype);
+  DFPattern HasDtype(const std::string& dtype) const;
   /*! \brief Syntatic Sugar for creating a ShapePattern */
-  DFPattern HasShape(const Array<PrimExpr> shape);
+  DFPattern HasShape(const Array<PrimExpr> shape) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(DFPattern, ObjectRef, DFPatternNode);
 };

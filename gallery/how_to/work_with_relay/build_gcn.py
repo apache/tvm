@@ -119,7 +119,6 @@ num_classes: int
     dimension of model output (Number of classes)
 """
 dataset = "cora"
-
 g, data = load_dataset(dataset)
 
 num_layers = 1

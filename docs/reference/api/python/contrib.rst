@@ -93,6 +93,18 @@ tvm.contrib.random
     :members:
 
 
+tvm.contrib.relay_viz
+~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.relay_viz
+    :members:
+.. automodule:: tvm.contrib.relay_viz.dot
+    :members:
+.. automodule:: tvm.contrib.relay_viz.terminal
+    :members:
+.. automodule:: tvm.contrib.relay_viz.interface
+    :members:
+
+
 tvm.contrib.rocblas
 ~~~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.rocblas

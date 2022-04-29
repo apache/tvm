@@ -29,19 +29,18 @@ if(NOT USE_ETHOSN STREQUAL "OFF")
 
     message(STATUS "Build with Arm(R) Ethos(TM)-N ${ETHOSN_PACKAGE_VERSION}")
 
-    file(GLOB ETHOSN_RUNTIME_CONTRIB_SRC
-      CONFIGURE_DEPENDS src/runtime/contrib/ethosn/ethosn_runtime.cc
-      CONFIGURE_DEPENDS src/runtime/contrib/ethosn/ethosn_device.cc)
+    tvm_file_glob(GLOB ETHOSN_RUNTIME_CONTRIB_SRC
+                  src/runtime/contrib/ethosn/ethosn_runtime.cc
+                  src/runtime/contrib/ethosn/ethosn_device.cc)
     list(APPEND RUNTIME_SRCS ${ETHOSN_RUNTIME_CONTRIB_SRC})
 
-    file(GLOB COMPILER_ETHOSN_SRCS
-      CONFIGURE_DEPENDS src/relay/backend/contrib/ethosn/*)
+    tvm_file_glob(GLOB COMPILER_ETHOSN_SRCS
+                  src/relay/backend/contrib/ethosn/*)
     list(APPEND COMPILER_SRCS ${COMPILER_ETHOSN_SRCS})
 
     list(APPEND TVM_LINKER_LIBS ${ETHOSN_COMPILER_LIBRARY}
       ${ETHOSN_RUNTIME_LIBRARY})
-    list(APPEND TVM_RUNTIME_LINKER_LIBS ${ETHOSN_COMPILER_LIBRARY}
-      ${ETHOSN_RUNTIME_LIBRARY})
+    list(APPEND TVM_RUNTIME_LINKER_LIBS ${ETHOSN_RUNTIME_LIBRARY})
 
     if(NOT MSVC)
       set_source_files_properties(${COMPILER_ETHOSN_SRCS}

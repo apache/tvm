@@ -68,11 +68,13 @@ def get_depthwise_conv2d_params(
     loads = get_loads(rw.body)
     # stores = [output]
     stores = get_stores(rw.body)
-    input_pointer = loads[1].buffer_var
-    output_pointer = stores[0].buffer_var
+    input_pointer = loads[1].buffer.data
+    output_pointer = stores[0].buffer.data
     # Get feature map info
     serial_ifm, serial_padding = get_ifm_params(input_pointer, producers)
-    serial_ofm, replace_pointer, is_allocator = get_ofm_params(output_pointer, consumers, producers)
+    serial_ofm, serial_block_config, replace_pointer, is_allocator = get_ofm_params(
+        output_pointer, consumers, producers
+    )
     # Get kernel info
     serial_kernel = SerialKernel(
         width=int(rw.extent),
@@ -84,16 +86,16 @@ def get_depthwise_conv2d_params(
     )
     # Get scale_bias info
     scale_bias_load = loads[3]
-    scale_bias_base = get_base_address(scale_bias_load.index)
+    scale_bias_base = [get_base_address(index) for index in scale_bias_load.indices]
     serial_scale_bias = SerialAddressRange(
-        address=tvm.tir.Load("uint8", scale_bias_load.buffer_var, scale_bias_base),
+        address=tvm.tir.BufferLoad(scale_bias_load.buffer, scale_bias_base),
         length=SCALE_BIAS_LENGTH * serial_ofm[3],
     )
     # Get weight info
     weight_load = loads[2]
-    weight_base = get_base_address(weight_load.index)
+    weight_base = [get_base_address(index) for index in weight_load.indices]
     serial_weight = SerialAddressRange(
-        address=tvm.tir.Load("uint8", weight_load.buffer_var, weight_base),
+        address=tvm.tir.BufferLoad(weight_load.buffer, weight_base),
         length=serial_ofm[3] * serial_kernel[0] * serial_kernel[1],
     )
     # Get activation info
@@ -113,6 +115,7 @@ def get_depthwise_conv2d_params(
             activation=serial_activation,
             rounding_mode=attrs["rounding_mode"],
             upscale="NONE",
+            block_config=serial_block_config,
         ),
         output_pointer,
         replace_pointer,

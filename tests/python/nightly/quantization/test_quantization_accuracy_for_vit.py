@@ -39,7 +39,7 @@ def calibrate_dataset(model_name, rec_val, batch_size, calibration_samples):
     for i, batch in enumerate(val_data):
         if i * batch_size >= calibration_samples:
             break
-        data = batch.data[0].numpy()
+        data = batch.data[0].asnumpy()
         yield {"data": data}
 
 
@@ -63,7 +63,7 @@ def download_file(url_base, file_name):
             raise Exception("download {} failed due to {}!".format(file_name, repr(err)))
 
 
-def get_onnx_model(model_name, batch_size, qconfig, target=None, original=False, dataset=None):
+def get_onnx_model(model_name, batch_size, qconfig, original=False, dataset=None):
     assert model_name == "vit32", "Only support vit32 model!"
     base = "https://github.com/TheGreatCold/tvm-vit/raw/d2aa1e60eef42e2fdedbd1e13aa85ac5faf0a7fc"
     logfile = "gtx1660_vit_B32_224.log"
@@ -81,7 +81,7 @@ def get_onnx_model(model_name, batch_size, qconfig, target=None, original=False,
     logging.debug("original")
     logging.debug(qfunc.astext(show_meta_data=False))
     if original:
-        return qfunc, logfile
+        return qfunc, params, logfile
 
     with qconfig:
         logging.debug("current quantize config")
@@ -96,7 +96,7 @@ def get_onnx_model(model_name, batch_size, qconfig, target=None, original=False,
 
         logging.debug("after quantize")
         logging.debug(qfunc.astext(show_meta_data=False))
-    return qfunc, logfile
+    return qfunc, params, logfile
 
 
 @tvm.testing.requires_gpu
@@ -115,13 +115,13 @@ def test_onnx_quantize_acc(cfg, rec_val, batch_size=1, original=False):
     )
 
     dataset = list(calibrate_dataset(cfg.model, rec_val, batch_size, 64))
-    model, logfile = get_onnx_model(
-        cfg.model, batch_size, qconfig, tvm.target.cuda(), original=original, dataset=dataset
+    model, params, logfile = get_onnx_model(
+        cfg.model, batch_size, qconfig, original=original, dataset=dataset
     )
     val_data, batch_fn = get_val_data(cfg.model, rec_val=rec_val, batch_size=batch_size)
 
     with tvm.autotvm.apply_history_best(logfile):
-        acc = eval_acc(model, val_data, batch_fn, log_interval=1000)
+        acc = eval_acc(model, params, val_data, batch_fn, log_interval=1000)
     assert acc > cfg.expected_acc
     return acc
 

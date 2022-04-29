@@ -21,17 +21,14 @@ from typing import Callable, Optional
 
 import numpy as np
 import pytest
-
 import tvm
 import tvm.testing
-
 from tvm import relay, te
 from tvm.error import TVMError
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import check_grad, run_infer_type
 
 from utils import ref_funcs
-
 
 executor_kind = tvm.testing.parameter("graph", "debug")
 
@@ -89,6 +86,32 @@ def test_cast():
     yy = run_infer_type(y)
     assert "dtype=" in yy.astext()
     assert yy.checked_type == relay.TensorType((8, 9, 4), "int32")
+
+
+def test_sliding_window():
+    # Slide a window of shape (3, 4, 5) over the x tensor, beginning with
+    # dimension 1, which slides the window over the two subtensors of shape (3,
+    # 32, 32).
+    x = relay.var("x", relay.TensorType((2, 3, 32, 32), "float32"))
+    y = relay.sliding_window(x, 1, [3, 4, 5], [1, 2, 3])
+
+    # The resulting shape still has batch size 2. Each dimension in (1, 15, 10)
+    # represents the locations where we were able to form a window; that is, we
+    # were able to place the window in one place along the dimension of length
+    # 3, 15 places along the dimension of length 32 (when striding by 2), and 10
+    # places along the second dimension of length 32 (when striding by 3). The
+    # remaining dimensions (3, 4, 5) represent the formed windows.
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((2, 1, 15, 10, 3, 4, 5), "float32")
+
+    data = np.random.rand(2, 3, 32, 32).astype("float32")
+    intrp = create_executor()
+    result = intrp.evaluate(y, {x: relay.const(data)})
+    result_np = result.numpy()
+    assert result_np.shape == (2, 1, 15, 10, 3, 4, 5)
+    assert np.array_equal(result_np[0, 0, 0, 0, :, :, :], data[0, :, 0:4, 0:5])
+    assert np.array_equal(result_np[1, 0, 7, 3, :, :, :], data[1, :, 14:18, 9:14])
+    assert np.array_equal(result_np[1, 0, 14, 9, :, :, :], data[1, :, 28:32, 27:32])
 
 
 def test_clip():
@@ -400,31 +423,36 @@ class TestTakeInferType:
 
 
 class TestTake:
-    src_shape, indices_src, axis, mode = tvm.testing.parameters(
-        ((4,), [1], None, "clip"),
-        ((4,), [[0, 1, 2, 3]], None, "clip"),
-        ((3, 3, 3), [[11, 25]], None, "clip"),
-        ((4,), [[0, 1], [2, 3]], None, "clip"),
-        ((4,), [1], 0, "clip"),
-        ((2, 2), [[[1, 0], [0, 1]]], 0, "clip"),
-        ((2, 2), [[[1, 0], [0, 1]]], 1, "clip"),
-        ((4, 3, 5, 6), [[2, 1, 0, 0]], -2, "clip"),
-        ((3, 4), [-5, 20], None, "clip"),
-        ((3, 4), [-5, 20], None, "wrap"),
-        ((3, 4), [-1, 2], 0, "clip"),
-        ((3, 4), [-1, 2], 0, "wrap"),
-        ((3, 4), [-1, 2], 1, "clip"),
-        ((3, 4), [-1, 2], 1, "wrap"),
-        ((3, 3, 3), [[11, 25]], None, "fast"),
-        ((3, 4), [0, 2], 0, "fast"),
-        ((3, 4), [0, 2], 1, "fast"),
+    src_shape, indices_src, axis, mode, indices_dtype = tvm.testing.parameters(
+        ((4,), [1], None, "clip", "int32"),
+        ((4,), [[0, 1, 2, 3]], None, "clip", "int32"),
+        ((3, 3, 3), [[11, 25]], None, "clip", "int32"),
+        ((4,), [[0, 1], [2, 3]], None, "clip", "int32"),
+        ((4,), [1], 0, "clip", "int32"),
+        ((2, 2), [[[1, 0], [0, 1]]], 0, "clip", "int32"),
+        ((2, 2), [[[1, 0], [0, 1]]], 1, "clip", "int32"),
+        ((4, 3, 5, 6), [[2, 1, 0, 0]], -2, "clip", "int32"),
+        ((3, 4), [-5, 20], None, "clip", "int32"),
+        ((3, 4), [-5, 20], None, "wrap", "int32"),
+        ((3, 4), [-1, 2], 0, "clip", "int32"),
+        ((3, 4), [-1, 2], 0, "wrap", "int32"),
+        ((3, 4), [-1, 2], 1, "clip", "int32"),
+        ((3, 4), [-1, 2], 1, "wrap", "int32"),
+        ((3, 3, 3), [[11, 25]], None, "fast", "int32"),
+        ((3, 4), [0, 2], 0, "fast", "int32"),
+        ((3, 4), [0, 2], 1, "fast", "int32"),
+        ((3, 4), [1, 2], 1, "clip", "uint32"),
+        ((3, 4), [1, 2], 1, "wrap", "uint16"),
+        ((3, 3, 3), [1, 2], None, "fast", "uint16"),
+        ((3, 4), [0, 2], 0, "fast", "uint8"),
     )
 
     # Incorrect numeric output in some cases on vulkan
     @tvm.testing.known_failing_targets("vulkan")
-    def test_take(self, target, dev, executor_kind, src_shape, indices_src, axis, mode):
+    def test_take(
+        self, target, dev, executor_kind, src_shape, indices_src, axis, mode, indices_dtype
+    ):
         src_dtype = "float32"
-        indices_dtype = "int32"
         indices_src = np.array(indices_src, dtype=indices_dtype)
         x = relay.var("x", relay.TensorType(src_shape, src_dtype))
         indices = relay.var("indices", relay.TensorType(indices_src.shape, indices_dtype))
@@ -433,11 +461,16 @@ class TestTake:
         func = relay.Function([x, indices], z)
         x_data = np.random.uniform(low=-1, high=1, size=src_shape).astype(src_dtype)
         np_mode = "raise" if mode == "fast" else mode
-        ref_res = np.take(x_data, indices=indices_src, axis=axis, mode=np_mode)
 
         op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
             x_data, indices_src
         )
+
+        # Old versions of numpy has take internally cast inside take which may violate
+        # safety rules. We have such version in i386 CI image.
+        indices_src = indices_src.astype("int32")
+        ref_res = np.take(x_data, indices=indices_src, axis=axis, mode=np_mode)
+
         tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
@@ -966,9 +999,9 @@ def ref_scatter(data, indices, updates, axis=0):
 
 
 def test_scatter(target, dev, executor_kind):
-    def verify_scatter(dshape, ishape, axis=0):
+    def verify_scatter(dshape, ishape, axis=0, indices_dtype="int64"):
         d = relay.var("d", relay.TensorType(dshape, "float32"))
-        i = relay.var("i", relay.TensorType(ishape, "int64"))
+        i = relay.var("i", relay.TensorType(ishape, indices_dtype))
         u = relay.var("u", relay.TensorType(ishape, "float32"))
         z = relay.op.scatter(d, i, u, axis)
 
@@ -976,7 +1009,7 @@ def test_scatter(target, dev, executor_kind):
 
         data_np = np.random.uniform(size=dshape).astype("float32")
         updates_np = np.random.uniform(size=ishape).astype("float32")
-        indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
+        indices_np = np.random.randint(0, dshape[axis] - 1, ishape).astype(indices_dtype)
 
         ref_res = ref_scatter(data_np, indices_np, updates_np, axis)
 
@@ -998,6 +1031,7 @@ def test_scatter(target, dev, executor_kind):
     verify_scatter((6, 3, 4, 5), (2, 3, 4, 5), 1)
     verify_scatter((2, 3, 8, 5), (2, 3, 1, 1), 2)
     verify_scatter((16, 16, 4, 5), (16, 16, 4, 5), 3)
+    verify_scatter((16, 16, 4, 5), (16, 16, 4, 5), 3, indices_dtype="uint32")
 
 
 class TestDynamicScatter:
@@ -1040,27 +1074,28 @@ class TestDynamicScatter:
 
 
 class TestScatterAdd:
-    dshape, ishape, axis, dtype = tvm.testing.parameters(
-        ((10,), (10,), 0, "int32"),
-        ((1000,), (1000,), 0, "int32"),
-        ((10, 5), (10, 5), -2, "float32"),
-        ((10, 5), (10, 5), -1, "float32"),
-        ((10, 5), (3, 5), 0, "float32"),
-        ((12, 4), (7, 2), 1, "float32"),
-        ((2, 3, 4), (1, 3, 4), 0, "float32"),
-        ((2, 3, 4), (2, 1, 4), 1, "float32"),
-        ((2, 3, 4), (2, 3, 1), 2, "float32"),
-        ((2, 3, 4, 5), (1, 3, 4, 5), 0, "float32"),
-        ((6, 3, 4, 5), (2, 3, 4, 5), 1, "float32"),
-        ((2, 3, 8, 5), (2, 3, 1, 1), 2, "float32"),
-        ((16, 16, 4, 5), (16, 16, 4, 5), 3, "float32"),
+    dshape, ishape, axis, dtype, indice_dtype = tvm.testing.parameters(
+        ((10,), (10,), 0, "int32", "int64"),
+        ((1000,), (1000,), 0, "int32", "int64"),
+        ((10, 5), (10, 5), -2, "float32", "int64"),
+        ((10, 5), (10, 5), -1, "float32", "int64"),
+        ((10, 5), (3, 5), 0, "float32", "int64"),
+        ((12, 4), (7, 2), 1, "float32", "int64"),
+        ((2, 3, 4), (1, 3, 4), 0, "float32", "int64"),
+        ((2, 3, 4), (2, 1, 4), 1, "float32", "int64"),
+        ((2, 3, 4), (2, 3, 1), 2, "float32", "int64"),
+        ((2, 3, 4, 5), (1, 3, 4, 5), 0, "float32", "int64"),
+        ((6, 3, 4, 5), (2, 3, 4, 5), 1, "float32", "int64"),
+        ((2, 3, 8, 5), (2, 3, 1, 1), 2, "float32", "int64"),
+        ((16, 16, 4, 5), (16, 16, 4, 5), 3, "float32", "int64"),
+        ((16, 16, 4, 5), (16, 16, 4, 5), 3, "float32", "uint32"),
     )
 
     @tvm.testing.fixture(cache_return_value=True)
-    def ref_data(self, dshape, ishape, axis, dtype):
+    def ref_data(self, dshape, ishape, axis, dtype, indice_dtype):
         data_np = np.random.uniform(size=dshape).astype(dtype)
         updates_np = np.random.uniform(size=ishape).astype(dtype)
-        indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
+        indices_np = np.random.randint(0, dshape[axis] - 1, ishape).astype(indice_dtype)
 
         out_np = np.copy(data_np)
         for index in np.ndindex(*indices_np.shape):
@@ -1072,9 +1107,11 @@ class TestScatterAdd:
     # Optimization can produce tir.atomic_add, not currently supported
     # on vulkan runtime.
     @tvm.testing.known_failing_targets("vulkan")
-    def test_scatter_add(self, target, dev, ref_data, dshape, ishape, axis, dtype):
+    def test_scatter_add(self, target, dev, ref_data, dshape, ishape, axis, dtype, indice_dtype):
         d = relay.var("d", relay.TensorType(shape=[relay.Any() for _ in dshape], dtype=dtype))
-        i = relay.var("i", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype="int64"))
+        i = relay.var(
+            "i", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype=indice_dtype)
+        )
         u = relay.var("u", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype=dtype))
         z = relay.op.scatter_add(d, i, u, axis)
 
@@ -1260,9 +1297,9 @@ def test_gather(target, dev, executor_kind, data, axis, indices, ref_res):
 
 
 def test_gather_nd(target, dev, executor_kind):
-    def verify_gather_nd(xshape, yshape, y_data, batch_dims=0):
+    def verify_gather_nd(xshape, yshape, y_data, batch_dims=0, indices_dtype="int32"):
         x = relay.var("x", relay.TensorType(xshape, "float32"))
-        y = relay.var("y", relay.TensorType(yshape, "int32"))
+        y = relay.var("y", relay.TensorType(yshape, indices_dtype))
         z = relay.gather_nd(x, y, batch_dims)
 
         func = relay.Function([x, y], z)
@@ -1270,9 +1307,9 @@ def test_gather_nd(target, dev, executor_kind):
         x_data = np.random.uniform(size=xshape).astype("float32")
 
         if y_data:
-            y_data = np.array(y_data, dtype="int32")
+            y_data = np.array(y_data, dtype=indices_dtype)
         else:
-            y_data = np.random.randint(low=0, high=2, size=yshape, dtype="int32")
+            y_data = np.random.randint(low=0, high=2, size=yshape, dtype=indices_dtype)
 
         ref_res = ref_funcs.gather_nd(x_data, y_data, batch_dims)
 
@@ -1308,6 +1345,9 @@ def test_gather_nd(target, dev, executor_kind):
     verify_gather_nd((3, 2, 2, 3, 4), (3, 3, 2, 1), None, 2)
     verify_gather_nd((3, 2, 2, 3, 4), (2, 3, 2, 2), None, 2)
     verify_gather_nd((3, 2, 2, 3, 4), (1, 3, 2, 3), None, 2)
+
+    verify_gather_nd((3, 2, 2, 3, 4), (1, 3, 2, 3), None, 2, indices_dtype="uint8")
+    verify_gather_nd((2, 2, 2), (2, 2, 1), [[[1], [0]], [[0], [1]]], 1, indices_dtype="uint32")
 
 
 def _verify_infiniteness_ops(relay_op, ref_op):
@@ -1782,6 +1822,7 @@ def test_adv_index(target, dev, executor_kind):
         tvm.testing.assert_allclose(op_res.numpy(), np_out, rtol=1e-5)
 
     verify_adv_index((10, 5), [(3, 4), (3, 1)])
+    verify_adv_index((10, 5), [(1, 4), (3, 1)])
     verify_adv_index(
         (10, 5),
         [
@@ -1916,47 +1957,48 @@ def test_scatter_nd(target, dev, executor_kind):
         )
         tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol, atol=atol)
 
-    data = np.zeros((2, 2)).astype("int64")
-    indices = np.array([[1, 1, 0], [0, 1, 0]])
-    updates = np.array([2, 3, 0])
-    out = np.array([[0, 0], [2, 3]])
-    verify_scatter_nd(data, indices, updates, out)
-    verify_scatter_nd_with_stack(data, indices, updates, out)
+    for indice_dtype in ["uint8", "uint16", "uint32"]:
+        data = np.zeros((2, 2)).astype("int64")
+        indices = np.array([[1, 1, 0], [0, 1, 0]]).astype(indice_dtype)
+        updates = np.array([2, 3, 0])
+        out = np.array([[0, 0], [2, 3]])
+        verify_scatter_nd(data, indices, updates, out)
+        verify_scatter_nd_with_stack(data, indices, updates, out)
 
-    data = np.zeros((2, 2, 2, 2)).astype("int64")
-    indices = np.array([[0, 1], [1, 1]])
-    updates = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
-    out = np.array([[[[0, 0], [0, 0]], [[1, 2], [3, 4]]], [[[0, 0], [0, 0]], [[5, 6], [7, 8]]]])
-    verify_scatter_nd(data, indices, updates, out)
-    verify_scatter_nd_with_stack(data, indices, updates, out)
+        data = np.zeros((2, 2, 2, 2)).astype("int64")
+        indices = np.array([[0, 1], [1, 1]]).astype(indice_dtype)
+        updates = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+        out = np.array([[[[0, 0], [0, 0]], [[1, 2], [3, 4]]], [[[0, 0], [0, 0]], [[5, 6], [7, 8]]]])
+        verify_scatter_nd(data, indices, updates, out)
+        verify_scatter_nd_with_stack(data, indices, updates, out)
 
-    indices = np.array([[1, 0, 0]])
-    updates = np.reshape(np.arange(1560 * 3), (3, 1560)).astype("float32")
-    shape = (2, 1560)
-    data = np.zeros(shape).astype("float32")
-    out = data.copy()
-    out[1, :] += updates[0, :]
-    out[0, :] += updates[1, :]
-    out[0, :] += updates[2, :]
-    verify_scatter_nd(data, indices, updates, out, mode="add")
-    verify_scatter_nd_with_stack(data, indices, updates, out)
-
-    for mode in ["add", "update"]:
-        indices = np.stack((np.random.randint(2, size=5), np.random.randint(7, size=5))).astype(
-            "int64"
-        )
-        updates = np.ones((5, 3)).astype("float64")
-        shape = (2, 7, 3)
-        data = np.random.random(shape).astype("float64")
+        indices = np.array([[1, 0, 0]]).astype(indice_dtype)
+        updates = np.reshape(np.arange(1560 * 3), (3, 1560)).astype("float32")
+        shape = (2, 1560)
+        data = np.zeros(shape).astype("float32")
         out = data.copy()
-        for i in range(indices.shape[1]):
-            for j in range(updates.shape[1]):
-                if mode == "add":
-                    out[indices[0, i], indices[1, i], j] += updates[i, j]
-                elif mode == "update":
-                    out[indices[0, i], indices[1, i], j] = updates[i, j]
-        verify_scatter_nd(data, indices, updates, out, mode)
-        verify_scatter_nd_with_stack(data, indices, updates, out, mode)
+        out[1, :] += updates[0, :]
+        out[0, :] += updates[1, :]
+        out[0, :] += updates[2, :]
+        verify_scatter_nd(data, indices, updates, out, mode="add")
+        verify_scatter_nd_with_stack(data, indices, updates, out)
+
+        for mode in ["add", "update"]:
+            indices = np.stack((np.random.randint(2, size=5), np.random.randint(7, size=5))).astype(
+                indice_dtype
+            )
+            updates = np.ones((5, 3)).astype("float64")
+            shape = (2, 7, 3)
+            data = np.random.random(shape).astype("float64")
+            out = data.copy()
+            for i in range(indices.shape[1]):
+                for j in range(updates.shape[1]):
+                    if mode == "add":
+                        out[indices[0, i], indices[1, i], j] += updates[i, j]
+                    elif mode == "update":
+                        out[indices[0, i], indices[1, i], j] = updates[i, j]
+            verify_scatter_nd(data, indices, updates, out, mode)
+            verify_scatter_nd_with_stack(data, indices, updates, out, mode)
 
 
 def test_unique(target, dev):

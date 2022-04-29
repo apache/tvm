@@ -116,7 +116,11 @@ Module EthosnModule::LoadFromBinary(void* strm) {
 #if _ETHOSN_API_VERSION_ <= 2102
     compiled.compiled_cmm = sl::DeserializeCompiledNetwork(cmm_strm);
 #else
+#if defined ETHOSN_HW
+    // If hardware unavaiable use the mock inference functionality. If hardware is
+    // avaiable, deserialize the compiled graph.
     compiled.runtime_cmm = std::make_unique<dl::Network>(cmm.c_str(), cmm.size());
+#endif
 #endif
     // Read the number of inputs
     stream->Read<uint64_t>(&input_size);

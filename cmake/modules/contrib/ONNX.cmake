@@ -17,6 +17,6 @@
 
 if(USE_TARGET_ONNX)
   message(STATUS "Build with contrib.codegen_onnx")
-  file(GLOB ONNX_CONTRIB_SRC src/runtime/contrib/onnx/onnx_module.cc)
+  tvm_file_glob(GLOB ONNX_CONTRIB_SRC src/runtime/contrib/onnx/onnx_module.cc)
   list(APPEND RUNTIME_SRCS ${ONNX_CONTRIB_SRC})
 endif(USE_TARGET_ONNX)

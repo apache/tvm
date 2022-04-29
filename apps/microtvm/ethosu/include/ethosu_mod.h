@@ -26,13 +26,13 @@
 
 #include "ethosu_55.h"
 
-struct ethosu_driver* ethosu0_driver = &ethosu_drv;
+struct ethosu_driver ethosu0_driver;
 
-void ethosuIrqHandler0() { ethosu_irq_handler(ethosu0_driver); }
+void ethosuIrqHandler0() { ethosu_irq_handler(&ethosu0_driver); }
 
 // Initialize Arm(R) Ethos(TM)-U NPU driver
 int EthosuInit() {
-  if (ethosu_init(ethosu0_driver, (void*)ETHOSU_BASE_ADDRESS, NULL, 0, 1, 1)) {
+  if (ethosu_init(&ethosu0_driver, (void*)ETHOSU_BASE_ADDRESS, NULL, 0, 1, 1)) {
     printf("Failed to initialize NPU.\n");
     return -1;
   }

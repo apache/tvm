@@ -94,7 +94,7 @@ class VerilatorRuntime : public JSONRuntimeBase {
 
   ~VerilatorRuntime();
 
-  const char* type_key() const { return "verilator"; }
+  const char* type_key() const final { return "verilator"; }
 
   /*! \brief set verilator library */
   void SetLibrary(const std::string& lib_name);

@@ -61,14 +61,16 @@ namespace relay {
 
 class DialectRewriter : public transform::DeviceAwareExprMutator {
  public:
-  DialectRewriter(IRModule mod, SEScope host_se_scope)
+  DialectRewriter(IRModule mod, VirtualDevice host_virtual_device)
       : transform::DeviceAwareExprMutator(mod),
         mod_(std::move(mod)),
-        host_se_scope_(std::move(host_se_scope)) {}
+        host_virtual_device_(std::move(host_virtual_device)) {}
 
   Function Rewrite(const Function& expr) { return Downcast<Function>(Mutate(expr)); }
 
  private:
+  using ExprMutator::VisitExpr_;
+
   Expr VisitExpr_(const TupleNode* tuple_node) final {
     LetList& scope = scopes_.back();
     Array<Expr> new_fields;
@@ -76,20 +78,30 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
 
     for (auto field : tuple_node->fields) {
       auto new_field = Mutate(field);
-      if (new_field->IsInstance<ConstantNode>()) {
-        Var const_var("const", Type(nullptr));
-        new_field = scope.Push(const_var, new_field);
+      if (const auto* op = new_field.as<ConstantNode>()) {
+        DataType dtype(op->data->dtype);
+        bool is_simple_const = (dtype == DataType::Int(32) || dtype == DataType::Int(64) ||
+                                dtype == DataType::Float(32) || dtype == DataType::Float(64) ||
+                                dtype == DataType::Bool());
+        if (!op->is_scalar() || !is_simple_const) {
+          VirtualDevice virtual_device = GetVirtualDevice(field);
+          ICHECK(!virtual_device->IsFullyUnconstrained());
+          Var const_var("const", Type(nullptr));
+          new_field = scope.Push(const_var, MaybeOnDeviceFixed(new_field, virtual_device));
+        }
       }
       new_fields.push_back(new_field);
     }
-    return WithFields(GetRef<Tuple>(tuple_node), std::move(new_fields));
+    return WithFields(GetRef<Tuple>(tuple_node), new_fields);
   }
 
   void PreVisitLetBlock_(const LetNode* let_node) final { scopes_.emplace_back(); }
 
   std::pair<Var, Expr> PreVisitLetBinding_(const Var& var, const Expr& value) final {
     Expr new_value = Mutate(value);
-    scopes_.back().Push(var, new_value);
+    VirtualDevice virtual_device = GetVirtualDevice(value);
+    ICHECK(!virtual_device->IsFullyUnconstrained());
+    scopes_.back().Push(var, MaybeOnDeviceFixed(new_value, virtual_device));
     // Since we always need a let block on which to bind sub-expressions the rewritten bindings
     // are tracked in the current scopes. But return the rewritten binding anyway.
     return {var, new_value};
@@ -126,7 +138,11 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
     Call call = GetRef<Call>(call_node);
     VLOG(1) << "converting lowered call to DPS:" << std::endl << PrettyPrint(call);
 
-    SEScope se_scope = GetSEScope(call);
+    VirtualDevice virtual_device = GetVirtualDevice(call);
+    ICHECK(!virtual_device->IsFullyUnconstrained());
+    ICHECK(!scopes_.empty())
+        << "Calls out of a let block are not supported, do you forget to transform "
+        << "with ToANormalForm or set opt_level >= 1 in the pass context?";
     LetList& scope = scopes_.back();
 
     std::vector<Expr> new_args;
@@ -164,19 +180,20 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
     // by a companion shape function.
     if (IsDynamic(ret_type)) {
       return DynamicInvoke(&scope, call_lowered_props.lowered_func, ins, call_lowered_props.attrs,
-                           out_types, ret_type, se_scope);
+                           out_types, ret_type, virtual_device);
     }
 
     // Handle ordinary primitive calls.
     Array<Expr> outputs;
     for (size_t i = 0; i < out_types.size(); ++i) {
-      outputs.push_back(MakeStaticAllocation(&scope, out_types[i], se_scope, std::to_string(i)));
+      outputs.push_back(
+          MakeStaticAllocation(&scope, out_types[i], virtual_device, std::to_string(i)));
     }
     Tuple outs(outputs);
     Expr invoke =
         InvokeTVMOp(call_lowered_props.lowered_func, ins, outs,
                     Downcast<DictAttrs>(call_lowered_props.attrs.metadata.at("relay_attrs")));
-    scope.Push(OnDevice(invoke, se_scope, /*is_fixed=*/true));
+    scope.Push(MaybeOnDeviceFixed(invoke, virtual_device));
     return ToTupleType(ret_type, std::vector<Expr>(outputs.begin(), outputs.end()));
   }
 
@@ -192,8 +209,8 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
   /*! Returns an \p alloc_tensor call for a tensor of \p shape and \p dtype over \p storage. */
   inline Expr AllocTensor(const Expr& storage, tvm::relay::Expr shape, DataType dtype,
                           Array<IndexExpr> assert_shape) {
-    Expr offset = OnDevice(MakeConstantScalar(DataType::Int(64), 0), host_se_scope_,
-                           /*is_fixed=*/true);
+    Expr offset =
+        MaybeOnDeviceFixed(MakeConstantScalar(DataType::Int(64), 0), host_virtual_device_);
     return tvm::relay::AllocTensor(storage, std::move(offset), std::move(shape), dtype,
                                    assert_shape);
   }
@@ -228,30 +245,28 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
   }
 
   // Allocate a tensor with a statically known shape.
-  Var MakeStaticAllocation(LetList* scope, const TensorType& type, const SEScope& se_scope,
-                           String name_hint) {
+  Var MakeStaticAllocation(LetList* scope, const TensorType& type,
+                           const VirtualDevice& virtual_device, String name_hint) {
     std::vector<int64_t> int_shape;
     for (auto it : type->shape) {
       const auto* imm = it.as<IntImmNode>();
       CHECK(imm) << "expect static int shape";
       int_shape.push_back(imm->value);
     }
-    Expr shape = OnDevice(MakeConstant(int_shape), host_se_scope_, /*is_fixed=*/true);
-    Expr size = OnDevice(ComputeStorage(type), host_se_scope_, /*is_fixed=*/true);
+    Expr shape = MaybeOnDeviceFixed(MakeConstant(int_shape), host_virtual_device_);
+    Expr size = MaybeOnDeviceFixed(ComputeStorage(type), host_virtual_device_);
     // Alignment is directly captured in the instruction rather than calculated, so we
     // don't want to wrap it with an "on_device".
     Expr alignment = ComputeAlignment(type->dtype);
     // Run type inference later to get the correct type.
     Var var("storage_" + name_hint, Type(nullptr));
-    Expr value = OnDevice(AllocStorage(size, alignment, se_scope, type->dtype), se_scope,
-                          /*is_fixed=*/true);
-    auto sto = scope->Push(var, value);
+    Expr value = AllocStorage(size, alignment, virtual_device, type->dtype);
+    auto sto = scope->Push(var, MaybeOnDeviceFixed(value, virtual_device));
 
     // TODO(@jroesch): There is a bug with typing based on the constant shape.
-    auto tensor = OnDevice(AllocTensor(sto, shape, type->dtype, /*assert_shape=*/type->shape),
-                           se_scope, /*is_fixed=*/true);
+    auto tensor = AllocTensor(sto, shape, type->dtype, /*assert_shape=*/type->shape);
     Var tensor_var("tensor_" + name_hint, Type(nullptr));
-    return scope->Push(tensor_var, tensor);
+    return scope->Push(tensor_var, MaybeOnDeviceFixed(tensor, virtual_device));
   }
 
   /*!
@@ -287,23 +302,24 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
       if (state == tec::kNeedInputShape) {
         std::vector<Expr> exprs = FromTupleType(ty, arg);
         for (size_t j = 0; j < exprs.size(); ++j) {
-          Expr sh_of = Mutate(ShapeOf(exprs[j]));  // already accounts for device
+          Expr sh_of = Mutate(ShapeOf(exprs[j]));
           Var in_shape_var("in_shape_" + std::to_string(input_pos + j), Type(nullptr));
-          shape_func_ins.push_back(scope->Push(in_shape_var, sh_of));
+          shape_func_ins.push_back(
+              scope->Push(in_shape_var, MaybeOnDeviceFixed(sh_of, host_virtual_device_)));
           input_pos++;
         }
       } else if (state == tec::kNeedInputData) {
         auto new_arg = Mutate(arg);  // already accounts for device
-        SEScope arg_se_scope = GetSEScope(arg);
+        VirtualDevice arg_virtual_device = GetVirtualDevice(arg);
+        ICHECK(!arg_virtual_device->IsFullyUnconstrained());
         // The dynamic shape function is expecting its data on the host/CPU, so insert a
         // device_copy otherwise. (We'll need to fuse & lower these copies in the same way
         // we fuse & lower other operators we insert for, eg, dynamic tensor size calculation.)
-        if (arg_se_scope != host_se_scope_) {
-          new_arg = OnDevice(DeviceCopy(new_arg, arg_se_scope, host_se_scope_), host_se_scope_,
-                             /*is_fixed=*/true);
-        }
+        new_arg = MaybeDeviceCopy(MaybeOnDeviceFixed(new_arg, arg_virtual_device),
+                                  arg_virtual_device, host_virtual_device_);
         Var in_shape_var("in_shape_" + std::to_string(input_pos), Type(nullptr));
-        shape_func_ins.push_back(scope->Push(in_shape_var, new_arg));
+        shape_func_ins.push_back(
+            scope->Push(in_shape_var, MaybeOnDeviceFixed(new_arg, host_virtual_device_)));
         input_pos++;
       } else {
         // TODO(@jroesch): handle kNeedBoth
@@ -322,41 +338,36 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
       ICHECK(tensor_type_node);
       // Put the shape func on the host. This also ensures that everything between
       // shape_of and shape_func is similarly on the host.
-      Expr alloc = MakeStaticAllocation(scope, GetRef<TensorType>(tensor_type_node), host_se_scope_,
-                                        std::to_string(i));
-      // TODO(mbs): Don't really need a fresh var here since alloc will always be a var.
-      Var shape_func_out_var("shape_func_out_" + std::to_string(i), Type(nullptr));
-      alloc = scope->Push(shape_func_out_var, alloc);
+      Var alloc = MakeStaticAllocation(scope, GetRef<TensorType>(tensor_type_node),
+                                       host_virtual_device_, "out_shape_" + std::to_string(i));
       out_shapes.push_back(alloc);
     }
 
     // Represent the call in DPS form.
-    auto shape_call = OnDevice(InvokeTVMOp(prim_fn_var, Tuple(shape_func_ins), Tuple(out_shapes),
-                                           Downcast<DictAttrs>(attrs.metadata.at("relay_attrs"))),
-                               host_se_scope_, /*is_fixed=*/true);
+    auto shape_call = InvokeTVMOp(prim_fn_var, Tuple(shape_func_ins), Tuple(out_shapes),
+                                  Downcast<DictAttrs>(attrs.metadata.at("relay_attrs")));
     Var shape_func_var("shape_func", Type(nullptr));
-    scope->Push(shape_func_var, shape_call);
+    scope->Push(shape_func_var, MaybeOnDeviceFixed(shape_call, host_virtual_device_));
     return out_shapes;
   }
 
   // Generate the code for invoking the TVM primitive \p func who's results have dynamic shapes.
   Expr DynamicInvoke(LetList* scope, const Expr& func, const Tuple& ins,
                      const CallLoweredAttrs& attrs, const std::vector<TensorType>& out_types,
-                     const Type& ret_type, const SEScope& se_scope) {
+                     const Type& ret_type, const VirtualDevice& virtual_device) {
     Array<Expr> out_shapes = EmitShapeFunc(scope, ins, attrs);
     std::vector<Var> storages;
     CHECK_EQ(out_shapes.size(), out_types.size());
     for (size_t i = 0; i < out_shapes.size(); ++i) {
       auto out_shape = out_shapes[i];
       auto out_type = out_types[i];
-      auto size = OnDevice(ComputeStorageInRelay(out_shape, out_type), host_se_scope_,
-                           /*is_fixed=*/true);
+      auto size =
+          MaybeOnDeviceFixed(ComputeStorageInRelay(out_shape, out_type), host_virtual_device_);
       // Alignment is directly captured in the instruction so don't wrap in "on_device".
       auto alignment = ComputeAlignment(out_type->dtype);
       Var sto_var("storage_" + std::to_string(i), Type(nullptr));
-      auto val = OnDevice(AllocStorage(size, alignment, se_scope, out_type->dtype), se_scope,
-                          /*is_fixed=*/true);
-      storages.push_back(scope->Push(sto_var, val));
+      auto val = AllocStorage(size, alignment, virtual_device, out_type->dtype);
+      storages.push_back(scope->Push(sto_var, MaybeOnDeviceFixed(val, virtual_device)));
     }
 
     Array<Expr> outs;
@@ -364,17 +375,15 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
       auto out_shape = out_shapes[i];
       auto out_type = out_types[i];
       auto storage = storages[i];
-      auto alloc = OnDevice(AllocTensor(storage, out_shape, out_type->dtype, out_type->shape),
-                            se_scope, /*is_fixed=*/true);
+      auto alloc = AllocTensor(storage, out_shape, out_type->dtype, out_type->shape);
       Var out_var("out_" + std::to_string(i), Type(nullptr));
-      outs.push_back(scope->Push(out_var, alloc));
+      outs.push_back(scope->Push(out_var, MaybeOnDeviceFixed(alloc, virtual_device)));
     }
 
     Tuple tuple_outs(outs);
     auto call =
         InvokeTVMOp(func, ins, tuple_outs, Downcast<DictAttrs>(attrs.metadata.at("relay_attrs")));
-    auto invoke = OnDevice(call, se_scope, /*is_fixed=*/true);
-    scope->Push(invoke);
+    scope->Push(MaybeOnDeviceFixed(call, virtual_device));
     return ToTupleType(ret_type,
                        std::vector<Expr>(tuple_outs->fields.begin(), tuple_outs->fields.end()));
   }
@@ -398,7 +407,7 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
         CHECK(imm) << "expect static int shape";
         shape.push_back(imm->value);
       }
-      shape_expr = OnDevice(MakeConstant(shape), host_se_scope_, /*is_fixed=*/true);
+      shape_expr = MaybeOnDeviceFixed(MakeConstant(shape), host_virtual_device_);
     }
     return ReshapeTensor(ins->fields[0], shape_expr, ret_ty->shape);
   }
@@ -407,7 +416,7 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
   const Op& device_copy_op_ = Op::Get("device_copy");
   runtime::DataType compute_dtype_ = runtime::DataType::Int(64);
   IRModule mod_;
-  SEScope host_se_scope_;
+  VirtualDevice host_virtual_device_;
 
   std::vector<LetList> scopes_;
 };
@@ -424,16 +433,16 @@ Pass ManifestAllocImportStorage() {
                                           /*required=*/{});
 }
 
-Pass ManifestAllocImpl(SEScope host_se_scope) {
-  auto pass_func = [host_se_scope](Function func, IRModule mod, PassContext ctxt) {
-    return DialectRewriter(mod, host_se_scope).Rewrite(func);
+Pass ManifestAllocImpl(VirtualDevice host_virtual_device) {
+  auto pass_func = [host_virtual_device](Function func, IRModule mod, PassContext ctxt) {
+    return DialectRewriter(mod, host_virtual_device).Rewrite(func);
   };
   return CreateFunctionPass(pass_func, 0, "ManifestAllocImpl", {});
 }
 
-Pass ManifestAlloc(SEScope host_se_scope) {
+Pass ManifestAlloc(VirtualDevice cpu_virtual_device) {
   std::vector<Pass> passes = {ManifestAllocImportStorage(), InferType(),
-                              ManifestAllocImpl(std::move(host_se_scope)), InferType()};
+                              ManifestAllocImpl(std::move(cpu_virtual_device)), InferType()};
   return Sequential(passes, "ManifestAlloc");
 }
 

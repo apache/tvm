@@ -22,7 +22,6 @@ import tempfile
 from typing import Callable
 
 import pytest
-
 import tvm
 from tvm import tir
 from tvm.ir.module import IRModule
@@ -130,6 +129,25 @@ def test_meta_schedule_database_create():
         database = _create_tmp_database(tmpdir)
         assert osp.exists(database.path_workload)
         assert osp.exists(database.path_tuning_record)
+
+
+def test_meta_schedule_database_has_workload():
+    mod: IRModule = Matmul
+    missing_mod: IRModule = MatmulRelu
+    with tempfile.TemporaryDirectory() as tmpdir:
+        database = _create_tmp_database(tmpdir)
+        workload = database.commit_workload(mod)
+        record = TuningRecord(
+            _create_schedule(mod, _schedule_matmul).trace,
+            [1.5, 2.5, 1.8],
+            workload,
+            tvm.target.Target("llvm"),
+            ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
+        )
+        database.commit_tuning_record(record)
+        assert len(database) == 1
+        assert database.has_workload(mod)
+        assert not database.has_workload(missing_mod)
 
 
 def test_meta_schedule_database_add_entry():

@@ -141,15 +141,18 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "range(min=" << op->min << ", ext=" << op->extent << ')';
     });
 
-GlobalVar::GlobalVar(String name_hint) {
+GlobalVar::GlobalVar(String name_hint, Type type) {
   ObjectPtr<GlobalVarNode> n = make_object<GlobalVarNode>();
   n->name_hint = std::move(name_hint);
+  n->checked_type_ = std::move(type);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(GlobalVarNode);
 
-TVM_REGISTER_GLOBAL("ir.GlobalVar").set_body_typed([](String name) { return GlobalVar(name); });
+TVM_REGISTER_GLOBAL("ir.GlobalVar").set_body_typed([](String name, Type type) {
+  return GlobalVar(name, type);
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<GlobalVarNode>([](const ObjectRef& ref, ReprPrinter* p) {

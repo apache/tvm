@@ -494,6 +494,11 @@ class OneHotAttrs(Attrs):
     """Attributes used in one_hot operators"""
 
 
+@tvm._ffi.register_object("relay.attrs.BroadcastAttrs")
+class BroadcastAttrs(Attrs):
+    """Attributes used in broadcast operators"""
+
+
 @tvm._ffi.register_object("relay.attrs.QuantizeAttrs")
 class QuantizeAttrs(Attrs):
     """Attributes used in quantize operators"""

@@ -32,7 +32,7 @@ def get_verify_pass(valid, **kwargs):
 
 @tvm.testing.requires_gpu
 def test_shared_memory():
-    def check_shared_memory(dtype):
+    def check_shared_memory(storage_scope, dtype):
         N = 1024
         M = 128
 
@@ -43,7 +43,7 @@ def test_shared_memory():
         B = te.compute((N,), lambda i: A[i], name="B")
 
         s = te.create_schedule([B.op])
-        AA = s.cache_read(A, "shared", [B])
+        AA = s.cache_read(A, storage_scope, [B])
         o, i = s[B].split(s[B].op.axis[0], M)
         s[AA].compute_at(s[B], o)
         s[B].bind(o, te.thread_axis("blockIdx.x"))
@@ -90,8 +90,9 @@ def test_shared_memory():
                 tvm.build(s, [A, B], target)
             assert valid[0]
 
-    check_shared_memory("float32")
-    check_shared_memory("int8x4")
+    check_shared_memory("shared", "float32")
+    check_shared_memory("shared", "int8x4")
+    check_shared_memory("shared.dyn", "float32")
 
 
 @tvm.testing.requires_gpu

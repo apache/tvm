@@ -35,6 +35,7 @@ class Conv2dOperation:
         stride_support,
         epilogue_functor=EpilogueFunctor.LinearCombination,
         swizzling_functor=SwizzlingFunctor.Identity1,
+        split_k_slices=1,
     ):
         self.operation_kind = OperationKind.Conv2d
         self.arch = arch
@@ -48,12 +49,13 @@ class Conv2dOperation:
         self.iterator_algorithm = iterator_algorithm
         self.stride_support = stride_support
         self.swizzling_functor = swizzling_functor
+        self.split_k_slices = split_k_slices
 
     def accumulator_type(self):
         return self.tile_description.math_instruction.element_accumulator
 
     def core_name(self):
-        """ The basic operation kind is prefixed with a letter indicating the accumulation type. """
+        """The basic operation kind is prefixed with a letter indicating the accumulation type."""
         intermediate_type = ""
 
         if self.tile_description.math_instruction.opcode_class == OpcodeClass.TensorOp:
@@ -75,7 +77,7 @@ class Conv2dOperation:
         )
 
     def extended_name(self):
-        """ Append data types if they differ from compute type. """
+        """Append data types if they differ from compute type."""
         if (
             self.C.element != self.tile_description.math_instruction.element_accumulator
             and self.A.element != self.tile_description.math_instruction.element_accumulator
@@ -127,6 +129,9 @@ class Conv2dOperation:
                 "_${layout}_align${alignment}"
             )
 
+        if self.split_k_slices > 1:
+            configuration_name += "_splitk%d" % self.split_k_slices
+
         return substitute_template(
             configuration_name,
             {
@@ -140,13 +145,50 @@ class Conv2dOperation:
 
 
 class EmitConv2dInstance:
-    """ Responsible for emitting a CUTLASS template definition."""
+    """Responsible for emitting a CUTLASS template definition."""
 
     def __init__(self):
+        self.epilogue_default = """
+    ${epilogue_functor}<
+      ${element_c},
+      ${epilogue_vector_length},
+      ${element_accumulator},
+      ${element_epilogue}
+    >"""
+
+        self.epilogue_no_beta_scaling = """
+    ${epilogue_functor}<
+      ${element_c},
+      ${epilogue_vector_length},
+      ${element_accumulator},
+      ${element_epilogue},
+      cutlass::epilogue::thread::ScaleType::NoBetaScaling
+    >"""
+
+        self.epilogue_residual_block = """
+    ${epilogue_functor}<
+      ${element_c},
+      ${element_accumulator},
+      ${element_epilogue},
+      ${element_c},
+      ${epilogue_vector_length},
+      ${activation},
+      ${binary_op},
+      ${unary_op}
+    >"""
+
+        self.epilogue_wgrad = """
+    ${epilogue_functor}<
+      ${element_c},
+      4,
+      float,
+      float
+    >"""
+
         self.template = """
   // Conv2d${conv_kind_name} ${iterator_algorithm_name} kernel instance "${operation_name}"
   using ${operation_name} =
-  typename cutlass::conv::kernel::DefaultConv2d${conv_kind_name}<
+  typename cutlass::conv::kernel::DefaultConv2d${conv_kind_name}${conv_kernel_postfix}<
     ${element_a},
     ${layout_a},
     ${element_b},
@@ -159,12 +201,7 @@ class EmitConv2dInstance:
     cutlass::gemm::GemmShape<${threadblock_shape_m}, ${threadblock_shape_n}, ${threadblock_shape_k}>,
     cutlass::gemm::GemmShape<${warp_shape_m}, ${warp_shape_n}, ${warp_shape_k} >,
     cutlass::gemm::GemmShape<${instruction_shape_m}, ${instruction_shape_n}, ${instruction_shape_k}>,
-    ${epilogue_functor}<
-      ${element_c},
-      ${epilogue_vector_length},
-      ${element_accumulator},
-      ${element_epilogue}
-    >,
+    ${epilogue},
     ${swizzling_functor}, // cutlass::gemm::threadblock::GemmSplitKIdentityThreadblockSwizzle<>,
     ${stages},
     ${math_operator},
@@ -173,9 +210,31 @@ class EmitConv2dInstance:
     ${align_a},
     ${align_b}
   >::Kernel;
+
+  ${reduction}
 """
 
-    def emit(self, operation):
+        self.reduction_template = """
+using EpilogueOutputOp = ${epilogue};
+using ReductionOp = cutlass::reduction::thread::ReduceAdd<
+    ${element_accumulator},
+    ${element_accumulator},
+      EpilogueOutputOp::kCount
+      >;
+
+using ReductionKernel = cutlass::reduction::kernel::ReduceSplitK<
+    cutlass::MatrixShape<4, 32 * EpilogueOutputOp::kCount>,
+      EpilogueOutputOp,
+      ReductionOp
+      >;
+
+using ReductionDevice = cutlass::reduction::device::ReduceSplitK<ReductionKernel>;
+using ReductionStrideIndex = typename ReductionDevice::StrideIndex;
+"""
+
+    def emit(
+        self, operation, no_beta_scaling=False, residual_block_info=False, emit_reduction=False
+    ):
         """Instantiate a Conv2d kernel from given `operation`."""
         warp_shape = [
             int(
@@ -190,6 +249,31 @@ class EmitConv2dInstance:
             / DataTypeSize[operation.C.element]
         )
 
+        element_c = operation.C.element
+        use_split_k_wgrad = operation.conv_kind == ConvKind.Wgrad and operation.split_k_slices > 1
+        # Gemm output always fp32 in wgrad with split k
+        element_c_gemm = DataType.f32 if use_split_k_wgrad else element_c
+
+        if emit_reduction:
+            epilogue_reduction = substitute_template(
+                self.epilogue_wgrad,
+                {
+                    "epilogue_functor": EpilogueFunctorTag[operation.epilogue_functor],
+                    "element_c": DataTypeTag[element_c],
+                },
+            )
+            reduction = substitute_template(
+                self.reduction_template,
+                {
+                    "epilogue": epilogue_reduction,
+                    "operation_name": operation.procedural_name(),
+                    "element_accumulator": DataTypeTag[operation.accumulator_type()],
+                },
+            )
+            gemm_template = substitute_template(self.template, {"reduction": reduction})
+        else:
+            gemm_template = substitute_template(self.template, {"reduction": ""})
+
         values = {
             "operation_name": operation.procedural_name(),
             "conv_kind": ConvKindTag[operation.conv_kind],
@@ -198,7 +282,7 @@ class EmitConv2dInstance:
             "layout_a": LayoutTag[operation.A.layout],
             "element_b": DataTypeTag[operation.B.element],
             "layout_b": LayoutTag[operation.B.layout],
-            "element_c": DataTypeTag[operation.C.element],
+            "element_c": DataTypeTag[element_c_gemm],
             "layout_c": LayoutTag[operation.C.layout],
             "element_accumulator": DataTypeTag[operation.accumulator_type()],
             "opcode_class": OpcodeClassTag[
@@ -235,6 +319,36 @@ class EmitConv2dInstance:
             ],
             "align_a": str(operation.A.alignment),
             "align_b": str(operation.B.alignment),
+            "conv_kernel_postfix": "",
         }
 
-        return substitute_template(self.template, values)
+        if use_split_k_wgrad:
+            # Even if the output is fp16, gemm output is always fp32 for split k wgrad.
+            epilogue_gemm = substitute_template(
+                self.epilogue_wgrad,
+                {
+                    "epilogue_functor": EpilogueFunctorTag[operation.epilogue_functor],
+                    "element_c": "float",
+                },
+            )
+            template = substitute_template(gemm_template, {"epilogue": epilogue_gemm})
+        elif residual_block_info:
+            template = substitute_template(
+                gemm_template, {"epilogue": self.epilogue_residual_block}
+            )
+            values.update(
+                {
+                    "unary_op": residual_block_info["unary_op"],
+                    "binary_op": residual_block_info["binary_op"],
+                    "activation": residual_block_info["activation"],
+                    "conv_kernel_postfix": "WithBroadcast",
+                }
+            )
+        elif no_beta_scaling:
+            template = substitute_template(
+                gemm_template, {"epilogue": self.epilogue_no_beta_scaling}
+            )
+        else:
+            template = substitute_template(gemm_template, {"epilogue": self.epilogue_default})
+
+        return substitute_template(template, values)

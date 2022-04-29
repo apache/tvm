@@ -54,7 +54,6 @@ struct CompilerAttrs : public tvm::AttrsNode<CompilerAttrs> {
   }
 };
 
-
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_ANNOTATION_H_

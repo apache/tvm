@@ -99,6 +99,25 @@ def InferType():
     return _ffi_api.InferType()
 
 
+def InferTypeLocal(expr):
+    """Infer the type of a single expr, reusing type information to do so.
+
+    This populates the checked_type field in expr. We assume existing type information
+    in the graph is correct!
+
+    Parameters
+    ----------
+    expr: relay.Expr
+        The expression we want to know the type of
+
+    Returns
+    -------
+    type: relay.Type
+        The type of the expression
+    """
+    return _ffi_api.InferTypeLocal(expr)
+
+
 def FoldScaleAxis():
     """Fold the scaling of axis into weights of conv2d/dense. This pass will
     invoke both forward and backward scale folding.
@@ -695,9 +714,22 @@ def LambdaLift():
     return _ffi_api.LambdaLift()
 
 
-def PartitionGraph(mod_name="default"):
+def PartitionGraph(mod_name="default", bind_constants=True):
     """Partition a Relay program into regions that can be executed on different
     backends.
+
+    Parameters
+    ----------
+    mod_name : string
+        Controls the prefix of the name of each partitioned subraph.
+        If `mod_name` is None, then `tvmgen_` prefix is used.
+        Otherwise, `tvmgen_mod_name_` prefix is used.
+
+    bind_constants: bool
+        Whether or not to bind constants in partitioned subgraphs. Note that the codegen needs
+        to maintain the bound constants; Otherwise the constants will be maintained by
+        the metadata module. So it is recommended for C-source based codegens to
+        set bind_constants=False to avoid embedding large constants in a C source file.
 
     Returns
     -------
@@ -705,7 +737,7 @@ def PartitionGraph(mod_name="default"):
         The registered pass that partitions the Relay program.
     """
     mod_name = mangle_module_name(mod_name)
-    return _ffi_api.PartitionGraph(mod_name)
+    return _ffi_api.PartitionGraph(mod_name, bind_constants)
 
 
 def AnnotateTarget(targets, include_non_call_ops=True):
@@ -755,6 +787,24 @@ def Inline():
         The registered pass that performs inlining for a Relay IR module.
     """
     return _ffi_api.Inline()
+
+
+def InlineComposites(target):
+    """Perform inlining on the given Relay IR module. The functions originate
+    from the MergeComposite pass based on an input pattern table will fold back
+    to main. Currently, this is used for the TRT BYOC which expects a single
+    primitive function to operate on.
+
+    Parameters
+    ----------
+    target: str
+        The byoc target for which ops need to fold back to primitive function.
+    Returns
+    -------
+    ret: tvm.transform.Pass
+        The registered pass that performs inlining for a Relay IR module.
+    """
+    return _ffi_api.InlineComposites(target)
 
 
 def gradient(expr, mod=None, mode="higher_order"):
@@ -1151,12 +1201,12 @@ def SimplifyExpr():
 
 def PlanDevices(config):
     """
-    Uses existing "on_device" and "device_copy" CallNodes to infer the SEScope on which
+    Uses existing "on_device" and "device_copy" calls to infer the virtual device on which
     every Relay sub-expression should run and the result stored. Captures the result of that
-    analysis using new "on_device" and "device_copy" CallNodes. Sub-expressions which are
-    not otherwise constrained are assigned to the default_primitive_se_scope. However data and
-    computations which must be hosted on a CPU (such as shapes and shape functions) use the
-    cpu_se_scope.
+    analysis using new "on_device" and "device_copy" calls. Sub-expressions which are
+    not otherwise constrained are assigned to the default primitive virtual device describe by
+    config. However data and computations which must be hosted on a CPU (such as shapes and
+    shape functions) use the host virtual device of the config.
 
     Parameters
     ----------
@@ -1169,6 +1219,14 @@ def PlanDevices(config):
         The pass.
     """
     return _ffi_api.PlanDevices(config)
+
+
+def ManifestLifetimes():
+    """
+    Manifest the lifetimes of variables after allocations have been manifested, by inserting kill
+    operations once variables become dead.
+    """
+    return _ffi_api.ManifestLifetimes()
 
 
 def FoldExplicitPadding():
@@ -1198,7 +1256,7 @@ def AnnotateSpans():
     return _ffi_api.AnnotateSpans()
 
 
-def FakeQuantizationToInteger():
+def FakeQuantizationToInteger(hard_fail=False, use_qat=False):
     # pylint: disable=anomalous-backslash-in-string
     """
     Find regions of the graph of the form
@@ -1220,12 +1278,37 @@ def FakeQuantizationToInteger():
 
     Rules for rewriting indivdual ops are in fake_quantization_to_integer.py
 
+    Parameters
+    ----------
+    hard_fail : boolean
+        How do deal with errors during graph rewriting.
+        If true, raise an error.
+        If false, skip rewriting the subgraph.
+
+    use_qat : boolean
+        To perform an additional QAT pass - convert enabled operations with dequantized inputs.
+        Example: in the graph above op2 is not registered with the FakeQuantizationToInteger
+        attribute, op1 operation can still be converted. Converted pattern below:
+
+        .. code-block:: text
+
+            x    w
+            |    |
+            \\   /
+              op1
+              |
+              dq
+              |
+              op2
+              |
+              q
+
     Returns
     -------
     ret : tvm.transform.Pass
-        The registered SimplifyExpr pass.
+        The registered FakeQuantizationToInteger pass.
     """
-    return _ffi_api.FakeQuantizationToInteger()
+    return _ffi_api.FakeQuantizationToInteger(hard_fail, use_qat)
 
 
 def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):

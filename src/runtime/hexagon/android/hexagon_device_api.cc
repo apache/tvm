@@ -124,7 +124,7 @@ inline void HexagonDeviceAPI::FreeWorkspace(Device dev, void* ptr) {
   DeviceAPI::FreeWorkspace(dev, ptr);
 }
 
-TVM_REGISTER_GLOBAL("device_api.hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.hexagon.v1").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = HexagonDeviceAPI::Global();
   *rv = ptr;
 });

@@ -50,10 +50,10 @@ TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
 // The passing value in attrs and args doesn't seem super great.
 // We should consider a better solution, i.e the type relation
 // being able to see the arguments as well?
-Expr AllocStorage(Expr size, Expr alignment, SEScope se_scope, DataType dtype_hint) {
+Expr AllocStorage(Expr size, Expr alignment, VirtualDevice virtual_device, DataType dtype_hint) {
   auto attrs = make_object<AllocStorageAttrs>();
   attrs->dtype = dtype_hint;
-  attrs->se_scope = std::move(se_scope);
+  attrs->virtual_device = std::move(virtual_device);
   static const Op& op = Op::Get("memory.alloc_storage");
   return Call(op, {std::move(size), std::move(alignment)}, Attrs(std::move(attrs)), {});
 }
@@ -90,7 +90,7 @@ RELAY_REGISTER_OP("memory.alloc_storage")
     .set_attrs_type_key("relay.attrs.AllocStorageAttrs")
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<TOpIsStateful>("TOpIsStateful", true)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
@@ -200,7 +200,7 @@ RELAY_REGISTER_OP("memory.alloc_tensor")
     .set_attrs_type_key("relay.attrs.AllocTensorAttrs")
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<TOpIsStateful>("TOpIsStateful", true)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
@@ -213,13 +213,13 @@ bool KillRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 RELAY_REGISTER_OP("memory.kill")
-    .describe(R"code(Mark a tensor for release to the allocator.)code" TVM_ADD_FILELINE)
+    .describe(R"code(Mark a variable for release to the allocator.)code" TVM_ADD_FILELINE)
     .set_num_inputs(1)
-    .add_argument("to_free", "Tensor", "The tensor to free.")
+    .add_argument("to_free", "Variable", "The variable to free.")
     .add_type_rel("Kill", KillRel)
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<TOpIsStateful>("TOpIsStateful", true)
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 

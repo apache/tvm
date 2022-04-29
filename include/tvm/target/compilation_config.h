@@ -26,12 +26,12 @@
 #ifndef TVM_TARGET_COMPILATION_CONFIG_H_
 #define TVM_TARGET_COMPILATION_CONFIG_H_
 
-#include <tvm/target/se_scope.h>
+#include <tvm/target/virtual_device.h>
 
 namespace tvm {
 
 /*!
- * \brief Gathers the \p Targets and distinguished \p SEScopes in canonical form needed to
+ * \brief Gathers the \p Targets and distinguished \p VirtualDevices in canonical form needed to
  * compile a Relay module. Centralizes any setup and validation logic needed to transition
  * from configuration options conveyed implicitly (eg in \p PassContexts) or explicitly
  * (eg a a list of \p Targets) to the configuration.
@@ -82,13 +82,13 @@ class CompilationConfigNode : public Object {
   Array<Target> primitive_targets;
 
   /*!
-   * \brief \p SEScope for primitive operators which are not otherwise constrained to a particular
-   * device.
+   * \brief \p VirtualDevice for primitive operators which are not otherwise constrained to a
+   * particular device.
    */
-  SEScope default_primitive_se_scope = SEScope::FullyUnconstrained();
+  VirtualDevice default_primitive_virtual_device = VirtualDevice::FullyUnconstrained();
 
-  /*! \brief SEScope for the host. */
-  SEScope host_se_scope = SEScope::FullyUnconstrained();
+  /*! \brief VirtualDevice for the host. */
+  VirtualDevice host_virtual_device = VirtualDevice::FullyUnconstrained();
 
   /*!
    * \brief If defined then compile and/or run in 'homogenous execution mode'. In this mode all
@@ -104,24 +104,25 @@ class CompilationConfigNode : public Object {
   void VisitAttrs(AttrVisitor* v);
 
   /*!
-   * \brief Returns a \p SEScope agreeing with \p se_scope on all its constrained fields, however:
+   * \brief Returns a \p VirtualDevice agreeing with \p virtual_device on all its constrained
+   * fields, however:
    * - If the target is null then it is filled in from the known available primitive targets by
    *   matching on device type. Fails if no such target is known.
-   * - The returned object is unique for the field values w.r.t. all other \p SEScopes returned
-   *   by this method.
+   * - The returned object is unique for the field values w.r.t. all other \p VirtualDevices
+   * returned by this method.
    *
-   * We call the result the 'canonical' \p SEScope. Two canonical \p SEScopes are structurally
-   * equal if and only if they are pointer equal.
+   * We call the result the 'canonical' \p VirtualDevice. Two canonical \p VirtualDevices are
+   * structurally equal if and only if they are pointer equal.
    */
-  SEScope CanonicalSEScope(const SEScope& se_scope) const;
+  VirtualDevice CanonicalVirtualDevice(const VirtualDevice& virtual_device) const;
 
   static constexpr const char* _type_key = "CompilationConfig";
   TVM_DECLARE_FINAL_OBJECT_INFO(CompilationConfigNode, Object)
 
  private:
   /*!
-   * \brief Establishes the default \p SEScope for primitives and the \p SEScope for the host
-   * given:
+   * \brief Establishes the default \p VirtualDevice for primitives and the \p VirtualDevice for the
+   * host given:
    *  - the vector of available primitive \p Targets.
    *  - any host \p Target.
    *  - any "relay.fallback_device_type" attribute on \p pass_ctx.
@@ -134,7 +135,7 @@ class CompilationConfigNode : public Object {
    * CAUTION: Recreated the primitive_targets so that they all have the given/constructed
    * host_target as their host (cf CheckAndUpdateHostConsistency).
    */
-  void EstablishDefaultSEScopes(const transform::PassContext& pass_ctx);
+  void EstablishDefaultVirtualDevices(const transform::PassContext& pass_ctx);
 
   /*!
    * \brief Returns a freshly constructed \p Target to represent \p device_type.
@@ -147,9 +148,9 @@ class CompilationConfigNode : public Object {
   Target FindPrimitiveTargetOrFail(DLDeviceType device_type) const;
 
   /*!
-   * \brief A cache of constructed SEScopes.
+   * \brief A cache of constructed virtual devices.
    */
-  mutable SEScopeCache se_scope_cache_;
+  mutable VirtualDeviceCache virtual_device_cache_;
 
   friend class CompilationConfig;
 };

@@ -231,8 +231,6 @@ def build(
     elif isinstance(inputs, PrimFunc):
         input_mod = lower(inputs, name=name)
     elif isinstance(inputs, tvm.IRModule):
-        if name is not None:
-            warnings.warn("Specifying name with IRModule input is useless")
         input_mod = lower(inputs)
     elif not isinstance(inputs, (dict, container.Map)):
         raise ValueError(
@@ -277,7 +275,7 @@ def build(
 
     annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
 
-    rt_mod_host = _driver_ffi.preprocess_module(annotated_mods, target_host)
+    rt_mod_host = _driver_ffi.tir_to_runtime(annotated_mods, target_host)
 
     annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
 

@@ -43,6 +43,17 @@ def dilate_np(x, dilation):
     return x
 
 
+def group_conv1d_ncw_python(a_np, w_np, stride, padding, dilation, groups):
+    "Grouped version of `conv1d_ncw_python`, see that for documentation"
+    a_slices = np.array_split(a_np, groups, axis=1)
+    w_slices = np.array_split(w_np, groups, axis=0)
+    b_slices = [
+        conv1d_ncw_python(a_slice, w_slice, stride, padding, dilation)
+        for a_slice, w_slice in zip(a_slices, w_slices)
+    ]
+    return np.concatenate(b_slices, axis=1)
+
+
 def conv1d_ncw_python(a_np, w_np, stride, padding, dilation):
     """1D convolution operator in NCW layout
 
@@ -63,6 +74,9 @@ def conv1d_ncw_python(a_np, w_np, stride, padding, dilation):
 
     dilation : int
         Dilation rate of the kernel
+
+    groups : int
+        Number of groups in the convolution
 
     Returns
     -------

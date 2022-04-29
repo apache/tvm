@@ -64,6 +64,7 @@ class FunctionNode : public BaseFuncNode {
     v->Visit("ret_type", &ret_type);
     v->Visit("type_params", &type_params);
     v->Visit("attrs", &attrs);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -134,6 +135,8 @@ class Function : public BaseFunc {
  * \param opt_attrs
  * The (optional) attributes for the copied function. If none,
  * ret_function->attrs = function->attrs.
+ * \param opt_virtual_device The (optional) virtual_device for the copied function. If none,
+ * ret_function->virtual_device = function->virtual_device.
  * \param opt_span The (optional) span for the copied function. If none,
  * ret_function->span = function->span.
  * \return If all properties are null or the same as the property in the input function
@@ -146,6 +149,7 @@ Function WithFields(Function function, Optional<Array<Var>> opt_params = Optiona
                     Optional<Type> opt_ret_type = Optional<Type>(),
                     Optional<Array<TypeVar>> opt_ty_params = Optional<Array<TypeVar>>(),
                     Optional<DictAttrs> opt_attrs = Optional<DictAttrs>(),
+                    Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                     Optional<Span> opt_span = Optional<Span>());
 
 /*

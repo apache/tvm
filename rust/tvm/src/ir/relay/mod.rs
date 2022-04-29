@@ -17,7 +17,7 @@
  * under the License.
  */
 use crate::runtime::array::Array;
-use crate::runtime::{object::*, IsObjectRef, String as TString};
+use crate::runtime::{self, object::*, IsObjectRef, String as TString};
 
 use super::attrs::Attrs;
 use super::expr::BaseExprNode;
@@ -40,6 +40,7 @@ pub mod attrs;
 pub struct ExprNode {
     pub base: BaseExprNode,
     pub checked_type: Type,
+    pub virtual_device: ObjectRef,
 }
 
 impl ExprNode {
@@ -47,6 +48,7 @@ impl ExprNode {
         ExprNode {
             base: BaseExprNode::base::<T>(span.clone()),
             checked_type: Type::null(),
+            virtual_device: ObjectRef::null(),
         }
     }
 }
@@ -148,6 +150,7 @@ impl Var {
 #[type_key = "relay.Call"]
 pub struct CallNode {
     pub base: ExprNode,
+    deleter: ObjectRef,
     pub op: Expr,
     pub args: Array<Expr>,
     pub attrs: Attrs,
@@ -164,6 +167,7 @@ impl Call {
     ) -> Call {
         let node = CallNode {
             base: ExprNode::base::<CallNode>(span),
+            deleter: todo!("Don't know how to construct this"),
             op: op,
             args: args,
             attrs: attrs,

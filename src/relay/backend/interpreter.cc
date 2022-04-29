@@ -474,7 +474,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
     // whether the shape and or data needs to be passed, and flattening of tuples.
     // Similarly, num_shape_outputs will account for flattening of tuples.
 
-    // TODO(mbs): Take this from the host_se_scope.
+    // TODO(mbs): Take this from the host_virtual_device.
     Device shape_device;
     shape_device.device_type = static_cast<DLDeviceType>(prim_shape_target->kind->device_type);
     shape_device.device_id = 0;
@@ -754,7 +754,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       return InvokePrimitiveOp(call_lowered_props.lowered_func, all_prim_fn_vars,
                                config_->optional_homogeneous_target, prim_shape_fn_var,
                                all_prim_shape_fn_vars, prim_shape_fn_states, num_shape_inputs,
-                               num_shape_outputs, config_->host_se_scope->target, args);
+                               num_shape_outputs, config_->host_virtual_device->target, args);
     } else {  // All other calls
       // Evaluate all arguments
       std::vector<ObjectRef> args;
@@ -945,7 +945,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
  * functions needed by the rewritten module.
  */
 IRModule Prepare(IRModule mod, CompilationConfig config) {
-  SEScope host_se_scope = config->host_se_scope;
+  VirtualDevice host_virtual_device = config->host_virtual_device;
   // Run minimal transforms on module to establish invariants needed by interpreter.
   transform::Sequential seq(
       {transform::SimplifyInference(),
@@ -962,7 +962,7 @@ IRModule Prepare(IRModule mod, CompilationConfig config) {
            /*expand_constructor=*/true, /*expand_global_var=*/false),
        transform::InferType(),
        tec::LowerTEPass(/*module_name=*/"intrp", [](BaseFunc func) { /* no-op */ },
-                        std::move(host_se_scope))});
+                        std::move(host_virtual_device))});
 
   transform::PassContext pass_ctx = transform::PassContext::Current();
   With<transform::PassContext> ctx(pass_ctx);
@@ -1108,7 +1108,8 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
 }
 
 ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
-               std::unordered_set<String> import_set, Device device, Target target) {
+               std::unordered_set<String> import_set, Device device, Target target,
+               Map<String, ObjectRef> attrs) {
   ICHECK_EQ(device.device_type, target->kind->device_type);
   TargetMap targets;
   targets.Set(device.device_type, target);
@@ -1118,7 +1119,7 @@ ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
   std::pair<IRModule, GlobalVar> mod_and_global =
       IRModule::FromExprInContext(expr, /*global_funcs=*/{}, type_definitions, import_set);
 
-  IRModule mod = Prepare(mod_and_global.first, config);
+  IRModule mod = Prepare(WithAttrs(mod_and_global.first, {attrs}), config);
 
   Interpreter intrp(mod, config, device);
   Expr expr_to_eval = mod->GetGlobalVar(mod_and_global.second->name_hint);

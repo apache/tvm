@@ -36,7 +36,7 @@ from tvm.relay.dataflow_pattern import wildcard, is_op
 from tvm.relay.backend.vm import VMCompiler
 
 
-def check_result(target, dev, args, expected_result, mod=None):
+def check_result(target, dev, args, expected_result, mod):
     """
     Check that evaluating `expr` applied to the arguments produces
     `result` on Relay VM.
@@ -111,7 +111,7 @@ def test_id(target, dev):
     x_data = np.random.rand(10, 10).astype("float64")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result(target, dev, [x_data], x_data, mod=mod)
+    check_result(target, dev, [x_data], x_data, mod)
 
 
 def test_op(target, dev):
@@ -120,7 +120,7 @@ def test_op(target, dev):
     x_data = np.random.rand(10, 10).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result(target, dev, [x_data], 2 * x_data, mod=mod)
+    check_result(target, dev, [x_data], 2 * x_data, mod)
 
 
 def any(x):
@@ -140,10 +140,10 @@ def test_cond(target, dev):
     mod = tvm.IRModule()
     mod["main"] = f
     # same
-    check_result(target, dev, [x_data, x_data], True, mod=mod)
+    check_result(target, dev, [x_data, x_data], True, mod)
 
     # diff
-    check_result(target, dev, [x_data, y_data], False, mod=mod)
+    check_result(target, dev, [x_data, y_data], False, mod)
 
 
 @tvm.testing.known_failing_targets("vulkan")
@@ -157,10 +157,10 @@ def test_simple_if(target, dev):
     mod = tvm.IRModule()
     mod["main"] = f
     # same
-    check_result(target, dev, [x_data, x_data], x_data, mod=mod)
+    check_result(target, dev, [x_data, x_data], x_data, mod)
 
     # diff
-    check_result(target, dev, [x_data, y_data], y_data, mod=mod)
+    check_result(target, dev, [x_data, y_data], y_data, mod)
 
 
 @tvm.testing.parametrize_targets("llvm")
@@ -204,7 +204,7 @@ def test_unused_function(target, dev):
     x_data = np.random.rand(2, 2).astype("float32")
     y_data = x_data * 2
 
-    check_result(target, dev, [x_data], y_data, mod=mod)
+    check_result(target, dev, [x_data], y_data, mod)
 
 
 def test_simple_call(target, dev):
@@ -218,7 +218,7 @@ def test_simple_call(target, dev):
     i_data = np.array(0, dtype="int32")
     iarg = relay.var("iarg", shape=[], dtype="int32")
     mod["main"] = relay.Function([iarg], sum_up(iarg))
-    check_result(target, dev, [i_data], i_data, mod=mod)
+    check_result(target, dev, [i_data], i_data, mod)
 
 
 def test_count_loop(target, dev):
@@ -239,7 +239,7 @@ def test_count_loop(target, dev):
     mod["main"] = relay.Function([iarg], sum_up(iarg))
     result = veval(mod, i_data, device=dev, target=target)
     tvm.testing.assert_allclose(result.numpy(), i_data)
-    check_result(target, dev, [i_data], i_data, mod=mod)
+    check_result(target, dev, [i_data], i_data, mod)
 
 
 def test_sum_loop(target, dev):
@@ -263,7 +263,7 @@ def test_sum_loop(target, dev):
     iarg = relay.var("i", shape=[], dtype="int32")
     aarg = relay.var("accum", shape=[], dtype="int32")
     mod["main"] = relay.Function([iarg, aarg], sum_up(iarg, aarg))
-    check_result(target, dev, [i_data, accum_data], sum(range(1, loop_bound + 1)), mod=mod)
+    check_result(target, dev, [i_data, accum_data], sum(range(1, loop_bound + 1)), mod)
 
 
 def test_tuple_fst(target, dev):
@@ -274,7 +274,7 @@ def test_tuple_fst(target, dev):
     j_data = np.random.rand(10).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result(target, dev, [(i_data, j_data)], i_data, mod=mod)
+    check_result(target, dev, [(i_data, j_data)], i_data, mod)
 
 
 def test_tuple_second(target, dev):
@@ -285,7 +285,7 @@ def test_tuple_second(target, dev):
     j_data = np.random.rand(10).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result(target, dev, [(i_data, j_data)], j_data, mod=mod)
+    check_result(target, dev, [(i_data, j_data)], j_data, mod)
 
 
 def test_list_constructor(target, dev):
@@ -325,7 +325,7 @@ def test_let_tensor(target, dev):
     x_data = np.random.rand(*shape).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result(target, dev, [x_data], x_data + 42.0, mod=mod)
+    check_result(target, dev, [x_data], x_data + 42.0, mod)
 
 
 def test_let_scalar(target, dev):
@@ -342,7 +342,7 @@ def test_let_scalar(target, dev):
     x_data = np.array(np.random.rand()).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result(target, dev, [x_data], x_data + 42.0, mod=mod)
+    check_result(target, dev, [x_data], x_data + 42.0, mod)
 
 
 def test_compose(target, dev):
@@ -616,7 +616,27 @@ def test_add_op_scalar(target, dev):
     ]
     for (x_data, y_data) in x_y_data:
         mod["main"] = func
-        check_result(target, dev, [x_data, y_data], x_data + y_data, mod=mod)
+        check_result(target, dev, [x_data, y_data], x_data + y_data, mod)
+
+
+def test_add_op_scalar_float16(target, dev):
+    """
+    test_add_op_scalar_float16:
+        fn (x, y) {
+            return x + y;
+        }
+    """
+    mod = tvm.IRModule()
+    x = relay.var("x", shape=(), dtype="float16")  # Default to float16
+    y = relay.var("y", shape=(), dtype="float16")  # Default to float16
+    func = relay.Function([x, y], relay.op.add(x, y))
+    x_y_data = [
+        (np.array(10.0, dtype="float16"), np.array(1.0, dtype="float16")),
+        (np.float16(10.0), np.float16(1.0)),
+    ]
+    for (x_data, y_data) in x_y_data:
+        mod["main"] = func
+        check_result(target, dev, [x_data, y_data], x_data + y_data, mod)
 
 
 def test_add_op_scalar_int(target, dev):
@@ -637,7 +657,7 @@ def test_add_op_scalar_int(target, dev):
     ]
     for (x_data, y_data) in x_y_data:
         mod["main"] = func
-        check_result(target, dev, [x_data, y_data], x_data + y_data, mod=mod)
+        check_result(target, dev, [x_data, y_data], x_data + y_data, mod)
 
 
 def test_add_op_tensor(target, dev):
@@ -654,7 +674,7 @@ def test_add_op_tensor(target, dev):
     x_data = np.random.rand(10, 5).astype("float32")
     y_data = np.random.rand(10, 5).astype("float32")
     mod["main"] = func
-    check_result(target, dev, [x_data, y_data], x_data + y_data, mod=mod)
+    check_result(target, dev, [x_data, y_data], x_data + y_data, mod)
 
 
 def test_add_op_broadcast(target, dev):
@@ -671,7 +691,7 @@ def test_add_op_broadcast(target, dev):
     x_data = np.random.rand(10, 5).astype("float32")
     y_data = np.random.rand(1, 5).astype("float32")
     mod["main"] = func
-    check_result(target, dev, [x_data, y_data], x_data + y_data, mod=mod)
+    check_result(target, dev, [x_data, y_data], x_data + y_data, mod)
 
 
 def test_vm_optimize_dynamic():
@@ -717,7 +737,7 @@ def test_loop_free_var(target, dev):
         ret = relay.TupleGetItem(tup, 1)
         mod = tvm.IRModule()
         mod["main"] = relay.Function(relay.analysis.free_vars(ret), ret)
-        check_result(target, dev, args, expected, mod=mod)
+        check_result(target, dev, args, expected, mod)
 
 
 def test_vm_reshape_tensor(target, dev):
@@ -923,6 +943,155 @@ def test_get_input_index(target, dev):
     assert vm_factory.get_input_index("invalid") == -1
 
 
+def get_one_input_relay_mod(tensor_type, shape, data_name):
+    x = relay.var(data_name, shape=shape, dtype=tensor_type)
+    y = relay.exp(x)
+    f = relay.Function([x], y)
+    return IRModule.from_expr(f)
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_one_set_input(target, dev):
+    dtype = "float32"
+    in_shape = [1, 2, 3, 3]
+    in_data_name_0 = "d0"
+
+    mod = get_one_input_relay_mod(dtype, in_shape, in_data_name_0)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    exe = runtime.vm.VirtualMachine(vm_exec, dev)
+
+    data0_core = np.random.uniform(size=in_shape).astype(dtype)
+    data0 = tvm.nd.array(data0_core)
+    ref_res_core = np.exp(data0_core)
+    ref_res = tvm.nd.array(ref_res_core)
+
+    exe.set_input("main", data0)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    data_dict = {in_data_name_0: data0}
+    exe.set_input("main", **data_dict)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+
+def get_multiple_input_relay_mod(tensor_type, shape, data_name0, data_name1):
+    x, y = [relay.var(c, shape=shape, dtype=tensor_type) for c in [data_name0, data_name1]]
+    f = relay.Function([x, y], x + y)
+    return IRModule.from_expr(f)
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_multiple_set_input(target, dev):
+    dtype = "float32"
+    in_shape = [1, 2, 3, 3]
+    in_data_name_0 = "d0"
+    in_data_name_1 = "d1"
+
+    mod = get_multiple_input_relay_mod(dtype, in_shape, in_data_name_0, in_data_name_1)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    exe = runtime.vm.VirtualMachine(vm_exec, dev)
+
+    data0_core = np.random.uniform(size=in_shape).astype(dtype)
+    data0 = tvm.nd.array(data0_core)
+    data1_core = np.random.uniform(size=in_shape).astype(dtype)
+    data1 = tvm.nd.array(data1_core)
+    ref_res_core = data0_core + data1_core
+    ref_res = tvm.nd.array(ref_res_core)
+
+    exe.set_input("main", data0, data1)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    data_dict = {in_data_name_1: data1, in_data_name_0: data0}
+    exe.set_input("main", **data_dict)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_one_set_one_input(target, dev):
+    dtype = "float32"
+    in_shape = [1, 2, 3, 3]
+    in_data_name_0 = "d0"
+
+    mod = get_one_input_relay_mod(dtype, in_shape, in_data_name_0)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    exe = runtime.vm.VirtualMachine(vm_exec, dev)
+
+    data0_core = np.random.uniform(size=in_shape).astype(dtype)
+    data0 = tvm.nd.array(data0_core)
+    ref_res_core = np.exp(data0_core)
+    ref_res = tvm.nd.array(ref_res_core)
+
+    exe.set_one_input("main", 0, data0)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    exe.set_one_input("main", in_data_name_0, data0)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    data_dict = {in_data_name_0: data0}
+    exe.set_one_input("main", **data_dict)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_multiple_set_one_input(target, dev):
+    dtype = "float32"
+    in_shape = [1, 2, 3, 3]
+    in_data_name_0 = "d0"
+    in_data_name_1 = "d1"
+
+    mod = get_multiple_input_relay_mod(dtype, in_shape, in_data_name_0, in_data_name_1)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    exe = runtime.vm.VirtualMachine(vm_exec, dev)
+
+    data0_core = np.random.uniform(size=in_shape).astype(dtype)
+    data0 = tvm.nd.array(data0_core)
+    data1_core = np.random.uniform(size=in_shape).astype(dtype)
+    data1 = tvm.nd.array(data1_core)
+    ref_res_core = data0_core + data1_core
+    ref_res = tvm.nd.array(ref_res_core)
+
+    exe.set_one_input("main", 1, data1)
+    exe.set_one_input("main", 0, data0)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    exe.set_one_input("main", in_data_name_1, data1)
+    exe.set_one_input("main", in_data_name_0, data0)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+    data_dict = {in_data_name_1: data1}
+    exe.set_one_input("main", **data_dict)
+    data_dict = {in_data_name_0: data0}
+    exe.set_one_input("main", **data_dict)
+    output = exe.invoke("main")
+    assert output.dtype == ref_res.dtype
+    tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
+
 @tvm.testing.parametrize_targets("llvm")
 def test_benchmark(target, dev):
     mod, params = mlp.get_workload(1)
@@ -1040,8 +1209,8 @@ def test_storage_size_and_offset_on_cpu():
     # - The offset of the tensor within the storage (second arg) to alloc_tensor
     # Both should be on the CPU
     assert "VirtualDevice[0]: device type 1" in exe.virtual_devices
-    assert "Constant[0]: has shape int64[] on device index 0" in exe.constants
-    assert "Constant[1]: has shape int64[] on device index 0" in exe.constants
+    assert "VM Const[0]: NDArray[(),int64,(1,0)]=[140] on device index 0" in exe.constants
+    assert "VM Const[1]: NDArray[(),int64,(1,0)]=[0] on device index 0" in exe.constants
 
 
 @tvm.testing.requires_cuda
@@ -1073,7 +1242,7 @@ def test_reshape_shape_on_cpu():
 
     # The newshape annotation should have been turned into a constant on the CPU.
     assert "VirtualDevice[0]: device type 1" in exe.virtual_devices
-    assert "Constant[0]: has shape int64[3] on device index 0" in exe.constants
+    assert "VM Const[0]: NDArray[(3),int64,(1,0)]=[2,4,2] on device index 0" in exe.constants
 
 
 @tvm.testing.requires_cuda
@@ -1110,6 +1279,130 @@ def test_multi_targets():
     # Test
     expected_result = x_data + y_data + z_data
     tvm.testing.assert_allclose(actual_result.numpy(), expected_result)
+
+
+def test_let_bound_constants():
+    """This tests for an ICHECK failure for ill-formed IR with let-bound constants"""
+
+    x = relay.var("x", shape=(3,), dtype="int32")
+    y = relay.take(x, relay.const(0))
+    z = relay.const(1)
+
+    f = relay.Function([x], relay.stack((z, y), axis=0))
+    mod = IRModule.from_expr(f)
+
+    compiler = VMCompiler()
+    compiler.optimize(mod, "llvm")
+
+
+def test_large_constants():
+    """Large constants can be serialized outside of executable"""
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+
+    # fn(x) { add(x, <large constant>) }
+    x = relay.var("x", shape=(1000, 1000))
+    const_data = np.random.rand(1000, 1000).astype("float32")
+    const = relay.const(const_data, dtype="float32")
+    func = relay.Function([x], relay.op.add(x, const))
+    mod = tvm.IRModule.from_expr(func)
+
+    # Compile to executable.
+    vm_exec = vm.compile(mod, target=target)
+
+    # Save to constants and library files
+    temp = utils.tempdir()
+    path_consts = temp.relpath("consts")
+    vm_exec.move_late_bound_consts(path_consts, byte_limit=256)
+    path_dso = temp.relpath("lib.so")
+    vm_exec.mod.export_library(path_dso)
+
+    # Load library files and constants
+    mod = runtime.load_module(path_dso)
+    mod["load_late_bound_consts"](path_consts)
+
+    # Test main
+    x_data = np.random.rand(1000, 1000).astype("float32")
+    the_vm = runtime.vm.VirtualMachine(mod, dev)
+    actual = the_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
+
+    # We load the mod again so it's missing the consts.
+    mod = runtime.load_module(path_dso)
+    exe = runtime.vm.Executable(mod)
+
+    # Also test loading consts via the VM's wrapper API.
+    exe.load_late_bound_consts(path_consts)
+
+    # Test main again with consts now loaded via the above API.
+    x_data = np.random.rand(1000, 1000).astype("float32")
+    the_vm = runtime.vm.VirtualMachine(exe, dev)
+    actual = the_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
+
+
+def test_load_late_bound_consts_with_no_late_bound_consts():
+    """Check that load_late_bound_consts handles a model with no late bound consts."""
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+
+    const_data = np.random.rand(1).astype("float64")
+    x = relay.var("x", shape=(1,), dtype="float64")
+    const = relay.const(const_data, dtype="float64")
+
+    func = relay.Function([x], relay.op.add(x, const))
+    mod = tvm.IRModule.from_expr(func)
+
+    vm_exec = vm.compile(mod, target=target)
+
+    temp = utils.tempdir()
+    path_consts = temp.relpath("consts")
+    path_dso = temp.relpath("lib.so")
+
+    # Ensure const_data is below the byte threshold for a late-bound const.
+    byte_limit = len(const_data.tobytes()) + 1
+    vm_exec.move_late_bound_consts(path_consts, byte_limit=byte_limit)
+    vm_exec.mod.export_library(path_dso)
+
+    mod = runtime.load_module(path_dso)
+    mod["load_late_bound_consts"](path_consts)
+
+    x_data = np.random.rand(1).astype("float64")
+    loaded_vm = runtime.vm.VirtualMachine(mod, dev)
+    actual = loaded_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
+
+
+def test_vm_save_and_load_without_designating_late_bound_consts():
+    """Check that a VM can be saved and loaded without late-bound consts in play.
+
+    Specifically, this test ensures that the machinery behind late-bound const
+    loading does not assume the need to load late-bound consts (and cause an error)
+    when the user did not choose to designate any consts as such.
+    """
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+
+    const_data = np.random.rand(1).astype("float64")
+    x = relay.var("x", shape=(1,), dtype="float64")
+    const = relay.const(const_data, dtype="float64")
+
+    func = relay.Function([x], relay.op.add(x, const))
+    mod = tvm.IRModule.from_expr(func)
+
+    vm_exec = vm.compile(mod, target=target)
+
+    code, lib = vm_exec.save()
+    exe = runtime.vm.Executable.load_exec(code, lib)
+
+    x_data = np.random.rand(1).astype("float64")
+    loaded_vm = runtime.vm.VirtualMachine(exe, dev)
+    actual = loaded_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
 
 
 if __name__ == "__main__":

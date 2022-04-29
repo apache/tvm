@@ -205,7 +205,7 @@ def sync_version(pub_ver, local_ver, dry_run):
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    parser = argparse.ArgumentParser(description="Detect and sychnronize version.")
+    parser = argparse.ArgumentParser(description="Detect and synchronize version.")
     parser.add_argument(
         "--print-version",
         action="store_true",

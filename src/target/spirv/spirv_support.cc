@@ -84,6 +84,19 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
   if (target->GetAttr<Bool>("supports_int64")) {
     supports_int64 = target->GetAttr<Bool>("supports_int64").value();
   }
+  // Check whether integer dot product is enabled in the target string.
+  if (target->GetAttr<Bool>("supports_integer_dot_product")) {
+    supports_integer_dot_product = target->GetAttr<Bool>("supports_integer_dot_product").value();
+  }
+  // Check whether integer dot product is enabled in mattr.
+  if (const Optional<Array<String>>& v = target->GetAttr<Array<String>>("mattr")) {
+    for (const String& s : v.value()) {
+      if (s.compare("+dotprod") == 0) {
+        supports_integer_dot_product = true;
+        break;
+      }
+    }
+  }
 }
 
 }  // namespace codegen

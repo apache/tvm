@@ -27,7 +27,7 @@ import tvm
 
 from tvm.driver import tvmc
 
-from tvm.driver.tvmc.common import TVMCException
+from tvm.driver.tvmc import TVMCException
 
 
 def test_get_codegen_names():

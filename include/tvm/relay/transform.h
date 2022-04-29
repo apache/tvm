@@ -31,8 +31,8 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/target/compilation_config.h>
-#include <tvm/target/se_scope.h>
 #include <tvm/target/target.h>
+#include <tvm/target/virtual_device.h>
 
 #include <string>
 
@@ -250,13 +250,28 @@ TVM_DLL Pass DynamicToStatic();
 /*!
  * \brief Infer the type of an expression.
  *
- * The result of type checking is a new expression with unambigous
+ * The result of type checking is a new expression with unambiguous
  * type information filled in, as well as it's checked type field
  * populated with the result type.
  *
  * \return The pass.
  */
 TVM_DLL Pass InferType();
+
+/*!
+ * \brief Infer the type of an expression, reusing existing type information.
+ *
+ * The result of type checking is a new expression with unambiguous
+ * type information filled in for the given node only. The local
+ * version can use existing type information populated throughout
+ * the expression and assumes this information is correct. The local
+ * version also avoids examining large amounts of the graph assuming
+ * type information is filled in properly which makes it much faster if we
+ * iteratively call type inference.
+ *
+ * \return The type of the expression.
+ */
+TVM_DLL Type InferTypeLocal(const Expr& expr);
 
 /*!
  * \brief Search and eliminate common subexpression. For example, if there are
@@ -449,22 +464,30 @@ TVM_DLL Pass RelayToTIRTargetHook();
  * \brief A pass for manifesting explicit memory allocations and rewriting
  * specific dialects.
  *
- * \param cpu_se_scope SEScope for computations and data which must reside on a CPU, such as
- * shapes and shape functions.
+ * \param cpu_virtual_device VirtualDevice for computations and data which must reside on a CPU,
+ * such as shapes and shape functions.
  *
  * \return The pass.
  */
-TVM_DLL Pass ManifestAlloc(SEScope cpu_se_scope);
+TVM_DLL Pass ManifestAlloc(VirtualDevice cpu_virtual_device);
 
 /*!
- * \brief Uses existing "on_device" and "device_copy" CallNodes to infer the \p SEScope on which
- * every Relay sub-expression should run and the result stored. Captures the result of that
+ * \brief A pass for manifesting variable lifetimes by inserting kill operations when variables
+ * become dead. This pass should be run after ManifestAlloc, and should not be run more than once.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ManifestLifetimes();
+
+/*!
+ * \brief Uses existing "on_device" and "device_copy" CallNodes to infer the \p VirtualDevice on
+ * which every Relay sub-expression should run and the result stored. Captures the result of that
  * analysis using new "on_device" and "device_copy" CallNodes.
  *
  * See tvm::relay::transform::{LexicalOnDeviceMixin,DeviceAwareExprVisitor,DeviceAwareExprMutator}
  * for help recovering the device for an arbitrary sub-expression in downstream transformations.
  *
- * \param config Describes the targets and default \p SEScope for all primitive operators and
+ * \param config Describes the targets and default \p VirtualDevice for all primitive operators and
  * host sub-expressions.
  *
  * \return The pass.
@@ -476,6 +499,10 @@ TVM_DLL Pass PlanDevices(CompilationConfig config);
 /*!
  * \brief Bind the free variables to a Relay expression. This is a helper
  * function usually called by other pass functions to help optimizations.
+ * If any free variables are introduced into a function, those are added
+ * to the functoin parameters.
+ * Additionally this may change the order of parameters if you map a variable
+ * to a variable.
  *
  * \param expr The input expression.
  * \param binds The variable to expression map that will be used to help the
@@ -484,6 +511,19 @@ TVM_DLL Pass PlanDevices(CompilationConfig config);
  * \return The updated expression.
  */
 TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
+
+/*!
+ * \brief Substitute variables with new variables (including function parameters) in a function.
+ * This is a helper function usually called by other pass functions to help optimizations.
+ * Expects all values in the bind map to be Vars.
+ *
+ * \param func The input function.
+ * \param binds The variable to expression map that will be used to help the
+ *        binding.
+ *
+ * \return The updated expression.
+ */
+TVM_DLL Function SubstituteBoundVars(const Function& func, const tvm::Map<Var, Expr>& binds);
 
 /*!
  * \brief Apply rewrite rules to rewrite the expr in post DFS order. This

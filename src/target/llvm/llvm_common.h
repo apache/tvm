@@ -27,7 +27,6 @@
 #ifdef _MSC_VER
 #pragma warning(disable : 4141 4291 4146 4624)
 #endif
-
 #ifdef TVM_LLVM_VERSION
 
 #include <llvm/Analysis/TargetTransformInfo.h>

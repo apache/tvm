@@ -22,7 +22,7 @@ import tvm
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir import spec
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
 from .infra import make_ethosu_pooling, get_pooling_args
 
 
@@ -37,19 +37,29 @@ def _create_serial_pooling(
     padding,
     activation="NONE",
     rounding_mode="TFL",
+    upscale="NONE",
 ):
+    upscale_factor = 2 if upscale != "NONE" else 1
     if ifm_layout == "NHWC":
         ifm_stride_c = 1
         ifm_stride_w = ifm_shape[3]
         ifm_stride_h = ifm_shape[2] * ifm_shape[3]
-        ofm_height = (ifm_shape[1] - pool_shape[0] + padding[0] + padding[0]) // strides[0] + 1
-        ofm_width = (ifm_shape[2] - pool_shape[1] + padding[1] + padding[1]) // strides[1] + 1
+        ofm_height = (
+            ifm_shape[1] * upscale_factor - pool_shape[0] + padding[0] + padding[2]
+        ) // strides[0] + 1
+        ofm_width = (
+            ifm_shape[2] * upscale_factor - pool_shape[1] + padding[1] + padding[3]
+        ) // strides[1] + 1
     else:
         ifm_stride_w = 16
         ifm_stride_c = 16 * ifm_shape[3] if ofm_channels >= 16 else 1
         ifm_stride_h = 16 * ifm_shape[2] * ifm_shape[3]
-        ofm_height = (ifm_shape[1] - pool_shape[0] + padding[0] + padding[0]) // strides[0] + 1
-        ofm_width = (ifm_shape[3] - pool_shape[1] + padding[1] + padding[1]) // strides[1] + 1
+        ofm_height = (
+            ifm_shape[1] * upscale_factor - pool_shape[0] + padding[0] + padding[2]
+        ) // strides[0] + 1
+        ofm_width = (
+            ifm_shape[3] * upscale_factor - pool_shape[1] + padding[1] + padding[3]
+        ) // strides[1] + 1
 
     if ofm_layout == "NHWC":
         ofm_stride_c = 1
@@ -117,18 +127,20 @@ def _create_serial_pooling(
             clip_max=100 if activation == "CLIP" else 0,
         ),
         rounding_mode=rounding_mode,
-        upscale="NONE",
+        upscale=upscale,
+        block_config=spec.SerialBlockConfig(0, 0, 0),
     )
 
 
 @pytest.mark.parametrize(
-    "ifm_shape, ofm_channels, ifm_layout, ofm_layout, rounding_mode",
+    "ifm_shape, ofm_channels, ifm_layout, ofm_layout, rounding_mode, upscale",
     [
-        ((1, 5, 9, 3), 3, "NHWC", "NHWC", "TFL"),
-        ((1, 8, 3, 9, 16), 40, "NHCWB16", "NHCWB16", "NATURAL"),
-        ((1, 8, 3, 9, 16), 40, "NHCWB16", "NHWC", "TRUNCATE"),
-        ((1, 8, 9, 40), 40, "NHWC", "NHCWB16", "TFL"),
-        ((1, 8, 9, 8), 8, "NHWC", "NHCWB16", "TFL"),
+        ((1, 5, 9, 3), 3, "NHWC", "NHWC", "TFL", "NONE"),
+        ((1, 8, 3, 9, 16), 40, "NHCWB16", "NHCWB16", "NATURAL", "NONE"),
+        ((1, 8, 3, 9, 16), 40, "NHCWB16", "NHWC", "TRUNCATE", "ZEROS"),
+        ((1, 8, 9, 40), 40, "NHWC", "NHCWB16", "TFL", "ZEROS"),
+        ((1, 8, 9, 8), 8, "NHWC", "NHCWB16", "TFL", "NEAREST"),
+        ((1, 5, 9, 3), 3, "NHWC", "NHWC", "TFL", "NEAREST"),
     ],
 )
 @pytest.mark.parametrize("pooling_type", ["AVG", "MAX"])
@@ -141,10 +153,19 @@ def test_pooling_single(
     pooling_type,
     activation,
     rounding_mode,
+    upscale,
 ):
     pool_shape = (3, 2)
     strides = (1, 2)
-    padding = (1, 1, 1, 0)
+
+    # When strides are not (1, 1) it is possible to create invalid
+    # padding configurations. It is possible to construct a pooling
+    # operation with invalid padding, but the compiler will account
+    # for this and adjust the padding accordingly, leading to a
+    # mismatch between the expected and actual result. Therefore,
+    # hardcoded padding values are used for each case.
+    padding = (1, 1, 1, 0) if upscale == "NONE" else (0, 0, 0, 0)
+
     ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
     pooling = make_ethosu_pooling(
         ifm,
@@ -157,10 +178,11 @@ def test_pooling_single(
         ifm_layout,
         ofm_layout,
         rounding_mode,
+        upscale,
     )
     func = relay.Function(relay.analysis.free_vars(pooling), pooling)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = lower_to_tir(func)
+    mod, _ = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):
@@ -180,6 +202,7 @@ def test_pooling_single(
         padding,
         activation,
         rounding_mode,
+        upscale,
     )
     assert data[0] == ["ethosu_pooling"] + list(serial_pooling)
 
@@ -219,7 +242,7 @@ def test_correct_stride_with_multiple_pooling():
     )
     func = relay.Function(relay.analysis.free_vars(op), op)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = lower_to_tir(func)
+    mod, _ = _lower_to_tir(func)
 
     data = []
 

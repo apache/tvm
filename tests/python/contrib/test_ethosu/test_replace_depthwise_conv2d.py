@@ -22,7 +22,7 @@ pytest.importorskip("ethosu.vela")
 import tvm
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
 from .infra import make_ethosu_depthwise_conv2d, get_convolutional_args
 
 
@@ -33,7 +33,7 @@ from .infra import make_ethosu_depthwise_conv2d, get_convolutional_args
         [(1, 8, 8, 3), 3, (1, 1), (2, 1), (1, 1), (1, 1), "NONE", "NHWC", "NHWC", "NATURAL"],
         [(1, 8, 8, 3), 3, (1, 1), (0, 0), (1, 1), (1, 1), "NONE", "NHWC", "NHWC", "TRUNCATE"],
         [(1, 1, 1, 1), 1, (1, 1), (0, 0), (1, 1), (1, 1), "CLIP", "NHWC", "NHWC", "TFL"],
-        [(1, 7, 9, 4), 4, (3, 2), (1, 2), (2, 1), (1, 2), "SIGMOID", "NHWC", "NHWC", "NATURAL"],
+        [(1, 7, 9, 4), 4, (3, 2), (1, 2), (2, 1), (1, 2), "NONE", "NHWC", "NHWC", "NATURAL"],
         [
             (1, 8, 2, 8, 16),
             18,
@@ -108,7 +108,7 @@ def test_depthwise_conv2d_single(trial):
         return func
 
     func = _get_func(*trial)
-    mod, _ = lower_to_tir(func)
+    mod, _ = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):
@@ -203,5 +203,8 @@ def test_depthwise_conv2d_single(trial):
         105 if activation == "CLIP" else 0,
         rounding_mode,
         "NONE",
+        0,
+        0,
+        0,
     ]
     assert data[0] == answer, data[0]

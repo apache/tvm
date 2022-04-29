@@ -60,8 +60,9 @@ TEST(IRF, VisitPrimFuncs) {
   using namespace tvm;
   using namespace tvm::tir;
   PrimFunc prim_func(/*params=*/{}, /*body=*/Evaluate(Integer(0)));
-  relay::Function relay_func(/*params=*/{}, /*body=*/relay::Expr(nullptr),
-                             /*ret_type=*/relay::Type{nullptr}, /*ty_params=*/{});
+  auto c_data = tvm::runtime::NDArray::Empty({1, 2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  relay::Function relay_func(/*params=*/{}, /*body=*/relay::Expr(relay::Constant(c_data)),
+                             /*ret_type=*/relay::Type(), /*ty_params=*/{});
   IRModule mod({
       {GlobalVar("main"), prim_func},
       {GlobalVar("main2"), relay_func},

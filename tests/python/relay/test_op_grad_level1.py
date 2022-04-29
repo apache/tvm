@@ -56,11 +56,11 @@ class TestUnaryOp:
         "log10": (tvm.relay.log10, lambda x, g: g * (1 / (np.log(10) * x))),
         "cosh": (tvm.relay.cosh, lambda x, g: g * (np.sinh(x))),
         "sinh": (tvm.relay.sinh, lambda x, g: g * (np.cosh(x))),
-        "asin": (tvm.relay.asin, lambda x, g: g * (1.0 / (1.0 - x ** 2) ** (1.0 / 2.0))),
-        "acos": (tvm.relay.acos, lambda x, g: g * (-1.0 / (1.0 - x ** 2.0) ** (1.0 / 2.0))),
-        "acosh": (tvm.relay.acosh, lambda x, g: g * (1.0 / (x ** 2 - 1.0) ** (1.0 / 2.0))),
-        "asinh": (tvm.relay.asinh, lambda x, g: g * (1.0 / (x ** 2 + 1.0) ** (1.0 / 2.0))),
-        "atanh": (tvm.relay.atanh, lambda x, g: g * (-1.0 / (x ** 2 - 1.0))),
+        "asin": (tvm.relay.asin, lambda x, g: g * (1.0 / (1.0 - x**2) ** (1.0 / 2.0))),
+        "acos": (tvm.relay.acos, lambda x, g: g * (-1.0 / (1.0 - x**2.0) ** (1.0 / 2.0))),
+        "acosh": (tvm.relay.acosh, lambda x, g: g * (1.0 / (x**2 - 1.0) ** (1.0 / 2.0))),
+        "asinh": (tvm.relay.asinh, lambda x, g: g * (1.0 / (x**2 + 1.0) ** (1.0 / 2.0))),
+        "atanh": (tvm.relay.atanh, lambda x, g: g * (-1.0 / (x**2 - 1.0))),
     }
 
     relay_op, ref_func = tvm.testing.parameters(*config.values(), ids=config.keys())
@@ -136,7 +136,7 @@ class TestBinaryOp:
         "add": (relay.add, lambda x, y: [np.ones_like(x), np.ones_like(y)]),
         "subtract": (relay.subtract, lambda x, y: [np.ones_like(x), -np.ones_like(y)]),
         "multiply": (relay.multiply, lambda x, y: [y, x]),
-        "divide": (relay.divide, lambda x, y: [1 / y, -x / (y ** 2)]),
+        "divide": (relay.divide, lambda x, y: [1 / y, -x / (y**2)]),
     }
 
     relay_op, ref_func = tvm.testing.parameters(*config.values(), ids=config.keys())

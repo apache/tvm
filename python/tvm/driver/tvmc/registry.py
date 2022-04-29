@@ -18,7 +18,7 @@
 This file contains functions for processing registry based inputs for the TVMC CLI
 """
 
-from tvm.driver.tvmc.common import TVMCException
+from tvm.driver.tvmc import TVMCException
 
 # We can't tell the type inside an Array but all current options are strings so
 # it can default to that. Bool is used alongside Integer but aren't distinguished

@@ -18,7 +18,14 @@
 """Extract information from the identity operator in TIR."""
 from typing import Dict, Tuple
 import tvm
-from .spec import SerialKernel, SerialActivation, SerialPooling, SerialPadding, SerialFeatureMap
+from .spec import (
+    SerialBlockConfig,
+    SerialKernel,
+    SerialActivation,
+    SerialPooling,
+    SerialPadding,
+    SerialFeatureMap,
+)
 from .utils import get_op_attrs, get_base_address, get_strides, get_loads
 
 
@@ -59,12 +66,14 @@ def _get_feature_map(stmt: tvm.tir.AttrStmt, fm_type: str) -> Tuple[SerialFeatur
 
     fm_inner = inner.value if fm_type == "ifm" else inner
 
+    # Needed for stride calculation, can replace with
+    # inner.value.buffer.strides in future.
+    assert len(fm_inner.indices) == 1, "Ethos-U passes expect flattened buffers"
     stride_vars = [l.loop_var for l in loops]
-    strides = get_strides(fm_inner.index, stride_vars)
+    strides = get_strides(fm_inner.indices[0], stride_vars)
 
-    base_address = get_base_address(fm_inner.index)
-    data_type = inner.buffer_var.type_annotation.element_type.dtype
-    pointer = fm_inner.buffer_var
+    base_address = [get_base_address(index) for index in fm_inner.indices]
+    data_type = inner.buffer.data.type_annotation.element_type.dtype
 
     serial_feature_map = SerialFeatureMap(
         data_type=data_type,
@@ -74,7 +83,7 @@ def _get_feature_map(stmt: tvm.tir.AttrStmt, fm_type: str) -> Tuple[SerialFeatur
         tile_height_0=loops[0].extent,
         tile_height_1=0,
         tile_width_0=loops[1].extent if len(loops) > 1 else 1,
-        tile_address_0=tvm.tir.Load(data_type, pointer, base_address),
+        tile_address_0=tvm.tir.BufferLoad(fm_inner.buffer, base_address),
         tile_address_1=0,
         tile_address_2=0,
         tile_address_3=0,
@@ -86,7 +95,7 @@ def _get_feature_map(stmt: tvm.tir.AttrStmt, fm_type: str) -> Tuple[SerialFeatur
         stride_c=strides[2] if len(strides) > 2 else 1,
     )
 
-    output_pointer = inner.buffer_var
+    output_pointer = inner.buffer.data
 
     return serial_feature_map, output_pointer
 
@@ -130,8 +139,8 @@ def get_identity_params(
     # loads = [input, LUT, LUT]
     loads = get_loads(stmt)
 
-    input_pointer = loads[0].buffer_var
-    output_pointer = stmt.buffer_var
+    input_pointer = loads[0].buffer.data
+    output_pointer = stmt.buffer.data
 
     read = producers[input_pointer]
     write = consumers[output_pointer]
@@ -162,6 +171,7 @@ def get_identity_params(
             activation=serial_activation,
             upscale="NONE",
             rounding_mode="TFL",
+            block_config=SerialBlockConfig(0, 0, 0),
         ),
         output_pointer,
         replace_pointer,

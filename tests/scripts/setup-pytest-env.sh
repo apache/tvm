@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -20,9 +20,9 @@
 set +u
 
 if [[ ! -z $CI_PYTEST_ADD_OPTIONS ]]; then
-    export PYTEST_ADDOPTS="-s -v $CI_PYTEST_ADD_OPTIONS $PYTEST_ADDOPTS"
+    export PYTEST_ADDOPTS="-s -vv $CI_PYTEST_ADD_OPTIONS $PYTEST_ADDOPTS"
 else
-    export PYTEST_ADDOPTS="-s -v $PYTEST_ADDOPTS"
+    export PYTEST_ADDOPTS="-s -vv $PYTEST_ADDOPTS"
 fi
 set -u
 
@@ -31,6 +31,23 @@ export PYTHONPATH="${TVM_PATH}/python"
 
 export TVM_PYTEST_RESULT_DIR="${TVM_PATH}/build/pytest-results"
 mkdir -p "${TVM_PYTEST_RESULT_DIR}"
+pytest_errors=()
+
+# This ensures that all pytest invocations that are run through run_pytest will
+# complete and errors will be reported once Bash is done executing all scripts.
+function cleanup() {
+    set +x
+    if [ "${#pytest_errors[@]}" -gt 0 ]; then
+        echo "These pytest invocations failed, the results can be found in the Jenkins 'Tests' tab or by scrolling up through the raw logs here."
+        echo ""
+        for e in "${pytest_errors[@]}"; do
+            echo "  ${e}"
+        done
+        exit 1
+    fi
+    set -x
+}
+trap cleanup 0
 
 function run_pytest() {
     local ffi_type="$1"
@@ -42,9 +59,15 @@ function run_pytest() {
         echo "usage: run_pytest <FFI_TYPE> <TEST_SUITE_NAME> [pytest args...]"
         exit 2
     fi
+
+    suite_name="${test_suite_name}-${ffi_type}"
+    exit_code=0
     TVM_FFI=${ffi_type} python3 -m pytest \
-           -o "junit_suite_name=${test_suite_name}-${ffi_type}" \
-           "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${test_suite_name}-${ffi_type}.xml" \
+           -o "junit_suite_name=${suite_name}" \
+           "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${suite_name}.xml" \
            "--junit-prefix=${ffi_type}" \
-           "$@"
+           "$@" || exit_code=$?
+    if [ "$exit_code" -ne "0" ]; then
+        pytest_errors+=("${suite_name}: $@")
+    fi
 }

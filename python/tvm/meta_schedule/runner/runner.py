@@ -15,14 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Runners"""
-from typing import List, Optional
+from typing import Callable, Optional, List
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
 
 from .. import _ffi_api
 from ..arg_info import ArgInfo
-from ..utils import check_override
 
 
 @register_object("meta_schedule.RunnerInput")
@@ -106,22 +105,49 @@ class RunnerResult(Object):
 
 @register_object("meta_schedule.RunnerFuture")
 class RunnerFuture(Object):
-    """A class to fetch asynchronous runner's output."""
+    """
+    A class to fetch asynchronous runner's output.
+    This is NOT the user facing class for function overloading inheritance.
+    Can be used for general return type of runner.
 
-    def __init__(self) -> None:
+    See also: PyRunnerFuture
+    """
+
+    def __init__(self, f_done: Callable, f_result: Callable = None) -> None:
         """Constructor"""
-
-        def f_done():
-            return self.done()
-
-        def f_result():
-            return self.result()
 
         self.__init_handle_by_constructor__(
             _ffi_api.RunnerFuture,  # type: ignore # pylint: disable=no-member
             f_done,
             f_result,
         )
+
+    def done(self) -> bool:
+        """Check whether the runner has finished."""
+        return _ffi_api.RunnerFutureDone(self)  # type: ignore # pylint: disable=no-member
+
+    def result(self) -> RunnerResult:
+        """Fetch the runner's output if it is ready."""
+        return _ffi_api.RunnerFutureResult(self)  # type: ignore # pylint: disable=no-member
+
+
+class PyRunnerFuture:
+    """
+    A class to fetch asynchronous runner's output with customizable function on the python side.
+    This is the user facing class for function overloading inheritance.
+    Can NOT be used for general return type of runner.
+
+    Note: @derived_object is required for proper usage of any inherited class.
+    Example:
+        @derived_object
+        def LocalRunnerFuture(PyRunnerFuture):
+            ...
+    """
+
+    _tvm_metadata = {
+        "cls": RunnerFuture,
+        "methods": ["done", "result"],
+    }
 
     def done(self) -> bool:
         """Check whether the runner has finished."""
@@ -153,17 +179,47 @@ class Runner(Object):
 
 
 @register_object("meta_schedule.PyRunner")
-class PyRunner(Runner):
-    """An abstract runner with customized build method on the python-side."""
+class _PyRunner(Runner):
+    """
+    A TVM object runner to support customization on the python side.
+    This is NOT the user facing class for function overloading inheritance.
 
-    def __init__(self) -> None:
+    See also: PyRunner
+    """
+
+    def __init__(self, f_run: Callable = None) -> None:
         """Constructor"""
-
-        @check_override(self.__class__, Runner)
-        def f_run(runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
-            return self.run(runner_inputs)
 
         self.__init_handle_by_constructor__(
             _ffi_api.RunnerPyRunner,  # type: ignore # pylint: disable=no-member
             f_run,
         )
+
+
+class PyRunner:
+    """
+    An abstract runner with customized run method on the python-side.
+    This is the user facing class for function overloading inheritance.
+
+    Note: @derived_object is required for proper usage of any inherited class.
+    """
+
+    _tvm_metadata = {
+        "cls": _PyRunner,
+        "methods": ["run"],
+    }
+
+    def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
+        """Run the built artifact and get runner futures.
+
+        Parameters
+        ----------
+        runner_inputs : List[RunnerInput]
+            The inputs to the runner.
+
+        Returns
+        -------
+        runner_futures: List[RunnerFuture]
+            The runner futures.
+        """
+        raise NotImplementedError

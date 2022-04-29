@@ -52,6 +52,14 @@ void IRBuilder::InitHeader() {
   // determined by the types declared.
   capabilities_used_.insert(spv::CapabilityShader);
 
+#ifdef TVM_SPIRV_KHR_INTEGER_DOT_PRODUCT
+  if (spirv_support_.supports_integer_dot_product) {
+    capabilities_used_.insert(spv::CapabilityDotProductKHR);
+    capabilities_used_.insert(spv::CapabilityDotProductInput4x8BitPackedKHR);
+    extensions_used_.insert("SPV_KHR_integer_dot_product");
+  }
+#endif
+
   // memory model
   ib_.Begin(spv::OpMemoryModel)
       .AddSeq(spv::AddressingModelLogical, spv::MemoryModelGLSL450)
@@ -596,6 +604,36 @@ Value IRBuilder::CallGLSL450(const SType& ret_type, uint32_t inst_id,
                              const std::vector<Value>& args) {
   Value val = NewValue(ret_type, kNormal);
   ib_.Begin(spv::OpExtInst).AddSeq(ret_type, val, ext_glsl450_, inst_id);
+  for (const Value& v : args) {
+    ib_.Add(v);
+  }
+  ib_.Commit(&function_);
+  return val;
+}
+
+Value IRBuilder::CallKHRIntegerDotProduct(const SType& ret_type, const std::vector<Value>& args,
+                                          const DataType& dtype) {
+  if (args.size() != 3) {
+    LOG(FATAL) << "Unresolved arguments in SPIRV_KHR_integer_dot_product";
+  }
+  Value val = NewValue(ret_type, kNormal);
+#ifdef TVM_SPIRV_KHR_INTEGER_DOT_PRODUCT
+  ICHECK(spirv_support_.supports_integer_dot_product)
+      << "Vulkan target does not support integer dot product capability.  "
+      << "If your device supports integer dot product operations, "
+      << "please either add -mattr=+dotprod to the target, "
+      << "or query all device parameters by adding -from_device=0.";
+  if (dtype.is_int()) {
+    ib_.Begin(spv::OpSDotAccSatKHR).AddSeq(ret_type, val);
+  } else if (dtype.is_uint()) {
+    ib_.Begin(spv::OpUDotAccSatKHR).AddSeq(ret_type, val);
+  } else {
+    LOG(FATAL) << "Unsupported type";
+  }
+#else
+  LOG(FATAL) << "Please turn on USE_SPIRV_KHR_INTEGER_DOT_PRODUCT in config.cmake";
+#endif
+
   for (const Value& v : args) {
     ib_.Add(v);
   }

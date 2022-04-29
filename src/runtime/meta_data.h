@@ -27,6 +27,7 @@
 #include <dmlc/io.h>
 #include <dmlc/json.h>
 #include <tvm/runtime/executor_info.h>
+#include <tvm/runtime/metadata.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
@@ -50,67 +51,20 @@ inline String get_name_mangled(const String& module_name, const String& name) {
 }
 
 /*!
- * \brief Structure that can be optionally used by the executor codegen
- */
-class MetadataNode : public Object {
- public:
-  /*! \brief input information for the main function */
-  Array<String> inputs;
-  /*! \brief number of outputs of the main function */
-  int num_outputs = 1;
-  /*! \brief device contexts information for the main function */
-  Array<String> devices;
-  /*! \brief the executor to be used to run the model */
-  String executor = kTvmExecutorGraph;
-  /*! \brief The external API (packed or c) in use */
-  String interface_api;
-  /*! \brief The internal API (packed or unpacked) in use */
-  bool unpacked_api;
-
-  String mod_name = "";
-
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "MetadataObj";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MetadataNode, Object);
-};
-
-/*!
- * \brief Managed reference to MetadataNode.
- */
-class Metadata : public ObjectRef {
- public:
-  TVM_DLL Metadata(Array<String> inputs, Array<String> devices, int num_outputs, String executor,
-                   String mod_name, String interface_api = "packed", bool unpacked_api = false) {
-    auto n = make_object<MetadataNode>();
-    n->inputs = inputs;
-    n->devices = devices;
-    n->num_outputs = num_outputs;
-    n->executor = executor;
-    n->interface_api = interface_api;
-    n->unpacked_api = unpacked_api;
-    n->mod_name = mod_name;
-    data_ = std::move(n);
-  }
-
-  TVM_DEFINE_OBJECT_REF_METHODS(Metadata, ObjectRef, MetadataNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(MetadataNode);
-};
-
-/*!
  * \brief Create a metadata module object.
  *
- * \param metadata The variable name to ndarray mapping.
- * \param sym_vars The symbol to the list of required constant variables
- * mapping.
+ * \param metadata Exported metadata structure.
  *
  * \return The created metadata module.
  */
-Module MetadataModuleCreate(
-    const std::unordered_map<std::string, NDArray>& metadata,
-    const std::unordered_map<std::string, std::vector<std::string>>& sym_vars);
+Module MetadataModuleCreate(metadata::Metadata metadata);
+
+namespace launch_param {
 
 /*! \brief A tag to specify whether or not dynamic shared memory is used */
 constexpr const char* kUseDynamicSharedMemoryTag = "tir.use_dyn_shared_memory";
+
+}  // namespace launch_param
 
 /*! \brief function information needed by device */
 struct FunctionInfo {

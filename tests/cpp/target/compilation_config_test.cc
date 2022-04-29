@@ -48,9 +48,9 @@ TEST(CompilationConfig, Constructor_Homogeneous_FallbackCPUHost) {
   legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), cuda_target);
   CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target_arg=*/{});
 
-  SEScope expected_default_primitive_se_scope(kDLCUDA, 0,
-                                              Target::WithHost(cuda_target, host_target));
-  SEScope expected_host_se_scope(kDLCPU, 0, host_target);
+  VirtualDevice expected_default_primitive_virtual_device(
+      kDLCUDA, 0, Target::WithHost(cuda_target, host_target));
+  VirtualDevice expected_host_virtual_device(kDLCPU, 0, host_target);
 
   ASSERT_EQ(config->legacy_target_map.size(), 1);
   EXPECT_TRUE(StructuralEqual()((*config->legacy_target_map.begin()).second,
@@ -60,9 +60,9 @@ TEST(CompilationConfig, Constructor_Homogeneous_FallbackCPUHost) {
   ASSERT_EQ(config->primitive_targets.size(), 1);
   EXPECT_TRUE(
       StructuralEqual()(config->primitive_targets[0], Target::WithHost(cuda_target, host_target)));
-  EXPECT_TRUE(
-      StructuralEqual()(config->default_primitive_se_scope, expected_default_primitive_se_scope));
-  EXPECT_TRUE(StructuralEqual()(config->host_se_scope, expected_host_se_scope));
+  EXPECT_TRUE(StructuralEqual()(config->default_primitive_virtual_device,
+                                expected_default_primitive_virtual_device));
+  EXPECT_TRUE(StructuralEqual()(config->host_virtual_device, expected_host_virtual_device));
   ASSERT_TRUE(config->optional_homogeneous_target.defined());
   EXPECT_TRUE(StructuralEqual()(config->optional_homogeneous_target,
                                 Target::WithHost(cuda_target, host_target)));
@@ -107,9 +107,9 @@ TEST(CompilationConfig, Constructor_Hetrogeneous_FallbackCPUHost) {
                         Target::WithHost(cuda_target, host_target));
   CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target_arg=*/{});
 
-  SEScope expected_default_primitive_se_scope(kDLCUDA, 0,
-                                              Target::WithHost(cuda_target, host_target));
-  SEScope expected_host_se_scope(kDLCPU, 0, host_target);
+  VirtualDevice expected_default_primitive_virtual_device(
+      kDLCUDA, 0, Target::WithHost(cuda_target, host_target));
+  VirtualDevice expected_host_virtual_device(kDLCPU, 0, host_target);
 
   ASSERT_EQ(config->legacy_target_map.size(), 2);
   for (const auto& pair : config->legacy_target_map) {
@@ -121,9 +121,9 @@ TEST(CompilationConfig, Constructor_Hetrogeneous_FallbackCPUHost) {
   }
   EXPECT_TRUE(config->host_target.defined());
   EXPECT_TRUE(StructuralEqual()(config->host_target, host_target));
-  EXPECT_TRUE(
-      StructuralEqual()(config->default_primitive_se_scope, expected_default_primitive_se_scope));
-  EXPECT_TRUE(StructuralEqual()(config->host_se_scope, expected_host_se_scope));
+  EXPECT_TRUE(StructuralEqual()(config->default_primitive_virtual_device,
+                                expected_default_primitive_virtual_device));
+  EXPECT_TRUE(StructuralEqual()(config->host_virtual_device, expected_host_virtual_device));
   EXPECT_FALSE(config->optional_homogeneous_target.defined());
 }
 
@@ -140,9 +140,9 @@ TEST(CompilationConfig, Constructor_Hetrogeneous_ExplicitHost) {
                         Target::WithHost(cuda_target, host_target));
   CompilationConfig config(pass_ctx, legacy_target_map, host_target);
 
-  SEScope expected_default_primitive_se_scope(kDLCUDA, 0,
-                                              Target::WithHost(cuda_target, host_target));
-  SEScope expected_host_se_scope(kDLCPU, 0, host_target);
+  VirtualDevice expected_default_primitive_virtual_device(
+      kDLCUDA, 0, Target::WithHost(cuda_target, host_target));
+  VirtualDevice expected_host_virtual_device(kDLCPU, 0, host_target);
 
   ASSERT_EQ(config->legacy_target_map.size(), 2);
   for (const auto& pair : config->legacy_target_map) {
@@ -155,9 +155,9 @@ TEST(CompilationConfig, Constructor_Hetrogeneous_ExplicitHost) {
   EXPECT_TRUE(config->host_target.defined());
   EXPECT_TRUE(StructuralEqual()(config->host_target, host_target));
   ASSERT_EQ(config->primitive_targets.size(), 2);
-  EXPECT_TRUE(
-      StructuralEqual()(config->default_primitive_se_scope, expected_default_primitive_se_scope));
-  EXPECT_TRUE(StructuralEqual()(config->host_se_scope, expected_host_se_scope));
+  EXPECT_TRUE(StructuralEqual()(config->default_primitive_virtual_device,
+                                expected_default_primitive_virtual_device));
+  EXPECT_TRUE(StructuralEqual()(config->host_virtual_device, expected_host_virtual_device));
   EXPECT_FALSE(config->optional_homogeneous_target.defined());
 }
 
@@ -188,40 +188,40 @@ TEST(CompilationConfig, Constructor_DefaultNoMatchingPrimitiveTarget) {
       CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target_arg=*/{}));
 }
 
-TEST(CompilationConfig, CanonicalSEScope) {
+TEST(CompilationConfig, CanonicalVirtualDevice) {
   Target host_target = TestDefaultCpuTarget();
   Target cuda_target = TestCudaTarget();
   Target cpu_target = TestCpuTarget();
   CompilationConfig config = TestCompilationConfig();
 
   {
-    SEScope in = SEScope(kDLCPU);
-    SEScope actual = config->CanonicalSEScope(in);
+    VirtualDevice in = VirtualDevice(kDLCPU);
+    VirtualDevice actual = config->CanonicalVirtualDevice(in);
     ASSERT_TRUE(actual->target.defined());
     EXPECT_TRUE(StructuralEqual()(actual->target, Target::WithHost(cpu_target, host_target)));
-    EXPECT_EQ(config->CanonicalSEScope(in), actual);
+    EXPECT_EQ(config->CanonicalVirtualDevice(in), actual);
   }
   {
-    SEScope in = SEScope(kDLCUDA);
-    SEScope actual = config->CanonicalSEScope(in);
+    VirtualDevice in = VirtualDevice(kDLCUDA);
+    VirtualDevice actual = config->CanonicalVirtualDevice(in);
     ASSERT_TRUE(actual->target.defined());
     EXPECT_TRUE(StructuralEqual()(actual->target, Target::WithHost(cuda_target, host_target)));
-    EXPECT_EQ(config->CanonicalSEScope(in), actual);
+    EXPECT_EQ(config->CanonicalVirtualDevice(in), actual);
   }
 }
 
-TEST(CompilationConfig, CanonicalSEScope_NoDevice) {
+TEST(CompilationConfig, CanonicalVirtualDevice_NoDevice) {
   CompilationConfig config = TestCompilationConfig();
-  SEScope fully_unconstrained;
-  EXPECT_ANY_THROW(config->CanonicalSEScope(fully_unconstrained));
-  SEScope missing_device(kInvalidDeviceType, 3, {}, "local");
-  EXPECT_ANY_THROW(config->CanonicalSEScope(missing_device));
+  VirtualDevice fully_unconstrained;
+  EXPECT_ANY_THROW(config->CanonicalVirtualDevice(fully_unconstrained));
+  VirtualDevice missing_device(kInvalidDeviceType, 3, {}, "local");
+  EXPECT_ANY_THROW(config->CanonicalVirtualDevice(missing_device));
 }
 
-TEST(CompilationConfig, CanonicalSEScope_NoMatchingTarget) {
+TEST(CompilationConfig, CanonicalVirtualDevice_NoMatchingTarget) {
   CompilationConfig config = TestCompilationConfig();
-  SEScope no_such_target(kDLMetal);
-  EXPECT_ANY_THROW(config->CanonicalSEScope(no_such_target));
+  VirtualDevice no_such_target(kDLMetal);
+  EXPECT_ANY_THROW(config->CanonicalVirtualDevice(no_such_target));
 }
 
 }  // namespace

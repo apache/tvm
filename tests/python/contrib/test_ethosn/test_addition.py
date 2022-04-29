@@ -17,11 +17,12 @@
 
 """Arm(R) Ethos(TM)-N integration addition tests"""
 
+import numpy as np
+import pytest
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
 from . import infrastructure as tei
-import numpy as np
 
 
 def _get_model(input_shape, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, dtype):
@@ -42,7 +43,7 @@ def _get_model(input_shape, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, dtyp
     return model
 
 
-def _get_addition_qnn_params(input1_zp, input1_sc, input2_zp, input2_sc):
+def _get_addition_qnn_params(dtype, input1_zp, input1_sc, input2_zp, input2_sc):
     input1_max = input1_sc * (255 - input1_zp)
     input1_min = -input1_sc * input1_zp
     input2_max = input2_sc * (255 - input2_zp)
@@ -55,28 +56,31 @@ def _get_addition_qnn_params(input1_zp, input1_sc, input2_zp, input2_sc):
 
 
 @requires_ethosn
-def test_addition():
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_addition(dtype):
+    zp_min = np.iinfo(dtype).min
+    zp_max = np.iinfo(dtype).max
     trials = [
-        ((1, 22, 9, 9), 24, 1.057, 253, 0.452),
-        ((1, 27, 21, 16), 79, 0.850, 24, 0.380),
-        ((1, 7, 12, 28), 125, 1.293, 239, 0.320),
-        ((1, 14, 9, 6), 14, 0.942, 227, 1.562),
-        ((1, 13, 16, 22), 15, 0.727, 180, 0.461),
+        ((1, 22, 9, 9), zp_min + 24, 1.057, zp_max - 3, 0.452),
+        ((1, 27, 21, 16), zp_min + 79, 0.850, 24, 0.380),
+        ((1, 7, 12, 28), zp_min + 125, 1.293, zp_max - 16, 0.320),
+        ((1, 14, 9, 6), zp_min + 14, 0.942, zp_max - 28, 1.562),
+        ((1, 13, 16, 22), zp_min + 15, 0.727, zp_max - 75, 0.461),
     ]
     np.random.seed(0)
     for shape, rhs_zp, rhs_sc, lhs_zp, lhs_sc in trials:
         outputs = []
         inputs = {
-            "a": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype="uint8")),
-            "b": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype="uint8")),
+            "a": tvm.nd.array(np.random.randint(zp_min, zp_max + 1, size=shape, dtype=dtype)),
+            "b": tvm.nd.array(np.random.randint(zp_min, zp_max + 1, size=shape, dtype=dtype)),
         }
-        out_zp, out_sc = _get_addition_qnn_params(lhs_zp, lhs_sc, rhs_zp, rhs_sc)
-        model = _get_model(shape, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, "uint8")
+        out_zp, out_sc = _get_addition_qnn_params(dtype, lhs_zp, lhs_sc, rhs_zp, rhs_sc)
+        model = _get_model(shape, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, dtype)
         for npu in [False, True]:
             mod = tei.make_module(model, [])
             outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
 
-        tei.verify(outputs, 2)
+        tei.verify(outputs, dtype, 2)
 
 
 @requires_ethosn
@@ -95,14 +99,14 @@ def test_addition_failure():
         ),
         (
             (1, 4, 4, 4),
-            "int8",
+            "int16",
             0,
             1,
             0,
             1,
             0,
             1,
-            "dtype='int8', dtype must be either uint8 or int32; dtype='int8', dtype must be either uint8 or int32",
+            "dtype='int16', dtype must be either uint8, int8 or int32; dtype='int16', dtype must be either uint8, int8 or int32",
         ),
     ]
 

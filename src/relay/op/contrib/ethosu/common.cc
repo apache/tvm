@@ -24,6 +24,8 @@
 
 #include "common.h"
 
+#include <sstream>
+
 #include "../../op_common.h"
 
 namespace tvm {
@@ -73,6 +75,102 @@ Array<IndexExpr> EthosuInferKernelOutput(Array<IndexExpr> ifm_shape, String ifm_
   }
 
   return output_shape;
+}
+
+Array<IndexExpr> EthosuInferUpscaledInput(Array<IndexExpr> ifm_shape, String ifm_layout) {
+  if (ifm_layout == "NHCWB16") {
+    ifm_shape = {ifm_shape[0], ifm_shape[1], ifm_shape[3], ifm_shape[2] * 16};
+  }
+
+  const int scale_factor = 2;
+  Array<IndexExpr> new_ifm_shape = {ifm_shape[0], ifm_shape[1] * scale_factor,
+                                    ifm_shape[2] * scale_factor, ifm_shape[3]};
+
+  if (ifm_layout == "NHCWB16") {
+    int channel_bricks = 1 + (new_ifm_shape[3].as<IntImmNode>()->value - 1) / 16;
+    new_ifm_shape = {new_ifm_shape[0], new_ifm_shape[1], channel_bricks, new_ifm_shape[2], 16};
+  }
+
+  return new_ifm_shape;
+}
+
+DataType DataTypeFromString(const String& dtype) {
+  DLDataType dl_dtype = tvm::runtime::String2DLDataType(dtype);
+  return DataType(dl_dtype);
+}
+
+void CheckDataType(const TypeReporter& reporter, const DataType& data_type,
+                   const std::initializer_list<DataType>& allowed_data_types,
+                   const String& operator_name, const String& tensor_name,
+                   const String& operator_type) {
+  for (const auto& i : allowed_data_types) {
+    if (data_type == i) {
+      return;
+    }
+  }
+
+  std::ostringstream message;
+  message << "Invalid operator: expected " << operator_name << " ";
+  if (operator_type != "") {
+    message << operator_type << " ";
+  }
+  message << "to have type in {";
+  for (auto it = allowed_data_types.begin(); it != allowed_data_types.end(); ++it) {
+    message << *it;
+    if (std::next(it) != allowed_data_types.end()) {
+      message << ", ";
+    }
+  }
+  message << "}";
+  message << " for " << tensor_name << " but was " << data_type << ".";
+
+  reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan()) << message.str());
+}
+
+void CheckUpscaleMethod(const TypeReporter& reporter, const String& upscale_method,
+                        const std::initializer_list<String>& allowed_upscale_methods,
+                        const String& operator_name, const String& operator_type) {
+  for (const auto& i : allowed_upscale_methods) {
+    if (upscale_method == i) {
+      return;
+    }
+  }
+
+  std::ostringstream message;
+  message << "Invalid operator: expected " << operator_name << " ";
+  if (operator_type != "") {
+    message << operator_type << " ";
+  }
+  message << "to have upscale method in {";
+  for (auto it = allowed_upscale_methods.begin(); it != allowed_upscale_methods.end(); ++it) {
+    message << *it;
+    if (std::next(it) != allowed_upscale_methods.end()) {
+      message << ", ";
+    }
+  }
+  message << "}";
+  message << " but was " << upscale_method << ".";
+
+  reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan()) << message.str());
+}
+
+void CheckDataTypeMatch(const TypeReporter& reporter, const DataType& data_type,
+                        const DataType& data_type2, const String& operator_name,
+                        const String& tensor_name, const String& tensor_name2,
+                        const String& operator_type) {
+  if (data_type == data_type2) {
+    return;
+  }
+
+  std::ostringstream message;
+  message << "Invalid operator: expected " << operator_name << " ";
+  if (operator_type != "") {
+    message << operator_type << " ";
+  }
+  message << "data types for " << tensor_name << " and " << tensor_name2 << " to match, but was "
+          << data_type << " and " << data_type2;
+
+  reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan()) << message.str());
 }
 
 }  // namespace ethosu

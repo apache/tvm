@@ -153,7 +153,7 @@ def test_tune_tasks__invalid_tuner(onnx_mnist, tmpdir_factory):
     tasks = _get_tasks(onnx_mnist)
     log_file = os.path.join(tmpdir_factory.mktemp("data"), "log2.txt")
 
-    with pytest.raises(tvmc.common.TVMCException):
+    with pytest.raises(tvmc.TVMCException):
         tvmc.autotuner.tune_tasks(tasks, log_file, _get_measure_options(), "invalid_tuner", 1, 1)
 
 

@@ -20,6 +20,8 @@ import sys
 import pytest
 from tvm.ir import assert_structural_equal
 from tvm.script import tir as T
+from tvm.script.parser import from_source
+from tvm.testing import check_error
 
 
 @T.prim_func
@@ -60,6 +62,160 @@ def transformed_matmul_syntax_sugar(a: T.handle, b: T.handle, c: T.handle) -> No
 
 def test_reads_writes_syntax_sugar():
     assert_structural_equal(transformed_matmul_no_syntax_sugar, transformed_matmul_syntax_sugar)
+
+
+@T.prim_func
+def loop_no_syntax_sugar(a: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128, 128))
+    for i in T.serial(0, 128):
+        for j in T.parallel(0, 128):
+            for k in T.vectorized(0, 128):
+                for x in T.unroll(0, 128):
+                    for y in T.thread_binding(0, 128, thread="threadIdx.x"):
+                        for z in T.thread_binding(0, 128, thread="threadIdx.x"):
+                            A[i, j, k, x] = A[i, j, k, x] * 2.0
+
+
+@T.prim_func
+def loop_syntax_sugar(a: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128, 128))
+    for i in T.serial(128):
+        for j in T.parallel(128):
+            for k in T.vectorized(128):
+                for x in T.unroll(128):
+                    for y in T.thread_binding(128, "threadIdx.x"):
+                        for z in T.thread_binding(128, thread="threadIdx.x"):
+                            A[i, j, k, x] = A[i, j, k, x] * 2.0
+
+
+def loop_syntax_sugar_fail(a: T.handle) -> None:
+    A = T.match_buffer(a, (128,))
+    for i in T.thread_binding(128, 128):
+        A[i] = A[i] * 2.0
+
+
+def test_loop_syntax_sugar():
+    assert_structural_equal(loop_no_syntax_sugar, loop_syntax_sugar)
+
+
+def test_syntax_sugar_fail():
+    check_error(loop_syntax_sugar_fail, 3)
+
+
+# match buffer - use kwargs
+@T.prim_func
+def elementwise_handle(
+    a: T.handle,
+    b: T.handle,
+) -> None:
+    A = T.match_buffer(a, (128, 128, 128, 128))
+    B = T.match_buffer(b, (128, 128, 128, 128))
+    for i, j, k, l in T.grid(128, 128, 128, 128):
+        with T.block("B"):
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+            B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
+
+
+# match buffer - use buffer with kwargs
+@T.prim_func
+def elementwise_buffer_kwargs(
+    a: T.Buffer(shape=(128, 128, 128, 128), dtype="float32"),
+    b: T.Buffer(shape=(128, 128, 128, 128), dtype="float32"),
+) -> None:
+    for i, j, k, l in T.grid(128, 128, 128, 128):
+        with T.block("B"):
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+            b[vi, vj, vk, vl] = a[vi, vj, vk, vl] * 2.0
+
+
+# match buffer - use buffer without kwargs
+@T.prim_func
+def elementwise_buffer_no_kwargs(
+    a: T.Buffer[(128, 128, 128, 128), "float32"],
+    b: T.Buffer[(128, 128, 128, 128), "float32"],
+) -> None:
+    for i, j, k, l in T.grid(128, 128, 128, 128):
+        with T.block("B"):
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+            b[vi, vj, vk, vl] = a[vi, vj, vk, vl] * 2.0
+
+
+def test_match_buffer_syntax_sugar():
+    # with kwargs
+    assert_structural_equal(elementwise_handle, elementwise_buffer_kwargs)
+    # without kwargs
+    assert_structural_equal(elementwise_handle, elementwise_buffer_no_kwargs)
+
+
+# match buffer failed case
+def test_match_buffer_no_kwargs_failed():
+    with pytest.raises(ValueError) as e:
+
+        @T.prim_func
+        def elementwise_buffer_no_kwargs_failed(
+            a: T.Buffer[(128, 128, 128, 128)],
+            b: T.Buffer[(128, 128, 128, 128)],
+        ) -> None:
+            pass
+
+
+# dynamic shape gemm
+@T.prim_func
+def gemm_dyn_shape(a: T.handle, b: T.handle, c: T.handle):
+    N = T.var("int32")
+    M = T.var("int32")
+    K = T.var("int32")
+    A = T.match_buffer(a, (N, K), "float32")
+    B = T.match_buffer(b, (K, M), "float32")
+    C = T.match_buffer(c, (N, M), "float32")
+    for i, j, k in T.grid(N, M, K):
+        with T.block("gemm"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
+
+def test_dynamic_shape_gemm():
+    gemm_dyn_shape_roundtrip = from_source(gemm_dyn_shape.script())
+    assert_structural_equal(gemm_dyn_shape, gemm_dyn_shape_roundtrip)
+
+
+@T.prim_func
+def match_buffer_int64(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (T.int64(128), T.int64(128)), dtype="float32")
+    B = T.alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
+    C = T.match_buffer(c, (T.int64(128), T.int64(128)), dtype="float32")
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(T.int64(128), T.int64(128)):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
+
+
+@T.prim_func
+def match_buffer_int64_after_roundtrip(
+    A: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+    C: T.Buffer[(T.int64(128), T.int64(128)), "float32"],
+) -> None:
+    B = T.alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(T.int64(128), T.int64(128)):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
+
+
+def test_match_buffer_int64():
+    original = match_buffer_int64
+    after_roundtrip = match_buffer_int64_after_roundtrip
+    assert_structural_equal(original, after_roundtrip, True)
 
 
 if __name__ == "__main__":

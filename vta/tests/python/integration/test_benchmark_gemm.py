@@ -174,7 +174,7 @@ def test_gemm():
                     env.dma_copy,
                     print_ir,
                 )
-                gops = (num_ops / cost.mean) / float(10 ** 9)
+                gops = (num_ops / cost.mean) / float(10**9)
                 print(header)
                 print("\tTime cost = %g sec/op, %g GOPS" % (cost.mean, gops))
 
@@ -189,7 +189,7 @@ def test_gemm():
                 cost = run_schedule(
                     mock.dma_copy, mock.dma_copy, env.gemm, mock.alu, mock.dma_copy, print_ir
                 )
-                gops = (num_ops / cost.mean) / float(10 ** 9)
+                gops = (num_ops / cost.mean) / float(10**9)
                 print(header)
                 print("\tTime cost = %g sec/op, %g GOPS" % (cost.mean, gops))
 
@@ -204,7 +204,7 @@ def test_gemm():
                 cost = run_schedule(
                     mock.dma_copy, mock.dma_copy, mock.gemm, env.alu, mock.dma_copy, print_ir
                 )
-                gops = (num_ops / cost.mean) / float(10 ** 9)
+                gops = (num_ops / cost.mean) / float(10**9)
                 print(header)
                 print("\tTime cost = %g sec/op, %g GOPS" % (cost.mean, gops))
 
@@ -220,8 +220,8 @@ def test_gemm():
                 cost = run_schedule(
                     env.dma_copy, mock.dma_copy, mock.gemm, mock.alu, mock.dma_copy, print_ir
                 )
-                gops = (num_ops / cost.mean) / float(10 ** 9)
-                bandwith = (batch_size * channel * env.INP_WIDTH / cost.mean) / float(10 ** 9)
+                gops = (num_ops / cost.mean) / float(10**9)
+                bandwith = (batch_size * channel * env.INP_WIDTH / cost.mean) / float(10**9)
                 print(header)
                 print(
                     "\tTime cost = %g sec/op, %g GOPS, bandwidth=%g Gbits"
@@ -240,8 +240,8 @@ def test_gemm():
                 cost = run_schedule(
                     mock.dma_copy, env.dma_copy, mock.gemm, mock.alu, mock.dma_copy, print_ir
                 )
-                gops = (num_ops / cost.mean) / float(10 ** 9)
-                bandwith = (channel * channel * env.WGT_WIDTH / cost.mean) / float(10 ** 9)
+                gops = (num_ops / cost.mean) / float(10**9)
+                bandwith = (channel * channel * env.WGT_WIDTH / cost.mean) / float(10**9)
                 print(header)
                 print(
                     "\tTime cost = %g sec/op, %g GOPS, bandwidth=%g Gbits"
@@ -260,8 +260,8 @@ def test_gemm():
                 cost = run_schedule(
                     mock.dma_copy, mock.dma_copy, mock.gemm, mock.alu, env.dma_copy, print_ir
                 )
-                gops = (num_ops / cost.mean) / float(10 ** 9)
-                bandwith = (batch_size * channel * env.OUT_WIDTH / cost.mean) / float(10 ** 9)
+                gops = (num_ops / cost.mean) / float(10**9)
+                bandwith = (batch_size * channel * env.OUT_WIDTH / cost.mean) / float(10**9)
                 print(header)
                 print(
                     "\tTime cost = %g sec/op, %g GOPS, bandwidth=%g Gbits"

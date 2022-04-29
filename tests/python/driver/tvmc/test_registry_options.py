@@ -19,7 +19,7 @@ import argparse
 
 import pytest
 
-from tvm.driver.tvmc.common import TVMCException
+from tvm.driver.tvmc import TVMCException
 from tvm.driver.tvmc.registry import generate_registry_args, reconstruct_registry_entity
 from tvm.relay.backend import Executor
 

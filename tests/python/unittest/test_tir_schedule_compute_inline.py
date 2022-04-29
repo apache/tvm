@@ -183,7 +183,12 @@ def opaque_access_load(a: T.handle, c: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(B[0:128, 0:128])
             T.writes(C[0:128, 0:128])
-            C[vi, vj] = T.load("float32", B.data, vi * 128 + vj) + 1.0
+            T.evaluate(
+                T.tvm_access_ptr(
+                    T.type_annotation(dtype="float32"), B.data, 0, 128, "r", dtype="handle"
+                )
+            )
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
 @T.prim_func
@@ -200,8 +205,17 @@ def opaque_access_store(a: T.handle, c: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(B[0:128, 0:128])
             T.writes(C[0:128, 0:128])
-            T.store(C.data, vi * 128 + vj, B[vi, vj] + 1.0)
-            C[vi, vj] = T.load("float32", B.data, vi * 16 + vj) + 1.0
+            T.evaluate(
+                T.tvm_access_ptr(
+                    T.type_annotation(dtype="float32"), B.data, 0, 128, "r", dtype="handle"
+                )
+            )
+            T.evaluate(
+                T.tvm_access_ptr(
+                    T.type_annotation(dtype="float32"), C.data, 0, 128, "w", dtype="handle"
+                )
+            )
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
 @T.prim_func
@@ -327,6 +341,65 @@ def access_opaque_ptr_then_elemwise_inline(a: T.handle, b: T.handle) -> None:
             T.reads([A_cache[vi]])
             T.writes([B[vi]])
             B[vi] = A_cache[vi] * 2.0 + 1.0
+
+
+@T.prim_func
+def matmul_relu(var_A: T.handle, var_B: T.handle, var_compute: T.handle) -> None:
+    A = T.match_buffer(var_A, [512, 512], dtype="float32")
+    B = T.match_buffer(var_B, [512, 512], dtype="float32")
+    compute = T.match_buffer(var_compute, [512, 512], dtype="float32")
+    C = T.alloc_buffer([512, 512], dtype="float32")
+    for i0, i1, i2 in T.grid(512, 512, 512):
+        with T.block("C"):
+            i, j, k = T.axis.remap("SSR", [i0, i1, i2])
+            T.reads([C[i, j], A[i, k], B[k, j]])
+            T.writes([C[i, j]])
+            with T.init():
+                C[i, j] = T.float32(0)
+            C[i, j] = C[i, j] + A[i, k] * B[k, j]
+    for i0, i1 in T.grid(512, 512):
+        with T.block("compute"):
+            i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
+            T.reads([C[i0_1, i1_1]])
+            T.writes([compute[i0_1, i1_1]])
+            compute[i0_1, i1_1] = T.max(C[i0_1, i1_1], T.float32(0))
+
+
+@T.prim_func
+def inline_block_with_init(
+    A: T.Buffer[(1, 512, 7, 7), "float32"],
+    B: T.Buffer[(1, 512, 1, 1), "float32"],
+) -> None:
+    B_rf = T.alloc_buffer([1, 512, 1, 1, 49], dtype="float32")
+    for i0, i1, i2, i3, i4, i5 in T.grid(1, 512, 1, 1, 49, 1):
+        with T.block("tensor_rf"):
+            vi4 = T.axis.spatial(49, i4)
+            ax0 = T.axis.spatial(1, 0)
+            ax1 = T.axis.spatial(512, i1)
+            ax2 = T.axis.spatial(1, 0)
+            ax3 = T.axis.spatial(1, 0)
+            with T.init():
+                B_rf[ax0, ax1, ax2, ax3, vi4] = T.float32(0)
+            B_rf[ax0, ax1, ax2, ax3, vi4] = (
+                B_rf[ax0, ax1, ax2, ax3, vi4]
+                + A[
+                    ax0,
+                    ax1,
+                    ax2 * 7 + vi4 // 7,
+                    ax3 * 7 + vi4 % 7,
+                ]
+            )
+    for i0, i1 in T.grid(1, 512):
+        for ax0, ax1, ax2, ax3, ax4 in T.grid(49, 1, 1, 1, 1):
+            with T.block("tensor"):
+                vi4, ax0_1 = T.axis.remap("RS", [ax0, ax1])
+                ax1_1 = T.axis.spatial(512, i1 + ax2)
+                ax2_1, ax3_1 = T.axis.remap("SS", [ax3, ax4])
+                with T.init():
+                    B[ax0_1, ax1_1, ax2_1, ax3_1] = T.float32(0)
+                B[ax0_1, ax1_1, ax2_1, ax3_1] = (
+                    B[ax0_1, ax1_1, ax2_1, ax3_1] + B_rf[ax0_1, ax1_1, ax2_1, ax3_1, vi4]
+                )
 
 
 # pylint: enable=no-member,invalid-name,unused-variable
@@ -458,6 +531,13 @@ def test_buffer_matched():
         sch.compute_inline(block_b)
 
 
+def test_output_block():
+    sch = tir.Schedule(matmul_relu, debug_mask="all")
+    block = sch.get_block("compute")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.compute_inline(block)
+
+
 def test_compute_inline_predicate():
     sch = tir.Schedule(elementwise_predicate, debug_mask="all")
     block_b = sch.get_block("B")
@@ -480,6 +560,13 @@ def test_compute_inline_with_opaque_access():
     BB = sch.get_block("BB")
     sch.compute_inline(BB)
     tvm.ir.assert_structural_equal(access_opaque_ptr_then_elemwise_inline, sch.mod["main"])
+
+
+def test_inline_block_with_init():
+    sch = tir.Schedule(inline_block_with_init, debug_mask="all")
+    block = sch.get_block(name="tensor_rf", func_name="main")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.compute_inline(block=block)
 
 
 if __name__ == "__main__":

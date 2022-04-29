@@ -17,13 +17,13 @@
 
 if(USE_BNNS STREQUAL "ON")
   add_definitions(-DUSE_JSON_RUNTIME=1)
-  file(GLOB BNNS_RELAY_CONTRIB_SRC src/relay/backend/contrib/bnns/*.cc)
+  tvm_file_glob(GLOB BNNS_RELAY_CONTRIB_SRC src/relay/backend/contrib/bnns/*.cc)
   list(APPEND COMPILER_SRCS ${BNNS_RELAY_CONTRIB_SRC})
   list(APPEND COMPILER_SRCS ${JSON_RELAY_CONTRIB_SRC})
 
   list(APPEND TVM_RUNTIME_LINKER_LIBS "-framework Accelerate")
 
-  file(GLOB BNNS_CONTRIB_SRC src/runtime/contrib/bnns/*.cc)
+  tvm_file_glob(GLOB BNNS_CONTRIB_SRC src/runtime/contrib/bnns/*.cc)
   list(APPEND RUNTIME_SRCS ${BNNS_CONTRIB_SRC})
   message(STATUS "Build with BNNS JSON runtime: " ${EXTERN_LIBRARY_BNNS})
 endif()

@@ -15,20 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 """Codegen for Arm(R) Ethos(TM)-U NPU"""
+from collections import defaultdict
 
 import tvm
 from tvm import relay
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import LowerToTIR
 from tvm.relay.backend.contrib.ethosu.tir.scheduler import copy_constants
 from tvm.relay.backend.contrib.ethosu.legalize import LegalizeEthosU
 from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator
 from tvm.relay.backend.contrib.ethosu import util
-from tvm.relay.expr_functor import ExprMutator
-from tvm.ir.transform import Pass
+from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 # pylint: disable=unused-import
 from tvm.relay.backend.contrib.ethosu.op import op_attrs
 from tvm.relay.backend.contrib.ethosu import op
+
+from . import _ffi_api
 
 
 class OptimizeLUTs(ExprMutator):
@@ -89,7 +91,7 @@ class OptimizeLUTs(ExprMutator):
             not refer to an Op. Else, a new call node with a new operator.
         """
         new_call = call
-        lut_activations = ["TANH", "LUT"]
+        lut_activations = ["TANH", "LUT", "SIGMOID"]
 
         if isinstance(call.op, tvm.ir.Op) and isinstance(call.args[0], tvm.relay.expr.Call):
             producer_op = call.args[0]
@@ -109,63 +111,99 @@ class OptimizeLUTs(ExprMutator):
         return new_call
 
 
-@relay.transform.function_pass(opt_level=1, name="LUTsOptimizer")
-class LUTsOptimizer(Pass):
+@util.create_npu_function_pass(opt_level=1)
+class LUTsOptimizer:
     """Register LUTsOptimizer as a relay pass."""
 
-    def transform_function(
-        self, func: tvm.relay.function.Function, mod: tvm.IRModule, _
-    ) -> tvm.IRModule:
-        """Visit relay nodes in the given module.
+    def transform_npu_function(self, _, func: relay.Function) -> relay.Function:
+        """Visit relay nodes in the given NPU function.
 
         Parameters
         ----------
         func : tvm.relay.function.Function
             The function to apply the optimization pass for multiple LUTs to.
-        mod : tvm.IRModule
-            The module to apply the optimization pass for multiple LUTs to.
 
         Returns
         -------
         mod : tvm.IRModule
             New module with optimized LUTs.
         """
-        assert len(mod.functions.items()) == 1, "Module can only contain one function."
         return OptimizeLUTs().visit(func)
 
+    def __call__(self, *args, **kwargs):
+        pass
 
-class LayoutOptimization(ExprMutator):
-    """A pass to optimize the layout of NPU operations. If both the
-    producer and consumer of a tensor are NPU operators, then the
-    layout is converted from NHWC to NHCWB16.
+
+class AnalyzeConsumers(ExprVisitor):
+    """Traverses the graph to determine consumers that are NPU operations. The
+    result is maintained in `npu_consumers`.
 
     Attributes
     ----------
-    children : Dict[tvm.relay.expr.Call, List[tvm.relay.expr.Call]]
-        A map from current call to a list of calls that rely on the current
-        call. This allows the graph to be traversed backwards, which is useful
-        for checking whether the output layouts can be rewritten.
-    optimize_op : Dict[str, Callable]
-        A map from NPU op name to function that creates NPU op.
+    npu_consumers : Dict[tvm.relay.expr.Call, List[bool]]
+        Mapping from NPU operation to list of boolean values that represent
+        whether or not each consumer is an NPU operation.
+    optimize_ops : Dict[str, Callable]
+        A map from NPU operation name to function that creates NPU operation.
     """
 
-    def __init__(self):
-        self.children = {}
-        self.optimize_op = {
-            "contrib.ethosu.conv2d": op.ethosu_conv2d,
-            "contrib.ethosu.depthwise_conv2d": op.ethosu_depthwise_conv2d,
-            "contrib.ethosu.pooling": op.ethosu_pooling,
-            "contrib.ethosu.binary_elementwise": op.ethosu_binary_elementwise,
-            "contrib.ethosu.unary_elementwise": op.ethosu_unary_elementwise,
-        }
+    def __init__(self, optimize_ops):
+        self.npu_consumers = defaultdict(list)
+        self.optimize_ops = optimize_ops
+        super().__init__()
 
+    def visit_call(self, call: relay.Call):
+        is_npu_consumer = call.op.name in self.optimize_ops
+        args = []
+
+        # Expand tuples
+        for arg in call.args:
+            if isinstance(arg, relay.Tuple):
+                args.extend(arg.fields)
+            else:
+                args.append(arg)
+
+        for arg in args:
+            if isinstance(arg, relay.Call) and arg.op.name in self.optimize_ops:
+                self.npu_consumers[arg].append(is_npu_consumer)
+
+        super().visit_call(call)
+
+
+class LayoutOptimization(ExprMutator):
+    """A pass to optimize the layout of NPU operations by converting to brick format (NHCWB16).
+    This pass traverses the graph and attempts to alter the input/output layouts when an NPU
+    operation is visited. Whether or not the input/output layout can be altered for a given NPU
+    operation depends on the following:
+
+    Check alter input layout: For each argument, if the producer is also an NPU operation and
+        its output is altered to brick format, then the input layout with respect to the current
+        argument is altered to brick format.
+
+    Check alter output layout: If all consumers (child nodes) are an NPU operation, then the
+        output layout is altered to brick format.
+
+    Note
+    ----
+    In order for this pass to be run, the consumers of each NPU operation must first be analyzed
+    by the `AnalyzeConsumers` pass, since Relay doesn't keep a reference to child nodes.
+
+    Attributes
+    ----------
+    npu_consumers : Dict[tvm.relay.expr.Call, bool]
+        A map from current call to a list boolean values that state whether or not each consumer
+        is an NPU operation.
+    optimize_ops : Dict[str, Callable]
+        A map from NPU operation name to function that creates NPU operation.
+    """
+
+    def __init__(self, npu_consumers, optimize_ops):
+        self.npu_consumers = npu_consumers
+        self.optimize_ops = optimize_ops
         super().__init__()
 
     def alter_ethosu_op_layout(self, call: tvm.relay.expr.Call) -> tvm.relay.expr.Call:
-        """Alter the input and output layouts of an NPU operation if needed.
-        Input layout is only altered if the producing operation is an NPU
-        operation. Likewise, the output layout is only altered if the consuming
-        operation is an NPU operation.
+        """Alter the layouts of given NPU operation to brick format if possible.
 
         Parameters
         ----------
@@ -185,46 +223,26 @@ class LayoutOptimization(ExprMutator):
         )
 
         new_attrs = dict(call.attrs)
-        parents = []
 
         # Check if we can rewrite the input layouts
         input_count = 0
         for arg in call.args:
             input_count += 1
-            if not isinstance(arg, tvm.relay.expr.Call):
+            if arg not in self.npu_consumers:
                 continue
-            if isinstance(arg.op, tvm.ir.op.Op) and arg.op.name in self.optimize_op:
+            consumers = self.npu_consumers[arg]
+            parent_has_brick_output = consumers and all(consumers)
+            if parent_has_brick_output:
                 layout_string = "ifm_layout" if input_count <= 1 else f"ifm{input_count}_layout"
                 new_attrs[layout_string] = "NHCWB16"
-            parents.append(arg)
 
         # Check if we can rewrite the output layouts
-        if call in self.children:
-            children = self.children[call]
-            if all(
-                isinstance(child, tvm.relay.expr.Call)
-                and isinstance(child.op, tvm.ir.op.Op)
-                and child.op.name in self.optimize_op
-                and child.attrs["ifm_layout"] == "NHCWB16"
-                for child in children
-            ):
-                new_attrs["ofm_layout"] = "NHCWB16"
+        consumers = self.npu_consumers[call]
+        if consumers and all(consumers):
+            new_attrs["ofm_layout"] = "NHCWB16"
 
         name = call.op.name
-        assert name in self.optimize_op, (
-            f"Could not create operator '{name}' as the creation function "
-            "is unknown. Please provide a mapping."
-        )
-        new_call = self.optimize_op[name](*call.args, **new_attrs)
-
-        # Update map of children
-        for input_arg in parents:
-            if input_arg in self.children:
-                self.children[input_arg].append(new_call)
-            else:
-                self.children[input_arg] = [new_call]
-
-        return super().visit_call(new_call)
+        return self.optimize_ops[name](*call.args, **new_attrs)
 
     def visit_call(self, call: tvm.relay.expr.Call) -> tvm.relay.expr.Call:
         """Recursively visit call nodes in the input graph and alter the
@@ -242,24 +260,62 @@ class LayoutOptimization(ExprMutator):
             not refer to an Op. Else, a new call node with altered Op
             attributes.
         """
-        if isinstance(call.op, tvm.ir.op.Op) and call.op.name in self.optimize_op:
-            return self.alter_ethosu_op_layout(call)
+        if isinstance(call.op, tvm.ir.Op) and call.op.name in self.optimize_ops:
+            call = self.alter_ethosu_op_layout(call)
         return super().visit_call(call)
 
 
-@relay.transform.function_pass(opt_level=1, name="LayoutOptimizer")
-class LayoutOptimizer(Pass):
+@util.create_npu_function_pass(opt_level=1)
+class LayoutOptimizer:
     """Register LayoutOptimizer as a Relay pass."""
 
-    def transform_function(
-        self, func: tvm.relay.function.Function, mod: tvm.IRModule, _
-    ) -> tvm.IRModule:
+    def transform_npu_function(self, _, func: relay.Function) -> relay.Function:
         """A pass to optimize the layout of NPU operations. If both the
         producer and consumer of a tensor are NPU operators, then the
         layout is converted from NHWC to NHCWB16 as this is the layout NPU
         uses internally."""
-        assert len(mod.functions.items()) == 1, "Module can only contain one function."
-        return LayoutOptimization().visit(func)
+
+        optimize_ops = {
+            "contrib.ethosu.conv2d": op.ethosu_conv2d,
+            "contrib.ethosu.depthwise_conv2d": op.ethosu_depthwise_conv2d,
+            "contrib.ethosu.pooling": op.ethosu_pooling,
+            "contrib.ethosu.binary_elementwise": op.ethosu_binary_elementwise,
+            "contrib.ethosu.unary_elementwise": op.ethosu_unary_elementwise,
+        }
+
+        analyze = AnalyzeConsumers(optimize_ops)
+        analyze.visit(func)
+        return LayoutOptimization(analyze.npu_consumers, optimize_ops).visit(func)
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+def IdentityOptimizer():  # pylint: disable=invalid-name
+    """Pass that removes redundant identities
+
+    Return
+    ------
+    Pass
+        The module pass.
+    """
+    return _ffi_api.IdentityOptimizer()
+
+
+def OutlineCompilerFunctions(compiler_name):  # pylint: disable=invalid-name
+    """Pass that outlines functions given a named Compiler attribute.
+
+    Parameters
+    ----------
+    compiler_name
+        The name of the compiler to look for and outline.
+
+    Return
+    ------
+    Pass
+        The module pass.
+    """
+    return _ffi_api.OutlineCompilerFunctions(compiler_name)
 
 
 @tvm._ffi.register_func("relay.ext.ethos-u.constant_updater")
@@ -272,45 +328,42 @@ def constant_updater(expr, symbol):  # pylint: disable=unused-argument
     return dict()
 
 
-@tvm._ffi.register_func("relay.ext.ethos-u.relay_to_tir_func")
-def relay_to_tir_func(ext_func: relay.Function) -> tvm.tir.PrimFunc:
+@tvm._ffi.register_func("relay.ext.ethos-u.relay_to_tir")
+def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
     """
-    This is the hook for python-based lowering of relay function
-    that gets offloaded to the microNPU.
+    This is the hook for python-based lowering of a Relay module which lowers NPU
+    external functions to TIR.
 
     Parameters
     ----------
-    ext_func : relay.Function
-        This is the partitioned relay function
+    mod : tvm.ir.IRModule
+        This is the Relay module.
 
     Returns
     -------
-    primfunc : tir.PrimFunc
-        This returns the scheduled PrimFunc
+    mod : tvm.ir.IRModule
+        The Relay module with scheduled NPU external functions.
     """
-    assert len(ext_func.params) == 1
-    input_size = util.calculate_size_bytes(ext_func.params[0])
-    output_size = util.calculate_size_bytes(ext_func.body)
-    mod = tvm.IRModule()
-    mod["main"] = ext_func
+    mod = OutlineCompilerFunctions("ethos-u")(mod)
     mod = LegalizeEthosU()(mod)
     mod = LUTsOptimizer()(mod)
     mod = relay.transform.InferType()(mod)
+    mod = IdentityOptimizer()(mod)
+    mod = LayoutOptimizer()(mod)
+    mod = relay.transform.InferType()(mod)
+
+    device_contexts = {
+        gv: "ethos-u" for gv, _ in filter(lambda x: util.is_npu_func(x[1]), mod.functions.items())
+    }
+    mod = mod.with_attr("device_contexts", device_contexts)
+
     # We are currently using copy_constants scheduler In the long run,
     # this should be a single intelligent and a composite scheduler
     # that can perform scheduling based on user inputs such as
     # scratch memory size.
-    tir_mod, const_dict = lower_to_tir(mod["main"], copy_constants())
+    mod = LowerToTIR(copy_constants)(mod)
 
-    for idx in const_dict.keys():
-        const_dict[idx] = tvm.nd.array(const_dict[idx])
-
-    primfunc = tir_mod["main"]
-    primfunc = primfunc.with_attr("global_symbol", ext_func.attrs["global_symbol"])
-    primfunc = primfunc.with_attr("ethos-u.constants", const_dict)
-    primfunc = primfunc.with_attr("ethos-u.input_size", input_size)
-    primfunc = primfunc.with_attr("ethos-u.output_size", output_size)
-    return primfunc
+    return mod
 
 
 @tvm._ffi.register_func("relay.ext.ethos-u.primfunc_to_artifact")
@@ -333,18 +386,12 @@ def primfunc_to_artifact(primfunc: tvm.tir.PrimFunc) -> util.CompilationArtifact
     """
     symbol = str(primfunc.attrs["global_symbol"])
     const_dict = primfunc.attrs["ethos-u.constants"]
-    input_size = primfunc.attrs["ethos-u.input_size"]
-    output_size = primfunc.attrs["ethos-u.output_size"]
     tir_mod = tvm.IRModule()
     tir_mod[symbol] = primfunc
 
-    const_dict_with_int_keys = dict()
-    for idx in const_dict.keys():
-        const_dict_with_int_keys[int(idx)] = const_dict[idx].numpy()
+    const_dict_np = dict()
+    for buffer_var in const_dict.keys():
+        const_dict_np[buffer_var] = const_dict[buffer_var].numpy()
 
-    cmms, encoded_constants, scratch_size = tir_to_cs_translator.translate(
-        tir_mod, const_dict_with_int_keys
-    )
-    return util.CompilationArtifact(
-        cmms, encoded_constants, scratch_size, input_size, output_size, symbol
-    )
+    cmms, encoded_constants, base_addresses = tir_to_cs_translator.translate(tir_mod, const_dict_np)
+    return util.CompilationArtifact(symbol, cmms, encoded_constants, base_addresses)

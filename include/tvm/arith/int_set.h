@@ -93,6 +93,11 @@ class IntSet : public ObjectRef {
   bool CanProveNonPositive() const;
   /*! \return Whether the set is proved to be larger than or equal to 0 */
   bool CanProveNonNegative() const;
+  /*! \return Whether the set has upper bound. */
+  bool HasUpperBound() const;
+  /*! \return Whether the set has lower bound. */
+  bool HasLowerBound() const;
+
   /*!
    * \brief The single point value, call only if IsSinglePoint is true
    * \return The point value.

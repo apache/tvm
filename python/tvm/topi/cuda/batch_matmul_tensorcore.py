@@ -177,6 +177,8 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
         bb, bbii = s[CS].split(bb, factor=warp_row_tiles)
         oo, ooii = s[CS].split(oo, factor=warp_col_tiles)
         s[CS].reorder(bs, bb, oo, bbii, ooii, bbi, ooi)
+        s[CS].bind(bb, thread_z)
+        s[CS].bind(oo, thread_y)
 
         # Schedule for wmma computation
         s[CF].compute_at(s[CS], oo)
@@ -203,7 +205,7 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
         s[BF].reorder(bs, o, i, o_ii, i_ii)
 
         # Schedule for A's(B's) shared memory load
-        def shared_shedule(stage, strides):
+        def shared_schedule(stage, strides):
             s[stage].compute_at(s[CF], ko)
             bs, xo, yo = stage.op.axis
             s[stage].storage_align(xo, strides - 1, strides)
@@ -217,8 +219,8 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
             s[stage].bind(tx, thread_x)
             s[stage].vectorize(vi)
 
-        shared_shedule(AS, AS_align)
-        shared_shedule(BS, BS_align)
+        shared_schedule(AS, AS_align)
+        shared_schedule(BS, BS_align)
 
         shape = (wmma_m, wmma_n, wmma_k)
         AL_gemm = te.placeholder((wmma_m, wmma_k), name="AL_gemm", dtype=data_dtype)

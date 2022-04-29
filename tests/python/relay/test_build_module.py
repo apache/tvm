@@ -17,8 +17,10 @@
 
 import pytest
 
+import tvm
+from tvm import relay
 from tvm.target.target import Target
-from tvm.relay.backend import Runtime, Executor
+from tvm.relay.backend import Runtime, Executor, graph_executor_codegen
 from tvm.relay.build_module import _reconstruct_from_deprecated_options
 
 
@@ -56,6 +58,28 @@ def test_deprecated_target_parameters(target, executor, runtime):
     actual_executor, actual_runtime = _reconstruct_from_deprecated_options(target)
     assert executor == actual_executor
     assert runtime == actual_runtime
+
+
+def test_build_relay_graph_():
+    """Test to build a simple relay graph by using APIs directly"""
+
+    def build_graph(mod, target):
+        target = relay.build_module.build_target_by_device_type_map(target)
+        target, target_host = tvm.target.Target.check_and_update_host_consist(target)
+        mod, _ = relay.optimize(mod, target, None)
+        grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
+        _, lowered_funcs, _ = grc.codegen(mod, mod["main"])
+        _ = relay.backend._backend.build(lowered_funcs, target, target_host)
+
+    def add(shape, dtype):
+        lhs = relay.var("A", shape=shape, dtype=dtype)
+        rhs = relay.var("B", shape=shape, dtype=dtype)
+        out = relay.add(lhs, rhs)
+        expr = relay.Function((lhs, rhs), out)
+        mod = tvm.IRModule.from_expr(expr)
+        return mod
+
+    build_graph(add((1, 8), "float32"), tvm.target.Target("llvm"))
 
 
 if __name__ == "__main__":

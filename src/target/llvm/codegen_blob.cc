@@ -51,6 +51,18 @@ std::pair<std::unique_ptr<llvm::Module>, std::shared_ptr<llvm::LLVMContext>> Cod
       *module, blob_value->getType(), true, llvm::GlobalValue::ExternalLinkage, blob_value,
       runtime::symbol::tvm_dev_mblob, nullptr, llvm::GlobalVariable::NotThreadLocal, 0);
 
+  // If large const data (>2GB) is saved to default .rodata section
+  // then linking it to shared library will fail - relocation truncated to fit: R_X86_64_PC32.
+  // The issue exists on Linux x86_64 platform.
+  // GCC handles this situation by using -mcmodel=medium parameter but LLVM ignores it.
+  // The workaround is to explicitly put large const data to .lrodata section.
+  // Lets put const data which is larger than 1GB to .lrodata section
+  const size_t large_data_threshold = 1 << 30;
+  if (data.size() > large_data_threshold && triple.getArch() == llvm::Triple::x86_64 &&
+      triple.isOSBinFormatELF()) {
+    tvm_dev_mblob->setSection(".lrodata");
+  }
+
 #if TVM_LLVM_VERSION >= 100
   tvm_dev_mblob->setAlignment(llvm::Align(1));
 #else

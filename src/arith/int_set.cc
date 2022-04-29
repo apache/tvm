@@ -453,6 +453,24 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
     return IntervalSet(min_value, max_value);
   }
 
+  IntervalSet VisitExpr_(const BufferLoadNode* op) final {
+    if (!(op->dtype.is_int() || op->dtype.is_uint())) {
+      DLOG(WARNING) << "cannot evaluate set BufferLoad which loads from a " << op->dtype
+                    << " buffer";
+      return IntervalSet::Everything();
+    }
+    // If the indices do not contain any variables to be relaxed, return the BufferLoad itself.
+    // Otherwise return `IntervalSet::everything()` since we have no knowledge on the buffer data.
+    for (const PrimExpr& index : op->indices) {
+      if (UsesVar(index, [dom_map = &this->dom_map_](const VarNode* var) {
+            return dom_map->find(GetRef<Var>(var)) != dom_map->end();
+          })) {
+        return IntervalSet::Everything();
+      }
+    }
+    return IntervalSet::SinglePoint(GetRef<PrimExpr>(op));
+  }
+
   IntervalSet VisitExprDefault_(const Object* op) final {
     DLOG(WARNING) << "cannot evaluate set type " << op->GetTypeKey();
     return IntervalSet::Everything();
@@ -511,7 +529,7 @@ Range IntSet::CoverRange(Range max_range) const {
   const IntervalSetNode* s_int = (*this).as<IntervalSetNode>();
   ICHECK(s_int != nullptr);
   if (s_int->HasUpperBound() && s_int->HasLowerBound()) {
-    return Range::FromMinExtent(s_int->min_value,
+    return Range::FromMinExtent(analyzer.Simplify(s_int->min_value),
                                 analyzer.Simplify(s_int->max_value + 1 - s_int->min_value));
   }
   return max_range;
@@ -570,6 +588,20 @@ bool IntSet::CanProveNonNegative() const {
   if (const IntervalSetNode* s_int = (*this).as<IntervalSetNode>()) {
     auto min = analyzer.Simplify(s_int->min_value);
     return is_zero(min) || is_positive_const(min);
+  }
+  return false;
+}
+
+bool IntSet::HasLowerBound() const {
+  if (const IntervalSetNode* s_int = (*this).as<IntervalSetNode>()) {
+    return s_int->HasLowerBound();
+  }
+  return false;
+}
+
+bool IntSet::HasUpperBound() const {
+  if (const IntervalSetNode* s_int = (*this).as<IntervalSetNode>()) {
+    return s_int->HasUpperBound();
   }
   return false;
 }
@@ -857,12 +889,22 @@ Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
     if (!analyzer->CanProve(range->extent >= split->scale)) {
       return NullOpt;
     }
+
     const PrimExpr& base = sum_expr->base;
     // IterSplitExpr: (source // lower_factor) % extent * scale
     // where `(source // lower_factor) % extent` is within [0, extent - 1]
-    // Therefore, the range of `region[i]->min` is `base + [0, (extent - 1) * scale]`
-    result.push_back(
-        IntSet::FromMinExtent(base, split->extent * split->scale + (range->extent - split->scale)));
+    if (analyzer->CanProve(split->scale < 0)) {
+      // If scale is negative, the var dom is [(extent - 1) * scale, 0]
+      // The total base is `base + (extent - 1) * scale`,
+      // while total extent is `dom_extent + (extent - 1) * (-scale)`
+      const PrimExpr& var_extent = (split->extent - 1) * split->scale;
+      result.push_back(IntSet::FromMinExtent(base + var_extent, range->extent - var_extent));
+    } else {
+      // If scale is positive, the var dom is [0, (extent - 1) * scale]
+      // The total dom is [base, dom_extent + (extent - 1) * scale]
+      result.push_back(
+          IntSet::FromMinExtent(base, range->extent + (split->extent - 1) * split->scale));
+    }
   }
   return result;
 }

@@ -27,6 +27,7 @@
 #include <tvm/relay/attrs/call.h>
 #include <tvm/relay/executor.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/runtime.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/analysis.h>
@@ -35,12 +36,14 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/transform.h>
+#include <tvm/tir/usmp/utils.h>
 
 #include <algorithm>
 #include <list>
 #include <string>
 #include <vector>
 
+#include "../../target/source/codegen_source_base.h"
 #include "../op/annotation/annotation.h"
 #include "../op/call/call.h"
 #include "../op/memory/device_copy.h"
@@ -68,6 +71,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
   void Run(const Function& func) { VisitExpr(func); }
 
   std::vector<int> GetReturnIds() const { return return_ids_; }
+  std::vector<TensorType> GetReturnTtypes() const { return return_ttypes_; }
 
   StorageMap GetStorageMap() const { return storage_device_map_; }
 
@@ -135,18 +139,19 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
 
   void VisitExpr_(const TupleNode* op) final {
     std::vector<int64_t> storage_ids;
-    std::vector<SEScope> se_scopes;
+    std::vector<VirtualDevice> virtual_devices;
     std::vector<int64_t> storage_sizes_in_bytes;
     Expr expr = GetRef<Expr>(op);
     for (Expr field : op->fields) {
       auto sid = GetStorage(field);
       storage_ids.insert(storage_ids.end(), sid->storage_ids.begin(), sid->storage_ids.end());
-      se_scopes.insert(se_scopes.end(), sid->se_scopes.begin(), sid->se_scopes.end());
+      virtual_devices.insert(virtual_devices.end(), sid->virtual_devices.begin(),
+                             sid->virtual_devices.end());
       storage_sizes_in_bytes.insert(storage_sizes_in_bytes.end(),
                                     sid->storage_sizes_in_bytes.begin(),
                                     sid->storage_sizes_in_bytes.end());
     }
-    storage_device_map_[expr] = StorageInfo(storage_ids, se_scopes, storage_sizes_in_bytes);
+    storage_device_map_[expr] = StorageInfo(storage_ids, virtual_devices, storage_sizes_in_bytes);
     AssignReturnSid(expr);
   }
 
@@ -155,7 +160,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
     auto sids = GetStorage(op->tuple);
     ICHECK_LT(static_cast<size_t>(op->index), sids->storage_ids.size());
     storage_device_map_[expr] =
-        StorageInfo({sids->storage_ids[op->index]}, {sids->se_scopes[op->index]},
+        StorageInfo({sids->storage_ids[op->index]}, {sids->virtual_devices[op->index]},
                     {sids->storage_sizes_in_bytes[op->index]});
     AssignReturnSid(expr);
   }
@@ -174,6 +179,8 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
       for (auto sid : sinfo->storage_ids) {
         return_ids_.push_back(sid);
       }
+      return_ttypes_.clear();
+      return_ttypes_ = FlattenTupleType(e->checked_type());
     }
   }
   /*!
@@ -221,24 +228,25 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
    */
   void CreateStorage(const ExprNode* op) {
     Expr expr = GetRef<Expr>(op);
-    return CreateStorage(expr, GetSEScope(expr));
+    return CreateStorage(expr, GetVirtualDevice(expr));
   }
 
   /*!
-   * \brief Create storage to hold the result of evaluating \p expr in \p se_scope.
+   * \brief Create storage to hold the result of evaluating \p expr in \p virtual_device.
    */
-  void CreateStorage(const Expr& expr, const SEScope& se_scope) {
-    ICHECK(!se_scope->IsFullyUnconstrained()) << "invalid SEScope for expr:" << std::endl
-                                              << PrettyPrint(expr);
+  void CreateStorage(const Expr& expr, const VirtualDevice& virtual_device) {
+    ICHECK(!virtual_device->IsFullyUnconstrained())
+        << "invalid virtual device for expr:" << std::endl
+        << PrettyPrint(expr);
     std::vector<int64_t> storage_ids;
-    std::vector<SEScope> se_scopes;
+    std::vector<VirtualDevice> virtual_devices;
     std::vector<int64_t> storage_sizes_in_bytes;
     for (const auto& ttype : FlattenTupleType(expr->checked_type())) {
       storage_ids.push_back(next_available_sid_++);
-      se_scopes.push_back(se_scope);
+      virtual_devices.push_back(virtual_device);
       storage_sizes_in_bytes.push_back(GetMemorySizeBytes(ttype));
     }
-    storage_device_map_[expr] = StorageInfo(std::move(storage_ids), std::move(se_scopes),
+    storage_device_map_[expr] = StorageInfo(std::move(storage_ids), std::move(virtual_devices),
                                             std::move(storage_sizes_in_bytes));
   }
 
@@ -248,6 +256,8 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
   int next_available_sid_{0};
   /*! \brief the set of intermediate tensors that are return variables */
   std::vector<int> return_ids_;
+  /*! \brief the data types of the return values */
+  std::vector<TensorType> return_ttypes_;
 };
 
 /*! \brief Code generator for AOT executor */
@@ -269,7 +279,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    * \param num the number to convert
    * \return PrimExpr representing num
    */
-  inline PrimExpr ConstInt32(size_t num) {
+  inline PrimExpr ConstInt32(int32_t num) {
     ICHECK_LE(num, std::numeric_limits<int>::max());
     return tir::make_const(DataType::Int(32), static_cast<int>(num));
   }
@@ -288,7 +298,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       auto output_iter = std::find(return_sid_.begin(), return_sid_.end(), sid);
       if (output_iter != return_sid_.end()) {
         int output_index = std::distance(return_sid_.begin(), output_iter);
-        buffer_vars.push_back(main_signature_[input_vars_.size() + output_index]);
+        buffer_vars.push_back(GetBufferVarForIO(input_vars_.size() + output_index));
         continue;
       }
 
@@ -306,11 +316,34 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     if (input_iter != input_vars_.end()) {
       // Input variable
       int main_index = std::distance(input_vars_.begin(), input_iter);
-      return {main_signature_[main_index]};
+      return {GetBufferVarForIO(main_index)};
     } else {
       // Storage identifier (i.e., intermediate memory)
       return PackSid(arg);
     }
+  }
+
+  void PushArgs(const Expr& expr, const std::vector<tir::Var>& sids, Array<PrimExpr>* args) {
+    const TupleNode* t = expr.as<TupleNode>();
+    if (t != nullptr) {
+      CHECK_EQ(sids.size(), t->fields.size()) << "Relay tuple does not map 1:1 into TIR; AOT can't "
+                                                 "handle this type of Relay Expr in a CallNode.";
+    }
+
+    args->insert(args->end(), sids.begin(), sids.end());
+  }
+
+  /*
+   * Wraps a call_extern with a tvm_check_return annotation if required otherwise
+   * returns the passed Call
+   */
+  tir::Call AddCheckReturn(tir::Call existing_call) {
+    if (use_unpacked_api_) {
+      Array<PrimExpr> args = {ConstInt32(0), ConstInt32(-1), existing_call};
+      return tir::Call(DataType::Int(32), tir::builtin::tvm_check_return(), args);
+    }
+
+    return existing_call;
   }
 
   /*!
@@ -329,30 +362,35 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       if (params_by_expr_.find(arg) != params_by_expr_.end()) {
         auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
                                            {tir::StringImm(params_by_expr_[arg])});
-        args.push_back(param_handle);
+        // NOTE: this cast looks like a no-op, but is required for compilation downstream.
+        // Because DataType::Handle has default bits=64, but CodeGenC does not observe this field,
+        // adding this cast forces the codegen to insert the cast. In this case, a cast is required
+        // because param_handle is actually code-generated as `const void*`, and the `const` piece
+        // needs to be removed.
+        args.push_back(tvm::tir::Cast(DataType::Handle(32, 1), param_handle));
       } else {
-        auto var_arg = FindExpr(arg);
-        for (const auto& var : var_arg) {
-          args.push_back(var);
-        }
+        auto sids = FindExpr(arg);
+        PushArgs(arg, sids, &args);
       }
     }
 
     // Pack the return(s) value. A call node can produce multiple outputs
-    for (const auto& var : PackSid(result_expr)) {
-      args.push_back(var);
-    }
+    auto result_expr_sid = PackSid(result_expr);
+    PushArgs(result_expr, result_expr_sid, &args);
 
-    // Use tvm_call_packed to execute the function unless we're calling directly
-    auto calling_pattern = tvm::tir::builtin::tvm_call_cpacked();
+    // Choose call style based on Runtime/Executor config.
+    Op calling_pattern;
     if (use_unpacked_api_) {
       calling_pattern = tvm::tir::builtin::call_extern();
+    } else if (use_call_cpacked_) {
+      calling_pattern = tvm::tir::builtin::tvm_call_cpacked();
+    } else {
+      calling_pattern = tvm::tir::builtin::tvm_call_packed();
     }
 
     GlobalVar global_var = call_lowered_props.lowered_func;
     tir::Var empty_var("no_device_context", DataType::Handle());
     bool has_c_device_api_context = device_contexts_.count(global_var) != 0;
-    bool use_cpacked_api = !use_unpacked_api_;
 
     // The device context is passed to the operator in one of the following calling patterns:
     //  * Unpacked / direct function call with context:
@@ -370,20 +408,22 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       tir::Var context = device_contexts_.Get(global_var).value();
       args.push_back(context);
 
-      tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
+      tir::Evaluate func_call(
+          AddCheckReturn(tvm::tir::Call(DataType::Int(32), calling_pattern, args)));
       create_func_call_stmts.push_back(tir::SeqStmt({
           GenerateDeviceHook(context, "Open"),
           func_call,
           GenerateDeviceHook(context, "Close"),
       }));
-    } else if (use_cpacked_api) {
+    } else if (use_call_cpacked_) {
       // call_cpacked calling convention needs a blank context
       args.push_back(tir::make_zero(DataType::Handle()));
       tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
       create_func_call_stmts.push_back(func_call);
     } else {
       // call_extern calling convention without context
-      tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
+      tir::Evaluate func_call(
+          AddCheckReturn(tvm::tir::Call(DataType::Int(32), calling_pattern, args)));
       create_func_call_stmts.push_back(func_call);
     }
 
@@ -399,30 +439,17 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    */
   void CopyToOutput(PrimExpr out, PrimExpr in, bool pack_input, size_t size) {
     // Define intermediate DLTensor to load/store the data
-    auto tmp0 = te::Var("tmp0", DataType::Handle());
-    auto tmp1 = te::Var("tmp1", DataType::Handle());
+    tir::Buffer tmp_read =
+        tir::decl_buffer({IntImm(DataType::UInt(64), size)}, DataType::UInt(8), "tmp_read");
+    tir::Buffer tmp_write =
+        tir::decl_buffer({IntImm(DataType::UInt(64), size)}, DataType::UInt(8), "tmp_write");
     te::Var loop_idx("i", DataType::Int(32));
-    auto retval_i = tir::Load(DataType::UInt(8), tmp0, loop_idx, tir::const_true());
-
-    PrimExpr retval_get = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
-                                         {in, 0, tir::builtin::kArrData});
-    PrimExpr tostore = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_get(),
-                                      {out, 0, tir::builtin::kArrData});
-    if (use_unpacked_api_) {
-      tostore = out;
-    }
-
-    // Do not pack the input if the flag is set or the caller
-    // explicitly asked to do so (e.g., copying a param to the output)
-    if (use_unpacked_api_ || !pack_input) {
-      retval_get = in;
-    }
-
+    auto retval_i = tir::BufferLoad(tmp_read, {loop_idx});
     // Copy the variable from the input to the output
-    tir::Stmt copy = tir::For(
-        loop_idx, 0, ConstInt32(size), tir::ForKind::kSerial,
-        tir::Store(tmp1, tir::Let(tmp0, retval_get, retval_i), loop_idx, tir::const_true()));
-    stmts_.push_back(tir::LetStmt(tmp1, tostore, copy));
+    tir::Stmt copy =
+        tir::For(loop_idx, 0, ConstInt32(size), tir::ForKind::kSerial,
+                 tir::BufferStore(tmp_write, tir::Let(tmp_read->data, in, retval_i), {loop_idx}));
+    stmts_.push_back(tir::LetStmt(tmp_write->data, out, copy));
   }
 
   /*
@@ -471,8 +498,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       Array<String> sections = {"Device", device_name, hook};
       String device_hook_name = ToCFunctionStyle(PrefixName(sections));
 
-      tir::Evaluate device_hook(tvm::tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(),
-                                               {tvm::tir::StringImm(device_hook_name), context}));
+      tir::Evaluate device_hook(
+          AddCheckReturn(tvm::tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(),
+                                        {tvm::tir::StringImm(device_hook_name), context})));
       device_hooks.push_back(device_hook);
     }
     return tir::SeqStmt(device_hooks);
@@ -492,8 +520,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     Array<String> sections = {"Device", device_name, hook};
     String device_hook = ToCFunctionStyle(PrefixName(sections));
 
-    return tir::Evaluate(tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(),
-                                   {tvm::tir::StringImm(device_hook), context}));
+    return tir::Evaluate(
+        AddCheckReturn(tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(),
+                                 {tvm::tir::StringImm(device_hook), context})));
   }
 
   /*!
@@ -544,34 +573,36 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       if (params_by_expr_.find(expr) != params_by_expr_.end()) {
         auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
                                            {tir::StringImm(params_by_expr_[expr])});
-        CopyToOutput(main_signature_[input_vars_.size() + output_index], param_handle,
-                     /*pack_input*/ true, sinfo->storage_sizes_in_bytes[0]);
+        CopyToOutput(GetBufferVarForIO(input_vars_.size() + output_index), param_handle,
+                     /*pack_input*/ false, sinfo->storage_sizes_in_bytes[0]);
       } else {
         auto var_expr = FindExpr(expr);
-        CopyToOutput(main_signature_[input_vars_.size() + output_index], var_expr[0],
-                     /*pack_input*/ true, sinfo->storage_sizes_in_bytes[0]);
+        CopyToOutput(GetBufferVarForIO(input_vars_.size() + output_index), var_expr[0],
+                     /*pack_input*/ false, sinfo->storage_sizes_in_bytes[0]);
       }
     }
   }
 
   void VisitExpr_(const ConstantNode* op) override {
     Expr expr = GetRef<Expr>(op);
-    size_t index = params_.size();
-    std::string name = "p" + std::to_string(index);
     StorageInfo& sinfo = storage_device_map_[expr];
-    param_storage_ids_[name] = sinfo->storage_ids[0];
-    params_[name] = op->data;
-    params_by_expr_.Set(expr, name);
+    std::stringstream ss;
+    ss << "constant_" << constant_map_.size();
+
+    tir::Var constant(ss.str(), PointerType(PrimType(DataType(op->data->dtype))));
+    constant_map_[constant] = op;
+    auto sid = sinfo->storage_ids[0];
+    sids_table_[sid] = constant;
 
     // If the Constant node is an output node we need to copy the content of the parameter to the
-    // output A Var node can only produce a single output
-    auto output_iter = std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[0]);
+    // output. A node can only produce a single output
+    auto output_iter = std::find(return_sid_.begin(), return_sid_.end(), sid);
     if (output_iter != return_sid_.end()) {
       int output_index = std::distance(return_sid_.begin(), output_iter);
       auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
-                                         {tir::StringImm(params_by_expr_[expr])});
-      CopyToOutput(main_signature_[input_vars_.size() + output_index], param_handle, false,
-                   sinfo->storage_sizes_in_bytes[0]);
+                                         {tir::StringImm(ss.str())});
+      CopyToOutput(GetBufferVarForIO(input_vars_.size() + output_index), constant,
+                   /* pack_input */ false, sinfo->storage_sizes_in_bytes[0]);
     }
   }
 
@@ -619,7 +650,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   // runner function needs to be legalized by the LegalizePackedCalls pass.
   tir::PrimFunc CreateMainFunc(String mod_name, unsigned int relay_params) {
     tir::Stmt body = tir::SeqStmt(stmts_);
-
     // Allocate the sids
     std::unordered_map<int, bool> allocated;
 
@@ -640,33 +670,169 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           continue;
         }
 
+        allocated[sid] = constant_map_.count(sids_table_[sid]);
+
         // TODO(giuseros): we should allocate this once outside the PrimFunc
         // so we don't pay the price of allocation for every inference
         if (!allocated[sid]) {
-          body = tir::Allocate(sids_table_[sid], DataType::Int(8), {size}, tir::const_true(), body);
+          PointerType ptype = Downcast<PointerType>(sids_table_[sid]->type_annotation);
+          DataType element_type = Downcast<PrimType>(ptype->element_type)->dtype;
+          body = tir::Allocate(sids_table_[sid], element_type, {size}, tir::const_true(), body);
         }
         allocated[sid] = true;
       }
     }
 
-    // Define the attributes
-    body = tir::AttrStmt(PrimExpr(), tvm::tir::attr::device_type, 1, body);
-    body = tir::AttrStmt(PrimExpr(), tvm::tir::attr::device_id, 0, body);
+    for (auto kv : constant_map_) {
+      auto buffer_var = kv.first;
+      auto dtype = DataType(kv.second->data->dtype);
+
+      int ndim = kv.second->data->ndim;
+      Array<PrimExpr> extents;
+
+      for (int i = 0; i < ndim; i++) {
+        int shape = kv.second->data->shape[i];
+        extents.push_back(tir::make_const(DataType::Int(32), shape));
+      }
+      body = tir::AllocateConst(buffer_var, dtype, extents, kv.second->data, body);
+    }
 
     // Define the PrimFunc attributes
     Map<String, ObjectRef> dict_attrs;
-    String run_func_name =
-        runtime::get_name_mangled(mod_name, runtime::symbol::tvm_run_func_suffix);
+    String run_func_name = runtime::get_name_mangled(mod_name, runtime::symbol::tvm_module_main);
     dict_attrs.Set("global_symbol", run_func_name);
     dict_attrs.Set("runner_function", Bool(true));
+    dict_attrs.Set(tvm::attr::kTarget, target_host_);
 
     tir::Stmt device_activations = GenerateAllDeviceHook("Activate");
     tir::Stmt device_deactivations = GenerateAllDeviceHook("Deactivate");
     tir::Stmt final_body = tir::SeqStmt({device_activations, body, device_deactivations});
 
     // Make the PrimFunc
-    return tir::PrimFunc(main_signature_, final_body, VoidType(), Map<tir::Var, tir::Buffer>(),
+    return tir::PrimFunc(main_signature_, final_body, VoidType(), main_buffer_map_, {},
                          DictAttrs(dict_attrs));
+  }
+
+  /*!
+   * brief Access IO vars using the buffer vars and
+   * not the actual var.
+   */
+  tir::Var GetBufferVarForIO(int index) { return main_buffer_map_[main_signature_[index]]->data; }
+
+  /*!
+   * brief Create tir::Var for input/output while updating
+   * the buffer_maps.
+   */
+  void CreateIOVar(const Expr& expr, std::string name) {
+    if (expr->IsInstance<TupleNode>()) {
+      Tuple tuple = Downcast<Tuple>(expr);
+      for (unsigned i = 0; i < tuple->fields.size(); i++) {
+        CreateIOVar(tuple->fields[i], name + std::to_string(i) + "_");
+      }
+    } else {
+      tir::Var var = tir::Var(name, DataType::Handle());
+      main_signature_.push_back(var);
+      auto tensor_type = expr->checked_type().as<TensorTypeNode>();
+      DataType elem_type = tensor_type->dtype;
+      tir::Var buffer_var =
+          tir::Var(name + "_buffer_var", PointerType(PrimType(elem_type), "global"));
+      tir::Buffer buffer = tir::Buffer(buffer_var, elem_type, tensor_type->shape, {}, 0,
+                                       name + "_buffer", 16, 1, tir::BufferType::kDefault);
+      main_buffer_map_.Set(var, buffer);
+      io_tensor_types_.Set(var, Downcast<TensorType>(expr->checked_type()));
+    }
+  }
+
+  /*!
+   * brief Calculate workspace sizes for PrimFuncs in the IRModule
+   */
+  Map<String, FunctionInfo> CalculateWorkspaceSizes(
+      const IRModule& lowered_mod, const Map<String, FunctionInfo>& function_metadata) {
+    Executor executor_config = lowered_mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
+    Integer workspace_byte_alignment =
+        executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+    Map<String, FunctionInfo> updated_function_metadata;
+    for (const auto& kv : lowered_mod->functions) {
+      GlobalVar global_var = kv.first;
+      BaseFunc base_func = kv.second;
+      if (base_func->IsInstance<tir::PrimFuncNode>()) {
+        tir::PrimFunc pfunc = Downcast<tir::PrimFunc>(base_func);
+        Target tgt = pfunc->GetAttr<Target>(tvm::attr::kTarget).value();
+        const auto& ws = CalculateWorkspaceBytes(pfunc, workspace_byte_alignment);
+        if (function_metadata.count(global_var->name_hint)) {
+          updated_function_metadata.Set(global_var->name_hint,
+                                        function_metadata[global_var->name_hint]);
+          updated_function_metadata[global_var->name_hint]->workspace_sizes.Set(tgt, ws);
+        } else {
+          FunctionInfo finfo{{{tgt, ws}}, {}, {}, {{tgt, pfunc}}, {}};
+          updated_function_metadata.Set(global_var->name_hint, finfo);
+        }
+      }
+    }
+    return updated_function_metadata;
+  }
+
+  /*!
+   * brief Run USMP to plan memory for lowered IRModule
+   */
+  IRModule PlanMemoryWithUSMP(const IRModule& mod) {
+    Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
+    Integer workspace_byte_alignment =
+        executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+    IRModule lowered_mod = mod->ShallowCopy();
+    lowered_mod = tir::transform::UnifiedStaticMemoryPlanner()(lowered_mod);
+    function_metadata_ = CalculateWorkspaceSizes(lowered_mod, function_metadata_);
+    Optional<Array<tir::usmp::AllocatedPoolInfo>> allocated_pool_infos =
+        lowered_mod->GetAttr<Array<tir::usmp::AllocatedPoolInfo>>(tvm::attr::kPoolArgs);
+    backend::FunctionInfo main_func_info =
+        lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info").value();
+    main_func_info->workspace_sizes.clear();
+    if (allocated_pool_infos) {
+      for (const tir::usmp::AllocatedPoolInfo& allocated_pool_info : allocated_pool_infos.value()) {
+        for (const auto& kv : allocated_pool_info->pool_info->target_access) {
+          Target tgt = kv.first;
+          if (main_func_info->workspace_sizes.find(tgt) == main_func_info->workspace_sizes.end()) {
+            main_func_info->workspace_sizes.Set(tgt, allocated_pool_info->allocated_size);
+          } else {
+            main_func_info->workspace_sizes.Set(tgt,
+                                                main_func_info->workspace_sizes[tgt]->value +
+                                                    allocated_pool_info->allocated_size->value);
+          }
+        }
+      }
+    }
+    function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info);
+    return lowered_mod;
+  }
+
+  /*!
+   * brief Run StorageRewrite to plan memory for lowered IRModule
+   */
+  IRModule PlanMemoryWithStorageRewrite(const IRModule& mod) {
+    Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
+    Integer workspace_byte_alignment =
+        executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+    IRModule lowered_mod = mod->ShallowCopy();
+    function_metadata_ = CalculateWorkspaceSizes(lowered_mod, function_metadata_);
+    // Running StorageRewrite just on the main function
+    tir::PrimFunc tir_main_func =
+        Downcast<tir::PrimFunc>(lowered_mod->Lookup(::tvm::runtime::symbol::tvm_module_main));
+    IRModule main_func_mod;
+    main_func_mod->Update(lowered_mod->GetGlobalVar(::tvm::runtime::symbol::tvm_module_main),
+                          tir_main_func);
+    main_func_mod = tir::transform::StorageRewrite()(main_func_mod);
+    lowered_mod->Update(lowered_mod->GetGlobalVar(::tvm::runtime::symbol::tvm_module_main),
+                        main_func_mod->Lookup(::tvm::runtime::symbol::tvm_module_main));
+    tir_main_func =
+        Downcast<tir::PrimFunc>(lowered_mod->Lookup(::tvm::runtime::symbol::tvm_module_main));
+    // Use the PrimFunc to calculate the workspace required to service the allocates
+    Integer main_workspace_size_bytes =
+        CalculateWorkspaceBytes(tir_main_func, workspace_byte_alignment);
+    backend::FunctionInfo main_func_info =
+        lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info").value();
+    main_func_info->workspace_sizes.Set(target_host_, main_workspace_size_bytes);
+    function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info);
+    return lowered_mod;
   }
 
  protected:
@@ -680,19 +846,39 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   Map<GlobalVar, tir::Var> device_contexts_;
   /*! \brief input and output variables belonging to the main function signature */
   Array<tir::Var> main_signature_;
+  /*! \brief input and output variables belonging to the main function signature */
+  Map<tir::Var, tir::Buffer> main_buffer_map_;
+  /*! \brief maps input and output variables to TensorType which describe them */
+  Map<tir::Var, TensorType> io_tensor_types_;
   /*! \brief target device */
   tec::TargetMap targets_;
   /*! \brief target host */
   Target target_host_;
   /*!
    * \brief unpacked api toggle
-   * When set to true the code generated will use unpacked calls to functions:
+   * When set to true, the generated code will use unpacked calls to functions:
    * func(void* arg0, void* arg1)
-   * Rather than packed calls:
-   * func(void* args)
+   * Rather than packed calls (in which arg0 and arg1 are in `arg_values`).
+   * func(TVMValue* arg_values, int* arg_type_codes, int num_args, ...)
    * Defaults to using the packed calling convention
+   *
+   * Unpacked API is supported when runtime == "c" and interface_api is "c".
    */
   Bool use_unpacked_api_;
+  /*!
+   * \brief cpacked api toggle
+   * When set to true, the generated code will use call_cpacked to call functions directly, assuming
+   * they exist in a DSO-exportable module:
+   * func(...)
+   * Rather than through the traditional call_packed calls, which should use function pointers
+   * looked-up through TVMBackendGetFuncFromEnv:
+   * TVMBackendPackedCFunc* func_ptr = TVMBackendGetFuncFromEnv("func");
+   * func_ptr(...)
+   * Defaults to using the packed calling convention
+   *
+   * call_cpacked is required when runtime is "c++" and supported when runtime is "c"
+   */
+  Bool use_call_cpacked_;
 
   /*!
    * \brief parameters (i.e. ConstantNodes found in the graph).
@@ -705,11 +891,13 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   Map<Expr, String> params_by_expr_;
   /*! \brief mapping between parameter names ("p0", "p1", etc..) and storage identifiers*/
   std::unordered_map<std::string, int64_t> param_storage_ids_;
+  std::unordered_map<const tir::Var, const ConstantNode*, ObjectPtrHash, ObjectPtrEqual>
+      constant_map_;
 
   /*! \brief plan memory of device result */
   StorageMap storage_device_map_;
   /*! \brief mapping sid -> tir::Var */
-  std::unordered_map<int, te::Var> sids_table_;
+  std::unordered_map<int, tir::Var> sids_table_;
   /*! \brief lowered funcs */
   Map<String, FunctionInfo> function_metadata_;
   /*! \brief the set of statements that make the program */
@@ -719,7 +907,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
  public:
   AOTExecutorCodegen(runtime::Module* mod, const tec::TargetMap& targets, Target target_host)
-      : mod_(mod), targets_(targets), target_host_(target_host), use_unpacked_api_(Bool(false)) {}
+      : mod_(mod),
+        targets_(targets),
+        target_host_(target_host),
+        use_unpacked_api_(Bool(false)),
+        use_call_cpacked_(Bool(false)) {}
 
   LoweredOutput Codegen(IRModule mod, relay::Function func, String mod_name) {
     VLOG_CONTEXT << "AOT";
@@ -729,14 +921,32 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     ICHECK(target_host_.defined()) << "require a target_host to be given for AOT codegen";
     VLOG(1) << "target host: " << target_host_->ToDebugString();
 
+    Runtime runtime_config = mod->GetAttr<Runtime>(tvm::attr::kRuntime).value();
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
     String interface_api = executor_config->GetAttr<String>("interface-api").value_or("packed");
     Integer workspace_byte_alignment =
         executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
     use_unpacked_api_ = executor_config->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
+    use_call_cpacked_ = !use_unpacked_api_;
+
+    // Validate choice of use_unpacked_api_ and use_call_cpacked_
+    if (runtime_config->name == kTvmRuntimeCrt) {
+      ICHECK(interface_api == "packed" || static_cast<bool>(use_unpacked_api_) == true)
+          << "Either need interface_api == \"packed\" (got: " << interface_api
+          << ") or unpacked-api == true (got: " << use_unpacked_api_
+          << ") when targeting c runtime";
+    } else if (runtime_config->name == kTvmRuntimeCpp) {
+      ICHECK(static_cast<bool>(use_unpacked_api_) == false)
+          << "Need unpacked-api == false (got: " << use_unpacked_api_
+          << ") and interface-api == \"packed\" (got: " << interface_api
+          << ") when targeting c++ runtime";
+    } else {
+      ICHECK(false) << "runtime_config (" << runtime_config->name
+                    << ") is not one of the expected values";
+    }
 
     // TODO(mbs): Plumb from compiler config
-    SEScope host_se_scope = SEScope::ForTarget(target_host_);
+    VirtualDevice host_virtual_device = VirtualDevice::ForTarget(target_host_);
 
     IRModule lowered_mod = tec::LowerTEPass(
         mod_name,
@@ -753,7 +963,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           // lowering process directly.
           tec::UpdateFunctionMetadata(func, this->function_metadata_, workspace_byte_alignment);
         },
-        host_se_scope)(mod);
+        host_virtual_device)(mod);
 
     auto lowered_main = lowered_mod->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
@@ -771,7 +981,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     for (auto input : lowered_main_func->params) {
       input_vars_.push_back(input);
-      main_signature_.push_back(tir::Var("input", DataType::Handle()));
+      std::string input_name = SanitizeName(input->name_hint());
+      CreateIOVar(input, input_name);
     }
 
     // Define the storage allocator ids
@@ -790,9 +1001,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     // Retrieve the return sids
     return_sid_ = final_aot_allocator.GetReturnIds();
-    for (unsigned int output_index = 0; output_index < return_sid_.size(); output_index++) {
-      main_signature_.push_back(tir::Var("output", DataType::Handle()));
-    }
+    // Insert outputs to main func signature
+    CreateIOVar(lowered_main_func->body, "output");
 
     CollectDeviceVariables(lowered_mod->GetAttr<Map<GlobalVar, String>>("device_contexts").value());
     VisitExpr(lowered_main_func->body);
@@ -800,9 +1010,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // Create the runner function. Please note that the function is not legal yet
     // because the packed calls arguments are not wrapped in TVMValues. To make this happen we need
     // to run the LegalizePackedCalls pass.
-    auto prim_func = CreateMainFunc(mod_name, lowered_main_func->params.size());
     LoweredOutput ret;
-
     ret.params = std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>>();
     for (auto param : params_) {
       ret.params.emplace(std::make_pair(
@@ -810,35 +1018,29 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           std::make_pair(static_cast<int>(param_storage_ids_[param.first]), param.second)));
     }
 
-    // Build the TIR IRModule for the main AOT function
-    Map<GlobalVar, BaseFunc> symbol_map;
-    symbol_map.Set(GlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix), prim_func);
-    IRModule mod_run(symbol_map, {}, {}, {}, mod->attrs);
-    VLOG(1) << "main module:" << std::endl << PrettyPrint(mod_run);
+    // AoT Executor codegen works completely on TIR beyond this point, hence removing relay main
+    // function and replacing it with its TIR version. We should try to make this a Pass.
+    lowered_mod->Remove(lowered_mod->GetGlobalVar("main"));
+    auto prim_func = CreateMainFunc(mod_name, lowered_main_func->params.size());
+    lowered_mod->Update(GlobalVar(::tvm::runtime::symbol::tvm_module_main), prim_func);
+    // Parallel for loops are not supported in AoT codegen.
+    lowered_mod = tir::transform::ConvertForLoopsToSerial()(lowered_mod);
 
-    // Apply storage rewrite pass to the runner function to do memory planning
-    auto storage_rewrite = tir::transform::StorageRewrite();
-    mod_run = storage_rewrite(mod_run);
-    // The workspace for main function should be calculated after performing storage_rewrite for
-    // the top level TIR function.
-    Integer main_workspace_size = CalculateWorkspaceBytes(
-        Downcast<tir::PrimFunc>(mod_run->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix)),
-        workspace_byte_alignment);
-
-    Optional<backend::FunctionInfo> main_func_info =
-        lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
-
-    main_func_info.value()->workspace_sizes.Set(target_host_, main_workspace_size);
-    function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
+    transform::PassContext pass_ctx = transform::PassContext::Current();
+    bool enable_usmp = pass_ctx->GetConfig<Bool>(kUSMPEnableOption, Bool(false)).value();
+    if (enable_usmp) {
+      lowered_mod = PlanMemoryWithUSMP(lowered_mod);
+    } else {
+      lowered_mod = PlanMemoryWithStorageRewrite(lowered_mod);
+    }
+    ret.function_metadata = std::move(function_metadata_);
 
     // Legalize AOT if needed. This means that all the packed calls
     // need to be wrapped in TVMValues (unless use_unpacked_api is set)
     if (!use_unpacked_api_) {
       auto pack_calls = tir::transform::LegalizePackedCalls();
-      mod_run = pack_calls(mod_run);
+      lowered_mod = pack_calls(lowered_mod);
     }
-
-    ret.function_metadata = std::move(function_metadata_);
 
     Optional<Array<tvm::runtime::Module>> external_modules =
         lowered_mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
@@ -857,20 +1059,54 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     ret.external_mods = external_modules.value();
 
-    if (ret.lowered_funcs.find(target_host_) != ret.lowered_funcs.end()) {
-      VLOG(1) << "merging main into existing module for host target";
-      ret.lowered_funcs[target_host_]->Update(mod_run);
-    } else {
-      VLOG(1) << "adding main into new module for host target";
-      ret.lowered_funcs.Set(target_host_, mod_run);
+    Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_var_info;
+    std::vector<tir::Var> pool_vars;
+    tir::PrimFunc tir_main_func =
+        Downcast<tir::PrimFunc>(lowered_mod->Lookup(::tvm::runtime::symbol::tvm_module_main));
+    Optional<Array<tir::usmp::AllocatedPoolInfo>> allocated_pool_infos =
+        tir_main_func->GetAttr<Array<tir::usmp::AllocatedPoolInfo>>(tvm::attr::kPoolArgs);
+    if (allocated_pool_infos) {
+      for (const tir::usmp::AllocatedPoolInfo& allocated_pool_info : allocated_pool_infos.value()) {
+        int pool_var_index = allocated_pool_info->pool_var_idx.value()->value;
+        pool_vars.push_back(tir_main_func->params[pool_var_index]);
+        pool_var_info.Set(tir_main_func->params[pool_var_index], allocated_pool_info);
+      }
+    }
+    Array<String> devices = ListDevices();
+    Array<tir::Var> inputs =
+        Array<tir::Var>(tir_main_func->params.begin(),
+                        tir_main_func->params.begin() + tir_main_func->params.size() -
+                            return_sid_.size() - pool_vars.size() - devices.size());
+
+    Array<TensorType> input_tensor_types;
+    for (auto i : inputs) {
+      input_tensor_types.push_back(io_tensor_types_[i]);
     }
 
-    std::vector<String> input_var_names(input_vars_.size());
-    std::transform(input_vars_.begin(), input_vars_.end(), input_var_names.begin(),
-                   [](Var input_var) -> String { return input_var->name_hint(); });
-    ret.metadata =
-        runtime::Metadata(input_var_names, ListDevices(), return_sid_.size(),
-                          runtime::kTvmExecutorAot, mod_name, interface_api, use_unpacked_api_);
+    std::vector<String> output_var_names;
+    if (auto opt = func->GetAttr<Array<String>>("output_tensor_names")) {
+      Array<String> output_tensor_names = opt.value();
+      for (size_t i = 0; i < output_tensor_names.size(); ++i) {
+        output_var_names.push_back(output_tensor_names[i]);
+      }
+    }
+
+    // If output names have not been specified then generate default output names
+    if (output_var_names.size() == 0) {
+      if (return_sid_.size() == 1) {
+        output_var_names.push_back(String("output"));
+      } else {
+        for (size_t i = 0; i < return_sid_.size(); ++i) {
+          output_var_names.push_back(String("output" + std::to_string(i)));
+        }
+      }
+    }
+
+    Array<TensorType> output_tensor_types{final_aot_allocator.GetReturnTtypes()};
+
+    ret.metadata = ExecutorCodegenMetadata(
+        inputs, input_tensor_types, output_var_names, output_tensor_types, pool_vars, devices,
+        runtime::kTvmExecutorAot, mod_name, interface_api, use_unpacked_api_, pool_var_info);
     return ret;
   }
 
@@ -932,7 +1168,7 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->codegen_->ListDevices();
       });
-    } else if (name == "get_metadata") {
+    } else if (name == "get_executor_codegen_metadata") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = output_.metadata; });
     } else {
@@ -950,6 +1186,9 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
       auto dev_type = it.first.as<tir::IntImmNode>();
       if (!target_host.defined() && it.second->kind->device_type == kDLCPU) {
         target_host = it.second;
+      }
+      if (!target_host.defined() && it.second->kind->device_type == kDLHexagon) {
+        target_host = *(new Target("c"));
       }
       ICHECK(dev_type);
       targets[static_cast<DLDeviceType>(dev_type->value)] = it.second;

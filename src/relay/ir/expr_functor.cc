@@ -166,7 +166,7 @@ Expr ExprMutator::VisitExpr_(const VarNode* var_node) {
   if (var_node->type_annotation.defined()) {
     type_annotation = this->VisitType(var_node->type_annotation);
   }
-  return WithFields(GetRef<Var>(var_node), std::move(var_node->vid), std::move(type_annotation));
+  return WithFields(GetRef<Var>(var_node), var_node->vid, type_annotation);
 }
 
 Expr ExprMutator::VisitExpr_(const ConstantNode* op) { return GetRef<Expr>(op); }
@@ -183,7 +183,7 @@ Expr ExprMutator::VisitExpr_(const TupleNode* tuple_node) {
     auto new_field = this->Mutate(field);
     fields.push_back(new_field);
   }
-  return WithFields(GetRef<Tuple>(tuple_node), std::move(fields));
+  return WithFields(GetRef<Tuple>(tuple_node), fields);
 }
 
 Expr ExprMutator::VisitExpr_(const FunctionNode* func_node) {
@@ -203,8 +203,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* func_node) {
   auto ret_type = this->VisitType(func_node->ret_type);
   auto body = this->Mutate(func_node->body);
 
-  return WithFields(GetRef<Function>(func_node), std::move(params), std::move(body),
-                    std::move(ret_type), std::move(ty_params));
+  return WithFields(GetRef<Function>(func_node), params, body, ret_type, ty_params);
 }
 
 Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
@@ -225,8 +224,7 @@ Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
     call_args.push_back(new_arg);
   }
 
-  return WithFields(GetRef<Call>(call_node), std::move(new_op), std::move(call_args), {},
-                    std::move(ty_args));
+  return WithFields(GetRef<Call>(call_node), new_op, call_args, {}, ty_args);
 }
 
 Expr ExprMutator::VisitExpr_(const LetNode* let_node) {
@@ -234,7 +232,7 @@ Expr ExprMutator::VisitExpr_(const LetNode* let_node) {
   auto value = this->Mutate(let_node->value);
   auto body = this->Mutate(let_node->body);
 
-  return WithFields(GetRef<Let>(let_node), std::move(var), std::move(value), std::move(body));
+  return WithFields(GetRef<Let>(let_node), var, value, body);
 }
 
 Expr ExprMutator::VisitExpr_(const IfNode* if_node) {
@@ -242,28 +240,28 @@ Expr ExprMutator::VisitExpr_(const IfNode* if_node) {
   auto true_b = this->Mutate(if_node->true_branch);
   auto false_b = this->Mutate(if_node->false_branch);
 
-  return WithFields(GetRef<If>(if_node), std::move(cond), std::move(true_b), std::move(false_b));
+  return WithFields(GetRef<If>(if_node), cond, true_b, false_b);
 }
 
 Expr ExprMutator::VisitExpr_(const TupleGetItemNode* get_item) {
   Expr tuple = this->Mutate(get_item->tuple);
-  return WithFields(GetRef<TupleGetItem>(get_item), std::move(tuple));
+  return WithFields(GetRef<TupleGetItem>(get_item), tuple);
 }
 
 Expr ExprMutator::VisitExpr_(const RefCreateNode* ref_create) {
   Expr value = this->Mutate(ref_create->value);
-  return WithFields(GetRef<RefCreate>(ref_create), std::move(value));
+  return WithFields(GetRef<RefCreate>(ref_create), value);
 }
 
 Expr ExprMutator::VisitExpr_(const RefReadNode* ref_read) {
   Expr ref = this->Mutate(ref_read->ref);
-  return WithFields(GetRef<RefRead>(ref_read), std::move(ref));
+  return WithFields(GetRef<RefRead>(ref_read), ref);
 }
 
 Expr ExprMutator::VisitExpr_(const RefWriteNode* ref_write) {
   Expr ref = this->Mutate(ref_write->ref);
   Expr value = this->Mutate(ref_write->value);
-  return WithFields(GetRef<RefWrite>(ref_write), std::move(ref), std::move(value));
+  return WithFields(GetRef<RefWrite>(ref_write), ref, value);
 }
 
 Expr ExprMutator::VisitExpr_(const ConstructorNode* c) { return GetRef<Expr>(c); }
@@ -275,13 +273,13 @@ Expr ExprMutator::VisitExpr_(const MatchNode* match_node) {
   }
   Expr data = Mutate(match_node->data);
 
-  return WithFields(GetRef<Match>(match_node), std::move(data), std::move(clauses));
+  return WithFields(GetRef<Match>(match_node), data, clauses);
 }
 
 Clause ExprMutator::VisitClause(const Clause& clause) {
   Pattern lhs = VisitPattern(clause->lhs);
   Expr rhs = Mutate(clause->rhs);
-  return WithFields(std::move(clause), std::move(lhs), std::move(rhs));
+  return WithFields(clause, lhs, rhs);
 }
 
 Pattern ExprMutator::VisitPattern(const Pattern& p) { return p; }
@@ -462,7 +460,7 @@ class ExprBinder : public MixedModeMutator, PatternMutator {
 
   Clause VisitClause(const Clause& clause) final {
     Pattern lhs = VisitPattern(clause->lhs);
-    return WithFields(std::move(clause), std::move(lhs), VisitExpr(clause->rhs));
+    return WithFields(clause, lhs, VisitExpr(clause->rhs));
   }
 
   Var VisitVar(const Var& v) final {
@@ -474,23 +472,25 @@ class ExprBinder : public MixedModeMutator, PatternMutator {
   const tvm::Map<Var, Expr>& args_map_;
 };
 
+// This function should be called SubstAndBind, since it assumes any variables introduced
+// in the substitution right hand side should be implicitly bound in the function.
 Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   if (const FunctionNode* func = expr.as<FunctionNode>()) {
     Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
     Array<Var> new_params;
-    std::vector<SEScope> new_param_se_scopes;
     for (size_t i = 0; i < func->params.size(); ++i) {
       if (!args_map.count(func->params[i])) {
         new_params.push_back(func->params[i]);
-        new_param_se_scopes.push_back(GetFunctionParamSEScope(func, i));
       }
     }
     if (new_body.same_as(func->body) && new_params.size() == func->params.size()) {
       return expr;
     }
+
     auto ret =
         Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
-    ret = MaybeFunctionOnDevice(ret, new_param_se_scopes, GetFunctionResultSEScope(func));
+    ret->virtual_device_ = func->virtual_device();
+
     std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> set;
     for (const auto& v : FreeVars(expr)) {
       set.insert(v);
@@ -498,19 +498,16 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
     for (const auto& v : FreeVars(ret)) {
       if (set.count(v) == 0) {
         new_params.push_back(v);
-        if (!GetFunctionResultSEScope(func)->IsFullyUnconstrained()) {
-          // TODO(mbs): The function has been annotated with a device, which means we are supposed
-          // to be preserving device annotations on every transformation. However there's no
-          // such context for the free vars in args_map.
-          LOG(WARNING) << "introduced free var '" << PrettyPrint(v)
-                       << "' into function body but no device is known for it";
-        }
-        new_param_se_scopes.push_back(SEScope::FullyUnconstrained());
       }
     }
+
     ret =
         Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
-    ret = MaybeFunctionOnDevice(ret, new_param_se_scopes, GetFunctionResultSEScope(func));
+    ret->virtual_device_ = func->virtual_device();
+
+    VLOG(4) << "Expr:\n" << expr;
+    VLOG(4) << "Ret:\n" << ret;
+
     ICHECK_EQ(FreeVars(expr).size(), FreeVars(ret).size());
     return std::move(ret);
   } else {
@@ -527,6 +524,27 @@ TVM_REGISTER_GLOBAL("relay.ir.Bind").set_body([](TVMArgs args, TVMRetValue* ret)
     *ret = Bind(Downcast<Type>(input), args[1]);
   }
 });
+
+Function SubstituteBoundVars(const Function& func, const tvm::Map<Var, Expr>& args_map) {
+  Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
+  Array<Var> new_params;
+  for (size_t i = 0; i < func->params.size(); i++) {
+    if (!args_map.count(func->params[i])) {
+      new_params.push_back(func->params[i]);
+    } else {
+      if (const VarNode* var = args_map[func->params[i]].as<VarNode>()) {
+        new_params.push_back(GetRef<Var>(var));
+      } else {
+        ICHECK(false) << "Expected all values in args_map to be vars, but found "
+                      << args_map[func->params[i]]->GetTypeKey();
+      }
+    }
+  }
+  auto ret =
+      Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
+  ret->virtual_device_ = func->virtual_device();
+  return ret;
+}
 
 void ExpandANormalForm(const LetNode* op, std::function<void(const LetNode*)> pre_visit,
                        std::function<void(const LetNode*)> post_visit) {

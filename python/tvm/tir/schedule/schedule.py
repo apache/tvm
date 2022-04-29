@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """The TensorIR schedule class"""
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import IRModule, PrimExpr
-from tvm.runtime import Object
-from tvm.tir import Block, For, IntImm, PrimFunc
+from tvm.runtime import Object, String
+from tvm.tir import Block, FloatImm, For, IntImm, PrimFunc
+from ..function import IndexMap
 
 from . import _ffi_api
 from .state import ScheduleState, StmtSRef, _parse_debug_mask, _parse_mod
@@ -369,6 +370,32 @@ class Schedule(Object):
             )
         )
 
+    @type_checked
+    def sample_compute_location(
+        self,
+        block: BlockRV,
+        decision: Optional[int] = None,
+    ) -> LoopRV:
+        """Sample a compute-at location of the given block
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block whose compute-at location is to be sampled
+        decision : Optional[int]
+            The sampling decision
+
+        Returns
+        -------
+        result : LoopRV
+            The sampled loop where the input block is to be computed at
+        """
+        return _ffi_api.ScheduleSampleComputeLocation(  # type: ignore  # pylint: disable=no-member
+            self,
+            block,
+            decision,
+        )
+
     ########## Schedule: Get blocks & loops ##########
     @type_checked
     def get_block(
@@ -546,7 +573,7 @@ class Schedule(Object):
             Potential inputs are:
             - None
             - ExprRV
-            - Non-negative constant integers
+            - Positive constant integers
 
         Returns
         -------
@@ -1660,9 +1687,508 @@ class Schedule(Object):
             self, block, buffer_index, axis, factor, offset
         )
 
+    @type_checked
+    def set_scope(self, block: BlockRV, buffer_index: int, storage_scope: str) -> None:
+        """Set the storage scope of a buffer, where the buffer is
+        specified by the a block and a write-index
+
+        Parameters
+        ----------
+        block : BlockRV
+            The producer block of the buffer
+        buffer_index : int
+            The index of the buffer in block's write region
+        storage_scope : str
+            The storage scope to be set
+
+        Examples
+        --------
+
+        Before set_scope, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_set_scope(
+                A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]
+            ) -> None:
+                B = T.alloc_buffer((128, 128), dtype="float32")
+
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do set_scope:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_set_scope)
+            sch.set_scope(sch.get_block("B"), buffer_index=0, storage_scope="shared")
+            print(sch.mod["main"].script())
+
+        After applying set_scope, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_set_scope(
+                A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]
+            ) -> None:
+                B_shared = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
+
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B_shared[vi, vj] = A[vi, vj] * T.float32(2)
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B_shared[vi, vj] + T.float32(1)
+
+        Note
+        ----
+        Set_scope requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
+        """
+        _ffi_api.ScheduleSetScope(  # type: ignore # pylint: disable=no-member
+            self, block, buffer_index, storage_scope
+        )
+
     ########## Schedule: Blockize & Tensorize ##########
 
+    @type_checked
+    def blockize(self, loop: LoopRV) -> BlockRV:
+        """Convert the subtree rooted at a specific loop into a block.
+
+        Parameters
+        ----------
+        loop : LoopRV
+            The root of the subtree.
+
+        Returns
+        -------
+        result : BlockRV
+            The new block.
+
+        Examples
+        --------
+
+        Before blockize, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_blockize(
+                A: T.Buffer[(128, 128), "float32"],
+                B: T.Buffer[(128, 128), "float32"]
+            ) -> None:
+                for i_0, j_0, i_1, j_1 in T.grid(8, 8, 16, 16):
+                    with T.block("B"):
+                        vi = T.axis.spatial(128, i_0 * 16 + i_1)
+                        vj = T.axis.spatial(128, j_0 * 16 + j_1)
+                        T.reads(A[vi, vj])
+                        T.writes(B[vi, vj])
+                        B[vi, vj] = A[vi, vj] * T.float32(2)
+
+        Create the schedule and do set_scope:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_blockize)
+            B = sch.get_block("B")
+            _, _, i1, _ = sch.get_loops(B)
+            sch.blockize(i1)
+            print(sch.mod["main"].script())
+
+        After applying blockize, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_blockize(
+                A: T.Buffer[(128, 128), "float32"],
+                B: T.Buffer[(128, 128), "float32"]
+            )-> None:
+                for i_0, j_0 in T.grid(8, 8):
+                    with T.block("B_o"):
+                        vio, vjo = T.axis.remap("SS", [i_0, j_0])
+                        T.reads(A[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+                        T.writes(B[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+                        for i_1, j_1 in T.grid(16, 16):
+                            with T.block("B"):
+                                vi, vj = T.axis.remap("SS", [i_1, j_1])
+                                T.reads(A[vio * 16 + vi, vjo * 16 + vj])
+                                T.writes(B[vio * 16 + vi, vjo * 16 + vj])
+                                B[vio * 16 + vi, vjo * 16 + vj] = A[vio * 16 + vi, vjo * 16 + vj] \
+                                                                  * T.float32(2)
+
+        Note
+        ----
+        blockize requires there is exactly one block under the given loop and the bindings of the
+        block are divisible by the subspace represented by the loops starting at the given loop.
+        """
+
+        return _ffi_api.ScheduleBlockize(self, loop)  # type: ignore # pylint: disable=no-member
+
+    @type_checked
+    def tensorize(self, block_or_loop: Union[BlockRV, LoopRV], tensor_intrin: str) -> None:
+        """Tensorize the computation enclosed by loop with the tensor intrinsic.
+
+        Parameters
+        ----------
+        block_or_loop : Union[BlockRV, LoopRV]
+            The loop to be tensorized.
+        tensor_intrin : str
+            The tensor intrin or the name of the tensor intrin.
+
+        Examples
+        --------
+
+        Before tensorize, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_tensorize(
+                A: T.Buffer[(128, 128), "float32"],
+                B: T.Buffer[(128, 128), "float32"],
+                C: T.Buffer[(128, 128), "float32"],
+            ) -> None:
+                # body
+                # with T.block("root")
+                for i_0, j_0, k_0, i_1, j_1, k_1 in T.grid(8, 8, 8, 16, 16, 16):
+                    with T.block("update"):
+                        vi = T.axis.spatial(128, i_0 * 16 + i_1)
+                        vj = T.axis.spatial(128, j_0 * 16 + j_1)
+                        vk = T.axis.reduce(128, k_0 * 16 + k_1)
+                        T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
+                        T.writes(C[vi, vj])
+                        with T.init():
+                            C[vi, vj] = T.float32(0)
+                        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+        Declare and register the tensor intrinsic:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
+                B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
+                C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
+
+                with T.block("root"):
+                    T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
+                    T.writes(C[0 : 16, 0 : 16])
+                    for i, j, k in T.grid(16, 16, 16):
+                        with T.block("update"):
+                            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+
+            @T.prim_func
+            def mma_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
+                B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
+                C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
+
+                with T.block("root"):
+                    T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
+                    T.writes(C[0 : 16, 0 : 16])
+                    T.evaluate(
+                        T.tvm_mma_sync(
+                            C.data,
+                            C.elem_offset // 256,
+                            A.data,
+                            A.elem_offset // 256,
+                            B.data,
+                            B.elem_offset // 256,
+                            C.data,
+                            C.elem_offset // 256,
+                            dtype="handle",
+                        )
+                    )
+
+            tir.TensorIntrin.register("test_mma_intrin", mma_desc, mma_intrin)
+
+        Create the schedule and do tensorize:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_tensorize)
+            update = sch.get_block("update")
+            _, _, _, i1, _, _ = sch.get_loops(update)
+            sch.tensorize(i1, "test_mma_intrin")
+            print(sch.mod["main"].script())
+
+        After applying tensorize, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_tensorize(
+                A: T.Buffer[(128, 128), "float32"],
+                B: T.Buffer[(128, 128), "float32"],
+                C: T.Buffer[(128, 128), "float32"],
+            ) -> None:
+                # body
+                # with T.block("root")
+                for i_0, j_0, k_0 in T.grid(8, 8, 8):
+                    with T.block("update_o"):
+                        vio, vjo, vko = T.axis.remap("SSR", [i_0, j_0, k_0])
+                        T.reads(
+                            C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16],
+                            A[vio * 16 : vio * 16 + 16, vko * 16 : vko * 16 + 16],
+                            B[vjo * 16 : vjo * 16 + 16, vko * 16 : vko * 16 + 16],
+                        )
+                        T.writes(C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+                        A_1 = T.match_buffer(
+                            A[vio * 16 : vio * 16 + 16, vko * 16 : vko * 16 + 16],
+                            [16, 16],
+                            dtype="float32",
+                            offset_factor=1,
+                        )
+                        B_1 = T.match_buffer(
+                            B[vjo * 16 : vjo * 16 + 16, vko * 16 : vko * 16 + 16],
+                            [16, 16],
+                            dtype="float32",
+                            offset_factor=1,
+                        )
+                        C_1 = T.match_buffer(
+                            C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16],
+                            [16, 16],
+                            dtype="float32",
+                            offset_factor=1,
+                        )
+                        with T.init():
+                            for i_1, j_1 in T.grid(16, 16):
+                                with T.block("update_init"):
+                                    vi_init, vj_init = T.axis.remap("SS", [i_1, j_1])
+                                    T.reads()
+                                    T.writes(C[vio * 16 + vi_init, vjo * 16 + vj_init])
+                                    C[vio * 16 + vi_init, vjo * 16 + vj_init] = T.float32(0)
+                        T.evaluate(
+                            T.tvm_mma_sync(
+                                C_1.data,
+                                C_1.elem_offset // 256,
+                                A_1.data,
+                                A_1.elem_offset // 256,
+                                B_1.data,
+                                B_1.elem_offset // 256,
+                                C_1.data,
+                                C_1.elem_offset // 256,
+                                dtype="handle",
+                            )
+                        )
+        """
+        _ffi_api.ScheduleTensorize(  # type: ignore # pylint: disable=no-member
+            self, block_or_loop, tensor_intrin
+        )
+
     ########## Schedule: Annotation ##########
+
+    @type_checked
+    def annotate(
+        self,
+        block_or_loop: Union[BlockRV, LoopRV],
+        ann_key: str,
+        ann_val: Union[str, int, float, ExprRV, List[Union[str, int, float, ExprRV]]],
+    ) -> None:
+        """Annotate a block/loop with a key value pair
+
+        Parameters
+        ----------
+        block_or_loop: Union[BlockRV, LoopRV]
+            The block/loop to be annotated
+        ann_key : str
+            The annotation key
+        ann_val : Union[str, int, float, ExprRV, List[Union[str, int, float, ExprRV]]]
+            The annotation value
+
+        Examples
+        --------
+
+        Before annotate, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_annotate(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do annotate:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_annotate)
+            sch.annotate(sch.get_block("B"), "ann_key", "ann_value")
+            print(sch.mod["main"].script())
+
+        After applying annotate, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_annotate(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        T.block_attr({"ann_key", "ann_value"})
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        """
+        if isinstance(ann_val, str):
+            ann_val = String(ann_val)
+        elif isinstance(ann_val, int):
+            ann_val = IntImm("int32", ann_val)
+        elif isinstance(ann_val, float):
+            ann_val = FloatImm("float32", ann_val)
+        _ffi_api.ScheduleAnnotate(  # type: ignore # pylint: disable=no-member
+            self, block_or_loop, ann_key, ann_val
+        )
+
+    @type_checked
+    def unannotate(self, block_or_loop: Union[BlockRV, LoopRV], ann_key: str) -> None:
+        """Unannotate a block/loop's annotation with key ann_key
+
+        Parameters
+        ----------
+        block_or_loop: Union[BlockRV, LoopRV]
+            The block/loop to be unannotated
+        ann_key : str
+            The annotation key
+
+        Examples
+        --------
+
+        Before unannotate, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_unannotate(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        T.block_attr({"ann_key", "ann_value"})
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do annotate:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_unannotate)
+            sch.unannotate(sch.get_block("B"), "ann_key")
+            print(sch.mod["main"].script())
+
+        After applying unannotate, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_unannotate(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        """
+        _ffi_api.ScheduleUnannotate(  # type: ignore # pylint: disable=no-member
+            self, block_or_loop, ann_key
+        )
+
+    ########## Schedule: Layout transformation ##########
+
+    @type_checked
+    def transform_layout(
+        self,
+        block: BlockRV,
+        buffer_index: int,
+        buffer_index_type: str,
+        index_map: Union[IndexMap, Callable],
+    ) -> None:
+        """Apply a transformation represented by IndexMap to buffer
+        Parameters
+        ----------
+        block_rv : BlockRV
+            The block that accesses the target buffer
+        buffer_index: int
+            The index of the buffer in block's read or write region
+        buffer_index_type : str
+            Type of the buffer index, "read" or "write"
+        index_map : Union[IndexMap, Callable]
+            The transformation to apply
+
+        Examples
+        --------
+        Before transform_layout, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_transform_layout(a: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128), "float32")
+                B = T.alloc_buffer((128, 128), "float32")
+                C = T.match_buffer(c, (128, 128), "float32")
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do transform_layout:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_storage_align)
+            sch.transform_layout(sch.get_block("B"), buffer_index=0, "write",
+                                 index_map=lambda m, n: (m // 16, n // 16, m % 16, n % 16))
+            print(sch.mod["main"].script())
+
+        After applying transform_layout, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def two_elementwise_transformed_intermediate_buffer(a: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128), "float32")
+                B = T.alloc_buffer((8, 8, 16, 16), "float32")
+                C = T.match_buffer(c, (128, 128), "float32")
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi // 16, vj // 16, vi % 16, vj % 16] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi // 16, vj // 16, vi % 16, vj % 16] + 1.0
+
+        """
+        if callable(index_map):
+            index_map = IndexMap.from_func(index_map)
+        assert buffer_index_type in ["read", "write"], "Invalid buffer_index_type"
+        buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
+        _ffi_api.ScheduleTransformLayout(  # type: ignore # pylint: disable=no-member
+            self, block, buffer_index, buffer_index_type_enum, index_map
+        )
 
     ########## Schedule: Misc ##########
 

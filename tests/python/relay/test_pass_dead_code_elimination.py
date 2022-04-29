@@ -19,8 +19,8 @@ from tvm.relay import Function, transform
 from tvm.relay.testing import inception_v3
 import pytest
 
-cpu_scope = tvm.target.make_se_scope(tvm.cpu(), tvm.target.Target("llvm"))
-metatable = {"SEScope": [cpu_scope]}
+cpu_scope = tvm.target.VirtualDevice(tvm.cpu(), tvm.target.Target("llvm"))
+metatable = {"VirtualDevice": [cpu_scope]}
 core = tvm.IRModule()
 core.import_from_std("core.rly")
 
@@ -234,7 +234,8 @@ def test_impure_op():
         def @main() {
            let %size: int64 = cast(1024, dtype="int64");
            let %alignment: int64 = cast(64, dtype="int64");
-           let %x = memory.alloc_storage(%size, %alignment, se_scope=meta[SEScope][0]);
+           let %x = memory.alloc_storage(%size, %alignment, virtual_device=meta[VirtualDevice][0]);
+           let %_ = memory.kill(%x);
            0
         }
         """,
@@ -247,9 +248,10 @@ def test_impure_op():
         """
         #[version = "0.0.5"]
         def @main() {
-           let %x = memory.alloc_storage(cast(1024, dtype="int64"),
-                                         cast(64, dtype="int64"),
-                                         se_scope=meta[SEScope][0]);
+           %0 = memory.alloc_storage(cast(1024, dtype="int64"),
+                                     cast(64, dtype="int64"),
+                                     virtual_device=meta[VirtualDevice][0]);
+           let %_ = memory.kill(%0);
            0
         }
         """,
@@ -271,7 +273,8 @@ def test_impure_func():
         def @f() -> int {
            let %size: int64 = cast(1024, dtype="int64");
            let %alignment: int64 = cast(64, dtype="int64");
-           let %x = memory.alloc_storage(%size, %alignment, se_scope=meta[SEScope][0]);
+           let %x = memory.alloc_storage(%size, %alignment, virtual_device=meta[VirtualDevice][0]);
+           let %_ = memory.kill(%x);
            0
         }
         def @main() -> int {
@@ -288,9 +291,10 @@ def test_impure_func():
         """
         #[version = "0.0.5"]
         def @f() -> int {
-           let %x = memory.alloc_storage(cast(1024, dtype="int64"),
-                                         cast(64, dtype="int64"),
-                                         se_scope=meta[SEScope][0]);
+           %0 = memory.alloc_storage(cast(1024, dtype="int64"),
+                                     cast(64, dtype="int64"),
+                                     virtual_device=meta[VirtualDevice][0]);
+           let %_ = memory.kill(%0);
            0
         }
         def @main() -> int {

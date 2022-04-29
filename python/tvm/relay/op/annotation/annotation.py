@@ -23,37 +23,43 @@ from . import _make
 from .. import op as reg
 
 
-def _make_se_scope(device):
+def _make_virtual_device(device):
     if isinstance(device, _Device):
-        return target.make_se_scope(device)
+        return target.VirtualDevice(device)
     if isinstance(device, str):
-        return target.make_se_scope(_nd.device(device))
+        return target.VirtualDevice(_nd.device(device))
     raise ValueError("expecting a Device or device name, but received a %s" % (type(device)))
 
 
-def on_device(data, device, is_fixed=False):
-    """Annotates an expression with the device type on which its result should be stored.
+def on_device(body, device, constrain_result=False, constrain_body=True):
+    """Annotates a body expression with device constraints. The constraint influences
+    how the body is compiled, where the body is evaluated, and where the result of
+    evaluation is stored.
+
+    Note that the defaults for the constrain_body and constrain_result parameters should
+    almost never need to be overridden by the user. These parameters are exposed here
+    to help unit tests exercise the PlanDevices pass machinery.
 
     Parameters
     ----------
-    data : tvm.relay.Expr
+    body : tvm.relay.Expr
         The expression to be annotated.
 
     device : Union[:py:class:`Device`, str]
         The device to annotate with.
 
-    is_fixed : bool
-        If false (the default), a device_copy
-        If true, the annotation does not imply a device_copy may be inserted to
-        reconcile the device of the data argument with the device for the context of the
-        annotated expression.
+    constrain_result  : bool
+        If false (the default), the result of the on_device is not constrained to be on device.
+
+    constrain_body : bool
+        If true (the default), the body of the on_device is constrained to be on device.
 
     Returns
     -------
     result : tvm.relay.Expr
         The annotated expression.
     """
-    return _make.OnDevice(data, _make_se_scope(device), is_fixed)
+    return _make.OnDevice(body, _make_virtual_device(device), constrain_result, constrain_body)
 
 
 def function_on_device(function, param_devices, result_device):
@@ -77,7 +83,9 @@ def function_on_device(function, param_devices, result_device):
         The annotated function.
     """
     return _make.FunctionOnDevice(
-        function, [_make_se_scope(d) for d in param_devices], _make_se_scope(result_device)
+        function,
+        [_make_virtual_device(d) for d in param_devices],
+        _make_virtual_device(result_device),
     )
 
 

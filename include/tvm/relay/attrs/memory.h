@@ -26,7 +26,7 @@
 
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/expr.h>
-#include <tvm/target/se_scope.h>
+#include <tvm/target/virtual_device.h>
 
 #include <string>
 #include <vector>
@@ -43,13 +43,13 @@ Expr ToTupleType(const Type& t, const std::vector<Expr>& exprs);
  */
 struct AllocStorageAttrs : public tvm::AttrsNode<AllocStorageAttrs> {
   DataType dtype;
-  SEScope se_scope = SEScope::FullyUnconstrained();
+  VirtualDevice virtual_device = VirtualDevice::FullyUnconstrained();
 
   TVM_DECLARE_ATTRS(AllocStorageAttrs, "relay.attrs.AllocStorageAttrs") {
     TVM_ATTR_FIELD(dtype)
         .describe("The dtype of the tensor to allocate.")
         .set_default(DataType::Float(32, 1));
-    TVM_ATTR_FIELD(se_scope).describe("The SEScope on which to allocate memory.");
+    TVM_ATTR_FIELD(virtual_device).describe("The virtual device on which to allocate memory.");
   }
 };
 

@@ -19,13 +19,13 @@
 
 /*!
  * \file tvm/relay/attrs/on_device.h
- * \brief Attribute for the on device annotation.
+ * \brief Attribute for the "on_device" annotation (ie operator).
  */
 #ifndef TVM_RELAY_ATTRS_ON_DEVICE_H_
 #define TVM_RELAY_ATTRS_ON_DEVICE_H_
 
 #include <tvm/ir/attrs.h>
-#include <tvm/target/se_scope.h>
+#include <tvm/target/virtual_device.h>
 
 #include <string>
 
@@ -33,65 +33,70 @@ namespace tvm {
 namespace relay {
 
 /*!
- * \brief Attributes for the "on_device" special operator.
+ * \brief Attributes for the "on_device" annotation (ie operator).
  *
- * The Relay call (aka 'annotation'):
+ * The Relay call:
  * \code
- *   on_device(sub_expr, se_scope=S)
+ *   on_device(sub_expr, virtual_device=S)
  * \endcode
- * constrains \p sub_expr to execute and store its result on the \p SEScope \p S.
+ * constrains \p sub_expr to execute and store its result on the \p VirtualDevice \p S.
  * However the annotation itself may appear in an expression to be executed and stored on a
- * different \p SEScope. If so the compiler will automatically insert a "device_copy" call to
- * mediate the transition between \p SEScopes.
+ * different \p VirtualDevice. If so the compiler will automatically insert a "device_copy" call to
+ * mediate the transition between \p VirtualDevices.
  *
  * E.g.: Assuming %x and %y reside on the GPU and %z on the CPU then:
  * \code
- *   multiply(on_device(add(%x, %y), se_scope=GPU), %z)
+ *   multiply(on_device(add(%x, %y), virtual_device=GPU), %z)
  * \endcode
  * indicates the \p add should execute on the GPU but the \p multiply should execute on the CPU.
  * The compiler will rewrite this to:
  * \code
- *   multiply(device_copy(add(%x, %y), src_se_scope=GPU, dst_se_scope=CPU), %z)
+ *   multiply(device_copy(add(%x, %y), src_virtual_device=GPU, dst_virtual_device=CPU), %z)
  * \endcode
  *
- * The Relay call
- * \code
- *   on_device(sub_expr, se_scope=S, is_fixed=True)
- * \endcode
- * is similar to the above, however the annotation itself must appear in an expression on the
- * same \p SEScope \p S. The compiler will check the \p SEScopes are consistent, and will not
- * insert any "device_copy" call. This form of annotation shouldn't be necessary in user programs.
- * However it is needed by the \p PlanDevices pass to fully specify the results of device planning
- * so that the pass is idempotent.
- *
- * E.g.: The following program is equivalent to the above:
- * \code
- *   let %a = on_device(add(%x, %y), se_scope=GPU, is_fixed=True)
- *   multiply(device_copy(%a, src_se_scope=GPU, dst_se_scope=CPU), %z)
- * \endcode
- * The "on_device" annotation with \p is_fixed=True indicates unambiguously that \p %a is stored
- * on the GPU.
+ * The \p constraint_body (default true) and \p constraint_result (default false) fields can be
+ * used by passes for finer-grained control over how the \p VirtualDevice constraint should be
+ * applied.
  */
 struct OnDeviceAttrs : public tvm::AttrsNode<OnDeviceAttrs> {
   /*!
-   * \brief (Virtual) \p SEScope on which the result of the argument expression should be stored.
+   * \brief The \p VirtualDevice to constraint to apply to the body, result, or both body and result
+   * of the "on_device" call.
    */
-  SEScope se_scope = SEScope::FullyUnconstrained();
+  VirtualDevice virtual_device = VirtualDevice::FullyUnconstrained();
+
   /*!
-   * \brief If true, the result \p SEScope must also be \p se_scope, and device planning should
-   * not insert any "device_copy" calls to respect this annotation.
-   *
-   * This is used by the device planning pass itself when annotating the planned program.
+   * \brief If false (the default), the result of the "on_device" call is not constrained to be
+   * \p virtual_device.
    */
-  bool is_fixed = false;
+  bool constrain_result = false;
+
+  /*!
+   * \brief If true (the default), the body of the "on_device" call is constrained to be \p
+   * virtual_device.
+   */
+  bool constrain_body = true;
+
+  /*!
+   * \brief Returns true if both the body and result are constrained.
+   */
+  bool is_fixed() const { return constrain_result && constrain_body; }
+
+  /*!
+   * \brief Returns true only the body is constrained (the 'normal' case).
+   */
+  bool is_normal() const { return !constrain_result && constrain_body; }
 
   TVM_DECLARE_ATTRS(OnDeviceAttrs, "relay.attrs.OnDeviceAttrs") {
-    TVM_ATTR_FIELD(se_scope)
-        .describe("The (virtual) device and scope holding the expression result.")
-        .set_default(SEScope::FullyUnconstrained());
-    TVM_ATTR_FIELD(is_fixed)
-        .describe("If true, do not insert a \"device_copy\" call to respect this annotation.")
+    TVM_ATTR_FIELD(virtual_device)
+        .describe("The (virtual) device to constrain to.")
+        .set_default(VirtualDevice::FullyUnconstrained());
+    TVM_ATTR_FIELD(constrain_result)
+        .describe("Whether the constraint applies to the overall expression")
         .set_default(false);
+    TVM_ATTR_FIELD(constrain_body)
+        .describe("Whether the constraint applies to the body sub-expression.")
+        .set_default(true);
   }
 };
 

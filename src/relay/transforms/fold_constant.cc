@@ -23,6 +23,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/executor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/op.h>
@@ -41,8 +42,8 @@ namespace transform {
 namespace {
 /*!
  * \brief Returns whether \p expr is a literal \p Constant, optionally wrapped by an "on_device"
- * annotation CallNode (which serves only to associate an \p SEScope to the constant and has no
- * operational effect).
+ * annotation CallNode (which serves only to associate an \p VirtualDevice to the constant and has
+ * no operational effect).
  */
 bool IsSimpleConstant(const Expr& expr) {
   return AsIgnoringOnDevice<ConstantNode>(expr) != nullptr;
@@ -86,19 +87,19 @@ class ConstantFolder : public MixedModeMutator {
         // the variable.
         //
         // We need to retain any "on_device" annotation so that downstream 'device aware'
-        // passes can still retrieve the \p SEScope for the constant in its new position(s). Eg:
-        //   def @f(..., result_se_scope=D) {
-        //     let %x = on_device(... something we eval to a constant..., se_scope=E)
+        // passes can still retrieve the virtual device for the constant in its new position(s). Eg:
+        //   def @f(..., result_virtual_device=D) {
+        //     let %x = on_device(... something we eval to a constant..., virtual_device=E)
         //     @f(..., %x, ...)
         //   }
-        // Here the default scope is D, whereas the argument %x to @f is on E (and @f expects
-        // that). No on_device annotation is required in the call according to the convention used
-        // by the device-aware visitors.
+        // Here the default virtual device is D, whereas the argument %x to @f is on E (and @f
+        // expects that). No on_device annotation is required in the call according to the
+        // convention used by the device-aware visitors.
         //
         // However once we've inlined the constant we need to insert an on_device, again to
         // respect the convention used by the device-aware visitors.
-        //   def @f(..., result_se_scope=D) {
-        //     @f(..., on_device(...the constant..., se_scope=E), ...)
+        //   def @f(..., result_virtual_device=D) {
+        //     @f(..., on_device(...the constant..., virtual_device=E), ...)
         //   }
         VLOG(1) << "Replacing let-binding for " << op->var->name_hint()
                 << " with constant:" << std::endl
@@ -145,7 +146,7 @@ class ConstantFolder : public MixedModeMutator {
   Expr Rewrite_(const CallNode* pre_call_node, const Expr& post) final {
     Call pre_call = GetRef<Call>(pre_call_node);
     if (inside_primitive_) {
-      return pre_call;
+      return std::move(pre_call);
     }
 
     Call post_call = Downcast<Call>(post);
@@ -214,13 +215,13 @@ class ConstantFolder : public MixedModeMutator {
       Expr result = tuple_node->fields[tuple_get_item_node->index];
       OnDeviceProps props = GetOnDeviceProps(post_tuple_get_item_node->tuple);
       if (props.body.defined()) {
-        // (on_device((x, y, z), se_scope=D).1 ==> on_device(y, se_scope=D)
-        return MaybeOnDevice(result, props.se_scope, props.is_fixed);
+        // (on_device((x, y, z), virtual_device=D).1 ==> on_device(y, virtual_device=D)
+        return MaybeOnDeviceWithProps(result, props);
       } else {
         return result;
       }
     }
-    return std::move(post_tuple_get_item);
+    return post_tuple_get_item;
   }
 
   // Convert value to expression.
@@ -254,8 +255,15 @@ class ConstantFolder : public MixedModeMutator {
     // needed for both execution and creation(due to JIT)
     With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
 
-    Expr result = ObjectToExpr(
-        Eval(expr, module_->type_definitions, module_->Imports(), eval_cpu_dev_, eval_cpu_target_));
+    Map<String, ObjectRef> dict = (module_->attrs.defined())
+                                      ? Map<String, ObjectRef>(module_->attrs.CopyOnWrite()->dict)
+                                      : Map<String, ObjectRef>();
+
+    // always use graph executor with no link-params
+    dict.Set(tvm::attr::kExecutor,
+             relay::Executor::Create("graph", {{"link-params", Bool(false)}}));
+    Expr result = ObjectToExpr(Eval(expr, module_->type_definitions, module_->Imports(),
+                                    eval_cpu_dev_, eval_cpu_target_, dict));
     VLOG(1) << "Evaluated to constant:" << std::endl << PrettyPrint(result);
     return result;
   }

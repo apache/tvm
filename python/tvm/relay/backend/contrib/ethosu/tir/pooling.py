@@ -61,11 +61,13 @@ def get_pooling_params(
     loads = get_loads(rw.body)
     # stores = [output]
     stores = get_stores(rw.body)
-    input_pointer = loads[1].buffer_var
-    output_pointer = stores[0].buffer_var
+    input_pointer = loads[1].buffer.data
+    output_pointer = stores[0].buffer.data
     # Get feature map info
     serial_ifm, serial_padding = get_ifm_params(input_pointer, producers)
-    serial_ofm, replace_pointer, is_allocator = get_ofm_params(output_pointer, consumers, producers)
+    serial_ofm, serial_block_config, replace_pointer, is_allocator = get_ofm_params(
+        output_pointer, consumers, producers
+    )
     # Get kernel info
     serial_kernel = SerialKernel(
         width=int(rw.extent),
@@ -89,7 +91,8 @@ def get_pooling_params(
             padding=serial_padding,
             activation=serial_activation,
             rounding_mode=attrs["rounding_mode"],
-            upscale="NONE",
+            upscale=attrs["upscale"],
+            block_config=serial_block_config,
         ),
         output_pointer,
         replace_pointer,
