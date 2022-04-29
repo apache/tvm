@@ -886,7 +886,13 @@ class PyTorchOpConverter:
             return op(x, output_size=output_size)
 
         if self.is_quantized_tensor(data):
-            return qnn_torch.apply_with_upcast(data, func)
+            # dummy variable can be any valid value
+            dummy_scale = _expr.const(0.0302357)
+            dummy_zero_point = _expr.const(130)
+            # dequantize to fp32 in case of decimal part of the result being discarded
+            inp = qnn.op.dequantize(data, dummy_scale, dummy_zero_point, axis=1)
+            out = func(inp)
+            return qnn.op.quantize(out, dummy_scale, dummy_zero_point, out_dtype="uint8")
 
         return func(data)
 
@@ -3978,6 +3984,7 @@ def from_pytorch(
     default_dtype="float32",
     use_parser_friendly_name=False,
     keep_quantized_weight=False,
+    qconfig=None,
 ):
     """Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
