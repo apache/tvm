@@ -89,6 +89,8 @@ class PyLogMessage {
         LOG(WARNING) << stream_.str();
       else if (logging_level == Level::ERROR)
         LOG(ERROR) << stream_.str();
+      else if (logging_level == Level::DEBUG)
+        DLOG(INFO) << stream_.str();
       else
         LOG(FATAL) << stream_.str();
     }
