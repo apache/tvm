@@ -34,7 +34,9 @@ def test_cache_read_write_2d(hexagon_session):
         func = hexagon_session._rpc.get_function("hexagon.run_all_tests")
         result = func(gtest_args)
     except:
-        print("WARNING: Skipping Hexagon unit tests because they have not been enabled")
-        result = 0
+        print(
+            "This test requires the USE_HEXAGON_GTEST cmake flag to be specified with a path to a Hexagon gtest version normally located at /path/to/hexagon/sdk/utils/googletest/gtest"
+        )
+        result = 1
 
     np.testing.assert_equal(result, 0)
