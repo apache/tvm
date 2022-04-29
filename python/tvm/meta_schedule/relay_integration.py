@@ -77,6 +77,8 @@ def extract_task_from_relay(
         disabled_pass = []
     if pass_config is None:
         pass_config = {"relay.backend.use_meta_schedule": True}
+    if params is None:
+        params = {}
     relay_params = {}
     for name, param in params.items():
         if isinstance(param, np.ndarray):
