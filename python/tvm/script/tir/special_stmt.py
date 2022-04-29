@@ -870,7 +870,8 @@ class PreflattenedBufferMap(SpecialStmt):
     Example
     -------
     .. code-block:: python
-         T.preflattened_buffer_map({})
+         A0 = T.match_buffer(A, (48,), dtype="float32")
+         T.preflattened_buffer_map(A, (1, 4, 4, 3), elem_offset=1, align=4, dtype="float32")
     """
 
     def __init__(self):
@@ -892,12 +893,30 @@ class PreflattenedBufferMap(SpecialStmt):
             for key, value in self.context.func_buffer_map.items():
                 if value.same_as(postflattened):
                     param = key
+                    break
 
             assert (
                 param is not None
             ), f"Post-flatten buffer {postflattened.name} does not appear in the buffer map."
 
+            if data is None:
+                data = self.context.func_buffer_map[param].data
+
             buffer_name: str = f"{postflattened.name}_preflatten"
+            if align != -1:
+                if isinstance(align, IntImm):
+                    align = align.value
+                else:
+                    assert isinstance(align, int), f"align: want int or IntImm, got {align!r}"
+
+            if offset_factor != 0:
+                if isinstance(offset_factor, IntImm):
+                    offset_factor = offset_factor.value
+                else:
+                    assert isinstance(
+                        offset_factor, int
+                    ), f"offset_factor: want int or IntImm, got {offset_factor!r}"
+
             preflattened = tvm.tir.decl_buffer(
                 shape,
                 dtype,

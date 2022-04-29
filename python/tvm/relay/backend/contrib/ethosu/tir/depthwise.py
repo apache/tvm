@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Extract information from the depthwise convolution operators in TIR."""
-from typing import Dict, Tuple
+from typing import Tuple
 import tvm
 from ..vela_api import SCALE_BIAS_LENGTH
 from .utils import get_outer_loops, get_op_attrs, get_base_address, get_loads, get_stores
@@ -27,12 +27,11 @@ from .spec import (
     SerialActivation,
     Serial2DDepthwise,
 )
+from .producers_consumers import ProducersConsumers
 
 
 def get_depthwise_conv2d_params(
-    stmt: tvm.tir.AttrStmt,
-    producers: Dict[tvm.tir.Var, tvm.tir.AttrStmt],
-    consumers: Dict[tvm.tir.Var, tvm.tir.AttrStmt],
+    stmt: tvm.tir.AttrStmt, producers_consumers: ProducersConsumers
 ) -> Tuple[Serial2DDepthwise, tvm.tir.Var, tvm.tir.Var]:
     """Get the parameters necessary to construct a call_extern for a depthwise_conv2d.
 
@@ -40,12 +39,9 @@ def get_depthwise_conv2d_params(
     ----------
     stmt : tvm.tir.AttrStmt
         The outermost attribute statement of a depthwise loop nest.
-    producers : Dict[tvm.tir.Var, tvm.tir.AttrStmt]
-        A dictionary to associate pointers with the loop nest
-        that produces their values.
-    consumers : Dict[tvm.tir.Var, tvm.tir.AttrStmt]
-        A dictionary to associate pointers with the loop nest
-        that consumes their values.
+    producers_consumers: ProducersConsumers
+        It associates pointers with the loop nest that produces
+        their values and with the loop nest that consumes their values.
 
     Returns
     -------
@@ -71,9 +67,9 @@ def get_depthwise_conv2d_params(
     input_pointer = loads[1].buffer.data
     output_pointer = stores[0].buffer.data
     # Get feature map info
-    serial_ifm, serial_padding = get_ifm_params(input_pointer, producers)
+    serial_ifm, serial_padding = get_ifm_params(input_pointer, producers_consumers, stmt)
     serial_ofm, serial_block_config, replace_pointer, is_allocator = get_ofm_params(
-        output_pointer, consumers, producers
+        output_pointer, producers_consumers, stmt
     )
     # Get kernel info
     serial_kernel = SerialKernel(

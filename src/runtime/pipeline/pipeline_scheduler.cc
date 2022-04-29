@@ -28,16 +28,20 @@ namespace runtime {
  * \param modules The list of graph executor modules.
  * \param pipeline_conf The dependency information of each graph executor module.
  */
-std::vector<std::shared_ptr<BackendRuntime>> PipelineScheduler::PipelineInit(
-    const std::vector<Module>& modules, const ConfigPipelineExecution& pipeline_config) {
+std::shared_ptr<GlobalRuntime> PipelineScheduler::PipelineInit(
+    const std::vector<Module>& modules, const ConfigPipelineExecution& pipeline_config,
+    const InputConnectionConfig& input_connection_config) {
   std::vector<std::shared_ptr<BackendRuntime>> runtimes;
   graph_modules_ = modules;
-  global_runtime_ = std::make_shared<GlobalRuntime>(GLOBAL_MODULE_INDEX);
   // Creating a list of runtimes.
   for (size_t i = 0; i < graph_modules_.size(); i++) {
     auto run_item = std::make_shared<BackendRuntime>(graph_modules_[i], i);
     runtimes.push_back(run_item);
   }
+  // Creating the global runtime to represent the pipeline executor.
+  global_runtime_ = std::make_shared<GlobalRuntime>(GLOBAL_MODULE_INDEX);
+  // Initializing the data structures used by pipeline logic.
+  global_runtime_->InitializePipeline(input_connection_config, runtimes);
   // Creating a list of NDArray in order to storage the outputs data.
   auto global_output_map = pipeline_config.GetGlobalConfigOutputBindings();
   for (size_t i = 0; i < global_output_map.size(); i++) {
@@ -52,15 +56,14 @@ std::vector<std::shared_ptr<BackendRuntime>> PipelineScheduler::PipelineInit(
   for (auto runtime : runtimes) {
     runtime->InitializePipeline(pipeline_config, &runtimes, global_runtime_);
   }
-  return runtimes;
+  return global_runtime_;
 }
 /*!
  * \brief Running pipeline logic.
  * \param runtimes A list of backend runtime modules.
  * \param pipeline_config The dependency configuration of each runtime module.
  */
-void PipelineScheduler::PipelineRun(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
-                                    ConfigPipelineExecution pipeline_config) {
+void PipelineScheduler::PipelineRun(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes) {
   runtimes.front()->RunPipeline();
 }
 /*!

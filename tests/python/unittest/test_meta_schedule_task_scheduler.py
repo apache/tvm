@@ -168,6 +168,7 @@ def test_meta_schedule_task_scheduler_single():
     database = DummyDatabase()
     round_robin = RoundRobin(
         [task],
+        [1.0],
         DummyBuilder(),
         DummyRunner(),
         database,
@@ -210,6 +211,7 @@ def test_meta_schedule_task_scheduler_multiple():
     database = DummyDatabase()
     round_robin = RoundRobin(
         tasks,
+        [1.0],
         DummyBuilder(),
         DummyRunner(),
         database,

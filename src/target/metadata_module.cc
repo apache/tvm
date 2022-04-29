@@ -144,6 +144,12 @@ static runtime::Module CreateCppMetadataModule(
         auto metadata_module = CreateCSourceCppMetadataModule(runtime_metadata);
         metadata_module->Import(target_module);
         target_module = metadata_module;
+#ifdef TVM_LLVM_VERSION  // defining TVM_LLVM_VERSION indicates TVM was compiled with USE_LLVM ON.
+      } else if (target->kind->name == "llvm") {
+        auto metadata_module = CreateLLVMCppMetadataModule(runtime_metadata, target, runtime);
+        metadata_module->Import(target_module);
+        target_module = metadata_module;
+#endif  // TVM_LLVM_VERSION
       } else {
         CHECK(false) << "Don't know how to create MetadataModule for target type " << target->str();
       }

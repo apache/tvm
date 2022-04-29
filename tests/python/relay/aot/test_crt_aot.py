@@ -60,7 +60,7 @@ def test_error_c_interface_with_packed_api():
         tvm.TVMError,
         match=re.escape(
             'Either need interface_api == "packed" (got: c) or '
-            "unpacked-api == true (got: (bool)0) when targeting "
+            "unpacked-api == true (got: 0) when targeting "
             "c runtime"
         ),
     ):

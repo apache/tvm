@@ -83,6 +83,8 @@ class ExecutorCodegenMetadataNode : public Object {
   bool unpacked_api;
   /*! \brief the input var names that correspond to pool_inputs */
   Optional<Map<tir::Var, tir::usmp::AllocatedPoolInfo>> pool_inputs;
+  /*! \brief the I/O tensor to PoolAllocations if any*/
+  Map<String, tir::usmp::PoolAllocation> io_pool_allocations;
 
   String mod_name = "";
 
@@ -96,6 +98,7 @@ class ExecutorCodegenMetadataNode : public Object {
     v->Visit("executor", &executor);
     v->Visit("unpacked_api", &unpacked_api);
     v->Visit("pool_inputs", &pool_inputs);
+    v->Visit("io_pool_allocations", &io_pool_allocations);
   }
 
   static constexpr const char* _type_key = "MetadataObj";
@@ -107,13 +110,13 @@ class ExecutorCodegenMetadataNode : public Object {
  */
 class ExecutorCodegenMetadata : public ObjectRef {
  public:
-  TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<TensorType> input_tensor_types,
-                                  Array<String> outputs, Array<TensorType> output_tensor_types,
-                                  Array<tir::Var> pools, Array<String> devices, String executor,
-                                  String mod_name, String interface_api = "packed",
-                                  bool unpacked_api = false,
-                                  Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
-                                      Map<tir::Var, tir::usmp::AllocatedPoolInfo>());
+  TVM_DLL ExecutorCodegenMetadata(
+      Array<tir::Var> inputs, Array<TensorType> input_tensor_types, Array<String> outputs,
+      Array<TensorType> output_tensor_types, Array<tir::Var> pools, Array<String> devices,
+      String executor, String mod_name, String interface_api = "packed", bool unpacked_api = false,
+      Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
+          Map<tir::Var, tir::usmp::AllocatedPoolInfo>(),
+      Map<String, tir::usmp::PoolAllocation> io_pool_allocations = {{}});
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ExecutorCodegenMetadata, ObjectRef,
                                         ExecutorCodegenMetadataNode);

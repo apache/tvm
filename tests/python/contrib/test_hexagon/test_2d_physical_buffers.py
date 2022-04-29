@@ -302,9 +302,6 @@ class TestElementWise:
         output_layout,
         hexagon_session,
     ):
-        if hexagon_session is None:
-            pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
-
         if input_layout == "nchw-8h8w32c-2d":
             input_axis_separators = [4]
         else:

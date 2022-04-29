@@ -22,3 +22,4 @@ from .rewrite_parallel_vectorize_unroll import RewriteParallelVectorizeUnroll
 from .rewrite_reduction_block import RewriteReductionBlock
 from .rewrite_unbound_block import RewriteUnboundBlock
 from .verify_gpu_code import VerifyGPUCode
+from .rewrite_tensorize import RewriteTensorize

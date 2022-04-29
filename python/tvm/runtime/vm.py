@@ -426,6 +426,10 @@ class VirtualMachine(object):
 
     def set_input(self, func_name, *args, **kwargs):
         """Set the input to a function.
+        If device type and device id for input tensor are the same as
+        for target one the zero copy is used. It means that internal
+        tensor is reference to memory allocated by input one.
+        Otherwise new internal NDarray is created and data is copied
 
         Parameters
         ----------

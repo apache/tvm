@@ -199,6 +199,15 @@ def test_buffer_load_store():
     assert not consistent_equal(sy, sz)
 
 
+def test_while():
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    wx = tvm.tir.While(x > 0, tvm.tir.Evaluate(x))
+    wy = tvm.tir.While(y > 0, tvm.tir.Evaluate(y))
+    assert not consistent_equal(wx, wy)
+    assert consistent_equal(wx, wy, map_free_vars=True)
+
+
 if __name__ == "__main__":
     test_exprs()
     test_prim_func()
@@ -208,3 +217,4 @@ if __name__ == "__main__":
     test_stmt()
     test_buffer_storage_scope()
     test_buffer_load_store()
+    test_while()

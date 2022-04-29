@@ -182,6 +182,23 @@ def test_dynamic_shape_gemm():
 
 
 @T.prim_func
+def preflattened_buffer_map(A: T.handle, B: T.handle):
+    A_1 = T.match_buffer(A, [1])
+    T.preflattened_buffer(A_1, [1], align=T.int32(1), offset_factor=T.int64(2))
+    B_1 = T.match_buffer(B, [1])
+    T.preflattened_buffer(B_1, [1])
+    B_1[0] = A_1[0]
+
+
+def test_preflattened_buffer_map():
+    A_var = [
+        k for k, _ in preflattened_buffer_map.preflattened_buffer_map.items() if k.name == "A"
+    ][0]
+    assert preflattened_buffer_map.preflattened_buffer_map[A_var].data_alignment == 1
+    assert preflattened_buffer_map.preflattened_buffer_map[A_var].offset_factor == 2
+
+
+@T.prim_func
 def match_buffer_int64(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (T.int64(128), T.int64(128)), dtype="float32")
     B = T.alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
@@ -216,6 +233,36 @@ def test_match_buffer_int64():
     original = match_buffer_int64
     after_roundtrip = match_buffer_int64_after_roundtrip
     assert_structural_equal(original, after_roundtrip, True)
+
+
+def test_letstmt_bufferload_without_type_annotation():
+    # Variable assignment of PrimExpr types uses the dtype of the
+    # PrimExpr to determine the variable's dtype.  Parsing of
+    # buf[indices] is done by generating a BufferSlice object, which
+    # handles both store and load cases.  BufferSlice is not a
+    # PrimExpr, and implements BufferSlice.dtype explicitly.
+
+    # Failure occurred during parsing of the tvmscript.
+    @T.prim_func
+    def func_without_type_annotation(A: T.Buffer[(1,), "int32"]):
+        x = A[0]
+        T.evaluate(x)
+
+
+def test_letstmt_bind_with_constant():
+    @T.prim_func
+    def constant_binds():
+        x = 1
+        y = 42.0
+        T.evaluate(T.cast(x, "float32") + y)
+
+    @T.prim_func
+    def constant_binds_wrapped():
+        x = T.int32(1)
+        y = T.float32(42.0)
+        T.evaluate(T.cast(x, "float32") + y)
+
+    assert_structural_equal(constant_binds, constant_binds_wrapped)
 
 
 if __name__ == "__main__":

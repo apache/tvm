@@ -410,8 +410,16 @@ class Pool(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        data = inputs[0]
+        input_shape = infer_shape(data)
+        ndim = len(input_shape)
+
         attr_cvt, data = cls._run_calculation(inputs, attr, params)
-        return attr_cvt([data], attr, params)
+        out = attr_cvt([data], attr, params)
+
+        if ndim - len(attr["kernel_shape"]) == 1:
+            out = _op.squeeze(out, axis=[0])
+        return out
 
     @classmethod
     def _run_calculation(cls, inputs, attr, params):
@@ -463,6 +471,10 @@ class Pool(OnnxOpConverter):
                 attr["storage_order"], dims=(len(input_shape) - 2), op_name=cls.name
             )
         else:
+            if ndim - len(attr["kernel_shape"]) == 1:
+                data = _op.expand_dims(data, axis=0)
+                input_shape = [1] + list(input_shape)
+
             attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2), op_name=cls.name)
 
         return (
@@ -880,7 +892,7 @@ class EmbedLayerNormalization(OnnxOpConverter):
             assert segment_emb
 
         if pos_ids is None:
-            pos_ids = _op.const([list(range(seq_len))] * seq_len, dtype="int32")
+            pos_ids = _op.const([list(range(seq_len))] * batch_size, dtype="int32")
 
         word_vec = _op.take(word_emb, input_ids, axis=0)
         segment_vec = _op.take(segment_emb, segment_ids, axis=0)
@@ -2305,19 +2317,19 @@ class Softmax(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get("axis", 1)
-        ndim = len(infer_shape(inputs[0]))
+        in_shape = infer_shape(inputs[0])
+        ndim = len(in_shape)
         if axis < 0:
             axis += ndim
-        # Older ONNX Softmax op does not properly support inputs of dimension > 2
-        # But we can use our softmax when the axis is -1
-        if axis == ndim - 1:
-            return _op.nn.softmax(inputs[0], axis=axis)
-
-        axes = list(range(axis, ndim))
-        x = inputs[0]
-        m = _op.max(x, axes, keepdims=True)
-        e = _op.exp(x - m)
-        return e / _op.sum(e, axes, keepdims=True)
+        if axis == 0:
+            reshape_shape = [-1]
+        else:
+            axis_val = [in_shape[i] for i in range(axis)]
+            reshape_shape = [np.prod(axis_val)] + [-1]
+        data_reshape = _op.reshape(inputs[0], newshape=reshape_shape)
+        out = _op.nn.softmax(data_reshape, axis=-1)
+        out = _op.reshape(out, newshape=in_shape)
+        return out
 
     @classmethod
     def _impl_v13(cls, inputs, attr, _):

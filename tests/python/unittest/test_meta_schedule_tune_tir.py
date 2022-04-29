@@ -19,13 +19,9 @@ import logging
 import tempfile
 
 import pytest
-import tvm
-from tvm.meta_schedule import ReplayTraceConfig, schedule_rule, tune_tir
-from tvm.meta_schedule.space_generator import PostOrderApply
-from tvm.meta_schedule.testing import te_workload
+from tvm.meta_schedule import TuneConfig, tune_tir
 from tvm.script import tir as T
-from tvm.target.target import Target
-from tvm.te.operation import create_prim_func
+from tvm.target import Target
 from tvm.tir import Schedule
 
 logging.basicConfig()
@@ -57,7 +53,8 @@ def test_tune_matmul_cpu():
         sch: Schedule = tune_tir(
             mod=matmul,
             target=Target("llvm --num-cores=16"),
-            config=ReplayTraceConfig(
+            config=TuneConfig(
+                strategy="replay_trace",
                 num_trials_per_iter=32,
                 max_trials_per_task=32,
                 max_trials_global=32,
@@ -77,7 +74,8 @@ def test_tune_matmul_cuda():
         sch: Schedule = tune_tir(
             mod=matmul,
             target=Target("nvidia/geforce-rtx-3070"),
-            config=ReplayTraceConfig(
+            config=TuneConfig(
+                strategy="replay_trace",
                 num_trials_per_iter=32,
                 max_trials_per_task=32,
                 max_trials_global=32,
