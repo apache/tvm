@@ -159,7 +159,6 @@ def test_module_list():
     mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
     loaded_mod = tvm.runtime.load_module(test_so_path)
     list_module_names = loaded_mod.get_function("list_module_names")
-    # At the moment, relay produces a single module with the name "default".
     names_expected = ["unusual_module_name_fred"]
     assert list(sorted(names_expected)) == list(sorted(list_module_names()))
 
