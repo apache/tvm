@@ -1235,7 +1235,7 @@ def test_matmul(target, dev):
         verify_with_ort_with_inputs(model, [a_array, b_array], target=target, dev=dev)
 
     test_one_matmul((4, 3), (3, 4))
-    test_one_matmul((3), (3, 1))
+    test_one_matmul((3,), (3, 1))
 
 
 @tvm.testing.parametrize_targets
