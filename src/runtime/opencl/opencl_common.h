@@ -427,7 +427,7 @@ class OpenCLTimerNode : public TimerNode {
 
     if (!cl::OpenCLWorkspace::Global()->profiling) {
       // Very first call of Start() leads to the recreation of
-      // OpenCL command queue in profiling mode
+      // OpenCL command queue in profiling mode. This allows to run profile after inference.
       OPENCL_CALL(clFlush(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
       OPENCL_CALL(clFinish(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
       OPENCL_CALL(clReleaseCommandQueue(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
@@ -462,7 +462,8 @@ class OpenCLTimerNode : public TimerNode {
   // destructor
   virtual ~OpenCLTimerNode() {
     if (cl::OpenCLWorkspace::Global()->profiling) {
-      // Profiling session ends, recreate clCommandQueue
+      // Profiling session ends, recreate clCommandQueue in non-profiling mode
+      // This will disable collection of cl_events in case of executing inference after profile
       OPENCL_CALL(clFlush(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
       OPENCL_CALL(clFinish(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
       OPENCL_CALL(clReleaseCommandQueue(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
