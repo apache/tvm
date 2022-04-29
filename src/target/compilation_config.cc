@@ -92,6 +92,7 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
   // Any targets with a host?
   auto has_host_itr = std::find_if(raw_targets.begin(), raw_targets.end(),
                                    [](const Target& target) { return target->host.defined(); });
+
   if (has_host_itr != raw_targets.end()) {
     // RULE A: If any raw target has a host, use the first such host for all the primitive
     // targets.
