@@ -644,6 +644,7 @@ if(GTEST_FOUND)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
   # For some reason, compile definitions are not propagated correctly, so we manually add them here
   target_compile_definitions(cpptest PUBLIC $<TARGET_PROPERTY:tvm,INTERFACE_COMPILE_DEFINITIONS>)
+  target_compile_definitions(cpptest PUBLIC TVM_IS_CPP_RUNTIME)
   gtest_discover_tests(cpptest)
 endif()
 
