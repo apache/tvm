@@ -1680,8 +1680,12 @@ class InverseAffineIterMapTransformer {
     CheckFusePattern(iter_map_expr);
     for (size_t i = iter_map_expr->args.size(); i > 0; i--) {
       const IterSplitExpr& split = iter_map_expr->args[i - 1];
-      backprop_.Set(split,
-                    backprop_.at(split) + floormod(floordiv(input, split->scale), split->extent));
+      PrimExpr prop_value = floordiv(input, split->scale);
+      // the first part has the same extent as the split expression, floormod is not needed
+      if (i > 1) {
+        prop_value = floormod(prop_value, split->extent);
+      }
+      backprop_.Set(split, backprop_.at(split) + prop_value);
     }
   }
 
