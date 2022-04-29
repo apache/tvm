@@ -17,8 +17,8 @@
 """User-facing Tuning API"""
 # pylint: disable=import-outside-toplevel
 import logging
-from pathlib import Path
-import os.path as osp
+import os
+from os import path as osp
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
 
 from tvm._ffi.registry import register_func
@@ -502,7 +502,7 @@ def tune_extracted_tasks(
     """
     # pylint: disable=protected-access
     log_dir = osp.join(work_dir, "logs")
-    Path(log_dir).mkdir(parents=True, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
     logger_config = config.create_logger_config(
         log_dir=log_dir,
         propagate=False,
@@ -545,7 +545,8 @@ def tune_extracted_tasks(
                 mutator_probs=Parse._mutator_probs(mutator_probs, task.target),
                 task_name=task.task_name,
                 logger=Parse._logger(
-                    name="tvm.meta_schedule."
+                    name=__name__
+                    + "."
                     + "_".join(["task", str(i).zfill(max_width), task.task_name]),
                     **logger_config,
                 ),

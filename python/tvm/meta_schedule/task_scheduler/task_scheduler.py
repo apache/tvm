@@ -20,7 +20,6 @@ import logging
 from typing import Callable, List, Optional
 
 from tvm._ffi import register_object
-from tvm.meta_schedule.utils import make_logging_func
 from tvm.runtime import Object
 
 from .. import _ffi_api
@@ -30,6 +29,7 @@ from ..database import Database
 from ..measure_callback import MeasureCallback
 from ..runner import Runner, RunnerResult
 from ..tune_context import TuneContext
+from ..utils import make_logging_func
 
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name

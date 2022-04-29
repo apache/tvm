@@ -374,7 +374,7 @@ def autotvm_silencer():
         autotvm.GLOBAL_SCOPE.silent = silent
 
 
-def make_logging_func(logger: logging.Logger):
+def make_logging_func(logger: logging.Logger) -> Optional[Callable]:
     """Get the logging function.
     Parameters
     ----------
@@ -382,13 +382,14 @@ def make_logging_func(logger: logging.Logger):
         The logger instance.
     Returns
     -------
-    result : Callable
+    result : Optional[Callable]
         The function to do the specified level of logging.
     """
     if logger is None:
         return None
 
     level2log = {
+        logging.DEBUG: logger.debug,
         logging.INFO: logger.info,
         logging.WARNING: logger.warning,
         logging.ERROR: logger.error,

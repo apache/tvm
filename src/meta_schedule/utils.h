@@ -53,17 +53,22 @@
 #include "../tir/schedule/primitive.h"
 #include "../tir/schedule/utils.h"
 
-#define TVM_PY_LOG(logging_level, logging_func) \
-  PyLogMessage(__FILE__, __LINE__, logging_func, PyLogMessage::Level::logging_level).stream()
+#define TVM_PY_LOG(logging_level, logging_func)                          \
+  ::tvm::meta_schedule::PyLogMessage(__FILE__, __LINE__, logging_func,   \
+                                     PyLogMessage::Level::logging_level) \
+      .stream()
+
 namespace tvm {
+namespace meta_schedule {
 
 /*!
  * \brief Class to accumulate an log message on the python side. Do not use directly, instead use
- * TVM_PY_LOG(INFO), TVM_PY_LOG(WARNING), TVM_PY_ERROR(INFO).
+ * TVM_PY_LOG(DEBUG), TVM_PY_LOG(INFO), TVM_PY_LOG(WARNING), TVM_PY_ERROR(ERROR).
  */
 class PyLogMessage {
  public:
   enum class Level : int32_t {
+    DEBUG = 10,
     INFO = 20,
     WARNING = 30,
     ERROR = 40,
@@ -95,8 +100,6 @@ class PyLogMessage {
   PackedFunc logging_func;
   Level logging_level;
 };
-
-namespace meta_schedule {
 
 /*! \brief The type of the random state */
 using TRandState = support::LinearCongruentialEngine::TRandState;
