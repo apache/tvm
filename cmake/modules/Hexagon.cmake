@@ -128,7 +128,7 @@ else()
 endif()
 
 if(BUILD_FOR_HEXAGON)
-  if(EXISTS ${USE_HEXAGON_GTEST})
+  if(DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
     file_glob_append(RUNTIME_HEXAGON_SRCS
       "${TVMRT_SOURCE_DIR}/hexagon/tests/*.cc"
     )
