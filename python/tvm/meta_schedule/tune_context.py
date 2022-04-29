@@ -87,7 +87,7 @@ class TuneContext(Object):
     postprocs: List["Postproc"]
     mutator_probs: Optional[Dict["Mutator", float]]
     task_name: str
-    logger: logging.Logger
+    logger: Optional[logging.Logger]
     rand_state: int
     num_threads: int
 
@@ -102,15 +102,18 @@ class TuneContext(Object):
         postprocs: Optional[List["Postproc"]] = None,
         mutator_probs: Optional[Dict["Mutator", float]] = None,
         task_name: str = "main",
+        logger: Optional[logging.Logger] = None,
         rand_state: int = -1,
         num_threads: Optional[int] = None,
-        logger: logging.Logger = None,
     ):
         if isinstance(mod, PrimFunc):
             mod = IRModule.from_expr(mod)
         if num_threads is None:
             num_threads = cpu_count()
-        self.logger = logger
+        if logger is None:
+            self.logger = logging.getLogger(__name__)
+        else:
+            self.logger = None
 
         self.__init_handle_by_constructor__(
             _ffi_api.TuneContext,  # type: ignore # pylint: disable=no-member

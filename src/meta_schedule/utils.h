@@ -403,8 +403,6 @@ struct ThreadedTraceApply {
   int n_;
   /*! \brief The pointer to the list of postprocessor items. */
   Item* items_;
-  /*! \brief The logging function to use. */
-  PackedFunc logging_func;
 };
 
 /*!
