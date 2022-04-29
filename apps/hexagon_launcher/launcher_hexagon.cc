@@ -39,8 +39,8 @@ static std::unique_ptr<Model> TheModel;
 
 static AEEResult error_too_small(const std::string& func_name, const std::string& value_name,
                                  int given, int needed) {
-  LOG(ERROR) << "ERROR: " << func_name.c_str() << ": " << value_name.c_str() << " value too small ("
-             << given << "), need at least " << needed;
+  LOG(ERROR) << func_name.c_str() << ": " << value_name.c_str() << " value too small (" << given
+             << "), need at least " << needed;
   return AEE_EBADPARM;
 }
 
@@ -59,7 +59,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_load)(remote_handle64 handle, const char* m
                                            const char* graph_json) {
   if (TheModel) {
     // Need to unload first.
-    LOG(ERROR) << "ERROR: " << __func__ << ": model already loaded, unload first";
+    LOG(ERROR) << __func__ << ": model already loaded, unload first";
     return AEE_EUNABLETOLOAD;
   }
 
@@ -94,7 +94,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_set_input)(remote_handle64 handle, int inpu
                                                 const unsigned char* input_value, int value_size) {
   if (!TheModel) {
     // No model created.
-    LOG(ERROR) << "ERROR: " << __func__ << ": no model created";
+    LOG(ERROR) << __func__ << ": no model created";
     return AEE_EBADSTATE;
   }
 
@@ -192,7 +192,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_run)(remote_handle64 handle, uint64_t* pcyc
                                           uint64_t* usecs) {
   if (!TheModel) {
     // No model created.
-    LOG(ERROR) << "ERROR: " << __func__ << ": no model created";
+    LOG(ERROR) << __func__ << ": no model created";
     return AEE_EBADSTATE;
   }
 
@@ -201,7 +201,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_run)(remote_handle64 handle, uint64_t* pcyc
   switch (res) {
     case QURT_HVX_RESERVE_NOT_SUPPORTED:
     case QURT_HVX_RESERVE_NOT_SUCCESSFUL:
-      LOG(ERROR) << "ERROR: error reserving HVX: " << res;
+      LOG(ERROR) << "error reserving HVX: " << res;
       return AEE_EFAILED;
     default:
       break;
@@ -209,7 +209,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_run)(remote_handle64 handle, uint64_t* pcyc
   // Lock HVX.
   int lck = qurt_hvx_lock(QURT_HVX_MODE_128B);
   if (lck != 0) {
-    LOG(ERROR) << "ERROR: error locking HVX: " << lck;
+    LOG(ERROR) << "error locking HVX: " << lck;
     return AEE_EFAILED;
   }
 
@@ -226,13 +226,13 @@ AEEResult __QAIC_HEADER(launcher_rpc_run)(remote_handle64 handle, uint64_t* pcyc
   // Unlock HVX.
   int unl = qurt_hvx_unlock();
   if (unl != 0) {
-    LOG(ERROR) << "ERROR: error unlocking HVX: " << unl;
+    LOG(ERROR) << "error unlocking HVX: " << unl;
     return AEE_EFAILED;
   }
   // Release HVX.
   int rel = qurt_hvx_cancel_reserve();
   if (rel != 0) {
-    LOG(ERROR) << "ERROR: error canceling HVX reservation: " << rel;
+    LOG(ERROR) << "error canceling HVX reservation: " << rel;
     return AEE_EFAILED;
   }
 
