@@ -1214,7 +1214,10 @@ def test_gemm(target, dev):
 @tvm.testing.parametrize_targets
 def test_matmul(target, dev):
     def test_one_matmul(a_shape, b_shape):
-        out_shape = [a_shape[0], b_shape[1]]
+        if len(a_shape) == 1:
+            out_shape = [b_shape[1]]
+        else:
+            out_shape = [a_shape[0], b_shape[1]]
 
         a_array = np.random.uniform(size=a_shape).astype("float32")
         b_array = np.random.uniform(size=b_shape).astype("float32")
