@@ -36,6 +36,7 @@
 namespace tvm {
 namespace relay {
 
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.ToMixedPrecision.enable_original_type", Bool);
 // A callable which hashes std::pair
 struct pair_hash {
   template <class T1, class T2>
@@ -107,6 +108,7 @@ class MixedPrecisionPass : public MixedModeMutator {
   std::unordered_map<std::string, int> missing_ops_;
   const RelayExprNode* root_;
   std::vector<DataType> original_dtype_;
+  bool enable_original_type_;
 
   Attrs GetNewAttrs(const CallNode* call, const DataType& accumulation_dtype) const {
     /* If the accumulation dtype is in the attributes make a copy and mutate the field. */
@@ -280,18 +282,23 @@ class MixedPrecisionPass : public MixedModeMutator {
  public:
   using MixedModeMutator::VisitExpr_;
 
-  explicit MixedPrecisionPass(Expr base, DataType mixed_precision_type = DataType::Float(16))
+  explicit MixedPrecisionPass(Expr base, bool enable_original_type,
+                              DataType mixed_precision_type = DataType::Float(16))
       : MixedModeMutator(),
         mixed_precision_type_(mixed_precision_type),
-        root_(Downcast<Function>(base)->body.get()) {
-    if (root_->IsInstance<tvm::relay::TupleNode>()) {
-      const TupleTypeNode* tuple_type = (root_->checked_type_).as<TupleTypeNode>();
-      for (Type t : tuple_type->fields) {
-        const TensorTypeNode* tensor_type = t.as<TensorTypeNode>();
-        original_dtype_.push_back(tensor_type->dtype);
+        root_(Downcast<Function>(base)->body.get()),
+        enable_original_type_(enable_original_type) {
+    if (enable_original_type_) {
+      if (root_->IsInstance<tvm::relay::TupleNode>()) {
+        const TupleTypeNode* tuple_type = (root_->checked_type_).as<TupleTypeNode>();
+        for (Type t : tuple_type->fields) {
+          const TensorTypeNode* tensor_type = t.as<TensorTypeNode>();
+          original_dtype_.push_back(tensor_type->dtype);
+        }
+      } else if (root_->IsInstance<tvm::relay::CallNode>()) {
+        original_dtype_.push_back((root_->checked_type_).as<TensorTypeNode>()->dtype);
       }
-    } else if (root_->IsInstance<tvm::relay::CallNode>())
-      original_dtype_.push_back((root_->checked_type_).as<TensorTypeNode>()->dtype);
+    }
     if (!mixed_precision_type_.is_float() && !mixed_precision_type_.is_bfloat16()) {
       LOG(FATAL) << "Only support IEEE floating point mixed precision types and bfloat16, but got "
                  << mixed_precision_type_;
@@ -393,9 +400,10 @@ class MixedPrecisionPass : public MixedModeMutator {
       if (accumulation_dtype != output_dtype) {
         output = CastArg(output, GetType(output), output_dtype);
       }
-      if (pre_call_node == static_cast<const CallNode*>(root_)) {
-        if (original_dtype_[0] != output_dtype)
+      if (pre_call_node == static_cast<const CallNode*>(root_) && enable_original_type_) {
+        if (original_dtype_[0] != output_dtype) {
           output = CastArg(output, GetType(output), original_dtype_[0]);
+        }
       }
       return output;
     }
@@ -412,7 +420,7 @@ class MixedPrecisionPass : public MixedModeMutator {
   Expr Rewrite_(const TupleNode* pre, const Expr& post) {
     // The old checked type in the expression may not be valid so clear it
     post->checked_type_ = Type(nullptr);
-    if (pre == root_) {
+    if (pre == root_ && enable_original_type_) {
       Array<Expr> new_expr;
       bool all_same = true;
       for (size_t i = 0; i < original_dtype_.size(); i++) {
@@ -423,7 +431,9 @@ class MixedPrecisionPass : public MixedModeMutator {
         new_expr.push_back(casted_element);
         all_same &= casted_element.same_as(output_element);
       }
-      if (!all_same) return Tuple(new_expr);
+      if (!all_same) {
+        return Tuple(new_expr);
+      }
     }
     return post;
   }
@@ -450,11 +460,12 @@ class MixedPrecisionPass : public MixedModeMutator {
   }
 
   // To access map of ops not registered for error reporting
-  friend Expr ToMixedPrecision(const Expr& expr, const DataType& mixed_precision_type,
-                               int missing_op_mode);
+  friend Expr ToMixedPrecision(const Expr& expr, bool enable_original_type,
+                               const DataType& mixed_precision_type, int missing_op_mode);
 };
 
-Expr ToMixedPrecision(const Expr& expr, const DataType& mixed_precision_type, int missing_op_mode) {
+Expr ToMixedPrecision(const Expr& expr, bool enable_original_type,
+                      const DataType& mixed_precision_type, int missing_op_mode) {
   /*
   missing_op_mode:
 
@@ -465,7 +476,8 @@ Expr ToMixedPrecision(const Expr& expr, const DataType& mixed_precision_type, in
   ICHECK(missing_op_mode >= 0 && missing_op_mode <= 2)
       << " missing_op_mode must be either 0, 1, or 2 got " << missing_op_mode;
 
-  MixedPrecisionPass converter = MixedPrecisionPass(expr, mixed_precision_type);
+  MixedPrecisionPass converter =
+      MixedPrecisionPass(expr, enable_original_type, mixed_precision_type);
   auto result = converter.Mutate(expr);
 
   for (auto it = converter.missing_ops_.begin();
@@ -489,7 +501,12 @@ namespace transform {
 Pass ToMixedPrecision(DataType mixed_precision_type, int missing_op_mode) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(ToMixedPrecision(f, mixed_precision_type, missing_op_mode));
+        bool enable_original_type = false;
+        enable_original_type =
+            pc->GetConfig("relay.ToMixedPrecision.enable_original_type", Bool(enable_original_type))
+                .value();
+        return Downcast<Function>(
+            ToMixedPrecision(f, enable_original_type, mixed_precision_type, missing_op_mode));
       };
   return CreateFunctionPass(pass_func, 0, "ToMixedPrecision", {});
 }
