@@ -1829,3 +1829,39 @@ def invert_permutation(data):
         relay.invert_permutation(data) = [2, 4, 3, 0, 1]
     """
     return _make.invert_permutation(data)
+
+
+def stft(data, n_fft, hop_length, win_length, window, normalized, onesided):
+    """
+    The STFT computes the Fourier transform of short overlapping windows of the input.
+    This giving frequency components of the signal as they change over time.
+    Parameters
+    ----------
+    data : relay.Expr
+        Either a 1-D tensor or a 2-D batch tensor.
+    n_fft : int
+        The size of Fourier transform
+    hop_length : int
+        The distance between neighboring sliding window frames
+    win_length : int
+        The size of window frame and STFT filter
+    window : relay.Expr
+        A 1-D tensor window frame
+    normalized : bool
+        Whether to return the normalized STFT results
+    onesided : bool
+        Whether to return onesided result or fill with conjugate symmetry
+    Returns
+    -------
+    output : relay.Expr
+        Tensor containing the STFT result
+    Examples
+    --------
+    .. code-block:: python
+        data = [1, 2, 3, 4, 5, 6]
+        window = [4, 3, 2]
+        [n_fft, hop_length, win_length, normalized, onesided] = [3, 3, 3, False, True]
+        relay.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
+        -> [[[15.0000,  0.0000], [34.0000,  0.0000]], [[ 4.5000,  0.8660], [ 1.0000, -1.7321]]]
+    """
+    return _make.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
