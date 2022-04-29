@@ -33,7 +33,7 @@ from .. import qnn as _qnn
 from ..backend.name_transforms import sanitize_name
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
-from .common import to_int_list, shape_of
+from .common import lstm_cell, to_int_list, shape_of
 from .tflite_flexbuffer import FlexBufferDecoder
 
 __all__ = ["from_tflite"]
