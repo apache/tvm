@@ -56,7 +56,7 @@ github:
       required_status_checks:
         contexts:
           # Require a passing run from Jenkins
-          - tvm-ci/pr-merge
+          - tvm-ci/pr-head
 
       required_pull_request_reviews:
         required_approving_review_count: 1

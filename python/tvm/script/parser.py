@@ -158,18 +158,21 @@ class TVMScriptParser(Transformer):
 
     # pylint gets confused here with synr.Transformer which doesn't have a
     # custom init, so just disable it
-    def __init__(self, base_lineno, tir_namespace):  # pylint: disable=super-init-not-called
+    def __init__(
+        self, base_lineno, tir_namespace, closure_vars
+    ):  # pylint: disable=super-init-not-called
         self.context = None
 
         self.base_lineno = base_lineno
         self.current_lineno = 0
         self.current_col_offset = 0
         self.tir_namespace = tir_namespace
+        self.closure_vars = closure_vars
         self.meta = None
 
     def init_function_parsing_env(self):
         """Initialize function parsing environment"""
-        self.context = ContextMaintainer(self.report_error)  # scope emitter
+        self.context = ContextMaintainer(self.report_error, self.closure_vars)  # scope emitter
 
     def init_meta(self, meta_dict):
         if meta_dict is not None:
@@ -709,7 +712,7 @@ class TVMScriptParser(Transformer):
         self.context.enter_scope(nodes=node.body.stmts)
         # for scope handler process the scope
         arg_list = [
-            tvm.runtime.convert(arg, span=node.rhs.span)
+            tvm.runtime.convert(arg, span=tvm_span_from_synr(node.rhs.span))
             for arg in self.parse_arg_list(func, node.rhs)
         ]
         func.enter_scope(node, self.context, arg_list, node.rhs.func_name.span)
@@ -1253,12 +1256,14 @@ def from_source(
     """
     if isinstance(input_func, str):
         tir_prefix = ["T", "tir"] if tir_prefix is None else tir_prefix
-        return to_ast(input_func, TVMDiagnosticCtx(), TVMScriptParser(0, tir_prefix))
+        return to_ast(input_func, TVMDiagnosticCtx(), TVMScriptParser(0, tir_prefix, {}))
     elif inspect.isfunction(input_func):
         _, start_line = inspect.getsourcelines(input_func)
         env: Dict[str, Any] = input_func.__globals__
         namespace = [key for key in env.keys() if env[key] is tir]
-        parser = TVMScriptParser(start_line, namespace)
+        _closure_vars = inspect.getclosurevars(input_func)
+        closure_vars = {**_closure_vars.nonlocals, **_closure_vars.globals}
+        parser = TVMScriptParser(start_line, namespace, closure_vars)
         result = to_ast(input_func, TVMDiagnosticCtx(), parser)
         return result
     else:
