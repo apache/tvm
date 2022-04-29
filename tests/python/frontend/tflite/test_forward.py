@@ -4694,6 +4694,36 @@ def test_forward_mobilenet_int16():
 
 
 #######################################################################
+# Unidirectional Sequence LSTM
+# ---------------------
+def test_unidirectional_sequence_lstm():
+    """Test the UnidirectionalSequenceLSTM TFLite"""
+    if package_version.parse(tf.VERSION) >= package_version.parse("2.1.0"):
+        tflite_model_file = download_testdata(
+            "https://github.com/SebastianBoblestETAS/nn_models/blob/ce49c5de64889493161ca4194a20e0fd5eb707e6/lstm_1_in_3_out_2_ts_4.tflite?raw=true",
+            "lstm_1_in_3_out_2_ts_4.tflite",
+        )
+        with open(tflite_model_file, "rb") as f:
+            tflite_model_buf = f.read()
+
+        data = np.array(
+            [
+                [
+                    [0.5488135, 0.71518934, 0.60276335],
+                    [0.5448832, 0.4236548, 0.6458941],
+                    [0.4375872, 0.891773, 0.96366274],
+                    [0.3834415, 0.79172504, 0.5288949],
+                ]
+            ],
+            dtype="float32",
+        )
+
+        tflite_output = run_tflite_graph(tflite_model_buf, data)
+        tvm_output = run_tvm_graph(tflite_model_buf, data, "serving_default_input_1:0")
+        tvm.testing.assert_allclose(tflite_output, tvm_output)
+
+
+#######################################################################
 # Quantized SSD Mobilenet
 # -----------------------
 
