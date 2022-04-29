@@ -52,7 +52,7 @@ PackedFunc AotExecutorFactory::GetFunction(
       }
       *rv = this->ExecutorCreate(devices);
     });
-  } else if (name == "module_list") {
+  } else if (name == "list_module_names") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       Array<String> names = {module_name_};
       *rv = names;

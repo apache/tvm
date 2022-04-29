@@ -152,17 +152,16 @@ def test_module_list():
         tvm.IRModule.from_expr(tvm.relay.Function([x], expr)),
         target="c",
         executor=tvm.relay.backend.Executor("aot", {"interface-api": "packed"}),
+        mod_name="unusual_module_name_fred",
     )
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"
     mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
     loaded_mod = tvm.runtime.load_module(test_so_path)
-    module_list = loaded_mod.get_function("module_list")
+    list_module_names = loaded_mod.get_function("list_module_names")
     # At the moment, relay produces a single module with the name "default".
-    names_expected = ["default"]
-    names_obtained = sorted(module_list())
-    assert len(names_obtained) == len(names_expected)
-    assert all([x == y for (x, y) in zip(names_obtained, names_expected)])
+    names_expected = ["unusual_module_name_fred"]
+    assert list(sorted(names_expected)) == list(sorted(list_module_names()))
 
 
 def test_create_executor():
