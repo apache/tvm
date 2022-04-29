@@ -598,13 +598,13 @@ endif()
 target_link_libraries(tvm PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
-if(BUILD_FOR_HEXAGON)
+if(BUILD_FOR_HEXAGON AND EXISTS ${USE_HEXAGON_GTEST})
   include(FetchContent)
-  FetchContent_Declare(googletest SOURCE_DIR "${USE_HEXAGON_SDK}/utils/googletest/gtest")
+  FetchContent_Declare(googletest SOURCE_DIR "${USE_HEXAGON_GTEST}")
   set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(googletest)
   target_link_libraries(tvm_runtime PUBLIC gtest)
-  include_directories("${USE_HEXAGON_SDK}/utils/googletest/gtest/include")
+  include_directories("${USE_HEXAGON_GTEST}/include")
 endif()
 
 # Set flags for clang
@@ -657,7 +657,7 @@ add_custom_target(runtime DEPENDS tvm_runtime)
 # Installation rules
 install(TARGETS tvm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
-if(BUILD_FOR_HEXAGON)
+if(BUILD_FOR_HEXAGON AND EXISTS ${USE_HEXAGON_GTEST})
   install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 endif()
 

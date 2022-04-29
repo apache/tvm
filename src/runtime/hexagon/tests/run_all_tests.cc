@@ -17,8 +17,6 @@
  * under the License.
  */
 
-#if defined(__hexagon__)
-
 #include <gtest/gtest.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -60,5 +58,3 @@ TVM_REGISTER_GLOBAL("hexagon.run_all_tests").set_body([](TVMArgs args, TVMRetVal
 }  // namespace hexagon
 }  // namespace runtime
 }  // namespace tvm
-
-#endif

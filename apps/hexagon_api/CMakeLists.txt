@@ -109,6 +109,7 @@ ExternalProject_Add(hexagon_tvm_runtime_rpc
     "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
     "-DUSE_ALTERNATIVE_LINKER=OFF"
     "-DUSE_CUSTOM_LOGGING=ON"
+    "-DUSE_HEXAGON_GTEST=${USE_HEXAGON_SDK}/utils/googletest/gtest"
   INSTALL_COMMAND ""
   BUILD_ALWAYS ON
 )

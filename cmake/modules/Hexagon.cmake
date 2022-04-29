@@ -128,9 +128,11 @@ else()
 endif()
 
 if(BUILD_FOR_HEXAGON)
-  file_glob_append(RUNTIME_HEXAGON_SRCS
-    "${TVMRT_SOURCE_DIR}/hexagon/tests/*.cc"
-  )
+  if(EXISTS ${USE_HEXAGON_GTEST})
+    file_glob_append(RUNTIME_HEXAGON_SRCS
+      "${TVMRT_SOURCE_DIR}/hexagon/tests/*.cc"
+    )
+  endif()
   get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
     SDK_INCLUDE   SDK_INCLUDE_DIRS
     QURT_INCLUDE  QURT_INCLUDE_DIRS
