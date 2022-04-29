@@ -108,29 +108,30 @@ bool Analyzer::CanProveEqual(const PrimExpr& lhs, const PrimExpr& rhs) {
 }
 
 bool Analyzer::CanProve(const PrimExpr& expr) {
+  // Avoid potentially expensive simplification unless required.
   if (const auto* ptr = expr.as<IntImmNode>()) {
     return ptr->value != 0;
   }
-  auto res = this->rewrite_simplify(expr);
-  if (const auto* ptr = res.as<IntImmNode>()) {
-    return ptr->value != 0;
-  }
-  res = this->canonical_simplify(expr);
-  if (const auto* ptr = res.as<IntImmNode>()) {
-    return ptr->value != 0;
-  }
-  return false;
+
+  PrimExpr simplified = Simplify(expr);
+  const int64_t* as_int = tir::as_const_int(simplified);
+  return as_int && *as_int;
 }
 
 PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
-  if (tir::is_const_int(expr)) return expr;
   PrimExpr res = expr;
+
   for (int i = 0; i < steps; ++i) {
-    res = this->rewrite_simplify(res);
-    if (tir::is_const_int(res) || ++i == steps) return res;
-    res = this->canonical_simplify(res);
-    if (tir::is_const_int(res)) return res;
+    if (tir::is_const_int(res)) {
+      return res;
+    }
+    if (i % 2 == 0) {
+      res = this->rewrite_simplify(res);
+    } else {
+      res = this->canonical_simplify(res);
+    }
   }
+
   return res;
 }
 
