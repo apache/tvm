@@ -3241,6 +3241,18 @@ def string_annotation_escaping():
     return string_annotation_of_special_chars
 
 
+def pointer_type():
+    @T.prim_func
+    def func_with_ptr_type_annotations(x: T.Ptr[T.int32], y: T.Ptr[T.int32, "shared"]):
+        xx = T.allocate([16], "int32", "global")
+        yy = T.allocate([16], "int32", "shared")
+        a: T.Ptr[T.int32] = T.address_of(xx[0], dtype="handle")
+        b: T.Ptr[T.int32, "shared"] = T.address_of(yy[0], dtype="handle")
+        T.evaluate(T.call_extern("copy", a, b, dtype=""))
+
+    return func_with_ptr_type_annotations
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3275,6 +3287,7 @@ ir_generator = tvm.testing.parameter(
     parse_bufferslice_as_range_bound,
     int64_support,
     string_annotation_escaping,
+    pointer_type,
 )
 
 

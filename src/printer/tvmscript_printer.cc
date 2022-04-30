@@ -1229,10 +1229,11 @@ Doc TVMScriptPrinter::VisitType_(const PrimTypeNode* node) {
 Doc TVMScriptPrinter::VisitType_(const PointerTypeNode* node) {
   Doc doc;
   doc << tir_prefix_ << ".Ptr[";
+  doc << Print(node->element_type);
   if (!node->storage_scope.empty()) {
-    doc << node->storage_scope << " ";
+    doc << ", " << Doc::StrLiteral(node->storage_scope);
   }
-  doc << Print(node->element_type) << "]";
+  doc << "]";
   return doc;
 }
 
