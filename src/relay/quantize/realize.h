@@ -33,9 +33,6 @@ namespace tvm {
 namespace relay {
 namespace quantize {
 
-class QRealizeExpr;
-class QRealizeIntExpr;
-
 class QRealizeExprNode : public TempExprNode {
  public:
   Expr data;
