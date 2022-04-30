@@ -395,7 +395,7 @@ def concatenate_shape_func(attrs, inputs, _):
 
 
 @script
-def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
+def _reshape_shape_func_input_shape(data_shape, newshape, ndim, allowzero):
     out = output_tensor((ndim,), "int64")
     src_idx = 0
     dst_idx = 0
@@ -410,7 +410,10 @@ def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
             src_idx += 1
             dst_idx += 1
         elif newshape[i] == 0:
-            out[dst_idx] = data_shape[src_idx]
+            if allowzero:
+                out[dst_idx] = int64(newshape[i])
+            else:
+                out[dst_idx] = data_shape[src_idx]
             src_idx += 1
             dst_idx += 1
         elif newshape[i] == -1:
@@ -466,7 +469,12 @@ def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
 @_reg.register_shape_func("reshape", False)
 def reshape_shape_func(attrs, inputs, out_ndims):
     newshape = get_const_tuple(attrs.newshape)
-    return [_reshape_shape_func_input_shape(inputs[0], convert(newshape), out_ndims[0])]
+    allowzero = attrs.allowzero
+    return [
+        _reshape_shape_func_input_shape(
+            inputs[0], convert(newshape), out_ndims[0], convert(allowzero)
+        )
+    ]
 
 
 @script

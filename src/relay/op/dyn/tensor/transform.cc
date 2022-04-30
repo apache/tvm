@@ -89,8 +89,9 @@ Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& in
   return {topi::reshape(inputs[0], newshape)};
 }
 
-Expr MakeReshape(Expr data, Expr newshape) {
+Expr MakeReshape(Expr data, Expr newshape, bool allowzero = false) {
   auto attrs = make_object<ReshapeAttrs>();
+  attrs->allowzero = allowzero;
   static const Op& op = Op::Get("dyn.reshape");
   return Call(op, {data, newshape}, Attrs(attrs), {});
 }
