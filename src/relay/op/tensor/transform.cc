@@ -622,6 +622,8 @@ Array<IndexExpr> InferNewShape(const Array<IndexExpr>& data_shape, const Attrs& 
     newshape = param->newshape;
   }
 
+  bool allowzero = param->allowzero;
+
   std::unordered_set<size_t> used_input_dims;
   std::unordered_set<size_t> used_output_dims;
   size_t src_idx = 0;
@@ -634,11 +636,17 @@ Array<IndexExpr> InferNewShape(const Array<IndexExpr>& data_shape, const Attrs& 
       oshape.push_back(newshape[i]);
       ++src_idx;
     } else if (svalue == 0) {
-      // keep same
-      ICHECK_LT(src_idx, ishape.size());
-      used_input_dims.insert(src_idx);
-      used_output_dims.insert(oshape.size());
-      oshape.push_back(ishape[src_idx++]);
+      if (allowzero) {
+        // 0 means empty tensor, thus default behavior
+        oshape.push_back(newshape[i]);
+        ++src_idx;
+      } else {
+        // 0 means to copy at equivilant position in data tensor
+        ICHECK_LT(src_idx, ishape.size());
+        used_input_dims.insert(src_idx);
+        used_output_dims.insert(oshape.size());
+        oshape.push_back(ishape[src_idx++]);
+      }
     } else if (svalue == -1) {
       // inference based on rest
       ICHECK_LT(infer_idx, 0) << "One and only one dim can be inferred";
@@ -908,9 +916,10 @@ Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& in
   return {topi::reshape(inputs[0], newshape)};
 }
 
-Expr MakeReshape(Expr data, Array<Integer> newshape) {
+Expr MakeReshape(Expr data, Array<Integer> newshape, bool allowzero) {
   auto attrs = make_object<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
+  attrs->allowzero = allowzero;
   static const Op& op = Op::Get("reshape");
   return Call(op, {data}, Attrs(attrs), {});
 }
