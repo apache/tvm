@@ -21,7 +21,7 @@
  *
  * \file realize.h
  *
- * \brief Header of definitions for realizations
+ * \brief Header of definitions for op realizations
  *
  */
 #ifndef TVM_RELAY_QUANTIZE_REALIZE_H_
