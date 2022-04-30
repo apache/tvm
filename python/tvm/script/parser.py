@@ -1190,10 +1190,14 @@ class TVMScriptParser(Transformer):
             )
 
         param_types = []
-        for param in node.params:
+        for idx, param in enumerate(node.params):
             param_type = self.transform(param)
-            if not isinstance(param_type, ty.TypeGeneric):
-                self.report_error(f"Expected a type but found {type(param).__name__}", param.span)
+            if not isinstance(param_type, ty.TypeGeneric) and func.require_type_generic_at(idx):
+                self.report_error(
+                    f"Expected a type but found {type(param).__name__} "
+                    f"at {idx}th type argument",
+                    param.span,
+                )
 
             param_types.append(param_type)
 
