@@ -607,7 +607,7 @@ def matmul_fp16(n: int, m: int, k: int) -> Tuple[te.Tensor, te.Tensor, te.Tensor
 
 def matmul_relu(n: int, m: int, k: int) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
     a = te.placeholder((n, k), name="A")
-    b = te.placeholder((m, k), name="B")
+    b = te.placeholder((k, m), name="B")
     k = te.reduce_axis((0, k), name="k")
     c = te.compute(
         (n, m),

@@ -17,13 +17,20 @@
 """Codegen for Arm(R) Ethos(TM)-U NPU"""
 from collections import defaultdict
 
+from typing import List, Callable
 import tvm
 from tvm import relay
 from tvm.relay.backend.contrib.ethosu.tir.compiler import LowerToTIR
 from tvm.relay.backend.contrib.ethosu.tir.scheduler import copy_constants
+from tvm.contrib.ethosu.cascader import (
+    cascade,
+    EthosuDeviceConfig,
+    CascaderOptions,
+    MemoryRegion,
+    extract_memory_info,
+)
 from tvm.relay.backend.contrib.ethosu.legalize import LegalizeEthosU
-from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator
-from tvm.relay.backend.contrib.ethosu import util
+from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator, util
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 # pylint: disable=unused-import
@@ -328,6 +335,49 @@ def constant_updater(expr, symbol):  # pylint: disable=unused-argument
     return dict()
 
 
+def _create_cascader(
+    options: CascaderOptions,
+    io_region: MemoryRegion,
+    constant_region: MemoryRegion,
+    working_regions: List[MemoryRegion],
+    device_config: EthosuDeviceConfig,
+) -> Callable:
+    def _cascader(te_graph, const_dict, sch):
+        cascade(
+            sch,
+            te_graph,
+            const_dict,
+            options,
+            io_region,
+            constant_region,
+            working_regions,
+            device_config,
+        )
+
+    return _cascader
+
+
+def _ethos_u55_cascader(sram) -> Callable:
+    # TODO(ekalda): Extract the flash info from ConstantPools once it is implemented
+    flash = MemoryRegion(name="FLASH", size=10**7, read_bandwidth=4, write_bandwidth=4)
+
+    device_config = EthosuDeviceConfig(util.get_accelerator_config())
+    cascader_options = CascaderOptions(
+        cascade_region=sram,
+        max_proposals=64,
+        stripe_factors=5,
+        max_plan_size=10,
+        always_copy_size=1024,
+    )
+    return _create_cascader(
+        options=cascader_options,
+        io_region=sram,
+        constant_region=flash,
+        working_regions=[sram],
+        device_config=device_config,
+    )
+
+
 @tvm._ffi.register_func("relay.ext.ethos-u.relay_to_tir")
 def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
     """
@@ -357,13 +407,29 @@ def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
     }
     mod = mod.with_attr("device_contexts", device_contexts)
 
-    # We are currently using copy_constants scheduler In the long run,
-    # this should be a single intelligent and a composite scheduler
-    # that can perform scheduling based on user inputs such as
-    # scratch memory size.
-    mod = LowerToTIR(copy_constants)(mod)
+    # Use the cascader if it is enabled for the U55 accelerator, otherwise use copy_constants
+    # scheduler
+    if util.is_cascader_enabled():
+        assert (
+            util.get_accelerator_config() != "ethos-u65-256"
+        ), "Cascading is not supported for the U65 accelerator"
 
-    return mod
+        workspace_memory_pools = mod.attrs["workspace_memory_pools"]
+
+        assert (
+            workspace_memory_pools
+        ), "Workspace memory pool needs to be provided for the U55 cascader"
+
+        assert (
+            len(workspace_memory_pools.pools) == 1
+        ), "Exactly one workspace pool needs to be provided for the U55 cascader"
+
+        sram = extract_memory_info(workspace_memory_pools.pools[0])
+        tir_mod = LowerToTIR(_ethos_u55_cascader(sram))(mod)
+    else:
+        tir_mod = LowerToTIR(copy_constants())(mod)
+
+    return tir_mod
 
 
 @tvm._ffi.register_func("relay.ext.ethos-u.primfunc_to_artifact")

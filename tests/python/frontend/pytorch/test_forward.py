@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=import-self, invalid-name, unused-argument
 """Unit tests for various models and operators"""
+from contextlib import suppress
 import os
 import sys
 from time import time
@@ -4133,22 +4134,44 @@ def test_mv():
 
 
 def test_grid_sample():
-    class Grid_sample_zeros(Module):
+    class Grid_sample(Module):
+        def __init__(self, method, padding_mode, align_corners):
+            super().__init__()
+            self._method = method
+            self._padding_mode = padding_mode
+            self._align_corners = align_corners
+
         def forward(self, x, y):
             return torch.nn.functional.grid_sample(
-                input=x, grid=y, mode="bilinear", padding_mode="zeros", align_corners=True
+                input=x,
+                grid=y,
+                mode=self._method,
+                padding_mode=self._padding_mode,
+                align_corners=self._align_corners,
             )
 
-    class Grid_sample_border(Module):
-        def forward(self, x, y):
-            return torch.nn.functional.grid_sample(
-                input=x, grid=y, mode="bilinear", padding_mode="border", align_corners=True
-            )
+    methods = ["nearest", "bilinear", "bicubic"]
+    padding_modes = ["zeros", "border", "reflection"]
+    align_corners = [True, False]
 
-    data = torch.rand([4, 4, 16, 32]).float()
-    grid = torch.rand([4, 8, 8, 2]).float()
-    verify_model(Grid_sample_zeros(), input_data=[data, grid])
-    verify_model(Grid_sample_border(), input_data=[data, grid])
+    data_2D = torch.rand([4, 4, 8, 8]).float()
+    grid_2D = torch.rand([4, 16, 16, 2]).float()
+    data_3D = torch.rand([4, 4, 8, 8, 8]).float()
+    grid_3D = torch.rand([4, 16, 16, 16, 3]).float()
+
+    for _method in methods:
+        for _padding in padding_modes:
+            for _align in align_corners:
+                # ATTENTION:
+                #   "nearest" + "reflection" result may be different with pytorch on cpu device,
+                #   because pytorch's cpu result is different with gpu result,
+                #   and gpu result used here as baseline in tvm topi.image.grid_sample.
+                model = Grid_sample(_method, _padding, _align)
+                verify_model(model, input_data=[data_2D, grid_2D])
+
+                # 3D "bicubic"(tricubic) is not supported in pytorch
+                if _method != "bicubic":
+                    verify_model(model, input_data=[data_3D, grid_3D])
 
 
 def test_list_tuple():

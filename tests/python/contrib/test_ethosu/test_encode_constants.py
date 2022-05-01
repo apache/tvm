@@ -23,7 +23,7 @@ from tvm import relay
 from tvm.script import tir as T
 from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
-from tvm.relay.backend.contrib.ethosu.tir.scheduler import Convolution2DCompute
+from tvm.relay.backend.contrib.ethosu.tir.scheduler import OperatorCompute
 from tvm.relay.backend.contrib.ethosu.tir.scheduler import copy_constants
 from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator
 
@@ -73,10 +73,10 @@ def test_weight_stream_only():
         weights = cached_func.inputs[1]
         bias = cached_func.inputs[2]
         out = cached_func.outputs[0]
-        conv_compute = Convolution2DCompute.from_output(out)
+        conv_compute = OperatorCompute.from_output(out)
         co = conv_compute.split(sch, 3, 2)
-        cache_weights = sch.cache_read(weights, "global", [conv_compute.conv2d])
-        cache_bias = sch.cache_read(bias, "global", [conv_compute.conv2d])
+        cache_weights = sch.cache_read(weights, "global", [conv_compute.op])
+        cache_bias = sch.cache_read(bias, "global", [conv_compute.op])
         sch[cache_weights].compute_at(sch[out], co)
         sch[cache_bias].compute_at(sch[out], co)
 
@@ -123,10 +123,10 @@ class RereadWeights:
         placeholder_d_global = T.allocate([80], "uint8", "global", annotations={"disable_lower_builtin":True})
         T.evaluate(T.call_extern("ethosu_copy", buffer[0], 304, placeholder_global[0], dtype="handle"))
         T.evaluate(T.call_extern("ethosu_copy", buffer_1[0], 80, placeholder_d_global[0], dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 1, 8, 1, 1, 1, 1, 1, 1, placeholder_global[0], 304, 12, placeholder_d_global[0], 80, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 304, 12, placeholder_d_global[0], 80, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_copy", buffer[0], 304, placeholder_global[0], dtype="handle"))
         T.evaluate(T.call_extern("ethosu_copy", buffer_1[0], 80, placeholder_d_global[0], dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[256], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[64], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 1, 8, 1, 1, 1, 1, 1, 1, placeholder_global[0], 304, 12, placeholder_d_global[0], 80, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[256], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[64], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 304, 12, placeholder_d_global[0], 80, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
     __tvm_meta__ = None
 # fmt: on
 
@@ -136,10 +136,10 @@ def test_re_read_weights():
         weights = cached_func.inputs[1]
         bias = cached_func.inputs[2]
         out = cached_func.outputs[0]
-        conv_compute = Convolution2DCompute.from_output(out)
+        conv_compute = OperatorCompute.from_output(out)
         co = conv_compute.split(sch, 2, 8)
-        cache_weights = sch.cache_read(weights, "global", [conv_compute.conv2d])
-        cache_bias = sch.cache_read(bias, "global", [conv_compute.conv2d])
+        cache_weights = sch.cache_read(weights, "global", [conv_compute.op])
+        cache_bias = sch.cache_read(bias, "global", [conv_compute.op])
         sch[cache_weights].compute_at(sch[out], co)
         sch[cache_bias].compute_at(sch[out], co)
 
@@ -274,10 +274,10 @@ def test_mixed_read():
         weight = cached_func.inputs[4]
         scale_bias = cached_func.inputs[5]
         out = cached_func.outputs[0]
-        conv_compute = Convolution2DCompute.from_output(out)
+        conv_compute = OperatorCompute.from_output(out)
         co = conv_compute.split(sch, 3, 2)
-        cache_weight = sch.cache_read(weight, "global", [conv_compute.conv2d])
-        cache_scale_bias = sch.cache_read(scale_bias, "global", [conv_compute.conv2d])
+        cache_weight = sch.cache_read(weight, "global", [conv_compute.op])
+        cache_scale_bias = sch.cache_read(scale_bias, "global", [conv_compute.op])
         sch[cache_weight].compute_at(sch[out], co)
         sch[cache_scale_bias].compute_at(sch[out], co)
 

@@ -18,6 +18,7 @@
 
 from collections import OrderedDict
 import sys
+import re
 
 import numpy as np
 import pytest
@@ -278,6 +279,11 @@ def _get_workspace_size_define_macro(pool_name: str, model_name="default") -> st
     return prefix + pool_name.upper() + postfix
 
 
+def _add_module_prefix(suffix: str, model_name="default") -> str:
+    """A helper function create struct types"""
+    return "tvmgen_" + model_name + "_" + suffix
+
+
 @pytest.mark.parametrize(
     "model_url, usmp_algo",
     [
@@ -458,3 +464,173 @@ def test_tflite_model_u2_usecase_two_models_with_a_single_external_pool(model_ur
         runner=test_runner,
         interface_api=interface_api,
     )
+
+
+@pytest.mark.parametrize(
+    "model_url, usmp_algo",
+    [
+        (MOBILENET_V1_URL, "greedy_by_size"),
+    ],
+)
+def test_tflite_model_u4_usecase_single_external_pool(model_url, usmp_algo):
+    """This checks for inference with USMP using external pool placed in the application"""
+    pytest.importorskip("tflite")
+
+    import tvm.relay.testing.tf as tf_testing
+
+    use_unpacked_api = True
+    interface_api = "c"
+
+    pool_name = "my_memory_pool"
+    target = tvm.target.Target("c")
+    workspace_memory_pools = WorkspaceMemoryPools(
+        [PoolInfo(pool_name, {target: PoolInfo.READ_WRITE_ACCESS})]
+    )
+
+    tflite_model_file = tf_testing.get_workload_official(
+        model_url[0],
+        model_url[1],
+    )
+    mod, inputs, params = create_relay_module_and_inputs_from_tflite_file(tflite_model_file)
+    output_list = generate_ref_data(mod, inputs, params)
+
+    input_name, input_data = list(inputs.items())[0]
+    input_size_bytes = input_data.size * input_data.itemsize
+    test_runner = AOTTestRunner(
+        pass_config={
+            "tir.usmp.enable": True,
+            "tir.usmp.algorithm": usmp_algo,
+            "tir.usmp.use_workspace_io": True,
+        },
+        prologue=f"""
+        #include <string.h>
+        __attribute__((section(".data.tvm"), aligned(16)))
+        static uint8_t {pool_name}[{_get_workspace_size_define_macro(pool_name)}];
+        struct {_add_module_prefix("workspace_pools")} {_add_module_prefix("workspace_pools")} = {{
+            .{pool_name} = {pool_name}
+        }};
+        struct {_add_module_prefix("inputs")} {_add_module_prefix("inputs")} = {_add_module_prefix("map_inputs")}(&{_add_module_prefix("workspace_pools")});
+        memcpy({_add_module_prefix("inputs")}.{input_name}, tvmgen_default_input_data_input, {input_size_bytes});
+        struct {_add_module_prefix("outputs")} {_add_module_prefix("outputs")} = {_add_module_prefix("map_outputs")}(&{_add_module_prefix("workspace_pools")});
+        """,
+    )
+
+    compiled_test_mods = compile_models(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        interface_api=interface_api,
+        use_unpacked_api=use_unpacked_api,
+        pass_config=test_runner.pass_config,
+        workspace_memory_pools=workspace_memory_pools,
+        target=target,
+    )
+
+    for compiled_model in compiled_test_mods:
+        check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+
+    run_and_check(
+        models=compiled_test_mods,
+        runner=test_runner,
+        interface_api=interface_api,
+        use_workspace_io=True,
+    )
+
+
+@pytest.mark.parametrize(
+    "model_url, usmp_algo",
+    [
+        (MOBILENET_V1_URL, "greedy_by_size"),
+    ],
+)
+def test_tflite_model_u4_usecase_two_external_pools(model_url, usmp_algo):
+    """This checks for inference with USMP using external pool placed in the application"""
+    pytest.importorskip("tflite")
+
+    import tvm.relay.testing.tf as tf_testing
+
+    use_unpacked_api = True
+    interface_api = "c"
+
+    target = tvm.target.Target("c")
+    workspace_memory_pools = WorkspaceMemoryPools(
+        [
+            PoolInfo(
+                "my_memory_pool_1", {target: PoolInfo.READ_WRITE_ACCESS}, size_hint_bytes=2500000
+            ),
+            PoolInfo("my_memory_pool_2", {target: PoolInfo.READ_WRITE_ACCESS}),
+        ]
+    )
+
+    tflite_model_file = tf_testing.get_workload_official(
+        model_url[0],
+        model_url[1],
+    )
+    mod, inputs, params = create_relay_module_and_inputs_from_tflite_file(tflite_model_file)
+    output_list = generate_ref_data(mod, inputs, params)
+
+    input_name, input_data = list(inputs.items())[0]
+    input_size_bytes = input_data.size * input_data.itemsize
+    test_runner = AOTTestRunner(
+        pass_config={
+            "tir.usmp.enable": True,
+            "tir.usmp.algorithm": usmp_algo,
+            "tir.usmp.use_workspace_io": True,
+        },
+        prologue=f"""
+        #include <string.h>
+        __attribute__((section(".data.tvm"), aligned(16)))
+        static uint8_t my_memory_pool_1[{_get_workspace_size_define_macro("my_memory_pool_1")}];
+        __attribute__((section(".data.tvm"), aligned(16)))
+        static uint8_t my_memory_pool_2[{_get_workspace_size_define_macro("my_memory_pool_2")}];
+        struct {_add_module_prefix("workspace_pools")} {_add_module_prefix("workspace_pools")} = {{
+            .my_memory_pool_1 = my_memory_pool_1,
+            .my_memory_pool_2 = my_memory_pool_2,
+        }};
+        struct {_add_module_prefix("inputs")} {_add_module_prefix("inputs")} = {_add_module_prefix("map_inputs")}(&{_add_module_prefix("workspace_pools")});
+        memcpy({_add_module_prefix("inputs")}.{input_name}, tvmgen_default_input_data_input, {input_size_bytes});
+        struct {_add_module_prefix("outputs")} {_add_module_prefix("outputs")} = {_add_module_prefix("map_outputs")}(&{_add_module_prefix("workspace_pools")});
+        """,
+    )
+
+    compiled_test_mods = compile_models(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        interface_api=interface_api,
+        use_unpacked_api=use_unpacked_api,
+        pass_config=test_runner.pass_config,
+        workspace_memory_pools=workspace_memory_pools,
+        target=target,
+    )
+
+    for compiled_model in compiled_test_mods:
+        check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+
+    run_and_check(
+        models=compiled_test_mods,
+        runner=test_runner,
+        interface_api=interface_api,
+        use_workspace_io=True,
+    )
+
+
+def test_u4_usecase_incompatible_interface_api_errors():
+    mod, params = tvm.relay.testing.synthetic.get_workload()
+    target = "c"
+    runtime = Runtime("crt")
+    executor = Executor(
+        "aot",
+        {
+            "interface-api": "packed",
+        },
+    )
+
+    with pytest.raises(
+        tvm.TVMError,
+        match=re.escape(
+            "tir.usmp.use_workspace_io option is only compatible with interface_api c.\n"
+            "Please use interface_api c to be able to enable tir.usmp.use_workspace_io"
+        ),
+    ):
+        with tvm.transform.PassContext(
+            opt_level=3,
+            config={"tir.usmp.enable": True, "tir.usmp.use_workspace_io": True},
+        ):
+            tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)

@@ -30,12 +30,8 @@ class IntSetChecker:
         def err_msg():
             return "\ndata={}\ndmap={}\nres={}\nexpected={}".format(data, dmap, res, expected)
 
-        def equal(x, y):
-            res = self.analyzer.simplify(x - y)
-            return tvm.tir.analysis.expr_deep_equal(res, 0)
-
-        assert equal(res.min_value, expected[0]), err_msg()
-        assert equal(res.max_value, expected[1]), err_msg()
+        assert self.analyzer.can_prove_equal(res.min_value, expected[0]), err_msg()
+        assert self.analyzer.can_prove_equal(res.max_value, expected[1]), err_msg()
 
 
 def test_basic():

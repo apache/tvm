@@ -739,6 +739,61 @@ TVM_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
       }
     });
 
+PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, int min_repeat_ms,
+                             PackedFunc f_preproc) {
+  ICHECK(pf != nullptr);
+
+  if (static_cast<int>(dev.device_type) == static_cast<int>(kDLMicroDev)) {
+    auto get_micro_time_evaluator = runtime::Registry::Get("micro._GetMicroTimeEvaluator");
+    ICHECK(get_micro_time_evaluator != nullptr) << "micro backend not enabled";
+    return (*get_micro_time_evaluator)(pf, dev, number, repeat);
+  }
+
+  auto ftimer = [pf, dev, number, repeat, min_repeat_ms, f_preproc](TVMArgs args,
+                                                                    TVMRetValue* rv) mutable {
+    TVMRetValue temp;
+    std::ostringstream os;
+    // skip first time call, to activate lazy compilation components.
+    pf.CallPacked(args, &temp);
+
+    DeviceAPI::Get(dev)->StreamSync(dev, nullptr);
+
+    for (int i = 0; i < repeat; ++i) {
+      if (f_preproc != nullptr) {
+        f_preproc.CallPacked(args, &temp);
+      }
+      double duration_ms = 0.0;
+
+      do {
+        if (duration_ms > 0.0) {
+          number = static_cast<int>(std::max((min_repeat_ms / (duration_ms / number) + 1),
+                                             number * 1.618));  // 1.618 is chosen by random
+        }
+
+        Timer t = Timer::Start(dev);
+        // start timing
+        for (int i = 0; i < number; ++i) {
+          pf.CallPacked(args, &temp);
+        }
+        t->Stop();
+        int64_t t_nanos = t->SyncAndGetElapsedNanos();
+        duration_ms = t_nanos / 1e6;
+      } while (duration_ms < min_repeat_ms);
+
+      double speed = duration_ms / 1e3 / number;
+      os.write(reinterpret_cast<char*>(&speed), sizeof(speed));
+    }
+
+    std::string blob = os.str();
+    TVMByteArray arr;
+    arr.size = blob.length();
+    arr.data = blob.data();
+    // return the time.
+    *rv = arr;
+  };
+  return PackedFunc(ftimer);
+}
+
 }  // namespace profiling
 }  // namespace runtime
 }  // namespace tvm

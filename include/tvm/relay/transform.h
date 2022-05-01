@@ -494,6 +494,15 @@ TVM_DLL Pass ManifestLifetimes();
  */
 TVM_DLL Pass PlanDevices(CompilationConfig config);
 
+/*!
+ * \brief This transform flattens atrous convolution, which corresponds to the sequence of
+ * operations: "space_to_batch_nd"->"conv2d"->"batch_to_space_nd" and convert them into subgraphs
+ * with a convolution with the modified "dilation" and recalculated "padding" parameters.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass FlattenAtrousConv();
+
 }  // namespace transform
 
 /*!

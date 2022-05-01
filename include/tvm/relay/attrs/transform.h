@@ -118,9 +118,12 @@ struct TransposeAttrs : public tvm::AttrsNode<TransposeAttrs> {
 /*! \brief Attributes used in reshape operators */
 struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
   Array<Integer> newshape;
+  bool allowzero;
   TVM_DECLARE_ATTRS(ReshapeAttrs, "relay.attrs.ReshapeAttrs") {
     TVM_ATTR_FIELD(newshape).describe(
         "The new shape. Should be compatible with the original shape.");
+    TVM_ATTR_FIELD(allowzero).set_default(0).describe(
+        "Whether to honor the value of zero in newshape.");
   }
 };  // struct ReshapeAttrs
 

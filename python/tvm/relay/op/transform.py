@@ -224,7 +224,7 @@ def squeeze(data, axis=None):
     return _make.squeeze(data, axis)
 
 
-def reshape(data, newshape):
+def reshape(data, newshape, allowzero=False):
     """Reshape the input array.
 
     To give user more convenience in without doing manual shape inference,
@@ -237,6 +237,9 @@ def reshape(data, newshape):
 
             data.shape = (2,3,4), newshape = (4,0,2), result.shape = (4,3,2)
             data.shape = (2,3,4), newshape = (2,0,0), result.shape = (2,3,4)
+
+    Note: If the parameter allowzero is manually set to true, it specifies a
+    special case where 0 actually means a true empty tensor.
 
     ``-1`` infers the dimension of the output shape by using the remainder of
     the input dimensions keeping the size of the new array same as that of the input array.
@@ -282,6 +285,9 @@ def reshape(data, newshape):
     newshape : Union[int, Tuple[int], List[int]] or relay.Expr
         The new shape. Should be compatible with the original shape.
 
+    allowzero : Bool, optional
+        If true, then treat zero as true empty tensor rather than a copy instruction.
+
     Returns
     -------
     result : relay.Expr
@@ -290,7 +296,7 @@ def reshape(data, newshape):
     if isinstance(newshape, Constant):
         newshape = list(newshape.data.numpy())
     if isinstance(newshape, Expr):
-        return _dyn_make.reshape(data, newshape)
+        return _dyn_make.reshape(data, newshape, allowzero)
     if isinstance(newshape, int):
         newshape = [newshape]
     if isinstance(newshape, (tuple, list)):
@@ -304,7 +310,7 @@ def reshape(data, newshape):
                 except ValueError as err:
                     raise RuntimeError("Unrecognized shape type: %s" % err)
         newshape = tempshape
-    return _make.reshape(data, list(newshape))
+    return _make.reshape(data, list(newshape), allowzero)
 
 
 def argwhere(condition):

@@ -182,8 +182,13 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         assert self._workspace
         self._copy_to_remote(local_path, os.path.join(str(self._workspace), remote_filename))
 
-    def start_session(self) -> Session:
+    def start_session(self, session_name: str = "hexagon-rpc") -> Session:
         """Connect to the RPC server.
+
+        Parameters
+        ----------
+        session_name : str
+            RPC session name.
 
         Returns
         -------
@@ -197,7 +202,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
             "timeout": 0,
             "key": self._device_key,
         }
-        return Session(self, hexagon_remote_kw)
+        return Session(self, hexagon_remote_kw, session_name=session_name)
 
     def load_module(self, module: Union[str, pathlib.Path, tvm.runtime.Module], session: Session):
         """Load TVM module.
@@ -251,6 +256,35 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         """
         graph_mod = self.load_module(module_name, session)
         return tvm.contrib.graph_executor.create(graph_json, graph_mod, session.device)
+
+    def get_graph_debug_executor(
+        self,
+        graph_json: str,
+        module_name: Union[str, pathlib.Path],
+        session: Session,
+        dump_root: Union[str, pathlib.Path] = None,
+    ):
+        """Create a local GraphModuleDebug which consumes a remote libmod.
+
+        Parameters
+        ----------
+        graph_json : str
+            The string with the graph JSON.
+        module_name : str or pathlib.Path
+            Remote module filename. Same restrictions apply as in load_module().
+        session : Session
+            Remote session. The session must be established (via __enter__)
+            prior to calling this function.
+
+        Returns
+        -------
+        GraphModuleDebug :
+            Runtime debug graph module that can be used to debug the graph.
+        """
+        graph_mod = self.load_module(module_name, session)
+        return tvm.contrib.debugger.debug_executor.create(
+            graph_json, graph_mod, session.device, dump_root=str(dump_root)
+        )
 
     def get_aot_executor(self, module_name: Union[str, pathlib.Path], session: Session):
         """Create a local AoTModule which consumes a remote libmod.
