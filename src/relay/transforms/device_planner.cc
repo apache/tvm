@@ -22,9 +22,6 @@
  * \brief Determines a unique \p VirtualDevice to hold the result of every Relay sub-expression.
  * This pass can be run multiple times, and can be run both before and after lowering.
  *
- * TODO(mbs): Rename VirtualDevice |-> VirtualDevice, and use 'virtual device' (or just 'device')
- * throughout.
- *
  * We say a Relay expression E is 'on device D' if the result of executing E is stored on D.
  * We represent D by an \p VirtualDevice, which means we can track anywhere from an arbitrary device
  * of some \p DLDeviceType to a specific memory scope on a specific (virtual) \p Device who's
@@ -423,7 +420,7 @@ class RewriteOnDevices : public ExprMutator {
  * \endcode
  * we discover \p %b must be on device \p d.
  */
-class DeviceAnalyzer : public ExprVisitor {
+class DeviceAnalyzer : public MixedModeVisitor {
  public:
   DeviceAnalyzer(IRModule mod, CompilationConfig config)
       : mod_(std::move(mod)), domains_(std::make_unique<DeviceDomains>(std::move(config))) {}
@@ -504,7 +501,6 @@ class DeviceAnalyzer : public ExprVisitor {
     args_and_result_domains.reserve(vanilla_call->args.size() + 1);
     for (const auto& arg : vanilla_call->args) {
       args_and_result_domains.emplace_back(domains_->DomainFor(arg));
-      VisitExpr(arg);
     }
     args_and_result_domains.emplace_back(domains_->DomainFor(call));
     auto implied_domain =
@@ -587,15 +583,14 @@ class DeviceAnalyzer : public ExprVisitor {
 
     // If the function already has VirtualDevice attributes then we can further constrain the
     // function's domain to match them.
-    if (!GetFunctionResultVirtualDevice(function_node)->IsFullyUnconstrained()) {
+    if (!function_node->virtual_device()->IsFullyUnconstrained()) {
       std::vector<DeviceDomainPtr> args_and_result;
-      for (size_t i = 0; i < function_node->params.size(); ++i) {
+      for (auto param : function_node->params) {
         args_and_result.emplace_back(
-            domains_->ForVirtualDevice(function_node->params[i]->checked_type(),
-                                       GetFunctionParamVirtualDevice(function_node, i)));
+            domains_->ForVirtualDevice(param->checked_type(), param->virtual_device()));
       }
-      args_and_result.emplace_back(domains_->ForVirtualDevice(
-          function_node->body->checked_type(), GetFunctionResultVirtualDevice(function_node)));
+      args_and_result.emplace_back(domains_->ForVirtualDevice(function_node->body->checked_type(),
+                                                              function_node->virtual_device()));
       auto annotation_domain = domains_->MakeHigherOrderDomain(std::move(args_and_result));
       if (domains_->UnifyOrNull(func_domain, annotation_domain) == nullptr) {  // higher-order
         // TODO(mbs): Proper diagnostics.
@@ -625,7 +620,6 @@ class DeviceAnalyzer : public ExprVisitor {
     for (size_t i = 0; i < tuple->fields.size(); i++) {
       auto domain = domains_->DomainFor(tuple->fields[i]);  // may be higher-order
       domains_->UnifyExprCollapsed(tuple, domain);          // collapse to first-order if needed
-      VisitExpr(tuple->fields[i]);
     }
   }
 
@@ -634,7 +628,6 @@ class DeviceAnalyzer : public ExprVisitor {
     auto domain = domains_->DomainFor(tuple_get_item);  // may be higher-order
     domains_->UnifyExprCollapsed(tuple_get_item_node->tuple,
                                  domain);  // collapse to first-order if needed
-    VisitExpr(tuple_get_item_node->tuple);
   }
 
   class DevicePatternAnalyzer : public PatternVisitor {
@@ -883,7 +876,6 @@ class DeviceDefaulter : public ExprVisitor {
 };
 
 /* =============== Phase 3 =============== */
-
 /*!
  * \brief Inserts missing "device_copy" CallNodes, and ensures the device type of every
  * sub-expression in a module can be easily recovered by a later transformation using simple
@@ -892,8 +884,9 @@ class DeviceDefaulter : public ExprVisitor {
  * - Discard any existing "on_device" CallNodes since their job is done. Similarly, discard
  *   any existing "device_copy" CallNodes which are no-ops.
  *
- * - Functions are given "param_virtual_devices" and "result_virtual_device" attributes to capture
- *   the device type for its parameters and result.
+ * - The result virtual device for a function is stored in the function's virtual_device_ field
+ *   and the virtual devices of the function's parameters are stored in the parameter's
+ *   virtual_device_ field.
  *
  * - Additional "device_copy" CallNodes are inserted wherever there's a transition between
  *   storage device types. Since the DeviceAnalyzer phase succeeded this can only happen
@@ -1009,14 +1002,25 @@ class DeviceCapturer : public ExprMutator {
     ICHECK_EQ(func_domain->function_arity(), function_node->params.size());
     VirtualDevice result_virtual_device = domains_->ResultVirtualDevice(func_domain);
     ICHECK(!result_virtual_device->IsFullyUnconstrained());
-    Array<VirtualDevice> param_virtual_devices;
-    param_virtual_devices.reserve(function_node->params.size());
+
+    // Map the function parameters to a new variable annotated with a virtual device so
+    // we can substitute them later.
+    Map<Var, Expr> annotated_bind_map;
+    Array<Var> annotated_params;
+    annotated_params.reserve(function_node->params.size());
     for (size_t i = 0; i < function_node->params.size(); ++i) {
       VirtualDevice param_virtual_device =
           domains_->ResultVirtualDevice(func_domain->function_param(i));
+      VLOG(4) << "Param: " << function_node->params[i];
+      Var annotated_var = WithFields(function_node->params[i], {}, {}, param_virtual_device);
+      VLOG(4) << "Annotated param: " << annotated_var;
+      VLOG(4) << "VirtualDevice: " << annotated_var->virtual_device();
       ICHECK(!param_virtual_device->IsFullyUnconstrained());
-      param_virtual_devices.push_back(param_virtual_device);
+      annotated_bind_map.Set(function_node->params[i], annotated_var);
+      annotated_params.push_back(annotated_var);
     }
+    // Eventually we probably want to bind before visiting, but for now this is causing an issue
+    // with the GetVirtualDevice utility, so leaving as is for now.
 
     // Rewrite the body. Note that the body may have begun with an "on_device" so
     // be prepared to insert a "device_copy".
@@ -1024,10 +1028,14 @@ class DeviceCapturer : public ExprMutator {
         /*lexical_virtual_device=*/result_virtual_device,
         /*expected_virtual_device=*/result_virtual_device,
         /*child_virtual_device=*/GetVirtualDevice(function_node->body), function_node->body);
-
+    VLOG(4) << "Visited body: " << body;
     Function func = WithFields(GetRef<Function>(function_node), function_node->params, body);
-    return FunctionOnDevice(func, std::move(param_virtual_devices),
-                            std::move(result_virtual_device));
+    VLOG(4) << "New function: " << func;
+    func = SubstituteBoundVars(func, annotated_bind_map);
+    VLOG(4) << "Func with bound params: " << func;
+    func->virtual_device_ = result_virtual_device;
+    VLOG(4) << "Func with bound params & result vid set: " << func;
+    return func;
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
@@ -1273,7 +1281,9 @@ class DeviceCapturer : public ExprMutator {
 /*! \brief Rewrite the "on_device" calls (and implicitly re-type-check). */
 tvm::transform::Pass Rewrite() {
   auto pass_func = [](Function f, IRModule m, transform::PassContext ctxt) {
-    return Downcast<Function>(RewriteOnDevices(std::move(m)).Mutate(f));
+    auto attrs = m->attrs;
+    auto r = Downcast<Function>(RewriteOnDevices(std::move(m)).Mutate(f));
+    return attrs.defined() ? WithAttrs(r, {attrs->dict}) : r;
   };
   return tvm::relay::transform::CreateFunctionPass(pass_func, 0, "PlanDevicesRewrite", {});
 }

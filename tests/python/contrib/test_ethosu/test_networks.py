@@ -14,55 +14,80 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument
+# pylint: disable=invalid-name, unused-argument, wrong-import-position
 import pytest
 
 pytest.importorskip("ethosu.vela")
-from tests.python.relay.aot.aot_test_utils import (
-    convert_to_relay,
-    generate_ref_data,
-)
+
 import numpy as np
 
-import tvm
-import tvm.micro as micro
-from tvm import relay
-from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
+from tvm.micro import model_library_format as mlf
 
-import tvm.relay.testing.tf as tf_testing
+from tests.python.relay.aot.aot_test_utils import convert_to_relay
 
 from . import infra
 
-ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32"]
+
+MOBILENET_V1_URL = (
+    "https://storage.googleapis.com/download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
+    "mobilenet_v1_1.0_224_quant.tflite",
+)
+
+MOBILENET_V2_URL = (
+    "https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz",
+    "mobilenet_v2_1.0_224_quant.tflite",
+)
 
 
-def test_forward_mobilenet_v1(accel_type="ethos-u55-256"):
-    """Test the Mobilenet V1 TF Lite model."""
+@pytest.mark.parametrize(
+    "accel_type, model_url, workspace_size",
+    [
+        ("ethos-u65-256", MOBILENET_V1_URL, 1423344),
+        ("ethos-u65-256", MOBILENET_V2_URL, 2185584),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1423344),
+        ("ethos-u55-256", MOBILENET_V2_URL, 2185584),
+        ("ethos-u55-128", MOBILENET_V2_URL, 2185584),
+        ("ethos-u55-64", MOBILENET_V2_URL, 2185584),
+        ("ethos-u55-32", MOBILENET_V2_URL, 2185584),
+    ],
+)
+def test_networks_without_usmp(accel_type, model_url, workspace_size):
     np.random.seed(23)
-    tflite_model_file = tf_testing.get_workload_official(
-        "https://storage.googleapis.com/download.tensorflow.org/"
-        "models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
-        "mobilenet_v1_1.0_224_quant.tflite",
-    )
-    with open(tflite_model_file, "rb") as f:
-        tflite_model_buf = f.read()
-    input_tensor = "input"
-    input_dtype = "uint8"
-    input_shape = (1, 224, 224, 3)
-    in_min, in_max = util.get_range_for_dtype_str(input_dtype)
-    input_data = np.random.randint(in_min, high=in_max, size=input_shape, dtype=input_dtype)
-
-    relay_mod, params = convert_to_relay(tflite_model_buf, input_data, "input")
-    input_data = {input_tensor: input_data}
-    output_data = generate_ref_data(relay_mod, input_data)
-
-    mod = partition_for_ethosu(relay_mod, params)
+    tflite_model_buf = infra.get_tflite_model(model_url)
+    input_data, output_data = infra.generate_ref_data_tflite(tflite_model_buf)
+    mod, params = convert_to_relay(tflite_model_buf)
+    mod = partition_for_ethosu(mod, params)
     compiled_models = infra.build_source(
-        mod, input_data, output_data, accel_type, output_tolerance=10
+        mod, input_data, output_data, accel_type, enable_usmp=False
     )
-    infra.verify_source(compiled_models, accel_type)
+    mlf_memory_map = mlf._build_function_memory_map(
+        compiled_models[0].executor_factory.function_metadata
+    )
+    assert mlf_memory_map["main"][0]["workspace_size_bytes"] == workspace_size
+    infra.verify_source(compiled_models, accel_type, enable_usmp=False)
+
+
+@pytest.mark.parametrize(
+    "accel_type, model_url, workspace_size",
+    [
+        ("ethos-u65-256", MOBILENET_V1_URL, 1205872),
+        ("ethos-u55-256", MOBILENET_V2_URL, 1507152),
+    ],
+)
+def test_networks_with_usmp(accel_type, model_url, workspace_size):
+    np.random.seed(23)
+    tflite_model_buf = infra.get_tflite_model(model_url)
+    input_data, output_data = infra.generate_ref_data_tflite(tflite_model_buf)
+    mod, params = convert_to_relay(tflite_model_buf)
+    mod = partition_for_ethosu(mod, params)
+    compiled_models = infra.build_source(mod, input_data, output_data, accel_type, enable_usmp=True)
+    allocated_pool_info = list(
+        dict(compiled_models[0].executor_factory.executor_codegen_metadata.pool_inputs).values()
+    )[0]
+    assert allocated_pool_info.allocated_size == workspace_size
+    infra.verify_source(compiled_models, accel_type, enable_usmp=True)
 
 
 if __name__ == "__main__":
-    test_forward_mobilenet_v1()
+    pytest.main([__file__])

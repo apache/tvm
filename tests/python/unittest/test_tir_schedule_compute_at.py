@@ -37,7 +37,6 @@ def two_elementwise(a: T.handle, c: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-
         with T.block("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
@@ -628,6 +627,7 @@ def factorized_after_reverse_compute_at(a: T.handle, b: T.handle) -> None:
                         B[vi] = 0.0
                     B[vi] = B[vi] + B_rf_local[vk, vi]
 
+
 @T.prim_func
 def not_all_compact_data_flow(a: T.handle, c: T.handle):
     A = T.match_buffer(a, (128, 128), "float32")
@@ -644,6 +644,7 @@ def not_all_compact_data_flow(a: T.handle, c: T.handle):
         with T.block("C_2"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj * 2 + 1] = B[vi, vj * 2 + 1] * 2.0
+
 
 @T.prim_func
 def not_all_compact_data_flow_after_compute_at(a: T.handle, c: T.handle):
@@ -662,6 +663,7 @@ def not_all_compact_data_flow_after_compute_at(a: T.handle, c: T.handle):
         with T.block("C_2"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj * 2 + 1] = B[vi, vj * 2 + 1] * 2.0
+
 
 @T.prim_func
 def fail_subtree_compact_dataflow(a: T.handle, c: T.handle) -> None:
@@ -747,9 +749,10 @@ def read_out_of_bound_after_compute_at(a: T.handle, c: T.handle) -> None:
     B = T.alloc_buffer([16], "float32")
     C = T.match_buffer(c, [16], "float32")
     for j in T.serial(0, 16):
-        for i in T.serial(0, T.min(1, 15 - j) + 1):
+        for i in T.serial(0, 2):
             with T.block("B"):
                 v = T.axis.S(16, j + i)
+                T.where(j + i < 16)
                 B[v] = A[v]
         with T.block("C"):
             v = T.axis.S(16, j)
@@ -757,6 +760,263 @@ def read_out_of_bound_after_compute_at(a: T.handle, c: T.handle) -> None:
             C[v] = T.if_then_else(v < 15, T.max(B[v], B[v + 1]), B[v], dtype="float32")
 
 
+@T.prim_func
+def multi_reduction(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(), "float32"]):
+    B = T.alloc_buffer((16, ), dtype="float32")
+    for i, k in T.grid(16, 16):
+        with T.block("B"):
+            vi, vk = T.axis.remap("SR", [i, k])
+            with T.init():
+                B[vi] = 0.0
+            B[vi] += A[vi, vk]
+    for k in T.grid(16):
+        with T.block("C"):
+            vk = T.axis.remap("R", [k])
+            with T.init():
+                C[()] = 0.0
+            C[()] += B[vk]
+
+
+@T.prim_func
+def multi_reduction_after_compute_at(
+    A: T.Buffer[(16, 16), "float32"],
+    C:T.Buffer[(), "float32"],
+):
+    B = T.alloc_buffer((16, ), dtype="float32")
+    for k in T.grid(16):
+        for kk in T.grid(16):
+            with T.block("B"):
+                vi, vk = T.axis.remap("SR", [k, kk])
+                with T.init():
+                    B[vi] = 0.0
+                B[vi] += A[vi, vk]
+        with T.block("C"):
+            vk = T.axis.remap("R", [k])
+            with T.init():
+                C[()] = 0.0
+            C[()] += B[vk]
+
+
+@T.prim_func
+def tiled_pooling_read_cache(a: T.handle, b: T.handle) -> None:
+    X = T.match_buffer(a, [224, 224], dtype="float32")
+    Y = T.match_buffer(b, [224, 224], dtype="float32")
+    cache = T.alloc_buffer([224, 224], dtype="float32")
+    for hh, ww in T.grid(224, 224):
+        with T.block("cache"):
+            h, w = T.axis.remap("SS", [hh, ww])
+            cache[h, w] = X[h, w]
+    for hh_0, ww_0, hh_1, ww_1, khh, kww in T.grid(28, 28, 8, 8, 3, 3):
+        with T.block("compute"):
+            h = T.axis.spatial(224, hh_0 * 8 + hh_1)
+            w = T.axis.spatial(224, ww_0 * 8 + ww_1)
+            kh, kw = T.axis.remap("RR", [khh, kww])
+            with T.init():
+                Y[h, w] = 0.0
+            Y[h, w] = T.max(Y[h, w], T.if_then_else(
+                T.likely(1 <= h + kh, dtype="bool") and \
+                T.likely(h + kh < 225, dtype="bool") and \
+                T.likely(1 <= w + kw, dtype="bool") and \
+                T.likely(w + kw < 225, dtype="bool"),
+                cache[h + kh - 1, w + kw - 1], 0.0, dtype="float32"))
+
+@T.prim_func
+def tiled_pooling_read_cache_after_compute_at(a: T.handle, b: T.handle) -> None:
+    X = T.match_buffer(a, [224, 224], dtype="float32")
+    Y = T.match_buffer(b, [224, 224], dtype="float32")
+    cache = T.alloc_buffer([224, 224], dtype="float32")
+    for hh_0, ww_0 in T.grid(28, 28):
+        for ax0, ax1 in T.grid(10, 10):
+            with T.block("cache"):
+                h = T.axis.spatial(224, hh_0 * 8 - 1 + ax0)
+                w = T.axis.spatial(224, ww_0 * 8 - 1 + ax1)
+                T.where(1 <= hh_0 * 8 + ax0 and hh_0 * 8 + ax0 < 225 and 1 <= ww_0 * 8 + ax1 and ww_0 * 8 + ax1 < 225)
+                cache[h, w] = X[h, w]
+        for hh_1, ww_1, khh, kww in T.grid(8, 8, 3, 3):
+            with T.block("compute"):
+                h = T.axis.spatial(224, hh_0 * 8 + hh_1)
+                w = T.axis.spatial(224, ww_0 * 8 + ww_1)
+                kh, kw = T.axis.remap("RR", [khh, kww])
+                with T.init():
+                    Y[h, w] = 0.0
+                Y[h, w] = T.max(Y[h, w], T.if_then_else(
+                    T.likely(1 <= h + kh, dtype="bool") and \
+                    T.likely(h + kh < 225, dtype="bool") and \
+                    T.likely(1 <= w + kw, dtype="bool") and \
+                    T.likely(w + kw < 225, dtype="bool"),
+                    cache[h + kh - 1, w + kw - 1], 0.0, dtype="float32"))
+
+@T.prim_func
+def non_uniform_tiled_conv(x: T.Buffer[(1, 3, 100, 100), "float32"],
+                           w: T.Buffer[(16, 3, 3, 3), "float32"],
+                           y: T.Buffer[(1, 16, 98, 98), "float32"]) -> None:
+    x_global = T.alloc_buffer([1, 3, 100, 100], dtype="float32")
+    for ax0, ax1, ax2, ax3 in T.grid(1, 3, 100, 100):
+        with T.block("cache"):
+            v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+            x_global[v0, v1, v2, v3] = x[v0, v1, v2, v3]
+    for h_o, w_o, n, c_o, h_i, w_i, c_i, kh, kw in T.grid(7, 7, 1, 16, 15, 15, 3, 3, 3):
+        with T.block("compute"):
+            nn = T.axis.spatial(1, 0)
+            cc = T.axis.spatial(16, c_o)
+            hh = T.axis.spatial(98, h_o * 15 + h_i)
+            ww = T.axis.spatial(98, w_o * 15 + w_i)
+            rc, rh, rw = T.axis.remap("RRR", [c_i, kh, kw])
+            T.where(h_o * 15 + h_i < 98 and w_o * 15 + w_i < 98)
+            with T.init():
+                y[nn, cc, hh, ww] = T.float32(0)
+            y[nn, cc, hh, ww] = y[nn, cc, hh, ww] + \
+                x_global[nn, cc // 16 * 3 + rc, hh + rh, ww + rw] * w[cc, rc, rh, rw]
+
+@T.prim_func
+def non_uniform_tiled_conv_after_compute_at(x: T.Buffer[(1, 3, 100, 100), "float32"],
+                                            w: T.Buffer[(16, 3, 3, 3), "float32"],
+                                            y: T.Buffer[(1, 16, 98, 98), "float32"]) -> None:
+    x_global = T.alloc_buffer([1, 3, 100, 100], dtype="float32")
+    for h_o, w_o in T.grid(7, 7):
+        for ax0, ax1, ax2 in T.grid(3, 17, 17):
+            with T.block("cache"):
+                v0 = T.axis.spatial(1, 0)
+                v1 = T.axis.spatial(3, ax0)
+                v2 = T.axis.spatial(100, h_o * 15 + ax1)
+                v3 = T.axis.spatial(100, w_o * 15 + ax2)
+                T.where(h_o * 15 + ax1 < 100 and w_o * 15 + ax2 < 100)
+                x_global[v0, v1, v2, v3] = x[v0, v1, v2, v3]
+        for n, c_o, h_i, w_i, c_i, kh, kw in T.grid(1, 16, 15, 15, 3, 3, 3):
+            with T.block("compute"):
+                nn = T.axis.spatial(1, 0)
+                cc = T.axis.spatial(16, c_o)
+                hh = T.axis.spatial(98, h_o * 15 + h_i)
+                ww = T.axis.spatial(98, w_o * 15 + w_i)
+                rc, rh, rw = T.axis.remap("RRR", [c_i, kh, kw])
+                T.where(h_o * 15 + h_i < 98 and w_o * 15 + w_i < 98)
+                with T.init():
+                    y[nn, cc, hh, ww] = T.float32(0)
+                y[nn, cc, hh, ww] = y[nn, cc, hh, ww] + \
+                    x_global[nn, cc // 16 * 3 + rc, hh + rh, ww + rw] * w[cc, rc, rh, rw]
+
+@T.prim_func
+def concat_two_elemwise(x: T.Buffer[(16,), "float32"],
+                        y: T.Buffer[(8,), "float32"],
+                        T_concat: T.Buffer[(24,), "float32"]) -> None:
+    T_add_1 = T.alloc_buffer([16], dtype="float32")
+    T_add_2 = T.alloc_buffer([8], dtype="float32")
+    for i in T.serial(16):
+        with T.block("T_add_1"):
+            ax = T.axis.spatial(16, i)
+            T_add_1[ax] = x[ax] + T.float32(1)
+    for i in T.serial(8):
+        with T.block("T_add_2"):
+            ax = T.axis.spatial(8, i)
+            T_add_2[ax] = y[ax] + T.float32(2)
+    for i in T.serial(24):
+        with T.block("T_concat"):
+            ax = T.axis.spatial(24, i)
+            T_concat[ax] = T.if_then_else(16 <= ax, T_add_2[ax - 16], T_add_1[ax], dtype="float32")
+
+@T.prim_func
+def concat_two_elemwise_after_compute_at(x: T.Buffer[(16,), "float32"],
+                                         y: T.Buffer[(8,), "float32"],
+                                         T_concat: T.Buffer[(24,), "float32"]) -> None:
+    T_add_1 = T.alloc_buffer([16], dtype="float32")
+    T_add_2 = T.alloc_buffer([8], dtype="float32")
+    for i in T.serial(24):
+        with T.block("T_add_1"):
+            ax = T.axis.spatial(16, i)
+            T.where(i < 16)
+            T_add_1[ax] = x[ax] + T.float32(1)
+        with T.block("T_add_2"):
+            ax = T.axis.spatial(8, i - 16)
+            T.where(16 <= i)
+            T_add_2[ax] = y[ax] + T.float32(2)
+        with T.block("T_concat"):
+            ax = T.axis.spatial(24, i)
+            T_concat[ax] = T.if_then_else(16 <= ax, T_add_2[ax - 16], T_add_1[ax], dtype="float32")
+
+@T.prim_func
+def floordiv_and_floormod_indices(a: T.handle, b: T.handle) -> None:
+    X = T.match_buffer(a, [16, 16])
+    Y = T.match_buffer(b, [256])
+    temp = T.alloc_buffer([16, 16])
+    for i, j in T.grid(16, 16):
+        with T.block("A"):
+            v_i, v_j = T.axis.remap("SS", [i, j])
+            temp[v_i, v_j] = X[v_j, v_i] + 1.0
+    for i in T.serial(0, 256):
+        with T.block("B"):
+            v_i = T.axis.remap("S", [i])
+            Y[v_i] = temp[v_i // 16, v_i % 16]
+
+@T.prim_func
+def floordiv_and_floormod_indices_after_reverse_compute_at(a: T.handle, b: T.handle) -> None:
+    X = T.match_buffer(a, [16, 16], dtype="float32")
+    Y = T.match_buffer(b, [256], dtype="float32")
+    temp = T.alloc_buffer([16, 16], dtype="float32")
+    for i in T.serial(0, 16):
+        for j in T.serial(0, 16):
+            with T.block("A"):
+                v_i, v_j = T.axis.remap("SS", [i, j])
+                temp[v_i, v_j] = X[v_j, v_i] + T.float32(1)
+        for ax0 in T.serial(0, 16):
+            with T.block("B"):
+                v_i = T.axis.spatial(256, i * 16 + ax0)
+                Y[v_i] = temp[v_i // 16, v_i % 16]
+
+
+@T.prim_func
+def tiled_repeat_op(x: T.Buffer[(4,), "float32"], T_repeat: T.Buffer[(64,), "float32"]) -> None:
+    T_add = T.alloc_buffer([4], dtype="float32")
+    for i0 in T.serial(4):
+        with T.block("T_add"):
+            ax0 = T.axis.spatial(4, i0)
+            T_add[ax0] = x[ax0] + 1.0
+    for i0_0, i0_1 in T.grid(8, 8):
+        with T.block("T_repeat"):
+            ax0 = T.axis.spatial(64, i0_0 * 8 + i0_1)
+            T_repeat[ax0] = T_add[ax0 // 16]
+
+@T.prim_func
+def tiled_repeat_op_after_compute_at(x: T.Buffer[(4,), "float32"], T_repeat: T.Buffer[(64,), "float32"]) -> None:
+    T_add = T.alloc_buffer([4], dtype="float32")
+    for i0_0 in T.serial(8):
+        with T.block("T_add"):
+            ax0 = T.axis.spatial(4, i0_0 // 2)
+            T_add[ax0] = x[ax0] + T.float32(1)
+        for i0_1 in T.serial(8):
+            with T.block("T_repeat"):
+                ax0 = T.axis.spatial(64, i0_0 * 8 + i0_1)
+                T_repeat[ax0] = T_add[ax0 // 16]
+
+@T.prim_func
+def static_bound(A: T.Buffer[(32, 1), "float32"], C: T.Buffer[(32, 1), "float32"]) -> None:
+    B = T.alloc_buffer((32, 1), "float32")
+    for i, j in T.grid(32, 1):
+        with T.block("B"):
+            vi = T.axis.spatial(32, i)
+            vj = T.axis.spatial(1, j)
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(32, 32):
+        with T.block("C"):
+            vi = T.axis.spatial(32, i)
+            vj = T.axis.spatial(1, j)
+            T.where(j < 1)
+            C[vi, vj] = B[vi, vj] + 1.0
+
+@T.prim_func
+def static_bound_after_compute_at(A: T.Buffer[(32, 1), "float32"], C: T.Buffer[(32, 1), "float32"]) -> None:
+    B = T.alloc_buffer((32, 1), "float32")
+    for i in range(32):
+        for ax0, ax1 in T.grid(1, 1):
+            with T.block("B"):
+                vi = T.axis.spatial(32, i + ax0)
+                vj = T.axis.spatial(1, ax1)
+                B[vi, vj] = A[vi, vj] * 2.0
+        for j in range(32):
+            with T.block("C"):
+                vi = T.axis.spatial(32, i)
+                vj = T.axis.spatial(1, j)
+                T.where(j < 1)
+                C[vi, vj] = B[vi, vj] + 1.0
 # pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 # fmt: on
 
@@ -833,6 +1093,53 @@ def test_compute_at_cuda_matmul_4():
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_4)
 
 
+def test_compute_at_reduction_block():
+    sch = tir.Schedule(multi_reduction, debug_mask="all")
+    block = sch.get_block("B")
+    (loop,) = sch.get_loops(sch.get_block("C"))
+    sch.compute_at(block, loop, preserve_unit_loops=False)
+    tvm.ir.assert_structural_equal(multi_reduction_after_compute_at, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=multi_reduction)
+
+
+def test_compute_at_tiled_pooling_read_cache():
+    sch = tir.Schedule(tiled_pooling_read_cache, debug_mask="all")
+    compute = sch.get_block("compute")
+    _, w_o, _, _, _, _ = sch.get_loops(compute)
+    cache = sch.get_block("cache")
+    sch.compute_at(cache, w_o)
+    tvm.ir.assert_structural_equal(tiled_pooling_read_cache_after_compute_at, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=tiled_pooling_read_cache)
+
+
+def test_compute_at_non_uniform_tiled_conv():
+    sch = tir.Schedule(non_uniform_tiled_conv, debug_mask="all")
+    compute = sch.get_block("compute")
+    sch.compute_at(sch.get_block("cache"), sch.get_loops(compute)[1])
+    tvm.ir.assert_structural_equal(non_uniform_tiled_conv_after_compute_at, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=non_uniform_tiled_conv)
+
+
+def test_compute_at_concat():
+    sch = tir.Schedule(concat_two_elemwise, debug_mask="all")
+    concat = sch.get_block("T_concat")
+    add1 = sch.get_block("T_add_1")
+    add2 = sch.get_block("T_add_2")
+    axis = sch.get_loops(concat)[0]
+    sch.compute_at(add1, axis)
+    sch.compute_at(add2, axis)
+    tvm.ir.assert_structural_equal(concat_two_elemwise_after_compute_at, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=concat_two_elemwise)
+
+
+def test_compute_at_tiled_repeat_op():
+    sch = tir.Schedule(tiled_repeat_op, debug_mask="all")
+    outer_ax, _ = sch.get_loops(sch.get_block("T_repeat"))
+    sch.compute_at(sch.get_block("T_add"), outer_ax)
+    tvm.ir.assert_structural_equal(tiled_repeat_op_after_compute_at, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=tiled_repeat_op)
+
+
 def test_reverse_compute_at_tiled():
     sch = tir.Schedule(tiled, debug_mask="all")
     block = sch.get_block("C")
@@ -860,6 +1167,17 @@ def test_reverse_compute_at_factorized():
     verify_trace_roundtrip(sch=sch, mod=factorized)
 
 
+def test_reverse_compute_at_floordiv_and_floormod_indices():
+    sch = tir.Schedule(floordiv_and_floormod_indices, debug_mask="all")
+    A = sch.get_block("A")
+    B = sch.get_block("B")
+    sch.reverse_compute_at(B, sch.get_loops(A)[0])
+    tvm.ir.assert_structural_equal(
+        floordiv_and_floormod_indices_after_reverse_compute_at, sch.mod["main"]
+    )
+    verify_trace_roundtrip(sch=sch, mod=floordiv_and_floormod_indices)
+
+
 def test_read_out_of_bound():
     sch = tir.Schedule(read_out_of_bound, debug_mask="all")
     block = sch.get_block("B")
@@ -878,11 +1196,20 @@ def test_compact_dataflow():
     verify_trace_roundtrip(sch=sch, mod=not_all_compact_data_flow)
 
 
-def test_fail_subtree_compact_dataflow():
+def test_compute_at_simplify_static_bound():
+    sch = tir.Schedule(static_bound, debug_mask="all")
+    block = sch.get_block("B")
+    loop, _ = sch.get_loops(sch.get_block("C"))
+    sch.compute_at(block, loop, preserve_unit_loops=True)
+    tvm.ir.assert_structural_equal(static_bound_after_compute_at, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=static_bound)
+
+
+def test_fail_subtree_complete_block():
     sch = tir.Schedule(fail_subtree_compact_dataflow, debug_mask="all")
     block = sch.get_block("B_0")
     loop, _ = sch.get_loops(sch.get_block("C"))
-    with pytest.raises(tvm.tir.ScheduleError, match="compact dataflow"):
+    with pytest.raises(tvm.tir.ScheduleError, match="complete block"):
         sch.compute_at(block, loop)
 
 

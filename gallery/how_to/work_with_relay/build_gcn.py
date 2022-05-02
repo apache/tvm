@@ -119,12 +119,6 @@ num_classes: int
     dimension of model output (Number of classes)
 """
 dataset = "cora"
-
-# Temporary disable running load_dataset(dataset) until the CI issue is resolved
-import sys
-
-sys.exit()
-
 g, data = load_dataset(dataset)
 
 num_layers = 1

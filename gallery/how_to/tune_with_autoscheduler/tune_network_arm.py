@@ -17,8 +17,8 @@
 """
 Auto-scheduling a Neural Network for ARM CPU
 =============================================
-**Author**: `Thierry Moreau <https://github.com/tmoreau89>_`, \
-            `Lianmin Zheng <https://github.com/merrymercy>_`, \
+**Author**: `Thierry Moreau <https://github.com/tmoreau89>`_, \
+            `Lianmin Zheng <https://github.com/merrymercy>`_, \
             `Chengfan Jia <https://github.com/jcf94/>`_
 
 Auto-tuning for specific devices and workloads is critical for getting the

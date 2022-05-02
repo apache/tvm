@@ -1278,12 +1278,12 @@ class TestScatterAdd:
     ],
 )
 def test_gather(target, dev, executor_kind, data, axis, indices, ref_res):
-    def verify_gather(data, axis, indices, ref_res, indices_dtype="int32"):
+    def verify_gather(data, axis, indices, ref_res):
         data = np.asarray(data, dtype="float32")
-        indices = np.asarray(indices, dtype=indices_dtype)
+        indices = np.asarray(indices, dtype="int32")
         ref_res = np.asarray(ref_res)
         d = relay.var("x", relay.TensorType(data.shape, "float32"))
-        i = relay.var("y", relay.TensorType(indices.shape, indices_dtype))
+        i = relay.var("y", relay.TensorType(indices.shape, "int32"))
         z = relay.gather(d, axis, i)
 
         func = relay.Function([d, i], z)
@@ -1292,9 +1292,6 @@ def test_gather(target, dev, executor_kind, data, axis, indices, ref_res):
             data, indices
         )
         tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
-
-    verify_gather(data, axis, indices, ref_res)
-    verify_gather(data, axis, indices, ref_res, indices_dtype="uint32")
 
     verify_gather(data, axis, indices, ref_res)
 
@@ -1825,6 +1822,7 @@ def test_adv_index(target, dev, executor_kind):
         tvm.testing.assert_allclose(op_res.numpy(), np_out, rtol=1e-5)
 
     verify_adv_index((10, 5), [(3, 4), (3, 1)])
+    verify_adv_index((10, 5), [(1, 4), (3, 1)])
     verify_adv_index(
         (10, 5),
         [

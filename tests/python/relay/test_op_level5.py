@@ -17,6 +17,7 @@
 """ Support level5 operator test cases.
 """
 import math
+import platform
 import sys
 
 import numpy as np
@@ -220,6 +221,10 @@ class TestCropAndResize:
     interpolate_method = tvm.testing.parameter("bilinear", "nearest_neighbor")
     layout = tvm.testing.parameter("NHWC", "NCHW")
 
+    @pytest.mark.skipif(
+        platform.machine() == "aarch64",
+        reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+    )
     def test_crop_and_resize(self, target, dev, executor_kind, layout, interpolate_method):
         target_kind = tvm.target.Target(target).kind.name
         if (
@@ -1392,20 +1397,43 @@ def test_affine_grid():
 
 @tvm.testing.uses_gpu
 def test_grid_sample():
-    def verify_grid_sample(data_shape, grid_shape):
+    def verify_grid_sample(
+        data_shape, grid_shape, method="bilinear", padding_mode="zeros", align_corners=True
+    ):
         dtype = "float32"
-        batch, channel, _, _ = data_shape
-        _, _, out_height, out_width = grid_shape
         data = relay.var("data", relay.ty.TensorType(data_shape, dtype))
         grid = relay.var("grid", relay.ty.TensorType(grid_shape, dtype))
-        y = relay.image.grid_sample(data, grid, method="bilinear", layout="NCHW")
+
+        if len(data_shape) == 4:
+            layout = "NCHW"
+            batch, channel, _, _ = data_shape
+            _, _, out_height, out_width = grid_shape
+            tensor_type = relay.TensorType((batch, channel, out_height, out_width), dtype)
+        else:  # len(data_shape) == 5:
+            layout = "NCDHW"
+            batch, channel, _, _, _ = data_shape
+            _, _, out_depth, out_height, out_width = grid_shape
+            tensor_type = relay.TensorType(
+                (batch, channel, out_depth, out_height, out_width), dtype
+            )
+
+        y = relay.image.grid_sample(
+            data,
+            grid,
+            method=method,
+            layout=layout,
+            padding_mode=padding_mode,
+            align_corners=align_corners,
+        )
         yy = run_infer_type(y)
-        assert yy.checked_type == relay.TensorType((batch, channel, out_height, out_width), dtype)
+        assert yy.checked_type == tensor_type
         func = relay.Function([data, grid], y)
 
         data_np = np.random.uniform(size=data_shape).astype(dtype)
         grid_np = np.random.uniform(size=grid_shape, low=-1.5, high=1.5).astype(dtype)
-        ref_res = tvm.topi.testing.grid_sample_nchw_python(data_np, grid_np, method="bilinear")
+        ref_res = tvm.topi.testing.grid_sample_python(
+            data_np, grid_np, method, layout, padding_mode, align_corners
+        )
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
@@ -1414,8 +1442,23 @@ def test_grid_sample():
                 )
                 tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
-    verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8))
-    verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32))
+    methods = ["nearest", "bilinear", "bicubic"]
+    padding_modes = ["zeros", "border", "reflection"]
+    align_corners = [True, False]
+
+    data_2D_shape = (4, 4, 8, 8)
+    grid_2D_shape = (4, 2, 16, 16)
+    data_3D_shape = (4, 4, 8, 8, 8)
+    grid_3D_shape = (4, 3, 16, 16, 16)
+
+    for _method in methods:
+        for _padding in padding_modes:
+            for _align in align_corners:
+                verify_grid_sample(data_2D_shape, grid_2D_shape, _method, _padding, _align)
+
+                # 3D "bicubic"(tricubic) is not supported in pytorch
+                if _method != "bicubic":
+                    verify_grid_sample(data_3D_shape, grid_3D_shape, _method, _padding, _align)
 
 
 @tvm.testing.uses_gpu

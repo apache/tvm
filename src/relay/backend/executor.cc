@@ -88,6 +88,7 @@ ExecutorRegEntry& ExecutorRegEntry::RegisterOrGet(const String& name) {
 /**********  Register Executors and options  **********/
 
 TVM_REGISTER_EXECUTOR("aot")
+    .add_attr_option<Bool>("link-params", Bool(true))
     .add_attr_option<Bool>("unpacked-api")
     .add_attr_option<String>("interface-api")
     .add_attr_option<Integer>("workspace-byte-alignment");

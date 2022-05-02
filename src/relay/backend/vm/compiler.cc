@@ -46,6 +46,7 @@
 #include <tuple>
 #include <vector>
 
+#include "../../../driver/internal_driver_api.h"
 #include "../../../target/metadata_module.h"
 #include "../../../target/source/codegen_source_base.h"
 #include "../../op/annotation/annotation.h"
@@ -252,21 +253,16 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       // Do that flattening on-the-fly here.
       Function inner_func = Downcast<Function>(func->body);
       std::vector<Var> params;
-      std::vector<VirtualDevice> param_virtual_devices;
       params.reserve(func->params.size() + inner_func->params.size());
-      param_virtual_devices.reserve(func->params.size() + inner_func->params.size());
       param_device_indexes.reserve(func->params.size() + inner_func->params.size());
       for (size_t i = 0; i < func->params.size(); ++i) {
         params.emplace_back(func->params[i]);
-        VirtualDevice param_virtual_device = GetFunctionParamVirtualDevice(func.get(), i);
-        param_virtual_devices.push_back(param_virtual_device);
-        param_device_indexes.push_back(GetDeviceIndex(param_virtual_device));
+        param_device_indexes.push_back(GetDeviceIndex(func->params[i]->virtual_device()));
       }
       for (size_t i = 0; i < inner_func->params.size(); ++i) {
         params.emplace_back(inner_func->params[i]);
-        VirtualDevice param_virtual_device = GetFunctionParamVirtualDevice(inner_func.get(), i);
-        param_virtual_devices.push_back(param_virtual_device);
-        param_device_indexes.push_back(GetDeviceIndex(param_virtual_device));
+
+        param_device_indexes.push_back(GetDeviceIndex(inner_func->params[i]->virtual_device()));
       }
       std::vector<TypeVar> type_params;
       type_params.reserve(func->type_params.size() + inner_func->type_params.size());
@@ -278,13 +274,12 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       }
       Function flattened_func = Function(params, inner_func->body, inner_func->ret_type,
                                          type_params, func->attrs, func->span);
-      VisitExpr(MaybeFunctionOnDevice(flattened_func, param_virtual_devices,
-                                      GetFunctionResultVirtualDevice(inner_func.get())));
+      flattened_func->virtual_device_ = inner_func->virtual_device();
+      VisitExpr(flattened_func);
     } else {
       param_device_indexes.reserve(func->params.size());
       for (size_t i = 0; i < func->params.size(); ++i) {
-        param_device_indexes.push_back(
-            GetDeviceIndex(GetFunctionParamVirtualDevice(func.get(), i)));
+        param_device_indexes.push_back(GetDeviceIndex(func->params[i]->virtual_device()));
       }
       VisitExpr(func);
     }
@@ -328,6 +323,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       case Opcode::Ret:
       case Opcode::Goto:
       case Opcode::Fatal:
+      case Opcode::KillRegister:
         break;
     }
     instructions_.push_back(instr);
@@ -647,8 +643,10 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
                    Emit(Instruction::ReshapeTensor(tensor_reg, shape_reg, NewRegister()));
                  })
           .Match("memory.kill",
-                 [](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
-                   LOG(FATAL) << "memory.kill is not yet supported";
+                 [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+                   ICHECK_EQ(args.size(), 1u);
+                   this->VisitExpr(args[0]);
+                   Emit(Instruction::KillRegister(this->last_register_));
                  });
       matcher(GetRef<Call>(call_node));
       return;
@@ -993,6 +991,9 @@ transform::Sequential VMCompiler::MemoryOpt(const VirtualDevice& host_virtual_de
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
 
+  // Insert kills to free memory.
+  pass_seqs.push_back(transform::ManifestLifetimes());
+
   // Lift constants to the top-level of the block to simplify VM code generation.
   // TODO(@icemelon9, @jroesch): Remove this pass for now because some
   //  instructions need to access to constant
@@ -1034,14 +1035,7 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetMap& targets,
 
 IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   VLOG_CONTEXT << "VM Optimize";
-  if (params_.size()) {
-    BaseFunc base_func = mod->Lookup("main");
-    ICHECK(base_func->IsInstance<FunctionNode>())
-        << "VM compiler expects to compile relay::Function";
-    auto f = relay::backend::BindParamsByName(Downcast<Function>(base_func), params_);
-    auto gvar = mod->GetGlobalVar("main");
-    mod->Add(gvar, f);
-  }
+  backend::BindParamsInModule(mod, params_);
 
   Array<Pass> pass_seqs = relay::backend::GetPassPrefix(
       /*is_homogenous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/true);
@@ -1158,7 +1152,7 @@ void VMCompiler::Codegen() {
     LOG(INFO) << "All lowered functions have been build by BYOC -- generating an empty TVM module";
     lib = codegen::CSourceModuleCreate(";", "", Array<String>{});
   } else {
-    lib = tvm::build(per_tvm_target_modules, config_->host_target);
+    lib = tvm::TIRToRuntime(per_tvm_target_modules, config_->host_target);
   }
 
   lib = codegen::CreateMetadataModule(params_, lib, ext_mods, config_->host_target,

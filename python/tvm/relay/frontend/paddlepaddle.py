@@ -658,7 +658,7 @@ def convert_gelu(g, op, block):
     x = g.get_node(op.input("X")[0])
     out = x * (
         _expr.const(0.5, dtype="float32")
-        + _op.erf(x * _expr.const(0.5 ** 0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
+        + _op.erf(x * _expr.const(0.5**0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
     )
     g.add_node(op.output("Out")[0], out)
 
@@ -1231,9 +1231,17 @@ def convert_pool2d(g, op, block):
     # handle with special case
     # while kernel size less than input size
     # shrink kernel size to input size
-    if not isinstance(in_h, _op.Expr) and in_h < ksize[0]:
+    if (
+        not isinstance(in_h, _op.Expr)
+        and padding_algorithm == "EXPLICIT"
+        and in_h + paddings[0] + paddings[2] < ksize[0]
+    ):
         ksize[0] = in_h
-    if not isinstance(in_w, _op.Expr) and in_w < ksize[1]:
+    if (
+        not isinstance(in_w, _op.Expr)
+        and padding_algorithm == "EXPLICIT"
+        and in_w + paddings[1] + paddings[3] < ksize[1]
+    ):
         ksize[1] = in_w
 
     if not adaptive:
@@ -1281,7 +1289,7 @@ def convert_prelu(g, op, block):
             shape = _op.strided_slice(shape_of(x), [0], [1])
         else:
             shape = _op.strided_slice(shape_of(x), [1], [2])
-        alpha = _op.broadcast_to(alpha, shape)
+        alpha = _op.broadcast_to(alpha, fold_constant(shape))
     out = _op.nn.prelu(x, alpha, axis)
     g.add_node(op.output("Out")[0], out)
 
@@ -1672,7 +1680,7 @@ def convert_scale(g, op, block):
     bias_after_scale = op.attr("bias_after_scale")
     x = g.get_node(op.input("X")[0])
     if np.isclose(scale, 1.0) and np.isclose(bias, 0.0):
-        out = _op.copy(x)
+        out = x
     else:
         if np.isclose(bias, 0.0):
             out = x * _expr.const(np.array(scale).astype("float32"))
@@ -1937,8 +1945,9 @@ def convert_swish(g, op, block):
     """Operator converter for swish."""
 
     x = g.get_node(op.input("X")[0])
-    dtype = infer_type(x).checked_type.dtype
-    out = x / (_op.const(1.0, dtype) + _op.exp(_op.const(-1.0, dtype) * x))
+    beta = op.attr("beta")
+    assert beta == 1.0, "Only support beta==1.0 for PaddlePaddle's swish"
+    out = x * _op.tensor.sigmoid(x)
     g.add_node(op.output("Out")[0], out)
 
 

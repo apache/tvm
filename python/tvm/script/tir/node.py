@@ -20,7 +20,7 @@
 from typing import Optional, Union, List, Callable
 import synr
 
-from tvm.runtime import ObjectGeneric
+from tvm.runtime import ObjectGeneric, convert
 from tvm.tir import PrimExpr, Buffer, BufferLoad
 from tvm.ir import Span
 
@@ -96,9 +96,10 @@ class BufferSlice(ObjectGeneric):
                 if index < 0:
                     report_error("Negative index is not allowed during buffer access", span)
             elif isinstance(index, PrimExpr):
-                if index.dtype != "int32":
+                element_dtype = index.dtype.split("x", maxsplit=1)[0]
+                if element_dtype[:3] != "int":
                     report_error(
-                        "index expected an int32 type PrimExpr but got " + str(index.dtype),
+                        "index expected an integer type PrimExpr but got " + str(index.dtype),
                         index.span,
                     )
             else:
@@ -111,6 +112,7 @@ class BufferSlice(ObjectGeneric):
         slices: List[Union[Slice, BufferSlice]] = []
         for index in indices:
             if isinstance(index, Slice):
+                index.start, index.stop = [convert(_) for _ in [index.start, index.stop]]
                 check_index(index.start)
                 check_index(index.stop)
                 slices.append(index)
@@ -152,3 +154,18 @@ class BufferSlice(ObjectGeneric):
 
         indices = [s.start for s in self.slices]
         return BufferLoad(self.buffer, indices, span=self.span)
+
+    def astype(self, dtype: str, span: Optional[Span] = None) -> PrimExpr:
+        return self.asobject().astype(dtype, span)
+
+    @property
+    def dtype(self) -> str:
+        """Return the dtype referenced by the slice.
+
+        Implemented as a property so that ``slice.dtype`` has the same
+        calling convention as ``primexpr.dtype``.  This allows a
+        BufferSlice object can be assigned to a variable without
+        requiring a type annotation on the variable, similar to other
+        expressions.
+        """
+        return self.asobject().dtype

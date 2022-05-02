@@ -286,11 +286,11 @@ TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("arch")
     .add_attr_option<Bool>("system-lib")
-    .add_attr_option<Integer>("max_num_threads", Integer(1024))
-    .add_attr_option<Integer>("thread_warp_size", Integer(32))
-    .add_attr_option<Integer>("shared_memory_per_block")
-    .add_attr_option<Integer>("registers_per_block")
+    .add_attr_option<Integer>("max_shared_memory_per_block")
     .add_attr_option<Integer>("max_threads_per_block")
+    .add_attr_option<Integer>("thread_warp_size", Integer(32))
+    .add_attr_option<Integer>("registers_per_block")
+    .add_attr_option<Integer>("max_num_threads", Integer(1024))  // TODO(@zxybazh): deprecate it
     .set_default_keys({"cuda", "gpu"})
     .set_attrs_preprocessor(UpdateCUDAAttrs);
 
@@ -306,8 +306,13 @@ TVM_REGISTER_TARGET_KIND("nvptx", kDLCUDA)
 TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
+    .add_attr_option<Array<String>>("mattr")
     .add_attr_option<Bool>("system-lib")
+    // TODO(masahi): Support querying from a target device
+    // On RDNA cards, thread_warp_size should be 32
     .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .add_attr_option<Integer>("max_threads_per_block", Integer(256))
+    .add_attr_option<Integer>("max_shared_memory_per_block", Integer(65536))
     .add_attr_option<Integer>("thread_warp_size", Integer(64))
     .set_default_keys({"rocm", "gpu"})
     .set_attrs_preprocessor(UpdateROCmAttrs);
@@ -330,6 +335,7 @@ TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
     .set_default_keys({"metal", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
+    .add_attr_option<Array<String>>("mattr")
     .add_attr_option<Bool>("system-lib")
     // Feature support
     .add_attr_option<Bool>("supports_float16")
@@ -344,9 +350,11 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Bool>("supports_storage_buffer_storage_class")
     .add_attr_option<Bool>("supports_push_descriptor")
     .add_attr_option<Bool>("supports_dedicated_allocation")
+    .add_attr_option<Bool>("supports_integer_dot_product")
     .add_attr_option<Integer>("supported_subgroup_operations")
     // Physical device limits
     .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .add_attr_option<Integer>("max_threads_per_block", Integer(256))
     .add_attr_option<Integer>("thread_warp_size", Integer(1))
     .add_attr_option<Integer>("max_block_size_x")
     .add_attr_option<Integer>("max_block_size_y")

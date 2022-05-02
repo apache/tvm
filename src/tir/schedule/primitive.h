@@ -30,6 +30,7 @@ namespace tir {
 /******** Schedule: Sampling ********/
 /*!
  * \brief Sample a random integer from a given range.
+ * \param rand_state The pointer to schedule's random state.
  * \param min_inclusive The minimum value of the range, inclusive.
  * \param max_exclusive The maximum value of the range, exclusive.
  * \return The random integer sampled in the given range.
@@ -413,6 +414,22 @@ TVM_DLL void Annotate(ScheduleState self, const StmtSRef& sref, const String& an
  * \param ann_key The annotation key
  */
 TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const String& ann_key);
+
+/******** Schedule: Layout transformation ********/
+/*!
+ * \brief Apply a transformation represented by IndexMap to buffer
+ * \details The indices and the access region to the target buffer is transformed by the given
+ * index_map. The index_map is also used to infer the new shape of the buffer. Buffer must be
+ * one of the parameter of the function, or allocated in some blocks (it cannot be a buffer
+ * subregion created via match_buffer).
+ * \param self The state of the schedule
+ * \param block_sref The block sref that accesses the target buffer.
+ * \param buffer_index The index of the buffer in block's read or write region.
+ * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+ * \param index_map The transformation to apply.
+ */
+TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                             BufferIndexType buffer_index_type, const IndexMap& index_map);
 
 /******** Schedule: Misc ********/
 

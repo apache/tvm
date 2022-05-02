@@ -29,6 +29,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/transform.h>
 
 #include "../../transforms/infer_layout_utils.h"
 #include "../type_relations.h"
@@ -140,48 +141,6 @@ OnDeviceProps GetOnDeviceProps(const Expr& expr) {
     return GetOnDeviceProps(call_node);
   }
   return {};
-}
-
-Function FunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_devices,
-                          VirtualDevice result_virtual_device) {
-  return WithAttrs(std::move(function),
-                   {{tvm::attr::kParamVirtualDevice, std::move(param_virtual_devices)},
-                    {tvm::attr::kResultVirtualDevice, std::move(result_virtual_device)}});
-}
-
-TVM_REGISTER_GLOBAL("relay.op.annotation._make.FunctionOnDevice").set_body_typed(FunctionOnDevice);
-
-Function MaybeFunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_devices,
-                               VirtualDevice result_virtual_device) {
-  if (std::all_of(param_virtual_devices.begin(), param_virtual_devices.end(),
-                  [](const VirtualDevice& virtual_device) {
-                    return virtual_device->IsFullyUnconstrained();
-                  }) &&
-      result_virtual_device->IsFullyUnconstrained()) {
-    // Nothing to annotate.
-    return function;
-  }
-  return FunctionOnDevice(function, std::move(param_virtual_devices),
-                          std::move(result_virtual_device));
-}
-
-VirtualDevice GetFunctionResultVirtualDevice(const FunctionNode* function_node) {
-  auto opt_virtual_device = function_node->GetAttr<VirtualDevice>(tvm::attr::kResultVirtualDevice);
-  return opt_virtual_device.value_or(VirtualDevice::FullyUnconstrained());
-}
-
-VirtualDevice GetFunctionParamVirtualDevice(const FunctionNode* function_node, size_t i) {
-  ICHECK_LT(i, function_node->params.size())
-      << "param index " << i << " out of range for function of arity "
-      << function_node->params.size();
-  auto opt_array = function_node->GetAttr<Array<VirtualDevice>>(tvm::attr::kParamVirtualDevice);
-  if (!opt_array) {
-    // No annotation.
-    return VirtualDevice::FullyUnconstrained();
-  }
-  ICHECK_EQ(opt_array.value().size(), function_node->params.size())
-      << "annotation parameters do not match function arity";
-  return opt_array.value()[i];
 }
 
 }  // namespace relay

@@ -57,7 +57,8 @@ const std::vector<int64_t> EthosuPartNode::GetBytesRead(const std::vector<int>& 
   for (const auto& input_block_config : input_block_configs) {
     std::map<std::vector<int>, int> input_blocks = CountStripes(input_block_config, false);
     for (const auto& block : input_blocks) {
-      bytes_per_input[i] += mul_reduce(block.first) * block.second;
+      bytes_per_input[i] +=
+          mul_reduce(block.first) * block.second * input_tensors_[i]->GetDataType().bytes();
     }
     i++;
   }
@@ -73,6 +74,8 @@ const BlockConfig EthosuPartNode::GetBlockConfig(const StripeConfig& output_stri
   BlockConfig best_block_config;
   float best_cost = std::numeric_limits<float>::infinity();
   std::vector<int> output_stripe_shape = output_stripe_config->GetShape();
+  auto input_stripe_configs = CalculateInputStripeConfigs(output_stripe_config);
+  std::vector<int> input_stripe_shape = input_stripe_configs[0]->GetShape();
 
   for (const auto& block_config : valid_block_configs_) {
     std::vector<int> output_block = block_config->GetOutputBlockShape();
@@ -85,7 +88,7 @@ const BlockConfig EthosuPartNode::GetBlockConfig(const StripeConfig& output_stri
                           mul_reduce(output_stripe_shape);
 
     // Single buffering hardware optimization
-    if (mul_reduce(output_stripe_shape) <= 2 * mul_reduce(output_block)) {
+    if (mul_reduce(input_stripe_shape) <= 2 * mul_reduce(block_config->GetInputBlockShape())) {
       relative_cost /= 2;
     }
 
@@ -106,25 +109,25 @@ const PerformanceInfo EthosuPartNode::GetPerformanceInfo(const StripeConfig& out
   std::vector<int64_t> bytes_per_input =
       GetBytesRead(block_shape, output_stripe_config->GetShape());
 
-  int elements_per_block = mul_reduce(block_shape);
-  int bytes_per_output = elements_per_block;
   float num_blocks = 1.0f;
   for (size_t i = 0; i < block_shape.size(); i++) {
     if (buffer_mode == BufferMode::RECOMPUTE) {
-      num_blocks *= static_cast<float>(output_stripe_config->GetShape()[i] *
-                                       output_stripe_config->GetStripes()[i]) /
-                    block_shape[i];
+      num_blocks *= std::max(static_cast<float>(output_stripe_config->GetShape()[i]) /
+                                 block_shape[i] * output_stripe_config->GetStripes()[i],
+                             1.0f);
     } else {
       num_blocks *=
-          std::max(static_cast<float>(output_stripe_config->GetExtent()[i]) / block_shape[i], 1.0f);
+          std::max(static_cast<float>(output_tensor_->GetShape()[i]) / block_shape[i], 1.0f);
     }
   }
-  float num_stripes = mul_reduce(output_stripe_config->GetStripes()) - 1.0f;
+
+  float num_stripes = mul_reduce(output_stripe_config->GetStripes());
   std::vector<int64_t> read_bytes;
-  for (int block_bytes : bytes_per_input) {
-    read_bytes.push_back((num_blocks + num_stripes) * block_bytes);
+  for (int64_t stripe_bytes : bytes_per_input) {
+    read_bytes.push_back(num_stripes * stripe_bytes);
   }
-  int64_t write_bytes = (num_blocks + num_stripes) * bytes_per_output;
+  int64_t write_bytes =
+      num_blocks * mul_reduce(block_shape) * output_tensor_->GetDataType().bytes();
 
   int block_output_cycles = block_config->GetOutputCycles();
   int block_compute_cycles = block_config->GetComputeCycles();
@@ -136,7 +139,7 @@ const PerformanceInfo EthosuPartNode::GetPerformanceInfo(const StripeConfig& out
     total_cycles = (block_compute_cycles * num_blocks) + block_output_cycles;
   }
 
-  PerformanceInfo info(total_cycles, read_bytes, write_bytes);
+  PerformanceInfo info(total_cycles, read_bytes, write_bytes, block_config);
   return info;
 }
 

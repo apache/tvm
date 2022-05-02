@@ -32,6 +32,14 @@ from ..rpc.base import RPC_SESS_MASK
 
 
 def _convert(arg, cargs):
+    def _gettype(arg):
+        if isinstance(arg, np.float16):
+            return "float16"
+        elif isinstance(arg, (_base.integer_types, bool)):
+            return "int32"
+        else:
+            return "float32"
+
     if isinstance(arg, Object):
         cargs.append(arg)
     elif isinstance(arg, np.ndarray):
@@ -45,7 +53,7 @@ def _convert(arg, cargs):
             _convert(field, field_args)
         cargs.append(container.tuple_object(field_args))
     elif isinstance(arg, (_base.numeric_types, bool)):
-        dtype = "int32" if isinstance(arg, (_base.integer_types, bool)) else "float32"
+        dtype = _gettype(arg)
         value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
         cargs.append(value)
     elif isinstance(arg, str):
@@ -380,6 +388,7 @@ class VirtualMachine(object):
         self._get_num_outputs = self.module["get_num_outputs"]
         self._get_input_index = self.module["get_input_index"]
         self._set_input = self.module["set_input"]
+        self._set_one_input = self.module["set_one_input"]
         self._setup_device(device, memory_cfg)
 
     def _setup_device(self, dev, memory_cfg):
@@ -417,6 +426,10 @@ class VirtualMachine(object):
 
     def set_input(self, func_name, *args, **kwargs):
         """Set the input to a function.
+        If device type and device id for input tensor are the same as
+        for target one the zero copy is used. It means that internal
+        tensor is reference to memory allocated by input one.
+        Otherwise new internal NDarray is created and data is copied
 
         Parameters
         ----------
@@ -449,6 +462,30 @@ class VirtualMachine(object):
             args = new_args
         cargs = convert(args)
         self._set_input(func_name, *cargs)
+
+    def set_one_input(self, func_name, *args, **kwargs):
+        """Set the one input tensor with tag to a function.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+        args : [str or int, tvm.runtime.NDArray]
+            name or index of tensor and input tensor, optional
+        kwargs: dict of str or int to tvm.runtime.NDArray, optional
+            taged arguments to the function.
+        Only args or kwargs should exist
+        """
+        if kwargs:
+            assert len(kwargs) == 1
+            tag = next(iter(kwargs))
+            if isinstance(tag, str):
+                func_params = self._exec.get_function_params(func_name)
+                assert tag in func_params
+            self._set_one_input(func_name, tag, kwargs[tag])
+        else:
+            assert len(args) == 2
+            self._set_one_input(func_name, args[0], args[1])
 
     def invoke(self, func_name, *args, **kwargs):
         """Invoke a function.

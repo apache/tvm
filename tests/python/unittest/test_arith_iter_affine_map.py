@@ -44,6 +44,10 @@ def var_dom(iters):
     return {var: tvm.ir.Range(0, ext) for var, ext in iters}
 
 
+def convert_iter_expr(expr):
+    return tvm.arith.normalize_iter_map_to_expr(expr)
+
+
 def assert_iter_sum_pattern(sum_expr, extent, base, scale=1):
     """Check the sum expr have the right pattern."""
     assert isinstance(sum_expr, tvm.arith.IterSumExpr)
@@ -112,11 +116,13 @@ def test_fuse():
     res = tvm.arith.detect_iter_map([x * 4 + y * 2], var_dom([(x, 3), (y, 2)]))
     assert len(res) == 1
     assert_iter_sum_pattern(res[0], 6, 0, scale=2)
+    tvm.ir.assert_structural_equal(convert_iter_expr(res[0]), (x * 2 + y) * 2)
 
     # simple stride pattern with symbolic
     res = tvm.arith.detect_iter_map([x * 2 * c0 + y * 2], var_dom([(x, 3), (y, c0)]))
     assert len(res) == 1
     assert_iter_sum_pattern(res[0], 3 * c0, 0, scale=2)
+    tvm.ir.assert_structural_equal(convert_iter_expr(res[0]), (x * c0 + y) * 2)
 
 
 def test_split():
@@ -262,6 +268,14 @@ def test_predicate():
         tvm.tir.all(i * 16384 + j * 128 + k < 100),
     )
     assert len(res) == 0
+
+    # irrelavant predicate
+    res = tvm.arith.detect_iter_map(
+        [i + j],
+        var_dom([(i, 1)]),
+        j <= 24,
+    )
+    assert_iter_sum_pattern(res[0], 1, j)
 
     # constraint on nested fused iters
     res = tvm.arith.detect_iter_map(
@@ -625,7 +639,7 @@ def test_subspace_division():
     tvm.ir.assert_structural_equal(res[0][0], j0[0])
     tvm.ir.assert_structural_equal(res[0][1], floordiv(l0[0] * 6 + l1[0], 6))
     tvm.ir.assert_structural_equal(res[1][0], 0)
-    tvm.ir.assert_structural_equal(res[1][1], floormod(floordiv(l0[0] * 6 + l1[0], 3), 2))
+    tvm.ir.assert_structural_equal(res[1][1], floordiv(floormod(l0[0] * 6 + l1[0], 6), 3))
     tvm.ir.assert_structural_equal(res[2][0], 0)
     tvm.ir.assert_structural_equal(res[2][1], (floormod(l0[0] * 6 + l1[0], 3) * 3) + j3[0])
 
@@ -834,10 +848,10 @@ def test_inverse_affine_iter_map():
     outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     assert len(res) == 2
-    l0_inverse = floormod(floordiv(outputs[0], 4), 16) + outputs[1] * 16
+    l0_inverse = floordiv(outputs[0], 4) + outputs[1] * 16
     l1_inverse = floormod(outputs[0], 4) + outputs[2] * 4
-    assert analyzer.simplify(res[l0[0]] - l0_inverse) == 0
-    assert analyzer.simplify(res[l1[0]] - l1_inverse) == 0
+    assert analyzer.can_prove_equal(res[l0[0]], l0_inverse)
+    assert analyzer.can_prove_equal(res[l1[0]], l1_inverse)
 
     # compound case
     l0_0, l0_1 = isplit(l0, 16)
@@ -853,15 +867,15 @@ def test_inverse_affine_iter_map():
     outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     assert len(res) == 3
-    l0_inverse = floormod(floordiv(outputs[0], 64), 16) + outputs[1] * 16
+    l0_inverse = floordiv(outputs[0], 64) + outputs[1] * 16
     l1_inverse = floormod(floordiv(outputs[0], 4), 4) + outputs[3] * 4
     l2_inverse = (
         floormod(outputs[0], 4) * 16 + floormod(floordiv(outputs[0], 16), 4) * 4 + outputs[2]
     )
 
-    assert analyzer.simplify(res[l0[0]] - l0_inverse) == 0
-    assert analyzer.simplify(res[l1[0]] - l1_inverse) == 0
-    assert analyzer.simplify(res[l2[0]] - l2_inverse) == 0
+    assert analyzer.can_prove_equal(res[l0[0]], l0_inverse)
+    assert analyzer.can_prove_equal(res[l1[0]], l1_inverse)
+    assert analyzer.can_prove_equal(res[l2[0]], l2_inverse)
 
     # diamond-shape DAG
     l0_0, l0_1 = isplit(l0, 16)
@@ -873,10 +887,10 @@ def test_inverse_affine_iter_map():
     outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     assert len(res) == 1
-    l1_inverse = floormod(outputs[0], 8) * 8 + floormod(floordiv(outputs[0], 8), 8)
-    l0_inverse = floormod(l1_inverse, 4) * 16 + floormod(floordiv(l1_inverse, 4), 16)
+    l1_inverse = floormod(outputs[0], 8) * 8 + floordiv(outputs[0], 8)
+    l0_inverse = floormod(l1_inverse, 4) * 16 + floordiv(l1_inverse, 4)
 
-    assert analyzer.simplify(res[l0[0]] - l0_inverse) == 0
+    assert analyzer.can_prove_equal(res[l0[0]], l0_inverse)
 
 
 def test_free_variables():

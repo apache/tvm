@@ -32,11 +32,15 @@ from ..dataflow_pattern import (
 
 def is_version_greater_than(ver):
     import torch
-    import re
+    from distutils.version import LooseVersion
 
-    return int("".join(re.findall(r"(\d+)\.(\d+)\.(\d)", torch.__version__)[0])) > int(
-        "".join(re.findall(r"(\d+)\.(\d+)\.(\d)", ver)[0])
-    )
+    return LooseVersion(torch.__version__) > ver
+
+
+def getattr_attr_name(node):
+    attribute_names = node.attributeNames()
+    assert len(attribute_names) == 1
+    return node.s(attribute_names[0])
 
 
 def dyn_strided_slice_pattern(inp, end):

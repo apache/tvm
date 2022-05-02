@@ -74,6 +74,19 @@ def InjectPrefetch():
     return _ffi_api.InjectPrefetch()  # type: ignore
 
 
+def ApplyLayoutTransforms():
+    """Reshape buffers that appear in the "layout_transform_map"
+    fucntion attribute.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    """
+    return _ffi_api.ApplyLayoutTransforms()  # type: ignore
+
+
 def StorageFlatten(cache_line_size, create_bound_attribute: bool = False):
     """Flatten the multi-dimensional read/write to 1D.
 
@@ -309,6 +322,17 @@ def BF16TypeLowering():
         The result pass
     """
     return _ffi_api.BF16TypeLowering()  # type: ignore
+
+
+def CommonSubexprElimTIR(enable_cse_tir: bool = True):
+    """Replace redundant computations by new variables.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.CommonSubexprElimTIR(enable_cse_tir)  # type: ignore
 
 
 def RewriteUnsafeSelect():
@@ -749,3 +773,36 @@ def ConvertForLoopsToSerial():
         The result pass
     """
     return _ffi_api.ConvertForLoopsToSerial()  # type: ignore
+
+
+def InjectSoftwarePipeline():
+    """Transform annotated loops into pipelined one that parallelize producers and consumers
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectSoftwarePipeline()  # type: ignore
+
+
+def ExtractPrimFuncConstants():
+    """Collects and unificates tir non-scalar constants to module's attr 'Constants' array.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ExtractPrimFuncConstants()  # type: ignore
+
+
+def RenormalizeSplitPattern():
+    """Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RenormalizeSplitPattern()  # type: ignore

@@ -86,7 +86,8 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
   } else if (name == "vm_load_executable") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       auto vm = make_object<VirtualMachine>();
-      vm->LoadExecutable(this);
+      ICHECK(sptr_to_self.get() == this);
+      vm->LoadExecutable(GetObjectPtr<Executable>(this));
       *rv = Module(vm);
     });
   } else if (name == "move_late_bound_consts") {
@@ -104,31 +105,24 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
-    return PackedFunc(nullptr);
+    return PackedFunc();
   }
 }
 
-int Executable::GetFunctionArity(std::string func_name) const {
+const VMFunction& Executable::GetVMFunctionWithName(const std::string& func_name) const {
   auto it = global_map.find(func_name);
-  if (it == global_map.end()) {
-    LOG(ERROR) << "Cannot find function " << func_name << " in executable";
-    return -1;
-  }
-  const auto& func = functions[it->second];
+  ICHECK(it != global_map.end()) << "Cannot find function " << func_name << " in executable";
+  return functions[it->second];
+}
+
+int Executable::GetFunctionArity(std::string func_name) const {
+  const auto& func = GetVMFunctionWithName(func_name);
   return func.params.size();
 }
 
 std::string Executable::GetFunctionParameterName(std::string func_name, uint32_t index) const {
-  auto it = global_map.find(func_name);
-  if (it == global_map.end()) {
-    LOG(ERROR) << "Cannot find function " << func_name << " in executable";
-    return "";
-  }
-  const auto& func = functions[it->second];
-  if (index > func.params.size()) {
-    LOG(ERROR) << "Invalid parameter index";
-    return "";
-  }
+  const auto& func = GetVMFunctionWithName(func_name);
+  ICHECK_LT(index, func.params.size()) << "Invalid parameter index";
   return func.params[index];
 }
 
@@ -340,6 +334,10 @@ void Executable::MoveLateBoundConstantsToFile(const std::string& path, size_t by
 }
 
 void Executable::LoadLateBoundConstantsFromStream(dmlc::Stream* stream) {
+  if (late_bound_constant_names.empty()) {
+    VLOG(1) << "Found no late-bound constants to load";
+    return;
+  }
   ICHECK_EQ(late_bound_constant_names.size(), constants.size());
   Map<String, NDArray> map = runtime::LoadParams(stream);
   VLOG(1) << "loaded " << map.size() << " late-bound constants";
@@ -665,6 +663,10 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
                      instr.device_copy.dst_device_index, instr.dst});
       break;
     }
+    case Opcode::KillRegister: {
+      fields.assign({instr.dst});
+      break;
+    }
     default:
       LOG(FATAL) << "Invalid opcode" << static_cast<int>(instr.op);
       break;
@@ -981,6 +983,10 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       DCHECK_EQ(instr.fields.size(), 4U);
       return Instruction::DeviceCopy(instr.fields[0], instr.fields[1], instr.fields[2],
                                      instr.fields[3]);
+    }
+    case Opcode::KillRegister: {
+      DCHECK_EQ(instr.fields.size(), 1U);
+      return Instruction::KillRegister(instr.fields[0]);
     }
     default:
       LOG(FATAL) << "Invalid opcode" << instr.opcode;

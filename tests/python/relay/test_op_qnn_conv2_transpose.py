@@ -189,10 +189,10 @@ def verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtyp
         with tvm.transform.PassContext(opt_level=2):
             golden_data, golden_weight = golden_inputs
             params = {"kernel": golden_weight}
-            graph, lib, params = relay.build(func, "llvm", params=params)
-            mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
+            libs = relay.build(func, "llvm", params=params)
+            mod = graph_executor.create(libs.graph_json, libs.lib, device=tvm.cpu(0))
             mod.set_input("data", golden_data)
-            mod.set_input(**params)
+            mod.set_input(**libs.params)
             mod.run()
             res = mod.get_output(0).numpy()
             return res
@@ -644,7 +644,32 @@ def test_broadcast_layout():
     func = relay.Function(relay.analysis.free_vars(func), func)
     mod = tvm.IRModule.from_expr(func)
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, params = relay.build(mod, "llvm -mcpu=skylake-avx512")
+        libs = relay.build(mod, "llvm -mcpu=skylake-avx512")
+
+
+def test_non_scalar_input_scale_zp():
+    data_shape = (2, 1, 2, 4)
+    data_dtype = "uint8"
+    kernel_shape = (1, 3, 2, 2)
+    kernel_dtype = "uint8"
+    ref_func, qnn_func = get_funcs(
+        data_shape=data_shape,
+        data_dtype=data_dtype,
+        kernel_shape=kernel_shape,
+        kernel_dtype=kernel_dtype,
+        input_zero_point=[0],
+        kernel_zero_point=0,
+        input_scale=[1.0],
+        kernel_scale=1.0,
+        kernel_size=(2, 2),
+        padding=(0, 0),
+        strides=(1, 1),
+        dilation=(1, 1),
+        data_layout="NCHW",
+        kernel_layout="IOHW",
+        out_dtype="int32",
+    )
+    verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
 
 
 def test_per_channel_kernel_scale():

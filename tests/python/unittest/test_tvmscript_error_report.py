@@ -21,8 +21,6 @@ import tvm
 from tvm import tir
 from tvm.testing import check_error
 from tvm.script import tir as T
-from tvm.ir.diagnostics import override_renderer
-import inspect
 
 
 def buffer_bind_missing_args(a: T.handle) -> None:
@@ -332,8 +330,7 @@ def opaque_access_during_complete(a: T.handle) -> None:  # error
     A = T.match_buffer(a, (16, 16), "float32")
     for i, j in T.grid(16, 16):
         with T.block():
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.evaluate(T.load("float32", A.data, vi * 16 + vj))
+            T.evaluate(T.call_extern("dummy_extern_function", A.data, dtype="int32"))
 
 
 def test_opaque_access_during_complete():
@@ -415,7 +412,7 @@ def intrin_except_unassign(a: T.handle) -> None:
 
 def intrin_except_assign(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
-    A[0, 0] = T.load(A, A, A)  # error
+    A[0, 0] = A[A]  # error
 
 
 def test_tvm_exception_catch():
@@ -628,6 +625,37 @@ def floor_dtype(h: T.handle):
 
 def test_floor_dtype():
     check_error(floor_dtype, 3)
+
+
+def non_integer_typed_block_iter():
+    with T.block():
+        i = T.axis.S(0.1, 0.1)  # error IterVar requires an integer dtype
+
+
+def test_non_integer_typed_block_iter():
+    check_error(non_integer_typed_block_iter, 3)
+
+
+def preflattened_buffer_map_align_nonint(foo: T.handle):
+    foo_1 = T.match_buffer(foo, [1])
+    T.preflattened_buffer(
+        foo_1, [1], align="bar"
+    )  # check_error: align: want int or IntImm, got 'bar'
+
+
+def test_preflattened_buffer_map_align():
+    check_error(preflattened_buffer_map_align_nonint, 3)
+
+
+def preflattened_buffer_map_offset_factor_nonint(foo: T.handle):
+    foo_1 = T.match_buffer(foo, [1])
+    T.preflattened_buffer(
+        foo_1, [1], offset_factor="bar"
+    )  # check_error: offset_factor: want int or IntImm, got 'bar'
+
+
+def test_preflattened_buffer_map_offset_factor():
+    check_error(preflattened_buffer_map_offset_factor_nonint, 3)
 
 
 if __name__ == "__main__":

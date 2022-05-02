@@ -23,18 +23,24 @@
  */
 #include "source_module.h"
 
+#include <tvm/runtime/metadata.h>
+#include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include "../../relay/backend/name_transforms.h"
 #include "../../runtime/file_utils.h"
 #include "../../support/str_escape.h"
 #include "../func_registry_generator.h"
+#include "../metadata.h"
+#include "../metadata_utils.h"
 #include "codegen_source_base.h"
 
 namespace tvm {
@@ -166,7 +172,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
   std::string GetFormat() { return fmt_; }
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
-    return PackedFunc(nullptr);
+    return PackedFunc();
   }
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {
@@ -245,6 +251,26 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     }
   }
 
+  void GenerateIOWorkspaceMapFunction(const std::string& struct_type,
+                                      const std::string& function_name,
+                                      const Array<String>& tensor_names) {
+    std::string map_function = runtime::get_name_mangled(metadata_->mod_name, function_name);
+    code_ << "struct " << struct_type << " " << map_function << "(\n";
+    std::string pools_struct = runtime::get_name_mangled(metadata_->mod_name, "workspace_pools");
+    code_ << "  struct " << pools_struct << "* workspace_pools\n";
+    code_ << "\n){\n";
+    code_ << "struct " << struct_type << " ret = {\n";
+    for (const String& name : tensor_names) {
+      tir::usmp::PoolAllocation pool_allocation = metadata_->io_pool_allocations[name];
+      code_ << "\t." << name << " = "
+            << "&((uint8_t*)workspace_pools->" << pool_allocation->pool_info->pool_name << ")["
+            << pool_allocation->byte_offset << "],\n";
+    }
+    code_ << "};\n";
+    code_ << "return ret;\n";
+    code_ << "}\n\n";
+  }
+
   bool IsInternalWorkspaceBuffer(const tir::Var& pool_var) {
     if (metadata_->pool_inputs.defined()) {
       Map<tir::Var, tir::usmp::AllocatedPoolInfo> allocated_pool_infos =
@@ -265,16 +291,18 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
     {
       std::stringstream call_args_ss;
-      for (const tir::Var& input_var : metadata_->inputs) {
-        if (input_var->type_annotation.defined()) {
-          codegen_c_base_.PrintType(input_var->type_annotation, call_args_ss);
-        } else {
-          codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
+      if (metadata_->io_pool_allocations.empty()) {
+        for (const tir::Var& input_var : metadata_->inputs) {
+          if (input_var->type_annotation.defined()) {
+            codegen_c_base_.PrintType(input_var->type_annotation, call_args_ss);
+          } else {
+            codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
+          }
+          call_args_ss << " " << input_var->name_hint << ",";
         }
-        call_args_ss << " " << input_var->name_hint << ",";
-      }
-      for (unsigned int i = 0; i < metadata_->num_outputs; ++i) {
-        call_args_ss << "void* output" << i << ",";
+        for (unsigned int i = 0; i < metadata_->outputs.size(); ++i) {
+          call_args_ss << "void* output" << i << ",";
+        }
       }
       for (const tir::Var& pool_var : metadata_->pools) {
         if (pool_var->type_annotation.defined()) {
@@ -297,12 +325,14 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
     {
       std::stringstream call_args_ss;
-      for (unsigned int i = 0; i < metadata_->inputs.size(); ++i) {
-        call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << i << "].v_handle))[0].data,";
-      }
-      for (unsigned int i = 0; i < metadata_->num_outputs; ++i) {
-        int j = metadata_->inputs.size() + i;
-        call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << j << "].v_handle))[0].data,";
+      if (metadata_->io_pool_allocations.empty()) {
+        for (unsigned int i = 0; i < metadata_->inputs.size(); ++i) {
+          call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << i << "].v_handle))[0].data,";
+        }
+        for (unsigned int i = 0; i < metadata_->outputs.size(); ++i) {
+          int j = metadata_->inputs.size() + i;
+          call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << j << "].v_handle))[0].data,";
+        }
       }
       for (const tir::Var& pool_var : metadata_->pools) {
         if (IsInternalWorkspaceBuffer(pool_var)) {
@@ -323,15 +353,17 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     int entrypoint_arg_count = 0;
     int run_func_arg_count = 0;
 
-    for (unsigned int i = 0; i < metadata_->inputs.size(); i++) {
-      run_func_to_entry_point_args[run_func_arg_count] = Integer(entrypoint_arg_count);
-      entrypoint_arg_count++;
-      run_func_arg_count++;
-    }
-    for (unsigned int i = 0; i < metadata_->num_outputs; i++) {
-      run_func_to_entry_point_args[run_func_arg_count] = Integer(entrypoint_arg_count);
-      entrypoint_arg_count++;
-      run_func_arg_count++;
+    if (metadata_->io_pool_allocations.empty()) {
+      for (unsigned int i = 0; i < metadata_->inputs.size(); i++) {
+        run_func_to_entry_point_args[run_func_arg_count] = Integer(entrypoint_arg_count);
+        entrypoint_arg_count++;
+        run_func_arg_count++;
+      }
+      for (unsigned int i = 0; i < metadata_->outputs.size(); i++) {
+        run_func_to_entry_point_args[run_func_arg_count] = Integer(entrypoint_arg_count);
+        entrypoint_arg_count++;
+        run_func_arg_count++;
+      }
     }
     for (const tir::Var& pool_var : metadata_->pools) {
       if (IsInternalWorkspaceBuffer(pool_var)) {
@@ -355,8 +387,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
              "out_type_code, void* resource_handle) {\n";
 
     // We are creating a copy of the set of pointers
-    size_t number_of_io_tensors =
-        metadata_->inputs.size() + metadata_->num_outputs + metadata_->pools.size();
+    size_t number_of_io_tensors = metadata_->inputs.size() + metadata_->outputs.size() +
+                                  metadata_->pools.size() - metadata_->io_pool_allocations.size();
     code_ << "TVMValue tensors[" << number_of_io_tensors << "];\n";
 
     std::unordered_map<int, ObjectRef> run_func_to_entry_point_args =
@@ -384,19 +416,33 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   void GenerateCInterfaceEntrypoint(const std::string& entrypoint_name, const std::string& run_func,
                                     const std::string& mod_name) {
     code_ << "#include <" << mod_name << ".h>\n";
+    if (!metadata_->io_pool_allocations.empty()) {
+      const std::string input_struct_type =
+          runtime::get_name_mangled(metadata_->mod_name, "inputs");
+      Array<String> input_tensor_names;
+      for (const tir::Var& input_var : metadata_->inputs) {
+        input_tensor_names.push_back(input_var->name_hint);
+      }
+      GenerateIOWorkspaceMapFunction(input_struct_type, "map_inputs", input_tensor_names);
+      const std::string output_struct_type =
+          runtime::get_name_mangled(metadata_->mod_name, "outputs");
+      GenerateIOWorkspaceMapFunction(output_struct_type, "map_outputs", metadata_->outputs);
+    }
     code_ << "TVM_DLL int32_t " << run_func << "(";
     {
       std::stringstream call_args_ss;
-      for (const tir::Var& input_var : metadata_->inputs) {
-        if (input_var->type_annotation.defined()) {
-          codegen_c_base_.PrintType(input_var->type_annotation, call_args_ss);
-        } else {
-          codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
+      if (metadata_->io_pool_allocations.empty()) {
+        for (const tir::Var& input_var : metadata_->inputs) {
+          if (input_var->type_annotation.defined()) {
+            codegen_c_base_.PrintType(input_var->type_annotation, call_args_ss);
+          } else {
+            codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
+          }
+          call_args_ss << " " << relay::backend::SanitizeName(input_var->name_hint) << ",";
         }
-        call_args_ss << " " << relay::backend::SanitizeName(input_var->name_hint) << ",";
-      }
-      for (unsigned int i = 0; i < metadata_->num_outputs; ++i) {
-        call_args_ss << "void* output" << i << ",";
+        for (unsigned int i = 0; i < metadata_->outputs.size(); ++i) {
+          call_args_ss << "void* output" << i << ",";
+        }
       }
       for (const tir::Var& pool_var : metadata_->pools) {
         if (pool_var->type_annotation.defined()) {
@@ -416,12 +462,31 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
     code_ << ");\n";
     code_ << "int32_t " << entrypoint_name << "(";
-    code_ << "struct " << runtime::get_name_mangled(mod_name, "inputs") << "* inputs,";
-    if (!metadata_->devices.empty()) {
-      code_ << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs,";
-      code_ << "struct " << runtime::get_name_mangled(mod_name, "devices") << "* devices";
-    } else {
-      code_ << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs";
+    {
+      std::stringstream call_args_ss;
+      if (metadata_->io_pool_allocations.empty()) {
+        call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "inputs") << "* inputs,";
+        call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs,";
+      }
+      if (!metadata_->pools.empty()) {
+        bool is_external_pools_present = false;
+        for (tir::Var pool_var : metadata_->pools) {
+          if (!IsInternalWorkspaceBuffer(pool_var)) {
+            is_external_pools_present = true;
+            break;
+          }
+        }
+        if (is_external_pools_present) {
+          call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "workspace_pools")
+                       << "* workspace_pools,";
+        }
+      }
+      if (!metadata_->devices.empty()) {
+        call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "devices") << "* devices,";
+      }
+      std::string call_args_str = call_args_ss.str();
+      call_args_str.pop_back();
+      code_ << call_args_str;
     }
 
     code_ << ") {"
@@ -429,20 +494,22 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
     {
       std::stringstream call_args_ss;
-      for (const auto& input : metadata_->inputs) {
-        call_args_ss << "inputs->" << relay::backend::SanitizeName(input->name_hint) << ",";
-      }
-      if (metadata_->num_outputs == 1) {
-        call_args_ss << "outputs->output,";
-      } else {
-        for (unsigned int i = 0; i < metadata_->num_outputs; ++i) {
-          call_args_ss << "outputs->output" << i << ",";
+      if (metadata_->io_pool_allocations.empty()) {
+        for (const auto& input : metadata_->inputs) {
+          call_args_ss << "inputs->" << relay::backend::SanitizeName(input->name_hint) << ",";
+        }
+        for (const auto& output : metadata_->outputs) {
+          call_args_ss << "outputs->" << relay::backend::SanitizeName(output);
+          call_args_ss << ",";
         }
       }
+
       for (const tir::Var& pool_var : metadata_->pools) {
+        String pool_name = metadata_->pool_inputs.value()[pool_var]->pool_info->pool_name;
         if (IsInternalWorkspaceBuffer(pool_var)) {
-          call_args_ss << "&" << metadata_->pool_inputs.value()[pool_var]->pool_info->pool_name
-                       << ",";
+          call_args_ss << "&" << pool_name << ",";
+        } else {
+          call_args_ss << "workspace_pools->" << relay::backend::SanitizeName(pool_name) << ",";
         }
       }
       for (const String& device : metadata_->devices) {
@@ -457,7 +524,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   }
 
   void GenerateAOTDescriptor() {
-    const std::string run_func_suffix = ::tvm::runtime::symbol::tvm_run_func_suffix;
+    const std::string run_func_suffix = ::tvm::runtime::symbol::tvm_module_main;
     const std::string tvm_entrypoint_suffix = ::tvm::runtime::symbol::tvm_entrypoint_suffix;
     const std::string run_func_mangled =
         runtime::get_name_mangled(metadata_->mod_name, run_func_suffix);
@@ -501,6 +568,233 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   }
 };
 
+class MetadataSerializer : public AttrVisitor {
+ public:
+  static constexpr const char* kGlobalSymbol = "kTvmgenMetadata";
+  using MetadataKind = ::tvm::runtime::metadata::MetadataKind;
+
+  MetadataSerializer() : is_first_item_{true} {}
+
+  void WriteComma() {
+    if (is_first_item_) {
+      is_first_item_ = false;
+    } else {
+      code_ << ", " << std::endl;
+    }
+  }
+
+  void WriteKey(const char* key) {
+    if (key != nullptr) {
+      code_ << " /* " << key << "*/";
+    }
+  }
+
+  void Visit(const char* key, double* value) final {
+    WriteComma();
+    code_.setf(std::ios::hex | std::ios::showbase | std::ios::fixed | std::ios::scientific,
+               std::ios::basefield | std::ios::showbase | std::ios::floatfield);
+    code_ << *value;
+    WriteKey(key);
+  }
+
+  void Visit(const char* key, int64_t* value) final {
+    WriteComma();
+    code_ << *value << "L";
+    WriteKey(key);
+  }
+
+  void Visit(const char* key, uint64_t* value) final {
+    WriteComma();
+    code_ << *value << "UL";
+    WriteKey(key);
+  }
+  void Visit(const char* key, int* value) final {
+    WriteComma();
+    code_ << *value;
+    WriteKey(key);
+  }
+  void Visit(const char* key, bool* value) final {
+    WriteComma();
+    code_ << *value;
+    WriteKey(key);
+  }
+  void Visit(const char* key, std::string* value) final {
+    WriteComma();
+    code_ << "\"" << *value << "\"";
+    WriteKey(key);
+  }
+  void Visit(const char* key, void** value) final {
+    WriteComma();
+    code_ << *value;
+    WriteKey(key);
+  }
+  void Visit(const char* key, DataType* value) final {
+    WriteComma();
+    code_ << "{" << value->code() << ", " << value->bits() << ", " << value->lanes() << "}";
+    WriteKey(key);
+  }
+
+  void Visit(const char* key, runtime::NDArray* value) final {
+    // TODO(areusch): probably we could consolidate --link-params here, tho...
+    ICHECK(false) << "do not support serializing NDArray as metadata";
+  }
+
+  void VisitArray(runtime::metadata::MetadataArray array) {
+    auto old_is_first_item = is_first_item_;
+    is_first_item_ = true;
+    for (unsigned int i = 0; i < array->array.size(); ++i) {
+      ObjectRef o = array->array[i];
+
+      switch (array->kind) {
+        case MetadataKind::kUint64: {
+          int64_t i = Downcast<Integer>(o);
+          CHECK_GT(i, 0)
+              << "Metadata is of type uint64_t, but array type contains a negative number";
+          uint64_t ui = static_cast<uint64_t>(i);
+          Visit(nullptr, &ui);
+          continue;
+        }
+        case MetadataKind::kInt64: {
+          int64_t i = Downcast<Integer>(o);
+          Visit(nullptr, &i);
+          continue;
+        }
+        case MetadataKind::kBool: {
+          bool b = Downcast<Bool>(o);
+          Visit(nullptr, &b);
+          break;
+        }
+        case MetadataKind::kString: {
+          std::string s = Downcast<String>(o);
+          Visit(nullptr, &s);
+          break;
+        }
+        case MetadataKind::kHandle:
+          CHECK(false) << "Don't know how to serialize handle";
+          break;
+
+        case MetadataKind::kMetadata: {
+          runtime::metadata::MetadataBase metadata = Downcast<runtime::metadata::MetadataBase>(o);
+          std::stringstream i_str;
+          i_str << i;
+          address_.push_back(i_str.str());
+          Visit(nullptr, &metadata);
+          address_.pop_back();
+          break;
+        }
+        default:
+          CHECK(false) << "Unknown MetadataKind for array: " << array->kind;
+          break;
+      }
+      is_first_item_ = false;
+    }
+    is_first_item_ = old_is_first_item;
+  }
+
+  void Visit(const char* key, ObjectRef* value) final {
+    const runtime::metadata::MetadataArrayNode* arr =
+        value->as<runtime::metadata::MetadataArrayNode>();
+    if (arr != nullptr) {
+      WriteComma();
+      if (key != nullptr) {
+        address_.push_back(key);
+      }
+      code_ << metadata::AddressFromParts(address_);
+      if (key != nullptr) {
+        address_.pop_back();
+      }
+      return;
+    }
+
+    runtime::metadata::MetadataBase metadata = Downcast<runtime::metadata::MetadataBase>(*value);
+    if (key != nullptr) {  // NOTE: outermost call passes nullptr key
+      address_.push_back(key);
+    }
+    ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
+    if (key != nullptr) {  // NOTE: outermost call passes nullptr key
+      address_.pop_back();
+    }
+  }
+
+ private:
+  void EmitCType(const runtime::metadata::MetadataArrayNode* arr, std::ostream& os) {
+    switch (arr->kind) {
+      case MetadataKind::kUint64:
+        os << "uint64_t";
+        break;
+      case MetadataKind::kInt64:
+        os << "int64_t";
+        break;
+      case MetadataKind::kBool:
+        os << "bool";
+        break;
+      case MetadataKind::kString:
+        os << "const char*";
+        break;
+      case MetadataKind::kHandle:
+        os << "void*";
+        break;
+      case MetadataKind::kMetadata:
+        os << "struct " << arr->get_element_c_struct_name();
+        break;
+      default:
+        CHECK(false) << "Unknown kind in MetadataArray: " << arr->kind
+                     << " (struct_name=" << arr->get_c_struct_name() << ")";
+        break;
+    }
+  }
+
+ public:
+  void CodegenMetadata(::tvm::runtime::metadata::Metadata metadata) {
+    decl_ << "#include <inttypes.h>" << std::endl
+          << "#include <tvm/runtime/metadata.h>" << std::endl
+          << "#include <tvm/runtime/c_runtime_api.h>" << std::endl;
+    std::vector<metadata::DiscoverArraysVisitor::DiscoveredArray> queue;
+    metadata::DiscoverArraysVisitor array_discover{&queue};
+    array_discover.Visit(metadata::kMetadataGlobalSymbol, &metadata);
+
+    for (auto item : queue) {
+      auto struct_address = std::get<0>(item);
+      address_.push_back(struct_address);
+
+      auto arr = std::get<1>(item);
+
+      // Prepend const with everything except C-string, which needs appending.
+      if (arr->kind != MetadataKind::kString) {
+        code_ << "const ";
+      }
+      EmitCType(arr.operator->(), code_);
+      if (arr->kind == MetadataKind::kString) {
+        code_ << " const";
+      }
+      code_ << " " << struct_address << "[" << arr->array.size() << "] = {" << std::endl;
+      is_first_item_ = true;
+
+      VisitArray(arr);
+      address_.pop_back();
+      code_ << "};" << std::endl;
+    }
+
+    // Finally, emit overall struct.
+    address_.push_back(metadata::kMetadataGlobalSymbol);
+    code_ << "const struct TVMMetadata " << metadata::AddressFromParts(address_) << " = {"
+          << std::endl;
+    Visit(nullptr, &metadata);
+    code_ << "};" << std::endl;
+    address_.pop_back();
+  }
+
+  std::string GetOutput() { return decl_.str() + code_.str(); }
+
+ private:
+  std::vector<std::string> address_;
+  std::stringstream decl_;
+  std::stringstream code_;
+  bool is_first_item_;
+  std::unordered_set<std::string> generated_struct_decls_;
+  std::vector<bool> is_defining_struct_;
+};
+
 runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
                                                relay::Runtime runtime,
                                                relay::backend::ExecutorCodegenMetadata metadata) {
@@ -520,6 +814,32 @@ runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& mod
     csrc_metadata_module.Import(mod);
   }
   return std::move(csrc_metadata_module);
+}
+
+runtime::Module CreateCSourceCppMetadataModule(runtime::metadata::Metadata metadata) {
+  MetadataSerializer serializer;
+  serializer.CodegenMetadata(metadata);
+  std::stringstream lookup_func;
+  lookup_func << "#ifdef __cplusplus\n"
+              << "extern \"C\"\n"
+              << "#endif\n";
+
+  lookup_func << "TVM_DLL int32_t " << ::tvm::runtime::symbol::tvm_get_c_metadata
+              << "(TVMValue* arg_values, int* arg_tcodes, int "
+                 "num_args, TVMValue* ret_values, int* ret_tcodes, void* resource_handle) {"
+              << std::endl;
+  lookup_func << "    ret_values[0].v_handle = (void*) &" << metadata::kMetadataGlobalSymbol << ";"
+              << std::endl;
+  lookup_func << "    ret_tcodes[0] = kTVMOpaqueHandle;" << std::endl;
+  lookup_func << "    return 0;" << std::endl;
+  lookup_func << "};" << std::endl;
+
+  auto mod = MetadataModuleCreate(metadata);
+  std::vector<String> func_names{::tvm::runtime::symbol::tvm_get_c_metadata};
+  auto c = CSourceModuleCreate(serializer.GetOutput() + lookup_func.str(), "c", func_names,
+                               Array<String>());
+  mod->Import(c);
+  return mod;
 }
 
 // supports limited save without cross compile

@@ -169,7 +169,7 @@ extern "C" float TVMTestAddOne(float y) { return y + 1; }
 // This way can be helpful when we want to use a header only
 // minimum version of TVM Runtime.
 extern "C" int TVMExtDeclare(TVMFunctionHandle pregister) {
-  const PackedFunc& fregister = *static_cast<PackedFunc*>(pregister);
+  const PackedFunc& fregister = GetRef<PackedFunc>(static_cast<PackedFuncObj*>(pregister));
   auto mul = [](TVMArgs args, TVMRetValue* rv) {
     int x = args[0];
     int y = args[1];

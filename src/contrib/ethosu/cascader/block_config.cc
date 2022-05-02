@@ -33,13 +33,18 @@ namespace ethosu {
 namespace cascader {
 
 void BlockConfigNode::VisitAttrs(AttrVisitor* v) {
-  Array<Integer> tmp_arr = make_array(output_shape_);
+  Array<Integer> tmp_arr = make_array(input_shape_);
+  v->Visit("_input_shape", &tmp_arr);
+  tmp_arr = make_array(output_shape_);
   v->Visit("_output_shape", &tmp_arr);
+  v->Visit("_compute_cycles", &compute_cycles_);
+  v->Visit("_output_cycles", &output_cycles_);
 }
 
-BlockConfig::BlockConfig(const std::vector<int>& output_shape, int compute_cycles,
-                         int output_cycles) {
+BlockConfig::BlockConfig(const std::vector<int>& input_shape, const std::vector<int>& output_shape,
+                         int compute_cycles, int output_cycles) {
   auto n = make_object<BlockConfigNode>();
+  n->input_shape_ = std::move(input_shape);
   n->output_shape_ = std::move(output_shape);
   n->compute_cycles_ = compute_cycles;
   n->output_cycles_ = output_cycles;
@@ -47,9 +52,11 @@ BlockConfig::BlockConfig(const std::vector<int>& output_shape, int compute_cycle
 }
 
 TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.BlockConfig")
-    .set_body_typed([](Array<Integer> output_shape, int compute_cycles, int output_cycles) {
+    .set_body_typed([](Array<Integer> input_shape, Array<Integer> output_shape, int compute_cycles,
+                       int output_cycles) {
+      std::vector<int> vinput_shape = make_vector<int, Integer>(input_shape);
       std::vector<int> voutput_shape = make_vector<int, Integer>(output_shape);
-      return BlockConfig(voutput_shape, compute_cycles, output_cycles);
+      return BlockConfig(vinput_shape, voutput_shape, compute_cycles, output_cycles);
     });
 
 TVM_REGISTER_NODE_TYPE(BlockConfigNode);

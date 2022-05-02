@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -31,7 +31,9 @@ export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
 # Build cpptest suite
-make cpptest -j2
+python3 tests/scripts/task_build.py \
+    --sccache-bucket tvm-sccache-prod \
+    --cmake-target cpptest
 
 # "make crttest" requires USE_MICRO to be enabled, which is not always the case.
 if grep crttest build/Makefile > /dev/null; then
@@ -45,17 +47,3 @@ cd apps/bundle_deploy
 rm -rf build
 make test_dynamic test_static
 cd ../..
-
-# Test Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU demo app
-FVP_PATH="/opt/arm/FVP_Corstone_SSE-300"
-
-# TODO(@grant-arm): Remove once ci_cpu docker image has been updated to FVP_Corstone_SSE
-if test ! -d $FVP_PATH; then
-    FVP_PATH="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"
-fi
-
-if test -d $FVP_PATH && pip3 list | grep vela; then
-    cd apps/microtvm/ethosu
-    ./run_demo.sh --fvp_path $FVP_PATH --cmake_path /opt/arm/cmake/bin/cmake
-    cd ../../..
-fi

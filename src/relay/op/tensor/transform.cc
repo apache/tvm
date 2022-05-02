@@ -622,6 +622,8 @@ Array<IndexExpr> InferNewShape(const Array<IndexExpr>& data_shape, const Attrs& 
     newshape = param->newshape;
   }
 
+  bool allowzero = param->allowzero;
+
   std::unordered_set<size_t> used_input_dims;
   std::unordered_set<size_t> used_output_dims;
   size_t src_idx = 0;
@@ -634,11 +636,17 @@ Array<IndexExpr> InferNewShape(const Array<IndexExpr>& data_shape, const Attrs& 
       oshape.push_back(newshape[i]);
       ++src_idx;
     } else if (svalue == 0) {
-      // keep same
-      ICHECK_LT(src_idx, ishape.size());
-      used_input_dims.insert(src_idx);
-      used_output_dims.insert(oshape.size());
-      oshape.push_back(ishape[src_idx++]);
+      if (allowzero) {
+        // 0 means empty tensor, thus default behavior
+        oshape.push_back(newshape[i]);
+        ++src_idx;
+      } else {
+        // 0 means to copy at equivilant position in data tensor
+        ICHECK_LT(src_idx, ishape.size());
+        used_input_dims.insert(src_idx);
+        used_output_dims.insert(oshape.size());
+        oshape.push_back(ishape[src_idx++]);
+      }
     } else if (svalue == -1) {
       // inference based on rest
       ICHECK_LT(infer_idx, 0) << "One and only one dim can be inferred";
@@ -908,9 +916,10 @@ Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& in
   return {topi::reshape(inputs[0], newshape)};
 }
 
-Expr MakeReshape(Expr data, Array<Integer> newshape) {
+Expr MakeReshape(Expr data, Array<Integer> newshape, bool allowzero) {
   auto attrs = make_object<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
+  attrs->allowzero = allowzero;
   static const Op& op = Op::Get("reshape");
   return Call(op, {data}, Attrs(attrs), {});
 }
@@ -1009,7 +1018,9 @@ bool ReshapeLikeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   auto output_type = TensorType(shape_like, data->dtype);
   if (is_static_shape) {
     ICHECK(reporter->AssertEQ(data->Size(), output_type->Size()))
-        << "Reshape inputs size should be compatible.";
+        << "Reshape inputs size should be compatible, "
+        << "but found data_shape " << data->shape << " not same as output_shape "
+        << output_type->shape;
   }
   reporter->Assign(types[2], output_type);
   return true;
@@ -1569,11 +1580,15 @@ inline te::Tensor DynamicArange(const te::Tensor& start, const te::Tensor& stop,
                                 const te::Tensor& step, tvm::DataType dtype,
                                 std::string name = "T_arange_dynamic",
                                 std::string tag = topi::kInjective) {
+  ICHECK_EQ(start.ndim(), 0);
+  ICHECK_EQ(stop.ndim(), 0);
+  ICHECK_EQ(step.ndim(), 0);
   tvm::PrimExpr num_elem = tvm::tir::Var("num_elem");
   return te::compute(
       {num_elem},
       [&](const Array<tvm::tir::Var>& indices) {
-        return tvm::cast(dtype, start[0] + step[0] * indices[0]);
+        Array<PrimExpr> empty_indices;
+        return tvm::cast(dtype, start(empty_indices) + step(empty_indices) * indices[0]);
       },
       name, tag);
 }
@@ -2705,6 +2720,13 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
             new_begin.push_back(begin[i]);
             new_end.push_back(end[i]);
           } else {
+            if (strides.defined() && i < strides.size()) {
+              auto stride = strides[i];
+              // arbitrary stride is not supported
+              if (stride.defined() && stride->value != 1) {
+                return out_default;
+              }
+            }
             int64_t bg = begin[i];
             int64_t ed = end[i];
             if (bg % factor || ed % factor) {
@@ -3322,8 +3344,7 @@ bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         << "Gather: expect indices type to be TensorType but get " << types[1];
     return false;
   }
-  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
-      << "indices of gather must be tensor of integer";
+  ICHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
   const auto param = attrs.as<GatherAttrs>();
   ICHECK(param != nullptr);
   ICHECK(param->axis.defined());
@@ -3886,43 +3907,16 @@ bool AdvIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (inputs == nullptr || data == nullptr) {
     return false;
   }
+  ICHECK_LE(inputs->fields.size() - 1, data->shape.size()) << "too many indices for data!";
 
   Array<IndexExpr> oshape;
-  Array<IndexExpr> broadcast_shape;
-  int64_t num_picked_elems = 1;
-
-  if (inputs->fields.size() == 2) {
-    broadcast_shape = inputs->fields[1].as<TensorTypeNode>()->shape;
-  } else {
-    for (size_t i = 1; i < inputs->fields.size(); ++i) {
-      auto index_type = inputs->fields[i].as<TensorTypeNode>();
-      if (index_type == nullptr) {
-        return false;
-      }
-      ICHECK(index_type->dtype.is_int() || index_type->dtype.is_uint())
-          << "indices must be tensor of integers";
-
-      int64_t flatten_len = 1;
-      bool has_dyn_shape = false;
-      for (const auto& dim : index_type->shape) {
-        const IntImmNode* axis_len = dim.as<IntImmNode>();
-        if (!axis_len) {
-          // If dynamic shape appears, just use the first shape
-          broadcast_shape = index_type->shape;
-          has_dyn_shape = true;
-          break;
-        }
-        flatten_len *= axis_len->value;
-      }
-      if (has_dyn_shape) break;
-      if (flatten_len > num_picked_elems) {
-        num_picked_elems = flatten_len;
-        broadcast_shape = index_type->shape;
-      }
-    }
+  TensorType broadcast_type = Downcast<TensorType>(inputs->fields[1]);
+  for (size_t i = 2; i < inputs->fields.size(); ++i) {
+    broadcast_type =
+        ConcreteBroadcast(broadcast_type, Downcast<TensorType>(inputs->fields[i]), data->dtype);
   }
 
-  for (const auto& dim : broadcast_shape) {
+  for (const auto& dim : broadcast_type->shape) {
     oshape.push_back(dim);
   }
   for (size_t i = inputs->fields.size() - 1; i < data->shape.size(); ++i) {

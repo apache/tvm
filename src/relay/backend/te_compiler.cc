@@ -33,6 +33,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
+#include <tvm/tir/transform.h>
 #include <tvm/topi/tags.h>
 
 #include <functional>
@@ -321,14 +322,23 @@ class TECompilerImpl : public TECompilerNode {
     });
 
     if (value->cached_func->prim_func.defined()) {
-      VLOG(1) << "already have PrimFunc";
-      value->cached_func->funcs->Add(value->cached_func->prim_fn_var,
-                                     value->cached_func->prim_func.value());
+      VLOG(1) << "Lowering PrimFunc";
+      IRModule lowered = tvm::LowerPrimFunc(value->cached_func->prim_func.value(),
+                                            value->cached_func->prim_fn_var->name_hint, false);
+      ICHECK_EQ(lowered->functions.size(), 1);
+      for (const auto& kv : lowered->functions) {
+        value->cached_func->funcs->Add(value->cached_func->prim_fn_var, kv.second);
+      }
     } else {
       // NOTE: array will copy on write.
       Array<te::Tensor> all_args = Array<te::Tensor>(value->cached_func->inputs);
       for (te::Tensor arg : value->cached_func->outputs) {
         all_args.push_back(arg);
+      }
+      Array<runtime::NDArray> all_consts;
+      for (auto kv : value->cached_func->constant_tensors) {
+        all_args.push_back(kv.second);
+        all_consts.push_back(kv.first->data);
       }
       // lower the function
       std::unordered_map<te::Tensor, tir::Buffer> binds;
@@ -336,6 +346,7 @@ class TECompilerImpl : public TECompilerNode {
       VLOG(1) << "scheduling";
       IRModule scheduled_module =
           tvm::LowerSchedule(value->cached_func->schedule, all_args, func_name, binds);
+      scheduled_module->Update(tir::transform::BindParams(all_consts)(scheduled_module));
       // Unfortunately the above machinery creates its own GlobalVars instead of using *the*
       // GlobalVar we established above. Fix this before the confusion spreads any further.
       // TODO(mbs): LowerSchedule should be given prim_fn_gvar instead of func_name.
@@ -343,7 +354,14 @@ class TECompilerImpl : public TECompilerNode {
         GlobalVar global_var = kv.first->name_hint == value->cached_func->prim_fn_var->name_hint
                                    ? value->cached_func->prim_fn_var
                                    : kv.first;
-        value->cached_func->funcs->Add(global_var, kv.second);
+        auto func = kv.second;
+        // Propagate the structural hash of the relay function to the tir
+        // function so associations can be made between the two.
+        Optional<String> hash = key->source_func->attrs.GetAttr<String>("hash");
+        if (hash) {
+          func = WithAttrs(Downcast<tir::PrimFunc>(func), {{String("hash"), hash.value()}});
+        }
+        value->cached_func->funcs->Add(global_var, func);
       }
       ICHECK(value->cached_func->funcs->Lookup(value->cached_func->prim_fn_var)
                  .as<tir::PrimFuncNode>());
@@ -895,7 +913,7 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
         device_consts[device_type] += size_bytes;
       }
     } else if (expr->IsInstance<VarNode>() || expr.same_as(func->body)) {
-      CHECK_GE(virtual_devices.size(), 1) << "must be at least one device";
+      CHECK(size_bytes == 0 || virtual_devices.size() >= 1) << "must be at least one device";
       for (const auto& virtual_device : virtual_devices) {
         DLDeviceType device_type = virtual_device->device_type();
         device_io[device_type] += size_bytes;
@@ -1179,7 +1197,8 @@ Pass LowerTEPass(const String& module_name, ProcessFn process_fn,
 
   return tvm::transform::Sequential(
       {tvm::relay::transform::RelayToTIRTargetHook(),
-       tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {"InferType"}), InferType()});
+       tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {"InferType"}), InferType(),
+       tvm::tir::transform::ExtractPrimFuncConstants()});
 }
 }  // namespace tec
 }  // namespace relay

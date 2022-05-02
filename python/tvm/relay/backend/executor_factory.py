@@ -81,6 +81,8 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         The Target used to build this module.
     executor : tvm.relay.backend.Executor
         Internal representation of the Executor
+    runtime : tvm.relay.backend.Runtime
+        Internal representation of the Runtime
     libmod : tvm.Module
         The module of the corresponding function
     libmod_name: str
@@ -99,21 +101,32 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         lowered_ir_mods,
         target,
         executor,
+        runtime,
         libmod,
         libmod_name,
         params,
         function_metadata,
+        executor_codegen_metadata,
         devices,
     ):
+        fcreate = get_global_func("tvm.aot_executor_factory.create")
+        args = []
+        for k, v in params.items():
+            args.append(k)
+            args.append(ndarray.array(v))
+
+        self.module = fcreate(libmod, libmod_name, *args)
         self.ir_mod = ir_mod
         self.lowered_ir_mods = lowered_ir_mods
         self.target = target
         self.executor = executor
+        self.runtime = runtime
         self.lib = libmod
         self.libmod_name = libmod_name
         self.params = params
         self.iter_cnt = 0
         self.function_metadata = function_metadata
+        self.executor_codegen_metadata = executor_codegen_metadata
         self.devices = devices
 
     def get_devices(self):
@@ -127,6 +140,9 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
 
     def get_lib(self):
         return self.lib
+
+    def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
+        return self.module.export_library(file_name, fcompile, addons, **kwargs)
 
 
 class GraphExecutorFactoryModule(ExecutorFactoryModule):

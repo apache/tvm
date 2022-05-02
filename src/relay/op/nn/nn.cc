@@ -210,10 +210,6 @@ InferCorrectLayoutOutput DenseInferCorrectLayout(const Attrs& attrs,
                                                  const Array<Layout>& new_in_layouts,
                                                  const Array<Layout>& old_in_layouts,
                                                  const Array<tvm::relay::Type>& old_in_types) {
-  // Respect input layout, if explicitly specified (for example, "NW").
-  if (new_in_layouts.size() > 0 && new_in_layouts[0].defined()) {
-    return InferCorrectLayoutOutput({new_in_layouts[0], "NC"}, {"NC"}, attrs);
-  }
   return InferCorrectLayoutOutput({"NC", "NC"}, {"NC"}, attrs);
 }
 
@@ -263,7 +259,7 @@ bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   ICHECK(param != nullptr);
 
   ICHECK_EQ(data->shape.size(), 2) << "Only 2D data is supported";
-  ICHECK_EQ(weight->shape.size(), 3) << "Weight is not packed";
+  ICHECK(weight->shape.size() == 3 || weight->shape.size() == 4) << "Expect weight to be 3D or 4D";
 
   Array<tvm::PrimExpr> oshape = data->shape;
   oshape.Set(1, weight->shape[0] * weight->shape[2]);
@@ -283,14 +279,6 @@ InferCorrectLayoutOutput DensePackInferCorrectLayout(const Attrs& attrs,
                                                      const Array<tvm::relay::Type>& old_in_types) {
   auto params = attrs.as<DensePackAttrs>();
   ICHECK(params);
-  // Respect input layout, if explicitly specified (for example, "NW").
-  // However, a packed layout such as "NC8c" is not supported by dense_pack op. For such cases,
-  // we insert a layout transform "NC8c" -> "NC".
-  // We do not expect to get a packed layout like "NW8w", which is not compatitble with "NC",
-  // since packing is always done on the "C" axis.
-  if (new_in_layouts.size() > 0 && new_in_layouts[0].defined() && new_in_layouts[0].ndim() == 2) {
-    return InferCorrectLayoutOutput({new_in_layouts[0], params->weight_layout}, {"NC"}, attrs);
-  }
   return InferCorrectLayoutOutput({"NC", params->weight_layout}, {"NC"}, attrs);
 }
 
@@ -1177,7 +1165,8 @@ bool NLLLossRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                                      << ", weights shape = " << weights->shape);
     return false;
   }
-  if (!(predictions->dtype == weights->dtype && predictions->dtype.is_float())) {
+  if (!(predictions->dtype == weights->dtype &&
+        (predictions->dtype.is_float() || predictions->dtype.is_bfloat16()))) {
     reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
                                      << "NLLLossRel: predictions and weights should"
                                      << " be of the same floating type.");

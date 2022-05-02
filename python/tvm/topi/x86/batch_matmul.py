@@ -16,12 +16,68 @@
 # under the License.
 # pylint: disable=invalid-name,too-many-locals,unused-variable
 """x86 batch_matmul operators"""
+import tvm
 from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cblas, mkl
 from .. import generic, nn
+from ..transform import layout_transform
 from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor
+from .dense import dense_vnni_schedule
+from .injective import schedule_injective_from_existing
+
+
+@autotvm.register_topi_compute("batch_matmul_vnni.x86")
+def batch_matmul_vnni_compute(cfg, x, y, *_):
+    """Compute for uint8 x int8 -> int32 batch_matmul"""
+    batch, m, k = x.shape
+    packed_y_layout = "BNK16n4k"
+    packed_y = layout_transform(y, "BNK", packed_y_layout)
+    _, n_o, _, n_i, _ = packed_y.shape
+    ak = te.reduce_axis((0, k), name="k")
+
+    z = te.compute(
+        (batch, m, n_o * n_i),
+        lambda b, i, j: te.sum(
+            x[b, i, ak].astype("int32")
+            * packed_y[b, tvm.tir.indexdiv(j, 16), tvm.tir.indexdiv(ak, 4), j % 16, ak % 4].astype(
+                "int32"
+            ),
+            axis=ak,
+        ),
+        tag="batch_matmul_vnni",
+        attrs={"schedule_rule": "meta_schedule.batch_matmul_vnni"},
+    )
+
+    _, a_y, _ = z.op.axis
+    cfg.define_split("tile_y", a_y, num_outputs=2)
+    cfg.define_knob("layout_trans_compute_root", [0, 1])
+
+    return z
+
+
+def batch_matmul_vnni_schedule(cfg, s, C, O, layout_trans):
+    """Schedule batch_matmul compute using VNNI vpdpbusd instruction"""
+    # C: The output of batched GEMM
+    # O: The output of the fused op
+
+    # Schedule the GEMM part
+    s, fused_inner = dense_vnni_schedule(cfg, s, C, O, do_parallel=False)
+    # Parallelize over batch
+    fused = s[O].fuse(O.op.axis[0], fused_inner)
+    s[O].parallel(fused)
+
+    if cfg["layout_trans_compute_root"].val:
+        s[layout_trans].compute_root()
+        schedule_injective_from_existing(s, layout_trans)
+    else:
+        s[layout_trans].compute_at(s[O], fused)
+        _, _, _, ni, ki = s[layout_trans].op.axis
+        s[layout_trans].vectorize(ki)
+        s[layout_trans].unroll(ni)
+
+    return s
 
 
 @autotvm.register_topi_compute("batch_matmul.x86")
@@ -140,6 +196,20 @@ def schedule_batch_matmul(cfg, outs):
             s[Crf].fuse(y, x)
             s[Crf].vectorize(s[Crf].op.axis[0])
             s[O].pragma(bxyo, "auto_unroll_max_step", 16)
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
+@autotvm.register_topi_schedule("batch_matmul_vnni.x86")
+def schedule_batch_matmul_vnni(cfg, outs):
+    """Schedule for batch_matmul_vnni"""
+    s = te.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        if "batch_matmul_vnni" in op.tag:
+            layout_trans = op.input_tensors[1]
+            batch_matmul_vnni_schedule(cfg, s, op.output(0), outs[0], layout_trans)
 
     traverse_inline(s, outs[0].op, _callback)
     return s

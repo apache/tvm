@@ -35,6 +35,8 @@
 #include <tvm/te/operation.h>
 #include <tvm/tir/usmp/utils.h>
 
+#include <iostream>
+#include <sstream>
 #include <string>
 #include <typeinfo>
 #include <unordered_map>
@@ -43,6 +45,8 @@
 #include <vector>
 
 #include "../../runtime/meta_data.h"
+#include "../../target/metadata.h"
+#include "tvm/runtime/ndarray.h"
 
 namespace tvm {
 namespace relay {
@@ -61,10 +65,14 @@ class ExecutorCodegenMetadataNode : public Object {
  public:
   /*! \brief input information for the main function */
   Array<tir::Var> inputs;
+  /*! \brief input tensor type information */
+  Array<TensorType> input_tensor_types;
+  /*! \brief output information for the main function */
+  Array<String> outputs;
+  /*! \brief output tensor type information */
+  Array<TensorType> output_tensor_types;
   /*! \brief pool information for the main function */
   Array<tir::Var> pools;
-  /*! \brief number of outputs of the main function */
-  unsigned int num_outputs = 1;
   /*! \brief device contexts information for the main function */
   Array<String> devices;
   /*! \brief the executor to be used to run the model */
@@ -75,10 +83,24 @@ class ExecutorCodegenMetadataNode : public Object {
   bool unpacked_api;
   /*! \brief the input var names that correspond to pool_inputs */
   Optional<Map<tir::Var, tir::usmp::AllocatedPoolInfo>> pool_inputs;
+  /*! \brief the I/O tensor to PoolAllocations if any*/
+  Map<String, tir::usmp::PoolAllocation> io_pool_allocations;
 
   String mod_name = "";
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("inputs", &inputs);
+    v->Visit("input_tensor_types", &input_tensor_types);
+    v->Visit("outputs", &outputs);
+    v->Visit("output_tensor_types", &output_tensor_types);
+    v->Visit("pools", &pools);
+    v->Visit("devices", &devices);
+    v->Visit("executor", &executor);
+    v->Visit("unpacked_api", &unpacked_api);
+    v->Visit("pool_inputs", &pool_inputs);
+    v->Visit("io_pool_allocations", &io_pool_allocations);
+  }
+
   static constexpr const char* _type_key = "MetadataObj";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecutorCodegenMetadataNode, Object);
 };
@@ -88,27 +110,16 @@ class ExecutorCodegenMetadataNode : public Object {
  */
 class ExecutorCodegenMetadata : public ObjectRef {
  public:
-  TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<tir::Var> pools,
-                                  Array<String> devices, int num_outputs, String executor,
-                                  String mod_name, String interface_api = "packed",
-                                  bool unpacked_api = false,
-                                  Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
-                                      Map<tir::Var, tir::usmp::AllocatedPoolInfo>()) {
-    auto n = make_object<ExecutorCodegenMetadataNode>();
-    n->inputs = inputs;
-    n->pools = pools;
-    n->devices = devices;
-    n->num_outputs = num_outputs;
-    n->executor = executor;
-    n->interface_api = interface_api;
-    n->unpacked_api = unpacked_api;
-    n->mod_name = mod_name;
-    n->pool_inputs = pool_inputs;
-    data_ = std::move(n);
-  }
+  TVM_DLL ExecutorCodegenMetadata(
+      Array<tir::Var> inputs, Array<TensorType> input_tensor_types, Array<String> outputs,
+      Array<TensorType> output_tensor_types, Array<tir::Var> pools, Array<String> devices,
+      String executor, String mod_name, String interface_api = "packed", bool unpacked_api = false,
+      Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
+          Map<tir::Var, tir::usmp::AllocatedPoolInfo>(),
+      Map<String, tir::usmp::PoolAllocation> io_pool_allocations = {{}});
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ExecutorCodegenMetadata, ObjectRef, ExecutorCodegenMetadataNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ExecutorCodegenMetadataNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ExecutorCodegenMetadata, ObjectRef,
+                                        ExecutorCodegenMetadataNode);
 };
 
 /*!
@@ -360,6 +371,8 @@ inline std::string DType2String(const tvm::DataType dtype) {
     os << "int";
   } else if (dtype.is_uint()) {
     os << "uint";
+  } else if (dtype.is_bfloat16()) {
+    os << "bfloat";
   } else if ((*GetPackedFunc("runtime._datatype_get_type_registered"))(dtype.code())) {
     os << "custom["
        << (*GetPackedFunc("runtime._datatype_get_type_name"))(dtype.code()).operator std::string()
@@ -377,36 +390,18 @@ inline std::string DType2String(const tvm::DataType dtype) {
  * \param params params dict
  * \return relay::Function
  */
-inline relay::Function BindParamsByName(
-    relay::Function func, const std::unordered_map<std::string, runtime::NDArray>& params) {
-  std::unordered_map<std::string, relay::Var> name_dict;
-  std::unordered_set<relay::Var, ObjectPtrHash, ObjectPtrEqual> repeat_var;
-  for (auto arg : func->params) {
-    const auto& name = arg->name_hint();
-    if (name_dict.count(name)) {
-      repeat_var.insert(name_dict[name]);
-    } else {
-      name_dict[name] = arg;
-    }
-  }
+relay::Function BindParamsByName(relay::Function func,
+                                 const std::unordered_map<std::string, runtime::NDArray>& params);
 
-  std::unordered_map<relay::Var, Expr, ObjectPtrHash, ObjectPtrEqual> bind_dict;
-  for (auto& kv : params) {
-    if (name_dict.count(kv.first) == 0) {
-      continue;
-    }
-    auto arg = name_dict.at(kv.first);
-    if (repeat_var.count(arg)) {
-      LOG(FATAL) << "Multiple args in the function have name " << kv.first;
-    }
-    bind_dict[arg] = Constant(kv.second);
-  }
-  Expr bound_expr = relay::Bind(func, bind_dict);
-  Function ret = Downcast<Function>(bound_expr);
-  ICHECK(ret.defined()) << "The returning type is expected to be a Relay Function."
-                        << "\n";
-  return ret;
-}
+/*!
+ * \brief Bind params to the main function in Relay module, using BindParamsByName
+ * \param mod Relay module
+ * \param params params dict
+ */
+void BindParamsInModule(IRModule mod,
+                        const std::unordered_map<std::string, runtime::NDArray>& params);
+
+void BindParamsInModule(IRModule mod, Map<String, runtime::NDArray> params);
 
 /*!
  * \brief Extract the shape from a Relay tensor type.
@@ -457,8 +452,12 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
   }
 
   ICHECK_GT(current_call->args.size(), 0);
-
-  const auto* next_call = current_call->args[0].as<CallNode>();
+  size_t valid_node_idx = 0;
+  while (valid_node_idx < current_call->args.size() &&
+         current_call->args[valid_node_idx].as<VarNode>()) {
+    valid_node_idx++;
+  }
+  const auto* next_call = current_call->args[valid_node_idx].as<CallNode>();
   return GetRootCall(next_call, depth - 1, expected_op_names);
 }
 
@@ -525,7 +524,7 @@ Array<Pass> GetPassPrefix(bool is_homogenous, bool is_vm);
 /*! \brief Target hash function */
 struct TargetStrHash {
   /*!
-   * \brief Calculate the hash code of a Target based on the string value of the Target.
+   * \brief Calculate the hash code of a Target based on the string value of the Target KIND.
    Note that this hash should NOT be used in new usecases, equality of targets based on their
    value is not well-defined.
    This will be removed when maps from Targets to IRModules are removed from the codebase.
@@ -533,7 +532,8 @@ struct TargetStrHash {
    * \return String hash of the target
    */
   size_t operator()(const Target& target) const {
-    return String::HashBytes(target->str().c_str(), target->str().size());
+    std::string s(target->kind->name);
+    return String::HashBytes(s.c_str(), s.size());
   }
 };
 
@@ -584,6 +584,14 @@ Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
  * \param IRModule after lowering by LowerTEPass.
  */
 void UpdateAutoSchedulerOpWeights(const IRModule& module);
+
+/*!
+ * \brief Extract shape from expr to vector<int64_t>
+ *
+ * \param shape
+ * \return std::vector<int64_t>
+ */
+std::vector<int64_t> ShapeToJSON(tvm::Array<IndexExpr> shape);
 
 }  // namespace backend
 }  // namespace relay

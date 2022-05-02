@@ -20,6 +20,7 @@ from .gemm_operation import GemmOperation, EmitGemmInstance
 from .gemm_profiler import GemmProfilerEmitter
 from .gen_tensor_op import ProfilerEngine, GENERATOR_FUNC_TABLE, EPILOGUE_MAP
 from .library import (
+    DataType,
     EpilogueFunctor,
     SwizzlingFunctor,
     TensorDescription,
@@ -86,6 +87,14 @@ def enumerate_gemm_operators(
             A = TensorDescription(element_a, LayoutType.RowMajor, alignment)
             B = TensorDescription(element_b, LayoutType.ColumnMajor, alignment)
             C = TensorDescription(element_c, LayoutType.RowMajor, alignment)
+
+            if element_c == DataType.s32 and A.alignment == 1:
+                tile_description.threadblock_shape[0] = min(
+                    tile_description.threadblock_shape[0], 128
+                )
+                tile_description.threadblock_shape[1] = min(
+                    tile_description.threadblock_shape[1], 128
+                )
 
             op = GemmOperation(
                 tile_description.minimum_compute_capability,
@@ -164,6 +173,8 @@ class CutlassGemmProfiler:
             lambda align: align == 1,  # Only request align1 kernels
             use_3xtf32,
             profile_all_alignments=True,  # To include all align1 kernels
+            # TODO(masahi): Invesitigate when fp32 accumulation is needed for gemm
+            accumlator_dtype=out_dtype,
         )
 
         default_kernel_name = DEFAULT_KERNELS[self.sm][(arg0_dtype, out_dtype)]
@@ -220,6 +231,8 @@ class CutlassGemmProfiler:
             lambda align: all([dim % align == 0 for dim in [M, N, K]]),
             use_3xtf32,
             profile_all_alignments=profile_all_alignments,
+            # TODO(masahi): Invesitigate when fp32 accumulation is needed for gemm
+            accumlator_dtype=out_dtype,
         )
 
         if not find_first_valid:

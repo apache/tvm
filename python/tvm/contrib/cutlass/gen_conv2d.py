@@ -14,13 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, dangerous-default-value
 """Conv2d kernel generator and profiler for CUTLASS."""
+from functools import partial
 from .conv2d_operation import Conv2dOperation, EmitConv2dInstance
 from .gen_gemm import CutlassGemmProfiler
 from .conv2d_profiler import Conv2dProfilerEmitter
 from .gen_tensor_op import ProfilerEngine, GENERATOR_FUNC_TABLE, EPILOGUE_MAP
 from .library import (
+    DataType,
     EpilogueFunctor,
     SwizzlingFunctor,
     TensorDescription,
@@ -32,7 +34,14 @@ from .library import (
 
 
 def create_conv2d_operator_with_epilogue(
-    op_type, tile_description, data_type, alignment, swizzling_functor
+    conv_kind,
+    stride_support,
+    op_type,
+    tile_description,
+    data_type,
+    alignment,
+    swizzling_functor,
+    split_k_slices,
 ):
     """
     Instantiate a cutlass kernel from the given configuration,
@@ -72,7 +81,7 @@ def create_conv2d_operator_with_epilogue(
     C = TensorDescription(element_c, LayoutType.TensorNHWC, alignment)
 
     op = Conv2dOperation(
-        ConvKind.Fprop,
+        conv_kind,
         IteratorAlgorithm.Optimized,
         tile_description.minimum_compute_capability,
         tile_description,
@@ -80,20 +89,27 @@ def create_conv2d_operator_with_epilogue(
         B,
         C,
         element_epilogue,
-        StrideSupport.Strided,
+        stride_support,
         epilogue,
         swizzling_functor,
+        split_k_slices,
     )
 
     name = op.procedural_name()
     opdef = EmitConv2dInstance().emit(
-        op, no_beta_scaling=no_beta_scaling, residual_block_info=residual_block_info
+        op,
+        no_beta_scaling=no_beta_scaling,
+        residual_block_info=residual_block_info,
+        emit_reduction=split_k_slices > 1,
     )
 
     return name, opdef
 
 
 def enumerate_conv2d_operators(
+    conv_kind,
+    stride_support,
+    split_k_slices,
     tile_descriptions,
     data_type,
     alignment_constraints,
@@ -107,37 +123,52 @@ def enumerate_conv2d_operators(
 
     element_a, element_b, element_c, element_epilogue = data_type
 
-    for tile in tile_descriptions:
-        for alignment in alignment_constraints:
+    if conv_kind == ConvKind.Dgrad and stride_support == StrideSupport.Strided:
+        swizzling_functor = SwizzlingFunctor.StridedDgradIdentity1
 
-            A = TensorDescription(element_a, LayoutType.TensorNHWC, alignment)
-            B = TensorDescription(element_b, LayoutType.TensorNHWC, alignment)
-            C = TensorDescription(element_c, LayoutType.TensorNHWC, alignment)
+    for split_k_slice in split_k_slices:
+        for tile in tile_descriptions:
+            for alignment in alignment_constraints:
 
-            op = Conv2dOperation(
-                ConvKind.Fprop,
-                IteratorAlgorithm.Optimized,
-                tile.minimum_compute_capability,
-                tile,
-                A,
-                B,
-                C,
-                element_epilogue,
-                StrideSupport.Strided,
-                EpilogueFunctor.LinearCombination,
-                swizzling_functor,
-            )
+                A = TensorDescription(element_a, LayoutType.TensorNHWC, alignment)
+                B = TensorDescription(element_b, LayoutType.TensorNHWC, alignment)
+                C = TensorDescription(element_c, LayoutType.TensorNHWC, alignment)
 
-            ret.append(
-                {
-                    "src": profiler_emitter.emit(kernel_emitter.emit(op), op.procedural_name()),
-                    "name": op.procedural_name(),
-                    "tile_description": tile,
-                    "alignment": alignment,
-                    "data_type": data_type,
-                    "swizzle_functor": swizzling_functor,
-                }
-            )
+                if element_c == DataType.s32 and A.alignment == 1:
+                    tile.threadblock_shape[0] = min(tile.threadblock_shape[0], 128)
+                    tile.threadblock_shape[1] = min(tile.threadblock_shape[1], 128)
+
+                op = Conv2dOperation(
+                    conv_kind,
+                    IteratorAlgorithm.Optimized,
+                    tile.minimum_compute_capability,
+                    tile,
+                    A,
+                    B,
+                    C,
+                    element_epilogue,
+                    stride_support,
+                    EpilogueFunctor.LinearCombination,
+                    swizzling_functor,
+                    split_k_slice,
+                )
+
+                ret.append(
+                    {
+                        "src": profiler_emitter.emit(
+                            kernel_emitter.emit(op, emit_reduction=split_k_slice > 1),
+                            op.procedural_name(),
+                            element_output=element_c,
+                            split_k_slices=split_k_slice,
+                        ),
+                        "name": op.procedural_name(),
+                        "tile_description": tile,
+                        "alignment": alignment,
+                        "data_type": data_type,
+                        "swizzle_functor": swizzling_functor,
+                        "split_k_slices": split_k_slice,
+                    }
+                )
 
     return ret
 
@@ -152,7 +183,16 @@ class CutlassConv2DProfiler:
         self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
         self.cache = {}
 
-    def get_default(self, op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32):
+    def get_default(
+        self,
+        op_type,
+        out_dtype,
+        arg0_dtype,
+        arg1_dtype,
+        use_3xtf32,
+        conv_kind=ConvKind.Fprop,
+        stride=(1, 1),
+    ):
         """Return the default kernel for the requested architecture.
         For now, the default kernel was picked arbitrary.
         """
@@ -162,8 +202,22 @@ class CutlassConv2DProfiler:
         tile_description = gemm_profile_result["tile_description"]
         alignment = gemm_profile_result["alignment"]
         data_type = gemm_profile_result["data_type"]
+        stride_support = StrideSupport.Strided if stride[0] > 1 else StrideSupport.Unity
+
+        if conv_kind == ConvKind.Dgrad and stride_support == StrideSupport.Strided:
+            swizzling_functor = SwizzlingFunctor.StridedDgradIdentity1
+        else:
+            swizzling_functor = SwizzlingFunctor.Identity4
+
         name, opdef = create_conv2d_operator_with_epilogue(
-            op_type, tile_description, data_type, alignment, SwizzlingFunctor.Identity4
+            conv_kind,
+            stride_support,
+            op_type,
+            tile_description,
+            data_type,
+            alignment,
+            swizzling_functor,
+            split_k_slices=1,
         )
         return {"name": name, "opdef": opdef}
 
@@ -178,6 +232,9 @@ class CutlassConv2DProfiler:
         data_dtype,
         weight_dtype,
         use_3xtf32,
+        conv_kind,
+        stride_support,
+        split_k_slices,
         profile_all_alignments=False,
         find_first_valid=False,
         use_multiprocessing=False,
@@ -188,6 +245,7 @@ class CutlassConv2DProfiler:
         """
         N, H, W, IC = d_shape
         OC, R, S, _ = w_shape
+
         workload = (
             N,
             H,
@@ -211,10 +269,12 @@ class CutlassConv2DProfiler:
             out_dtype,
             data_dtype,
             weight_dtype,
-            enumerate_conv2d_operators,
+            partial(enumerate_conv2d_operators, conv_kind, stride_support, split_k_slices),
             lambda align: all([dim % align == 0 for dim in [IC, OC]]),
             use_3xtf32,
             profile_all_alignments,
+            # Use fp32 accumulation for wgrad to align with cuDNN
+            accumlator_dtype="float32" if conv_kind == ConvKind.Wgrad else out_dtype,
         )
 
         if not find_first_valid:
@@ -248,6 +308,8 @@ class CutlassConv2DProfiler:
         data_dtype,
         weight_dtype,
         use_3xtf32=True,
+        conv_kind=ConvKind.Fprop,
+        split_k_slices=[1],
         profile_all_alignments=False,
         find_first_valid=False,
         use_multiprocessing=False,
@@ -256,6 +318,13 @@ class CutlassConv2DProfiler:
         If find_first_valid is True, return immediately after the first applicable kernel is found.
         If use_multiprocessing is True, compile all profiler executables in parallel.
         """
+        # Dgrad requires Unity stride when stride == (1, 1)
+        stride_support = (
+            StrideSupport.Unity
+            if stride[0] == 1 and stride[1] == 1 and conv_kind == ConvKind.Dgrad
+            else StrideSupport.Strided
+        )
+
         op = self.select_op(
             d_shape,
             w_shape,
@@ -266,13 +335,23 @@ class CutlassConv2DProfiler:
             data_dtype,
             weight_dtype,
             use_3xtf32,
+            conv_kind,
+            stride_support,
+            split_k_slices,
             profile_all_alignments,
             find_first_valid,
             use_multiprocessing,
         )
 
         name, opdef = create_conv2d_operator_with_epilogue(
-            op_type, op["tile_description"], op["data_type"], op["alignment"], op["swizzle_functor"]
+            conv_kind,
+            stride_support,
+            op_type,
+            op["tile_description"],
+            op["data_type"],
+            op["alignment"],
+            op["swizzle_functor"],
+            op["split_k_slices"],
         )
 
         return name, opdef, op["runtime"]

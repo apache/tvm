@@ -16,17 +16,19 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import re
+from random import random
 from typing import List
 
 import pytest
 import tvm
-from tvm.ir.base import assert_structural_equal
+from tvm.ir import IRModule, assert_structural_equal
 from tvm.meta_schedule.builder import BuilderResult
 from tvm.meta_schedule.measure_callback import PyMeasureCallback
 from tvm.meta_schedule.runner import RunnerResult
 from tvm.meta_schedule.search_strategy import MeasureCandidate
-from tvm.meta_schedule.task_scheduler.task_scheduler import TaskScheduler
-from tvm.meta_schedule.utils import _get_hex_address
+from tvm.meta_schedule.task_scheduler import RoundRobin, TaskScheduler
+from tvm.meta_schedule.testing import DummyBuilder, DummyDatabase, DummyRunner
+from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.tir.schedule import Schedule
 
@@ -53,6 +55,7 @@ class Matmul:
 
 
 def test_meta_schedule_measure_callback():
+    @derived_object
     class FancyMeasureCallback(PyMeasureCallback):
         def apply(
             self,
@@ -75,7 +78,7 @@ def test_meta_schedule_measure_callback():
 
     measure_callback = FancyMeasureCallback()
     measure_callback.apply(
-        TaskScheduler(),
+        RoundRobin([], [], DummyBuilder(), DummyRunner(), DummyDatabase(), max_trials=1),
         0,
         [MeasureCandidate(Schedule(Matmul), None)],
         [BuilderResult("test_build", None)],
@@ -84,6 +87,7 @@ def test_meta_schedule_measure_callback():
 
 
 def test_meta_schedule_measure_callback_fail():
+    @derived_object
     class FailingMeasureCallback(PyMeasureCallback):
         def apply(
             self,
@@ -98,7 +102,7 @@ def test_meta_schedule_measure_callback_fail():
     measure_callback = FailingMeasureCallback()
     with pytest.raises(ValueError, match="test"):
         measure_callback.apply(
-            TaskScheduler(),
+            RoundRobin([], [], DummyBuilder(), DummyRunner(), DummyDatabase(), max_trials=1),
             0,
             [MeasureCandidate(Schedule(Matmul), None)],
             [BuilderResult("test_build", None)],
@@ -107,6 +111,7 @@ def test_meta_schedule_measure_callback_fail():
 
 
 def test_meta_schedule_measure_callback_as_string():
+    @derived_object
     class NotSoFancyMeasureCallback(PyMeasureCallback):
         def apply(
             self,
@@ -118,11 +123,8 @@ def test_meta_schedule_measure_callback_as_string():
         ) -> None:
             pass
 
-        def __str__(self) -> str:
-            return f"NotSoFancyMeasureCallback({_get_hex_address(self.handle)})"
-
     measure_callback = NotSoFancyMeasureCallback()
-    pattern = re.compile(r"NotSoFancyMeasureCallback\(0x[a-f|0-9]*\)")
+    pattern = re.compile(r"meta_schedule.NotSoFancyMeasureCallback\(0x[a-f|0-9]*\)")
     assert pattern.match(str(measure_callback))
 
 

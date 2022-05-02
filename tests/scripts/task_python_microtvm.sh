@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -29,10 +29,6 @@ run_pytest ctypes python-microtvm-zephyr-qemu_x86 tests/micro/zephyr --zephyr-bo
 run_pytest ctypes python-microtvm-zephyr-qemu_riscv32 tests/micro/zephyr --zephyr-board=qemu_riscv32
 run_pytest ctypes python-microtvm-zephyr-qemu_riscv64 tests/micro/zephyr --zephyr-board=qemu_riscv64
 
-# Temporarily removing mps2_an512 from CI due to issue 8728:
-# https://github.com/apache/tvm/issues/8728
-# run_pytest ctypes python-microtvm-zephyr tests/micro/zephyr --zephyr-board=mps2_an521
-
 # Arduino
 run_pytest ctypes python-microtvm-arduino apps/microtvm/arduino/template_project/tests
 run_pytest ctypes python-microtvm-arduino-nano33ble tests/micro/arduino  --test-build-only --arduino-board=nano33ble
@@ -44,3 +40,14 @@ run_pytest ctypes python-microtvm-stm32 tests/micro/stm32
 # Common Tests
 run_pytest ctypes python-microtvm-common-qemu_x86 tests/micro/common --board=qemu_x86
 run_pytest ctypes python-microtvm-common-due tests/micro/common  --test-build-only --board=due
+
+# Tutorials
+python3 gallery/how_to/work_with_microtvm/micro_tflite.py
+python3 gallery/how_to/work_with_microtvm/micro_autotune.py
+./gallery/how_to/work_with_microtvm/micro_tvmc.sh
+
+# Tutorials running with Zephyr
+export TVM_MICRO_USE_HW=1
+export TVM_MICRO_BOARD=qemu_x86
+python3 gallery/how_to/work_with_microtvm/micro_tflite.py
+python3 gallery/how_to/work_with_microtvm/micro_autotune.py

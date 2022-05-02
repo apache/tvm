@@ -200,7 +200,9 @@ def test_conv_performance(
         "int8",
         is_partkernel,
     )
-    block_configs = [cs.BlockConfig(block_shape, compute_cycles, int(output_cycles))]
+    block_configs = [
+        cs.BlockConfig(input_block_shape, block_shape, compute_cycles, int(output_cycles))
+    ]
 
     output_quantum = [1, 1, 2, 8]
     te_subgraph = cs.TESubgraph([], None)
@@ -212,6 +214,9 @@ def test_conv_performance(
         block_configs,
         1,
     )
+    part.set_input(0, cs.Tensor(in_shape, "int8"))
+    part.set_input(1, cs.Tensor([ifm_channels, kernel[0], kernel[1], out_shape[-1]], "int8"))
+    part.set_output(cs.Tensor(out_shape, "int8"))
 
     stripes = [1] * len(output_quantum)
     offset = [0] * len(output_quantum)

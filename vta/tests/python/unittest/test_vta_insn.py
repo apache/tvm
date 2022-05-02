@@ -208,7 +208,9 @@ def test_gemm():
             return
 
         def verify(s, name=None):
-            mod = vta.build(s, [x, w, y], tvm.target.Target("ext_dev", host=env.target_host))
+            # Build with the CSE pass disabled as otherwise it would complicate the test
+            with vta.build_config(disabled_pass={"tir.CommonSubexprElimTIR"}):
+                mod = vta.build(s, [x, w, y], tvm.target.Target("ext_dev", host=env.target_host))
             temp = utils.tempdir()
             mod.save(temp.relpath("gemm.o"))
             remote.upload(temp.relpath("gemm.o"))

@@ -28,4 +28,4 @@ ln "$(which sccache)" /opt/sccache/cc
 ln "$(which sccache)" /opt/sccache/c++
 
 # make rust usable by all users after install during container build
-chmod -R a+w /opt/rust
+chmod -R a+rw /opt/rust

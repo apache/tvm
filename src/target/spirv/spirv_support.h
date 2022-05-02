@@ -262,6 +262,20 @@ struct SPIRVSupport {
    * attempting to create a 64-bit int.
    */
   bool supports_int64{false};
+
+  /*!
+   * \brief Whether the driver supports operations involving integer dot product.
+   *
+   * Vulkan extension: VK_KHR_shader_integer_dot_product
+   * SPV Extension name: SPV_KHR_integer_dot_product
+   * SPV Capability: spv::CapabilityDotProductKHR,
+   *                 spv::CapabilityDotProductInput4x8BitPackedKHR);
+   *
+   * If support is present, can perform integer dot product operations.  If
+   * support is not present, codegen will throw exception on
+   * attempting to perform integer dot product.
+   */
+  bool supports_integer_dot_product{false};
 };
 
 }  // namespace codegen

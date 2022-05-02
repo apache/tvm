@@ -276,14 +276,15 @@ class IterSumExpr : public IterMapExpr {
  * \param predicate The predicate constraints on the input iterators
  * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
  * \param analyzer Analyzer used to get context information.
- * \param diag_ctx Diagnostic context.
+ * \param simplify_trivial_iterators If true, iterators with extent of
+ *           1 will be replaced with a constant value.
  *
  * \return The detected pattern if a match exists,
  *         otherwise return an empty array.
  */
 Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                  const PrimExpr& predicate, bool require_bijective,
-                                 arith::Analyzer* analyzer, DiagnosticContext diag_ctx);
+                                 arith::Analyzer* analyzer, bool simplify_trivial_iterators = true);
 /*!
  * \brief Use IterVarMap detector to rewrite and simplify the indices
  *
@@ -307,6 +308,8 @@ Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, R
  * For example, iter_map = [l0 // 16, l0 % 16], outputs = [output_0, output_1],
  * the affine transformation specified by `iter_map` will be applied to `outputs` and the result
  * will be {l0: ((output_0*16) + output_1)}.
+ *
+ * The range of `outputs` should be the same as the output range of the affine transmation.
  *
  * \sa DetectIterMap
  *
@@ -335,7 +338,6 @@ Map<Var, PrimExpr> InverseAffineIterMap(const Array<IterSumExpr>& iter_map,
  * \param predicate The predicate constraints on the input iterators
  * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
  * \param analyzer Analyzer used to get context information.
- * \param diag_ctx Diagnostic context.
  *
  * \return The result list has length len(bindings) + 1
         [0, len(bindings)): The iter map matching result. The inner list is of length 2.
@@ -347,8 +349,7 @@ Map<Var, PrimExpr> InverseAffineIterMap(const Array<IterSumExpr>& iter_map,
 Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
                                       const Map<Var, Range>& input_iters,
                                       const Array<Var>& sub_iters, const PrimExpr& predicate,
-                                      bool require_bijective, arith::Analyzer* analyzer,
-                                      DiagnosticContext diag_ctx);
+                                      bool require_bijective, arith::Analyzer* analyzer);
 
 /*!
  * \brief Given an IterMapExpr, transform it to normal PrimExpr.

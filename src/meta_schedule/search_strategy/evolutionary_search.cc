@@ -30,6 +30,30 @@ using tir::Schedule;
 
 /**************** Data Structure ****************/
 
+/*! \brief An auxiliary data structure to help deduplicate IRModules */
+class IRModuleSet {
+ public:
+  /*! \brief Add an IRModule to the set */
+  void Add(const IRModule& mod, size_t shash) { tab_.insert(Item{mod, shash}); }
+  /*! \brief Check if the IRModule is in the set */
+  bool Has(const IRModule& mod, size_t shash) const { return tab_.count(Item{mod, shash}); }
+
+ private:
+  struct Item {
+    IRModule mod;
+    size_t shash;
+  };
+  struct ItemHash {
+    size_t operator()(const Item& hash) const { return hash.shash; }
+  };
+  struct ItemEqual {
+    bool operator()(const Item& lhs, const Item& rhs) const {
+      return lhs.shash == rhs.shash && StructuralEqual()(lhs.mod, rhs.mod);
+    }
+  };
+  std::unordered_set<Item, ItemHash, ItemEqual> tab_;
+};
+
 /*!
  * \brief A heap with a size up-limit. If overflow happens, it evicted the worst items.
  * \note It maintains a min heap in terms of `Item::score`. Therefore, when
@@ -40,21 +64,10 @@ class SizedHeap {
  public:
   struct Item {
     Schedule sch;
-    IRModule mod;
-    size_t shash;
     double score;
     bool operator<(const Item& other) const { return score > other.score; }
   };
 
-  struct ItemHash {
-    size_t operator()(const Item& hash) const { return hash.shash; }
-  };
-
-  struct ItemEqual {
-    bool operator()(const Item& lhs, const Item& rhs) const {
-      return lhs.shash == rhs.shash && StructuralEqual()(lhs.mod, rhs.mod);
-    }
-  };
   /*!
    * \brief Constructor
    * \param size_limit The up-limit of the heap size
@@ -65,20 +78,16 @@ class SizedHeap {
    * \brief Push the specific item to the heap if its key did not appears in the heap
    * \param item The item to be pushed
    */
-  void Push(Schedule sch, IRModule mod, double score) {
-    Item item{sch, mod, StructuralHash()(mod), score};
-    if (!in_heap.insert(item).second) {
-      return;
-    }
+  void Push(Schedule sch, double score) {
     int size = heap.size();
     if (size < size_limit) {
       // Heap is not full, just push
-      heap.emplace_back(item);
+      heap.emplace_back(Item{sch, score});
       std::push_heap(heap.begin(), heap.end());
-    } else if (item.score > heap.front().score) {
+    } else if (score > heap.front().score) {
       // if the item is better than the worst one in the heap, we can safely kick it out
       std::pop_heap(heap.begin(), heap.end());
-      heap.back() = item;
+      heap.back() = {sch, score};
       std::push_heap(heap.begin(), heap.end());
     }
     // Otherwise, the item is worse than any other element in the heap
@@ -88,8 +97,6 @@ class SizedHeap {
   int size_limit;
   /*! \brief The heap, the worse the topper */
   std::vector<Item> heap;
-  /*! \brief The traces that are in the heap */
-  std::unordered_set<Item, ItemHash, ItemEqual> in_heap;
 };
 
 struct PerThreadData {
@@ -237,9 +244,15 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     int st;
     /*! \brief `[st, ed)` are the indices of the next batch of candidates. */
     int ed;
+    /*! \brief The counter of returning empty results. */
+    int num_empty_iters;
 
     explicit State(EvolutionarySearchNode* self, Array<tir::Trace> design_spaces)
-        : self(self), design_spaces(design_spaces), st(0), ed(self->num_trials_per_iter) {}
+        : self(self),
+          design_spaces(design_spaces),
+          st(0),
+          ed(self->num_trials_per_iter),
+          num_empty_iters(0) {}
 
     /*!
      * \brief Pick up best candidates from database.
@@ -302,19 +315,29 @@ class EvolutionarySearchNode : public SearchStrategyNode {
   std::unique_ptr<State> state_ = nullptr;
   /*! \brief The token registered for the given workload in database. */
   Workload token_{nullptr};
+  /*!
+   * \brief The workloads that are already measured.
+   * TODO(junrushao1994): add records from the database to avoid re-measuring.
+   * */
+  IRModuleSet measured_workloads_;
 
   /*** Configuration: global ***/
   /*! \brief The number of trials per iteration. */
   int num_trials_per_iter;
   /*! \brief The number of total trials. */
-  int num_trials_total;
+  int max_trials_per_task;
   /*! \brief The population size in the evolutionary search. */
   int population_size;
+  /*!
+   * \brief The maximum number of iterations before early stopping to confirm the search space is
+   * exhausted
+   */
+  int num_empty_iters_before_early_stop;
   /*** Configuration: the initial population ***/
   /*! \brief The ratio of measured states used in the initial population */
   double init_measured_ratio;
-  /*! \brief The maximum number to fail trace replaying. */
-  int init_max_fail_count;
+  /*! \brief The minimal size of unmeasured population in the initial sampling.*/
+  int init_min_unmeasured;
   /*** Configuration: evolution ***/
   /*! \brief The number of iterations performed by generic algorithm. */
   int genetic_num_iters;
@@ -340,12 +363,13 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     // `state_` is not visited
 
     /*** Configuration: global ***/
-    v->Visit("num_trials_total", &num_trials_total);
+    v->Visit("max_trials_per_task", &max_trials_per_task);
     v->Visit("num_trials_per_iter", &num_trials_per_iter);
     v->Visit("population_size", &population_size);
+    v->Visit("num_empty_iters_before_early_stop", &num_empty_iters_before_early_stop);
     /*** Configuration: the initial population ***/
     v->Visit("init_measured_ratio", &init_measured_ratio);
-    v->Visit("init_max_fail_count", &init_max_fail_count);
+    v->Visit("init_min_unmeasured", &init_min_unmeasured);
     /*** Configuration: evolution ***/
     v->Visit("genetic_num_iters", &genetic_num_iters);
     v->Visit("genetic_mutate_prob", &genetic_mutate_prob);
@@ -368,6 +392,8 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     this->postprocs_ = context->postprocs;
     this->num_threads_ = context->num_threads;
     this->rand_state_ = ForkSeed(&context->rand_state);
+    CHECK(context->task_scheduler != nullptr)
+        << "ValueError: TaskScheduler is not defined in TuneContext";
     this->cost_model_ = context->task_scheduler->cost_model.value();
     this->database_ = context->task_scheduler->database;
     this->token_ = this->database_->CommitWorkload(context->mod.value());
@@ -444,36 +470,37 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int nu
 
 std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int num) {
   ThreadedTraceApply pp(self->postprocs_);
-  std::vector<Schedule> results(num, Schedule{nullptr});
-  auto f_proc_unmeasured = [this, &results, &pp](int thread_id, int trace_id) -> void {
-    PerThreadData& data = self->per_thread_data_.at(thread_id);
-    TRandState* rand_state = &data.rand_state;
-    const IRModule& mod = data.mod;
-    Schedule& result = results.at(trace_id);
-    ICHECK(!result.defined());
-    for (int fail_count = 0; fail_count <= self->init_max_fail_count; ++fail_count) {
+  std::vector<Schedule> out_schs;
+  while (static_cast<int>(out_schs.size()) < self->init_min_unmeasured) {
+    std::vector<Schedule> results(num, Schedule{nullptr});
+    auto f_proc_unmeasured = [this, &results, &pp](int thread_id, int trace_id) -> void {
+      PerThreadData& data = self->per_thread_data_.at(thread_id);
+      TRandState* rand_state = &data.rand_state;
+      const IRModule& mod = data.mod;
+      Schedule& result = results.at(trace_id);
+      ICHECK(!result.defined());
       int design_space_index = tir::SampleInt(rand_state, 0, design_spaces.size());
       tir::Trace trace(design_spaces[design_space_index]->insts, {});
       if (Optional<Schedule> sch = pp.Apply(mod, trace, rand_state)) {
         result = sch.value();
-        break;
+      }
+    };
+    support::parallel_for_dynamic(0, num, self->num_threads_, f_proc_unmeasured);
+    for (int i = 0; i < num; i++) {
+      if (results[i].defined()) {
+        out_schs.push_back(results[i]);
       }
     }
-    if (!result.defined()) {
-      LOG(FATAL) << "Sample-Init-Population failed over the maximum limit! Summary:\n"
-                 << pp.SummarizeFailures();
-    }
-  };
-  support::parallel_for_dynamic(0, num, self->num_threads_, f_proc_unmeasured);
-  LOG(INFO) << "Sample-Init-Population summary:\n" << pp.SummarizeFailures();
-  return results;
+    LOG(INFO) << "Sample-Init-Population summary:\n" << pp.SummarizeFailures();
+  }
+  return out_schs;
 }
 
 std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
     std::vector<Schedule> population, int num) {
   ICHECK_GT(num, 0);
   // The heap to record best schedule, we do not consider schedules that are already measured
-  // Also we use `in_heap` to make sure items in the heap are de-duplicated
+  IRModuleSet exists = self->measured_workloads_;
   SizedHeap heap(num);
   for (int iter = 0;; ++iter) {
     // Predict normalized score with the cost model,
@@ -485,9 +512,11 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
     for (int i = 0, n = population.size(); i < n; ++i) {
       Schedule sch = population.at(i);
       IRModule mod = sch->mod();
+      size_t shash = StructuralHash()(mod);
       double score = scores.at(i);
-      if (!self->database_->HasWorkload(mod)) {
-        heap.Push(sch, mod, score);
+      if (!exists.Has(mod, shash)) {
+        exists.Add(mod, shash);
+        heap.Push(sch, score);
       }
     }
     // Discontinue once it reaches end of search
@@ -575,6 +604,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickWithEpsGreedy(
       tir::SampleWithoutReplacement(&self->rand_state_, unmeasured.size(), unmeasured.size());
   std::vector<Schedule> results;
   results.reserve(num);
+  IRModuleSet& measured_workloads = self->measured_workloads_;
   for (int i = 0, i_bests = 0, i_rands = 0; i < num; ++i) {
     bool has_best = i_bests < static_cast<int>(bests.size());
     bool has_rand = i_rands < static_cast<int>(rands.size());
@@ -599,19 +629,24 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickWithEpsGreedy(
         break;
       }
     }
-    results.push_back(sch);
+    IRModule mod = sch->mod();
+    size_t shash = StructuralHash()(mod);
+    if (!measured_workloads.Has(mod, shash)) {
+      measured_workloads.Add(mod, shash);
+      results.push_back(sch);
+    }
   }
   return results;
 }
 
 Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasureCandidates() {
-  if (st >= self->num_trials_total) {
+  if (st >= self->max_trials_per_task) {
     return NullOpt;
   }
   int sample_num = self->num_trials_per_iter;
-  if (ed > self->num_trials_total) {
-    sample_num = self->num_trials_total - st;
-    ed = self->num_trials_total;
+  if (ed > self->max_trials_per_task) {
+    sample_num = self->max_trials_per_task - st;
+    ed = self->max_trials_per_task;
   }
   ICHECK_LT(st, ed);
   int pop = self->population_size;
@@ -625,11 +660,16 @@ Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasure
   LOG(INFO) << "Sampled " << unmeasured.size() << " candidate(s)";
   inits.insert(inits.end(), measured.begin(), measured.end());
   inits.insert(inits.end(), unmeasured.begin(), unmeasured.end());
-  ICHECK_EQ(inits.size(), self->population_size);
   std::vector<Schedule> bests = EvolveWithCostModel(inits, sample_num);
   LOG(INFO) << "Got " << bests.size() << " candidate(s) with evolutionary search";
   std::vector<Schedule> picks = PickWithEpsGreedy(unmeasured, bests, sample_num);
   LOG(INFO) << "Sending " << picks.size() << " candidates(s) for measurement";
+  if (picks.empty()) {
+    ++this->num_empty_iters;
+    if (this->num_empty_iters >= self->num_empty_iters_before_early_stop) {
+      return NullOpt;
+    }
+  }
   return AssembleCandidates(picks, self->args_info_);
 }
 
@@ -641,10 +681,10 @@ void EvolutionarySearchNode::State::NotifyRunnerResults(
 }
 
 SearchStrategy SearchStrategy::EvolutionarySearch(int num_trials_per_iter,     //
-                                                  int num_trials_total,        //
+                                                  int max_trials_per_task,     //
                                                   int population_size,         //
                                                   double init_measured_ratio,  //
-                                                  int init_max_fail_count,     //
+                                                  int init_min_unmeasured,     //
                                                   int genetic_num_iters,       //
                                                   double genetic_mutate_prob,  //
                                                   int genetic_max_fail_count,  //
@@ -654,10 +694,11 @@ SearchStrategy SearchStrategy::EvolutionarySearch(int num_trials_per_iter,     /
   TVM_META_SCHEDULE_CHECK_PROB_RANGE(eps_greedy, "Greedy pick probability");
   ObjectPtr<EvolutionarySearchNode> n = make_object<EvolutionarySearchNode>();
   n->num_trials_per_iter = num_trials_per_iter;
-  n->num_trials_total = num_trials_total;
+  n->max_trials_per_task = max_trials_per_task;
   n->population_size = population_size;
+  n->num_empty_iters_before_early_stop = 5;
   n->init_measured_ratio = init_measured_ratio;
-  n->init_max_fail_count = init_max_fail_count;
+  n->init_min_unmeasured = init_min_unmeasured;
   n->genetic_num_iters = genetic_num_iters;
   n->genetic_max_fail_count = genetic_max_fail_count;
   n->genetic_mutate_prob = genetic_mutate_prob;

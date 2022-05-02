@@ -51,7 +51,7 @@ TEST(TvmLogDebugSettings, VLogEnabledDefault) {
 
 TEST(TvmLogDebugSettings, VLogEnabledComplex) {
   TvmLogDebugSettings settings =
-      TvmLogDebugSettings::ParseSpec("foo/bar.cc=3;baz.cc=-1;DEFAULT=2;another/file.cc=4");
+      TvmLogDebugSettings::ParseSpec("foo/bar.cc=3,baz.cc=-1,DEFAULT=2,another/file.cc=4");
   EXPECT_TRUE(settings.dlog_enabled());
   EXPECT_TRUE(settings.VerboseEnabled("my/filesystem/src/foo/bar.cc", 3));
   EXPECT_FALSE(settings.VerboseEnabled("my/filesystem/src/foo/bar.cc", 4));
@@ -62,6 +62,15 @@ TEST(TvmLogDebugSettings, VLogEnabledComplex) {
 
 TEST(TvmLogDebugSettings, IllFormed) {
   EXPECT_THROW(TvmLogDebugSettings::ParseSpec("foo/bar.cc=bogus;"), InternalError);
+}
+
+TEST(TvmLogDebugSettings, SpecPrefix) {
+  TvmLogDebugSettings settings = TvmLogDebugSettings::ParseSpec(
+      "../src/foo/bar.cc=3,src/baz.cc=-1,foo/bar/src/another/file.cc=4");
+  EXPECT_TRUE(settings.dlog_enabled());
+  EXPECT_TRUE(settings.VerboseEnabled("my/filesystem/src/foo/bar.cc", 3));
+  EXPECT_FALSE(settings.VerboseEnabled("my/filesystem/src/baz.cc", 0));
+  EXPECT_TRUE(settings.VerboseEnabled("my/filesystem/src/another/file.cc", 4));
 }
 
 }  // namespace

@@ -18,7 +18,7 @@
 Meta Schedule search strategy that generates the measure
 candidates for measurement.
 """
-from typing import List, Optional, TYPE_CHECKING
+from typing import Callable, List, Optional, TYPE_CHECKING
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
@@ -27,7 +27,6 @@ from tvm.tir.schedule import Schedule
 from .. import _ffi_api
 from ..arg_info import ArgInfo
 from ..runner import RunnerResult
-from ..utils import check_override
 
 if TYPE_CHECKING:
     from ..tune_context import TuneContext
@@ -138,35 +137,23 @@ class SearchStrategy(Object):
 
 
 @register_object("meta_schedule.PySearchStrategy")
-class PySearchStrategy(SearchStrategy):
-    """An abstract search strategy with customized methods on the python-side."""
+class _PySearchStrategy(SearchStrategy):
+    """
+    A TVM object search strategy to support customization on the python side.
+    This is NOT the user facing class for function overloading inheritance.
 
-    def __init__(self):
+    See also: PySearchStrategy
+    """
+
+    def __init__(
+        self,
+        f_initialize_with_tune_context: Callable = None,
+        f_pre_tuning: Callable = None,
+        f_post_tuning: Callable = None,
+        f_generate_measure_candidates: Callable = None,
+        f_notify_runner_results: Callable = None,
+    ):
         """Constructor."""
-
-        @check_override(self.__class__, SearchStrategy)
-        def f_initialize_with_tune_context(context: "TuneContext") -> None:
-            self.initialize_with_tune_context(context)
-
-        @check_override(self.__class__, SearchStrategy)
-        def f_pre_tuning(design_spaces: List[Schedule]) -> None:
-            self.pre_tuning(design_spaces)
-
-        @check_override(self.__class__, SearchStrategy)
-        def f_post_tuning() -> None:
-            self.post_tuning()
-
-        @check_override(self.__class__, SearchStrategy)
-        def f_generate_measure_candidates() -> List[MeasureCandidate]:
-            return self.generate_measure_candidates()
-
-        @check_override(self.__class__, SearchStrategy)
-        def f_notify_runner_results(
-            context: "TuneContext",
-            measure_candidates: List[MeasureCandidate],
-            results: List["RunnerResult"],
-        ) -> None:
-            self.notify_runner_results(context, measure_candidates, results)
 
         self.__init_handle_by_constructor__(
             _ffi_api.SearchStrategyPySearchStrategy,  # type: ignore # pylint: disable=no-member
@@ -176,3 +163,76 @@ class PySearchStrategy(SearchStrategy):
             f_generate_measure_candidates,
             f_notify_runner_results,
         )
+
+
+class PySearchStrategy:
+    """
+    An abstract search strategy with customized methods on the python-side.
+    This is the user facing class for function overloading inheritance.
+
+    Note: @derived_object is required for proper usage of any inherited class.
+    """
+
+    _tvm_metadata = {
+        "cls": _PySearchStrategy,
+        "methods": [
+            "initialize_with_tune_context",
+            "pre_tuning",
+            "post_tuning",
+            "generate_measure_candidates",
+            "notify_runner_results",
+        ],
+    }
+
+    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+        """Initialize the search strategy with tuning context.
+
+        Parameters
+        ----------
+        context : TuneContext
+            The tuning context for initialization.
+        """
+        raise NotImplementedError
+
+    def pre_tuning(self, design_spaces: List[Schedule]) -> None:
+        """Pre-tuning for the search strategy.
+
+        Parameters
+        ----------
+        design_spaces : List[Schedule]
+            The design spaces for pre-tuning.
+        """
+        raise NotImplementedError
+
+    def post_tuning(self) -> None:
+        """Post-tuning for the search strategy."""
+        raise NotImplementedError
+
+    def generate_measure_candidates(self) -> Optional[List[MeasureCandidate]]:
+        """Generate measure candidates from design spaces for measurement.
+
+        Returns
+        -------
+        measure_candidates : Optional[List[IRModule]]
+            The measure candidates generated, None if finished.
+        """
+        raise NotImplementedError
+
+    def notify_runner_results(
+        self,
+        context: "TuneContext",
+        measure_candidates: List[MeasureCandidate],
+        results: List[RunnerResult],
+    ) -> None:
+        """Update the search strategy with profiling results.
+
+        Parameters
+        ----------
+        context : TuneContext
+            The tuning context for update.
+        measure_candidates : List[MeasureCandidate]
+            The measure candidates for update.
+        results : List[RunnerResult]
+            The profiling results from the runner.
+        """
+        raise NotImplementedError

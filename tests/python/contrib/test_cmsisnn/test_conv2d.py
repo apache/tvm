@@ -27,6 +27,7 @@ from tvm.relay.op.contrib import cmsisnn
 from tests.python.relay.aot.aot_test_utils import (
     AOTTestModel,
     AOT_CORSTONE300_RUNNER,
+    AOT_USMP_CORSTONE300_RUNNER,
     AOT_DEFAULT_RUNNER,
     generate_ref_data,
     compile_and_run,
@@ -34,11 +35,12 @@ from tests.python.relay.aot.aot_test_utils import (
 from utils import (
     skip_if_no_reference_system,
     make_module,
-    count_num_calls,
     get_range_for_dtype_str,
     get_same_padding,
     get_conv2d_qnn_params,
     make_qnn_relu,
+    assert_partitioned_function,
+    assert_no_external_function,
 )
 
 
@@ -142,7 +144,7 @@ def test_conv2d_symmetric_padding_int8(
 ):
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_CORSTONE300_RUNNER
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     ifm_shape = (1, 64, 100, 4)
     kernel_size = (3, 3)
@@ -192,21 +194,7 @@ def test_conv2d_symmetric_padding_int8(
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
 
     # validate pattern matching
-    attrs = [
-        cmsisnn_mod[var.name_hint].attrs
-        for var in cmsisnn_mod.get_global_vars()
-        if cmsisnn_mod[var.name_hint].attrs
-    ]
-    assert any(attrs), "At least one function with external attributes was expected."
-
-    compilers = [
-        key == "Compiler" and value == "cmsis-nn" for attr in attrs for key, value in attr.items()
-    ]
-    assert any(compilers), "Module does not contain function for cmsis-nn target."
-
-    assert count_num_calls(orig_mod) == count_num_calls(
-        cmsisnn_mod
-    ), "Number of calls changed during partitioning"
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
 
     # validate the output
     rng = np.random.default_rng(12345)
@@ -245,7 +233,7 @@ def test_conv2d_asymmetric_padding_int8(
 ):
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_CORSTONE300_RUNNER
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     ifm_shape = (1, 25, 25, 12)
     kernel_size = (5, 5)
@@ -293,23 +281,8 @@ def test_conv2d_asymmetric_padding_int8(
     )
     orig_mod = make_module(model)
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
-
     # validate pattern matching
-    attrs = [
-        cmsisnn_mod[var.name_hint].attrs
-        for var in cmsisnn_mod.get_global_vars()
-        if cmsisnn_mod[var.name_hint].attrs
-    ]
-    assert any(attrs), "At least one function with external attributes was expected."
-
-    compilers = [
-        key == "Compiler" and value == "cmsis-nn" for attr in attrs for key, value in attr.items()
-    ]
-    assert any(compilers), "Module does not contain function for cmsis-nn target."
-
-    assert count_num_calls(orig_mod) == count_num_calls(
-        cmsisnn_mod
-    ), "Number of calls changed during partitioning"
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
 
     # validate the output
     rng = np.random.default_rng(12345)
@@ -322,6 +295,48 @@ def test_conv2d_asymmetric_padding_int8(
             outputs=output_list,
             params=params,
             output_tolerance=1,
+        ),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
+
+
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3)])
+@pytest.mark.parametrize("kernel_shape", [(3, 2), (1, 3)])
+@pytest.mark.parametrize("strides, dilation", [((3, 2), (1, 1))])
+@pytest.mark.parametrize("padding", ["SAME", "VALID"])
+@pytest.mark.parametrize("activation", ["NONE", "RELU"])
+def test_conv2d_int8_tflite(ifm_shape, kernel_shape, strides, dilation, padding, activation):
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
+    dtype = "int8"
+
+    from tvm.relay.testing.tflite import TFLiteModel
+
+    tfl_model = TFLiteModel(dtype)
+    conv2d_function = tfl_model.create_conv2d_single(
+        kernel_shape, strides, padding, dilation, activation
+    )
+    tfl_model.create_tflite_model(conv2d_function, [ifm_shape])
+    relay_mod, relay_params = tfl_model.convert_to_relay()
+
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(relay_mod, relay_params)
+
+    # validate pattern matching
+    assert_partitioned_function(relay_mod, cmsisnn_mod)
+
+    # validate CMSIS-NN output against TFLite output
+    input_map, output_map, output_tolerance = tfl_model.generate_reference_data()
+    compile_and_run(
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=input_map,
+            outputs=output_map,
+            params=relay_params,
+            output_tolerance=output_tolerance,
         ),
         test_runner,
         interface_api,
@@ -359,7 +374,7 @@ def test_depthwise_int8(
 ):
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_CORSTONE300_RUNNER
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     dtype = "int8"
     groups = 1
@@ -413,21 +428,7 @@ def test_depthwise_int8(
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
 
     # validate pattern matching
-    attrs = [
-        cmsisnn_mod[var.name_hint].attrs
-        for var in cmsisnn_mod.get_global_vars()
-        if cmsisnn_mod[var.name_hint].attrs
-    ]
-    assert any(attrs), "At least one function with external attributes was expected."
-
-    compilers = [
-        key == "Compiler" and value == "cmsis-nn" for attr in attrs for key, value in attr.items()
-    ]
-    assert any(compilers), "Module does not contain function for cmsis-nn target."
-
-    assert count_num_calls(orig_mod) == count_num_calls(
-        cmsisnn_mod
-    ), "Number of calls changed during partitioning"
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
 
     # validate the output
     rng = np.random.default_rng(12345)
@@ -513,14 +514,7 @@ def test_invalid_parameters(
     )
     orig_mod = make_module(model)
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
-
-    # validate pattern matching
-    attrs = [
-        cmsisnn_mod[var.name_hint].attrs
-        for var in cmsisnn_mod.get_global_vars()
-        if cmsisnn_mod[var.name_hint].attrs
-    ]
-    assert not any(attrs), "No function should have an external attribute."
+    assert_no_external_function(cmsisnn_mod)
 
 
 if __name__ == "__main__":

@@ -42,24 +42,24 @@ class PoolInfoAssigner : public StmtExprMutator {
  public:
   explicit PoolInfoAssigner(const IRModule& module) {
     PrimFunc main_func =
-        Downcast<PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
+        Downcast<PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_module_main));
     ICHECK(main_func.defined()) << "main function is not in the module";
     Optional<Target> target_host = main_func->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target_host) << "main function does not have a target attr";
-    Array<usmp::PoolInfo> pool_infos =
-        module->GetAttr<Array<usmp::PoolInfo>>(tvm::attr::kPoolInfoIRModuleAttr)
-            .value_or({usmp::PoolInfo("global_workspace",
-                                      {{target_host.value(), usmp::kTargetPoolReadWriteAccess}},
-                                      usmp::kUnrestrictedPoolSizeHint, Bool(true))});
-    for (const usmp::PoolInfo& pool_info : pool_infos) {
+    WorkspaceMemoryPools workspace_pools =
+        module->GetAttr<WorkspaceMemoryPools>(tvm::attr::kWorkspaceMemoryPools)
+            .value_or(WorkspaceMemoryPools({CreateDefaultMemoryPool(module)}));
+    Array<PoolInfo> pool_infos = workspace_pools->pools;
+    for (const PoolInfo& pool_info : pool_infos) {
       for (const auto& kv : pool_info->target_access) {
-        Target tgt = kv.first;
-        if (target_pool_infos_.find(tgt) == target_pool_infos_.end()) {
-          target_pool_infos_.Set(tgt, Array<usmp::PoolInfo>());
+        Target target = kv.first;
+        String target_str = target->str();
+        if (target_pool_infos_.find(target_str) == target_pool_infos_.end()) {
+          target_pool_infos_.Set(target_str, Array<PoolInfo>());
         }
-        Array<usmp::PoolInfo> pool_info_arr = target_pool_infos_[tgt];
+        Array<PoolInfo> pool_info_arr = target_pool_infos_[target_str];
         pool_info_arr.push_back(pool_info);
-        target_pool_infos_.Set(tgt, pool_info_arr);
+        target_pool_infos_.Set(target_str, pool_info_arr);
       }
     }
     mod_ = module->ShallowCopy();
@@ -71,16 +71,32 @@ class PoolInfoAssigner : public StmtExprMutator {
   Stmt VisitStmt_(const AllocateNode* op) override;
 
   IRModule mod_;
-  Map<Target, Array<PoolInfo>> target_pool_infos_;
+  Map<String, Array<PoolInfo>> target_pool_infos_;
   PrimFunc func_;
+  PoolInfo CreateDefaultMemoryPool(const IRModule& module);
 };
+
+PoolInfo PoolInfoAssigner::CreateDefaultMemoryPool(const tvm::IRModule& module) {
+  Map<Target, String> target_access;
+  tir::PrimFunc tir_main_func =
+      Downcast<tir::PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_module_main));
+  Target target_host = tir_main_func->GetAttr<Target>(tvm::attr::kTarget).value();
+  for (const auto& kv : module->functions) {
+    BaseFunc func = kv.second;
+    Optional<Target> target = func->GetAttr<Target>(tvm::attr::kTarget);
+    target_access.Set(target.value_or(target_host), kTargetPoolReadWriteAccess);
+  }
+  return PoolInfo("global_workspace", target_access, kUnrestrictedPoolSizeHint,
+                  kUnknownClockFrequency, kUnknownReadBandwidth, kUnknownWriteBandwidth, 0, 0, {},
+                  Bool(true));
+}
 
 Stmt PoolInfoAssigner::VisitStmt_(const AllocateNode* op) {
   Optional<Target> tgt = func_->GetAttr<Target>(tvm::attr::kTarget).value();
   ICHECK(tgt) << "The following PrimFunc does not have a target attr: \n" << func_;
   Map<String, ObjectRef> annotations = Map<String, ObjectRef>(op->annotations);
   if (op->annotations.find(kPoolCandidatesAllocateAttr) == op->annotations.end()) {
-    annotations.Set(kPoolCandidatesAllocateAttr, target_pool_infos_[tgt.value()]);
+    annotations.Set(kPoolCandidatesAllocateAttr, target_pool_infos_[tgt.value()->str()]);
   }
   Stmt body = VisitStmt(op->body);
   auto allocate =
@@ -94,8 +110,8 @@ IRModule PoolInfoAssigner::operator()() {
     if (kv.second->IsInstance<PrimFuncNode>()) {
       func_ = Downcast<PrimFunc>(kv.second);
       Stmt body = this->VisitStmt(func_->body);
-      PrimFunc new_prim_func =
-          PrimFunc(func_->params, body, func_->ret_type, func_->buffer_map, func_->attrs);
+      PrimFunc new_prim_func = PrimFunc(func_->params, body, func_->ret_type, func_->buffer_map,
+                                        func_->preflattened_buffer_map, func_->attrs);
       mod_->Update(gv, new_prim_func);
     }
   }

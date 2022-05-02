@@ -200,10 +200,10 @@ _reg.register_shape_func("invert_permutation", False, elemwise_shape_func)
 @script
 def _arange_shape_func(start, stop, step):
     out = output_tensor((1,), "int64")
-    if step[0] < 0:
-        out[0] = int64(ceil_div((int64(start[0]) - int64(stop[0])), int64(-step[0])))
+    if step[()] < 0:
+        out[0] = int64(ceil_div((int64(start[()]) - int64(stop[()])), int64(-step[()])))
     else:
-        out[0] = int64(ceil_div((int64(stop[0]) - int64(start[0])), int64(step[0])))
+        out[0] = int64(ceil_div((int64(stop[()]) - int64(start[()])), int64(step[()])))
     return out
 
 
@@ -217,43 +217,54 @@ def arange_shape_func(attrs, inputs, _):
 
 @script
 def _strided_slice_shape_func_input_shape(data_shape, begin, end, strides, slice_mode):
-    ndim = data_shape.shape[0]
+    ndim = len(data_shape)
     out = output_tensor((ndim,), "int64")
     for i in const_range(ndim):
+        dim_size = int64(data_shape[i])
         cbegin = int64(0)
-        cend = int64(data_shape[i])
+        cend = dim_size
         cstride = int64(1)
+
         if len(strides) > i:
             cstride = int64(strides[i])
+
         if len(begin) > i:
             cbegin = int64(begin[i])
-            if cbegin < 0:
-                cbegin += int64(data_shape[i])
+        elif cstride < 0:
+            cbegin = dim_size
+
         if len(end) <= i:
-            cend = int64(data_shape[i])
+            if cstride < 0:
+                cend = int64(0)
         elif slice_mode != 0:
             cstride = int64(1)
             if end[i] < 0:
-                cend = int64(data_shape[i])
+                cend = dim_size
             else:
                 cend = cbegin + int64(end[i])
         else:
             if end[i] > data_shape[i]:
-                cend = int64(data_shape[i])
-            elif end[i] < -data_shape[i]:
-                cend = int64(-1)
+                cend = dim_size
             else:
                 cend = int64(end[i])
-                if cend < 0:
-                    cend += int64(data_shape[i])
+
         assert cstride != 0, "Strides can't be zero."
+
+        if cbegin < 0:
+            cbegin += dim_size
+        if cend < 0:
+            cend += dim_size
+
         if cstride < 0:
+            if cend < 0:
+                cend = int64(-1)
+            if cbegin > dim_size - 1:
+                cbegin = dim_size - 1
             slice_range = cbegin - cend
             step = -cstride
         else:
             slice_range = cend - cbegin
             step = cstride
-
         out[i] = int64(ceil_div(slice_range, step))
     return out
 
@@ -266,34 +277,45 @@ def _strided_slice_shape_func_with_axes(data_shape, begin, end, strides, slice_m
         out[i] = data_shape[i]
 
     for i in const_range(len(axes)):
+        dim_size = int64(data_shape[axes[i]])
         cbegin = int64(0)
-        cend = int64(data_shape[axes[i]])
+        cend = dim_size
         cstride = int64(1)
+
         if len(strides) > i:
             cstride = int64(strides[i])
+
         if len(begin) > i:
             cbegin = int64(begin[i])
-            if cbegin < 0:
-                cbegin += int64(data_shape[axes[i]])
+        elif cstride < 0:
+            cbegin = dim_size
+
         if len(end) <= i:
-            cend = int64(data_shape[axes[i]])
+            cend = dim_size
         elif slice_mode != 0:
             cstride = int64(1)
             if end[i] < 0:
-                cend = int64(data_shape[axes[i]])
+                cend = dim_size
             else:
                 cend = cbegin + int64(end[i])
         else:
-            if end[i] > data_shape[i]:
-                cend = int64(data_shape[axes[i]])
-            elif end[i] < -data_shape[i]:
-                cend = int64(-1)
+            if end[i] > data_shape[axes[i]]:
+                cend = dim_size
             else:
                 cend = int64(end[i])
-                if cend < 0:
-                    cend += int64(data_shape[axes[i]])
+
         assert cstride != 0, "Strides can't be zero."
+
+        if cbegin < 0:
+            cbegin += dim_size
+        if cend < 0:
+            cend += dim_size
+
         if cstride < 0:
+            if cend < 0:
+                cend = int64(-1)
+            if cbegin > dim_size - 1:
+                cbegin = dim_size - 1
             slice_range = cbegin - cend
             step = -cstride
         else:
@@ -373,7 +395,7 @@ def concatenate_shape_func(attrs, inputs, _):
 
 
 @script
-def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
+def _reshape_shape_func_input_shape(data_shape, newshape, ndim, allowzero):
     out = output_tensor((ndim,), "int64")
     src_idx = 0
     dst_idx = 0
@@ -388,13 +410,17 @@ def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
             src_idx += 1
             dst_idx += 1
         elif newshape[i] == 0:
-            out[dst_idx] = data_shape[src_idx]
+            if allowzero:
+                out[dst_idx] = int64(newshape[i])
+            else:
+                out[dst_idx] = data_shape[src_idx]
             src_idx += 1
             dst_idx += 1
         elif newshape[i] == -1:
             assert infer_idx < 0, "One and only one dim can be inferred"
             out[dst_idx] = int64(1)
             infer_idx = i
+            src_idx += 1
             dst_idx += 1
         elif newshape[i] == -2:
             copy = True
@@ -443,7 +469,12 @@ def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
 @_reg.register_shape_func("reshape", False)
 def reshape_shape_func(attrs, inputs, out_ndims):
     newshape = get_const_tuple(attrs.newshape)
-    return [_reshape_shape_func_input_shape(inputs[0], convert(newshape), out_ndims[0])]
+    allowzero = attrs.allowzero
+    return [
+        _reshape_shape_func_input_shape(
+            inputs[0], convert(newshape), out_ndims[0], convert(allowzero)
+        )
+    ]
 
 
 @script
@@ -976,40 +1007,6 @@ def split_shape_func(attrs, inputs, _):
 
 
 @script
-def _adv_index_shape_func(inputs):
-    index_rank = inputs[1].shape[0]
-    data_rank = inputs[0].shape[0]
-    out = output_tensor((data_rank + index_rank - len(inputs) + 1,), "int64")
-
-    max_flatten_len = int64(1)
-    for i in const_range(index_rank):
-        max_flatten_len *= inputs[1][i]
-        out[i] = inputs[1][i]
-    for i in const_range(len(inputs) - 2):
-        flatten_len = int64(1)
-        for j in const_range(index_rank):
-            flatten_len *= inputs[i + 2][j]
-        if flatten_len > max_flatten_len:
-            max_flatten_len = flatten_len
-            for k in const_range(index_rank):
-                out[k] = inputs[i + 2][k]
-
-    for i in const_range(data_rank - len(inputs) + 1):
-        out[i + index_rank] = inputs[0][i + len(inputs) - 1]
-
-    return out
-
-
-@_reg.register_shape_func("adv_index", False)
-def adv_index_shape_func(attrs, inputs, _):
-    """
-    Shape func for adv_index.
-    Only allow single index tensor.
-    """
-    return [_adv_index_shape_func(inputs)]
-
-
-@script
 def _repeat_shape_func(data_shape, repeats, axis):
     out = output_tensor((data_shape.shape[0],), "int64")
 
@@ -1113,6 +1110,30 @@ def where_shape_func(attrs, inputs, _):
     out_shape = _broadcast_shape_tensors(bcast_shape, cond_shape)
 
     return [out_shape]
+
+
+@script
+def _adv_index_post_process(data_shape, bcast_shape, num_indices):
+    data_rank = data_shape.shape[0]
+    bcast_rank = bcast_shape.shape[0]
+    out = output_tensor((data_rank + bcast_rank - num_indices,), "int64")
+
+    for i in const_range(bcast_rank):
+        out[i] = bcast_shape[i]
+    for i in const_range(data_rank - num_indices):
+        out[i + bcast_rank] = data_shape[i + num_indices]
+    return out
+
+
+@_reg.register_shape_func("adv_index", False)
+def adv_index_shape_func(attrs, inputs, _):
+    """
+    Shape func for adv_index.
+    """
+    bcast_shape = inputs[1]
+    for i in inputs[2:]:
+        bcast_shape = _broadcast_shape_tensors(bcast_shape, i)
+    return [_adv_index_post_process(inputs[0], bcast_shape, convert(len(inputs) - 1))]
 
 
 @script

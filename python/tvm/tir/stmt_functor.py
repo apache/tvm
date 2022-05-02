@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Statement functor utilities for IR transformations"""
+from .function import PrimFunc
 from . import _ffi_api
 
 
@@ -58,6 +59,18 @@ def post_order_visit(stmt, fvisit):
     return _ffi_api.PostOrderVisit(stmt, fvisit)  # type: ignore
 
 
+def pre_order_visit(stmt, fvisit):
+    """Recursive pre-order visit on stmt AST, applying fvisit on each node.
+       If fvisit returns False, it won't visit the children of the node.
+
+    Parameters
+    ----------
+    fvisit: function of the signature Object -> bool
+        The visitor function.
+    """
+    return _ffi_api.PreOrderVisit(stmt, fvisit)  # type: ignore
+
+
 def substitute(node, vmap):
     """Substitute the var specified by vmap.
 
@@ -75,3 +88,21 @@ def substitute(node, vmap):
         The result.
     """
     return _ffi_api.Substitute(node, vmap)  # type: ignore
+
+
+def renew_defs(func: PrimFunc):
+    """Re-generate the definition nodes for a TIR, including VarDef, BufferDef.
+    This pass works as a simple DeepCopy to duplicate a function with different Vars and
+    Buffers but the same behavior
+
+    Parameters
+    ----------
+    func: PrimFunc
+        The input function
+
+    Returns
+    -------
+    result : PrimFunc
+        The new generated func.
+    """
+    return _ffi_api.RenewDefs(func)  # type: ignore

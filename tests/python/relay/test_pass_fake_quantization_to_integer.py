@@ -19,12 +19,12 @@ import numpy as np
 import pytest
 import tvm
 from tvm import relay
+from tvm.relay.transform import fake_quantization_to_integer
 
 
 def compare_fq_to_int(expr, args, allow_rounding_error=False):
     mod = tvm.IRModule.from_expr(expr)
     mod = tvm.relay.transform.InferType()(mod)
-
     mod_int = tvm.relay.transform.FakeQuantizationToInteger()(mod)
     assert not tvm.ir.structural_equal(mod, mod_int)
 
@@ -70,12 +70,12 @@ def test_fake_quantize_conv_per_channel():
         x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
         w = relay.var("w", shape=[16, 3, 5, 5], dtype="int8")
         one = relay.const([1.0] * 16)
-        zero = relay.const([0] * 16)
+        zero_point = relay.const([np.random.randint(0, 255)] * 16)
 
         op = relay.op.nn.conv2d(
             relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(0)),
             relay.qnn.op.dequantize(
-                w, relay.const(np.random.random([16]).astype("float32")), zero, axis=0
+                w, relay.const(np.random.random([16]).astype("float32")), zero_point, axis=0
             ),
             kernel_size=[5, 5],
             channels=16,
@@ -277,6 +277,19 @@ def test_fake_quantize_maxpool():
     compare_fq_to_int(op, [x_np])
 
 
+def test_fake_quantize_adaptive_avgpool1d():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+
+    zero = relay.const(0)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.op.nn.adaptive_avg_pool1d(x)
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+
+    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+
+    compare_fq_to_int(op, [x_np], True)
+
+
 def test_fake_quantize_avgpool():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 
@@ -303,17 +316,39 @@ def test_fake_quantize_global_avg_pool():
     compare_fq_to_int(op, [x_np], True)
 
 
-def test_fake_quantize_rsqrt():
-    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
-    zero = relay.const(0)
+class TestUnaryQNNOp:
+    def helper_test_fake_quantize_unary_op(self, fp32_op, scale=0.125):
+        x = relay.var("x", shape=[1, 3, 3, 3], dtype="int8")
+        mid_point = relay.const(-128)
 
-    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
-    op = relay.rsqrt(x)
-    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+        x = relay.qnn.op.dequantize(x, relay.const(scale), mid_point)
+        op = fp32_op(x)
+        op = relay.qnn.op.quantize(op, relay.const(scale), mid_point)
 
-    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+        x_np = np.random.randint(-128, 127, size=[1, 3, 3, 3], dtype="int8")
 
-    compare_fq_to_int(op, [x_np], True)
+        compare_fq_to_int(op, [x_np], True)
+
+    def test_sqrt(self):
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.sqrt)
+
+    def test_rsqrt(self):
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.rsqrt)
+
+    def test_exp(self):
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.exp)
+
+    def test_erf(self):
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.erf)
+
+    def test_sigmoid(self):
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.sigmoid)
+
+    def test_tanh(self):
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.tanh)
+
+    def test_log(self):
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.log)
 
 
 def test_fake_quantize_reshape():
@@ -322,6 +357,32 @@ def test_fake_quantize_reshape():
     zero = relay.const(0)
     x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
     op = relay.op.reshape(x, [1, 3, -1])
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+
+    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+
+    compare_fq_to_int(op, [x_np])
+
+
+def test_fake_quantize_image_resize_bilinear():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+
+    zero = relay.const(0)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.image.resize2d(x, size=[4, 4], method="linear")
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+
+    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+
+    compare_fq_to_int(op, [x_np], allow_rounding_error=True)
+
+
+def test_fake_quantize_abs():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+
+    zero = relay.const(0)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.op.abs(x)
     op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
 
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
@@ -434,6 +495,22 @@ def test_fake_quantize_concat():
     compare_fq_to_int(out, inputs_np)
 
 
+@pytest.mark.parametrize("k", [0, 1, 5])
+@pytest.mark.parametrize("axis", [0, -1, 1])
+@pytest.mark.parametrize("is_ascend", [True, False])
+@pytest.mark.parametrize("dtype", ["int8", "uint8"])
+def test_fake_quantize_topk(k, axis, is_ascend, dtype):
+    x = relay.var("x", shape=[20, 100], dtype=dtype)
+    zero = relay.const(0)
+
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.topk(x, k, axis, "values", is_ascend, "float32")
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero, out_dtype=dtype)
+    x_np = np.random.randint(0, 127, size=[20, 100], dtype=dtype)
+
+    compare_fq_to_int(op, [x_np])
+
+
 def test_fake_quantize_clip():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="uint8")
 
@@ -474,6 +551,18 @@ def test_fake_quantize_relu():
     compare_fq_to_int(op, [x_np])
 
 
+def test_fake_quantize_mean():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="uint8")
+
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(114))
+    op = relay.op.mean(x)
+    op = relay.qnn.op.quantize(op, relay.const(2.0), relay.const(114), out_dtype="uint8")
+
+    x_np = np.random.randint(0, 255, size=[1, 3, 224, 224], dtype="uint8")
+
+    compare_fq_to_int(op, [x_np], allow_rounding_error=True)
+
+
 def test_fake_quantize_relu_per_channel():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="uint8")
 
@@ -488,6 +577,18 @@ def test_fake_quantize_relu_per_channel():
     x_np = np.random.randint(0, 255, size=[1, 3, 224, 224], dtype="uint8")
 
     compare_fq_to_int(op, [x_np])
+
+
+def test_fake_quantize_leaky_relu():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="uint8")
+
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(114))
+    op = relay.op.nn.leaky_relu(x, 0.1)
+    op = relay.qnn.op.quantize(op, relay.const(2.0), relay.const(114), out_dtype="uint8")
+
+    x_np = np.random.randint(0, 255, size=[1, 3, 224, 224], dtype="uint8")
+
+    compare_fq_to_int(op, [x_np], True)
 
 
 @pytest.mark.parametrize(
@@ -517,10 +618,103 @@ def test_fake_quantize_binary(operator):
 
 @pytest.mark.parametrize(
     "operator",
+    [relay.op.add, relay.op.multiply, relay.op.subtract, relay.op.minimum, relay.op.maximum],
+)
+def test_fake_quantize_binary_per_channel(operator):
+    def verify_binary_per_channel(lhs_scale, rhs_scale, lhs_zp, rhs_zp, out_zp, lhs_axis, rhs_axis):
+        if operator == relay.op.multiply:
+            out_scale = relay.const(2.0)
+            rhs_axis = lhs_axis  # TODO: Support different axes for per-channel quantized multiply
+        else:
+            out_scale = relay.const(0.1)
+
+        x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+        x = relay.qnn.op.dequantize(x, relay.const(lhs_scale), relay.const(lhs_zp), axis=lhs_axis)
+
+        y = relay.var("y", shape=[1, 3, 224, 224], dtype="int8")
+        y = relay.qnn.op.dequantize(y, relay.const(rhs_scale), relay.const(rhs_zp), axis=rhs_axis)
+
+        op = operator(x, y)
+
+        op = relay.qnn.op.quantize(op, out_scale, relay.const(out_zp), out_dtype="int8")
+        x_np = np.random.randint(-25, 25, size=[1, 3, 224, 224], dtype="int8")
+        y_np = np.random.randint(-25, 25, size=[1, 3, 224, 224], dtype="int8")
+
+        compare_fq_to_int(op, [x_np, y_np], allow_rounding_error=True)
+
+    # Same axis
+    verify_binary_per_channel(
+        lhs_scale=np.random.uniform(1.0, 5.0, 3),
+        rhs_scale=np.random.uniform(1.0, 5.0, 3),
+        lhs_zp=0,
+        rhs_zp=0,
+        out_zp=0,
+        lhs_axis=1,
+        rhs_axis=1,
+    )
+    verify_binary_per_channel(
+        lhs_scale=np.random.uniform(1.0, 5.0, 3),
+        rhs_scale=np.random.uniform(1.0, 5.0, 3),
+        lhs_zp=np.random.randint(1, 3),
+        rhs_zp=np.random.randint(1, 3),
+        out_zp=0,
+        lhs_axis=1,
+        rhs_axis=1,
+    )
+    verify_binary_per_channel(
+        lhs_scale=np.random.uniform(1.0, 5.0, 3),
+        rhs_scale=np.random.uniform(1.0, 5.0, 3),
+        lhs_zp=np.random.randint(1, 3),
+        rhs_zp=np.random.randint(1, 3),
+        out_zp=np.random.randint(1, 3),
+        lhs_axis=1,
+        rhs_axis=1,
+    )
+    verify_binary_per_channel(
+        lhs_scale=np.random.uniform(1.0, 5.0, 224),
+        rhs_scale=np.random.uniform(1.0, 5.0, 224),
+        lhs_zp=np.random.randint(1, 3),
+        rhs_zp=np.random.randint(1, 3),
+        out_zp=np.random.randint(1, 3),
+        lhs_axis=-1,
+        rhs_axis=-1,
+    )
+
+    # Different axes
+    verify_binary_per_channel(
+        lhs_scale=np.random.uniform(1.0, 5.0, 224),
+        rhs_scale=np.random.uniform(1.0, 5.0, 224),
+        lhs_zp=0,
+        rhs_zp=0,
+        out_zp=0,
+        lhs_axis=2,
+        rhs_axis=3,
+    )
+    verify_binary_per_channel(
+        lhs_scale=np.random.uniform(1.0, 5.0, 224),
+        rhs_scale=np.random.uniform(1.0, 5.0, 224),
+        lhs_zp=np.random.randint(1, 3),
+        rhs_zp=np.random.randint(1, 3),
+        out_zp=0,
+        lhs_axis=2,
+        rhs_axis=3,
+    )
+    verify_binary_per_channel(
+        lhs_scale=np.random.uniform(1.0, 5.0, 224),
+        rhs_scale=np.random.uniform(1.0, 5.0, 224),
+        lhs_zp=np.random.randint(1, 3),
+        rhs_zp=np.random.randint(1, 3),
+        out_zp=np.random.randint(1, 3),
+        lhs_axis=2,
+        rhs_axis=3,
+    )
+
+
+@pytest.mark.parametrize(
+    "operator",
     [
         relay.op.add,
         relay.op.multiply,
-        relay.op.subtract,
         relay.op.subtract,
         relay.op.minimum,
         relay.op.maximum,
@@ -610,3 +804,219 @@ def test_fq_hard_fail():
     # Catch a generic exception because the tvm FFI eats the python exception type
     with pytest.raises(Exception):
         mod_int = tvm.relay.transform.FakeQuantizationToInteger(hard_fail=True)(mod)
+
+
+def compare_expected_fq_qat_to_int(expr, expected_expr, args, allow_rounding_error=False):
+    mod = tvm.IRModule.from_expr(expr)
+    mod_def = tvm.relay.transform.InferType()(mod)
+    mod_int = tvm.relay.transform.FakeQuantizationToInteger(False, True)(mod_def)
+    mod_exp = tvm.relay.transform.InferType()(tvm.IRModule.from_expr(expected_expr))
+    assert not tvm.ir.structural_equal(mod, mod_int)
+    assert tvm.ir.structural_equal(mod_int, mod_exp)
+    result_def = (
+        relay.create_executor("vm", mod=mod_def, device=tvm.cpu(), target="llvm")
+        .evaluate()(*args)
+        .numpy()
+    )
+    result_int = (
+        relay.create_executor("vm", mod=mod_int, device=tvm.cpu(), target="llvm")
+        .evaluate()(*args)
+        .numpy()
+    )
+    result_exp = (
+        relay.create_executor("vm", mod=mod_exp, device=tvm.cpu(), target="llvm")
+        .evaluate()(*args)
+        .numpy()
+    )
+    if allow_rounding_error:
+        assert np.all(np.abs(result_def.astype("int32") - result_int.astype("int32")) <= 1)
+    else:
+        assert np.array_equal(result_def, result_int)
+
+    assert np.array_equal(result_int, result_exp)
+
+
+def test_fq_qat_op_positive_part():
+    # Only the first operation is converted, since the next operation("add") is not enabled.
+    shape_x = [1, 4, 2]
+    shape_w = [1, 4, 2]
+    a = relay.var("a", shape=shape_x, dtype="int8")
+    b = relay.var("b", shape=shape_w, dtype="int8")
+
+    op0 = relay.qnn.op.dequantize(a, relay.const(2.0), relay.const(0))
+    op1 = relay.qnn.op.dequantize(b, relay.const(6.0), relay.const(0))
+    op2 = relay.op.nn.batch_matmul(op0, op1)
+    op3 = relay.op.add(op2, relay.const(1.0))
+    expr = relay.op.erf(op3)
+
+    op0 = relay.qnn.op.qnn.batch_matmul(
+        a, b, relay.const(0), relay.const(0), relay.const(2.0), relay.const(6.0)
+    )
+    op1 = relay.qnn.op.qnn.dequantize(op0, relay.const(12.0), relay.const(0))
+    op2 = relay.op.add(op1, relay.const(1.0))
+    expected_expr = relay.op.erf(op2)
+
+    x_np = np.random.randint(-128, 127, size=shape_x, dtype="int8")
+    w_np = np.random.randint(-128, 127, size=shape_w, dtype="int8")
+    compare_expected_fq_qat_to_int(expr, expected_expr, [x_np, w_np])
+
+
+def test_fq_qat_negative_all():
+    # None of the operations are converted, since the first operation("add") is not enabled.
+    shape_x = [1, 4, 2]
+    shape_w = [1, 4, 2]
+    a = relay.var("a", shape=shape_x, dtype="int8")
+    b = relay.var("b", shape=shape_w, dtype="int8")
+
+    op0 = relay.qnn.op.dequantize(a, relay.const(2.0), relay.const(0))
+    op1 = relay.qnn.op.dequantize(b, relay.const(6.0), relay.const(0))
+    op2 = relay.op.add(op1, relay.const(1.0))
+    op3 = relay.op.nn.batch_matmul(op0, op2)
+    expr = relay.op.erf(op3)
+
+    expected_expr = expr
+
+    x_np = np.random.randint(-128, 127, size=shape_x, dtype="int8")
+    w_np = np.random.randint(-128, 127, size=shape_w, dtype="int8")
+    compare_expected_fq_qat_to_int(expr, expected_expr, [x_np, w_np])
+
+
+def test_fq_qat_positive_single():
+    # The single operation is converted.
+    shape_x = [1, 4, 2]
+    shape_w = [1, 4, 2]
+    a = relay.var("a", shape=shape_x, dtype="int8")
+    b = relay.var("b", shape=shape_w, dtype="int8")
+
+    op0 = relay.qnn.op.dequantize(a, relay.const(2.0), relay.const(0))
+    op1 = relay.qnn.op.dequantize(b, relay.const(6.0), relay.const(0))
+    expr = relay.op.nn.batch_matmul(op0, op1)
+
+    op0 = relay.qnn.op.qnn.batch_matmul(
+        a, b, relay.const(0), relay.const(0), relay.const(2.0), relay.const(6.0)
+    )
+    expected_expr = relay.qnn.op.qnn.dequantize(op0, relay.const(12.0), relay.const(0))
+
+    x_np = np.random.randint(-128, 127, size=shape_x, dtype="int8")
+    w_np = np.random.randint(-128, 127, size=shape_w, dtype="int8")
+    compare_expected_fq_qat_to_int(expr, expected_expr, [x_np, w_np])
+
+
+def test_fq_qat_positive_nothing_to_do():
+    # All operations are converted by the non-QAT pass.
+    shape_x = [1, 4, 2]
+    shape_w = [1, 4, 2]
+    a = relay.var("a", shape=shape_x, dtype="int8")
+    b = relay.var("b", shape=shape_w, dtype="int8")
+
+    op0 = relay.qnn.op.dequantize(a, relay.const(2.0), relay.const(0))
+    op1 = relay.qnn.op.dequantize(b, relay.const(6.0), relay.const(0))
+    op2 = relay.op.nn.batch_matmul(op0, op1)
+    op3 = relay.op.add(op2, relay.const(1.0))
+    expr = relay.qnn.op.quantize(op3, relay.const(1.0), relay.const(0), out_dtype="int8")
+
+    op0 = relay.qnn.op.batch_matmul(
+        a, b, relay.const(0), relay.const(0), relay.const(2.0), relay.const(6.0)
+    )
+    op1 = relay.qnn.op.quantize(
+        relay.const(1.0), relay.const(12.0), relay.const(0), out_dtype="int32"
+    )
+    op2 = relay.qnn.op.add(
+        op0,
+        op1,
+        relay.const(12.0),
+        relay.const(0),
+        relay.const(12.0),
+        relay.const(0),
+        relay.const(12.0),
+        relay.const(0),
+    )
+    expected_expr = relay.qnn.op.requantize(
+        op2, relay.const(12.0), relay.const(0), relay.const(1.0), relay.const(0), out_dtype="int8"
+    )
+
+    x_np = np.random.randint(-128, 127, size=shape_x, dtype="int8")
+    w_np = np.random.randint(-128, 127, size=shape_w, dtype="int8")
+    compare_expected_fq_qat_to_int(expr, expected_expr, [x_np, w_np])
+
+
+def test_fq_qat_positive_couple():
+    # Several consecutive operations are converted.
+    shape_x = [1, 2, 4]
+    shape_w = [2]
+    a = relay.var("a", shape=shape_x, dtype="int8")
+    b = relay.var("b", shape=shape_w, dtype="int8")
+
+    op0 = relay.qnn.op.dequantize(a, relay.const(2.0), relay.const(0))
+    op1 = relay.qnn.op.dequantize(b, relay.const(6.0), relay.const(0))
+    op2 = relay.op.reshape(op0, (1, 4, 2))
+    op3 = relay.op.broadcast_to(op1, (2, 2, 2))
+    op4 = relay.op.nn.batch_matmul(op2, op3)
+    expr = relay.op.erf(op4)
+
+    op0 = relay.op.reshape(a, (1, 4, 2))
+    op1 = relay.op.broadcast_to(b, (2, 2, 2))
+    op3 = relay.qnn.op.qnn.batch_matmul(
+        op0, op1, relay.const(0), relay.const(0), relay.const(2.0), relay.const(6.0)
+    )
+    op4 = relay.qnn.op.qnn.dequantize(op3, relay.const(12.0), relay.const(0))
+    expected_expr = relay.op.erf(op4)
+
+    x_np = np.random.randint(-128, 127, size=shape_x, dtype="int8")
+    w_np = np.random.randint(-128, 127, size=shape_w, dtype="int8")
+    compare_expected_fq_qat_to_int(expr, expected_expr, [x_np, w_np])
+
+
+def test_fq_positive_single_arg_part():
+    # The single-argument operation is converted.
+    shape_x = [1, 2, 4]
+    a = relay.var("a", shape=shape_x, dtype="int8")
+
+    op0 = relay.qnn.op.dequantize(a, relay.const(2.0), relay.const(0))
+
+    op1 = relay.op.reshape(op0, (1, 4, 2))
+    expr = relay.op.erf(op1)
+
+    op0 = relay.op.reshape(a, (1, 4, 2))
+    op1 = relay.qnn.op.dequantize(op0, relay.const(2.0), relay.const(0))
+    expected_expr = relay.op.erf(op1)
+    x_np = np.random.randint(-128, 127, size=shape_x, dtype="int8")
+    compare_expected_fq_qat_to_int(expr, expected_expr, [x_np])
+
+
+def test_fq_qat_intermediate_infertype():
+    # Complex conversion of non-QAT and QAT passes that form FakeQuantizationToInteger.
+    shape_x = [1, 2, 4]
+    x = relay.var("x", shape=shape_x, dtype="float32")
+    const_0 = relay.const(np.random.uniform(size=[1, 4, 2]).astype("float32"))
+
+    op0 = relay.qnn.op.quantize(x, relay.const(17.0), relay.const(0), out_dtype="int8")
+    op1 = relay.qnn.op.dequantize(op0, relay.const(17.0), relay.const(0))
+    op2 = relay.op.reshape(op1, (1, 4, 2))
+    op3 = relay.qnn.op.quantize(op2, relay.const(10.0), relay.const(0), out_dtype="int8")
+    op4 = relay.qnn.op.quantize(const_0, relay.const(1.0), relay.const(8), out_dtype="int8")
+    op5 = relay.qnn.op.dequantize(op3, relay.const(10.0), relay.const(0))
+    op6 = relay.qnn.op.dequantize(op4, relay.const(4.0), relay.const(9))
+    op7 = relay.op.nn.batch_matmul(op5, op6)
+    expr = relay.op.add(op7, relay.const(5.0))
+
+    op0 = relay.qnn.op.quantize(x, relay.const(17.0), relay.const(0), out_dtype="int8")
+    op1 = relay.op.reshape(op0, (1, 4, 2))
+    op2 = relay.qnn.op.requantize(
+        op1, relay.const(17.0), relay.const(0), relay.const(10.0), relay.const(0), out_dtype="int8"
+    )
+    op3 = relay.qnn.op.quantize(const_0, relay.const(1.0), relay.const(8), out_dtype="int8")
+    op4 = relay.qnn.op.batch_matmul(
+        op2, op3, relay.const(0), relay.const(9), relay.const(10.0), relay.const(4.0)
+    )
+    op5 = relay.qnn.op.dequantize(op4, relay.const(40.0), relay.const(0))
+    expected_expr = relay.op.add(op5, relay.const(5.0))
+
+    x_np = np.random.randint(-128, 127, size=shape_x, dtype="int32").astype("float32")
+    compare_expected_fq_qat_to_int(expr, expected_expr, [x_np])
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

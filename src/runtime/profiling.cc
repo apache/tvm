@@ -283,11 +283,11 @@ void print_metric(std::ostream& os, ObjectRef o) {
        << "\"" << Downcast<String>(o) << "\""
        << "}";
   } else if (const CountNode* n = o.as<CountNode>()) {
-    os << "{\"count\":" << std::to_string(n->value) << "}";
+    os << "{\"count\":" << n->value << "}";
   } else if (const DurationNode* n = o.as<DurationNode>()) {
-    os << "{\"microseconds\":" << std::to_string(n->microseconds) << "}";
+    os << "{\"microseconds\":" << std::setprecision(17) << std::fixed << n->microseconds << "}";
   } else if (const PercentNode* n = o.as<PercentNode>()) {
-    os << "{\"percent\":" << std::to_string(n->percent) << "}";
+    os << "{\"percent\":" << std::setprecision(17) << std::fixed << n->percent << "}";
   } else {
     LOG(FATAL) << "Unprintable type " << o->GetTypeKey();
   }
@@ -683,6 +683,7 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
   // Module::GetFunction is not const, so this lambda has to be mutable
   return PackedFunc([=](TVMArgs args, TVMRetValue* ret) mutable {
     PackedFunc f = mod.GetFunction(func_name);
+    CHECK(f.defined()) << "There is no function called \"" << func_name << "\" in the module";
     Device dev{static_cast<DLDeviceType>(device_type), device_id};
 
     // warmup
@@ -695,17 +696,21 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
     }
     std::vector<Map<String, ObjectRef>> results;
     results.reserve(collectors.size());
-    std::vector<ObjectRef> collector_data;
+    std::vector<std::pair<MetricCollector, ObjectRef>> collector_data;
     collector_data.reserve(collectors.size());
     for (auto& collector : collectors) {
-      collector_data.push_back(collector->Start(dev));
+      ObjectRef o = collector->Start(dev);
+      // If not defined, then the collector cannot time this device.
+      if (o.defined()) {
+        collector_data.push_back({collector, o});
+      }
     }
 
     // TODO(tkonolige): repeated calls if the runtime is small?
     f.CallPacked(args, ret);
 
-    for (size_t i = 0; i < collectors.size(); i++) {
-      results.push_back(collectors[i]->Stop(collector_data[i]));
+    for (auto& kv : collector_data) {
+      results.push_back(kv.first->Stop(kv.second));
     }
     Map<String, ObjectRef> combined_results;
     for (auto m : results) {
@@ -733,6 +738,61 @@ TVM_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
         return ProfileFunction(mod, func_name, device_type, device_id, warmup_iters, collectors);
       }
     });
+
+PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, int min_repeat_ms,
+                             PackedFunc f_preproc) {
+  ICHECK(pf != nullptr);
+
+  if (static_cast<int>(dev.device_type) == static_cast<int>(kDLMicroDev)) {
+    auto get_micro_time_evaluator = runtime::Registry::Get("micro._GetMicroTimeEvaluator");
+    ICHECK(get_micro_time_evaluator != nullptr) << "micro backend not enabled";
+    return (*get_micro_time_evaluator)(pf, dev, number, repeat);
+  }
+
+  auto ftimer = [pf, dev, number, repeat, min_repeat_ms, f_preproc](TVMArgs args,
+                                                                    TVMRetValue* rv) mutable {
+    TVMRetValue temp;
+    std::ostringstream os;
+    // skip first time call, to activate lazy compilation components.
+    pf.CallPacked(args, &temp);
+
+    DeviceAPI::Get(dev)->StreamSync(dev, nullptr);
+
+    for (int i = 0; i < repeat; ++i) {
+      if (f_preproc != nullptr) {
+        f_preproc.CallPacked(args, &temp);
+      }
+      double duration_ms = 0.0;
+
+      do {
+        if (duration_ms > 0.0) {
+          number = static_cast<int>(std::max((min_repeat_ms / (duration_ms / number) + 1),
+                                             number * 1.618));  // 1.618 is chosen by random
+        }
+
+        Timer t = Timer::Start(dev);
+        // start timing
+        for (int i = 0; i < number; ++i) {
+          pf.CallPacked(args, &temp);
+        }
+        t->Stop();
+        int64_t t_nanos = t->SyncAndGetElapsedNanos();
+        duration_ms = t_nanos / 1e6;
+      } while (duration_ms < min_repeat_ms);
+
+      double speed = duration_ms / 1e3 / number;
+      os.write(reinterpret_cast<char*>(&speed), sizeof(speed));
+    }
+
+    std::string blob = os.str();
+    TVMByteArray arr;
+    arr.size = blob.length();
+    arr.data = blob.data();
+    // return the time.
+    *rv = arr;
+  };
+  return PackedFunc(ftimer);
+}
 
 }  // namespace profiling
 }  // namespace runtime

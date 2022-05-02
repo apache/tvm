@@ -789,6 +789,24 @@ def Inline():
     return _ffi_api.Inline()
 
 
+def InlineComposites(target):
+    """Perform inlining on the given Relay IR module. The functions originate
+    from the MergeComposite pass based on an input pattern table will fold back
+    to main. Currently, this is used for the TRT BYOC which expects a single
+    primitive function to operate on.
+
+    Parameters
+    ----------
+    target: str
+        The byoc target for which ops need to fold back to primitive function.
+    Returns
+    -------
+    ret: tvm.transform.Pass
+        The registered pass that performs inlining for a Relay IR module.
+    """
+    return _ffi_api.InlineComposites(target)
+
+
 def gradient(expr, mod=None, mode="higher_order"):
     """
     Transform the input function,
@@ -1203,6 +1221,14 @@ def PlanDevices(config):
     return _ffi_api.PlanDevices(config)
 
 
+def ManifestLifetimes():
+    """
+    Manifest the lifetimes of variables after allocations have been manifested, by inserting kill
+    operations once variables become dead.
+    """
+    return _ffi_api.ManifestLifetimes()
+
+
 def FoldExplicitPadding():
     """
     FoldExplicitPadding finds explict padding before an op that can support
@@ -1230,7 +1256,7 @@ def AnnotateSpans():
     return _ffi_api.AnnotateSpans()
 
 
-def FakeQuantizationToInteger(hard_fail=False):
+def FakeQuantizationToInteger(hard_fail=False, use_qat=False):
     # pylint: disable=anomalous-backslash-in-string
     """
     Find regions of the graph of the form
@@ -1259,12 +1285,57 @@ def FakeQuantizationToInteger(hard_fail=False):
         If true, raise an error.
         If false, skip rewriting the subgraph.
 
+    use_qat : boolean
+        To perform an additional QAT pass - convert enabled operations with dequantized inputs.
+        Example: in the graph above op2 is not registered with the FakeQuantizationToInteger
+        attribute, op1 operation can still be converted. Converted pattern below:
+
+        .. code-block:: text
+
+            x    w
+            |    |
+            \\   /
+              op1
+              |
+              dq
+              |
+              op2
+              |
+              q
+
     Returns
     -------
     ret : tvm.transform.Pass
-        The registered SimplifyExpr pass.
+        The registered FakeQuantizationToInteger pass.
     """
-    return _ffi_api.FakeQuantizationToInteger(hard_fail)
+    return _ffi_api.FakeQuantizationToInteger(hard_fail, use_qat)
+
+
+def FlattenAtrousConv():
+    # pylint: disable=anomalous-backslash-in-string
+    """
+    The purpose of this pass is to find a sequence of space_to_batch_nd-conv2d-batch_to_space_nd
+    operations:
+
+    .. code-block:: text
+
+      x     w
+      |     |
+      s2b   |
+       \\   /
+        conv2d
+         |
+         b2s
+
+    and convert them into subgraphs with a convolution with the modified "dilation" and
+    recalculated "padding" parameters.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered FlattenAtrousConv pass.
+    """
+    return _ffi_api.FlattenAtrousConv()
 
 
 def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):

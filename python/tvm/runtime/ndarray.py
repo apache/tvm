@@ -249,6 +249,33 @@ class NDArray(NDArrayBase):
             return self._copyto(res)
         raise ValueError("Unsupported target type %s" % str(type(target)))
 
+    def _create_view(self, shape):
+        """Create a view into an existing array.
+
+        The view shares the same allocation and datatype as the
+        existing array, but can have a different array shape.  This is
+        useful for runtimes that support non-flat memory, where both
+        the physical shape of an allocation and the logical shape of
+        the tensor it represents may need to be independently
+        specified.
+
+        Warning: This function should not be used outside of low-level
+        manipulations, as it breaks non-aliasing assumptions made by
+        TVM.  This function may also be removed/replaced in the
+        future.
+
+        Parameters
+        ----------
+        shape: Union[tvm.runtime.ShapeTuple, Sequence[typing.SupportsInt]]
+
+            The shape of the view.
+        """
+
+        if not isinstance(shape, tvm.runtime.ShapeTuple):
+            shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
+
+        return _ffi_api.TVMArrayCreateView(self, shape)
+
 
 def device(dev_type, dev_id=0):
     """Construct a TVM device with given device type and id.
@@ -305,7 +332,7 @@ def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):
 
     Parameters
     ----------
-    shape : tuple of int
+    shape : Union[tvm.runtime.ShapeTuple, Sequence[typing.SupportsInt]]
         The shape of the array.
 
     dtype : type or str
@@ -322,18 +349,10 @@ def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):
     arr : tvm.nd.NDArray
         The array tvm supported.
     """
-    shape_imm = []
-    for s in shape:
-        if isinstance(s, tvm.tir.IntImm):
-            shape_imm.append(s.value)
-        else:
-            shape_imm.append(int(s))
-    arr = np.array(shape_imm, "int64")
-    ptr = arr.ctypes.data_as(ctypes.POINTER(ctypes.c_int64))
-    shape_ptr = ctypes.cast(ptr, ctypes.c_void_p)
-    ndim = len(shape_imm)
+    if not isinstance(shape, tvm.runtime.ShapeTuple):
+        shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
     dtype = DataType(dtype)
-    arr = _ffi_api.TVMArrayAllocWithScope(shape_ptr, ndim, dtype, device, mem_scope)
+    arr = _ffi_api.TVMArrayAllocWithScope(shape, dtype, device, mem_scope)
     return arr
 
 

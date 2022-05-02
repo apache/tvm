@@ -40,7 +40,9 @@
 #include <vector>
 
 namespace tvm {
+
 class IRModule;
+
 /*!
  * \brief IRModule that holds functions and type definitions.
  *
@@ -494,6 +496,20 @@ constexpr const char* kExecutor = "executor";
  * \sa tvm::relay::Runtime
  */
 constexpr const char* kRuntime = "runtime";
+
+/*!
+ * \brief workspace memory pools of the module
+ *
+ * Type: WorkspaceMemoryPools
+ *
+ * \sa tvm::WorkspaceMemoryPools
+ */
+constexpr const char* kWorkspaceMemoryPools = "workspace_memory_pools";
+
+/*
+ * \brief Module attribute for tir constants
+ */
+constexpr const char* kConstantsArray = "Constants";
 
 }  // namespace attr
 }  // namespace tvm

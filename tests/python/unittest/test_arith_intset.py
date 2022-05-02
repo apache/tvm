@@ -30,12 +30,8 @@ class IntSetChecker:
         def err_msg():
             return "\ndata={}\ndmap={}\nres={}\nexpected={}".format(data, dmap, res, expected)
 
-        def equal(x, y):
-            res = self.analyzer.canonical_simplify(x - y)
-            return tvm.tir.analysis.expr_deep_equal(res, 0)
-
-        assert equal(res.min_value, expected[0]), err_msg()
-        assert equal(res.max_value, expected[1]), err_msg()
+        assert self.analyzer.can_prove_equal(res.min_value, expected[0]), err_msg()
+        assert self.analyzer.can_prove_equal(res.max_value, expected[1]), err_msg()
 
 
 def test_basic():
@@ -99,10 +95,17 @@ def test_mod():
     ck.verify(flm(x, 10), {x: tvm.arith.IntervalSet(3, 11)}, (0, 9))
     ck.verify(flm(x, 10), {x: tvm.arith.IntervalSet(1, 21)}, (0, 9))
 
-    floordiv = tvm.te.floordiv
+    fld = tvm.te.floordiv
     z = te.var("z")
     ck.analyzer.bind(x, tvm.ir.Range.from_min_extent(0, 3))
-    ck.verify(flm(y, 8), {y: tvm.arith.IntervalSet(z * 8 + x * 4, z * 8 + x * 4 + 3)}, (0, 7))
+    ck.verify(
+        flm(y, 8),
+        {y: tvm.arith.IntervalSet(z * 8 + x * 4, z * 8 + x * 4 + 3)},
+        (
+            z * 8 + x * 4 - 8 * fld(z * 8 + x * 4, 8),
+            z * 8 + x * 4 + 3 - 8 * fld(z * 8 + x * 4, 8),
+        ),
+    )
     ck1 = IntSetChecker()
     ck1.analyzer.bind(x, tvm.ir.Range.from_min_extent(0, 2))
     ck1.verify(

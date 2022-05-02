@@ -44,6 +44,12 @@ class AttrRegistry;
 
 namespace relay {
 
+/*! \brief Value used with Runtime::name to indicate the C++ runtime. */
+static constexpr const char* kTvmRuntimeCpp = "cpp";
+
+/*! \brief Value used with Runtime::name to indicate the C runtime. */
+static constexpr const char* kTvmRuntimeCrt = "crt";
+
 /*!
  * \brief Runtime information.
  *
@@ -105,6 +111,8 @@ class RuntimeNode : public Object {
   }
 
   static constexpr const char* _type_key = "Runtime";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(RuntimeNode, Object);
 };
 

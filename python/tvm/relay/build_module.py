@@ -19,25 +19,31 @@ Construct the necessary state for the TVM graph executor
 from a Relay expression.
 """
 import warnings
+
 import numpy as np
-
 from tvm.ir import IRModule
-
 from tvm.ir.transform import PassContext
-from tvm.tir import expr as tvm_expr
 from tvm.target import Target
-from .. import nd as _nd, autotvm, register_func
+from tvm.tir import expr as tvm_expr
+
+from .. import autotvm
+from .. import nd as _nd
+from .. import register_func
+from ..contrib import graph_executor as _graph_executor
+from ..contrib import utils as contrib_utils
+from ..runtime import load_module
+from ..runtime.executor import aot_executor as _aot_executor
 from ..target import Target
-from ..contrib import graph_executor as _graph_rt
 from . import _build_module
-from . import ty as _ty
 from . import expr as _expr
 from . import function as _function
-from .transform import InferType
-from .backend.utils import mangle_module_name
-from .backend import executor_factory as _executor_factory, Executor, Runtime
+from . import ty as _ty
+from .backend import Executor, Runtime
+from .backend import executor_factory as _executor_factory
 from .backend import interpreter as _interpreter
+from .backend.utils import mangle_module_name
 from .backend.vm import VMExecutor
+from .transform import InferType
 
 
 def build_target_by_device_type_map(target):
@@ -101,6 +107,7 @@ class BuildModule(object):
         self._set_params_func = self.mod["set_params"]
         self._get_params_func = self.mod["get_params"]
         self._get_function_metadata = self.mod["get_function_metadata"]
+        self._get_executor_codegen_metadata = self.mod["get_executor_codegen_metadata"]
         self._get_devices = self.mod["get_devices"]
         self._get_irmodule = self.mod["get_irmodule"]
 
@@ -111,6 +118,7 @@ class BuildModule(object):
         target_host=None,
         executor=Executor("graph"),
         runtime=Runtime("cpp"),
+        workspace_memory_pools=None,
         params=None,
         mod_name=None,
     ):
@@ -141,6 +149,11 @@ class BuildModule(object):
         runtime : Optional[Runtime]
             Runtime configuration to use when building the model.
             Defaults to "cpp" if no runtime specified.
+
+        workspace_memory_pools : Optional[WorkspaceMemoryPools]
+            The object that contains an Array of PoolInfo objects
+            that hold properties of workspace pools that could be
+            used by the inference.
 
         params : dict of str to NDArray
             Input parameters to the graph that do not change
@@ -182,11 +195,11 @@ class BuildModule(object):
 
         # Turn off AutoTVM config not found warnings if auto_scheduler is enabled.
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
-        autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
+        autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler or old_autotvm_silent
 
         mod_name = mangle_module_name(mod_name)
 
-        self._build(mod, target, target_host, executor, runtime, mod_name)
+        self._build(mod, target, target_host, executor, runtime, workspace_memory_pools, mod_name)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts
@@ -248,6 +261,12 @@ class BuildModule(object):
         each PrimFunc"""
         return self._get_function_metadata()
 
+    def get_executor_codegen_metadata(self):
+        """Return the metadata produced after executor
+        codegen
+        """
+        return self._get_executor_codegen_metadata()
+
     def get_devices(self):
         """Returns a list of devices configured in this module"""
         return self._get_devices()
@@ -271,13 +290,17 @@ def _module_export(module, file_name):  # fcompile, addons, kwargs?
 
 
 @register_func("tvm.relay.build")
+def _build_module_no_factory_impl(mod, target, target_host, params, mod_name):
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    return build(mod, target, params=params, mod_name=mod_name).module
+
+
 def _build_module_no_factory(mod, target=None, target_host=None, params=None, mod_name="default"):
     """A wrapper around build which discards the Python GraphFactoryRuntime.
     This wrapper is suitable to be used from other programming languages as
     the runtime::Module can be freely passed between language boundaries.
     """
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
-    return build(mod, target, params=params, mod_name=mod_name).module
+    return _build_module_no_factory_impl(mod, target, target_host, params, mod_name)
 
 
 def _reconstruct_from_deprecated_options(deprecated_params_target):
@@ -349,6 +372,7 @@ def build(
     target_host=None,
     executor=Executor("graph"),
     runtime=Runtime("cpp"),
+    workspace_memory_pools=None,
     params=None,
     mod_name="default",
 ):
@@ -381,6 +405,11 @@ def build(
     runtime : Optional[Runtime]
         Runtime configuration to use when building the model.
         Defaults to "cpp" if no runtime specified.
+
+    workspace_memory_pools : Optional[WorkspaceMemoryPools]
+        The object that contains an Array of PoolInfo objects
+        that hold properties of workspace pools that could be
+        used by the inference.
 
     params : dict of str to NDArray
         Input parameters to the graph that do not change
@@ -452,11 +481,13 @@ def build(
             params=params,
             executor=executor,
             runtime=runtime,
+            workspace_memory_pools=workspace_memory_pools,
             mod_name=mod_name,
         )
         func_metadata = bld_mod.get_function_metadata()
         devices = bld_mod.get_devices()
         lowered_ir_mods = bld_mod.get_irmodule()
+        executor_codegen_metadata = bld_mod.get_executor_codegen_metadata()
 
         if str(executor) == "aot":
             executor_factory = _executor_factory.AOTExecutorFactoryModule(
@@ -464,10 +495,12 @@ def build(
                 lowered_ir_mods,
                 target,
                 executor,
+                runtime,
                 runtime_mod,
                 mod_name,
                 params,
                 func_metadata,
+                executor_codegen_metadata,
                 devices,
             )
         elif str(executor) == "graph":
@@ -589,7 +622,7 @@ class GraphExecutor(_interpreter.Executor):
                 "Graph Executor only supports static graphs, got output type", ret_type
             )
         mod = build(self.mod, target=self.target)
-        gmodule = _graph_rt.GraphModule(mod["default"](self.device))
+        gmodule = _graph_executor.GraphModule(mod["default"](self.device))
 
         def _unflatten(flat_iter, cur_type):
             if isinstance(cur_type, _ty.TensorType):
@@ -618,6 +651,74 @@ class GraphExecutor(_interpreter.Executor):
         return _graph_wrapper
 
 
+class AotExecutor(_interpreter.Executor):
+    """Implements the Executor interface for AOT.
+
+    Parameters
+    ----------
+    mod : :py:class:`~tvm.IRModule`
+        The module to support the execution.
+
+    device : :py:class:`Device`
+        The runtime device to run the code on.
+
+    target : :py:class:`Target`
+        The target option to build the function.
+    """
+
+    def __init__(self, mod, device, target):
+        assert mod is not None
+        self.mod = mod
+        self.device = device
+        self.target = target
+        assert target.attrs.get("executor", "graph") == "aot"
+
+    def _make_executor(self, expr=None):
+        if expr:
+            self.mod["main"] = expr
+        self.mod = InferType()(self.mod)
+        ret_type = self.mod["main"].checked_type.ret_type
+        if _ty.is_dynamic(ret_type):
+            raise ValueError("AOT Executor only supports static graphs, got output type", ret_type)
+        mod = build(self.mod, target=self.target)
+
+        # NOTE: Given AOT requires use of the "c" backend, must export/import to compile the
+        # generated code.
+        temp_so_dir = contrib_utils.TempDirectory()
+        temp_so = temp_so_dir / "temp.so"
+        mod.export_library(temp_so, cc="gcc", options=["-std=c11"])
+
+        mod = load_module(temp_so)
+        aot_mod = mod["default"](self.device)
+        gmodule = _aot_executor.AotModule(aot_mod)
+
+        def _unflatten(flat_iter, cur_type):
+            if isinstance(cur_type, _ty.TensorType):
+                return next(flat_iter)
+            if isinstance(cur_type, _ty.TupleType):
+                fields = []
+                for field_type in cur_type.fields:
+                    field = _unflatten(flat_iter, field_type)
+                    fields.append(field)
+                return fields
+            raise ValueError("Return type", ret_type, "contains unsupported type", cur_type)
+
+        def _aot_wrapper(*args, **kwargs):
+            args = self._convert_args(self.mod["main"], args, kwargs)
+            # Create map of inputs.
+            for i, arg in enumerate(args):
+                gmodule.set_input(i, arg)
+            # Run the module, and fetch the output.
+            gmodule.run()
+            flattened = []
+            for i in range(gmodule.get_num_outputs()):
+                flattened.append(gmodule.get_output(i).copyto(_nd.cpu(0)))
+            unflattened = _unflatten(iter(flattened), ret_type)
+            return unflattened
+
+        return _aot_wrapper
+
+
 # TODO(mbs): Collapse the create_executor/evaluate phases together since a) most callers don't
 # reuse the executor for multiple expressions and b) any preparation necessary for the expression
 # evaluation needs to (currently) be done along with preparation for the module.
@@ -641,9 +742,8 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
     Parameters
     ----------
     kind : str
-        The type of executor. Avaliable options are `debug` for the
-        interpreter, `graph` for the graph executor, and `vm` for the virtual
-        machine.
+        The type of executor. Avaliable options are `debug` for the interpreter, `graph` for the
+        graph executor, `aot` for the aot executor, and `vm` for the virtual machine.
 
     mod : :py:class:`~tvm.IRModule`
         The Relay module containing collection of functions
@@ -680,4 +780,6 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
         return GraphExecutor(mod, device, target)
     if kind == "vm":
         return VMExecutor(mod, device, target)
+    if kind == "aot":
+        return AotExecutor(mod, device, target)
     raise RuntimeError("unknown execution strategy: {0}".format(kind))

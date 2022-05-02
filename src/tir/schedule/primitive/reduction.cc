@@ -64,6 +64,21 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
       ObjectPtr<BlockNode> p_new_block = CopyOnWrite(block);
       p_new_block->name_hint = p_new_block->name_hint + "_update";
       p_new_block->init = NullOpt;
+      // Add write regions back to read regions in update block.
+      Array<BufferRegion> new_reads;
+      std::unordered_set<const BufferNode*> read_bufs;
+      for (const BufferRegion& read_access : block->reads) {
+        read_bufs.insert(read_access->buffer.get());
+      }
+      for (const BufferRegion& write_access : block->writes) {
+        if (read_bufs.find(write_access->buffer.get()) == read_bufs.end()) {
+          new_reads.push_back(write_access);
+        }
+      }
+      for (const BufferRegion& read_access : block->reads) {
+        new_reads.push_back(read_access);
+      }
+      p_new_block->reads = new_reads;
       new_reduction_block_ = Block(p_new_block);
       return new_reduction_block_;
     } else {
@@ -203,8 +218,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   }
   // Cond 1. Check block is reduction
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
-                                          /*require_stage_pipeline=*/false,
-                                          /*require_subtree_compact_dataflow=*/false);
+                                          /*require_stage_pipeline=*/false);
   CheckReductionBlock(self, block_sref, scope_root_sref);
   // Cond 2. Check 'loop' is higher than all the loops related to block var of type reduction
   LoopHeightError::CheckLoopHigherThanReduceLoops(self->mod, block, realize, loops, loop_sref);
@@ -564,7 +578,14 @@ class BaseBlockCreator {
     for (int i = 0; i < n_block_iters_; ++i) {
       CreateNormalIters(i);
     }
-    CreateReductionUpdate();
+    bool has_reduce_iter = false;
+    for (const IterVar& iter_var : iter_vars_) {
+      if (iter_var->iter_type == IterVarType::kCommReduce) {
+        has_reduce_iter = true;
+        break;
+      }
+    }
+    CreateReductionUpdate(has_reduce_iter);
     CreateReadWriteRegions();
 
     String new_block_name = old_block_realize_->block->name_hint;
@@ -573,15 +594,17 @@ class BaseBlockCreator {
       new_block_name = new_block_name + "_rf";
       predicate = old_block_realize_->predicate;
     }
+    Optional<Stmt> init_block =
+        has_reduce_iter ? BufferStore(new_reduction_update_->buffer, reducer_->identity_element[0],
+                                      new_reduction_update_->indices)
+                        : Optional<Stmt>(NullOpt);
     new_block_ = Block(
         /*iter_vars=*/iter_vars_,
         /*reads=*/read_regions_,
         /*writes=*/write_regions_,
         /*name_hint=*/new_block_name,
         /*body=*/new_reduction_update_,
-        /*init=*/
-        BufferStore(new_reduction_update_->buffer, reducer_->identity_element[0],
-                    new_reduction_update_->indices),
+        /*init=*/init_block,
         /*alloc_buffers=*/{},
         /*match_buffers=*/{},
         /*annotations=*/old_block_realize_->block->annotations);
@@ -591,7 +614,7 @@ class BaseBlockCreator {
  private:
   virtual void CreateAdditionalIter() = 0;
   virtual void CreateNormalIters(int idx) = 0;
-  virtual void CreateReductionUpdate() = 0;
+  virtual void CreateReductionUpdate(bool has_reduce_iter) = 0;
   virtual void CreateReadWriteRegions() = 0;
 
  public:
@@ -720,14 +743,17 @@ class RFactorBlockCreator : public BaseBlockCreator {
     var_map_.Set(old_iter->var, Substitute(old_binding, loop_var2block_binding_));
   }
 
-  void CreateReductionUpdate() final {
+  void CreateReductionUpdate(bool has_reduce_iter) final {
     rf_buf_access_indices_ = old_reduction_update_->indices;
     rf_buf_access_indices_.insert(rf_buf_access_indices_.begin() + factor_axis_,
                                   additional_iter_->var);
-    new_reduction_update_ = BufferStore(
-        rf_buffer_,
-        (*reducer_.get())({BufferLoad(rf_buffer_, rf_buf_access_indices_)}, {combiner_rhs_})[0],
-        rf_buf_access_indices_);
+    PrimExpr rhs{nullptr};
+    if (has_reduce_iter) {
+      rhs = (*reducer_.get())({BufferLoad(rf_buffer_, rf_buf_access_indices_)}, {combiner_rhs_})[0];
+    } else {
+      rhs = combiner_rhs_;
+    }
+    new_reduction_update_ = BufferStore(rf_buffer_, rhs, rf_buf_access_indices_);
     new_reduction_update_ = Downcast<BufferStore>(Substitute(new_reduction_update_, var_map_));
   }
 
@@ -816,7 +842,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
     }
   }
 
-  void CreateReductionUpdate() final {
+  void CreateReductionUpdate(bool has_reduce_iter) final {
     wb_lhs_ = Downcast<BufferLoad>(Substitute(combiner_lhs_, var_map_));
     wb_rhs_ =
         Downcast<BufferLoad>(Substitute(BufferLoad(rf_buffer_, rf_buf_access_indices_), var_map_));
@@ -827,9 +853,8 @@ class WriteBackBlockCreator : public BaseBlockCreator {
   }
 
   void CreateReadWriteRegions() final {
-    read_regions_.push_back(CreateRegion(wb_lhs_));
     read_regions_.push_back(CreateRegion(wb_rhs_));
-    write_regions_.push_back(read_regions_[0]);
+    write_regions_.push_back(CreateRegion(wb_lhs_));
   }
 
   static BufferRegion CreateRegion(const BufferLoad& load) {
@@ -1009,8 +1034,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   const StmtSRef& block_sref = self->stmt2ref.at(block_realize->block.get());
   const Block& block = block_realize->block;
   StmtSRef scope_root = GetScopeRoot(self, block_sref,  //
-                                     /*require_stage_pipeline=*/true,
-                                     /*require_subtree_compact_dataflow=*/false);
+                                     /*require_stage_pipeline=*/true);
   CheckReductionBlock(self, block_sref, scope_root);
   const ForNode* rf_loop = TVM_SREF_TO_FOR(rf_loop, rf_loop_sref);
   if (rf_loop->kind != ForKind::kSerial) {

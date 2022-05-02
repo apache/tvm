@@ -31,6 +31,30 @@ static const char kErrBodyReverseInline[] = R"(The body of the inlined block sho
 where A is the only buffer the block consumes, whose indices are distinct atomic variables,
 and there should not no variables other than the index variables)";
 
+class HasInitBlock : public ScheduleError {
+ public:
+  explicit HasInitBlock(IRModule mod, Block block) : mod_(mod), block_(block) {}
+
+  String FastErrorString() const final { return "ScheduleError: The block has init statement"; }
+
+  String DetailRenderTemplate() const final {
+    return "ScheduleError: The block has init statement: {0}";
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+
+  static void Check(const IRModule& mod, const Block& block) {
+    if (block->init.defined()) {
+      throw HasInitBlock(mod, block);
+    }
+  }
+
+ private:
+  IRModule mod_;
+  Block block_;
+};
+
 class NotSingleReadWriteBuffer : public ScheduleError {
  public:
   explicit NotSingleReadWriteBuffer(IRModule mod, bool is_read, Block block)
@@ -200,14 +224,14 @@ class BaseInliner : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(var);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* load) final {
-    CheckOpaqueAccess(load->buffer_var.get());
-    return StmtExprMutator::VisitExpr_(load);
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
-  Stmt VisitStmt_(const StoreNode* store) final {
-    CheckOpaqueAccess(store->buffer_var.get());
-    return StmtExprMutator::VisitStmt_(store);
+  Stmt VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
   }
 
   Stmt VisitStmt_(const ForNode* loop) final {
@@ -282,6 +306,31 @@ class BaseInliner : public StmtExprMutator {
     for (int i = 0; i < n; ++i) {
       idx_sub_[idx_vars_[i]] = indices[i];
     }
+  }
+
+  /*!
+   * \brief Count the number of undefined variables that are not used
+   * as buffer objects.
+   *
+   * This is used to determine whether inlining or reverse inlining is
+   * possible.  The only undefined variables present should be the
+   * load/store indices, or buffer access based on those indices.
+   *
+   * \param stmt The statement in which to count undefined variables
+   */
+  static int GetNumUndefinedNonpointerVars(const Stmt& stmt) {
+    auto undefined_vars = UndefinedVars(stmt, {});
+    // Buffer pointers and the inlined indices are allowed, but no
+    // other variables may appear in the inlined block.
+    int num_nonpointer_vars = 0;
+    for (const auto& var : undefined_vars) {
+      bool is_pointer = var->dtype.is_handle() && var->type_annotation.defined() &&
+                        var->type_annotation.as<PointerTypeNode>();
+      if (!is_pointer) {
+        num_nonpointer_vars++;
+      }
+    }
+    return num_nonpointer_vars;
   }
 
  private:
@@ -417,7 +466,8 @@ class ComputeInliner : public BaseInliner {
     if (inlined_store_ == nullptr) {
       return false;
     }
-    int n_vars = UndefinedVars(GetRef<Stmt>(inlined_store_), {}).size();
+
+    int n_vars = GetNumUndefinedNonpointerVars(GetRef<Stmt>(inlined_store_));
     if (!UpdateAndCheckIndexVars(inlined_store_->indices, n_vars)) {
       return false;
     }
@@ -484,7 +534,7 @@ class ReverseComputeInliner : public BaseInliner {
       // Failure: no BufferLoad from the `inlined_buffer_`
       return false;
     }
-    int n_vars = UndefinedVars(GetRef<BufferStore>(inlined_store_), {}).size();
+    int n_vars = GetNumUndefinedNonpointerVars(GetRef<Stmt>(inlined_store_));
     for (const BufferLoadNode* load : loads) {
       if (!UpdateAndCheckIndexVars(load->indices, n_vars)) {
         // Failure: incorrect of inconsistent index vars
@@ -546,11 +596,11 @@ void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
                        bool check_only = false) {
   const BlockNode* _producer_block = TVM_SREF_TO_BLOCK(_producer_block, producer_block_sref);
   Block producer_block = GetRef<Block>(_producer_block);
+  HasInitBlock::Check(self->mod, producer_block);
   Buffer inlined_buffer = NotSingleReadWriteBuffer::GetSingleWrite(self, producer_block);
   // Step 1. Get the scope block
-  StmtSRef scope_root_sref = GetScopeRoot(self, producer_block_sref,  //
-                                          /*require_stage_pipeline=*/true,
-                                          /*require_subtree_compact_dataflow=*/false);
+  StmtSRef scope_root_sref = GetScopeRoot(self, producer_block_sref,
+                                          /*require_stage_pipeline=*/true);
   // Step 2. Check completeness
   CheckNotOutputBlock(self, producer_block_sref, scope_root_sref);
   CheckCompleteBlock(self, producer_block_sref, scope_root_sref);
@@ -591,10 +641,10 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
                               bool check_only = false) {
   const BlockNode* _consumer_block = TVM_SREF_TO_BLOCK(_consumer_block, consumer_block_sref);
   Block consumer_block = GetRef<Block>(_consumer_block);
+  HasInitBlock::Check(self->mod, consumer_block);
   // Step 1. Get the scope block
   StmtSRef scope_root_sref = GetScopeRoot(self, consumer_block_sref,  //
-                                          /*require_stage_pipeline=*/true,
-                                          /*require_subtree_compact_dataflow=*/false);
+                                          /*require_stage_pipeline=*/true);
   Buffer inlined_buffer =
       NotSingleReadWriteBuffer::GetSingleRead(self, consumer_block, scope_root_sref);
   // Step 2. Check completeness

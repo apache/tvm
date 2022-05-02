@@ -16,6 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/runtime/container/optional.h>
+#include <tvm/tir/expr.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -47,9 +50,8 @@ const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_bl
 
 /******** Scope ********/
 
-StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref,  //
-                      bool require_stage_pipeline,                      //
-                      bool require_subtree_compact_dataflow) {
+StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref,
+                      bool require_stage_pipeline) {
   class RootBlockError : public ScheduleError {
    public:
     explicit RootBlockError(IRModule mod) : mod_(mod) {}
@@ -85,31 +87,6 @@ Definition of a scope that is a stage pipeline:
     Block block_;
   };
 
-  class NotCompactDataFlowError : public ScheduleError {
-   public:
-    explicit NotCompactDataFlowError(IRModule mod, Stmt subtree_root, Block violate_block)
-        : mod_(std::move(mod)),
-          subtree_root_(std::move(subtree_root)),
-          violate_block_(std::move(violate_block)) {
-      ICHECK(subtree_root_->IsInstance<BlockNode>() || subtree_root_->IsInstance<ForNode>());
-    }
-    String FastErrorString() const final {
-      return "ScheduleError: The queried subtree root in SRef tree does not have compact dataflow, "
-             "because some of its child block on SRef tree is neither a complete block nor a "
-             "reduction block";
-    }
-    String DetailRenderTemplate() const final {
-      return "The queried subtree root {0} in SRef tree does not have compact dataflow, because "
-             "its child block {1} on SRef tree is neither a complete block nor a reduction block";
-    }
-    IRModule mod() const final { return mod_; }
-    Array<ObjectRef> LocationsOfInterest() const final { return {subtree_root_, violate_block_}; }
-
-    IRModule mod_;
-    Stmt subtree_root_;
-    Block violate_block_;
-  };
-
   StmtSRef scope_root_sref{nullptr};
   StmtSRef scope_root_subtree{nullptr};
   // Step 1. Find the scope root and the subtree that the given sref is in
@@ -133,18 +110,6 @@ Definition of a scope that is a stage pipeline:
     if (stage_pipeline == false) {
       const BlockNode* block = TVM_SREF_TO_BLOCK(block, scope_root_sref);
       throw NotStagePipelineError(self->mod, GetRef<Block>(block));
-    }
-  }
-  // Step 3. Handle `require_subtree_compact_dataflow`
-  if (require_subtree_compact_dataflow) {
-    Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, scope_root_subtree);
-    for (const StmtSRef& block_sref : child_block_srefs) {
-      if (!IsCompleteBlock(self, block_sref, scope_root_sref) &&
-          !IsReductionBlock(self, block_sref, scope_root_sref)) {
-        const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
-        throw NotCompactDataFlowError(self->mod, GetRef<Stmt>(scope_root_subtree->stmt),
-                                      GetRef<Block>(block));
-      }
     }
   }
   return scope_root_sref;
@@ -182,24 +147,52 @@ ScopeBlockLoopInfo GetScopeBlockLoopInfo(const Block& scope_block) {
 }
 
 /*!
- * \brief Check the dominant property of a block:
- * the block is the only writer of its output, dominating the reader of its output buffers
- * \param scope The block-scope of the block to be checked
- * \param block_sref The block whose dominant property is to be checked
- * \return A boolean indicating if the block is a dominant block
+ * \brief Check whether the given sref_a is higher than or equal to sref_b.
  */
-bool IsDominantBlock(const BlockScope& scope, const StmtSRef& block_sref) {
+void CheckSRefHigherOrEqual(const StmtSRef& sref_a, const StmtSRef& sref_b) {
+  const StmtSRefNode* p = sref_b.get();
+  for (; p != nullptr; p = p->parent) {
+    if (p == sref_a.get()) {
+      return;
+    }
+  }
+  CHECK(false) << "Expect StmtSRef " << sref_a << "to be higher than or equal to " << sref_b;
+}
+
+/*!
+ * \brief Check the dominant property of a block:
+ * the block is the only writer of its output, dominating the reader of its output buffers under the
+ * given root scope.
+ * \param self The schedule state.
+ * \param scope_root_sref The StmtSRef corresponding to the root scope.
+ * \param block_sref The block whose dominant property is to be checked.
+ * \return A boolean indicating if the block is a dominant block.
+ */
+bool IsDominantBlock(const ScheduleState& self, const StmtSRef& scope_root_sref,
+                     const StmtSRef& block_sref) {
+  std::unordered_map<Buffer, Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual> buffer_writers;
+  CheckSRefHigherOrEqual(scope_root_sref, block_sref);
+  const BlockNode* maybe_root_block = scope_root_sref->StmtAs<BlockNode>();
+  if (maybe_root_block) {
+    BlockScope scope = self->GetBlockScope(scope_root_sref);
+    buffer_writers = scope->buffer_writers;
+  } else {
+    // Collect all child blocks of root sub-tree, and merge their buffer writers.
+    Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, scope_root_sref);
+    for (const StmtSRef& child_block_sref : child_block_srefs) {
+      BlockScope child_scope = self->GetBlockScope(child_block_sref);
+      for (const auto& it : child_scope->buffer_writers) {
+        buffer_writers.insert(it);
+      }
+    }
+  }
   // Check whether the input block is the only writer of its outputs
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
-  const std::unordered_map<Buffer, Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual>& buffer_writers =
-      scope->buffer_writers;
   for (const BufferRegion& write_region : block->writes) {
-    ICHECK(buffer_writers.count(write_region->buffer))
-        << "InternalError: buffer \"" << write_region->buffer->name
-        << "\" does not exist in the current scope, when querying block:\n"
-        << GetRef<Block>(block);
-    if (buffer_writers.at(write_region->buffer).size() != 1) {
-      return false;
+    if (buffer_writers.count(write_region->buffer)) {
+      if (buffer_writers.at(write_region->buffer).size() != 1) {
+        return false;
+      }
     }
   }
   return true;
@@ -216,7 +209,6 @@ bool IsDominantBlock(const BlockScope& scope, const StmtSRef& block_sref) {
  */
 int CheckCompleteBlockErrorCode(const ScheduleState& self, const StmtSRef& block_sref,
                                 const StmtSRef& scope_root_sref) {
-  BlockScope scope = self->GetBlockScope(scope_root_sref);
   // Cond 1. All block vars are data parallel
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   for (const IterVar& iter_var : block->iter_vars) {
@@ -226,7 +218,7 @@ int CheckCompleteBlockErrorCode(const ScheduleState& self, const StmtSRef& block
   }
   // Cond 2. Dominant: the block is the only writer of its output,
   // dominating the reader of its output buffers
-  if (!IsDominantBlock(scope, block_sref)) {
+  if (!IsDominantBlock(self, scope_root_sref, block_sref)) {
     return 2;
   }
   // Cond 3. No overlap between the buffers the block reads and writes
@@ -253,6 +245,18 @@ static const char* kReductionBlockDefinition = R"(Definition of a reduction bloc
 2) All the block bindings are quasi-affine expressions
 3) All block vars are either data parallel block vars or reduction block vars
 4) Dominant: the block is the only writer of its output, dominating the reader of its output buffers
+5) The reduction block vars are not used to index the output buffers)";
+
+static const char* kLocalCompleteBlockDefinition = R"(Definition of a local complete block:
+1) All block vars are data parallel
+2) Local Dominant: the block is the only writer of its output, dominating the reader of its output buffers under a given subtree
+3) No overlap between the buffers the block reads and writes)";
+
+static const char* kLocalReductionBlockDefinition = R"(Definition of a reduction block:
+1) The block has the `init` statement
+2) All the block bindings are quasi-affine expressions
+3) All block vars are either data parallel block vars or reduction block vars
+4) Local Dominant: the block is the only writer of its output, dominating the reader of its output buffers under a given subtree
 5) The reduction block vars are not used to index the output buffers)";
 
 bool IsCompleteBlock(const ScheduleState& self, const StmtSRef& block_sref,
@@ -298,7 +302,6 @@ void CheckCompleteBlock(const ScheduleState& self, const StmtSRef& block_sref,
  */
 int CheckReductionBlockErrorCode(const ScheduleState& self, const StmtSRef& block_sref,
                                  const StmtSRef& scope_root_sref) {
-  BlockScope scope = self->GetBlockScope(scope_root_sref);
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   // Cond 1. The block has the `init` statement.
   if (!block->init.defined()) {
@@ -315,7 +318,7 @@ int CheckReductionBlockErrorCode(const ScheduleState& self, const StmtSRef& bloc
   }
   // Cond 4. Dominant: the block is the only writer of its output, dominating the reader of its
   // output buffers.
-  if (!IsDominantBlock(scope, block_sref)) {
+  if (!IsDominantBlock(self, scope_root_sref, block_sref)) {
     return 4;
   }
   // Cond 5. The reduction block vars are not used to index the output buffers.
@@ -401,6 +404,59 @@ void CheckCompleteOrReductionBlock(const ScheduleState& self, const StmtSRef& bl
                                          reduction_block_error_code);
 }
 
+void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subtree_root) {
+  class NotCompactDataFlowError : public ScheduleError {
+   public:
+    explicit NotCompactDataFlowError(IRModule mod, Stmt subtree_root, Block violate_block,
+                                     int local_complete_block_code, int local_reduction_block_code)
+        : mod_(std::move(mod)),
+          subtree_root_(std::move(subtree_root)),
+          violate_block_(std::move(violate_block)),
+          local_complete_block_code_(local_complete_block_code),
+          local_reduction_block_code_(local_reduction_block_code) {
+      ICHECK(subtree_root_->IsInstance<BlockNode>() || subtree_root_->IsInstance<ForNode>());
+    }
+    String FastErrorString() const final {
+      return "ScheduleError: The queried subtree root in SRef tree does not have compact dataflow, "
+             "because some of its child block on SRef tree is neither a local complete block nor a "
+             "local reduction block.";
+    }
+    String DetailRenderTemplate() const final {
+      std::ostringstream os;
+      os << "The queried subtree root {0} in SRef tree does not have compact dataflow, because "
+            "its child block {1} on SRef tree is neither a local complete block nor a local "
+            "reduction block.\n";
+      os << "It violates condition #" << local_complete_block_code_
+         << " as a local complete block.\n";
+      os << kLocalCompleteBlockDefinition << "\n";
+      os << "It violates condition #" << local_reduction_block_code_
+         << " as a local reduction block.\n";
+      os << kLocalReductionBlockDefinition << "\n";
+      return os.str();
+    }
+    IRModule mod() const final { return mod_; }
+    Array<ObjectRef> LocationsOfInterest() const final { return {subtree_root_, violate_block_}; }
+
+    IRModule mod_;
+    Stmt subtree_root_;
+    Block violate_block_;
+    int local_complete_block_code_;
+    int local_reduction_block_code_;
+  };
+
+  Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, subtree_root);
+  for (const StmtSRef& block_sref : child_block_srefs) {
+    int local_complete_block_code = CheckCompleteBlockErrorCode(self, block_sref, subtree_root),
+        local_reduction_block_code = CheckReductionBlockErrorCode(self, block_sref, subtree_root);
+    if (local_complete_block_code != 0 && local_reduction_block_code != 0) {
+      const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+      throw NotCompactDataFlowError(self->mod, GetRef<Stmt>(subtree_root->stmt),
+                                    GetRef<Block>(block), local_complete_block_code,
+                                    local_reduction_block_code);
+    }
+  }
+}
+
 bool IsOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
                    const StmtSRef& scope_root_sref) {
   const BlockNode* scope_root = TVM_SREF_TO_BLOCK(scope_root, scope_root_sref);
@@ -439,14 +495,18 @@ void CheckNotOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
   }
 }
 
-std::vector<IterVarType> GetBlockVarTypes(const StmtSRef& block_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+std::vector<IterVarType> GetBlockVarTypes(const BlockNode* block) {
   std::vector<IterVarType> results;
   results.reserve(block->iter_vars.size());
   for (const IterVar& iter_var : block->iter_vars) {
     results.push_back(iter_var->iter_type);
   }
   return results;
+}
+
+std::vector<IterVarType> GetBlockVarTypes(const StmtSRef& block_sref) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  return GetBlockVarTypes(block);
 }
 
 bool IsWriteCache(const StmtSRef& block_sref) {
@@ -473,14 +533,12 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
   if (loop_var_ranges.empty()) {
     return true;
   }
-  DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
   Array<arith::IterSumExpr> results = arith::DetectIterMap(
       /*indices=*/realize->iter_values,
       /*input_iters=*/loop_var_ranges,
       /*predicate=*/realize->predicate,
       /*require_bijective=*/false,
-      /*analyzer=*/analyzer,
-      /*diag_ctx*/ diag_ctx);
+      /*analyzer=*/analyzer);
   if (results.empty()) {
     return false;
   }
@@ -493,26 +551,62 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
   return true;
 }
 
-void CheckAffineBinding(const ScheduleState& self, Block block) {
+void CheckPartialAffineBinding(const ScheduleState& self, Block block,
+                               const Optional<StmtSRef>& high_exclusive) {
   class NotAffineBindingError : public ScheduleError {
    public:
-    explicit NotAffineBindingError(IRModule mod, Block block)
-        : mod_(std::move(mod)), block_(std::move(block)) {}
+    explicit NotAffineBindingError(IRModule mod, Block block, Optional<StmtSRef> high_exclusive)
+        : mod_(std::move(mod)), block_(std::move(block)) {
+      if (high_exclusive.defined()) {
+        high_exclusive_loop_ = high_exclusive.value()->StmtAs<ForNode>();
+      }
+    }
     String FastErrorString() const final {
-      return "ScheduleError: The block is required to have an affine binding";
+      std::ostringstream ss;
+      if (high_exclusive_loop_) {
+        ss << "ScheduleError: The block is required to have an partial affine binding under "
+           << high_exclusive_loop_->loop_var;
+      } else {
+        ss << "ScheduleError: The block is required to have an affine binding";
+      }
+      return ss.str();
     }
     String DetailRenderTemplate() const final {
-      return "The block {0} is required to have an affine binding";
+      std::ostringstream ss;
+      if (high_exclusive_loop_) {
+        ss << "The block {0} is required to have an partial affine binding under "
+           << high_exclusive_loop_->loop_var;
+      } else {
+        ss << "The block {0} is required to have an affine binding";
+      }
+      return ss.str();
     }
     IRModule mod() const final { return mod_; }
     Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
     IRModule mod_;
     Block block_;
+    const ForNode* high_exclusive_loop_{nullptr};
   };
 
-  if (!self->IsAffineBlockBinding(self->stmt2ref.at(block.get()))) {
-    throw NotAffineBindingError(self->mod, std::move(block));
+  StmtSRef block_sref = self->stmt2ref.at(block.get());
+  if (self->IsAffineBlockBinding(block_sref)) {
+    // check block cached state for global affineness
+    return;
   }
+  if (block_sref->parent && high_exclusive.defined()) {
+    // if it is not of global affine binding, check affineness under high_exclusive,
+    arith::Analyzer analyzer;
+    Map<Var, Range> dom_map =
+        LoopDomainOfSRefTreePath(GetRef<StmtSRef>(block_sref->parent), high_exclusive);
+    if (IsAffineBinding(GetBlockRealize(self, block_sref), dom_map, &analyzer)) {
+      return;
+    }
+  }
+  throw NotAffineBindingError(self->mod, std::move(block), high_exclusive);
+}
+
+void CheckAffineBinding(const ScheduleState& self, Block block) {
+  CheckPartialAffineBinding(self, std::move(block), NullOpt);
 }
 
 Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
@@ -1027,6 +1121,37 @@ Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, 
     throw BufferIndexOutOfRangeError(self->mod, block, n, is_write);
   }
   return access_region[n]->buffer;
+}
+
+std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
+                                                          const Buffer& buffer) {
+  // Climb up along the sref tree, and find the block where `buffer` is in alloc_buffers or
+  // match_buffers.
+  const StmtSRefNode* defining_site_sref = block_sref.get();
+  while (defining_site_sref != nullptr) {
+    const auto* block = defining_site_sref->StmtAs<BlockNode>();
+    // If this sref is not a block sref, skip it.
+    if (block == nullptr) {
+      defining_site_sref = defining_site_sref->parent;
+      continue;
+    }
+    // Try to find the buffer in `allloc_buffers`
+    for (const Buffer& alloc_buffer : block->alloc_buffers) {
+      if (buffer.same_as(alloc_buffer)) {
+        return {GetRef<StmtSRef>(defining_site_sref), true};
+      }
+    }
+    // We do not allow the buffer being defined in `match_buffer`.
+    for (const MatchBufferRegion match_buffer : block->match_buffers) {
+      if (buffer.same_as(match_buffer)) {
+        return {GetRef<StmtSRef>(defining_site_sref), false};
+      }
+    }
+    defining_site_sref = defining_site_sref->parent;
+  }
+  // If we cannot find the defining site block, it means that the buffer must be in the function's
+  // buffer_map, which isn't an intermediate buffer.
+  return {NullOpt, false};
 }
 
 /******** Pattern Matcher ********/
@@ -1752,11 +1877,16 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
     return false;
   }
   const BufferNode* write_buffer = block->writes[0]->buffer.get();
-  // Step 1. Sort out spatial block variables
+  // Step 1. Sort out spatial block variables. Skip the block iters of domain [0, 1), since such
+  // block iters distracts the following check of the unused block iters.
   std::vector<const VarNode*> spatial_block_vars;
   spatial_block_vars.reserve(block->iter_vars.size());
   for (const IterVar& block_var : block->iter_vars) {
-    if (block_var->iter_type == IterVarType::kDataPar) {
+    const int64_t* dom_min = as_const_int(block_var->dom->min);
+    const int64_t* dom_extent = as_const_int(block_var->dom->extent);
+    bool has_trivial_dom =
+        dom_min != nullptr && dom_extent != nullptr && *dom_min == 0 && *dom_extent == 1;
+    if (block_var->iter_type == IterVarType::kDataPar && !has_trivial_dom) {
       spatial_block_vars.push_back(block_var->var.get());
     }
   }
@@ -1843,9 +1973,8 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
   }
 
   // Cond 2. The block is a reduction block and has trivial binding.
-  const StmtSRef& scope_sref = GetScopeRoot(self, block_sref,                  //
-                                            /*require_stage_pipeline=*/false,  //
-                                            /*require_subtree_compact_dataflow=*/false);
+  const StmtSRef& scope_sref = GetScopeRoot(self, block_sref,
+                                            /*require_stage_pipeline=*/false);
   if (!IsReductionBlock(self, block_sref, scope_sref)  //
       || !IsTrivialBinding(self, block_sref)           //
       || HasBeenMultiLevelTiled(block_sref)) {
@@ -1905,6 +2034,162 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
     return false;
   }
 }
+
+TVM_REGISTER_NODE_TYPE(TensorizeInfoNode);
+
+Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
+                                                const tir::StmtSRef& block_sref,
+                                                const tir::PrimFunc& desc_func) {
+  arith::Analyzer analyzer;
+  const tir::BlockRealize& block = tir::GetBlockRealize(self, block_sref);
+  // Step 1. Analyze desc_func, extract its block, loops and loop vars
+  const tir::BlockRealizeNode* desc_block = nullptr;
+  std::vector<const tir::ForNode*> desc_loops;
+  std::unordered_set<const tir::VarNode*> desc_loop_vars;
+  const auto* desc_scope_realize = desc_func->body.as<tir::BlockRealizeNode>();
+  ICHECK(desc_scope_realize);
+  {
+    auto f_visit = [&desc_block, &desc_loops, &desc_loop_vars,
+                    &analyzer](const ObjectRef& obj) -> bool {
+      // Extract the block
+      if (const auto* block = obj.as<tir::BlockRealizeNode>()) {
+        desc_block = block;
+        return false;
+      }
+      // Extract loops
+      if (const auto* loop = obj.as<tir::ForNode>()) {
+        desc_loops.push_back(loop);
+        desc_loop_vars.insert(loop->loop_var.get());
+        if (!analyzer.CanProve(loop->min == 0)) {
+          return false;
+        }
+      }
+      return true;
+    };
+    tir::PostOrderVisit(desc_scope_realize->block->body, f_visit);
+    std::reverse(desc_loops.begin(), desc_loops.end());
+    ICHECK(desc_block);
+  }
+  // Step 2. Collect loops from block_sref
+  const tir::StmtSRef& scope_sref = GetScopeRoot(self, block_sref, false);
+  const tir::BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
+  std::vector<const tir::ForNode*> block_loops;
+  std::unordered_set<const tir::VarNode*> block_loop_vars;
+  {
+    for (const tir::StmtSRefNode* loop_sref = block_sref->parent;; loop_sref = loop_sref->parent) {
+      const auto* loop = loop_sref->StmtAs<tir::ForNode>();
+      if (loop == nullptr || loop->body->IsInstance<tir::SeqStmtNode>()) {
+        break;
+      }
+      block_loops.push_back(loop);
+      block_loop_vars.insert(loop->loop_var.get());
+      if (!analyzer.CanProve(loop->min == 0)) {
+        return NullOpt;
+      }
+    }
+    std::reverse(block_loops.begin(), block_loops.end());
+  }
+  // Step 3. Map from block loops to desc block loops
+  ObjectPtr<TensorizeInfoNode> ret = make_object<TensorizeInfoNode>();
+  const int n_block_vars = block->iter_values.size();
+  const int n_desc_vars = desc_block->iter_values.size();
+  const int offset = n_block_vars - n_desc_vars;
+
+  if (offset < 0) {
+    return NullOpt;
+  }
+
+  const std::vector<IterVarType> iter_types_block = GetBlockVarTypes(block_sref);
+  const std::vector<IterVarType> iter_types_desc = GetBlockVarTypes(desc_block->block.get());
+
+  ICHECK(desc_loops.size() == static_cast<size_t>(n_desc_vars));
+  ICHECK(block_loops.size() == iter_types_block.size());
+
+  // We assume that the orders of iter_vars in the target and the desc block are consistent.
+  // Based on that assumption, the following logic supports arbitrary permutations of a loop order,
+  // such as
+
+  // for k:
+  //   for i:
+  //     for j:
+  //       C[i, j] += A[i, k] * B[k, j]
+
+  // or
+
+  // for i:
+  //   for j:
+  //     for k:
+  //       C[i, j] += A[i, k] * B[k, j]
+
+  int next_block_ind = block_loops.size() - 1;
+  for (int i_desc = n_desc_vars - 1; i_desc >= 0; --i_desc) {
+    // Step 3.1. Find the corresponding loop of the i_desc-th block var of desc
+    const PrimExpr& desc_bind = desc_block->iter_values[i_desc];
+    const tir::ForNode* desc_loop = nullptr;
+    IterVarType iter_type_desc = iter_types_desc[i_desc];
+    for (int i = 0, n = desc_loops.size(); i < n; ++i) {
+      // Check if desc_bind = loops[i]->loop_var + stuff-irrelevant-of-loop-vars
+      PrimExpr residual = analyzer.Simplify(desc_bind - desc_loops[i]->loop_var);
+      if (!UsesVar(residual,
+                   [&desc_loop_vars](const VarNode* var) { return desc_loop_vars.count(var); })) {
+        desc_loop = desc_loops[i];
+        iter_type_desc = iter_types_desc[i];
+        break;
+      }
+    }
+    if (desc_loop == nullptr || desc_loop->extent.as<IntImmNode>() == nullptr) {
+      return NullOpt;
+    }
+
+    const IntImmNode* int_desc_extent = desc_loop->extent.as<IntImmNode>();
+
+    // Step 3.2. Find the corresponding iter_value of the target block with a matching iterator type
+    PrimExpr block_bind;
+    for (int i = next_block_ind; i >= 0; --i) {
+      if (iter_types_block[i] == iter_type_desc) {
+        next_block_ind = i - 1;
+        block_bind = block->iter_values[i];
+        break;
+      }
+    }
+
+    if (!block_bind.defined()) return NullOpt;
+
+    // Step 3.3. Find the corresponding loop of the target block
+    for (int i = 0, n = block_loops.size(); i < n; ++i) {
+      // Check if block_bind = block_loops[i]->loop_var + stuff-irrelevant-of-loop-vars
+      const tir::ForNode* block_loop = block_loops[i];
+      const tir::StmtSRef& block_loop_sref = self->stmt2ref[block_loop];
+      // Skip i-th loop if it has already been mapped
+      if (ret->loop_map.find(block_loop_sref) != ret->loop_map.end()) continue;
+
+      PrimExpr residual = analyzer.Simplify(block_bind - block_loops[i]->loop_var);
+      if (UsesVar(residual,
+                  [&block_loop_vars](const VarNode* var) { return block_loop_vars.count(var); }))
+        continue;
+
+      const IntImmNode* int_block_extent = block_loops[i]->extent.as<IntImmNode>();
+
+      // Check divisibility
+      if (!int_block_extent || int_block_extent->value % int_desc_extent->value != 0) {
+        return NullOpt;
+      }
+
+      ret->loop_map.Set(block_loop_sref, GetRef<tir::For>(desc_loop));
+      break;
+    }
+  }
+
+  for (int i = 0, n = desc_loops.size(); i < n; ++i) {
+    ret->desc_loop_indexer.Set(GetRef<tir::For>(desc_loops[i]), Integer(i));
+  }
+  return TensorizeInfo(ret);
+}
+
+TVM_REGISTER_GLOBAL("tir.schedule.GetTensorizeLoopMapping")
+    .set_body_typed([](Schedule sch, BlockRV block, PrimFunc desc_func) {
+      return GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block), desc_func);
+    });
 
 }  // namespace tir
 }  // namespace tvm

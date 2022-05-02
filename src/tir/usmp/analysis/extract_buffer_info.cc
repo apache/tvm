@@ -36,6 +36,8 @@
 
 #include <stack>
 
+#include "../../../runtime/thread_storage_scope.h"
+
 namespace tvm {
 namespace tir {
 namespace usmp {
@@ -73,8 +75,8 @@ class BufferInfoExtractor : public StmtExprVisitor {
   void VisitStmt_(const AllocateNode* op) override;
   void VisitExpr_(const CallNode* op) override;
   void VisitExpr_(const VarNode* op) override;
-  void VisitExpr_(const LoadNode* op) override;
-  void VisitStmt_(const StoreNode* op) override;
+  void VisitExpr_(const BufferLoadNode* op) override;
+  void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
 
   void UpdateAliases(const Array<PrimExpr>& args, const PrimFunc& func);
@@ -225,10 +227,8 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
       auto pool_candidates =
           Downcast<Array<PoolInfo>>(op->annotations[kPoolCandidatesAllocateAttr]);
 
-      // TODO(@manupa-arm): improve the error when the responsible component for attaching a single
-      // pool is added
       ICHECK(pool_candidates.size() > 0)
-          << "The core compiler should at least attach a single PoolInfo. If there were no "
+          << "The AssignPoolInfo pass should at least attach a single PoolInfo. If there were no "
              "user-given arguments for memory pools, the default behaviour is a single size "
              "un-restricted pool is assigned";
       PrimFunc func = scope_stack_.top().func;
@@ -239,8 +239,24 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
         workspace_alignment =
             executor_config.value()->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
       }
-      auto buffer_info = BufferInfo(GetUniqueBufferName(op->buffer_var->name_hint), size_bytes,
-                                    pool_candidates, workspace_alignment);
+
+      BufferInfoKind bi_kind = BufferInfoKind::kIntermediate;
+      String buffer_info_name = op->buffer_var->name_hint;
+      if (op->annotations.find(kInputTensorAllocate) != op->annotations.end()) {
+        bi_kind = BufferInfoKind::kInput;
+        // using original input name instead of the buffer_var name
+        // because this name will be used in the lowering to convey
+        // the pool allocation.
+        buffer_info_name = Downcast<String>(op->annotations[kInputTensorAllocate]);
+      } else if (op->annotations.find(kOutputTensorAllocate) != op->annotations.end()) {
+        bi_kind = BufferInfoKind::kOutput;
+        // using original output name instead of the buffer_var name
+        // because this name will be used in the lowering to convey
+        // the pool allocation.
+        buffer_info_name = Downcast<String>(op->annotations[kOutputTensorAllocate]);
+      }
+      auto buffer_info = BufferInfo(GetUniqueBufferName(buffer_info_name), size_bytes,
+                                    pool_candidates, workspace_alignment, bi_kind);
       auto allocate = GetRef<Allocate>(op);
       allocate_infos[op->buffer_var] =
           AllocateInfo{allocate, scope_stack_.top().func, scope_stack_.top().call};
@@ -257,18 +273,20 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
 void BufferInfoExtractor::VisitStmt_(const AllocateNode* op) {
   ScopeInfo& current_scope_info = scope_stack_.top();
   const auto& type = Downcast<PointerType>(op->buffer_var->type_annotation);
-  const auto& storage_scope = type->storage_scope;
+  const auto& storage_scope = runtime::StorageScope::Create(type->storage_scope);
 
   // If the allocate is in a for loop, USMP currently only looks at serial for loops.
   // If its not a serial for loop, then memory planner will omit them in the current memory planning
   // process leaving them to as tir.allocate nodes for codegen. Additionally, the USMP can only work
   // with buffers that have global storage_scope
 
-  if (!current_scope_info.for_loop.defined()) {
-    RecordAllocateNodeInfo(op);
-  } else if (current_scope_info.for_loop.defined() &&
-             current_scope_info.for_loop->kind == ForKind::kSerial && storage_scope == "global") {
-    RecordAllocateNodeInfo(op);
+  if (storage_scope.rank == runtime::StorageRank::kGlobal) {
+    if (!current_scope_info.for_loop.defined()) {
+      RecordAllocateNodeInfo(op);
+    } else if (current_scope_info.for_loop.defined() &&
+               current_scope_info.for_loop->kind == ForKind::kSerial) {
+      RecordAllocateNodeInfo(op);
+    }
   }
   StmtExprVisitor::VisitStmt(op->body);
   current_scope_info.allocate_nodes.erase(GetRef<Allocate>(op));
@@ -306,13 +324,13 @@ void BufferInfoExtractor::VisitStmt_(const ForNode* op) {
   scope_stack_.pop();
 }
 
-void BufferInfoExtractor::VisitExpr_(const LoadNode* op) {
-  this->VisitExpr(op->buffer_var);
+void BufferInfoExtractor::VisitExpr_(const BufferLoadNode* op) {
+  this->VisitExpr(op->buffer->data);
   StmtExprVisitor::VisitExpr_(op);
 }
 
-void BufferInfoExtractor::VisitStmt_(const StoreNode* op) {
-  this->VisitExpr(op->buffer_var);
+void BufferInfoExtractor::VisitStmt_(const BufferStoreNode* op) {
+  this->VisitExpr(op->buffer->data);
   StmtExprVisitor::VisitStmt_(op);
 }
 

@@ -35,7 +35,7 @@ def test_ethosu_part():
     )
     subkernels = 3
 
-    valid_block_configs = [cs.BlockConfig([1, 2, 4, 16], 15000, 7500)]
+    valid_block_configs = [cs.BlockConfig([1, 2, 4, 16], [1, 2, 4, 16], 15000, 7500)]
 
     part = EthosuPart(
         te_subgraph,
@@ -47,6 +47,8 @@ def test_ethosu_part():
     )
     input_tensor = cs.Tensor(shape=[1, 66, 74, 16], dtype="int8")
     part.set_input(0, input_tensor)
+    output_tensor = cs.Tensor(shape=[1, 66, 74, 16], dtype="int8")
+    part.set_output(output_tensor)
 
     assert part.get_stripe_align_hint() == output_quantum
     # Check that the performance model runs, don't verify output

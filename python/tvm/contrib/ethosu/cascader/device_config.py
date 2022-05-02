@@ -288,7 +288,7 @@ class EthosuDeviceConfig:
         input_shape: _Shape,
         dtype: str,
         op_type: str,
-        is_partkernel: bool,
+        partkernel: bool,
         stride_h: int,
         stride_w: int,
         dilated_kernel_h: int,
@@ -310,7 +310,7 @@ class EthosuDeviceConfig:
 
         if op_type == "ethosu_conv2d":
             if dtype == "int8":
-                if is_partkernel:
+                if partkernel:
                     depth = self._align(min(32, input_shape.depth), 8)
                 else:
                     depth = self._align(min(16, input_shape.depth), 8)
@@ -336,7 +336,7 @@ class EthosuDeviceConfig:
         dilated_kernel_h: int,
         dilated_kernel_w: int,
         ifm_dtype: str,
-        is_partkernel: bool = False,
+        partkernel: bool = False,
     ) -> List[int]:
         """Calculate the total number of subkernels and their sizes
 
@@ -351,7 +351,7 @@ class EthosuDeviceConfig:
             Width of dilated kernel
         ifm_dtype: str
             Datatype of the Input Feature Map tensor (IFM)
-        is_partkernel: bool
+        partkernel: bool
             Flag showing whether part-kernel first traversal is used
 
         Returns
@@ -368,7 +368,7 @@ class EthosuDeviceConfig:
         kernel_steps = []
         for y, x in subkernels:
             subkernel_elements = x * y
-            if op_type == "ethosu_conv2d" and is_partkernel:
+            if op_type == "ethosu_conv2d" and partkernel:
                 # Part-kernel-first traversal conv2d
                 divisor = 4 if ifm_dtype == "int8" else 2
                 kernel_steps.append(int(_round_up_div(subkernel_elements, divisor)))
@@ -439,6 +439,23 @@ class EthosuDeviceConfig:
 
         return part_kernel_first_utilization > depth_first_utilization or ifm_channels <= 8
 
+    def _get_input_banks(self, input_block_shape, input_bytewidth):
+        input_bytes = input_block_shape.area() * self._align(
+            input_block_shape.depth * input_bytewidth, 8
+        )
+        input_banks = _round_up_div(input_bytes, self._bank_size_bytes) * 2
+        input_banks = _round_up(input_banks, self._input_granularity)
+
+        return input_banks
+
+    def _get_accumulator_banks(self, output_block_shape, acc_bytewidth, depth):
+        acc_depth = _round_up(min(output_block_shape.depth, depth), 8)
+        acc_bytes = output_block_shape.area() * self._align(acc_depth, 8) * acc_bytewidth
+        acc_banks = _round_up_div(acc_bytes, self._bank_size_bytes) * 2
+        acc_banks = _round_up(acc_banks, self._accumulator_granularity[acc_bytewidth])
+
+        return acc_banks
+
     def get_elementwise_block_config(
         self,
         ifm_propagator: Propagator,
@@ -492,29 +509,31 @@ class EthosuDeviceConfig:
             banks_available -= 2
 
         # Split the block in half until it fits into SHRAM
+        max_height, max_width, max_depth = self._max_block_shape.as_list()[1:]
         if output_layout == "NHCWB16":
             split_order = (a for a in [1, 3, 2])
             output_block = [
                 output_shape[0],
-                min(output_shape[1], self._max_block_shape.height),
-                min(output_shape[2] * output_shape[4], self._max_block_shape.depth),
-                min(output_shape[3], self._max_block_shape.width),
+                _round_up(min(output_shape[1], max_height), self._micro_block.height),
+                min(output_shape[2] * output_shape[4], max_depth),
+                _round_up(min(output_shape[3], max_width), self._micro_block.width),
                 16,
             ]
         else:
             split_order = (a for a in [1, 2, 3])
             output_block = [
                 output_shape[0],
-                min(output_shape[1], self._max_block_shape.height),
-                min(output_shape[2], self._max_block_shape.width),
-                min(output_shape[3], self._max_block_shape.depth),
+                _round_up(min(output_shape[1], max_height), self._micro_block.height),
+                _round_up(min(output_shape[2], max_width), self._micro_block.width),
+                _round_up(min(output_shape[3], max_depth), self._micro_block.depth),
             ]
         split_axis = next(split_order)
+
+        offset = [0] * len(output_block)
+        stripes = [1] * len(output_block)
+        order = [1, 2, 4, 3, 0] if output_layout == "NHCWB16" else [1, 2, 3, 4]
         while True:
             # Create stripe config for output block
-            offset = [0] * len(output_block)
-            stripes = [1] * len(output_block)
-            order = [1, 2, 4, 3, 0] if output_layout == "NHCWB16" else [1, 2, 3, 4]
             output_stripe_config = StripeConfig(
                 output_block, output_block, output_block, order, stripes, offset
             )
@@ -533,16 +552,9 @@ class EthosuDeviceConfig:
             input2_block.round_up(self._input_micro_block)
 
             # Banks required for input block
-            input_bytes = input_block.area() * self._align(input_block.depth * input_bytewidth, 8)
-            input_banks = _round_up_div(input_bytes, self._bank_size_bytes) * 2
-            input_banks = _round_up(input_banks, self._input_granularity)
-
+            input_banks = self._get_input_banks(input_block, input_bytewidth)
             # Banks required for input2 block
-            input2_bytes = input2_block.area() * self._align(
-                input2_block.depth * input_bytewidth, 8
-            )
-            input2_banks = _round_up_div(input2_bytes, self._bank_size_bytes) * 2
-            input2_banks = _round_up(input2_banks, self._input_granularity)
+            input2_banks = self._get_input_banks(input2_block, input_bytewidth)
 
             # Check whether or not both IFMs fit into SHRAM
             if (input_banks + input2_banks) <= banks_available:
@@ -551,15 +563,40 @@ class EthosuDeviceConfig:
                 )
                 output_cycles *= reduce(lambda a, b: a * b, output_block, 1)
                 output_cycles = int(math.ceil(output_cycles))
-                block_config.append(BlockConfig(output_block, 0, output_cycles))
+                block_config.append(BlockConfig(output_block, output_block, 0, output_cycles))
                 break
 
-            if output_block[split_axis] == 1:
+            if output_block[split_axis] == self._micro_block.as_list()[split_axis]:
                 split_axis = next(split_order)
 
-            output_block[split_axis] = _round_up_div(output_block[split_axis], 2)
+            output_block[split_axis] = _round_up(
+                _round_up_div(output_block[split_axis], 2), self._micro_block.as_list()[split_axis]
+            )
 
         return block_config
+
+    def _get_subkernel_propagator(
+        self, op_attrs, ifm_propagator, input_layout, output_layout, depth
+    ):
+        op_type = op_attrs.get("op")
+        stride_h = int(op_attrs.get("stride_h", 1))
+        stride_w = int(op_attrs.get("stride_w", 1))
+        transform = ifm_propagator.transform
+
+        if input_layout == "NHCWB16":
+            transform[1][-1] = min(transform[1][-1], self._subkernel_limits[0] - stride_h)
+            transform[3][-1] = min(transform[3][-1], self._subkernel_limits[1] - stride_w)
+        else:
+            transform[1][-1] = min(transform[1][-1], self._subkernel_limits[0] - stride_h)
+            transform[2][-1] = min(transform[2][-1], self._subkernel_limits[1] - stride_w)
+
+        if op_type in ("ethosu_pooling", "ethosu_depthwise_conv2d"):
+            if output_layout == "NHCWB16" and input_layout == "NHWC":
+                transform[3][-1] = depth
+            elif output_layout == "NHCWB16" and input_layout == "NHCWB16":
+                transform[2][-1] = depth // 16
+
+        return Propagator(transform, ifm_propagator.offset)
 
     def get_valid_block_configs(
         self,
@@ -612,32 +649,12 @@ class EthosuDeviceConfig:
         op_type = op_attrs.get("op")
         op_str = op_attrs.get("op_str")
         activation = op_attrs.get("activation", "NONE")
-        stride_h = int(op_attrs.get("stride_h", 1))
-        stride_w = int(op_attrs.get("stride_w", 1))
         upscaling_factor = 1 if op_attrs.get("upscale", "NONE") == "NONE" else 2
 
-        subkernel_transform = ifm_propagator.transform
         if output_layout == "NHCWB16":
             output_shape = _Shape([1, ofm_shape[1], ofm_shape[3], ofm_channels])
         else:
             output_shape = _Shape(ofm_shape)
-
-        if input_layout == "NHCWB16":
-            subkernel_transform[1][-1] = min(
-                subkernel_transform[1][-1], self._subkernel_limits[0] - stride_h
-            )
-            subkernel_transform[3][-1] = min(
-                subkernel_transform[3][-1], self._subkernel_limits[1] - stride_w
-            )
-        else:
-            subkernel_transform[1][-1] = min(
-                subkernel_transform[1][-1], self._subkernel_limits[0] - stride_h
-            )
-            subkernel_transform[2][-1] = min(
-                subkernel_transform[2][-1], self._subkernel_limits[1] - stride_w
-            )
-
-        subkernel_propagator = Propagator(subkernel_transform, ifm_propagator.offset)
 
         # Define search space
         max_height = min(output_shape.height, self._max_block_shape.height)
@@ -655,11 +672,11 @@ class EthosuDeviceConfig:
         if activation == "LUT" and not self._lut_reserved:
             banks_available -= 2
 
-        # Input block depth has additional limitations for Operators that require full input depth
+        # Input block depth has additional limitations for operators that require full input depth
         input_block_depth = 0
-        is_partkernel = self.is_partkernel(op_type, ifm_channels, ifm_dtype, kernel_h * kernel_w)
+        partkernel = self.is_partkernel(op_type, ifm_channels, ifm_dtype, kernel_h * kernel_w)
         if op_type == "ethosu_conv2d":
-            if is_partkernel:
+            if partkernel:
                 input_block_depth = min(ifm_channels, 16)
             else:
                 input_block_depth = min(ifm_channels, 32)
@@ -668,6 +685,10 @@ class EthosuDeviceConfig:
             if (depth < output_shape.depth) and (depth % self._split_depth != 0):
                 # Block depth has to be less than full depth or a multiple of the split depth
                 continue
+
+            subkernel_propagator = self._get_subkernel_propagator(
+                op_attrs, ifm_propagator, input_layout, output_layout, depth
+            )
 
             for width in range(min_width, max_width + min_width, min_width):
                 for height in range(min_height, max_height + min_height, min_height):
@@ -709,19 +730,11 @@ class EthosuDeviceConfig:
                         input_block_shape.depth = input_block_depth
 
                     # Banks required for input block
-                    input_bytes = input_block_shape.area() * self._align(
-                        input_block_shape.depth * input_bytewidth, 8
-                    )
-                    input_banks = _round_up_div(input_bytes, self._bank_size_bytes) * 2
-                    input_banks = _round_up(input_banks, self._input_granularity)
-
+                    input_banks = self._get_input_banks(input_block_shape, input_bytewidth)
                     # Banks required for accumulation
-                    acc_depth = _round_up(min(output_block_shape.depth, ofm_channels), 8)
-                    acc_bytes = (
-                        output_block_shape.area() * self._align(acc_depth, 8) * acc_bytewidth
+                    acc_banks = self._get_accumulator_banks(
+                        output_block_shape, acc_bytewidth, depth
                     )
-                    acc_banks = _round_up_div(acc_bytes, self._bank_size_bytes) * 2
-                    acc_banks = _round_up(acc_banks, self._accumulator_granularity[acc_bytewidth])
 
                     if (input_banks + acc_banks) <= banks_available:
                         output_cycles = self._get_output_cycles(
@@ -736,11 +749,13 @@ class EthosuDeviceConfig:
                             kernel_h,
                             kernel_w,
                             ifm_channels,
-                            is_partkernel,
+                            "int8",
+                            partkernel,
                         )
-                        valid_block_configs.append(
-                            BlockConfig(output_block, compute_cycles, output_cycles)
+                        block_config = BlockConfig(
+                            input_block_shape.as_list(), output_block, compute_cycles, output_cycles
                         )
+                        valid_block_configs.append(block_config)
                     else:
                         # Block config does not fit into SHRAM
                         # Any Block config that is strictly larger than this one will also fail
@@ -757,7 +772,7 @@ class EthosuDeviceConfig:
         kernel_w: int,
         input_channels: int,
         ifm_dtype: str,
-        is_partkernel: bool = False,
+        partkernel: bool = False,
     ) -> Tuple[int, int]:
         # Calculate the amount of micro blocks per block, per axis
         num_quantum_x = _round_up_div(block_shape.width, self._micro_block.width)
@@ -765,7 +780,7 @@ class EthosuDeviceConfig:
         num_quantum_z = _round_up_div(block_shape.depth, self._micro_block.depth)
         num_quantum_xy = num_quantum_x * num_quantum_y
 
-        kernel_steps = self.get_kernel_steps(op_type, kernel_h, kernel_w, ifm_dtype, is_partkernel)
+        kernel_steps = self.get_kernel_steps(op_type, kernel_h, kernel_w, ifm_dtype, partkernel)
 
         wd_cycles = self._get_weight_decoder_cycles(op_type)
         delay_cycles = self._get_delay_cycles(op_type, ifm_dtype)
@@ -784,7 +799,7 @@ class EthosuDeviceConfig:
                 elif subkernel_steps > 1:
                     compute_cycles += delay_cycles * (subkernel_steps - 1) * num_quantum_z
 
-        if is_partkernel:
+        if partkernel:
             compute_cycles *= _round_up_div(input_block_shape.depth, 8)
 
         if op_type == "ethosu_conv2d":
