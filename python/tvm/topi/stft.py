@@ -56,6 +56,7 @@ def stft(
     Examples
     --------
     .. code-block:: python
+
         data = [1, 2, 3, 4, 5, 6]
         window = [4, 3, 2]
         [n_fft, hop_length, win_length, normalized, onesided] = [3, 3, 3, False, True]
