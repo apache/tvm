@@ -192,76 +192,6 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   }
 }
 
-llvm::GlobalVariable* CodeGenLLVM::GetLinkedParamSymbol(const std::string& param_name,
-                                                        llvm::ConstantArray* array) {
-  std::string symbol_name = std::string(::tvm::runtime::symbol::tvm_param_prefix) + param_name;
-  llvm::GlobalVariable* var = module_->getGlobalVariable(symbol_name, true /* AllowInternal */);
-  if (var == nullptr) {
-    CHECK(array != nullptr) << "Expect param symbol " << symbol_name
-                            << " to either be defined or for the array to be supplied";
-    var = new llvm::GlobalVariable(*module_, static_cast<llvm::Type*>(array->getType()), true,
-                                   llvm::GlobalValue::InternalLinkage, array, symbol_name);
-  }
-  return var;
-}
-
-void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
-  // It would be nice to de-dupe these declarations frm src/tir/transforms/make_packed_api.cc,
-  // but they are at a different layer in the compiler...
-  llvm::Type* t_int_p = t_int_->getPointerTo(GetGlobalAddressSpace());
-
-  // args, tcodes, num_args, ret_value, ret_tcode, resource_handle
-  std::vector<llvm::Type*> param_types{t_void_p_, t_int_p, t_int_, t_void_p_, t_int_p, t_void_p_};
-  llvm::FunctionType* ftype = llvm::FunctionType::get(t_int_, param_types, false);
-
-  llvm::Function* function =
-      llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                             ::tvm::runtime::symbol::tvm_lookup_linked_param, module_.get());
-  function->setCallingConv(llvm::CallingConv::C);
-  function->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
-
-  llvm::BasicBlock* entry = llvm::BasicBlock::Create(*ctx_, "entry", function);
-  builder_->SetInsertPoint(entry);
-
-  llvm::Type* t_int64_p = t_int64_->getPointerTo(GetGlobalAddressSpace());
-  llvm::Value* sid =
-      builder_->CreateLoad(t_int64_, builder_->CreateBitCast(GetArg(function, 0), t_int64_p));
-
-  auto ret_tcode = builder_->CreateBitCast(GetArg(function, 4), t_int_p);
-  auto ret_value = builder_->CreateBitCast(GetArg(function, 3),
-                                           t_void_p_->getPointerTo(GetGlobalAddressSpace()));
-
-  llvm::BasicBlock* default_block = llvm::BasicBlock::Create(*ctx_, "default_block", function);
-  llvm::SwitchInst* switch_inst = builder_->CreateSwitch(sid, default_block, params.size() + 1);
-
-  builder_->SetInsertPoint(default_block);
-  builder_->CreateStore(llvm::ConstantInt::get(t_int_, kTVMNullptr), ret_tcode);
-  builder_->CreateRet(ConstInt32(kTvmErrorNoError));
-
-  // Add data to the global section.
-  for (auto kv : params) {
-    auto array = NDArrayToLLVMArray(ctx_, kv.second->param);
-    llvm::GlobalVariable* param_symbol = GetLinkedParamSymbol(kv.first, array);
-    auto dtype = tvm::runtime::DataType(kv.second->param->dtype);
-    size_t align = std::max(tvm::runtime::GetVectorBytes(dtype), tvm::runtime::kAllocAlignment);
-#if TVM_LLVM_VERSION >= 100
-    param_symbol->setAlignment(llvm::Align(align));
-#else
-    param_symbol->setAlignment(align);
-#endif
-    param_symbol->setInitializer(array);
-
-    llvm::BasicBlock* case_block =
-        llvm::BasicBlock::Create(*ctx_, "case_" + param_symbol->getName(), function);
-    switch_inst->addCase(
-        llvm::cast<llvm::ConstantInt>(llvm::ConstantInt::get(t_int64_, kv.second->id)), case_block);
-    builder_->SetInsertPoint(case_block);
-    builder_->CreateStore(builder_->CreatePointerCast(param_symbol, t_void_p_), ret_value);
-    builder_->CreateStore(llvm::ConstantInt::get(t_int_, kTVMOpaqueHandle), ret_tcode);
-    builder_->CreateRet(ConstInt32(0));
-  }
-}
-
 std::unique_ptr<llvm::Module> CodeGenLLVM::Finish() {
   this->AddStartupFunction();
   for (size_t i = 0; i < link_modules_.size(); ++i) {
@@ -1419,9 +1349,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
 llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
   if (auto* ptr_op = op->op.as<OpNode>()) {
     auto call_op = GetRef<Op>(ptr_op);
-    if (op->op.same_as(builtin_lookup_param_)) {
-      return GetLinkedParamSymbol(Downcast<StringImm>(op->args[0])->value, nullptr);
-    } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
+    if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       // call extern intrinsic
       ICHECK_GE(op->args.size(), 1U);
       auto global_symbol = Downcast<StringImm>(op->args[0]);

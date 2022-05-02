@@ -444,13 +444,6 @@ IRModule IRModule::FromText(const String& text, const String& source_path) {
   return tvm::parser::ParseModule(source_path, text);
 }
 
-LinkedParam::LinkedParam(int64_t id, tvm::runtime::NDArray param) {
-  auto n = make_object<LinkedParamNode>();
-  n->id = id;
-  n->param = param;
-  data_ = std::move(n);
-}
-
 TVM_REGISTER_NODE_TYPE(IRModuleNode);
 
 TVM_REGISTER_GLOBAL("ir.IRModule")
