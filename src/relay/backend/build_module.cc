@@ -61,7 +61,9 @@ struct BuildOutput {
 };
 
 struct ExecutorCodegen {
-  void Init(runtime::Module* m, CompilationConfig config) { CallFunc("init", m, config); }
+  void Init(runtime::Module* m, const Array<Target>& raw_targets) {
+    CallFunc("init", m, raw_targets);
+  }
 
   void Codegen(IRModule mod, const Function& func, String mod_name) {
     CallFunc("codegen", mod, func, mod_name);
@@ -228,8 +230,8 @@ class RelayBuildModule : public runtime::ModuleNode {
       });
     } else if (name == "optimize") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.num_args, 3);
-        *rv = this->Optimize(args[0], args[1], args[2]);
+        ICHECK_EQ(args.num_args, 2);
+        *rv = this->Optimize(args[0], args[1]);
       });
     } else {
       LOG(FATAL) << "Unknown packed function: " << name;
@@ -322,8 +324,7 @@ class RelayBuildModule : public runtime::ModuleNode {
    *
    * \return relay::IRModule The updated Relay IR module after optimization.
    */
-  IRModule Optimize(IRModule relay_module, const Array<Target>& raw_targets,
-                    const Target& optional_host_target) {
+  IRModule Optimize(IRModule relay_module, const Array<Target>& raw_targets) {
     VLOG_CONTEXT << "Optimize";
     config_ = CompilationConfig(PassContext ::Current(), raw_targets);
     VLOG(1) << "Using compilation config:" << std::endl << config_;
@@ -417,7 +418,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     // Generate code for the updated function.
     executor_codegen_ = MakeExecutorCodegen(executor_->name);
-    executor_codegen_->Init(nullptr, config_);
+    executor_codegen_->Init(nullptr, config_->primitive_targets);
     executor_codegen_->Codegen(func_module, func, mod_name);
     executor_codegen_->UpdateOutput(&ret_);
     ret_.params = executor_codegen_->GetParams();

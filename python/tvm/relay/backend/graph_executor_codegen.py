@@ -54,15 +54,8 @@ class GraphExecutorCodegen(object):
         self._setup(mod, target)
 
     def _setup(self, mod, target):
-        tgts = {}
-        if isinstance(target, dict):
-            for dev, tgt in target.items():
-                if not isinstance(tgt, (str, Target)):
-                    raise Exception("Unknown target type")
-                tgts[dev] = Target(tgt)
-        elif isinstance(target, (str, Target)):
-            tgts[_expr.IntImm("int32", 0)] = Target(target)
-        self._init(mod, tgts)
+        raw_targets = Target.canonicalize_target_and_host(target)
+        self._init(mod, raw_targets)
 
     def codegen(self, ir_module, func):
         """Compile a single function into a graph.

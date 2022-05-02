@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
-
 from tvm.driver.tvmc import TVMCException
 from tvm.driver.tvmc.target import target_from_cli, tokenize_target, parse_target
 

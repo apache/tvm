@@ -36,6 +36,15 @@ namespace tvm {
  * APIs to a single internal representation. Also holds a cache of canonical \p VirtualDevices
  * so that structural equal virtual devices have pointer equal canonical virtual devices.
  *
+ * The construction of \p CompilationConfig is idempotent, in that given the same \p PassContext
+ * \p ctx and an arbitrary \p Array<Target> \p raw_targets:
+ *
+ * \code
+ *   CompilationConfig(ctxt, raw_targets)
+ *      is structurally equal to
+ *   CompilationConfig(ctxt, CompilationConfig(ctxt, raw_targets)->primitive_targets)
+ * \endcode
+ *
  * TODO(mbs): This is subject to change as we rework compilation options in general. This class
  * is probably better called a 'CompositeTarget', and may be better made a sub-class of Target or
  * some other common-target-root class.

@@ -76,7 +76,7 @@ VirtualDevice CompilationConfigNode::CanonicalVirtualDevice(
 void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
                                  const Array<Target>& raw_targets) {
   VLOG_CONTEXT << "CompilationConfig";
-  ICHECK_GT(raw_targets.size(), 0U);
+  CHECK_GT(raw_targets.size(), 0U) << "Require at least one target";
 
   //
   // Decide on the host target.
@@ -133,8 +133,7 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
   primitive_targets.clear();
   primitive_targets.reserve(raw_targets.size());
   for (const auto& raw_target : raw_targets) {
-    if (raw_target->host.defined() &&
-        !StructuralEqual()(raw_target->host, host_target)) {
+    if (raw_target->host.defined() && !StructuralEqual()(raw_target->host, host_target)) {
       VLOG(1) << "The target " << raw_target->ToDebugString()
               << " already has a host which disagrees with the desired host target. It "
               << "will be overridden.";
@@ -183,7 +182,7 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
             << default_primitive_device_type
             << " as the default device type for all primitive operations";
   } else if (primitive_target_device_types.size() == 1) {
-    // RULE E: Since only one device in use it is the defacto default.
+    // RULE E: Since only one device in use there's no choice to make.
     default_primitive_device_type = *primitive_target_device_types.begin();
     VLOG(1) << "All primitive targets have the device type " << default_primitive_device_type
             << " so that is also the default device type for all primitive operations.";

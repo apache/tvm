@@ -136,12 +136,19 @@ class VMCompiler : public runtime::ModuleNode {
   runtime::Module GetExecutable() const;
 
  protected:
-
+  /*! \brief Builds the executor and compilation config to match \p raw_targets. */
   void Setup(const Array<Target>& raw_targets);
+
+  /*! \brief Internal implementation of \p Lower. */
   void LowerImpl(IRModule mod);
+
+  /*! \brief Internal implementation of \p OptimizeModule. */
   IRModule OptimizeModuleImpl(IRModule mod);
 
+  /*! \brief Returns the passes which layout memory. */
   transform::Sequential MemoryOpt(const VirtualDevice& host_virtual_device);
+
+  /*! \brief Returns the passes which fuse then lower Relay primitive operators. */
   transform::Sequential FuseAndLowerOperators(const VirtualDevice& host_virtual_device);
 
   /*!

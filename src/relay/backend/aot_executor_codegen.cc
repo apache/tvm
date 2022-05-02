@@ -965,7 +965,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   std::unordered_map<std::string, int> io_var_names_;
 
  public:
-  AOTExecutorCodegen(runtime::Module* mod, CompilationConfig config) : mod_(mod), config_(config) {}
+  AOTExecutorCodegen(runtime::Module* mod, const Array<Target>& targets)
+      : mod_(mod), config_(transform::PassContext::Current(), targets) {}
 
   LoweredOutput Codegen(IRModule mod, relay::Function func, String mod_name) {
     VLOG_CONTEXT << "AOT";
@@ -1206,10 +1207,10 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
     if (name == "init") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.num_args, 2) << "The expected of arguments are: "
-                                    << "runtime::Module mod and  Map<int, Target> targets";
+                                    << "runtime::Module mod and Array<Target> targets";
         void* mod = args[0];
-        CompilationConfig config = args[1];
-        init(mod, std::move(config));
+        Array<Target> targets = args[1];
+        init(mod, targets);
       });
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -1256,9 +1257,9 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
   const char* type_key() const final { return "RelayGraphRuntimeCodegenModule"; }
 
  private:
-  void init(void* mod, CompilationConfig config) {
+  void init(void* mod, const Array<Target>& targets) {
     codegen_ =
-        std::make_shared<AOTExecutorCodegen>(reinterpret_cast<runtime::Module*>(mod), config);
+        std::make_shared<AOTExecutorCodegen>(reinterpret_cast<runtime::Module*>(mod), targets);
   }
 
   Array<runtime::String> list_params_name() {

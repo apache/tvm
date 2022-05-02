@@ -190,8 +190,8 @@ class GraphOpNode : public GraphNode {
  */
 class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<GraphNodeRef>> {
  public:
-  GraphExecutorCodegen(runtime::Module* mod, CompilationConfig config)
-      : mod_(mod), config_(std::move(config)) {}
+  GraphExecutorCodegen(runtime::Module* mod, const Array<Target>& targets)
+      : mod_(mod), config_(transform::PassContext::Current(), targets) {}
 
   StorageInfo GetStorageInfo(const Expr& e) {
     size_t count = memory_plan_->expr_to_storage_info.count(e);
@@ -624,11 +624,11 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
     if (name == "init") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.num_args, 2) << "The expected of arguments are: "
-                                    << "runtime::Module mod and Map<int, Target> targets";
+                                    << "runtime::Module mod and Array<Target> targets";
         void* mod = args[0];
-        CompilationConfig config = args[1];
+        Array<Target> targets = args[1];
         codegen_ = std::make_shared<GraphExecutorCodegen>(reinterpret_cast<runtime::Module*>(mod),
-                                                          std::move(config));
+                                                          std::move(targets));
       });
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
