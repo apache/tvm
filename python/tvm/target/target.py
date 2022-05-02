@@ -220,7 +220,8 @@ class Target(Object):
 
     @staticmethod
     def canonicalize_target(target):
-        """Given a single target-like object, returns the TVM Target object representing it. Can convert from:
+        """Given a single target-like object, returns the TVM Target object representing it.
+        Can convert from:
         - None (to None).
         - An existing TVM Target object.
         - A string.
@@ -234,11 +235,12 @@ class Target(Object):
 
     @staticmethod
     def canonicalize_multi_targets(multi_targets):
-        """Given a single or collection of target-like objects, returns a TVM Array of Target objects representing
-        then. Can convert from:
+        """Given a single or collection of target-like objects, returns a TVM Array of Target
+        objects representing then. Can convert from:
          - None (to None).
          - A single target-like object in a form recognized by canonicalize_target.
-         - A Python list or TVM Array of target-like objects in a form recognized by canonicalize_target.
+         - A Python list or TVM Array of target-like objects in a form recognized by
+           canonicalize_target.
          - A Python dict or TVM Map from TVM IntImm objects representing device types to
            a target-like object in a form recognized by canonicalize_target."""
         if multi_targets is None:
@@ -255,11 +257,11 @@ class Target(Object):
 
     @staticmethod
     def canonicalize_target_and_host(target, target_host=None):
-        """Returns a TVM Array<Target> capturing target and target_host. The given target can be in any
-        form recognized by Target.canonicalize_target or Target.canonicalize_multi_targets. If given
-        target_host can be in any form recognized by Target.canonicalize_target. If target_host is given
-        it will be set as the 'host' in each result Target object (and a warning given).
-        """
+        """Returns a TVM Array<Target> capturing target and target_host. The given target can be in
+        any form recognized by Target.canonicalize_target or Target.canonicalize_multi_targets. If
+        given target_host can be in any form recognized by Target.canonicalize_target. If
+        target_host is given it will be set as the 'host' in each result Target object (and a
+        warning given)."""
         # Convert target to Array<Target>, but not yet accounting for any host.
         raw_targets = Target.canonicalize_multi_targets(target)
         assert raw_targets is not None
