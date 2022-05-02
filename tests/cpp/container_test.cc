@@ -380,6 +380,21 @@ TEST(Map, Erase) {
   }
 }
 
+#if TVM_LOG_DEBUG
+TEST(Map, Race) {
+  using namespace tvm::runtime;
+  Map<Integer, Integer> m;
+
+  m.Set(1, 1);
+  Map<tvm::Integer, tvm::Integer>::iterator it = m.begin();
+  EXPECT_NO_THROW({ auto& kv = *it; });
+
+  m.Set(2, 2);
+  // changed. iterator should be re-obtained
+  EXPECT_ANY_THROW({ auto& kv = *it; });
+}
+#endif  // TVM_LOG_DEBUG
+
 TEST(String, MoveFromStd) {
   using namespace std;
   string source = "this is a string";

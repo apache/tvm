@@ -27,7 +27,7 @@
 
 #include "../../../library_module.h"
 #include "../../../minrpc/minrpc_server.h"
-#include "../../hexagon/hexagon_common.h"
+#include "../../hexagon_common.h"
 #include "hexagon_sim_proto.h"
 #include "tvm/runtime/packed_func.h"
 #include "tvm/runtime/registry.h"
@@ -289,9 +289,9 @@ int DISPATCH_FUNCTION_NAME(void* serverp) {
 }
 
 int main() {
-  const auto* api_v2 = tvm::runtime::Registry::Get("device_api.hexagon.v2");
-  ICHECK(api_v2 != nullptr);
-  tvm::runtime::Registry::Register("device_api.hexagon", true).set_body(*api_v2);
+  const auto* api = tvm::runtime::Registry::Get("device_api.hexagon");
+  ICHECK(api != nullptr);
+  tvm::runtime::Registry::Register("device_api.cpu", true).set_body(*api);
 
   tvm::runtime::hexagon::SimulatorRPCServer server;
 

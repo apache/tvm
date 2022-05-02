@@ -320,17 +320,7 @@ tvm_file_glob(GLOB RUNTIME_SRCS
 )
 
 if(BUILD_FOR_HEXAGON)
-  # Add file implementing posix_memalign when building the runtime as
-  # a shared library.
-  # This function is actually defined in the static libc, but when linking
-  # a shared library, libc is not linked into it. Some runtime systems
-  # don't implement posix_runtime, which causes runtime failires.
-  # To avoid this issue, Hexagon runtime contains an implementation of
-  # posix_memalign, but it should only be used with the dynamic TVM
-  # runtime, since it would cause multiple definition errors with the
-  # static one.
   if(NOT BUILD_STATIC_RUNTIME)
-    list(APPEND RUNTIME_SRCS src/runtime/hexagon/android/hexagon_posix.cc)
     # Allow undefined symbols (there will be some from libc).
     set(TVM_NO_UNDEFINED_SYMBOLS "")
   endif()
@@ -431,6 +421,25 @@ if(USE_GTEST)
     find_package(GTest REQUIRED)
   endif()
   if(GTEST_FOUND)
+    if(NOT TARGET GTest::gmock)
+      # GMock is formally supported in CMake 3.20; for now, expect libgmock.a in the same directory,
+      # and require that folks compiling against GTest::gmock also link against GTest::GTest
+      # (for the includes dir).
+      add_library(GTest::gmock STATIC IMPORTED GLOBAL)
+      get_target_property(GTEST_LIB_PATH GTest::GTest IMPORTED_LOCATION)
+      if("${GTEST_LIB_PATH}" STREQUAL "GTEST_LIB_PATH-NOTFOUND")
+        # CMake >= 3.20 makes GTest::GTest into a compatibility target. The real import location is in
+        # GTest::gtest.
+        get_target_property(GTEST_LIB_PATH GTest::gtest IMPORTED_LOCATION)
+        if("${GTEST_LIB_PATH}" STREQUAL "GTEST_LIB_PATH-NOTFOUND")
+          message(FATAL_ERROR "Neither GTest::GTest nor GTets::gtest targets defined IMPORTED_LOCATION")
+        endif()
+      endif()
+      get_filename_component(GTEST_LIB_DIR "${GTEST_LIB_PATH}" DIRECTORY)
+      set_target_properties(GTest::gmock PROPERTIES
+          IMPORTED_LOCATION "${GTEST_LIB_DIR}/libgmock.a")
+    endif()
+
     enable_testing()
     include(CTest)
   endif()
@@ -626,7 +635,7 @@ if(GTEST_FOUND)
   add_executable(cpptest ${TEST_SRCS})
   # include runtime files for unit testing
   target_include_directories(cpptest PUBLIC "src/runtime")
-  target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main pthread dl)
+  target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main GTest::gmock pthread dl)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
   # For some reason, compile definitions are not propagated correctly, so we manually add them here

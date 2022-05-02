@@ -103,24 +103,44 @@ bool GridSampleRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (!data || !grid) return false;
   const auto* param = attrs.as<GridSampleAttrs>();
   ICHECK(param);
-  static const Layout kNCHW("NCHW");
   const Layout in_layout(param->layout);
-  auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
-  auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(2, grid->shape[2]);
-  oshape.Set(3, grid->shape[3]);
-  // assign output type
-  reporter->Assign(types[2], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
-  return true;
+
+  if (data->shape.size() == 4) {
+    static const Layout kNCHW("NCHW");
+    auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
+    auto oshape = layout_converter.ForwardShape(data->shape);
+    oshape.Set(2, grid->shape[2]);
+    oshape.Set(3, grid->shape[3]);
+
+    // assign output type
+    reporter->Assign(types[2], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
+    return true;
+  } else if (data->shape.size() == 5) {
+    static const Layout kNDCHW("NCDHW");
+    auto layout_converter = tir::BijectiveLayout(in_layout, kNDCHW);
+    auto oshape = layout_converter.ForwardShape(data->shape);
+    oshape.Set(2, grid->shape[2]);
+    oshape.Set(3, grid->shape[3]);
+    oshape.Set(4, grid->shape[4]);
+
+    // assign output type
+    reporter->Assign(types[2], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
+    return true;
+  }
+
+  return false;
 }
 
 // Positional relay function to create affine_grid operator
 // used by frontend FFI.
-Expr MakeGridSample(Expr data, Expr grid, String method, String layout, String padding_mode) {
+Expr MakeGridSample(Expr data, Expr grid, String method, String layout, String padding_mode,
+                    bool align_corners) {
   auto attrs = make_object<GridSampleAttrs>();
   attrs->method = std::move(method);
   attrs->layout = std::move(layout);
   attrs->padding_mode = std::move(padding_mode);
+  attrs->align_corners = std::move(align_corners);
+
   static const Op& op = Op::Get("image.grid_sample");
   return Call(op, {data, grid}, Attrs(attrs), {});
 }
@@ -133,29 +153,51 @@ RELAY_REGISTER_OP("image.grid_sample")
 Given :math:`data` and :math:`grid`, then the output is computed by
 
 .. math::
+
   x_{src} = grid[batch, 0, y_{dst}, x_{dst}] \\
   y_{src} = grid[batch, 1, y_{dst}, x_{dst}] \\
-  output[batch, channel, y_{dst}, x_{dst}] = G(data[batch, channel, y_{src}, x_{src})
+  output[batch, channel, y_{dst}, x_{dst}] = G(data[batch, channel, y_{src}, x_{src}])
+
+For 5-D, the output is computed by
+
+.. math::
+
+  x_{src} = grid[batch, 0, z_{dst}, y_{dst}, x_{dst}] \\
+  y_{src} = grid[batch, 1, z_{dst}, y_{dst}, x_{dst}] \\
+  z_{src} = grid[batch, 2, z_{dst}, y_{dst}, x_{dst}] \\
+  output[batch, channel, z_{src}, y_{dst}, x_{dst}]
+  = G(data[batch, channel, z_{src}, y_{src}, x_{src}])
 
 :math:`x_{dst}`, :math:`y_{dst}` enumerate all spatial locations in :math:`output`, and
 :math:`G()` denotes the interpolation function.
-The out-boundary points will be padded with zeros. The shape of the output will be
-(data.shape[0], data.shape[1], grid.shape[2], grid.shape[3]).
 
-The operator assumes that :math:`data` has 'NCHW' layout and :math:`grid` has been normalized to [-1, 1].
+The out-boundary points will be padded with zeros if padding_mode is "zeros", or
+border pixel value if padding_mode is "border", or
+inner pixel value if padding_mode is "reflection".
+
+The left-top corner (-1, -1) and right-bottom corner (1, 1) in grid will be map to
+(0, 0) and (h - 1, w - 1) of data if align_corners is "True", or
+(-0.5, -0.5) and (h + 0.5, w + 0.5) of data if align_corners is "False".
+
+The shape of the output will be
+4-D (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3]), or
+5-D (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3], grid.shape[4]).
+
+The operator assumes that :math:`data` and :math:`grid` has been normalized to [-1, 1].
 
 grid_sample often cooperates with affine_grid which generates sampling grids for grid_sample.
 
-- **data**: data is 4D array of shape
-            (batch_size, channels, in_height, in_width) for NCHW
-            (batch_size, in_height, in_width, channels) for NHWC
+- **data**: data is of 4-D shape (batch_size, channels, in_height, in_width), or
+            of 5-D shape (batch_size, channels, in_depth, in_height, in_width)
 
-- **grid**: grid is 4D array of shape [batch, 2, out_height, out_width], where each vector
-           :math:`out[b, :, h, w]` represents the coordinate :math:`(x, y)`
+- **grid**: grid is of 4-D shape [batch, 2, out_height, out_width]
+            where each vector :math:`out[b, :, h, w]` represents the coordinate :math:`(x, y)`,
+            or of 5-D of shape [batch, 3, out_depth, out_height, out_width]
+            where each vector :math:`out[b, :, d, h, w]` represents the coordinate
+            :math:`(x, y, z)`
 
-- **out**: out is 4D array of shape
-           (batch, in_channel, out_height, out_width) for NCHW
-           (batch_size, in_height, in_width, channels) for NHWC
+- **out**: out is of 4-D shape (batch, in_channel, out_height, out_width), or
+           of 5-D shape [batch, channel, out_depth, out_height, out_width]
 
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)

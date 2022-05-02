@@ -996,12 +996,12 @@ class WhileNode : public StmtNode {
   }
 
   bool SEqualReduce(const WhileNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(condition, other->condition) && equal.DefEqual(body, other->body);
+    return equal(condition, other->condition) && equal(body, other->body);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(condition);
-    hash_reduce.DefHash(body);
+    hash_reduce(condition);
+    hash_reduce(body);
   }
 
   static constexpr const char* _type_key = "tir.While";
@@ -1508,6 +1508,11 @@ constexpr const char* meta_schedule_unroll_explicit = "meta_schedule.unroll_expl
 
 /*! \brief Mark auto-unroll setting on the block. */
 constexpr const char* meta_schedule_unroll_implicit = "meta_schedule.unroll_implicit";
+
+/*!
+ * \brief Mark that a block should be further rewritten using tensorization.
+ */
+constexpr const char* meta_schedule_auto_tensorize = "meta_schedule.auto_tensorize";
 
 /*!
  * \brief Check if attr_key is a pragma key extension

@@ -1437,16 +1437,16 @@ def test_pad_run_dynamic_pad_value():
 
 
 @tvm.testing.uses_gpu
-def test_lrn():
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+def test_lrn(dtype):
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
-    x = relay.var("x", shape=(n, c, h, w))
+    x = relay.var("x", shape=(n, c, h, w), dtype=dtype)
     y = relay.nn.lrn(x, size=10, axis=2, bias=0.5, alpha=0.00001, beta=0.75)
     "alpha=" in y.astext()
     yy = run_infer_type(y)
-    assert yy.checked_type == relay.TensorType((n, c, h, w))
+    assert yy.checked_type == relay.TensorType((n, c, h, w), dtype)
 
     shape = (1, 5, 10, 10)
-    dtype = "float32"
     x = relay.var("x", relay.TensorType(shape, dtype))
     size = 5
     axis = 1

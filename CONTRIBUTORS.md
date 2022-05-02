@@ -40,6 +40,7 @@ We do encourage everyone to work anything they are interested in.
 - [Mehrdad Hessar](https://github.com/mehrdadh): @mehrdadh - microTVM, hexagon
 - [Bohan Hou](https://github.com/spectrometerHBH): @spectrometerHBH - tir, arith, tvm-script
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
+- [Luke Hutton](https://github.com/lhutton1): @lhutton1 - ethos-u, arm
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
 - [Animesh Jain](https://github.com/anijain2305): @anijain2305 - quantization, relay
 - [Chenfan Jia](https://github.com/jcf94): @jcf94 - auto_scheduler
@@ -110,6 +111,7 @@ We do encourage everyone to work anything they are interested in.
 - [Hua Jiang](https://github.com/huajsj): @huajsj
 - [Ziheng Jiang](https://github.com/ZihengJiang): @ZihengJiang
 - [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm
+- [Elen Kalda](https://github.com/ekalda): @ekalda
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574
@@ -133,6 +135,7 @@ We do encourage everyone to work anything they are interested in.
 - [Jiawei Liu](https://github.com/ganler): @ganler
 - [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies
 - [Wei Pan](https://github.com/wpan11nv): @wpan11nv
+- [Ashutosh Parkhi](https://github.com/ashutosh-arm): @ashutosh-arm
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll

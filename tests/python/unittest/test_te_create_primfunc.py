@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
+import sys
+import pytest
 import numpy as np
 import tvm
 import tvm.testing
@@ -371,6 +373,46 @@ def test_tensor_attr():
     tvm.ir.assert_structural_equal(func, rt_func)
 
 
+@T.prim_func
+def expected_layout_attr(
+    A: T.Buffer[(128, 128), "float32"],
+    B: T.Buffer[(128, 128), "float32"],
+    D: T.Buffer[(128, 128), "float32"],
+) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_placeholders": [1]})
+    C = T.alloc_buffer([128, 128], dtype="float32")
+    for i0, i1, i2 in T.grid(128, 128, 128):
+        with T.block("C"):
+            x, y, k = T.axis.remap("SSR", [i0, i1, i2])
+            with T.init():
+                C[x, y] = T.float32(0)
+            C[x, y] = C[x, y] + A[x, k] * B[y, k]
+    for i0, i1 in T.grid(128, 128):
+        with T.block("D"):
+            x, y = T.axis.remap("SS", [i0, i1])
+            D[x, y] = C[x, y] + T.float32(1)
+
+
+def test_tensor_layout_attr():
+    k = te.reduce_axis((0, 128), "k")
+    A = te.placeholder((128, 128), name="A")
+    B = te.placeholder((128, 128), name="B")
+    C = te.compute(
+        (128, 128),
+        lambda x, y: te.sum(A[x, k] * B[y, k], axis=k),
+        name="C",
+        attrs={"layout_free_placeholders": [B]},
+    )
+    D = te.compute(
+        (128, 128),
+        lambda x, y: C[x, y] + 1,
+        name="D",
+        attrs={"layout_free_placeholders": [C]},
+    )
+    func = te.create_prim_func([A, B, D])
+    tvm.ir.assert_structural_equal(func, expected_layout_attr)
+
+
 def te_argmax_idx_val():
     def f_combine(x, y):
         lhs = tvm.tir.Select((x[1] >= y[1]), x[0], y[0])
@@ -484,19 +526,28 @@ def test_int64_indices():
     assert loop.extent.dtype == "int64"
 
 
+def te_reshape():
+    A = te.placeholder((128, 128), name="A")
+    B = topi.reshape(A, [8, 16, 128])
+    return [A, B]
+
+
+@T.prim_func
+def tir_reshape(
+    A: T.Buffer[(128, 128), "float32"], T_reshape: T.Buffer[(8, 16, 128), "float32"]
+) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    for i0, i1, i2 in T.grid(8, 16, 128):
+        with T.block("T_reshape"):
+            ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
+            T.reads(A[ax0 * 16 + ax1, ax2])
+            T.writes(T_reshape[ax0, ax1, ax2])
+            T_reshape[ax0, ax1, ax2] = A[ax0 * 16 + ax1, ax2]
+
+
+def test_reshape():
+    _check_workload(te_reshape, tir_reshape)
+
+
 if __name__ == "__main__":
-    test_unique_name_complete_block()
-    test_unique_name_reduction_block()
-    test_matmul()
-    test_element_wise()
-    test_conv2d()
-    test_multi_output()
-    test_extern()
-    test_arg_order()
-    test_error_reporting()
-    test_constant()
-    test_select_simplify()
-    test_tensor_attr()
-    test_argmax_idx_val()
-    test_argmax_val_idx()
-    test_int64_indices()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

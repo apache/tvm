@@ -66,6 +66,7 @@ ExternalProject_Add(hexagon_launcher_binaries
   "-DCMAKE_CXX_COMPILER=${USE_HEXAGON_TOOLCHAIN}/bin/hexagon-clang++"
   "-DUSE_HEXAGON_ARCH=${USE_HEXAGON_ARCH}"
   "-DUSE_HEXAGON_SDK=${USE_HEXAGON_SDK}"
+  "-DUSE_CUSTOM_LOGGING=ON"
   INSTALL_COMMAND ""
   BUILD_ALWAYS ON
 )

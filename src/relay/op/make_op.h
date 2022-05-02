@@ -67,7 +67,7 @@ Expr MakeReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude, Str
 
 Expr MakeRepeat(Expr data, int repeats, int axis);
 
-Expr MakeReshape(Expr data, Array<Integer> newshape);
+Expr MakeReshape(Expr data, Array<Integer> newshape, bool allowzero = false);
 
 Expr MakeReshapeLike(Expr lhs, Expr rhs, int lhs_begin, Integer lhs_end, int rhs_begin,
                      Integer rhs_end);

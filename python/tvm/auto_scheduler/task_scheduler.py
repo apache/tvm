@@ -577,8 +577,15 @@ class PrintTableInfo(TaskSchedulerCallback):
             return
 
         _ffi_api.PrintTitle("Task Scheduler")
-        print("|  ID  | Latency (ms) | Speed (GFLOPS) | Trials |")
-        print("-------------------------------------------------")
+        print(
+            "|  ID  "
+            "|                       Task Description                        "
+            "| Latency (ms) | Speed (GFLOPS) | Trials |"
+        )
+        print(
+            "----------------------------------------------------------------"
+            "-------------------------------------------------"
+        )
 
         # content
         for i in range(len(task_scheduler.tasks)):
@@ -588,6 +595,7 @@ class PrintTableInfo(TaskSchedulerCallback):
                 if task_scheduler.best_costs[i] < 1e9
                 else "-"
             )
+            task_desc = task_scheduler.tasks[i].desc
             speed_str = (
                 "%.2f"
                 % (task_scheduler.tasks[i].compute_dag.flop_ct / task_scheduler.best_costs[i] / 1e9)
@@ -595,8 +603,14 @@ class PrintTableInfo(TaskSchedulerCallback):
                 else "-"
             )
             trials_str = "%d" % (task_scheduler.task_cts[i] * task_scheduler.num_measures_per_round)
-            print("| %4s | %12s | % 14s | %6s |" % (id_str, latency_str, speed_str, trials_str))
-        print("-------------------------------------------------")
+            print(
+                "| %4s | %61s | %12s | % 14s | %6s |"
+                % (id_str, task_desc, latency_str, speed_str, trials_str)
+            )
+        print(
+            "----------------------------------------------------------------"
+            "-------------------------------------------------"
+        )
 
         # overall info
         if all(cost < 1e9 for cost in task_scheduler.best_costs):

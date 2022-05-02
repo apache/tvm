@@ -83,6 +83,49 @@ struct CreateFuncInfo {
   }
 };
 
+class LayoutFreePlaceholdersNormalizer : public StmtMutator {
+ public:
+  PrimFunc Process(PrimFunc func) {
+    for (int i = 0, n = func->params.size(); i < n; ++i) {
+      if (const auto* v = func->params[i].as<VarNode>()) {
+        if (Optional<Buffer> buffer = func->buffer_map.Get(GetRef<Var>(v))) {
+          buffer2index_[buffer.value()] = i;
+        }
+      }
+    }
+    PrimFuncNode* f = func.CopyOnWrite();
+    f->body = VisitStmt(std::move(f->body));
+    if (this->layout_free_buffer_indices_.empty()) {
+      return func;
+    }
+    Array<Integer> indices;
+    indices.reserve(this->layout_free_buffer_indices_.size());
+    for (int i : this->layout_free_buffer_indices_) {
+      indices.push_back(Integer(i));
+    }
+    return WithAttr(std::move(func), attr, indices);
+  }
+
+  Stmt VisitStmt_(const BlockNode* _block) final {
+    Block block = Downcast<Block>(StmtMutator::VisitStmt_(_block));
+    if (Optional<ObjectRef> ann = block->annotations.Get(attr)) {
+      Array<Buffer> buffers = Downcast<Array<Buffer>>(ann);
+      for (Buffer buffer : buffers) {
+        auto it = buffer2index_.find(buffer);
+        if (it != buffer2index_.end()) {
+          layout_free_buffer_indices_.insert(it->second);
+        }
+      }
+      block.CopyOnWrite()->annotations.erase(attr);
+    }
+    return block;
+  }
+
+  std::unordered_map<tir::Buffer, int, ObjectPtrHash, ObjectPtrEqual> buffer2index_;
+  std::set<int> layout_free_buffer_indices_;
+  String attr = "layout_free_placeholders";
+};
+
 BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
                                       const Array<te::Tensor>& tensors, Array<PrimExpr> bindings,
                                       PrimExpr expr_body, CreateFuncInfo* info,
@@ -99,8 +142,10 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
 
       const PrimExpr& dom_min = analyzer->Simplify(iter_var->dom->min);
       const PrimExpr& dom_extent = analyzer->Simplify(iter_var->dom->extent);
-      iter_vars.push_back(IterVar(Range::FromMinExtent(dom_min, dom_extent), new_var,
-                                  iter_var->iter_type, iter_var->thread_tag, iter_var->span));
+      Range iter_var_dom = Range::FromMinExtent(dom_min, dom_extent);
+      analyzer->Bind(new_var, iter_var_dom);
+      iter_vars.push_back(IterVar(iter_var_dom, new_var, iter_var->iter_type, iter_var->thread_tag,
+                                  iter_var->span));
     }
   };
   f_push_block_vars(compute_op->axis);
@@ -411,7 +456,8 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
                             {{"global_symbol", String("main")}, {"tir.noalias", Bool(true)}});
   const auto* complete = runtime::Registry::Get("script.Complete");
   ICHECK(complete);
-  return (*complete)(func, info.root_alloc);
+  func = (*complete)(func, info.root_alloc);
+  return LayoutFreePlaceholdersNormalizer().Process(std::move(func));
 }
 
 PrimFunc CreatePrimFuncFromOutputs(const Array<te::Tensor>& outputs) {

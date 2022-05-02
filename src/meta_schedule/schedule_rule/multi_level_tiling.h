@@ -181,6 +181,36 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   TVM_DECLARE_BASE_OBJECT_INFO(MultiLevelTilingNode, ScheduleRuleNode);
 };
 
+template <typename NodeType>
+ObjectPtr<NodeType> MultiLevelTilingInitCommon(String structure, Optional<Array<String>> tile_binds,
+                                               Optional<Integer> max_innermost_factor,
+                                               Optional<Array<Integer>> vector_load_lens,
+                                               Optional<Map<String, ObjectRef>> reuse_read,
+                                               Optional<Map<String, ObjectRef>> reuse_write) {
+  ObjectPtr<NodeType> n = make_object<NodeType>();
+  n->structure = structure;
+  n->tile_binds = tile_binds.value_or({});
+  n->max_innermost_factor = max_innermost_factor.value_or(Integer(-1))->value;
+  n->vector_load_lens = vector_load_lens.defined()
+                            ? support::AsVector<Integer, int>(vector_load_lens.value())
+                            : std::vector<int>();
+  n->reuse_read_ = reuse_read.defined() ? ReuseConfig(reuse_read.value()) : ReuseConfig();
+  n->reuse_write_ = reuse_write.defined() ? ReuseConfig(reuse_write.value()) : ReuseConfig();
+  for (int i = 0, len = structure.size(); i < len; ++i) {
+    char c = structure.data()[i];
+    if (c == 'S') {
+      n->s_indices_.push_back(i);
+    } else if (c == 'R') {
+      n->r_indices_.push_back(i);
+    } else {
+      LOG(FATAL) << "ValueError: Invalid tiling structure: " << structure;
+    }
+  }
+  n->thread_warp_size_ = -1;
+  n->max_threads_per_block_ = -1;
+  return n;
+}
+
 }  // namespace meta_schedule
 }  // namespace tvm
 

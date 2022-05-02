@@ -351,7 +351,7 @@ class TuneConfig(NamedTuple):
     task_scheduler: str = "gradient"
         Task scheduler to use.
         Valid options are: round_robin, gradient.
-    search_strategy: str = "evolutionary"
+    strategy: str = "evolutionary"
         Search strategy to use.
         Valid options are: evolutionary, replay_func, replay_trace.
     task_scheduler_config: Optional[Dict[str, Any]] = None

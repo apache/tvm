@@ -40,9 +40,6 @@ extern "C" {
 #include "../../hexagon/hexagon_common.h"
 #include "hexagon_rpc.h"
 
-// TODO(mehrdadh): make this configurable.
-#define TVM_HEXAGON_RPC_BUFF_SIZE_BYTES 2 * 1024 * 1024
-
 namespace tvm {
 namespace runtime {
 namespace hexagon {
@@ -64,8 +61,7 @@ class HexagonIOHandler {
   void MessageStart(size_t message_size_bytes) {}
 
   ssize_t PosixWrite(const uint8_t* buf, size_t write_len_bytes) {
-    LOG(INFO) << "INFO: HexagonIOHandler PosixWrite called, write_len_bytes(" << write_len_bytes
-              << ")";
+    LOG(INFO) << "HexagonIOHandler PosixWrite called, write_len_bytes(" << write_len_bytes << ")";
     int32_t written_size = write_buffer_.sputn(reinterpret_cast<const char*>(buf), write_len_bytes);
     if (written_size != write_len_bytes) {
       LOG(ERROR) << "written_size(" << written_size << ") != write_len_bytes(" << write_len_bytes
@@ -75,10 +71,10 @@ class HexagonIOHandler {
     return (ssize_t)written_size;
   }
 
-  void MessageDone() { LOG(INFO) << "INFO: Message Done."; }
+  void MessageDone() { LOG(INFO) << "Message Done."; }
 
   ssize_t PosixRead(uint8_t* buf, size_t read_len_bytes) {
-    LOG(INFO) << "INFO: HexagonIOHandler PosixRead called, read_len_bytes(" << read_len_bytes
+    LOG(INFO) << "HexagonIOHandler PosixRead called, read_len_bytes(" << read_len_bytes
               << "), read_buffer_index_(" << read_buffer_index_ << ")";
 
     uint32_t bytes_to_read = 0;
@@ -102,7 +98,7 @@ class HexagonIOHandler {
    * \return The status
    */
   AEEResult SetReadBuffer(const uint8_t* data, size_t data_size_bytes) {
-    LOG(INFO) << "INFO: HexagonIOHandler SetReadBuffer: data_size_bytes(" << data_size_bytes
+    LOG(INFO) << "HexagonIOHandler SetReadBuffer: data_size_bytes(" << data_size_bytes
               << "), read_buffer_index_(" << read_buffer_index_ << "), read_buffer_size_bytes_("
               << read_buffer_size_bytes_ << ")";
     if (data_size_bytes > read_buffer_size_bytes_) {
@@ -124,7 +120,7 @@ class HexagonIOHandler {
    * \return The size of data that is read in bytes.
    */
   int64_t ReadFromWriteBuffer(uint8_t* buf, size_t read_size_bytes) {
-    LOG(INFO) << "INFO: HexagonIOHandler ReadFromWriteBuffer called, read_size_bytes: "
+    LOG(INFO) << "HexagonIOHandler ReadFromWriteBuffer called, read_size_bytes: "
               << read_size_bytes;
     int64_t size = (int64_t)write_buffer_.sgetn(reinterpret_cast<char*>(buf), read_size_bytes);
     write_buffer_available_length_ -= size;
@@ -136,7 +132,7 @@ class HexagonIOHandler {
     return size;
   }
 
-  void Close() { LOG(INFO) << "INFO: HexagonIOHandler Close called"; }
+  void Close() { LOG(INFO) << "HexagonIOHandler Close called"; }
 
   void Exit(int code) { exit(code); }
 
@@ -159,13 +155,20 @@ class HexagonRPCServer {
    * \param data The data pointer
    * \param data_size_bytes The data size in bytes.
    *
-   * \return The size of data written to IOHandler.
+   * \return The size of data written to IOHandler if no error.
+   * Otherwise, returns -1;
    */
   int64_t Write(const uint8_t* data, size_t data_size_bytes) {
-    if (io_.SetReadBuffer(data, data_size_bytes) != AEE_SUCCESS) {
+    AEEResult rc = io_.SetReadBuffer(data, data_size_bytes);
+    if (rc != AEE_SUCCESS) {
+      LOG(ERROR) << "ERROR: SetReadBuffer failed: " << rc;
       return -1;
     }
-    rpc_server_.ProcessOnePacket();
+
+    if (!rpc_server_.ProcessOnePacket()) {
+      LOG(ERROR) << "ERROR: ProcessOnePacket failed";
+      return -1;
+    }
     return (int64_t)data_size_bytes;
   }
 
@@ -190,10 +193,17 @@ class HexagonRPCServer {
 }  // namespace tvm
 
 namespace {
-tvm::runtime::hexagon::HexagonRPCServer* get_hexagon_rpc_server() {
-  static tvm::runtime::hexagon::HexagonRPCServer g_hexagon_rpc_server(
-      new uint8_t[TVM_HEXAGON_RPC_BUFF_SIZE_BYTES], TVM_HEXAGON_RPC_BUFF_SIZE_BYTES);
-  return &g_hexagon_rpc_server;
+static tvm::runtime::hexagon::HexagonRPCServer* g_hexagon_rpc_server;
+tvm::runtime::hexagon::HexagonRPCServer* get_hexagon_rpc_server(
+    uint32_t rpc_receive_buff_size_bytes = 0) {
+  if (g_hexagon_rpc_server) {
+    return g_hexagon_rpc_server;
+  }
+  CHECK_GT(rpc_receive_buff_size_bytes, 0) << "RPC receive buffer size is not valid.";
+  static tvm::runtime::hexagon::HexagonRPCServer hexagon_rpc_server(
+      new uint8_t[rpc_receive_buff_size_bytes], rpc_receive_buff_size_bytes);
+  g_hexagon_rpc_server = &hexagon_rpc_server;
+  return g_hexagon_rpc_server;
 }
 }  // namespace
 
@@ -205,8 +215,9 @@ const tvm::runtime::PackedFunc get_runtime_func(const std::string& name) {
 }
 
 void reset_device_api() {
-  const tvm::runtime::PackedFunc api = get_runtime_func("device_api.hexagon.v2");
-  tvm::runtime::Registry::Register("device_api.hexagon", true).set_body(api);
+  const tvm::runtime::PackedFunc api = get_runtime_func("device_api.hexagon");
+  // Registering device_api.cpu as device_api.hexagon since we use hexagon as sub-target of LLVM.
+  tvm::runtime::Registry::Register("device_api.cpu", true).set_body(api);
 }
 
 int __QAIC_HEADER(hexagon_rpc_open)(const char* uri, remote_handle64* handle) {
@@ -216,7 +227,6 @@ int __QAIC_HEADER(hexagon_rpc_open)(const char* uri, remote_handle64* handle) {
     return AEE_ENOMEMORY;
   }
   reset_device_api();
-  get_hexagon_rpc_server();
 
   return AEE_SUCCESS;
 }
@@ -226,6 +236,11 @@ int __QAIC_HEADER(hexagon_rpc_close)(remote_handle64 handle) {
   if (handle) {
     free(reinterpret_cast<void*>(static_cast<uintptr_t>(handle)));
   }
+  return AEE_SUCCESS;
+}
+
+int __QAIC_HEADER(hexagon_rpc_init)(remote_handle64 _h, uint32_t buff_size_bytes) {
+  get_hexagon_rpc_server(buff_size_bytes);
   return AEE_SUCCESS;
 }
 

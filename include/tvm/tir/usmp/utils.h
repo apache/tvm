@@ -41,9 +41,19 @@ constexpr const char* kUSMPEnableOption = "tir.usmp.enable";
  * \brief PassContext option to select the memory planning algorithm in USMP
  */
 constexpr const char* kUSMPAlgorithmOption = "tir.usmp.algorithm";
+/*!
+ * \brief PassContext option to enable placing I/O tensors in the workspace
+ */
+constexpr const char* kUSMPUseWorkspaceIO = "tir.usmp.use_workspace_io";
 
 namespace tir {
 namespace usmp {
+
+/*!
+ * \brief A special kind to distinguish between I/O tensors to the model
+ * and intermediate tensors of the model
+ */
+enum class BufferInfoKind { kIntermediate = 0, kInput = 1, kOutput = 2 };
 
 /*!
  * \brief Describes an abstract memory buffer that will get allocated inside a pool.
@@ -65,6 +75,8 @@ struct BufferInfoNode : public Object {
   Integer alignment;
   /*! \brief The liveness conflicting other buffer info objects */
   Array<ObjectRef> conflicts;
+  /*! \brief Whether BufferInfo object retains info about IO tensors or intermediaries */
+  BufferInfoKind kind;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
@@ -72,12 +84,13 @@ struct BufferInfoNode : public Object {
     v->Visit("pool_candidates", &pool_candidates);
     v->Visit("alignment", &alignment);
     v->Visit("conflicts", &conflicts);
+    v->Visit("kind", &kind);
   }
 
   bool SEqualReduce(const BufferInfoNode* other, SEqualReducer equal) const {
     return equal(name_hint, other->name_hint) && equal(size_bytes, other->size_bytes) &&
            equal(pool_candidates, other->pool_candidates) && equal(alignment, other->alignment) &&
-           equal(conflicts, other->conflicts);
+           equal(conflicts, other->conflicts) && equal(kind, other->kind);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -86,6 +99,7 @@ struct BufferInfoNode : public Object {
     hash_reduce(alignment);
     hash_reduce(conflicts);
     hash_reduce(pool_candidates);
+    hash_reduce(kind);
   }
   /*!
    * \brief Set the liveness conflicts of this BufferInfo
@@ -101,7 +115,8 @@ struct BufferInfoNode : public Object {
 class BufferInfo : public ObjectRef {
  public:
   TVM_DLL BufferInfo(String name_hint, Integer size_bytes, Array<PoolInfo> pool_candidates,
-                     Integer alignment = runtime::kDefaultWorkspaceAlignment);
+                     Integer alignment = runtime::kDefaultWorkspaceAlignment,
+                     BufferInfoKind kind = BufferInfoKind::kIntermediate);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BufferInfo, ObjectRef, BufferInfoNode);
 };
 
@@ -238,6 +253,18 @@ Integer CalculateModuleWorkspaceSize(const IRModule& mod);
 static constexpr const char* kPoolCandidatesAllocateAttr = "candidate_memory_pools";
 
 /*!
+ * \brief The allocate node attribute to indicate it is being used to hold
+ * an input tensor, that needs to be initialized with.
+ */
+static constexpr const char* kInputTensorAllocate = "input_tensor";
+
+/*!
+ * \brief The allocate node attribute to indicate it is being used to hold
+ * an output tensor.
+ */
+static constexpr const char* kOutputTensorAllocate = "output_tensor";
+
+/*!
  * \brief Calculate the size of the extents in bytes
  *
  * \param op the allocate node
@@ -254,6 +281,16 @@ Map<Stmt, PoolAllocation> AssignStmtPoolAllocations(
     const Map<BufferInfo, Stmt>& buffer_info_to_stmt,
     const Map<BufferInfo, PoolAllocation>& buffer_info_to_pool_allocation);
 
+/*!
+ * \brief Obtains I/O tensor names to their PoolAllocation objects
+ *
+ * \param buffer_info_to_pool_allocation the map of BufferInfo objects to PoolAllocation objects
+ *
+ * This function will obtain pool allocations for I/O tensors if that had been planned
+ */
+Map<String, PoolAllocation> GetIOPoolAllocations(
+    const Map<BufferInfo, PoolAllocation>& buffer_info_to_pool_allocation);
+
 }  // namespace usmp
 }  // namespace tir
 
@@ -265,10 +302,10 @@ namespace attr {
 static constexpr const char* kPoolArgs = "pool_args";
 
 /*!
- * \brief This is a IRModule attribute that contains all the PoolInfo objects
- * as an Array.
+ * \brief This is a IRModule attribute that contains I/O Tensor names to pool
+ * allocations.
  */
-static constexpr const char* kPoolInfoIRModuleAttr = "pool_infos";
+static constexpr const char* kIOTensorPoolAllocations = "io_tensor_pool_allocations";
 
 }  // namespace attr
 
