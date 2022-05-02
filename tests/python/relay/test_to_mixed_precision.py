@@ -41,18 +41,18 @@ def verify_mixed_precision_output_close(
     mixed_precision_dtype="float16",
     rtol: float = 1e-3,
     atol: float = 0,
-    enable_original_type=False,
+    keep_orig_output_dtype=False,
 ) -> tvm.runtime.Module:
 
     mod = InferType()(mod)
     result_fp32 = run_module(mod, mod_params)
 
-    if enable_original_type == False:
+    if not keep_orig_output_dtype:
         fp16_mod = ToMixedPrecision(mixed_precision_dtype)(mod)
         result_fp16 = run_module(fp16_mod, mod_params)
     else:
         with tvm.transform.PassContext(
-            config={"relay.ToMixedPrecision.enable_original_type": True}
+            config={"relay.ToMixedPrecision.keep_orig_output_dtype": True}
         ):
             fp16_mod = ToMixedPrecision(mixed_precision_dtype)(mod)
             result_fp16 = run_module(fp16_mod, mod_params)
@@ -61,7 +61,7 @@ def verify_mixed_precision_output_close(
     for fp32, fp16 in zip(result_fp32, result_fp16):
         np.testing.assert_allclose(fp32, fp16, rtol=rtol, atol=atol)
 
-    if enable_original_type:
+    if keep_orig_output_dtype:
         assert (
             np.array(result_fp16).dtype == np.array(result_fp32).dtype
         ), "output type and original type mismatch"
@@ -132,7 +132,7 @@ def test_convert_single_conv():
         "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
     }
     fp16_mod = verify_mixed_precision_output_close(
-        mod, mod_params, atol=0.01, rtol=1e-3, enable_original_type=True
+        mod, mod_params, atol=0.01, rtol=1e-3, keep_orig_output_dtype=True
     )
 
     expected_mod = tvm.IRModule.from_expr(
