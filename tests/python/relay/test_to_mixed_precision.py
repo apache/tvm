@@ -144,7 +144,7 @@ def test_convert_single_conv():
                 padding=(1, 1),
                 out_dtype="float16",
             ),
-            "float32"
+            "float32",
         )
     )
     expected_mod = tvm.relay.transform.InferType()(expected_mod)
