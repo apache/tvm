@@ -37,7 +37,13 @@ shift
 
 CMSIS_VER="5.8.0"
 
-# Clone CMSIS
-git clone "https://github.com/ARM-software/CMSIS_5.git" "${INSTALLATION_PATH}"
-cd "${INSTALLATION_PATH}"
-git checkout -f tags/${CMSIS_VER}
+# Create installation path directory
+mkdir -p "${INSTALLATION_PATH}"
+
+# Download and extract CMSIS
+cd "${HOME}"
+wget --quiet "https://github.com/ARM-software/CMSIS_5/archive/${CMSIS_VER}.tar.gz"
+tar -xf "${CMSIS_VER}.tar.gz" -C "${INSTALLATION_PATH}" --strip-components=1
+
+# Remove tar file
+rm -f "${CMSIS_VER}.tar.gz"
