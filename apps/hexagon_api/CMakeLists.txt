@@ -13,7 +13,7 @@ include(ExternalProject)
 #   USE_HEXAGON_TOOLCHAIN (Path to Hexagon toolchain ending with "Tools")
 # Optional variable:
 #   USE_OUTPUT_BINARY_DIR (Path to copy the output binaries to)
-#   USE_HEXAGON_GTEST (Path to Hexagon gtest)
+#   USE_HEXAGON_GTEST (Path to Hexagon specific gtest version)
 
 set(TVM_SOURCE_DIR "${CMAKE_SOURCE_DIR}/../..")
 
@@ -24,9 +24,13 @@ else()
 endif()
 file(MAKE_DIRECTORY ${HEXAGON_API_BINARY_DIR})
 
-if(DEFINED USE_HEXAGON_GTEST AND NOT EXISTS $USE_HEXAGON_GTEST)
-  message(WARNING "The specified Hexagon gtest path USE_HEXAGON_GTEST = ${USE_HEXAGON_GTEST} does not exist. Disabling Hexagon gtest support.")
-  unset(USE_HEXAGON_GTEST)
+if(DEFINED USE_HEXAGON_GTEST)
+  if(EXISTS ${USE_HEXAGON_GTEST})
+    message(STATUS "Found Hexagon gtest at ${USE_HEXAGON_GTEST}")
+  else()
+    message(WARNING "Could not find Hexagon gtest at ${USE_HEXAGON_GTEST}. Disabling Hexagon gtest support.")
+    unset(USE_HEXAGON_GTEST)
+  endif()
 endif()
 
 # Build X86 binaries:

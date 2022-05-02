@@ -20,7 +20,7 @@
 #include <gtest/gtest.h>
 #include <tvm/runtime/container/optional.h>
 
-#include "../hexagon_buffer.h"
+#include "../src/runtime/hexagon/hexagon_buffer.h"
 
 using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;

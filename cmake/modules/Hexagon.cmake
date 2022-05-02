@@ -130,7 +130,7 @@ endif()
 if(BUILD_FOR_HEXAGON)
   if(DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
     file_glob_append(RUNTIME_HEXAGON_SRCS
-      "${TVMRT_SOURCE_DIR}/hexagon/tests/*.cc"
+      "${CMAKE_SOURCE_DIR}/tests/cpp-runtime/hexagon/*.cc"
     )
   endif()
   get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
