@@ -21,7 +21,7 @@ def specialize_body(mod, fn, dim, value):
     return gvar, dyn_data.type_annotation
 
 
-def flexible_dispatch(mod, dim=0, buckets=[]):
+def flexible_dispatch(mod, dim=0, buckets=[], auto_pad=False, pad_value=0):
     """
     Implement a batching transform for Relay.
 
@@ -42,13 +42,39 @@ def flexible_dispatch(mod, dim=0, buckets=[]):
     dyn_data = relay.Var(data.name_hint, type_annotation=dyn_shape)
     rt_sh = relay.op.shape_of(dyn_data)
     flex_value = relay.op.take(rt_sh, relay.const(dim))
+
     if_exprs = []
 
-    for bucket in buckets:
+    for i, bucket in enumerate(buckets):
+        input_data = dyn_data
+        check_dim = flex_value
+
+        # Apply automatic padding if specified.
+        if auto_pad:
+            # Construct padding expression for inputs.
+            pad_width = relay.const(bucket) - flex_value
+            rank = len(data.type_annotation.shape)
+            pads = relay.zeros([rank, 2], 'int32')
+            pads = relay.scatter_nd(pads, relay.const([dim, 1]), pad_width)
+            padded_value = relay.nn.pad(dyn_data, pads, pad_value)
+
+            # Determine if this is the proper bucket to pad to. Do this by checking if the
+            # input shape is between this bucket and the previous.
+            if i == 0:
+                padded_value = relay.If(relay.op.less_equal(flex_value, relay.const(bucket)), padded_value, dyn_data)
+            else:
+                padded_value = relay.If(relay.op.logical_and(relay.op.less_equal(flex_value, relay.const(bucket)), relay.op.greater(flex_value, relay.const(buckets[i - 1]))), padded_value, dyn_data)
+            # Update input value and test dimension to reflect possible padding.
+            input_data = padded_value
+            check_dim = relay.op.take(relay.op.shape_of(input_data), relay.const(dim))
+
+        # Create a specialized subgraph for the current bucket.
         spec_call, spec_ty = specialize_body(mod, main_fn, dim, bucket)
-        spec_data = relay.op.reshape(dyn_data, spec_ty.shape)
+        spec_data = relay.op.reshape(input_data, spec_ty.shape)
+
+        # Create a dispatch statement for the current specialized graph.
         call_args = [spec_data] + main_fn.params[1:]
-        if_exprs.append((relay.op.equal(flex_value, relay.const(bucket)), spec_call(*call_args)))
+        if_exprs.append((relay.op.equal(check_dim, relay.const(bucket)), spec_call(*call_args)))
 
     default_dyn_call, _ = specialize_body(mod, main_fn, dim, relay.Any())
     call_args = [dyn_data] + main_fn.params[1:]
@@ -87,6 +113,11 @@ class FlexibleShapeDispatch(object):
         The sizes of the input dimension that should be explicitly handled.
         Each value in buckets will have a corresponding subgraph constructed to
         handle it.
+    auto_pad: Optional[bool]
+        If True, then padding will be inserted to values that don't match one of
+        the provided buckets.
+    pad_value: Optional[float]
+        When auto_pad is true, padding will be done with this value.
 
     Returns
     -------
@@ -94,10 +125,12 @@ class FlexibleShapeDispatch(object):
         A pass that can be applied to a module to add flexible shape handling.
     """
 
-    def __init__(self, dim=0, buckets=[]):
+    def __init__(self, dim=0, buckets=[], auto_pad=False, pad_value=0):
         self.dim = dim
         self.buckets = buckets
+        self.auto_pad = auto_pad
+        self.pad_value = pad_value
         super(FlexibleShapeDispatch, self).__init__()
 
     def __call__(self, mod):
-        return flexible_dispatch(mod, self.dim, self.buckets)
+        return flexible_dispatch(mod, self.dim, self.buckets, self.auto_pad, self.pad_value)
