@@ -71,7 +71,7 @@ def test_project_folder_structure(project_dir, project):
 def test_project_model_integrity(project_dir, project):
     model_dir = project_dir / "src" / "model"
     assert _get_directory_elements(model_dir) == set(
-        ["default_lib0.c", "default_lib1.c", "model.tar"]
+        ["default_lib0.c", "default_lib1.c", "default_lib2.c", "model.tar"]
     )
 
 
