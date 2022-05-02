@@ -221,6 +221,27 @@ reg.register_strategy("nn.conv1d", strategy.conv1d_strategy)
 reg.register_pattern("nn.conv1d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+@reg.register_legalize("nn.conv1d")
+def legalize_conv1d(attrs, inputs, types):
+    """Legalize conv1d op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.conv1d_legalize(attrs, inputs, types)
+
+
 # conv2d
 reg.register_strategy("nn.conv2d", strategy.conv2d_strategy)
 reg.register_pattern("nn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
@@ -311,6 +332,8 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     """
     data, weight = inputs
 
+    current_target = tvm.target.Target.current(allow_none = True)
+
     # First check if there is a LayoutConfig scope, and if so, whether
     # it indicates we should ignore this layer or not.
     layout_config = LayoutConfig.current
@@ -347,7 +370,11 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
         ):
             new_attrs["kernel_layout"] = "HWOI"
         else:
-            new_attrs["kernel_layout"] = "HWIO"
+
+            if current_target and "pulp" in current_target.keys and attrs["groups"] == 1:
+                new_attrs["kernel_layout"] = "OHWI"
+            else:
+                new_attrs["kernel_layout"] = "HWIO"
         return relay.nn.conv2d(data, weight, **new_attrs)
     elif desired_data_layout == "HWNC":
         new_attrs["kernel_layout"] = "HWOI"

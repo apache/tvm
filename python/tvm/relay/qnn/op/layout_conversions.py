@@ -18,6 +18,8 @@
 """Convert layout related registration"""
 from __future__ import absolute_import
 
+import tvm
+
 from tvm.relay.op import op as reg
 
 from ...op.strategy.generic import is_depthwise_conv2d
@@ -47,6 +49,8 @@ def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layouts):
     # pylint: disable=import-outside-toplevel
     from tvm import relay
 
+    current_target = tvm.target.Target.current(allow_none = True)
+
     assert len(desired_layouts) == 2, "A desired layout is expected for both of qnn.conv2d's inputs"
     desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
     assert desired_data_layout != "default", "Data layout cannot be default"
@@ -74,7 +78,10 @@ def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layouts):
         ):
             new_attrs["kernel_layout"] = "HWOI"
         else:
-            new_attrs["kernel_layout"] = "HWIO"
+            if current_target and "pulp" in current_target.keys and attrs["groups"] == 1:
+                new_attrs["kernel_layout"] = "OHWI"
+            else:
+                new_attrs["kernel_layout"] = "HWIO"
         return relay.qnn.op.conv2d(*inputs, **new_attrs)
 
     raise ValueError("Layout %s is not yet supported" % desired_data_layout)
