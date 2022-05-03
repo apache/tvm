@@ -57,6 +57,7 @@ EXTRA_SCRIPTS = {
     "zephyr": (
         "docker/install/ubuntu_init_zephyr_project.sh",
         "docker/install/ubuntu_install_zephyr_sdk.sh",
+        "docker/install/ubuntu_install_cmsis.sh",
     ),
 }
 

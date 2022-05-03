@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,23 +15,35 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#
-#   Using this script we can reuse docker/install scripts to configure the reference 
-#   virtual machine similar to CI QEMU setup.
-#
 
 set -e
-set -x
+set -u
+set -o pipefail
 
-source ~/.profile
+function show_usage() {
+    cat <<EOF
+Usage: docker/install/ubuntu_install_cmsis.sh <INSTALLATION_PATH>
+INSTALLATION_PATH is the installation path for the CMSIS.
+EOF
+}
 
-# Init Zephyr
-cd ~
-~/ubuntu_init_zephyr_project.sh ~/zephyr
+if [ "$#" -lt 1 -o "$1" == "--help" -o "$1" == "-h" ]; then
+    show_usage
+    exit -1
+fi
 
-# Install CMSIS
-cd ~
-~/ubuntu_install_cmsis.sh ~/cmsis
+INSTALLATION_PATH=$1
+shift
 
-# Cleanup
-rm -f ubuntu_init_zephyr_project.sh ubuntu_install_cmsis.sh
+CMSIS_VER="5.8.0"
+
+# Create installation path directory
+mkdir -p "${INSTALLATION_PATH}"
+
+# Download and extract CMSIS
+cd "${HOME}"
+wget --quiet "https://github.com/ARM-software/CMSIS_5/archive/${CMSIS_VER}.tar.gz"
+tar -xf "${CMSIS_VER}.tar.gz" -C "${INSTALLATION_PATH}" --strip-components=1
+
+# Remove tar file
+rm -f "${CMSIS_VER}.tar.gz"
