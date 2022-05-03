@@ -423,39 +423,17 @@ class TuneConfig(NamedTuple):
 
     def create_loggers(
         self,
-        task_names: List[str],
-        work_dir: str,
-        logger_name_pattern: str,
-        config: Optional[Dict[str, Any]] = None,
+        log_dir: str,
+        params: List[Dict[str, Any]],
+        disable_existing_loggers: bool = False,
     ):
-        """Create loggers"""
-
-        def config_parameterized_loggers(
-            config: Dict[str, Any],
-            params: List[Dict[str, str]],
-            disable_existing_loggers: bool = False,
-        ):
-            p_config = {"version": 1, "disable_existing_loggers": disable_existing_loggers}
-            for k, v in config.items():
-                if k in ["formatters", "handlers", "loggers"]:
-                    p_config[k] = batch_parameterize_config(v, params)  # type: ignore
-                else:
-                    p_config[k] = v
-            logging.config.dictConfig(p_config)
-
-        log_dir = osp.join(work_dir, "logs")
-        os.makedirs(log_dir, exist_ok=True)
-        params = [
-            {
-                "log_dir": log_dir,
-                "logger_name": logger_name_pattern.format(task_id=i, task_name=name),
-            }
-            for i, name in enumerate(task_names)
-        ]
+        """Create loggers from configuration"""
+        if self.logger_config is None:
+            config = {}
+        else:
+            config = self.logger_config
 
         global_logger_name = "tvm.meta_schedule"
-        if config is None:
-            config = {}
         config.setdefault("loggers", {})
         config.setdefault("handlers", {})
         config.setdefault("formatters", {})
@@ -490,7 +468,7 @@ class TuneConfig(NamedTuple):
             global_logger_name + ".file",
             {
                 "class": "logging.FileHandler",
-                "filename": "{log_dir}/" + f"{global_logger_name}.tune.task_scheduler.log",
+                "filename": "{log_dir}/" + __name__ + ".task_scheduler.log",
                 "mode": "a",
                 "level": "INFO",
                 "formatter": "tvm.meta_schedule.standard_formatter",
@@ -514,9 +492,17 @@ class TuneConfig(NamedTuple):
             },
         )
 
-        config_parameterized_loggers(config, params)
+        # set up dictConfig loggers
+        p_config = {"version": 1, "disable_existing_loggers": disable_existing_loggers}
+        for k, v in config.items():
+            if k in ["formatters", "handlers", "loggers"]:
+                p_config[k] = batch_parameterize_config(v, params)  # type: ignore
+            else:
+                p_config[k] = v
+        logging.config.dictConfig(p_config)
 
-        global_logger = logging.getLogger("tvm.meta_schedule")
+        # check global logger
+        global_logger = logging.getLogger(global_logger_name)
         if global_logger.level not in [logging.DEBUG, logging.INFO]:
             global_logger.critical(
                 "Logging level set to %s, please set to logging.INFO"
@@ -541,8 +527,6 @@ def tune_extracted_tasks(
     postprocs: Optional[FnPostproc] = None,
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
-    logger_name_pattern: Optional[str] = None,
-    logger_config: Optional[Dict[str, Any]] = None,
 ) -> Database:
     """Tune extracted tasks with a given target.
 
@@ -584,17 +568,23 @@ def tune_extracted_tasks(
 
     """
     # pylint: disable=protected-access
-    if logger_name_pattern is None:
-        max_width = len(str(len(extracted_tasks) - 1))
-        logger_name_pattern = __name__ + ".task_{task_id:0" + f"{max_width}" + "d}_{task_name}"
+    # logging directory is set to `work_dir/logs` by default
+    log_dir = osp.join(work_dir, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    max_width = len(str(len(extracted_tasks) - 1))
+    logger_name_pattern = __name__ + ".task_{task_id:0" + f"{max_width}" + "d}_{task_name}"
 
     config.create_loggers(
-        work_dir=work_dir,
-        task_names=[task.task_name for task in extracted_tasks],
-        logger_name_pattern=logger_name_pattern,
-        config=logger_config,
+        log_dir=log_dir,
+        params=[
+            {
+                "log_dir": log_dir,
+                "logger_name": logger_name_pattern.format(task_id=i, task_name=task.task_name),
+            }
+            for i, task in enumerate(extracted_tasks)
+        ],
     )
-    # logger = logging.getLogger(__name__)
+
     logger.info("Working directory: %s", work_dir)
     database = Parse._database(database, work_dir)
     builder = Parse._builder(builder)
@@ -683,6 +673,15 @@ def tune_tir(
     sch : Optional[Schedule]
         The tuned schedule.
     """
+    # logging directory is set to `work_dir/logs` by default
+    log_dir = osp.join(work_dir, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+
+    config.create_loggers(
+        log_dir=log_dir,
+        params=[{"log_dir": log_dir, "logger_name": __name__ + f".task_{task_name}"}],
+    )
+
     # pylint: disable=protected-access
     mod = Parse._mod(mod)
     target = Parse._target(target)
