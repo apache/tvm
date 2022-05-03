@@ -100,7 +100,7 @@ typedef enum {
 
   // System errors are always negative integers; this mask indicates presence of a system error.
   // Cast tvm_crt_error_t to a signed integer to interpret the negative error code.
-  kTvmErrorSystemErrorMask = (1 << (sizeof(int) * 4 - 1)),
+  kTvmErrorSystemErrorMask = (1 << (sizeof(int) * 8 - 1)),
 } tvm_crt_error_t;
 
 #ifdef __cplusplus
