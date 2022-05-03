@@ -459,6 +459,21 @@ class CountNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(CountNode, Object);
 };
 
+/* \brief A ratio of two things. */
+class RatioNode : public Object {
+ public:
+  /* The ratio as a double precision floating point number. */
+  double ratio;
+
+  /* \brief Construct a new ratio.
+   * \param a The ratio.
+   */
+  explicit RatioNode(double a) : ratio(a) {}
+
+  static constexpr const char* _type_key = "runtime.profiling.Ratio";
+  TVM_DECLARE_FINAL_OBJECT_INFO(RatioNode, Object);
+};
+
 /*! \brief String representation of an array of NDArray shapes
  *  \param shapes Array of NDArrays to get the shapes of.
  *  \return A textual representation of the shapes. For example: `float32[2], int64[1, 2]`.
