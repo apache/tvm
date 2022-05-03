@@ -112,6 +112,26 @@ def softmax_strategy_hexagon(attrs, inputs, out_type, target):
     return strategy
 
 
+@conv2d_transpose_strategy.register("hexagon")
+def conv2d_transpose_strategy_hexagon(attrs, inputs, out_type, target):
+    """conv2d_transpose hexagon strategy"""
+    layout = attrs.data_layout
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    assert layout == "NCHW", "only support nchw for now"
+    assert dilation == (1, 1), "not support dilate now"
+    strategy = _op.OpStrategy()
+    if groups == 1:
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.nn.conv2d_transpose_nchw),
+            wrap_topi_schedule(topi.hexagon.schedule_conv2d_transpose_nchw),
+            name="conv2d_transpose_nchw.generic",
+        )
+    else:
+        raise RuntimeError("Unsupported conv2d_transpose layout {}".format(layout))
+    return strategy
+
+
 # --- Op schedule registration
 
 

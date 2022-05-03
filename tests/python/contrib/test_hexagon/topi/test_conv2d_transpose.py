@@ -144,34 +144,14 @@ class BaseConv2DTransposeTests:
             tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
 
-class TestConv2DTranspose_1(BaseConv2DTransposeTests):
+class TestConv2DTranspose(BaseConv2DTransposeTests):
 
-    batch = tvm.testing.parameter(1)
-    in_channel = tvm.testing.parameter(3, 8)
-    in_size = tvm.testing.parameter((224, 224))
-    num_filter = tvm.testing.parameter(1, 8)
-    stride = tvm.testing.parameter((1, 1))
-    padding = tvm.testing.parameter((0, 0, 0, 0))
-    output_padding = tvm.testing.parameter((0, 0))
+    (batch, in_channel, in_size, num_filter, stride) = tvm.testing.parameters(
+        (1, 3, (224, 224), 1, (1, 1)),
+        (1, 8, (224, 224), 1, (1, 1)),
+        (1, 512, (8, 1), 128, (31, 1)),
+        (1, 32, (8192, 1), 1, (1, 1)),
+    )
 
-
-class TestConv2DTranspose_2(BaseConv2DTransposeTests):
-
-    batch = tvm.testing.parameter(1)
-    in_channel = tvm.testing.parameter(512)
-    in_size = tvm.testing.parameter((8, 1))
-    num_filter = tvm.testing.parameter(128)
-    stride = tvm.testing.parameter((31, 1))
-    padding = tvm.testing.parameter((0, 0, 0, 0))
-    output_padding = tvm.testing.parameter((0, 0))
-
-
-class TestConv2DTranspose_3(BaseConv2DTransposeTests):
-
-    batch = tvm.testing.parameter(1)
-    in_channel = tvm.testing.parameter(32)
-    in_size = tvm.testing.parameter((8192, 1))
-    num_filter = tvm.testing.parameter(1)
-    stride = tvm.testing.parameter((1, 1))
     padding = tvm.testing.parameter((0, 0, 0, 0))
     output_padding = tvm.testing.parameter((0, 0))
