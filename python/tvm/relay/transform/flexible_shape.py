@@ -50,7 +50,9 @@ def specialize_body(mod, fn, dim, value, input_indices=[0], affects_output=True)
     return gvar, [d.type_annotation for d in dyn_data_array]
 
 
-def flexible_dispatch(mod, dim=0, buckets=[], auto_pad=False, pad_value=0, input_indices=[0], affects_output=True):
+def flexible_dispatch(
+    mod, dim=0, buckets=[], auto_pad=False, pad_value=0, input_indices=[0], affects_output=True
+):
     """
     Implement a batching transform for Relay.
 
@@ -92,23 +94,34 @@ def flexible_dispatch(mod, dim=0, buckets=[], auto_pad=False, pad_value=0, input
             for j, inp in enumerate(dyn_data):
                 pad_width = relay.const(bucket) - flex_value
                 rank = len(data[j].type_annotation.shape)
-                pads = relay.zeros([rank, 2], 'int32')
+                pads = relay.zeros([rank, 2], "int32")
                 pads = relay.scatter_nd(pads, relay.const([dim, 1]), pad_width)
                 padded_value = relay.nn.pad(inp, pads, pad_value)
 
                 # Determine if this is the proper bucket to pad to. Do this by checking if the
                 # input shape is between this bucket and the previous.
                 if i == 0:
-                    padded_value = relay.If(relay.op.less_equal(flex_value, relay.const(bucket)), padded_value, inp)
+                    padded_value = relay.If(
+                        relay.op.less_equal(flex_value, relay.const(bucket)), padded_value, inp
+                    )
                 else:
-                    padded_value = relay.If(relay.op.logical_and(relay.op.less_equal(flex_value, relay.const(bucket)), relay.op.greater(flex_value, relay.const(buckets[i - 1]))), padded_value, inp)
+                    padded_value = relay.If(
+                        relay.op.logical_and(
+                            relay.op.less_equal(flex_value, relay.const(bucket)),
+                            relay.op.greater(flex_value, relay.const(buckets[i - 1])),
+                        ),
+                        padded_value,
+                        inp,
+                    )
                 # Update input value and test dimension to reflect possible padding.
                 input_data.append(padded_value)
             # Grab the new possibly padded shape for checking bucket size.
             check_dim = relay.op.take(relay.op.shape_of(input_data[0]), relay.const(dim))
 
         # Create a specialized subgraph for the current bucket.
-        spec_call, spec_ty = specialize_body(mod, main_fn, dim, bucket, input_indices=input_indices, affects_output=affects_output)
+        spec_call, spec_ty = specialize_body(
+            mod, main_fn, dim, bucket, input_indices=input_indices, affects_output=affects_output
+        )
         # Apply hard casting to shape to create statically typed graphs.
         spec_data = []
         for j, inp in enumerate(input_data):
@@ -122,13 +135,19 @@ def flexible_dispatch(mod, dim=0, buckets=[], auto_pad=False, pad_value=0, input
 
         # Remove meaningless padded outputs if applicable.
         if auto_pad and affects_output:
-            new_call = relay.take(new_call, relay.arange(start=relay.const(0), stop=flex_value, dtype='int32'), axis=dim)
+            new_call = relay.take(
+                new_call,
+                relay.arange(start=relay.const(0), stop=flex_value, dtype="int32"),
+                axis=dim,
+            )
 
         # Add this new case to the dispatch handler.
         if_exprs.append((relay.op.equal(check_dim, relay.const(bucket)), new_call))
 
     # Create a subgraph to handle all other shapes.
-    default_dyn_call, _ = specialize_body(mod, main_fn, dim, relay.Any(), input_indices=input_indices, affects_output=affects_output)
+    default_dyn_call, _ = specialize_body(
+        mod, main_fn, dim, relay.Any(), input_indices=input_indices, affects_output=affects_output
+    )
     call_args = list(main_fn.params)
     for j, inp in enumerate(input_indices):
         call_args[inp] = dyn_data[j]
@@ -192,7 +211,9 @@ class FlexibleShapeDispatch(object):
         A pass that can be applied to a module to add flexible shape handling.
     """
 
-    def __init__(self, dim=0, buckets=[], auto_pad=False, pad_value=0, input_indices=[0], affects_output=True):
+    def __init__(
+        self, dim=0, buckets=[], auto_pad=False, pad_value=0, input_indices=[0], affects_output=True
+    ):
         self.dim = dim
         self.buckets = buckets
         self.auto_pad = auto_pad
@@ -202,4 +223,13 @@ class FlexibleShapeDispatch(object):
         super(FlexibleShapeDispatch, self).__init__()
 
     def __call__(self, mod):
-        return flexible_dispatch(mod, self.dim, self.buckets, self.auto_pad, self.pad_value, self.input_indices, self.affects_output)
+        mod = relay.transform.InferType()(mod)
+        return flexible_dispatch(
+            mod,
+            self.dim,
+            self.buckets,
+            self.auto_pad,
+            self.pad_value,
+            self.input_indices,
+            self.affects_output,
+        )
