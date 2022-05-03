@@ -24,15 +24,15 @@
 #ifndef TVM_RUNTIME_METADATA_H_
 #define TVM_RUNTIME_METADATA_H_
 
-#include <inttypes.h>
-#include <memory>
-#include <string>
-#include <vector>
-
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/metadata_base.h>
 #include <tvm/runtime/metadata_types.h>
+#include <tvm/runtime/object.h>
 #include <tvm/support/span.h>
+
+#include <memory>
+#include <string>
+#include <vector>
 
 // Version number recorded in emitted artifacts for runtime checking.
 #define TVM_METADATA_VERSION 1
@@ -49,8 +49,6 @@ static const constexpr int64_t kMetadataVersion = TVM_METADATA_VERSION;
 }  // namespace runtime
 }  // namespace tvm
 
-
-#include <tvm/runtime/object.h>
 namespace tvm {
 namespace runtime {
 namespace metadata {
