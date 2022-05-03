@@ -2800,7 +2800,7 @@ class OperatorConverter(object):
         weights_dict["cell_state"] = _op.split(cell_state_in_expr, 1)[0]
 
         # Process weight matrix of input: w_inp
-        # Concatenate of [input_input_weight, input_forget_weights, 
+        # Concatenate of [input_input_weight, input_forget_weights,
         # input_cell_weights, input_output_weights]
         input_input_weights_default_values = self.get_tensor_value(input_input_weights)
         input_input_weights_op = _op.split(
@@ -2826,7 +2826,7 @@ class OperatorConverter(object):
             axis=0,
         )
 
-        # Process weight matrix of hidden state: 
+        # Process weight matrix of hidden state:
         # w_hid to support lstm_cell function. Not used in tflite
         recurrent_input_weights_values = self.get_tensor_value(recurrent_input_weights)
         recurrent_input_weights_op = _op.split(
@@ -2871,7 +2871,7 @@ class OperatorConverter(object):
             axis=0,
         )
 
-        # Process weight matrix of hidden bias: 
+        # Process weight matrix of hidden bias:
         # b_hid (with the same shape as b_inp)
         gate_bias_dtype = self.get_tensor_type_str(input_gate_bias.tensor.Type())
         weights_dict["b_hid"] = _op.split(
