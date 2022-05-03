@@ -185,26 +185,6 @@ class Parse:
     """Parse tuning configuration from user inputs."""
 
     @staticmethod
-    def _logger(name: str, **kwargs) -> logging.Logger:
-        if "log_dir" not in kwargs:
-            raise ValueError("Cannot find log directory `log_dir` in the logging configuration!")
-        logger = logging.getLogger(name)  # pylint: disable=redefined-outer-name
-        handler = logging.FileHandler(osp.join(kwargs["log_dir"], name + ".log"))
-        logger.addHandler(handler)
-        if "propagate" in kwargs:
-            logger.propagate = kwargs["propagate"]
-        if "formatter" in kwargs:
-            handler.setFormatter(kwargs["formatter"])
-        if "task_level" in kwargs:
-            logger.setLevel(getattr(logging, kwargs["task_level"]))
-        if "task_stream" in kwargs and kwargs["task_stream"]:
-            stream_handler = logging.StreamHandler()
-            stream_handler.setFormatter(kwargs["formatter"])
-            logger.addHandler(stream_handler)
-        logger.info("Log printing %s to %s", name, osp.join(kwargs["log_dir"], name + ".log"))
-        return logger
-
-    @staticmethod
     @register_func("tvm.meta_schedule.tune.parse_mod")  # for use in ApplyHistoryBest
     def _mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
         if isinstance(mod, PrimFunc):
@@ -458,7 +438,7 @@ class TuneConfig(NamedTuple):
             p_config = {"version": 1, "disable_existing_loggers": disable_existing_loggers}
             for k, v in config.items():
                 if k in ["formatters", "handlers", "loggers"]:
-                    p_config[k] = batch_parameterize_config(v, params)
+                    p_config[k] = batch_parameterize_config(v, params)  # type: ignore
                 else:
                     p_config[k] = v
             logging.config.dictConfig(p_config)
