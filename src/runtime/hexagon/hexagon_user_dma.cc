@@ -68,14 +68,10 @@ int hexagon_user_dma_1d_sync_helper(void* dst, void* src, uint32_t length) {
 
   void* dma_desc = nullptr;
 
-#ifdef _WIN32
-  dma_desc = _aligned_malloc(DMA_DESC_2D_SIZE, DMA_DESC_2D_SIZE);
-#else
   int ret = posix_memalign(&dma_desc, DMA_DESC_2D_SIZE, DMA_DESC_2D_SIZE);
   if (ret) {
     return DMA_FAILURE;
   }
-#endif
 
   if (!dma_desc) {
     return DMA_FAILURE;
@@ -98,20 +94,13 @@ int hexagon_user_dma_1d_sync_helper(void* dst, void* src, uint32_t length) {
   unsigned int status = dmwait() & DM0_STATUS_MASK;
   unsigned int done = dma_desc_get_done(dma_desc);
 
-#ifdef _WIN32
-  _aligned_free(dma_desc);
-#else
   free(dma_desc);
-#endif
 
   if (status == DM0_STATUS_IDLE && done == DESC_DONE_COMPLETE) {
     return DMA_SUCCESS;
   }
-  return DMA_FAILURE;
-#else
-  memcpy(dst, src, length);
-  return DMA_SUCCESS;
 #endif
+  return DMA_FAILURE;
 }
 
 int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length) {

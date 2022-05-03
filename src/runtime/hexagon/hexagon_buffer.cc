@@ -52,26 +52,15 @@ struct Allocation {
 
 struct DDRAllocation : public Allocation {
   DDRAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
-#ifdef _WIN32
-    data_ = _aligned_malloc(nbytes, alignment);
-    CHECK(data_ != nullptr);
-#else
     int ret = posix_memalign(&data_, alignment, nbytes);
     CHECK_EQ(ret, 0);
-#endif
   }
-  ~DDRAllocation() {
-#ifdef _WIN32
-    _aligned_free(data_);
-#else
-    free(data_);
-#endif
-  }
+  ~DDRAllocation() { free(data_); }
 };
 
-#if defined(__hexagon__)
 struct VTCMAllocation : public Allocation {
   VTCMAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
+#if defined(__hexagon__)
     compute_res_attr_t res_info;
     HEXAGON_SAFE_CALL(HAP_compute_res_attr_init(&res_info));
 
@@ -94,20 +83,16 @@ struct VTCMAllocation : public Allocation {
       LOG(ERROR) << "ERROR: Unable to acquire requeisted resource.";
       return;
     }
-    // LOG(INFO) << "VTCMAllocation() - Context ID: " << context_id_ << ", VTCM ptr: " << data_;
+#endif
   }
   ~VTCMAllocation() {
-    // LOG(INFO) << "~VTCMAllocation() - Context ID: " << context_id_ << ", VTCM ptr: " << data_;
+#if defined(__hexagon__)
     HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
     data_ = nullptr;
+#endif
   }
   unsigned int context_id_{0};
 };
-#else
-struct VTCMAllocation : public DDRAllocation {
-  VTCMAllocation(size_t nbytes, size_t alignment) : DDRAllocation(nbytes, alignment) {}
-};
-#endif
 
 template <HexagonBuffer::StorageScope S>
 std::unique_ptr<Allocation> Allocator(size_t nbytes, size_t alignment);
