@@ -228,10 +228,9 @@ class Target(Object):
         - A Python dictionary binding the target 'kind' and other attributes."""
         if target is None:
             return None
-        elif isinstance(target, Target):
+        if isinstance(target, Target):
             return target
-        else:
-            return Target(target)
+        return Target(target)
 
     @staticmethod
     def canonicalize_multi_targets(multi_targets):
@@ -245,15 +244,14 @@ class Target(Object):
            a target-like object in a form recognized by canonicalize_target."""
         if multi_targets is None:
             return None
-        elif isinstance(multi_targets, (dict, Map)) and "kind" not in multi_targets:
+        if isinstance(multi_targets, (dict, Map)) and "kind" not in multi_targets:
             # Convert legacy heterogeneous map representation to ordinary list of targets.
             return Target.canonicalize_multi_targets([t for _, t in multi_targets.items()])
-        elif isinstance(multi_targets, (list, Array)):
+        if isinstance(multi_targets, (list, Array)):
             # Multiple Target results.
             return convert([Target.canonicalize_target(t) for t in multi_targets])
-        else:
-            # Single Target result.
-            return convert([Target.canonicalize_target(multi_targets)])
+        # Single Target result.
+        return convert([Target.canonicalize_target(multi_targets)])
 
     @staticmethod
     def canonicalize_target_and_host(target, target_host=None):
@@ -269,13 +267,12 @@ class Target(Object):
         target_host = Target.canonicalize_target(target_host)
         if target_host is None:
             return raw_targets
-        else:
-            warnings.warn(
-                "target_host parameter is going to be deprecated. "
-                "Please pass in tvm.target.Target(target, host=target_host) instead."
-            )
-            # Make sure the (canonical) host is captured in all the (canonical) targets.
-            return convert([Target(t, target_host) for t in raw_targets])
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
+        )
+        # Make sure the (canonical) host is captured in all the (canonical) targets.
+        return convert([Target(t, target_host) for t in raw_targets])
 
     @staticmethod
     def check_and_update_host_consist(target, host=None, target_is_dict_key=True):

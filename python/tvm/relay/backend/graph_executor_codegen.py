@@ -36,7 +36,6 @@ contrib.graph_executor or any other TVM runtime compatible systems.
 from tvm.runtime.ndarray import empty
 from tvm.relay import _build_module
 from tvm.target import Target
-from tvm.tir import expr as _expr
 from .utils import mangle_module_name
 
 
