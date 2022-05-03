@@ -17,6 +17,7 @@
 """User-facing Tuning API"""
 # pylint: disable=import-outside-toplevel
 import logging
+import logging.config
 import os
 from os import path as osp
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
@@ -44,7 +45,7 @@ from .search_strategy import EvolutionarySearch, ReplayFunc, ReplayTrace
 from .space_generator import PostOrderApply, SpaceGenerator
 from .task_scheduler import GradientBased, RoundRobin
 from .tune_context import TuneContext
-from .utils import autotvm_silencer
+from .utils import autotvm_silencer, batch_parameterize_config
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -440,9 +441,109 @@ class TuneConfig(NamedTuple):
             **config,
         )
 
-    def create_logger_config(self, **kwargs):
-        config = kwargs if self.logger_config is None else self.logger_config
-        return {**kwargs, **config}
+    def create_loggers(
+        self,
+        task_names: List[str],
+        work_dir: str,
+        logger_name_pattern: str,
+        config: Optional[Dict[str, Any]] = None,
+    ):
+        """Create loggers"""
+
+        def config_parameterized_loggers(
+            config: Dict[str, Any],
+            params: List[Dict[str, str]],
+            disable_existing_loggers: bool = False,
+        ):
+            p_config = {"version": 1, "disable_existing_loggers": disable_existing_loggers}
+            for k, v in config.items():
+                if k in ["formatters", "handlers", "loggers"]:
+                    p_config[k] = batch_parameterize_config(v, params)
+                else:
+                    p_config[k] = v
+            logging.config.dictConfig(p_config)
+
+        log_dir = osp.join(work_dir, "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        params = [
+            {
+                "log_dir": log_dir,
+                "logger_name": logger_name_pattern.format(task_id=i, task_name=name),
+            }
+            for i, name in enumerate(task_names)
+        ]
+
+        global_logger_name = "tvm.meta_schedule"
+        if config is None:
+            config = {}
+        config.setdefault("loggers", {})
+        config.setdefault("handlers", {})
+        config.setdefault("formatters", {})
+
+        config["loggers"].setdefault(
+            global_logger_name,
+            {
+                "level": "INFO",
+                "handlers": [global_logger_name + ".console", global_logger_name + ".file"],
+                "propagate": False,
+            },
+        )
+        config["loggers"].setdefault(
+            "{logger_name}",
+            {
+                "level": "INFO",
+                "handlers": [
+                    "{logger_name}.file",
+                ],
+                "propagate": False,
+            },
+        )
+        config["handlers"].setdefault(
+            global_logger_name + ".console",
+            {
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",
+                "formatter": "tvm.meta_schedule.standard_formatter",
+            },
+        )
+        config["handlers"].setdefault(
+            global_logger_name + ".file",
+            {
+                "class": "logging.FileHandler",
+                "filename": "{log_dir}/" + f"{global_logger_name}.tune.task_scheduler.log",
+                "mode": "a",
+                "level": "INFO",
+                "formatter": "tvm.meta_schedule.standard_formatter",
+            },
+        )
+        config["handlers"].setdefault(
+            "{logger_name}.file",
+            {
+                "class": "logging.FileHandler",
+                "filename": "{log_dir}/{logger_name}.log",
+                "mode": "a",
+                "level": "INFO",
+                "formatter": "tvm.meta_schedule.standard_formatter",
+            },
+        )
+        config["formatters"].setdefault(
+            "tvm.meta_schedule.standard_formatter",
+            {
+                "format": "%(asctime)s.%(msecs)03d %(levelname)s %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S",
+            },
+        )
+
+        config_parameterized_loggers(config, params)
+
+        global_logger = logging.getLogger("tvm.meta_schedule")
+        if global_logger.level not in [logging.DEBUG, logging.INFO]:
+            global_logger.critical(
+                "Logging level set to %s, please set to logging.INFO"
+                " or logging.DEBUG to view full log.",
+                logging._levelToName[logger.level],  # pylint: disable=protected-access
+            )
+        global_logger.info("Logging directory: %s", log_dir)
 
 
 def tune_extracted_tasks(
@@ -460,6 +561,8 @@ def tune_extracted_tasks(
     postprocs: Optional[FnPostproc] = None,
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
+    logger_name_pattern: Optional[str] = None,
+    logger_config: Optional[Dict[str, Any]] = None,
 ) -> Database:
     """Tune extracted tasks with a given target.
 
@@ -501,28 +604,17 @@ def tune_extracted_tasks(
 
     """
     # pylint: disable=protected-access
-    log_dir = osp.join(work_dir, "logs")
-    os.makedirs(log_dir, exist_ok=True)
-    logger_config = config.create_logger_config(
-        log_dir=log_dir,
-        propagate=False,
-        task_level="INFO",
-        task_stream=False,
-        formatter=logging.Formatter(
-            "%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-        ),
+    if logger_name_pattern is None:
+        max_width = len(str(len(extracted_tasks) - 1))
+        logger_name_pattern = __name__ + ".task_{task_id:0" + f"{max_width}" + "d}_{task_name}"
+
+    config.create_loggers(
+        work_dir=work_dir,
+        task_names=[task.task_name for task in extracted_tasks],
+        logger_name_pattern=logger_name_pattern,
+        config=logger_config,
     )
-    global_logger = logging.getLogger("tvm.meta_schedule")
-    global_logger.addHandler(
-        logging.FileHandler(osp.join(log_dir, "tvm.meta_schedule.task_scheduler.log"))
-    )
-    if global_logger.level not in [logging.DEBUG, logging.INFO]:
-        global_logger.critical(
-            "Logging level set to %s, please set to logging.INFO"
-            " or logging.DEBUG to view full log.",
-            logging._levelToName[logger.level],
-        )
-    logger.info("Logging directory: %s", log_dir)
+    # logger = logging.getLogger(__name__)
     logger.info("Working directory: %s", work_dir)
     database = Parse._database(database, work_dir)
     builder = Parse._builder(builder)
@@ -531,7 +623,6 @@ def tune_extracted_tasks(
     measure_callbacks = Parse._callbacks(measure_callbacks)
     # parse the tuning contexts
     tune_contexts = []
-    max_width = len(str(len(extracted_tasks) - 1))
     for i, task in enumerate(extracted_tasks):
         assert len(task.dispatched) == 1, "Only size 1 dispatched task list is supported for now"
         tune_contexts.append(
@@ -544,11 +635,8 @@ def tune_extracted_tasks(
                 postprocs=Parse._postproc(postprocs, task.target),
                 mutator_probs=Parse._mutator_probs(mutator_probs, task.target),
                 task_name=task.task_name,
-                logger=Parse._logger(
-                    name=__name__
-                    + "."
-                    + "_".join(["task", str(i).zfill(max_width), task.task_name]),
-                    **logger_config,
+                logger=logging.getLogger(
+                    logger_name_pattern.format(task_id=i, task_name=task.task_name)
                 ),
                 num_threads=num_threads,
             )
