@@ -747,7 +747,7 @@ class MetadataSerializer : public AttrVisitor {
  public:
   void CodegenMetadata(::tvm::runtime::metadata::Metadata metadata) {
     decl_ << "#include <inttypes.h>" << std::endl
-          << "#include <tvm/runtime/metadata.h>" << std::endl
+          << "#include <tvm/runtime/metadata_types.h>" << std::endl
           << "#include <tvm/runtime/c_runtime_api.h>" << std::endl;
     std::vector<metadata::DiscoverArraysVisitor::DiscoveredArray> queue;
     metadata::DiscoverArraysVisitor array_discover{&queue};

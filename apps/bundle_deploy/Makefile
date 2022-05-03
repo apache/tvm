@@ -33,8 +33,7 @@ PKG_CXXFLAGS = ${PKG_COMPILE_OPTS} -std=c++14 \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \
 	-Icrt_config \
-	-DDMLC_USE_LOGGING_LIBRARY=\<tvm/runtime/logging.h\> \
-	-DTVM_IS_CPP_RUNTIME
+	-DDMLC_USE_LOGGING_LIBRARY=\<tvm/runtime/logging.h\>
 PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \

@@ -30,7 +30,7 @@ extern "C" {
 
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/crt/internal/common/ndarray.h>
-#include <tvm/runtime/metadata.h>
+#include <tvm/runtime/metadata_types.h>
 
 typedef struct TVMMetadata TVMMetadata;
 
