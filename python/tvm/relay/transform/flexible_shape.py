@@ -26,8 +26,8 @@ def override_shape(ty, dim, value):
 
 
 def specialize_body(mod, fn, dim, value, input_indices=[0], affects_output=True):
-    """Create a subgraph to handle a specific input shape"""
-    # Iterate through specified inputs and construct specialized shapes.
+    """Create a subgraph to handle specific input shapes"""
+    # Iterate through specified inputs and construct specialized shapes for each.
     new_params = list(fn.params)
     data_binding = {}
     dyn_data_array = []
@@ -39,6 +39,7 @@ def specialize_body(mod, fn, dim, value, input_indices=[0], affects_output=True)
         data_binding[data] = dyn_data
         dyn_data_array.append(dyn_data)
 
+    # Create a new function body for the modified shapes.
     new_body = relay.expr.bind(fn.body, data_binding)
     # Only change the output shape if the input shape affects it.
     if affects_output:
@@ -46,6 +47,7 @@ def specialize_body(mod, fn, dim, value, input_indices=[0], affects_output=True)
     else:
         new_ret_ty = fn.ret_type
     gvar = relay.GlobalVar("main_" + str(value))
+    # Add the new function to the main IRModule.
     mod[gvar] = relay.Function(new_params, new_body, new_ret_ty, fn.type_params, fn.attrs)
     return gvar, [d.type_annotation for d in dyn_data_array]
 
@@ -54,18 +56,41 @@ def flexible_dispatch(
     mod, dim=0, buckets=[], auto_pad=False, pad_value=0, input_indices=[0], affects_output=True
 ):
     """
-    Implement a batching transform for Relay.
+    Enable inference of multiple shaped inputs in one module.
 
-    Constructs a tree which splits on the batch dimension dispatching
-    to specialized versions of Relay code which execute for each batch
-    dimension.
+    This transformation adds a handler around a module that
+    checks input shapes and dispatches to a subgraph specialized
+    to handle the specific shapes of that input. If no exactly matching
+    subgraph is available, the input will be run using full dynamism.
+    For best performance, specify all the sizes the module will
+    be likely to see using the buckets argument.
 
-    This enables us to ship a single Relay model which supports performance
-    specialization for a batch dimension without needing Relax and defaults
-    to a slow but reliable performance path.
+    Parameters
+    ----------
+    dim: int
+        The dimension of the input that should be made flexible. This will
+        most often be used for the batch dimension.
+    buckets: list[int]
+        The sizes of the input dimension that should be explicitly handled.
+        Each value in buckets will have a corresponding subgraph constructed to
+        handle it.
+    auto_pad: Optional[bool]
+        If True, then padding will be inserted to values that don't match one of
+        the provided buckets.
+    pad_value: Optional[float]
+        When auto_pad is true, padding will be done with this value.
+    input_indices: Optional[List[int]]
+        Which inputs should be dispatched dynamically, provided by index. All inputs
+        must share the same dynamic axis.
+    affects_output: Optional[bool]
+        Whether the change in input shape has a corresponding effect on the output shape.
+        Batching for example effects both the input and output whereas changing sequence
+        length in an NLP model typically does not.
 
-    This also allows for us to tune all batch sizes in a single program
-    increasing effectiveness of TRS or other caching by filling/hitting.
+    Returns
+    -------
+    mod : IRModule
+        The new module wrapped with a flexible shape dispatch handler.
     """
     main_fn = mod["main"]
 
@@ -153,23 +178,26 @@ def flexible_dispatch(
         call_args[inp] = dyn_data[j]
     new_body = default_dyn_call(*call_args)
 
+    # Create an If chain to dispatch shapes to the appropriate specialized subgraph.
     for cond, true_branch in if_exprs:
         new_body = relay.If(cond, true_branch, new_body)
 
+    # Assign new parameters to the function.
     new_params = list(main_fn.params)
     for j, inp in enumerate(input_indices):
         new_params[inp] = dyn_data[j]
 
+    # Update the output shape to be dynamic if needed.
     if affects_output:
         dyn_ret_type = override_shape(main_fn.ret_type, dim, relay.Any())
     else:
         dyn_ret_type = main_fn.ret_type
 
+    # Assign the handler as the new entrypoint in the module.
     new_main = relay.Function(
         new_params, new_body, dyn_ret_type, main_fn.type_params, main_fn.attrs
     )
     mod["main"] = new_main
-    mod = relay.transform.InferType()(mod)
     return mod
 
 
@@ -223,6 +251,7 @@ class FlexibleShapeDispatch(object):
         super(FlexibleShapeDispatch, self).__init__()
 
     def __call__(self, mod):
+        # Shape information is required for this pass.
         mod = relay.transform.InferType()(mod)
         return flexible_dispatch(
             mod,
