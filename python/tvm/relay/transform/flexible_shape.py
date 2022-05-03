@@ -14,20 +14,61 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, dangerous-default-value
 """Relay functions for wrapping a module with flexible shape dispatch."""
 from tvm import relay
 
 
 def override_shape(tensor_type, dim, value):
-    """Change a value in a tensor shape."""
+    """Change a dimension in a tensor shape."""
     new_dims = list(tensor_type.shape)
     new_dims[dim] = value
     return relay.TensorType(new_dims, tensor_type.dtype)
 
 
-def specialize_body(mod, function, dim, value, input_indices=[0], affects_output=True):
-    """Create a subgraph to handle specific input shapes"""
+def specialize_body(mod, function, dim, value, input_indices, affects_output=True):
+    """
+    Create a subgraph to handle specific input shapes
+
+    This function takes in a module and one of it's functions and creates a
+    similar function with a specific input shape. It then attaches the new function
+    to the module. Calling this function multiple times results in a module that
+    contains several similar functions each specialized to a specific input shape.
+    This allows a dispatch handler to be built on top of the module to deal with
+    flexible shapes.
+
+    There are a few modes to this function. When the specialized function has multiple
+    flexible inputs, the index of those inputs must be provided to the input_indices argument.
+    In this case, the axis of the flexible dimension for each of those inputs must be the same.
+
+    By default, this function assumes that the output shape is dependent on the input
+    shape (as is the case in dynamic batching) and will also specialize the output type
+    accordingly. If this is not true, the affects_output argument must be set to False.
+
+    Parameters
+    ----------
+    mod: IRModule
+        The module that contains specialized functions and the dispatcher.
+    function: Function
+        The original non-specialized function that will be transformed.
+    dim: int
+        Which axis the flexible shape is on.
+    value: int
+        The shape to specialize the new subgraph for along the axis dim.
+    input_indices: List[int]
+        Which inputs should be dispatched dynamically, provided by index. All inputs
+        must share the same dynamic axis.
+    affects_output: Optional[bool]
+        Whether the change in input shape has a corresponding effect on the output shape.
+        Batching for example effects both the input and output whereas changing sequence
+        length in an NLP model typically does not.
+
+    Returns
+    -------
+    gvar : GlobalVar
+        The new variable for the specialized subgraph.
+    spec_types : List[TensorType]
+        A list of the new specialized types for each input in the graph.
+    """
     # Iterate through specified inputs and construct specialized shapes for each.
     new_params = list(function.params)
     data_binding = {}
@@ -56,7 +97,7 @@ def specialize_body(mod, function, dim, value, input_indices=[0], affects_output
 
 
 def flexible_dispatch(
-    mod, dim=0, buckets=[1], auto_pad=False, pad_value=0, input_indices=[0], affects_output=True
+    mod, buckets, dim=0, auto_pad=False, pad_value=0, input_indices=None, affects_output=True
 ):
     """
     Enable inference of multiple shaped inputs in one module.
@@ -68,15 +109,32 @@ def flexible_dispatch(
     For best performance, specify all the sizes the module will
     be likely to see using the buckets argument.
 
+    By default, this function will dispatch shapes that exactly match one
+    of the buckets to a corresponding subgraph. All non-matching shapes
+    use the same fully dynamic fallback. This can be detrimental to performance
+    for those non-matching shapes. Setting auto_pad to True causes this
+    function to round-up the shape of non-matching inputs to the closest
+    bucket. This allows them to use the tuned kernels of bucket shapes
+    which can improve performance.
+
+    Functions that have multiple inputs sharing a dynamic axis, which
+    is common for batch size or sequence length dynamism, are supported
+    through the input_indices argument.
+
+    Many types of dynamism such as batching affect both the input and output
+    shape, however this is not always the case. If the output shape
+    is independent of the input, the affects_output argument of this
+    function must be set to False.
+
     Parameters
     ----------
-    dim: int
-        The dimension of the input that should be made flexible. This will
-        most often be used for the batch dimension.
     buckets: list[int]
         The sizes of the input dimension that should be explicitly handled.
         Each value in buckets will have a corresponding subgraph constructed to
         handle it.
+    dim: int
+        The dimension of the input that should be made flexible. This will
+        most often be used for the batch dimension.
     auto_pad: Optional[bool]
         If True, then padding will be inserted to values that don't match one of
         the provided buckets.
@@ -96,6 +154,10 @@ def flexible_dispatch(
         The new module wrapped with a flexible shape dispatch handler.
     """
     main_fn = mod["main"]
+
+    # Default to single input if not specified.
+    if input_indices is None:
+        input_indices = [0]
 
     # Extract all input data and create a new dynamic variable for each.
     data = []
@@ -214,15 +276,32 @@ class FlexibleShapeDispatch(object):
     For best performance, specify all the sizes the module will
     be likely to see using the buckets argument.
 
+    By default, this pass will dispatch shapes that exactly match one
+    of the buckets to a corresponding subgraph. All non-matching shapes
+    use the same fully dynamic fallback. This can be detrimental to performance
+    for those non-matching shapes. Setting auto_pad to True causes this
+    pass to round-up the shape of non-matching inputs to the closest
+    bucket. This allows them to use the tuned kernels of bucket shapes
+    which can improve performance.
+
+    Models that have multiple inputs sharing a dynamic axis, which
+    is common for batch size or sequence length dynamism, are supported
+    through the input_indices argument.
+
+    Many types of dynamism such as batching affect both the input and output
+    shape, however this is not always the case. If the output shape
+    is independent of the input, the affects_output argument of this
+    pass must be set to False.
+
     Parameters
     ----------
-    dim: int
-        The dimension of the input that should be made flexible. This will
-        most often be used for the batch dimension.
     buckets: list[int]
         The sizes of the input dimension that should be explicitly handled.
         Each value in buckets will have a corresponding subgraph constructed to
         handle it.
+    dim: int
+        The dimension of the input that should be made flexible. This will
+        most often be used for the batch dimension.
     auto_pad: Optional[bool]
         If True, then padding will be inserted to values that don't match one of
         the provided buckets.
@@ -244,11 +323,11 @@ class FlexibleShapeDispatch(object):
 
     def __init__(
         self,
+        buckets,
         dim=0,
-        buckets=[1],
         auto_pad=False,
         pad_value=0,
-        input_indices=[0],
+        input_indices=None,
         affects_output=True,
     ):
         self.dim = dim
@@ -264,8 +343,8 @@ class FlexibleShapeDispatch(object):
         mod = relay.transform.InferType()(mod)
         return flexible_dispatch(
             mod,
-            self.dim,
             self.buckets,
+            self.dim,
             self.auto_pad,
             self.pad_value,
             self.input_indices,
