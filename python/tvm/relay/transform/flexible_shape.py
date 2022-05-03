@@ -18,14 +18,14 @@
 from tvm import relay
 
 
-def override_shape(tensor_type, dim, value):
+def override_shape(tensor_type, axis, dim):
     """Change a dimension in a tensor shape."""
     new_dims = list(tensor_type.shape)
-    new_dims[dim] = value
+    new_dims[axis] = dim
     return relay.TensorType(new_dims, tensor_type.dtype)
 
 
-def specialize_body(mod, function, dim, value, input_indices, affects_output=True):
+def specialize_body(mod, function, axis, dim, input_indices, affects_output=True):
     """
     Create a subgraph to handle specific input shapes
 
@@ -50,9 +50,9 @@ def specialize_body(mod, function, dim, value, input_indices, affects_output=Tru
         The module that contains specialized functions and the dispatcher.
     function: Function
         The original non-specialized function that will be transformed.
-    dim: int
+    axis: int
         Which axis the flexible shape is on.
-    value: int
+    dim: int
         The shape to specialize the new subgraph for along the axis dim.
     input_indices: List[int]
         Which inputs should be dispatched dynamically, provided by index. All inputs
@@ -75,7 +75,7 @@ def specialize_body(mod, function, dim, value, input_indices, affects_output=Tru
     dyn_data_array = []
     for inp in input_indices:
         data = function.params[inp]
-        flex_ty = override_shape(data.type_annotation, dim, value)
+        flex_ty = override_shape(data.type_annotation, axis, dim)
         dyn_data = relay.Var(data.name_hint, type_annotation=flex_ty)
         new_params[inp] = dyn_data
         data_binding[data] = dyn_data
@@ -85,10 +85,10 @@ def specialize_body(mod, function, dim, value, input_indices, affects_output=Tru
     new_body = relay.expr.bind(function.body, data_binding)
     # Only change the output shape if the input shape affects it.
     if affects_output:
-        new_ret_ty = override_shape(function.ret_type, dim, value)
+        new_ret_ty = override_shape(function.ret_type, axis, dim)
     else:
         new_ret_ty = function.ret_type
-    gvar = relay.GlobalVar("main_" + str(value))
+    gvar = relay.GlobalVar("main_" + str(dim))
     # Add the new function to the main IRModule.
     mod[gvar] = relay.Function(
         new_params, new_body, new_ret_ty, function.type_params, function.attrs
@@ -97,7 +97,7 @@ def specialize_body(mod, function, dim, value, input_indices, affects_output=Tru
 
 
 def flexible_dispatch(
-    mod, buckets, dim=0, auto_pad=False, pad_value=0, input_indices=None, affects_output=True
+    mod, buckets, axis=0, auto_pad=False, pad_value=0, input_indices=None, affects_output=True
 ):
     """
     Enable inference of multiple shaped inputs in one module.
@@ -132,7 +132,7 @@ def flexible_dispatch(
         The sizes of the input dimension that should be explicitly handled.
         Each value in buckets will have a corresponding subgraph constructed to
         handle it.
-    dim: int
+    axis: int
         The dimension of the input that should be made flexible. This will
         most often be used for the batch dimension.
     auto_pad: Optional[bool]
@@ -164,12 +164,12 @@ def flexible_dispatch(
     dyn_data = []
     for i in input_indices:
         data.append(main_fn.params[i])
-        dyn_shape = override_shape(data[i].type_annotation, dim, relay.Any())
+        dyn_shape = override_shape(data[i].type_annotation, axis, relay.Any())
         dyn_data.append(relay.Var(data[i].name_hint, type_annotation=dyn_shape))
 
     # Extract the dynamic shape value from one of the inputs.
     rt_sh = relay.op.shape_of(dyn_data[0])
-    flex_value = relay.op.take(rt_sh, relay.const(dim))
+    flex_value = relay.op.take(rt_sh, relay.const(axis))
 
     if_exprs = []
 
@@ -185,7 +185,7 @@ def flexible_dispatch(
                 pad_width = relay.const(bucket) - flex_value
                 rank = len(data[j].type_annotation.shape)
                 pads = relay.zeros([rank, 2], "int32")
-                pads = relay.scatter_nd(pads, relay.const([dim, 1]), pad_width)
+                pads = relay.scatter_nd(pads, relay.const([axis, 1]), pad_width)
                 padded_value = relay.nn.pad(inp, pads, pad_value)
 
                 # Determine if this is the proper bucket to pad to. Do this by checking if the
@@ -206,11 +206,11 @@ def flexible_dispatch(
                 # Update input value and test dimension to reflect possible padding.
                 input_data.append(padded_value)
             # Grab the new possibly padded shape for checking bucket size.
-            check_dim = relay.op.take(relay.op.shape_of(input_data[0]), relay.const(dim))
+            check_dim = relay.op.take(relay.op.shape_of(input_data[0]), relay.const(axis))
 
         # Create a specialized subgraph for the current bucket.
         spec_call, spec_ty = specialize_body(
-            mod, main_fn, dim, bucket, input_indices=input_indices, affects_output=affects_output
+            mod, main_fn, axis, bucket, input_indices=input_indices, affects_output=affects_output
         )
         # Apply hard casting to shape to create statically typed graphs.
         spec_data = []
@@ -228,7 +228,7 @@ def flexible_dispatch(
             new_call = relay.take(
                 new_call,
                 relay.arange(start=relay.const(0), stop=flex_value, dtype="int32"),
-                axis=dim,
+                axis=axis,
             )
 
         # Add this new case to the dispatch handler.
@@ -236,7 +236,7 @@ def flexible_dispatch(
 
     # Create a subgraph to handle all other shapes.
     default_dyn_call, _ = specialize_body(
-        mod, main_fn, dim, relay.Any(), input_indices=input_indices, affects_output=affects_output
+        mod, main_fn, axis, relay.Any(), input_indices=input_indices, affects_output=affects_output
     )
     call_args = list(main_fn.params)
     for j, inp in enumerate(input_indices):
@@ -254,7 +254,7 @@ def flexible_dispatch(
 
     # Update the output shape to be dynamic if needed.
     if affects_output:
-        dyn_ret_type = override_shape(main_fn.ret_type, dim, relay.Any())
+        dyn_ret_type = override_shape(main_fn.ret_type, axis, relay.Any())
     else:
         dyn_ret_type = main_fn.ret_type
 
@@ -299,7 +299,7 @@ class FlexibleShapeDispatch(object):
         The sizes of the input dimension that should be explicitly handled.
         Each value in buckets will have a corresponding subgraph constructed to
         handle it.
-    dim: int
+    axis: int
         The dimension of the input that should be made flexible. This will
         most often be used for the batch dimension.
     auto_pad: Optional[bool]
@@ -324,13 +324,13 @@ class FlexibleShapeDispatch(object):
     def __init__(
         self,
         buckets,
-        dim=0,
+        axis=0,
         auto_pad=False,
         pad_value=0,
         input_indices=None,
         affects_output=True,
     ):
-        self.dim = dim
+        self.axis = axis
         self.buckets = buckets
         self.auto_pad = auto_pad
         self.pad_value = pad_value
@@ -344,7 +344,7 @@ class FlexibleShapeDispatch(object):
         return flexible_dispatch(
             mod,
             self.buckets,
-            self.dim,
+            self.axis,
             self.auto_pad,
             self.pad_value,
             self.input_indices,

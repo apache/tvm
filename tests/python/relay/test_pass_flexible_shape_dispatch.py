@@ -28,7 +28,7 @@ def test_end_to_end():
     # Load a resnet model.
     mod, params = get_workload()
     # Apply flexible dispatch pass.
-    mod = relay.transform.FlexibleShapeDispatch(dim=0, buckets=[1, 4], auto_pad=True)(mod)
+    mod = relay.transform.FlexibleShapeDispatch(axis=0, buckets=[1, 4], auto_pad=True)(mod)
     # Compile and confirm result supports multiple shapes.
     exe = relay.vm.compile(mod, "llvm", params=params)
     vm = runtime.vm.VirtualMachine(exe, tvm.cpu())
@@ -53,7 +53,7 @@ def test_multiple_inputs():
     mod = tvm.IRModule.from_expr(y)
 
     # Apply flexible dispatch to dim 1 for both inputs.
-    mod = relay.transform.FlexibleShapeDispatch(dim=1, buckets=[5, 10], input_indices=[0, 1])(mod)
+    mod = relay.transform.FlexibleShapeDispatch(axis=1, buckets=[5, 10], input_indices=[0, 1])(mod)
 
     # Compile and confirm that output shapes are correct.
     exe = relay.vm.compile(mod, "llvm")
@@ -75,7 +75,7 @@ def test_fixed_output():
 
     # Apply flexible dispatch to dimension 1 for both inputs.
     mod = relay.transform.FlexibleShapeDispatch(
-        dim=1, buckets=[5, 7], input_indices=[0, 1], affects_output=False
+        axis=1, buckets=[5, 7], input_indices=[0, 1], affects_output=False
     )(mod)
 
     # Compile and confirm that output shapes are correct.
