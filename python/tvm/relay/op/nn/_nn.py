@@ -19,7 +19,7 @@
 from __future__ import absolute_import
 import re
 
-from tvm import relay, topi
+from tvm import relay, topi, target
 from tvm.runtime import convert
 from tvm.te.hybrid import script
 from tvm.topi.utils import get_const_tuple
@@ -332,7 +332,7 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     """
     data, weight = inputs
 
-    current_target = tvm.target.Target.current(allow_none = True)
+    current_target = target.Target.current(allow_none = True)
 
     # First check if there is a LayoutConfig scope, and if so, whether
     # it indicates we should ignore this layer or not.
