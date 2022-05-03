@@ -432,7 +432,7 @@ if(USE_GTEST)
         # GTest::gtest.
         get_target_property(GTEST_LIB_PATH GTest::gtest IMPORTED_LOCATION)
         if("${GTEST_LIB_PATH}" STREQUAL "GTEST_LIB_PATH-NOTFOUND")
-          message(FATAL_ERROR "Neither GTest::GTest nor GTets::gtest targets defined IMPORTED_LOCATION")
+          message(FATAL_ERROR "Neither GTest::GTest nor GTest::gtest targets defined IMPORTED_LOCATION")
         endif()
       endif()
       get_filename_component(GTEST_LIB_DIR "${GTEST_LIB_PATH}" DIRECTORY)
