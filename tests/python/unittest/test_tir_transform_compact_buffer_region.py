@@ -423,6 +423,54 @@ def compacted_padding_pattern_func(a: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
+def padding_pattern_inlined(a: T.handle, b: T.handle) -> None:
+    X = T.match_buffer(a, [224, 224], dtype="float32")
+    Y = T.match_buffer(b, [224, 224], dtype="float32")
+    cache = T.alloc_buffer([224, 224], dtype="float32")
+    for h, w in T.grid(224, 224):
+        with T.block("cache"):
+            cache[h, w] = X[h, w]
+    for h, w, kh, kw in T.grid(224, 224, 3, 3):
+        with T.block("compute"):
+            Y[h, w] = T.max(
+                Y[h, w],
+                T.if_then_else(
+                    T.likely(1 <= h + kh, dtype="bool")
+                    and T.likely(h + kh < 225, dtype="bool")
+                    and T.likely(1 <= w + kw, dtype="bool")
+                    and T.likely(w + kw < 225, dtype="bool"),
+                    cache[h + kh - 1, w + kw - 1],
+                    0.0,
+                    dtype="float32",
+                ),
+            )
+
+
+@T.prim_func
+def compacted_padding_pattern_inlined(
+    X: T.Buffer[(224, 224), "float32"], Y: T.Buffer[(224, 224), "float32"]
+) -> None:
+    cache = T.alloc_buffer([224, 224], dtype="float32")
+    for h, w in T.grid(224, 224):
+        with T.block("cache"):
+            cache[h, w] = X[h, w]
+    for h, w, kh, kw in T.grid(224, 224, 3, 3):
+        with T.block("compute"):
+            Y[h, w] = T.max(
+                Y[h, w],
+                T.if_then_else(
+                    T.likely(1 <= h + kh, dtype="bool")
+                    and T.likely(h + kh < 225, dtype="bool")
+                    and T.likely(1 <= w + kw, dtype="bool")
+                    and T.likely(w + kw < 225, dtype="bool"),
+                    cache[h + kh - 1, w + kw - 1],
+                    0.0,
+                    dtype="float32",
+                ),
+            )
+
+
+@T.prim_func
 def mem_access_in_branch_func(a: T.handle) -> None:
     A = T.match_buffer(a, (224, 224), "float32")
     with T.block():
@@ -570,12 +618,12 @@ def compacted_sparse_read_cache(
                     A_data_local = T.alloc_buffer([1], dtype="float32", scope="local")
                     with T.block("A_data_cache_read"):
                         T.reads(A_indptr[i], A_data[A_indptr[i] + k])
-                        T.writes(A_data_local[A_indptr[i] + k - (A_indptr[i] + k)])
-                        A_data_local[A_indptr[i] + k - (A_indptr[i] + k)] = A_data[A_indptr[i] + k]
+                        T.writes(A_data_local[T.min(A_indptr[i] + k, 0)])
+                        A_data_local[T.min(A_indptr[i] + k, 0)] = A_data[A_indptr[i] + k]
                     with T.block("rowsum_inner"):
                         T.reads(B[i], A_indptr[i], A_data[A_indptr[i] + k])
                         T.writes(B[i])
-                        B[i] = B[i] + A_data_local[A_indptr[i] + k - (A_indptr[i] + k)]
+                        B[i] = B[i] + A_data_local[T.min(A_indptr[i] + k, 0)]
 
 
 @T.prim_func
@@ -652,6 +700,10 @@ def test_storage_align():
 
 def test_padding_pattern():
     _check(padding_pattern_func, compacted_padding_pattern_func)
+
+
+def test_padding_pattern_inlined():
+    _check(padding_pattern_inlined, compacted_padding_pattern_inlined)
 
 
 def test_mem_access_in_branch_func():
