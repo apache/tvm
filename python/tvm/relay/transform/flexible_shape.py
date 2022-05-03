@@ -18,21 +18,21 @@
 from tvm import relay
 
 
-def override_shape(ty, dim, value):
+def override_shape(tensor_type, dim, value):
     """Change a value in a tensor shape."""
-    new_dims = list(ty.shape)
+    new_dims = list(tensor_type.shape)
     new_dims[dim] = value
-    return relay.TensorType(new_dims, ty.dtype)
+    return relay.TensorType(new_dims, tensor_type.dtype)
 
 
-def specialize_body(mod, fn, dim, value, input_indices=[0], affects_output=True):
+def specialize_body(mod, function, dim, value, input_indices=[0], affects_output=True):
     """Create a subgraph to handle specific input shapes"""
     # Iterate through specified inputs and construct specialized shapes for each.
-    new_params = list(fn.params)
+    new_params = list(function.params)
     data_binding = {}
     dyn_data_array = []
     for inp in input_indices:
-        data = fn.params[inp]
+        data = function.params[inp]
         flex_ty = override_shape(data.type_annotation, dim, value)
         dyn_data = relay.Var(data.name_hint, type_annotation=flex_ty)
         new_params[inp] = dyn_data
@@ -40,20 +40,22 @@ def specialize_body(mod, fn, dim, value, input_indices=[0], affects_output=True)
         dyn_data_array.append(dyn_data)
 
     # Create a new function body for the modified shapes.
-    new_body = relay.expr.bind(fn.body, data_binding)
+    new_body = relay.expr.bind(function.body, data_binding)
     # Only change the output shape if the input shape affects it.
     if affects_output:
-        new_ret_ty = override_shape(fn.ret_type, dim, value)
+        new_ret_ty = override_shape(function.ret_type, dim, value)
     else:
-        new_ret_ty = fn.ret_type
+        new_ret_ty = function.ret_type
     gvar = relay.GlobalVar("main_" + str(value))
     # Add the new function to the main IRModule.
-    mod[gvar] = relay.Function(new_params, new_body, new_ret_ty, fn.type_params, fn.attrs)
+    mod[gvar] = relay.Function(
+        new_params, new_body, new_ret_ty, function.type_params, function.attrs
+    )
     return gvar, [d.type_annotation for d in dyn_data_array]
 
 
 def flexible_dispatch(
-    mod, dim=0, buckets=[], auto_pad=False, pad_value=0, input_indices=[0], affects_output=True
+    mod, dim=0, buckets=[1], auto_pad=False, pad_value=0, input_indices=[0], affects_output=True
 ):
     """
     Enable inference of multiple shaped inputs in one module.
@@ -240,7 +242,13 @@ class FlexibleShapeDispatch(object):
     """
 
     def __init__(
-        self, dim=0, buckets=[], auto_pad=False, pad_value=0, input_indices=[0], affects_output=True
+        self,
+        dim=0,
+        buckets=[1],
+        auto_pad=False,
+        pad_value=0,
+        input_indices=[0],
+        affects_output=True,
     ):
         self.dim = dim
         self.buckets = buckets
