@@ -855,6 +855,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    * brief Run USMP to plan memory for lowered IRModule
    */
   IRModule PlanMemoryWithUSMP(const IRModule& mod) {
+    VLOG(1) << "Planning memory with USMP for module:" << std::endl << PrettyPrint(mod);
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
     Integer workspace_byte_alignment =
         executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
@@ -870,6 +871,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       for (const tir::usmp::AllocatedPoolInfo& allocated_pool_info : allocated_pool_infos.value()) {
         for (const auto& kv : allocated_pool_info->pool_info->target_access) {
           Target tgt = kv.first;
+          VLOG(1) << "USMP requires target " << tgt->ToDebugString() << " to have pool size "
+                  << allocated_pool_info->allocated_size->value;
           if (main_func_info->workspace_sizes.find(tgt) == main_func_info->workspace_sizes.end()) {
             main_func_info->workspace_sizes.Set(tgt, allocated_pool_info->allocated_size);
           } else {

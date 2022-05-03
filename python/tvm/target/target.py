@@ -225,7 +225,8 @@ class Target(Object):
         - None (to None).
         - An existing TVM Target object.
         - A string.
-        - A Python dictionary binding the target 'kind' and other attributes."""
+        - A Python dictionary binding the target 'kind' and other attributes.
+        """
         if target is None:
             return None
         if isinstance(target, Target):
@@ -236,12 +237,13 @@ class Target(Object):
     def canonicalize_multi_targets(multi_targets):
         """Given a single or collection of target-like objects, returns a TVM Array of Target
         objects representing then. Can convert from:
-         - None (to None).
-         - A single target-like object in a form recognized by canonicalize_target.
-         - A Python list or TVM Array of target-like objects in a form recognized by
-           canonicalize_target.
-         - A Python dict or TVM Map from TVM IntImm objects representing device types to
-           a target-like object in a form recognized by canonicalize_target."""
+        - None (to None).
+        - A single target-like object in a form recognized by canonicalize_target.
+        - A Python list or TVM Array of target-like objects in a form recognized by
+        canonicalize_target.
+        - A Python dict or TVM Map from TVM IntImm objects representing device types to
+        a target-like object in a form recognized by canonicalize_target.
+        """
         if multi_targets is None:
             return None
         if isinstance(multi_targets, (dict, Map)) and "kind" not in multi_targets:
@@ -259,7 +261,8 @@ class Target(Object):
         any form recognized by Target.canonicalize_target or Target.canonicalize_multi_targets. If
         given target_host can be in any form recognized by Target.canonicalize_target. If
         target_host is given it will be set as the 'host' in each result Target object (and a
-        warning given)."""
+        warning given).
+        """
         # Convert target to Array<Target>, but not yet accounting for any host.
         raw_targets = Target.canonicalize_multi_targets(target)
         assert raw_targets is not None
@@ -616,7 +619,7 @@ def hexagon(cpu_ver="v66", **kwargs):
     # Check for valid codegen cpu
     valid_hex = ["v65", "v66", "v67", "v67t", "v68", "v69"]
     try:
-        cpu_ver = cpu_ver[cpu_ver.index("v") :].lower()
+        cpu_ver = cpu_ver[cpu_ver.index("v"):].lower()
         assert cpu_ver in valid_hex
     except:
         msg = "{} is not a valid Hexagon version\nvalid versions include {}"
@@ -684,7 +687,7 @@ def hexagon(cpu_ver="v66", **kwargs):
                 # If --hvx_length was specified, check HVX length of sim
                 # vs codegen
                 i = sim_options.index("hvx_length") + len("hvx_length") + 1
-                sim_hvx = sim_options[i : i + 3]
+                sim_hvx = sim_options[i: i + 3]
                 if sim_hvx != str(codegen_hvx):
                     msg = "sim hvx {} and codegen hvx {} mismatch!".format(sim_hvx, codegen_hvx)
                     # Set the stacklevel to the tvm.target.hexagon() call.
@@ -712,9 +715,9 @@ def hexagon(cpu_ver="v66", **kwargs):
 
             # Regex match for allowed cpus
             valid_cpu_str_regex = (
-                r"(?P<pre>--.*\s)?(--m)?"
-                + r"(?P<base_version>v6[25678])(?P<sub_version>[a-z])?"
-                + r"(?P<l2_size>_[0-9]+)?(?P<rev>_rev[0-9])?\s?(?P<post>--.*)?"
+                    r"(?P<pre>--.*\s)?(--m)?"
+                    + r"(?P<base_version>v6[25678])(?P<sub_version>[a-z])?"
+                    + r"(?P<l2_size>_[0-9]+)?(?P<rev>_rev[0-9])?\s?(?P<post>--.*)?"
             )
             m = re.match(valid_cpu_str_regex, sim_options.lower())
             if not m:
@@ -723,13 +726,13 @@ def hexagon(cpu_ver="v66", **kwargs):
             # Parse options into correct order
             cpu_attr = {x: str(m.groupdict()[x] or "") for x in m.groupdict()}
             sim_options = (
-                cpu_attr["base_version"]
-                + cpu_attr["sub_version"]
-                + cpu_attr["l2_size"]
-                + cpu_attr["rev"]
-                + " "
-                + cpu_attr["pre"]
-                + cpu_attr["post"]
+                    cpu_attr["base_version"]
+                    + cpu_attr["sub_version"]
+                    + cpu_attr["l2_size"]
+                    + cpu_attr["rev"]
+                    + " "
+                    + cpu_attr["pre"]
+                    + cpu_attr["post"]
             )
 
         return sim_cpu + " " + validate_hvx_length(hvx, sim_options)

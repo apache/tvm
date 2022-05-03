@@ -87,6 +87,9 @@ def test_memory_planning(workspace_byte_alignment, main_workspace_size):
         },
     ):
         lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
+    print(lib.function_metadata)
+    print(sum(lib.function_metadata["__tvm_main__"].workspace_sizes.values()))
+    print(main_workspace_size)
     assert (
         sum(lib.function_metadata["__tvm_main__"].workspace_sizes.values()) == main_workspace_size
     )
@@ -634,3 +637,11 @@ def test_u4_usecase_incompatible_interface_api_errors():
             config={"tir.usmp.enable": True, "tir.usmp.use_workspace_io": True},
         ):
             tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
+
+
+if __name__ == "__main__":
+    import sys
+    import pytest
+
+    #sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    test_memory_planning(8, 17280)

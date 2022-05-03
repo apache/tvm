@@ -554,7 +554,7 @@ def optimize(mod, target=None, params=None):
 
     with tophub_context:
         bld_mod = BuildModule()
-        mod, params = bld_mod.optimize(mod, target, params)
+        mod, params = bld_mod.optimize(mod, target=target, params=params)
     return mod, params
 
 
