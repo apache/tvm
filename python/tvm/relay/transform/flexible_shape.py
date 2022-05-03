@@ -263,6 +263,8 @@ def flexible_dispatch(
         new_params, new_body, dyn_ret_type, main_fn.type_params, main_fn.attrs
     )
     mod["main"] = new_main
+    # Do type inference to make sure everything worked.
+    mod = relay.transform.InferType()(mod)
     return mod
 
 
