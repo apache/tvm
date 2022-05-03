@@ -231,7 +231,8 @@ class ApplyHistoryBest(DispatchContext):
                 rec = load_from_file(rec)
                 joint_records += rec
             else:
-                joint_records.append(rec)
+                if rec is not None:
+                    joint_records.append(rec)
 
         if not joint_records:
             return
