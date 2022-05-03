@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Relay functions for wrapping a module with flexible shape dispatch."""
 from tvm import relay
 
 
@@ -8,20 +25,24 @@ def override_shape(ty, dim, value):
     return relay.TensorType(new_dims, ty.dtype)
 
 
-def specialize_body(mod, fn, dim, value):
+def specialize_body(mod, fn, dim, value, affects_output=True):
     """Create a subgraph to handle a specific input shape"""
     data = fn.params[0]
     flex_ty = override_shape(data.type_annotation, dim, value)
     dyn_data = relay.Var(data.name_hint, type_annotation=flex_ty)
     new_params = [dyn_data] + fn.params[1:]
     new_body = relay.expr.bind(fn.body, {data: dyn_data})
-    new_ret_ty = override_shape(fn.ret_type, dim, value)
+    # Only change the output shape if the input shape affects it.
+    if affects_output:
+        new_ret_ty = override_shape(fn.ret_type, dim, value)
+    else:
+        new_ret_ty = fn.ret_type
     gvar = relay.GlobalVar("main_" + str(value))
     mod[gvar] = relay.Function(new_params, new_body, new_ret_ty, fn.type_params, fn.attrs)
     return gvar, dyn_data.type_annotation
 
 
-def flexible_dispatch(mod, dim=0, buckets=[], auto_pad=False, pad_value=0):
+def flexible_dispatch(mod, dim=0, buckets=[], auto_pad=False, pad_value=0, input_indices=[0], affects_output=True):
     """
     Implement a batching transform for Relay.
 
@@ -69,14 +90,21 @@ def flexible_dispatch(mod, dim=0, buckets=[], auto_pad=False, pad_value=0):
             check_dim = relay.op.take(relay.op.shape_of(input_data), relay.const(dim))
 
         # Create a specialized subgraph for the current bucket.
-        spec_call, spec_ty = specialize_body(mod, main_fn, dim, bucket)
+        spec_call, spec_ty = specialize_body(mod, main_fn, dim, bucket, affects_output=affects_output)
         spec_data = relay.op.reshape(input_data, spec_ty.shape)
 
         # Create a dispatch statement for the current specialized graph.
         call_args = [spec_data] + main_fn.params[1:]
-        if_exprs.append((relay.op.equal(check_dim, relay.const(bucket)), spec_call(*call_args)))
+        new_call = spec_call(*call_args)
 
-    default_dyn_call, _ = specialize_body(mod, main_fn, dim, relay.Any())
+        # Remove meaningless padded outputs if applicable.
+        if auto_pad and affects_output:
+            new_call = relay.take(new_call, relay.arange(start=relay.const(0), stop=flex_value, dtype='int32'), axis=dim)
+
+        # Add this new case to the dispatch handler.
+        if_exprs.append((relay.op.equal(check_dim, relay.const(bucket)), new_call))
+
+    default_dyn_call, _ = specialize_body(mod, main_fn, dim, relay.Any(), affects_output=affects_output)
     call_args = [dyn_data] + main_fn.params[1:]
 
     new_body = default_dyn_call(*call_args)
@@ -118,6 +146,13 @@ class FlexibleShapeDispatch(object):
         the provided buckets.
     pad_value: Optional[float]
         When auto_pad is true, padding will be done with this value.
+    input_indices: Optional[List[int]]
+        Which inputs should be dispatched dynamically, provided by index. All inputs
+        must share the same dynamic axis.
+    affects_output: Optional[bool]
+        Whether the change in input shape has a corresponding effect on the output shape.
+        Batching for example effects both the input and output whereas changing sequence
+        length in an NLP model typically does not.
 
     Returns
     -------
@@ -125,12 +160,14 @@ class FlexibleShapeDispatch(object):
         A pass that can be applied to a module to add flexible shape handling.
     """
 
-    def __init__(self, dim=0, buckets=[], auto_pad=False, pad_value=0):
+    def __init__(self, dim=0, buckets=[], auto_pad=False, pad_value=0, input_indices=[0], affects_output=True):
         self.dim = dim
         self.buckets = buckets
         self.auto_pad = auto_pad
         self.pad_value = pad_value
+        self.input_indices = input_indices
+        self.affects_output = affects_output
         super(FlexibleShapeDispatch, self).__init__()
 
     def __call__(self, mod):
-        return flexible_dispatch(mod, self.dim, self.buckets, self.auto_pad, self.pad_value)
+        return flexible_dispatch(mod, self.dim, self.buckets, self.auto_pad, self.pad_value, self.input_indices, self.affects_output)
