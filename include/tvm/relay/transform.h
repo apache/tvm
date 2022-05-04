@@ -105,9 +105,11 @@ TVM_DLL Pass LazyGradientInit();
 /*!
  * \brief Fold constant expressions.
  *
+ * \param fold_qnn Whether to fold constants for QNN operations.
+ *
  * \return The pass.
  */
-TVM_DLL Pass FoldConstant();
+TVM_DLL Pass FoldConstant(bool fold_qnn = false);
 
 /*!
  * \brief Split function with huge number of arguments to smaller pieces.

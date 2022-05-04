@@ -370,6 +370,35 @@ def test_fold_dropout():
     tvm.ir.assert_structural_equal(run_infer_type(before_mod["main"]), after_mod["main"])
 
 
+def test_fold_qnn_const():
+    qx = relay.var("x", shape=[2, 3], dtype="int8")
+
+    def before():
+        # Quantized INT8 weights
+        qw = relay.const(np.array([[1, 3, 5], [2, 4, 6]], dtype="int8"), "int8")
+        op = relay.op.nn.dense(
+            relay.qnn.op.dequantize(qx, relay.const(2.0), relay.const(0)),
+            relay.qnn.op.dequantize(qw, relay.const(2.0), relay.const(0)),
+        )
+        return relay.Function([qx], op)
+
+    def expected():
+        # FP32 weights
+        w = relay.const(np.array([[2.0, 6.0, 10.0], [4.0, 8.0, 12.0]], dtype="float32"), "float32")
+        op = relay.op.nn.dense(relay.qnn.op.dequantize(qx, relay.const(2.0), relay.const(0)), w)
+        return relay.Function([qx], op)
+
+    # Nothing changed after applying FoldConstant
+    a = run_opt_pass(before(), transform.FoldConstant())
+    b = run_opt_pass(before(), transform.InferType())
+    tvm.ir.assert_structural_equal(a, b)
+
+    # Fold QNN constants
+    a = run_opt_pass(before(), transform.FoldConstant(fold_qnn=True))
+    b = run_opt_pass(expected(), transform.InferType())
+    tvm.ir.assert_structural_equal(a, b)
+
+
 def test_pass_link_params():
     """
     This test checks ensures that proper executor is passed to interpreter instance
