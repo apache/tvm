@@ -105,9 +105,11 @@ TVM_DLL Pass LazyGradientInit();
 /*!
  * \brief Fold constant expressions.
  *
+ * \param fskip The callback argument that allows to skip certain expressions.
+ *
  * \return The pass.
  */
-TVM_DLL Pass FoldConstant();
+TVM_DLL Pass FoldConstant(runtime::PackedFunc fskip = nullptr);
 
 /*!
  * \brief Split function with huge number of arguments to smaller pieces.

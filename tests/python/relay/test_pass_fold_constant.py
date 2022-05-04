@@ -370,6 +370,97 @@ def test_fold_dropout():
     tvm.ir.assert_structural_equal(run_infer_type(before_mod["main"]), after_mod["main"])
 
 
+def test_no_fold_qnn_const():
+    x = relay.var("x", shape=[2, 3], dtype="int8")
+    w = relay.const(np.ones((2, 3)), dtype="int8")
+
+    def before():
+        op = relay.op.nn.dense(
+            relay.qnn.op.dequantize(x, relay.const(1.0), relay.const(0)),
+            relay.qnn.op.dequantize(w, relay.const(1.0), relay.const(0)),
+        )
+        return relay.Function([x], op)
+
+    def expected():
+        op = relay.qnn.op.dense(
+            x,
+            w,
+            relay.const(0),
+            relay.const(0),
+            relay.const(1.0),
+            relay.const(1.0),
+            units=None,
+        )
+        op = relay.qnn.op.dequantize(op, relay.const(1.0), relay.const(0), axis=1)
+        return relay.Function([x], op)
+
+    def fskip(expr):
+        if isinstance(expr, relay.expr.Call) and expr.op.name == "nn.dense":
+            return True
+        return False
+
+    before_mod = tvm.IRModule.from_expr(before())
+    passes = tvm.transform.Sequential(
+        [
+            relay.transform.InferType(),
+            relay.transform.FoldConstant(fskip),
+            relay.transform.FakeQuantizationToInteger(False, True),
+        ]
+    )
+    after_mod = passes(before_mod)
+
+    expected_mod = tvm.IRModule.from_expr(expected())
+
+    tvm.ir.assert_structural_equal(run_infer_type(expected_mod["main"]), after_mod["main"])
+
+
+def test_fold_qnn_const():
+    data = relay.var("data", shape=(3, 3), dtype="int8")
+    # FP32 weights
+    w = np.array([[1.0, 3.0, 5.0], [2.0, 4.0, 6.0]], dtype="float32")
+    # Quantized INT8 weights
+    qw = np.array([[2, 3, 4], [2, 3, 4]], dtype="int8")
+
+    # QNN params
+    input_zp = relay.const(1, "int32")
+    weight_zp = relay.const(1, "int32")
+    input_scale = relay.const(1, "float32")
+    weight_scale = relay.const(2, "float32")
+
+    def before():
+        weight = relay.const(w, "float32")
+        op1 = relay.qnn.op.quantize(weight, weight_scale, weight_zp, out_dtype="int8")
+        op2 = relay.qnn.op.dense(
+            data,
+            op1,
+            input_zp,
+            weight_zp,
+            input_scale,
+            weight_scale,
+            units=None,
+            out_dtype="int32",
+        )
+        return relay.Function([data], op2)
+
+    def expected():
+        weight = relay.const(qw, "int8")
+        op = relay.qnn.op.dense(
+            data,
+            weight,
+            input_zp,
+            weight_zp,
+            input_scale,
+            weight_scale,
+            units=None,
+            out_dtype="int32",
+        )
+        return relay.Function([data], op)
+
+    a = run_opt_pass(before(), transform.FoldConstant())
+    b = run_opt_pass(expected(), transform.InferType())
+    tvm.ir.assert_structural_equal(a, b)
+
+
 def test_pass_link_params():
     """
     This test checks ensures that proper executor is passed to interpreter instance
