@@ -48,6 +48,7 @@
 #include "../op/call/call.h"
 #include "../op/memory/device_copy.h"
 #include "../transforms/device_aware_visitors.h"
+#include "./aot/annotate_used_memory.cc"
 #include "./name_transforms.h"
 #include "./te_compiler.h"
 #include "./utils.h"
@@ -1079,6 +1080,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
 
     mod = transform::ToANormalForm()(mod);
+    mod = transform::InferType()(mod);
+    mod = transform::AnnotateUsedMemory()(mod);
 
     IRModule lowered_mod =
         tec::LowerTE(mod_name, config_, [this, workspace_byte_alignment](BaseFunc func) {
