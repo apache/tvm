@@ -51,7 +51,8 @@ def add_compile_parser(subparsers, _, json_params):
     parser.add_argument(
         "--target-host",
         default=None,
-        help="The target of the host machine if host-side code needs to be generated.")
+        help="The target of the host machine if host-side code needs to be generated.",
+    )
     parser.add_argument(
         "--cross-compiler",
         default="",
@@ -186,7 +187,7 @@ def drive_compile(args):
         cross_options=args.cross_compiler_options,
         output_format=args.output_format,
         dump_code=dump_code,
-        target_host=None,
+        target_host=args.target_host,
         desired_layout=args.desired_layout,
         disabled_pass=args.disabled_pass,
         pass_context_configs=args.pass_config,
