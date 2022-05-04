@@ -32,12 +32,14 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     Optional<Integer> opt_warp_size = target->GetAttr<Integer>("thread_warp_size");
 
     if (!opt_max_threads_per_block.defined()) {
-      LOG(WARNING) << "Target does not have attribute \"max_threads_per_block\", therefore the "
-                      "rule CrossThreadReduction will not be applied";
+      TVM_PY_LOG(WARNING, context->logging_func)
+          << "Target does not have attribute \"max_threads_per_block\", therefore the "
+             "rule CrossThreadReduction will not be applied";
     }
     if (!opt_warp_size.defined()) {
-      LOG(WARNING) << "Target does not have attribute \"thread_warp_size\", therefore the rule "
-                      "CrossThreadReduction will not be applied";
+      TVM_PY_LOG(WARNING, context->logging_func)
+          << "Target does not have attribute \"thread_warp_size\", therefore the rule "
+             "CrossThreadReduction will not be applied";
     }
     max_threads_per_block = opt_max_threads_per_block.value_or(Integer(-1))->value;
     warp_size = opt_warp_size.value_or(Integer(-1))->value;

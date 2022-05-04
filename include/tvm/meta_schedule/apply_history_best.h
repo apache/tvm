@@ -33,6 +33,8 @@ class ApplyHistoryBestNode : public runtime::Object {
  public:
   /*! \brief The database to be queried from */
   Database database{nullptr};
+  /*! \brief The logging function to be used */
+  PackedFunc logging_func;
 
   void VisitAttrs(AttrVisitor* v) { v->Visit("database", &database); }
   /*!
@@ -58,8 +60,9 @@ class ApplyHistoryBest : public runtime::ObjectRef {
   /*!
    * \brief Constructor
    * \param database The database to be queried from
+   * \param logging_func The logging function to use
    */
-  explicit ApplyHistoryBest(Database database);
+  explicit ApplyHistoryBest(Database database, PackedFunc logging_func);
   /*!
    * \brief The current ApplyHistoryBest in the context
    * \return The ApplyHistoryBest in the current scope.
