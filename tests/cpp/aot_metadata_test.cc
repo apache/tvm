@@ -327,6 +327,10 @@ TEST(DiscoverArraysVisitor, DiscoverArrays) {
                                    DiscoveredNameEq("kTvmgenMetadata_pools")}));
 }
 
+// In Debug builds the _type_key is no longer inlined but also has no
+// link-time definition.
+#define WITH_TYPE_KEY 0
+
 template <typename T,
           std::enable_if_t<std::is_base_of<tvm::runtime::metadata::MetadataBase, T>::value, bool> =
               true>
@@ -338,18 +342,30 @@ class TVMObjectIsInstanceMatcher : public MatcherInterface<tvm::runtime::metadat
                        MatchResultListener* os) const override {
     bool result = arg->IsInstance<typename T::ContainerType>();
     if (!result) {
+#if WITH_TYPE_KEY
       (*os) << "is an instance of type " << T::ContainerType::_type_key;
+#else
+      (*os) << "is not of expected instance type";
+#endif
     }
 
     return result;
   }
 
   void DescribeTo(std::ostream* os) const override {
+#if WITH_TYPE_KEY
     (*os) << "is an instance of type " << T::ContainerType::_type_key;
+#else
+    (*os) << "is not of expected instance type";
+#endif
   }
 
   void DescribeNegationTo(std::ostream* os) const override {
+#if WITH_TYPE_KEY
     (*os) << "is not an instance of type " << T::ContainerType::_type_key;
+#else
+    (*os) << "is not of expected instance type";
+#endif
   }
 };
 

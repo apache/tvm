@@ -827,8 +827,8 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
 PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "lower") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      ICHECK_EQ(args.num_args, 3);
-      this->Lower(args[0], args[1], args[2]);
+      ICHECK_EQ(args.num_args, 2);
+      this->Lower(args[0], args[1]);
     });
   } else if (name == "codegen") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -836,8 +836,10 @@ PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Obje
       this->Codegen();
     });
   } else if (name == "get_executable") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = runtime::Module(exec_); });
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      ICHECK_EQ(args.num_args, 0);
+      *rv = this->GetExecutable();
+    });
   } else if (name == "set_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       Map<String, Constant> params = args[0];
@@ -855,8 +857,8 @@ PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Obje
     });
   } else if (name == "optimize") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      ICHECK_EQ(args.num_args, 3);
-      *rv = this->OptimizeModule(args[0], args[1], args[2]);
+      ICHECK_EQ(args.num_args, 2);
+      *rv = this->OptimizeModule(args[0], args[1]);
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
@@ -868,16 +870,42 @@ void VMCompiler::SetParam(const std::string& name, runtime::NDArray data_in) {
   params_[name] = data_in;
 }
 
-void VMCompiler::Lower(IRModule mod, TargetMap targets, tvm::Target target_host) {
+void VMCompiler::Lower(IRModule mod, const Array<Target>& raw_targets) {
   VLOG_CONTEXT << "VM Lower";
+  Setup(raw_targets);
+  LowerImpl(std::move(mod));
+}
+
+IRModule VMCompiler::OptimizeModule(IRModule mod, const Array<Target>& raw_targets) {
+  VLOG_CONTEXT << "VM Optimize";
+  Setup(raw_targets);
+  return OptimizeModuleImpl(std::move(mod));
+}
+
+runtime::Module VMCompiler::GetExecutable() const {
+  if (exec_ == nullptr) {
+    LOG(WARNING) << "No executable to return. Did you forget to call VMCompiler::Lower?";
+  }
+  if (exec_->imports().empty()) {
+    LOG(WARNING) << "Executable is empty. Did you forget to call VMCompiler::Codegen?";
+  }
+  return runtime::Module(exec_);
+}
+
+void VMCompiler::Setup(const Array<Target>& raw_targets) {
+  ICHECK(exec_ == nullptr) << "Can't reuse VMComplier object for multiple modules";
   exec_ = make_object<Executable>();
-  config_ = CompilationConfig(PassContext::Current(), std::move(targets), std::move(target_host));
+  ICHECK(!config_.defined());
+  config_ = CompilationConfig(PassContext::Current(), raw_targets);
+  VLOG(1) << "Using compilation config:" << std::endl << config_;
 
   // The first device is always for the host.
   CHECK(context_.virtual_devices_.empty());
-  VLOG(2) << "virtual_device[0] = " << config_->host_virtual_device << " (host)";
+  VLOG(1) << "virtual_device[0] = " << config_->host_virtual_device << " (host)";
   context_.virtual_devices_.push_back(config_->host_virtual_device);
+}
 
+void VMCompiler::LowerImpl(IRModule mod) {
   // Run the optimizations necessary to target the VM.
   context_.module = OptimizeModuleImpl(std::move(mod));
 
@@ -1022,26 +1050,13 @@ transform::Sequential VMCompiler::FuseAndLowerOperators(const VirtualDevice& hos
   return transform::Sequential(std::move(pass_seqs));
 }
 
-IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetMap& targets,
-                                    const Target& target_host) {
-  config_ = CompilationConfig(PassContext::Current(), targets, target_host);
-  // The first device always corresponds to the host.
-  CHECK(context_.virtual_devices_.empty());
-  context_.virtual_devices_.push_back(config_->host_virtual_device);
-  // TODO(mbs): exec_ is not allocated. What is the API here?
-  CHECK(exec_ == nullptr);
-  return OptimizeModuleImpl(std::move(mod));
-}
-
 IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
-  VLOG_CONTEXT << "VM Optimize";
   backend::BindParamsInModule(mod, params_);
-
   Array<Pass> pass_seqs = relay::backend::GetPassPrefix(
-      /*is_homogenous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/true);
+      /*is_homogeneous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/true);
 
   // Always plan devices so the remaining passes don't need to distinguish homogeneous vs
-  // hetrogeneous execution.
+  // heterogeneous execution.
   pass_seqs.push_back(transform::PlanDevices(config_));
 
   pass_seqs.push_back(transform::FuseOps());
@@ -1163,12 +1178,10 @@ void VMCompiler::Codegen() {
 
 runtime::Module CreateVMCompiler() {
   auto exec = make_object<VMCompiler>();
-  return runtime::Module(exec);
+  return runtime::Module(std::move(exec));
 }
 
-TVM_REGISTER_GLOBAL("relay._vm._VMCompiler").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = CreateVMCompiler();
-});
+TVM_REGISTER_GLOBAL("relay._vm._VMCompiler").set_body_typed(CreateVMCompiler);
 
 }  // namespace vm
 }  // namespace relay

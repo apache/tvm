@@ -1020,10 +1020,8 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
           << PrettyPrint(expr);
 
   ICHECK_EQ(device.device_type, target->kind->device_type);
-  TargetMap targets;
-  targets.Set(device.device_type, target);
-  CompilationConfig config(transform::PassContext::Current(), targets,
-                           /*optional_host_target_arg=*/{});
+  Array<Target> raw_targets = {target};
+  CompilationConfig config(transform::PassContext::Current(), raw_targets);
 
   //
   // Step 1: Prepare mod.
@@ -1111,10 +1109,8 @@ ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
                std::unordered_set<String> import_set, Device device, Target target,
                Map<String, ObjectRef> attrs) {
   ICHECK_EQ(device.device_type, target->kind->device_type);
-  TargetMap targets;
-  targets.Set(device.device_type, target);
-  CompilationConfig config(transform::PassContext::Current(), targets,
-                           /*optional_host_target_arg=*/{});
+  Array<Target> raw_targets = {target};
+  CompilationConfig config(transform::PassContext::Current(), raw_targets);
 
   std::pair<IRModule, GlobalVar> mod_and_global =
       IRModule::FromExprInContext(expr, /*global_funcs=*/{}, type_definitions, import_set);
