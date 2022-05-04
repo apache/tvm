@@ -78,14 +78,14 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
   // Decide on the host target.
   //
 
-  // Any CPU-like targets?
-  auto cpu_itr = std::find_if(raw_targets.begin(), raw_targets.end(), [](const Target& target) {
-    // TODO(tvm-team): AoT only works with kDLCPU device type. We can remove kDLHexagon
+  // Any targets which could act as a host?
+  auto hosting_itr = std::find_if(raw_targets.begin(), raw_targets.end(), [](const Target& target) {
+    // TODO(tvm-team): The kDLHexagon device can act as a host. We can remove kDLHexagon
     // here once we refactored kDLHexagon to kDLCPU.
     return target->kind->device_type == kDLCPU || target->kind->device_type == kDLHexagon;
   });
 
-  // Any targets with a host?
+  // Any targets with their host field set?
   auto has_host_itr = std::find_if(raw_targets.begin(), raw_targets.end(),
                                    [](const Target& target) { return target->host.defined(); });
 
@@ -95,9 +95,10 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
     host_target = Target((*has_host_itr)->GetHost().value(), /*host=*/Target());
     VLOG(1) << "The target " << (*has_host_itr)->ToDebugString() << " supplies a host target "
             << host_target->ToDebugString() << " of device type " << host_target->kind->device_type;
-  } else if (cpu_itr != raw_targets.end()) {
-    // RULE B: If any raw target is for a CPU-like device then also use that as the host.
-    host_target = Target(*cpu_itr, /*host=*/Target());
+  } else if (hosting_itr != raw_targets.end()) {
+    // RULE B: If any raw target is for a device which could be a host then use the first such as
+    // the host.
+    host_target = Target(*hosting_itr, /*host=*/Target());
     VLOG(1) << "Using target " << host_target->ToDebugString() << " of CPU-like device type "
             << host_target->kind->device_type << " as the host target";
   } else {
@@ -140,9 +141,11 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
 
   //
   // Check the primitive_targets are ordered correctly re Target::IsExternalCodegenFor.
-  // Note we could just sort the list, but given all the implicit defaulting for backwards
-  // compat it seems we should avoid making this any more magical than necessarny.
   //
+
+  // TODO(mbs): We could just sort the list, but given all the implicit defaulting for backwards
+  // compat it seems we should avoid making this any more magical than necessary. But revisit
+  // if usability suffers.
   std::unordered_set<DLDeviceType> primitive_target_device_types;
   for (const auto& target : primitive_targets) {
     primitive_target_device_types.emplace(static_cast<DLDeviceType>(target->kind->device_type));
