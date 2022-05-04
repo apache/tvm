@@ -17,6 +17,8 @@
  * under the License.
  */
 
+// LINT_C_FILE
+
 /*!
  * \file tvm/runtime/metadata_types.h
  * \brief Defines types which can be used in metadata here which

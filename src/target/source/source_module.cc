@@ -804,6 +804,10 @@ runtime::Module CreateAotMetadataModule(runtime::metadata::Metadata aot_metadata
   std::stringstream lookup_func;
   std::string get_c_metadata_func_name;
 
+  // NOTE: mangling is not needed in the c++ runtime because the function
+  //       name is looked-up via LibraryModule.
+  // TODO(alanmacd): unify these two approaches
+
   if (is_c_runtime == true) {
     get_c_metadata_func_name = runtime::get_name_mangled(
         aot_metadata->mod_name(), ::tvm::runtime::symbol::tvm_get_c_metadata);

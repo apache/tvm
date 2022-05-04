@@ -136,8 +136,7 @@ def test_graph_executor():
     ws_root = pathlib.Path(os.path.dirname(__file__) + "/micro-workspace")
     if ws_root.exists():
         shutil.rmtree(ws_root)
-    with tvm.contrib.utils.TempDirectory.set_keep_for_debug():
-        temp_dir = tvm.contrib.utils.tempdir(ws_root.resolve())
+    temp_dir = tvm.contrib.utils.tempdir(ws_root.resolve())
     relay_mod = tvm.parser.fromtext(
         """
       #[version = "0.0.5"]
@@ -188,8 +187,7 @@ def test_aot_executor():
     ws_root = pathlib.Path(os.path.dirname(__file__) + "/micro-workspace")
     if ws_root.exists():
         shutil.rmtree(ws_root)
-    with tvm.contrib.utils.TempDirectory.set_keep_for_debug():
-        temp_dir = tvm.contrib.utils.tempdir(ws_root.resolve())
+    temp_dir = tvm.contrib.utils.tempdir(ws_root.resolve())
     relay_mod = tvm.parser.fromtext(
         """
       #[version = "0.0.5"]

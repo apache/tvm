@@ -33,7 +33,7 @@
 #include <tvm/runtime/crt/packed_func.h>
 #include <tvm/runtime/crt/page_allocator.h>
 
-static void DumpMetadata(TVMMetadata* md) {
+static void DumpMetadata(const TVMMetadata* md) {
   LOG_DEBUG("%s:\n", __FUNCTION__);
   LOG_DEBUG("\tmod_name=%s\n", md->mod_name);
   LOG_DEBUG("\tversion=%" PRId64 "\n", md->version);
@@ -66,7 +66,7 @@ int TVMAotExecutor_GetInputIndex(TVMAotExecutor* executor, const char* name) {
   int i;
   int rv = -1;
 
-  TVMMetadata* md = executor->metadata;
+  const TVMMetadata* md = executor->metadata;
   for (i = 0; i < md->num_inputs; ++i) {
     if (!strcmp(md->inputs[i].name, name)) {
       rv = i;
@@ -156,7 +156,7 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
   // save the returned pointer to the top-level metadata
   executor->metadata = (TVMMetadata*)get_c_metadata.ret_value.values[0].v_handle;
 
-  TVMMetadata* md = executor->metadata;
+  const TVMMetadata* md = executor->metadata;
 
   DumpMetadata(md);
 

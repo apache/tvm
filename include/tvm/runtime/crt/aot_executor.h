@@ -36,7 +36,7 @@ typedef struct TVMMetadata TVMMetadata;
 
 typedef struct TVMAotExecutor {
   /*! \brief The top-level metadata structure supplied by the generated code */
-  TVMMetadata* metadata;
+  const TVMMetadata* metadata;
   /*! \brief The code module that contains the compiled model */
   TVMModuleHandle module_handle;
   /*! \brief The device type */
