@@ -384,6 +384,26 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
 #define TVM_TARGET_KIND_REGISTER_VAR_DEF \
   static DMLC_ATTRIBUTE_UNUSED ::tvm::TargetKindRegEntry& __make_##TargetKind
 
+namespace attr {
+//
+// Distinguished TargetKind attribute names.
+//
+
+/*!
+ * \brief A \p TargetKind attribute of type \p Bool. If true, then the target kind name also
+ * corresponds to an external codegen 'compiler' name. That name may be used:
+ *  - To retrieve partitioning rules using \p get_partition_table.
+ *  - To attach to Relay Functions under the \p attr::kCompiler attribute to indicate
+ *    the function is to be compiled by the external codegen path.
+ *
+ * The \p CollagePartition pass uses this attribute to guide it's search over candidate partitions
+ * using external codegen.
+ *
+ * See also \p Target::IsExternalCodegenFor
+ */
+constexpr const char* kIsExternalCodegen = "is_external_codegen";
+}  // namespace attr
+
 /*!
  * \def TVM_REGISTER_TARGET_KIND
  * \brief Register a new target kind, or set attribute of the corresponding target kind.

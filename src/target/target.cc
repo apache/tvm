@@ -74,16 +74,6 @@ void CheckAndUpdateHostConsistency(Target* target, Target* host) {
   *host = (*target)->GetHost().value_or(Target());
 }
 
-void CheckAndUpdateHostConsistency(TargetMap* targets, Target* host) {
-  Map<Integer, Target> new_targets;
-  for (auto& it : *targets) {
-    auto target = it.second;
-    CheckAndUpdateHostConsistency(&target, host);
-    new_targets.Set(it.first, target);
-  }
-  *targets = new_targets;
-}
-
 void CheckAndUpdateHostConsistency(Map<Target, IRModule>* targets, Target* host) {
   Map<Target, IRModule> new_targets;
   for (auto& it : *targets) {
@@ -491,6 +481,27 @@ Target::Target(Target target, Target host) {
   ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
   n->host = std::move(host);
   data_ = std::move(n);
+}
+
+Target::Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<String> keys,
+               Map<String, ObjectRef> attrs) {
+  auto data = runtime::make_object<TargetNode>();
+  data->kind = std::move(kind);
+  data->host = std::move(host);
+  data->tag = std::move(tag);
+  data->keys = std::move(keys);
+  data->attrs = std::move(attrs);
+  data_ = std::move(data);
+}
+
+bool Target::IsExternalCodegen() const {
+  TargetKindAttrMap<Bool> attr_map = TargetKind::GetAttrMap<Bool>(::tvm::attr::kIsExternalCodegen);
+  return attr_map.get(get()->kind, Bool(false));
+}
+
+bool Target::IsExternalCodegenFor(const Target& that) const {
+  return get()->kind->device_type == that->kind->device_type && IsExternalCodegen() &&
+         !that.IsExternalCodegen();
 }
 
 std::vector<std::string> TargetNode::GetKeys() const {
