@@ -23,6 +23,7 @@ Implements a Python interface to executing the compiled VM object.
 import numpy as np
 
 import tvm
+import tvm.runtime
 from tvm.runtime import Module
 from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base
@@ -43,7 +44,7 @@ def _convert(arg, cargs):
     if isinstance(arg, Object):
         cargs.append(arg)
     elif isinstance(arg, np.ndarray):
-        nd_arr = tvm.nd.array(arg, device=tvm.cpu(0))
+        nd_arr = tvm.nd.array(arg, device=tvm.runtime.cpu(0))
         cargs.append(nd_arr)
     elif isinstance(arg, tvm.runtime.NDArray):
         cargs.append(arg)
@@ -54,7 +55,7 @@ def _convert(arg, cargs):
         cargs.append(container.tuple_object(field_args))
     elif isinstance(arg, (_base.numeric_types, bool)):
         dtype = _gettype(arg)
-        value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
+        value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.runtime.cpu(0))
         cargs.append(value)
     elif isinstance(arg, str):
         cargs.append(arg)
@@ -400,8 +401,8 @@ class VirtualMachine(object):
             devs = [dev]
 
         # CPU is required for executing shape functions
-        if not any(c.device_type % RPC_SESS_MASK == tvm.cpu().device_type for c in devs):
-            devs.append(tvm.cpu())
+        if not any(c.device_type % RPC_SESS_MASK == tvm.runtime.cpu().device_type for c in devs):
+            devs.append(tvm.runtime.cpu())
 
         default_alloc_type = VirtualMachine.POOLED_ALLOCATOR
         if memory_cfg is None:

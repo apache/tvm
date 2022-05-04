@@ -20,6 +20,7 @@
 """`compile` api that convert torch module to torch tvm module"""
 import os
 import tvm
+import tvm.runtime
 import tvm.testing
 from tvm import relay, autotvm
 from tvm.runtime import load_module
@@ -105,7 +106,7 @@ TVM_ASSETS = ["mod.so", "graph.json", "params"]
 class PyTorchTVMModule:
     """Helper class for compiling pytorch module to tvm module"""
 
-    def __init__(self, target="cuda", device=tvm.cuda(0)) -> None:
+    def __init__(self, target="cuda", device=tvm.runtime.cuda(0)) -> None:
         self.script_module = None
         self.input_infos = None
         self.default_dtype = "float32"
@@ -231,7 +232,7 @@ def compile(script_module, option):
     tuning_n_trials = option.get("tuning_n_trials", 20)
     num_outputs = option.get("num_outputs", 1)
     target = option.get("target", "cuda")
-    device = option.get("device", tvm.cuda(0))
+    device = option.get("device", tvm.runtime.cuda(0))
 
     mod = PyTorchTVMModule(target=target, device=device)
     print("Converting...")

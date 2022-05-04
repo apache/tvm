@@ -37,6 +37,7 @@ import warnings
 
 import tvm._ffi
 import tvm.ir.transform
+import tvm.runtime
 from tvm import nd
 from tvm import rpc as _rpc
 from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope

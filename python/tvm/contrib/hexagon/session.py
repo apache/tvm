@@ -23,6 +23,7 @@ import tempfile
 from typing import Union
 
 import tvm
+import tvm.runtime
 from tvm import rpc as _rpc
 import tvm.contrib.hexagon as hexagon
 from tvm.relay.backend.executor_factory import (

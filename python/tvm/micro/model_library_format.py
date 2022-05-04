@@ -26,12 +26,12 @@ import tarfile
 import typing
 
 import tvm
+import tvm.runtime
 from tvm.ir.type import TupleType
 from tvm.micro import get_standalone_crt_dir
 from .._ffi import get_global_func
 from ..contrib import utils
 from ..driver import build_module
-from ..runtime import ndarray as _nd
 from ..relay.backend import executor_factory
 from ..relay.backend.name_transforms import to_c_variable_style, prefix_generated_name
 from ..relay import param_dict
@@ -468,7 +468,7 @@ def _export_operator_model_library_format(mod: build_module.OperatorModule, temp
                 "Model Library Format"
             )
 
-        targets[int(_nd.device(str(target)).device_type)] = target
+        targets[int(tvm.runtime.device(str(target)).device_type)] = target
 
     src_dir = tempdir / "src"
     src_dir.mkdir()

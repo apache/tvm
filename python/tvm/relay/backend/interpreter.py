@@ -21,6 +21,7 @@ from __future__ import absolute_import
 import numpy as np
 
 import tvm._ffi
+import tvm.runtime
 from tvm.runtime import container, Object
 
 from . import _backend
@@ -45,7 +46,7 @@ class RefValue(Object):
 
 def _arg_to_ast(mod, arg):
     if isinstance(arg, nd.NDArray):
-        return Constant(arg.copyto(nd.cpu(0)))
+        return Constant(arg.copyto(tvm.runtime.cpu(0)))
     elif isinstance(arg, container.ADT):
         return Tuple([_arg_to_ast(mod, field) for field in arg])
     elif isinstance(arg, tuple):
