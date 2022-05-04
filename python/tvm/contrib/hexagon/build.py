@@ -469,10 +469,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
 
     def _cleanup_directory(self):
         # Cleanup directory
-        subprocess.Popen(
-            self._adb_device_sub_cmd
-            + ["shell", f"rm -rf {self._workspace}"]
-        )
+        subprocess.Popen(self._adb_device_sub_cmd + ["shell", f"rm -rf {self._workspace}"])
 
     def start_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
