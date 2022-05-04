@@ -91,5 +91,29 @@ def test_fixed_output():
     return
 
 
+def test_multiple_outputs():
+    # Create a graph with multiple outputs and test that it works.
+    x = relay.var("x", shape=[10, 10], dtype="float32")
+    y = relay.split(x, 2, axis=1)
+    mod = tvm.IRModule.from_expr(y.astuple())
+
+    # Apply flexible dispatch to batch dimension.
+    mod = relay.transform.FlexibleShapeDispatch(axis=0, buckets=[5, 10])(mod)
+
+    # Compile and confirm that both outputs are correct.
+    exe = relay.vm.compile(mod, "llvm")
+    vm = runtime.vm.VirtualMachine(exe, tvm.cpu())
+
+    x_5 = np.random.normal(size=[5, 10]).astype("float32")
+    result_5 = vm.invoke("main", x_5)
+    assert list(result_5[0].shape) == [5, 5]
+    assert list(result_5[1].shape) == [5, 5]
+
+    x_10 = np.random.normal(size=[10, 10]).astype("float32")
+    result_10 = vm.invoke("main", x_10)
+    assert list(result_10[0].shape) == [10, 5]
+    assert list(result_10[1].shape) == [10, 5]
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

@@ -15,14 +15,29 @@
 # specific language governing permissions and limitations
 # under the License.
 """Relay functions for wrapping a module with flexible shape dispatch."""
+import tvm
 from tvm import relay
 
 
 def override_shape(tensor_type, axis, dim):
     """Change a dimension in a tensor shape."""
-    new_dims = list(tensor_type.shape)
-    new_dims[axis] = dim
-    return relay.TensorType(new_dims, tensor_type.dtype)
+    # Handle multiple tensors by overriding the shape of each.
+    if isinstance(tensor_type, relay.TupleType):
+        tensor_type = tensor_type.fields
+    else:
+        tensor_type = [tensor_type]
+
+    # Create new tensortypes for each input.
+    new_types = []
+    for t_type in tensor_type:
+        new_dims = list(t_type.shape)
+        new_dims[axis] = dim
+        new_types.append(relay.TensorType(new_dims, t_type.dtype))
+
+    # Dont return a tuple if there is a single tensor.
+    if len(new_types) == 1:
+        return new_types[0]
+    return relay.TupleType(tvm.runtime.convert(new_types))
 
 
 def specialize_body(mod, function, axis, dim, input_indices, affects_output=True):
