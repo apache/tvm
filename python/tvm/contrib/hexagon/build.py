@@ -468,7 +468,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         )
 
     def _cleanup_directory(self):
-        # Cleanup directory
+        # Remove workspace directory on remote target
         subprocess.Popen(self._adb_device_sub_cmd + ["shell", f"rm -rf {self._workspace}"])
 
     def start_server(self):
