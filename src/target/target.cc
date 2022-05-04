@@ -494,10 +494,14 @@ Target::Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<Stri
   data_ = std::move(data);
 }
 
-bool Target::IsExternalCodegenFor(const Target& that) const {
+bool Target::IsExternalCodegen() const {
   TargetKindAttrMap<Bool> attr_map = TargetKind::GetAttrMap<Bool>(::tvm::attr::kIsExternalCodegen);
-  return get()->kind->device_type == that->kind->device_type &&
-         attr_map.get(get()->kind, Bool(false)) && !attr_map.get(that->kind, Bool(false));
+  return attr_map.get(get()->kind, Bool(false));
+}
+
+bool Target::IsExternalCodegenFor(const Target& that) const {
+  return get()->kind->device_type == that->kind->device_type && IsExternalCodegen() &&
+         !that.IsExternalCodegen();
 }
 
 std::vector<std::string> TargetNode::GetKeys() const {

@@ -39,11 +39,7 @@ void CompilationConfigNode::VisitAttrs(AttrVisitor* v) {
 }
 
 Target CompilationConfigNode::FindPrimitiveTargetOrFail(DLDeviceType device_type) const {
-  if (device_type < 0 && primitive_targets.size() == 1) {
-    // In the homogenous case don't be fussy with device types.
-    return primitive_targets.front();
-  }
-  ICHECK_GT(device_type, 0);
+  ICHECK_GT(device_type, 0) << "Invalid device type";
   auto itr = std::find_if(
       primitive_targets.begin(), primitive_targets.end(),
       [device_type](const Target& target) { return target->kind->device_type == device_type; });
@@ -144,6 +140,8 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
 
   //
   // Check the primitive_targets are ordered correctly re Target::IsExternalCodegenFor.
+  // Note we could just sort the list, but given all the implicit defaulting for backwards
+  // compat it seems we should avoid making this any more magical than necessarny.
   //
   std::unordered_set<DLDeviceType> primitive_target_device_types;
   for (const auto& target : primitive_targets) {
@@ -157,13 +155,18 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
       }
       if (!first_primitive_target.defined()) {
         first_primitive_target = current_primitive_target;
-        continue;
+        CHECK(!first_primitive_target.IsExternalCodegen())
+            << "The first given target for device type " << device_type
+            << " must not be for an external codegen, however given "
+            << first_primitive_target->ToDebugString();
+      } else {
+        CHECK(current_primitive_target.IsExternalCodegenFor(first_primitive_target))
+            << "When given multiple targets for the device type " << device_type
+            << " the first must be for non external codegen, and all subsequent must be for "
+               "external codegen. However have been given first "
+            << first_primitive_target->ToDebugString() << " and subsequent "
+            << current_primitive_target->ToDebugString();
       }
-      CHECK(current_primitive_target.IsExternalCodegenFor(first_primitive_target))
-          << "The first given target for device type " << device_type << " is "
-          << first_primitive_target->ToDebugString() << ", however a later target "
-          << current_primitive_target->ToDebugString()
-          << " for the same device type is not an external codegen target.";
     }
   }
 

@@ -178,6 +178,14 @@ class Target : public ObjectRef {
   static Target WithHost(const Target& target, const Target& host);
 
   /*!
+   * \brief Returns true if \p this target represents an external codegen. If so,
+   * \p this->kind->name can be used as the "Compiler" attribute on partitioned functions,
+   * and can be used to retrieve a partitioning pattern table using
+   * \p get_pattern_table.
+   */
+  bool IsExternalCodegen() const;
+
+  /*!
    * \brief Returns true if \p this target represents an external codegen which is compatible
    * with \p that target. In particular:
    *  - \p this has a true ::tvm::attr::kIsExternalCodegen attribute
