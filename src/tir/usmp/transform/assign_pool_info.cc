@@ -77,6 +77,7 @@ class PoolInfoAssigner : public StmtExprMutator {
 };
 
 PoolInfo PoolInfoAssigner::CreateDefaultMemoryPool(const tvm::IRModule& module) {
+  VLOG(1) << "Creating default memory pool for:" << std::endl << PrettyPrint(module);
   Map<Target, String> target_access;
   tir::PrimFunc tir_main_func =
       Downcast<tir::PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_module_main));

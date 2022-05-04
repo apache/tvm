@@ -58,11 +58,6 @@ namespace tvm {
 namespace relay {
 namespace tec {
 
-// TODO(@jroesch, @chrisS) these should be a tvm::Map for uniformity sake
-// we should a version of context which works in Map
-using TargetMap = std::unordered_map<DLDeviceType, Target, backend::EnumClassHash>;
-using DeviceMap =
-    std::unordered_map<Expr, tvm::Device, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
 using ProcessFn = std::function<void(BaseFunc)>;
 
 /*!
@@ -161,24 +156,13 @@ void UpdateFunctionMetadata(BaseFunc relay_func,
                             Integer workspace_byte_alignment = 16);
 
 /*!
- * \brief Obtain the Target from the device type.
- * If homogenous compilation, this will return the only target.
- * If heterogeneous compilation, this will select the associated target using the
- * targets_ Map.
- *
- * \param dev_type
- * \return Target
- */
-Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets);
-
-/*!
  * \brief Update the "main" control function's metadata
  *
  * \param mod The module
- * \param targets Map of targets
+ * \param config All the available targets.
  * \return function_infos Function info for each function in the module
  */
-backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMap targets,
+backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, const CompilationConfig& config,
                                               Map<Expr, backend::StorageInfo> storage_info_map);
 
 /*! \brief Returns all the global \p PrimFunc functions in \p mod, but separated into an \p IRModule
