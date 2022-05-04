@@ -205,7 +205,7 @@ sl::TensorsAndId MakeOps(const sl::TensorAndId<sl::Operand>& op) {
   return ops;
 }
 
-String MakeVariant(auto configuration) {
+String MakeVariant(Optional<EthosnCompilerConfig> configuration) {
   String variant = configuration.value()->variant;
   // Transform variant string to lowercase for comparison
   std::string variant_string = variant.c_str();
