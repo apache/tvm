@@ -4128,7 +4128,7 @@ def test_einsum():
 
 def test_stft():
     def test_fn(n_fft, hop_length, win_length, center, pad_mode, normalized, onesided):
-        return lambda input, window: torch.stft(
+        return lambda input, window=None: torch.stft(
             input=input,
             n_fft=n_fft,
             hop_length=hop_length,
@@ -4154,6 +4154,7 @@ def test_stft():
     verify_trace_model(test_fn(3, 3, 3, False, "reflect", False, True), [input, window], targets)
     window = torch.tensor([1, 3], dtype=torch.int32)
     verify_trace_model(test_fn(2, 1, 2, False, "reflect", False, True), [input, window], targets)
+    verify_trace_model(test_fn(2, 1, 2, False, "reflect", False, True), [input], targets)
 
 
 @tvm.testing.uses_gpu

@@ -14,12 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
+# pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks, unused-argument
 """STFT operator"""
 from math import pi
 import tvm
 from tvm import te, tir
 from ..utils import ceil_div
+
+
+def _get_max_threads(batch_row):
+    max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
+    return tir.min(batch_row, max_threads)
 
 
 def stft(
@@ -29,12 +34,12 @@ def stft(
     win_length,
     window,
     normalized,
-    onesided,  # pylint: disable=unused-argument
+    onesided,
     output_shape,
 ):
     """
     The STFT computes the Fourier transform of short overlapping windows of the input.
-    This giving frequency components of the signal as they change over time.
+    This gives frequency components of the signal as they change over time.
     Parameters
     ----------
     data : relay.Expr
@@ -73,43 +78,45 @@ def stft(
         win_length,
         window_ptr,
         normalized,
-        onesided,  # pylint: disable=unused-argument
+        onesided,
         output_ptr,
     ):
         ib = tir.ir_builder.create()
         data = ib.buffer_ptr(data_ptr)
         window = ib.buffer_ptr(window_ptr)
         output = ib.buffer_ptr(output_ptr)
-
+        max_threads = _get_max_threads(output_ptr.shape[0] * output_ptr.shape[1])
+        output_size = output_ptr.shape[0] * output_ptr.shape[1] * output_ptr.shape[2]
         with ib.new_scope():
-            max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
             nthread_tx = max_threads
-            nthread_bx = ceil_div(output_ptr.shape[0], max_threads)
+            nthread_bx = ceil_div(output_size, max_threads)
             tx = te.thread_axis("threadIdx.x")
             bx = te.thread_axis("blockIdx.x")
             ib.scope_attr(tx, "thread_extent", nthread_tx)
             ib.scope_attr(bx, "thread_extent", nthread_bx)
-            batch = bx * max_threads + tx
+            tid = bx * max_threads + tx
 
-            with ib.for_range(0, output_ptr.shape[0]) as batch:
-                with ib.for_range(0, output_ptr.shape[1]) as row:
-                    with ib.for_range(0, output_ptr.shape[2]) as col:
-                        output[batch, row, col, 0] = tir.Cast(data_ptr.dtype, 0)
-                        output[batch, row, col, 1] = tir.Cast(data_ptr.dtype, 0)
-                        with ib.for_range(0, win_length) as wlen:
-                            output[batch, row, col, 0] += (
-                                window[wlen]
-                                * data[batch, col * hop_length + wlen]
-                                * tir.cos(2 * pi * row * wlen / win_length)
-                            )
-                            output[batch, row, col, 1] -= (
-                                window[wlen]
-                                * data[batch, col * hop_length + wlen]
-                                * tir.sin(2 * pi * row * wlen / win_length)
-                            )
-                        with ib.if_scope(normalized):
-                            output[batch, row, col, 0] /= tir.sqrt(tir.const(n_fft, "float32"))
-                            output[batch, row, col, 1] /= tir.sqrt(tir.const(n_fft, "float32"))
+            with ib.if_scope(tid < output_size):
+                matrix_size = output_ptr.shape[1] * output_ptr.shape[2]
+                batch = tir.floordiv(tid, matrix_size)
+                row = tir.floordiv(tir.indexmod(tid, matrix_size), output_ptr.shape[2])
+                col = tir.indexmod(tir.indexmod(tid, matrix_size), output_ptr.shape[2])
+                output[batch, row, col, 0] = tir.Cast(data_ptr.dtype, 0)
+                output[batch, row, col, 1] = tir.Cast(data_ptr.dtype, 0)
+                with ib.for_range(0, win_length) as wlen:
+                    output[batch, row, col, 0] += (
+                        window[wlen]
+                        * data[batch, col * hop_length + wlen]
+                        * tir.cos(2 * pi * row * wlen / win_length)
+                    )
+                    output[batch, row, col, 1] -= (
+                        window[wlen]
+                        * data[batch, col * hop_length + wlen]
+                        * tir.sin(2 * pi * row * wlen / win_length)
+                    )
+                with ib.if_scope(normalized):
+                    output[batch, row, col, 0] /= tir.sqrt(tir.const(n_fft, "float32"))
+                    output[batch, row, col, 1] /= tir.sqrt(tir.const(n_fft, "float32"))
 
         return ib.get()
 
