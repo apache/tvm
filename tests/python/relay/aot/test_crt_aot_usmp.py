@@ -87,12 +87,10 @@ def test_memory_planning(workspace_byte_alignment, main_workspace_size):
         },
     ):
         lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
-    print(lib.function_metadata)
-    print(sum(lib.function_metadata["__tvm_main__"].workspace_sizes.values()))
-    print(main_workspace_size)
-    assert (
-        sum(lib.function_metadata["__tvm_main__"].workspace_sizes.values()) == main_workspace_size
-    )
+    # The workspace_size dictionary will have an entry for both the 'primitive' and 'host'
+    # targets, though both are identical.
+    for size in lib.function_metadata["__tvm_main__"].workspace_sizes.values():
+        assert size == main_workspace_size
 
 
 @parametrize_aot_options
@@ -643,5 +641,5 @@ if __name__ == "__main__":
     import sys
     import pytest
 
-    #sys.exit(pytest.main([__file__] + sys.argv[1:]))
-    test_memory_planning(8, 17280)
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+

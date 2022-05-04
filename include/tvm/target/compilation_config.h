@@ -63,10 +63,10 @@ class CompilationConfigNode : public Object {
   Target host_target;
 
   /*!
-   * \brief Vector of all available \p Targets for compiling primitive tensor operators (kernels).
-   * May contain a \p Target for the same device type as for the \p host_target, however the \p
-   * host_target should be used for all host computations and data. Each \p Target will have \p
-   * host_target as its 'host'.
+   * \brief Vector of all available \p Targets for partitioning or compiling primitive tensor
+   * operators (kernels). May contain a \p Target for the same device type as for the
+   * \p host_target, however the \p host_target should be used for all host computations and data.
+   * Each \p Target will have \p host_target as its 'host'.
    *
    * It is possible to have multiple primitive targets for the same device type. However given
    * primitive targets left and right where:
@@ -76,6 +76,17 @@ class CompilationConfigNode : public Object {
    *  - right.IsExternalCodegenFor(left) must be true
    * In this way the FindPrimitiveTargetOrFail method will find the 'most general' target for
    * the requested device type.
+   *
+   * In the homogeneous case primitive_targets will have just one entry, which will be pointer equal
+   * to optional_homogeneous_target.
+   *
+   * In the homogenous case where the 'host' is the same device as used for compiling kernels it
+   * is *not* the case that optional_homogenous_target == host_target. This is because all
+   * primitive always have their host field set to the host_target. Ie, it is valid to have:
+   * \code
+   *   host_target=Target("llvm")
+   *   optional_homogenous_target=Target("llvm", host=host_target)
+   * \endcode
    */
   Array<Target> primitive_targets;
 

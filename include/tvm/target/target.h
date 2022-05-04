@@ -185,7 +185,7 @@ class Target : public ObjectRef {
    *  - \p this and \p that have the same kind->device_type
    *
    * After partitioning, the external codegen compilation path may use \p that to guide it's
-   * compilation to a \p runtime::Module. Given on \p this, an appropriate \p that can be
+   * compilation to a \p runtime::Module. Given \p this, an appropriate \p that can be
    * found using \p CompilationConfig::FindPrimitiveTargetOrFail(this->kind->device_type).
    *
    * The \p CollagePartition pass uses this method to guide it's search over candidate partitions
