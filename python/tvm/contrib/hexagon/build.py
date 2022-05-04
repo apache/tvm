@@ -467,6 +467,13 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
             self._adb_device_sub_cmd + ["shell", f"kill `cat {self._workspace}/rpc_pid.txt`"]
         )
 
+    def _cleanup_directory(self):
+        # Cleanup directory
+        subprocess.Popen(
+            self._adb_device_sub_cmd
+            + ["shell", f"rm -rf {self._workspace}"]
+        )
+
     def start_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._copy_binaries()
@@ -476,6 +483,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._cleanup_port_forwarding()
         self._terminate_remote()
+        self._cleanup_directory()
 
 
 class HexagonLauncherSimulator(HexagonLauncherRPC):
