@@ -81,6 +81,7 @@ We do encourage everyone to work anything they are interested in.
 - [Eddie Yan](https://github.com/eqy) (PMC): @eqy - runtime, autotvm, rpc, topi
 - [Hao Yu](https://github.com/comaniac): @comaniac (PMC) - relay, byoc, auto_scheduler
 - [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, auto_scheduler, topi, relay
+- [Xiyou Zhou](https://github.com/zxybazh): @zxybazh - relay
 - [wrongtest](https://github.com/wrongtest): @wrongtest - tir, tvm-script, arith
 
 ## Reviewers
@@ -101,6 +102,7 @@ We do encourage everyone to work anything they are interested in.
 - [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
+- [Altan Haan](https://github.com/altanh): @altanh
 - [Mehrdad Hessar](https://github.com/mehrdadh): @mehrdadh
 - [Bohan Hou](https://github.com/spectrometerHBH): @spectrometerHBH
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei

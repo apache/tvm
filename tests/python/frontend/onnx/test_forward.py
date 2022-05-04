@@ -1213,27 +1213,32 @@ def test_gemm(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_matmul(target, dev):
-    a_shape = (4, 3)
-    b_shape = (3, 4)
-    out_shape = [a_shape[0], b_shape[1]]
+    def test_one_matmul(a_shape, b_shape):
+        if len(a_shape) == 1:
+            out_shape = [b_shape[1]]
+        else:
+            out_shape = [a_shape[0], b_shape[1]]
 
-    a_array = np.random.uniform(size=a_shape).astype("float32")
-    b_array = np.random.uniform(size=b_shape).astype("float32")
+        a_array = np.random.uniform(size=a_shape).astype("float32")
+        b_array = np.random.uniform(size=b_shape).astype("float32")
 
-    mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
+        mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
 
-    graph = helper.make_graph(
-        [mul_node],
-        "matmul_test",
-        inputs=[
-            helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
-            helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
-        ],
-        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
-    )
+        graph = helper.make_graph(
+            [mul_node],
+            "matmul_test",
+            inputs=[
+                helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+                helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+        )
 
-    model = helper.make_model(graph, producer_name="matmul_test")
-    verify_with_ort_with_inputs(model, [a_array, b_array], target=target, dev=dev)
+        model = helper.make_model(graph, producer_name="matmul_test")
+        verify_with_ort_with_inputs(model, [a_array, b_array], target=target, dev=dev)
+
+    test_one_matmul((4, 3), (3, 4))
+    test_one_matmul((3,), (3, 1))
 
 
 @tvm.testing.parametrize_targets
@@ -5086,7 +5091,6 @@ unsupported_onnx_tests = [
     "test_reduce_sum_keepdims_random",
     "test_reduce_sum_negative_axes_keepdims_example",
     "test_reduce_sum_negative_axes_keepdims_random",
-    "test_reshape_allowzero_reordered",
     "test_rnn_seq_length",
     "test_round",
     "test_sequence_insert_at_back",

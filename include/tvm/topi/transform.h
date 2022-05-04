@@ -329,7 +329,8 @@ inline Tensor reshape(const Tensor& x, Array<PrimExpr> newshape, std::string nam
     }
   }
 
-  if (is_empty_shape(target_shape)) {
+  // If either the input shape or the target shape contains a zero, return an empty tensor.
+  if (is_empty_shape(target_shape) || is_empty_shape(x->shape)) {
     return compute(
         target_shape, [&](const Array<Var>& indices) { return tvm::cast(x->dtype, 0); }, name, tag);
   } else {

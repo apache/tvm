@@ -16,6 +16,7 @@
 # under the License.
 """Auto-tuning Task Scheduler"""
 
+import logging
 from typing import Callable, List, Optional
 
 from tvm._ffi import register_object
@@ -28,6 +29,10 @@ from ..database import Database
 from ..measure_callback import MeasureCallback
 from ..runner import Runner, RunnerResult
 from ..tune_context import TuneContext
+from ..utils import make_logging_func
+
+
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 @register_object("meta_schedule.TaskScheduler")
@@ -148,6 +153,7 @@ class _PyTaskScheduler(TaskScheduler):
             max_trials,
             cost_model,
             measure_callbacks,
+            make_logging_func(logger),
             f_tune,
             f_initialize_task,
             f_touch_task,

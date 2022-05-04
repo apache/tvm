@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """A context manager that injects the best tuning record in the database into compilation"""
+import logging
 from typing import List, Optional, Union
 
 from tvm._ffi import register_object
@@ -24,6 +25,9 @@ from tvm.target import Target
 
 from . import _ffi_api
 from .database import Database
+from .utils import make_logging_func
+
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 @register_object("meta_schedule.ApplyHistoryBest")
@@ -38,11 +42,10 @@ class ApplyHistoryBest(Object):
 
     database: Database
 
-    def __init__(
-        self,
-        database: Database,
-    ) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ApplyHistoryBest, database)  # type: ignore # pylint: disable=no-member
+    def __init__(self, database: Database) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.ApplyHistoryBest, database, make_logging_func(logger)  # type: ignore # pylint: disable=no-member
+        )
 
     def query(
         self,

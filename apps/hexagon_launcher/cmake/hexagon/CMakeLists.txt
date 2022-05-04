@@ -89,6 +89,7 @@ ExternalProject_Add(static_hexagon_tvm_runtime
   "-DUSE_LIBBACKTRACE=OFF"
   "-DUSE_LLVM=OFF"
   "-DUSE_RPC=OFF"
+  "-DUSE_CUSTOM_LOGGING=ON"
   INSTALL_COMMAND ""
   BUILD_ALWAYS ON
 )
