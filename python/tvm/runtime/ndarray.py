@@ -24,7 +24,7 @@ import tvm.runtime
 from tvm.runtime import devices
 
 from tvm._ffi.base import _LIB, check_call, c_array, _FFI_MODE
-from tvm._ffi.runtime_ctypes import DataType, Device, TVMArray
+from tvm._ffi.runtime_ctypes import DataType, DataTypeCode, Device, TVMArray
 from tvm._ffi.runtime_ctypes import tvm_shape_index_t
 from . import _ffi_api
 
