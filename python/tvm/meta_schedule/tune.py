@@ -17,7 +17,9 @@
 """User-facing Tuning API"""
 # pylint: disable=import-outside-toplevel
 import logging
-import os.path
+import logging.config
+import os
+from os import path as osp
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
 
 from tvm._ffi.registry import register_func
@@ -43,7 +45,7 @@ from .search_strategy import EvolutionarySearch, ReplayFunc, ReplayTrace
 from .space_generator import PostOrderApply, SpaceGenerator
 from .task_scheduler import GradientBased, RoundRobin
 from .tune_context import TuneContext
-from .utils import autotvm_silencer
+from .utils import autotvm_silencer, batch_parameterize_config
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -226,8 +228,8 @@ class Parse:
     @staticmethod
     def _database(database: Union[None, Database], path: str) -> Database:
         if database is None:
-            path_workload = os.path.join(path, "database_workload.json")
-            path_tuning_record = os.path.join(path, "database_tuning_record.json")
+            path_workload = osp.join(path, "database_workload.json")
+            path_tuning_record = osp.join(path, "database_tuning_record.json")
             logger.info(
                 "Creating JSONDatabase. Workload at: %s. Tuning records at: %s",
                 path_workload,
@@ -358,6 +360,8 @@ class TuneConfig(NamedTuple):
         Configuration for task scheduler.
     search_strategy_config: Optional[Dict[str, Any]] = None
         Configuration for search strategy.
+    logger_config: Optional[Dict[str, Any]] = None
+        Configuration for logger.
     """
 
     max_trials_global: int
@@ -367,6 +371,7 @@ class TuneConfig(NamedTuple):
     strategy: str = "evolutionary"
     task_scheduler_config: Optional[Dict[str, Any]] = None
     search_strategy_config: Optional[Dict[str, Any]] = None
+    logger_config: Optional[Dict[str, Any]] = None
 
     def create_strategy(self, **kwargs):
         """Create search strategy from configuration"""
@@ -415,6 +420,96 @@ class TuneConfig(NamedTuple):
             **kwargs,
             **config,
         )
+
+    def create_loggers(
+        self,
+        log_dir: str,
+        params: List[Dict[str, Any]],
+        disable_existing_loggers: bool = False,
+    ):
+        """Create loggers from configuration"""
+        if self.logger_config is None:
+            config = {}
+        else:
+            config = self.logger_config
+
+        global_logger_name = "tvm.meta_schedule"
+        config.setdefault("loggers", {})
+        config.setdefault("handlers", {})
+        config.setdefault("formatters", {})
+
+        config["loggers"].setdefault(
+            global_logger_name,
+            {
+                "level": "INFO",
+                "handlers": [global_logger_name + ".console", global_logger_name + ".file"],
+                "propagate": False,
+            },
+        )
+        config["loggers"].setdefault(
+            "{logger_name}",
+            {
+                "level": "INFO",
+                "handlers": [
+                    "{logger_name}.file",
+                ],
+                "propagate": False,
+            },
+        )
+        config["handlers"].setdefault(
+            global_logger_name + ".console",
+            {
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",
+                "formatter": "tvm.meta_schedule.standard_formatter",
+            },
+        )
+        config["handlers"].setdefault(
+            global_logger_name + ".file",
+            {
+                "class": "logging.FileHandler",
+                "filename": "{log_dir}/" + __name__ + ".task_scheduler.log",
+                "mode": "a",
+                "level": "INFO",
+                "formatter": "tvm.meta_schedule.standard_formatter",
+            },
+        )
+        config["handlers"].setdefault(
+            "{logger_name}.file",
+            {
+                "class": "logging.FileHandler",
+                "filename": "{log_dir}/{logger_name}.log",
+                "mode": "a",
+                "level": "INFO",
+                "formatter": "tvm.meta_schedule.standard_formatter",
+            },
+        )
+        config["formatters"].setdefault(
+            "tvm.meta_schedule.standard_formatter",
+            {
+                "format": "%(asctime)s.%(msecs)03d %(levelname)s %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S",
+            },
+        )
+
+        # set up dictConfig loggers
+        p_config = {"version": 1, "disable_existing_loggers": disable_existing_loggers}
+        for k, v in config.items():
+            if k in ["formatters", "handlers", "loggers"]:
+                p_config[k] = batch_parameterize_config(v, params)  # type: ignore
+            else:
+                p_config[k] = v
+        logging.config.dictConfig(p_config)
+
+        # check global logger
+        global_logger = logging.getLogger(global_logger_name)
+        if global_logger.level not in [logging.DEBUG, logging.INFO]:
+            global_logger.critical(
+                "Logging level set to %s, please set to logging.INFO"
+                " or logging.DEBUG to view full log.",
+                logging._levelToName[logger.level],  # pylint: disable=protected-access
+            )
+        global_logger.info("Logging directory: %s", log_dir)
 
 
 def tune_extracted_tasks(
@@ -472,8 +567,25 @@ def tune_extracted_tasks(
         The database containing all the tuning results.
 
     """
-    logger.info("Working directory: %s", work_dir)
     # pylint: disable=protected-access
+    # logging directory is set to `work_dir/logs` by default
+    log_dir = osp.join(work_dir, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    max_width = len(str(len(extracted_tasks) - 1))
+    logger_name_pattern = __name__ + ".task_{task_id:0" + f"{max_width}" + "d}_{task_name}"
+
+    config.create_loggers(
+        log_dir=log_dir,
+        params=[
+            {
+                "log_dir": log_dir,
+                "logger_name": logger_name_pattern.format(task_id=i, task_name=task.task_name),
+            }
+            for i, task in enumerate(extracted_tasks)
+        ],
+    )
+
+    logger.info("Working directory: %s", work_dir)
     database = Parse._database(database, work_dir)
     builder = Parse._builder(builder)
     runner = Parse._runner(runner)
@@ -481,7 +593,7 @@ def tune_extracted_tasks(
     measure_callbacks = Parse._callbacks(measure_callbacks)
     # parse the tuning contexts
     tune_contexts = []
-    for task in extracted_tasks:
+    for i, task in enumerate(extracted_tasks):
         assert len(task.dispatched) == 1, "Only size 1 dispatched task list is supported for now"
         tune_contexts.append(
             TuneContext(
@@ -493,6 +605,9 @@ def tune_extracted_tasks(
                 postprocs=Parse._postproc(postprocs, task.target),
                 mutator_probs=Parse._mutator_probs(mutator_probs, task.target),
                 task_name=task.task_name,
+                logger=logging.getLogger(
+                    logger_name_pattern.format(task_id=i, task_name=task.task_name)
+                ),
                 num_threads=num_threads,
             )
         )
@@ -508,7 +623,7 @@ def tune_extracted_tasks(
         measure_callbacks=measure_callbacks,
     )
     task_scheduler.tune()
-    cost_model.save(os.path.join(work_dir, "cost_model.xgb"))
+    cost_model.save(osp.join(work_dir, "cost_model.xgb"))
     return database
 
 
@@ -558,6 +673,15 @@ def tune_tir(
     sch : Optional[Schedule]
         The tuned schedule.
     """
+    # logging directory is set to `work_dir/logs` by default
+    log_dir = osp.join(work_dir, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+
+    config.create_loggers(
+        log_dir=log_dir,
+        params=[{"log_dir": log_dir, "logger_name": __name__ + f".task_{task_name}"}],
+    )
+
     # pylint: disable=protected-access
     mod = Parse._mod(mod)
     target = Parse._target(target)
@@ -712,14 +836,11 @@ def tune_relay(
     """
     # pylint: disable=import-outside-toplevel
     from tvm.relay import build as relay_build
-
     from .relay_integration import extract_task_from_relay
 
-    # pylint: enable=import-outside-toplevel
-
-    logger.info("Working directory: %s", work_dir)
-    # pylint: disable=protected-access
+    # pylint: disable=protected-access, enable=import-outside-toplevel
     target = Parse._target(target)
+    # pylint: enable=protected-access,
     # parse the tuning contexts
     extracted_tasks = extract_task_from_relay(mod, target, params)
     database = tune_extracted_tasks(

@@ -90,8 +90,10 @@ def _parse_args():
     return parsed
 
 
-logging.basicConfig()
-logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
+logging.basicConfig(
+    format="%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+)
+logging.getLogger("tvm.meta_schedule").setLevel(logging.INFO)
 ARGS = _parse_args()
 
 

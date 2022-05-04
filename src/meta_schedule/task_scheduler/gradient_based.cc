@@ -108,7 +108,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
     int n_tasks = task_records_.size();
     // Round robin
     if (num_rounds_already_ == 0) {
-      LOG(INFO) << "\n" << this->TuningStatistics();
+      TVM_PY_LOG(INFO, this->logging_func) << "\n" << this->TuningStatistics();
     }
     if (num_rounds_already_ < n_tasks) {
       return num_rounds_already_++;
@@ -169,21 +169,24 @@ class GradientBasedNode final : public TaskSchedulerNode {
     }
     record.best_time_cost_history.push_back(best_time_cost);
     record.trials += results.size();
-    LOG(INFO) << "[Updated] Task #" << task_id << ": " << record.task->task_name << "\n"
-              << this->TuningStatistics();
+    TVM_PY_LOG(INFO, this->logging_func)
+        << "[Updated] Task #" << task_id << ": " << record.task->task_name << "\n"
+        << this->TuningStatistics();
     return results;
   }
 };
 
-TaskScheduler TaskScheduler::GradientBased(Array<TuneContext> tasks,        //
-                                           Array<FloatImm> task_weights,    //
-                                           Builder builder,                 //
-                                           Runner runner,                   //
-                                           Database database,               //
-                                           int max_trials,                  //
-                                           Optional<CostModel> cost_model,  //
-                                           Optional<Array<MeasureCallback>> measure_callbacks,
-                                           double alpha, int window_size,
+TaskScheduler TaskScheduler::GradientBased(Array<TuneContext> tasks,                            //
+                                           Array<FloatImm> task_weights,                        //
+                                           Builder builder,                                     //
+                                           Runner runner,                                       //
+                                           Database database,                                   //
+                                           int max_trials,                                      //
+                                           Optional<CostModel> cost_model,                      //
+                                           Optional<Array<MeasureCallback>> measure_callbacks,  //
+                                           PackedFunc logging_func,                             //
+                                           double alpha,                                        //
+                                           int window_size,                                     //
                                            support::LinearCongruentialEngine::TRandState seed) {
   CHECK_EQ(tasks.size(), task_weights.size())
       << "The size of `tasks` should have the same as `task_weights`.";
@@ -207,6 +210,7 @@ TaskScheduler TaskScheduler::GradientBased(Array<TuneContext> tasks,        //
   n->max_trials = max_trials;
   n->cost_model = cost_model;
   n->measure_callbacks = measure_callbacks.value_or({});
+  n->logging_func = logging_func;
   n->num_trials_already = 0;
   n->alpha = alpha;
   n->window_size = window_size;

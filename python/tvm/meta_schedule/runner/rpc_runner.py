@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """RPC Runner"""
-import concurrent.futures
 import logging
+import concurrent.futures
 import os.path as osp
 from contextlib import contextmanager
 from typing import Callable, List, Optional, Union
