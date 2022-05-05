@@ -27,6 +27,7 @@
 #include <memory>
 #include <utility>
 
+#include "../../support/socket.h"
 #include "../minrpc/minrpc_server_logging.h"
 #include "rpc_channel.h"
 

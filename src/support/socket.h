@@ -31,10 +31,11 @@
 #define NOMINMAX
 #endif
 
+#include <BaseTsd.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+using ssize_t = SSIZE_T;
 
-using ssize_t = int;
 #ifdef _MSC_VER
 #pragma comment(lib, "Ws2_32.lib")
 #endif
