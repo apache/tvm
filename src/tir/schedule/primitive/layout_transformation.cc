@@ -207,8 +207,10 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     PythonAPICall py("transform_layout");
     py.Input("block", block_rv);
     py.Input("buffer_index", buffer_index);
-    py.Input("buffer_index_type",
-             BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value)));
+    py.Input("buffer_index_type", '"' +
+                                      std::string(BufferIndexType2Str(
+                                          static_cast<BufferIndexType>(buffer_index_type->value))) +
+                                      '"');
     py.Input("index_map", index_map->ToPythonString());
     return py.Str();
   }
