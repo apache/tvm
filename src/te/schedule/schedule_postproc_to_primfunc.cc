@@ -395,7 +395,7 @@ class AxisSeparatorsAttrUnwrapper : StmtExprMutator {
 class AStmtNodeVisitor final : public StmtExprVisitor {
  public:
   AStmtNodeVisitor(Map<tir::Var, tir::Buffer>&& buffer_map, Array<tir::Var>&& params)
-    : buffer_map_(&buffer_map), params_(&params) {}
+      : buffer_map_(&buffer_map), params_(&params) {}
 
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->node->IsInstance<ArrayNode>() && op->attr_key == tir::attr::buffer_bind_scope &&
