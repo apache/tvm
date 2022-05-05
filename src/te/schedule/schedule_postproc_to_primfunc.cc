@@ -394,7 +394,8 @@ class AxisSeparatorsAttrUnwrapper : StmtExprMutator {
 // Helper to assign extenal const buffers
 class AStmtNodeVisitor final : public StmtExprVisitor {
  public:
-  AStmtNodeVisitor(Map<tir::Var, tir::Buffer>& buffer_map, Array<tir::Var>& params)
+
+  AStmtNodeVisitor(Map<tir::Var, tir::Buffer>&& buffer_map, Array<tir::Var>&& params)
     : buffer_map_(&buffer_map), params_(&params) {}
 
   void VisitStmt_(const AttrStmtNode* op) final {
@@ -463,7 +464,7 @@ PrimFunc SchedulePostProcToPrimFunc(Array<ObjectRef> arg_list, Stmt body,
   body = TensorToBufferMapper(std::move(extern_tensor_map))(std::move(body));
 
   // workaround which allows to assign intermediate buffers as inputs
-  AStmtNodeVisitor visitor(buffer_map, params);
+  AStmtNodeVisitor visitor(std::move(buffer_map), std::move(params));
   visitor(body);
   PrimFunc func = tir::PrimFunc(params, body, VoidType(), buffer_map);
 
