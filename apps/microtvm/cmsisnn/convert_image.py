@@ -34,7 +34,7 @@ def create_header_file(name, tensor_name, tensor_data, output_path):
         header_file.write(
             "\n"
             + f"const size_t {tensor_name}_len = {tensor_data.size};\n"
-            + f'int8_t {tensor_name}[] = "'
+            + f'__attribute__((section(".data.tvm"), aligned(16))) int8_t {tensor_name}[] = "'
         )
 
         data_hexstr = tensor_data.tobytes().hex()
