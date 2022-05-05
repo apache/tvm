@@ -471,7 +471,7 @@ class OpenCLTimerNode : public TimerNode {
     if (profiling) {
       prop = CL_QUEUE_PROFILING_ENABLE;
     } else {
-      prop = CL_QUEUE_PROFILING_ENABLE;
+      prop = 0;
     }
 
     OPENCL_CALL(clFlush(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
