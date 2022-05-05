@@ -411,46 +411,32 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_va
     return;
   }
 
-  // Extract the underlying element bit width of the allocated buffer.
-  // fallback to byte type if no type annotation present.
-  int64_t buffer_elem_bits = 8;
-  int64_t access_elem_bits = access_dtype.bits() * access_dtype.lanes();
-  if (buffer_var->type_annotation.defined()) {
-    Type elem_ty = Downcast<PointerType>(buffer_var->type_annotation)->element_type;
-    if (auto* ptype = elem_ty.as<PrimTypeNode>()) {
-      if (!ptype->dtype.is_void()) {
-        buffer_elem_bits = ptype->dtype.bits() * ptype->dtype.lanes();
-      }
-    }
-  }
-
   int64_t base = 0, width = 0;
   arith::PVar<IntImm> pbase, pstride;
   arith::PVar<int> planes;
   // create meta-data for alias analysis
   // Use a group of binary tree ranges of memory banks.
-  if (index.defined()) {
-    int64_t xwith = 0;
-    if (arith::ramp(pbase, pstride, planes).Match(index)) {
-      base = pbase.Eval()->value;
-      xwith = planes.Eval() * pstride.Eval()->value;
-    } else if (auto* ptr = index.as<tir::IntImmNode>()) {
-      base = ptr->value;
-      xwith = 1;
+  int64_t xwith = 0;
+  if (arith::ramp(pbase, pstride, planes).Match(index)) {
+    base = pbase.Eval()->value;
+    xwith = planes.Eval() * pstride.Eval()->value;
+  } else if (auto* ptr = index.as<tir::IntImmNode>()) {
+    base = ptr->value;
+    xwith = 1;
+  }
+  // adjust address index unit to byte
+  const int64_t unit_bit_width = 8;
+  const int64_t access_elem_bits = access_dtype.bits() * access_dtype.lanes();
+  base = base * access_elem_bits / unit_bit_width;
+  xwith = (xwith * access_elem_bits + unit_bit_width - 1) / unit_bit_width;
+  if (xwith > 0) {
+    width = 1;
+    while (width < xwith) {
+      width *= 2;
     }
-    if (buffer_elem_bits != access_elem_bits) {
-      base = base * access_elem_bits / buffer_elem_bits;
-      xwith = (xwith * access_elem_bits + buffer_elem_bits - 1) / buffer_elem_bits;
-    }
-    if (xwith > 0) {
-      width = 1;
-      while (width < xwith) {
-        width *= 2;
-      }
-      while (base % width) {
-        base -= base % width;
-        width *= 2;
-      }
+    while (base % width) {
+      base -= base % width;
+      width *= 2;
     }
   }
 
