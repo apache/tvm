@@ -20,11 +20,12 @@ namespace runtime {
 namespace hexagon {    
 
 // platform constants
-#define MEM_ALIGNMENT 32
-#define HVX_MODE QURT_HVX_MODE_128B
+//#define MEM_ALIGNMENT 32
+//#define HVX_MODE QURT_HVX_MODE_128B
   
 class HexagonThreadManager {
   typedef void (*voidfunc)(void*);
+  const unsigned MEM_ALIGNMENT = 32;
 public:
   HexagonThreadManager(unsigned num_threads, unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words);
   ~HexagonThreadManager();
