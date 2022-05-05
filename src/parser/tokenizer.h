@@ -173,7 +173,7 @@ struct Tokenizer {
   }
 
   Token ParseNumber(bool is_pos, bool is_float, std::string number) {
-    ICHECK(number.size() > 0) << "an empty string is an invalid float";
+    ICHECK(number.size() > 0) << "an empty string is an invalid number";
 
     Token token = NewToken(is_float ? TokenType::kFloat : TokenType::kInteger);
     size_t suffix_pos = number.rfind(is_float ? 'f' : 'i');
