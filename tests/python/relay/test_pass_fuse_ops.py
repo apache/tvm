@@ -633,7 +633,7 @@ def test_fuse_take(link_params):
 
     def before():
         shape = (tvm.tir.const(10, "int64"), tvm.tir.const(1, "int64"))
-        x = relay.var("x", shape=shape)
+        x = relay.var("x", shape=shape, dtype="int64")
         concat = relay.concatenate([x, x], axis=-1)
         out = relay.op.take(concat, indices=relay.const([0], dtype="int64"))
         return relay.Function(relay.analysis.free_vars(out), out)
@@ -641,8 +641,8 @@ def test_fuse_take(link_params):
     def expected(link_params):
         shape1 = (tvm.tir.const(10, "int64"), tvm.tir.const(1, "int64"))
         shape2 = (tvm.tir.const(1, "int64"),)
-        x = relay.var("x", shape=shape1)
-        p0 = relay.var("p0", shape=shape1)
+        x = relay.var("x", shape=shape1, dtype="int64")
+        p0 = relay.var("p0", shape=shape1, dtype="int64")
         p1 = relay.var("p1", shape=shape2, dtype="int64")
         c = relay.const([0], dtype="int64")
         concat = relay.concatenate([p0, p0], axis=-1)
@@ -667,7 +667,7 @@ def test_fuse_gather_nd(link_params):
 
     def before():
         shape = (tvm.tir.const(10, "int64"), tvm.tir.const(1, "int64"))
-        x = relay.var("x", shape=shape)
+        x = relay.var("x", shape=shape, dtype="int64")
         concat = relay.concatenate([x, x], axis=-1)
         out = relay.gather_nd(concat, indices=relay.expr.const([[0, 1], [1, 0]], dtype="int64"))
         return relay.Function(relay.analysis.free_vars(out), out)
@@ -675,8 +675,8 @@ def test_fuse_gather_nd(link_params):
     def expected(link_params):
         shape1 = (tvm.tir.const(10, "int64"), tvm.tir.const(1, "int64"))
         shape2 = (tvm.tir.const(2, "int64"), tvm.tir.const(2, "int64"))
-        x = relay.var("x", shape=shape1)
-        p0 = relay.var("p0", shape=shape1)
+        x = relay.var("x", shape=shape1, dtype="int64")
+        p0 = relay.var("p0", shape=shape1, dtype="int64")
         p1 = relay.var("p1", shape=shape2, dtype="int64")
         c = relay.const([[0, 1], [1, 0]], dtype="int64")
         concat = relay.concatenate([p0, p0], axis=-1)

@@ -391,6 +391,43 @@ class AxisSeparatorsAttrUnwrapper : StmtExprMutator {
   Map<Buffer, Array<IntImm>> axis_separators_map_;
 };
 
+// Helper to assign extenal const buffers
+class AStmtNodeVisitor final : public StmtExprVisitor {
+  public:
+    AStmtNodeVisitor(Map<tir::Var, tir::Buffer>& buffer_map,
+                     Array<tir::Var>& params)
+    : buffer_map_(&buffer_map)
+    , params_(&params)
+    {}
+
+  void VisitStmt_(const AttrStmtNode* op) final {
+    if (op->node->IsInstance<ArrayNode>() &&
+        op->attr_key == tir::attr::buffer_bind_scope &&
+        buffer_map_ != nullptr &&
+        params_ != nullptr) {
+      Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
+      ICHECK_EQ(arr.size(), 2U);
+      tir::Buffer buffer = Downcast<Buffer>(arr[1]);
+      bool found = false;
+      for (auto i : (*buffer_map_)) {
+        if (i.second == buffer) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        tir::Var bptr(buffer->name, PrimType(DataType::Handle()));
+        params_->push_back(bptr);
+        buffer_map_->Set(bptr, buffer);
+      }
+    }
+    StmtExprVisitor::VisitStmt_(op);
+  }
+private:
+  Map<tir::Var, tir::Buffer>* buffer_map_ = nullptr;
+  Array<tir::Var>* params_ = nullptr;
+};
+
 PrimFunc SchedulePostProcToPrimFunc(Array<ObjectRef> arg_list, Stmt body,
                                     Optional<Map<Tensor, Buffer>> extern_buffer_opt) {
   std::unordered_map<Tensor, Buffer> extern_tensor_map;
@@ -429,6 +466,9 @@ PrimFunc SchedulePostProcToPrimFunc(Array<ObjectRef> arg_list, Stmt body,
 
   body = TensorToBufferMapper(std::move(extern_tensor_map))(std::move(body));
 
+  // workaround which allows to assign intermediate buffers as inputs
+  AStmtNodeVisitor visitor(buffer_map, params);
+  visitor(body);
   PrimFunc func = tir::PrimFunc(params, body, VoidType(), buffer_map);
 
   func = LayoutTransformAttrUnwrapper::Apply(std::move(func));
