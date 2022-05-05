@@ -25,6 +25,9 @@ RUN apt-get update --fix-missing && apt-get install -y ca-certificates
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
+COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
+RUN bash /install/ubuntu_install_googletest.sh
+
 COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
 RUN bash /install/ubuntu_install_llvm.sh
 

@@ -163,12 +163,14 @@ class TensorRTRuntime : public JSONRuntimeBase {
           const std::string name = nodes_[nid].GetOpName() + "_" + std::to_string(j);
           int binding_index = engine->getBindingIndex(name.c_str());
           ICHECK_NE(binding_index, -1);
+#if TRT_VERSION_GE(6, 0, 1)
           if (!use_implicit_batch_) {
             std::vector<int64_t> shape(data_entry_[eid]->shape,
                                        data_entry_[eid]->shape + data_entry_[eid]->ndim);
             auto dims = VectorToTrtDims(shape);
             ICHECK(context->setBindingDimensions(binding_index, dims));
           }
+#endif
           if (data_entry_[eid]->device.device_type == kDLCUDA) {
             bindings[binding_index] = data_entry_[eid]->data;
           } else {
