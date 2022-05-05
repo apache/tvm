@@ -34,6 +34,7 @@
 #include "../../support/ring_buffer.h"
 #include "../minrpc/rpc_reference.h"
 #include "rpc_channel.h"
+#include "rpc_channel_logger.h"
 #include "rpc_session.h"
 
 namespace tvm {
@@ -180,6 +181,7 @@ class RPCEndpoint {
   void Shutdown();
   // Internal channel.
   std::unique_ptr<RPCChannel> channel_;
+
   // Internal mutex
   std::mutex mutex_;
   // Internal ring buffer.
