@@ -622,8 +622,6 @@ class ConvTranspose(OnnxOpConverter):
         data = inputs[0]
         input_shape = infer_shape(data)
         ndim = len(input_shape)
-        if "pads" not in attr:
-            assert "auto_pad" in attr or "output_shape" in attr
         if "auto_pad" in attr or "output_shape" in attr:
             if "auto_pad" in attr:
                 attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
@@ -706,8 +704,6 @@ class ConvTranspose(OnnxOpConverter):
         data = inputs[0]
         input_shape = infer_shape(data)
         ndim = len(input_shape)
-        if "pads" not in attr:
-            assert "auto_pad" in attr or "output_shape" in attr
         if "auto_pad" in attr or "output_shape" in attr:
             if "auto_pad" in attr:
                 attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
