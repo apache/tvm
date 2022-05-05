@@ -394,22 +394,18 @@ class AxisSeparatorsAttrUnwrapper : StmtExprMutator {
 // Helper to assign extenal const buffers
 class AStmtNodeVisitor final : public StmtExprVisitor {
  public:
-    AStmtNodeVisitor(const Map<tir::Var, tir::Buffer>& buffer_map,
-                     const Array<tir::Var>& params)
-    : buffer_map_(&buffer_map)
-    , params_(&params)
-    {}
-
+  AStmtNodeVisitor(Map<tir::Var, tir::Buffer>& buffer_map, Array<tir::Var>& params)
+    : buffer_map_(buffer_map), params_(params) {}
+  AStmtNodeVisitor(Map<tir::Var, tir::Buffer>&& , Array<tir::Var>&) = delete;
+  AStmtNodeVisitor(Map<tir::Var, tir::Buffer>&& , Array<tir::Var>&&) = delete;
+  AStmtNodeVisitor(Map<tir::Var, tir::Buffer>& , Array<tir::Var>&&) = delete;
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->node->IsInstance<ArrayNode>() &&
-        op->attr_key == tir::attr::buffer_bind_scope &&
-        buffer_map_ != nullptr &&
-        params_ != nullptr) {
+    if (op->node->IsInstance<ArrayNode>() && op->attr_key == tir::attr::buffer_bind_scope) {
       Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
       ICHECK_EQ(arr.size(), 2U);
       tir::Buffer buffer = Downcast<Buffer>(arr[1]);
       bool found = false;
-      for (auto i : (*buffer_map_)) {
+      for (const auto& i : buffer_map_) {
         if (i.second == buffer) {
           found = true;
           break;
@@ -417,16 +413,16 @@ class AStmtNodeVisitor final : public StmtExprVisitor {
       }
       if (!found) {
         tir::Var bptr(buffer->name, PrimType(DataType::Handle()));
-        params_->push_back(bptr);
-        buffer_map_->Set(bptr, buffer);
+        params_.push_back(bptr);
+        buffer_map_.Set(bptr, buffer);
       }
     }
     StmtExprVisitor::VisitStmt_(op);
   }
 
  private:
-  Map<tir::Var, tir::Buffer>* buffer_map_ = nullptr;
-  Array<tir::Var>* params_ = nullptr;
+  Map<tir::Var, tir::Buffer>& buffer_map_;
+  Array<tir::Var>& params_;
 };
 
 PrimFunc SchedulePostProcToPrimFunc(Array<ObjectRef> arg_list, Stmt body,
