@@ -189,6 +189,7 @@ def test_int_literal():
         parse_text("2147483648i32")
         parse_text("32768i16")
 
+
 def test_float_literal():
     assert get_scalar(parse_text("1.0f")) == 1.0
     assert isclose(get_scalar(parse_text("1.56667f")), 1.56667)

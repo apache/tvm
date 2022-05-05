@@ -52,9 +52,7 @@ TVM_REGISTER_OBJECT_TYPE(DocTextNode);
 
 class DocText : public DocAtom {
  public:
-  explicit DocText(std::string str) {
-    data_ = runtime::make_object<DocTextNode>(str);
-  }
+  explicit DocText(std::string str) { data_ = runtime::make_object<DocTextNode>(str); }
 
   TVM_DEFINE_OBJECT_REF_METHODS(DocText, DocAtom, DocTextNode);
 };

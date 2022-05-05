@@ -25,6 +25,9 @@
 #ifndef TVM_SUPPORT_SCALARS_H_
 #define TVM_SUPPORT_SCALARS_H_
 
+#include <string>
+#include <utility>
+
 #include "tvm/ir/expr.h"
 #include "tvm/relay/expr.h"
 #include "tvm/runtime/ndarray.h"

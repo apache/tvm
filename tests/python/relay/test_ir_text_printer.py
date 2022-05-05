@@ -46,8 +46,10 @@ def show(text):
         print("---------------------------")
         print(text)
 
+
 def assert_prints_as(expr, str):
     assert astext(expr) == SEMVER + str
+
 
 def test_scalars():
     assert_prints_as(relay.const(42, "int16"), "42i16")
@@ -56,6 +58,7 @@ def test_scalars():
     assert_prints_as(relay.const(3.0, "float16"), "3f16")
     assert_prints_as(relay.const(3.0, "float32"), "3f")
     assert_prints_as(relay.const(3.0, "float64"), "3f64")
+
 
 def test_large_graph():
     x = relay.var("x", shape=(3, 2))
