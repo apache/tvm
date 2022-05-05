@@ -393,9 +393,9 @@ class AxisSeparatorsAttrUnwrapper : StmtExprMutator {
 
 // Helper to assign extenal const buffers
 class AStmtNodeVisitor final : public StmtExprVisitor {
-  public:
-    AStmtNodeVisitor(Map<tir::Var, tir::Buffer>& buffer_map,
-                     Array<tir::Var>& params)
+ public:
+    AStmtNodeVisitor(const Map<tir::Var, tir::Buffer>& buffer_map,
+                     const Array<tir::Var>& params)
     : buffer_map_(&buffer_map)
     , params_(&params)
     {}
@@ -423,7 +423,8 @@ class AStmtNodeVisitor final : public StmtExprVisitor {
     }
     StmtExprVisitor::VisitStmt_(op);
   }
-private:
+
+ private:
   Map<tir::Var, tir::Buffer>* buffer_map_ = nullptr;
   Array<tir::Var>* params_ = nullptr;
 };
