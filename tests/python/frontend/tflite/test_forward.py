@@ -4959,10 +4959,10 @@ if __name__ == "__main__":
     test_forward_leaky_relu()
     test_forward_relu_n1_to_1()
     test_forward_log_softmax()
-    test_forward_prelu()
     test_forward_fully_connected()
     test_forward_l2_normalization()
     test_forward_local_response_normalization()
+    test_forward_prelu()
     test_forward_unidirectional_sequence_lstm()
 
     # Elemwise
