@@ -32,7 +32,8 @@ MOBILENET_MODEL = ""
 
 def get_mobilenet():
     """Download and import mobilenet model with ONNX"""
-    import onnx
+    import onnx  # pylint: disable=import-outside-toplevel
+
     model_url = "https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv2-7.onnx"
     model_path = tvm.contrib.download.download_testdata(
         model_url, "mobilenetv2-7.onnx", module="onnx"
