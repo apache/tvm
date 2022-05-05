@@ -4696,7 +4696,7 @@ def test_forward_mobilenet_int16():
 #######################################################################
 # Unidirectional Sequence LSTM
 # ---------------------
-def test_unidirectional_sequence_lstm():
+def test_forward_unidirectional_sequence_lstm():
     """Test the UnidirectionalSequenceLSTM TFLite"""
     if package_version.parse(tf.VERSION) >= package_version.parse("2.1.0"):
         tflite_model_file = download_testdata(
@@ -4964,6 +4964,8 @@ if __name__ == "__main__":
     test_forward_fully_connected()
     test_forward_l2_normalization()
     test_forward_local_response_normalization()
+    test_forward_unidirectional_sequence_lstm()
+
 
     # Elemwise
     test_all_elemwise()

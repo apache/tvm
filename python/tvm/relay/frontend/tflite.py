@@ -2756,7 +2756,7 @@ class OperatorConverter(object):
             )
 
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) >= 2, "input tensors length should be >= 2"
+        assert len(input_tensors) >= 20, "input tensors length should be >= 20"
 
         # Extract input tensor from saved model
         input_tensor = input_tensors[0]
