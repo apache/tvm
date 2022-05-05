@@ -763,7 +763,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     String run_func_name = runtime::get_name_mangled(mod_name, runtime::symbol::tvm_module_main);
     dict_attrs.Set("global_symbol", run_func_name);
     dict_attrs.Set("runner_function", Bool(true));
-    dict_attrs.Set(tvm::attr::kTarget, target_host_);
+    dict_attrs.Set(tvm::attr::kTarget, config_->host_target);
 
     tir::Stmt device_activations = GenerateAllDeviceHook("Activate");
     tir::Stmt device_deactivations = GenerateAllDeviceHook("Deactivate");
@@ -855,6 +855,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    * brief Run USMP to plan memory for lowered IRModule
    */
   IRModule PlanMemoryWithUSMP(const IRModule& mod) {
+    VLOG(1) << "Planning memory with USMP for module:" << std::endl << PrettyPrint(mod);
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
     Integer workspace_byte_alignment =
         executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
@@ -870,6 +871,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       for (const tir::usmp::AllocatedPoolInfo& allocated_pool_info : allocated_pool_infos.value()) {
         for (const auto& kv : allocated_pool_info->pool_info->target_access) {
           Target tgt = kv.first;
+          VLOG(1) << "USMP requires target " << tgt->ToDebugString() << " to have pool size "
+                  << allocated_pool_info->allocated_size->value;
           if (main_func_info->workspace_sizes.find(tgt) == main_func_info->workspace_sizes.end()) {
             main_func_info->workspace_sizes.Set(tgt, allocated_pool_info->allocated_size);
           } else {
@@ -909,7 +912,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         CalculateWorkspaceBytes(tir_main_func, workspace_byte_alignment);
     backend::FunctionInfo main_func_info =
         lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info").value();
-    main_func_info->workspace_sizes.Set(target_host_, main_workspace_size_bytes);
+    main_func_info->workspace_sizes.Set(config_->host_target, main_workspace_size_bytes);
     function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info);
     return lowered_mod;
   }
@@ -929,10 +932,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   Map<tir::Var, tir::Buffer> main_buffer_map_;
   /*! \brief maps input and output variables to TensorType which describe them */
   Map<tir::Var, TensorType> io_tensor_types_;
-  /*! \brief target device */
-  tec::TargetMap targets_;
-  /*! \brief target host */
-  Target target_host_;
+  /*! \brief All available targets. */
+  CompilationConfig config_;
   /*!
    * \brief The type of kernel call to be emitted.
    * See CallType for more documentation.
@@ -967,16 +968,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   std::unordered_map<std::string, int> io_var_names_;
 
  public:
-  AOTExecutorCodegen(runtime::Module* mod, const tec::TargetMap& targets, Target target_host)
-      : mod_(mod), targets_(targets), target_host_(target_host) {}
+  AOTExecutorCodegen(runtime::Module* mod, const Array<Target>& targets)
+      : mod_(mod), config_(transform::PassContext::Current(), targets) {}
 
   LoweredOutput Codegen(IRModule mod, relay::Function func, String mod_name) {
     VLOG_CONTEXT << "AOT";
-    for (const auto& kv : targets_) {
-      VLOG(1) << "target: " << kv.second->ToDebugString();
-    }
-    ICHECK(target_host_.defined()) << "require a target_host to be given for AOT codegen";
-    VLOG(1) << "target host: " << target_host_->ToDebugString();
 
     Runtime runtime_config = mod->GetAttr<Runtime>(tvm::attr::kRuntime).value();
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
@@ -1015,9 +1011,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
                     << ") is not one of the expected values";
     }
 
-    // TODO(mbs): Plumb from compiler config
-    VirtualDevice host_virtual_device = VirtualDevice::ForTarget(target_host_);
-
     IRModule lowered_mod = tec::LowerTEPass(
         mod_name,
         [this, workspace_byte_alignment](BaseFunc func) {
@@ -1033,7 +1026,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           // lowering process directly.
           tec::UpdateFunctionMetadata(func, this->function_metadata_, workspace_byte_alignment);
         },
-        host_virtual_device)(mod);
+        config_->host_virtual_device)(mod);
 
     auto lowered_main = lowered_mod->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
@@ -1046,7 +1039,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // TODO(@electriclilies, @jroesch, @Mousius): remove UpdateMainWorkspaceSize
     StaticMemoryPlan memory_plan(storage_device_map_);
     backend::FunctionInfo func_info =
-        tec::UpdateMainWorkspaceSize(lowered_mod, targets_, memory_plan->expr_to_storage_info);
+        tec::UpdateMainWorkspaceSize(lowered_mod, config_, memory_plan->expr_to_storage_info);
     lowered_mod = WithAttr(lowered_mod, "main_func_info", func_info);
 
     for (auto input : lowered_main_func->params) {
@@ -1217,9 +1210,9 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
     if (name == "init") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.num_args, 2) << "The expected of arguments are: "
-                                    << "runtime::Module mod and  Map<int, Target> targets";
+                                    << "runtime::Module mod and Array<Target> targets";
         void* mod = args[0];
-        TargetMap targets = args[1];
+        Array<Target> targets = args[1];
         init(mod, targets);
       });
     } else if (name == "codegen") {
@@ -1267,22 +1260,9 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
   const char* type_key() const final { return "RelayGraphRuntimeCodegenModule"; }
 
  private:
-  void init(void* mod, TargetMap tmp) {
-    tec::TargetMap targets;
-    Target target_host;
-    for (const auto& it : tmp) {
-      auto dev_type = it.first.as<tir::IntImmNode>();
-      // TODO(tvm-team): AoT only works with kDLCPU device type. We can remove kDLHexagon
-      // here once we refactored kDLHexagon to kDLCPU.
-      if (!target_host.defined() && ((it.second->kind->device_type == kDLCPU) ||
-                                     (it.second->kind->device_type == kDLHexagon))) {
-        target_host = it.second;
-      }
-      ICHECK(dev_type);
-      targets[static_cast<DLDeviceType>(dev_type->value)] = it.second;
-    }
-    codegen_ = std::make_shared<AOTExecutorCodegen>(reinterpret_cast<runtime::Module*>(mod),
-                                                    targets, target_host);
+  void init(void* mod, const Array<Target>& targets) {
+    codegen_ =
+        std::make_shared<AOTExecutorCodegen>(reinterpret_cast<runtime::Module*>(mod), targets);
   }
 
   Array<runtime::String> list_params_name() {

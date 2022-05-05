@@ -318,6 +318,7 @@ list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
 tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
+  src/runtime/minrpc/*.cc
 )
 
 if(BUILD_FOR_HEXAGON)
@@ -647,6 +648,12 @@ if(GTEST_FOUND)
   target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main GTest::gmock pthread dl)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
+  if(USE_RELAY_DEBUG)
+    target_compile_definitions(cpptest PRIVATE "USE_RELAY_DEBUG")
+    target_compile_definitions(cpptest PRIVATE "TVM_LOG_DEBUG")
+  else()
+    target_compile_definitions(cpptest PRIVATE "NDEBUG")
+  endif()
   # For some reason, compile definitions are not propagated correctly, so we manually add them here
   target_compile_definitions(cpptest PUBLIC $<TARGET_PROPERTY:tvm,INTERFACE_COMPILE_DEFINITIONS>)
   gtest_discover_tests(cpptest)
