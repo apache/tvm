@@ -428,17 +428,7 @@ class OpenCLTimerNode : public TimerNode {
     if (!cl::OpenCLWorkspace::Global()->profiling) {
       // Very first call of Start() leads to the recreation of
       // OpenCL command queue in profiling mode. This allows to run profile after inference.
-      OPENCL_CALL(clFlush(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
-      OPENCL_CALL(clFinish(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
-      OPENCL_CALL(clReleaseCommandQueue(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
-
-      cl_int err_code;
-      cl_device_id did = cl::OpenCLWorkspace::Global()->devices[dev_.device_id];
-      auto profiling_queue = clCreateCommandQueue(cl::OpenCLWorkspace::Global()->context, did,
-                                                  CL_QUEUE_PROFILING_ENABLE, &err_code);
-      OPENCL_CHECK_ERROR(err_code);
-      cl::OpenCLWorkspace::Global()->queues[dev_.device_id] = profiling_queue;
-      cl::OpenCLWorkspace::Global()->profiling = true;
+      recreateCommandQueue(true);
     }
   }
   // Timer stop
@@ -462,17 +452,7 @@ class OpenCLTimerNode : public TimerNode {
     if (cl::OpenCLWorkspace::Global()->profiling) {
       // Profiling session ends, recreate clCommandQueue in non-profiling mode
       // This will disable collection of cl_events in case of executing inference after profile
-      OPENCL_CALL(clFlush(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
-      OPENCL_CALL(clFinish(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
-      OPENCL_CALL(clReleaseCommandQueue(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
-
-      cl_int err_code;
-      cl_device_id did = cl::OpenCLWorkspace::Global()->devices[dev_.device_id];
-      auto normal_queue =
-          clCreateCommandQueue(cl::OpenCLWorkspace::Global()->context, did, 0, &err_code);
-      OPENCL_CHECK_ERROR(err_code);
-      cl::OpenCLWorkspace::Global()->queues[dev_.device_id] = normal_queue;
-      cl::OpenCLWorkspace::Global()->profiling = false;
+      recreateCommandQueue(false);
     }
   }
   // constructor
@@ -485,6 +465,27 @@ class OpenCLTimerNode : public TimerNode {
  private:
   int64_t duration;
   Device dev_;
+
+  void recreateCommandQueue(bool profiling) {
+    cl_command_queue_properties prop;
+    if (profiling) {
+      prop = CL_QUEUE_PROFILING_ENABLE;
+    } else {
+      prop = CL_QUEUE_PROFILING_ENABLE;
+    }
+
+    OPENCL_CALL(clFlush(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
+    OPENCL_CALL(clFinish(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
+    OPENCL_CALL(clReleaseCommandQueue(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
+
+    cl_int err_code;
+    cl_device_id did = cl::OpenCLWorkspace::Global()->devices[dev_.device_id];
+    auto profiling_queue = clCreateCommandQueue(cl::OpenCLWorkspace::Global()->context, did,
+                                                prop, &err_code);
+    OPENCL_CHECK_ERROR(err_code);
+    cl::OpenCLWorkspace::Global()->queues[dev_.device_id] = profiling_queue;
+    cl::OpenCLWorkspace::Global()->profiling = profiling;
+  }
 };
 }  // namespace runtime
 }  // namespace tvm
