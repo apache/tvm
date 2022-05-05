@@ -62,6 +62,7 @@ def schedule_pool(outs, layout):
             s[OL].vectorize(s[OL].op.axis[-1])
         else:
             s[Pool].compute_at(s[Out], tx)
+            s[Pool].vectorize(s[Pool].op.axis[-1])
 
     scheduled_ops = []
 
