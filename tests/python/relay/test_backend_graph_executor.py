@@ -300,6 +300,19 @@ def test_compile_return_empty_tuple():
     mod.run()
 
 
+def test_compile_fused_identity_cast():
+    x = relay.var("x", shape=[16], dtype="float32")
+    y = relay.cast(x, "float32")
+    func = relay.Function([x], y)
+    func = func.with_attr("Primitive", 1)
+    x_param = relay.var("xx", shape=[16], dtype="float32")
+    func = relay.Function([x_param], relay.Call(func, [x_param]))
+    mod = tvm.IRModule.from_expr(func)
+    graph, lib, _ = relay.build(mod, "llvm")
+    mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
+    mod.run()
+
+
 def test_graph_executor_nested_tuples():
     x, y, z, w = [relay.var(c, shape=(2, 3), dtype="float32") for c in "xyzw"]
     out = relay.Tuple([x, relay.Tuple([y, relay.Tuple([z, w])])])

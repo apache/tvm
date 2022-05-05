@@ -358,9 +358,18 @@ class ScheduleBuilder : public ExprVisitor {
 
       // Use TOPI schedule if user specificed, or the function has no auto_scheduler schedule.
       if (!schedule.defined() && !prim_func.defined()) {
-        auto anchor_impl = lower_te_compute.op_implementations_.find(anchor_op_.operator->());
-        ICHECK(anchor_impl != lower_te_compute.op_implementations_.end());
-        schedule = anchor_impl->second.Schedule(anchor_attrs_, tensor_outs, target_);
+        if (anchor_op_.defined()) {
+          auto anchor_impl = lower_te_compute.op_implementations_.find(anchor_op_.operator->());
+          ICHECK(anchor_impl != lower_te_compute.op_implementations_.end());
+          schedule = anchor_impl->second.Schedule(anchor_attrs_, tensor_outs, target_);
+        } else {
+          Array<te::Operation> op_outs;
+          for (size_t i = 0; i < outputs.size(); ++i) {
+            outputs.Set(i, topi::identity(outputs[i]));
+            op_outs.push_back(outputs[i]->op);
+          }
+          schedule = te::create_schedule(op_outs);
+        }
       }
       if (schedule.defined()) {
         for (const auto& scalar : lower_te_compute.scalars_) {
