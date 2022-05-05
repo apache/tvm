@@ -1784,20 +1784,19 @@ class TestSegmentSum:
         )
 
 
-def verify_func(target, dev, func, data, ref_res):
+def verify_func(target, dev, func, data, ref_res, rtol=1e-5, atol=1e-7, kinds=["vm"]):
     assert isinstance(data, list)
-    for kind in ["vm"]:
+    for kind in kinds:
         mod = tvm.ir.IRModule.from_expr(func)
         op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(*data)
         if isinstance(op_res, tvm.runtime.container.ADT):
             assert len(op_res) == len(
                 ref_res
             ), "Outputs from TVM and Python implementation must be equal "
-
             for op_result, ref_result in zip(op_res, ref_res):
-                tvm.testing.assert_allclose(op_result.numpy(), ref_result, rtol=1e-5)
+                tvm.testing.assert_allclose(op_result.numpy(), ref_result, rtol=rtol, atol=atol)
         else:
-            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol, atol=atol)
         relay.backend.te_compiler.get().clear()
 
 
@@ -2210,25 +2209,9 @@ class TestSTFT:
 
         z = relay.op.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
         func = relay.Function([data, window], z)
-        verify_func2(
+        verify_func(
             target, dev, func, [data_np, window_np], ref_res, rtol=1e-3, atol=1e-3, kinds=backends
         )
-
-
-def verify_func2(target, dev, func, data, ref_res, rtol=1e-5, atol=1e-7, kinds=["vm"]):
-    assert isinstance(data, list)
-    for kind in kinds:
-        mod = tvm.ir.IRModule.from_expr(func)
-        op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(*data)
-        if isinstance(op_res, tvm.runtime.container.ADT):
-            assert len(op_res) == len(
-                ref_res
-            ), "Outputs from TVM and Python implementation must be equal "
-            for op_result, ref_result in zip(op_res, ref_res):
-                tvm.testing.assert_allclose(op_result.numpy(), ref_result, rtol=rtol, atol=atol)
-        else:
-            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol, atol=atol)
-        relay.backend.te_compiler.get().clear()
 
 
 if __name__ == "__main__":
