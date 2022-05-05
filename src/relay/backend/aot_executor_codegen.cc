@@ -107,7 +107,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
     VisitExpr(func);
     CreateStorage(call_node);
     for (const Expr& arg : args) {
-      GetStorage(arg);
+      VisitExpr(arg);
     }
     AssignReturnSid(GetRef<Expr>(call_node));
   }
@@ -126,7 +126,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
     for (const auto& param : func_node->params) {
       CreateStorage(param.get());
     }
-    GetStorage(func_node->body);
+    VisitExpr(func_node->body);
   }
 
   void VisitExpr_(const GlobalVarNode* op) final {
@@ -217,17 +217,8 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
    * \return The corresponding token.
    */
   StorageInfo GetStorage(const Expr& expr) {
-    Expr true_expr = expr;
-
-    // Don't get storage for let nodes.
-    while (const auto* let_node = true_expr.as<LetNode>()) {
-      VisitExpr(true_expr);
-      true_expr = let_node->body;
-    }
-
     // See through "on_device" calls.
-    true_expr = IgnoreOnDevice(true_expr);
-
+    Expr true_expr = IgnoreOnDevice(expr);
     VisitExpr(true_expr);
     auto it = storage_device_map_.find(true_expr);
     ICHECK(it != storage_device_map_.end()) << "Could not find " << true_expr->GetTypeKey() << " "
@@ -704,7 +695,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   void VisitExpr_(const LetNode* op) override {
     auto pre_visit = [this](const LetNode* op) {
       let_bound_vars_.insert(op->var);
-      this->VisitExpr(op->var);
       this->VisitExpr(op->value);
     };
     auto post_visit = [this](const LetNode* op) {
