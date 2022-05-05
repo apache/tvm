@@ -1867,7 +1867,7 @@ def _unary_elewise_create_model(math_op, data, offset=0, int_quant_dtype=tf.int8
         model,
         export_dir,
         signatures=model.tf_function.get_concrete_function(
-            tf.TensorSpec(data.shape, tf.float32, name="input"),
+            tf.TensorSpec(data.shape, tf.float32, name="input")
         ),
     )
 
@@ -3759,8 +3759,7 @@ def test_forward_prelu():
         np.full((32, 3), 0.2, dtype="float32"),
     )
     _test_prelu(
-        np.random.uniform(-5, 5, size=(32, 3)).astype("float32"),
-        np.full((3), 0.2, dtype="float32"),
+        np.random.uniform(-5, 5, size=(32, 3)).astype("float32"), np.full((3), 0.2, dtype="float32")
     )
 
 
@@ -4965,7 +4964,6 @@ if __name__ == "__main__":
     test_forward_l2_normalization()
     test_forward_local_response_normalization()
     test_forward_unidirectional_sequence_lstm()
-
 
     # Elemwise
     test_all_elemwise()
