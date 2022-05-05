@@ -48,7 +48,8 @@ enum DeviceAttrKind : int {
   kMaxRegistersPerBlock = 9,
   kGcnArch = 10,
   kApiVersion = 11,
-  kDriverVersion = 12
+  kDriverVersion = 12,
+  kTextureSpatialLimit = 13
 };
 
 /*! \brief Number of bytes each allocation must align to */

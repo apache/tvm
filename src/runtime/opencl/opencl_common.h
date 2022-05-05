@@ -332,7 +332,12 @@ class OpenCLThreadEntry {
   static OpenCLThreadEntry* ThreadLocal();
 };
 
-/*! \brief OpenCL runtime buffer structure with tracked memory layout */
+/*! \brief OpenCL runtime buffer structure with tracked memory layout
+    TODO(tvm-team): Uncouple use of storage scope and data layout by using the transform_layout
+    schedule primitive to express the desired texture layout. This will require supporting Nd
+    indices in BufferLoad and BufferStore in CodegenOpenCL, and ensuring Nd allocations for
+    texture are correctly routed to the AllocateTexture packed function in the OpenCL DeviceAPI.
+*/
 struct BufferDescriptor {
   enum class MemoryLayout {
     /*! \brief One dimensional buffer in row-major layout*/

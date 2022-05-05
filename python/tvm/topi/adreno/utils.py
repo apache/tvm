@@ -35,19 +35,19 @@ def get_div(value, start):
     return div
 
 
-def split_to_chunks(trip_count, block):
+def split_to_chunks(extent, block):
     """
     Splits the trip count value to chunks and block, returns the remainder as well
-    the chunks and blocks covers or overlaps the origin trip_count
+    the chunks and blocks covers or overlaps the origin value
 
-    If trip_count can be divisible by block:
-        trip_count = chunks * block
+    If extent can be divisible by block:
+        extent = chunks * block
     else
-        trip_count = (chunks - 1) * block + tail
+        extent = (chunks - 1) * block + tail
 
     Parameters
     ----------
-    trip_count: int
+    extent: int
         tripcount for original compute
 
     block: int
@@ -56,9 +56,11 @@ def split_to_chunks(trip_count, block):
     Returns
     ----------
     out: tuple of the (chunks, block, tail)
+         chunks = ceildiv(extent, block)
+         tail = number of origin elements in the latest chunk
     """
-    tail = trip_count % block
-    chunks = trip_count // block
+    tail = extent % block
+    chunks = extent // block
     if tail == 0:
         tail = block
     else:
@@ -66,9 +68,7 @@ def split_to_chunks(trip_count, block):
     return chunks, block, tail
 
 
-def pack_input(
-    Input, layout, batch, chunks, block, original_tail, in_height, in_width
-):
+def pack_input(Input, layout, batch, chunks, block, original_tail, in_height, in_width):
     """
     Adds compute stages for packing of the data in runtime. Extends channel dimensions
     to be dividable by factor 4
@@ -243,9 +243,7 @@ def pack_filter(
 
         conditionO = []
         conditionO.append(conditionAT)
-        conditionO.append(
-            indices[1] >= in_chunks * in_block + in_original_tail
-        )
+        conditionO.append(indices[1] >= in_chunks * in_block + in_original_tail)
         conditionOT = tvm.tir.any(*conditionO)
         return tvm.tir.if_then_else(
             conditionOT,
@@ -261,9 +259,7 @@ def pack_filter(
 
         conditionO = []
         conditionO.append(conditionAT)
-        conditionO.append(
-            indices[2] >= in_chunks * in_block + in_original_tail
-        )
+        conditionO.append(indices[2] >= in_chunks * in_block + in_original_tail)
         conditionOT = tvm.tir.any(*conditionO)
         return tvm.tir.if_then_else(
             conditionOT,
@@ -542,7 +538,9 @@ def get_texture_storage(shape):
     # certain limitation of the Qualcomm devices. Subject to be determined for certain device
     # individually, but until we have access to remote device during compilation, we have to
     # define it uniformly for all target devices
-    limit = 16384
+    # limit = 16384
+    limit = tvm.target.Target.current().attrs["texture_spatial_limit"]
+
     if shape[0] * shape[1] * shape[2] < limit and shape[3] < limit:
         return "global.texture"
     elif shape[0] * shape[1] < limit and shape[2] * shape[3] < limit:

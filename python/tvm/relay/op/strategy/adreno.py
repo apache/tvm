@@ -86,8 +86,7 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
         elif data_layout == "NHWC4c":
             ic = data.shape[3] * data.shape[4]
         else:
-            # TODO(amalyshe) add proper error raising
-            assert False, "Layout is not suported"
+            raise RuntimeError("Unsupported depthwise_conv2d data layout {}".format(data_layout))
         if kernel_layout == "OIHW":
             oc = kernel.shape[0]
         elif kernel_layout == "OIHW4o":
@@ -97,8 +96,9 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
         elif kernel_layout == "HWOI4o":
             oc = kernel.shape[2] * kernel.shape[4]
         else:
-            # TODO(amalyshe) add proper error raising
-            assert False, "Layout is not suported"
+            raise RuntimeError(
+                "Unsupported depthwise_conv2d kernel layout {}".format(kernel_layout)
+            )
 
         if ic == oc == groups:
             if (data_layout == "NCHW" and kernel_layout == "OIHW") or (
