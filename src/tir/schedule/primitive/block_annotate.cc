@@ -16,9 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../../ir/functor_common.h"
 #include "../utils.h"
-#include "tvm/tir/stmt.h"
 
 namespace tvm {
 namespace tir {

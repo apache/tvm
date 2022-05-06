@@ -17,8 +17,6 @@
  * under the License.
  */
 #include "../utils.h"
-#include "tvm/tir/schedule/block_scope.h"
-#include "tvm/tir/stmt.h"
 
 namespace tvm {
 namespace tir {
