@@ -348,14 +348,15 @@ Doc RelayTextPrinter::VisitExpr_(const VarNode* op) { return AllocVar(GetRef<Var
 
 Doc RelayTextPrinter::VisitExpr_(const ConstantNode* op) {
   // Print out simple scalars directly.
-  if (op->is_scalar()) {
+  if (support::IsSimpleScalar(op)) {
     return Doc::Text(support::NDArrayScalarToString(op->data));
   }
-  // default fall-back, record it as meta node.
+  // Fallbock: record it as a meta node.
   Doc doc;
   // Don't append optional_info. Because the entry function is Print,
   // and it will append the optional_info afterwards.
-  return doc << PrintExpr(GetRef<Expr>(op), true, false, false);
+  return doc << PrintExpr(GetRef<Expr>(op), /*meta=*/true, /*try_inline=*/false,
+                          /*optional_info=*/false);
 }
 
 Doc RelayTextPrinter::VisitExpr_(const TupleNode* op) {
@@ -772,11 +773,21 @@ Doc RelayTextPrinter::VisitAttr_(const ArrayNode* op) {
 }
 
 Doc RelayTextPrinter::VisitAttr_(const tir::IntImmNode* op) {
-  return Doc::Text(support::IntImmToString(GetRef<IntImm>(op)));
+  if (support::IsSimpleScalarDtype(op->dtype)) {
+    return Doc::Text(support::IntImmToString(GetRef<IntImm>(op)));
+  } else {
+    // Fallback: Print int64_t without width suffix.
+    return Doc::Text(std::to_string(op->value));
+  }
 }
 
 Doc RelayTextPrinter::VisitAttr_(const tir::FloatImmNode* op) {
-  return Doc::Text(support::FloatImmToString(GetRef<FloatImm>(op)));
+  if (support::IsSimpleScalarDtype(op->dtype)) {
+    return Doc::Text(support::FloatImmToString(GetRef<FloatImm>(op)));
+  } else {
+    // Fallbock: Print double without width suffix.
+    return Doc::Text(std::to_string(op->value));
+  }
 }
 
 Doc RelayTextPrinter::VisitAttr_(const tir::StringImmNode* op) {

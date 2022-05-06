@@ -38,27 +38,27 @@ static const DataType kFloat32 = DataType::Float(32);
 static const DataType kFloat64 = DataType::Float(64);
 static const DataType kBool = DataType::Bool();
 
-bool IsSimpleScalar(const relay::ConstantNode* constant_node) {
-  if (!constant_node->is_scalar()) {
-    return false;
-  }
-  DataType dtype(constant_node->data->dtype);
+bool IsSimpleScalarDtype(DataType dtype) {
   return dtype == kInt16 || dtype == kInt32 || dtype == kInt64 || dtype == kFloat16 ||
          dtype == kFloat32 || dtype == kFloat64 || dtype == kBool;
+}
+
+bool IsSimpleScalar(const relay::ConstantNode* constant_node) {
+  return constant_node->is_scalar() && IsSimpleScalarDtype(DataType(constant_node->data->dtype));
 }
 
 runtime::NDArray IntImmToNDArray(const IntImm& int_imm) {
   DLDevice dev = {DLDeviceType::kDLCPU, 0};
   auto data = runtime::NDArray::Empty({}, int_imm->dtype, dev);
-  if (int_imm.dtype() == kInt64) {
-    auto array = reinterpret_cast<int64_t*>(data->data);
-    array[0] = int_imm->value;
+  if (int_imm.dtype() == kInt16) {
+    auto array = reinterpret_cast<int16_t*>(data->data);
+    array[0] = static_cast<int16_t>(int_imm->value);
   } else if (int_imm.dtype() == kInt32) {
     auto array = reinterpret_cast<int32_t*>(data->data);
     array[0] = static_cast<int32_t>(int_imm->value);
-  } else if (int_imm.dtype() == kInt16) {
-    auto array = reinterpret_cast<int16_t*>(data->data);
-    array[0] = static_cast<int16_t>(int_imm->value);
+  } else if (int_imm.dtype() == kInt64) {
+    auto array = reinterpret_cast<int64_t*>(data->data);
+    array[0] = int_imm->value;
   } else {
     LOG(FATAL) << "Unrecognized numeric literal dtype: " << DLDataType2String(int_imm.dtype());
   }
@@ -68,15 +68,15 @@ runtime::NDArray IntImmToNDArray(const IntImm& int_imm) {
 runtime::NDArray FloatImmToNDArray(const FloatImm& float_imm) {
   DLDevice dev = {DLDeviceType::kDLCPU, 0};
   auto data = runtime::NDArray::Empty({}, float_imm->dtype, dev);
-  if (float_imm.dtype() == kFloat64) {
-    auto array = reinterpret_cast<double*>(data->data);
-    array[0] = float_imm->value;
+  if (float_imm.dtype() == kFloat16) {
+    auto array = reinterpret_cast<uint16_t*>(data->data);
+    array[0] = __gnu_f2h_ieee(static_cast<float>(float_imm->value));
   } else if (float_imm.dtype() == kFloat32) {
     auto array = reinterpret_cast<float*>(data->data);
     array[0] = static_cast<float>(float_imm->value);
-  } else if (float_imm.dtype() == kFloat16) {
-    auto array = reinterpret_cast<uint16_t*>(data->data);
-    array[0] = __gnu_f2h_ieee(static_cast<float>(float_imm->value));
+  } else if (float_imm.dtype() == kFloat64) {
+    auto array = reinterpret_cast<double*>(data->data);
+    array[0] = float_imm->value;
   } else {
     LOG(FATAL) << "Unrecognized numeric literal dtype: " << DLDataType2String(float_imm.dtype());
   }

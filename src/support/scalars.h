@@ -35,6 +35,9 @@
 namespace tvm {
 namespace support {
 
+/*! \brief Returns true if a tensor of empty shape and given dtype is considered a Relay scalar. */
+bool IsSimpleScalarDtype(DataType dtype);
+
 /*! \brief Returns true if \p constant_node is a float/int/bool scalar. */
 bool IsSimpleScalar(const relay::ConstantNode* constant_node);
 
