@@ -578,18 +578,9 @@ class IterMapRewriter : public ExprMutator {
         return Array<IterSplitExpr>();
       }
     } else {
-      // This still requires that the splits can be part of a
-      // bijective transformation, even if they are not sufficient to
-      // form a bijective transformation.
-      //
-      // TODO: Why is this condition used, and what is it intended to allow?
-      //
-      // if (!CanProveDivisible(mark->extent, expected_lower_factor)) {
-      //   std::cout << "Expected resulting lower factor " << expected_lower_factor
-      //             << " to be divisible by the extent of the parent mark " << mark->extent
-      //             << std::endl;
-      //   return Array<IterSplitExpr>();
-      // }
+      if (!CanProveDivisible(mark->extent, expected_lower_factor)) {
+        return Array<IterSplitExpr>();
+      }
     }
     return Array<IterSplitExpr>(iters.rbegin(), iters.rend());
   }
