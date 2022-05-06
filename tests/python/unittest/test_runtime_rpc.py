@@ -110,25 +110,6 @@ def test_rpc_simple():
 
 
 @tvm.testing.requires_rpc
-def test_rpc_simple_wlog():
-    server = rpc.Server(key="x1")
-    client = rpc.connect("127.0.0.1", server.port, key="x1", enable_logging=True)
-
-    def check_remote():
-        f1 = client.get_function("rpc.test.addone")
-        assert f1(10) == 11
-        f3 = client.get_function("rpc.test.except")
-
-        with pytest.raises(tvm._ffi.base.TVMError):
-            f3("abc")
-
-        f2 = client.get_function("rpc.test.strcat")
-        assert f2("abc", 11) == "abc:11"
-
-    check_remote()
-
-
-@tvm.testing.requires_rpc
 def test_rpc_runtime_string():
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
@@ -250,7 +231,7 @@ def test_rpc_remote_module():
         "127.0.0.1",
         server0.port,
         key="x0",
-        session_constructor_args=["rpc.Connect", "127.0.0.1", server1.port, "x1", False],
+        session_constructor_args=["rpc.Connect", "127.0.0.1", server1.port, "x1"],
     )
 
     def check_remote(remote):
@@ -385,7 +366,7 @@ def test_rpc_session_constructor_args():
             "127.0.0.1",
             server0.port,
             key="x0",
-            session_constructor_args=["rpc.Connect", "127.0.0.1", server1.port, "x1", False],
+            session_constructor_args=["rpc.Connect", "127.0.0.1", server1.port, "x1"],
         )
 
         fecho = client.get_function("testing.echo")
