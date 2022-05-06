@@ -459,9 +459,7 @@ class TrackerSession(object):
         )
 
 
-def connect(
-    url, port, key="", session_timeout=0, session_constructor_args=None, enable_logging=False
-):
+def connect(url, port, key="", session_timeout=0, session_constructor_args=None):
     """Connect to RPC Server
 
     Parameters
@@ -485,9 +483,6 @@ def connect(
         The first element of the list is always a string specifying the name of
         the session constructor, the following args are the positional args to that function.
 
-    enable_logging: boolean
-        flag to enable/disable logging. Logging is disabled by default.
-
     Returns
     -------
     sess : RPCSession
@@ -508,9 +503,9 @@ def connect(
     .. code-block:: python
 
         client_via_proxy = rpc.connect(
-            proxy_server_url, proxy_server_port, proxy_server_key, enable_logging
+            proxy_server_url, proxy_server_port, proxy_server_key,
             session_constructor_args=[
-                "rpc.Connect", internal_url, internal_port, internal_key, internal_logging])
+                "rpc.Connect", internal_url, internal_port, internal_key])
 
     """
     try:
@@ -519,7 +514,7 @@ def connect(
         session_constructor_args = session_constructor_args if session_constructor_args else []
         if not isinstance(session_constructor_args, (list, tuple)):
             raise TypeError("Expect the session constructor to be a list or tuple")
-        sess = _ffi_api.Connect(url, port, key, enable_logging, *session_constructor_args)
+        sess = _ffi_api.Connect(url, port, key, *session_constructor_args)
     except NameError:
         raise RuntimeError("Please compile with USE_RPC=1")
     return RPCSession(sess)

@@ -65,7 +65,7 @@ class SockChannel final : public RPCChannel {
 };
 
 std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string key,
-                                        bool enable_logging, TVMArgs init_seq) {
+                                        TVMArgs init_seq) {
   support::TCPSocket sock;
   support::SockAddr addr(url.c_str(), port);
   sock.Create(addr.ss_family());
@@ -96,20 +96,14 @@ std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string k
     remote_key.resize(keylen);
     ICHECK_EQ(sock.RecvAll(&remote_key[0], keylen), keylen);
   }
-
-  std::unique_ptr<RPCChannel> channel{new SockChannel(sock)};
-  if (enable_logging) {
-    channel.reset(new RPCChannelLogging(std::move(channel)));
-  }
-  auto endpt = RPCEndpoint::Create(std::move(channel), key, remote_key);
-
+  auto endpt =
+      RPCEndpoint::Create(std::unique_ptr<SockChannel>(new SockChannel(sock)), key, remote_key);
   endpt->InitRemoteSession(init_seq);
   return endpt;
 }
 
-Module RPCClientConnect(std::string url, int port, std::string key, bool enable_logging,
-                        TVMArgs init_seq) {
-  auto endpt = RPCConnect(url, port, "client:" + key, enable_logging, init_seq);
+Module RPCClientConnect(std::string url, int port, std::string key, TVMArgs init_seq) {
+  auto endpt = RPCConnect(url, port, "client:" + key, init_seq);
   return CreateRPCSessionModule(CreateClientSession(endpt));
 }
 
@@ -130,9 +124,8 @@ TVM_REGISTER_GLOBAL("rpc.Connect").set_body([](TVMArgs args, TVMRetValue* rv) {
   std::string url = args[0];
   int port = args[1];
   std::string key = args[2];
-  bool enable_logging = args[3];
-  *rv = RPCClientConnect(url, port, key, enable_logging,
-                         TVMArgs(args.values + 4, args.type_codes + 4, args.size() - 4));
+  *rv = RPCClientConnect(url, port, key,
+                         TVMArgs(args.values + 3, args.type_codes + 3, args.size() - 3));
 });
 
 TVM_REGISTER_GLOBAL("rpc.ServerLoop").set_body([](TVMArgs args, TVMRetValue* rv) {
