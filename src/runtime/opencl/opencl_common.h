@@ -229,8 +229,6 @@ class OpenCLWorkspace : public DeviceAPI {
   cl_context context{nullptr};
   // whether the workspace it initialized.
   bool initialized_{false};
-  // whether the workspace is in profiling mode.
-  bool profiling{false};
   // the device type
   std::string device_type;
   // the devices
@@ -275,6 +273,20 @@ class OpenCLWorkspace : public DeviceAPI {
     ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
         << "Invalid OpenCL device_id=" << dev.device_id;
     return events[dev.device_id];
+  }
+  // is current clCommandQueue in profiling mode
+  bool IsProfiling(Device dev) {
+    ICHECK(IsOpenCLDevice(dev));
+    this->Init();
+    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
+        << "Invalid OpenCL device_id=" << dev.device_id;
+    cl_command_queue queue = queues[dev.device_id];
+    cl_command_queue_properties prop;
+
+    OPENCL_CALL(clGetCommandQueueInfo(queue, CL_QUEUE_PROPERTIES,
+                                      sizeof(cl_command_queue_properties), &prop, nullptr));
+
+    return prop & CL_QUEUE_PROFILING_ENABLE;
   }
 
   // override device API
@@ -425,7 +437,7 @@ class OpenCLTimerNode : public TimerNode {
     cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).clear();
     this->duration = 0;
 
-    if (!cl::OpenCLWorkspace::Global()->profiling) {
+    if (!cl::OpenCLWorkspace::Global()->IsProfiling(dev_)) {
       // Very first call of Start() leads to the recreation of
       // OpenCL command queue in profiling mode. This allows to run profile after inference.
       recreateCommandQueue(true);
@@ -449,7 +461,7 @@ class OpenCLTimerNode : public TimerNode {
   virtual int64_t SyncAndGetElapsedNanos() { return this->duration; }
   // destructor
   virtual ~OpenCLTimerNode() {
-    if (cl::OpenCLWorkspace::Global()->profiling) {
+    if (cl::OpenCLWorkspace::Global()->IsProfiling(dev_)) {
       // Profiling session ends, recreate clCommandQueue in non-profiling mode
       // This will disable collection of cl_events in case of executing inference after profile
       recreateCommandQueue(false);
@@ -480,11 +492,10 @@ class OpenCLTimerNode : public TimerNode {
 
     cl_int err_code;
     cl_device_id did = cl::OpenCLWorkspace::Global()->devices[dev_.device_id];
-    auto profiling_queue = clCreateCommandQueue(cl::OpenCLWorkspace::Global()->context, did,
-                                                prop, &err_code);
+    auto profiling_queue =
+        clCreateCommandQueue(cl::OpenCLWorkspace::Global()->context, did, prop, &err_code);
     OPENCL_CHECK_ERROR(err_code);
     cl::OpenCLWorkspace::Global()->queues[dev_.device_id] = profiling_queue;
-    cl::OpenCLWorkspace::Global()->profiling = profiling;
   }
 };
 }  // namespace runtime
