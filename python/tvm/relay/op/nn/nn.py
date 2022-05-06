@@ -2899,6 +2899,99 @@ def deformable_conv2d(
         out_dtype,
     )
 
+def deformableV2_conv2d(
+    data,
+    offset,
+    mask,
+    weight,
+    strides=(1, 1),
+    padding=(0, 0),
+    dilation=(1, 1),
+    deformable_groups=1,
+    groups=1,
+    channels=None,
+    kernel_size=None,
+    data_layout="NCHW",
+    kernel_layout="OIHW",
+    out_layout="",
+    out_dtype="",
+):
+    r"""DeformableV2 2d convolution.
+
+    The deformableV2 convolution operation is described in https://arxiv.org/abs/1811.11168
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    offset : tvm.relay.Expr
+        The offset expressions.
+    mask : tvm.relay.Expr
+        The mask expressions.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    strides : tuple of int, optional
+        The strides of convolution.
+
+    padding : tuple of int, optional
+        The padding of convolution on both sides of inputs before convolution.
+
+    dilation : tuple of int, optional
+        Specifies the dilation rate to be used for dilated convolution.
+
+    deformable_groups : int, optional
+        Number of deformable groups.
+
+    groups : int, optional
+        Number of groups for grouped convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    kernel_layout : str, optional
+        Layout of the weight.
+
+    out_layout : str, optional
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+
+    """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
+    return _make.deformableV2_conv2d(
+        data,
+        offset,
+        mask,
+        weight,
+        strides,
+        padding,
+        dilation,
+        deformable_groups,
+        groups,
+        channels,
+        kernel_size,
+        data_layout,
+        kernel_layout,
+        out_layout,
+        out_dtype,
+    )
+
 
 def bitpack(data, bits=1, pack_axis=1, bit_axis=2, pack_type="uint32", name="BitPack"):
     """Tensor packing for bitserial operations.

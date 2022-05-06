@@ -30,6 +30,7 @@ from . import conv2d_alter_op
 from .conv2d_transpose import *
 from .conv3d_transpose_ncdhw import *
 from .deformable_conv2d import *
+from .deformableV2_conv2d import *
 from .conv3d import *
 from .conv3d_winograd import *
 from . import conv3d_alter_op

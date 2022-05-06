@@ -148,6 +148,10 @@ class L2NormalizeAttrs(Attrs):
 class DeformableConv2DAttrs(Attrs):
     """Attributes for nn.deformable_conv2d"""
 
+@tvm._ffi.register_object("relay.attrs.DeformableV2Conv2DAttrs")
+class DeformableV2Conv2DAttrs(Attrs):
+    """Attributes for nn.deformableV2_conv2d"""
+
 
 @tvm._ffi.register_object("relay.attrs.Resize1DAttrs")
 class Resize1DAttrs(Attrs):

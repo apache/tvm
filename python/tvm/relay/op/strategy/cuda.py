@@ -567,6 +567,28 @@ def deformable_conv2d_strategy_cuda(attrs, inputs, out_type, target):
         raise RuntimeError("Layout %s is not supported in deformable conv2d on CUDA" % layout)
     return strategy
 
+@deformableV2_conv2d_strategy.register(["cuda", "gpu"])
+def deformableV2_conv2d_strategy_cuda(attrs, inputs, out_type, target):
+    """deformableV2_conv2d cuda strategy"""
+    layout = attrs.data_layout
+    strategy = _op.OpStrategy()
+
+    if layout == "NCHW":
+        strategy.add_implementation(
+            wrap_compute_deformableV2_conv2d(topi.cuda.deformableV2_conv2d_nchw),
+            wrap_topi_schedule(topi.cuda.schedule_deformableV2_conv2d_nchw),
+            name="deformableV2_conv2d_nchw.cuda",
+        )
+    elif layout == "NHWC":
+        # This implementation should never be picked by autotvm
+        strategy.add_implementation(
+            wrap_compute_deformableV2_conv2d(topi.nn.deformableV2_conv2d_nhwc),
+            naive_schedule,
+            name="deformableV2_conv2d_nhwc.cuda",
+        )
+    else:
+        raise RuntimeError("Layout %s is not supported in deformableV2 conv2d on CUDA" % layout)
+    return strategy
 
 @conv2d_backward_weight_strategy.register(["cuda"])
 def conv2d_backward_weight_strategy_cuda(attrs, inputs, out_type, target):

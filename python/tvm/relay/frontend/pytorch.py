@@ -2188,6 +2188,46 @@ class PyTorchOpConverter:
 
         return _op.nn.bias_add(conv_out, bias)
 
+    def deformV2_conv2d(self, inputs, input_types):
+        """
+        dcn_v2_cuda_forward(input, weight, bias, offset, mask,
+                                   kernel_h, kernel_w,
+                                   stride_h, stride_w,
+                                   pad_h, pad_w,
+                                   dilation_h, dilation_w,
+                                   deformable_group);
+        """
+        data = inputs[0]
+        weight = inputs[1]
+        bias = inputs[2]
+        offset = inputs[3]
+        mask = inputs[4]
+        strides_offset = 7  # there has kernel_h and kernel_w in pos 5 6
+        strides = (inputs[strides_offset], inputs[strides_offset + 1])
+        padding = (inputs[strides_offset + 2], inputs[strides_offset + 3])
+        dilation = (inputs[strides_offset + 4], inputs[strides_offset + 5])
+        # groups = inputs[strides_offset + 6] 
+        # no groups param
+        groups = 1
+        deformable_groups = inputs[strides_offset + 6]
+        weight_shape = self.infer_shape(weight)
+        output_channels = weight_shape[0]
+        kernel_size = (weight_shape[2], weight_shape[3])
+        conv_out = _op.nn.deformableV2_conv2d(
+            data,
+            offset,
+            mask,
+            weight,
+            strides,
+            padding,
+            dilation,
+            deformable_groups,
+            groups,
+            output_channels,
+            kernel_size,
+        )
+        return _op.nn.bias_add(conv_out, bias)
+    
     def unbind(self, inputs, input_types):
         data = inputs[0]
         axis = int(inputs[1])
@@ -3179,6 +3219,7 @@ class PyTorchOpConverter:
             "aten::logsumexp": self.logsumexp,
             "torchvision::roi_align": self.roi_align,
             "torchvision::deform_conv2d": self.deform_conv2d,
+            "my_ops::dcn_v2_cuda_forward_v2" : self.deformV2_conv2d,
             "aten::unbind": self.unbind,
             "aten::__and__": self.logical_and,
             "aten::logical_and": self.logical_and,
