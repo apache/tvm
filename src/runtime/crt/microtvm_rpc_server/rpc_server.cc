@@ -193,6 +193,8 @@ class MicroRPCServer {
 }  // namespace runtime
 }  // namespace tvm
 
+void* operator new[](size_t count, void* ptr) noexcept { return ptr; }
+
 extern "C" {
 
 static microtvm_rpc_server_t g_rpc_server = nullptr;
