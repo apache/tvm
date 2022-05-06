@@ -117,6 +117,7 @@ We do encourage everyone to work anything they are interested in.
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574
+- [Nicola Lancellotti](https://github.com/nicolalancellotti): @NicolaLancellotti
 - [Wuwei Lin](https://github.com/vinx13): @vinx13
 - [Andrew Liu](https://github.com/hypercubestart): @hypercubestart
 - [Henry Liu](https://github.com/optima2005): @optima2005
