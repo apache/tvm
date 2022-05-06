@@ -100,7 +100,7 @@ class SpecialStmt:
 @register
 class MatchBuffer(SpecialStmt):
     """Special Stmt match_buffer(param, shape, dtype, data, strides, elem_offset, scope, align,
-                                 offset_factor, buffer_type)
+                                 offset_factor, buffer_type, axis_separators)
 
     Note
     ----
@@ -131,6 +131,7 @@ class MatchBuffer(SpecialStmt):
             align=-1,
             offset_factor=0,
             buffer_type="default",
+            axis_separators=None,
             span=None,
         ):
             if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
@@ -157,6 +158,7 @@ class MatchBuffer(SpecialStmt):
                 align,
                 offset_factor,
                 buffer_type,
+                axis_separators,
                 span=span,
             )
             if isinstance(param, tvm.tir.Var):
@@ -184,7 +186,7 @@ class MatchBuffer(SpecialStmt):
 @register
 class BufferDeclare(SpecialStmt):
     """Special Stmt buffer_decl(shape, dtype, data, strides, elem_offset, scope, align,
-                                offset_factor, buffer_type)
+                                offset_factor, buffer_type, axis_separators)
     Example
     -------
     .. code-block:: python
@@ -202,6 +204,7 @@ class BufferDeclare(SpecialStmt):
             align=-1,
             offset_factor=0,
             buffer_type="default",
+            axis_separators=None,
             span=None,
         ):
             if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
@@ -228,6 +231,7 @@ class BufferDeclare(SpecialStmt):
                 align,
                 offset_factor,
                 buffer_type,
+                axis_separators,
                 span=span,
             )
             self.context.update_symbol(buffer_name, buffer, self.node)
@@ -239,7 +243,7 @@ class BufferDeclare(SpecialStmt):
 @register
 class AllocBuffer(SpecialStmt):
     """Special function alloc_buffer(shape, dtype, data, strides, elem_offset, scope, align,
-                                     offset_factor, buffer_type)
+                                     offset_factor, buffer_type, axis_separators)
 
     Example
     -------
@@ -259,6 +263,7 @@ class AllocBuffer(SpecialStmt):
             align=-1,
             offset_factor=0,
             buffer_type="default",
+            axis_separators=None,
             span=None,
         ):
             if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
@@ -286,6 +291,7 @@ class AllocBuffer(SpecialStmt):
                 align,
                 offset_factor,
                 buffer_type,
+                axis_separators,
                 span=span,
             )
             if self.context.current_block_scope():

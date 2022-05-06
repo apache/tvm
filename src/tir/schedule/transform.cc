@@ -70,6 +70,87 @@ Array<MatchBufferRegion> ReplaceBuffer(Array<MatchBufferRegion> match_buffers, c
   return match_buffers;
 }
 
+/******** ReplaceBufferMutator ********/
+ReplaceBufferMutator::ReplaceBufferMutator(const Buffer& old_buffer, Buffer new_buffer,
+                                           Map<Block, Block>* block_sref_reuse)
+    : block_sref_reuse_(block_sref_reuse) {
+  buffer_var_map_[old_buffer->data.get()] = std::move(new_buffer);
+}
+
+PrimExpr ReplaceBufferMutator::VisitExpr_(const VarNode* var) {
+  auto it = buffer_var_map_.find(var);
+  return it != buffer_var_map_.end() ? it->second->data : GetRef<Var>(var);
+}
+
+Stmt ReplaceBufferMutator::VisitStmt_(const BufferStoreNode* op) {
+  auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+  return VisitBufferAccess(std::move(node));
+}
+
+PrimExpr ReplaceBufferMutator::VisitExpr_(const BufferLoadNode* op) {
+  auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+  return VisitBufferAccess(std::move(node));
+}
+
+MatchBufferRegion ReplaceBufferMutator::VisitMatchBufferRegion(
+    const MatchBufferRegion& match_buffer) {
+  auto it = buffer_var_map_.find(match_buffer->source->buffer->data.get());
+  if (it != buffer_var_map_.end()) {
+    return MatchBufferRegion(match_buffer->buffer,
+                             BufferRegion(it->second, match_buffer->source->region));
+  } else {
+    return match_buffer;
+  }
+}
+
+Stmt ReplaceBufferMutator::VisitStmt_(const BlockNode* block) {
+  // To reduce the number of blocks in block sref reuse map, we check whether the block is really
+  // mutated (i.e., the old buffer appears in the block). If so, we return the block after
+  // mutation. Otherwise we just return the original block.
+
+  auto f_mutate_match_buffer = [this](const MatchBufferRegion& match_buffer) {
+    return this->VisitMatchBufferRegion(match_buffer);
+  };
+  auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
+    auto it = buffer_var_map_.find(buffer_region->buffer->data.get());
+    return it == buffer_var_map_.end() ? buffer_region
+                                       : BufferRegion(it->second, buffer_region->region);
+  };
+  auto f_mutate_alloc_buffers = [this](const Buffer& buffer) {
+    auto it = buffer_var_map_.find(buffer->data.get());
+    return it == buffer_var_map_.end() ? buffer : it->second;
+  };
+
+  // Step 1. Mutate `match_buffers`. If an old buffer appears as a source of MatchBufferRegion,
+  Array<MatchBufferRegion> match_buffers = MutateArray(block->match_buffers, f_mutate_match_buffer);
+  // Step 2. Mutate the read/write region.
+  Array<BufferRegion> reads = MutateArray(block->reads, f_mutate_read_write_region);
+  Array<BufferRegion> writes = MutateArray(block->writes, f_mutate_read_write_region);
+  // Step 3. Mutate `alloc_buffers` for the old buffer allocated in this block.
+  Array<Buffer> alloc_buffers = MutateArray(block->alloc_buffers, f_mutate_alloc_buffers);
+  // Step 4. Recursively mutate the block.
+  Block mutated_block = Downcast<Block>(StmtMutator::VisitStmt_(block));
+
+  if (mutated_block.get() == block && reads.same_as(mutated_block->reads) &&
+      writes.same_as(mutated_block->writes) &&
+      alloc_buffers.same_as(mutated_block->alloc_buffers) &&
+      match_buffers.same_as(mutated_block->match_buffers)) {
+    return GetRef<Block>(block);
+  } else {
+    ObjectPtr<BlockNode> n = CopyOnWrite(mutated_block.get());
+    n->reads = std::move(reads);
+    n->writes = std::move(writes);
+    n->alloc_buffers = std::move(alloc_buffers);
+    n->match_buffers = std::move(match_buffers);
+
+    Block new_block(n);
+    if (block_sref_reuse_ != nullptr) {
+      block_sref_reuse_->Set(GetRef<Block>(block), new_block);
+    }
+    return std::move(new_block);
+  }
+}
+
 /******** Block Removal ********/
 
 void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_sref,
