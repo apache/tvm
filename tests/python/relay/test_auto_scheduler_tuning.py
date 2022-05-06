@@ -56,6 +56,12 @@ def tune_network(network, target):
             ):
                 lib = relay.build(mod, target=target, params=params)
 
+        # Also test that multiple log files can be loaded.
+        with auto_scheduler.ApplyHistoryBest([log_file, log_file]) as best:
+            assert isinstance(
+                best, auto_scheduler.dispatcher.ApplyHistoryBest
+            ), "Unable to load multiple log files jointly."
+
         # Sample a schedule when missing
         with auto_scheduler.ApplyHistoryBestOrSample(None, num_measure=2):
             with tvm.transform.PassContext(
