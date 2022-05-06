@@ -266,6 +266,14 @@ TVM_REGISTER_GLOBAL("tir.IndexMap")
     });
 
 TVM_REGISTER_GLOBAL("tir.IndexMapMapIndices").set_body_method<IndexMap>(&IndexMapNode::MapIndices);
+TVM_REGISTER_GLOBAL("tir.IndexMapMapShape").set_body_method<IndexMap>(&IndexMapNode::MapShape);
+TVM_REGISTER_GLOBAL("tir.IndexMapInverse").set_body_method(&IndexMap::Inverse);
+
+TVM_REGISTER_GLOBAL("tir.IndexMapNonSurjectiveInverse")
+    .set_body_typed([](IndexMap forward, Array<Range> initial_ranges) {
+      auto result = forward.NonSurjectiveInverse(initial_ranges);
+      return Array<ObjectRef>{result.first, result.second};
+    });
 
 }  // namespace tir
 }  // namespace tvm

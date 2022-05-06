@@ -16,13 +16,14 @@
 # under the License.
 """Function data types."""
 
-from typing import Callable, List, Mapping, Optional, Union
+from typing import Callable, List, Mapping, Optional, Union, Tuple
 import inspect
 
+import tvm
 import tvm._ffi
 import tvm.runtime
 from tvm.runtime import Object
-from tvm.ir import BaseFunc
+from tvm.ir import BaseFunc, Range
 from .buffer import Buffer
 from .expr import Var, PrimExpr
 from . import _ffi_api
@@ -301,7 +302,7 @@ class IndexMap(Object):
 
         Parameters
         ----------
-        indices : List[PriExpr]
+        indices : List[PrimExpr]
             The indices to be mapped
 
         Returns
@@ -310,3 +311,81 @@ class IndexMap(Object):
             The mapped indices
         """
         return _ffi_api.IndexMapMapIndices(self, indices)
+
+    def map_shape(self, shape: List[PrimExpr]) -> List[PrimExpr]:
+        """Apply the index map to a buffer shape
+
+        Parameters
+        ----------
+        shape : List[PrimExpr]
+            The buffer shape to be mapped
+
+        Returns
+        -------
+        result : List[PrimExpr]
+            The mapped shape
+        """
+        return _ffi_api.IndexMapMapShape(self, shape)
+
+    def inverse(self, shape: List[Union[Range, PrimExpr]]) -> "IndexMap":
+        """Return the inverse of the map
+
+        Throws an error if the function is not bijective.
+
+        Paramters
+        ---------
+        shape: List[Union[Range,PrimExpr]]
+
+            The region over which the inverse should be determined.
+            Used for validating that the mapping is bijective over
+            this range.
+
+        Returns
+        -------
+        inverse : IndexMap
+
+            The inverse
+        """
+
+        shape = [dim if isinstance(dim, Range) else Range(0, dim) for dim in shape]
+        return _ffi_api.IndexMapInverse(self, shape)
+
+    def non_surjective_inverse(
+        self, shape: List[Union[Range, PrimExpr]]
+    ) -> Tuple["IndexMap", PrimExpr]:
+        """Return the inverse of the map
+
+        Can be applied to transformations that introduce padding.
+
+        Examples
+        --------
+
+        Before unroll, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            index_map = IndexMap.from_func(lambda i: [i//4, i%4])
+            inverse_map, predicate = index_map.non_surjective_inverse([14])
+            inverse_map
+
+        .. code-block:: python
+
+            index_map = IndexMap.from_func(lambda i: [i//4, i%4])
+
+        Paramters
+        ---------
+        shape: List[Union[Range,PrimExpr]]
+
+            The region over which the inverse should be determined.
+            Used for determining the predicate.
+
+        Returns
+        -------
+        result : Tuple[IndexMap, PrimExpr]
+
+            The inverse, and a predicate for which the inverse maps to
+            a valid index in the input range.
+        """
+
+        shape = [dim if isinstance(dim, Range) else Range(0, dim) for dim in shape]
+        return _ffi_api.IndexMapNonSurjectiveInverse(self, shape)
