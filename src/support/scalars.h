@@ -52,7 +52,6 @@ std::string NDArrayScalarToString(const runtime::NDArray& data);
 /*! \brief Returns Relay literal text for given TIR immediate. */
 std::string IntImmToString(const IntImm& int_imm);
 std::string FloatImmToString(const FloatImm& float_imm);
-std::string BoolToString(bool value);
 
 /*!
  * \brief Returns TIR immediate for given value and width. Boolean will be true if value

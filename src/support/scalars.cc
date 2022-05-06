@@ -130,6 +130,8 @@ std::string IntImmToString(const IntImm& int_imm) {
     os << int_imm->value;
   } else if (int_imm->dtype == kInt64) {
     os << int_imm->value << "i64";
+  } else if (int_imm->dtype == kBool) {
+    os << (int_imm->value ? "True" : "False");
   } else {
     LOG(FATAL) << "Unrecognised IntImm dtype: " << DLDataType2String(int_imm->dtype);
   }
@@ -149,8 +151,6 @@ std::string FloatImmToString(const FloatImm& float_imm) {
   }
   return os.str();
 }
-
-std::string BoolToString(bool value) { return value ? "True" : "False"; }
 
 std::pair<IntImm, bool> ValueToIntImm(int64_t value, int width) {
   bool clipped = false;
