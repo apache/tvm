@@ -550,6 +550,11 @@ TVM_DLL Pass PlanDevices(CompilationConfig config);
  */
 TVM_DLL Pass FlattenAtrousConv();
 
+/*!
+ * \brief Calls device dependent memory scope analysis pass, collects mapping of desirable
+ * expr->memory_scope and annotates expressions by VirtualDevice with required memory_scope
+ */
+TVM_DLL Pass AnnotateMemoryScope(CompilationConfig config);
 }  // namespace transform
 
 /*!

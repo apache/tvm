@@ -50,16 +50,19 @@ Array<PrimExpr> PlaceholderOpNode::output_shape(size_t i) const {
   return shape;
 }
 
-PlaceholderOp::PlaceholderOp(std::string name, Array<PrimExpr> shape, DataType dtype) {
+PlaceholderOp::PlaceholderOp(std::string name, Array<PrimExpr> shape, DataType dtype,
+                             const String& memory_scope) {
   auto n = make_object<PlaceholderOpNode>();
   n->name = name;
   n->shape = shape;
   n->dtype = dtype;
+  n->memory_scope_ = memory_scope;
   data_ = std::move(n);
 }
 
-Tensor placeholder(Array<PrimExpr> shape, DataType dtype, std::string name) {
-  return PlaceholderOp(name, shape, dtype).output(0);
+Tensor placeholder(Array<PrimExpr> shape, DataType dtype, std::string name,
+                   const String& memory_scope) {
+  return PlaceholderOp(name, shape, dtype, memory_scope).output(0);
 }
 
 TVM_REGISTER_GLOBAL("te.Placeholder")

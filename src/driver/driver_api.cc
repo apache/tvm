@@ -84,9 +84,12 @@ Target DefaultTargetHost(Target target) {
 }
 
 tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std::string name,
-                                      int data_alignment, int offset_factor, bool compact) {
+                                      int data_alignment, int offset_factor, bool compact,
+                                      std::string memory_scope) {
   DataType storage_dtype = (dtype == DataType::Bool() ? DataType::Int(8) : dtype);
-  auto data = tir::Var(name, PointerType(PrimType(storage_dtype)));
+  auto data =
+      tir::Var(name, memory_scope.empty() ? PointerType(PrimType(storage_dtype))
+                                          : PointerType(PrimType(storage_dtype), memory_scope));
   bool has_any = false;
   if (!compact) {
     for (const auto& it : shape) {
@@ -118,8 +121,8 @@ void GetBinds(const Array<ObjectRef>& args, bool compact,
     if (const te::TensorNode* tensor_node = x.as<te::TensorNode>()) {
       te::Tensor x_ref = GetRef<te::Tensor>(tensor_node);
       if (out_binds->find(x_ref) == out_binds->end()) {
-        tir::Buffer buf =
-            BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1, 0, compact);
+        tir::Buffer buf = BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1,
+                                                    0, compact, x_ref->memory_scope);
         out_binds->Set(x_ref, buf);
         out_arg_list->push_back(buf);
       } else {

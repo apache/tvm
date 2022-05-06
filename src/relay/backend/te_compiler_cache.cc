@@ -128,7 +128,9 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
     for (Var param : relay_func->params) {
       Array<tvm::te::Tensor> inputs;
       for (const auto& ttype : FlattenTupleType(param->checked_type())) {
-        tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype);
+        tvm::te::Tensor tensor =
+            tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype, "placeholder",
+                                 param->virtual_device()->memory_scope);
         inputs.push_back(tensor);
         fn_inputs_.push_back(tensor);
       }

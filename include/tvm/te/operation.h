@@ -61,6 +61,8 @@ class TVM_DLL OperationNode : public Object {
   std::string tag;
   /*! \brief additional attributes of the operation*/
   Map<String, ObjectRef> attrs;
+  /*! \brief memory scope of the operation's output*/
+  String memory_scope_;
   // virtual destructor.
   virtual ~OperationNode() {}
   /*! \return number of outputs */
@@ -76,6 +78,11 @@ class TVM_DLL OperationNode : public Object {
    * \return type of i-th output.
    */
   virtual DataType output_dtype(size_t i) const = 0;
+  /**
+   * @brief Returns memory scope of operation
+   * TODO(amalyshe): add support for individual output's tensors, not the only one
+   */
+  String memory_scope() const { return memory_scope_; }
   /*!
    * \brief Get shape of i-th output tensor.
    * \param i The output index.
@@ -191,7 +198,8 @@ class PlaceholderOpNode : public OperationNode {
  */
 class PlaceholderOp : public Operation {
  public:
-  TVM_DLL PlaceholderOp(std::string name, Array<PrimExpr> shape, DataType dtype);
+  TVM_DLL PlaceholderOp(std::string name, Array<PrimExpr> shape, DataType dtype,
+                        const String& memory_scope = "");
 
   TVM_DEFINE_OBJECT_REF_METHODS(PlaceholderOp, Operation, PlaceholderOpNode);
 };
@@ -564,9 +572,10 @@ using FBatchCompute = std::function<Array<PrimExpr>(const Array<Var>& i)>;
  * \param shape The shape of the tensor.
  * \param dtype the data type of the tensor.
  * \param name The name of the Tensor.
+ * \param memory_scope The memory scope of the tensor
  */
 TVM_DLL Tensor placeholder(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                           std::string name = "placeholder");
+                           std::string name = "placeholder", const String& memory_scope = "");
 
 /*!
  * \brief Construct a new tensor by computing over shape,

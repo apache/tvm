@@ -23,6 +23,7 @@ from tvm import relay
 from tvm.relay import testing
 from tvm.relay.transform import recast
 from tvm.contrib import graph_runtime
+import json
 
 
 def get_cpu_reference(mod, params1, input_shape, inputs):
@@ -45,7 +46,13 @@ def get_cpu_reference(mod, params1, input_shape, inputs):
 
 # build module run with opencl and cpu, compare results
 def build_run_compare(
-    tvm_mod, params1, input_shape, dtype="float32", target="llvm", gpu_preprocess=None
+    tvm_mod,
+    params1,
+    input_shape,
+    dtype="float32",
+    target="llvm",
+    static_mem_scopes=[],
+    gpu_preprocess=None,
 ):
 
     if "TVM_TRACKER_HOST" in os.environ and "TVM_TRACKER_PORT" in os.environ:
@@ -67,6 +74,20 @@ def build_run_compare(
         graph, lib, params = relay.build(
             tvm_mod_nchwc, target_host=target_host, target=target, params=params1
         )
+
+    # verificatoin that storage_scope has expected textures scopes
+    graph_json = json.loads(graph)
+    if "storage_scope" in graph_json["attrs"]:
+        assert (
+            len(static_mem_scopes) == len(graph_json["attrs"]["storage_scope"][1])
+            or len(static_mem_scopes) == 0
+        )
+    else:
+        assert len(static_mem_scopes) == 0
+
+    for i in range(0, len(static_mem_scopes)):
+        assert static_mem_scopes[i] == graph_json["attrs"]["storage_scope"][1][i]
+
     if run_on_host:
         ctx = tvm.opencl()
         m = graph_runtime.create(graph, lib, ctx)

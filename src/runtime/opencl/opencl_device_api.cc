@@ -215,7 +215,7 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
 
 void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                                       Optional<String> mem_scope) {
-  if (!mem_scope.defined() || mem_scope.value() == "global") {
+  if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
     return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
   }
   ICHECK(IsTextureStorage(std::string(mem_scope.value())))

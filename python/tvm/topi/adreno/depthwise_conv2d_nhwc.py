@@ -255,11 +255,12 @@ def schedule_depthwise_conv2d_NHWC_HWOI(cfg, s, output):
     if latest_blocked == latest and output != latest:
         s[output].compute_inline()
 
-    # create cache stage
-    AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
-    WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
-    bind_data_copy(s[AT])
-    bind_data_copy(s[WT])
+    if autotvm.GLOBAL_SCOPE.in_tuning or len(latest.op.axis) == 4:
+        # create cache stage for tuning only or in case of 4d case
+        AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
+        bind_data_copy(s[AT])
+        WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
+        bind_data_copy(s[WT])
 
     # tile and bind spatial axes
     n, y, x, fc, fb = s[latest_blocked].op.axis
