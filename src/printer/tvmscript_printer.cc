@@ -502,6 +502,9 @@ Doc TVMScriptPrinter::AllocBufferDeclaration(const Buffer& buf) {
   if (buf->buffer_type != BufferType::kDefault) {
     doc << ", type=" << Doc::StrLiteral("auto");
   }
+  if (buf->axis_separators.size()) {
+    doc << ", axis_separators=" << Print(buf->axis_separators);
+  }
   return doc;
 }
 
@@ -604,6 +607,9 @@ bool TVMScriptPrinter::IsSimpleBuffer(const Buffer& buf) {
     return false;
   }
   if (buf->buffer_type != BufferType::kDefault) {
+    return false;
+  }
+  if (buf->axis_separators.size()) {
     return false;
   }
   return true;

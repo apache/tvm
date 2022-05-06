@@ -21,6 +21,12 @@
 
 #include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/state.h>
+#include <tvm/tir/stmt_functor.h>
+
+#include <unordered_map>
+#include <utility>
+
+#include "../ir/functor_common.h"
 
 namespace tvm {
 namespace tir {
@@ -65,6 +71,55 @@ Array<BufferRegion> ReplaceBuffer(Array<BufferRegion> regions, const Buffer& sou
  */
 Array<MatchBufferRegion> ReplaceBuffer(Array<MatchBufferRegion> match_buffers, const Buffer& source,
                                        const Buffer& target);
+
+/*!
+ * \brief A helper mutator which recursively replaces the old buffer with the new buffer and
+ * collects the block sref reuse information for the following replacement.
+ *
+ * If the buffer to be replaced in used as the source in `match_buffers`, depending the specific
+ * use cases, the target buffers in `match_buffers` may also need to be mutated. In this
+ * case, this class should be subclassed to explicitly handle `match_buffers`.
+ */
+class ReplaceBufferMutator : public StmtExprMutator {
+ public:
+  /*!
+   * \brief The constructor
+   * \param old_buffer The old buffer
+   * \param new_buffer The new buffer
+   * \param block_sref_reuse Optional map to record mapping between old and new blocks that reuse
+   *        sref.
+   */
+  ReplaceBufferMutator(const Buffer& old_buffer, Buffer new_buffer,
+                       Map<Block, Block>* block_sref_reuse);
+
+ protected:
+  PrimExpr VisitExpr_(const VarNode* var) final;
+
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    auto it = buffer_var_map_.find(node->buffer->data.get());
+    if (it != buffer_var_map_.end()) {
+      node.CopyOnWrite()->buffer = it->second;
+    }
+    return node;
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final;
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final;
+
+  virtual MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer);
+
+  Stmt VisitStmt_(const BlockNode* block) final;
+
+  /*!
+   * \brief A mapping which maps old buffer vars to new buffers, including the buffers defined in
+   * MatchBufferRegion.
+   */
+  std::unordered_map<const VarNode*, Buffer> buffer_var_map_;
+  /*! \brief The block sref reuse map for the following replacement */
+  Map<Block, Block>* block_sref_reuse_;
+};
 
 /******** Block Removal ********/
 

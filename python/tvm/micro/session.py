@@ -133,7 +133,6 @@ class Session:
                     int(timeouts.session_start_timeout_sec * 1e6),
                     int(timeouts.session_established_timeout_sec * 1e6),
                     self._cleanup,
-                    False,
                 )
             )
             self.device = self._rpc.cpu(0)
