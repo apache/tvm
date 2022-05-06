@@ -5173,7 +5173,8 @@ def test_onnx_nodes(target, dev, onnx_test):
         atol = 1e-4
 
     if "to_BFLOAT16" in test_dir:
-        # casting to BFLOAT has a larger accuracy loss
+        # the tolerance here is for the comparison in uint16 space, but is not as significant
+        # of a delta in bfloat16 space because it's representing the mantissa being off by 1
         atol = 1
 
     if "_sce_" in test_dir:
