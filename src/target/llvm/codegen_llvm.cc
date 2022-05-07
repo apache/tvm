@@ -402,8 +402,9 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const PrimExpr& expr) const {
 //
 // This trick comes from Halide's CodeGen_LLVM
 //
-void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer, PrimExpr index) {
-  if (alias_var_set_.count(buffer) != 0) {
+void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_var, PrimExpr index,
+                               DataType access_dtype) {
+  if (alias_var_set_.count(buffer_var) != 0) {
     // Mark all possibly aliased pointer as same type.
     llvm::MDNode* meta = md_tbaa_alias_set_;
     inst->setMetadata("tbaa", md_builder_->createTBAAStructTagNode(meta, meta, 0));
@@ -415,52 +416,41 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer, P
   arith::PVar<int> planes;
   // create meta-data for alias analysis
   // Use a group of binary tree ranges of memory banks.
-  if (index.defined()) {
-    if (arith::ramp(pbase, pstride, planes).Match(index)) {
-      base = pbase.Eval()->value;
-      int64_t xwith = planes.Eval() * pstride.Eval()->value;
-      width = 1;
-      while (width < xwith) {
-        width *= 2;
-      }
-      while (base % width) {
-        base -= base % width;
-        width *= 2;
-      }
-    } else if (auto* ptr = index.as<tir::IntImmNode>()) {
-      width = 1;
-      base = ptr->value;
+  int64_t xwith = 0;
+  if (arith::ramp(pbase, pstride, planes).Match(index)) {
+    base = pbase.Eval()->value;
+    xwith = planes.Eval() * pstride.Eval()->value;
+  } else if (auto* ptr = index.as<tir::IntImmNode>()) {
+    base = ptr->value;
+    xwith = 1;
+  }
+  // adjust address index unit to byte
+  const int64_t unit_bit_width = 8;
+  const int64_t access_elem_bits = access_dtype.bits() * access_dtype.lanes();
+  base = base * access_elem_bits / unit_bit_width;
+  xwith = (xwith * access_elem_bits + unit_bit_width - 1) / unit_bit_width;
+  if (xwith > 0) {
+    width = 1;
+    while (width < xwith) {
+      width *= 2;
+    }
+    while (base % width) {
+      base -= base % width;
+      width *= 2;
     }
   }
+
   llvm::MDNode* meta = md_tbaa_root_;
   std::ostringstream buffer_addr;
-  buffer_addr << buffer;
+  buffer_addr << buffer_var;
   meta = md_builder_->createTBAAScalarTypeNode(buffer_addr.str(), meta);
-
-  // Extract the underlying type of the allocated buffer.
-  DataType dtype = buffer->dtype;
-  if (buffer->type_annotation.defined()) {
-    Type element_type = Downcast<PointerType>(buffer->type_annotation)->element_type;
-    if (auto* ptype = element_type.as<PrimTypeNode>()) {
-      dtype = ptype->dtype;
-    }
-  }
-  llvm::Type* buf_type = DTypeToLLVMType(dtype);
-  if (!buf_type) {
-    buf_type = t_void_p_;
-  }
-
-  std::string tmp;
-  llvm::raw_string_ostream buffer_type(tmp);
-  buffer_type << *buf_type;
-  meta = md_builder_->createTBAAScalarTypeNode(buffer_type.str(), meta);
 
   // create a tree-shape access structure.
   if (width != 0) {
     for (int64_t w = 1024; w >= width; w /= 2) {
       int64_t b = (base / w) * w;
       std::stringstream os;
-      os << buffer << ".w" << w << ".b" << b;
+      os << buffer_var << ".w" << w << ".b" << b;
       meta = md_builder_->createTBAAScalarTypeNode(os.str(), meta);
     }
   }
@@ -1249,12 +1239,16 @@ void CodeGenLLVM::BufferAccessHelper(
   PrimExpr last_index = indices[indices.size() - 1];
   ICHECK_EQ(value_dtype.lanes(), last_index.dtype().lanes() * buffer_element_dtype.lanes());
 
+  // Record index and elemtype in original form used for alias info
+  PrimExpr last_index_origin = last_index;
+  DataType buffer_element_dtype_origin = buffer_element_dtype;
+
   bool is_volatile = volatile_buf_.count(buffer->data.get());
 
   // If the buffer index is a contiguous ramp node, we only need to
   // access the first element, then cast to the value type.
   if (const RampNode* ramp_index = last_index.as<RampNode>()) {
-    if (ramp_index && is_one(ramp_index->stride)) {
+    if (is_one(ramp_index->stride)) {
       last_index = ramp_index->base;
     }
   }
@@ -1305,7 +1299,7 @@ void CodeGenLLVM::BufferAccessHelper(
         CreateBufferPtr(MakeValue(buffer->data), buffer_element_dtype, all_index_values,
                         value_dtype.with_lanes(value_dtype.lanes() / last_index.dtype().lanes()));
     auto instruction = make_instruction(buffer_ptr, subelement_i, alignment, is_volatile);
-    AddAliasInfo(instruction, buffer->data.get(), last_index);
+    AddAliasInfo(instruction, buffer->data.get(), last_index_origin, buffer_element_dtype_origin);
   }
 }
 
