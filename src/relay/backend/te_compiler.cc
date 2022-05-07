@@ -678,6 +678,8 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     if (prim_func.defined()) {
       // Leaving let var scope
       primitive_functions_.erase(pre_let_node->var.get());
+      // Drop the let node
+      return post_let_node->body;
     }
     return DeviceAwareExprMutator::PostVisitLet_(pre_let_node, post_let_node);
   }
