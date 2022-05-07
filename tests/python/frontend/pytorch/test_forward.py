@@ -341,7 +341,17 @@ def test_min_max():
         def forward(self, lhs, rhs):
             return torch.min(lhs, rhs)
 
-    input_data = [torch.rand((10, 10)), torch.rand((10, 10))]
+    class Max4(Module):
+        def forward(self, inp):
+            out = torch.amax(inp, (1, 2), keepdim=True)
+            return out
+
+    class Min4(Module):
+        def forward(self, inp):
+            out = torch.amin(inp, (0, 3), keepdim=False)
+            return out
+
+    input_data = [torch.rand((10, 10, 10, 10)), torch.rand((10, 10, 10, 10))]
 
     verify_model(Max(), input_data=input_data[0])
     verify_model(Min(), input_data=input_data[0])
@@ -349,6 +359,8 @@ def test_min_max():
     verify_model(Min2(), input_data=input_data[0])
     verify_model(Max3(), input_data=input_data)
     verify_model(Min3(), input_data=input_data)
+    verify_model(Max4(), input_data=input_data[0])
+    verify_model(Min4(), input_data=input_data[0])
 
 
 @tvm.testing.uses_gpu
@@ -4112,6 +4124,37 @@ def test_einsum():
     z = torch.ones([4, 5])
     verify_model(test_fn("ij,jk"), [x, y])
     verify_model(test_fn("ij,jk,km->im"), [x, y, z])
+
+
+def test_stft():
+    def test_fn(n_fft, hop_length, win_length, center, pad_mode, normalized, onesided):
+        return lambda input, window=None: torch.stft(
+            input=input,
+            n_fft=n_fft,
+            hop_length=hop_length,
+            win_length=win_length,
+            window=window,
+            center=center,
+            pad_mode=pad_mode,
+            normalized=normalized,
+            onesided=onesided,
+        )
+
+    input = torch.rand([1, 12]).float()
+    window = torch.tensor([2, 3, 4], dtype=torch.int32)
+    targets = ["llvm", "cuda"]
+    verify_trace_model(test_fn(3, 3, 3, False, "constant", False, True), [input, window], targets)
+    verify_trace_model(test_fn(3, 3, 3, True, "constant", False, True), [input, window], targets)
+    verify_trace_model(test_fn(3, 3, 3, False, "reflect", False, True), [input, window], targets)
+    verify_trace_model(test_fn(3, 3, 3, True, "reflect", False, True), [input, window], targets)
+    verify_trace_model(test_fn(3, 3, 3, True, "reflect", True, True), [input, window], targets)
+    verify_trace_model(test_fn(3, 3, 3, True, "reflect", False, False), [input, window], targets)
+    input = torch.rand([2, 12]).float()
+    window = torch.tensor([2, 3, 4], dtype=torch.int32)
+    verify_trace_model(test_fn(3, 3, 3, False, "reflect", False, True), [input, window], targets)
+    window = torch.tensor([1, 3], dtype=torch.int32)
+    verify_trace_model(test_fn(2, 1, 2, False, "reflect", False, True), [input, window], targets)
+    verify_trace_model(test_fn(2, 1, 2, False, "reflect", False, True), [input], targets)
 
 
 @tvm.testing.uses_gpu

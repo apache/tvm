@@ -1809,6 +1809,63 @@ RELAY_REGISTER_OP("sparse_reshape")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_support_level(3);
 
+TVM_REGISTER_NODE_TYPE(StftAttrs);
+
+bool STFTRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+             const TypeReporter& reporter) {
+  // types: [data, window, result]
+  ICHECK_EQ(types.size(), 3) << "STFTRel expects 3 types but " << types.size() << "provided";
+  ICHECK_EQ(num_inputs, 2) << "Unique: expect 2 inputs but " << num_inputs << " provided";
+  auto data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "Unique: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+  const auto* param = attrs.as<StftAttrs>();
+  const int ndim = static_cast<int>(data->shape.size());
+  std::vector<IndexExpr> oshape;
+  int dim = 0;
+  if (ndim == 2) {
+    oshape.push_back(data->shape[0]);  // batch dimension
+    dim += 1;
+  }
+  oshape.push_back(param->onesided ? param->n_fft / 2 + 1 : param->n_fft);
+  if (data->shape[dim].as<AnyNode>())
+    oshape.push_back(Any());
+  else
+    oshape.push_back(indexdiv((data->shape[dim] - param->n_fft), param->hop_length) +
+                     1);  // n_frames
+  oshape.push_back(2);
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Expr MakeSTFT(Expr data, int n_fft, int hop_length, int win_length, Expr window, bool normalized,
+              bool onesided) {
+  auto attrs = make_object<StftAttrs>();
+  attrs->n_fft = n_fft;
+  attrs->hop_length = hop_length;
+  attrs->win_length = win_length;
+  attrs->normalized = normalized;
+  attrs->onesided = onesided;
+  static const Op& op = Op::Get("stft");
+  return Call(op, {data, window}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.stft").set_body_typed(MakeSTFT);
+
+RELAY_REGISTER_OP("stft")
+    .describe(
+        R"code(The STFT computes the Fourier transform of short overlapping windows of the input.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "the input tensor")
+    .add_argument("window", "Tensor", "the optional window function")
+    .add_type_rel("stft", STFTRel)
+    .set_support_level(3)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
+
 // meshgrid operator
 TVM_REGISTER_NODE_TYPE(MeshgridAttrs);
 
