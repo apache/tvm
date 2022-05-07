@@ -145,28 +145,24 @@ void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHan
 
   auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* {
     auto it = this->hexagon_buffer_map_.find(ptr);
-    CHECK(it != this->hexagon_buffer_map_.end())
-        << "Lookup failed for non-HexagonBuffer allocation, CopyDataFromTo can only copy data "
-           "from, to or between HexagonBuffers";
-    return it->second.get();
+    if (it != this->hexagon_buffer_map_.end()) {
+      return it->second.get();
+    }
+    return nullptr;
   };
 
-  if (TVMDeviceExtType(from->device.device_type) == kDLHexagon &&
-      TVMDeviceExtType(to->device.device_type) == kDLHexagon) {
-    HexagonBuffer* hex_from_buf = lookup_hexagon_buffer(from->data);
-    HexagonBuffer* hex_to_buf = lookup_hexagon_buffer(to->data);
+  HexagonBuffer* hex_from_buf = lookup_hexagon_buffer(from->data);
+  HexagonBuffer* hex_to_buf = lookup_hexagon_buffer(to->data);
+
+  if (hex_from_buf && hex_to_buf) {
     hex_to_buf->CopyFrom(*hex_from_buf, GetDataSize(*from));
-  } else if (from->device.device_type == kDLCPU &&
-             TVMDeviceExtType(to->device.device_type) == kDLHexagon) {
-    HexagonBuffer* hex_to_buf = lookup_hexagon_buffer(to->data);
+  } else if (hex_to_buf) {
     hex_to_buf->CopyFrom(from->data, GetDataSize(*from));
-  } else if (TVMDeviceExtType(from->device.device_type) == kDLHexagon &&
-             to->device.device_type == kDLCPU) {
-    HexagonBuffer* hex_from_buf = lookup_hexagon_buffer(from->data);
+  } else if (hex_from_buf) {
     hex_from_buf->CopyTo(to->data, GetDataSize(*to));
   } else {
-    CHECK(false)
-        << "Expect copy between DLTensor devices of types kDLHexagon and kDLCPU (external) only.";
+    CHECK(false) << "CopyDataFromTo requested between src and dst which are not managed by the "
+                    "hexagon device api.";
   }
 }
 

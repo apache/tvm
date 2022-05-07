@@ -977,9 +977,9 @@ inline const int64_t* as_const_int(const PrimExpr& x) {
   if (!x.defined()) return nullptr;
   if (const tir::IntImmNode* op = x.as<tir::IntImmNode>()) {
     return &(op->value);
-  } else {
-    return nullptr;
   }
+
+  return nullptr;
 }
 
 /*!
@@ -1051,17 +1051,7 @@ inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr
 TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
 
 // Implementation details after this
-inline bool is_const_int(const PrimExpr& x) {
-  if (x.as<tir::IntImmNode>()) {
-    return true;
-  } else if (const auto* op = x.as<tir::BroadcastNode>()) {
-    const PrimExpr& val = op->value;
-    if (val.as<tir::IntImmNode>()) {
-      return true;
-    }
-  }
-  return false;
-}
+inline bool is_const_int(const PrimExpr& x) { return as_const_int(x); }
 
 inline bool is_const_number(const PrimExpr& x) {
   if (x.as<tir::IntImmNode>()) {
@@ -1075,31 +1065,18 @@ inline bool is_const_number(const PrimExpr& x) {
 }
 
 inline bool is_positive_const(const PrimExpr& a) {
-  if (const tir::IntImmNode* op = a.as<tir::IntImmNode>()) {
-    return op->value > 0;
-  } else {
-    return false;
-  }
+  const int64_t* as_int = as_const_int(a);
+  return as_int && (*as_int > 0);
 }
 
 inline bool is_negative_const(const PrimExpr& a) {
-  if (const tir::IntImmNode* op = a.as<tir::IntImmNode>()) {
-    return op->value < 0;
-  } else {
-    return false;
-  }
+  const int64_t* as_int = as_const_int(a);
+  return as_int && (*as_int < 0);
 }
 
 inline bool is_const_int(const PrimExpr& x, int64_t value) {
-  if (const auto* op = x.as<tir::IntImmNode>()) {
-    return op->value == value;
-  } else if (const auto* op = x.as<tir::BroadcastNode>()) {
-    const PrimExpr& val = op->value;
-    if (const auto* opv = val.as<tir::IntImmNode>()) {
-      return opv->value == value;
-    }
-  }
-  return false;
+  const int64_t* as_int = as_const_int(x);
+  return as_int && (*as_int == value);
 }
 
 inline bool is_no_op(const tir::Stmt& stmt) {

@@ -87,9 +87,10 @@ void ApplyHistoryBest::ExitWithScope() {
 
 /**************** ApplyHistoryBest ****************/
 
-ApplyHistoryBest::ApplyHistoryBest(Database database) {
+ApplyHistoryBest::ApplyHistoryBest(Database database, PackedFunc logging_func) {
   ObjectPtr<ApplyHistoryBestNode> n = make_object<ApplyHistoryBestNode>();
   n->database = database;
+  n->logging_func = logging_func;
   data_ = n;
 }
 
@@ -122,15 +123,14 @@ Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModu
       return IRModule({{gv, func}});
     }
   }
-  LOG(WARNING) << "Cannot find workload: " << task_name;
-  DLOG(INFO) << tir::AsTVMScript(prim_mod);
+  TVM_PY_LOG(WARNING, logging_func) << "Cannot find workload: " << task_name;
   return NullOpt;
 }
 
 TVM_REGISTER_NODE_TYPE(ApplyHistoryBestNode);
 TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBest")
-    .set_body_typed([](Database database) -> ApplyHistoryBest {
-      return ApplyHistoryBest(database);
+    .set_body_typed([](Database database, PackedFunc logging_func) -> ApplyHistoryBest {
+      return ApplyHistoryBest(database, logging_func);
     });
 TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBestEnterScope")
     .set_body_typed(ApplyHistoryBestInternal::EnterScope);

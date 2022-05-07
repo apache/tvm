@@ -3253,6 +3253,25 @@ def pointer_type():
     return func_with_ptr_type_annotations
 
 
+def buffer_axis_separator():
+    @T.prim_func
+    def element_wise(a: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (128, 128), "float32", axis_separators=[1])
+        C = T.match_buffer(c, (128, 128), "float32")
+        B = T.alloc_buffer((128, 128), "float32", axis_separators=[1])
+
+        for i, j in T.grid(128, 128):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                B[vi, vj] = A[vi, vj] * T.float32(2)
+        for i, j in T.grid(128, 128):
+            with T.block("C"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = B[vi, vj] + T.float32(1)
+
+    return element_wise
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3288,6 +3307,7 @@ ir_generator = tvm.testing.parameter(
     int64_support,
     string_annotation_escaping,
     pointer_type,
+    buffer_axis_separator,
 )
 
 

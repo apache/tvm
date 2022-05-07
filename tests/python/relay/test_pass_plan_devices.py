@@ -37,10 +37,7 @@ CPU_TARGET = tvm.target.Target("llvm").with_host(HOST_TARGET)
 GPU_DEVICE = tvm.device("cuda")
 GPU_TARGET = tvm.target.Target("cuda").with_host(HOST_TARGET)
 
-TARGETS = {
-    tvm.tir.IntImm("int32", CPU_DEVICE.device_type): CPU_TARGET,
-    tvm.tir.IntImm("int32", GPU_DEVICE.device_type): GPU_TARGET,
-}
+TARGETS = [CPU_TARGET, GPU_TARGET]
 
 HOST = tvm.target.VirtualDevice(HOST_DEVICE, HOST_TARGET)  # device_type=1
 CPU = tvm.target.VirtualDevice(CPU_DEVICE, CPU_TARGET)  # device_type=1

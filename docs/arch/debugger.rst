@@ -134,13 +134,18 @@ How to use Debugger?
 
 3. In frontend script file instead of
    ``from tvm.contrib import graph_executor`` import the
-   ``debug_executor``
-   ``from tvm.contrib.debugger import debug_executor as graph_executor``
+   ``GraphModuleDebug``
+   ``from tvm.contrib.debugger.debug_executor import GraphModuleDebug``
 
 ::
 
-    from tvm.contrib.debugger import debug_executor as graph_executor
-    m = graph_executor.create(graph, lib, dev, dump_root="/tmp/tvmdbg")
+    from tvm.contrib.debugger.debug_executor import GraphModuleDebug
+    m = GraphModuleDebug(
+        lib["debug_create"]("default", dev),
+        [dev],
+        lib.graph_json,
+        dump_root="/tmp/tvmdbg",
+    )
     # set inputs
     m.set_input('data', tvm.nd.array(data.astype(dtype)))
     m.set_input(**params)
@@ -148,7 +153,7 @@ How to use Debugger?
     m.run()
     tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).numpy()
 
-4. If network previously was exported to external libray using ``lib.export_library("network.so")``
+4. If network previously was exported to external library using ``lib.export_library("network.so")``
      like shared object file/dynamic linked library, the initialization
      of debug runtime will be slightly different
 

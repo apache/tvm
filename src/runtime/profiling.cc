@@ -263,6 +263,8 @@ String ReportNode::AsCSV() const {
           s << (*it).second.as<DurationNode>()->microseconds;
         } else if ((*it).second.as<PercentNode>()) {
           s << (*it).second.as<PercentNode>()->percent;
+        } else if ((*it).second.as<RatioNode>()) {
+          s << (*it).second.as<RatioNode>()->ratio;
         } else if ((*it).second.as<StringObj>()) {
           s << "\"" << Downcast<String>((*it).second) << "\"";
         }
@@ -285,9 +287,14 @@ void print_metric(std::ostream& os, ObjectRef o) {
   } else if (const CountNode* n = o.as<CountNode>()) {
     os << "{\"count\":" << n->value << "}";
   } else if (const DurationNode* n = o.as<DurationNode>()) {
-    os << "{\"microseconds\":" << std::setprecision(17) << std::fixed << n->microseconds << "}";
+    os << "{\"microseconds\":" << std::setprecision(std::numeric_limits<double>::max_digits10)
+       << std::fixed << n->microseconds << "}";
   } else if (const PercentNode* n = o.as<PercentNode>()) {
-    os << "{\"percent\":" << std::setprecision(17) << std::fixed << n->percent << "}";
+    os << "{\"percent\":" << std::setprecision(std::numeric_limits<double>::max_digits10)
+       << std::fixed << n->percent << "}";
+  } else if (const RatioNode* n = o.as<RatioNode>()) {
+    os << "{\"ratio\":" << std::setprecision(std::numeric_limits<double>::max_digits10)
+       << std::fixed << n->ratio << "}";
   } else {
     LOG(FATAL) << "Unprintable type " << o->GetTypeKey();
   }
@@ -343,6 +350,51 @@ String ReportNode::AsJSON() const {
   return s.str();
 }
 
+// Aggregate a set of values for a metric. Computes sum for Duration, Count,
+// and Percent; average for Ratio; and assumes all Strings are the same. All
+// ObjectRefs in metrics must have the same type.
+ObjectRef AggregateMetric(const std::vector<ObjectRef>& metrics) {
+  ICHECK_GT(metrics.size(), 0) << "Must pass a non-zero number of metrics";
+  if (metrics[0].as<DurationNode>()) {
+    double sum = 0;
+    for (auto& metric : metrics) {
+      sum += metric.as<DurationNode>()->microseconds;
+    }
+    return ObjectRef(make_object<DurationNode>(sum));
+  } else if (metrics[0].as<CountNode>()) {
+    int64_t sum = 0;
+    for (auto& metric : metrics) {
+      sum += metric.as<CountNode>()->value;
+    }
+    return ObjectRef(make_object<CountNode>(sum));
+  } else if (metrics[0].as<PercentNode>()) {
+    double sum = 0;
+    for (auto& metric : metrics) {
+      sum += metric.as<PercentNode>()->percent;
+    }
+    return ObjectRef(make_object<PercentNode>(sum));
+  } else if (metrics[0].as<RatioNode>()) {
+    double sum = 0;
+    for (auto& metric : metrics) {
+      sum += metric.as<RatioNode>()->ratio;
+    }
+    return ObjectRef(make_object<RatioNode>(sum / metrics.size()));
+  } else if (metrics[0].as<StringObj>()) {
+    for (auto& m : metrics) {
+      if (Downcast<String>(metrics[0]) != Downcast<String>(m)) {
+        return ObjectRef(String(""));
+      }
+    }
+    // Assume all strings in metrics are the same.
+    return metrics[0];
+  } else {
+    LOG(FATAL) << "Can only aggregate metrics with types DurationNode, CountNode, "
+                  "PercentNode, RatioNode, and StringObj, but got "
+               << metrics[0]->GetTypeKey();
+    return ObjectRef();  // To silence warnings
+  }
+}
+
 String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) const {
   // aggregate calls by op hash (or op name if hash is not set) + argument shapes
   std::vector<Map<String, ObjectRef>> aggregated_calls;
@@ -370,31 +422,26 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
     }
     for (const auto& p : aggregates) {
       std::unordered_map<String, ObjectRef> aggregated;
-      for (auto i : p.second) {
-        for (auto& metric : calls[i]) {
-          auto it = aggregated.find(metric.first);
-          if (it == aggregated.end()) {
-            aggregated[metric.first] = metric.second;
-          } else {
-            if (metric.second.as<DurationNode>()) {
-              aggregated[metric.first] = ObjectRef(
-                  make_object<DurationNode>(it->second.as<DurationNode>()->microseconds +
-                                            metric.second.as<DurationNode>()->microseconds));
-            } else if (metric.second.as<CountNode>()) {
-              aggregated[metric.first] = ObjectRef(make_object<CountNode>(
-                  it->second.as<CountNode>()->value + metric.second.as<CountNode>()->value));
-            } else if (metric.second.as<PercentNode>()) {
-              aggregated[metric.first] =
-                  ObjectRef(make_object<PercentNode>(it->second.as<PercentNode>()->percent +
-                                                     metric.second.as<PercentNode>()->percent));
-            } else if (metric.second.as<StringObj>()) {
-              // Don't do anything. Assume the two strings are the same.
-            } else {
-              LOG(FATAL) << "Can only aggregate metrics with types DurationNode, CountNode, "
-                            "PercentNode, and StringObj, but got "
-                         << metric.second->GetTypeKey();
-            }
+      std::unordered_set<std::string> metrics;
+      for (auto& call : calls) {
+        for (auto& metric : call) {
+          metrics.insert(metric.first);
+        }
+      }
+      for (const std::string& metric : metrics) {
+        std::vector<ObjectRef> per_call;
+        for (auto i : p.second) {
+          auto& call = calls[i];
+          auto it = std::find_if(call.begin(), call.end(),
+                                 [&metric](const std::pair<String, ObjectRef>& call_metric) {
+                                   return std::string(call_metric.first) == metric;
+                                 });
+          if (it != call.end()) {
+            per_call.push_back((*it).second);
           }
+        }
+        if (per_call.size() > 0) {
+          aggregated[metric] = AggregateMetric(per_call);
         }
       }
       aggregated_calls.push_back(aggregated);
@@ -440,6 +487,8 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
             val += it->second.as<PercentNode>()->percent;
           }
           col_sums[p.first] = ObjectRef(make_object<PercentNode>(val));
+        } else if (p.second.as<RatioNode>()) {
+          // It does not make sense to sum ratios
         }
       }
     }
@@ -498,6 +547,11 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
         } else if ((*it).second.as<PercentNode>()) {
           std::stringstream s;
           s << std::fixed << std::setprecision(2) << (*it).second.as<PercentNode>()->percent;
+          val = s.str();
+        } else if ((*it).second.as<RatioNode>()) {
+          std::stringstream s;
+          s.imbue(std::locale(""));  // for 1000s seperators
+          s << std::setprecision(2) << (*it).second.as<RatioNode>()->ratio;
           val = s.str();
         } else if ((*it).second.as<StringObj>()) {
           val = Downcast<String>((*it).second);
@@ -615,6 +669,10 @@ Map<String, ObjectRef> parse_metrics(dmlc::JSONReader* reader) {
       int64_t count;
       reader->Read(&count);
       o = ObjectRef(make_object<CountNode>(count));
+    } else if (metric_value_name == "ratio") {
+      double ratio;
+      reader->Read(&ratio);
+      o = ObjectRef(make_object<RatioNode>(ratio));
     } else if (metric_value_name == "string") {
       std::string s;
       reader->Read(&s);
@@ -664,6 +722,7 @@ Report Report::FromJSON(String json) {
 TVM_REGISTER_OBJECT_TYPE(DurationNode);
 TVM_REGISTER_OBJECT_TYPE(PercentNode);
 TVM_REGISTER_OBJECT_TYPE(CountNode);
+TVM_REGISTER_OBJECT_TYPE(RatioNode);
 TVM_REGISTER_OBJECT_TYPE(ReportNode);
 TVM_REGISTER_OBJECT_TYPE(DeviceWrapperNode);
 TVM_REGISTER_OBJECT_TYPE(MetricCollectorNode);
@@ -793,6 +852,28 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
   };
   return PackedFunc(ftimer);
 }
+
+TVM_REGISTER_GLOBAL("runtime.profiling.Report")
+    .set_body_typed([](Array<Map<String, ObjectRef>> calls,
+                       Map<String, Map<String, ObjectRef>> device_metrics) {
+      return Report(calls, device_metrics);
+    });
+
+TVM_REGISTER_GLOBAL("runtime.profiling.Count").set_body_typed([](int64_t count) {
+  return ObjectRef(make_object<CountNode>(count));
+});
+
+TVM_REGISTER_GLOBAL("runtime.profiling.Percent").set_body_typed([](double percent) {
+  return ObjectRef(make_object<PercentNode>(percent));
+});
+
+TVM_REGISTER_GLOBAL("runtime.profiling.Duration").set_body_typed([](double duration) {
+  return ObjectRef(make_object<DurationNode>(duration));
+});
+
+TVM_REGISTER_GLOBAL("runtime.profiling.Ratio").set_body_typed([](double ratio) {
+  return ObjectRef(make_object<RatioNode>(ratio));
+});
 
 }  // namespace profiling
 }  // namespace runtime

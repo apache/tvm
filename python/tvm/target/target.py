@@ -24,7 +24,7 @@ import tvm._ffi
 from tvm._ffi import register_func as _register_func
 from tvm.runtime import Object, convert
 from tvm.runtime.container import String
-from tvm.ir.container import Map
+from tvm.ir.container import Map, Array
 
 from . import _ffi_api
 
@@ -217,6 +217,65 @@ class Target(Object):
     def list_kinds():
         """Returns the list of available target names."""
         return list(_ffi_api.ListTargetKinds())
+
+    @staticmethod
+    def canonicalize_target(target):
+        """Given a single target-like object, returns the TVM Target object representing it.
+        Can convert from:
+        - None (to None).
+        - An existing TVM Target object.
+        - A string.
+        - A Python dictionary binding the target 'kind' and other attributes.
+        """
+        if target is None:
+            return None
+        if isinstance(target, Target):
+            return target
+        return Target(target)
+
+    @staticmethod
+    def canonicalize_multi_targets(multi_targets):
+        """Given a single or collection of target-like objects, returns a TVM Array of Target
+        objects representing then. Can convert from:
+        - None (to None).
+        - A single target-like object in a form recognized by canonicalize_target.
+        - A Python list or TVM Array of target-like objects in a form recognized by
+        canonicalize_target.
+        - A Python dict or TVM Map from TVM IntImm objects representing device types to
+        a target-like object in a form recognized by canonicalize_target.
+        """
+        if multi_targets is None:
+            return None
+        if isinstance(multi_targets, (dict, Map)) and "kind" not in multi_targets:
+            # Convert legacy heterogeneous map representation to ordinary list of targets.
+            return Target.canonicalize_multi_targets([t for _, t in multi_targets.items()])
+        if isinstance(multi_targets, (list, Array)):
+            # Multiple Target results.
+            return convert([Target.canonicalize_target(t) for t in multi_targets])
+        # Single Target result.
+        return convert([Target.canonicalize_target(multi_targets)])
+
+    @staticmethod
+    def canonicalize_target_and_host(target, target_host=None):
+        """Returns a TVM Array<Target> capturing target and target_host. The given target can be in
+        any form recognized by Target.canonicalize_target or Target.canonicalize_multi_targets. If
+        given target_host can be in any form recognized by Target.canonicalize_target. If
+        target_host is given it will be set as the 'host' in each result Target object (and a
+        warning given).
+        """
+        # Convert target to Array<Target>, but not yet accounting for any host.
+        raw_targets = Target.canonicalize_multi_targets(target)
+        assert raw_targets is not None
+        # Convert host to Target, if given.
+        target_host = Target.canonicalize_target(target_host)
+        if target_host is None:
+            return raw_targets
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
+        )
+        # Make sure the (canonical) host is captured in all the (canonical) targets.
+        return convert([Target(t, target_host) for t in raw_targets])
 
     @staticmethod
     def check_and_update_host_consist(target, host=None, target_is_dict_key=True):

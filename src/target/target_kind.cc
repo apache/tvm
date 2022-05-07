@@ -267,7 +267,10 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<Bool>("fast-math-contract")
     .add_attr_option<Bool>("fast-math-reassoc")
     .add_attr_option<Integer>("opt-level")
-    .set_default_keys({"cpu"});
+    .set_default_keys({"cpu"})
+    // Force the external codegen kind attribute to be registered, even if no external
+    // codegen targets are enabled by the TVM build.
+    .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(false));
 
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<Bool>("system-lib")

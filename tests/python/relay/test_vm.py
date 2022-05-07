@@ -1292,7 +1292,7 @@ def test_let_bound_constants():
     mod = IRModule.from_expr(f)
 
     compiler = VMCompiler()
-    compiler.optimize(mod, "llvm")
+    compiler.optimize(mod, target="llvm")
 
 
 def test_large_constants():

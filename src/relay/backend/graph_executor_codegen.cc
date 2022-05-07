@@ -190,8 +190,8 @@ class GraphOpNode : public GraphNode {
  */
 class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<GraphNodeRef>> {
  public:
-  GraphExecutorCodegen(runtime::Module* mod, const TargetMap& targets)
-      : mod_(mod), targets_(targets) {}
+  GraphExecutorCodegen(runtime::Module* mod, const Array<Target>& targets)
+      : mod_(mod), config_(transform::PassContext::Current(), targets) {}
 
   StorageInfo GetStorageInfo(const Expr& e) {
     size_t count = memory_plan_->expr_to_storage_info.count(e);
@@ -204,9 +204,6 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     mod_name_ = mod_name;
     VLOG_CONTEXT << "GraphExecutorCodegen";
     VLOG(1) << "compiling:" << std::endl << PrettyPrint(func);
-    for (const auto& pair : targets_) {
-      VLOG(1) << "target: " << pair.first << " = " << pair.second->ToDebugString();
-    }
 
     // TODO(mbs): Why plan memory and update workspace sizes before lowering?
     memory_plan_ = GraphPlanMemory(func);
@@ -215,20 +212,10 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
 
     if (memory_plan_.defined()) {
       // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
-      // Switch from Map<Integer, Target> to undordered_map<DLDeviceType, Target> representation.
-      // TODO(mbs): Plumb CompilationConfig through.
-      tec::TargetMap tec_target_map;
-      for (const auto& pair : targets_) {
-        tec_target_map.emplace(static_cast<DLDeviceType>(pair.first->value), pair.second);
-      }
-      func_info = relay::tec::UpdateMainWorkspaceSize(mod, tec_target_map,
-                                                      memory_plan_->expr_to_storage_info);
+      func_info =
+          relay::tec::UpdateMainWorkspaceSize(mod, config_, memory_plan_->expr_to_storage_info);
       mod = WithAttr(mod, "main_func_info", func_info);
     }
-
-    // TODO(mbs): Plumb instead of reconstruct
-    CompilationConfig config(transform::PassContext::Current(), targets_,
-                             /*optional_host_target_arg=*/{});
 
     IRModule lowered_mod = tec::LowerTEPass(
         mod_name_,
@@ -245,7 +232,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
           // lowering process directly.
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
         },
-        config->host_virtual_device)(mod);
+        config_->host_virtual_device)(mod);
 
     Optional<backend::FunctionInfo> main_func_info =
         lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
@@ -610,8 +597,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   runtime::Module* mod_;
   /*! \brief variable map */
   std::unordered_map<const Object*, std::vector<GraphNodeRef>> var_map_;
-  /*! \brief target device */
-  TargetMap targets_;
+  /*! \brief Available targets */
+  CompilationConfig config_;
   /*!
    * \brief parameters (i.e. ConstantNodes found in the graph).
    * These are take as inputs to the GraphExecutor.
@@ -637,11 +624,11 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
     if (name == "init") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.num_args, 2) << "The expected of arguments are: "
-                                    << "runtime::Module mod and Map<int, Target> targets";
+                                    << "runtime::Module mod and Array<Target> targets";
         void* mod = args[0];
-        TargetMap target_map = args[1];
+        Array<Target> targets = args[1];
         codegen_ = std::make_shared<GraphExecutorCodegen>(reinterpret_cast<runtime::Module*>(mod),
-                                                          target_map);
+                                                          std::move(targets));
       });
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
