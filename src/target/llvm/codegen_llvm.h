@@ -377,7 +377,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
                        const Var& loop_var, const Stmt& body);
   // add alias information.
-  void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, PrimExpr index);
+  void AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_var, PrimExpr index,
+                    DataType access_dtype);
 
   llvm::GlobalVariable* AllocateSharedMemory(DataType dtype, size_t size,
                                              unsigned int shared_address_space, int alignment,
