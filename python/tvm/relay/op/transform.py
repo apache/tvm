@@ -1829,3 +1829,63 @@ def invert_permutation(data):
         relay.invert_permutation(data) = [2, 4, 3, 0, 1]
     """
     return _make.invert_permutation(data)
+
+
+def stft(
+    data, n_fft, hop_length=None, win_length=None, window=None, normalized=False, onesided=True
+):
+    """
+    The STFT computes the Fourier transform of short overlapping windows of the input.
+    This gives frequency components of the signal as they change over time.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        Either a 1-D tensor or a 2-D batch tensor.
+
+    n_fft : int
+        The size of Fourier transform
+
+    hop_length : int, optional
+        The distance between neighboring sliding window frames. If is None,
+        it is treated as equal to floor(n_fft / 4).
+
+    win_length : int, optional
+        The size of window frame and STFT filter. If is None, it is treated as equal to n_fft.
+
+    window : relay.Expr, optional
+        A 1-D tensor window frame. If is None (default), it is treated as if
+        having 1 everywhere in the window.
+
+    normalized : bool, optional
+        Whether to return the normalized STFT results. Default value is False.
+
+    onesided : bool, optional
+        Whether to return onesided result or fill with conjugate symmetry. Default value is True.
+
+    Returns
+    -------
+    output : relay.Expr
+        Tensor containing the STFT result with shape [batch, N, T, 2], where N is the
+        number of frequencies where STFT is applied and T is the total number of frames used.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        data = [1, 2, 3, 4, 5, 6]
+        window = [4, 3, 2]
+        [n_fft, hop_length, win_length, normalized, onesided] = [3, 3, 3, False, True]
+        relay.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
+        -> [[[15.0000,  0.0000], [34.0000,  0.0000]], [[ 4.5000,  0.8660], [ 1.0000, -1.7321]]]
+    """
+    if hop_length is None:
+        hop_length = n_fft // 4
+
+    if win_length is None:
+        win_length = n_fft
+
+    if window is None:
+        window = _make.ones([n_fft], "int32")
+
+    return _make.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
