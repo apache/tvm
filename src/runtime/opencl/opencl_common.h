@@ -276,11 +276,7 @@ class OpenCLWorkspace : public DeviceAPI {
   }
   // is current clCommandQueue in profiling mode
   bool IsProfiling(Device dev) {
-    ICHECK(IsOpenCLDevice(dev));
-    this->Init();
-    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
-        << "Invalid OpenCL device_id=" << dev.device_id;
-    cl_command_queue queue = queues[dev.device_id];
+    cl_command_queue queue = GetQueue(dev);
     cl_command_queue_properties prop;
 
     OPENCL_CALL(clGetCommandQueueInfo(queue, CL_QUEUE_PROPERTIES,
@@ -436,12 +432,9 @@ class OpenCLTimerNode : public TimerNode {
   virtual void Start() {
     cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).clear();
     this->duration = 0;
-
-    if (!cl::OpenCLWorkspace::Global()->IsProfiling(dev_)) {
-      // Very first call of Start() leads to the recreation of
-      // OpenCL command queue in profiling mode. This allows to run profile after inference.
-      recreateCommandQueue(true);
-    }
+    // Very first call of Start() leads to the recreation of
+    // OpenCL command queue in profiling mode. This allows to run profile after inference.
+    recreateCommandQueue();
   }
   // Timer stop
   virtual void Stop() {
@@ -461,11 +454,9 @@ class OpenCLTimerNode : public TimerNode {
   virtual int64_t SyncAndGetElapsedNanos() { return this->duration; }
   // destructor
   virtual ~OpenCLTimerNode() {
-    if (cl::OpenCLWorkspace::Global()->IsProfiling(dev_)) {
       // Profiling session ends, recreate clCommandQueue in non-profiling mode
       // This will disable collection of cl_events in case of executing inference after profile
-      recreateCommandQueue(false);
-    }
+      recreateCommandQueue();
   }
   // constructor
   OpenCLTimerNode() {}
@@ -478,17 +469,19 @@ class OpenCLTimerNode : public TimerNode {
   int64_t duration;
   Device dev_;
 
-  void recreateCommandQueue(bool profiling) {
+  void recreateCommandQueue() {
     cl_command_queue_properties prop;
-    if (profiling) {
+    if (!cl::OpenCLWorkspace::Global()->IsProfiling(dev_)) {
       prop = CL_QUEUE_PROFILING_ENABLE;
     } else {
       prop = 0;
     }
 
-    OPENCL_CALL(clFlush(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
-    OPENCL_CALL(clFinish(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
-    OPENCL_CALL(clReleaseCommandQueue(cl::OpenCLWorkspace::Global()->GetQueue(dev_)));
+    auto queue = cl::OpenCLWorkspace::Global()->GetQueue(dev_);
+
+    OPENCL_CALL(clFlush(queue));
+    OPENCL_CALL(clFinish(queue));
+    OPENCL_CALL(clReleaseCommandQueue(queue));
 
     cl_int err_code;
     cl_device_id did = cl::OpenCLWorkspace::Global()->devices[dev_.device_id];
