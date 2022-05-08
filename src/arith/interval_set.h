@@ -59,7 +59,13 @@ class IntervalSetNode : public IntSetNode {
   /*! \return Whether the interval has lower bound. */
   bool HasLowerBound() const { return !is_neg_inf(min_value) && !IsEmpty(); }
   /*! \return Whether the interval is a single point. */
-  bool IsSinglePoint() const { return min_value.same_as(max_value); }
+  bool IsSinglePoint() const {
+    if (min_value.same_as(max_value)) {
+      return true;
+    }
+    Analyzer analyzer;
+    return analyzer.CanProveEqual(min_value, max_value);
+  }
   /*! \return whether interval represent nothing */
   bool IsEmpty() const {
     // during computations, either extreme could occur.
