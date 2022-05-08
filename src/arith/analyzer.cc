@@ -104,6 +104,9 @@ bool Analyzer::CanProveEqual(const PrimExpr& lhs, const PrimExpr& rhs) {
   const auto* clhs = lhs.as<IntImmNode>();
   const auto* crhs = rhs.as<IntImmNode>();
   if (clhs && crhs) return clhs->value == crhs->value;
+  if (lhs->dtype.is_handle() || rhs->dtype.is_handle()) {
+    return lhs.same_as(rhs);
+  }
   return CanProve(lhs - rhs == 0);
 }
 
