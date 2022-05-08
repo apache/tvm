@@ -17,9 +17,12 @@
 # under the License.
 import jinja2
 import argparse
-from pathlib import Path
 import difflib
+import re
+import datetime
 import textwrap
+
+from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -65,6 +68,12 @@ data = {
 }
 
 
+def lines_without_generated_tag(content):
+    return [
+        line for line in content.splitlines(keepends=True) if not line.startswith("// Generated at")
+    ]
+
+
 if __name__ == "__main__":
     help = "Regenerate Jenkinsfile from template"
     parser = argparse.ArgumentParser(description=help)
@@ -73,6 +82,8 @@ if __name__ == "__main__":
 
     with open(JENKINSFILE) as f:
         content = f.read()
+
+    data["generated_time"] = datetime.datetime.now().isoformat()
 
     environment = jinja2.Environment(
         loader=jinja2.FileSystemLoader(REPO_ROOT),
@@ -86,7 +97,7 @@ if __name__ == "__main__":
 
     diff = "".join(
         difflib.unified_diff(
-            content.splitlines(keepends=True), new_content.splitlines(keepends=True)
+            lines_without_generated_tag(content), lines_without_generated_tag(new_content)
         )
     )
     if args.check:

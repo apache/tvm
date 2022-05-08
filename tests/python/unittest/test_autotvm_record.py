@@ -72,6 +72,11 @@ def test_file_io():
     for x, y in zip(ref, autotvm.record.load_from_file(file_path)):
         assert x[1] == y[1]
 
+    # Confirm functionality of multiple file loads
+    hist_best = ApplyHistoryBest([file_path, file_path])
+    x = hist_best.query(target, tsk.workload)
+    assert str(x) == str(inputs[0][2])
+
 
 def test_apply_history_best():
     tsk, target = get_sample_task()

@@ -323,7 +323,7 @@ def _sort_common(
                 with ib.else_scope():
                     assign_j()
 
-    with ib.for_range(0, upper_lim - lower_lim, dtype="int64") as l2_width:
+    with ib.for_range(0, cast(upper_lim - lower_lim, "int64"), dtype="int64") as l2_width:
         width = 2 << (l2_width + lower_lim)
         # Define and launch the cuda kernel
         with ib.new_scope():

@@ -524,3 +524,10 @@ def ceil_div(a, b):
 def swap(arr, axis):
     """swap arr[axis] and arr[-1]"""
     return arr[:axis] + [arr[-1]] + arr[axis + 1 : -1] + [arr[axis]]
+
+
+def is_target(names):
+    """Return True if the name of the current target is one of provided names"""
+    names = [names] if isinstance(names, str) else names
+    target = tvm.target.Target.current(allow_none=False)
+    return any(name in target.keys for name in names)

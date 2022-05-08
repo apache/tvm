@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import os
 from tvm import relay, runtime
 from tvm.relay import testing
 import tvm
@@ -672,6 +673,19 @@ def test_multiple_imported_modules():
     module_main.import_module(module_b)
     module_main.get_function("func_a", query_imports=True)
     module_main.get_function("func_b", query_imports=True)
+
+
+def test_num_threads():
+    reported = tvm.runtime.num_threads()
+    env_threads = os.getenv("TVM_NUM_THREADS")
+    omp_env_threads = os.getenv("OMP_NUM_THREADS")
+    if env_threads is not None:
+        assert reported == env_threads
+    elif omp_env_threads is not None:
+        assert reported == omp_env_threads
+    else:
+        hardware_threads = os.cpu_count()
+        assert reported == hardware_threads or reported == hardware_threads // 2
 
 
 if __name__ == "__main__":

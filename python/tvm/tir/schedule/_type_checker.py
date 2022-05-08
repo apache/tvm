@@ -57,7 +57,6 @@ if hasattr(typing, "_GenericAlias"):
                     return list(subtypes)
             return None
 
-
 elif hasattr(typing, "_Union"):
 
     class _Subtype:  # type: ignore

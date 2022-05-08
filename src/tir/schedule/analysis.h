@@ -232,6 +232,17 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
 void CheckAffineBinding(const ScheduleState& self, Block block);
 
 /*!
+ * \brief Check whether a block has an affine binding under the high exclusive sref node,
+ * throw an exception if the block does not have an affine binding.
+ * \param self The schedule state
+ * \param block The block to be checked
+ * \param high_exclusive The highest sref node
+ * \throw ScheduleError If the input block does not have an affine binding
+ */
+void CheckPartialAffineBinding(const ScheduleState& self, Block block,
+                               const Optional<StmtSRef>& high_exclusive);
+
+/*!
  * \brief Extracts the ranges of loop variables in a path of the sref tree
  * \param low_inclusive The lowest node in the path
  * \param high_exclusive The highest node in the path, defaults to the scope root if not specified
@@ -644,6 +655,39 @@ Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region, const P
                                              const StmtSRef& dom_low_inclusive,
                                              const StmtSRef& dom_high_exclusive,
                                              arith::Analyzer* analyzer);
+
+/*! \brief Necessary information used for tensorization */
+class TensorizeInfoNode : public Object {
+ public:
+  /*! \brief Maps loops in a target block to the ones in an intrinsic description */
+  Map<tir::StmtSRef, tir::For> loop_map;
+  /*! \brief Maps loops in an intrinsic description to its index, outer to inner */
+  Map<tir::For, Integer> desc_loop_indexer;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("loop_map", &loop_map);
+    v->Visit("desc_loop_indexer", &desc_loop_indexer);
+  }
+
+  static constexpr const char* _type_key = "tir.schedule.TensorizeInfo";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorizeInfoNode, Object);
+};
+
+class TensorizeInfo : public ObjectRef {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TensorizeInfo, ObjectRef, TensorizeInfoNode);
+};
+
+/*!
+ * \brief Establish a mapping between loops in a target block and an intrinsic description
+ * \param self The schedule state to be tensorized
+ * \param block_sref The target block to match against
+ * \param desc_func The prim func describing the computation to be tensorized
+ * \return TensorizeInfo structure if a valid mapping is found, NullOpt otherwise
+ */
+Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
+                                                const tir::StmtSRef& block_sref,
+                                                const tir::PrimFunc& desc_func);
 
 }  // namespace tir
 }  // namespace tvm

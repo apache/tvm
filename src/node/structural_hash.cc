@@ -553,5 +553,18 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       auto* op = static_cast<const runtime::profiling::PercentNode*>(node.get());
       p->stream << op->GetTypeKey() << "(" << op->percent << ")";
     });
+struct RatioNodeTrait {
+  static void VisitAttrs(runtime::profiling::RatioNode* n, AttrVisitor* attrs) {
+    attrs->Visit("ratio", &n->ratio);
+  }
+  static constexpr std::nullptr_t SEqualReduce = nullptr;
+  static constexpr std::nullptr_t SHashReduce = nullptr;
+};
+TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::RatioNode, RatioNodeTrait);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<runtime::profiling::RatioNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const runtime::profiling::RatioNode*>(node.get());
+      p->stream << op->GetTypeKey() << "(" << op->ratio << ")";
+    });
 
 }  // namespace tvm

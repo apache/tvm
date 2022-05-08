@@ -26,7 +26,11 @@ from tvm.runtime import Module, NDArray, load_param_dict, save_param_dict
 from tvm.target import Target
 
 from ...contrib.popen_pool import MapResult, PopenPoolExecutor, StatusKind
-from ..utils import cpu_count, derived_object, get_global_func_with_default_on_worker
+from ..utils import (
+    cpu_count,
+    derived_object,
+    get_global_func_with_default_on_worker,
+)
 from .builder import BuilderInput, BuilderResult, PyBuilder
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -58,8 +62,12 @@ class LocalBuilder(PyBuilder):
     ----------
     pool : PopenPoolExecutor
         The process pool to run the build.
+    max_workers: int
+        The max number of Popen workers.
     timeout_sec : float
         The timeout in seconds for the build.
+    initializer: Optional[Callable[[], None]]
+        The initializer function for each popen worker.
     f_build : Union[None, str, T_BUILD]
         Name of the build function to be used.
         Defaults to `meta_schedule.builder.default_build`.
@@ -97,8 +105,9 @@ class LocalBuilder(PyBuilder):
     please send the registration logic via initializer.
     """
 
-    pool: PopenPoolExecutor
+    max_workers: int
     timeout_sec: float
+    initializer: Optional[Callable[[], None]]
     f_build: Union[None, str, T_BUILD]
     f_export: Union[None, str, T_EXPORT]
 
@@ -135,12 +144,9 @@ class LocalBuilder(PyBuilder):
             max_workers = cpu_count(logical=True)
         logger.info("LocalBuilder: max_workers = %d", max_workers)
 
-        self.pool = PopenPoolExecutor(
-            max_workers=max_workers,
-            timeout=timeout_sec,
-            initializer=initializer,
-        )
+        self.max_workers = max_workers
         self.timeout_sec = timeout_sec
+        self.initializer = initializer
         self.f_build = f_build
         self.f_export = f_export
         self._sanity_check()
@@ -149,8 +155,17 @@ class LocalBuilder(PyBuilder):
         results: List[BuilderResult] = []
         map_result: MapResult
 
+        # Here we restart the PopenPool everytime because of a known memory leak issue with the
+        # PopenPool workers after a couple times of usage. We don't apply the same to runners to
+        # avoid potential problem caused by async behaviour.
+        pool = PopenPoolExecutor(
+            max_workers=self.max_workers,
+            timeout=self.timeout_sec,
+            initializer=self.initializer,
+        )
+
         # Dispatch the build inputs to the worker processes.
-        for map_result in self.pool.map_with_error_catching(
+        for map_result in pool.map_with_error_catching(
             lambda x: _worker_func(*x),
             [
                 (
@@ -181,6 +196,7 @@ class LocalBuilder(PyBuilder):
                 )
             else:
                 raise ValueError("Unreachable: unexpected result: {map_result}")
+        del pool
         return results
 
     def _sanity_check(self) -> None:
@@ -188,8 +204,15 @@ class LocalBuilder(PyBuilder):
             get_global_func_with_default_on_worker(name=f_build, default=None)
             get_global_func_with_default_on_worker(name=f_export, default=None)
 
-        value = self.pool.submit(_check, self.f_build, self.f_export)
+        # Same reason for the single use PopenPool as mentioned above
+        pool = PopenPoolExecutor(
+            max_workers=self.max_workers,
+            timeout=self.timeout_sec,
+            initializer=self.initializer,
+        )
+        value = pool.submit(_check, self.f_build, self.f_export)
         value.result()
+        del pool
 
 
 def _worker_func(

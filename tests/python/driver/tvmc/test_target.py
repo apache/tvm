@@ -16,7 +16,6 @@
 # under the License.
 
 import pytest
-
 from tvm.driver.tvmc import TVMCException
 from tvm.driver.tvmc.target import target_from_cli, tokenize_target, parse_target
 
@@ -176,3 +175,9 @@ def test_parse_multiple_target_with_opts_ethos_n78():
     assert "myopt" in targets[0]["opts"]
     assert "value" == targets[0]["opts"]["myopt"]
     assert "llvm" == targets[1]["name"]
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

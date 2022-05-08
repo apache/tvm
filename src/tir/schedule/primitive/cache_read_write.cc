@@ -108,7 +108,7 @@ Block MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
   std::vector<PrimExpr> iter_values;
   // Create loop vars and block vars' binding_value
   for (const Range& axis_range : cache_region->region) {
-    Var loop_var("ax" + std::to_string(loop_vars.size()));
+    Var loop_var("ax" + std::to_string(loop_vars.size()), axis_range->extent.dtype());
     loop_vars.push_back(loop_var);
     iter_values.push_back(axis_range->min + loop_var);
   }

@@ -85,6 +85,16 @@ def test_vectorize_with_if():
     assert isinstance(stmt.else_case, tvm.tir.For)
 
 
+def test_vectorize_with_if_cond_int64():
+    m = te.size_var("m", dtype="int64")
+    A = te.placeholder((m,), name="A", dtype="float32")
+    B = te.compute((m,), lambda i: te.if_then_else(i < 2, A[i], A[i] * 2), name="B")
+    s = te.create_schedule(B.op)
+    x, y = s[B].split(B.op.axis[0], factor=4)
+    s[B].vectorize(y)
+    f = tvm.build(s, [A, B], "llvm")
+
+
 def test_vectorize_let():
     v = tvm.tir.Var("v", "float32")
     ib = tvm.tir.ir_builder.create()
@@ -210,7 +220,7 @@ def test_vectorize_while_fail():
 
 def test_vectorize_dtype_mismatch():
     n = tvm.tir.IntImm("int64", 4)
-    A = te.compute((n,), lambda i: tvm.tir.IntImm("int64", 2 ** 31 - 1) + i, name="A")
+    A = te.compute((n,), lambda i: tvm.tir.IntImm("int64", 2**31 - 1) + i, name="A")
     s = te.create_schedule(A.op)
     s[A].vectorize(A.op.axis[0])
     tvm.lower(s, [A], "llvm", simple_mode=True)

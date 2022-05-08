@@ -22,7 +22,7 @@ import tvm
 from tvm import te, relay, autotvm
 
 from .. import nn
-from ..utils import get_const_tuple
+from ..utils import get_const_tuple, is_target
 from .conv2d_winograd import _infer_tile_size
 from .tensorcore_alter_op import pad_to_tensorcore
 from ..nn import conv2d_legalize
@@ -34,8 +34,7 @@ logger = logging.getLogger("topi")
 @nn.conv2d_alter_layout.register(["cuda", "gpu"])
 def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     target = tvm.target.Target.current(allow_none=False)
-    doit = "vulkan" in target.keys or "cuda" in target.keys
-    if not doit:
+    if not is_target(["vulkan", "rocm", "cuda"]):
         return None
     dispatch_ctx = autotvm.task.DispatchContext.current
 
@@ -87,7 +86,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     if cfg.is_fallback:  # if is fallback, clear query cache and return None
         autotvm.task.clear_fallback_cache(target, workload)
         do_new_layout = False
-        if "vulkan" in target.keys:
+        if is_target(["vulkan", "rocm"]):
             do_new_layout = "+dotprod" in target.mattr or target.supports_integer_dot_product
         if not do_new_layout:
             return None
@@ -349,10 +348,7 @@ def _conv2d_legalize(attrs, inputs, arg_types):
     result : tvm.relay.Expr
         The legalized expr
     """
-
-    target = tvm.target.Target.current(allow_none=False)
-    doit = "vulkan" in target.keys or "cuda" in target.keys
-    if not doit:
+    if not is_target(["vulkan", "rocm", "cuda"]):
         return None
     # Dilation not supported yet. Return None if dilation is not (1, 1)
     dilation = attrs.get_int_tuple("dilation")

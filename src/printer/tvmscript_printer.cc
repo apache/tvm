@@ -502,6 +502,9 @@ Doc TVMScriptPrinter::AllocBufferDeclaration(const Buffer& buf) {
   if (buf->buffer_type != BufferType::kDefault) {
     doc << ", type=" << Doc::StrLiteral("auto");
   }
+  if (buf->axis_separators.size()) {
+    doc << ", axis_separators=" << Print(buf->axis_separators);
+  }
   return doc;
 }
 
@@ -604,6 +607,9 @@ bool TVMScriptPrinter::IsSimpleBuffer(const Buffer& buf) {
     return false;
   }
   if (buf->buffer_type != BufferType::kDefault) {
+    return false;
+  }
+  if (buf->axis_separators.size()) {
     return false;
   }
   return true;
@@ -1229,10 +1235,11 @@ Doc TVMScriptPrinter::VisitType_(const PrimTypeNode* node) {
 Doc TVMScriptPrinter::VisitType_(const PointerTypeNode* node) {
   Doc doc;
   doc << tir_prefix_ << ".Ptr[";
+  doc << Print(node->element_type);
   if (!node->storage_scope.empty()) {
-    doc << node->storage_scope << " ";
+    doc << ", " << Doc::StrLiteral(node->storage_scope);
   }
-  doc << Print(node->element_type) << "]";
+  doc << "]";
   return doc;
 }
 

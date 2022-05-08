@@ -118,9 +118,12 @@ struct TransposeAttrs : public tvm::AttrsNode<TransposeAttrs> {
 /*! \brief Attributes used in reshape operators */
 struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
   Array<Integer> newshape;
+  bool allowzero;
   TVM_DECLARE_ATTRS(ReshapeAttrs, "relay.attrs.ReshapeAttrs") {
     TVM_ATTR_FIELD(newshape).describe(
         "The new shape. Should be compatible with the original shape.");
+    TVM_ATTR_FIELD(allowzero).set_default(0).describe(
+        "Whether to honor the value of zero in newshape.");
   }
 };  // struct ReshapeAttrs
 
@@ -532,6 +535,28 @@ struct EinsumAttrs : public tvm::AttrsNode<EinsumAttrs> {
     TVM_ATTR_FIELD(equation).describe("The einsum expression string");
   }
 };  // struct EinsumAttrs
+
+/*! \brief Attributes used in stft operator */
+struct StftAttrs : public tvm::AttrsNode<StftAttrs> {
+  int n_fft;
+  int hop_length;
+  int win_length;
+  bool normalized;
+  bool onesided;
+
+  TVM_DECLARE_ATTRS(StftAttrs, "relay.attrs.StftAttrs") {
+    TVM_ATTR_FIELD(n_fft).set_default(-1).describe("The size of Fourier transform");
+    TVM_ATTR_FIELD(hop_length)
+        .set_default(-1)
+        .describe("The distance between neighboring sliding window frames");
+    TVM_ATTR_FIELD(win_length).set_default(-1).describe("The size of window frame and STFT filter");
+    TVM_ATTR_FIELD(normalized)
+        .set_default(false)
+        .describe("Whether to return the normalized STFT results");
+    TVM_ATTR_FIELD(onesided).set_default(true).describe(
+        "Whether to return onesided result or fill with conjugate symmetry");
+  }
+};  // struct StftAttrs
 
 }  // namespace relay
 }  // namespace tvm

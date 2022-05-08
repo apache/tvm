@@ -467,18 +467,24 @@ class ForScopeHandler(ScopeHandler):
 
         self.node = node
         self.context = context
-        # generate loop vars
-        self.loop_vars = [
-            tvm.te.var(name, dtype="int32", span=span) for name, span in zip(loop_var_names, spans)
-        ]
         # collect loop infos by calling self.func
         call_with_error_reporting(context.report_error, span, self.func, *arg_list)
-        if len(self.loop_vars) != len(self.loop_info):
+        if len(loop_var_names) != len(self.loop_info):
             self.context.report_error(
-                f"Inconsistent number of vars and loops, got {len(self.loop_vars)} "
+                f"Inconsistent number of vars and loops, got {len(loop_var_names)} "
                 + f"vs {len(self.loop_info)}",
                 self.node.span,
             )
+        # generate loop vars
+        self.loop_vars = []
+        for name, lv_span, li in zip(loop_var_names, spans, self.loop_info):
+            if not li.begin.dtype.startswith("int"):
+                raise NotImplementedError(f"Unsupported dtype in loop begin: {li.begin.dtype}")
+            if not li.extent.dtype.startswith("int"):
+                raise NotImplementedError(f"Unsupported dtype in loop extent: {li.extent.dtype}")
+            dtype = "int64" if "int64" in [li.begin.dtype, li.extent.dtype] else "int32"
+            self.loop_vars.append(tvm.te.var(name, dtype=dtype, span=lv_span))
+
         for loop_var, loop_info in zip(self.loop_vars, self.loop_info):
             context.update_symbol(loop_var.name, loop_var, node)
             context.loop_stack[loop_var] = Range.from_min_extent(loop_info.begin, loop_info.extent)

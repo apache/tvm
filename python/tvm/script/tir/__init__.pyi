@@ -124,6 +124,8 @@ def Select(cond: PrimExpr, if_body: PrimExpr, else_body: PrimExpr) -> PrimExpr: 
 def if_then_else(cond: PrimExpr, t: PrimExpr, f: PrimExpr, dtype: str) -> PrimExpr: ...
 def evaluate(value: PrimExpr) -> None: ...
 def reinterpret(value: PrimExpr, dtype: str) -> PrimExpr: ...
+def vectorlow(value: PrimExpr, dtype: str) -> PrimExpr: ...
+def vectorhigh(value: PrimExpr, dtype: str) -> PrimExpr: ...
 def store(
     var: Var, index: PrimExpr, value: PrimExpr, predicate: Union[PrimExpr, builtins.bool] = True
 ) -> None: ...
@@ -143,7 +145,7 @@ def preflattened_buffer(
 ) -> Buffer: ...
 
 """
-Intrinsics - tvm builtin 
+Intrinsics - tvm builtin
 """
 
 def tvm_thread_allreduce(
@@ -197,6 +199,7 @@ def match_buffer(
     align: int = -1,
     offset_factor: int = 0,
     buffer_type: str = "default",
+    axis_separators: Optional[List[int]] = None,
 ) -> Buffer: ...
 def buffer_decl(
     shape: Sequence[Union[PrimExpr, int]],
@@ -208,6 +211,7 @@ def buffer_decl(
     align: int = -1,
     offset_factor: int = 0,
     buffer_type: str = "default",
+    axis_separators: Optional[List[int]] = None,
 ) -> Buffer: ...
 def alloc_buffer(
     shape: Sequence[Union[PrimExpr, int]],
@@ -219,11 +223,13 @@ def alloc_buffer(
     align: int = -1,
     offset_factor: int = 0,
     buffer_type: str = "default",
+    axis_separators: Optional[List[int]] = None,
 ) -> Buffer: ...
 
 """
 special_stmt - Reads/Writes
 """
+
 @overload
 def reads(read_regions: List[BufferSlice]) -> None: ...
 @overload
@@ -335,6 +341,7 @@ def Assert(condition: Union[PrimExpr, builtins.bool], message: str) -> PrimExpr:
 """
 Scope handler - Loops
 """
+
 @overload
 def serial(
     begin: Union[PrimExpr, int],

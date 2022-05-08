@@ -41,16 +41,30 @@ def verify_mixed_precision_output_close(
     mixed_precision_dtype="float16",
     rtol: float = 1e-3,
     atol: float = 0,
+    keep_orig_output_dtype=False,
 ) -> tvm.runtime.Module:
 
     mod = InferType()(mod)
     result_fp32 = run_module(mod, mod_params)
-    fp16_mod = ToMixedPrecision(mixed_precision_dtype)(mod)
-    result_fp16 = run_module(fp16_mod, mod_params)
+
+    if not keep_orig_output_dtype:
+        fp16_mod = ToMixedPrecision(mixed_precision_dtype)(mod)
+        result_fp16 = run_module(fp16_mod, mod_params)
+    else:
+        with tvm.transform.PassContext(
+            config={"relay.ToMixedPrecision.keep_orig_output_dtype": True}
+        ):
+            fp16_mod = ToMixedPrecision(mixed_precision_dtype)(mod)
+            result_fp16 = run_module(fp16_mod, mod_params)
 
     # Ensure the results are close
     for fp32, fp16 in zip(result_fp32, result_fp16):
         np.testing.assert_allclose(fp32, fp16, rtol=rtol, atol=atol)
+
+    if keep_orig_output_dtype:
+        assert (
+            np.array(result_fp16).dtype == np.array(result_fp32).dtype
+        ), "output type and original type mismatch"
 
     return fp16_mod
 
@@ -117,16 +131,21 @@ def test_convert_single_conv():
         "data": np.random.uniform(-1, 1, size=data_shape).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=weight_shape).astype("float32"),
     }
-    fp16_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=1e-3)
+    fp16_mod = verify_mixed_precision_output_close(
+        mod, mod_params, atol=0.01, rtol=1e-3, keep_orig_output_dtype=True
+    )
 
     expected_mod = tvm.IRModule.from_expr(
-        relay.nn.conv2d(
-            relay.cast(data, "float16"),
-            relay.cast(weight, "float16"),
-            strides=(1, 1),
-            padding=(1, 1),
-            out_dtype="float16",
-        ),
+        relay.cast(
+            relay.nn.conv2d(
+                relay.cast(data, "float16"),
+                relay.cast(weight, "float16"),
+                strides=(1, 1),
+                padding=(1, 1),
+                out_dtype="float16",
+            ),
+            "float32",
+        )
     )
     expected_mod = tvm.relay.transform.InferType()(expected_mod)
 

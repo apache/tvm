@@ -105,7 +105,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
         # Up Sweep of exclusive scan
         lim = ceil_log2(scan_axis_size)
 
-        with ib.for_range(0, lim, dtype="int64") as l2_width:
+        with ib.for_range(0, cast(lim, "int64"), dtype="int64") as l2_width:
             width = 2 << l2_width
 
             with ib.new_scope():
@@ -143,7 +143,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
                     reduction[bx] = output[(bx + 1) * scan_axis_size - 1]
                 output[(bx + 1) * scan_axis_size - 1] = cast(identity_value, out_dtype)
 
-        with ib.for_range(0, lim, dtype="int64") as l2_width:
+        with ib.for_range(0, cast(lim, "int64"), dtype="int64") as l2_width:
             width = 2 << (lim - l2_width - 1)
 
             with ib.new_scope():

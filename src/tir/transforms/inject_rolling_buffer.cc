@@ -263,8 +263,8 @@ class RollingBufferInjector : public StmtExprMutator {
           Var var{iter_var.value()};
           const Map<Var, IntSet> dmap{std::make_pair(var, IntSet::Interval(0, 0))};
           auto term_2{arith::Analyzer{}.int_set(op->indices[i], dmap).min()};
-          buffer_store = IfThenElse(
-              Or(LT(var, 1), GE(term_2, rolling_buffer_info.axis_overlaps[i])), buffer_store);
+          auto condition = Or(LT(var, 1), GE(term_2, rolling_buffer_info.axis_overlaps[i]));
+          buffer_store = IfThenElse(likely(condition), buffer_store);
         }
       }
       return buffer_store;

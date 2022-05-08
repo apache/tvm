@@ -848,10 +848,10 @@ def test_inverse_affine_iter_map():
     outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     assert len(res) == 2
-    l0_inverse = floormod(floordiv(outputs[0], 4), 16) + outputs[1] * 16
+    l0_inverse = floordiv(outputs[0], 4) + outputs[1] * 16
     l1_inverse = floormod(outputs[0], 4) + outputs[2] * 4
-    assert analyzer.simplify(res[l0[0]] - l0_inverse) == 0
-    assert analyzer.simplify(res[l1[0]] - l1_inverse) == 0
+    assert analyzer.can_prove_equal(res[l0[0]], l0_inverse)
+    assert analyzer.can_prove_equal(res[l1[0]], l1_inverse)
 
     # compound case
     l0_0, l0_1 = isplit(l0, 16)
@@ -867,15 +867,15 @@ def test_inverse_affine_iter_map():
     outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     assert len(res) == 3
-    l0_inverse = floormod(floordiv(outputs[0], 64), 16) + outputs[1] * 16
+    l0_inverse = floordiv(outputs[0], 64) + outputs[1] * 16
     l1_inverse = floormod(floordiv(outputs[0], 4), 4) + outputs[3] * 4
     l2_inverse = (
         floormod(outputs[0], 4) * 16 + floormod(floordiv(outputs[0], 16), 4) * 4 + outputs[2]
     )
 
-    assert analyzer.simplify(res[l0[0]] - l0_inverse) == 0
-    assert analyzer.simplify(res[l1[0]] - l1_inverse) == 0
-    assert analyzer.simplify(res[l2[0]] - l2_inverse) == 0
+    assert analyzer.can_prove_equal(res[l0[0]], l0_inverse)
+    assert analyzer.can_prove_equal(res[l1[0]], l1_inverse)
+    assert analyzer.can_prove_equal(res[l2[0]], l2_inverse)
 
     # diamond-shape DAG
     l0_0, l0_1 = isplit(l0, 16)
@@ -887,10 +887,10 @@ def test_inverse_affine_iter_map():
     outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     assert len(res) == 1
-    l1_inverse = floormod(outputs[0], 8) * 8 + floormod(floordiv(outputs[0], 8), 8)
-    l0_inverse = floormod(l1_inverse, 4) * 16 + floormod(floordiv(l1_inverse, 4), 16)
+    l1_inverse = floormod(outputs[0], 8) * 8 + floordiv(outputs[0], 8)
+    l0_inverse = floormod(l1_inverse, 4) * 16 + floordiv(l1_inverse, 4)
 
-    assert analyzer.simplify(res[l0[0]] - l0_inverse) == 0
+    assert analyzer.can_prove_equal(res[l0[0]], l0_inverse)
 
 
 def test_free_variables():

@@ -107,9 +107,7 @@ class FragmentGetter : public StmtExprVisitor {
   }
 
   // Get memory scope
-  void VisitStmt_(const AttrStmtNode* op) final {
-    StmtExprVisitor::VisitStmt_(op);
-  }
+  void VisitStmt_(const AttrStmtNode* op) final { StmtExprVisitor::VisitStmt_(op); }
 
   // Fragment metadata for all fragments
   std::unordered_map<const VarNode*, FragmentInfo> fragments;

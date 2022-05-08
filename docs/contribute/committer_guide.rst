@@ -19,6 +19,11 @@
 
 Committer Guide
 ===============
+
+.. contents::
+  :depth: 2
+  :local:
+
 This is an evolving document to provide some helpful tips for committers.
 Most of them are lessons learned during development.
 We welcome every committer to contribute to this document.

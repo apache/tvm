@@ -60,7 +60,7 @@ logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_run_parser(subparsers, main_parser):
+def add_run_parser(subparsers, main_parser, json_params):
     """Include parser for 'run' subcommand"""
 
     # Use conflict_handler='resolve' to allow '--list-options' option to be properly overriden when
@@ -190,6 +190,9 @@ def add_run_parser(subparsers, main_parser):
         action="help",
         help="show this help message with platform-specific options and exit.",
     )
+
+    for one_entry in json_params:
+        parser.set_defaults(**one_entry)
 
 
 def drive_run(args):

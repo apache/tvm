@@ -94,11 +94,7 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
  * \param data_in The input data.
  */
 void PipelineExecutor::SetInput(std::string input_name, DLTensor* data_in) {
-  std::pair<int, int> indexs = this->GetInputIndex(input_name);
-  if (indexs.first < 0 || indexs.first >= static_cast<int>(runtimes_.size())) {
-    LOG(FATAL) << "input name " << input_name << " not found.";
-  }
-  runtimes_[indexs.first]->SetInput(indexs.second, data_in);
+  global_runtime_->SetPipelineInput(input_name, data_in);
 }
 /*!
  * \brief get input from the runtime module.
@@ -118,7 +114,7 @@ NDArray PipelineExecutor::GetInput(std::string input_name) {
  * \return int The module index.
  */
 int PipelineExecutor::GetParamModuleIndex(const std::string& name) {
-  return param_connection_config[name];
+  return param_connection_config_[name];
 }
 /*!
  * \brief Using the global input name to get the index, and also get the input interface name
@@ -127,7 +123,7 @@ int PipelineExecutor::GetParamModuleIndex(const std::string& name) {
  * \return Returning the index and the input interface name of corresponding subgraph.
  */
 Array<String> PipelineExecutor::GetInputPipeplineMap(std::string input_name) {
-  std::pair<int, std::string> map = input_connection_config[input_name];
+  std::pair<int, std::string> map = input_connection_config_[input_name];
   return {std::to_string(map.first), map.second};
 }
 
@@ -137,11 +133,11 @@ Array<String> PipelineExecutor::GetInputPipeplineMap(std::string input_name) {
  * \return int The module index.
  */
 int PipelineExecutor::GetParamsGroupPipelineMap(const std::string& name) {
-  return param_connection_config[name];
+  return param_connection_config_[name];
 }
 
 /*!\brief Run the pipeline executor.*/
-void PipelineExecutor::Run() { pipeline_scheduler_.PipelineRun(runtimes_, pipeline_config_); }
+void PipelineExecutor::Run() { pipeline_scheduler_.PipelineRun(runtimes_); }
 /*!
  * \brief return A list of global output data.
  */
@@ -226,7 +222,7 @@ void PipelineExecutor::SetParam(std::string param_group_name, std::string param_
  * \return std::pair<int, int> A pair of module index and the input index.
  */
 std::pair<int, int> PipelineExecutor::GetInputIndex(const std::string& name) {
-  std::pair<int, std::string> index = input_connection_config[name];
+  std::pair<int, std::string> index = input_connection_config_[name];
   auto gruntime = runtimes_[index.first];
   return std::make_pair(index.first, gruntime->GetInputIndex(index.second));
 }
@@ -250,7 +246,9 @@ void PipelineExecutor::Init(const std::vector<Module>& modules, const std::strin
   num_outputs_ = pipeline_config_.GetGlobalOutputNum();
   // Initialize the pipeline function class used for pipeline thread pool management
   // and schedule etc. This function returns a list of runtime.
-  runtimes_ = pipeline_scheduler_.PipelineInit(modules, pipeline_config_);
+  global_runtime_ =
+      pipeline_scheduler_.PipelineInit(modules, pipeline_config_, input_connection_config_);
+  runtimes_ = global_runtime_->GetRuntimeList();
   return;
 }
 

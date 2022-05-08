@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 def make_metric_sorter(focused_metric):
-    """ Make sure the focused metric is the first one. """
+    """Make sure the focused metric is the first one."""
 
     def metric_name_for_sort(name):
         if focused_metric == name:

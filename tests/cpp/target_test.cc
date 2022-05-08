@@ -135,6 +135,34 @@ TEST(TargetCreationFail, TargetKindNotFound) {
   ASSERT_EQ(failed, true);
 }
 
+TVM_REGISTER_TARGET_KIND("test_external_codegen_0", kDLCUDA)
+    .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(true));
+
+TVM_REGISTER_TARGET_KIND("test_external_codegen_1", kDLCUDA)
+    .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(true));
+
+TVM_REGISTER_TARGET_KIND("test_external_codegen_2", kDLMetal)
+    .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(true));
+
+TEST(Target, ExternalCodegen) {
+  Target regular("cuda");
+  Target external0("test_external_codegen_0");
+  Target external1("test_external_codegen_1");
+  Target external2("test_external_codegen_2");
+
+  ASSERT_FALSE(regular.IsExternalCodegen());
+  ASSERT_TRUE(external0.IsExternalCodegen());
+  ASSERT_TRUE(external1.IsExternalCodegen());
+  ASSERT_TRUE(external2.IsExternalCodegen());
+
+  ASSERT_TRUE(external0.IsExternalCodegenFor(regular));
+  ASSERT_FALSE(regular.IsExternalCodegenFor(external0));
+  ASSERT_TRUE(external1.IsExternalCodegenFor(regular));
+  ASSERT_FALSE(regular.IsExternalCodegenFor(external1));
+  ASSERT_FALSE(external2.IsExternalCodegenFor(regular));
+  ASSERT_FALSE(regular.IsExternalCodegenFor(external2));
+}
+
 TEST(TargetCreation, DeduplicateKeys) {
   Map<String, ObjectRef> config = {
       {"kind", String("llvm")},

@@ -39,6 +39,7 @@ namespace ethosu {
 /*! \brief Attributes to store the compiler options for Arm(R) Ethos(TM)-U NPU. */
 struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode> {
   String accelerator_config;
+  bool enable_cascader;
 
   TVM_DECLARE_ATTRS(EthosUCompilerConfigNode, "ext.attrs.EthosUCompilerConfigNode") {
     TVM_ATTR_FIELD(accelerator_config)
@@ -46,6 +47,9 @@ struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode
             "The class of Arm(R) Ethos(TM)-U NPU; possible values = {ethos-u55-32, ethos-u55-64, "
             "ethos-u55-128, ethos-u55-256}")
         .set_default("ethos-u55-256");
+    TVM_ATTR_FIELD(enable_cascader)
+        .describe("Whether the cascader should be enabled")
+        .set_default(false);
   }
 };
 

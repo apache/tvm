@@ -517,7 +517,7 @@ def test_dyn_shared():
         temp[tx] = Aptr[tx]
         depth = tvm.tir.log2(cast(n, "float32"))
 
-        with ib.for_range(0, depth) as i:
+        with ib.for_range(0, cast(tvm.tir.ceil(depth), n.dtype)) as i:
             ib.emit(tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"])))
             d = n >> (i + 1)
             with ib.if_scope(tx < d):

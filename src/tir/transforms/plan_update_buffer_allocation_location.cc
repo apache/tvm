@@ -61,16 +61,21 @@ class BufferAllocationLocator : public StmtExprMutator {
     for (const Buffer& buf : it->second) {
       buffer_data_to_buffer_.Set(buf->data, buf);
     }
-    Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<ForNode>();
-    ICHECK(op != nullptr);
+    auto node = Downcast<For>(StmtMutator::VisitStmt_(op));
+
+    Array<Buffer> new_block_alloc_bufs;
     for (const Buffer& buf : it->second) {
-      buffer_data_to_buffer_.erase(buf->data);
+      if (!unmanaged_allocations_.count(buf->data.get())) {
+        buffer_data_to_buffer_.erase(buf->data);
+        new_block_alloc_bufs.push_back(buf);
+      }
     }
-    Stmt body = InjectOpaqueBlock(op->body, it->second);
-    ObjectPtr<ForNode> n = CopyOnWrite(op);
-    n->body = std::move(body);
-    return Stmt(n);
+
+    if (new_block_alloc_bufs.size()) {
+      node.CopyOnWrite()->body = InjectOpaqueBlock(node->body, new_block_alloc_bufs);
+    }
+
+    return std::move(node);
   }
 
   Stmt VisitStmt_(const BlockNode* op) final {
@@ -114,6 +119,16 @@ class BufferAllocationLocator : public StmtExprMutator {
     return Stmt(n);
   }
 
+  Stmt VisitStmt_(const AllocateNode* op) final {
+    unmanaged_allocations_.insert(op->buffer_var.get());
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
+  Stmt VisitStmt_(const AllocateConstNode* op) final {
+    unmanaged_allocations_.insert(op->buffer_var.get());
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
     ICHECK(false) << "Internal Error: BufferRealizeNode is not allowed in TensorIR.";
     throw;
@@ -151,6 +166,8 @@ class BufferAllocationLocator : public StmtExprMutator {
   std::unordered_map<const StmtNode*, Array<Buffer>> alloc_buffers_;
   /*! \brief The buffer already allocated during recursive visiting. */
   Map<Var, Buffer> buffer_data_to_buffer_;
+  /*! \brief Buffers that are allocated outside of the BlockNode, and should not be moved. */
+  std::unordered_set<const VarNode*> unmanaged_allocations_;
 };
 
 PrimFunc PlanAndUpdateBufferAllocationLocation(PrimFunc func) {

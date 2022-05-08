@@ -201,7 +201,7 @@ class IRBuilder(object):
             value = op.max(1, value)
         self.emit(lambda x: _stmt.AttrStmt(node, attr_key, value, x))
 
-    def for_range(self, begin, end, name="i", dtype="int32", kind="serial"):
+    def for_range(self, begin, end, name="i", dtype=None, kind="serial"):
         """Create a for iteration scope.
 
         Parameters
@@ -240,6 +240,26 @@ class IRBuilder(object):
             name = chr(ord(name) + self.nidx) if self.nidx < 3 else name + "_" + str(self.nidx - 3)
             self.nidx += 1
         self._seq_stack.append([])
+
+        # auto infer dtype when it's not specified
+        def get_dtype(expr):
+            if isinstance(expr, _expr.PrimExpr):
+                if not expr.dtype.startswith("int"):
+                    raise NotImplementedError(
+                        f"Infer loop_var dtype failed:"
+                        f" unsupported dtype in loop begin or end {expr.dtype}"
+                    )
+                return expr.dtype
+            if isinstance(expr, int):
+                return "int32"
+            raise NotImplementedError(
+                f"Infer loop_var dtype failed:"
+                f" unsupported dtype in loop begin or end {expr.dtype}"
+            )
+
+        if dtype is None:
+            dtype = "int64" if "int64" in [get_dtype(begin), get_dtype(end)] else "int32"
+
         loop_var = _expr.Var(name, dtype=dtype)
         extent = end if begin == 0 else (end - begin)
 

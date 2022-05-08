@@ -428,6 +428,12 @@ void UpdateBlockVarDomain(const arith::IntSet& provided, const arith::IntSet& re
                           const arith::IntSet& required_bound,
                           std::unordered_map<const VarNode*, BlockVarDomainInfo>* iter_doms,
                           arith::Analyzer* analyzer) {
+  if (provided.IsSinglePoint() && is_const_int(provided.min())) {
+    ICHECK(required.IsSinglePoint() && analyzer->CanProveEqual(provided.min(), required.min()));
+    ICHECK(required_bound.IsSinglePoint() &&
+           analyzer->CanProveEqual(provided.min(), required_bound.min()));
+    return;
+  }
   auto var_with_dom = SolveBlockVarDomain(provided, required, analyzer);
   auto var_with_bound = SolveBlockVarDomain(provided, required_bound, analyzer);
   const Var& var = var_with_dom.first;

@@ -57,6 +57,12 @@ struct VulkanGetBufferMemoryRequirements2Functions {
   PFN_vkGetBufferMemoryRequirements2KHR vkGetBufferMemoryRequirements2KHR{nullptr};
 };
 
+struct VulkanQueueInsertDebugUtilsLabelFunctions {
+  explicit VulkanQueueInsertDebugUtilsLabelFunctions(VkInstance instance);
+
+  PFN_vkQueueInsertDebugUtilsLabelEXT vkQueueInsertDebugUtilsLabelEXT{nullptr};
+};
+
 /*!
  * \brief Stores the capabilities/limits queried from the physical device.
  *
@@ -212,6 +218,8 @@ class VulkanDevice {
   std::unique_ptr<VulkanDescriptorTemplateKHRFunctions> descriptor_template_khr_functions{nullptr};
   std::unique_ptr<VulkanGetBufferMemoryRequirements2Functions>
       get_buffer_memory_requirements_2_functions{nullptr};
+  std::unique_ptr<VulkanQueueInsertDebugUtilsLabelFunctions>
+      queue_insert_debug_utils_label_functions{nullptr};
   // Memory type index for compute
   uint32_t compute_mtype_index{0};
 
@@ -219,6 +227,10 @@ class VulkanDevice {
   uint32_t queue_family_index{uint32_t(-1)};
 
   bool UseImmediate() const { return descriptor_template_khr_functions != nullptr; }
+
+  bool UseDebugUtilsLabel() const { return queue_insert_debug_utils_label_functions != nullptr; }
+
+  VkQueue Queue() const { return queue; }
 
  private:
   /*! \brief Helper function for move assignment/construction

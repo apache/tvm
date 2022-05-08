@@ -15,23 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 """Package `tvm.meta_schedule`. The meta schedule infrastructure."""
-from . import arg_info
-from . import database
-from . import builder
-from . import runner
-from . import mutator
-from . import postproc
-from . import schedule_rule
-from . import space_generator
-from . import search_strategy
-from . import integration
-from . import feature_extractor
-from . import cost_model
-from .search_strategy import (
-    EvolutionarySearchConfig,
-    MeasureCandidate,
-    ReplayFuncConfig,
-    ReplayTraceConfig,
+from . import (
+    arg_info,
+    builder,
+    cost_model,
+    database,
+    feature_extractor,
+    mutator,
+    postproc,
+    runner,
+    schedule_rule,
+    search_strategy,
+    space_generator,
 )
-from .tune import tune_te, tune_tir, tune_relay
+from .apply_history_best import ApplyHistoryBest
+from .extracted_task import ExtractedTask
+from .relay_integration import extract_task_from_relay
+from .search_strategy import MeasureCandidate
+from .tune import TuneConfig, tune_relay, tune_te, tune_tir
 from .tune_context import TuneContext

@@ -32,6 +32,8 @@ import random
 import subprocess
 import platform
 import textwrap
+import typing
+
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple, Callable, Union
 
@@ -317,18 +319,24 @@ def serve_docs(directory: str = "_docs") -> None:
     cmd([sys.executable, "-m", "http.server"], cwd=directory_path)
 
 
-def lint(interactive: bool = False) -> None:
+def lint(interactive: bool = False, fix: bool = False) -> None:
     """
     Run CI's Sanity Check step
 
     arguments:
     interactive -- start a shell after running build / test scripts
+    fix -- where possible (currently black and clang-format) edit files in place with formatting fixes
     """
+    env = {}
+    if fix:
+        env["IS_LOCAL"] = "true"
+        env["INPLACE_FORMAT"] = "true"
+
     docker(
         name=gen_name(f"ci-lint"),
         image="ci_lint",
         scripts=["./tests/scripts/task_lint.sh"],
-        env={},
+        env=env,
         interactive=interactive,
     )
 
@@ -420,7 +428,7 @@ def check_arm_qemu() -> None:
                 """
         You must run a one-time setup to use ARM containers on x86 via QEMU:
 
-            sudo apt install -y sudo apt-get install qemu binfmt-support qemu-user-static
+            sudo apt install -y qemu binfmt-support qemu-user-static
             docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
         See https://www.stereolabs.com/docs/docker/building-arm-container-on-x86/ for details""".strip(
@@ -432,6 +440,28 @@ def check_arm_qemu() -> None:
 
 def cli_name(s: str) -> str:
     return s.replace("_", "-")
+
+
+def typing_get_origin(annotation):
+    if sys.version_info >= (3, 8):
+        return typing.get_origin(annotation)
+    else:
+        return annotation.__origin__
+
+
+def typing_get_args(annotation):
+    if sys.version_info >= (3, 8):
+        return typing.get_args(annotation)
+    else:
+        return annotation.__args__
+
+
+def is_optional_type(annotation):
+    return (
+        hasattr(annotation, "__origin__")
+        and (typing_get_origin(annotation) == typing.Union)
+        and (type(None) in typing_get_args(annotation))
+    )
 
 
 def add_subparser(
@@ -479,12 +509,11 @@ def add_subparser(
         arg_cli_name = cli_name(name)
         kwargs: Dict[str, Union[str, bool]] = {"help": arg_help_texts[arg_cli_name]}
 
-        arg_type = value.annotation
-        is_optional = False
-        if str(value.annotation).startswith("typing.Optional"):
-
-            is_optional = True
-            arg_type = value.annotation.__args__[0]
+        is_optional = is_optional_type(value.annotation)
+        if is_optional:
+            arg_type = typing_get_args(value.annotation)[0]
+        else:
+            arg_type = value.annotation
 
         # Grab the default value if present
         has_default = False

@@ -51,6 +51,41 @@ function(_check_all_paths_exist _paths _output_variable)
   set_parent(${_output_variable} ${_out_paths})
 endfunction()
 
+function(_get_linux_version _output_vendor _output_release)
+  execute_process(
+    COMMAND lsb_release "-is"
+    OUTPUT_VARIABLE _vendor
+  )
+  if(_vendor)
+    string(STRIP "${_vendor}" _vendor)
+    set_parent(${_output_vendor} ${_vendor})
+  else()
+    set_parent(${_output_vendor} "NOTFOUND")
+  endif()
+  execute_process(
+    COMMAND lsb_release "-rs"
+    OUTPUT_VARIABLE _release
+  )
+  if(_release)
+    string(STRIP "${_release}" _release)
+    set_parent(${_output_release} ${_release})
+  else()
+    set_parent(${_output_release} "NOTFOUND")
+  endif()
+endfunction()
+
+function(_get_ubuntu_version _output_version)
+  _get_linux_version(_vendor _release)
+  if(_vendor STREQUAL "Ubuntu")
+    string(REGEX MATCH "[0-9]+" _release_major "${_release}")
+    if(_release_major)
+      set_parent(${_output_version} "${_vendor}${_release_major}")
+      return()
+    endif()
+  endif()
+  set_parent(${_output_version} "NOTFOUND")
+endfunction()
+
 function(_get_hexagon_sdk_property_impl
          _hexagon_sdk_root _hexagon_arch _property _output_variable)
   # Properties
@@ -97,10 +132,24 @@ function(_get_hexagon_sdk_property_impl
     endif()
 
   elseif(_property STREQUAL "QAIC_EXE")
-    _check_path_exists(
-      "${_hexagon_sdk_root}/ipc/fastrpc/qaic/Ubuntu18/qaic"
-      _qaic_path
-    )
+    set(_override $ENV{QAIC_PATH_OVERRIDE})
+    if(_override)
+      _check_path_exists("${_override}" _qaic_path)
+    else()
+      _get_ubuntu_version(_uversion)
+      _check_path_exists(
+        "${_hexagon_sdk_root}/ipc/fastrpc/qaic/${_uversion}/qaic"
+        _qaic_path
+      )
+    endif()
+    if(NOT _qaic_path)
+      message(
+        WARNING
+        "The qaic executable cannot be found in '${_qaic_path}'. You can set "
+        "the environment variable QAIC_PATH_OVERRIDE to override the automatic "
+        "search."
+      )
+    endif()
     set_parent(${_output_variable} "${_qaic_path}")
 
   else()

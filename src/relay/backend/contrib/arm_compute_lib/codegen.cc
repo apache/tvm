@@ -99,6 +99,8 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
       json_node = CreateCompositeAvgPool2DJSONNode(cn);
     } else if (name == "arm_compute_lib.l2_pool2d") {
       json_node = CreateCompositeL2Pool2DJSONNode(cn);
+    } else if (name == "arm_compute_lib.concatenate") {
+      return AddCommonSingleJSONNode(cn, "concatenate");
     } else {
       LOG(FATAL) << "Unrecognized Arm Compute Library pattern: " << name;
     }
@@ -341,6 +343,30 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
     auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
     SetCallNodeAttribute(json_node, avg_pool);
     return json_node;
+  }
+
+  /*!
+   * \brief Create a JSON representation of a single operator.
+   * \param cn The call to be represented.
+   * \param name The name of the operator.
+   * \return A list of graph entry nodes.
+   */
+  std::vector<JSONGraphNodeEntry> AddCommonSingleJSONNode(const CallNode* cn, std::string name) {
+    std::vector<JSONGraphNodeEntry> inputs;
+    for (const auto& arg : cn->args) {
+      auto res = VisitExpr(arg);
+      inputs.insert(inputs.end(), res.begin(), res.end());
+    }
+    auto node = std::make_shared<JSONGraphNode>(name,     /* name_ */
+                                                "kernel", /* op_type_ */
+                                                inputs, 1 /* num_outputs_ */);
+
+    const auto* fn = cn->op.as<FunctionNode>();
+    ICHECK(fn);
+    const auto* callNode = fn->body.as<CallNode>();
+    ICHECK(callNode);
+    SetCallNodeAttribute(node, callNode);
+    return AddNode(node, GetRef<Expr>(cn));
   }
 };
 

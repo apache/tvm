@@ -63,7 +63,7 @@ cmake -DUSE_LLVM="path to `llvm/bin/llvm-config`" \
         -DCMAKE_CXX_FLAGS='-stdlib=libc++' \
         -DUSE_HEXAGON_SDK="path to Hexagon SDK" \
         -DUSE_HEXAGON_ARCH="choose from v65|v66|v68|v69" \
-        -DUSE_HEXAGON_DEVICE=sim ..
+        -DUSE_HEXAGON=ON ..
 ```
 
 ## Use Hexagon Docker Image

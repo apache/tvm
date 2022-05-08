@@ -17,10 +17,11 @@
 """Utilities for meta schedule"""
 import ctypes
 import json
+import logging
 import os
 import shutil
 from contextlib import contextmanager
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, List, Dict, Callable, Optional, Union
 
 import psutil  # type: ignore
 from tvm._ffi import get_global_func, register_func
@@ -339,8 +340,11 @@ def shash2hex(mod: IRModule) -> str:
 
 def _get_default_str(obj: Any) -> str:
     return (
-        f"meta_schedule.{obj.__class__.__name__}" + f"({_to_hex_address(obj._outer().handle)})"
-    )  # type: ignore
+        # pylint: disable=protected-access
+        f"meta_schedule.{obj.__class__.__name__}"
+        + f"({_to_hex_address(obj._outer().handle)})"  # type: ignore
+        # pylint: enable=protected-access
+    )
 
 
 def _to_hex_address(handle: ctypes.c_void_p) -> str:
@@ -368,3 +372,87 @@ def autotvm_silencer():
         yield
     finally:
         autotvm.GLOBAL_SCOPE.silent = silent
+
+
+def make_logging_func(logger: logging.Logger) -> Optional[Callable]:
+    """Get the logging function.
+    Parameters
+    ----------
+    logger : logging.Logger
+        The logger instance.
+    Returns
+    -------
+    result : Optional[Callable]
+        The function to do the specified level of logging.
+    """
+    if logger is None:
+        return None
+
+    level2log = {
+        logging.DEBUG: logger.debug,
+        logging.INFO: logger.info,
+        logging.WARNING: logger.warning,
+        logging.ERROR: logger.error,
+        # logging.FATAL not included
+    }
+
+    def logging_func(level: int, msg: str):
+        level2log[level](msg)
+
+    return logging_func
+
+
+def parameterize_config(config: Dict[str, Any], params: Dict[str, str]) -> Dict[str, Any]:
+    """Parameterize the given configuration.
+
+    Parameters
+    ----------
+    config : Dict[str, Any]
+        The given config dict.
+    Params : Dict[str, str]
+        The given parameters.
+
+    Returns
+    -------
+    result : Dict[str, Any]
+        The parameterized configuration.
+    """
+    result = {}
+    for k, v in config.items():
+        if isinstance(k, str):
+            k = k.format(**params)
+        if isinstance(v, str):
+            v = v.format(**params)
+        elif isinstance(v, dict):
+            v = parameterize_config(v, params)
+        elif isinstance(v, list):
+            v = [t.format(**params) for t in v]
+        result[k] = v
+    return result
+
+
+def batch_parameterize_config(
+    config: Dict[str, Any], params: List[Dict[str, str]]
+) -> Dict[str, Any]:
+    """Parameterize the given configuration with multiple parameters sets.
+
+    Parameters
+    ----------
+    config : Dict[str, Any]
+        The given config dict.
+    Params : List[Dict[str, str]]
+        List of the given multiple parameters sets.
+
+    Returns
+    -------
+    result : Dict[str, Any]
+        The parameterized configuration.
+    """
+    results = {}
+    for name, cfg in config.items():
+        for p in params:
+            p_name = name.format(**p)
+            if p_name not in results:
+                p_cfg = parameterize_config(cfg, p)
+                results[p_name] = p_cfg
+    return results

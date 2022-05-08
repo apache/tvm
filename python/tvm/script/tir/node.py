@@ -157,3 +157,15 @@ class BufferSlice(ObjectGeneric):
 
     def astype(self, dtype: str, span: Optional[Span] = None) -> PrimExpr:
         return self.asobject().astype(dtype, span)
+
+    @property
+    def dtype(self) -> str:
+        """Return the dtype referenced by the slice.
+
+        Implemented as a property so that ``slice.dtype`` has the same
+        calling convention as ``primexpr.dtype``.  This allows a
+        BufferSlice object can be assigned to a variable without
+        requiring a type annotation on the variable, similar to other
+        expressions.
+        """
+        return self.asobject().dtype
