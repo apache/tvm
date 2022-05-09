@@ -121,6 +121,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
             align=-1,
             offset_factor=0,
             buffer_type="default",
+            axis_separators=None,
             span=None,
         ):
             if strides is None:
@@ -140,6 +141,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
                 align,
                 offset_factor,
                 buffer_type,
+                axis_separators,
                 span=span,
             )
             return buffer
@@ -160,6 +162,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
         align=-1,
         offset_factor=0,
         buffer_type="default",
+        axis_separators=None,
         span=None,
     ):
         """

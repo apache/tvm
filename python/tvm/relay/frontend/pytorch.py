@@ -277,7 +277,7 @@ class PyTorchOpConverter:
         if len(inputs) == 1:
             data = self.pytorch_promote_types(inputs[:1], input_types[:1])
             return get_relay_op(name_reduce)(data[0])
-        elif len(inputs) >= 2 and isinstance(inputs[1], int):
+        elif len(inputs) >= 2 and isinstance(inputs[1], (list, int)):
             data = self.pytorch_promote_types(inputs[:1], input_types[:1])
             dim = inputs[1]
             keepdims = inputs[2] if len(inputs) > 2 else False
@@ -2188,6 +2188,17 @@ class PyTorchOpConverter:
 
         return _op.nn.bias_add(conv_out, bias)
 
+    def stft(self, inputs, input_types):
+        data = inputs[0]
+        n_fft = inputs[1]
+        hop_length = inputs[2]
+        win_length = inputs[3]
+        window = inputs[4]
+        normalized = inputs[5]
+        onesided = inputs[6]
+
+        return _op.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
+
     def unbind(self, inputs, input_types):
         data = inputs[0]
         axis = int(inputs[1])
@@ -2996,6 +3007,9 @@ class PyTorchOpConverter:
             "aten::sub": self.sub,
             "aten::max": self.max,
             "aten::min": self.min,
+            "aten::amax": self.max,
+            "aten::amin": self.min,
+            "aten::stft": self.stft,
             "aten::mul": self.make_elemwise("multiply"),
             "aten::pow": self.make_elemwise("power"),
             "aten::arange": self.arange,
