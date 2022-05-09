@@ -138,6 +138,14 @@ def get_conv2d_args(call, include_buffers=False, remove_constants=False):
     conv_args = []
     remove_indices = [0]
 
+    # call.args[41]: BufferLoad for the first half of the weights
+    # call.args[42]: length of the load of the first half of the weights
+    # call.args[43]: BufferLoad for the second half of the weights
+    # call.args[44]: length of the load of the second half of the weights
+    # call.args[46]: BufferLoad for the first half of the bias
+    # call.args[47]: length of the load of the first half of the bias
+    # call.args[48]: BufferLoad for the second half of the bias
+    # call.args[49]: length of the load of the second half of the bias
     if remove_constants:
         remove_indices += [41, 42, 43, 44, 46, 47, 48, 49]
 
