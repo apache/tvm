@@ -359,7 +359,6 @@ def test_direct_read_only(accelerator, reference_mod, reference_const_sizes):
         func = _get_func()
         mod, consts = _lower_to_tir(func)
 
-        print(mod.script())
         script = mod.script(show_meta=True)
         test_mod = tvm.script.from_source(script)
         tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
@@ -513,7 +512,6 @@ def test_mixed_read(accelerator, reference_mod, reference_const_sizes):
 
         script = mod.script(show_meta=True)
         test_mod = tvm.script.from_source(script)
-        print(mod.script())
         tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
         test_const_size = [value.size for value in list(consts.values())]
