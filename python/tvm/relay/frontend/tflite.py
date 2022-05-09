@@ -33,7 +33,7 @@ from .. import qnn as _qnn
 from ..backend.name_transforms import sanitize_name
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
-from .common import lstm_cell, to_int_list, shape_of
+from .common import lstm_cell, to_int_list, shape_of, infer_value
 from .tflite_flexbuffer import FlexBufferDecoder
 
 __all__ = ["from_tflite"]
@@ -2756,7 +2756,7 @@ class OperatorConverter(object):
             )
 
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) >= 20, "input tensors length should be >= 20"
+        assert len(input_tensors) == 24, "input tensors length should be == 24"
 
         # Extract input tensor from saved model
         input_tensor = input_tensors[0]
@@ -2777,6 +2777,10 @@ class OperatorConverter(object):
         forget_gate_bias = input_tensors[13]
         cell_gate_bias = input_tensors[14]
         output_gate_bias = input_tensors[15]
+
+        # unused
+
+
         # State input
         output_state_in = input_tensors[18]
         cell_state_in = input_tensors[19]
