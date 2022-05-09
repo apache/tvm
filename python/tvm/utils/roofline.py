@@ -22,6 +22,8 @@ from .. import auto_scheduler, relay, tir, nd, IRModule, build, topi, transform
 from ..target import Target
 from ..runtime import profiler_vm, profiling, Device, num_threads
 from ..script import tir as T
+from ..ir.instrument import pass_instrument
+from ..ir.expr import GlobalVar
 
 
 def _create_args(mod: IRModule, dev: Device, func_name: str = "main"):
@@ -34,16 +36,6 @@ def _create_args(mod: IRModule, dev: Device, func_name: str = "main"):
             )
         )
     return args
-
-
-def _estimated_features(mod: IRModule, params: Dict[str, nd.NDArray], target: Target):
-    comp = relay.vm.VMCompiler()
-    mod, params = comp.optimize(mod, params=params, target=target)
-    return {
-        prim.attrs["hash"]: (name, auto_scheduler.feature.named_features_from_primfunc(prim))
-        for name, prim in mod.functions.items()
-        if isinstance(prim, tir.PrimFunc)
-    }
 
 
 def _detect_vec_width_registers(
@@ -226,12 +218,145 @@ def estimate_peak_bandwidth(target: Target, dev: Device, vec_width: Optional[int
     return a.numpy().size * 4 / times.min  # 4 bytes per float32
 
 
+@pass_instrument
+class SaveLoweredTIR:
+    """Save TIR functions from right before final lowering. Right now this
+    means right before tir.MakePackedAPI."""
+
+    def __init__(self):
+        self.functions = {}
+        self.done = False
+
+    def run_after_pass(self, mod, info):
+        if not self.done:
+            if info.name == "tir.MakePackedAPI":
+                self.done = True
+            else:
+                for v, func in mod.functions.items():
+                    self.functions[v] = func
+
+
+def roofline_from_existing(
+    report: profiling.Report,
+    tir_functions: Dict[GlobalVar, tir.PrimFunc],
+    target: Target,
+    dev: Device,
+) -> profiling.Report:
+    """Add roofline and other estimated statistics to an existing profiling report.
+
+    :py:func:`roofline_analysis` should always be used instead of this function
+    unless you need a custom compilation pipeline.
+
+    Calculating roofline statistics requires features extracted the TIR
+    functions in addition to per-operator runtime information (`report`) of the
+    same TIR features. The features and TIR functions are not included with the
+    compiled library used to generate the per-operator runtime. It is essential
+    that the per-operator information comes from the exact same compilation
+    pipeline as the TIR functions.
+
+
+    Example
+    -------
+
+    ..code: : python
+
+        import tvm
+        import tvm.relay
+
+        mod, params = tvm.relay.testing.mlp.get_workload()
+
+        # it is recommended to use SaveLoweredTIR to get out the tir primfuncs
+        save_tir = tvm.utils.roofline.SaveLoweredTIR()
+        with tvm.transform.PassContext(opt_level=3, pass_instrument=[save_tir]):
+            lib = relay.vm.compile(mod, params=params, target=target)
+
+        vmexec = profiler_vm.VirtualMachineProfiler(lib, dev)
+        report = vmexec.profile(*inputs)
+
+        roofline_report = roofline_from_existing(report, save_tir.functions, target, dev)
+
+
+    Parameters
+    ----------
+    report : Report
+        Existing profiling report from :py:method:`VirtualMachineProfiler.profile`.
+    tir_functions : Dict[GlobalVar, PrimFunc]
+        TIR primfuncs from the module run to generate `report`. It is nessesary
+        that these functions come before the `tir.MakePackedAPI` pass and are
+        compatible with auto_scheduler featurization.
+        :py:class:`SaveLoweredTIR` is the recommended way to collect these
+        functions.
+    target : Target
+        TVM target that `report` was generated with.
+    dev : Device
+        Device that `report` was generated with.
+
+    Returns
+    -------
+    profiling.Report
+        New profiling report that includes all information from `report`
+        along with additional roofline metrics. See
+        :py:func:`roofline_analysis` for more information on which metrics
+        are included.
+    """
+    peak_bandwidth = estimate_peak_bandwidth(target, dev)
+    peak_flops = estimate_peak_fma_flops(target, dev)
+
+    ridge_point = peak_flops / peak_bandwidth
+
+    all_features = {
+        prim.attrs["hash"]: (name, auto_scheduler.feature.named_features_from_primfunc(prim))
+        for name, prim in tir_functions.items()
+        if isinstance(prim, tir.PrimFunc) and "hash" in prim.attrs.keys()
+    }
+
+    new_calls = []
+    for call in report.calls:
+        if "Hash" in call.keys():
+            _, features = all_features[call["Hash"]]
+
+            flops = np.sum(features["float_addsub"] + features["float_mul"] + features["float_mad"])
+            loaded_bytes = 0.0
+            # assume no more than 100 buffers
+            for i in range(100):
+                key = f"B{i}.bytes"
+                if not key in features.keys():
+                    break
+                loaded_bytes += np.sum(features[key])
+            runtime = call["Duration (us)"].microseconds * 1e-6
+            arith_inten = flops / loaded_bytes
+            call = dict(call)
+            call["Loaded Bytes"] = profiling.Count(int(loaded_bytes))
+            call["Estimated FLOPs"] = profiling.Count(int(flops))
+            call["Arithmetic Intensity"] = profiling.Ratio(arith_inten)
+            call["FLOP/s"] = profiling.Ratio(flops / runtime)
+            call["Bandwidth"] = profiling.Ratio(loaded_bytes / runtime)
+            compute_bound = arith_inten > ridge_point
+            call["Bound"] = "compute" if compute_bound else "memory"
+            per_mem_bound = (loaded_bytes / runtime) / peak_bandwidth * 100
+            per_compute_bound = flops / peak_flops * 100.0
+            # We use ratio here because the percentages should be averaged instead of summed.
+            call["Percent of Theoretical Optimal"] = profiling.Ratio(
+                per_compute_bound if compute_bound else per_mem_bound
+            )
+            new_calls.append(call)
+        else:
+            new_calls.append(call)
+    return profiling.Report(new_calls, report.device_metrics)
+
+
 def roofline_analysis(
     mod: IRModule, params: Dict[str, nd.NDArray], target: Union[str, Target], dev: Device
 ) -> profiling.Report:
     """
     Create a profiling report that contains roofline and other estimated
     statistics from running a module on the VM.
+
+    The roofline model measures how close a operator gets to best possible
+    memory bandwidth or FLOP/s depending on whether it is memory or compute
+    bound. This computation uses the runtime of the operator along with two
+    numbers extracted from the TIR code: bytes of memory touched and number of
+    floating point operations.
 
     These statistics are calculated by analyzing the lowered TIR of each
     operator, so they are estimates of the true values. The statistics are:
@@ -268,48 +393,21 @@ def roofline_analysis(
     """
     if isinstance(target, str):
         target = Target(target)
-    peak_bandwidth = estimate_peak_bandwidth(target, dev)
-    peak_flops = estimate_peak_fma_flops(target, dev)
 
-    ridge_point = peak_flops / peak_bandwidth
-
-    all_features = _estimated_features(mod, params, target)
-
-    lib = relay.vm.compile(mod, params=params, target=target)
+    save_tir = SaveLoweredTIR()
+    # copy existing context but add our instrument
+    pass_ctx = transform.PassContext.current()
+    with transform.PassContext(
+        opt_level=pass_ctx.opt_level,
+        required_pass=pass_ctx.required_pass,
+        disabled_pass=pass_ctx.disabled_pass,
+        instruments=list(pass_ctx.instruments) + [save_tir],
+        config=pass_ctx.config,
+    ):
+        lib = relay.vm.compile(mod, params=params, target=target)
     vmexec = profiler_vm.VirtualMachineProfiler(lib, dev)
 
     args = _create_args(mod, dev)
     report = vmexec.profile(*args)
-    new_calls = []
-    for call in report.calls:
-        if "Hash" in call.keys():
-            _, features = all_features[call["Hash"]]
 
-            flops = np.sum(features["float_addsub"] + features["float_mul"] + features["float_mad"])
-            loaded_bytes = 0.0
-            # assume no more than 100 buffers
-            for i in range(100):
-                key = f"B{i}.bytes"
-                if not key in features.keys():
-                    break
-                loaded_bytes += np.sum(features[key])
-            runtime = call["Duration (us)"].microseconds * 1e-6
-            arith_inten = flops / loaded_bytes
-            call = dict(call)
-            call["Loaded Bytes"] = profiling.Count(int(loaded_bytes))
-            call["Estimated FLOPs"] = profiling.Count(int(flops))
-            call["Arithmetic Intensity"] = profiling.Ratio(arith_inten)
-            call["FLOP/s"] = profiling.Ratio(flops / runtime)
-            call["Bandwidth"] = profiling.Ratio(loaded_bytes / runtime)
-            compute_bound = arith_inten > ridge_point
-            call["Bound"] = "compute" if compute_bound else "memory"
-            per_mem_bound = (loaded_bytes / runtime) / peak_bandwidth * 100
-            per_compute_bound = flops / peak_flops * 100.0
-            # We use ratio here because the percentages should be averaged instead of summed.
-            call["Percent of Theoretical Optimal"] = profiling.Ratio(
-                per_compute_bound if compute_bound else per_mem_bound
-            )
-            new_calls.append(call)
-        else:
-            new_calls.append(call)
-    return profiling.Report(new_calls, report.device_metrics)
+    return roofline_from_existing(report, save_tir.functions, target, dev)
