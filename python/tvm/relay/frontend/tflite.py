@@ -2780,7 +2780,6 @@ class OperatorConverter(object):
 
         # unused
 
-
         # State input
         output_state_in = input_tensors[18]
         cell_state_in = input_tensors[19]
