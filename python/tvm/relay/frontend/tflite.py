@@ -199,6 +199,7 @@ class OperatorConverter(object):
             qnn_out_cnt = len(
                 [_.qnn_params for _ in self.get_output_tensors(op) if _.qnn_params is not None]
             )
+
             if qnn_in_cnt == 0 and qnn_out_cnt == 0 and qnn_weight_cnt > 0:
                 dynamic_range_ops_set.add(op_code_str)
 
