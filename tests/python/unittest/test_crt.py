@@ -128,6 +128,7 @@ def test_reset():
         except tvm.micro.SessionTerminatedError:
             pass
 
+
 @tvm.testing.requires_micro
 def test_someother_name():
     """Test use of the graph executor with microTVM."""
@@ -177,6 +178,7 @@ def test_someother_name():
         )
 
         do_test(graph_mod)
+
 
 @tvm.testing.requires_micro
 def test_graph_executor():
