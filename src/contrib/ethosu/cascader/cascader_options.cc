@@ -31,24 +31,27 @@ void CascaderOptionsNode::VisitAttrs(AttrVisitor* v) {
   v->Visit("stripe_factors", &stripe_factors);
   v->Visit("max_plan_size", &max_plan_size);
   v->Visit("always_copy_size", &always_copy_size);
+  v->Visit("enable_striping", &enable_striping);
 }
 
 CascaderOptions::CascaderOptions(const MemoryRegion& cascade_region, int max_proposals,
-                                 int stripe_factors, int max_plan_size, int always_copy_size) {
+                                 int stripe_factors, int max_plan_size, int always_copy_size,
+                                 bool enable_striping) {
   auto n = make_object<CascaderOptionsNode>();
   n->cascade_region = std::move(cascade_region);
   n->max_proposals = max_proposals;
   n->stripe_factors = stripe_factors;
   n->max_plan_size = max_plan_size;
   n->always_copy_size = always_copy_size;
+  n->enable_striping = enable_striping;
   data_ = std::move(n);
 }
 
 TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.CascaderOptions")
     .set_body_typed([](MemoryRegion cascade_region, int max_proposals, int stripe_factors,
-                       int max_plan_size, int always_copy_size) {
+                       int max_plan_size, int always_copy_size, bool enable_striping) {
       return CascaderOptions(cascade_region, max_proposals, stripe_factors, max_plan_size,
-                             always_copy_size);
+                             always_copy_size, enable_striping);
     });
 
 TVM_REGISTER_NODE_TYPE(CascaderOptionsNode);

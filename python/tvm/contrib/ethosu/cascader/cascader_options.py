@@ -40,6 +40,8 @@ class CascaderOptions(Object):
         The maximum number of Parts in a Plan.
     always_copy_size : int
         The maximum size of a Tensor that will always be copied into the cascade region.
+    enable_striping : bool
+        A boolean option to enable striping
 
     """
 
@@ -50,6 +52,7 @@ class CascaderOptions(Object):
         stripe_factors: int,
         max_plan_size: int,
         always_copy_size: int,
+        enable_striping: bool = False,
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.CascaderOptions,
@@ -58,4 +61,5 @@ class CascaderOptions(Object):
             stripe_factors,
             max_plan_size,
             always_copy_size,
+            enable_striping,
         )

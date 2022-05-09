@@ -32,7 +32,9 @@ from tvm import WorkspaceMemoryPools, PoolInfo
 from .. import infra
 
 
-def _get_ethosu_workspace_size(mod, params, accel_type, pool_size, enable_cascader):
+def _get_ethosu_workspace_size(
+    mod, params, accel_type, pool_size, enable_cascader, enable_striping
+):
     enable_usmp = True
 
     target = tvm.target.Target("c")
@@ -52,6 +54,7 @@ def _get_ethosu_workspace_size(mod, params, accel_type, pool_size, enable_cascad
         "relay.ext.ethos-u.options": {
             "accelerator_config": accel_type,
             "enable_cascader": enable_cascader,
+            "enable_striping": enable_striping,
         },
         "tir.usmp.enable": enable_usmp,
         "tir.usmp.algorithm": "hill_climb",
@@ -86,7 +89,7 @@ def _get_ethosu_workspace_size(mod, params, accel_type, pool_size, enable_cascad
 
 
 @pytest.mark.parametrize(
-    "accel_type, expected_ws_size_without_cascader, expected_ws_size_with_cascader",
+    "accel_type, expected_ws_size_without_striping, expected_ws_size_with_striping",
     [
         ("ethos-u55-256", 1067408, 14096),
         ("ethos-u55-128", 1067408, 3968),
@@ -95,7 +98,7 @@ def _get_ethosu_workspace_size(mod, params, accel_type, pool_size, enable_cascad
     ],
 )
 def test_double_conv2d(
-    accel_type, expected_ws_size_without_cascader, expected_ws_size_with_cascader
+    accel_type, expected_ws_size_without_striping, expected_ws_size_with_striping
 ):
     np.random.seed(1)
     ifm_shape = (1, 321, 212, 6)
@@ -135,32 +138,37 @@ def test_double_conv2d(
     # Run the graph without the cascader, with lots of memory
     pool_size = 2000000
     workspace_size_cascader_disabled = _get_ethosu_workspace_size(
-        mod, params, accel_type, pool_size, enable_cascader=False
+        mod, params, accel_type, pool_size, enable_cascader=False, enable_striping=False
     )
+    workspace_size_cascader_enabled_striping_disabled = _get_ethosu_workspace_size(
+        mod, params, accel_type, pool_size, enable_cascader=True, enable_striping=False
+    )
+    # if striping is not done, it should be same as cacader disabled
+    assert workspace_size_cascader_disabled == workspace_size_cascader_enabled_striping_disabled
 
     # Run the same graph with the cascader, giving it less memory to persuade cascder to cascade
     pool_size = 600000
-    workspace_size_cascader_enabled = _get_ethosu_workspace_size(
-        mod, params, accel_type, pool_size, enable_cascader=True
+    workspace_size_cascader_enabled_striping_enabled = _get_ethosu_workspace_size(
+        mod, params, accel_type, pool_size, enable_cascader=True, enable_striping=True
     )
 
-    assert workspace_size_cascader_disabled == expected_ws_size_without_cascader
-    assert workspace_size_cascader_enabled == expected_ws_size_with_cascader
+    assert workspace_size_cascader_disabled == expected_ws_size_without_striping
+    assert workspace_size_cascader_enabled_striping_enabled == expected_ws_size_with_striping
 
 
 # TODO(ekalda): Fix a bug in the block config selection that selects block config that is too large
 # for the smaller accelerators
 @pytest.mark.parametrize(
-    "accel_type, expected_ws_size_without_cascader, expected_ws_size_with_cascader",
+    "accel_type, expected_ws_size_without_striping, expected_ws_size_with_striping",
     [
         ("ethos-u55-256", 180096, 5024),
         ("ethos-u55-128", 180096, 4832),
-        pytest.param("ethos-u55-64", 180096, 4832, marks=pytest.mark.xfail),
-        pytest.param("ethos-u55-32", 180096, 4832, marks=pytest.mark.xfail),
+        ("ethos-u55-64", 180096, 6464),
+        ("ethos-u55-32", 180096, 6464),
     ],
 )
 def test_depthwise2d_conv2d_pooling(
-    accel_type, expected_ws_size_without_cascader, expected_ws_size_with_cascader
+    accel_type, expected_ws_size_without_striping, expected_ws_size_with_striping
 ):
     np.random.seed(2)
     ifm_shape = (1, 80, 75, 3)
@@ -210,14 +218,19 @@ def test_depthwise2d_conv2d_pooling(
     # Run the graph without the cascader, with lots of memory
     pool_size = 10**6
     workspace_size_cascader_disabled = _get_ethosu_workspace_size(
-        mod, params, accel_type, pool_size, enable_cascader=False
+        mod, params, accel_type, pool_size, enable_cascader=False, enable_striping=False
     )
+    workspace_size_cascader_enabled_striping_disabled = _get_ethosu_workspace_size(
+        mod, params, accel_type, pool_size, enable_cascader=True, enable_striping=False
+    )
+    # if striping is not done, it should be same as cacader disabled
+    assert workspace_size_cascader_disabled == workspace_size_cascader_enabled_striping_disabled
 
     # Run the same graph with the cascader, giving it less memory to persuade cascder to cascade
     pool_size = 40000
-    workspace_size_cascader_enabled = _get_ethosu_workspace_size(
-        mod, params, accel_type, pool_size, enable_cascader=True
+    workspace_size_cascader_enabled_striping_enabled = _get_ethosu_workspace_size(
+        mod, params, accel_type, pool_size, enable_cascader=True, enable_striping=True
     )
 
-    assert workspace_size_cascader_disabled == expected_ws_size_without_cascader
-    assert workspace_size_cascader_enabled == expected_ws_size_with_cascader
+    assert workspace_size_cascader_disabled == expected_ws_size_without_striping
+    assert workspace_size_cascader_enabled_striping_enabled == expected_ws_size_with_striping
