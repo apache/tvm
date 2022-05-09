@@ -2772,13 +2772,13 @@ class OperatorConverter(object):
         recurrent_forget_weights = input_tensors[6]
         recurrent_cell_weights = input_tensors[7]
         recurrent_output_weights = input_tensors[8]
+        # inputs 9, 10, 11, 16, 17, 20, 21, 22, 23 are not occupied
+        # there locations are -1 in the flatbuffer
         # Bias weights
         input_gate_bias = input_tensors[12]
         forget_gate_bias = input_tensors[13]
         cell_gate_bias = input_tensors[14]
         output_gate_bias = input_tensors[15]
-
-        # unused
 
         # State input
         output_state_in = input_tensors[18]
