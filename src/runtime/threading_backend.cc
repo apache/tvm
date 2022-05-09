@@ -191,7 +191,7 @@ class ThreadGroup::Impl {
             SetThreadFullCpuAffinity(threads_[i].native_handle(), mode);
           }
           if (exclude_worker0) {  // main thread run task
-            SetMasterThreadFullCpuAffinity(mode);
+            SetMainThreadFullCpuAffinity(mode);
           }
           break;
         case kLittle:
@@ -225,11 +225,11 @@ class ThreadGroup::Impl {
           break;
       }
       if (exclude_worker0) {  // main thread run task
-        // Master thread will have free migration on needed cores.
+        // Main thread will have free migration on needed cores.
         // Typically, the OS will schedule the main thread to run at core 0,
         // which is idle, when other workers are running.
-        // See the comment inside SetMasterThreadFullCpuAffinity function to get more detail.
-        SetMasterThreadFullCpuAffinity(mode);
+        // See the comment inside SetMainThreadFullCpuAffinity function to get more detail.
+        SetMainThreadFullCpuAffinity(mode);
       }
     }
 #endif  // __hexagon__
@@ -271,7 +271,7 @@ class ThreadGroup::Impl {
 #endif  // __hexagon__
   }
 
-  void SetMasterThreadFullCpuAffinity(AffinityMode mode) {
+  void SetMainThreadFullCpuAffinity(AffinityMode mode) {
     SetThreadFullCpuAffinity(CURRENT_THREAD_HANDLE, mode);
   }
 
