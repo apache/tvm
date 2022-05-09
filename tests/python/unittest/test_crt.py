@@ -130,57 +130,6 @@ def test_reset():
 
 
 @tvm.testing.requires_micro
-def test_someother_name():
-    """Test use of the graph executor with microTVM."""
-
-    ws_root = pathlib.Path(os.path.dirname(__file__) + "/micro-workspace")
-    if ws_root.exists():
-        shutil.rmtree(ws_root)
-    temp_dir = tvm.contrib.utils.tempdir(ws_root.resolve())
-    relay_mod = tvm.parser.fromtext(
-        """
-      #[version = "0.0.5"]
-      def @main(%a : Tensor[(1, 2), uint8], %b : Tensor[(1, 2), uint8]) {
-          %0 = %a + %b;
-          %0
-      }"""
-    )
-
-    runtime = Runtime("crt", {"system-lib": True})
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        factory = tvm.relay.build(relay_mod, target=TARGET, runtime=runtime)
-
-    def do_test(graph_mod):
-
-        A_data = tvm.nd.array(np.array([2, 3], dtype="uint8"), device=sess.device)
-        assert (A_data.numpy() == np.array([2, 3])).all()
-        B_data = tvm.nd.array(np.array([4, 7], dtype="uint8"), device=sess.device)
-        assert (B_data.numpy() == np.array([4, 7])).all()
-
-        assert graph_mod.get_input_index("a") == 0
-        assert graph_mod.get_input_index("b") == 1
-
-        graph_mod.run(a=A_data, b=B_data)
-
-        out = graph_mod.get_output(0)
-        assert (out.numpy() == np.array([6, 10])).all()
-
-    with _make_session(temp_dir, factory) as sess:
-
-        graph_mod_local = tvm.micro.create_local_graph_executor(
-            factory.get_graph_json(), sess.get_system_lib(), sess.device
-        )
-
-        do_test(graph_mod_local)
-
-        graph_mod = tvm.contrib.graph_executor.create(
-            factory.get_graph_json(), sess.get_system_lib(), sess.device
-        )
-
-        do_test(graph_mod)
-
-
-@tvm.testing.requires_micro
 def test_graph_executor():
     """Test use of the graph executor with microTVM."""
 
