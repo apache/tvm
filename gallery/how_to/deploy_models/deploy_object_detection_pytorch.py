@@ -97,7 +97,7 @@ with torch.no_grad():
 # Download a test image and pre-process
 # -------------------------------------
 img_url = (
-    "https://raw.githubusercontent.com/dmlc/web-data/" "master/gluoncv/detection/street_small.jpg"
+    "https://raw.githubusercontent.com/dmlc/web-data/master/gluoncv/detection/street_small.jpg"
 )
 img_path = download_testdata(img_url, "test_street_small.jpg", module="data")
 
