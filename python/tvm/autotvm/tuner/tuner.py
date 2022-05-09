@@ -149,6 +149,7 @@ class Tuner(object):
                     else:
                         errors.append(tb + "\n" + str(error))
                     result_msg = errors[-1]
+                    logger.debug("Encountered the following error in tuning:\n" + errors[-1])
 
                 if flops > self.best_flops:
                     self.best_flops = flops
