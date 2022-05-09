@@ -173,15 +173,7 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
-        if target_host is not None:
-            warnings.warn(
-                "target_host parameter is going to be deprecated. "
-                "Please pass in tvm.target.Target(target, host=target_host) instead."
-            )
-        target = build_target_by_device_type_map(target)
-        target, target_host = Target.check_and_update_host_consist(
-            target, target_host, target_is_dict_key=False
-        )
+        raw_targets = Target.canonicalize_target_and_host(target, target_host)
 
         # Setup the params.
         if params:
@@ -199,7 +191,7 @@ class BuildModule(object):
 
         mod_name = mangle_module_name(mod_name)
 
-        self._build(mod, target, target_host, executor, runtime, workspace_memory_pools, mod_name)
+        self._build(mod, raw_targets, executor, runtime, workspace_memory_pools, mod_name)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts
@@ -209,7 +201,7 @@ class BuildModule(object):
 
         return executor_config, mod, params
 
-    def optimize(self, mod, target=None, params=None):
+    def optimize(self, mod, target=None, target_host=None, params=None):
         """
         Parameters
         ----------
@@ -233,12 +225,12 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
-        target = build_target_by_device_type_map(target)
+        raw_targets = Target.canonicalize_target_and_host(target, target_host)
 
         # Setup the params.
         if params:
             self._set_params(params)
-        mod = self._optimize(mod, target)
+        mod = self._optimize(mod, raw_targets)
         # Get artifacts
         params = self.get_params()
 
@@ -562,7 +554,7 @@ def optimize(mod, target=None, params=None):
 
     with tophub_context:
         bld_mod = BuildModule()
-        mod, params = bld_mod.optimize(mod, target, params)
+        mod, params = bld_mod.optimize(mod, target=target, params=params)
     return mod, params
 
 

@@ -140,6 +140,50 @@ def compute_reshape(attrs, inputs, output_type):
 
 _reg.register_strategy("sparse_reshape", strategy.sparse_reshape_strategy)
 
+# stft
+@_reg.register_compute("stft")
+def compute_stft(attrs, inputs, output_type):
+    """Compute definition of stft"""
+    return topi.stft(
+        inputs[0],
+        attrs.n_fft,
+        attrs.hop_length,
+        attrs.win_length,
+        attrs.window,
+        attrs.normalized,
+        attrs.onesided,
+        output_type.shape,
+    )
+
+
+_reg.register_strategy("stft", strategy.stft_strategy)
+
+
+@script
+def _stft_shape_func(data, n_fft, hop_length, onesided):
+    output_shape = output_tensor((4,), "int64")
+    output_shape[0] = int64(data.shape[0])
+    if onesided:
+        output_shape[1] = int64(int64(n_fft) // int64(2)) + int64(1)
+    else:
+        output_shape[1] = int64(n_fft)
+    output_shape[2] = int64(int64(data.shape[1] - n_fft) // int64(hop_length)) + int64(1)
+    output_shape[3] = int64(2)
+    return output_shape
+
+
+@_reg.register_shape_func("stft", True)
+def stft_shape_func(attrs, inputs, _):
+    """
+    Shape func for stft.
+    """
+    return [
+        _stft_shape_func(
+            inputs[0], convert(attrs.n_fft), convert(attrs.hop_length), convert(attrs.onesided)
+        )
+    ]
+
+
 # scatter_add
 @_reg.register_compute("scatter_add")
 def compute_scatter_add(attrs, inputs, output_type):

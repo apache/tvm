@@ -20,11 +20,8 @@ The Relay Virtual Machine.
 
 Implements a Python interface to compiling and executing on the Relay VM.
 """
-import warnings
-
 import numpy as np
 
-import tvm
 import tvm.runtime.ndarray as _nd
 import tvm.runtime.vm as vm_rt
 from tvm import autotvm
@@ -65,18 +62,10 @@ def compile(mod, target=None, target_host=None, params=None):
     exec : tvm.runtime.vm.Executable
         The VM executable that contains both library code and bytecode.
     """
-    if target_host is not None:
-        warnings.warn(
-            "target_host parameter is going to be deprecated. "
-            "Please pass in tvm.target.Target(target, host=target_host) instead."
-        )
-    target, target_host = Target.check_and_update_host_consist(
-        target, target_host, target_is_dict_key=False
-    )
     compiler = VMCompiler()
     if params:
         compiler.set_params(params)
-    compiler.lower(mod, target)
+    compiler.lower(mod, target, target_host)
     compiler.codegen()
     return compiler.get_exec()
 
@@ -139,20 +128,10 @@ class VMCompiler(object):
             By default, llvm is used if it is enabled,
             otherwise a stackvm intepreter is used.
         """
-        if target_host is not None:
-            warnings.warn(
-                "target_host parameter is going to be deprecated. "
-                "Please pass in tvm.target.Target(target, host=target_host) instead."
-            )
-        target = self._update_target(target)
-        target_host = self._update_target_host(target, target_host)
-        target, target_host = Target.check_and_update_host_consist(
-            target, target_host, target_is_dict_key=False
-        )
-
-        tophub_context = self._tophub_context(target)
+        raw_targets = Target.canonicalize_target_and_host(target, target_host)
+        tophub_context = self._tophub_context(raw_targets)
         with tophub_context:
-            self._lower(mod, target, target_host)
+            self._lower(mod, raw_targets)
 
     def codegen(self):
         """Generate the kernel library."""
@@ -185,20 +164,10 @@ class VMCompiler(object):
         params : dict
             The parameters of the final module.
         """
-        if target_host is not None:
-            warnings.warn(
-                "target_host parameter is going to be deprecated. "
-                "Please pass in tvm.target.Target(target, host=target_host) instead."
-            )
-        target = self._update_target(target)
-        target_host = self._update_target_host(target, target_host)
-        target, target_host = Target.check_and_update_host_consist(
-            target, target_host, target_is_dict_key=False
-        )
-
+        raw_targets = Target.canonicalize_target_and_host(target, target_host)
         if params:
             self.set_params(params)
-        return self._optimize(mod, target, target_host), self.get_params()
+        return self._optimize(mod, raw_targets), self.get_params()
 
     def get_exec(self):
         """Get the VM executable.
@@ -210,56 +179,12 @@ class VMCompiler(object):
         """
         return vm_rt.Executable(self._get_exec())
 
-    def _update_target(self, target):
-        """Update target."""
-        target = target if target else tvm.target.Target.current()
-        if target is None:
-            raise ValueError("Target is not set in env or passed as argument.")
-
-        if isinstance(target, str):
-            target = {target: target}
-        elif isinstance(target, tvm.target.Target):
-            target = {target.kind.name: target}
-        elif not isinstance(target, dict):
-            raise TypeError(
-                "target is expected to be str, tvm.target.Target, "
-                + "or dict of str to str/tvm.target.Target, but received "
-                + "{}".format(type(target))
-            )
-
-        tgts = {}
-        for dev, tgt in target.items():
-            dev_type = tvm.tir.IntImm("int32", tvm.nd.device(dev).device_type)
-            if isinstance(tgt, str):
-                tgt = tvm.target.Target(tgt)
-
-            tgts[dev_type] = tgt
-
-        return tgts
-
-    def _update_target_host(self, target, target_host):
-        """Update target host."""
-        target_host = None if target_host == "" else target_host
-        if not target_host:
-            for _, tgt in target.items():
-                if tgt.host is not None:
-                    return tgt.host
-            for device_type, tgt in target.items():
-                if device_type.value == tvm.nd.cpu(0).device_type:
-                    target_host = tgt
-                    break
-        if not target_host:
-            target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
-        if isinstance(target_host, str):
-            target_host = tvm.target.Target(target_host)
-        return target_host
-
-    def _tophub_context(self, target):
+    def _tophub_context(self, raw_targets):
         """Get the autotvm context."""
         # If current dispatch context is fallback context (the default root context),
         # then load pre-tuned parameters from TopHub
         if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
-            tophub_context = autotvm.tophub.context(list(target.values()))
+            tophub_context = autotvm.tophub.context(raw_targets)
         else:
             tophub_context = autotvm.utils.EmptyContext()
         return tophub_context

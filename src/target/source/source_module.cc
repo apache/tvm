@@ -242,7 +242,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       for (const auto& kv : metadata_->pool_inputs.value()) {
         tir::usmp::AllocatedPoolInfo allocated_pool_info = kv.second;
         if (allocated_pool_info->pool_info->is_internal) {
-          code_ << "__attribute__((section(\".data.tvm\"), ";
+          code_ << "__attribute__((section(\".bss.noinit.tvm\"), ";
           code_ << "aligned(" << 16 << ")))\n";
           code_ << "static uint8_t " << allocated_pool_info->pool_info->pool_name << "["
                 << allocated_pool_info->allocated_size->value << "];\n";

@@ -87,9 +87,10 @@ def test_memory_planning(workspace_byte_alignment, main_workspace_size):
         },
     ):
         lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
-    assert (
-        sum(lib.function_metadata["__tvm_main__"].workspace_sizes.values()) == main_workspace_size
-    )
+    # The workspace_size dictionary will have an entry for both the 'primitive' and 'host'
+    # targets, though both are identical.
+    for size in lib.function_metadata["__tvm_main__"].workspace_sizes.values():
+        assert size == main_workspace_size
 
 
 @parametrize_aot_options
@@ -634,3 +635,10 @@ def test_u4_usecase_incompatible_interface_api_errors():
             config={"tir.usmp.enable": True, "tir.usmp.use_workspace_io": True},
         ):
             tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
+
+
+if __name__ == "__main__":
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
