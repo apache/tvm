@@ -23,8 +23,9 @@ import tvm
 import tvm.testing
 from tvm import relay
 from tvm.relay import transform
-from tvm.contrib import graph_executor, pipeline_executor
+from tvm.contrib import graph_executor, pipeline_executor, pipeline_executor_build
 from tvm._ffi import get_global_func
+from tvm.contrib import cc as _cc
 
 
 def get_mannual_mod():
@@ -94,6 +95,7 @@ def get_manual_conf(mods, target):
         "build": None,
         "params": None,
         "target": target[0],
+        "fcompile": _cc.create_shared,
         "dev": target[1],
     }
 
@@ -111,6 +113,7 @@ def get_manual_conf(mods, target):
         "build": None,
         "params": None,
         "target": "llvm",
+        "fcompile": None,
         "dev": tvm.cpu(0),
     }
 
@@ -126,6 +129,7 @@ def get_manual_conf(mods, target):
         "build": None,
         "params": None,
         "target": "llvm",
+        "fcompile": None,
         "dev": tvm.cpu(0),
     }
     return mod_config
@@ -216,12 +220,12 @@ def reset_cpu_affinity(affinity):
 
 def test_pipe_runtime_error_check():
     # This function is used to trigger runtime error by applying wrong logic.
-    if pipeline_executor.pipeline_executor_enabled():
+    if pipeline_executor_build.pipeline_executor_build_enabled():
         # Get three pipeline modules here.
         (mod1, mod2, mod3), dshape = get_mannual_mod()
 
         # The input or output name is illegal and expects a runtime error.
-        pipe_error = pipeline_executor.PipelineConfig()
+        pipe_error = pipeline_executor_build.PipelineConfig()
         with pytest.raises(RuntimeError):
             pipe_error[mod1]["output"][9]
 
@@ -254,14 +258,14 @@ def test_pipe_runtime_error_check():
             pipe_error["output"]["0"].connect(pipe_error[mod1]["output"][0])
 
         # Create pipeline executor to check the executor runtime errors.
-        pipe_config = pipeline_executor.PipelineConfig()
+        pipe_config = pipeline_executor_build.PipelineConfig()
         pipe_config[mod1].target = "llvm"
         pipe_config[mod1].dev = tvm.cpu(0)
         pipe_config["param_group"]["param_0"].connect(pipe_config[mod1]["param"])
         pipe_config[mod1]["output"][0].connect(pipe_config["output"]["0"])
         # Build and create a pipeline module.
         with tvm.transform.PassContext(opt_level=3):
-            pipeline_mod_factory = pipeline_executor.build(pipe_config)
+            pipeline_mod_factory = pipeline_executor_build.build(pipe_config)
         pipeline_module = pipeline_executor.PipelineModule(pipeline_mod_factory)
         customized_parameters, _ = recreate_parameters(mod1)
 
@@ -274,7 +278,7 @@ def test_pipe_runtime_error_check():
 
 
 def test_pipeline():
-    if pipeline_executor.pipeline_executor_enabled():
+    if pipeline_executor_build.pipeline_executor_build_enabled():
         target_list = tvm.testing.enabled_targets()
         for target in target_list:
             affinity = os.sched_getaffinity(0)
@@ -286,7 +290,7 @@ def test_pipeline():
             for i in range(5):
                 datas.append(np.full(dshape, 3 + i).astype("float32"))
 
-            pipe_config = pipeline_executor.PipelineConfig()
+            pipe_config = pipeline_executor_build.PipelineConfig()
 
             customized_parameters, customized_parameters_mod = recreate_parameters(mod1)
             assert customized_parameters_mod == mod1
@@ -333,6 +337,7 @@ def test_pipeline():
             pipe_config[mod1].target = target[0]
             pipe_config[mod1].dev = target[1]
             pipe_config[mod1].cpu_affinity = "0"
+            pipe_config[mod1].fcompile = _cc.create_shared
 
             pipe_config[mod2].target = "llvm"
             pipe_config[mod2].dev = tvm.cpu(0)
@@ -347,7 +352,7 @@ def test_pipeline():
 
             # Build and create a pipeline module.
             with tvm.transform.PassContext(opt_level=3):
-                pipeline_mod_factory = pipeline_executor.build(pipe_config)
+                pipeline_mod_factory = pipeline_executor_build.build(pipe_config)
 
             # Export the parameter configuration to a file.
             directory_path = tvm.contrib.utils.tempdir().temp_dir
@@ -403,8 +408,8 @@ def test_pipeline():
                 # checking.
                 normal_outputs.append(normal_output)
                 # Setting the input data into the pipeline executor.
-                pipeline_module_test.set_input("data_a", data)
-                pipeline_module_test.set_input("data_b", data)
+                pipeline_module_test.set_input("data_a", tvm.nd.array(data))
+                pipeline_module_test.set_input("data_b", tvm.nd.array(data))
                 input_map = pipeline_module_test.get_input_pipeline_map("data_a")
                 # Checking whether the input setting of the first runtime is successful.
                 # The input of the rest of runtime will go into a queue and we can not check

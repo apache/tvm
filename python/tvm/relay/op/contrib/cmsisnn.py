@@ -31,6 +31,12 @@ def enabled():
     return "cmsis-nn" in Target.list_kinds()
 
 
+def _find_last(pattern):
+    if hasattr(pattern, "args"):
+        return _find_last(pattern.args[0])
+    return pattern
+
+
 def partition_for_cmsisnn(mod, params=None, mod_name="default", **opts):
     """Partition the graph greedily offloading supported
     operators on Cortex-M using CMSIS-NN
@@ -199,9 +205,20 @@ def pattern_table():
 
     def check_qnn_avg_pool2d(pattern):
         """Check if avg pool2d is supported by CMSIS-NN."""
-        in_cast = pattern
-        out_cast = in_cast.args[0].args[0]
-        return in_cast.checked_type.dtype == "int8" and out_cast.checked_type.dtype == "int32"
+        output = pattern
+        input_var = _find_last(pattern)
+
+        if str(pattern.op.name) == "clip":
+            pooling = pattern.args[0].args[0]
+        else:
+            pooling = pattern.args[0]
+
+        return (
+            pooling.attrs.layout == "NHWC"
+            and bool(input_var.checked_type.shape[0] == 1)
+            and input_var.checked_type.dtype == "int8"
+            and output.checked_type.dtype == "int8"
+        )
 
     def qnn_max_pool2d_pattern():
         """Matches max pool2d with optional Relu"""
@@ -211,7 +228,20 @@ def pattern_table():
 
     def check_qnn_max_pool2d(pattern):
         """Check if max pool2d is supported by CMSIS-NN."""
-        return True
+        output = pattern
+        input_var = _find_last(pattern)
+
+        if str(pattern.op.name) == "clip":
+            pooling = pattern.args[0]
+        else:
+            pooling = pattern
+
+        return (
+            pooling.attrs.layout == "NHWC"
+            and bool(input_var.checked_type.shape[0] == 1)
+            and input_var.checked_type.dtype == "int8"
+            and output.checked_type.dtype == "int8"
+        )
 
     def binary_op_pattern(op):
         """Matches QNN binary operation"""

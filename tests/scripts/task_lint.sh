@@ -67,3 +67,6 @@ tests/lint/cppdocs.sh
 
 echo "Type checking with MyPy ..."
 tests/scripts/task_mypy.sh
+
+echo "Checking for non-inclusive language with blocklint..."
+tests/lint/blocklint.sh

@@ -35,6 +35,7 @@ class TargetHookVisitor : public tvm::relay::MixedModeVisitor {
   std::vector<Pass> pass_list_;
   /*! \brief Attribute map for all registered targets */
   TargetKindAttrMap<Pass> target_attr_map_;
+  using tvm::relay::MixedModeVisitor::VisitExpr_;
 
  public:
   TargetHookVisitor() : target_attr_map_(tvm::TargetKind::GetAttrMap<Pass>("RelayToTIR")) {}
@@ -48,25 +49,31 @@ class TargetHookVisitor : public tvm::relay::MixedModeVisitor {
     return pass_list_;
   }
 
-  void VisitExpr_(const CallNode* call) override {
-    // Descend the call tree
-    for (auto arg : call->args) {
-      VisitExpr(arg);
-    }
+  void VisitExpr_(const LetNode* op) final {
+    auto pre_visit = [this](const LetNode* op) {
+      this->VisitExpr(op->var);
+      this->VisitExpr(op->value);
+    };
+    auto post_visit = [this](const LetNode* op) {
+      this->VisitExpr(op->body);
+      this->visit_counter_[op] += 1;
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
+  }
 
-    if (const FunctionNode* func = call->op.as<FunctionNode>()) {
-      if (!func->GetAttr<String>(attr::kCompiler).defined()) {
-        return;
-      }
-      String code_gen_name = func->GetAttr<String>(attr::kCompiler).value();
-      Optional<TargetKind> target_kind = tvm::TargetKind::Get(code_gen_name);
-      if (!target_kind || !target_attr_map_.count(target_kind.value())) {
-        return;
-      }
-      Pass custom_target_pass = target_attr_map_[target_kind.value()];
-      if (std::find(pass_list_.begin(), pass_list_.end(), custom_target_pass) == pass_list_.end()) {
-        pass_list_.push_back(custom_target_pass);
-      }
+  void VisitExpr_(const FunctionNode* func) override {
+    ExprVisitor::VisitExpr_(func);
+    if (!func->GetAttr<String>(attr::kCompiler).defined()) {
+      return;
+    }
+    String code_gen_name = func->GetAttr<String>(attr::kCompiler).value();
+    Optional<TargetKind> target_kind = tvm::TargetKind::Get(code_gen_name);
+    if (!target_kind || !target_attr_map_.count(target_kind.value())) {
+      return;
+    }
+    Pass custom_target_pass = target_attr_map_[target_kind.value()];
+    if (std::find(pass_list_.begin(), pass_list_.end(), custom_target_pass) == pass_list_.end()) {
+      pass_list_.push_back(custom_target_pass);
     }
   }
 };

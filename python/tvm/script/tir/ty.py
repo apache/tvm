@@ -31,6 +31,10 @@ class TypeGeneric:  # pylint: disable=too-few-public-methods
         """Return an actual ir.Type Object that this Generic class wraps"""
         raise TypeError("Cannot get tvm.Type from a generic type")
 
+    def require_type_generic_at(self, idx):  # pylint: disable=unused-argument
+        """If True, the `idx`th type argument must be TypeGeneric"""
+        return True
+
     # This function is added here to avoid a pylint error
     # for T.int/float below not being callable
     def __call__(self):
@@ -66,13 +70,27 @@ class ConcreteType(TypeGeneric):  # pylint: disable=too-few-public-methods, abst
 class GenericPtrType(TypeGeneric):  # pylint: disable=abstract-method
     """TVM script typing class generator for PtrType
 
-    [] operator is overloaded, accepts a ConcreteType and returns a ConcreteType wrapping PtrType
+    [] operator is overloaded, accepts a ConcreteType and an optional storage scope string,
+    returns a ConcreteType wrapping PtrType
     """
 
-    def __getitem__(self, vtype):
+    def __getitem__(self, args):
+        if isinstance(args, TypeGeneric):
+            args = [args]
+        if len(args) == 1:
+            vtype, scope = args[0], "global"
+        elif len(args) == 2:
+            vtype, scope = args[0], args[1]
+        else:
+            raise TypeError(f"Illegal type argument num for Ptr")
         if not isinstance(vtype, TypeGeneric):
             raise TypeError(f"Ptr expects a type argument, but received {type(vtype).__name__}")
-        return ConcreteType(tvm.ir.PointerType(vtype.evaluate()))
+        if not isinstance(scope, str):
+            raise TypeError(f"Ptr expects storage scope argument be a string")
+        return ConcreteType(tvm.ir.PointerType(vtype.evaluate(), scope))
+
+    def require_type_generic_at(self, idx):
+        return idx != 1  # the second argument is storage scope for Ptr
 
 
 class GenericTupleType(TypeGeneric):  # pylint: disable=abstract-method
@@ -103,6 +121,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
             align=-1,
             offset_factor=0,
             buffer_type="default",
+            axis_separators=None,
             span=None,
         ):
             if strides is None:
@@ -122,6 +141,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
                 align,
                 offset_factor,
                 buffer_type,
+                axis_separators,
                 span=span,
             )
             return buffer
@@ -142,6 +162,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
         align=-1,
         offset_factor=0,
         buffer_type="default",
+        axis_separators=None,
         span=None,
     ):
         """
