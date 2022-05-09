@@ -18,6 +18,7 @@ import pytest
 
 import tvm
 from tvm.topi.arm_cpu.conv2d_int8 import is_int8_hw_support
+from tvm.target import codegen
 
 arm_target, input_dtype, kernel_dtype, is_supported = tvm.testing.parameters(
     # Testing mcpu type
@@ -51,4 +52,5 @@ def test_arm_conv2d_int8_support(arm_target, input_dtype, kernel_dtype, is_suppo
         Expected result.
     """
     with tvm.target.Target(arm_target):
-        assert is_int8_hw_support(input_dtype, kernel_dtype) == is_supported
+        expected_result = is_supported and (codegen.llvm_version_major() >= 8)
+        assert is_int8_hw_support(input_dtype, kernel_dtype) == expected_result
