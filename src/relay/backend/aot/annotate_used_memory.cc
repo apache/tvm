@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file src/relay/backend/aot/memory_pressure.cc
- * \brief Analyses the memory pressure at external function callsites.
+ * \file src/relay/backend/aot/annotate_used_memory.cc
+ * \brief Analyzes the memory pressure at the callsite of primitive functions.
  */
 
 #include <tvm/ir/module.h>
