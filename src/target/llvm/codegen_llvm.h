@@ -338,6 +338,13 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Function* GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type* ret_type,
                                    llvm::ArrayRef<llvm::Type*> arg_types);
   /*!
+   * \brief Set target-related attributes on the LLVM function \p func. This
+   *        includes "target-cpu" and "target-features" if present.
+   *
+   * \param func The function to set attributes on.
+   */
+  void SetTargetAttributes(llvm::Function* func);
+  /*!
    * \brief Get the number of elements in the given vector value.
    * \param vec The value, must be of a vector type.
    */

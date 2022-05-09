@@ -142,6 +142,7 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   }
   function_->setCallingConv(llvm::CallingConv::C);
   function_->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
+  SetTargetAttributes(function_);
 
   // set var map and align information
   auto arg_it = function_->arg_begin();
@@ -179,11 +180,6 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
     }
   }
 #endif
-
-  llvm::StringRef fs = target_machine_->getTargetFeatureString();
-  if (!fs.empty()) {
-    function_->addFnAttr("target-features", fs);
-  }
 
   if (ret_void) {
     builder_->CreateRetVoid();
@@ -885,6 +881,17 @@ llvm::Function* CodeGenLLVM::GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type
   }
   return llvm::Intrinsic::getDeclaration(module, id, overload_types);
 #endif  // TVM_LLVM_VERSION
+}
+
+void CodeGenLLVM::SetTargetAttributes(llvm::Function* func) {
+  llvm::StringRef cpu = target_machine_->getTargetCPU();
+  if (!cpu.empty()) {
+    func->addFnAttr("target-cpu", cpu);
+  }
+  llvm::StringRef features = target_machine_->getTargetFeatureString();
+  if (!features.empty()) {
+    func->addFnAttr("target-features", features);
+  }
 }
 
 llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
