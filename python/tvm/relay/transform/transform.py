@@ -269,7 +269,7 @@ def FoldConstantExpr(expr, mod, fold_qnn=False):
         The expression to fold
     mod: IRModule
         The module the expr lives in (for global calls)
-    fskip: bool
+    fold_qnn: bool
         Whether to fold constants for QNN operations.
 
     Returns
@@ -285,7 +285,7 @@ def FoldConstant(fold_qnn=False):
 
     Parameters
     ----------
-    fskip: bool
+    fold_qnn: bool
         Whether to fold constants for QNN operations.
 
     Returns
