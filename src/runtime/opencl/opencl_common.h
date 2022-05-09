@@ -454,9 +454,9 @@ class OpenCLTimerNode : public TimerNode {
   virtual int64_t SyncAndGetElapsedNanos() { return this->duration; }
   // destructor
   virtual ~OpenCLTimerNode() {
-      // Profiling session ends, recreate clCommandQueue in non-profiling mode
-      // This will disable collection of cl_events in case of executing inference after profile
-      recreateCommandQueue();
+    // Profiling session ends, recreate clCommandQueue in non-profiling mode
+    // This will disable collection of cl_events in case of executing inference after profile
+    recreateCommandQueue();
   }
   // constructor
   OpenCLTimerNode() {}
