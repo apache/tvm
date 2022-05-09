@@ -112,6 +112,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         self._rpc_info.update(rpc_info)
         self._workspace = self._create_workspace(workspace)
         self._device_key = self.HEXAGON_REMOTE_DEVICE_KEY
+        self._serial_number = None
 
     @abc.abstractmethod
     def start_server(self):
@@ -498,6 +499,7 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
         self._toolchain = os.environ.get("HEXAGON_TOOLCHAIN")
         if not self._toolchain:
             raise RuntimeError("Please set HEXAGON_TOOLCHAIN env variable")
+        self._serial_number = "simulator"
 
     def _copy_to_remote(
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
