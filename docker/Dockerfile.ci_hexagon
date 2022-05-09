@@ -60,6 +60,7 @@ ENV PATH /opt/android-sdk-linux/platform-tools:$PATH
 COPY install/ubuntu_install_hexagon.sh /install/ubuntu_install_hexagon.sh
 RUN bash /install/ubuntu_install_hexagon.sh
 ENV CLANG_LLVM_HOME /opt/clang-llvm
+ENV PATH /opt/clang-llvm/bin:$PATH
 ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/opt/clang-llvm/lib
 ENV HEXAGON_TOOLCHAIN "${HEXAGON_SDK_PATH}/tools/HEXAGON_Tools/8.5.08/Tools"
 
