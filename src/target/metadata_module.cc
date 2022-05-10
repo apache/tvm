@@ -36,8 +36,11 @@
 namespace tvm {
 namespace codegen {
 
+static runtime::metadata::Metadata ConvertMetaData(
+    relay::backend::ExecutorCodegenMetadata metadata);
+
 static runtime::Module CreateCrtMetadataModule(
-    runtime::Module target_module, Target target, relay::Runtime runtime,
+    runtime::Module target_module, Target target, relay::Runtime runtime, relay::Executor executor,
     relay::backend::ExecutorCodegenMetadata metadata,
     Array<runtime::Module> non_crt_exportable_modules,
     Array<runtime::Module> crt_exportable_modules,
@@ -62,9 +65,14 @@ static runtime::Module CreateCrtMetadataModule(
   }
 
   if (target->kind->name == "c") {
+    runtime::metadata::Metadata aot_metadata;
+    if (executor->GetAttr<String>("interface-api", tvm::String("packed")) == "packed") {
+      aot_metadata = ConvertMetaData(metadata);
+    }
+
     crt_exportable_modules.push_back(target_module);
-    target_module =
-        CreateCSourceCrtMetadataModule(crt_exportable_modules, target, runtime, metadata);
+    target_module = CreateCSourceCrtMetadataModule(crt_exportable_modules, target, runtime,
+                                                   metadata, aot_metadata);
   } else if (target->kind->name == "llvm") {
 #ifdef TVM_LLVM_VERSION
     crt_exportable_modules.push_back(target_module);
@@ -173,7 +181,8 @@ static runtime::Module CreateCppMetadataModule(
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& const_var_ndarray,
     tvm::runtime::Module target_module, const Array<runtime::Module>& ext_modules, Target target,
-    tvm::relay::Runtime runtime, relay::backend::ExecutorCodegenMetadata metadata) {
+    tvm::relay::Runtime runtime, tvm::relay::Executor executor,
+    relay::backend::ExecutorCodegenMetadata metadata) {
   // Here we split modules into two groups:
   //  1. Those modules which can be exported to C-runtime. These are DSO-exportable
   //     (i.e. llvm or c) modules which return nothing from get_const_vars().
@@ -219,7 +228,7 @@ runtime::Module CreateMetadataModule(
   }
 
   if (is_targeting_crt) {
-    return CreateCrtMetadataModule(target_module, target, runtime, metadata,
+    return CreateCrtMetadataModule(target_module, target, runtime, executor, metadata,
                                    non_crt_exportable_modules, crt_exportable_modules,
                                    const_var_ndarray);
   } else {
