@@ -15,30 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm.testing
-from curses import tparm
-from unittest import result
 import numpy as np
-import time
 import pytest
 import itertools
-import pdb
 
 
 import tvm
-from tvm.relay.op.contrib.bnns import dtype_is_supported
 import tvm.relay.testing
 
-from tvm import relay, runtime
+from tvm import relay
 from tvm.relay.op.contrib import tensorrt
-from tvm.contrib import graph_executor, utils
-from tvm.runtime.vm import VirtualMachine
 
 from tvm.relay import Any, GlobalVar
-from tvm.relay.transform import FirstOrderGradient, InferType
-from tvm.relay.transform.transform import ToMixedPrecision
 
 from tvm.relay.expr_functor import ExprVisitor
-from typing import Dict, Tuple, Union
+from typing import Tuple
 from tvm.contrib.download import download
 from tvm.relay.op.contrib import tensorrt
 
@@ -78,7 +69,7 @@ def assert_result_dict_holds(result_dict, dtype="float16"):
             if dtype == "float16":
                 tvm.testing.assert_allclose(r1, r2, rtol=1e-1, atol=1e-1)
             else:
-                tvm.testing.assert_allclose(r1, r2, rtol=1e-3, atol=1e-3)
+                tvm.testing.assert_allclose(r1, r2, rtol=1e-3, atol=5e-3)
 
 
 def set_func_attr(func, compile_name, symbol_name):
@@ -105,6 +96,7 @@ def run_and_verify_func(config, target="cuda", run_module=True, data_type="float
     data_type: str
         Check between single and double floating precision
     """
+    np.random.seed(42)
     f, input_shapes, is_param = config
     params = {
         x: np.random.uniform(-1, 1, input_shapes[x]).astype(dtype=data_type) for x in is_param
@@ -125,7 +117,9 @@ def run_and_verify_func(config, target="cuda", run_module=True, data_type="float
                 result_key = mode + ("_trt" if use_trt else "")
                 if use_trt:
                     mod = relay.transform.InferType()(mod)
-                    mod, config = tensorrt.partition_for_tensorrt(mod, params)
+                    mod, config = tensorrt.partition_for_tensorrt(
+                        mod, params, use_fp16=data_type == "float16"
+                    )
                     with tvm.transform.PassContext(
                         opt_level=3, config={"relay.ext.tensorrt.options": config}
                     ):
@@ -185,7 +179,6 @@ def test_tensorrt_simple(run_module):
                 if run_module:
                     result_dict[result_key] = func(x_data, y_data, z_data)
 
-        print(result_dict)
         if run_module:
             assert_result_dict_holds(result_dict)
 
@@ -594,9 +587,13 @@ def test_reshape(run_module):
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 
-    run_and_verify_func(get_graph((1, 1, 1, 10), (-1, 10)), run_module=run_module)
-    run_and_verify_func(get_graph((1, 10, 2, 3), (1, -1)), run_module=run_module)
-    run_and_verify_func(get_graph((1, 1, 2, 3), (1, 6)), run_module=run_module)
+    run_and_verify_func(
+        get_graph((1, 1, 1, 10), (-1, 10)), run_module=run_module, data_type="float16"
+    )
+    run_and_verify_func(
+        get_graph((1, 10, 2, 3), (1, -1)), run_module=run_module, data_type="float16"
+    )
+    run_and_verify_func(get_graph((1, 1, 2, 3), (1, 6)), run_module=run_module, data_type="float16")
 
 
 class AreOpsOnGraph(ExprVisitor):
@@ -731,7 +728,7 @@ def test_float_const16(run_module):
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 
-    run_and_verify_func(get_graph(), run_module=run_module)
+    run_and_verify_func(get_graph(), run_module=run_module, data_type="float16")
 
 
 def test_pad(run_module):
@@ -1056,8 +1053,8 @@ def test_multiple_outputs(run_module):
 
 def test_conv3d(run_module):
     def get_graph(
-        x_shape=(1, 32, 8, 8, 8),
-        k_shape=(16, 32, 3, 3, 3),
+        x_shape=(1, 24, 8, 8, 8),
+        k_shape=(16, 24, 3, 3, 3),
         groups=1,
         padding=(0, 0, 0),
         strides=(1, 1, 1),
