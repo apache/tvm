@@ -18,7 +18,7 @@
 from typing import Dict, Union, Optional
 import numpy as np
 
-from .. import auto_scheduler, relay, tir, nd, IRModule, build, topi, transform
+from .. import auto_scheduler, relay, tir, nd, IRModule, build, topi, transform, get_global_func
 from ..target import Target
 from ..runtime import profiler_vm, profiling, Device, num_threads
 from ..script import tir as T
@@ -29,15 +29,21 @@ from ..rpc.client import RPCSession
 from ..contrib import utils
 
 
-def _create_args(mod: IRModule, dev: Device, func_name: str = "main"):
+def _create_args(mod: IRModule, dev: Device, func_name: str = "main", remote=None):
+    if dev.device_type >= RPC_SESS_MASK:
+        random_fill = remote.get_function("tvm.contrib.random.random_fill")
+    else:
+        random_fill = get_global_func("tvm.contrib.random.random_fill")
+    assert random_fill, "Please make sure USE_RANDOM is ON in config.cmake"
     args = []
     for arg in mod[func_name].params:
-        args.append(
-            nd.array(
-                np.zeros([x.value for x in arg.type_annotation.shape], arg.type_annotation.dtype),
-                device=dev,
-            )
+        ary = nd.empty(
+            [x.value for x in arg.type_annotation.shape],
+            arg.type_annotation.dtype,
+            device=dev,
         )
+        random_fill(ary)
+        args.append(ary)
     return args
 
 
@@ -163,8 +169,12 @@ def estimate_peak_fma_flops(
         f.export_library(path)
         remote.upload(path)
         f = remote.load_module("peak_fma_flops.tar")
+        random_fill = remote.get_function("tvm.contrib.random.random_fill")
+    else:
+        random_fill = get_global_func("tvm.contrib.random.random_fill")
+    assert random_fill, "Please make sure USE_RANDOM is ON in config.cmake"
 
-    a = nd.array(np.ones((nthreads, num_vector_registers, vec_width), dtype="float32"), device=dev)
+    a = nd.empty((nthreads, num_vector_registers, vec_width), dtype="float32", device=dev)
     times = f.time_evaluator(f.entry_name, dev, repeat=100, number=1)(a)
     flops = 2 * vec_width * num_vector_registers * nthreads * iters  # fma is two flops
     flop_s = flops / times.min
@@ -243,14 +253,20 @@ def estimate_peak_bandwidth(
         f.export_library(path)
         remote.upload(path)
         f = remote.load_module("peak_bandwidth.tar")
+        random_fill = remote.get_function("tvm.contrib.random.random_fill")
+    else:
+        random_fill = get_global_func("tvm.contrib.random.random_fill")
+    assert random_fill, "Please make sure USE_RANDOM is ON in config.cmake"
 
     threads = num_threads()
     # Data size needs to be larger than last level of cache. We don't have a
     # way of getting cache sizes, so this number should give us a large enough
     # size.
     size = 10**8 // (4 * threads * vec_width)
-    a = nd.array(np.ones((threads, size, 4, vec_width), dtype="float32"), device=dev)
-    b = nd.array(np.ones((threads, vec_width, 4), dtype="float32"), device=dev)
+    a = nd.empty((threads, size, 4, vec_width), dtype="float32", device=dev)
+    random_fill(a)
+    b = nd.empty((threads, vec_width, 4), dtype="float32", device=dev)
+    random_fill(b)
     times = f.time_evaluator(f.entry_name, dev, repeat=10, number=1)(a, b, threads)
     return a.numpy().size * 4 / times.min  # 4 bytes per float32
 
