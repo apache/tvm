@@ -818,7 +818,11 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.tanh")
       TanhParams params;
       auto err = EthosnAPI::Tanh(call, &params);
       err += EthosnCompiler::SupportedSetup();
-      *rv = !err && EthosnCompiler::GetSupported()->IsTanhSupported(params.input_info);
+      char reason[kReasonMaxLength];
+      reason[0] = '\0';
+      *rv = !err && EthosnCompiler::GetSupported()->IsTanhSupported(params.input_info, nullptr,
+                                                                    reason, sizeof(reason));
+      err += EthosnError(reason);
     });
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.leaky_relu")
@@ -827,8 +831,11 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.leaky_relu")
       LeakyReLUParams params;
       auto err = EthosnAPI::LeakyReLU(call, &params);
       err += EthosnCompiler::SupportedSetup();
-      *rv = !err && EthosnCompiler::GetSupported()->IsLeakyReluSupported(params.leaky_relu_info,
-                                                                         params.input_info);
+      char reason[kReasonMaxLength];
+      reason[0] = '\0';
+      *rv = !err && EthosnCompiler::GetSupported()->IsLeakyReluSupported(
+                        params.leaky_relu_info, params.input_info, nullptr, reason, sizeof(reason));
+      err += EthosnError(reason);
     });
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.concatenate")
