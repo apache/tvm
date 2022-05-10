@@ -426,12 +426,7 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
   ICHECK_EQ(this->queues.size(), 0U);
   for (size_t i = 0; i < this->devices.size(); ++i) {
     cl_device_id did = this->devices[i];
-#ifdef USE_PROFILER
-    this->queues.push_back(
-        clCreateCommandQueue(this->context, did, CL_QUEUE_PROFILING_ENABLE, &err_code));
-#else
     this->queues.push_back(clCreateCommandQueue(this->context, did, 0, &err_code));
-#endif
     OPENCL_CHECK_ERROR(err_code);
   }
   this->events.resize(this->devices.size());
