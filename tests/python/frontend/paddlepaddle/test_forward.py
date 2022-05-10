@@ -27,6 +27,7 @@ from tvm.contrib import graph_executor
 import pytest
 
 import paddle
+from paddle.fluid import core
 
 paddle.disable_signal_handler()
 import paddle.nn as nn
@@ -101,6 +102,7 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
 
                 assert_shapes_match(baseline_output, compiled_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
+    core.clear_executor_cache()
 
 
 @tvm.testing.uses_gpu
