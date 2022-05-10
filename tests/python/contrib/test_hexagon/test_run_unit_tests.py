@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import os
 import pytest
 import numpy as np
 from tvm.contrib.hexagon.build import HexagonLauncher
@@ -22,6 +23,10 @@ from .conftest import requires_hexagon_toolchain
 
 
 @requires_hexagon_toolchain
+@pytest.mark.skipif(
+    os.environ.get("USE_HEXAGON_GTEST") == None,
+    reason="This test requires the USE_HEXAGON_GTEST to be specified with a path to a Hexagon gtest version normally located at /path/to/hexagon/sdk/utils/googletest/gtest",
+)
 def test_run_unit_tests(hexagon_session):
     # arguments to pass to gtest
     # e.g.
@@ -30,17 +35,9 @@ def test_run_unit_tests(hexagon_session):
     # 2) to run all tests with "foo" in their name twice use:
     # gtest_args = "--gtest_repeat=2 --gtest_filter=*foo*"
     gtest_args = ""
-    try:
-        func = hexagon_session._rpc.get_function("hexagon.run_unit_tests")
-        gtest_error_code_and_output = func(gtest_args)
-        gtest_error_code = int(gtest_error_code_and_output.splitlines()[0])
-        gtest_output = gtest_error_code_and_output.split("\n", 1)[-1]
-        print(gtest_output)
-
-    except:
-        gtest_error_code = 1
-        print(
-            "This test requires the USE_HEXAGON_GTEST cmake flag to be specified with a path to a Hexagon gtest version normally located at /path/to/hexagon/sdk/utils/googletest/gtest"
-        )
-
+    func = hexagon_session._rpc.get_function("hexagon.run_unit_tests")
+    gtest_error_code_and_output = func(gtest_args)
+    gtest_error_code = int(gtest_error_code_and_output.splitlines()[0])
+    gtest_output = gtest_error_code_and_output.split("\n", 1)[-1]
+    print(gtest_output)
     np.testing.assert_equal(gtest_error_code, 0)
