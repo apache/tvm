@@ -29,33 +29,25 @@ if __name__ == "__main__":
     init_log()
 
     parser = argparse.ArgumentParser(description="List pytest nodeids for a folder")
-    parser.add_argument("--sccache-bucket", required=False, help="sccache bucket name")
     parser.add_argument("--build-dir", default="build", help="build folder")
     parser.add_argument("--cmake-target", help="optional build target")
     args = parser.parse_args()
 
     env = {"VTA_HW_PATH": str(Path(os.getcwd()) / "3rdparty" / "vta-hw")}
     sccache_exe = shutil.which("sccache")
+    sccache_bucket = os.getenv("SCCACHE_BUCKET")
 
     use_sccache = sccache_exe is not None
     build_dir = Path(os.getcwd()) / args.build_dir
     build_dir = build_dir.relative_to(REPO_ROOT)
 
     if use_sccache:
-        if args.sccache_bucket:
-            env["SCCACHE_BUCKET"] = args.sccache_bucket
+        if sccache_bucket is not None:
             logging.info(f"Using sccache bucket: {args.sccache_bucket}")
         else:
             logging.info(f"No sccache bucket set, using local cache")
-        env["CXX"] = "/opt/sccache/c++"
-        env["CC"] = "/opt/sccache/cc"
-
     else:
-        if sccache_exe is None:
-            reason = "'sccache' executable not found"
-        else:
-            reason = "<unknown>"
-        logging.info(f"Not using sccache, reason: {reason}")
+        logging.info(f"Not using sccache, executable not found")
 
     sh = Sh(env)
 

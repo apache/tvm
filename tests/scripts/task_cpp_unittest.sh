@@ -30,9 +30,7 @@ export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
 # Build cpptest suite
-python3 tests/scripts/task_build.py \
-    --sccache-bucket tvm-sccache-prod \
-    --cmake-target cpptest
+python3 tests/scripts/task_build.py --cmake-target cpptest
 
 # crttest requires USE_MICRO to be enabled, which is currently the case
 # with all CI configs

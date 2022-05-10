@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-17T17:26:21.660243
+// Generated at 2022-05-19T12:40:13.340832
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -80,7 +80,7 @@ properties([
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM'
+docker_run = 'docker/bash.sh --env CI --env CI_NUM_EXECUTORS --env SCCACHE_BUCKET=tvm-sccache-prod --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 180
@@ -553,14 +553,14 @@ def fsim_test(image) {
 
 def cmake_build(image, path, make_flag) {
   sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod",
+    script: "${docker_run} ${image} ./tests/scripts/task_build.py",
     label: 'Run cmake build',
   )
 }
 
 def cpp_unittest(image) {
   sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_cpp_unittest.sh",
+    script: "${docker_run} ${image} ./tests/scripts/task_cpp_unittest.sh",
     label: 'Build and run C++ tests',
   )
 }
