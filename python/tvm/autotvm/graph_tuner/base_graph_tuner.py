@@ -137,7 +137,7 @@ class BaseGraphTuner(object):
 
         # Set up logger
         self._verbose = verbose
-        self._logger = logging.getLogger(name + "_logger")
+        self._logger = logging.getLogger(__name__ + self._name)
         need_file_handler = need_console_handler = True
         for handler in self._logger.handlers:
             if handler.__class__.__name__ == "FileHandler":

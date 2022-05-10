@@ -29,7 +29,7 @@ from tvm.relay.expr import Call, Constant, GlobalVar, Tuple
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 from tvm.relay.op.contrib.register import register_pattern_table
 
-logger = logging.getLogger("TensorRT")
+logger = logging.getLogger(__name__)
 supported_types = ["float32", "float16"]
 
 

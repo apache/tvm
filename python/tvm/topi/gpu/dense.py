@@ -26,7 +26,7 @@ from tvm.autotvm.task.space import SplitEntity
 from .. import nn
 from ..utils import traverse_inline, get_const_tuple
 
-logger = logging.getLogger("topi")
+logger = logging.getLogger(__name__)
 
 
 @autotvm.register_topi_compute("dense_small_batch.gpu")

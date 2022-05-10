@@ -38,7 +38,7 @@ from .workload_registry import WORKLOAD_FUNC_REGISTRY, register_workload_tensors
 from . import _ffi_api
 
 # pylint: disable=invalid-name
-logger = logging.getLogger("auto_scheduler")
+logger = logging.getLogger(__name__)
 
 
 @tvm._ffi.register_object("auto_scheduler.HardwareParams")

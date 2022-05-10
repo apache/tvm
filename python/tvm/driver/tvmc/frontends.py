@@ -36,7 +36,7 @@ from tvm.driver.tvmc.model import TVMCModel
 
 
 # pylint: disable=invalid-name
-logger = logging.getLogger("TVMC")
+logger = logging.getLogger(__name__)
 
 
 class Frontend(ABC):

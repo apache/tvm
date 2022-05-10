@@ -88,7 +88,7 @@ def _main(argv):
     if args.verbose > 4:
         args.verbose = 4
 
-    logging.getLogger("TVMC").setLevel(40 - args.verbose * 10)
+    logging.getLogger("tvm.driver.tvmc").setLevel(40 - args.verbose * 10)
 
     if args.version:
         sys.stdout.write("%s\n" % tvm.__version__)

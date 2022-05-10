@@ -35,7 +35,7 @@ from tvm.driver.tvmc import TVMCException
 
 
 # pylint: disable=invalid-name
-logger = logging.getLogger("TVMC")
+logger = logging.getLogger(__name__)
 
 
 # Global dictionary to map targets

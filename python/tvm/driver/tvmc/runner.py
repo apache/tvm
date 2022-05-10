@@ -56,7 +56,7 @@ except (ImportError, AttributeError) as exception:
     SUPPORT_MICRO = False
 
 # pylint: disable=invalid-name
-logger = logging.getLogger("TVMC")
+logger = logging.getLogger(__name__)
 
 
 @register_parser

@@ -44,7 +44,7 @@ class DuplicateFilter:
 
 
 # pylint: disable=invalid-name
-logger = logging.getLogger("Frontend")
+logger = logging.getLogger(__name__)
 logger.addFilter(DuplicateFilter())
 # Uncomment below line to print all debug msgs
 # logger.setLevel(logging.DEBUG)

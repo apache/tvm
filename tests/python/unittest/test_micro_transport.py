@@ -71,7 +71,7 @@ def transport():
 
 @tvm.testing.fixture
 def transport_logger(transport):
-    logger = logging.getLogger("transport_logger_test")
+    logger = logging.getLogger(__name__)
     return tvm.micro.transport.TransportLogger("foo", transport, logger=logger)
 
 

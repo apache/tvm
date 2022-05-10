@@ -30,7 +30,7 @@ from tvm.target import Target
 from .task import create
 from .topi_integration import TaskExtractEnv
 
-logger = logging.getLogger("autotvm")
+logger = logging.getLogger(__name__)
 
 
 # TODO(moreau89) find a more elegant way to lower for VTAs

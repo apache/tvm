@@ -30,7 +30,7 @@ from .measure import MeasureErrorNo, MeasureCallback
 from .utils import calc_workload_dis_factor, decode_workload_key
 from . import _ffi_api
 
-logger = logging.getLogger("auto_scheduler")
+logger = logging.getLogger(__name__)
 
 
 @tvm._ffi.register_object("auto_scheduler.RecordToFile")

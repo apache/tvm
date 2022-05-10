@@ -30,7 +30,7 @@ from ..broadcast import not_equal
 from ..math import cast
 
 
-logger = logging.getLogger("topi")
+logger = logging.getLogger(__name__)
 
 fdiv = tvm.tir.floordiv
 fmod = tvm.tir.floormod

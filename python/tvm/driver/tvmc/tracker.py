@@ -21,7 +21,7 @@ import logging
 from urllib.parse import urlparse
 
 # pylint: disable=invalid-name
-logger = logging.getLogger("TVMC")
+logger = logging.getLogger(__name__)
 
 
 def tracker_host_port_from_cli(rpc_tracker_str):

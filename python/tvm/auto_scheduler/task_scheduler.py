@@ -36,7 +36,7 @@ from .measure import ProgramMeasurer
 from .measure_record import RecordReader
 from . import _ffi_api
 
-logger = logging.getLogger("auto_scheduler")
+logger = logging.getLogger(__name__)
 
 
 def make_search_policies(

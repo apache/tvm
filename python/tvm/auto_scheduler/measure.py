@@ -64,7 +64,7 @@ from .workload_registry import (
 )
 
 # pylint: disable=invalid-name
-logger = logging.getLogger("auto_scheduler")
+logger = logging.getLogger(__name__)
 
 # The time cost for measurements with errors
 # We use 1e10 instead of sys.float_info.max for better readability in log

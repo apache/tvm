@@ -32,7 +32,7 @@ from tvm.ir.transform import PassContext
 from tvm.target import Target, TargetKind
 
 # pylint: disable=invalid-name
-logger = logging.getLogger("TVMC")
+logger = logging.getLogger(__name__)
 
 # We can't tell the type inside an Array but all current options are strings so
 # it can default to that. Bool is used alongside Integer but aren't distinguished

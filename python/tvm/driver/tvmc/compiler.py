@@ -39,7 +39,7 @@ from .transform import convert_graph_layout
 from .shape_parser import parse_shape_string
 
 # pylint: disable=invalid-name
-logger = logging.getLogger("TVMC")
+logger = logging.getLogger(__name__)
 
 
 @register_parser

@@ -28,7 +28,7 @@ import numpy as np
 from ..utils import sample_ints
 from .model_based_tuner import ModelOptimizer, knob2point, point2knob
 
-logger = logging.getLogger("autotvm")
+logger = logging.getLogger(__name__)
 
 
 class SimulatedAnnealingOptimizer(ModelOptimizer):

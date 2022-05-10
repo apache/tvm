@@ -25,7 +25,7 @@ import numpy as np
 from .. import record
 from ..utils import format_si_prefix
 
-logger = logging.getLogger("autotvm")
+logger = logging.getLogger(__name__)
 
 
 def log_to_file(file_out, protocol="json"):

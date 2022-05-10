@@ -88,6 +88,7 @@ Python Code Styles
 - The functions and classes are documented in `numpydoc <https://numpydoc.readthedocs.io/en/latest/>`_ format.
 - Check your code style using ``python tests/scripts/ci.py lint``
 - Stick to language features in ``python 3.7``
+- If you use `logging` module, you should use generic logger names, i.e. ``logging.getLogger(__name__)`` instead of ``logging.getLogger("tvm.runtime")``
 
 
 Writing Python Tests

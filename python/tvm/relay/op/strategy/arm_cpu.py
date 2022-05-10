@@ -26,7 +26,7 @@ from ....auto_scheduler import is_auto_scheduler_enabled
 from .generic import *
 from .. import op as _op
 
-logger = logging.getLogger("strategy")
+logger = logging.getLogger(__name__)
 
 
 @schedule_reduce.register("arm_cpu")

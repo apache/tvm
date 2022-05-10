@@ -45,7 +45,7 @@ from .search_task import SearchTask
 from .utils import get_const_tuple
 from .workload_registry import register_workload_tensors
 
-logger = logging.getLogger("auto_scheduler")
+logger = logging.getLogger(__name__)
 
 
 def call_all_topi_funcs(mod, params, target, error_list, opt_level=3):

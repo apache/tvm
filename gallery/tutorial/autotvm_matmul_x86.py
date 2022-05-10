@@ -321,8 +321,8 @@ print(task.config_space)
 # configuration discovered by the tuner later.
 
 # logging config (for printing tuning log to the screen)
-logging.getLogger("autotvm").setLevel(logging.DEBUG)
-logging.getLogger("autotvm").addHandler(logging.StreamHandler(sys.stdout))
+logging.getLogger("tvm.autotvm").setLevel(logging.DEBUG)
+logging.getLogger("tvm.autotvm").addHandler(logging.StreamHandler(sys.stdout))
 
 ################################################################################
 # There are two steps for measuring a config: build and run. By default, we use

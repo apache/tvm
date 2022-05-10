@@ -411,6 +411,6 @@ def tune_and_evaluate(tuning_opt):
 #   .. code-block:: python
 #
 #      import logging
-#      logging.getLogger('autotvm').setLevel(logging.DEBUG)
+#      logging.getLogger('tvm.autotvm').setLevel(logging.DEBUG)
 #
 #   Finally, always feel free to ask our community for help on https://discuss.tvm.apache.org

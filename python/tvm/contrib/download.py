@@ -23,7 +23,7 @@ import shutil
 import tempfile
 import time
 
-LOG = logging.getLogger("download")
+LOG = logging.getLogger(__name__)
 
 
 def download(url, path, overwrite=False, size_compare=False, retries=3):

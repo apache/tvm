@@ -26,7 +26,7 @@ from .gen_gemm import CutlassGemmProfiler
 from .gen_conv2d import CutlassConv2DProfiler
 from .library import ConvKind
 
-logger = logging.getLogger("cutlass")
+logger = logging.getLogger(__name__)
 
 
 def _get_cutlass_path():

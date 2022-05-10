@@ -48,7 +48,7 @@ from . import base
 from . import testing
 from .base import TrackerCode
 
-logger = logging.getLogger("RPCServer")
+logger = logging.getLogger(__name__)
 
 
 def _server_env(load_library, work_path=None):
