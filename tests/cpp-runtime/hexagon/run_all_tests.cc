@@ -26,6 +26,14 @@
 
 #include "../src/support/utils.h"
 
+// Workaround for missing symbol in some QuRT builds
+#include "qurt.h"
+extern "C" {
+__attribute__((weak)) int pthread_key_delete(pthread_key_t key) {
+  return qurt_tls_delete_key((int)key);
+}
+}
+
 namespace tvm {
 namespace runtime {
 namespace hexagon {
