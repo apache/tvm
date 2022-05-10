@@ -22,19 +22,16 @@ from tvm.contrib.hexagon.build import HexagonLauncher
 from .conftest import requires_hexagon_toolchain
 
 
+# use pytest -sv to observe gtest output
+# use --gtest_args to pass arguments to gtest
+# for example to run all "foo" tests twice and observe gtest output run
+# pytest -sv <this file> --gtests_args="--gtest_filter=*foo* --gtest_repeat=2"
 @requires_hexagon_toolchain
 @pytest.mark.skipif(
     os.environ.get("USE_HEXAGON_GTEST") == None,
     reason="This test requires the USE_HEXAGON_GTEST to be specified with a path to a Hexagon gtest version normally located at /path/to/hexagon/sdk/utils/googletest/gtest",
 )
-def test_run_unit_tests(hexagon_session):
-    # arguments to pass to gtest
-    # e.g.
-    # 1) to run all tests use:
-    # gtest_args = ""
-    # 2) to run all tests with "foo" in their name twice use:
-    # gtest_args = "--gtest_repeat=2 --gtest_filter=*foo*"
-    gtest_args = ""
+def test_run_unit_tests(hexagon_session, gtest_args):
     func = hexagon_session._rpc.get_function("hexagon.run_unit_tests")
     gtest_error_code_and_output = func(gtest_args)
     gtest_error_code = int(gtest_error_code_and_output.splitlines()[0])
