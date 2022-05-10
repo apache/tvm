@@ -4,11 +4,8 @@
 
 #if defined(__hexagon__)
 
-// Qualcom libs
-#include "qurt_pipe.h"
-#include "qurt_thread.h"
-#include "qurt_alloc.h"
-#include "qurt_consts.h"
+// Qualcom lib
+#include "qurt.h"
 
 // TVM libs
 #include "tvm/runtime/logging.h"
