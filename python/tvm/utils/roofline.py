@@ -481,7 +481,7 @@ def roofline_analysis(
         lib = remote.load_module("roofline_lib.tar")
     vmexec = profiler_vm.VirtualMachineProfiler(lib, dev)
 
-    args = _create_args(mod, dev)
+    args = _create_args(mod, dev, remote=remote)
     report = vmexec.profile(*args)
 
     return roofline_from_existing(report, save_tir.functions, target, dev, remote=remote)
