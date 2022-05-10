@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-09T16:19:42.885533
+// Generated at 2022-05-11T07:57:43.285598
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -727,10 +727,6 @@ stage('Test') {
                 ci_setup(ci_gpu)
                 cpp_unittest(ci_gpu)
                 sh (
-                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
-                  label: 'Run Java unit tests',
-                )
-                sh (
                   script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
                   label: 'Run Python GPU unit tests',
                 )
@@ -760,12 +756,8 @@ stage('Test') {
                 'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=1'], {
-                unpack_lib('gpu2', tvm_multilib)
-                cpp_unittest(ci_gpu)
-
                 unpack_lib('gpu', tvm_multilib)
                 ci_setup(ci_gpu)
-                cpp_unittest(ci_gpu)
                 sh (
                   script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
                   label: 'Run Java unit tests',
@@ -873,7 +865,7 @@ stage('Test') {
       Utils.markStageSkippedForConditional('unittest: CPU')
     }
   },
-  'python: i386 1 of 2': {
+  'python: i386 1 of 3': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
@@ -882,7 +874,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=i386',
-                'TVM_NUM_SHARDS=2',
+                'TVM_NUM_SHARDS=3',
                 'TVM_SHARD_INDEX=0'], {
                 unpack_lib('i386', tvm_multilib)
                 ci_setup(ci_i386)
@@ -901,10 +893,10 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('python: i386 1 of 2')
+      Utils.markStageSkippedForConditional('python: i386 1 of 3')
     }
   },
-  'python: i386 2 of 2': {
+  'python: i386 2 of 3': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
@@ -913,11 +905,10 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=i386',
-                'TVM_NUM_SHARDS=2',
+                'TVM_NUM_SHARDS=3',
                 'TVM_SHARD_INDEX=1'], {
                 unpack_lib('i386', tvm_multilib)
                 ci_setup(ci_i386)
-                cpp_unittest(ci_i386)
                 python_unittest(ci_i386)
                 sh (
                   script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
@@ -932,7 +923,37 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('python: i386 2 of 2')
+      Utils.markStageSkippedForConditional('python: i386 2 of 3')
+    }
+  },
+  'python: i386 3 of 3': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=i386',
+                'TVM_NUM_SHARDS=3',
+                'TVM_SHARD_INDEX=2'], {
+                unpack_lib('i386', tvm_multilib)
+                ci_setup(ci_i386)
+                python_unittest(ci_i386)
+                sh (
+                  script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
+                  label: 'Run i386 integration tests',
+                )
+                fsim_test(ci_i386)
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('python: i386 3 of 3')
     }
   },
   'test: Hexagon 1 of 4': {
@@ -948,7 +969,7 @@ stage('Test') {
                 'TVM_SHARD_INDEX=0'], {
                 unpack_lib('hexagon', tvm_lib)
                 ci_setup(ci_hexagon)
-                  cpp_unittest(ci_hexagon)
+                cpp_unittest(ci_hexagon)
                 sh (
                   script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
                   label: 'Build Hexagon API',
