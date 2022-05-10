@@ -22,6 +22,7 @@ import sys
 import tvm
 from tvm import topi
 from tvm import te
+from tvm.contrib.hexagon.session import Session
 import tvm.topi.testing
 
 from ..conftest import requires_hexagon_toolchain
@@ -101,7 +102,9 @@ def ref_data(in_shape, axis, keepdims, reduce_type, dtype):
 
 
 @requires_hexagon_toolchain
-def test_reduce_map(hexagon_session, ref_data, in_shape, axis, keepdims, reduce_type, dtype):
+def test_reduce_map(
+    hexagon_session: Session, ref_data, in_shape, axis, keepdims, reduce_type, dtype
+):
     in_npy, in_npy_map, out_npy = ref_data
 
     # Build the logic and compile the function

@@ -43,20 +43,7 @@ from aot_test_utils import (
     run_and_check,
     create_relay_module_and_inputs_from_tflite_file,
 )
-
-
-def check_for_no_tvm_backendallocworkspace_calls(mod: tvm.runtime.module):
-    """This checker checks whether any c-source produced has TVMBackendAllocWorkspace calls.
-    If USMP is invoked, none of them should have TVMBAW calls"""
-    dso_modules = mod._collect_dso_modules()
-    for dso_mod in dso_modules:
-        assert (
-            dso_mod.type_key == "c"
-        ), 'Current CRT AoT codegen flow should only produce type "c" runtime modules'
-        source = dso_mod.get_source()
-        source.count(
-            "TVMBackendAllocWorkspace"
-        ) == 0, "This is failing because USMP was unable to plan for every tir.allocate node"
+from tvm.testing.usmp import check_for_no_tvm_backendallocworkspace_calls
 
 
 @pytest.mark.parametrize(
