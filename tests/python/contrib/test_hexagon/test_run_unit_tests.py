@@ -22,7 +22,7 @@ from .conftest import requires_hexagon_toolchain
 
 
 @requires_hexagon_toolchain
-def test_hexagon_unit_tests(hexagon_session):
+def test_run_unit_tests(hexagon_session):
     # arguments to pass to gtest
     # e.g.
     # 1) to run all tests use:
@@ -32,13 +32,15 @@ def test_hexagon_unit_tests(hexagon_session):
     gtest_args = ""
     try:
         func = hexagon_session._rpc.get_function("hexagon.run_unit_tests")
-        result = func(gtest_args)
-        print(result)
+        gtest_error_code_and_output = func(gtest_args)
+        gtest_error_code = int(gtest_error_code_and_output.splitlines()[0])
+        gtest_output = gtest_error_code_and_output.split("\n", 1)[-1]
+        print(gtest_output)
+
     except:
+        gtest_error_code = 1
         print(
             "This test requires the USE_HEXAGON_GTEST cmake flag to be specified with a path to a Hexagon gtest version normally located at /path/to/hexagon/sdk/utils/googletest/gtest"
         )
-        result = "FAILED"
 
-    # check if the unit tests "FAILED"
-    assert result.find("FAILED") == -1
+    np.testing.assert_equal(gtest_error_code, 0)

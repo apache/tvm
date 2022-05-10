@@ -108,8 +108,12 @@ TVM_REGISTER_GLOBAL("hexagon.run_unit_tests").set_body([](TVMArgs args, TVMRetVa
   testing::TestEventListeners& listeners = testing::UnitTest::GetInstance()->listeners();
   listeners.Append(gprinter);
 
-  RUN_ALL_TESTS();
-  *rv = gprinter->GetOutput();
+  int gtest_error_code = RUN_ALL_TESTS();
+  std::string gtest_output = gprinter->GetOutput();
+  std::stringstream gtest_error_code_and_output;
+  gtest_error_code_and_output << gtest_error_code << std::endl;
+  gtest_error_code_and_output << gtest_output;
+  *rv = gtest_error_code_and_output.str();
   delete gprinter;
 });
 
