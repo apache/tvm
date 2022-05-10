@@ -28,6 +28,8 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <utility>
+
 #include "../support/utils.h"
 #include "const_fold.h"
 #include "pattern_match.h"
@@ -334,7 +336,12 @@ class IterMapRewriter : public ExprMutator {
   // padding previously defined for the split using UpdatePadding can be
   // used.  If no such previous padding exists, return an empty
   // IterMark.
-  IterSplitExpr PadDividendToDivisor(IterSplitExpr split, PrimExpr base, PrimExpr divisor);
+  //
+  // Returns a pair of IterSplit that represents (split+base) in a
+  // form that can be dividied by divisors, and PrimExpr that
+  // represents the left padding applied to split.
+  std::pair<IterSplitExpr, PrimExpr> PadDividendToDivisor(IterSplitExpr split, PrimExpr base,
+                                                          PrimExpr divisor);
 
   friend struct ErrorLogger;
 
@@ -365,10 +372,7 @@ class IterMapRewriter : public ExprMutator {
   };
 
   struct IterPaddingInfo {
-    IterPaddingInfo() : var_extent("extent") {}
     // Used and collected during first pass
-    IterSplitExpr unpadded;
-    Var var_extent;
     std::vector<PrimExpr> divisors;
 
     // Defined on first encounter in second pass
@@ -420,9 +424,12 @@ class IterMapRewriter : public ExprMutator {
   // input iter marks
   std::vector<IterMark> input_marks_;
 
-  // Map from an IterSumExpr containing padding to the IterMark
-  // representing the padded version.
-  std::unordered_map<IterSumExpr, IterPaddingInfo, IterSumHash, IterSumEqual> padded_iter_map_;
+  // Map from a normal PrimExpr to the padded iterator information for
+  // it.  This is necessary for introducing the same padding in all
+  // usage of an input iterator.  (e.g. (i-1) occurring in the
+  // expressions [(i-1)%8, ((i-1)//8)%4, (i-1)//32] should be
+  // left-padded by 31 for each occurrence.)
+  std::unordered_map<PrimExpr, IterPaddingInfo, StructuralHash, StructuralEqual> padded_iter_map_;
 
   /* If allow_padding_ is true, allow the extents of the IterMap to be
    * padded beyond the original iterators.
@@ -1253,12 +1260,13 @@ IterSumExpr IterMapRewriter::PreprocessDividend(IterMapExpr dividend) {
   }
 }
 
-IterSplitExpr IterMapRewriter::PadDividendToDivisor(IterSplitExpr split, PrimExpr base,
-                                                    PrimExpr divisor) {
+std::pair<IterSplitExpr, PrimExpr> IterMapRewriter::PadDividendToDivisor(IterSplitExpr split,
+                                                                         PrimExpr base,
+                                                                         PrimExpr divisor) {
   // If FloorDiv: (((source//lower_factor) % extent) + base) // divisor
   // If FloorMod: (((source//lower_factor) % extent) + base) % divisor
 
-  IterSumExpr lookup_key({split}, 0);
+  PrimExpr lookup_key = split;
 
   auto modified_divisor = [&]() {
     if (update_iterator_padding_) {
@@ -1299,7 +1307,7 @@ IterSplitExpr IterMapRewriter::PadDividendToDivisor(IterSplitExpr split, PrimExp
     // Padding on the left is unnecessary if base is known to be zero.
     left_pad = make_zero(base->dtype);
   } else {
-    left_pad = floormod(base, divisor);
+    left_pad = analyzer_->Simplify(floormod(base, divisor));
   }
 
   // Next, adding any padding that is on the upper side of a
@@ -1314,11 +1322,11 @@ IterSplitExpr IterMapRewriter::PadDividendToDivisor(IterSplitExpr split, PrimExp
     // the divisor.
     right_pad = 0;
   } else {
-    right_pad = floormod(-right_edge, divisor);
+    right_pad = analyzer_->Simplify(floormod(-right_edge, divisor));
   }
 
   if (is_zero(left_pad) && is_zero(right_pad)) {
-    return split;
+    return {split, left_pad};
   }
 
   if (update_iterator_padding_) {
@@ -1327,22 +1335,15 @@ IterSplitExpr IterMapRewriter::PadDividendToDivisor(IterSplitExpr split, PrimExp
     // to determine padding in the second pass.
     IterPaddingInfo& info = padded_iter_map_[lookup_key];
 
-    info.unpadded = split;
     info.divisors.push_back(divisor);
 
-    // If an iterator contains padding, it may require a subsequent
-    // iterator to also require padding.  Therefore, introduce a variable
-    // for the extent.
+    PrimExpr padded_extent = left_pad + split->extent + right_pad;
 
-    // PrimExpr padded_extent = left_pad + split->extent + right_pad;
-    // PrimExpr padded_extent = Var("N", divisor.dtype())*divisor;
-    PrimExpr padded_extent = info.var_extent;
-
-    IterSumExpr as_sum({split}, base);
+    IterSumExpr as_sum({split}, left_pad);
     IterMark mark(as_sum, padded_extent);
     IterSplitExpr new_split(mark);
 
-    return new_split;
+    return {new_split, left_pad};
   }
 
   // Any padding that is required during parsing should have been found
@@ -1352,7 +1353,7 @@ IterSplitExpr IterMapRewriter::PadDividendToDivisor(IterSplitExpr split, PrimExp
     ErrorLogger(this) << "Dividend has extent " << tvm::PrettyPrint(split->extent) << " and offset "
                       << tvm::PrettyPrint(base) << ", which requires padding for divisor "
                       << tvm::PrettyPrint(divisor) << ".";
-    return IterSplitExpr();
+    return {IterSplitExpr(), left_pad};
   }
   IterPaddingInfo& info = it->second;
 
@@ -1362,12 +1363,12 @@ IterSplitExpr IterMapRewriter::PadDividendToDivisor(IterSplitExpr split, PrimExp
     ICHECK(analyzer_->CanProveEqual(info.left_pad, left_pad));
     ICHECK(analyzer_->CanProveEqual(info.right_pad, right_pad));
 
-    return info.padded;
+    return {info.padded, left_pad};
   }
 
   // This is the first encounter with the iterator during the second pass.
-
-  IterMark mark(IterSumExpr({split}, base), left_pad + split->extent + right_pad);
+  IterSumExpr as_sum({split}, left_pad);
+  IterMark mark(as_sum, left_pad + split->extent + right_pad);
   info.padded = IterSplitExpr(mark);
   info.left_pad = left_pad;
   info.right_pad = right_pad;
@@ -1376,8 +1377,8 @@ IterSplitExpr IterMapRewriter::PadDividendToDivisor(IterSplitExpr split, PrimExp
   // Equivalent to (0 <= split < left_pad), but easier to simplify in
   // terms of the transformed variables.
   auto left_padding_predicate =
-      left_padding_introduced &&
-      (floordiv(info.padded, divisor) == 0 && floormod(info.padded, divisor) < left_pad);
+      left_padding_introduced && (floordiv(info.padded, divisor) == floordiv(base, divisor) &&
+                                  floormod(info.padded, divisor) < left_pad);
 
   PrimExpr nparts = ceildiv(right_edge, divisor);
 
@@ -1385,14 +1386,14 @@ IterSplitExpr IterMapRewriter::PadDividendToDivisor(IterSplitExpr split, PrimExp
 
   // Equivalent to (right_edge <= split < right_edge+right_pad), but
   // easier to simplify in terms of the transformed variables.
-  auto right_padding_predicate =
-      right_padding_introduced && (floordiv(info.padded, divisor) == nparts - 1 &&
-                                   floormod(info.padded, divisor) >= floormod(right_edge, divisor));
+  auto right_padding_predicate = right_padding_introduced &&
+                                 (floordiv(info.padded, divisor) == floordiv(right_edge, divisor) &&
+                                  floormod(info.padded, divisor) >= floormod(right_edge, divisor));
 
   requires_padding_ = requires_padding_ || (left_padding_introduced || right_padding_introduced);
   padding_predicate_ = padding_predicate_ || (left_padding_predicate || right_padding_predicate);
 
-  return info.padded;
+  return {info.padded, left_pad};
 }
 
 PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, PrimExpr rhs) {
@@ -1439,7 +1440,9 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
   // We handle scale!=1 in above code, hence we only consider floordiv(x, rhs) below
   // where x=floormod(floordiv(iter, lower_factor), extent) + base
 
-  IterSplitExpr padded = PadDividendToDivisor(lhs, base, rhs);
+  auto pair = PadDividendToDivisor(lhs, base, rhs);
+  IterSplitExpr padded = pair.first;
+  PrimExpr left_pad = pair.second;
   if (!padded.defined()) {
     return PrimExpr();
   }
@@ -1451,10 +1454,17 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
   // = floormod(sc2+t, c2)
   // = floormod(floordiv(y, c1), c2)
   // = floormod(floordiv(iter, lower_factor*c1), c2), where c1=rhs, c2=extent/rhs
-  return IterSplitExpr(padded->source,
-                       /* lower_factor = */ padded->lower_factor * rhs,
-                       /* extent = */ analyzer_->Simplify(floordiv(padded->extent, rhs)),
-                       /* scale = */ padded->scale);
+  IterSplitExpr new_split(padded->source,
+                          /* lower_factor = */ padded->lower_factor * rhs,
+                          /* extent = */ analyzer_->Simplify(floordiv(padded->extent, rhs)),
+                          /* scale = */ padded->scale);
+
+  auto new_base = floordiv(base - left_pad, rhs);
+  if (is_zero(new_base)) {
+    return std::move(new_split);
+  } else {
+    return IterSumExpr({new_split}, new_base);
+  }
 }
 
 PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
@@ -1528,7 +1538,8 @@ PrimExpr IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, PrimExpr base, P
   // We handle scale!=1 in above code, hence we only consider floormod(x, rhs) below
   // where x=floormod(floordiv(iter, lower_factor), extent) + base
 
-  IterSplitExpr padded = PadDividendToDivisor(lhs, base, rhs);
+  auto pair = PadDividendToDivisor(lhs, base, rhs);
+  IterSplitExpr padded = pair.first;
   if (!padded.defined()) {
     return PrimExpr();
   }

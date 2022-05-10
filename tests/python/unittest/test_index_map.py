@@ -106,7 +106,7 @@ padding_test_case = tvm.testing.parameter(
             post_shape=[(dynamic_N - 1) // 4 + 1, 4],
             padding=lambda i, j: tvm.tir.And(
                 dynamic_N % (-4) != 0,
-                tvm.tir.And(i == (dynamic_N + 3) // 4 - 1, j >= dynamic_N % 4),
+                tvm.tir.And(i == dynamic_N // 4, j >= dynamic_N % 4),
             ),
         ),
         "2d_padding": dict(
