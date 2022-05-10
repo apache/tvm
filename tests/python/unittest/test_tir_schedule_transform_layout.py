@@ -149,5 +149,33 @@ def test_two_elementwise_transform_output_buffer(use_sugared_transform):
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 
 
+def test_var_args_sugar():
+    @T.prim_func
+    def summation_3d(
+        A: T.Buffer[(1024, 1024, 32), "float32"], B: T.Buffer[(1,), "float32"]
+    ) -> None:
+        B[0] = 0
+        for i, j, k in T.grid(1024, 1024, 32):
+            with T.block("compute"):
+                vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                B[0] = B[0] + A[vi, vj, vk]
+
+    @T.prim_func
+    def summation_3d_split(
+        A: T.Buffer[(1024, 1024, 8, 4), "float32"], B: T.Buffer[(1,), "float32"]
+    ) -> None:
+        B[0] = 0
+        for i, j, k in T.grid(1024, 1024, 32):
+            with T.block("compute"):
+                vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                B[0] = B[0] + A[vi, vj, vk // 4, vk % 4]
+
+    sch = tir.Schedule(summation_3d, debug_mask="all")
+    sch.transform_layout_sugared(
+        index_map=lambda *indices, k: [*indices, k // 4, k % 4], block="compute", buffer="A"
+    )
+    tvm.ir.assert_structural_equal(summation_3d_split, sch.mod["main"])
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
