@@ -93,27 +93,58 @@ def two_elementwise_transformed_output_buffer(
 # pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 # fmt: on
 
+use_sugared_transform = tvm.testing.parameter(
+    by_dict={"transform_layout": False, "transform_layout_sugared": True}
+)
 
-def test_two_elementwise_transform_intermediate_buffer():
+
+def test_two_elementwise_transform_intermediate_buffer(use_sugared_transform):
     sch = tir.Schedule(two_elementwise, debug_mask="all")
-    block = sch.get_block("B")
-    sch.transform_layout(block, 0, "write", lambda m, n: (m // 16, n // 16, m % 16, n % 16))
+
+    if use_sugared_transform:
+        sch.transform_layout_sugared(
+            index_map=packed_index_map_func,
+            block="B",
+            buffer="B",
+        )
+    else:
+        block = sch.get_block("B")
+        sch.transform_layout(block, 0, "write", packed_index_map_func)
+
     tvm.ir.assert_structural_equal(two_elementwise_transformed_intermediate_buffer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 
 
-def test_two_elementwise_transform_input_buffer():
+def test_two_elementwise_transform_input_buffer(use_sugared_transform):
     sch = tir.Schedule(two_elementwise, debug_mask="all")
-    block = sch.get_block("B")
-    sch.transform_layout(block, 0, "read", packed_index_map_func)
+
+    if use_sugared_transform:
+        sch.transform_layout_sugared(
+            index_map=packed_index_map_func,
+            block="B",
+            buffer="A",
+        )
+    else:
+        block = sch.get_block("B")
+        sch.transform_layout(block, 0, "read", packed_index_map_func)
+
     tvm.ir.assert_structural_equal(two_elementwise_transformed_input_buffer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 
 
-def test_two_elementwise_transform_output_buffer():
+def test_two_elementwise_transform_output_buffer(use_sugared_transform):
     sch = tir.Schedule(two_elementwise, debug_mask="all")
-    block = sch.get_block("C")
-    sch.transform_layout(block, 0, "write", packed_index_map_func)
+
+    if use_sugared_transform:
+        sch.transform_layout_sugared(
+            index_map=packed_index_map_func,
+            block="C",
+            buffer="C",
+        )
+    else:
+        block = sch.get_block("C")
+        sch.transform_layout(block, 0, "write", packed_index_map_func)
+
     tvm.ir.assert_structural_equal(two_elementwise_transformed_output_buffer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 

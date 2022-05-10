@@ -21,7 +21,7 @@ from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import IRModule, PrimExpr
 from tvm.runtime import Object, String
-from tvm.tir import Block, FloatImm, For, IntImm, PrimFunc
+from tvm.tir import Block, FloatImm, For, IntImm, PrimFunc, Buffer
 from ..function import IndexMap
 
 from . import _ffi_api
@@ -2113,6 +2113,88 @@ class Schedule(Object):
         )
 
     ########## Schedule: Layout transformation ##########
+
+    @type_checked
+    def transform_layout_sugared(
+        self,
+        index_map: Union[IndexMap, Callable],
+        buffer: str,
+        block: Union[BlockRV, str],
+    ) -> None:
+        """Apply a transformation represented by IndexMap to buffer
+
+        This is a wrapper around `transform_layout`, intended for ease
+        of use.
+
+        Parameters
+        ----------
+        index_map : Union[IndexMap, Callable]
+
+            The transformation to apply
+
+        buffer: Union[Buffer,str]
+
+            The buffer to be transformed.  This buffer must exist in
+            the reads or writes of the block.  If a string, the
+            reads/writes of the block must not contain more than one
+            buffer with that name.
+
+        block : Union[BlockRV,str]
+
+            The block that accesses the target buffer.  If a string,
+            should refer to a name that uniquely identifies a block
+            within the schedule.
+
+        """
+
+        if isinstance(block, str):
+            block = self.get_block(block)
+
+        def iter_buffers():
+            block_obj = self.get(block)
+            for i, read in enumerate(block_obj.reads):
+                yield i, "read", read.buffer
+            for i, write in enumerate(block_obj.writes):
+                yield i, "write", write.buffer
+
+        possible_buffers = {}
+
+        if isinstance(buffer, str):
+            # String lookup requires ensuring that the name is unique
+            for buffer_index, buffer_index_type, buf in iter_buffers():
+                if buf.name == buffer:
+                    possible_buffers[buf] = (buffer_index, buffer_index_type)
+
+            block_name = self.get(block).name_hint
+            assert possible_buffers, f"Could not find buffer '{buffer}' in block '{block_name}'"
+            assert (
+                len(possible_buffers) == 1
+            ), f"Multiple buffers named '{buffer}' in block '{block_name}'"
+            buffer_obj, (buffer_index, buffer_index_type) = next(iter(possible_buffers.items()))
+
+        elif isinstance(buffer, Buffer):
+            # Buffer lookup has unique id, can break out early
+            found = False
+            for buffer_index, buffer_index_type, buffer_obj in iter_buffers():
+                if buffer_obj.same_as(buffer):
+                    found = True
+                    break
+
+            block_name = self.get(block).name_hint
+            assert found, "Could not find buffer '{buffer.name}' in block '{block_name}'"
+
+        else:
+            raise TypeError(
+                f"Argument 'buffer' should be str or tir.Buffer, "
+                f"but found {type(buffer)} instead."
+            )
+
+        ndim = len(buffer_obj.shape)
+
+        if callable(index_map):
+            index_map = IndexMap.from_func(index_map, ndim=ndim)
+
+        self.transform_layout(block, buffer_index, buffer_index_type, index_map)
 
     @type_checked
     def transform_layout(
