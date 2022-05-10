@@ -28,8 +28,8 @@ from .conftest import requires_hexagon_toolchain
 # pytest -sv <this file> --gtests_args="--gtest_filter=*foo* --gtest_repeat=2"
 @requires_hexagon_toolchain
 @pytest.mark.skipif(
-    os.environ.get("USE_HEXAGON_GTEST") == None,
-    reason="This test requires the USE_HEXAGON_GTEST to be specified with a path to a Hexagon gtest version normally located at /path/to/hexagon/sdk/utils/googletest/gtest",
+    os.environ.get("HEXAGON_GTEST") == None,
+    reason="This test requires the HEXAGON_GTEST to be specified with a path to a Hexagon gtest version normally located at /path/to/hexagon/sdk/utils/googletest/gtest",
 )
 def test_run_unit_tests(hexagon_session, gtest_args):
     func = hexagon_session._rpc.get_function("hexagon.run_unit_tests")
