@@ -54,7 +54,14 @@ echo "Running relay DarkNet frontend test..."
 run_pytest cython python-frontend-darknet tests/python/frontend/darknet
 
 echo "Running relay PaddlePaddle frontend test..."
-run_pytest cython python-frontend-paddlepaddle tests/python/frontend/paddlepaddle
+# Fix issues with paddlepaddle caching between runs but using separate processes
+PADDLEPADDLE_TESTS=$(./tests/scripts/pytest_ids.py --folder tests/python/frontend/paddlepaddle)
+i=0
+for node_id in $PADDLEPADDLE_TESTS; do
+    echo "$node_id"
+    run_pytest cython "python-frontend-paddlepaddle-$i" "$node_id"
+    i=$((i+1))
+done
 
 echo "Running relay CoreML frontend test..."
 run_pytest cython python-frontend-coreml tests/python/frontend/coreml
