@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-11T07:57:43.285598
+// Generated at 2022-05-11T13:06:35.119914
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -90,15 +90,20 @@ def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
 }
 
+def checkout_trusted_files() {
+  def trustedFiles = ["tests/scripts/clean_docker_images.py"]
+  for (trustedFile in trustedFiles) {
+    sh(
+      script: "git checkout ${upstream_revision} ${trustedFile}",
+    )
+  }
+}
+
 // initialize source codes
 def init_git() {
   checkout scm
-  // Add more info about job node
-  sh (
-    script: './tests/scripts/task_show_node_info.sh',
-    label: 'Show executor node info',
-  )
-
+  println(currentBuild.toString())
+  println(currentBuild.getBuildCauses().toString())
   // Determine merge commit to use for all stages
   sh(
     script: 'git fetch origin main',
@@ -114,6 +119,17 @@ def init_git() {
   sh (
     script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
     label: 'Merge to origin/main'
+  )
+  checkout_trusted_files()
+  // Clear out all Docker images that aren't going to be used
+  sh(
+    script: "python3 tests/scripts/clean_docker_images.py --names ${ ci_arm },${ ci_cpu },${ ci_gpu },${ ci_hexagon },${ ci_i386 },${ ci_lint },${ ci_qemu },${ ci_wasm },",
+    label: 'Clean old Docker images',
+  )
+  // Add more info about job node
+  sh(
+    script: './tests/scripts/task_show_node_info.sh',
+    label: 'Show executor node info',
   )
 
   retry(5) {
