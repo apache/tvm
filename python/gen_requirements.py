@@ -45,14 +45,15 @@ The data representing each piece is contained in the two maps below.
 
 import argparse
 import collections
+import dataclasses
 import os
 import re
 import textwrap
 import sys
-import typing
+from typing import Dict, List, Pattern, Tuple, Union
 
 
-RequirementsByPieceType = typing.List[typing.Tuple[str, typing.Tuple[str, typing.List[str]]]]
+RequirementsByPieceType = List[Tuple[str, Tuple[str, List[str]]]]
 
 
 # Maps named TVM piece (see description above) to a list of names of Python packages. Please use
@@ -85,6 +86,13 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
             ],
         ),
     ),
+    (
+        "gpu",
+        (
+            "Requirements for working with GPUs",
+            [],  # NOTE: tensorflow-gpu installed via environment marker.
+        ),
+    ),
     # Relay frontends.
     (
         "importer-caffe",
@@ -112,7 +120,17 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
     ("importer-darknet", ("Requirements for the DarkNet importer", ["opencv-python"])),
     (
         "importer-keras",
-        ("Requirements for the Keras importer", ["tensorflow", "tensorflow-estimator"]),
+        ("Requirements for the Keras importer", ["keras", "tensorflow", "tensorflow-estimator"]),
+    ),
+    (
+        "importer-oneflow",
+        (
+            "Requirements for the OneFlow importer",
+            [
+                "flowvision",
+                "oneflow",
+            ],
+        ),
     ),
     (
         "importer-onnx",
@@ -170,17 +188,6 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
             ],
         ),
     ),
-    # Vitis AI requirements
-    (
-        "vitis-ai",
-        (
-            "Requirements for the Vitis AI codegen",
-            [
-                "h5py",
-                "progressbar",
-            ],
-        ),
-    ),
     # XGBoost, useful for autotuning on some targets.
     (
         "xgboost",
@@ -210,20 +217,33 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "pillow",
                 "pylint",
                 "sphinx",
-                "sphinx_autodoc_annotation",
-                "sphinx_gallery",
-                "sphinx_rtd_theme",
+                "sphinx-autodoc-annotation",
+                "sphinx-gallery",
+                "sphinx-rtd-theme",
                 "types-psutil",
             ],
         ),
     ),
 ]
 
-ConstraintsType = typing.List[typing.Tuple[str, typing.Union[None, str]]]
+ConstraintsType = List[Tuple[str, Union[Tuple[str]]]]
 
-# Maps a named Python package (which should appear in REQUIREMENTS_BY_PIECE above) to a
-# semver or pip version constraint. Semver constraints are translated into requirements.txt-friendly
-# constraints.
+# Maps a named Python package (which should appear in REQUIREMENTS_BY_PIECE above) to one or more
+# constraint specifications matching the following form:
+#
+# [<replacement-package-name>]<constraint>[; <pep496 environment marker>]
+#
+# Where each field is defined as:
+# <replacement-package-name>: Valid only when <pep496 environment marker> is present. If given,
+#     uses this package name in place of the original when the environment marker condition is
+#     met.
+# <constraint>: A semantic version (semver.org) (expressed as "^a.b.c") or a pip version constarint.
+# <pep496 environment maker>: A PEP406-compatible environment marker specifying the conditions under
+#     which this conraint and package should be used.
+#
+# A few limitations on replacement-package-name:
+# 1. It can't be mentioned in REQUIRMENTS_BY_NAME.
+# 2. It can't be mentioned as <replacement-package-name> in a constraint for different package name.
 #
 # These constraints serve only to record technical reasons why a particular version can't be used.
 # They are the default install_requires used in setup.py. These can be further narrowed to restrict
@@ -234,51 +254,57 @@ ConstraintsType = typing.List[typing.Tuple[str, typing.Union[None, str]]]
 # 2. If TVM will functionally break against an old version of a dependency, specify a >= relation
 #    here. Include a comment linking to context or explaining why the constraint is in place.
 CONSTRAINTS = [
-    ("astroid", None),
-    ("attrs", None),
-    ("autodocsumm", None),
-    ("black", "==20.8b1"),
-    ("cloudpickle", None),
-    ("commonmark", ">=0.7.3"),  # From PR #213.
-    ("coremltools", None),
-    ("cpplint", None),
-    ("decorator", None),
+    ("astroid", []),
+    ("attrs", []),
+    ("autodocsumm", []),
+    ("black", ["==20.8b1"]),
+    ("cloudpickle", []),
+    ("commonmark", [">=0.7.3"]),  # From PR #213.
+    ("coremltools", []),
+    ("cpplint", []),
+    ("decorator", []),
     (
         "docutils",
-        "<0.17",
+        [">=0.11,<0.17"],
     ),  # Work around https://github.com/readthedocs/sphinx_rtd_theme/issues/1115
-    ("ethos-u-vela", "==3.2.0"),
-    ("future", None),
-    ("h5py", "==2.10.0"),
-    ("image", None),
-    ("matplotlib", None),
-    ("numpy", None),
-    ("onnx", None),
-    ("onnxoptimizer", None),
-    ("onnxruntime", None),
-    ("opencv-python", None),
-    ("paddlepaddle", None),
-    ("pillow", None),
-    ("progressbar", None),
-    ("protobuf", None),
-    ("psutil", None),
-    ("pylint", None),
-    ("scikit-image", None),
-    ("scipy", None),
-    ("six", None),
-    ("sphinx", None),
-    ("sphinx_autodoc_annotation", None),
-    ("sphinx_gallery", None),
-    ("sphinx_rtd_theme", None),
-    ("synr", "==0.6.0"),
-    ("tensorflow", None),
-    ("tensorflow-estimator", None),
-    ("tflite", None),
-    ("torch", None),
-    ("torchvision", None),
-    ("tornado", None),
-    ("xgboost", ">=1.1.0"),  # From PR #4953.
+    ("ethos-u-vela", ["==3.2.0"]),
+    ("flowvision", []),
+    ("future", []),
+    ("image", []),
+    ("keras", []),
+    ("matplotlib", []),
+    ("numpy", []),
+    ("oneflow", []),
+    ("onnx", []),
+    ("onnxoptimizer", []),
+    ("onnxruntime", []),
+    ("opencv-python", []),
+    ("paddlepaddle", ["==*; 'importer-tensorflow' not in extra and 'importer-tflite' not in extra"]),
+    ("pillow", []),
+    ("protobuf", []),
+    ("psutil", []),
+    ("pylint", []),
+    ("scikit-image", []),
+    ("scipy", []),
+    ("six", []),
+    ("sphinx", []),
+    ("sphinx-autodoc-annotation", []),
+    ("sphinx-gallery", []),
+    ("sphinx-rtd-theme", []),
+    ("synr", ["==0.6.0"]),
+    ("tensorflow", [
+        "tensorflow==*; platform_machine not in 'aarch64' and 'gpu' not in extra and 'importer-paddle' not in extra",
+        "tensorflow-aarch64==*; platform_machine in 'aarch64' and 'importer-paddle' not in extra",
+        "tensorflow-gpu==*; platform_machine not in 'aarch64' and 'gpu' in extra and 'importer-paddle' not in extra",
+        ]),
+    ("tensorflow-estimator", []),
+    ("tflite", []),
+    ("torch", []),
+    ("torchvision", []),
+    ("tornado", []),
+    ("xgboost", [">=1.1.0"]),  # From PR #4953.
 ]
+
 
 ################################################################################
 # End of configuration options.
@@ -286,22 +312,32 @@ CONSTRAINTS = [
 
 
 # Required keys in REQUIREMENTS_BY_PIECE.
-REQUIRED_PIECES: typing.List[str] = ["core", "dev"]
+REQUIRED_PIECES: List[str] = ["core", "dev"]
 
 # Regex to validates piece names.
-PIECE_REGEX: typing.Pattern = re.compile(r"^[a-z0-9][a-z0-9-]*", re.IGNORECASE)
+PIECE_REGEX: Pattern = re.compile(r"^[a-z0-9][a-z0-9-]*", re.IGNORECASE)
 
 # Regex to match a constraint specification. Multiple constraints are not supported.
-CONSTRAINT_REGEX: typing.Pattern = re.compile(r"(?:\^|\<|(?:~=)|(?:<=)|(?:==)|(?:>=)|\>)[^<>=\^,]+")
+CONSTRAINT_REGEX: Pattern = re.compile(r"(?:\^|\<|(?:~=)|(?:<=)|(?:==)|(?:>=)|\>)[^<>=\^,;]+")
 
 # Regex for parsing semantic versions. See
 # https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
-SEMVER_REGEX: typing.Pattern = re.compile(
+SEMVER_REGEX: Pattern = re.compile(
     r"^(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
 )
 
 
-def validate_requirements_by_piece() -> typing.List[str]:
+CONSTRAINT_SPEC_REGEX: Pattern = re.compile(
+    r"(?P<package>[a-z0-9_-]+)?" +
+    r"(?P<constraint>(?:" + CONSTRAINT_REGEX.pattern + r")" +
+    r"|(?:" + SEMVER_REGEX.pattern + r")" +
+    r"|(?:==\*))" +
+    r"(?:;[\s]*(?P<environment_marker>.+))?")
+
+print("CSR", CONSTRAINT_SPEC_REGEX.pattern)
+
+
+def validate_requirements_by_piece() -> List[str]:
     """Validate REQUIREMENTS_BY_PIECE, returning a list of problems.
 
     Returns
@@ -393,8 +429,8 @@ def validate_requirements_by_piece() -> typing.List[str]:
 
 
 def parse_semver(
-    package: str, constraint: str, problems: typing.List[str]
-) -> typing.Tuple[typing.List[str], int, int]:
+    package: str, constraint: str, problems: List[str]
+) -> Tuple[List[str], int, int]:
     """Parse a semantic versioning constraint of the form "^X.[.Y[.Z[...]]]]"
 
     Parameters
@@ -447,7 +483,101 @@ def parse_semver(
     return min_ver_parts, 0, 0
 
 
-def validate_constraints() -> typing.List[str]:
+@dataclasses.dataclass(eq=True, frozen=True)
+class Requirement:
+    package: str
+    constraint: str
+    environment_marker: Union[str, None]
+
+    def to_requirement(self):
+        return f'{self.package}{self.constraint}{self.environment_marker or ""}'
+
+
+def semver_to_requirements(dep: str, constraint: str, problems: List[str], joined_deps: Union[None, List[Requirement]]):
+    """Convert a SemVer-style constraint to a setuptools-compatible constraint.
+
+    Parameters
+    ----------
+    dep : str
+        Name of the PyPI package to depend on.
+    constraint : str
+        The SemVer constraint, of the form "^<semver constraint>"
+    problems : List[str]
+        A list of the validation problems encountered when parsing this semver.
+    joined_deps : Union[None, List[str]]
+        Either:
+         1. A list of strings, each a setuptools-compatible constraint which could be written to
+            a line in requirements.txt. The converted constraint is appended to this list.
+         2. None, in which case only validation is performed.
+    """
+    min_ver_parts, fixed_index, fixed_part = parse_semver(dep, constraint, problems)
+    if joined_deps is not None:
+        text_problems = "\n" + "\n".join(f" * {p}" for p in problems)
+        assert (
+            not problems
+        ), f"should not happen: validated semver {constraint} parses with problems:{text_problems}"
+
+        max_ver_parts = (
+            min_ver_parts[:fixed_index]
+            + [str(fixed_part + 1)]
+            + ["0" for _ in min_ver_parts[fixed_index + 1 :]]
+        )
+        joined_deps.append(Requirement(package=dep, constraint=f'{".".join(min_ver_parts)},<{".".join(max_ver_parts)}'))
+
+
+def parse_constraint_entry(package: str, constraints: str, problems: List[str],
+                           requirements: Union[None, List[str]]):
+    """Parse an entry in CONSTRAINTS into requirements.txt entries.
+
+    When requirements is None, assert-fails if any validation problems occur.
+
+    Parameters
+    ----------
+    package : str
+        The key of this entry in CONSTRAINTS.
+    constraints : str
+        The value of
+        Either the value in CONSTRAINTS (if said value is a str) or one item from the value (if said
+        value is a list of strings) which should be converted into a requirement.
+    problems : List[str]
+        A list of the validation problems encountered when parsing the entry.
+    requirements : Union[None, List[str]]
+        Either:
+         1. A list of strings, each a setuptools-compatible constraint which could be written to a
+            line in requirements.txt The converted constraint is appended to this list.
+         2. None, in which case the constraint will be only validated.
+    """
+    def _parse_one(c):
+        print("PARSE_ONE", package, not c)
+        if not c:
+            if requirements is not None:
+                requirements.append(Requirement(package=package, constraint="==*", environment_marker=None))
+            return
+
+        m = CONSTRAINT_SPEC_REGEX.match(c)
+        if m is None:
+            problems.append(
+                f'{package}: constraint "{c}" does not look like a valid constraint'
+            )
+
+        if c[0] == "^":
+            semver_to_requirements(package, c, problems, requirements)
+        elif requirements is not None:
+            groups = m.groupdict()
+            requirement_package = groups.get('package') or package
+            requirements.append(Requirement(package=requirement_package,
+                                            constraint=groups.get('constraint', '==*'),
+                                            environment_marker=groups.get('environment_marker')))
+
+    if not constraints:
+        _parse_one(constraints)
+        return
+
+    for constraint in constraints:
+        _parse_one(constraint)
+
+
+def validate_constraints() -> List[str]:
     """Validate CONSTRAINTS, returning a list of problems found.
 
     Returns
@@ -477,13 +607,7 @@ def validate_constraints() -> typing.List[str]:
         if constraint is None:  # None is just a placeholder that allows for comments.
             continue
 
-        if not CONSTRAINT_REGEX.match(constraint):
-            problems.append(
-                f'{package}: constraint "{constraint}" does not look like a valid constraint'
-            )
-
-        if constraint.startswith("^"):
-            parse_semver(package, constraint, problems)
+        parse_constraint_entry(package, constraint, problems, None)
 
     all_constrained_packages = [p for (p, _) in CONSTRAINTS]
     sorted_constrained_packages = list(sorted(all_constrained_packages))
@@ -499,7 +623,7 @@ class ValidationError(Exception):
     """Raised when a validation error occurs."""
 
     @staticmethod
-    def format_problems(config: str, problems: typing.List[str]) -> str:
+    def format_problems(config: str, problems: List[str]) -> str:
         """Format a list of problems with a global config variable into human-readable output.
 
         Parameters
@@ -527,7 +651,7 @@ class ValidationError(Exception):
 
         return "\n".join(formatted)
 
-    def __init__(self, config: str, problems: typing.List[str]):
+    def __init__(self, config: str, problems: List[str]):
         """Describes an error that occurs validating one of the global config variables.
 
         Parameters
@@ -551,35 +675,7 @@ def validate_or_raise():
         raise ValidationError("CONSTRAINTS", problems)
 
 
-def semver_to_requirements(dep: str, constraint: str, joined_deps: typing.List[str]):
-    """Convert a SemVer-style constraint to a setuptools-compatible constraint.
-
-    Parameters
-    ----------
-    dep : str
-        Name of the PyPI package to depend on.
-    constraint : str
-        The SemVer constraint, of the form "^<semver constraint>"
-    joined_deps : list[str]
-        A list of strings, each a setuptools-compatible constraint which could be written to
-        a line in requirements.txt. The converted constraint is appended to this list.
-    """
-    problems: typing.List[str] = []
-    min_ver_parts, fixed_index, fixed_part = parse_semver(dep, constraint, problems)
-    text_problems = "\n" + "\n".join(f" * {p}" for p in problems)
-    assert (
-        not problems
-    ), f"should not happen: validated semver {constraint} parses with problems:{text_problems}"
-
-    max_ver_parts = (
-        min_ver_parts[:fixed_index]
-        + [str(fixed_part + 1)]
-        + ["0" for _ in min_ver_parts[fixed_index + 1 :]]
-    )
-    joined_deps.append(f'{dep}>={".".join(min_ver_parts)},<{".".join(max_ver_parts)}')
-
-
-def join_requirements() -> typing.Dict[str, typing.Tuple[str, typing.List[str]]]:
+def join_requirements() -> Dict[str, Tuple[str, List[str]]]:
     """Validate, then join REQUIRMENTS_BY_PIECE against CONSTRAINTS and return the result.
 
     Returns
@@ -597,14 +693,7 @@ def join_requirements() -> typing.Dict[str, typing.Tuple[str, typing.List[str]]]
         joined_deps = []
         for d in deps:
             constraint = constraints_map.get(d.lower())
-            if constraint is None:
-                joined_deps.append(d)
-                continue
-
-            if constraint[0] == "^":
-                semver_to_requirements(d, constraint, joined_deps)
-            else:
-                joined_deps.append(f"{d}{constraint}")
+            parse_constraint_entry(d, constraint, None, joined_deps)
 
         if piece != "dev":
             all_deps.update(joined_deps)
@@ -613,7 +702,7 @@ def join_requirements() -> typing.Dict[str, typing.Tuple[str, typing.List[str]]]
 
     to_return["all-prod"] = (
         "Combined dependencies for all TVM pieces, excluding dev",
-        list(sorted(all_deps)),
+        list(sorted(all_deps, key=lambda r: r.package)),
     )
 
     return to_return
@@ -648,7 +737,7 @@ def join_and_write_requirements(args: argparse.Namespace):
                 f"# {description}{os.linesep}"
             )
             for d in deps:
-                f.write(f"{d}{os.linesep}")
+                f.write(f"{d!s}{os.linesep}")
 
 
 def parse_args() -> argparse.Namespace:

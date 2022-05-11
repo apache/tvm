@@ -68,8 +68,9 @@ def write_dependencies(requirements_by_piece : dict, constraints : dict, output_
       continue
 
     optional = package not in core_packages
+    marker = f', markers = "{constraint.environment_marker}"' if constraint.environment_marker else ''
     output_f.write(
-        f"{package} = {{ version = \"{constraint or '*'}\", optional = {str(optional).lower()} }}\n")
+        f"{package} = {{ version = \"{constraint.constraint or '*'}\", optional = {str(optional).lower()}{marker} }}\n")
 
   output_f.write("\n")
 
@@ -94,7 +95,7 @@ def write_dev_dependencies(requirements_by_piece : dict, constraints : dict, out
     if package not in dev_packages:
       continue
 
-    output_f.write(f"{package} = \"{constraint or '*'}\"\n")
+    output_f.write(f"{package} = \"{constraint.constraint or '*'}\"\n")
 
   output_f.write("\n")
 
@@ -163,7 +164,11 @@ def generate_pyproject_toml(ci_constraints_txt : pathlib.Path, gen_requirements_
   gen_requirements = importlib.import_module(gen_requirements_py.stem)
   sys.path.pop(0)
 
-  constraints = dict(gen_requirements.CONSTRAINTS)
+  constraints_list = []
+  for pkg, constraint in gen_requirements.CONSTRAINTS:
+    gen_requirements.parse_constraint_entry(pkg, constraint, None, constraints_list)
+
+  constraints = {r.package: r for r in constraints_list}
   with open(ci_constraints_txt) as ci_constraints_f:
     for i, line in enumerate(ci_constraints_f):
       if not line.strip():
@@ -181,11 +186,12 @@ def generate_pyproject_toml(ci_constraints_txt : pathlib.Path, gen_requirements_
         print(f"{ci_constraints_txt}: {i}: Package {package_name} not listed in gen_requirements.py")
         sys.exit(2)
 
-      if constraints.get(package_name):
+      constraint = constraints[package_name]
+      if constraint.constraint != "==*":
         print(f"{ci_constraints_txt}: {i}: Package {package_name} already functionally constrained in gen_requirements.py")
         sys.exit(2)
 
-      constraints[package_name] = m.group("version")
+      constraints[package_name] = gen_requirements.Requirement(constraint.package, m.group("version"), constraint.environment_marker)
 
   stop_points = list(sorted([(v, k) for k, v in insert_points.items()], key=lambda x: (x[0], SECTION_ORDER.index(x[1]))))
   next_stop = stop_points.pop(0)
@@ -207,7 +213,11 @@ def generate_pyproject_toml(ci_constraints_txt : pathlib.Path, gen_requirements_
 
 
 def freeze_deps(output_pyproject_toml):
-  subprocess.check_call(["poetry", "lock", "-v"], cwd=output_pyproject_toml.parent)
+  with open(output_pyproject_toml.parent / "poetry-lock.log", "w") as f:
+    # Disable parallel fetching which tends to result in "Connection aborted" errors.
+    # https://github.com/python-poetry/poetry/issues/3219
+    subprocess.check_call(["poetry", "config", "installer.parallel", "false"], cwd=output_pyproject_toml.parent)
+    subprocess.check_call(["poetry", "lock", "-vv"], stdout=f, stderr=subprocess.STDOUT, cwd=output_pyproject_toml.parent)
 
 
 REPO_ROOT = pathlib.Path(__file__).parent.parent
@@ -225,12 +235,9 @@ def parse_args(argv : typing.List[str]) -> argparse.Namespace:
   parser.add_argument("--template-pyproject-toml",
                       type=pathlib.Path,
                       help="Path to the pyproject.toml to use as a basis for the updated pyproject.toml.")
-  parser.add_argument("--output-pyproject-toml",
+  parser.add_argument("--output-base",
                       type=pathlib.Path,
-                      help="Path where the updated pyproject.toml should be written.")
-  parser.add_argument("--output-poetry-lock",
-                      type=pathlib.Path,
-                      help="Path where the poetry.lock file should be written.")
+                      help="Path where the updated pyproject.toml and poetry.lock should be written.")
 
   return parser.parse_args(argv[1:])
 
@@ -238,14 +245,15 @@ def parse_args(argv : typing.List[str]) -> argparse.Namespace:
 def main(argv : typing.List[str]):
   args = parse_args(argv)
 
-  with tempfile.TemporaryDirectory() as temp_dir:
-      temp_pyproject_toml = pathlib.Path(temp_dir) / "pyproject.toml"
-      generate_pyproject_toml(args.ci_constraints, args.gen_requirements_py, args.template_pyproject_toml, temp_pyproject_toml)
-      freeze_deps(temp_pyproject_toml)
-      args.output_pyproject_toml.parent.mkdir(exist_ok=True, parents=True)
-      shutil.copyfile(temp_pyproject_toml, args.output_pyproject_toml)
-      args.output_poetry_lock.parent.mkdir(exist_ok=True, parents=True)
-      shutil.copyfile(pathlib.Path(temp_dir) / "poetry.lock", args.output_poetry_lock)
+  if args.output_base.exists():
+    shutil.rmtree(args.output_base)
+  args.output_base.mkdir(parents=True)
+
+  pyproject_toml = pathlib.Path(args.output_base) / "pyproject.toml"
+  generate_pyproject_toml(args.ci_constraints, args.gen_requirements_py, args.template_pyproject_toml, pyproject_toml)
+  with open(pyproject_toml) as f:
+    print(f.read())
+  freeze_deps(pyproject_toml)
 
 
 if __name__ == "__main__":

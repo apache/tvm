@@ -24,7 +24,6 @@ for docker_file in "${IMAGES[@]}"; do
                  --ci-constraints=docker/ci-constraints.txt \
                  --gen-requirements-py=python/gen_requirements.py \
                  --template-pyproject-toml=pyproject.toml \
-                 --output-pyproject-toml=docker/build/base_${arch}/pyproject.toml \
-                 --output-poetry-lock=docker/build/base_${arch}/poetry.lock
+                 --output-base=docker/build/base_${arch}
 
 done
