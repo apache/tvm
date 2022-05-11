@@ -55,10 +55,20 @@ void HexagonDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv)
 // DataSpace: static allocations for Hexagon
 void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                                        Optional<String> mem_scope) {
+  CHECK(ndim) << "number of dimensions is zero";
+  CHECK(shape) << "shape array is null";
+
+  // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU;
+  bool is_valid_device = (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
+                         (DLDeviceType(dev.device_type) == kDLCPU);
+  CHECK(is_valid_device) << "dev.device_type: " << dev.device_type;
+
   if (!mem_scope.defined() || mem_scope.value() == "global") {
     return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
   }
 
+  // must have Hexagon device and vtcm scope at this point
+  CHECK_EQ(mem_scope.value(), "global.vtcm");
   CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
 
   size_t typesize = (dtype.bits / 8) * dtype.lanes;
@@ -84,6 +94,9 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
 
 void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
                                        DLDataType type_hint) {
+  CHECK(nbytes) << "number of bytes is zero";
+  CHECK(alignment) << "alignment is zero";
+
   // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU;
   bool is_valid_device = (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
                          (DLDeviceType(dev.device_type) == kDLCPU);
@@ -95,6 +108,8 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignme
 }
 
 void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
+  CHECK(ptr) << "buffer pointer is null";
+
   // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU;
   bool is_valid_device = (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
                          (DLDeviceType(dev.device_type) == kDLCPU);

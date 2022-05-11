@@ -37,9 +37,6 @@ cd build
 output_binary_directory=$(realpath ${PWD}/../../../build/hexagon_api_output)
 rm -rf ${output_binary_directory}
 
-# should be removed after Hexagon Docker update
-export HEXAGON_GTEST="${HEXAGON_SDK_PATH}/utils/googletest/gtest"
-
 cmake -DANDROID_ABI=arm64-v8a \
     -DANDROID_PLATFORM=android-28 \
     -DUSE_ANDROID_TOOLCHAIN="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
@@ -47,6 +44,6 @@ cmake -DANDROID_ABI=arm64-v8a \
     -DUSE_HEXAGON_SDK="${HEXAGON_SDK_PATH}" \
     -DUSE_HEXAGON_TOOLCHAIN="${HEXAGON_TOOLCHAIN}" \
     -DUSE_OUTPUT_BINARY_DIR="${output_binary_directory}" \
-    -DUSE_HEXAGON_GTEST="${HEXAGON_GTEST}" ..
+    -DUSE_HEXAGON_GTEST="${HEXAGON_SDK_PATH}/utils/googletest/gtest" ..
 
 make -j$(nproc)

@@ -43,9 +43,6 @@ if [[ "${device_serial}" == "simulator" ]]; then
     export HEXAGON_SDK_ROOT=${HEXAGON_SDK_PATH}
 fi
 
-# should be removed after Hexagon Docker update
-export HEXAGON_GTEST="${HEXAGON_SDK_PATH}/utils/googletest/gtest"
-
 export ANDROID_SERIAL_NUMBER=${device_serial}
 run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon
 
