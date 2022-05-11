@@ -2192,9 +2192,13 @@ class Schedule(Object):
         ndim = len(buffer_obj.shape)
 
         if callable(index_map):
-            index_map = IndexMap.from_func(index_map, ndim=ndim)
+            index_map, axis_separators = IndexMap.from_func_with_separators(index_map, ndim=ndim)
+        else:
+            axis_separators = []
 
         self.transform_layout(block, buffer_index, buffer_index_type, index_map)
+        if axis_separators:
+            self.set_axis_separator(block, buffer_index, buffer_index_type, axis_separators)
 
     @type_checked
     def transform_layout(
