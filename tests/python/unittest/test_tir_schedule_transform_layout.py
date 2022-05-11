@@ -102,14 +102,14 @@ def test_two_elementwise_transform_intermediate_buffer(use_sugared_transform):
     sch = tir.Schedule(two_elementwise, debug_mask="all")
 
     if use_sugared_transform:
-        sch.transform_layout_sugared(
-            index_map=packed_index_map_func,
+        sch.transform_layout(
             block="B",
             buffer="B",
+            index_map=packed_index_map_func,
         )
     else:
         block = sch.get_block("B")
-        sch.transform_layout(block, 0, "write", packed_index_map_func)
+        sch.transform_layout(block, ("write", 0), packed_index_map_func)
 
     tvm.ir.assert_structural_equal(two_elementwise_transformed_intermediate_buffer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
@@ -119,14 +119,14 @@ def test_two_elementwise_transform_input_buffer(use_sugared_transform):
     sch = tir.Schedule(two_elementwise, debug_mask="all")
 
     if use_sugared_transform:
-        sch.transform_layout_sugared(
+        sch.transform_layout(
             index_map=packed_index_map_func,
             block="B",
             buffer="A",
         )
     else:
         block = sch.get_block("B")
-        sch.transform_layout(block, 0, "read", packed_index_map_func)
+        sch.transform_layout(block, ("read", 0), packed_index_map_func)
 
     tvm.ir.assert_structural_equal(two_elementwise_transformed_input_buffer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
@@ -136,14 +136,14 @@ def test_two_elementwise_transform_output_buffer(use_sugared_transform):
     sch = tir.Schedule(two_elementwise, debug_mask="all")
 
     if use_sugared_transform:
-        sch.transform_layout_sugared(
+        sch.transform_layout(
             index_map=packed_index_map_func,
             block="C",
             buffer="C",
         )
     else:
         block = sch.get_block("C")
-        sch.transform_layout(block, 0, "write", packed_index_map_func)
+        sch.transform_layout(block, ("write", 0), packed_index_map_func)
 
     tvm.ir.assert_structural_equal(two_elementwise_transformed_output_buffer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
@@ -171,7 +171,7 @@ def test_var_args_sugar():
                 B[0] = B[0] + A[vi, vj, vk // 4, vk % 4]
 
     sch = tir.Schedule(summation_3d, debug_mask="all")
-    sch.transform_layout_sugared(
+    sch.transform_layout(
         index_map=lambda *indices, k: [*indices, k // 4, k % 4], block="compute", buffer="A"
     )
     tvm.ir.assert_structural_equal(summation_3d_split, sch.mod["main"])

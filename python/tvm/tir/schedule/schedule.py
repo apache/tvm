@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """The TensorIR schedule class"""
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union, Tuple
 
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
@@ -2114,58 +2114,32 @@ class Schedule(Object):
 
     ########## Schedule: Layout transformation ##########
 
-    @type_checked
-    def transform_layout_sugared(
-        self,
-        index_map: Union[IndexMap, Callable],
-        buffer: str,
-        block: Union[BlockRV, str],
-    ) -> None:
-        """Apply a transformation represented by IndexMap to buffer
-
-        This is a wrapper around `transform_layout`, intended for ease
-        of use.
-
-        Parameters
-        ----------
-        index_map : Union[IndexMap, Callable]
-
-            The transformation to apply
-
-        buffer: Union[Buffer,str]
-
-            The buffer to be transformed.  This buffer must exist in
-            the reads or writes of the block.  If a string, the
-            reads/writes of the block must not contain more than one
-            buffer with that name.
-
-        block : Union[BlockRV,str]
-
-            The block that accesses the target buffer.  If a string,
-            should refer to a name that uniquely identifies a block
-            within the schedule.
-
-        """
-
+    def _normalize_block_arg(self, block: Union[BlockRV, str]) -> BlockRV:
         if isinstance(block, str):
-            block = self.get_block(block)
+            return self.get_block(block)
+        else:
+            return block
+
+    def _normalize_buffer_arg(
+        self, block: BlockRV, buffer: Union[Tuple[str, int], str, Buffer]
+    ) -> Tuple[str, int, Buffer]:
+
+        block_name = self.get(block).name_hint
 
         def iter_buffers():
             block_obj = self.get(block)
             for i, read in enumerate(block_obj.reads):
-                yield i, "read", read.buffer
+                yield "read", i, read.buffer
             for i, write in enumerate(block_obj.writes):
-                yield i, "write", write.buffer
-
-        possible_buffers = {}
+                yield "write", i, write.buffer
 
         if isinstance(buffer, str):
+            possible_buffers = {}
             # String lookup requires ensuring that the name is unique
             for buffer_index, buffer_index_type, buf in iter_buffers():
                 if buf.name == buffer:
-                    possible_buffers[buf] = (buffer_index, buffer_index_type)
+                    possible_buffers[buf] = (buffer_index_type, buffer_index)
 
-            block_name = self.get(block).name_hint
             assert possible_buffers, f"Could not find buffer '{buffer}' in block '{block_name}'"
             assert (
                 len(possible_buffers) == 1
@@ -2180,45 +2154,71 @@ class Schedule(Object):
                     found = True
                     break
 
-            block_name = self.get(block).name_hint
             assert found, "Could not find buffer '{buffer.name}' in block '{block_name}'"
 
-        else:
-            raise TypeError(
-                f"Argument 'buffer' should be str or tir.Buffer, "
-                f"but found {type(buffer)} instead."
+        elif isinstance(buffer, tuple):
+            buffer_index_type, buffer_index = buffer
+            assert buffer_index_type in ["read", "write",], (
+                f"Invalid buffer_index_type.  "
+                f"Expected 'read' or 'write', "
+                f"but received {buffer_index_type}"
             )
+            buffer_list = (
+                self.get(block).reads if buffer_index_type == "read" else self.get(block).writes
+            )
+            assert 0 <= buffer_index < len(buffer_list), (
+                f"Invalid buffer_index {buffer_index}.  "
+                f"Block {block_name} has only "
+                f"{len(buffer_list)} {buffer_index_type} buffers."
+            )
+            buffer_obj = buffer_list[buffer_index].buffer
 
-        ndim = len(buffer_obj.shape)
-
-        if callable(index_map):
-            index_map, axis_separators = IndexMap.from_func_with_separators(index_map, ndim=ndim)
         else:
-            axis_separators = []
+            raise TypeError(f"Invalid type for argument 'buffer': {type(buffer)}")
 
-        self.transform_layout(block, buffer_index, buffer_index_type, index_map)
-        if axis_separators:
-            self.set_axis_separator(block, buffer_index, buffer_index_type, axis_separators)
+        return (buffer_index_type, buffer_index, buffer_obj)
 
-    @type_checked
+    # @type_checked
     def transform_layout(
         self,
-        block: BlockRV,
-        buffer_index: int,
-        buffer_index_type: str,
+        block: Union[BlockRV, str],
+        buffer: Union[Tuple[str, int], str, Buffer],
         index_map: Union[IndexMap, Callable],
     ) -> None:
         """Apply a transformation represented by IndexMap to buffer
+
         Parameters
         ----------
-        block : BlockRV
-            The block that accesses the target buffer
-        buffer_index: int
-            The index of the buffer in block's read or write region
-        buffer_index_type : str
-            Type of the buffer index, "read" or "write"
+        block : Union[BlockRV, str]
+
+            The block that accesses the target buffer.  If a string,
+            this must uniquely identify a block.
+
+        buffer: Union[Tuple[str,int], Buffer, str]
+
+            The buffer to be transformed, or a specification of how to
+            identify the buffer to be transformed.
+
+            If `buffer` if a tuple of ``(str,int)``, the first item
+            should be either "read" or "write", and the second item is
+            an index into the block's read or write regions.
+
+            If `buffer` is a string, it is the name of the buffer,
+            which must exist within the reads/writes of the block.  In
+            addition, the reads/writes of the block may not contain
+            more than one buffer with this name.
+
+            If `buffer` is a Buffer object, it must exist within the
+            reads/writes of the block.
+
         index_map : Union[IndexMap, Callable]
-            The transformation to apply
+
+            The transformation to apply.
+
+            If `index_map` is a callable, and the returned list
+            contains IndexMap.AXIS_SEPARATOR, the SetAxisSeparators
+            primitive will be called in addition to the
+            TransformLayout primitive.
 
         Examples
         --------
@@ -2245,7 +2245,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_storage_align)
-            sch.transform_layout(sch.get_block("B"), buffer_index=0, "write",
+            sch.transform_layout(sch.get_block("B"), buffer=("write",0),
                                  index_map=lambda m, n: (m // 16, n // 16, m % 16, n % 16))
             print(sch.mod["main"].script())
 
@@ -2268,20 +2268,29 @@ class Schedule(Object):
                         C[vi, vj] = B[vi // 16, vj // 16, vi % 16, vj % 16] + 1.0
 
         """
+        block = self._normalize_block_arg(block)
+        buffer_index_type, buffer_index, buffer_obj = self._normalize_buffer_arg(block, buffer)
+
+        ndim = len(buffer_obj.shape)
         if callable(index_map):
-            index_map = IndexMap.from_func(index_map)
-        assert buffer_index_type in ["read", "write"], "Invalid buffer_index_type"
+            index_map, axis_separators = IndexMap.from_func_with_separators(index_map, ndim=ndim)
+        else:
+            axis_separators = []
+
         buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
         _ffi_api.ScheduleTransformLayout(  # type: ignore # pylint: disable=no-member
             self, block, buffer_index, buffer_index_type_enum, index_map
         )
+        if axis_separators:
+            _ffi_api.ScheduleSetAxisSeparator(  # type: ignore # pylint: disable=no-member
+                self, block, buffer_index, buffer_index_type_enum, axis_separators
+            )
 
-    @type_checked
+    # @type_checked
     def set_axis_separator(
         self,
-        block: BlockRV,
-        buffer_index: int,
-        buffer_index_type: str,
+        block: Union[BlockRV, str],
+        buffer: Union[Tuple[str, int], str, Buffer],
         axis_separators: Optional[List[int]],
     ) -> None:
         """Set the axis separator of a buffer, where the buffer is specified by a block and a read
@@ -2289,13 +2298,30 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : BlockRV
-            The block that accesses the target buffer
-        buffer_index: int
-            The index of the buffer in block's read or write region
-        buffer_index_type : str
-            Type of the buffer index, "read" or "write"
+        block : Union[BlockRV, str]
+
+            The block that accesses the target buffer.  If a string,
+            this must uniquely identify a block.
+
+        buffer: Union[Tuple[str,int], Buffer, str]
+
+            The buffer to be transformed, or a specification of how to
+            identify the buffer to be transformed.
+
+            If `buffer` if a tuple of ``(str,int)``, the first item
+            should be either "read" or "write", and the second item is
+            an index into the block's read or write regions.
+
+            If `buffer` is a string, it is the name of the buffer,
+            which must exist within the reads/writes of the block.  In
+            addition, the reads/writes of the block may not contain
+            more than one buffer with this name.
+
+            If `buffer` is a Buffer object, it must exist within the
+            reads/writes of the block.
+
         axis_separators : Optional[List[int]]
+
             The axis separators.
 
         Examples
@@ -2349,7 +2375,10 @@ class Schedule(Object):
                         C[vi, vj] = B[vi, vj] + T.float32(1)
         """
         axis_separators = axis_separators or []
-        assert buffer_index_type in ["read", "write"], "Invalid buffer_index_type"
+
+        block = self._normalize_block_arg(block)
+        buffer_index_type, buffer_index, buffer_obj = self._normalize_buffer_arg(block, buffer)
+
         buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
         _ffi_api.ScheduleSetAxisSeparator(  # type: ignore # pylint: disable=no-member
             self, block, buffer_index, buffer_index_type_enum, axis_separators
