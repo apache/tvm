@@ -35,15 +35,16 @@ fi
 INSTALLATION_PATH=$1
 shift
 
-CMSIS_VER="5.8.0"
-
 # Create installation path directory
 mkdir -p "${INSTALLATION_PATH}"
 
 # Download and extract CMSIS
-cd "${HOME}"
-wget --quiet "https://github.com/ARM-software/CMSIS_5/archive/${CMSIS_VER}.tar.gz"
-tar -xf "${CMSIS_VER}.tar.gz" -C "${INSTALLATION_PATH}" --strip-components=1
+CMSIS_SHA="977abe9849781a2e788b02282986480ff4e25ea6"
+CMSIS_URL="http://github.com/ARM-software/CMSIS_5/archive/${CMSIS_SHA}.tar.gz"
+DOWNLOAD_PATH="/tmp/${CMSIS_SHA}.tar.gz"
 
-# Remove tar file
-rm -f "${CMSIS_VER}.tar.gz"
+wget ${CMSIS_URL} -O "${DOWNLOAD_PATH}"
+tar -xf "${DOWNLOAD_PATH}" -C "${INSTALLATION_PATH}" --strip-components=1
+touch "${INSTALLATION_PATH}"/"${CMSIS_SHA}".sha
+echo "SUCCESS"
+
