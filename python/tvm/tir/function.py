@@ -297,7 +297,8 @@ class IndexMap(Object):
         """
         index_map, axis_separators = IndexMap.from_func_with_separators(mapping_function, ndim)
         assert not axis_separators, (
-            "The mapping_function provided to IndexMap.from_func may not return IndexMap.AXIS_SEPARATOR.  "
+            "The mapping_function provided to IndexMap.from_func "
+            "may not return IndexMap.AXIS_SEPARATOR.  "
             "If required, please use IndexMap.from_func_with_separators instead."
         )
         return index_map
