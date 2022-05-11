@@ -175,6 +175,7 @@ def estimate_peak_fma_flops(
     assert random_fill, "Please make sure USE_RANDOM is ON in config.cmake"
 
     a = nd.empty((nthreads, num_vector_registers, vec_width), dtype="float32", device=dev)
+    random_fill(a)
     times = f.time_evaluator(f.entry_name, dev, repeat=100, number=1)(a)
     flops = 2 * vec_width * num_vector_registers * nthreads * iters  # fma is two flops
     flop_s = flops / times.min
