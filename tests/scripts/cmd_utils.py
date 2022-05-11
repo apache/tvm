@@ -58,4 +58,4 @@ class Sh:
         if "env" not in kwargs:
             kwargs["env"] = self.env
 
-        return subprocess.run(cmd, **kwargs)
+        subprocess.run(cmd, **kwargs)
