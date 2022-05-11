@@ -267,8 +267,8 @@ def test_estimate_peak_fma_flops(target, dev):
     flops = tvm.utils.estimate_peak_fma_flops(tvm.target.Target(target), dev)
     # Assume we can achieve 1 GFLOP/s per thread, which is 1 FLOP per cycle on a 1GHz cpu.
     assert (
-        flops > 10**9 * tvm.runtime.num_threads() and flops < 10**14
-    ), f"FLOP/s should be between 10^9 * num_threads and 10^14, but it is {flops}"
+        flops > 10**9 and flops < 10**14
+    ), f"FLOP/s should be between 10^9 and 10^14, but it is {flops}"
 
 
 def test_estimate_peak_fma_flops_rpc():
@@ -279,8 +279,8 @@ def test_estimate_peak_fma_flops_rpc():
     flops = tvm.utils.estimate_peak_fma_flops(tvm.target.Target(target), dev, remote=remote)
     # Assume we can achieve 1 GFLOP/s per thread, which is 1 FLOP per cycle on a 1GHz cpu.
     assert (
-        flops > 10**9 * tvm.runtime.num_threads() and flops < 10**14
-    ), f"FLOP/s should be between 10^9 * num_threads and 10^14, but it is {flops}"
+        flops > 10**9 and flops < 10**14
+    ), f"FLOP/s should be between 10^9 and 10^14, but it is {flops}"
 
 
 @tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
