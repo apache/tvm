@@ -740,7 +740,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     // TODO(tkonolige): add arithmetic counts from this statement to counts of inner stores.
     ana_.Bind(node->var, node->value);
     ICHECK(variable_definition_stack_.size() > 0)
-        << "Variable definition out size of a for loop is not handled by feature extraction";
+        << "Variable definition outside of a for loop is not handled by feature extraction";
     variable_definition_stack_.back().push_back(std::make_tuple(node->var, node->value));
     StmtExprVisitor::VisitStmt_(node);
   }

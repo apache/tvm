@@ -27,17 +27,24 @@ from tvm.relay.backend import Executor, Runtime
 
 from .conftest import requires_hexagon_toolchain
 
+MOBILENET_MODEL = ""
 
-@requires_hexagon_toolchain
-def test_mobilenet(hexagon_session):
-    import onnx
 
-    dtype = "float32"
+def get_mobilenet():
+    """Download and import mobilenet model with ONNX"""
+    import onnx  # pylint: disable=import-outside-toplevel
+
     model_url = "https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv2-7.onnx"
     model_path = tvm.contrib.download.download_testdata(
         model_url, "mobilenetv2-7.onnx", module="onnx"
     )
-    onnx_model = onnx.load(model_path)
+    return onnx.load(model_path)
+
+
+@requires_hexagon_toolchain
+def test_mobilenet(hexagon_session):
+    dtype = "float32"
+    onnx_model = get_mobilenet()
 
     target_hexagon = tvm.target.hexagon("v68")
     target_llvm = tvm.target.Target("llvm")
@@ -72,6 +79,52 @@ def test_mobilenet(hexagon_session):
     graph_mod.set_input(**inputs)
     graph_mod.run()
     hexagon_output = graph_mod.get_output(0).numpy()
+
+    llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
+    llvm_graph_mod.set_input(**inputs)
+    llvm_graph_mod.run()
+    expected_output = llvm_graph_mod.get_output(0).numpy()
+
+    tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
+
+
+@requires_hexagon_toolchain
+def test_mobilenet_aot(hexagon_session, aot_host_target, aot_target):
+    if hexagon_session._launcher._serial_number == "simulator":
+        pytest.skip(msg="Skip on simulator due to long runtime.")
+
+    dtype = "float32"
+    onnx_model = get_mobilenet()
+
+    data_in = np.random.rand(1, 3, 224, 224).astype(dtype=dtype)
+
+    input_name = "input"
+    shape_dict = {input_name: data_in.shape}
+    relay_mod, params = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
+    inputs = {input_name: data_in}
+
+    target_llvm = tvm.target.Target("llvm")
+    with tvm.transform.PassContext(opt_level=3):
+        hexagon_lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(aot_target, host=aot_host_target),
+            runtime=Runtime("cpp"),
+            executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
+            params=params,
+        )
+
+        llvm_lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_llvm, host=target_llvm),
+            runtime=Runtime("cpp"),
+            executor=Executor("graph", {"link-params": True}),
+            params=params,
+        )
+
+    aot_mod = hexagon_session.get_executor_from_factory(hexagon_lowered)
+    aot_mod.set_input(**inputs)
+    aot_mod.run()
+    hexagon_output = aot_mod.get_output(0).numpy()
 
     llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
     llvm_graph_mod.set_input(**inputs)

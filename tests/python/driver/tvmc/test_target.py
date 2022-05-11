@@ -35,11 +35,6 @@ def test_target_from_cli__error_target_not_found():
         _ = target_from_cli("invalidtarget")
 
 
-def test_target_from_cli__error_no_tvm_target():
-    with pytest.raises(TVMCException):
-        _ = target_from_cli("ethos-n77")
-
-
 def test_target_two_tvm_targets():
     tvm_target, extra_targets = target_from_cli(
         "opencl -device=mali, llvm -mtriple=aarch64-linux-gnu"
@@ -155,16 +150,6 @@ def test_parse_quotes_and_separators_on_options():
 
     assert len(targets_double_quote) == 1
     assert "+v1.0x,+value" == targets_double_quote[0]["opts"]["option1"]
-
-
-def test_parse_multiple_target_with_opts_ethos_n77():
-    targets = parse_target("ethos-n77 -myopt=value, llvm -device=arm_cpu --system-lib")
-
-    assert len(targets) == 2
-    assert "ethos-n77" == targets[0]["name"]
-    assert "myopt" in targets[0]["opts"]
-    assert "value" == targets[0]["opts"]["myopt"]
-    assert "llvm" == targets[1]["name"]
 
 
 def test_parse_multiple_target_with_opts_ethos_n78():

@@ -24,22 +24,19 @@
 #ifndef TVM_RUNTIME_METADATA_H_
 #define TVM_RUNTIME_METADATA_H_
 
-#include <inttypes.h>
-#ifdef __cplusplus
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/metadata_base.h>
+#include <tvm/runtime/metadata_types.h>
+#include <tvm/runtime/object.h>
+#include <tvm/support/span.h>
+
 #include <memory>
 #include <string>
 #include <vector>
-#endif
-#include <tvm/runtime/c_runtime_api.h>
-#ifdef __cplusplus
-#include <tvm/runtime/metadata_base.h>
-#include <tvm/support/span.h>
-#endif
 
 // Version number recorded in emitted artifacts for runtime checking.
 #define TVM_METADATA_VERSION 1
 
-#ifdef __cplusplus
 namespace tvm {
 namespace runtime {
 namespace metadata {
@@ -52,59 +49,6 @@ static const constexpr int64_t kMetadataVersion = TVM_METADATA_VERSION;
 }  // namespace runtime
 }  // namespace tvm
 
-extern "C" {
-#endif
-
-/*!
- * \brief Top-level metadata structure. Holds all other metadata types.
- */
-struct TVMMetadata {
-  /*! \brief Version identifier for this metadata. */
-  int64_t version;
-  /*! \brief Inputs to the AOT run_model function.
-   * The order of the elements is the same as in the arguments to run_model. That is to say,
-   * this array specifies the first `num_inputs` arguments to run_model.
-   */
-  const struct TVMTensorInfo* inputs;
-  /*! \brief Number of elements in `inputs` array. */
-  int64_t num_inputs;
-  /*! \brief Outputs of the AOT run_model function.
-   * The order of the elements is the same as in the arguments to run_model. That is to say,
-   * this array specifies the last `num_outputs` arguments to run_model.
-   */
-  const struct TVMTensorInfo* outputs;
-  /*! \brief Number of elements in `outputs` array. */
-  int64_t num_outputs;
-  /*! \brief Memory Pools needed by the AOT main function.
-   * The order of the elements is the same as in the arguments to run_model. That is to say,
-   * this array specifies the last `num_pools` arguments to run_model.
-   */
-  const struct TVMTensorInfo* pools;
-  /*! \brief Number of elements in `pools` array. */
-  int64_t num_pools;
-  /*! \brief Name of the model, as passed to tvm.relay.build. */
-  const char* mod_name;
-};
-
-/*!
- * \brief Describes one tensor argument to `run_model`.
- * NOTE: while TIR allows for other types of arguments, such as scalars, the AOT run_model
- * function does not currently accept these. Therefore it's not possible to express those
- * in this metadata. A future patch may modify this.
- */
-struct TVMTensorInfo {
-  /*! \brief Name of the tensor, as specified in the Relay program. */
-  const char* name;
-  /*! \brief Shape of the tensor. */
-  const int64_t* shape;
-  /*! \brief Rank of this tensor. */
-  int64_t num_shape;
-  /*! \brief Data type of one element of this tensor. */
-  DLDataType dtype;
-};
-#ifdef __cplusplus
-}  // extern "C"
-#include <tvm/runtime/object.h>
 namespace tvm {
 namespace runtime {
 namespace metadata {
@@ -166,6 +110,5 @@ class TensorInfo : public MetadataBase {
 }  // namespace metadata
 }  // namespace runtime
 }  // namespace tvm
-#endif  // defined(__cplusplus)
 
 #endif  // TVM_RUNTIME_METADATA_H_
