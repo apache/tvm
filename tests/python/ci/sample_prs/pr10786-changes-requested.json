@@ -106,15 +106,16 @@
       }
     ]
   },
-  "reviewDecision": "APPROVED",
+  "reviewDecision": "CHANGES_REQUESTED",
   "reviews": {
     "pageInfo": {
       "hasPreviousPage": false
     },
     "nodes": [
       {
-        "body": "",
+        "body": "@tvm-bot merge",
         "updatedAt": "2022-03-25T22:13:50Z",
+        "url": "https://github.com/apache/tvm/pull/10786#pullrequestreview-922186273",
         "authorCanPushToRepository": true,
         "commit": {
           "oid": "6f04bcf57d07f915a98fd91178f04d9e92a09fcd"
@@ -122,7 +123,7 @@
         "author": {
           "login": "kparzysz-quic"
         },
-        "state": "APPROVED"
+        "state": "CHANGES_REQUESTED"
       }
     ]
   }

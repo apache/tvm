@@ -96,7 +96,7 @@
                 },
                 {
                   "state": "SUCCESS",
-                  "context": "tvm-ci/definitely-not-pr-merge",
+                  "context": "tvm-ci/definitely-not-pr-head",
                   "targetUrl": "https://ci.tlcpack.ai/job/tvm/job/PR-10786/1/display/redirect"
                 }
               ]

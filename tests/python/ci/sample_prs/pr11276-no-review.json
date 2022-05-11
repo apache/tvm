@@ -1,9 +1,9 @@
 {
-  "title": "[Hexagon] 2-d allocation cleanup",
-  "body": "- Added device validity check in allocation. HexagonDeviceAPI should only be called for CPU/Hexagon types.\r\n\r\n- Check for \"global.vtcm\" scope instead of \"vtcm\".  The ccope of N-d allocations produced by `LowerVtcmAlloc` should be `\"global.vtcm\"`.  The previous check allowed unsupported scope such as `\"local.vtcm\"`.\r\n\r\n- Remove `vtcmallocs` entry after calling free. Previously, the vtcm allocation map kept dangling pointers to `HexagonBuffer` objects after they had been freed.\r\n\r\n- Rename N-d alloc and free packed functions.  Since most of the similar device functions use snake case, renaming `*.AllocND` to `*.alloc_nd` and `*.FreeND` to `*.free_nd`.\r\n\r\nCo-authored-by: Adam Straw <astraw@octoml.ai>",
+  "title": "[COMMUNITY] mikepapadim -> Reviewer",
+  "body": "Please join us to welcome Michalis Papadimitriou (@mikepapadim) as a new reviewer to TVM. Michalis has contributed a lot to BYOC and TensorRT backend.\r\n\r\n- [Commits History](https://github.com/apache/tvm/commits?author=mikepapadim)\r\n- [Code Review](https://github.com/apache/tvm/pulls?utf8=%E2%9C%93&q=reviewed-by:mikepapadim)\r\n- [Community Forum Summary](https://github.com/apache/tvm/commits?author=mikepapadim)",
   "state": "OPEN",
   "author": {
-    "login": "Lunderberg"
+    "login": "ZihengJiang"
   },
   "comments": {
     "pageInfo": {
@@ -18,12 +18,8 @@
           "authors": {
             "nodes": [
               {
-                "name": "Eric Lunderberg",
-                "email": "elunderberg@octoml.ai"
-              },
-              {
-                "name": "Adam Straw",
-                "email": "astraw@octoml.ai"
+                "name": "ZihengJiang",
+                "email": "ziheng@apache.org"
               }
             ]
           }
@@ -35,7 +31,7 @@
     "nodes": [
       {
         "commit": {
-          "oid": "6f04bcf57d07f915a98fd91178f04d9e92a09fcd",
+          "oid": "96075744cc687caafc131361d006c5967edddbc6",
           "statusCheckRollup": {
             "contexts": {
               "pageInfo": {
@@ -53,7 +49,7 @@
                   },
                   "status": "COMPLETED",
                   "conclusion": "SUCCESS",
-                  "url": "https://github.com/apache/tvm/runs/5694945392"
+                  "url": "https://github.com/apache/tvm/runs/6391733373"
                 },
                 {
                   "name": "cc-reviewers",
@@ -66,7 +62,20 @@
                   },
                   "status": "COMPLETED",
                   "conclusion": "SUCCESS",
-                  "url": "https://github.com/apache/tvm/runs/5694945029"
+                  "url": "https://github.com/apache/tvm/runs/6391732791"
+                },
+                {
+                  "name": "cc-reviewers",
+                  "checkSuite": {
+                    "workflowRun": {
+                      "workflow": {
+                        "name": "PR"
+                      }
+                    }
+                  },
+                  "status": "COMPLETED",
+                  "conclusion": "SUCCESS",
+                  "url": "https://github.com/apache/tvm/runs/6391754960"
                 },
                 {
                   "name": "tag-teams",
@@ -79,7 +88,20 @@
                   },
                   "status": "COMPLETED",
                   "conclusion": "SUCCESS",
-                  "url": "https://github.com/apache/tvm/runs/5694945030"
+                  "url": "https://github.com/apache/tvm/runs/6391732788"
+                },
+                {
+                  "name": "tag-teams",
+                  "checkSuite": {
+                    "workflowRun": {
+                      "workflow": {
+                        "name": "Teams"
+                      }
+                    }
+                  },
+                  "status": "COMPLETED",
+                  "conclusion": "SUCCESS",
+                  "url": "https://github.com/apache/tvm/runs/6391754947"
                 },
                 {
                   "name": "Windows",
@@ -92,12 +114,17 @@
                   },
                   "status": "COMPLETED",
                   "conclusion": "SUCCESS",
-                  "url": "https://github.com/apache/tvm/runs/5694945524"
+                  "url": "https://github.com/apache/tvm/runs/6391733127"
+                },
+                {
+                  "state": "SUCCESS",
+                  "context": "tvm-ci/branch",
+                  "targetUrl": "https://ci.tlcpack.ai/job/tvm/job/ziheng%252Fcommunity/1/display/redirect"
                 },
                 {
                   "state": "SUCCESS",
                   "context": "tvm-ci/pr-head",
-                  "targetUrl": "https://ci.tlcpack.ai/job/tvm/job/PR-10786/1/display/redirect"
+                  "targetUrl": "https://ci.tlcpack.ai/job/tvm/job/PR-11276/1/display/redirect"
                 }
               ]
             }
@@ -114,13 +141,14 @@
     "nodes": [
       {
         "body": "",
-        "updatedAt": "2022-03-25T22:13:50Z",
+        "updatedAt": "2022-05-11T16:50:16Z",
+        "url": "https://github.com/apache/tvm/pull/11276#pullrequestreview-969701502",
         "authorCanPushToRepository": true,
         "commit": {
-          "oid": "6f04bcf57d07f915a98fd91178f04d9e92a09fcd"
+          "oid": "96075744cc687caafc131361d006c5967edddbc6"
         },
         "author": {
-          "login": "kparzysz-quic"
+          "login": "tqchen"
         },
         "state": "APPROVED"
       }

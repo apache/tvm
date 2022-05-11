@@ -22,8 +22,8 @@
                 "email": "elunderberg@octoml.ai"
               },
               {
-                "name": "Adam Straw",
-                "email": "astraw@octoml.ai"
+                "name": "Some One",
+                "email": "someone@email.com"
               }
             ]
           }
@@ -113,7 +113,7 @@
     },
     "nodes": [
       {
-        "body": "",
+        "body": "@tvm-bot merge",
         "updatedAt": "2022-03-25T22:13:50Z",
         "authorCanPushToRepository": true,
         "commit": {

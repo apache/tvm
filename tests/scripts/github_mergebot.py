@@ -32,8 +32,11 @@ from cmd_utils import init_log
 Review = Dict[str, Any]
 CIJob = Dict[str, Any]
 
+EXPECTED_JOBS = ["tvm-ci/pr-head"]
+THANKS_MESSAGE = "Thanks for contributing to TVM!   Please refer to guideline https://tvm.apache.org/docs/contribute/ for useful information and tips. After the pull request is submitted, please request code reviews from [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers) by @ them in the pull request thread."
 
-def js(obj: Any) -> str:
+
+def to_json_str(obj: Any) -> str:
     return json.dumps(obj, indent=2)
 
 
@@ -114,6 +117,7 @@ PR_QUERY = """
             nodes {
               body
               updatedAt
+              url
               authorCanPushToRepository
               commit {
                 oid
@@ -192,7 +196,7 @@ class PR:
 
         walk(self.raw, checker)
 
-        logging.info(f"Verified data, running with PR {js(self.raw)}")
+        logging.info(f"Verified data, running with PR {to_json_str(self.raw)}")
 
     def __repr__(self):
         return json.dumps(self.raw, indent=2)
@@ -247,7 +251,7 @@ class PR:
                     }
                 )
 
-        logging.info(f"Found CI jobs for {self.head_commit()['oid']} {js(jobs)}")
+        logging.info(f"Found CI jobs for {self.head_commit()['oid']} {to_json_str(jobs)}")
         return jobs
 
     def reviews(self) -> List[Review]:
@@ -297,7 +301,7 @@ class PR:
         url = f"issues/{self.number}/comments"
         if self.dry_run:
             logging.info(
-                f"Dry run, would have commented on url={url} commenting with data={js(data)}"
+                f"Dry run, would have commented on url={url} commenting with data={to_json_str(data)}"
             )
             return
 
@@ -309,14 +313,10 @@ class PR:
         """
         return self.raw["state"]
 
-    def lint_commit_message(self, subject: str, body: str) -> bool:
-        # TODO: NYI (Add rules as decided in https://discuss.tvm.apache.org/t/commit-message-guideline/12334)
-        return True
-
     def processed_body(self) -> str:
         body = self.raw["body"].strip().replace("\r", "")
         body = body.replace(
-            "Thanks for contributing to TVM!   Please refer to guideline https://tvm.apache.org/docs/contribute/ for useful information and tips. After the pull request is submitted, please request code reviews from [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers) by @ them in the pull request thread.",
+            THANKS_MESSAGE,
             "",
         )
         return body
@@ -329,11 +329,18 @@ class PR:
         body = self.processed_body()
         author_lines = self.co_authors()
         logging.info(f"Found co-authors: author_lines={author_lines}")
+        full_author_lines = [f"Co-authored-by: {author_line}" for author_line in author_lines]
+
+        authors_to_add = []
         for author_line in author_lines:
             if author_line not in body:
-                # If the line isn't already in the PR body (it could have been
-                # added manually), put it in
-                body = f"{body}\n\nCo-authored-by: {author_line}"
+                authors_to_add.append(f"Co-authored-by: {author_line}")
+
+        if len(authors_to_add) > 0:
+            # If the line isn't already in the PR body (it could have been
+            # added manually), put it in
+            full_author_text = "\n".join(authors_to_add)
+            body = f"{body}\n\n{full_author_text}"
 
         return body
 
@@ -345,7 +352,6 @@ class PR:
 
         title = self.raw["title"]
         body = self.body_with_co_authors()
-        self.lint_commit_message(title, body)
         logging.info(f"Full commit:\n{title}\n\n{body}")
 
         data = {
@@ -357,7 +363,7 @@ class PR:
             "merge_method": "squash",
         }
         if self.dry_run:
-            logging.info(f"Dry run, would have merged with url={url} and data={js(data)}")
+            logging.info(f"Dry run, would have merged with url={url} and data={to_json_str(data)}")
             return
 
         self.github.put(url, data=data)
@@ -366,21 +372,19 @@ class PR:
         """
         Check if a comment was left by the PR author or by a committer
         """
-        print(comment)
-        print(self.raw)
         if comment["author"]["login"] == self.raw["author"]["login"]:
-            logging.info(f"Comment {comment} was from author and is mergable")
+            logging.info(f"Comment {comment} was from author and is mergeable")
             return True
 
         if comment.get("authorAssociation", "") == "CONTRIBUTOR":
-            logging.info(f"Comment {comment} was from committer commment and is mergable")
+            logging.info(f"Comment {comment} was from committer comment and is mergeable")
             return True
 
         if comment.get("authorCanPushToRepository", False):
-            logging.info(f"Comment {comment} was from a committer review comment and is mergable")
+            logging.info(f"Comment {comment} was from a committer review comment and is mergeable")
             return True
 
-        logging.info(f"Comment {comment} was not from author or committers and is not mergable")
+        logging.info(f"Comment {comment} was not from author or committers and is not mergeable")
         return False
 
     def merge_requested(self) -> bool:
@@ -414,15 +418,8 @@ class PR:
 
             return None
 
-        # Check regular comments
-        all_comments = []
-        for comment in self.raw["comments"]["nodes"]:
-            all_comments.append(comment)
-
-        # Check top-level review comments
-        for review in self.reviews():
-            all_comments.append(review)
-
+        # Check regular comments and top-level review comments
+        all_comments = self.raw["comments"]["nodes"] + self.reviews()
         all_comments = sorted(all_comments, key=lambda comment: comment["updatedAt"])
         actions = [parse_action(comment) for comment in all_comments]
         logging.info(f"Found these tvm-bot actions: {actions}")
@@ -433,30 +430,17 @@ class PR:
 
         return actions[-1] == "merge"
 
-    def merge_if_passed_checks(self):
+    def find_failed_ci_jobs(self) -> List[CIJob]:
         # NEUTRAL is GitHub Action's way of saying cancelled
-        failed_ci_jobs = [
+        return [
             job
             for job in self.ci_jobs()
-            if job["status"] not in {"SUCCESS", "SUCCESSFUL", "NEUTRAL", "SKIPPED"}
+            if job["status"] not in {"SUCCESS", "SUCCESSFUL", "SKIPPED"}
         ]
-        all_ci_passed = False
-        has_one_approval = False
-        if len(failed_ci_jobs) > 0:
-            failed_jobs_msg = "\n".join(
-                [f" * [{job['name']} (`{job['status']}`)]({job['url']})" for job in failed_ci_jobs]
-            )
-            self.comment(
-                f"Cannot merge, these CI jobs are not successful on {self.head_oid()}:\n{failed_jobs_msg}"
-            )
-            return
-        else:
-            all_ci_passed = True
 
+    def find_missing_expected_jobs(self) -> List[str]:
         # Map of job name: has seen in completed jobs
-        seen_expected_jobs = {
-            "tvm-ci/pr-merge": False,
-        }
+        seen_expected_jobs = {name: False for name in EXPECTED_JOBS}
         logging.info(f"Expected to see jobs: {seen_expected_jobs}")
 
         missing_expected_jobs = []
@@ -466,6 +450,24 @@ class PR:
         for name, seen in seen_expected_jobs.items():
             if not seen:
                 missing_expected_jobs.append(name)
+
+        return missing_expected_jobs
+
+    def merge_if_passed_checks(self) -> None:
+        failed_ci_jobs = self.find_failed_ci_jobs()
+        all_ci_passed = len(failed_ci_jobs) == 0
+        has_one_approval = False
+
+        if not all_ci_passed:
+            failed_jobs_msg = "\n".join(
+                [f" * [{job['name']} (`{job['status']}`)]({job['url']})" for job in failed_ci_jobs]
+            )
+            self.comment(
+                f"Cannot merge, these CI jobs are not successful on {self.head_oid()}:\n{failed_jobs_msg}"
+            )
+            return
+
+        missing_expected_jobs = self.find_missing_expected_jobs()
 
         if len(missing_expected_jobs) > 0:
             missing_jobs_msg = "\n".join([f" * `{name}`" for name in missing_expected_jobs])
@@ -482,7 +484,7 @@ class PR:
 
             if review["state"] == "APPROVED":
                 has_one_approval = True
-                logging.info(f"Found approving review: {js(review)}")
+                logging.info(f"Found approving review: {to_json_str(review)}")
 
         if has_one_approval and all_ci_passed:
             self.merge()
@@ -497,7 +499,7 @@ class PR:
 
 
 if __name__ == "__main__":
-    help = "Automatically tag people based on PR / issue labels (for local development, setting DEBUG=1 will fetch and cache a PR)"
+    help = "Check if a PR has comments trying to merge it, and do so based on reviews/CI status"
     parser = argparse.ArgumentParser(description=help)
     parser.add_argument("--remote", default="origin", help="ssh remote to parse")
     parser.add_argument("--pr", required=True, help="pr number to check")

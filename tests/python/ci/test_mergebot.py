@@ -72,6 +72,30 @@ test_data = {
         "expected": "No merge requested, exiting",
         "detail": "Merge requester is not a committer and cannot merge",
     },
+    "unauthorized-comment": {
+        "number": 11244,
+        "filename": "pr11244-unauthorized-comment.json",
+        "expected": "No merge requested, exiting",
+        "detail": "Check that a merge comment not from a CONTRIBUTOR is rejected",
+    },
+    "no-review": {
+        "number": 11267,
+        "filename": "pr11267-no-review.json",
+        "expected": "Cannot merge, did not find any approving reviews from users with write access",
+        "detail": "Check that a merge request without any reviews is rejected",
+    },
+    "changes-requested": {
+        "number": 10786,
+        "filename": "pr10786-changes-requested.json",
+        "expected": "Cannot merge, found [this review]",
+        "detail": "Check that a merge request with a 'Changes Requested' review on HEAD is rejected",
+    },
+    "co-authors": {
+        "number": 10786,
+        "filename": "pr10786-co-authors.json",
+        "expected": "Co-authored-by: Some One <someone@email.com>",
+        "detail": "Check that a merge request with co-authors generates the correct commit message",
+    },
 }
 
 
