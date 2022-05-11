@@ -127,7 +127,9 @@ class TensorRTRuntime : public JSONRuntimeBase {
           max_workspace_size_ =
               std::stoul(nodes_[i].GetAttr<std::vector<std::string>>("max_workspace_size")[0]);
         }
-        return;
+      }
+      if (nodes_[i].HasAttr("use_fp16")) {
+        use_fp16_ = std::stoi(nodes_[i].GetAttr<std::vector<std::string>>("use_fp16")[0]);
       }
     }
   }
@@ -300,8 +302,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
       }
     }
 
-    LOG(INFO) << "Finished building TensorRT engine for subgraph " << symbol_name_
-              << " with batch size " << batch_size;
+    VLOG(1) << "Finished building TensorRT engine for subgraph " << symbol_name_
+            << " with batch size " << batch_size;
     CacheEngineToDisk();
     return trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size));
   }

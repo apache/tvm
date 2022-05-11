@@ -17,11 +17,11 @@
 
 INCLUDES ?= -isystem crt/include -Icrt_config
 CFLAGS ?= -Werror -Wall
-CXXFLAGS ?= -Werror -Wall -std=c++11
+CXXFLAGS ?= -Werror -Wall -std=c++11 -DTVM_HOST_USE_GRAPH_EXECUTOR_MODULE
 LDFLAGS ?= -Werror -Wall
 
 # Codegen produces spurious lines like: int32_t arg2_code = ((int32_t*)arg_type_ids)[(2)];
-MODEL_CFLAGS ?= -Wno-error=unused-variable
+MODEL_CFLAGS ?= -Wno-error=unused-variable -Wno-error=missing-braces
 
 AR ?= ${PREFIX}ar
 CC ?= ${PREFIX}gcc
@@ -36,7 +36,13 @@ endif
 
 PWD = $(shell pwd)
 BUILD_DIR = build
-CRT_LIB_NAMES = microtvm_rpc_server microtvm_rpc_common graph_executor graph_executor_module common memory
+
+CRT_LIB_NAMES = \
+	microtvm_rpc_server microtvm_rpc_common \
+	aot_executor_module aot_executor \
+	graph_executor_module graph_executor \
+	common memory
+
 CRT_LIBS = $(patsubst %, $(BUILD_DIR)/crt/lib%.a, $(CRT_LIB_NAMES))
 
 CRT_INCLUDES = $(glob crt/include/**)

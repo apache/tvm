@@ -445,6 +445,38 @@ EthosnError EthosnAPI::Tanh(const Expr& expr, TanhParams* params) {
   return err;
 }
 
+EthosnError EthosnAPI::LeakyReLU(const Expr& expr, LeakyReLUParams* params) {
+  Call quantize = Downcast<Call>(expr);
+  Call leaky_relu = Downcast<Call>(quantize->args[0]);
+  Call dequantize = Downcast<Call>(leaky_relu->args[0]);
+
+  const auto* input_dtype = quantize->checked_type().as<TensorTypeNode>();
+  sl::TensorShape input_tensor_shape = {1, 1, 1, 1};
+  sl::DataType input_tensor_dtype;
+  EthosnError err = Tvm2Npu(input_dtype->shape, &input_tensor_shape);
+  err += Tvm2Npu(input_dtype->dtype, &input_tensor_dtype);
+  float input_sc;
+  int input_zp;
+  err += AsConstant(dequantize->args[2], &input_zp);
+  err += AsConstant(dequantize->args[1], &input_sc);
+  float output_sc;
+  int output_zp;
+  err += AsConstant(quantize->args[2], &output_zp);
+  err += AsConstant(quantize->args[1], &output_sc);
+
+  const auto* attrs = leaky_relu->attrs.as<LeakyReluAttrs>();
+  double alpha = attrs->alpha;
+  if (alpha >= 1.0f || alpha <= 0.0f) {
+    err += EthosnError(
+        ErrStrm() << "leaky relu alpha must be less than 1 and greater than 0, but was " << alpha);
+    return err;
+  }
+  params->leaky_relu_info = sl::LeakyReluInfo(alpha, sl::QuantizationInfo(output_zp, output_sc));
+  params->input_info = sl::TensorInfo(input_tensor_shape, input_tensor_dtype, sl::DataFormat::NHWC,
+                                      sl::QuantizationInfo(input_zp, input_sc));
+  return err;
+}
+
 EthosnError EthosnAPI::Concatenate(const Expr& expr, ConcatenateParams* params) {
   Call call = Downcast<Call>(expr);
   const auto& attrs = call->attrs.as<ConcatenateAttrs>();
