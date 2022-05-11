@@ -38,3 +38,6 @@ cd /tmp && wget -q https://bootstrap.pypa.io/get-pip.py && python3.6 get-pip.py
 
 # Pin pip and setuptools versions
 pip3 install pip==19.3.1 setuptools==58.4.0
+
+# Globally disable pip cache
+pip config set global.no-cache-dir false

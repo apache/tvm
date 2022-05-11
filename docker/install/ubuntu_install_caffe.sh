@@ -25,9 +25,6 @@ apt-get install -y --no-install-recommends protobuf-compiler \
     libprotobuf-dev libhdf5-serial-dev libopenblas-dev libgflags-dev libgoogle-glog-dev
 
 
-# install python packages
-pip install "numpy" "protobuf" "scikit-image" "six"
-
 # Build the Caffe and the python wrapper
 echo "Downloading Caffe"
 CAFFE_HOME="/opt/caffe"

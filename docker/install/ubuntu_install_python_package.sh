@@ -21,5 +21,7 @@ set -u
 set -o pipefail
 
 cd $(dirname $0)/python
-poetry config settings.virtualenvs.create false
+poetry config cache-dir /tmp/poetry-cache
+poetry config virtualenvs.create false
+poetry config virtualenvs.path /virtualenv/tvm
 poetry install --no-root
