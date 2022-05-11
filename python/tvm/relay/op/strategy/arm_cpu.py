@@ -66,6 +66,7 @@ def schedule_pool_arm_cpu(attrs, outs, target):
             and layout in ("NWC", "NHWC")
         ):
             return topi.arm_cpu.schedule_pool(outs, layout)
+        logger.warning("pool is not optimized for arm cpu.")
         return topi.generic.schedule_pool(outs, layout)
 
 
@@ -236,6 +237,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="depthwise_conv2d_nhwc.arm_cpu",
                 )
             else:
+                logger.warning("depthwise_conv2d with layout NHWC is not optimized for arm cpu.")
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
                     wrap_topi_schedule(conv2d_generic.schedule_depthwise_conv2d_nhwc),
@@ -472,6 +474,7 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
             name="dense_dsp",
         )
     else:
+        logger.warning("dense is not optimized for arm cpu.")
         strategy.add_implementation(
             wrap_compute_dense(
                 topi.nn.dense, need_auto_scheduler_layout=is_auto_scheduler_enabled()
@@ -508,12 +511,14 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 )
             )
     elif layout == "NCW":
+        logger.warning("conv1d with layout %s is not optimized for arm cpu.", layout)
         strategy.add_implementation(
             wrap_compute_conv1d(topi.nn.conv1d_ncw),
             wrap_topi_schedule(topi.generic.schedule_conv1d_ncw),
             name="conv1d_ncw.generic",
         )
     elif layout == "NWC":
+        logger.warning("conv1d with layout %s is not optimized for arm cpu.", layout)
         strategy.add_implementation(
             wrap_compute_conv1d(topi.nn.conv1d_nwc),
             wrap_topi_schedule(topi.generic.schedule_conv1d_nwc),
