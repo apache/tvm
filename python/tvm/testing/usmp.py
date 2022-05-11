@@ -19,9 +19,12 @@
 import tvm
 
 
-def check_for_no_tvm_backendallocworkspace_calls(mod: tvm.runtime.module):
-    """This checker checks whether any c-source produced has TVMBackendAllocWorkspace calls.
-    If USMP is invoked, none of them should have TVMBAW calls"""
+def is_tvm_backendallocworkspace_calls(mod: tvm.runtime.module) -> bool:
+    """TVMBackendAllocWorkspace call check.
+
+    This checker checks whether any c-source produced has TVMBackendAllocWorkspace calls.
+    If USMP is invoked, none of them should have TVMBAW calls
+    """
     dso_modules = mod._collect_dso_modules()
     for dso_mod in dso_modules:
         if dso_mod.type_key not in ["c", "llvm"]:
@@ -30,6 +33,7 @@ def check_for_no_tvm_backendallocworkspace_calls(mod: tvm.runtime.module):
             ), 'Current AoT codegen flow should only produce type "c" or "llvm" runtime modules'
 
         source = dso_mod.get_source()
-        assert (
-            source.count("TVMBackendAllocWorkspace") == 0
-        ), "This is failing because USMP was unable to plan for every tir.allocate node"
+        if source.count("TVMBackendAllocWorkspace") != 0:
+            return False
+
+    return True

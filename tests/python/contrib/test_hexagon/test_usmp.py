@@ -24,13 +24,15 @@ from tvm import te
 from tvm import relay
 from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.hexagon.session import Session
-from tvm.testing.usmp import check_for_no_tvm_backendallocworkspace_calls
+from tvm.testing.usmp import is_tvm_backendallocworkspace_calls
 
 from .conftest import requires_hexagon_toolchain
 
+usmp_enabled = tvm.testing.parameter(False, True)
+
 
 @requires_hexagon_toolchain
-def test_conv2d(hexagon_session: Session, aot_host_target, aot_target):
+def test_conv2d(hexagon_session: Session, aot_host_target, aot_target, usmp_enabled):
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
@@ -73,7 +75,7 @@ def test_conv2d(hexagon_session: Session, aot_host_target, aot_target):
     params = {"weight1": weight1_data, "weight2": weight2_data}
     inputs = {"data": input_data}
 
-    with tvm.transform.PassContext(opt_level=3, config={"tir.usmp.enable": True}):
+    with tvm.transform.PassContext(opt_level=3, config={"tir.usmp.enable": usmp_enabled}):
         lowered = tvm.relay.build(
             relay_mod,
             params=params,
@@ -82,7 +84,7 @@ def test_conv2d(hexagon_session: Session, aot_host_target, aot_target):
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )
 
-    check_for_no_tvm_backendallocworkspace_calls(lowered.lib)
+    assert is_tvm_backendallocworkspace_calls(lowered.lib) == usmp_enabled
 
     aot_mod = hexagon_session.get_executor_from_factory(lowered)
     aot_mod.set_input(**inputs)
