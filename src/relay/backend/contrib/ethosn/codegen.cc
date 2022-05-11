@@ -120,6 +120,10 @@ void InferTensorsVisitor::InferCall(const CallNode* cn) {
     TanhParams params;
     err += EthosnAPI::Tanh(cn->op.as<FunctionNode>()->body, &params);
     tensor_table_[cn->args[0]] = {params.input_info};
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_leaky_relu")) {
+    LeakyReLUParams params;
+    err += EthosnAPI::LeakyReLU(cn->op.as<FunctionNode>()->body, &params);
+    tensor_table_[cn->args[0]] = {params.input_info};
   } else if (IsEthosnOp(call, "qnn.concatenate")) {
     ConcatenateParams params;
     err = EthosnAPI::Concatenate(call, &params);
@@ -289,6 +293,9 @@ sl::TensorsAndId ConstructNetworkVisitor::HandleCall(const CallNode* cn) {
     return MakeOps(tensor);
   } else if (IsEthosnFunc(call, "ethos-n.qnn_tanh")) {
     if ((err = MakeTanhLayer(call, &tensor))) ReportFatalError(call, err);
+    return MakeOps(tensor);
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_leaky_relu")) {
+    if ((err = MakeLeakyReLULayer(call, &tensor))) ReportFatalError(call, err);
     return MakeOps(tensor);
   } else if (IsEthosnOp(call, "qnn.concatenate")) {
     if ((err = MakeConcatenateLayer(call, &tensor))) ReportFatalError(call, err);
@@ -486,6 +493,24 @@ EthosnError ConstructNetworkVisitor::MakeTanhLayer(const Call& call,
 
   try {
     *out = AddTanh(network_, *input);
+  } catch (const sl::NotSupportedException& e) {
+    return EthosnError(e.what());
+  }
+  return EthosnError();
+}
+
+EthosnError ConstructNetworkVisitor::MakeLeakyReLULayer(const Call& call,
+                                                        sl::TensorAndId<sl::Operand>* out) {
+  LeakyReLUParams params;
+  params.input_info = GetTensorInfo(tensor_table_, call);
+  if (auto err = EthosnAPI::LeakyReLU(call->op.as<FunctionNode>()->body, &params)) {
+    return err;
+  }
+
+  auto input = operand_table_[call->args[0]][0];
+
+  try {
+    *out = AddLeakyRelu(network_, *input, params.leaky_relu_info);
   } catch (const sl::NotSupportedException& e) {
     return EthosnError(e.what());
   }
@@ -793,7 +818,24 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.tanh")
       TanhParams params;
       auto err = EthosnAPI::Tanh(call, &params);
       err += EthosnCompiler::SupportedSetup();
-      *rv = !err && EthosnCompiler::GetSupported()->IsTanhSupported(params.input_info);
+      char reason[kReasonMaxLength];
+      reason[0] = '\0';
+      *rv = !err && EthosnCompiler::GetSupported()->IsTanhSupported(params.input_info, nullptr,
+                                                                    reason, sizeof(reason));
+      err += EthosnError(reason);
+    });
+
+TVM_REGISTER_GLOBAL("relay.ethos-n.support.leaky_relu")
+    .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
+      Call call = args[0];
+      LeakyReLUParams params;
+      auto err = EthosnAPI::LeakyReLU(call, &params);
+      err += EthosnCompiler::SupportedSetup();
+      char reason[kReasonMaxLength];
+      reason[0] = '\0';
+      *rv = !err && EthosnCompiler::GetSupported()->IsLeakyReluSupported(
+                        params.leaky_relu_info, params.input_info, nullptr, reason, sizeof(reason));
+      err += EthosnError(reason);
     });
 
 TVM_REGISTER_GLOBAL("relay.ethos-n.support.concatenate")

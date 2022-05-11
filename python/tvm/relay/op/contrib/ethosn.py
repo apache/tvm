@@ -131,6 +131,12 @@ def pattern_table():
         pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
         return pattern
 
+    def qnn_leaky_relu_pattern():
+        pattern = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+        pattern = is_op("nn.leaky_relu")(pattern)
+        pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
+        return pattern
+
     def check_conv2d(extract):
         """Check if a conv2d is supported by Ethos-N."""
         if not ethosn_available():
@@ -173,6 +179,13 @@ def pattern_table():
 
         return support.tanh(extract)
 
+    def check_leaky_relu(extract):
+        """Check if Leaky ReLU is supported."""
+        if not ethosn_available():
+            return False
+
+        return support.leaky_relu(extract)
+
     return [
         ("ethos-n.qnn_conv2d", qnn_conv_pattern(), check_conv2d),
         ("ethos-n.qnn_avg_pool2d", qnn_avg_pool2d_pattern(), check_avg_pool2d),
@@ -180,6 +193,7 @@ def pattern_table():
         ("ethos-n.qnn_fc", qnn_fc_pattern(), check_fc),
         ("ethos-n.qnn_mean", qnn_mean_pattern(), check_mean),
         ("ethos-n.qnn_tanh", qnn_tanh_pattern(), check_tanh),
+        ("ethos-n.qnn_leaky_relu", qnn_leaky_relu_pattern(), check_leaky_relu),
     ]
 
 
