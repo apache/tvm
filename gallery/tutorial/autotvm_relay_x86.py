@@ -93,6 +93,8 @@ model_url = (
 
 model_path = download_testdata(model_url, "resnet50-v2-7.onnx", module="onnx")
 onnx_model = onnx.load(model_path)
+
+# Seed numpy's RNG to get consistent results
 np.random.seed(0)
 
 ################################################################################
