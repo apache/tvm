@@ -29,10 +29,17 @@ from .conftest import requires_hexagon_toolchain
 @requires_hexagon_toolchain
 @pytest.mark.skipif(
     os.environ.get("HEXAGON_GTEST") == None,
-    reason="This test requires the HEXAGON_GTEST to be specified with a path to a Hexagon gtest version normally located at /path/to/hexagon/sdk/utils/googletest/gtest",
+    reason="Test requires environment variable HEXAGON_GTEST set with a path to a Hexagon gtest version normally located at /path/to/hexagon/sdk/utils/googletest/gtest",
 )
 def test_run_unit_tests(hexagon_session, gtest_args):
-    func = hexagon_session._rpc.get_function("hexagon.run_unit_tests")
+    try:
+        func = hexagon_session._rpc.get_function("hexagon.run_unit_tests")
+    except:
+        print(
+            "Test requires TVM Runtime to be built with a Hexagon gtest version using Hexagon API cmake flag -DUSE_HEXAGON_GTEST=${HEXAGON_GTEST}"
+        )
+        raise
+
     gtest_error_code_and_output = func(gtest_args)
     gtest_error_code = int(gtest_error_code_and_output.splitlines()[0])
     gtest_output = gtest_error_code_and_output.split("\n", 1)[-1]
