@@ -21,10 +21,11 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   this->thread_pipe_size = thread_pipe_size_words * sizeof(qurt_pipe_data_t);
   
   // Allocate all stack space for threads
-  stack_buffer = new HexagonBuffer(thread_stack_size_bytes * nthreads, MEM_ALIGNMENT, Optional<String>(""));
+  Optional<String> scope;
+  stack_buffer = new HexagonBuffer(thread_stack_size_bytes * nthreads, MEM_ALIGNMENT, scope);
   
   // Allocate space for pipe buffers (command queues)
-  pipe_buffer = new HexagonBuffer(thread_pipe_size * nthreads, MEM_ALIGNMENT, Optional<String>(""));
+  pipe_buffer = new HexagonBuffer(thread_pipe_size * nthreads, MEM_ALIGNMENT, scope);
 
   SpawnThreads();
 }
