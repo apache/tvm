@@ -402,8 +402,15 @@ def test_expand(target, dev):
     shape = (2, 1, 6)
     data = np.random.uniform(size=in_shape).astype(np.float32)
     ref_data = data * np.ones(shape, dtype=np.float32)
-    _test_expand("expand_with_dim_changed_test", data, shape, ref_data, "int32")
-    _test_expand("expand_with_dim_changed_test", data, shape, ref_data, "int64")
+    _test_expand("expand_larger_target_shape_test", data, shape, ref_data, "int32")
+    _test_expand("expand_larger_target_shape_test", data, shape, ref_data, "int64")
+
+    in_shape = (1, 1)
+    shape = (3,)
+    data = np.random.uniform(size=in_shape).astype(np.float32)
+    ref_data = data * np.ones(shape, dtype=np.float32)
+    _test_expand("expand_smaller_target_shape_test", data, shape, ref_data, "int32")
+    _test_expand("expand_smaller_target_shape_test", data, shape, ref_data, "int64")
 
 
 @tvm.testing.parametrize_targets

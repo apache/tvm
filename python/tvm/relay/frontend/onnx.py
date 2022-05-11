@@ -2590,7 +2590,7 @@ class Expand(OnnxOpConverter):
                     ],
                     axis=0,
                 )
-            elif new_dims > in_dims:
+            elif new_dims < in_dims:
                 shape = _op.concatenate(
                     [
                         _expr.const(
