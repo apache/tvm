@@ -27,13 +27,13 @@ from tvm.contrib import graph_executor
 import pytest
 
 import paddle
-from paddle.fluid import core
 
 paddle.disable_signal_handler()
 import paddle.nn as nn
 
 PADDLE_TEST_DATA_ROOT_PATH = Path(Path("~").expanduser(), ".tvm_test_data", "paddle")
 PADDLE_TEST_DATA_ROOT_PATH.mkdir(parents=True, exist_ok=True)
+cached_program = list()
 
 
 def assert_shapes_match(tru, est):
@@ -44,10 +44,14 @@ def assert_shapes_match(tru, est):
 
 def get_paddle_model(func, input_spec):
     global PADDLE_TEST_DATA_ROOT_PATH
+    global cached_program
     model_path = Path(PADDLE_TEST_DATA_ROOT_PATH, "model")
 
     paddle.jit.save(func, str(model_path), input_spec=input_spec)
     baseline_model = paddle.jit.load(str(model_path))
+    if len(cached_program) >= 4:
+        cached_program = list()
+    cached_program.append(baseline_model._get_program_holder())
 
     shutil.rmtree(str(PADDLE_TEST_DATA_ROOT_PATH))
     return baseline_model
@@ -102,7 +106,6 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
 
                 assert_shapes_match(baseline_output, compiled_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
-    core.clear_executor_cache()
 
 
 @tvm.testing.uses_gpu
