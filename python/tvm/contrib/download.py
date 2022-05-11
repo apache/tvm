@@ -24,6 +24,14 @@ import tempfile
 import time
 
 LOG = logging.getLogger("download")
+IS_IN_CI = os.getenv("CI", None) == "true"
+
+# # In CI, some of these data sources aren't reliable enough to be queried
+# # multiple times per day. This routes certain URLs to https://github.com/tlc-pack/ci-data
+# # versions instead which will supposedly have better availability.
+# CI_RESOURCES_REMAP = {
+#     # https://github.com/tlc-pack/ci-data/raw/main/files/micro_speech.tflite
+# }
 
 
 def download(url, path, overwrite=False, size_compare=False, retries=3):
@@ -71,7 +79,7 @@ def download(url, path, overwrite=False, size_compare=False, retries=3):
         LOG.info("File %s exists, skipping.", path)
         return
 
-    LOG.info("Downloading from url %s to %s", url, path)
+    print(f"[td] Downloading from url {url} to {path}")
 
     # Stateful start time
     start_time = time.time()
@@ -173,3 +181,6 @@ def download_testdata(url, relpath, module=None, overwrite=False):
     abspath = Path(TEST_DATA_ROOT_PATH, module_path, relpath)
     download(url, abspath, overwrite=overwrite, size_compare=False)
     return str(abspath)
+
+
+download_testdata("https://github.com/tlc-pack/ci-data/raw/main/files/micro_speech.tflite", "1")
