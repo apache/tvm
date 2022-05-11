@@ -378,24 +378,6 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
     assert os.path.exists(dumps_path)
 
 
-@pytest.mark.skipif(
-    not ethosn_available(),
-    reason="--target=Ethos(TM)-N78 is not available. TVM built with 'USE_ETHOSN OFF'",
-)
-def test_compile_tflite_module_with_external_codegen_ethos_n77(tflite_mobilenet_v1_1_quant):
-    pytest.importorskip("tflite")
-    tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
-    tvmc_package = tvmc.compile(tvmc_model, target="ethos-n77, llvm", dump_code="relay")
-    dumps_path = tvmc_package.package_path + ".relay"
-
-    # check for output types
-    assert type(tvmc_package) is TVMCPackage
-    assert type(tvmc_package.graph) is str
-    assert type(tvmc_package.lib_path) is str
-    assert type(tvmc_package.params) is bytearray
-    assert os.path.exists(dumps_path)
-
-
 @tvm.testing.requires_cmsisnn
 def test_compile_tflite_module_with_external_codegen_cmsisnn(
     tmpdir_factory, tflite_cnn_s_quantized
@@ -427,7 +409,7 @@ def test_compile_tflite_module_with_external_codegen_cmsisnn(
             for name in mlf_package.getnames()
             if re.match(r"\./codegen/host/src/\D+\d+\.c", name)
         ]
-        assert len(c_source_files) == 3
+        assert len(c_source_files) == 4
 
 
 @pytest.mark.skipif(
@@ -510,8 +492,8 @@ def test_compile_tflite_module_with_external_codegen_ethosu(
             # The number of c_source_files depends on the number of fused subgraphs that
             # get offloaded to the NPU, e.g. conv2d->depthwise_conv2d->conv2d gets offloaded
             # as a single subgraph if both of these operators are supported by the NPU.
-            # Currently there are two source files for CPU execution and one offload graph
-            assert len(c_source_files) == 3
+            # Currently there are three source files for CPU execution and one offload graph
+            assert len(c_source_files) == 4
 
 
 @mock.patch("tvm.relay.build")

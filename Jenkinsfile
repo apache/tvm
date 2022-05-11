@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-05T13:07:33.276898
+// Generated at 2022-05-11T07:57:43.285598
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -189,59 +189,126 @@ cancel_previous_build()
 
 def lint() {
 stage('Lint') {
-  node('CPU') {
-    timeout(time: max_time, unit: 'MINUTES') {
-      ci_lint = params.ci_lint_param ?: ci_lint
-      ci_cpu = params.ci_cpu_param ?: ci_cpu
-      ci_gpu = params.ci_gpu_param ?: ci_gpu
-      ci_wasm = params.ci_wasm_param ?: ci_wasm
-      ci_i386 = params.ci_i386_param ?: ci_i386
-      ci_qemu = params.ci_qemu_param ?: ci_qemu
-      ci_arm = params.ci_arm_param ?: ci_arm
-      ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
-
-      sh (script: """
-        echo "Docker images being used in this build:"
-        echo " ci_lint = ${ci_lint}"
-        echo " ci_cpu  = ${ci_cpu}"
-        echo " ci_gpu  = ${ci_gpu}"
-        echo " ci_wasm = ${ci_wasm}"
-        echo " ci_i386 = ${ci_i386}"
-        echo " ci_qemu = ${ci_qemu}"
-        echo " ci_arm  = ${ci_arm}"
-        echo " ci_hexagon  = ${ci_hexagon}"
-      """, label: 'Docker image names')
-
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/sanity") {
+  parallel(
+  'Lint 1 of 2': {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/lint") {
         init_git()
-        is_docs_only_build = sh (
-          returnStatus: true,
-          script: './tests/scripts/git_change_docs.sh',
-          label: 'Check for docs only changes',
-        )
-        skip_ci = should_skip_ci(env.CHANGE_ID)
-        skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
-        rebuild_docker_images = sh (
-          returnStatus: true,
-          script: './tests/scripts/git_change_docker.sh',
-          label: 'Check for any docker changes',
-        )
-        if (skip_ci) {
-          // Don't rebuild when skipping CI
-          rebuild_docker_images = false
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv([
+            'TVM_NUM_SHARDS=2',
+            'TVM_SHARD_INDEX=0'], {
+            ci_arm = params.ci_arm_param ?: ci_arm
+            ci_cpu = params.ci_cpu_param ?: ci_cpu
+            ci_gpu = params.ci_gpu_param ?: ci_gpu
+            ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
+            ci_i386 = params.ci_i386_param ?: ci_i386
+            ci_lint = params.ci_lint_param ?: ci_lint
+            ci_qemu = params.ci_qemu_param ?: ci_qemu
+            ci_wasm = params.ci_wasm_param ?: ci_wasm
+
+            sh (script: """
+              echo "Docker images being used in this build:"
+              echo " ci_arm = ${ci_arm}"
+              echo " ci_cpu = ${ci_cpu}"
+              echo " ci_gpu = ${ci_gpu}"
+              echo " ci_hexagon = ${ci_hexagon}"
+              echo " ci_i386 = ${ci_i386}"
+              echo " ci_lint = ${ci_lint}"
+              echo " ci_qemu = ${ci_qemu}"
+              echo " ci_wasm = ${ci_wasm}"
+            """, label: 'Docker image names')
+
+            is_docs_only_build = sh (
+              returnStatus: true,
+              script: './tests/scripts/git_change_docs.sh',
+              label: 'Check for docs only changes',
+            )
+            skip_ci = should_skip_ci(env.CHANGE_ID)
+            skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
+            rebuild_docker_images = sh (
+              returnStatus: true,
+              script: './tests/scripts/git_change_docker.sh',
+              label: 'Check for any docker changes',
+            )
+            if (skip_ci) {
+              // Don't rebuild when skipping CI
+              rebuild_docker_images = false
+            }
+            if (rebuild_docker_images) {
+              // Exit before linting so we can use the newly created Docker images
+              // to run the lint
+              return
+            }
+            sh (
+              script: "${docker_run} ${ci_lint} ./tests/scripts/task_lint.sh",
+              label: 'Run lint',
+            )
+          })
         }
-        if (rebuild_docker_images) {
-          // Exit before linting so we can use the newly created Docker images
-          // to run the lint
-          return
-        }
-        sh (
-          script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
-          label: 'Run lint',
-        )
       }
     }
-  }
+  },
+  'Lint 2 of 2': {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/lint") {
+        init_git()
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv([
+            'TVM_NUM_SHARDS=2',
+            'TVM_SHARD_INDEX=1'], {
+            ci_arm = params.ci_arm_param ?: ci_arm
+            ci_cpu = params.ci_cpu_param ?: ci_cpu
+            ci_gpu = params.ci_gpu_param ?: ci_gpu
+            ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
+            ci_i386 = params.ci_i386_param ?: ci_i386
+            ci_lint = params.ci_lint_param ?: ci_lint
+            ci_qemu = params.ci_qemu_param ?: ci_qemu
+            ci_wasm = params.ci_wasm_param ?: ci_wasm
+
+            sh (script: """
+              echo "Docker images being used in this build:"
+              echo " ci_arm = ${ci_arm}"
+              echo " ci_cpu = ${ci_cpu}"
+              echo " ci_gpu = ${ci_gpu}"
+              echo " ci_hexagon = ${ci_hexagon}"
+              echo " ci_i386 = ${ci_i386}"
+              echo " ci_lint = ${ci_lint}"
+              echo " ci_qemu = ${ci_qemu}"
+              echo " ci_wasm = ${ci_wasm}"
+            """, label: 'Docker image names')
+
+            is_docs_only_build = sh (
+              returnStatus: true,
+              script: './tests/scripts/git_change_docs.sh',
+              label: 'Check for docs only changes',
+            )
+            skip_ci = should_skip_ci(env.CHANGE_ID)
+            skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
+            rebuild_docker_images = sh (
+              returnStatus: true,
+              script: './tests/scripts/git_change_docker.sh',
+              label: 'Check for any docker changes',
+            )
+            if (skip_ci) {
+              // Don't rebuild when skipping CI
+              rebuild_docker_images = false
+            }
+            if (rebuild_docker_images) {
+              // Exit before linting so we can use the newly created Docker images
+              // to run the lint
+              return
+            }
+            sh (
+              script: "${docker_run} ${ci_lint} ./tests/scripts/task_lint.sh",
+              label: 'Run lint',
+            )
+          })
+        }
+      }
+    }
+  },
+  )
 }
 }
 
@@ -499,7 +566,7 @@ stage('Build') {
   }
   parallel 'BUILD: GPU': {
     if (!skip_ci) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-gpu") {
           init_git()
           sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
@@ -516,7 +583,7 @@ stage('Build') {
   },
   'BUILD: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cpu") {
           init_git()
           sh (
@@ -539,7 +606,7 @@ stage('Build') {
   },
   'BUILD: WASM': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-wasm") {
           init_git()
           sh (
@@ -563,7 +630,7 @@ stage('Build') {
   },
   'BUILD: i386': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-i386") {
           init_git()
           sh (
@@ -597,7 +664,7 @@ stage('Build') {
   },
   'BUILD: QEMU': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-qemu") {
           init_git()
           sh (
@@ -660,10 +727,6 @@ stage('Test') {
                 ci_setup(ci_gpu)
                 cpp_unittest(ci_gpu)
                 sh (
-                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
-                  label: 'Run Java unit tests',
-                )
-                sh (
                   script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
                   label: 'Run Python GPU unit tests',
                 )
@@ -693,12 +756,8 @@ stage('Test') {
                 'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=1'], {
-                unpack_lib('gpu2', tvm_multilib)
-                cpp_unittest(ci_gpu)
-
                 unpack_lib('gpu', tvm_multilib)
                 ci_setup(ci_gpu)
-                cpp_unittest(ci_gpu)
                 sh (
                   script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
                   label: 'Run Java unit tests',
@@ -806,7 +865,7 @@ stage('Test') {
       Utils.markStageSkippedForConditional('unittest: CPU')
     }
   },
-  'python: i386 1 of 2': {
+  'python: i386 1 of 3': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
@@ -815,7 +874,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=i386',
-                'TVM_NUM_SHARDS=2',
+                'TVM_NUM_SHARDS=3',
                 'TVM_SHARD_INDEX=0'], {
                 unpack_lib('i386', tvm_multilib)
                 ci_setup(ci_i386)
@@ -834,10 +893,10 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('python: i386 1 of 2')
+      Utils.markStageSkippedForConditional('python: i386 1 of 3')
     }
   },
-  'python: i386 2 of 2': {
+  'python: i386 2 of 3': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
@@ -846,11 +905,10 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=i386',
-                'TVM_NUM_SHARDS=2',
+                'TVM_NUM_SHARDS=3',
                 'TVM_SHARD_INDEX=1'], {
                 unpack_lib('i386', tvm_multilib)
                 ci_setup(ci_i386)
-                cpp_unittest(ci_i386)
                 python_unittest(ci_i386)
                 sh (
                   script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
@@ -865,7 +923,37 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('python: i386 2 of 2')
+      Utils.markStageSkippedForConditional('python: i386 2 of 3')
+    }
+  },
+  'python: i386 3 of 3': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=i386',
+                'TVM_NUM_SHARDS=3',
+                'TVM_SHARD_INDEX=2'], {
+                unpack_lib('i386', tvm_multilib)
+                ci_setup(ci_i386)
+                python_unittest(ci_i386)
+                sh (
+                  script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
+                  label: 'Run i386 integration tests',
+                )
+                fsim_test(ci_i386)
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('python: i386 3 of 3')
     }
   },
   'test: Hexagon 1 of 4': {
@@ -881,7 +969,7 @@ stage('Test') {
                 'TVM_SHARD_INDEX=0'], {
                 unpack_lib('hexagon', tvm_lib)
                 ci_setup(ci_hexagon)
-                  cpp_unittest(ci_hexagon)
+                cpp_unittest(ci_hexagon)
                 sh (
                   script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
                   label: 'Build Hexagon API',
