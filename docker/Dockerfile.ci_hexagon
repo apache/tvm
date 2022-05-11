@@ -63,6 +63,7 @@ ENV CLANG_LLVM_HOME /opt/clang-llvm
 ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/opt/clang-llvm/lib
 ENV PATH /opt/clang-llvm/bin:$PATH
 ENV HEXAGON_TOOLCHAIN "${HEXAGON_SDK_PATH}/tools/HEXAGON_Tools/8.5.08/Tools"
+ENV HEXAGON_GTEST "${HEXAGON_SDK_PATH}/utils/googletest/gtest"
 
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
