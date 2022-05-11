@@ -2116,9 +2116,9 @@ class Schedule(Object):
 
     def _normalize_block_arg(self, block: Union[BlockRV, str]) -> BlockRV:
         if isinstance(block, str):
-            return self.get_block(block)
-        else:
-            return block
+            block = self.get_block(block)
+
+        return block
 
     def _normalize_buffer_arg(
         self, block: BlockRV, buffer: Union[Tuple[str, int], str, Buffer]
@@ -2377,7 +2377,7 @@ class Schedule(Object):
         axis_separators = axis_separators or []
 
         block = self._normalize_block_arg(block)
-        buffer_index_type, buffer_index, buffer_obj = self._normalize_buffer_arg(block, buffer)
+        buffer_index_type, buffer_index, _ = self._normalize_buffer_arg(block, buffer)
 
         buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
         _ffi_api.ScheduleSetAxisSeparator(  # type: ignore # pylint: disable=no-member
