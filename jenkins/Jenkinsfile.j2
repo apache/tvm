@@ -626,23 +626,30 @@ stage('Test') {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
   }
   parallel(
-  {% call(shard_index) m.sharded_test_step(
+  {% call(shard_index, num_shards) m.sharded_test_step(
     name="unittest: GPU",
     num_shards=2,
     node="GPU",
     ws="tvm/ut-python-gpu",
     platform="gpu",
   ) %}
+    {% if shard_index == 1 %}
     unpack_lib('gpu2', tvm_multilib)
     cpp_unittest(ci_gpu)
 
     unpack_lib('gpu', tvm_multilib)
     ci_setup(ci_gpu)
     cpp_unittest(ci_gpu)
+    {% else %}
+    unpack_lib('gpu', tvm_multilib)
+    ci_setup(ci_gpu)
+    {% endif %}
+    {% if shard_index == 2 or num_shards < 2 %}
     sh (
       script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
       label: 'Run Java unit tests',
     )
+    {% endif %}
     sh (
       script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
       label: 'Run Python GPU unit tests',
@@ -652,7 +659,7 @@ stage('Test') {
       label: 'Run Python GPU integration tests',
     )
   {% endcall %}
-  {% call(shard_index) m.sharded_test_step(
+  {% call(shard_index, num_shards) m.sharded_test_step(
     name="integration: CPU",
     node="CPU",
       num_shards=2,
@@ -681,16 +688,18 @@ stage('Test') {
       label: 'Run VTA tests in TSIM',
     )
   {% endcall %}
-  {% call(shard_index) m.sharded_test_step(
+  {% call(shard_index, num_shards) m.sharded_test_step(
     name="python: i386",
     node="CPU",
-      num_shards=2,
+      num_shards=3,
       ws="tvm/integration-python-i386",
       platform="i386",
     ) %}
     unpack_lib('i386', tvm_multilib)
     ci_setup(ci_i386)
+    {% if shard_index == 1 %}
     cpp_unittest(ci_i386)
+    {% endif %}
     python_unittest(ci_i386)
     sh (
       script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
@@ -698,7 +707,7 @@ stage('Test') {
     )
     fsim_test(ci_i386)
   {% endcall %}
-  {% call(shard_index) m.sharded_test_step(
+  {% call(shard_index, num_shards) m.sharded_test_step(
     name="test: Hexagon",
     node="CPU", ws="tvm/test-hexagon",
     platform="hexagon",
@@ -707,7 +716,7 @@ stage('Test') {
     unpack_lib('hexagon', tvm_lib)
     ci_setup(ci_hexagon)
     {% if shard_index == 1 %}
-      cpp_unittest(ci_hexagon)
+    cpp_unittest(ci_hexagon)
     {% endif %}
     sh (
       script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
@@ -754,7 +763,7 @@ stage('Test') {
       label: 'Run TOPI tests',
     )
   {% endcall %}
-  {% call(shard_index) m.sharded_test_step(
+  {% call(shard_index, num_shards) m.sharded_test_step(
     name="integration: aarch64",
     num_shards=2,
     node="ARM", ws="tvm/ut-python-arm",
@@ -768,7 +777,7 @@ stage('Test') {
       label: 'Run CPU integration tests',
     )
   {% endcall %}
-  {% call(shard_index) m.sharded_test_step(
+  {% call(shard_index, num_shards) m.sharded_test_step(
     name="topi: GPU",
     node="GPU",
     num_shards=2,
@@ -782,7 +791,7 @@ stage('Test') {
       label: 'Run TOPI tests',
     )
   {% endcall %}
-  {% call(shard_index) m.sharded_test_step(
+  {% call(shard_index, num_shards) m.sharded_test_step(
     name="frontend: GPU", node="GPU",
     num_shards=3,
     ws="tvm/frontend-python-gpu",

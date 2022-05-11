@@ -32,7 +32,7 @@
                 'PLATFORM={{ platform }}',
                 'TVM_NUM_SHARDS={{ num_shards }}',
                 'TVM_SHARD_INDEX={{ shard_index - 1 }}'], {
-                {{ caller(shard_index) | trim | indent(width=12) }}
+                {{ caller(shard_index, num_shards) | trim | indent(width=12) }}
               })
             }
           } finally {
