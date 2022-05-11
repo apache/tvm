@@ -285,7 +285,8 @@ def pick_best(in_file, out_file):
     if os.path.isfile(out_file):
         out_context = load_from_file(out_file)
         context = itertools.chain(context, out_context)
-    context, context_clone = itertools.tee(context)
+    context = list(context)
+    
     best_context = ApplyHistoryBest(context)
     best_set = set()
 
@@ -298,7 +299,7 @@ def pick_best(in_file, out_file):
     logger.info("Extract %d best records from the %s", len(best_set), in_file)
     fout = open(out_file, "w") if isinstance(out_file, str) else out_file
 
-    for inp, res in context_clone:
+    for inp, res in context:
         if measure_str_key(inp) in best_set:
             fout.write(encode(inp, res) + "\n")
             best_set.remove(measure_str_key(inp))
