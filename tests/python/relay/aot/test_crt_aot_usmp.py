@@ -54,9 +54,9 @@ def check_for_no_tvm_backendallocworkspace_calls(mod: tvm.runtime.module):
             dso_mod.type_key == "c"
         ), 'Current CRT AoT codegen flow should only produce type "c" runtime modules'
         source = dso_mod.get_source()
-        source.count(
-            "TVMBackendAllocWorkspace"
-        ) == 0, "This is failing because USMP was unable to plan for every tir.allocate node"
+        assert (
+            source.count("TVMBackendAllocWorkspace") == 0
+        ), "This is failing because USMP was unable to plan for every tir.allocate node"
 
 
 @pytest.mark.parametrize(
