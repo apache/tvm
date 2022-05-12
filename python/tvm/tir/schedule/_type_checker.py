@@ -142,12 +142,12 @@ def _val2type(value: Any):
     if isinstance(value, list):
         types = set(_val2type(x) for x in value)
         if len(types) == 1:
-            return List[types.pop()]
+            return List[types.pop()]  # type: ignore
 
         return List[Any]
 
     if isinstance(value, tuple):
-        types = tuple(_val2type(x) for x in value)
+        types = tuple(_val2type(x) for x in value)  # type: ignore
         return Tuple[types]
 
     return type(value)
