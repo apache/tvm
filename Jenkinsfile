@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-12T16:16:50.543658
+// Generated at 2022-05-12T16:23:43.245024
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -329,8 +329,8 @@ def build_base_image(arch_name) {
     script: 'git log -1 --format=\'%h\''
   ).trim()
   sh(
-    script: 'docker/build-base-images.sh ${arch_name}',
-    label: 'Build base image for ${arch_name}'
+    script: "docker/build-base-images.sh ${arch_name}",
+    label: "Build base image for ${arch_name}"
   )
   archiveArtifacts artifacts: 'docker/build/base_${arch_name}/**', fingerprint: true
   def files = findFiles(glob: 'docker/build/base_${arch_name}/**')
