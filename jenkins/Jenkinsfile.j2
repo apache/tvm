@@ -240,12 +240,27 @@ stage('Lint') {
 // a method (so the code can't all be inlined)
 lint()
 
-def build_image(image_name) {
+def build_base_image(arch_name) {
+  hash = sh(
+    returnStdout: true,
+    script: 'git log -1 --format=\'%h\''
+  ).trim()
+  sh(
+    script: 'docker/build-base-images.sh ${arch_name}',
+    label: 'Build base image for ${arch_name}'
+  }
+  archiveArtifacts artifacts: 'docker/build/base_${arch_name}/**', fingerprint: true
+  def files = findFiles(glob: 'docker/build/base_${arch_name}/**')
+  pack_lib('${arch_name}-lockfiles', files.join(', '))
+}
+
+def build_image(arch_name, image_name) {
   hash = sh(
     returnStdout: true,
     script: 'git log -1 --format=\'%h\''
   ).trim()
   def full_name = "${image_name}:${env.BRANCH_NAME}-${hash}-${env.BUILD_NUMBER}"
+  unpack_lib('${arch_name}-lockfiles')
   sh(
     script: "${docker_build} ${image_name} --spec ${full_name}",
     label: 'Build docker image'
