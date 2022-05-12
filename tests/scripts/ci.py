@@ -189,10 +189,14 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
 
     docker_bash = REPO_ROOT / "docker" / "bash.sh"
 
-    command = [docker_bash, "--name", name]
+    command = [docker_bash]
+    if sys.stdout.isatty():
+        command.append("-t")
+
+    command.append("--name")
+    command.append(name)
     if interactive:
         command.append("-i")
-        command.append("-t")
         scripts = ["interact() {", "  bash", "}", "trap interact 0", ""] + scripts
 
     for key, value in env.items():
@@ -287,7 +291,6 @@ def docs(
     scripts = extra_setup + [
         config + f" {build_dir}",
         f"./tests/scripts/task_build.py --build-dir {build_dir}",
-        "python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0",
     ]
 
     if skip_build:
@@ -366,6 +369,7 @@ def generate_command(
         skip_build: bool = False,
         interactive: bool = False,
         docker_image: Optional[str] = None,
+        verbose: bool = False,
         **kwargs,
     ) -> None:
         """
@@ -374,6 +378,7 @@ def generate_command(
         skip_build -- skip build and setup scripts
         interactive -- start a shell after running build / test scripts
         docker-image -- manually specify the docker image to use
+        verbose -- run verbose build
         """
         if precheck is not None:
             precheck()
@@ -384,9 +389,6 @@ def generate_command(
             scripts = [
                 f"./tests/scripts/task_config_build_{name}.sh {get_build_dir(name)}",
                 f"./tests/scripts/task_build.py --build-dir {get_build_dir(name)}",
-                # This can be removed once https://github.com/apache/tvm/pull/10257
-                # is merged and added to the Docker images
-                "python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0",
             ]
 
         # Check that a test suite was not used alongside specific test names
@@ -411,6 +413,7 @@ def generate_command(
                 # determine which build directory to use (i.e. if there are
                 # multiple copies of libtvm.so laying around)
                 "TVM_LIBRARY_PATH": str(REPO_ROOT / get_build_dir(name)),
+                "VERBOSE": "true" if verbose else "false",
             },
             interactive=interactive,
         )
