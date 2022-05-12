@@ -40,6 +40,7 @@ namespace ethosu {
 struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode> {
   String accelerator_config;
   bool enable_cascader;
+  bool enable_striping;
 
   TVM_DECLARE_ATTRS(EthosUCompilerConfigNode, "ext.attrs.EthosUCompilerConfigNode") {
     TVM_ATTR_FIELD(accelerator_config)
@@ -49,6 +50,9 @@ struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode
         .set_default("ethos-u55-256");
     TVM_ATTR_FIELD(enable_cascader)
         .describe("Whether the cascader should be enabled")
+        .set_default(false);
+    TVM_ATTR_FIELD(enable_striping)
+        .describe("Whether the cascader should be striping")
         .set_default(false);
   }
 };

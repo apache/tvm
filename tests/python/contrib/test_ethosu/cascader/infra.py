@@ -32,6 +32,7 @@ def make_options(
     stripe_factors: int = 1,
     max_plan_size: int = 1,
     always_copy_size: int = 1024,
+    enable_striping: bool = True,
 ):
     return cs.CascaderOptions(
         cascade_region=cascade_region,
@@ -39,6 +40,7 @@ def make_options(
         stripe_factors=stripe_factors,
         max_plan_size=max_plan_size,
         always_copy_size=always_copy_size,
+        enable_striping=enable_striping,
     )
 
 

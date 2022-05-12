@@ -594,7 +594,7 @@ class EthosuDeviceConfig:
             if output_layout == "NHCWB16" and input_layout == "NHWC":
                 transform[3][-1] = depth
             elif output_layout == "NHCWB16" and input_layout == "NHCWB16":
-                transform[2][-1] = depth // 16
+                transform[2][-1] = 1 + ((depth - 1) // 16)
 
         return Propagator(transform, ifm_propagator.offset)
 

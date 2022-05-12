@@ -47,7 +47,33 @@ def test_generate_output_stripe_configs():
     tensor_1.add_consumer(part_1)
     tensor_2.add_producer(part_1)
 
-    assert len(_generate_output_stripe_configs(part_1, stripe_factors)) == expected_configs
+    assert (
+        len(_generate_output_stripe_configs(part_1, stripe_factors, enable_striping=True))
+        == expected_configs
+    )
+
+
+@pytest.mark.parametrize("stripe_factors", [3, 4, 8, 16, 10])
+def test_generate_output_stripe_configs_disable_striping(stripe_factors):
+    subgraph = cs.TESubgraph([], None)
+    part_1 = cs.InlinePart(
+        subgraph,
+        [
+            cs.Propagator(
+                [[2, 0, 0], [0, 2, 0], [0, 0, 1]],
+                [0, 0],
+            ),
+        ],
+    )
+    tensor_1 = cs.Tensor([800, 800], "uint8")
+    tensor_2 = cs.Tensor([400, 400], "uint8")
+
+    part_1.set_input(0, tensor_1)
+    part_1.set_output(tensor_2)
+    tensor_1.add_consumer(part_1)
+    tensor_2.add_producer(part_1)
+
+    assert len(_generate_output_stripe_configs(part_1, stripe_factors, enable_striping=False)) == 1
 
 
 def test_generate_single_plans(SRAM, DRAM):
@@ -74,7 +100,9 @@ def test_generate_single_plans(SRAM, DRAM):
         tensor_2: [SRAM],
     }
     options = make_options(cascade_region=SRAM, stripe_factors=1)
-    output_stripe_configs = _generate_output_stripe_configs(part_1, options.stripe_factors)
+    output_stripe_configs = _generate_output_stripe_configs(
+        part_1, options.stripe_factors, enable_striping=True
+    )
     plans = _generate_single_plans(part_1, output_stripe_configs, home_map, options)
     for plan in plans:
         assert plan.interior_region == SRAM

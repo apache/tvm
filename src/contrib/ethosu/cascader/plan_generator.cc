@@ -105,7 +105,8 @@ std::vector<bool> GetCascadableAxes(const Part& part) {
   return cascadable_axes;
 }
 
-std::vector<StripeConfig> GenerateOutputStripeConfigs(const Part& part, int stripe_factors) {
+std::vector<StripeConfig> GenerateOutputStripeConfigs(const Part& part, int stripe_factors,
+                                                      bool enable_striping) {
   // If stripe_factors is <= 0, then we won't produce any StripeConfigs
   if (stripe_factors <= 0) {
     return std::vector<StripeConfig>();
@@ -134,7 +135,7 @@ std::vector<StripeConfig> GenerateOutputStripeConfigs(const Part& part, int stri
     auto axis = output_shape[i];
     auto axis_align = part->GetStripeAlignHint()[i];
     std::set<int> axis_splits;  // Note this is a set to remove duplicate splits
-    if (!cascadable_axes[i]) {
+    if (!cascadable_axes[i] || (!enable_striping)) {
       axis_splits.insert(axis);
     } else {
       for (float factor : factors) {
@@ -436,7 +437,7 @@ std::unordered_map<std::vector<Part>, std::vector<Plan>> GenerateGraphPlans(
     // output of a Plan. The number generated is a function of stripe_factors and the number of
     // cascadable dimensions in the Part.
     std::vector<StripeConfig> stripe_configs =
-        GenerateOutputStripeConfigs(part, options->stripe_factors);
+        GenerateOutputStripeConfigs(part, options->stripe_factors, options->enable_striping);
     // Check to see if the output Tensor is part of any existing open Plans
     if (stripe_configs_by_tensor.find(part->GetOutputTensor()) != stripe_configs_by_tensor.end()) {
       // If there are other open Plans which have this Part's output Tensor as an input, then
@@ -514,11 +515,12 @@ std::unordered_map<std::vector<Part>, std::vector<Plan>> GenerateGraphPlans(
 }
 
 TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.GenerateOutputStripeConfigs")
-    .set_body_typed([](Part part, int stripe_factors) {
+    .set_body_typed([](Part part, int stripe_factors, bool enable_striping) {
       if (stripe_factors < 0) {
         return Array<StripeConfig>();
       }
-      return Array<StripeConfig>(GenerateOutputStripeConfigs(part, stripe_factors));
+      return Array<StripeConfig>(
+          GenerateOutputStripeConfigs(part, stripe_factors, enable_striping));
     });
 
 TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.GenerateSinglePlans")
