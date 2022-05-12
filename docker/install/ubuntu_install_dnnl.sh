@@ -21,47 +21,28 @@ set -u
 set -o pipefail
 
 pre_dir=`pwd`
+tmpdir=$(mktemp -d)
 
-build_dir="/usr/local/"
-install_dir="/usr/local/"
-pinned_tag="v2.6" # unset or set to "" to build latest release
+rls_tag="v2.6"
 
-cd ${build_dir}
-rls_tag=$(curl -s https://github.com/oneapi-src/oneDNN/releases/latest \
-    | cut -d '"' -f 2 \
-    | grep -o '[^\/]*$')
 dnnl_ver=`echo ${rls_tag} | sed 's/v//g'`
-echo "The latest oneDNN release is version ${dnnl_ver} with tag '${rls_tag}'"
+echo "Using oneDNN release version ${dnnl_ver} with tag '${rls_tag}'"
 
-if [[ -v pinned_tag && -n ${pinned_tag} ]]; then
-    rls_tag=${pinned_tag}
-    dnnl_ver=`echo ${rls_tag} | sed 's/v//g'`
-    echo "Using pinned oneDNN release version ${dnnl_ver} with tag '${rls_tag}'"
-fi
+archive_name="${rls_tag}.tar.gz"
+archive_url="https://github.com/oneapi-src/oneDNN/archive/refs/tags/${archive_name}"
+archive_folder="${tmpdir}/oneDNN-${dnnl_ver}"
+archive_hash="4cb7b80bfe16920bc096e18e7d8caa56b9ab7a4dab2a091a230bcf562c09533392f4a4ccd4db22754a10293670efdea20382db0994dc47949005a4c77f14b64c"
 
-tar_file="${rls_tag}.tar.gz"
-src_dir="${build_dir}/oneDNN-${dnnl_ver}"
+cd "${tmpdir}"
 
-if [ -d ${src_dir} ]; then
-    echo "source files exist."
-else
-    if [ -f ${tar_file} ]; then
-        echo "${tar_file} exists, skip downloading."
-    else 
-        echo "downloading ${tar_file}."
-        tar_url="https://github.com/oneapi-src/oneDNN/archive/refs/tags/${tar_file}"
-        wget ${tar_url}
-    fi
-    echo "extracting source files."
-    tar -xzvf ${tar_file}
-fi
+curl -sL "${archive_url}" -o "${archive_name}"
+echo "$archive_hash" ${archive_name} | sha512sum -c
+tar xf "${archive_name}"
 
-cd ${src_dir}
-cmake . -DCMAKE_INSTALL_PREFIX="${install_dir}"
+cd "${archive_folder}"
+cmake . -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib
 make -j"$(nproc)"
 make install
 
-cd ${build_dir}
-rm -rfv ${tar_file} ${src_dir}
-
 cd ${pre_dir}
+rm -rf "${tmpdir}"
