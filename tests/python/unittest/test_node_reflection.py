@@ -185,11 +185,13 @@ def test_alloc_const():
     dtype = "float32"
     shape = (16,)
     buf = tvm.tir.decl_buffer(shape, dtype)
-    data = tvm.nd.array(np.random.rand(*shape).astype(dtype), device=dev)
+    np_data = np.random.rand(*shape).astype(dtype)
+    data = tvm.nd.array(np_data, device=dev)
     body = tvm.tir.Evaluate(0)
-    stmt = tvm.tir.AllocateConst(buf.data, dtype, shape, data, body)
-    stmt2 = tvm.ir.load_json(tvm.ir.save_json(stmt))
-    tvm.ir.assert_structural_equal(stmt, stmt2)
+    alloc_const = tvm.tir.AllocateConst(buf.data, dtype, shape, data, body)
+    alloc_const2 = tvm.ir.load_json(tvm.ir.save_json(alloc_const))
+    tvm.ir.assert_structural_equal(alloc_const, alloc_const2)
+    np.testing.assert_array_equal(np_data, alloc_const2.data.numpy())
 
 
 if __name__ == "__main__":
