@@ -134,7 +134,11 @@ def apply_proposal(proposal: Proposal, sch: te.Schedule) -> None:
             if isinstance(part, EthosuPart):
                 tensor_config = plan.tensor_configs[part.output_tensor]
                 stripe_config = tensor_config.stripe_configs[0]
+                buffer_mode = tensor_config.buffer_mode
                 block_config = part.get_block_config(stripe_config)
+                compute_cycles = part.get_performance_info(
+                    stripe_config, buffer_mode
+                ).compute_cycles
                 iv = part.subgraph.output_tensor.op.axis[0]
                 block_shape = block_config.output_shape
                 if len(block_shape) == 4:
@@ -146,6 +150,10 @@ def apply_proposal(proposal: Proposal, sch: te.Schedule) -> None:
                 sch[part.subgraph.output_tensor].pragma(iv, "block_config_height", height)
                 sch[part.subgraph.output_tensor].pragma(iv, "block_config_width", width)
                 sch[part.subgraph.output_tensor].pragma(iv, "block_config_depth", depth)
+
+                # Attach AttrStmt directly to npu op so it isn't removed by ReplaceOperators
+                npu_op = part.subgraph.output_tensor.op.input_tensors[0].op.input_tensors[0]
+                sch[npu_op].pragma(npu_op.op.axis[0], "compute_cycles", compute_cycles)
 
         output_tensor_config = plan.output_config
         output_tensor = output_tensor_config.tensor

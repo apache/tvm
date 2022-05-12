@@ -14,37 +14,67 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=wrong-import-position, invalid-name
+
 import pytest
+
+pytest.importorskip("ethosu.vela")
 
 import tvm.contrib.ethosu.cascader as cs
 
-from .infra import ethosu_enabled
+from . import infra
 
-if ethosu_enabled:
 
-    def test_cascade(
-        SRAM, FLASH, TwoConv2DWithSliceTE, TwoConv2DTE, MobileNetv1StartTE, MobileNetv1TE
-    ):
-        fixtures = [
-            TwoConv2DTE,
-            TwoConv2DWithSliceTE,
-            MobileNetv1StartTE,
-            MobileNetv1TE,
-        ]
-        device_config = cs.EthosuDeviceConfig("ethos-u55-256")
-        for sch, te_graph, const_dict in fixtures:
-            options = cs.CascaderOptions(
-                cascade_region=SRAM,
-                max_proposals=64,
-                stripe_factors=4,
-                max_plan_size=10,
-                max_open_plans=8,
-                max_closed_plans=32,
-                always_copy_size=1024,
-                disable_pareto_plans=False,
-                disable_pareto_proposals=False,
-            )
-            cs.cascade(sch, te_graph, const_dict, options, SRAM, FLASH, [SRAM], device_config)
+def test_cascade(SRAM, FLASH, TwoConv2DWithSliceTE, TwoConv2DTE, MobileNetv1StartTE, MobileNetv1TE):
+    fixtures = [
+        TwoConv2DTE,
+        TwoConv2DWithSliceTE,
+        MobileNetv1StartTE,
+        MobileNetv1TE,
+    ]
+    device_config = cs.EthosuDeviceConfig("ethos-u55-256")
+    for sch, te_graph, const_dict in fixtures:
+        options = infra.make_options(
+            cascade_region=SRAM,
+            max_proposals=64,
+            stripe_factors=4,
+            max_plan_size=10,
+            max_open_plans=8,
+            max_closed_plans=32,
+            always_copy_size=1024,
+            disable_pareto_plans=False,
+            disable_pareto_proposals=False,
+        )
+        cs.cascade(sch, te_graph, const_dict, options, SRAM, FLASH, [SRAM], device_config)
+
+
+def test_compute_cycles_annotation(SRAM, FLASH, TwoConv2DTE):
+    device_config = cs.EthosuDeviceConfig("ethos-u55-256")
+    options = infra.make_options(
+        cascade_region=SRAM,
+        max_proposals=64,
+        stripe_factors=4,
+        max_plan_size=10,
+        max_open_plans=8,
+        max_closed_plans=32,
+        always_copy_size=1024,
+        disable_pareto_plans=False,
+        disable_pareto_proposals=False,
+    )
+    sch, te_graph, const_dict = TwoConv2DTE
+    cs.cascade(sch, te_graph, const_dict, options, SRAM, FLASH, [SRAM], device_config)
+
+    conv_1 = sch.stages[9]
+    conv_1_iter_vars = conv_1.leaf_iter_vars[0]
+    conv_1_attrs = conv_1.iter_var_attrs[conv_1_iter_vars]
+    assert conv_1_attrs.pragma_keys[0] == "compute_cycles"
+    assert conv_1_attrs.pragma_values[0] == 1440
+
+    conv_2 = sch.stages[19]
+    conv_2_iter_vars = conv_2.leaf_iter_vars[0]
+    conv_2_attrs = conv_2.iter_var_attrs[conv_2_iter_vars]
+    assert conv_2_attrs.pragma_keys[0] == "compute_cycles"
+    assert conv_2_attrs.pragma_values[0] == 2304
 
 
 if __name__ == "__main__":
