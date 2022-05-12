@@ -22,6 +22,8 @@ from tvm.relay.op.op import register_strategy
 
 from typing import List, Tuple, Callable, Optional
 
+from . import _ffi_api
+
 
 class UMALower(object):
     def __init__(self, target_name: str) -> None:
@@ -59,6 +61,7 @@ class UMALower(object):
         tir_prim_func = tir_prim_func.with_attr(
             "global_symbol", relay_prim_func.attrs["global_symbol"]
         )
+        tir_prim_func = tir_prim_func.with_attr("target", tvm.target.Target(self.target_name))
         tir_prim_func = tir_prim_func.with_attr("relay_attrs", relay_prim_func.attrs)
         return tir_prim_func
 
@@ -90,29 +93,30 @@ class UMALower(object):
         prim_func = mod[prim_func.attrs["global_symbol"]]
         return prim_func
 
-    def relay_to_tir_func(self, ext_func: relay.Function) -> tvm.tir.PrimFunc:
+    def relay_to_tir(self, mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
         """
-        This is the hook for python-based lowering of relay function
-        that gets offloaded to the target NPU.
+        This is the hook for python-based lowering of a Relay module which lowers NPU
+        external functions to TIR.
 
         Parameters
         ----------
-        ext_func : relay.Function
-            The partitioned relay function.
+        mod : tvm.ir.IRModule
+            This is the Relay module.
 
         Returns
         -------
-        prim_func : tir.PrimFunc
-            The scheduled PrimFunc.
-
+        mod : tvm.ir.IRModule
+            The Relay module with scheduled NPU external functions.
         """
-        prim_func = self._lower_relay_to_tir(ext_func)
-        prim_func = self._lower_stir_to_nstir(prim_func)
-        return prim_func
+        mod = _ffi_api.OutlineCompilerFunctions(self.target_name)(mod)
+        for gv, func in mod.functions.items():
+            if "Compiler" in func.attrs and func.attrs["Compiler"] == self.target_name:
+                func = self._lower_relay_to_tir(func)
+                func = self._lower_stir_to_nstir(func)
+                mod.update_func(gv, func)
+        return mod
 
     def register(self) -> None:
-        tvm._ffi.register_func(
-            "relay.ext.uma.relay_to_tir_func_{}".format(self.target_name), self.relay_to_tir_func
-        )
+        tvm._ffi.register_func(f"relay.ext.uma.{self.target_name}.relay_to_tir", self.relay_to_tir)
         for op, strategy, plevel in self._operator_strategies:
             register_strategy(op, strategy, plevel)

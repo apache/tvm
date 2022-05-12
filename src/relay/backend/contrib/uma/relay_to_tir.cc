@@ -43,57 +43,126 @@ namespace contrib {
 namespace uma {
 
 /*!
- * \brief This mutator lowers each external
- * relay function to a TIR PrimFunc
+ * \brief This mutator outlines functions that are marked with a named
+ * "Compiler" attribute. Functions that do not match this condition remain
+ * unaltered.
  */
-class RelayToTIRMutator : public MixedModeMutator {
+class OutlineCompilerFunctionsMutator : public MixedModeMutator {
  public:
-  explicit RelayToTIRMutator(IRModule ir_module, String target_name)
-      : ir_module_(ir_module),
-        target_name_(target_name) {}
+  explicit OutlineCompilerFunctionsMutator(const IRModule& mod, const std::string& compiler_name)
+      : mod_(mod), compiler_name_(compiler_name) {}
 
-  IRModule operator()() {
-    GlobalVar main_global_var = ir_module_->GetGlobalVar("main");
-    Function main_func = Downcast<Function>(ir_module_->Lookup(main_global_var));
+  Expr VisitExpr_(const LetNode* op) final {
+    auto pre_visit = [this](const LetNode* op) {
+      Expr var = this->VisitExpr(op->var);
+      Expr value = this->VisitExpr(op->value);
 
-    // Copy everything across and mutate the body
-    Function mutated_main = WithFields(main_func, main_func->params, VisitExpr(main_func->body));
+      // Outlineable function no longer needs let binding
+      if (this->CanOutlineExpr(value)) {
+        this->memo_[var] = value;
+      }
+    };
+    auto post_visit = [this](const LetNode* op) {
+      // Rely on the Memoizer to cache pre-visit values
+      Expr value = this->VisitExpr(op->value);
+      Expr body = this->VisitExpr(op->body);
+      auto expr = GetRef<Expr>(op);
 
-    ir_module_->Update(main_global_var, mutated_main);
-
-    return ir_module_;
+      // Drop the let binding
+      if (this->CanOutlineExpr(value)) {
+        this->memo_[expr] = this->VisitExpr(op->body);
+      } else {
+        Var var = Downcast<Var>(this->VisitExpr(op->var));
+        if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+          this->memo_[expr] = expr;
+        } else {
+          this->memo_[expr] = Let(var, value, body);
+        }
+      }
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(op)];
   }
 
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     Call call = Downcast<Call>(post);
-    if (call->op->IsInstance<FunctionNode>()) {
+    if (CanOutlineExpr(call->op)) {
       Function func = Downcast<Function>(call->op);
-      auto codegen_name = func->GetAttr<String>(attr::kCompiler);
-      if (codegen_name.defined() && codegen_name == target_name_) {
-        auto relay_to_tir_func_pf =
-            tvm::runtime::Registry::Get("relay.ext.uma.relay_to_tir_func_" + target_name_);
-        ICHECK(relay_to_tir_func_pf);
-        tir::PrimFunc prim_func = (*relay_to_tir_func_pf)(func);
-        prim_func = WithAttr(prim_func, tvm::attr::kTarget, Target(target_name_));
-        String symbol_name = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol).value();
-        GlobalVar gv(symbol_name);
+      auto gv_name = func->GetAttr<String>("global_symbol").value_or("");
+      ICHECK_NE(gv_name, "")
+          << "Function to be outlined must have global_symbol attribute, but didn't.";
+      GlobalVar gv(gv_name);
+      if (func->checked_type_.defined()) {
         gv->checked_type_ = func->checked_type();
-        ir_module_->Update(gv, prim_func);
-        return Call(gv, call->args, call->attrs, call->type_args);
       }
+      mod_->Update(gv, func);
+      return Call(gv, call->args, call->attrs, call->type_args);
     }
     return post;
   }
 
  private:
-  IRModule ir_module_;
-  String target_name_;
+  /*!
+   * \brief Check if the expr is a function and has the same
+   * compiler name as compiler_name_.
+   *
+   * \param expr The input expr.
+   * \return True if is outlineable else False.
+   */
+  bool CanOutlineExpr(const Expr& expr) {
+    if (!expr->IsInstance<FunctionNode>()) {
+      return false;
+    }
+    Function func = Downcast<Function>(expr);
+    auto compiler = func->GetAttr<String>(attr::kCompiler);
+    if (!compiler.defined()) {
+      return false;
+    }
+    if (compiler != compiler_name_) {
+      return false;
+    }
+    return true;
+  }
+
+  /*! \brief The module that the pass will run on. */
+  IRModule mod_;
+  /*! \brief The name of the compiler to enable outlining on external functions for. */
+  std::string compiler_name_;
 };
 
+/*!
+ * \brief A pass to outline compiler specific functions.
+ */
+tvm::transform::Pass OutlineCompilerFunctions(const std::string& compiler_name) {
+  runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
+      [=](IRModule mod, transform::PassContext ctx) {
+        GlobalVar gv = mod->GetGlobalVar("main");
+        Function main_func = Downcast<Function>(mod->Lookup("main"));
+        auto new_main_body =
+            OutlineCompilerFunctionsMutator(mod, compiler_name).VisitExpr(main_func->body);
+        if (!new_main_body.same_as(main_func->body)) {
+          Function new_main_func = WithFields(main_func, main_func->params, new_main_body);
+          mod->Update(gv, new_main_func);
+        }
+        return mod;
+      };
+  return tvm::transform::CreateModulePass(
+      pass_func, 0, "relay.backend.contrib.uma.OutlineCompilerFunctions", {});
+}
+
+TVM_REGISTER_GLOBAL("relay.ext.uma.OutlineCompilerFunctions")
+    .set_body_typed(OutlineCompilerFunctions);
+
+/*!
+ * \brief This pass will lower NPU functions in a Relay module to scheduled TIR prim functions.
+ */
 tvm::transform::Pass RelayToTIR(String target_name) {
   runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
       [=](IRModule ir_module, transform::PassContext pass_context) {
-        return RelayToTIRMutator(ir_module, target_name)();
+        auto relay_to_tir_pf = tvm::runtime::Registry::Get("relay.ext.uma." + target_name + ".relay_to_tir");
+        ICHECK(relay_to_tir_pf);
+        ir_module = (*relay_to_tir_pf)(ir_module);
+        return ir_module;
       };
   return tvm::transform::CreateModulePass(pass_func, 0, "relay.contrib.uma.RelayToTIR", {});
 }

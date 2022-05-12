@@ -42,7 +42,9 @@ class UMACodegen : public codegen::CodeGenCHost {
     ICHECK(includes_pf);
     String includes = (*includes_pf)();
     decl_stream << includes;
-    CodeGenCHost::Init(output_ssa, emit_asserts, target_str_);
+    std::unordered_set<std::string> devices;
+    devices.insert(target_str_);
+    CodeGenCHost::Init(output_ssa, emit_asserts, target_str_, devices);
   }
 
   /*!
