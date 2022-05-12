@@ -549,15 +549,17 @@ def test_mod_index_simplify():
 def test_floormod_index_simplify():
     # short name for floordiv
     flm = tvm.te.floormod
-    ck = RewriteChecker()
     x, y, z = te.var("x"), te.var("y"), te.var("z")
     ck = RewriteChecker()
     x, y, nx, ny, z = te.var("x"), te.var("y"), te.var("nx"), te.var("ny"), te.var("z")
 
     ck.verify(flm(x * 10, 2), 0)
+    ck.verify(flm(x * 9600, 6400), flm(x * 3200, 6400))
     ck.verify(flm(x * 10 + y, 2), flm(y, 2))
+    ck.verify(flm(x * 360 + y, 16), flm(x * 8 + y, 16))
     ck.verify(flm(x + 10, 2), flm(x, 2))
     ck.verify(flm(x + y * 10, 2), flm(x, 2))
+    ck.verify(flm(x + y * 360, 16), flm(x + y * 8, 16))
     ck.verify(flm(x * 10 + 1 + y * 2 + 2, 2), 1)
     ck.verify(flm(x * (-10), 2), 0)
     ck.verify(flm(x * (-10) + y, 2), flm(y, 2))
