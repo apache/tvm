@@ -84,10 +84,30 @@ class PopenWorker:
 
     PopenWorker provides a low-level
     API to interact with a separate process via Popen.
+
+    Parameters
+    ----------
+    initializer: callable or None
+        A callable initializer, or None
+
+    initargs: Tuple[object]
+        A tuple of args for the initializer
+
+    maximum_uses: Optional[int]
+        The maximum number of times a process can be used before being recycled,
+        i.e. killed and restarted. If `None`, the process will be reused until
+        an operation times out.
     """
 
-    def __init__(self):
+    def __init__(self, initializer=None, initargs=(), maximum_uses=None):
         self._proc = None
+        self._initializer = initializer
+        self._initargs = initargs
+        self._maximum_uses = maximum_uses
+        self._remaining_uses = None
+
+        if self._initializer is not None and not callable(self._initializer):
+            raise TypeError("initializer must be callable for PopenWorker")
 
     def __del__(self):
         try:
@@ -112,7 +132,7 @@ class PopenWorker:
                 self._reader.close()
             except IOError:
                 pass
-            # kill all child processes recurisvely
+            # kill all child processes recursively
             try:
                 kill_child_processes(self._proc.pid)
             except TypeError:
@@ -121,7 +141,11 @@ class PopenWorker:
                 self._proc.kill()
             except OSError:
                 pass
+
+            # Join the child process to avoid zombie processes
+            self.join(timeout=1.0)
             self._proc = None
+            self._remaining_uses = None
 
     def _start(self):
         """Start a new subprocess if nothing is available"""
@@ -201,8 +225,19 @@ class PopenWorker:
         # pylint: disable=import-outside-toplevel
         import cloudpickle
 
+        if self._proc is not None and self._maximum_uses and self._remaining_uses == 0:
+            # Time to recycle the process.
+            self.kill()
+
         if self._proc is None:
             self._start()
+            # init
+            if self._initializer is not None:
+                self.send(self._initializer, self._initargs)
+                self.recv()
+
+            # N.B. The initializer doesn't count as a "use"
+            self._remaining_uses = self._maximum_uses
         kwargs = {} if not kwargs else kwargs
         data = cloudpickle.dumps((fn, args, kwargs, timeout), protocol=pickle.HIGHEST_PROTOCOL)
         try:
@@ -211,6 +246,9 @@ class PopenWorker:
             self._writer.flush()
         except IOError:
             pass
+
+        if self._remaining_uses:
+            self._remaining_uses -= 1
 
     def _child_process_error(self):
         """Raise a child process error."""
@@ -269,6 +307,18 @@ class PopenPoolExecutor:
 
     timeout : float
         Timeout value for each function submit.
+
+    initializer: callable or None
+        A callable initializer, or None
+
+    initargs: Tuple[object]
+        A tuple of args for the initializer
+
+    maximum_process_uses: Optional[int]
+        The maximum number of times each process can be used before being recycled,
+        i.e. killed and restarted. If `None`, processes will be reused until an
+        operation times out.
+
     Note
     ----
     If max_workers is NONE then the number returned by
@@ -276,7 +326,14 @@ class PopenPoolExecutor:
     behavior of multiprocessing.pool().
     """
 
-    def __init__(self, max_workers=None, timeout=None):
+    def __init__(
+        self,
+        max_workers=None,
+        timeout=None,
+        initializer=None,
+        initargs=(),
+        maximum_process_uses=None,
+    ):
         if max_workers is None:
             max_workers = os.cpu_count()
         # Use an internal thread pool to send to popen workers
@@ -284,6 +341,12 @@ class PopenPoolExecutor:
         self._timeout = timeout
         self._worker_map = {}
         self._lock = threading.Lock()
+        self._initializer = initializer
+        self._initargs = initargs
+        self._maximum_process_uses = maximum_process_uses
+
+        if self._initializer is not None and not callable(self._initializer):
+            raise TypeError("initializer must be callable for PopenPoolExecutor")
 
     def __del__(self):
         self._lock.acquire()
@@ -300,7 +363,7 @@ class PopenPoolExecutor:
         self._lock.acquire()
         tid = threading.get_ident()
         if tid not in self._worker_map:
-            proc = PopenWorker()
+            proc = PopenWorker(self._initializer, self._initargs, self._maximum_process_uses)
             self._worker_map[tid] = proc
         else:
             proc = self._worker_map[tid]

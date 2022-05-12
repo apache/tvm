@@ -480,7 +480,9 @@ class TaskScheduler:
 
     def _compute_score(self, costs):
         """compute the objective function"""
-        return self.objective_func(costs)
+        # Make sure to return float.
+        score = self.objective_func(costs)
+        return score.value if hasattr(score, "value") else score
 
     def _adjust_similarity_group(self, task_idx):
         """adjust the similarity group for the selected task"""
@@ -575,8 +577,15 @@ class PrintTableInfo(TaskSchedulerCallback):
             return
 
         _ffi_api.PrintTitle("Task Scheduler")
-        print("|  ID  | Latency (ms) | Speed (GFLOPS) | Trials |")
-        print("-------------------------------------------------")
+        print(
+            "|  ID  "
+            "|                       Task Description                        "
+            "| Latency (ms) | Speed (GFLOPS) | Trials |"
+        )
+        print(
+            "----------------------------------------------------------------"
+            "-------------------------------------------------"
+        )
 
         # content
         for i in range(len(task_scheduler.tasks)):
@@ -586,6 +595,7 @@ class PrintTableInfo(TaskSchedulerCallback):
                 if task_scheduler.best_costs[i] < 1e9
                 else "-"
             )
+            task_desc = task_scheduler.tasks[i].desc
             speed_str = (
                 "%.2f"
                 % (task_scheduler.tasks[i].compute_dag.flop_ct / task_scheduler.best_costs[i] / 1e9)
@@ -593,12 +603,18 @@ class PrintTableInfo(TaskSchedulerCallback):
                 else "-"
             )
             trials_str = "%d" % (task_scheduler.task_cts[i] * task_scheduler.num_measures_per_round)
-            print("| %4s | %12s | % 14s | %6s |" % (id_str, latency_str, speed_str, trials_str))
-        print("-------------------------------------------------")
+            print(
+                "| %4s | %61s | %12s | % 14s | %6s |"
+                % (id_str, task_desc, latency_str, speed_str, trials_str)
+            )
+        print(
+            "----------------------------------------------------------------"
+            "-------------------------------------------------"
+        )
 
         # overall info
         if all(cost < 1e9 for cost in task_scheduler.best_costs):
-            total_latency_str = "%.3f" % (task_scheduler.cur_score.value * 1e3)
+            total_latency_str = "%.3f" % (task_scheduler.cur_score * 1e3)
         else:
             total_latency_str = "-"
         print(
@@ -629,7 +645,7 @@ class LogEstimatedLatency(TaskSchedulerCallback):
 
     def post_tune(self, task_scheduler, task_id):
         if all(cost < 1e9 for cost in task_scheduler.best_costs):
-            total_latency_str = "%.3f" % (task_scheduler.cur_score.value * 1e3)
+            total_latency_str = "%.3f" % (task_scheduler.cur_score * 1e3)
         else:
             total_latency_str = "N/A"
 

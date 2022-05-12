@@ -17,6 +17,7 @@
 import tvm
 from tvm import te
 import tvm.testing
+import re
 
 target = "opencl"
 
@@ -120,6 +121,72 @@ def test_opencl_max():
     check_max(dev, 1, "float64")
 
 
+def test_opencl_erf():
+    def check_erf(dev, n, dtype):
+        A = te.placeholder((n,), name="A", dtype=dtype)
+        C = te.compute(A.shape, lambda *i: te.erf(A(*i)), name="C")
+        s = te.create_schedule(C.op)
+        s[C].bind(s[C].op.axis[0], te.thread_axis("threadIdx.x"))
+        fun = tvm.build(s, [A, C], target)
+        source_str = fun.imported_modules[0].get_source()
+        matches = re.findall("erf", source_str)
+        error_matches = re.findall("erff", source_str)
+        assert len(matches) == 1 and len(error_matches) == 0
+
+    dev = tvm.device(target, 0)
+
+    check_erf(dev, 1, "float32")
+    check_erf(dev, 1, "float64")
+
+
+@tvm.testing.requires_gpu
+@tvm.testing.requires_opencl
+def test_opencl_type_casting():
+    def check_type_casting(ctx, n, dtype):
+        block_size = 4
+        C = te.compute(
+            (n,),
+            lambda i: tvm.tir.Select(
+                tvm.tir.all(
+                    *[
+                        i // block_size == tvm.tir.const(3, "int32"),
+                        i % block_size == tvm.tir.const(3, "int32"),
+                    ]
+                ),
+                tvm.tir.const(1, dtype),
+                tvm.tir.const(0, dtype),
+            ),
+            name="C",
+        )
+        s = te.create_schedule(C.op)
+        (tx, vx) = s[C].split(s[C].op.axis[0], factor=block_size)
+        s[C].vectorize(vx)
+        thrx = te.thread_axis("threadIdx.x")
+
+        s[C].bind(tx, thrx)
+        fun = tvm.build(s, [C], target)
+
+        c = tvm.nd.empty((n,), dtype, ctx)
+        assembly = fun.imported_modules[0].get_source()
+        false_branch = "((float4)(0.000000e+00f, 0.000000e+00f, 0.000000e+00f, 0.000000e+00f))"
+        true_branch = "((float4)(1.000000e+00f, 1.000000e+00f, 1.000000e+00f, 1.000000e+00f))"
+        lcond = "(convert_uint4(((uint4)((((int)get_local_id(0)) == 3), (((int)get_local_id(0)) == 3), (((int)get_local_id(0)) == 3), (((int)get_local_id(0)) == 3)))))"
+        rcond = "(convert_uint4((((int4)((0)+(1*0), (0)+(1*1), (0)+(1*2), (0)+(1*3))) == ((int4)(3, 3, 3, 3)))))"
+        cond = "({} && {})".format(lcond, rcond)
+        select = "select({}, {}, {})".format(false_branch, true_branch, cond)
+        count = assembly.count(select)
+        assert count == 1
+
+        fun(c)
+
+    dev = tvm.device(target, 0)
+
+    check_type_casting(dev, 16, "float32")
+
+
 if __name__ == "__main__":
     test_opencl_ternary_expression()
     test_opencl_inf_nan()
+    test_opencl_max()
+    test_opencl_erf()
+    test_opencl_type_casting()

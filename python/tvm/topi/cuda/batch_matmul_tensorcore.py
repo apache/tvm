@@ -29,9 +29,14 @@ from .tensor_intrin import (
 
 
 @autotvm.register_topi_compute("batch_matmul_tensorcore.cuda")
-def batch_matmul_tensorcore(cfg, x, y, out_shape=None, out_dtype=None):
+def batch_matmul_tensorcore(
+    cfg, x, y, out_shape=None, out_dtype=None, transpose_a=False, transpose_b=True
+):
     """batch matmul tensorcore operator on cuda"""
-    # todo: deal with out_shape for broadcast, liuxin.ai
+    # TODO(jcf94): Deal with different transpose combinations
+    assert not transpose_a and transpose_b
+    # TODO(liuxin.ai): Deal with out_shape for broadcast
+    del out_shape
     return batch_matmul_tensorcore_cuda(x, y, out_dtype)
 
 
@@ -55,6 +60,8 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
 
     def _schedule(cfg, s, C):
         A, B = s[C].op.input_tensors
+        if len(B.op.input_tensors) == 1 and B.op.input_tensors[0] == A:
+            s[B].compute_inline()
         batch, m_dim, k_dim = get_const_tuple(A.shape)
         batch, n_dim, k_dim = get_const_tuple(B.shape)
         data_dtype = A.dtype
@@ -170,6 +177,8 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
         bb, bbii = s[CS].split(bb, factor=warp_row_tiles)
         oo, ooii = s[CS].split(oo, factor=warp_col_tiles)
         s[CS].reorder(bs, bb, oo, bbii, ooii, bbi, ooi)
+        s[CS].bind(bb, thread_z)
+        s[CS].bind(oo, thread_y)
 
         # Schedule for wmma computation
         s[CF].compute_at(s[CS], oo)
@@ -196,7 +205,7 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
         s[BF].reorder(bs, o, i, o_ii, i_ii)
 
         # Schedule for A's(B's) shared memory load
-        def shared_shedule(stage, strides):
+        def shared_schedule(stage, strides):
             s[stage].compute_at(s[CF], ko)
             bs, xo, yo = stage.op.axis
             s[stage].storage_align(xo, strides - 1, strides)
@@ -210,8 +219,8 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
             s[stage].bind(tx, thread_x)
             s[stage].vectorize(vi)
 
-        shared_shedule(AS, AS_align)
-        shared_shedule(BS, BS_align)
+        shared_schedule(AS, AS_align)
+        shared_schedule(BS, BS_align)
 
         shape = (wmma_m, wmma_n, wmma_k)
         AL_gemm = te.placeholder((wmma_m, wmma_k), name="AL_gemm", dtype=data_dtype)

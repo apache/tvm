@@ -73,6 +73,20 @@ inline void VisitPrimFuncs(const IRModule& mod, FLambda fvisit) {
 }
 
 /*!
+ * \brief Estimate the FLOPs of a TIR fragment.
+ * \param stmt The TIR fragment to be estimated.
+ * \return The estimated FLOPs.
+ */
+TVM_DLL double EstimateTIRFlops(const Stmt& stmt);
+
+/*!
+ * \brief Estimate the FLOPs of TIRs in an IRModule.
+ * \param mod The IRModule to be estimated.
+ * \return The estimated FLOPs.
+ */
+TVM_DLL double EstimateTIRFlops(const IRModule& mod);
+
+/*!
  * \brief Find undefined vars in the statement.
  * \param stmt The function to be checked.
  * \param defs The vars that is defined.
@@ -156,8 +170,8 @@ TVM_DLL bool VerifyMemory(const PrimFunc& func);
 TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints);
 
 /*!
- * \brief Auto detect the block read/write region according to body stmt
- *        It will detect the read/write region as an array in order of appearance in AST
+ * \brief Auto detect the block access region according to its body stmt
+ *        It will detect the access region as an array in order of appearance in AST
  * \param block The block to be detected
  * \param buffer_var_map The outside buffers which may be accessed the block.
  *                       It is a map from buffer var to the buffer.
@@ -167,8 +181,19 @@ TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constrain
  *           - second: write regions
  *           - third: opaque regions
  */
-Array<Array<BufferRegion>> GetBlockAccessRegion(const Block& block,
-                                                const Map<Var, Buffer>& buffer_var_map);
+TVM_DLL Array<Array<BufferRegion>> GetBlockAccessRegion(const Block& block,
+                                                        const Map<Var, Buffer>& buffer_var_map);
+
+/*!
+ * \brief Auto detect the block read/write region according to its body stmt. An opaque access will
+ *        be counted as both a read and a write access
+ * \param block The block to be detected
+ * \param buffer_var_map The outside buffers which may be accessed the block.
+ *                       It is a map from buffer var to the buffer
+ * \return An array only consisting of the read regions and write regions of the input block
+ */
+TVM_DLL Array<Array<BufferRegion>> GetBlockReadWriteRegion(const Block& block,
+                                                           const Map<Var, Buffer>& buffer_var_map);
 
 /*!
  * \brief Calculate the expresion complexity based on number of symbols it contains.

@@ -56,11 +56,11 @@ TEST(HashTests, HashStability) {
   EXPECT_EQ(::tvm::support::HashCombine(e, f), 2722928432);
 }
 
+TEST(StartsWithTests, Basic) {
+  EXPECT_TRUE(::tvm::support::StartsWith("abc", "abc"));
+  EXPECT_TRUE(::tvm::support::StartsWith("abcd", "abc"));
+  EXPECT_FALSE(::tvm::support::StartsWith("abc", "abcd"));
+}
+
 }  // namespace test
 }  // namespace tvm
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
-}

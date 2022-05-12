@@ -63,8 +63,9 @@ def test_tflite_same_io_qnn_params():
         y_data = y_datas[i]
         golden_output = golden_outputs[i]
 
-        intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
-        op_res = intrp.evaluate(func)(x_data, y_data)
+        op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(
+            x_data, y_data
+        )
         np.testing.assert_equal(op_res.numpy(), golden_output)
 
 
@@ -111,8 +112,9 @@ def test_tflite_different_io_qnn_params():
         y_data = y_datas[i]
         golden_output = golden_outputs[i]
 
-        intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
-        op_res = intrp.evaluate(func)(x_data, y_data)
+        op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(
+            x_data, y_data
+        )
         np.testing.assert_equal(op_res.numpy(), golden_output)
 
 
@@ -143,8 +145,9 @@ def test_saturation():
     y_data = np.array((255, 255, 128, 0)).reshape((1, 4))
     golden_output = np.array((255, 255, 129, 0)).reshape((1, 4))
 
-    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
-    op_res = intrp.evaluate(func)(x_data, y_data)
+    op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(
+        x_data, y_data
+    )
     np.testing.assert_equal(op_res.numpy(), golden_output)
 
     # Same params, different scale
@@ -169,8 +172,9 @@ def test_saturation():
     y_data = np.array((255, 255, 127, 0)).reshape((1, 4))
     golden_output = np.array((255, 129, 65, 0)).reshape((1, 4))
 
-    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
-    op_res = intrp.evaluate(func)(x_data, y_data)
+    op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(
+        x_data, y_data
+    )
     np.testing.assert_equal(op_res.numpy(), golden_output)
 
     # Same io params, different output scale
@@ -195,8 +199,9 @@ def test_saturation():
     y_data = np.array((255, 255, 127, 0)).reshape((1, 4))
     golden_output = np.array((255, 129, 65, 0)).reshape((1, 4))
 
-    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
-    op_res = intrp.evaluate(func)(x_data, y_data)
+    op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(
+        x_data, y_data
+    )
     np.testing.assert_equal(op_res.numpy(), golden_output)
 
     # All params different
@@ -221,12 +226,37 @@ def test_saturation():
     y_data = np.array((0, 128, 64, 0)).reshape((1, 4))
     golden_output = np.array((255, 255, 132, 0)).reshape((1, 4))
 
-    intrp = relay.create_executor("graph", device=tvm.cpu(0), target="llvm")
-    op_res = intrp.evaluate(func)(x_data, y_data)
+    op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(
+        x_data, y_data
+    )
     np.testing.assert_equal(op_res.numpy(), golden_output)
+
+
+def test_ignore_channel_axis():
+    data_dtype = "uint8"
+
+    x = relay.var("x", shape=(4,), dtype=data_dtype)
+    y = relay.var("y", shape=(4,), dtype=data_dtype)
+    z = relay.qnn.op.add(
+        lhs=x,
+        rhs=y,
+        lhs_scale=relay.const(0.00784314, "float32"),
+        lhs_zero_point=relay.const(127, "int32"),
+        rhs_scale=relay.const(0.00784314, "float32"),
+        rhs_zero_point=relay.const(127, "int32"),
+        output_scale=relay.const(0.00784314, "float32"),
+        output_zero_point=relay.const(127, "int32"),
+        lhs_axis=1,
+        rhs_axis=1,
+    )
+
+    func = relay.Function([x, y], z)
+    mod = tvm.IRModule.from_expr(func)
+    mod = relay.transform.InferType()(mod)
 
 
 if __name__ == "__main__":
     test_tflite_same_io_qnn_params()
     test_tflite_different_io_qnn_params()
     test_saturation()
+    test_ignore_channel_axis()

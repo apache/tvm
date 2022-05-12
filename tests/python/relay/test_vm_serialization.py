@@ -54,8 +54,7 @@ def get_serialized_output(mod, *data, params=None, target="llvm", device=tvm.cpu
 
 def run_network(mod, params, dtype="float32"):
     def get_vm_output(mod, data, params, target, device, dtype="float32"):
-        ex = relay.create_executor("vm", mod=mod, device=device)
-        result = ex.evaluate()(data, **params)
+        result = relay.create_executor("vm", mod=mod, device=device).evaluate()(data, **params)
         return result.numpy().astype(dtype)
 
     data_shape = [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
@@ -104,9 +103,9 @@ def test_serializer():
     assert "main" in glbs
 
     prim_ops = exe.primitive_ops
-    assert any(item.startswith("fused_add") for item in prim_ops)
-    assert any(item.startswith("fused_subtract") for item in prim_ops)
-    assert any(item.startswith("fused_multiply") for item in prim_ops)
+    assert any(item.startswith("vm_mod_fused_add") for item in prim_ops)
+    assert any(item.startswith("vm_mod_fused_subtract") for item in prim_ops)
+    assert any(item.startswith("vm_mod_fused_multiply") for item in prim_ops)
 
     code = exe.bytecode
     assert "main(x1, y1)" in code

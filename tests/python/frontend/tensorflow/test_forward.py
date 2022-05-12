@@ -27,6 +27,8 @@ import pytest
 
 try:
     import tensorflow.compat.v1 as tf
+
+    tf.disable_v2_behavior()
 except ImportError:
     import tensorflow as tf
 
@@ -145,9 +147,9 @@ def run_tvm_graph(
         outputs=out_names,
         convert_config=convert_config,
     )
+
     dev = tvm.device(target, 0)
     if mode == "debug":
-        ex = relay.create_executor(mode, mod=mod, device=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod["main"].params:
             found = False
@@ -159,7 +161,9 @@ def run_tvm_graph(
             # Interpreter doesn't bind constants, so still need to find in params
             if not found:
                 inputs.append(tvm.nd.array(params[param.name_hint]))
-        result = ex.evaluate()(*inputs)
+        result = relay.create_executor(mode, mod=mod, device=tvm.cpu(), target="llvm").evaluate()(
+            *inputs
+        )
         return vmobj_to_list(result)
     elif mode == "vm":
         with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
@@ -562,6 +566,7 @@ def _test_convolution(
             )
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10275")
 @tvm.testing.uses_gpu
 def test_forward_convolution():
     if is_gpu_available():
@@ -1482,19 +1487,29 @@ def test_tensor_array_scatter():
                 element_shape = tf.TensorShape([tf.Dimension(None)])
             else:
                 element_shape = None
-            t = tf.constant(np.array([[1.0], [2.0], [3.0]]).astype(dtype_str), dtype=dtype)
-            indices = tf.constant([2, 1, 0])
-            ta1 = tf.TensorArray(
-                dtype=dtype, size=3, infer_shape=infer_shape, element_shape=element_shape
-            )
-            ta2 = ta1.scatter(indices, t)
-            out0 = ta2.read(0)
-            out1 = ta2.read(1)
-            out2 = ta2.read(2)
+            ta0 = _construct_scatter(dtype, dtype_str, element_shape, infer_shape, 3)
+            out0 = ta0.read(0)
+            out1 = ta0.read(1)
+            out2 = ta0.read(2)
+            ta1 = _construct_scatter(dtype, dtype_str, element_shape, infer_shape, 4)
+            out4 = ta1.read(0)
             g = tf.get_default_graph()
             compare_tf_with_tvm([], [], ["TensorArrayReadV3:0"], mode="vm")
             compare_tf_with_tvm([], [], ["TensorArrayReadV3_1:0"], mode="vm")
             compare_tf_with_tvm([], [], ["TensorArrayReadV3_2:0"], mode="vm")
+            compare_tf_with_tvm([], [], ["TensorArrayReadV3_2:0", out4.name], mode="vm")
+
+    def _construct_scatter(dtype, dtype_str, element_shape, infer_shape, size):
+        arr = [[float(i)] for i in range(size)]
+        indices_arr = [i for i in range(size - 1, -1, -1)]
+
+        t = tf.constant(np.array(arr).astype(dtype_str), dtype=dtype)
+        indices = tf.constant(indices_arr)
+        ta1 = tf.TensorArray(
+            dtype=dtype, size=size, infer_shape=infer_shape, element_shape=element_shape
+        )
+        ta2 = ta1.scatter(indices, t)
+        return ta2
 
     for dtype in ["float32", "int8"]:
         run(dtype, False)
@@ -2407,10 +2422,11 @@ def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_s
         )
         oshape = tf.constant(output_shape, shape=output_shape.shape, dtype=str(output_shape.dtype))
 
+        # Output shape depends on a dynamic input, use VM.
         if default_value == None:
             output = tf.sparse_to_dense(indices, oshape, values)
             compare_tf_with_tvm(
-                [sparse_indices, sparse_values], ["indices:0", "values:0"], output.name
+                [sparse_indices, sparse_values], ["indices:0", "values:0"], output.name, mode="vm"
             )
         else:
             dv = tf.placeholder(shape=(), dtype=str(default_value.dtype), name="default_value")
@@ -2419,6 +2435,7 @@ def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_s
                 [sparse_indices, sparse_values, default_value],
                 ["indices:0", "values:0", "default_value:0"],
                 output.name,
+                mode="vm",
             )
 
 
@@ -2480,7 +2497,8 @@ def _test_sparse_to_dense_v2(indices, values, A_shape, dtype, default_value=None
 
         result = tf.sparse.to_dense(A_sp, default_value=default_value)
 
-        compare_tf_with_tvm([], [], result.name)
+        # The output shape depends on a dynamic input, use VM.
+        compare_tf_with_tvm([], [], result.name, mode="vm")
 
 
 def test_forward_sparse_to_dense_v2():
@@ -2511,9 +2529,15 @@ def _test_sparse_add(indices, values, A_shape, B_shape, dtype, flip=False):
 
         # TODO(ANSHUMAN87): support user input threashold values
         if flip:
-            result = tf.sparse.add(B, A_sp, threshold=0)
+            if package_version.parse(tf.VERSION) < package_version.parse("1.13.0"):
+                result = tf.sparse.add(B, A_sp, thresh=0)
+            else:
+                result = tf.sparse.add(B, A_sp, threshold=0)
         else:
-            result = tf.sparse.add(A_sp, B, threshold=0)
+            if package_version.parse(tf.VERSION) < package_version.parse("1.13.0"):
+                result = tf.sparse.add(A_sp, B, thresh=0)
+            else:
+                result = tf.sparse.add(A_sp, B, threshold=0)
 
         B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
 
@@ -3750,6 +3774,7 @@ def test_forward_where():
 #######################################################################
 # Inception V3
 # ------------
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10275")
 def test_forward_inception_v3():
     """test inception V3 model"""
     with tf.Graph().as_default():
@@ -3915,6 +3940,9 @@ def _test_ssd_impl():
                     tvm.testing.assert_allclose(tvm_output[i], tf_output[i], rtol=1e-3, atol=1e-3)
 
 
+@pytest.mark.skip(
+    reason="Use of threading module here hides errors, see https://github.com/apache/tvm/pull/10231"
+)
 def test_forward_ssd():
     run_thread = threading.Thread(target=_test_ssd_impl, args=())
     old_stack_size = threading.stack_size(100 * 1024 * 1024)
@@ -5374,7 +5402,12 @@ def _test_spop_resource_variables():
 def test_forward_spop():
     _test_spop_stateful()
     _test_spop_device_assignment()
-    _test_spop_resource_variables()
+    # tensorflow version upgrade support
+    # This test is expected to fail in TF version >= 2.6
+    # as the generated graph will be considered frozen, hence
+    # not passing the criteria for the test below.
+    if tf.__version__ < LooseVersion("2.6.1"):
+        _test_spop_resource_variables()
 
     # Placeholder test cases
     _test_spop_placeholder_without_shape_info()
@@ -5543,7 +5576,7 @@ def _test_unique(n, dtype, is_dyn):
         if is_dyn:
             compare_tf_with_tvm(np_data, "in_data:0", ["Unique:0", "Unique:1"], mode="vm")
         else:
-            compare_tf_with_tvm(None, "", ["Unique:0", "Unique:1"])
+            compare_tf_with_tvm(np_data, "", ["Unique:0", "Unique:1"], mode="vm")
 
 
 def test_forward_unique():
@@ -5578,7 +5611,10 @@ def _test_unique_with_counts(n, dtype, is_dyn):
             )
         else:
             compare_tf_with_tvm(
-                None, "", ["UniqueWithCounts:0", "UniqueWithCounts:1", "UniqueWithCounts:2"]
+                np_data,
+                "",
+                ["UniqueWithCounts:0", "UniqueWithCounts:1", "UniqueWithCounts:2"],
+                mode="vm",
             )
 
 

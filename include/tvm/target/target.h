@@ -66,6 +66,15 @@ class TargetNode : public Object {
   /*! \return The Optional<Target> typed target host of the TargetNode */
   TVM_DLL Optional<Target> GetHost() const;
 
+  /*!
+   * \brief Returns a human readable representation of \p Target which includes all fields,
+   * especially the host. Useful for diagnostic messages and debugging.
+   *
+   * TODO(mbs): The ReprPrinter version should perhaps switch to this form, however currently
+   * code depends on str() and << being the same.
+   */
+  String ToDebugString() const;
+
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("kind", &kind);
     v->Visit("tag", &tag);
@@ -110,7 +119,12 @@ class TargetNode : public Object {
   /*! \brief Get the keys for this target as an unordered_set of string */
   TVM_DLL std::unordered_set<std::string> GetLibs() const;
 
+  bool SEqualReduce(const TargetNode* other, SEqualReducer equal) const;
+  void SHashReduce(SHashReducer hash_reduce) const;
+
   static constexpr const char* _type_key = "Target";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetNode, Object);
 
  private:
@@ -163,7 +177,34 @@ class Target : public ObjectRef {
    */
   static Target WithHost(const Target& target, const Target& host);
 
+  /*!
+   * \brief Returns true if \p this target represents an external codegen. If so,
+   * \p this->kind->name can be used as the "Compiler" attribute on partitioned functions,
+   * and can be used to retrieve a partitioning pattern table using
+   * \p get_pattern_table.
+   */
+  bool IsExternalCodegen() const;
+
+  /*!
+   * \brief Returns true if \p this target represents an external codegen which is compatible
+   * with \p that target. In particular:
+   *  - \p this has a true ::tvm::attr::kIsExternalCodegen attribute
+   *  - \p that does not have a true ::tvm::attr::kIsExternalCodegen attribute
+   *  - \p this and \p that have the same kind->device_type
+   *
+   * After partitioning, the external codegen compilation path may use \p that to guide it's
+   * compilation to a \p runtime::Module. Given \p this, an appropriate \p that can be
+   * found using \p CompilationConfig::FindPrimitiveTargetOrFail(this->kind->device_type).
+   *
+   * The \p CollagePartition pass uses this method to guide it's search over candidate partitions
+   * using external codegen.
+   */
+  bool IsExternalCodegenFor(const Target& that) const;
+
  private:
+  Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<String> keys,
+         Map<String, ObjectRef> attrs);
+
   // enable with syntax.
   friend class TargetInternal;
   friend class With<Target>;
@@ -179,6 +220,7 @@ class Target : public ObjectRef {
    */
   TVM_DLL void ExitWithScope();
 };
+
 /*!
  * \brief Check and update host field of the given legacy target and target host pair.
  *  Note that this function is for legacy target api compatibility issue only, not
@@ -187,21 +229,15 @@ class Target : public ObjectRef {
  * \param host The pointer to a Target typed object for target host to be updated
  */
 void CheckAndUpdateHostConsistency(Target* target, Target* host);
+
 /*!
  * \brief Check and update host field of the given legacy heterogeneous targets and
  *  target host.Note that this function is for legacy target api compatibility issue only,
  *  not recommended for other use.
- * \param target The pointer to a Map objects with values being Target objects
+ * \param ir_modules The pointer to a Map objects with keys being Target objects
  * \param host The Target typed object for target host to be updated
  */
-void CheckAndUpdateHostConsistency(Map<Integer, Target>* target, Target* host);
-/*!
- * \brief Check and update host field of the given legacy heterogeneous targets and
- *  target host.Note that this function is for legacy target api compatibility issue only,
- *  not recommended for other use.
- * \param target The pointer to a Map objects with keys being Target objects
- * \param host The Target typed object for target host to be updated
- */
-void CheckAndUpdateHostConsistency(Map<Target, IRModule>* target, Target* host);
+void CheckAndUpdateHostConsistency(Map<Target, IRModule>* ir_modules, Target* host);
+
 }  // namespace tvm
 #endif  // TVM_TARGET_TARGET_H_

@@ -33,6 +33,29 @@
 namespace tvm {
 namespace relay {
 
+/*! \brief Attributes used for the sliding_window operator */
+struct SlidingWindowAttrs : public tvm::AttrsNode<SlidingWindowAttrs> {
+  int axis;
+  Array<Integer> window_shape;
+  Array<Integer> strides;
+  TVM_DECLARE_ATTRS(SlidingWindowAttrs, "relay.attrs.SlidingWindowAttrs") {
+    TVM_ATTR_FIELD(axis).describe(
+        "What axis the sliding window begin forming over."
+        "Window will be slid over this axis and all following axes."
+        "The axis value determines the window shape (and thus, the"
+        "number of strides):"
+        "window shape and strides must both be of length"
+        "`data.ndim-axis`.");
+    TVM_ATTR_FIELD(window_shape)
+        .describe(
+            "The window shape to form over the input."
+            "Window shape must be of length `data.ndim-axis`.");
+    TVM_ATTR_FIELD(strides).describe(
+        "How to stride the window along each dimension."
+        "Strides must be of length `data.ndim-axis`.");
+  }
+};  // struct SlidingWindowAttrs
+
 /*! \brief data type cast */
 struct CastAttrs : public tvm::AttrsNode<CastAttrs> {
   DataType dtype;
@@ -53,6 +76,18 @@ struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
         "Should lie in range `[-data.ndim - 1, data.ndim]`."
         "If `axis < 0`, it is the first axis inserted;"
         "If `axis >= 0`, it is the last axis inserted in Python's negative indexing.");
+    TVM_ATTR_FIELD(num_newaxis)
+        .describe("Number of axes to be inserted. Should be >= 0.")
+        .set_lower_bound(0)
+        .set_default(1);
+  }
+};  // struct ExpandDimsAttrs
+
+/*! \brief Attributes used in dynamic expand_dims operators */
+struct DynExpandDimsAttrs : public tvm::AttrsNode<DynExpandDimsAttrs> {
+  int num_newaxis;
+
+  TVM_DECLARE_ATTRS(DynExpandDimsAttrs, "relay.attrs.DynExpandDimsAttrs") {
     TVM_ATTR_FIELD(num_newaxis)
         .describe("Number of axes to be inserted. Should be >= 0.")
         .set_lower_bound(0)
@@ -83,9 +118,12 @@ struct TransposeAttrs : public tvm::AttrsNode<TransposeAttrs> {
 /*! \brief Attributes used in reshape operators */
 struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
   Array<Integer> newshape;
+  bool allowzero;
   TVM_DECLARE_ATTRS(ReshapeAttrs, "relay.attrs.ReshapeAttrs") {
     TVM_ATTR_FIELD(newshape).describe(
         "The new shape. Should be compatible with the original shape.");
+    TVM_ATTR_FIELD(allowzero).set_default(0).describe(
+        "Whether to honor the value of zero in newshape.");
   }
 };  // struct ReshapeAttrs
 
@@ -161,7 +199,7 @@ struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
 struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
   Integer batch_dims;
   Integer axis;
-  std::string mode;
+  tvm::String mode;
 
   TVM_DECLARE_ATTRS(TakeAttrs, "relay.attrs.TakeAttrs") {
     TVM_ATTR_FIELD(batch_dims)
@@ -309,7 +347,7 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
   Optional<Array<Integer>> begin;
   Optional<Array<Integer>> end;
   Optional<Array<Integer>> strides;
-  std::string slice_mode;
+  tvm::String slice_mode;
   Optional<Array<Integer>> axes;
 
   TVM_DECLARE_ATTRS(StridedSliceAttrs, "relay.attrs.StridedSliceAttrs") {
@@ -475,7 +513,7 @@ struct ScanopAttrs : public tvm::AttrsNode<ScanopAttrs> {
         .describe("The first element is not included")
         .set_default(Bool(false));
   }
-};
+};  // struct ScanopAttrs
 
 /*! \brief Attributes used in unique operator */
 struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
@@ -488,6 +526,37 @@ struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
         .set_default(false);
   }
 };  // struct UniqueAttrs
+
+/*! \brief Attributes used in einsum operator */
+struct EinsumAttrs : public tvm::AttrsNode<EinsumAttrs> {
+  String equation;
+
+  TVM_DECLARE_ATTRS(EinsumAttrs, "relay.attrs.EinsumAttrs") {
+    TVM_ATTR_FIELD(equation).describe("The einsum expression string");
+  }
+};  // struct EinsumAttrs
+
+/*! \brief Attributes used in stft operator */
+struct StftAttrs : public tvm::AttrsNode<StftAttrs> {
+  int n_fft;
+  int hop_length;
+  int win_length;
+  bool normalized;
+  bool onesided;
+
+  TVM_DECLARE_ATTRS(StftAttrs, "relay.attrs.StftAttrs") {
+    TVM_ATTR_FIELD(n_fft).set_default(-1).describe("The size of Fourier transform");
+    TVM_ATTR_FIELD(hop_length)
+        .set_default(-1)
+        .describe("The distance between neighboring sliding window frames");
+    TVM_ATTR_FIELD(win_length).set_default(-1).describe("The size of window frame and STFT filter");
+    TVM_ATTR_FIELD(normalized)
+        .set_default(false)
+        .describe("Whether to return the normalized STFT results");
+    TVM_ATTR_FIELD(onesided).set_default(true).describe(
+        "Whether to return onesided result or fill with conjugate symmetry");
+  }
+};  // struct StftAttrs
 
 }  // namespace relay
 }  // namespace tvm

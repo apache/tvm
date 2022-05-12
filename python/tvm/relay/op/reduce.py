@@ -17,13 +17,13 @@
 """Reduce operators."""
 # pylint: disable=redefined-builtin
 
-from . import _make
-from .tensor import sqrt, log, exp
-from .transform import squeeze
 from ..expr import Tuple, TupleWrapper
+from . import _make
+from .tensor import exp, log, sqrt
+from .transform import squeeze
 
 
-def argmax(data, axis=None, keepdims=False, exclude=False):
+def argmax(data, axis=None, keepdims=False, exclude=False, select_last_index=False):
     """Returns the indices of the maximum values along an axis.
 
     Parameters
@@ -45,16 +45,20 @@ def argmax(data, axis=None, keepdims=False, exclude=False):
         If `exclude` is true, reduction will be performed on the axes that are
         NOT in axis instead.
 
+    select_last_index : bool
+        Whether to select the last index or the first index if the max element appears in
+        multiple indices, default is False (first index).
+
     Returns
     -------
     result : relay.Expr
         The computed result.
     """
     axis = [axis] if isinstance(axis, int) else axis
-    return _make.argmax(data, axis, keepdims, exclude)
+    return _make.argmax(data, axis, keepdims, exclude, select_last_index)
 
 
-def argmin(data, axis=None, keepdims=False, exclude=False):
+def argmin(data, axis=None, keepdims=False, exclude=False, select_last_index=False):
     """Returns the indices of the minimum values along an axis.
 
     Parameters
@@ -76,13 +80,17 @@ def argmin(data, axis=None, keepdims=False, exclude=False):
         If `exclude` is true, reduction will be performed on the axes that are
         NOT in axis instead.
 
+    select_last_index : bool
+        Whether to select the last index or the first index if the min element appears in
+        multiple indices, default is False (first index).
+
     Returns
     -------
     result : relay.Expr
         The computed result.
     """
     axis = [axis] if isinstance(axis, int) else axis
-    return _make.argmin(data, axis, keepdims, exclude)
+    return _make.argmin(data, axis, keepdims, exclude, select_last_index)
 
 
 def sum(data, axis=None, keepdims=False, exclude=False):
@@ -384,7 +392,7 @@ def std(data, axis=None, keepdims=False, exclude=False, unbiased=False):
     return sqrt(_make._variance(data, m, axis, keepdims, exclude, unbiased))
 
 
-def mean_variance(data, axis=None, keepdims=False, exclude=False):
+def mean_variance(data, axis=None, keepdims=False, exclude=False, unbiased=False):
     """Computes the mean and variance of data over given axes.
 
     Parameters
@@ -406,6 +414,9 @@ def mean_variance(data, axis=None, keepdims=False, exclude=False):
         If `exclude` is true, reduction will be performed on the axes that are
         NOT in axis instead.
 
+    unbiased : bool
+        If this is set to True, the unbiased estimation will be used.
+
     Returns
     -------
     result : relay.Expr
@@ -413,9 +424,9 @@ def mean_variance(data, axis=None, keepdims=False, exclude=False):
     """
     axis = [axis] if isinstance(axis, int) else axis
     m = mean(data, axis, True, exclude)
-    var = _make._variance(data, m, axis, keepdims, exclude, False)
+    var = _make._variance(data, m, axis, keepdims, exclude, unbiased)
     if not keepdims:
-        m = squeeze(m)
+        m = squeeze(m, axis=axis)
     return TupleWrapper(Tuple((m, var)), 2)
 
 

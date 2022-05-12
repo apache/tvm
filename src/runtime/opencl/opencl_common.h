@@ -29,6 +29,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/profiling.h>
 
 /* There are many OpenCL platforms that do not yet support OpenCL 2.0,
  * hence we use 1.2 APIs, some of which are now deprecated.  In order
@@ -234,6 +235,8 @@ class OpenCLWorkspace : public DeviceAPI {
   std::vector<cl_device_id> devices;
   // the queues
   std::vector<cl_command_queue> queues;
+  // the events
+  std::vector<std::vector<cl_event>> events;
   // Number of registered kernels
   // Used to register kernel into the workspace.
   size_t num_registered_kernels{0};
@@ -263,6 +266,25 @@ class OpenCLWorkspace : public DeviceAPI {
         << "Invalid OpenCL device_id=" << dev.device_id;
     return queues[dev.device_id];
   }
+  // get the event queue of the context
+  std::vector<cl_event>& GetEventQueue(Device dev) {
+    ICHECK(IsOpenCLDevice(dev));
+    this->Init();
+    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
+        << "Invalid OpenCL device_id=" << dev.device_id;
+    return events[dev.device_id];
+  }
+  // is current clCommandQueue in profiling mode
+  bool IsProfiling(Device dev) {
+    cl_command_queue queue = GetQueue(dev);
+    cl_command_queue_properties prop;
+
+    OPENCL_CALL(clGetCommandQueueInfo(queue, CL_QUEUE_PROPERTIES,
+                                      sizeof(cl_command_queue_properties), &prop, nullptr));
+
+    return prop & CL_QUEUE_PROFILING_ENABLE;
+  }
+
   // override device API
   void SetDevice(Device dev) final;
   void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
@@ -401,6 +423,73 @@ class OpenCLModuleNode : public ModuleNode {
   std::vector<cl_kernel> kernels_;
   // parsed kernel data
   std::unordered_map<std::string, std::string> parsed_kernels_;
+};
+
+/*! \brief OpenCL timer node */
+class OpenCLTimerNode : public TimerNode {
+ public:
+  // Timer start
+  virtual void Start() {
+    cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).clear();
+    this->duration = 0;
+    // Very first call of Start() leads to the recreation of
+    // OpenCL command queue in profiling mode. This allows to run profile after inference.
+    recreateCommandQueue();
+  }
+  // Timer stop
+  virtual void Stop() {
+    std::vector<cl_event> evt_queue = cl::OpenCLWorkspace::Global()->GetEventQueue(dev_);
+    cl_ulong start, end;
+    if (cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).size() > 0) {
+      OPENCL_CALL(clWaitForEvents(1, &(cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).back())));
+      for (auto& kevt : evt_queue) {
+        OPENCL_CALL(clGetEventProfilingInfo(kevt, CL_PROFILING_COMMAND_START, sizeof(cl_ulong),
+                                            &start, nullptr));
+        OPENCL_CALL(clGetEventProfilingInfo(kevt, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end,
+                                            nullptr));
+        this->duration += (end - start);
+      }
+    }
+  }
+  virtual int64_t SyncAndGetElapsedNanos() { return this->duration; }
+  // destructor
+  virtual ~OpenCLTimerNode() {
+    // Profiling session ends, recreate clCommandQueue in non-profiling mode
+    // This will disable collection of cl_events in case of executing inference after profile
+    recreateCommandQueue();
+  }
+  // constructor
+  OpenCLTimerNode() {}
+  explicit OpenCLTimerNode(Device dev) : dev_(dev) {}
+
+  static constexpr const char* _type_key = "OpenCLTimerNode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(OpenCLTimerNode, TimerNode);
+
+ private:
+  int64_t duration;
+  Device dev_;
+
+  void recreateCommandQueue() {
+    cl_command_queue_properties prop;
+    if (!cl::OpenCLWorkspace::Global()->IsProfiling(dev_)) {
+      prop = CL_QUEUE_PROFILING_ENABLE;
+    } else {
+      prop = 0;
+    }
+
+    auto queue = cl::OpenCLWorkspace::Global()->GetQueue(dev_);
+
+    OPENCL_CALL(clFlush(queue));
+    OPENCL_CALL(clFinish(queue));
+    OPENCL_CALL(clReleaseCommandQueue(queue));
+
+    cl_int err_code;
+    cl_device_id did = cl::OpenCLWorkspace::Global()->devices[dev_.device_id];
+    auto profiling_queue =
+        clCreateCommandQueue(cl::OpenCLWorkspace::Global()->context, did, prop, &err_code);
+    OPENCL_CHECK_ERROR(err_code);
+    cl::OpenCLWorkspace::Global()->queues[dev_.device_id] = profiling_queue;
+  }
 };
 }  // namespace runtime
 }  // namespace tvm

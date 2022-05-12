@@ -20,7 +20,7 @@ import tvm
 from tvm import te
 import scipy
 from tvm import relay
-from tvm.relay import transform
+import pytest
 from tvm.relay.testing import run_infer_type
 import tvm.topi.testing
 from tvm.contrib.nvcc import have_fp16
@@ -43,53 +43,69 @@ def rsqrt(x):
     return one / np.sqrt(x)
 
 
-@tvm.testing.uses_gpu
-def test_unary_op():
-    def check_single_op(opfunc, ref, dtype):
+class TestUnaryOp:
+    op_list = {
+        "log": (tvm.relay.log, np.log),
+        "exp": (tvm.relay.exp, np.exp),
+        "erf": (tvm.relay.erf, scipy.special.erf),
+        "sqrt": (tvm.relay.sqrt, np.sqrt),
+        "rqsrt": (tvm.relay.rsqrt, rsqrt),
+        "sigmoid": (tvm.relay.sigmoid, sigmoid),
+        "tanh": (tvm.relay.tanh, np.tanh),
+        "relu": (relay.nn.relu, relu),
+        "cos": (tvm.relay.cos, np.cos),
+        "sin": (tvm.relay.sin, np.sin),
+        "tan": (tvm.relay.tan, np.tan),
+        "atan": (tvm.relay.atan, np.arctan),
+        "ceil": (tvm.relay.ceil, np.ceil),
+        "floor": (tvm.relay.floor, np.floor),
+        "trunc": (tvm.relay.trunc, np.trunc),
+        "round": (tvm.relay.round, np.round),
+    }
+
+    dtype = tvm.testing.parameter("float16", "float32")
+
+    relay_op, ref_func = tvm.testing.parameters(*op_list.values(), ids=op_list.keys())
+
+    def test_unary_op(self, target, dev, relay_op, ref_func, dtype):
+        target = tvm.target.Target(target)
+        if dtype == "float16":
+            if target.kind.name == "cuda":
+                if not have_fp16(tvm.cuda(0).compute_version):
+                    pytest.xfail(
+                        "No float16 support on local cuda device (compute_version != 5.3 and < 6.0)"
+                    )
+            elif target.kind.name == "vulkan" and not target.attrs.get("supports_float16", False):
+                pytest.xfail("No float16 support on vulkan target (supports_float16=False)")
+            else:
+                pytest.xfail(f"No float16 support on {target.kind.name} target")
+
+        if target.kind.name == "vulkan" and relay_op in [
+            tvm.relay.erf,
+            tvm.relay.tan,
+            tvm.relay.atan,
+        ]:
+            pytest.xfail(f"Vulkan runtime doesn't yet support {relay_op}")
+
         shape = (10, 4)
         dtype = dtype
-        tp = relay.TensorType(shape)
-        x = relay.var("x", tp, dtype=dtype)
-        y = opfunc(x)
+        tp = relay.TensorType(shape, dtype=dtype)
+        x = relay.var("x", type_annotation=tp)
+        y = relay_op(x)
         # test printer
         assert ("{}(%x)".format(y.op.name)) in y.astext()
         # test type inference
         yy = run_infer_type(y)
         assert yy.checked_type == tp
 
-        if ref is not None:
+        if ref_func is not None:
             data = np.random.rand(*shape).astype(dtype)
-            ref_res = ref(data)
+            ref_res = ref_func(data).astype(dtype)
             func = relay.Function([x], y)
-            for target, dev in tvm.testing.enabled_targets():
-                # use graph by execuor default for testing, as we need
-                # create function explicitly to avoid constant-folding.
-                if (
-                    dtype == "float16"
-                    and target == "cuda"
-                    and not have_fp16(tvm.cuda(0).compute_version)
-                ):
-                    continue
-                intrp = relay.create_executor("graph", device=dev, target=target)
-                op_res = intrp.evaluate(func)(data)
-                np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
-
-    for opfunc, ref in [
-        (tvm.relay.log, np.log),
-        (tvm.relay.exp, np.exp),
-        (tvm.relay.erf, scipy.special.erf),
-        (tvm.relay.sqrt, np.sqrt),
-        (tvm.relay.rsqrt, rsqrt),
-        (tvm.relay.sigmoid, sigmoid),
-        (tvm.relay.tanh, np.tanh),
-        (relay.nn.relu, relu),
-        (tvm.relay.cos, np.cos),
-        (tvm.relay.sin, np.sin),
-        (tvm.relay.tan, np.tan),
-        (tvm.relay.atan, np.arctan),
-    ]:
-        for dtype in ["float16", "float32"]:
-            check_single_op(opfunc, ref, dtype)
+            # use graph by execuor default for testing, as we need
+            # create function explicitly to avoid constant-folding.
+            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -132,8 +148,9 @@ def test_binary_op():
                     and not have_fp16(tvm.cuda(0).compute_version)
                 ):
                     continue
-                intrp = relay.create_executor("graph", device=dev, target=target)
-                op_res = intrp.evaluate(func)(x_data, y_data)
+                op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                    x_data, y_data
+                )
                 np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01, atol=1e-3)
 
     for opfunc, ref in [
@@ -163,8 +180,7 @@ def test_expand_dims():
                 continue
             data = np.random.uniform(size=dshape).astype(dtype)
             ref_res = data.reshape(oshape)
-            intrp = relay.create_executor("graph", device=dev, target=target)
-            op_res = intrp.evaluate(func)(data)
+            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
             np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
     for dtype in ["float16", "float32"]:
@@ -196,8 +212,9 @@ def test_bias_add():
                 and not have_fp16(tvm.cuda(0).compute_version)
             ):
                 continue
-            intrp = relay.create_executor("graph", device=dev, target=target)
-            op_res = intrp.evaluate(func)(x_data, y_data)
+            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                x_data, y_data
+            )
             np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol)
 
 
@@ -240,8 +257,9 @@ def test_softmax():
         x_data = np.random.uniform(size=shape).astype(dtype)
         ref_res = tvm.topi.testing.softmax_python(x_data)
         for target, dev in tvm.testing.enabled_targets():
-            intrp = relay.create_executor("graph", device=dev, target=target)
-            op_res = intrp.evaluate(func)(x_data)
+            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                x_data
+            )
             np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
@@ -261,8 +279,9 @@ def test_log_softmax():
         x_data = np.random.uniform(size=shape).astype(dtype)
         ref_res = tvm.topi.testing.log_softmax_python(x_data)
         for target, dev in tvm.testing.enabled_targets():
-            intrp = relay.create_executor("graph", device=dev, target=target)
-            op_res = intrp.evaluate(func)(x_data)
+            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                x_data
+            )
             np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
@@ -317,11 +336,13 @@ def test_concatenate():
                 and not have_fp16(tvm.cuda(0).compute_version)
             ):
                 continue
-            intrp1 = relay.create_executor("graph", device=dev, target=target)
-            intrp2 = relay.create_executor("debug", device=dev, target=target)
-            op_res1 = intrp1.evaluate(func)(x_data, y_data, t_data)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                x_data, y_data, t_data
+            )
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=0.01)
-            op_res2 = intrp2.evaluate(func)(x_data, y_data, t_data)
+            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
+                x_data, y_data, t_data
+            )
             tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=0.01)
 
 
@@ -341,8 +362,7 @@ def test_dropout():
     func = relay.Function([], y)
     for target, dev in tvm.testing.enabled_targets():
         for backend in ["debug", "graph"]:
-            intrp = relay.create_executor("debug", device=dev, target=target)
-            op_res = intrp.evaluate(func)()
+            op_res = relay.create_executor("debug", device=dev, target=target).evaluate(func)()
             tvm.testing.assert_allclose(op_res.numpy(), in_np, rtol=0.01)
 
 
@@ -369,6 +389,7 @@ def test_batch_norm():
             )
         )
 
+        # axis=1
         beta = relay.var("beta", relay.TensorType((3,), dtype))
         gamma = relay.var("gamma", relay.TensorType((3,), dtype))
         moving_mean = relay.var("moving_mean", relay.TensorType((3,), dtype))
@@ -407,6 +428,53 @@ def test_batch_norm():
                 ]
             )
         )
+
+
+def test_batch_norm_fold_const():
+    axis = 1
+    dtype = "float32"
+    shape = [4, 5, 6]
+
+    data_np = np.random.random(shape).astype(dtype)
+    beta_np = np.random.random(shape[axis]).astype(dtype)
+    gamma_np = np.random.random(shape[axis]).astype(dtype)
+    moving_mean_np = np.random.random(shape[axis]).astype(dtype)
+    moving_var_np = np.random.random(shape[axis]).astype(dtype)
+
+    data = relay.var("data", relay.TensorType(shape, dtype))
+    beta = relay.var("beta", relay.TensorType((shape[1],), dtype))
+    gamma = relay.var("gamma", relay.TensorType((shape[1],), dtype))
+    moving_mean = relay.var("moving_mean", relay.TensorType((shape[1],), dtype))
+    moving_var = relay.var("moving_var", relay.TensorType((shape[1],), dtype))
+    out = relay.nn.batch_norm(data, gamma, beta, moving_mean, moving_var, axis=axis).astuple()
+    func = relay.Function([data, gamma, beta, moving_mean, moving_var], out)
+
+    out_const = relay.nn.batch_norm(
+        relay.const(data_np),
+        relay.const(gamma_np),
+        relay.const(beta_np),
+        relay.const(moving_mean_np),
+        relay.const(moving_var_np),
+        axis=axis,
+    ).astuple()
+    func_const = relay.Function([], out_const)
+
+    # Build the module with constants to have FoldConstant transform batch_norm.
+    mod_const = tvm.IRModule.from_expr(func_const)
+    mod_const = relay.transform.FoldConstant()(mod_const)
+
+    const_data_out = mod_const["main"].body[0].data
+    const_moving_mean_out = mod_const["main"].body[1].data
+    const_moving_var_out = mod_const["main"].body[2].data
+
+    # Run the Relay func without constants. This will use SimplyInference instead.
+    vm_data_out, vm_moving_mean_out, vm_moving_var_out = relay.create_executor(
+        "vm", device=tvm.device("llvm"), target="llvm"
+    ).evaluate(func)(data_np, gamma_np, beta_np, moving_mean_np, moving_var_np)
+
+    tvm.testing.assert_allclose(const_data_out.numpy(), vm_data_out.numpy())
+    tvm.testing.assert_allclose(const_moving_mean_out.numpy(), vm_moving_mean_out.numpy())
+    tvm.testing.assert_allclose(const_moving_var_out.numpy(), vm_moving_var_out.numpy())
 
 
 @pytest.mark.xfail
@@ -461,11 +529,13 @@ def test_matmul():
         ref_res = np.dot(x_data.transpose(), w_data)
 
         for target, dev in tvm.testing.enabled_targets():
-            intrp1 = relay.create_executor("graph", device=dev, target=target)
-            intrp2 = relay.create_executor("debug", device=dev, target=target)
-            op_res1 = intrp1.evaluate(func)(x_data, w_data)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                x_data, w_data
+            )
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-            op_res2 = intrp2.evaluate(func)(x_data, w_data)
+            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
+                x_data, w_data
+            )
             tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
@@ -521,12 +591,26 @@ def test_dense():
         ref_res = np.dot(x_data, w_data.T)
 
         for target, dev in tvm.testing.enabled_targets():
-            intrp1 = relay.create_executor("graph", device=dev, target=target)
-            intrp2 = relay.create_executor("debug", device=dev, target=target)
-            op_res1 = intrp1.evaluate(func)(x_data, w_data)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                x_data, w_data
+            )
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-            op_res2 = intrp2.evaluate(func)(x_data, w_data)
+            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
+                x_data, w_data
+            )
             tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
+
+
+@tvm.testing.uses_gpu
+def test_dense_same_args_compile():
+    for dtype in ["float32", "int8"]:
+        x = relay.var("x", shape=(32, 64), dtype=dtype)
+        out_dtype = "int32" if dtype == "int8" else "float32"
+        f = relay.Function([x], relay.nn.dense(x, x, out_dtype=out_dtype))
+        m = tvm.IRModule.from_expr(f)
+
+        for target, _ in tvm.testing.enabled_targets():
+            tvm.relay.build(m, target=target)
 
 
 def test_dense_dtype():
@@ -554,19 +638,81 @@ def test_bitserial_dense():
     assert yy.checked_type == relay.TensorType((m, 32), "int16")
 
 
+@pytest.mark.skip("Requires cascadelake")
+def test_dense_vnni():
+    data_shape = (32, 96)
+    weight_shape = (128, 96)
+
+    for data_dtype in ["uint8", "int8"]:
+        data = relay.var("data", shape=data_shape, dtype=data_dtype)
+        weight = relay.var("weight", shape=weight_shape, dtype="int8")
+        bias = relay.var("bias", shape=(weight_shape[0],), dtype="int32")
+        dense = relay.nn.dense(data, weight, out_dtype="int32")
+        out = relay.nn.bias_add(dense, bias)
+        mod = tvm.IRModule.from_expr(out)
+
+        target = "llvm -mcpu=cascadelake"
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(mod, target=target)
+
+        asm = lib.lib.get_source("asm")
+        assert "vpdpbusd" in asm
+
+        dev = tvm.device(target, 0)
+        runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+        a = np.random.uniform(1, 10, size=data_shape).astype(data_dtype)
+        b = np.random.uniform(1, 10, size=weight_shape).astype("int8")
+        c = np.random.uniform(1, 10, size=(weight_shape[0],)).astype("int32")
+
+        runtime.set_input("data", a)
+        runtime.set_input("weight", b)
+        runtime.set_input("bias", c)
+        runtime.run()
+
+        out = runtime.get_output(0).numpy()
+        ref = np.dot(a.astype("int32"), b.transpose().astype("int32")) + c
+
+        np.testing.assert_equal(out, ref)
+
+
+@pytest.mark.skip("Requires GFX10 AMDGPU")
+def test_dense_rocm_sdot4():
+    data_shape = (32, 96)
+    weight_shape = (128, 96)
+
+    data_dtype = "int8"
+    data = relay.var("data", shape=data_shape, dtype=data_dtype)
+    weight = relay.var("weight", shape=weight_shape, dtype="int8")
+    bias = relay.var("bias", shape=(weight_shape[0],), dtype="int32")
+    dense = relay.nn.dense(data, weight, out_dtype="int32")
+    out = relay.nn.bias_add(dense, bias)
+    mod = tvm.IRModule.from_expr(out)
+
+    target = "rocm -mattr=+dotprod"
+    with tvm.transform.PassContext(opt_level=3):
+        lib = relay.build(mod, target=target)
+
+    asm = lib.lib.imported_modules[0].get_source("asm")
+    assert "v_dot4_i32_i8" in asm
+
+    dev = tvm.device(target, 0)
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    a = np.random.uniform(1, 10, size=data_shape).astype(data_dtype)
+    b = np.random.uniform(1, 10, size=weight_shape).astype("int8")
+    c = np.random.uniform(1, 10, size=(weight_shape[0],)).astype("int32")
+
+    runtime.set_input("data", a)
+    runtime.set_input("weight", b)
+    runtime.set_input("bias", c)
+    runtime.run()
+
+    out = runtime.get_output(0).numpy()
+    ref = np.dot(a.astype("int32"), b.transpose().astype("int32")) + c
+
+    np.testing.assert_equal(out, ref)
+
+
 if __name__ == "__main__":
-    test_concatenate()
-    test_bias_add()
-    test_bias_add_type_failure()
-    test_unary_op()
-    test_binary_op()
-    test_expand_dims_infer_type()
-    test_expand_dims()
-    test_softmax()
-    test_log_softmax()
-    test_dropout()
-    test_batch_norm()
-    test_matmul()
-    test_dense()
-    test_bitserial_dense()
-    test_dense_dtype()
+    pytest.main([__file__])

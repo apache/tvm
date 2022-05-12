@@ -55,8 +55,9 @@ def test_dynamic_topk():
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-                op_res = intrp.evaluate()(np_data, np.array([k]).astype("float32"))
+                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
+                    np_data, np.array([k]).astype("float32")
+                )
                 if ret_type == "both":
                     tvm.testing.assert_allclose(op_res[0].numpy(), np_values)
                     tvm.testing.assert_allclose(op_res[1].numpy(), np_indices)

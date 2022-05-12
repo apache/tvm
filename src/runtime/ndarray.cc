@@ -121,6 +121,13 @@ struct NDArray::Internal {
     }
     delete ptr;
   }
+  // Deleter for NDArray based on external DLTensor
+  // The memory is allocated from outside and it is assumed that
+  // responsibility for its freeing is also outside
+  static void SelfDeleter(Object* ptr_obj) {
+    auto* ptr = static_cast<NDArray::Container*>(ptr_obj);
+    delete ptr;
+  }
   // Local create function which allocates tensor metadata
   // but does not allocate space for the data.
   static NDArray Create(ShapeTuple shape, DLDataType dtype, Device dev) {
@@ -198,6 +205,30 @@ NDArray NDArray::Empty(ShapeTuple shape, DLDataType dtype, Device dev, Optional<
   return ret;
 }
 
+NDArray NDArray::FromExternalDLTensor(const DLTensor& dl_tensor) {
+  NDArray::Container* data = new NDArray::Container();
+
+  data->SetDeleter(Internal::SelfDeleter);
+  data->dl_tensor = dl_tensor;
+  std::vector<ShapeTuple::index_type> shape;
+  shape.resize(data->dl_tensor.ndim);
+  shape.assign(data->dl_tensor.shape, data->dl_tensor.shape + data->dl_tensor.ndim);
+  data->shape_ = ShapeTuple(shape);
+  data->dl_tensor.shape = const_cast<ShapeTuple::index_type*>(data->shape_.data());
+
+  return NDArray(GetObjectPtr<Object>(data));
+}
+
+NDArray NDArray::NewFromDLTensor(DLTensor* tensor, Device dev) {
+  std::vector<int64_t> shape;
+  for (int64_t i = 0; i < tensor->ndim; i++) {
+    shape.push_back(tensor->shape[i]);
+  }
+  NDArray ary = NDArray::Empty(shape, tensor->dtype, dev);
+  ary.CopyFrom(tensor);
+  return ary;
+}
+
 NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
   NDArray::Container* data = new NDArray::Container();
   // construct header
@@ -234,7 +265,8 @@ void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle str
   ICHECK(from->device.device_type == to->device.device_type || from->device.device_type == kDLCPU ||
          to->device.device_type == kDLCPU || from->device.device_type == kDLCUDAHost ||
          to->device.device_type == kDLCUDAHost)
-      << "Can not copy across different device types directly";
+      << "Can not copy across different device types directly. From device type: "
+      << from->device.device_type << " to device type: " << to->device.device_type;
 
   // Use the device that is *not* a cpu device to get the correct device
   // api manager.
@@ -272,7 +304,7 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
   dtype.code = static_cast<uint8_t>(dtype_code);
   dtype.bits = static_cast<uint8_t>(dtype_bits);
   dtype.lanes = static_cast<uint16_t>(dtype_lanes);
-  Device dev;
+  tvm::Device dev;
   dev.device_type = static_cast<DLDeviceType>(device_type);
   dev.device_id = device_id;
   auto ndarray = NDArray::Empty(ShapeTuple(shape, shape + ndim), dtype, dev);
@@ -281,15 +313,11 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
   API_END();
 }
 
-TVM_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body([](TVMArgs args, TVMRetValue* ret) {
-  int64_t* shape_ptr = static_cast<int64_t*>(static_cast<void*>(args[0]));
-  int ndim = args[1];
-  ShapeTuple shape(shape_ptr, shape_ptr + ndim);
-  DataType dtype = args[2];
-  Device dev = args[3];
-  Optional<String> mem_scope = args[4];
-  auto ndarray = NDArray::Empty(shape, dtype, dev, mem_scope);
-  *ret = ndarray;
+TVM_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body_typed(NDArray::Empty);
+
+TVM_REGISTER_GLOBAL("runtime.TVMArrayCreateView").set_body_typed([](NDArray arr, ShapeTuple shape) {
+  NDArray view = arr.CreateView(shape, arr->dtype);
+  return view;
 });
 
 int TVMArrayFree(TVMArrayHandle handle) {

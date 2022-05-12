@@ -38,9 +38,19 @@
 #include <vector>
 
 namespace tvm {
-namespace runtime {
 
-typedef DLDevice Device;
+// alias DLDevice
+using Device = DLDevice;
+
+// A 'null' device type, does not correspond to any DLDeviceType enum.
+// TODO(mbs): This is to help us as we transition away from representing the 'homogenous' case
+// as a singleton target map indexed by the invalid DLDeviceType '0'.
+constexpr DLDeviceType kNullDeviceType = static_cast<DLDeviceType>(0);
+
+// An 'invalid' device type, does not correspond to any DLDeviceType enum.
+constexpr DLDeviceType kInvalidDeviceType = static_cast<DLDeviceType>(-1);
+
+namespace runtime {
 
 /*!
  * \brief Managed NDArray.
@@ -145,6 +155,24 @@ class NDArray : public ObjectRef {
    */
   TVM_DLL static NDArray Empty(ShapeTuple shape, DLDataType dtype, Device dev,
                                Optional<String> mem_scope = NullOpt);
+  /*!
+   * \brief Create a NDArray backed by an external DLTensor.
+   *
+   * This allows us to create a NDArray using the memory
+   * allocated by an external source. Responsibility for memory
+   * retaining lies with the external source.
+   * \param dl_tensor The DLTensor to copy from.
+   * \return The created NDArray view.
+   */
+  TVM_DLL static NDArray FromExternalDLTensor(const DLTensor& dl_tensor);
+  /*!
+   * \brief Create new NDArray, data is copied from DLTensor.
+   *
+   * \param dl_tensor The DLTensor to copy from.
+   * \param dev device location of the created NDArray.
+   * \return The created NDArray view.
+   */
+  TVM_DLL static NDArray NewFromDLTensor(DLTensor* dl_tensor, Device dev);
   /*!
    * \brief Create a NDArray backed by a dlpack tensor.
    *
@@ -481,23 +509,19 @@ inline bool NDArray::Load(dmlc::Stream* strm) {
 }
 
 }  // namespace runtime
-
-// alias Device
-using tvm::runtime::Device;
-
 }  // namespace tvm
 
 namespace std {
 template <>
-struct hash<tvm::runtime::Device> {
-  std::size_t operator()(const tvm::runtime::Device& dev) const {
+struct hash<tvm::Device> {
+  std::size_t operator()(const tvm::Device& dev) const {
     return ((dev.device_id << 8) | dev.device_type);
   }
 };
 
 template <>
-struct equal_to<tvm::runtime::Device> {
-  bool operator()(const tvm::runtime::Device& lhs, const tvm::runtime::Device& rhs) const {
+struct equal_to<tvm::Device> {
+  bool operator()(const tvm::Device& lhs, const tvm::Device& rhs) const {
     return (lhs.device_type == rhs.device_type && lhs.device_id == rhs.device_id);
   }
 };

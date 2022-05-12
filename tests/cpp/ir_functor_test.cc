@@ -60,8 +60,9 @@ TEST(IRF, VisitPrimFuncs) {
   using namespace tvm;
   using namespace tvm::tir;
   PrimFunc prim_func(/*params=*/{}, /*body=*/Evaluate(Integer(0)));
-  relay::Function relay_func(/*params=*/{}, /*body=*/relay::Expr(nullptr),
-                             /*ret_type=*/relay::Type{nullptr}, /*ty_params=*/{});
+  auto c_data = tvm::runtime::NDArray::Empty({1, 2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  relay::Function relay_func(/*params=*/{}, /*body=*/relay::Expr(relay::Constant(c_data)),
+                             /*ret_type=*/relay::Type(), /*ty_params=*/{});
   IRModule mod({
       {GlobalVar("main"), prim_func},
       {GlobalVar("main2"), relay_func},
@@ -325,8 +326,44 @@ TEST(IRF, StmtMutator) {
   }
 }
 
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
+TEST(IRF, Substitute) {
+  using namespace tvm;
+  using namespace tvm::tir;
+  DataType dtype = DataType::Float(32);
+  Var x("x", PointerType(PrimType(dtype), ""));
+  auto fmaketest = [&]() {
+    Buffer buffer{/*data=*/x,
+                  /*dtype=*/DataType::Float(32),
+                  /*shape=*/{},
+                  /*strides=*/{},
+                  /*elem_offset=*/NullValue<PrimExpr>(),
+                  /*name=*/"buf",
+                  /*data_alignment=*/1,
+                  /*offset_factor=*/1,
+                  /*buffer_type=*/BufferType::kDefault};
+    return BufferLoad(buffer, {});
+  };
+
+  {
+    // test substitute buffer var
+    Var y = x.copy_with_suffix("subst");
+    BufferLoad buffer_load = fmaketest();
+    auto f_subst = [&](const Var& var) -> Optional<PrimExpr> {
+      if (var.same_as(x)) {
+        return y;
+      }
+      return NullOpt;
+    };
+    BufferLoad new_buffer_load = Downcast<BufferLoad>(Substitute(buffer_load, f_subst));
+    ICHECK(new_buffer_load->buffer->data.same_as(y));
+  }
+
+  {
+    // test identity substitution
+    PrimExpr expr = fmaketest();
+    auto f_subst = [&](const Var& var) -> Optional<PrimExpr> { return var; };
+    PrimExpr new_expr = Substitute(expr, f_subst);
+    // the expression is not changed
+    ICHECK(new_expr.same_as(expr));
+  }
 }

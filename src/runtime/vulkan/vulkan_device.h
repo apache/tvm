@@ -57,6 +57,12 @@ struct VulkanGetBufferMemoryRequirements2Functions {
   PFN_vkGetBufferMemoryRequirements2KHR vkGetBufferMemoryRequirements2KHR{nullptr};
 };
 
+struct VulkanQueueInsertDebugUtilsLabelFunctions {
+  explicit VulkanQueueInsertDebugUtilsLabelFunctions(VkInstance instance);
+
+  PFN_vkQueueInsertDebugUtilsLabelEXT vkQueueInsertDebugUtilsLabelEXT{nullptr};
+};
+
 /*!
  * \brief Stores the capabilities/limits queried from the physical device.
  *
@@ -81,6 +87,7 @@ struct VulkanDeviceProperties {
   bool supports_storage_buffer_storage_class{false};
   bool supports_push_descriptor{false};
   bool supports_dedicated_allocation{false};
+  bool supports_integer_dot_product{false};
   uint32_t supported_subgroup_operations{0};
   uint32_t max_num_threads{1};
   uint32_t thread_warp_size{1};
@@ -94,6 +101,7 @@ struct VulkanDeviceProperties {
   uint32_t max_shared_memory_per_block{16384};
   std::string device_type{"unknown_device_type"};
   std::string device_name{"unknown_device_name"};
+  std::string driver_name{"unknown_driver_name"};
   uint32_t driver_version{0};
   uint32_t vulkan_api_version{VK_API_VERSION_1_0};
   uint32_t max_spirv_version{0x10000};
@@ -210,6 +218,8 @@ class VulkanDevice {
   std::unique_ptr<VulkanDescriptorTemplateKHRFunctions> descriptor_template_khr_functions{nullptr};
   std::unique_ptr<VulkanGetBufferMemoryRequirements2Functions>
       get_buffer_memory_requirements_2_functions{nullptr};
+  std::unique_ptr<VulkanQueueInsertDebugUtilsLabelFunctions>
+      queue_insert_debug_utils_label_functions{nullptr};
   // Memory type index for compute
   uint32_t compute_mtype_index{0};
 
@@ -217,6 +227,10 @@ class VulkanDevice {
   uint32_t queue_family_index{uint32_t(-1)};
 
   bool UseImmediate() const { return descriptor_template_khr_functions != nullptr; }
+
+  bool UseDebugUtilsLabel() const { return queue_insert_debug_utils_label_functions != nullptr; }
+
+  VkQueue Queue() const { return queue; }
 
  private:
   /*! \brief Helper function for move assignment/construction

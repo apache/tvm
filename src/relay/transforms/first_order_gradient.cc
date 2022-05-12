@@ -195,11 +195,13 @@ struct FirstOrderReverseAD : ExprFunctor<ADValue(const Expr&)> {
     return ret;
   }
 
-  ADValue VisitExpr_(const TupleNode* op) final {
-    auto tt = Downcast<TupleType>(op->checked_type());
+  ADValue VisitExpr_(const TupleNode* tuple_node) final {
+    auto tt = Downcast<TupleType>(tuple_node->checked_type());
     std::vector<ADValue> ad_fields;
-    std::vector<Expr> field_bindings;
-    for (const auto& f : op->fields) {
+    Array<Expr> field_bindings;
+    field_bindings.reserve(tuple_node->fields.size());
+
+    for (const auto& f : tuple_node->fields) {
       ADValue f_ad = VisitExpr(f);
       if (!dynamic_cast<ADTensor*>(f_ad.get())) {
         diag_ctx.EmitFatal(Diagnostic::Error(f->span)
@@ -209,7 +211,7 @@ struct FirstOrderReverseAD : ExprFunctor<ADValue(const Expr&)> {
       field_bindings.push_back(f_ad->get<ADTensor>().forward);
     }
     // reconstruct tuple using let-bound variables to avoid duplication
-    auto orig = Tuple(field_bindings);
+    auto orig = WithFields(GetRef<Tuple>(tuple_node), field_bindings);
     orig->checked_type_ = tt;
     auto ret = std::make_shared<ADTensor>(ll, orig, diag_ctx);
     // for orig = tuple(x1, ..., xn), tuple_grad(x1, ..., xn, G) = [pi(G, 1), ..., pi(G, n)]
@@ -305,8 +307,9 @@ Pass FirstOrderGradient() {
         });
         return Pair(res.forward, grad_tuple);
       });
-      ad_mod->Update(pr.first,
-                     Function(func->params, body, GradRetType(GetRef<Function>(func)), {}));
+      ad_mod->Update(pr.first, WithFields(GetRef<Function>(func), func->params, body,
+                                          GradRetType(GetRef<Function>(func)),
+                                          /* erase type params */ Array<TypeVar>()));
     }
 
     return ad_mod;

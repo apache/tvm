@@ -238,3 +238,9 @@ The Unlicense
 -------------
 
 3rdparty/rang
+
+BSD 3-Clause "New" or "Revised" License
+---------------------------------------
+
+3rdparty/cutlass
+3rdparty/libbacktrace

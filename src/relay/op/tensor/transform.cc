@@ -38,6 +38,7 @@
 #include <tvm/topi/reduction.h>
 #include <tvm/topi/transform.h>
 
+#include <sstream>
 #include <vector>
 
 #include "../../transforms/infer_layout_utils.h"
@@ -50,6 +51,77 @@
 namespace tvm {
 namespace relay {
 using tir::IntImmNode;
+
+TVM_REGISTER_NODE_TYPE(SlidingWindowAttrs);
+
+bool SlidingWindowRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                      const TypeReporter& reporter) {
+  // `types` contains: [data, result]
+  ICHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "SlidingWindow operator expects input to be of TensorType "
+                                     << "but got " << PrettyPrint(types[0]));
+    return false;
+  }
+  const auto* param = attrs.as<SlidingWindowAttrs>();
+  const int axis = param->axis;
+
+  std::vector<IndexExpr> oshape;
+
+  // Dimensions up until `axis` remain the same.
+  for (int i = 0; i < axis; ++i) {
+    oshape.emplace_back(data->shape[i]);
+  }
+
+  // New dimensions which result from sliding the window in each dimension. One new dimension per
+  // window dimension.
+  for (size_t i = 0; i < param->window_shape.size(); ++i) {
+    // Length of the shape along this dimension.
+    auto dim_len = data->shape[axis + i];
+    // Length of the window along this dimension.
+    auto window_len = param->window_shape[i];
+    // Strides along this dimension.
+    auto stride = param->strides[i];
+
+    oshape.push_back(floordiv(dim_len - (window_len - 1) + stride - 1, stride));
+  }
+
+  // Dimensions comprising the window.
+  for (size_t i = 0; i < param->window_shape.size(); ++i) {
+    oshape.push_back(param->window_shape[i]);
+  }
+
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Array<te::Tensor> SlidingWindowCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                       const Type& out_type) {
+  const SlidingWindowAttrs* param = attrs.as<SlidingWindowAttrs>();
+  ICHECK(param != nullptr);
+  return {topi::sliding_window(inputs[0], param->axis, param->window_shape, param->strides)};
+}
+
+Expr MakeSlidingWindow(Expr data, int axis, Array<Integer> window_shape, Array<Integer> strides) {
+  auto attrs = make_object<SlidingWindowAttrs>();
+  attrs->axis = axis;
+  attrs->window_shape = window_shape;
+  attrs->strides = strides;
+  static const Op& op = Op::Get("sliding_window");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.ir.sliding_window").set_body_typed(MakeSlidingWindow);
+
+RELAY_REGISTER_OP("sliding_window")
+    .describe(R"code(Slide window over a tensor.)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_attrs_type<SlidingWindowAttrs>()
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_type_rel("SlidingWindow", SlidingWindowRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 // relay.cast
 TVM_REGISTER_NODE_TYPE(CastAttrs);
@@ -288,6 +360,11 @@ bool StackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     ICHECK(types[0].as<IncompleteTypeNode>())
         << "cast: expect input type to be TupleType but get " << types[0];
     return false;
+  }
+  for (auto field : tensor_tuple->fields) {
+    if (field.as<IncompleteTypeNode>()) {
+      return false;
+    }
   }
   const auto* param = attrs.as<StackAttrs>();
   const auto& first = Downcast<TensorType>(tensor_tuple->fields[0]);
@@ -545,6 +622,8 @@ Array<IndexExpr> InferNewShape(const Array<IndexExpr>& data_shape, const Attrs& 
     newshape = param->newshape;
   }
 
+  bool allowzero = param->allowzero;
+
   std::unordered_set<size_t> used_input_dims;
   std::unordered_set<size_t> used_output_dims;
   size_t src_idx = 0;
@@ -557,11 +636,17 @@ Array<IndexExpr> InferNewShape(const Array<IndexExpr>& data_shape, const Attrs& 
       oshape.push_back(newshape[i]);
       ++src_idx;
     } else if (svalue == 0) {
-      // keep same
-      ICHECK_LT(src_idx, ishape.size());
-      used_input_dims.insert(src_idx);
-      used_output_dims.insert(oshape.size());
-      oshape.push_back(ishape[src_idx++]);
+      if (allowzero) {
+        // 0 means empty tensor, thus default behavior
+        oshape.push_back(newshape[i]);
+        ++src_idx;
+      } else {
+        // 0 means to copy at equivilant position in data tensor
+        ICHECK_LT(src_idx, ishape.size());
+        used_input_dims.insert(src_idx);
+        used_output_dims.insert(oshape.size());
+        oshape.push_back(ishape[src_idx++]);
+      }
     } else if (svalue == -1) {
       // inference based on rest
       ICHECK_LT(infer_idx, 0) << "One and only one dim can be inferred";
@@ -699,9 +784,17 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
     data_shape_sum *= Downcast<tvm::Integer>(x)->value;
   }
-  if (!found_dynamic) {
+  if (!found_dynamic && oshape_sum != data_shape_sum) {
+    std::ostringstream oshape_str, data_shape_str;
+    for (auto iter = oshape.begin(); iter != oshape.end(); iter++) {
+      oshape_str << (iter != oshape.begin() ? "," : "") << *iter;
+    }
+    for (auto iter = data_shape.begin(); iter != data_shape.end(); iter++) {
+      data_shape_str << (iter != data_shape.begin() ? "," : "") << *iter;
+    }
     ICHECK_EQ(oshape_sum, data_shape_sum)
-        << "Input tensor shape and reshaped shape are not compatible";
+        << "Input tensor shape(" << oshape_str.str() << ") and reshaped shape("
+        << data_shape_str.str() << ") are not compatible!";
   }
 
   reporter->Assign(types[1], TensorType(oshape, data->dtype));
@@ -823,9 +916,10 @@ Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& in
   return {topi::reshape(inputs[0], newshape)};
 }
 
-Expr MakeReshape(Expr data, Array<Integer> newshape) {
+Expr MakeReshape(Expr data, Array<Integer> newshape, bool allowzero) {
   auto attrs = make_object<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
+  attrs->allowzero = allowzero;
   static const Op& op = Op::Get("reshape");
   return Call(op, {data}, Attrs(attrs), {});
 }
@@ -924,7 +1018,9 @@ bool ReshapeLikeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   auto output_type = TensorType(shape_like, data->dtype);
   if (is_static_shape) {
     ICHECK(reporter->AssertEQ(data->Size(), output_type->Size()))
-        << "Reshape inputs size should be compatible.";
+        << "Reshape inputs size should be compatible, "
+        << "but found data_shape " << data->shape << " not same as output_shape "
+        << output_type->shape;
   }
   reporter->Assign(types[2], output_type);
   return true;
@@ -1020,7 +1116,8 @@ bool ScatterRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (updates == nullptr) {
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "indices of scatter must be tensor of integer";
   const auto param = attrs.as<ScatterAttrs>();
   ICHECK(param != nullptr);
   reporter->Assign(types[3], TensorType(data->shape, data->dtype));
@@ -1040,7 +1137,7 @@ RELAY_REGISTER_OP("scatter")
         R"doc(Update data at positions defined by indices with values in updates)doc" TVM_ADD_FILELINE)
     .set_num_inputs(3)
     .add_argument("data", "Tensor", "The input data tensor.")
-    .add_argument("indicies", "Tensor", "The indicies location tensor.")
+    .add_argument("indices", "Tensor", "The indices location tensor.")
     .add_argument("updates", "Tensor", "The values to update the input with.")
     .add_type_rel("Scatter", ScatterRel)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
@@ -1067,7 +1164,8 @@ bool ScatterAddRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (updates == nullptr) {
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of scatter_add must be tensor of integer";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "indices of scatter_add must be tensor of integer";
   const auto param = attrs.as<ScatterAddAttrs>();
   ICHECK(param != nullptr);
   reporter->Assign(types[3], TensorType(data->shape, data->dtype));
@@ -1087,7 +1185,7 @@ RELAY_REGISTER_OP("scatter_add")
         R"doc(Update data by adding values in updates at positions defined by indices)doc" TVM_ADD_FILELINE)
     .set_num_inputs(3)
     .add_argument("data", "Tensor", "The input data tensor.")
-    .add_argument("indicies", "Tensor", "The indicies location tensor.")
+    .add_argument("indices", "Tensor", "The indices location tensor.")
     .add_argument("updates", "Tensor", "The values to update the input with.")
     .add_type_rel("ScatterAdd", ScatterAddRel)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
@@ -1119,7 +1217,8 @@ bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         << "ScatterND: expect updates type to be TensorType but got " << types[2];
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "ScatterND: indices must be a tensor of integers.";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "ScatterND: indices must be a tensor of integers.";
 
   const auto out_shape = data->shape;
   const IntImmNode* mdim = indices->shape[0].as<IntImmNode>();
@@ -1191,7 +1290,8 @@ bool TakeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (indices == nullptr) {
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "indices of take must be tensor of integer";
   const auto param = attrs.as<TakeAttrs>();
   ICHECK(param != nullptr);
 
@@ -1480,11 +1580,15 @@ inline te::Tensor DynamicArange(const te::Tensor& start, const te::Tensor& stop,
                                 const te::Tensor& step, tvm::DataType dtype,
                                 std::string name = "T_arange_dynamic",
                                 std::string tag = topi::kInjective) {
+  ICHECK_EQ(start.ndim(), 0);
+  ICHECK_EQ(stop.ndim(), 0);
+  ICHECK_EQ(step.ndim(), 0);
   tvm::PrimExpr num_elem = tvm::tir::Var("num_elem");
   return te::compute(
       {num_elem},
       [&](const Array<tvm::tir::Var>& indices) {
-        return tvm::cast(dtype, start[0] + step[0] * indices[0]);
+        Array<PrimExpr> empty_indices;
+        return tvm::cast(dtype, start(empty_indices) + step(empty_indices) * indices[0]);
       },
       name, tag);
 }
@@ -1704,6 +1808,63 @@ RELAY_REGISTER_OP("sparse_reshape")
     .add_type_rel("sparse_reshape", SparseReshapeRel)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_support_level(3);
+
+TVM_REGISTER_NODE_TYPE(StftAttrs);
+
+bool STFTRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+             const TypeReporter& reporter) {
+  // types: [data, window, result]
+  ICHECK_EQ(types.size(), 3) << "STFTRel expects 3 types but " << types.size() << "provided";
+  ICHECK_EQ(num_inputs, 2) << "Unique: expect 2 inputs but " << num_inputs << " provided";
+  auto data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "Unique: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+  const auto* param = attrs.as<StftAttrs>();
+  const int ndim = static_cast<int>(data->shape.size());
+  std::vector<IndexExpr> oshape;
+  int dim = 0;
+  if (ndim == 2) {
+    oshape.push_back(data->shape[0]);  // batch dimension
+    dim += 1;
+  }
+  oshape.push_back(param->onesided ? param->n_fft / 2 + 1 : param->n_fft);
+  if (data->shape[dim].as<AnyNode>())
+    oshape.push_back(Any());
+  else
+    oshape.push_back(indexdiv((data->shape[dim] - param->n_fft), param->hop_length) +
+                     1);  // n_frames
+  oshape.push_back(2);
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Expr MakeSTFT(Expr data, int n_fft, int hop_length, int win_length, Expr window, bool normalized,
+              bool onesided) {
+  auto attrs = make_object<StftAttrs>();
+  attrs->n_fft = n_fft;
+  attrs->hop_length = hop_length;
+  attrs->win_length = win_length;
+  attrs->normalized = normalized;
+  attrs->onesided = onesided;
+  static const Op& op = Op::Get("stft");
+  return Call(op, {data, window}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.stft").set_body_typed(MakeSTFT);
+
+RELAY_REGISTER_OP("stft")
+    .describe(
+        R"code(The STFT computes the Fourier transform of short overlapping windows of the input.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "the input tensor")
+    .add_argument("window", "Tensor", "the optional window function")
+    .add_type_rel("stft", STFTRel)
+    .set_support_level(3)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 // meshgrid operator
 TVM_REGISTER_NODE_TYPE(MeshgridAttrs);
@@ -2599,28 +2760,30 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
         params->strides = new_strides;
         layout = new_layout;
       }
-    } else {
+    } else if (old_layout_name.size() <
+               new_layout_name.size()) {  // prohibit transforms such as NCHW4c -> NCHW
       if (params->axes) {
         auto axes = params->axes.value();
         Array<Integer> new_axes;
-
         for (size_t i = 0; i < axes.size(); ++i) {
           auto old_idx = axes[i];
           auto new_idx = new_layout.IndexOf(layout[old_idx]);
           new_axes.push_back(new_idx);
 
           const LayoutAxis& axis = layout[old_idx];
-          if (!axis.IsPrimal()) {
-            // original layout that contains splitted axes is not supported
-            return out_default;
-          }
-
+          ICHECK(axis.IsPrimal());
           auto factor = new_layout.FactorOf(axis);
-
           if (factor == -1) {
             new_begin.push_back(begin[i]);
             new_end.push_back(end[i]);
           } else {
+            if (strides.defined() && i < strides.size()) {
+              auto stride = strides[i];
+              // arbitrary stride is not supported
+              if (stride.defined() && stride->value != 1) {
+                return out_default;
+              }
+            }
             int64_t bg = begin[i];
             int64_t ed = end[i];
             if (bg % factor || ed % factor) {
@@ -2636,10 +2799,7 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
       } else {
         for (size_t i = 0; i < begin.size(); i++) {
           const LayoutAxis& axis = layout[i];
-          if (!axis.IsPrimal()) {
-            // original layout that contains splitted axes is not supported
-            return out_default;
-          }
+          ICHECK(axis.IsPrimal());
           auto factor = new_layout.FactorOf(axis);
           if (factor == -1) {
             new_begin.push_back(IntImm(begin[i]->dtype, begin[i]));
@@ -2829,15 +2989,18 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
     reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   } else {
-    auto indices = Downcast<Array<ObjectRef>>(param->indices_or_sections);
+    Array<IndexExpr> indices;
+    for (auto i : Downcast<Array<Integer>>(param->indices_or_sections)) {
+      indices.push_back(IntImm(DataType::Int(32), i.as<IntImmNode>()->value));
+    }
     auto begin = IndexExpr(tir::make_zero(DataType::Int(32)));
     std::vector<Type> fields;
     for (unsigned int i = 0; i < indices.size(); ++i) {
-      ICHECK(reporter->Assert(Downcast<IndexExpr>(indices[i]) > begin))
+      ICHECK(reporter->Assert(indices[i] > begin))
           << "indices_or_sections need to be a sorted ascending list";
       std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
-      oshape[axis] = Downcast<IndexExpr>(indices[i]) - begin;
-      begin = Downcast<IndexExpr>(indices[i]);
+      oshape[axis] = indices[i] - begin;
+      begin = indices[i];
       auto vec_type = TensorType(oshape, data->dtype);
       fields.push_back(vec_type);
     }
@@ -3257,8 +3420,10 @@ bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   oshape.reserve(ndim_data);
   for (size_t i = 0; i < ndim_data; ++i) {
     if (i == static_cast<size_t>(axis)) {
-      const int64_t* indice_shape_i = tir::as_const_int(indices->shape[i]);
-      ICHECK_GE(*indice_shape_i, 1);
+      if (indices->shape[i].as<IntImmNode>()) {
+        const int64_t* indice_shape_i = tir::as_const_int(indices->shape[i]);
+        ICHECK_GE(*indice_shape_i, 1);
+      }
     } else {
       ICHECK(reporter->AssertEQ(indices->shape[i], data->shape[i]));
     }
@@ -3572,7 +3737,8 @@ bool UnRavelIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attr
         << "unravel_index: expect input type to be TensorType but get " << types[0];
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of unravel_index must be tensor of integer";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "indices of unravel_index must be tensor of integer";
 
   const auto* shape = types[1].as<TensorTypeNode>();
   if (shape == nullptr) {
@@ -3580,7 +3746,8 @@ bool UnRavelIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attr
         << "unravel_index: expect input type to be TensorType but get " << types[1];
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "shape of unravel_index must be tensor of integer";
+  ICHECK(shape->dtype.is_int() || shape->dtype.is_uint())
+      << "shape of unravel_index must be tensor of integer";
 
   Array<IndexExpr> indices_shape;
   Array<IndexExpr> shape_shape;
@@ -3797,42 +3964,16 @@ bool AdvIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (inputs == nullptr || data == nullptr) {
     return false;
   }
+  ICHECK_LE(inputs->fields.size() - 1, data->shape.size()) << "too many indices for data!";
 
   Array<IndexExpr> oshape;
-  Array<IndexExpr> broadcast_shape;
-  int64_t num_picked_elems = 1;
-
-  if (inputs->fields.size() == 2) {
-    broadcast_shape = inputs->fields[1].as<TensorTypeNode>()->shape;
-  } else {
-    for (size_t i = 1; i < inputs->fields.size(); ++i) {
-      auto index_type = inputs->fields[i].as<TensorTypeNode>();
-      if (index_type == nullptr) {
-        return false;
-      }
-      ICHECK(index_type->dtype.is_int()) << "indices must be tensor of integers";
-
-      int64_t flatten_len = 1;
-      bool has_dyn_shape = false;
-      for (const auto& dim : index_type->shape) {
-        const IntImmNode* axis_len = dim.as<IntImmNode>();
-        if (!axis_len) {
-          // If dynamic shape appears, just use the first shape
-          broadcast_shape = index_type->shape;
-          has_dyn_shape = true;
-          break;
-        }
-        flatten_len *= axis_len->value;
-      }
-      if (has_dyn_shape) break;
-      if (flatten_len > num_picked_elems) {
-        num_picked_elems = flatten_len;
-        broadcast_shape = index_type->shape;
-      }
-    }
+  TensorType broadcast_type = Downcast<TensorType>(inputs->fields[1]);
+  for (size_t i = 2; i < inputs->fields.size(); ++i) {
+    broadcast_type =
+        ConcreteBroadcast(broadcast_type, Downcast<TensorType>(inputs->fields[i]), data->dtype);
   }
 
-  for (const auto& dim : broadcast_shape) {
+  for (const auto& dim : broadcast_type->shape) {
     oshape.push_back(dim);
   }
   for (size_t i = inputs->fields.size() - 1; i < data->shape.size(); ++i) {

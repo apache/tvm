@@ -31,33 +31,34 @@
 namespace tvm {
 namespace tir {
 
-#define TVM_DEFINE_BINOP_CONSTRUCTOR(Name)                                               \
-  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                        \
-    using T = Name::ContainerType;                                                       \
-    ICHECK(a.defined()) << "ValueError: a is undefined\n";                               \
-    ICHECK(b.defined()) << "ValueError: b is undefined\n";                               \
-    ICHECK(a.dtype() == b.dtype())                                                       \
-        << "TypeError: mismatched types. " << a.dtype() << " vs. " << b.dtype() << "\n"; \
-    ObjectPtr<T> node = make_object<T>();                                                \
-    node->dtype = a.dtype();                                                             \
-    node->a = std::move(a);                                                              \
-    node->b = std::move(b);                                                              \
-    node->span = std::move(span);                                                        \
-    data_ = std::move(node);                                                             \
+#define TVM_DEFINE_BINOP_CONSTRUCTOR(Name)                                                   \
+  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                            \
+    using T = Name::ContainerType;                                                           \
+    ICHECK(a.defined()) << "ValueError: a is undefined\n";                                   \
+    ICHECK(b.defined()) << "ValueError: b is undefined\n";                                   \
+    CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types. " << a.dtype() << " vs. " \
+                                  << b.dtype() << "\n";                                      \
+    ObjectPtr<T> node = make_object<T>();                                                    \
+    node->dtype = a.dtype();                                                                 \
+    node->a = std::move(a);                                                                  \
+    node->b = std::move(b);                                                                  \
+    node->span = std::move(span);                                                            \
+    data_ = std::move(node);                                                                 \
   }
 
-#define TVM_DEFINE_CMPOP_CONSTRUCTOR(Name)                             \
-  Name::Name(PrimExpr a, PrimExpr b, Span span) {                      \
-    using T = Name::ContainerType;                                     \
-    ICHECK(a.defined()) << "ValueError: a is undefined\n";             \
-    ICHECK(b.defined()) << "ValueError: b is undefined\n";             \
-    ICHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types\n"; \
-    ObjectPtr<T> node = make_object<T>();                              \
-    node->dtype = DataType::Bool(a.dtype().lanes());                   \
-    node->a = std::move(a);                                            \
-    node->b = std::move(b);                                            \
-    node->span = std::move(span);                                      \
-    data_ = std::move(node);                                           \
+#define TVM_DEFINE_CMPOP_CONSTRUCTOR(Name)                                                   \
+  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                            \
+    using T = Name::ContainerType;                                                           \
+    ICHECK(a.defined()) << "ValueError: a is undefined\n";                                   \
+    ICHECK(b.defined()) << "ValueError: b is undefined\n";                                   \
+    CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types. " << a.dtype() << " vs. " \
+                                  << b.dtype() << "\n";                                      \
+    ObjectPtr<T> node = make_object<T>();                                                    \
+    node->dtype = DataType::Bool(a.dtype().lanes());                                         \
+    node->a = std::move(a);                                                                  \
+    node->b = std::move(b);                                                                  \
+    node->span = std::move(span);                                                            \
+    data_ = std::move(node);                                                                 \
   }
 
 // Var
@@ -87,6 +88,18 @@ Var Var::copy_with_suffix(const String& suffix) const {
     new_ptr = make_object<VarNode>(*node);
   }
   new_ptr->name_hint = new_ptr->name_hint + suffix;
+  return Var(new_ptr);
+}
+
+Var Var::copy_with_dtype(DataType dtype) const {
+  const VarNode* node = get();
+  ObjectPtr<VarNode> new_ptr;
+  if (auto* ptr = this->as<SizeVarNode>()) {
+    new_ptr = make_object<SizeVarNode>(*ptr);
+  } else {
+    new_ptr = make_object<VarNode>(*node);
+  }
+  new_ptr->dtype = std::move(dtype);
   return Var(new_ptr);
 }
 
@@ -133,6 +146,15 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 // IterVar
 IterVar::IterVar(Range dom, Var var, IterVarType t, String thread_tag, Span span) {
   ObjectPtr<IterVarNode> n = make_object<IterVarNode>();
+  if (dom.defined() && dom->extent.defined()) {
+    CHECK(dom->extent.dtype().is_int())
+        << "The dtype of the domain of an IterVar must be an integer type. However, the domain's "
+           "dtype is "
+        << dom->extent.dtype();
+    CHECK_EQ(dom->extent.dtype(), var.dtype())
+        << "The dtype of the extent of an IterVar (" << dom->extent.dtype()
+        << ") must match its associated Var's dtype (" << var.dtype() << ")";
+  }
   n->dom = dom;
   n->var = var;
   n->iter_type = t;
@@ -613,6 +635,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // Load
 Load::Load(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate, Span span) {
+  LOG(FATAL) << "Unexpected use of deprecated Store node for buffer " << buffer_var->name_hint
+             << ".  Use BufferStore instead.";
   ICHECK(buffer_var.defined());
   ICHECK(predicate.defined());
   ICHECK(index.defined());
@@ -786,7 +810,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 // Call
 Call::Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, Span span) {
   for (size_t i = 0; i < args.size(); ++i) {
-    ICHECK(args[i].defined());
+    ICHECK(args[i].defined()) << "arg " << i << " is not defined()";
   }
 
   ObjectPtr<CallNode> node = make_object<CallNode>();
@@ -904,6 +928,35 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 // CommReducer
 CommReducer::CommReducer(Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,
                          Array<PrimExpr> identity_element, Span span) {
+  size_t n_group = result.size();
+  CHECK_EQ(lhs.size(), n_group) << "ValueError: The number of vars in `lhs` must equal to the "
+                                   "number of elements in `results`";
+  CHECK_EQ(rhs.size(), n_group) << "ValueError: The number of vars in `rhs` must equal to the "
+                                   "number of elements in `results`";
+  CHECK_EQ(identity_element.size(), n_group)
+      << "ValueError: The number of identities must equal to the number of elements in `results`";
+
+  // Change the dtype of input vars to adapt to the dtype of identities
+  ArrayNode* p_lhs = lhs.CopyOnWrite();
+  ArrayNode* p_rhs = rhs.CopyOnWrite();
+  std::unordered_map<const VarNode*, PrimExpr> var_map;
+  var_map.reserve(n_group * 2);
+  for (int i = 0; i < static_cast<int>(n_group); ++i) {
+    DataType dtype = identity_element[i].dtype();
+    Var l = lhs[i].copy_with_dtype(dtype);
+    Var r = rhs[i].copy_with_dtype(dtype);
+    var_map[lhs[i].get()] = l;
+    var_map[rhs[i].get()] = r;
+
+    p_lhs->SetItem(i, l);
+    p_rhs->SetItem(i, r);
+  }
+
+  ArrayNode* p_result = result.CopyOnWrite();
+  for (int i = 0; i < static_cast<int>(n_group); ++i) {
+    p_result->SetItem(i, Substitute(result[i], var_map));
+  }
+
   auto node = make_object<CommReducerNode>();
   node->lhs = lhs;
   node->rhs = rhs;
@@ -1014,12 +1067,29 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<AnyNode>([](const ObjectRef& node, ReprPrinter* p) { p->stream << "?"; });
 
 // BufferLoad
+void BufferLoadNode::LegalizeDType() {
+  for (int i = 0; i < static_cast<int>(indices.size()) - 1; i++) {
+    ICHECK(indices[i].dtype().is_scalar())
+        << "Only the last index of a buffer access may be a vector type.";
+  }
+
+  int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
+  int buffer_lanes = buffer->dtype.lanes();
+
+  this->dtype = buffer->dtype.with_lanes(index_lanes * buffer_lanes);
+}
+
 BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span) {
+  ICHECK_EQ(buffer->shape.size(), indices.size())
+      << "Buffer " << buffer->name << " is " << buffer->shape.size()
+      << "-dimensional, cannot be indexed with the " << indices.size()
+      << "-dimensional indices provided.";
+
   ObjectPtr<BufferLoadNode> node = make_object<BufferLoadNode>();
-  node->dtype = buffer->dtype;
   node->buffer = std::move(buffer);
   node->indices = std::move(indices);
   node->span = std::move(span);
+  node->LegalizeDType();
   data_ = std::move(node);
 }
 

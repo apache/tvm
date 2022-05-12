@@ -107,9 +107,22 @@ bool QnnConv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs
       return false;
     }
   }
-  ICHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
-  ICHECK(IsScalarType(types[3], DataType::Int(32)));    // weight_zero_point
-  ICHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
+
+  const auto* weight_zp_type = types[3].as<TensorTypeNode>();
+  ICHECK(weight_zp_type->dtype == DataType::Int(32));  // weight_zero_point
+
+  bool input_zp_is_scalar = (types[2].as<TensorTypeNode>())->shape.size() == 0 ||
+                            get_const_int((types[2].as<TensorTypeNode>())->Size()) == 1;
+  bool input_scale_is_scalar = (types[4].as<TensorTypeNode>())->shape.size() == 0 ||
+                               get_const_int((types[4].as<TensorTypeNode>())->Size()) == 1;
+
+  ICHECK(input_scale_is_scalar && input_zp_is_scalar)
+      << "Zero point or scale should be scalar or a vector with one element.";
+
+  // Assign types for input scale and zero point.
+  AssignType(types[2], DataType::Int(32), Integer(1), reporter);    // input_zero_point
+  AssignType(types[4], DataType::Float(32), Integer(1), reporter);  // input_scale
+
   // Kernel scale can be a vector of length output_channels or a scalar.
   if (param->groups == 1) {
     size_t axis = param->kernel_layout.find('O');
@@ -128,7 +141,7 @@ bool QnnConv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Conv2D infer type function.
   Array<Type> tensor_types = {types[0], types[1], types[6]};
-  return Conv2DTransposeRel<Conv2DTransposeAttrs>(tensor_types, 3, attrs, reporter);
+  return Conv2DTransposeRel(tensor_types, 3, attrs, reporter);
 }
 
 RELAY_REGISTER_OP("qnn.conv2d_transpose")

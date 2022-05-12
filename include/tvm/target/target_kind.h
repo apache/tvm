@@ -24,6 +24,7 @@
 #ifndef TVM_TARGET_TARGET_KIND_H_
 #define TVM_TARGET_TARGET_KIND_H_
 
+#include <tvm/ir/transform.h>
 #include <tvm/node/attr_registry_map.h>
 #include <tvm/node/node.h>
 
@@ -33,6 +34,33 @@
 #include <vector>
 
 namespace tvm {
+
+class Target;
+
+/*!
+ * \brief RelayToTIR tvm::transform::Pass specific to a TargetKind
+ *
+ * Called before the default lowering passes.
+ *
+ * \param mod The module that an optimization pass runs on.
+ * \param pass_ctx The pass context that can provide information for the optimization.
+ *
+ * \return The transformed module.
+ */
+using FTVMRelayToTIR = transform::Pass;
+
+/*!
+ * \brief TIRToRuntime conversion specific to a TargetKind
+ *
+ * This function is responsible for scanning an IRModule for appropriate Target-specific functions
+ and generating a Runtime module representing the compiled output
+ *
+ * \param ir_module Unified IRModule
+ * \param target Target to filter on or retrieve arguments from
+ * \return Runtime Module containing compiled functions
+ */
+using FTVMTIRToRuntime = runtime::TypedPackedFunc<runtime::Module(IRModule, Target)>;
+
 namespace detail {
 template <typename, typename, typename>
 struct ValueTypeInfoMaker;
@@ -202,6 +230,12 @@ class TargetKindRegEntry {
    */
   TVM_DLL static Array<String> ListTargetKinds();
   /*!
+   * \brief Get all supported option names and types for a given Target kind.
+   * \return Map of option name to type
+   */
+  TVM_DLL static Map<String, String> ListTargetKindOptions(const TargetKind& kind);
+
+  /*!
    * \brief Register or get a new entry.
    * \param target_kind_name The name of the TargetKind.
    * \return the corresponding entry.
@@ -349,6 +383,26 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
 
 #define TVM_TARGET_KIND_REGISTER_VAR_DEF \
   static DMLC_ATTRIBUTE_UNUSED ::tvm::TargetKindRegEntry& __make_##TargetKind
+
+namespace attr {
+//
+// Distinguished TargetKind attribute names.
+//
+
+/*!
+ * \brief A \p TargetKind attribute of type \p Bool. If true, then the target kind name also
+ * corresponds to an external codegen 'compiler' name. That name may be used:
+ *  - To retrieve partitioning rules using \p get_partition_table.
+ *  - To attach to Relay Functions under the \p attr::kCompiler attribute to indicate
+ *    the function is to be compiled by the external codegen path.
+ *
+ * The \p CollagePartition pass uses this attribute to guide it's search over candidate partitions
+ * using external codegen.
+ *
+ * See also \p Target::IsExternalCodegenFor
+ */
+constexpr const char* kIsExternalCodegen = "is_external_codegen";
+}  // namespace attr
 
 /*!
  * \def TVM_REGISTER_TARGET_KIND

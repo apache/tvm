@@ -369,7 +369,10 @@ print(vta.lower(s, [data, kernel, res], simple_mode=True))
 from tvm.topi.testing import conv2d_nchw_python
 
 # Compile the TVM module
-my_conv = vta.build(s, [data, kernel, res], "ext_dev", env.target_host, name="my_conv")
+with vta.build_config(disabled_pass={"tir.CommonSubexprElimTIR"}):
+    my_conv = vta.build(
+        s, [data, kernel, res], tvm.target.Target("ext_dev", host=env.target_host), name="my_conv"
+    )
 temp = utils.tempdir()
 my_conv.save(temp.relpath("conv2d.o"))
 remote.upload(temp.relpath("conv2d.o"))

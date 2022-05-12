@@ -19,11 +19,12 @@ import pytest
 from unittest import mock
 
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.relay import transform
 from tvm.contrib.target import coreml as _coreml
 
-pytest.importorskip("coremltools")
+requires_coremltools = tvm.testing.requires_package("coremltools")
 
 
 def _has_xcode():
@@ -88,6 +89,11 @@ def _create_graph_annotated():
     return mod
 
 
+@pytest.mark.xfail(
+    reason="Currently failing test.  See tracking issue https://github.com/apache/tvm/issues/8901"
+)
+@tvm.testing.uses_gpu
+@requires_coremltools
 def test_annotate():
     mod = _create_graph()
     mod = transform.AnnotateTarget("coremlcompiler")(mod)
@@ -98,6 +104,8 @@ def test_annotate():
 
 
 @pytest.mark.skipif(not _has_xcode(), reason="Xcode is not available")
+@tvm.testing.uses_gpu
+@requires_coremltools
 def test_compile_and_run():
     dev = tvm.cpu()
     target = "llvm"
@@ -136,6 +144,8 @@ def _construct_model(func, m1, m2):
             fcompile(func)
 
 
+@tvm.testing.uses_gpu
+@requires_coremltools
 def test_add():
     shape = (10, 10)
     x = relay.var("x", shape=shape)
@@ -144,6 +154,8 @@ def test_add():
     _construct_model(func)
 
 
+@tvm.testing.uses_gpu
+@requires_coremltools
 def test_multiply():
     shape = (10, 10)
     x = relay.var("x", shape=shape)
@@ -152,6 +164,8 @@ def test_multiply():
     _construct_model(func)
 
 
+@tvm.testing.uses_gpu
+@requires_coremltools
 def test_clip():
     shape = (10, 10)
     x = relay.var("x", shape=shape)
@@ -160,6 +174,8 @@ def test_clip():
     _construct_model(func)
 
 
+@tvm.testing.uses_gpu
+@requires_coremltools
 def test_batch_flatten():
     shape = (10, 10, 10)
     x = relay.var("x", shape=shape)
@@ -168,6 +184,8 @@ def test_batch_flatten():
     _construct_model(func)
 
 
+@tvm.testing.uses_gpu
+@requires_coremltools
 def test_expand_dims():
     shape = (10, 10)
     x = relay.var("x", shape=shape)
@@ -180,6 +198,8 @@ def test_expand_dims():
     _construct_model(func)
 
 
+@tvm.testing.uses_gpu
+@requires_coremltools
 def test_relu():
     shape = (10, 10)
     x = relay.var("x", shape=shape)
@@ -188,6 +208,8 @@ def test_relu():
     _construct_model(func)
 
 
+@tvm.testing.uses_gpu
+@requires_coremltools
 def test_softmax():
     shape = (10, 10)
     x = relay.var("x", shape=shape)
@@ -196,6 +218,8 @@ def test_softmax():
     _construct_model(func)
 
 
+@tvm.testing.uses_gpu
+@requires_coremltools
 def test_conv2d():
     x = relay.var("x", shape=(1, 3, 224, 224))
     w = relay.const(np.zeros((16, 3, 3, 3), dtype="float32"))
@@ -204,6 +228,8 @@ def test_conv2d():
     _construct_model(func)
 
 
+@tvm.testing.uses_gpu
+@requires_coremltools
 def test_global_avg_pool2d():
     shape = (10, 10, 10, 10)
     x = relay.var("x", shape=shape)

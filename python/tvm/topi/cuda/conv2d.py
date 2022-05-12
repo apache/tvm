@@ -25,7 +25,6 @@ from .. import nn, generic
 from ..nn.utils import get_pad_tuple
 from ..utils import get_const_tuple, traverse_inline
 from .conv2d_direct import schedule_direct_cuda
-from .conv2d_nhwc import schedule_conv2d_nhwc_direct
 
 
 @autotvm.register_topi_compute("conv2d_nchw.cuda")
@@ -43,26 +42,6 @@ def schedule_conv2d_nchw(cfg, outs):
     def _callback(op):
         if op.tag == "conv2d_nchw":
             schedule_direct_cuda(cfg, s, op.output(0))
-
-    traverse_inline(s, outs[0].op, _callback)
-    return s
-
-
-@autotvm.register_topi_compute("conv2d_nhwc.cuda")
-def conv2d_nhwc(cfg, data, kernel, strides, padding, dilation, out_dtype="float32"):
-    """Compute conv2d with NHWC layout"""
-    return nn.conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
-
-
-@autotvm.register_topi_schedule("conv2d_nhwc.cuda")
-def schedule_conv2d_nhwc(cfg, outs):
-    """Create the schedule for conv2d_nhwc"""
-    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
-    s = te.create_schedule([x.op for x in outs])
-
-    def _callback(op):
-        if op.tag == "conv2d_nhwc":
-            schedule_conv2d_nhwc_direct(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)
     return s
@@ -144,3 +123,28 @@ def conv2d_cudnn(
 def schedule_conv2d_cudnn(cfg, outs):
     """Create the schedule for conv2d_cudnn"""
     return generic.schedule_extern(outs)
+
+
+def conv2d_backward_weight_cudnn(
+    dy, x, kernel_size, padding, stride, dilation, groups, layout, output_dtype
+):
+    """Compute conv2d wgrad using CuDNN library"""
+    assert layout in ["NCHW", "NHWC"]
+
+    if dy.dtype == "float16":
+        # cuDNN does not seem to support other combination.
+        assert output_dtype == "float16", "Only supports fp16 output for cuDNN fp16 wgrad."
+
+    conv_dtype = "float32"  # Accumulation is always fp32
+    return cudnn.conv_backward_filter(
+        dy,
+        x,
+        kernel_size,
+        padding,
+        stride,
+        dilation,
+        conv_mode=1,
+        tensor_format=0 if layout == "NCHW" else 1,
+        conv_dtype=conv_dtype,
+        groups=groups,
+    )

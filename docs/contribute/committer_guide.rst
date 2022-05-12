@@ -19,6 +19,11 @@
 
 Committer Guide
 ===============
+
+.. contents::
+  :depth: 2
+  :local:
+
 This is an evolving document to provide some helpful tips for committers.
 Most of them are lessons learned during development.
 We welcome every committer to contribute to this document.
@@ -92,7 +97,7 @@ when they actively manage outstanding PRs,
 but watch the community less frequently in the rest of the time.
 
 Remember that your merit will never go away, so please
-take your time and pace when contributing to the project:)
+take your time and pace when contributing to the project :)
 
 
 Broad Collaboration

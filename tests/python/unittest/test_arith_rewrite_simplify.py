@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 from tvm import te
 
@@ -80,6 +81,10 @@ def test_vector_simplify():
     ck.verify(fld(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8), fld(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8))
     ck.verify(fld(tvm.tir.Ramp(x, 8, 5), tvm.tir.Broadcast(4, 5)), tvm.tir.Ramp(fld(x, 4), 2, 5))
     ck.verify(
+        fld(tvm.tir.Ramp(flm(x * 4, 256), 1, 4), tvm.tir.Broadcast(8, 4)),
+        tvm.tir.Broadcast(fld(flm(x * 4, 256), 8), 4),
+    )
+    ck.verify(
         fld(tvm.tir.Ramp(x, 7, 4), tvm.tir.Broadcast(4, 4)),
         fld(tvm.tir.Ramp(x, 7, 4), tvm.tir.Broadcast(4, 4)),
     )
@@ -101,15 +106,16 @@ def test_vector_simplify():
     ck.verify(
         fld(tvm.tir.Ramp(x * 4, 1, 5), tvm.tir.Broadcast(64, 5)),
         fld(tvm.tir.Ramp(x * 4, 1, 5), tvm.tir.Broadcast(64, 5)),
-    )
+    )  # Example negative case: x = 15; [60, 61, 62, 63, 64] / 64 = [0, 0, 0, 0, 1]
     ck.verify(
         fld(tvm.tir.Ramp(x * 4 + 3, 1, 4), tvm.tir.Broadcast(64, 4)),
         fld(tvm.tir.Ramp(x * 4 + 3, 1, 4), tvm.tir.Broadcast(64, 4)),
-    )
+    )  # Example negative case: x = 15; [63, 64, 65, 66] % 64 = [0, 1, 1, 1]
     ck.verify(
         fld(tvm.tir.Ramp(x * 7, 1, 4), tvm.tir.Broadcast(64, 4)),
         fld(tvm.tir.Ramp(x * 7, 1, 4), tvm.tir.Broadcast(64, 4)),
-    )
+    )  # Example negative case: x = 9; [63, 70, 77, 84] % 64 = [0, 1, 1, 1]
+
     # floor mod
     ck.verify(flm(y.astype("int32x2"), x.astype("int32x2")), flm(y, x).astype("int32x2"))
     ck.verify(flm(tvm.tir.Ramp(x, 4, 4), 2), tvm.tir.Broadcast(flm(x, 2), 4))
@@ -136,16 +142,21 @@ def test_vector_simplify():
         flm(tvm.tir.Ramp(x * 8, 2, 4), tvm.tir.Broadcast(64, 4)), tvm.tir.Ramp(flm(x * 8, 64), 2, 4)
     )
     ck.verify(
-        flm(tvm.tir.Ramp(x * 4, 1, 5), tvm.tir.Broadcast(64, 5)), tvm.tir.Ramp(flm(x * 4, 64), 1, 5)
-    )
+        flm(tvm.tir.Ramp(x * 4, 1, 5), tvm.tir.Broadcast(64, 5)),
+        flm(tvm.tir.Ramp(x * 4, 1, 5), tvm.tir.Broadcast(64, 5)),
+    )  # Example negative case: x = 15; [60, 61, 62, 63, 64] % 64 = [60, 61, 62, 63, 0]
     ck.verify(
         flm(tvm.tir.Ramp(x * 4 + 3, 1, 4), tvm.tir.Broadcast(64, 4)),
-        tvm.tir.Ramp(flm(x * 4 + 3, 64), 1, 4),
-    )
+        flm(tvm.tir.Ramp(x * 4 + 3, 1, 4), tvm.tir.Broadcast(64, 4)),
+    )  # Example negative case: x = 15; [63, 64, 65, 66] % 64 = [63, 0, 1, 2]
+    ck.verify(
+        flm(tvm.tir.Ramp(x * 2, 1, 8), tvm.tir.Broadcast(20, 8)),
+        flm(tvm.tir.Ramp(x * 2, 1, 8), tvm.tir.Broadcast(20, 8)),
+    )  # Example negative case: x = 9; [18, 19, 20, ..., 25] % 20 = [18, 19, 0, 1, ..., 5]
     ck.verify(
         flm(tvm.tir.Ramp(x * 7, 1, 4), tvm.tir.Broadcast(64, 4)),
         flm(tvm.tir.Ramp(x * 7, 1, 4), tvm.tir.Broadcast(64, 4)),
-    )
+    )  # Example negative case: x = 9; [63, 70, 77, 84] % 64 = [63, 6, 13, 20]
 
     # Min/Max rules
     vx = te.var("vx", dtype="int32x2")
@@ -270,6 +281,7 @@ def test_add_index_simplify():
     flm = tvm.te.floormod
     ck.verify(y * flm(x, 8) + 10 * flm(x, 8), flm(x, 8) * (y + 10))
     ck.verify(fld(x, 8) * 8 + flm(x, 8), x)
+    ck.verify(fld(flm(x, 2) + 7, 2) + fld(x, 2), fld(x + 7, 2))
 
 
 def test_sub_index_simplify():
@@ -455,6 +467,10 @@ def test_floordiv_index_simplify():
 
     ck.verify(fld(x * 2, 4), fld(x, 2))
     ck.verify(fld(x * 4, 2), x * 2)
+    ck.verify(fld(x * 8 + 7, 16), fld(x, 2))
+    ck.verify(fld(x * 8 + 39, 16), fld(x, 2) + 2)
+    ck.verify(fld(x * 8 - 1, 16), fld(x * 8 + -1, 16))
+    ck.verify(fld(x * 8 - 9, 16), fld(x, 2) + -1)
 
     ck.verify(fld(x * 4 + y, 2), x * 2 + fld(y, 2))
     ck.verify(fld(tvm.te.min(x * 6, y), 2), tvm.te.min(x * 3, fld(y, 2)))
@@ -487,6 +503,11 @@ def test_floordiv_index_simplify():
     ck.verify(fld(z * x + y, z), x + fld(y, z))
     ck.verify(fld(y + x * z, z), fld(y, z) + x)
     ck.verify(fld(y + z * x, z), fld(y, z) + x)
+
+    ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 31), override=True)
+    ck.analyzer.update(z, tvm.arith.ConstIntBound(0, 3), override=True)
+    ck.verify(fld(x * 32 + y, 64), fld(x, 2))
+    ck.verify(fld(x * 128 + y * 4 + z, 512), fld(x, 4))
 
 
 def test_mod_index_simplify():
@@ -542,6 +563,10 @@ def test_floormod_index_simplify():
     ck.verify(flm(x * (-10) + y, 2), flm(y, 2))
     ck.verify(flm(x + (-10), 2), flm(x, 2))
     ck.verify(flm(x + y * (-10), 2), flm(x, 2))
+
+    ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 31), override=True)
+    ck.verify(flm(x * 32 + y, 64), flm(x, 2) * 32 + y)
+    ck.verify(flm(x * 32 - y, 64), flm(x * 32 - y, 64))
 
 
 def test_min_index_simplify():
@@ -925,20 +950,27 @@ def test_shift_left_simplify():
     ck.verify(z, tvm.tir.const(1 << 10, "int32"))
 
 
+def test_div_zero_simplify():
+    ck = RewriteChecker()
+    ramp = tvm.tir.Ramp(1, 1, 2)
+    broadcast = tvm.tir.Broadcast(0, 2)
+
+    with pytest.raises(tvm.error.TVMError) as cm:
+        ck.analyzer.rewrite_simplify(tvm.tir.Div(ramp, broadcast))
+        assert "division by zero" in str(cm.execption)
+
+    with pytest.raises(tvm.error.TVMError) as cm:
+        ck.analyzer.rewrite_simplify(tvm.tir.Mod(ramp, broadcast))
+        assert "division by zero" in str(cm.execption)
+
+    with pytest.raises(tvm.error.TVMError) as cm:
+        ck.analyzer.rewrite_simplify(tvm.tir.FloorDiv(ramp, broadcast))
+        assert "division by zero" in str(cm.execption)
+
+    with pytest.raises(tvm.error.TVMError) as cm:
+        ck.analyzer.rewrite_simplify(tvm.tir.FloorMod(ramp, broadcast))
+        assert "division by zero" in str(cm.execption)
+
+
 if __name__ == "__main__":
-    test_floordiv_index_simplify()
-    test_floormod_index_simplify()
-    test_cmp_simplify()
-    test_vector_simplify()
-    test_add_index_simplify()
-    test_sub_index_simplify()
-    test_mul_index_simplify()
-    test_div_index_simplify()
-    test_max_index_simplify()
-    test_min_index_simplify()
-    test_mod_index_simplify()
-    test_select_simplify()
-    test_logical_simplify()
-    test_let_simplify()
-    test_cast_simplify()
-    test_shift_left_simplify()
+    pytest.main([__file__])

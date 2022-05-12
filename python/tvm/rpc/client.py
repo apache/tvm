@@ -16,19 +16,17 @@
 # under the License.
 """RPC client tools"""
 import os
-import stat
 import socket
+import stat
 import struct
 import time
 
 import tvm._ffi
-from tvm.contrib import utils
 from tvm._ffi.base import TVMError
+from tvm.contrib import utils
 from tvm.runtime import ndarray as nd
 
-from . import base
-from . import server
-from . import _ffi_api
+from . import _ffi_api, base, server
 
 
 class RPCSession(object):
@@ -217,6 +215,10 @@ class RPCSession(object):
         """Construct Metal device."""
         return self.device(8, dev_id)
 
+    def rocm(self, dev_id=0):
+        """Construct ROCm device."""
+        return self.device(10, dev_id)
+
     def ext_dev(self, dev_id=0):
         """Construct extension device."""
         return self.device(12, dev_id)
@@ -322,18 +324,19 @@ class TrackerSession(object):
 
         res = ""
         res += "Server List\n"
-        res += "----------------------------\n"
-        res += "server-address\tkey\n"
-        res += "----------------------------\n"
-        for item in data["server_info"]:
+        res += "------------------------------\n"
+        res += "server-address           key\n"
+        res += "------------------------------\n"
+        sorted_server = sorted(data["server_info"], key=lambda x: x["key"])
+        for item in sorted_server:
             addr = item["addr"]
-            res += str(addr[0]) + ":" + str(addr[1]) + "\t"
+            res += "%21s    " % ":".join(map(str, addr))
             res += item["key"] + "\n"
             key = item["key"].split(":")[1]  # 'server:rasp3b` -> 'rasp3b'
             if key not in total_ct:
                 total_ct[key] = 0
             total_ct[key] += 1
-        res += "----------------------------\n"
+        res += "------------------------------\n"
         res += "\n"
 
         # compute max length of device key
@@ -362,7 +365,9 @@ class TrackerSession(object):
         res += separate_line
         return res
 
-    def request(self, key, priority=1, session_timeout=0, max_retry=5):
+    def request(
+        self, key, priority=1, session_timeout=0, max_retry=5, session_constructor_args=None
+    ):
         """Request a new connection from the tracker.
 
         Parameters
@@ -380,6 +385,11 @@ class TrackerSession(object):
 
         max_retry : int, optional
             Maximum number of times to retry before give up.
+
+        session_constructor_args : list, optional
+            List of additional arguments to passed as the remote session constructor.
+            The first element of the list is always a string specifying the name of
+            the session constructor, the following args are the positional args to that function.
         """
         last_err = None
         for _ in range(max_retry):
@@ -391,7 +401,13 @@ class TrackerSession(object):
                 if value[0] != base.TrackerCode.SUCCESS:
                     raise RuntimeError("Invalid return value %s" % str(value))
                 url, port, matchkey = value[1]
-                return connect(url, port, matchkey, session_timeout)
+                return connect(
+                    url,
+                    port,
+                    matchkey,
+                    session_timeout,
+                    session_constructor_args=session_constructor_args,
+                )
             except socket.error as err:
                 self.close()
                 last_err = err

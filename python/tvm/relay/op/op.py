@@ -60,7 +60,7 @@ def register(op_name, describe=""):
 
 
 def register_stateful(op_name, stateful, level=10):
-    """Register operator pattern for an op.
+    """Register stateful flag for an op.
 
     Parameters
     ----------
@@ -81,7 +81,7 @@ class OpPattern(object):
 
     See Also
     --------
-    top.tag : Contains explanation of the tag type.
+    topi.tag : Contains explanation of the tag type.
     """
 
     # Elementwise operator
@@ -341,6 +341,23 @@ def register_convert_op_layout(op_name, convert_layout=None, level=10):
     return tvm.ir.register_op_attr(op_name, "FTVMConvertOpLayout", convert_layout, level)
 
 
+def register_infer_correct_layout(op_name, infer_layout=None, level=10):
+    """Register infer op layout function for an op
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator
+
+    infer_layout: function (attrs: Attrs, inputs: List[Layout]) -> InferCorrectLayoutOutput
+        The function to infer correct layout
+
+    level : int
+        The priority level
+    """
+    return tvm.ir.register_op_attr(op_name, "FInferCorrectLayout", infer_layout, level)
+
+
 def register_legalize(op_name, legal_op=None, level=10):
     """Register legal transformation function for an op
 
@@ -376,7 +393,7 @@ def register_pattern(op_name, pattern, level=10):
 
 
 def register_gradient(op_name, fgradient=None, level=10):
-    """Register operator pattern for an op.
+    """Register operator gradient function for an op.
 
     Parameters
     ----------

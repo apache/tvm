@@ -34,8 +34,7 @@ def check_equal(graph, tf_out, input_map=None):
     mod, params = from_tensorflow(graph.as_graph_def(add_shapes=True))
     if input_map is not None:
         params.update(input_map)
-    ex = relay.create_executor("vm", mod=mod)
-    relay_out = ex.evaluate()(**params)
+    relay_out = relay.create_executor("vm", mod=mod).evaluate()(**params)
     if isinstance(relay_out, nd.NDArray):
         np.testing.assert_allclose(tf_out, relay_out.numpy())
     else:

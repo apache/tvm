@@ -39,3 +39,4 @@ from .vision import *
 from .sort import *
 from .search import *
 from .image import *
+from .math import *

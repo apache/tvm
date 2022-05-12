@@ -46,6 +46,7 @@
 #include <tvm/runtime/packed_func.h>
 
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -56,9 +57,9 @@ namespace runtime {
  * \brief Check if signals have been sent to the process and if so
  *  invoke the registered signal handler in the frontend environment.
  *
- *  When runnning TVM in another langugage(python), the signal handler
+ *  When running TVM in another language (Python), the signal handler
  *  may not be immediately executed, but instead the signal is marked
- *  in the interpreter state(to ensure non-blocking of the signal handler).
+ *  in the interpreter state (to ensure non-blocking of the signal handler).
  *
  *  This function can be explicitly invoked to check the cached signal
  *  and run the related processing if a signal is marked.
@@ -108,7 +109,11 @@ class Registry {
    * \brief set the body of the function to be f
    * \param f The body of the function.
    */
-  Registry& set_body(PackedFunc::FType f) {  // NOLINT(*)
+  template <typename TCallable,
+            typename = typename std::enable_if_t<
+                std::is_convertible<TCallable, std::function<void(TVMArgs, TVMRetValue*)>>::value &&
+                !std::is_base_of<PackedFunc, TCallable>::value>>
+  Registry& set_body(TCallable f) {  // NOLINT(*)
     return set_body(PackedFunc(f));
   }
   /*!
@@ -162,11 +167,12 @@ class Registry {
    */
   template <typename T, typename R, typename... Args>
   Registry& set_body_method(R (T::*f)(Args...)) {
-    auto fwrap = [f](T target, Args... params) -> R {
+    using R_ = typename std::remove_reference<R>::type;
+    auto fwrap = [f](T target, Args... params) -> R_ {
       // call method pointer
       return (target.*f)(params...);
     };
-    return set_body(TypedPackedFunc<R(T, Args...)>(fwrap, name_));
+    return set_body(TypedPackedFunc<R_(T, Args...)>(fwrap, name_));
   }
 
   /*!

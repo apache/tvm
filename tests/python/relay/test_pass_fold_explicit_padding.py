@@ -70,12 +70,14 @@ def test_simplify_conv_pad():
         mod2 = tvm.IRModule.from_expr(zz)
 
         with tvm.transform.PassContext():
-            ex1 = relay.create_executor("vm", mod=mod1, device=tvm.cpu(), target="llvm")
-        ex2 = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm")
+            func1 = relay.create_executor(
+                "vm", mod=mod1, device=tvm.cpu(), target="llvm"
+            ).evaluate()
+        func2 = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm").evaluate()
         x_np = np.random.rand(*shape).astype("float32")
         w_np = np.random.rand(*wshape).astype("float32")
-        result1 = ex1.evaluate()(x_np, w_np)
-        result2 = ex2.evaluate()(x_np, w_np)
+        result1 = func1(x_np, w_np)
+        result2 = func2(x_np, w_np)
 
         tvm.testing.assert_allclose(result1.numpy(), result2.numpy(), rtol=1e-5, atol=1e-5)
 
@@ -98,5 +100,50 @@ def test_simplify_conv_pad():
     validate(ndim, [[0, 0]] * 2 + [i_pad] * ndim, 0, "edge", orig_pad * ndim, "NCHW")
 
 
+def fold_pad_qconv2d():
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype="int8")
+        weight = relay.var("weight", shape=(3, 3, 64, 64), dtype="int8")
+        input_zero_point = 10
+        pad = relay.nn.pad(x, [[0, 0], [1, 1], [1, 1], [0, 0]], pad_value=input_zero_point)
+        return relay.qnn.op.conv2d(
+            pad,
+            weight,
+            relay.const(input_zero_point, "int32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "float32"),
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(0, 0),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype="int8")
+        weight = relay.var("weight", shape=(3, 3, 64, 64), dtype="int8")
+        input_zero_point = 10
+        return relay.qnn.op.conv2d(
+            x,
+            weight,
+            relay.const(input_zero_point, "int32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "float32"),
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+
+    a = run_opt_pass(before(), relay.transform.FoldExplicitPadding())
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b, map_free_vars=True), "Actual = \n" + str(a)
+
+
 if __name__ == "__main__":
     test_simplify_conv_pad()
+    fold_pad_qconv2d()

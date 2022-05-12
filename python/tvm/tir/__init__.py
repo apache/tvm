@@ -25,15 +25,24 @@ from .expr import Var, SizeVar, Reduce, FloatImm, IntImm, StringImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
 from .expr import Select, BufferLoad, ProducerLoad, Load, Ramp, Broadcast, Shuffle
-from .expr import Call, CallEffectKind, Let, IterVar, Any
+from .expr import Call, CallEffectKind, Let, IterVar, CommReducer, Any
 
-from .stmt import Stmt, LetStmt, AssertStmt, ForKind, For
-from .stmt import BufferStore, BufferRealize, Store, ProducerStore, Allocate, AttrStmt
+from .stmt import Stmt, LetStmt, AssertStmt, ForKind, For, While
+from .stmt import (
+    BufferStore,
+    BufferRealize,
+    Store,
+    ProducerStore,
+    Allocate,
+    AllocateConst,
+    AttrStmt,
+)
+
 from .stmt import ProducerRealize, SeqStmt
 from .stmt import IfThenElse, Evaluate, Prefetch, stmt_seq, stmt_list
 from .stmt import BufferRegion, MatchBufferRegion, Block, BlockRealize
 
-from .function import PrimFunc
+from .function import PrimFunc, TensorIntrin, IndexMap
 
 from .op import call_packed, call_intrin, call_pure_extern, call_extern
 from .op import call_llvm_intrin, call_llvm_pure_intrin, ret, all, any, min_value, max_value, trace
@@ -55,3 +64,4 @@ from . import ir_builder
 from . import transform
 from . import analysis
 from . import stmt_functor
+from . import usmp

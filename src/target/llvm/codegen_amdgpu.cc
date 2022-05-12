@@ -80,7 +80,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       buf = AllocateSharedMemory(op->dtype, 0, 3, std::min(info.alignment, 16),
                                  llvm::GlobalValue::ExternalLinkage);
     } else {
-      int32_t constant_size = op->constant_allocation_size();
+      size_t constant_size = op->ConstantAllocationSize();
       ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
 
       if (constant_size % 4 == 0 && info.alignment == 0) {
@@ -230,11 +230,11 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 
   cg->Init("TVMAMDGPUModule", tm.get(), ctx.get(), false, false, false);
 
-  for (auto kv : mod->functions) {
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
-    auto f = Downcast<PrimFunc>(kv.second);
-    cg->AddFunction(f);
-  }
+  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
+    ICHECK(kv.second->template IsInstance<PrimFuncNode>())
+        << "Can only lower IR Module with PrimFuncs";
+    return Downcast<PrimFunc>(kv.second);
+  });
 
   const auto* find_rocm_bitcodes = tvm::runtime::Registry::Get("tvm_callback_rocm_bitcode_path");
   Array<runtime::String> bitcode_files = (*find_rocm_bitcodes)();

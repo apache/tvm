@@ -32,12 +32,14 @@
 #include <tvm/runtime/data_type.h>
 #include <tvm/topi/elemwise.h>
 
+#include <utility>
 #include <vector>
 
 #include "../../transforms/infer_layout_utils.h"
+#include "../annotation/annotation.h"
 #include "../op_common.h"
 #include "../type_relations.h"
-#include "tvm/relay/attrs/device_copy.h"
+#include "on_device.h"
 
 namespace tvm {
 namespace relay {
@@ -48,13 +50,12 @@ TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
 // The passing value in attrs and args doesn't seem super great.
 // We should consider a better solution, i.e the type relation
 // being able to see the arguments as well?
-Expr AllocStorage(Expr size, Expr alignment, Device dev, DataType dtype_hint) {
+Expr AllocStorage(Expr size, Expr alignment, VirtualDevice virtual_device, DataType dtype_hint) {
   auto attrs = make_object<AllocStorageAttrs>();
   attrs->dtype = dtype_hint;
-  attrs->device_id = dev.device_id;
-  attrs->device_type = dev.device_type;
+  attrs->virtual_device = std::move(virtual_device);
   static const Op& op = Op::Get("memory.alloc_storage");
-  return Call(op, {size, alignment}, Attrs(attrs), {});
+  return Call(op, {std::move(size), std::move(alignment)}, Attrs(std::move(attrs)), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_storage").set_body_typed(AllocStorage);
@@ -86,28 +87,31 @@ RELAY_REGISTER_OP("memory.alloc_storage")
     .add_argument("size", "Tensor", "The size of the storage to allocate.")
     .add_argument("alignment", "Tensor", "The alignment of the storage.")
     .add_type_rel("AllocStorage", AllocStorageRel)
+    .set_attrs_type_key("relay.attrs.AllocStorageAttrs")
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                              const Type& out_dtype) -> Array<te::Tensor> {
-                             return {topi::identity(inputs[0])};
-                           });
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
-Expr AllocTensor(Expr storage, Expr offset, tvm::relay::Expr shape, DataType dtype,
+const Op& MemoryAllocTensorOp() {
+  static const Op& op = Op::Get("memory.alloc_tensor");
+  return op;
+}
+
+Expr AllocTensor(Expr storage, Expr offset, Expr shape, DataType dtype,
                  Array<IndexExpr> assert_shape) {
   auto attrs = make_object<AllocTensorAttrs>();
   attrs->dtype = dtype;
   if (assert_shape.defined()) {
     attrs->assert_shape = assert_shape;
   } else {
-    attrs->const_shape = Downcast<Constant>(shape);
+    // Look through any on_device for the shape argument expression.
+    const auto* constant_node = AsIgnoringOnDevice<ConstantNode>(shape);
+    ICHECK(constant_node);
+    attrs->const_shape = GetRef<Constant>(constant_node);
   }
-  static const Op& op = Op::Get("memory.alloc_tensor");
-  return Call(op, {storage, offset, shape}, Attrs(attrs), {});
+  return Call(MemoryAllocTensorOp(), {storage, offset, shape}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_tensor").set_body_typed(AllocTensor);
@@ -193,16 +197,12 @@ RELAY_REGISTER_OP("memory.alloc_tensor")
     .add_argument("offset", "Tensor", "The offset into the backing storage.")
     .add_argument("shape", "Tensor", "The shape of the tensor to allocate.")
     .add_type_rel("AllocTensor", AllocTensorRel)
+    .set_attrs_type_key("relay.attrs.AllocTensorAttrs")
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                              const Type& out_dtype) -> Array<te::Tensor> {
-                             return {topi::identity(inputs[0])};
-                           });
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 bool KillRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
              const TypeReporter& reporter) {
@@ -213,20 +213,15 @@ bool KillRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 RELAY_REGISTER_OP("memory.kill")
-    .describe(R"code(Mark a tensor for release to the allocator.)code" TVM_ADD_FILELINE)
+    .describe(R"code(Mark a variable for release to the allocator.)code" TVM_ADD_FILELINE)
     .set_num_inputs(1)
-    .add_argument("to_free", "Tensor", "The tensor to free.")
+    .add_argument("to_free", "Variable", "The variable to free.")
     .add_type_rel("Kill", KillRel)
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<TOpIsStateful>("TOpIsStateful", true)
     .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                              const Type& out_dtype) -> Array<te::Tensor> {
-                             return {topi::identity(inputs[0])};
-                           });
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 static void FlattenTupleTypeAux(const Type& type, std::vector<TensorType>* out) {
   if (auto tt = type.as<TensorTypeNode>()) {
@@ -306,37 +301,6 @@ TVM_REGISTER_GLOBAL("relay.op.memory._make.ToTupleType")
     .set_body_typed([](Type t, Array<Expr> array) {
       return ToTupleType(t, std::vector<Expr>(array.begin(), array.end()));
     });
-
-// relay.device_copy
-TVM_REGISTER_NODE_TYPE(DeviceCopyAttrs);
-
-Expr DeviceCopy(Expr data, int src_dev_type, int dst_dev_type) {
-  auto attrs = make_object<DeviceCopyAttrs>();
-  attrs->src_dev_type = src_dev_type;
-  attrs->dst_dev_type = dst_dev_type;
-  static const Op& op = Op::Get("device_copy");
-  return Call(op, {data}, Attrs(attrs), {});
-}
-
-TVM_REGISTER_GLOBAL("relay.op._make.device_copy").set_body_typed(DeviceCopy);
-
-RELAY_REGISTER_OP("device_copy")
-    .describe(R"code(
-Copy data from one tensor to another. The source and destination might be
-on different devices.
-)code" TVM_ADD_FILELINE)
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input data.")
-    .set_support_level(10)
-    .add_type_rel("Identity", IdentityRel)
-    .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<TOpIsStateful>("TOpIsStateful", false)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                              const Type& out_dtype) -> Array<te::Tensor> {
-                             return {topi::identity(inputs[0])};
-                           });
 
 }  // namespace relay
 }  // namespace tvm

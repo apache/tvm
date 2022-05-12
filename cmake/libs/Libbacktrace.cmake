@@ -55,7 +55,7 @@ ExternalProject_Add(project_libbacktrace
   )
 
 # Custom step to rebuild libbacktrace if any of the source files change
-file(GLOB LIBBACKTRACE_SRCS "${CMAKE_CURRENT_LIST_DIR}/../../3rdparty/libbacktrace/*.c")
+tvm_file_glob(GLOB LIBBACKTRACE_SRCS "${CMAKE_CURRENT_LIST_DIR}/../../3rdparty/libbacktrace/*.c")
 ExternalProject_Add_Step(project_libbacktrace checkout
   DEPENDERS configure
   DEPENDEES download

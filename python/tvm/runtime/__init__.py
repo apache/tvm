@@ -21,7 +21,7 @@ from .packed_func import PackedFunc
 from .object import Object
 from .object_generic import ObjectGeneric, ObjectTypes
 from .ndarray import NDArray, DataType, DataTypeCode, Device
-from .module import Module
+from .module import Module, num_threads
 from .profiling import Report
 
 # function exposures
@@ -29,5 +29,7 @@ from .object_generic import convert_to_object, convert, const
 from .ndarray import device, cpu, cuda, gpu, opencl, cl, vulkan, metal, mtl
 from .ndarray import vpi, rocm, ext_dev
 from .module import load_module, enabled, system_lib
-from .container import String
+from .container import String, ShapeTuple
 from .params import save_param_dict, load_param_dict
+
+from . import executor

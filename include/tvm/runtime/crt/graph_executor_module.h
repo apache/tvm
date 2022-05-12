@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file graph_executor.h
+ * \file graph_executor_module.h
  * \brief Tiny graph executor that can run graph containing only tvm PackedFunc.
  */
 #ifndef TVM_RUNTIME_CRT_GRAPH_EXECUTOR_MODULE_H_

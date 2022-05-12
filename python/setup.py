@@ -20,6 +20,7 @@ import os
 import shutil
 import sys
 import sysconfig
+import pathlib
 import platform
 
 from setuptools import find_packages
@@ -49,13 +50,36 @@ def get_lib_path():
     if not CONDA_BUILD:
         lib_path = libinfo["find_lib_path"]()
         libs = [lib_path[0]]
-        if libs[0].find("runtime") == -1:
+        if "runtime" not in libs[0]:
             for name in lib_path[1:]:
-                if name.find("runtime") != -1:
+                if "runtime" in name:
                     libs.append(name)
                     break
+
+        # Add standalone_crt, if present
+        for name in lib_path:
+            candidate_path = os.path.join(os.path.dirname(name), "standalone_crt")
+            if os.path.isdir(candidate_path):
+                libs.append(candidate_path)
+                break
+
+        # Add microTVM template projects
+        for name in lib_path:
+            candidate_path = os.path.join(os.path.dirname(name), "microtvm_template_projects")
+            if os.path.isdir(candidate_path):
+                libs.append(candidate_path)
+                break
+
+        # Add tvmc configuration json files
+        for name in lib_path:
+            candidate_path = os.path.abspath(os.path.join(os.path.dirname(name), "..", "configs"))
+            if os.path.isdir(candidate_path):
+                libs.append(candidate_path)
+                break
+
     else:
         libs = None
+
     return libs, version
 
 
@@ -154,9 +178,16 @@ setup_kwargs = {}
 if wheel_include_libs:
     with open("MANIFEST.in", "w") as fo:
         for path in LIB_LIST:
-            shutil.copy(path, os.path.join(CURRENT_DIR, "tvm"))
-            _, libname = os.path.split(path)
-            fo.write("include tvm/%s\n" % libname)
+            if os.path.isfile(path):
+                shutil.copy(path, os.path.join(CURRENT_DIR, "tvm"))
+                _, libname = os.path.split(path)
+                fo.write(f"include tvm/{libname}\n")
+
+            if os.path.isdir(path):
+                _, libname = os.path.split(path)
+                shutil.copytree(path, os.path.join(CURRENT_DIR, "tvm", libname))
+                fo.write(f"recursive-include tvm/{libname} *\n")
+
     setup_kwargs = {"include_package_data": True}
 
 if include_libs:
@@ -169,6 +200,13 @@ if include_libs:
 def get_package_data_files():
     # Relay standard libraries
     return ["relay/std/prelude.rly", "relay/std/core.rly"]
+
+
+def long_description_contents():
+    with open(pathlib.Path(CURRENT_DIR).resolve().parent / "README.md", encoding="utf-8") as readme:
+        description = readme.read()
+
+    return description
 
 
 # Temporarily add this directory to the path so we can import the requirements generator
@@ -187,6 +225,21 @@ setup(
     name="tvm",
     version=__version__,
     description="TVM: An End to End Tensor IR/DSL Stack for Deep Learning Systems",
+    long_description=long_description_contents(),
+    long_description_content_type="text/markdown",
+    url="https://tvm.apache.org/",
+    download_url="https://github.com/apache/tvm/tags",
+    author="Apache TVM",
+    license="Apache",
+    # See https://pypi.org/classifiers/
+    classifiers=[
+        "License :: OSI Approved :: Apache Software License",
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "Intended Audience :: Education",
+        "Intended Audience :: Science/Research",
+    ],
+    keywords="machine learning",
     zip_safe=False,
     entry_points={"console_scripts": ["tvmc = tvm.driver.tvmc.main:main"]},
     install_requires=requirements["core"][1],
@@ -195,7 +248,6 @@ setup(
     package_dir={"tvm": "tvm"},
     package_data={"tvm": get_package_data_files()},
     distclass=BinaryDistribution,
-    url="https://github.com/apache/tvm",
     ext_modules=config_cython(),
     **setup_kwargs,
 )
@@ -206,4 +258,10 @@ if wheel_include_libs:
     os.remove("MANIFEST.in")
     for path in LIB_LIST:
         _, libname = os.path.split(path)
-        os.remove("tvm/%s" % libname)
+        path_to_be_removed = f"tvm/{libname}"
+
+        if os.path.isfile(path_to_be_removed):
+            os.remove(path_to_be_removed)
+
+        if os.path.isdir(path_to_be_removed):
+            shutil.rmtree(path_to_be_removed)

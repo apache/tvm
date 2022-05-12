@@ -17,6 +17,8 @@
 """Unit tests for converting TensorFlow debugging ops to Relay."""
 try:
     import tensorflow.compat.v1 as tf
+
+    tf.disable_v2_behavior()
 except ImportError:
     import tensorflow as tf
 import numpy as np
@@ -26,8 +28,7 @@ from tvm.relay.frontend.tensorflow import from_tensorflow
 
 def run_relay(graph):
     mod, params = from_tensorflow(graph.as_graph_def(add_shapes=True))
-    ex = relay.create_executor("debug", mod=mod)
-    return ex.evaluate()(**params)
+    return relay.create_executor("debug", mod=mod).evaluate()(**params)
 
 
 def test_no_op():

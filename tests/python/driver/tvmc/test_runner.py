@@ -20,6 +20,7 @@ import numpy as np
 from tvm.driver import tvmc
 from tvm.driver.tvmc.model import TVMCResult
 from tvm.driver.tvmc.result_utils import get_top_results
+from tvm.runtime.module import BenchmarkResult
 
 
 def test_generate_tensor_data_zeros():
@@ -47,12 +48,12 @@ def test_generate_tensor_data_random():
 
 
 def test_generate_tensor_data__type_unknown():
-    with pytest.raises(tvmc.common.TVMCException) as e:
+    with pytest.raises(tvmc.TVMCException) as e:
         tvmc.runner.generate_tensor_data((2, 3), "float32", "whatever")
 
 
 def test_format_times__contains_header():
-    fake_result = TVMCResult(outputs=None, times=[0.6, 1.2, 0.12, 0.42])
+    fake_result = TVMCResult(outputs=None, times=BenchmarkResult([0.6, 1.2, 0.12, 0.42]))
     sut = fake_result.format_times()
     assert "std (ms)" in sut
 
@@ -71,18 +72,20 @@ def test_get_top_results_keep_results():
     assert len(sut[1]) == expected_number_of_results_per_line
 
 
+@pytest.mark.parametrize("use_vm", [True, False])
 def test_run_tflite_module__with_profile__valid_input(
-    tflite_mobilenet_v1_1_quant, tflite_compile_model, imagenet_cat
+    use_vm, tflite_mobilenet_v1_1_quant, tflite_compile_model, imagenet_cat
 ):
     # some CI environments wont offer TFLite, so skip in case it is not present
     pytest.importorskip("tflite")
 
     inputs = np.load(imagenet_cat)
+    input_dict = {"input": inputs["input"].astype("uint8")}
 
-    tflite_compiled_model = tflite_compile_model(tflite_mobilenet_v1_1_quant)
+    tflite_compiled_model = tflite_compile_model(tflite_mobilenet_v1_1_quant, use_vm=use_vm)
     result = tvmc.run(
         tflite_compiled_model,
-        inputs=inputs,
+        inputs=input_dict,
         hostname=None,
         device="cpu",
         profile=True,
@@ -101,5 +104,5 @@ def test_run_tflite_module__with_profile__valid_input(
         tiger_cat_mobilenet_id in top_5_ids
     ), "tiger cat is expected in the top-5 for mobilenet v1"
     assert type(result.outputs) is dict
-    assert type(result.times) is tuple
+    assert type(result.times) is BenchmarkResult
     assert "output_0" in result.outputs.keys()

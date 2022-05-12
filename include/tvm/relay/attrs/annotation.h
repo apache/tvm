@@ -32,19 +32,6 @@ namespace tvm {
 namespace relay {
 
 /*!
- * \brief Options for the device annotation operators.
- */
-struct OnDeviceAttrs : public tvm::AttrsNode<OnDeviceAttrs> {
-  int device_type;
-
-  TVM_DECLARE_ATTRS(OnDeviceAttrs, "relay.attrs.OnDeviceAttrs") {
-    TVM_ATTR_FIELD(device_type)
-        .describe("The virutal device/context type that an expression is annotated with.")
-        .set_default(0);
-  }
-};
-
-/*!
  * \brief Annotate an expression to be cast into specific data type.
  */
 struct CastHintAttrs : public tvm::AttrsNode<CastHintAttrs> {
@@ -64,18 +51,6 @@ struct CompilerAttrs : public tvm::AttrsNode<CompilerAttrs> {
 
   TVM_DECLARE_ATTRS(CompilerAttrs, "relay.attrs.CompilerAttrs") {
     TVM_ATTR_FIELD(compiler).describe("A 3rd party compiler used for code generation.");
-  }
-};
-
-/*!
- * \brief Metadata for calls to TIR functions, useful for program analysis crossing Relay and TIR.
- */
-struct TIRCallAttrs : public tvm::AttrsNode<TIRCallAttrs> {
-  /*! \brief The metadata attached to the call node. */
-  Map<String, ObjectRef> metadata;
-
-  TVM_DECLARE_ATTRS(TIRCallAttrs, "relay.attrs.TIRCallAttrs") {
-    TVM_ATTR_FIELD(metadata).describe("Metadata attached to the TIR function call.");
   }
 };
 

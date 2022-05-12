@@ -93,6 +93,11 @@ class IntSet : public ObjectRef {
   bool CanProveNonPositive() const;
   /*! \return Whether the set is proved to be larger than or equal to 0 */
   bool CanProveNonNegative() const;
+  /*! \return Whether the set has upper bound. */
+  bool HasUpperBound() const;
+  /*! \return Whether the set has lower bound. */
+  bool HasLowerBound() const;
+
   /*!
    * \brief The single point value, call only if IsSinglePoint is true
    * \return The point value.
@@ -122,16 +127,23 @@ class IntSet : public ObjectRef {
    */
   static IntSet Vector(PrimExpr vec);
   /*!
+   * \brief Construct a set representing a range [min, min + extent).
+   * \param min The minimum of the range range
+   * \param extent The extent of the range.
+   * \return The constructed set.
+   */
+  static IntSet FromMinExtent(PrimExpr min, PrimExpr extent);
+  /*!
    * \brief Construct a set representing a range.
    * \param r The range
-   * \return constructed set.
+   * \return The constructed set.
    */
   static IntSet FromRange(tvm::Range r);
   /*!
    * \brief Construct a set representing a interval.
    * \param min The minimum value of the interval.
    * \param max The maximum value of the interval.
-   * \return constructed set.
+   * \return The constructed set.
    */
   static IntSet Interval(PrimExpr min, PrimExpr max);
 
@@ -242,7 +254,7 @@ IntSet UnionLowerBound(const Array<IntSet>& sets);
 Array<IntSet> UnionRegionLowerBound(const Array<Array<IntSet>>& nd_int_sets);
 
 /*!
- * \brief Create an union set of all sets
+ * \brief Create an intersected set of all sets
  * \param sets The sets to be intersected
  * \return the set after intersected
  */

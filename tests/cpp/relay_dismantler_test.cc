@@ -144,8 +144,21 @@ TEST(Relay, TupleiGetItemSharedTuple) {
                    ->args.size());
 }
 
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
+TEST(Relay, OutOfStackLet) {
+  auto foo = [] {
+    auto add_op = relay::Op::Get("add");
+    auto p = relay::Var("p", relay::TensorType({3, 2}, DataType::Float(32)));
+    int size = 1e6 - 1;
+    std::vector<relay::Var> vars;
+    for (int i = 0; i < size; ++i) {
+      vars.emplace_back("x_" + std::to_string(i), relay::TensorType({3, 2}, DataType::Float(32)));
+    }
+    Expr body = vars[size - 1];
+    for (int i = size - 1; i >= 0; --i) {
+      Var v = i == 0 ? p : vars[i - 1];
+      body = relay::Let(vars[i], relay::Call(add_op, {v, v}), body);
+    }
+    relay::Function func = relay::Function({p}, body, relay::Type(), {});
+  };
+  ASSERT_EXIT((foo(), exit(0)), ::testing::ExitedWithCode(0), ".*");
 }

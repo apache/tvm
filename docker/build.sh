@@ -23,7 +23,9 @@
 # Usage: build.sh <CONTAINER_TYPE> [--tag <DOCKER_IMAGE_TAG>]
 #                [--dockerfile <DOCKERFILE_PATH>] [-it]
 #                [--net=host] [--cache-from <IMAGE_NAME>]
-#                [--context-path <CONTEXT_PATH>] [<COMMAND>]
+#                [--name CONTAINER_NAME] [--context-path <CONTEXT_PATH>]
+#                [--spec DOCKER_IMAGE_SPEC]
+#                [<COMMAND>]
 #
 # CONTAINER_TYPE: Type of the docker container used the run the build,
 #                 e.g. "ci_cpu", "ci_gpu"
@@ -35,8 +37,14 @@
 #                  this optional value is not supplied (via the --dockerfile
 #                  flag), will use Dockerfile.CONTAINER_TYPE in default
 #
+# DOCKER_IMAGE_SPEC: Override the default logic to determine the image name and
+#                    tag
+#
 # IMAGE_NAME: An image to be as a source for cached layers when building the
 #             Docker image requested.
+#
+# CONTAINER_NAME: The name of the docker container, and the hostname that will
+#                 appear inside the container.
 #
 # CONTEXT_PATH: Path to be used for relative path resolution when building
 #               the Docker images.
@@ -69,6 +77,11 @@ if [[ "$1" == "-it" ]]; then
     shift 1
 fi
 
+if [[ "$1" == "--spec" ]]; then
+    OVERRIDE_IMAGE_SPEC="$2"
+    shift 2
+fi
+
 if [[ "$1" == "--net=host" ]]; then
     CI_DOCKER_EXTRA_PARAMS+=('--net=host')
     CI_DOCKER_BUILD_EXTRA_PARAMS+=("--network=host")
@@ -81,7 +94,7 @@ if [[ "$1" == "--cache-from" ]]; then
     shift 1
     cached_image="$1"
     DOCKER_NO_CACHE_ARG=
-    CI_DOCKER_BUILD_EXTRA_PARAMS+=("--cache-from tvm.$CONTAINER_TYPE")
+    CI_DOCKER_BUILD_EXTRA_PARAMS+=("--cache-from tvm.$CONTAINER_TYPE:$DOCKER_IMAGE_TAG")
     CI_DOCKER_BUILD_EXTRA_PARAMS+=("--cache-from $cached_image")
     shift 1
 fi
@@ -93,6 +106,12 @@ if [[ "$1" == "--context-path" ]]; then
 else
     DOCKER_CONTEXT_PATH=$(dirname "${DOCKERFILE_PATH}")
     echo "Using default context path: ${DOCKER_CONTEXT_PATH}"
+fi
+
+if [[ "$1" == "--name" ]]; then
+    CI_DOCKER_EXTRA_PARAMS+=("--name ${2} --hostname ${2}")
+    echo "Using container name ${2}"
+    shift 2
 fi
 
 if [[ ! -f "${DOCKERFILE_PATH}" ]]; then
@@ -152,6 +171,10 @@ DOCKER_IMG_NAME=$(echo "${DOCKER_IMG_NAME}" | tr '[:upper:]' '[:lower:]')
 # Compose the full image spec with "name:tag" e.g. "tvm.ci_cpu:v0.03"
 DOCKER_IMG_SPEC="${DOCKER_IMG_NAME}:${DOCKER_IMAGE_TAG}"
 
+if [[ -n ${OVERRIDE_IMAGE_SPEC+x} ]]; then
+    DOCKER_IMG_SPEC="$OVERRIDE_IMAGE_SPEC"
+fi
+
 # Print arguments.
 echo "WORKSPACE: ${WORKSPACE}"
 echo "CI_DOCKER_EXTRA_PARAMS: ${CI_DOCKER_EXTRA_PARAMS[@]}"
@@ -189,7 +212,9 @@ if [[ -n ${COMMAND} ]]; then
     echo ${DOCKER_BINARY}
     ${DOCKER_BINARY} run --rm --pid=host \
         -v ${WORKSPACE}:/workspace \
+        ${SSH_AUTH_SOCK:+-v $SSH_AUTH_SOCK:/ssh-agent} \
         -w /workspace \
+        ${SSH_AUTH_SOCK:+-e "SSH_AUTH_SOCK=/ssh-agent"} \
         -e "CI_BUILD_HOME=/workspace" \
         -e "CI_BUILD_USER=$(id -u -n)" \
         -e "CI_BUILD_UID=$(id -u)" \

@@ -24,13 +24,12 @@
 #ifndef TVM_RELAY_OP_VM_VM_H_
 #define TVM_RELAY_OP_VM_VM_H_
 
-#include "tvm/relay/expr.h"
+#include <tvm/relay/expr.h>
 
 namespace tvm {
 namespace relay {
 
-Expr InvokeTVMOp(Expr func, Expr inputs, Expr outputs);
-Expr ShapeFunc(Expr func, Expr inputs, Expr outputs, Array<tvm::Integer> is_input);
+Expr InvokeTVMOp(Expr func, Expr inputs, Expr outputs, DictAttrs attrs);
 Expr ShapeOf(Expr expr);
 Expr ReshapeTensor(Expr data, Expr shape, Array<PrimExpr> newshape);
 

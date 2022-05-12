@@ -17,13 +17,14 @@
 """Test builder and runner"""
 import logging
 import multiprocessing
-import time
+import concurrent
 
 import numpy as np
 
 import tvm
 from tvm import te
-from test_autotvm_common import DummyRunner, bad_matmul, get_sample_task
+from tvm.autotvm.measure import executor
+from tvm.testing.autotvm import DummyRunner, bad_matmul, get_sample_task
 from tvm import autotvm
 from tvm.autotvm.measure.measure import MeasureErrorNo, MeasureResult
 from tvm.autotvm import measure
@@ -76,7 +77,9 @@ def test_task_runner_with_ref_input():
             self.ran_dummy_executor = True
             sig = Signature.from_callable(func)
             assert sig.bind(*args, **kwargs).arguments["ref_input"] == refinp
-            return measure.local_executor.LocalFutureNoFork(None)
+            dummy_future = concurrent.futures.Future()
+            dummy_future.set_result(None)
+            return dummy_future
 
     runner.executor = DummyExecutor()
     runner.run([None], [None])

@@ -21,29 +21,35 @@ import sys
 import pytest
 import tvm
 from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.tir.schedule import BlockRV, Instruction, InstructionKind, LoopRV, Trace
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@tvm.script.tir
-def elementwise(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
+@T.prim_func
+def elementwise(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
-@tvm.script.tir
-def elementwise_inlined(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = A[vi, vj] * 2.0 + 1.0
+@T.prim_func
+def elementwise_inlined(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
 
 # pylint: enable=no-member,invalid-name,unused-variable
@@ -73,6 +79,15 @@ def _make_compute_inline(input):  # pylint: disable=redefined-builtin
         inputs=[input],
         attrs=[],
         outputs=[],
+    )
+
+
+def _make_split(inputs, outputs):  # pylint: disable=redefined-builtin
+    return Instruction(
+        kind=InstructionKind.get("Split"),
+        inputs=inputs,
+        attrs=[],
+        outputs=outputs,
     )
 
 
@@ -121,6 +136,17 @@ def _make_trace_3(b0, b1, add_postproc):  # pylint: disable=invalid-name
             _make_get_block(name="C", output=b1),
         ]
     return Trace(insts=insts, decisions={})
+
+
+def _make_trace_4(b0, l1, l2, l3):  # pylint: disable=invalid-name
+    return Trace(
+        insts=[
+            _make_get_block(name="B", output=b0),
+            _make_get_loops(input=b0, outputs=[l1]),
+            _make_split([l1, None, 32], [l2, l3]),
+        ],
+        decisions={},
+    )
 
 
 def test_trace_construct_1():
@@ -225,6 +251,17 @@ def test_trace_simplified_2():
             'b1 = sch.get_block(name="C", func_name="main")',
             "sch.enter_postproc()",
             "sch.compute_inline(block=b1)",
+        )
+    )
+
+
+def test_trace_simplified_3():
+    trace = _make_trace_4(BlockRV(), LoopRV(), LoopRV(), LoopRV()).simplified(remove_postproc=False)
+    assert str(trace) == "\n".join(
+        (
+            'b0 = sch.get_block(name="B", func_name="main")',
+            "l1, = sch.get_loops(block=b0)",
+            "l2, l3 = sch.split(loop=l1, factors=[None, 32])",
         )
     )
 

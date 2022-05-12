@@ -22,9 +22,11 @@ import synr
 
 import tvm
 from tvm.ir import Span
+from tvm.ir.expr import Range
 from tvm.tir import Var, Buffer, PrimExpr, Stmt, MatchBufferRegion
 from tvm.runtime import Object
-from .node import BufferSlice
+from tvm.tir.expr import IterVar
+from .tir.node import BufferSlice
 
 
 class BlockInfo:
@@ -34,34 +36,34 @@ class BlockInfo:
     ----------
     .. code-block:: python
 
-        @tvm.script.tir
-        def example_func(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-            A = tir.match_buffer(a, (16, 16), "float32")
-            B = tir.match_buffer(b, (16, 16), "float32")
-            C = tir.match_buffer(a, (16, 16), "float32")
+        @T.prim_func
+        def example_func(a: T.handle, b: T.handle, c: T.handle) -> None:
+            A = T.match_buffer(a, (16, 16), "float32")
+            B = T.match_buffer(b, (16, 16), "float32")
+            C = T.match_buffer(a, (16, 16), "float32")
 
-            for i, j, k in tir.grid(16, 16, 16):
-                with tir.block([16, 16, tir.reduce_axis(16)], "matmul") as [vi, vj, vk]:
-                    tir.bind(vi, i)
-                    tir.bind(vj, j)
-                    tir.bind(vk, k)         # iter_bindings = {vj: i, vj: j, vk: k}
+            for i, j, k in T.grid(16, 16, 16):
+                with T.block("matmul"):
+                    vi = T.axis.S(16, i)
+                    vj = T.axis.S(16, j)
+                    vk = T.axis.R(16, k)         # iter_bindings = {vj: i, vj: j, vk: k}
 
-                    tir.where(True)         # predicate of the block_realize
+                    T.where(True)         # predicate of the block_realize
 
-                    tir.reads(A[0:16, 0:16], B[0: 16, 0: 16])      # reads region of the block
-                    tir.writes(C[0: 16, 0: 16])                    # writes region of the block
-                    tir.block_attr({"attr_key": "attr_value"})     # block annotations
+                    T.reads(A[0:16, 0:16], B[0: 16, 0: 16])      # reads region of the block
+                    T.writes(C[0: 16, 0: 16])                    # writes region of the block
+                    T.block_attr({"attr_key": "attr_value"})     # block annotations
 
                     # alloc_buffers inside the block
-                    CC = tir.alloc_buffer((1, 1), dtype="float32")
+                    CC = T.alloc_buffer((1, 1), dtype="float32")
 
                     # match_buffers of the block,
                     # which bind a sub-region of source buffer into a new buffer
-                    D = tir.match_buffer(C[vi, vj], ())
+                    D = T.match_buffer(C[vi, vj], ())
 
                     # init part of the block, executed when all reduce axes are the beginning value
-                    with tir.init():
-                        C[vi, vj] = tir.float32(0)
+                    with T.init():
+                        C[vi, vj] = T.float32(0)
 
                     # block body
                     CC[0, 0] = A[vi, vk] * B[vj, vk]
@@ -69,20 +71,22 @@ class BlockInfo:
     """
 
     alloc_buffers: List[Buffer] = []
-    """List[Buffer]: list of tir.alloc_buffer statements in the block signature"""
+    """List[Buffer]: list of T.alloc_buffer statements in the block signature"""
     match_buffers: List[MatchBufferRegion] = []
-    """List[MatchBufferRegion]: list of tir.match_buffer statements in the block signature"""
-    iter_bindings: Mapping[Var, PrimExpr] = {}
-    """Mapping[Var, PrimExpr]: map of block iter var to its values"""
+    """List[MatchBufferRegion]: list of T.match_buffer statements in the block signature"""
+    iter_values: List[PrimExpr] = []
+    """List[PrimExpr]: list of binding values for iter vars"""
+    iter_vars: List[IterVar] = []
+    """List[PrimExpr]: list of iter vars in the block"""
     reads: Optional[List[BufferSlice]] = None
     """Optional[List[BufferSlice]]:
-    list of tir.reads statements in the block signature, None for not-visited"""
+    list of T.reads statements in the block signature, None for not-visited"""
     writes: Optional[List[BufferSlice]] = None
     """Optional[List[BufferSlice]]:
-    list of tir.writes statements in the block signature, None for not-visited"""
+    list of T.writes statements in the block signature, None for not-visited"""
     annotations: Optional[Mapping[str, Object]] = None
     """Optional[Mapping[str, Object]]:
-    list of tir.block_attr statements in the block signature, None for not-visited"""
+    list of T.block_attr statements in the block signature, None for not-visited"""
     predicate: Optional[PrimExpr] = None
     """Optional[PrimExpr]: block realize predicate, None for not-visited"""
     init: Optional[Stmt] = None
@@ -91,7 +95,8 @@ class BlockInfo:
     def __init__(self):
         self.alloc_buffers = []
         self.match_buffers = []
-        self.iter_bindings = {}
+        self.iter_values = []
+        self.iter_vars = []
         self.reads = None
         self.writes = None
         self.annotations = None
@@ -112,16 +117,20 @@ class ContextMaintainer:
     """List[List[synr.ast.Node]]: The ast nodes insides the current scope"""
     block_info_stack: List[BlockInfo] = []
     """List[BlockInfo]: The block info for the current block scope"""
-    loop_stack: List[List[Var]] = []
-    """List[List[Var]]: List of loop vars inside the current block scope"""
+    loop_stack: Dict[Var, Range] = {}
+    """Dict[Var, Range]: The dict from loop var to its domain outside the block"""
     symbols: List[Dict[str, Union[Var, Buffer]]] = []
     """List[Dict[str, Union[Var, Buffer]]]: Symbol map from name to object for the current scope"""
+    closure_vars: Dict[str, Object] = {}
+    """ClosureVars: The closure vars defined in Python interpreter"""
 
     # function context
     func_params: List[Var] = []
     """List[Var]: The function parameters"""
     func_buffer_map: Mapping[Var, Buffer] = {}
     """Mapping[Var, Buffer]: The function buffer map"""
+    func_preflattened_buffer_map: Mapping[Var, Buffer] = {}
+    """Mapping[Var, Buffer]: The function buffer map, prior to any flattening."""
     func_dict_attr: Mapping[str, Object] = {}
     """Mapping[str, Object]: The function attrs"""
     func_var_env_dict: Mapping[Var, str] = {}
@@ -133,20 +142,32 @@ class ContextMaintainer:
     _report_error: Callable[[str, Union[Span, synr.ast.Span]], None]
     """Callable[[str, Union[Span, synr.ast.Span]], None]: The report error function handle"""
 
-    def __init__(self, _report_error: Callable[[str, Union[Span, synr.ast.Span]], None]):
+    # root alloc_buffer
+    root_alloc_buffers: List[Buffer] = []
+    """List[Buffer]: The buffers allocated under root block"""
+
+    def __init__(
+        self,
+        _report_error: Callable[[str, Union[Span, synr.ast.Span]], None],
+        closure_vars: Dict[str, Object],
+    ):
         # scope context
         self.node_stack = []
         self.block_info_stack = []
-        self.loop_stack = []
+        self.loop_stack = {}
         self.symbols = []
+        self.closure_vars = closure_vars
         # function context
         self.func_params = []
         self.func_buffer_map = {}
+        self.func_preflattened_buffer_map = {}
         self.func_dict_attr = {}
         self.func_var_env_dict = {}
         # parser and analyzer
         self._report_error = _report_error
         self.analyzer = tvm.arith.Analyzer()
+        # root alloc_buffer
+        self.root_alloc_buffers = []
 
     def enter_scope(self, nodes: Optional[List[synr.ast.Node]] = None):
         """Creates a new scope
@@ -183,8 +204,6 @@ class ContextMaintainer:
             The synr AST nodes in new scope
         """
         self.enter_scope(nodes)
-        # Create a new loop stack for the new block
-        self.loop_stack.append([])
         # Create a new BlockInfo for the new block
         self.block_info_stack.append(BlockInfo())
 
@@ -196,8 +215,6 @@ class ContextMaintainer:
     def exit_block_scope(self):
         """Pop the inner most block scope, the function will call `exit_scope` implicitly"""
         self.exit_scope()
-        # Pop loop stack
-        self.loop_stack.pop()
         # Pop block_info
         self.block_info_stack.pop()
 
@@ -223,10 +240,12 @@ class ContextMaintainer:
         for symbols in reversed(self.symbols):
             if name in symbols:
                 return symbols[name]
-        return None
+        return self.closure_vars.get(name)
 
     def report_error(self, message: str, span: Union[Span, synr.ast.Span]):
         self._report_error(message, span)
 
     def current_block_scope(self) -> BlockInfo:
-        return self.block_info_stack[-1]
+        if self.block_info_stack:
+            return self.block_info_stack[-1]
+        return None

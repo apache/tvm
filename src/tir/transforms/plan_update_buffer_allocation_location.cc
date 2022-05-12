@@ -44,7 +44,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     // create buffers to be allocated at each stmts
     for (const auto& kv : buffer_lca) {
       const Buffer& buffer = kv.first;
-      const StmtNode* stmt = kv.second.defined() ? kv.second.value().get() : nullptr;
+      const StmtNode* stmt = kv.second.get();
       if (arg_buffers.count(buffer.get())) {
         continue;
       }
@@ -61,22 +61,25 @@ class BufferAllocationLocator : public StmtExprMutator {
     for (const Buffer& buf : it->second) {
       buffer_data_to_buffer_.Set(buf->data, buf);
     }
-    Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<ForNode>();
-    ICHECK(op != nullptr);
+    auto node = Downcast<For>(StmtMutator::VisitStmt_(op));
+
+    Array<Buffer> new_block_alloc_bufs;
     for (const Buffer& buf : it->second) {
-      buffer_data_to_buffer_.erase(buf->data);
+      if (!unmanaged_allocations_.count(buf->data.get())) {
+        buffer_data_to_buffer_.erase(buf->data);
+        new_block_alloc_bufs.push_back(buf);
+      }
     }
-    Stmt body = InjectOpaqueBlock(op->body, it->second);
-    ObjectPtr<ForNode> n = CopyOnWrite(op);
-    n->body = std::move(body);
-    return Stmt(n);
+
+    if (new_block_alloc_bufs.size()) {
+      node.CopyOnWrite()->body = InjectOpaqueBlock(node->body, new_block_alloc_bufs);
+    }
+
+    return std::move(node);
   }
 
   Stmt VisitStmt_(const BlockNode* op) final {
     ICHECK(!op->init.defined());
-    bool is_root = is_root_;
-    is_root_ = false;
     Array<Buffer> alloc_buffers;
     auto it = alloc_buffers_.find(op);
     if (it != alloc_buffers_.end()) {
@@ -85,11 +88,23 @@ class BufferAllocationLocator : public StmtExprMutator {
         buffer_data_to_buffer_.Set(buf->data, buf);
       }
     }
+    for (const MatchBufferRegion match_buffer : op->match_buffers) {
+      const Var& target_var = match_buffer->buffer->data;
+      const Var& source_var = match_buffer->source->buffer->data;
+      ICHECK(buffer_data_to_buffer_.count(source_var));
+      buffer_data_to_buffer_.Set(target_var, match_buffer->buffer);
+    }
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<BlockNode>();
     ICHECK(op != nullptr);
 
-    // Ignore buffer allocated inside the block when getting access region.
+    // No longer consider buffers created by match_buffer inside the block when updating access
+    // region.
+    for (const MatchBufferRegion match_buffer : op->match_buffers) {
+      const Var& target_var = match_buffer->buffer->data;
+      buffer_data_to_buffer_.erase(target_var);
+    }
+    // No longer consider buffers allocated inside the block when updating access region.
     if (it != alloc_buffers_.end()) {
       for (const Buffer& buf : it->second) {
         buffer_data_to_buffer_.erase(buf->data);
@@ -98,13 +113,20 @@ class BufferAllocationLocator : public StmtExprMutator {
 
     ObjectPtr<BlockNode> n = CopyOnWrite(op);
     n->alloc_buffers = std::move(alloc_buffers);
-    // The read/write regions of root block are always empty.
-    if (!is_root) {
-      // Recalculate block access region
-      CollectReadWrite(GetRef<Block>(op), &n->reads, &n->writes);
-    }
-
+    // Erase buffer allocated inside the block from access region.
+    n->reads = RemoveRedundantBufferRegion(n->reads);
+    n->writes = RemoveRedundantBufferRegion(n->writes);
     return Stmt(n);
+  }
+
+  Stmt VisitStmt_(const AllocateNode* op) final {
+    unmanaged_allocations_.insert(op->buffer_var.get());
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
+  Stmt VisitStmt_(const AllocateConstNode* op) final {
+    unmanaged_allocations_.insert(op->buffer_var.get());
+    return StmtExprMutator::VisitStmt_(op);
   }
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
@@ -122,28 +144,30 @@ class BufferAllocationLocator : public StmtExprMutator {
                        /*init=*/NullOpt,
                        /*alloc_buffers=*/alloc_buffers);
     ObjectPtr<BlockNode> n = CopyOnWrite(opaque_block.get());
-    CollectReadWrite(opaque_block, &n->reads, &n->writes);
+    Array<Array<BufferRegion>> access =
+        GetBlockReadWriteRegion(opaque_block, buffer_data_to_buffer_);
+    n->reads = access[0];
+    n->writes = access[1];
     BlockRealize realize({}, Bool(true), Block(n));
     return std::move(realize);
   }
 
-  void CollectReadWrite(const Block& block, Array<BufferRegion>* reads,
-                        Array<BufferRegion>* writes) {
-    Array<Array<BufferRegion>> access = GetBlockAccessRegion(block, buffer_data_to_buffer_);
-    *reads = access[0];
-    *writes = access[1];
-    for (const auto& opaque_access : access[2]) {
-      reads->push_back(opaque_access);
-      writes->push_back(opaque_access);
+  Array<BufferRegion> RemoveRedundantBufferRegion(const Array<BufferRegion>& region) const {
+    Array<BufferRegion> result;
+    for (const BufferRegion& buffer_region : region) {
+      if (buffer_data_to_buffer_.count(buffer_region->buffer->data)) {
+        result.push_back(buffer_region);
+      }
     }
+    return result;
   }
 
   /*! \brief The map from stmt to the buffers to be allocated under it. */
   std::unordered_map<const StmtNode*, Array<Buffer>> alloc_buffers_;
   /*! \brief The buffer already allocated during recursive visiting. */
   Map<Var, Buffer> buffer_data_to_buffer_;
-  /*! \brief indicate the whether the block is root. */
-  bool is_root_{true};
+  /*! \brief Buffers that are allocated outside of the BlockNode, and should not be moved. */
+  std::unordered_set<const VarNode*> unmanaged_allocations_;
 };
 
 PrimFunc PlanAndUpdateBufferAllocationLocation(PrimFunc func) {

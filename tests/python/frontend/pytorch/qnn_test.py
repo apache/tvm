@@ -23,8 +23,14 @@ import numpy as np
 
 import torch
 from torch import nn
-from torch.quantization import QuantStub, DeQuantStub
-from torch.quantization import fuse_modules, QuantWrapper
+from torch.quantization import (
+    QuantStub,
+    DeQuantStub,
+    fuse_modules,
+    QuantWrapper,
+    prepare_qat,
+    get_default_qat_qconfig,
+)
 
 import tvm
 import tvm.testing
@@ -40,16 +46,22 @@ def torch_version_check():
     return version.parse(torch.__version__) > version.parse("1.4.0")
 
 
-def get_tvm_runtime(script_module, input_name, ishape):
+def get_tvm_runtime(script_module, input_name, ishape, keep_quantized_weight=False, target="llvm"):
     input_shapes = [(input_name, ishape)]
-    mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
+    mod, params = relay.frontend.from_pytorch(
+        script_module, input_shapes, keep_quantized_weight=keep_quantized_weight
+    )
+
+    if keep_quantized_weight:
+        for p in params.values():
+            assert p.dtype in ["int8", "int32"]
 
     with tvm.transform.PassContext(opt_level=3):
         # test on only cpu for now, torch cannot run quant models on cuda
         # also not to make CI too slow
-        lib = relay.build(mod, target="llvm", params=params)
+        lib = relay.build(mod, target=target, params=params)
 
-    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](tvm.cpu(0)))
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](tvm.device(target, 0)))
     return runtime
 
 
@@ -90,6 +102,20 @@ class ConvBn(nn.Module):
         if self.with_relu:
             indices.append("2")
         fuse_modules(self.conv, indices, inplace=True)
+
+
+class ConvTranspose(nn.Module):
+    def __init__(self):
+        super().__init__()
+        layers = [nn.ConvTranspose2d(3, 32, 3, bias=True)]
+        self.conv = nn.Sequential(*layers)
+        self.quant_wrap = QuantWrapper(self.conv)
+
+    def forward(self, x):
+        return self.quant_wrap(x)
+
+    def fuse_model(self):
+        pass
 
 
 class Linear(nn.Module):
@@ -270,6 +296,7 @@ def test_quantized_modules():
             ("conv_bn_relu" + postfix, imagenet_ishape, ConvBn(with_relu=True), per_channel),
             ("linear" + postfix, (16, 16), Linear(), per_channel),
             ("linear_relu" + postfix, (16, 16), Linear(with_relu=True), per_channel),
+            ("conv_transpose", imagenet_ishape, ConvTranspose(), False),
             ("hsigmoid", imagenet_ishape, Hsigmoid(add_stub=True), False),
             ("hswish", imagenet_ishape, Hswish(add_stub=True), False),
             ("semodule", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), False),
@@ -281,7 +308,15 @@ def test_quantized_modules():
         raw_module.eval()
         inp = torch.rand(ishape)
 
-        quantize_model(raw_module, inp, per_channel=per_channel)
+        # quantized conv_transpose2d is supported only with qnnpack engine before torch v1.8.0.
+        if module_name == "conv_transpose" and not is_version_greater_than("1.7.1"):
+            prev_engine = torch.backends.quantized.engine
+            torch.backends.quantized.engine = "qnnpack"
+            quantize_model(raw_module, inp, per_channel=per_channel)
+            torch.backends.quantized.engine = prev_engine
+        else:
+            quantize_model(raw_module, inp, per_channel=per_channel)
+
         script_module = torch.jit.trace(raw_module, inp).eval()
 
         with torch.no_grad():
@@ -300,6 +335,15 @@ def test_quantized_modules():
 
         print(module_name, max_abs_diff, mean_abs_diff, match_ratio)
 
+        if "linear" in module_name and tvm.get_global_func("tvm.contrib.cublas.matmul", True):
+            runtime = get_tvm_runtime(script_module, input_name, ishape, target="cuda -libs=cublas")
+            runtime.set_input(input_name, inp.numpy().copy())
+            runtime.run()
+            cublas_result = runtime.get_output(0).numpy()
+            # It is generally safe to enable this assertion, but disabled for CI
+            # tvm.testing.assert_allclose(cublas_result, pt_result, atol=1e-5, rtol=1e-5)
+            print(np.max(np.abs(cublas_result - pt_result)))
+
         # sample outputs
         """
         relu 0.0039215684 2.6052087e-08 0.9999933567176871
@@ -308,6 +352,7 @@ def test_quantized_modules():
         conv_bn_relu 0.3700896 0.010921672 0.7489366477964451
         linear 0.15987062 0.009231662 0.794921875
         linear_relu 0.14180502 0.0053220326 0.8828125
+        conv_transpose 0.0033792555 4.4658788e-07 0.9998678439971806
         conv_bn, per_channel 0.01654929 2.9486866e-06 0.9998218235127019
         conv_bn_relu, per_channel 0.009089053 1.4926576e-06 0.9998357732732732
         linear, per_channel 0.0 0.0 1.0
@@ -348,26 +393,20 @@ def test_quantized_imagenet():
     from torchvision.models.quantization import mobilenet as qmobilenet
     from torchvision.models.quantization import inception as qinception
     from torchvision.models.quantization import googlenet as qgooglenet
+    from torchvision.models.quantization import mobilenet_v3_large as qmobilenet_v3_large
 
-    qmodels = []
-
-    for per_channel in [False, True]:
-        qmodels += [
-            ("resnet18", qresnet.resnet18(pretrained=True), per_channel),
-            ("mobilenet_v2", qmobilenet.mobilenet_v2(pretrained=True), per_channel),
-            # disable inception test for now, since loading it takes ~5min on torchvision-0.5 due to scipy bug
-            # See https://discuss.pytorch.org/t/torchvisions-inception-v3-takes-much-longer-to-load-than-other-models/68756
-            # ("inception_v3", qinception.inception_v3(pretrained=True), per_channel),
-            # tracing quantized googlenet broken as of v1.6
-            # ("googlenet", qgooglenet(pretrained=True), per_channel),
-        ]
-
-    if is_version_greater_than("1.7.1"):
-        from torchvision.models.quantization import mobilenet_v3_large as qmobilenet_v3_large
-
-        qmodels.append(
-            ("mobilenet_v3_large", qmobilenet_v3_large(pretrained=True, quantize=True).eval(), True)
-        )
+    per_channel = True
+    qmodels = [
+        ("resnet18", qresnet.resnet18(pretrained=True), per_channel),
+        ("mobilenet_v2", qmobilenet.mobilenet_v2(pretrained=True), per_channel),
+        ("inception_v3", qinception.inception_v3(pretrained=True), per_channel),
+        # tracing quantized googlenet broken as of v1.6
+        # ("googlenet", qgooglenet(pretrained=True), per_channel),
+        # As of v1.10, quantized mobilenet v3 has a weird segfault issue
+        # during make_conv_packed_param
+        # See https://ci.tlcpack.ai/blue/organizations/jenkins/tvm/detail/ci-docker-staging/192
+        # ("mobilenet_v3_large", qmobilenet_v3_large(pretrained=True, quantize=True).eval(), True)
+    ]
 
     results = []
 
@@ -609,3 +648,134 @@ def test_qnn_mergecomposite():
 
     input_name = "image"
     run_qnn_mergecomposite(script_module, input_name, inp.shape)
+
+
+def test_keep_quantized_weight():
+    qmodules = []
+
+    for per_channel in [False, True]:
+        qmodules += [
+            ((1, 3, 224, 224), ConvBn(), per_channel),
+            ((16, 16), Linear(), per_channel),
+        ]
+
+    for (ishape, raw_module, per_channel) in qmodules:
+        raw_module.eval()
+        inp = torch.rand(ishape)
+
+        quantize_model(raw_module, inp, per_channel=per_channel)
+        script_module = torch.jit.trace(raw_module, inp).eval()
+
+        input_name = "input"
+
+        runtime = get_tvm_runtime(script_module, input_name, ishape, keep_quantized_weight=False)
+        runtime.set_input(input_name, inp.numpy().copy())
+        runtime.run()
+        tvm_result = runtime.get_output(0).numpy()
+
+        runtime_int8_weight = get_tvm_runtime(
+            script_module, input_name, ishape, keep_quantized_weight=True
+        )
+        runtime_int8_weight.set_input(input_name, inp.numpy().copy())
+        runtime_int8_weight.run()
+        tvm_result_int8_weight = runtime_int8_weight.get_output(0).numpy()
+
+        tvm.testing.assert_allclose(tvm_result, tvm_result_int8_weight)
+
+
+def test_tuple_lowered():
+    # See the following discuss thread for details
+    # https://discuss.tvm.apache.org/t/bug-frontend-pytorch-relay-ir-is-inconsistent-with-that-of-the-original-model/12010
+
+    class ConvBnRelu(nn.Module):
+        def __init__(self, inp, oup, kernel_size=3, stride=1, padding=1, bias=True, groups=1):
+            super(ConvBnRelu, self).__init__()
+            if groups > 1:
+                self.conv = nn.Conv2d(
+                    inp, inp, kernel_size, stride, padding, bias=bias, groups=groups
+                )
+                self.bn = nn.BatchNorm2d(inp)
+            else:
+                self.conv = nn.Conv2d(
+                    inp, oup, kernel_size, stride, padding, bias=bias, groups=groups
+                )
+                self.bn = nn.BatchNorm2d(oup)
+            self.relu = nn.ReLU(inplace=True)
+
+        def forward(self, inputs):
+            x = self.conv(inputs)
+            x = self.bn(x)
+            x = self.relu(x)
+            return x
+
+    def conv_bn(inp, oup, stride=1, width_multiplier=1):
+        return ConvBnRelu(inp, oup, kernel_size=3, stride=stride, padding=1, bias=False)
+
+    def conv_dw(inp, oup, stride, width_multiplier=1, padding=1):
+        dw_block = nn.Sequential()
+        depth_wise = ConvBnRelu(
+            inp, oup, kernel_size=3, stride=stride, padding=padding, bias=False, groups=inp
+        )
+        point_wise = ConvBnRelu(inp, oup, kernel_size=1, stride=1, padding=0, bias=False)
+
+        dw_block.add_module("depth_wise", depth_wise)
+        dw_block.add_module("point_wise", point_wise)
+
+        return dw_block
+
+    class Backbone(nn.Module):
+        def __init__(self, width_multiplier=1):
+            super(Backbone, self).__init__()
+            self.width_multiplier = width_multiplier
+            self.conv1 = conv_bn(3, 16, 2, self.width_multiplier)
+            self.conv2 = conv_dw(16, 32, 1, self.width_multiplier)
+
+        def forward(self, inputs):
+            x1 = self.conv1(inputs)
+            x2 = self.conv2(x1)
+            return [x1, x2]
+
+    class QuantizableBackbone(nn.Module):
+        def __init__(self, inputsize=(128, 128)):
+            super(QuantizableBackbone, self).__init__()
+            self.quant = QuantStub()
+            self.dequant = DeQuantStub()
+            self.backbone = Backbone()
+
+        def fuse_model(self):
+            fuse_modules_qat = getattr(torch.ao.quantization, "fuse_modules_qat", fuse_modules)
+            for idx, m in enumerate(self.modules()):
+                if type(m) == ConvBnRelu:
+                    fuse_modules_qat(m, ["conv", "bn", "relu"], inplace=True)
+
+        def forward(self, input):
+            input = self.quant(input)
+            y0, y1 = self.backbone(input)
+            y0 = self.dequant(y0)
+            y1 = self.dequant(y1)
+            return y0, y1
+
+    fp32_input = torch.randn(1, 3, 128, 128)
+    model = QuantizableBackbone()
+    model.train()
+    model.fuse_model()
+    model.qconfig = get_default_qat_qconfig("qnnpack")
+
+    prepare_qat(model, inplace=True)
+
+    model.eval()
+    model(fp32_input)
+
+    model_int8 = torch.quantization.convert(model, inplace=True)
+    script_module = torch.jit.trace(model_int8, fp32_input).eval()
+
+    input_infos = [("input", (fp32_input.shape, "float32"))]
+    mod, _ = relay.frontend.from_pytorch(script_module, input_infos)
+    output = mod["main"].body
+
+    assert isinstance(output, relay.Tuple) and len(output) == 2
+    dq1, dq2 = output
+    assert str(dq1.op) == "qnn.dequantize" and str(dq2.op) == "qnn.dequantize"
+    scale1 = dq1.args[1].data.numpy().item()
+    scale2 = dq2.args[1].data.numpy().item()
+    assert scale1 != scale2

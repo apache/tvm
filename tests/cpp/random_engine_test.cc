@@ -63,9 +63,3 @@ TEST(RandomEngine, Serialization) {
   rand_state_b = rand_state_a;
   for (int i = 0; i < 100000; i++) ICHECK_EQ(rng_a(), rng_b());
 }
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
-}

@@ -14,14 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import re
+
 import tvm
 from tvm import te
 import numpy as np
 from tvm import topi
-import unittest
 from tvm.contrib.nvcc import have_fp16, have_int8, have_bf16
-from tvm.contrib import nvcc
 import tvm.testing
+import pytest
 
 tx = te.thread_axis("threadIdx.x")
 bx = te.thread_axis("blockIdx.x")
@@ -276,22 +277,16 @@ def test_cuda_shuffle():
     def MyVectorize():
         def vectorizer(op):
             if op.kind == tvm.tir.ForKind.VECTORIZED:
-                four = tvm.tir.const(4, "int32")
-                idx = tvm.tir.Ramp(thrx.var * four, tvm.tir.const(1, "int32"), 4)
-                all_ones = tvm.tir.const(1, "int32x4")
+                idx = tvm.tir.Ramp(4 * thrx.var, 1, 4)
                 store = op.body
                 value = store.value
-                new_a = tvm.tir.Load("int32x4", value.a.buffer_var, idx, all_ones)
+                new_a = tvm.tir.BufferLoad(value.a.buffer, [idx])
                 bs, ids = [], []
                 for i in range(4):
-                    bs.append(
-                        tvm.tir.Load(
-                            "int32", value.b.buffer_var, thrx.var * four + tvm.tir.const(i, "int32")
-                        )
-                    )
-                    ids.append(tvm.tir.const(3 - i, "int32"))
+                    bs.append(tvm.tir.BufferLoad(value.b.buffer, [4 * thrx.var + i]))
+                    ids.append(3 - i)
                 new_b = tvm.tir.Shuffle(bs, ids)
-                return tvm.tir.Store(store.buffer_var, new_a + new_b, idx, all_ones)
+                return tvm.tir.BufferStore(store.buffer, new_a + new_b, [idx])
             return None
 
         def _transform(f, *_):
@@ -809,23 +804,27 @@ def vcf_check_common(s, args):
     inside_broadcast = [False]
 
     # Possible patterns:
-    # Reduce init:          Store[Ramp] = Broadcast(0)
-    # Shared memory copy:   Store[Ramp] = Load[Ramp]
-    # Compute:              Store[Ramp] = Load[Ramp] ... Broadcast[Load]
+    # Reduce init:          BufferStore[Ramp] = Broadcast(0)
+    # Shared memory copy:   BufferStore[Ramp] = BufferLoad[Ramp]
+    # Compute:              BufferStore[Ramp] = BufferLoad[Ramp] ... Broadcast[Load]
 
     def pre_visit(stmt):
         if isinstance(stmt, tvm.tir.Broadcast):
             inside_broadcast[0] = True
             # Check Broadcast[Imm numbers] or Broadcast[Load] patterns
-            assert isinstance(stmt.value, (tvm.tir.IntImm, tvm.tir.FloatImm, tvm.tir.Load))
-        if isinstance(stmt, tvm.tir.Store):
-            # Check Store[Ramp] pattern
-            assert isinstance(stmt.index, tvm.tir.Ramp)
-        if isinstance(stmt, tvm.tir.Load):
-            # Check Broadcast[Load] or Load[Ramp] patterns
-            assert inside_broadcast[0] or isinstance(stmt.index, tvm.tir.Ramp)
-            # Skip the rest
-            return stmt
+            assert isinstance(stmt.value, (tvm.tir.IntImm, tvm.tir.FloatImm, tvm.tir.BufferLoad))
+
+        if isinstance(stmt, (tvm.tir.BufferStore, tvm.tir.BufferLoad)):
+            is_ramp_index = isinstance(stmt.indices[-1], tvm.tir.Ramp)
+            is_vectorized_buffer = re.match(r"^.*x\d+$", stmt.buffer.dtype)
+            if isinstance(stmt, tvm.tir.BufferLoad):
+                # Check Broadcast[BufferLoad] or BufferLoad[Ramp] patterns
+                assert inside_broadcast[0] or is_ramp_index or is_vectorized_buffer
+                # Skip the rest of the BufferLoad
+                return stmt
+            else:
+                assert is_ramp_index or is_vectorized_buffer
+
         return None
 
     def post_visit(stmt):
@@ -995,29 +994,54 @@ def test_unrolled_vectorization():
     tvm.testing.assert_allclose(c_np, N * np.ones((N, N)))
 
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
+def test_try_unaligned_vector_load():
+    def get_compute(N, C_N, offset):
+        A = te.placeholder((N,), name="A", dtype="float16")
+        C = te.compute((C_N,), lambda i: A[i + offset], name="C")
+        return N, C_N, A, C
+
+    def get_compute_unaligned():
+        return get_compute(3, 2, 1)
+
+    def get_compute_aligned():
+        return get_compute(4, 2, 2)
+
+    def build(A, C, N, C_N):
+        s = te.create_schedule(C.op)
+        oi, ii = s[C].split(C.op.axis[0], factor=2)
+        s[C].bind(oi, te.thread_axis("threadIdx.x"))
+        s[C].vectorize(ii)  # BUG: misalignment
+
+        tgt = tvm.target.Target(target="cuda", host="llvm")
+        dev = tvm.device(tgt.kind.name, 0)
+        f = tvm.build(s, [A, C], tgt, name="foo")
+        kernel_source = f.imported_modules[0].get_source()
+
+        a_data = np.arange(0, N).astype(A.dtype)
+        a = tvm.nd.array(a_data, dev)
+        c = tvm.nd.array(np.zeros(C_N, dtype=C.dtype), dev)
+        f(a, c)
+
+        return a_data, c.numpy(), kernel_source
+
+    N, C_N, A, C = get_compute_unaligned()
+    a_data, c, kernel_source = build(A, C, N, C_N)
+    # (uint1*)(A + (1)) is invalid
+    assert "A + (1)" not in kernel_source
+
+    expected = a_data[1 : C_N + 1]
+    assert np.allclose(c, expected), f"expected={expected}\nactual={c}"
+
+    N, C_N, A, C = get_compute_aligned()
+    a_data, c, kernel_source = build(A, C, N, C_N)
+    # (uint1*)(A + (2)) is a valid vector load
+    assert "A + 2" in kernel_source
+
+    expected = a_data[2 : C_N + 2]
+    assert np.allclose(c, expected), f"expected={expected}\nactual={c}"
+
+
 if __name__ == "__main__":
-    test_cuda_vectorize_add()
-    test_cuda_bf16_vectorize_add()
-    test_cuda_multiply_add()
-    test_cuda_vectorize_load()
-    test_cuda_make_int4()
-    test_cuda_make_int8()
-    test_cuda_inf_nan()
-    test_cuda_shuffle()
-    test_vectorized_casts()
-    test_cuda_reduction_binding()
-    test_crossthread_reduction1()
-    test_crossthread_reduction2()
-    test_rfactor_predicates()
-    test_cuda_const_float_to_half()
-    test_cuda_reduction()
-    test_cuda_mix_threaded_and_normal_reduction()
-    test_cuda_floordiv_with_vectorization()
-    test_cuda_floormod_with_vectorization()
-    test_vectorized_intrin1()
-    test_vectorized_intrin2()
-    test_vectorized_popcount()
-    test_cuda_vectorize_load_permute_pad()
-    test_vectorized_cooperative_fetching_x()
-    test_vectorized_cooperative_fetching_xy()
-    test_unrolled_vectorization()
+    pytest.main([__file__])

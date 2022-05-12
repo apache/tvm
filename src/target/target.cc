@@ -74,16 +74,6 @@ void CheckAndUpdateHostConsistency(Target* target, Target* host) {
   *host = (*target)->GetHost().value_or(Target());
 }
 
-void CheckAndUpdateHostConsistency(Map<Integer, Target>* targets, Target* host) {
-  Map<Integer, Target> new_targets;
-  for (auto& it : *targets) {
-    auto target = it.second;
-    CheckAndUpdateHostConsistency(&target, host);
-    new_targets.Set(it.first, target);
-  }
-  *targets = new_targets;
-}
-
 void CheckAndUpdateHostConsistency(Map<Target, IRModule>* targets, Target* host) {
   Map<Target, IRModule> new_targets;
   for (auto& it : *targets) {
@@ -457,6 +447,7 @@ const std::string& TargetNode::str() const {
     if (Optional<String> attrs_str = TargetInternal::StringifyAttrsToRaw(attrs)) {
       os << ' ' << attrs_str.value();
     }
+
     str_repr_ = os.str();
   }
   return str_repr_;
@@ -490,6 +481,27 @@ Target::Target(Target target, Target host) {
   ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
   n->host = std::move(host);
   data_ = std::move(n);
+}
+
+Target::Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<String> keys,
+               Map<String, ObjectRef> attrs) {
+  auto data = runtime::make_object<TargetNode>();
+  data->kind = std::move(kind);
+  data->host = std::move(host);
+  data->tag = std::move(tag);
+  data->keys = std::move(keys);
+  data->attrs = std::move(attrs);
+  data_ = std::move(data);
+}
+
+bool Target::IsExternalCodegen() const {
+  TargetKindAttrMap<Bool> attr_map = TargetKind::GetAttrMap<Bool>(::tvm::attr::kIsExternalCodegen);
+  return attr_map.get(get()->kind, Bool(false));
+}
+
+bool Target::IsExternalCodegenFor(const Target& that) const {
+  return get()->kind->device_type == that->kind->device_type && IsExternalCodegen() &&
+         !that.IsExternalCodegen();
 }
 
 std::vector<std::string> TargetNode::GetKeys() const {
@@ -529,6 +541,57 @@ Map<String, ObjectRef> TargetNode::Export() const {
 
 Optional<Target> TargetNode::GetHost() const {
   return GetRef<Optional<Target>>(this->host.as<TargetNode>());
+}
+
+String TargetNode::ToDebugString() const {
+  std::ostringstream os;
+  os << "Target(";
+  os << "kind='" << kind->name << "'";
+  if (!tag.empty()) {
+    os << ", tag='" << tag << "'";
+  }
+  if (!keys.empty()) {
+    os << ", keys={";
+    bool first = true;
+    for (const auto& key : keys) {
+      if (!first) {
+        os << ", ";
+      }
+      os << "'" << key << "'";
+      first = false;
+    }
+    os << "}";
+  }
+  if (!attrs.empty()) {
+    os << ", attrs={";
+    bool first = true;
+    for (const auto& pair : attrs) {
+      if (!first) {
+        os << ", ";
+      }
+      os << "'" << pair.first << "': " << pair.second;
+      first = false;
+    }
+    os << "}";
+  }
+  if (host.defined()) {
+    os << ", host=" << GetHost().value()->ToDebugString();
+  }
+  os << ")";
+  return os.str();
+}
+
+bool TargetNode::SEqualReduce(const TargetNode* other, SEqualReducer equal) const {
+  return equal(kind.get(), other->kind.get()) && equal(host, other->host) &&
+         equal(tag, other->tag) && equal(keys, other->keys) && equal(attrs, other->attrs);
+}
+
+void TargetNode::SHashReduce(SHashReducer hash_reduce) const {
+  hash_reduce(kind.get());
+  hash_reduce(host);
+  hash_reduce(tag);
+  hash_reduce(keys);
+  hash_reduce(attrs);
 }
 
 /*! \brief Entry to hold the Target context stack. */

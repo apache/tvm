@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
-
+import pytest
 from tvm import topi
 import tvm.topi.testing
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.testing import check_grad, run_infer_type
+from tvm.relay.testing import check_grad, run_infer_type, run_opt_pass
 from tvm.relay.transform import gradient
 import tvm.testing
 
@@ -51,8 +51,9 @@ def verify_max_pool2d_grad(x_shape, pool_size, strides, padding, ceil_mode):
     )
 
     for target, dev in tvm.testing.enabled_targets():
-        intrp = relay.create_executor(device=dev, target=target)
-        op_res, (op_grad,) = intrp.evaluate(bwd_func)(data)
+        op_res, (op_grad,) = relay.create_executor(device=dev, target=target).evaluate(bwd_func)(
+            data
+        )
         np.testing.assert_allclose(op_grad.numpy(), ref_grad, rtol=0.01)
 
 
@@ -100,8 +101,9 @@ def verify_avg_pool2d_grad(
         )
 
         for target, dev in tvm.testing.enabled_targets():
-            intrp = relay.create_executor(device=dev, target=target)
-            op_res, (op_grad,) = intrp.evaluate(bwd_func)(data)
+            op_res, (op_grad,) = relay.create_executor(device=dev, target=target).evaluate(
+                bwd_func
+            )(data)
             np.testing.assert_allclose(op_grad.numpy(), ref_grad, rtol=0.01)
 
 
@@ -156,8 +158,9 @@ def verify_global_avg_pool2d_grad(x_shape):
     )
 
     for target, dev in tvm.testing.enabled_targets():
-        intrp = relay.create_executor(device=dev, target=target)
-        op_res, (op_grad,) = intrp.evaluate(bwd_func)(data)
+        op_res, (op_grad,) = relay.create_executor(device=dev, target=target).evaluate(bwd_func)(
+            data
+        )
         np.testing.assert_allclose(op_grad.numpy(), ref_grad, rtol=0.01)
 
 
@@ -172,7 +175,13 @@ def verify_conv2d_grad(dshape, wshape, strides, padding, dilation, groups=1, mod
     data = relay.var("data", shape=dshape, dtype=dtype)
     weight = relay.var("weight", shape=wshape, dtype=dtype)
     conv = relay.nn.conv2d(
-        data, weight, strides=strides, padding=padding, dilation=dilation, groups=groups
+        data,
+        weight,
+        strides=strides,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+        out_dtype=dtype,
     )
     fwd_func = relay.Function([data, weight], conv)
     check_grad(fwd_func, mode=mode)
@@ -226,11 +235,80 @@ def test_batch_flatten_grad():
     verify_batch_flatten_grad((1, 8))
 
 
+def verify_conv2d_backward_weight(
+    dy_shape, x_shape, kernel_size, stride, padding, groups=1, out_channels=None
+):
+    dtype = "float32"
+    dy = relay.var("dy", shape=dy_shape, dtype=dtype)
+    x = relay.var("x", shape=x_shape, dtype=dtype)
+    dw_func = relay.Function(
+        [dy, x],
+        relay.nn.conv2d_backward_weight(
+            dy,
+            x,
+            strides=stride,
+            padding=padding,
+            kernel_size=kernel_size,
+            groups=groups,
+            channels=out_channels,
+            out_dtype=dtype,
+        ),
+    )
+
+    dw_func_legalized = run_opt_pass(dw_func, relay.transform.Legalize())
+
+    for dw, target in [(dw_func_legalized, "llvm"), (dw_func, "cuda -libs=cudnn")]:
+        if "cudnn" in target and not tvm.contrib.cudnn.exists():
+            continue
+
+        dev = tvm.device(target, 0)
+        dy_np = np.random.randn(*dy_shape).astype(dtype)
+        x_np = np.random.randn(*x_shape).astype(dtype)
+
+        dw_np = relay.create_executor(device=dev, target=target).evaluate(dw)(dy_np, x_np).numpy()
+        ref_dw_np = tvm.topi.testing.conv2d_backward_weight_python(
+            dy_np, x_np, kernel_size, stride, padding, groups=groups, channels=out_channels
+        )
+
+        np.testing.assert_allclose(dw_np, ref_dw_np, rtol=1e-4, atol=1e-4)
+
+
+def test_conv2d_backward_weight():
+    verify_conv2d_backward_weight((2, 8, 32, 32), (2, 4, 32, 32), (3, 3), (1, 1), (1, 1))
+    verify_conv2d_backward_weight((2, 16, 15, 15), (2, 3, 32, 32), (3, 3), (2, 2), (0, 0))
+    verify_conv2d_backward_weight(
+        (1, 16, 32, 32), (1, 16, 32, 32), (3, 3), (1, 1), (1, 1), groups=16, out_channels=16
+    )
+
+
+def test_conv2d_backward_weight_infer_type():
+    # From https://github.com/apache/tvm/pull/10439
+    depthwise_conv_code = """
+    fn (%input0: Tensor[(1, 3, 32, 32), float32], %v0_weight: Tensor[(3, 1, 3, 3), float32], %v0_bias: Tensor[(3), float32]) {
+      %0 = nn.conv2d(%input0, %v0_weight, padding=[1, 1, 1, 1], groups=3, channels=3, kernel_size=[3, 3]);
+      nn.bias_add(%0, %v0_bias)
+    }
+    """
+
+    normal_conv_code = """
+    fn (%input0: Tensor[(1, 3, 32, 32), float32], %v0_weight: Tensor[(3, 3, 3, 3), float32], %v0_bias: Tensor[(3), float32]) {
+      %0 = nn.conv2d(%input0, %v0_weight, padding=[1, 1, 1, 1], groups=1, channels=3, kernel_size=[3, 3]);
+      nn.bias_add(%0, %v0_bias)
+    }
+    """
+
+    SEMVER = '#[version = "0.0.5"]\n'
+
+    for code in [normal_conv_code, depthwise_conv_code]:
+        expr = tvm.parser.parse_expr(SEMVER + code)
+        fmod = tvm.IRModule.from_expr(expr)
+
+        mod = relay.transform.InferType()(fmod)
+        bwd_expr = relay.transform.gradient(mod["main"], mode="first_order")
+
+        bwd_mod = tvm.IRModule.from_expr(bwd_expr)
+        bwd_mod = relay.transform.InferType()(bwd_mod)
+
+
 if __name__ == "__main__":
-    test_max_pool2d_grad()
-    test_avg_pool2d_grad()
-    test_global_avg_pool2d_grad()
-    test_conv2d_grad()
-    test_dense_grad()
-    test_matmul_grad()
-    test_batch_flatten_grad()
+    pytest.main([__file__])

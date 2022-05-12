@@ -76,7 +76,7 @@ def test_split():
     # test overflow
     n = 25
     cfg = ConfigSpace()
-    cfg.define_split("x", cfg.axis(2 ** n), policy="factors", num_outputs=4)
+    cfg.define_split("x", cfg.axis(2**n), policy="factors", num_outputs=4)
     # count4(25) is 3276.
     assert len(cfg.space_map["x"]) == count4(n)
 
@@ -84,6 +84,8 @@ def test_split():
     cfg = FallbackConfigEntity()
     cfg.define_split("tile_n", cfg.axis(128), num_outputs=3)
     cfg.fallback_split("tile_n", [-1, 8, 4])
+    # verify if define_split override previously manualy defined split params
+    cfg.define_split("tile_n", cfg.axis(128), num_outputs=3)
     assert cfg["tile_n"].size == [4, 8, 4]
 
     cfg = FallbackConfigEntity()

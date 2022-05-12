@@ -15,7 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-Contribute to TVM
+Contributor Guide
 =================
 
 TVM has been developed by community members.
@@ -41,11 +41,12 @@ Here are guidelines for contributing to various aspect of the project:
    :maxdepth: 2
 
    community
+   pull_request
    code_review
    committer_guide
    document
    code_guide
-   error_handling
-   pull_request
    git_howto
+   ci
    release_process
+   error_handling

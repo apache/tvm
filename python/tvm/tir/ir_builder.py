@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Developer API of IR node builder make function."""
+import tvm
 from tvm._ffi.base import string_types
-from tvm.runtime import ObjectGeneric, DataType, convert, const
-from tvm.ir import container as _container, PointerType, PrimType
+from tvm.runtime import ObjectGeneric, convert, const
+from tvm.ir import container as _container
 
 from . import stmt as _stmt
 from . import expr as _expr
+from . import buffer as _buffer
 from . import op
 
 
@@ -43,84 +45,77 @@ class BufferVar(ObjectGeneric):
 
     Do not create it directly, create use IRBuilder.
 
-    BufferVars support array access either via a linear index, or, if given a
-    shape, via a multidimensional index.
+    Array access through a BufferVar must use the same number of
+    indices as the underlying buffer was declared to have.
 
     Examples
     --------
     In the follow example, x is BufferVar.
-    :code:`x[0] = ...` directly emit a store to the IRBuilder,
-    :code:`x[10]` translates to Load.
+    :code:`x[0] = ...` directly emit a BufferStore to the IRBuilder,
+    :code:`x[10]` translates to BufferLoad.
 
     .. code-block:: python
 
-        # The following code generate IR for x[0] = x[
+        # The following code generate IR for x[0] = x[10] + 1
         ib = tvm.tir.ir_builder.create()
-        x = ib.pointer("float32")
+        x = ib.allocate("float32", 20)
         x[0] = x[10] + 1
 
+        # Array access using a multidimensional index
         y = ib.allocate("float32", (32, 32))
-        # Array access using a linear index
-        y[(2*32) + 31] = 0.
-        # The same array access using a multidimensional index
         y[2, 31] = 0.
 
     See Also
     --------
     IRBuilder.pointer
-    IRBuilder.buffer_ptr
     IRBuilder.allocate
+
     """
 
-    def __init__(self, builder, buffer_var, shape, content_type):
+    def __init__(self, builder, buffer, content_type):
         self._builder = builder
-        self._buffer_var = buffer_var
-        self._shape = shape
+        self._buffer = buffer
         self._content_type = content_type
 
     def asobject(self):
-        return self._buffer_var
+        return self._buffer
 
     @property
     def dtype(self):
         return self._content_type
 
-    def _linear_index(self, index):
-        if not isinstance(index, tuple) or self._shape is None:
-            return index
-        assert len(index) == len(self._shape), "Index size (%s) does not match shape size (%s)" % (
-            len(index),
-            len(self._shape),
-        )
-        dim_size = 1
-        lidx = 0
-        for dim, idx in zip(reversed(self._shape), reversed(index)):
-            lidx += idx * dim_size
-            dim_size *= dim
-        return lidx
+    def _normalize_index(self, index):
+        try:
+            index = [*index]
+        except TypeError:
+            index = [index]
+
+        index = [x.var if isinstance(x, _expr.IterVar) else x for x in index]
+
+        # Workaround to support previous behavior of ir_builder
+        # indexing by a single index, treating the buffer as if were
+        # already flattened.
+        if len(index) == 1 and len(self._buffer.shape) != 1:
+            index = tvm.topi.utils.unravel_index(index[0], self._buffer.shape)
+
+        return index
 
     def __getitem__(self, index):
-        t = DataType(self._content_type)
-        index = self._linear_index(index)
-        if t.lanes > 1:
-            base = index * t.lanes
-            stride = 1 if (not hasattr(base, "dtype")) else const(1, base.dtype)
-            index = _expr.Ramp(base, stride, t.lanes)
-        return _expr.Load(self._content_type, self._buffer_var, index)
+        index = self._normalize_index(index)
+        return _expr.BufferLoad(self._buffer, index)
 
     def __setitem__(self, index, value):
+        index = self._normalize_index(index)
+
         value = convert(value)
-        if value.dtype != self._content_type:
+        value_element = value.dtype.split("x", maxsplit=1)[0]
+        content_element = self._content_type.split("x", maxsplit=1)[0]
+        if value_element != content_element:
             raise ValueError(
                 "data type does not match content type %s vs %s" % (value.dtype, self._content_type)
             )
-        index = self._linear_index(index)
-        t = DataType(self._content_type)
-        if t.lanes > 1:
-            base = index * t.lanes
-            stride = 1 if (not hasattr(base, "dtype")) else const(1, base.dtype)
-            index = _expr.Ramp(base, stride, t.lanes)
-        self._builder.emit(_stmt.Store(self._buffer_var, value, index))
+
+        self._builder.emit(_stmt.BufferStore(self._buffer, value, index))
 
 
 class IRBuilder(object):
@@ -206,7 +201,7 @@ class IRBuilder(object):
             value = op.max(1, value)
         self.emit(lambda x: _stmt.AttrStmt(node, attr_key, value, x))
 
-    def for_range(self, begin, end, name="i", dtype="int32", kind="serial"):
+    def for_range(self, begin, end, name="i", dtype=None, kind="serial"):
         """Create a for iteration scope.
 
         Parameters
@@ -245,6 +240,26 @@ class IRBuilder(object):
             name = chr(ord(name) + self.nidx) if self.nidx < 3 else name + "_" + str(self.nidx - 3)
             self.nidx += 1
         self._seq_stack.append([])
+
+        # auto infer dtype when it's not specified
+        def get_dtype(expr):
+            if isinstance(expr, _expr.PrimExpr):
+                if not expr.dtype.startswith("int"):
+                    raise NotImplementedError(
+                        f"Infer loop_var dtype failed:"
+                        f" unsupported dtype in loop begin or end {expr.dtype}"
+                    )
+                return expr.dtype
+            if isinstance(expr, int):
+                return "int32"
+            raise NotImplementedError(
+                f"Infer loop_var dtype failed:"
+                f" unsupported dtype in loop begin or end {expr.dtype}"
+            )
+
+        if dtype is None:
+            dtype = "int64" if "int64" in [get_dtype(begin), get_dtype(end)] else "int32"
+
         loop_var = _expr.Var(name, dtype=dtype)
         extent = end if begin == 0 else (end - begin)
 
@@ -394,7 +409,7 @@ class IRBuilder(object):
         self.emit(lambda x: _stmt.LetStmt(var, value, x))
         return var
 
-    def allocate(self, dtype, shape, name="buf", scope=""):
+    def allocate(self, dtype, shape, name="buf", axis_separators=None, scope=""):
         """Create a allocate statement.
 
         Parameters
@@ -408,19 +423,32 @@ class IRBuilder(object):
         name : str, optional
             The name of the buffer.
 
+        axis_separators : list of int, optional
+
+            If passed, a list of separators between groups of axes,
+            each of which is flattened to an output axis.  For flat
+            memory spaces, should either be None, or an empty list.
+
         scope : str, optional
             The scope of the buffer.
+
 
         Returns
         -------
         buffer : BufferVar
             The buffer var representing the buffer.
+
         """
-        buffer_var = _expr.Var(name, PointerType(PrimType(dtype), scope))
         if not isinstance(shape, (list, tuple, _container.Array)):
             shape = [shape]
+
+        buffer = _buffer.decl_buffer(
+            shape, dtype, name, scope=scope, axis_separators=axis_separators
+        )
+
+        buffer_var = buffer.data
         self.emit(lambda x: _stmt.Allocate(buffer_var, dtype, shape, const(1, dtype="uint1"), x))
-        return BufferVar(self, buffer_var, shape, dtype)
+        return BufferVar(self, buffer, dtype)
 
     def pointer(self, content_type, name="ptr", scope=""):
         """Create pointer variable with content type.
@@ -441,10 +469,10 @@ class IRBuilder(object):
         ptr : BufferVar
             The buffer var representing the buffer.
         """
-        buffer_var = _expr.Var(name, PointerType(PrimType(content_type), scope))
-        return BufferVar(self, buffer_var, None, content_type)
+        buffer = _buffer.decl_buffer(shape=[1], dtype=content_type, name=name, scope=scope)
+        return BufferVar(self, buffer, content_type)
 
-    def buffer_ptr(self, buf, shape=None):
+    def buffer_ptr(self, buf):
         """Create pointer variable corresponds to buffer ptr.
 
         Parameters
@@ -452,15 +480,12 @@ class IRBuilder(object):
         buf : Buffer
             The buffer to be extracted.
 
-        shape : Tuple
-            Optional shape of the buffer. Overrides existing buffer shape.
-
         Returns
         -------
         ptr : BufferVar
             The buffer var representing the buffer.
         """
-        return BufferVar(self, buf.data, buf.shape if shape is None else shape, buf.dtype)
+        return BufferVar(self, buf, buf.dtype)
 
     def likely(self, expr):
         """Add likely tag for expression.

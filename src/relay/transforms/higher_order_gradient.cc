@@ -341,28 +341,28 @@ struct ReverseAD : ExprMutator {
       GlobalVar gv(op->name_hint + "_grad");
       (*ad_gvars)[orig_gv] = gv;
       Function orig_f = Downcast<Function>(DeDup(mod.value()->Lookup(orig_gv)));
-      std::vector<Var> params;
+      Array<Var> params;
       for (const auto& p : orig_f->params) {
         params.push_back(Downcast<Var>(VisitExpr(p)));
       }
       params.push_back(bp);
-      Expr body = VisitExpr(orig_f->body);
-      Function f(params, body, VisitType(orig_f->ret_type), orig_f->type_params, orig_f->attrs);
+      Function f = WithFields(orig_f, params, VisitExpr(orig_f->body), VisitType(orig_f->ret_type));
       std::cout << "gv " << op->name_hint << ": " << AsText(f, false) << std::endl;
       mod.value()->Add(gv, f);
     }
     return ad_gvars->at(orig_gv);
   }
 
-  Expr VisitExpr_(const FunctionNode* op) final {
-    std::vector<Var> params;
-    for (const auto& var : op->params) {
+  Expr VisitExpr_(const FunctionNode* func_node) final {
+    Array<Var> params;
+    for (const auto& var : func_node->params) {
       params.push_back(Downcast<Var>(VisitExpr(var)));
     }
     auto new_bp = Var("bp", bpt);
     params.push_back(new_bp);
-    return Function(params, ReverseAD(mod, new_bp, ad_vars, ad_gvars)(op->body),
-                    VisitType(op->ret_type), op->type_params, op->attrs);
+    return WithFields(GetRef<Function>(func_node), params,
+                      ReverseAD(mod, new_bp, ad_vars, ad_gvars)(func_node->body),
+                      VisitType(func_node->ret_type));
   }
 
   Type VisitType(const Type& t) final { return t.defined() ? ReverseType(t) : t; }
@@ -456,7 +456,8 @@ Expr Gradient(const Expr& re, const Optional<IRModule>& mod) {
     };
     return Pair(get_final_result(c, f->body->checked_type()), Tuple(ret));
   });
-  auto ret = Function(f->params, body, GradRetType(GetRef<Function>(f)), {});
+  Function ret = WithFields(GetRef<Function>(f), f->params, body, GradRetType(GetRef<Function>(f)),
+                            /* erase type params */ Array<TypeVar>());
   CheckFeature(ret, FeatureSet::All() - fGraph);
   return std::move(ret);
 }

@@ -71,17 +71,20 @@ class TensorAffineTypeNode : public AffineTypeNode {
   RelayExpr zero_point;
   /*! \brief The data type of this type */
   DataType dtype;
+  /*! \brief The axis for per-channel quantization */
+  int axis;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("scale", &scale);
     v->Visit("zero_point", &zero_point);
     v->Visit("dtype", &dtype);
+    v->Visit("axis", &axis);
   }
 
   bool SEqualReduce(const TensorAffineTypeNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
     return equal(scale, other->scale) && equal(zero_point, other->zero_point) &&
-           equal(dtype, other->dtype);
+           equal(dtype, other->dtype) && equal(axis, other->axis);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -89,6 +92,7 @@ class TensorAffineTypeNode : public AffineTypeNode {
     hash_reduce(scale);
     hash_reduce(zero_point);
     hash_reduce(dtype);
+    hash_reduce(axis);
   }
 
   static constexpr const char* _type_key = "TensorAffineType";
@@ -101,7 +105,7 @@ class TensorAffineTypeNode : public AffineTypeNode {
  */
 class TensorAffineType : public AffineType {
  public:
-  TVM_DLL TensorAffineType(RelayExpr scale, RelayExpr zero_point, DataType dtype);
+  TVM_DLL TensorAffineType(RelayExpr scale, RelayExpr zero_point, DataType dtype, int axis);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TensorAffineType, AffineType, TensorAffineTypeNode);
 };

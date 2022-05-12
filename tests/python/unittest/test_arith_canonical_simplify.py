@@ -142,6 +142,7 @@ def test_canonical_mixed():
     ck.verify(tvm.te.max(x, 1) - tvm.te.max(x, 1), 0)
     ck.verify(tvm.te.min(x, 1) - tvm.te.min(x, 1), 0)
     ck.verify(x * x - x * x, 0)
+    ck.verify(tmod(tdiv(tmod(x, 20), 2) * 2, 4), tdiv(tmod(x, 4), 2) * 2)
 
     fld = tvm.te.floordiv
     ck.verify(fld(x, (z * z)) - fld(x, (z * z)), 0)
@@ -330,7 +331,7 @@ def test_simplify_cast():
     # cast(i32, i + j - 100)
     i = te.var("i", dtype="int64")
     j = te.var("j", dtype="int64")
-    ck.analyzer.update(i, tvm.arith.ConstIntBound(0, 2 ** 31 - 1))
+    ck.analyzer.update(i, tvm.arith.ConstIntBound(0, 2**31 - 1))
     ck.analyzer.update(j, tvm.arith.ConstIntBound(0, 10))
     res = tcast("int32", i + j - 100)
     ck.verify(res, res)

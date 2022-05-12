@@ -44,9 +44,12 @@ def _make_dense_layer(data, growth_rate, bn_size, index):
 def _make_dense_block(data, num_layers, bn_size, growth_rate, index):
     """Makes a block of dense layers of the specified size."""
     layer_out = data
+    blocks = []
     for i in range(num_layers):
         layer_out = _make_dense_layer(layer_out, growth_rate, bn_size, "%s_%s" % (index, i))
-    return layer_out
+        blocks.append(layer_out)
+    block_out = relay.concatenate(blocks, 1)
+    return block_out
 
 
 def _make_transition(data, num_output_features, index):
@@ -63,7 +66,9 @@ def _make_dense_net(
     num_init_features, growth_rate, block_config, data_shape, data_dtype, bn_size=4, classes=1000
 ):
     """Builds up a densenet."""
-    data = relay.Var("data", relay.TensorType(data_shape, data_dtype))  # (bn_size, 3, 224, 224)))
+    data = relay.Var(
+        "data", relay.TensorType(data_shape, data_dtype)
+    )  # (batch_size, 3, 224, 224)))
     conv1 = layers.conv2d(
         data,
         channels=num_init_features,
@@ -79,7 +84,7 @@ def _make_dense_net(
     num_features = num_init_features
     layer_out = mp
     for i, num_layers in enumerate(block_config):
-        layer_out = _make_dense_block(layer_out, num_layers, growth_rate, bn_size, i)
+        layer_out = _make_dense_block(layer_out, num_layers, bn_size, growth_rate, i)
         num_features = num_features + num_layers * growth_rate
         if i != len(block_config) - 1:
             layer_out = _make_transition(layer_out, num_features // 2, i)
@@ -131,10 +136,10 @@ def get_workload(
         169: (69, 32, [6, 12, 32, 32]),
         201: (64, 32, [6, 12, 48, 32]),
     }
-
+    bn_size = 4
     num_init_features, growth_rate, block_config = specs[densenet_size]
     data_shape = tuple([batch_size] + list(image_shape))
     net = _make_dense_net(
-        num_init_features, growth_rate, block_config, data_shape, dtype, batch_size, classes
+        num_init_features, growth_rate, block_config, data_shape, dtype, bn_size, classes
     )
     return create_workload(net)

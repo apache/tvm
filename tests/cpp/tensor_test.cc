@@ -50,8 +50,13 @@ TEST(Tensor, Reduce) {
   LOG(INFO) << C->op.as<te::ComputeOpNode>()->body;
 }
 
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
+TEST(Tensor, Indexing) {
+  using namespace tvm;
+  using namespace tvm::te;
+
+  Var x("x"), y("y");
+  te::Tensor A = te::placeholder({x, y}, DataType::Float(32), "A");
+  LOG(INFO) << A(0, 0);
+  LOG(INFO) << A.IndexWithNegativeIndices(-1, -1);
+  LOG(INFO) << A.IndexWithNegativeIndices(0, -1);
 }

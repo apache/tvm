@@ -84,6 +84,9 @@ RewriteSimplifier::Impl::CompareResult RewriteSimplifier::Impl::TryCompare(const
     }
   }
   ConstIntBound dbound = analyzer_->const_int_bound(diff);
+  if (dbound->min_value == val && dbound->max_value == val) {
+    return kEQ;
+  }
   if (dbound->min_value > val) {
     return kGT;
   }
@@ -191,7 +194,13 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
     // truc div
     TVM_TRY_REWRITE(truncdiv(x, c1) * c1 + truncmod(x, c1), x);
     // floor div
-    TVM_TRY_REWRITE(floordiv(x, c1) * c1 + floormod(x, c1), x);
+    TVM_TRY_REWRITE(floordiv(x, y) * y + floormod(x, y), x);
+    TVM_TRY_REWRITE(y * floordiv(x, y) + floormod(x, y), x);
+    TVM_TRY_REWRITE(floormod(x, y) + floordiv(x, y) * y, x);
+    TVM_TRY_REWRITE(floormod(x, y) + y * floordiv(x, y), x);
+
+    TVM_TRY_REWRITE_IF(floordiv(floormod(x, c2) + c1, c2) + floordiv(x, c2), floordiv(x + c1, c2),
+                       c2.Eval()->value > 0);
 
     // canonicalization rule
     // will try rewrite again after canonicalization.
@@ -461,7 +470,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
 
   // x / 2.0 = x * 0.5
   if (const FloatImmNode* ptr = op->b.as<FloatImmNode>()) {
-    ICHECK(op->dtype.is_float() ||
+    ICHECK(op->dtype.is_float() || op->dtype.is_bfloat16() ||
            datatype::Registry::Global()->GetTypeRegistered(op->dtype.code()));
     return op->a * make_const(op->b.dtype(), 1.0 / ptr->value);
   }
@@ -474,6 +483,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
     if ((div(ramp(b1, c1, lanes), broadcast(c2, lanes))).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
+      ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return ramp(div(b1, c2), div(c1, c2), lanes).Eval();
       }
@@ -644,6 +654,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
     if (truncmod(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
+      ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return broadcast(truncmod(b1, c2), lanes).Eval();
       }
@@ -723,6 +734,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     if (floordiv(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
+      ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return ramp(floordiv(b1, c2), floordiv(c1, c2), lanes).Eval();
       }
@@ -759,6 +771,20 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
         if (c2val % c1val == 0) return floordiv(x, floordiv(c2, c1)).Eval();
       }
     }
+    if (floordiv(x * c1 + c2, c3).Match(ret)) {
+      int64_t c1val = c1.Eval()->value;
+      int64_t c2val = c2.Eval()->value;
+      int64_t c3val = c3.Eval()->value;
+      if (c1val > 0 && c3val > 0 && c3val % c1val == 0 && floormod(c2val, c3val) < c1val) {
+        // assume c3 == a * c1, x == a * y + b, c2 = d * c3 + e then
+        // (x * c1 + c2) // c3
+        // ==> ((a * y + b) * c1 + d * a * c1 + e) // (a * c1)
+        // ==> y + d + (b * c1 + e) // c3
+        // ==> y + d since 0 <= b * c1 <= (a-1) * c1, 0 <= e < c1
+        // ==> x // (c3 // c1) + (c2 // c3)
+        return (floordiv(x, floordiv(c3, c1)) + floordiv(c2, c3)).Eval();
+      }
+    }
 
     TVM_TRY_REWRITE(floordiv(x, x), OneWithTypeLike(x));
     TVM_TRY_REWRITE(floordiv(x * c1, x), c1);
@@ -767,6 +793,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     // Rules involving 2-operands.
     TVM_TRY_REWRITE_IF(floordiv(x * c1 + y, c2), x * floordiv(c1, c2) + floordiv(y, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
+
+    TVM_TRY_REWRITE_IF(floordiv(x * c1 + y, c2), floordiv(x, floordiv(c2, c1)),
+                       c1.Eval()->value > 0 && c2.Eval()->value > 0 &&
+                           c2.Eval()->value % c1.Eval()->value == 0 &&
+                           CanProveEqual(floordiv(y.Eval(), c1.Eval()), 0));
 
     TVM_TRY_REWRITE_IF(floordiv(min(x * c1, y), c2), min(x * floordiv(c1, c2), floordiv(y, c2)),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
@@ -777,6 +808,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     TVM_TRY_REWRITE_IF(floordiv(y + x * c1, c2), floordiv(y, c2) + x * floordiv(c1, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
 
+    TVM_TRY_REWRITE_IF(floordiv(y + x * c1, c2), floordiv(x, floordiv(c2, c1)),
+                       c1.Eval()->value > 0 && c2.Eval()->value > 0 &&
+                           c2.Eval()->value % c1.Eval()->value == 0 &&
+                           CanProveEqual(floordiv(y.Eval(), c1.Eval()), 0));
+
     TVM_TRY_REWRITE_IF(floordiv(min(y, x * c1), c2), min(floordiv(y, c2), x * floordiv(c1, c2)),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
 
@@ -786,6 +822,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     // Rules involving 3-operands.
     TVM_TRY_REWRITE_IF(floordiv(x * c1 + y + z, c2), x * floordiv(c1, c2) + floordiv(y + z, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
+    TVM_TRY_REWRITE_IF(floordiv(x * c1 + y + z, c2), floordiv(x, floordiv(c2, c1)),
+                       c1.Eval()->value > 0 && c2.Eval()->value > 0 &&
+                           c2.Eval()->value % c1.Eval()->value == 0 &&
+                           CanProveEqual(floordiv(y.Eval() + z.Eval(), c1.Eval()), 0));
 
     TVM_TRY_REWRITE_IF(floordiv(x * c1 - y + z, c2), x * floordiv(c1, c2) + floordiv(z - y, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
@@ -851,6 +891,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
     if (floormod(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
+      ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return broadcast(floormod(b1, c2), lanes).Eval();
       }
@@ -858,14 +899,18 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
       ModularSet bmod = analyzer_->modular_set(b1.Eval());
       int64_t ramp_min = floordiv(bmod->base, c2val);
       int64_t ramp_max = floordiv(bmod->base + (lanes.Eval() - 1) * c1val, c2val);
-      if (bmod->coeff % c2val == 0) {
-        if (ramp_min == ramp_max) {
+      if (ramp_min == ramp_max) {
+        // If b1 can devide c2
+        if (bmod->coeff % c2val == 0) {
           return ramp(floormod(bmod->base, c2), c1, lanes).Eval();
-        } else {
-          return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
         }
-      } else if (c2val % bmod->coeff == 0 && ramp_min == ramp_max) {
-        return ramp(floormod(b1, c2), c1, lanes).Eval();
+        // If all indices can be guaranteed to settle inside a coeff range
+        if (c2val % bmod->coeff == 0 && bmod->base + (lanes.Eval() - 1) * c1val < bmod->coeff) {
+          return ramp(floormod(b1, c2), c1, lanes).Eval();
+        }
+      }
+      if (bmod->coeff % c2val == 0) {
+        return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
       }
     }
   }
@@ -877,6 +922,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
 
     TVM_TRY_REWRITE_IF(floormod(x * c1 + y, c2), floormod(y, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
+
+    TVM_TRY_REWRITE_IF(floormod(x * c1 + y, c2), floormod(x, floordiv(c2, c1)) * c1 + y,
+                       c1.Eval()->value > 0 && c2.Eval()->value > 0 &&
+                           c2.Eval()->value % c1.Eval()->value == 0 &&
+                           CanProveEqual(floordiv(y.Eval(), c1.Eval()), 0));
 
     TVM_TRY_REWRITE_IF(floormod(x + c1, c2), floormod(x, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);

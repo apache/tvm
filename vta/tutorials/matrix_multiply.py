@@ -386,7 +386,9 @@ print(vta.lower(s, [A, B, C], simple_mode=True))
 # into a TVM function.
 
 # Build GEMM VTA kernel
-my_gemm = vta.build(s, [A, B, C], "ext_dev", env.target_host, name="my_gemm")
+my_gemm = vta.build(
+    s, [A, B, C], tvm.target.Target("ext_dev", host=env.target_host), name="my_gemm"
+)
 
 # Write the compiled module into an object file.
 temp = utils.tempdir()

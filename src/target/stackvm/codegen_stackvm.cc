@@ -140,12 +140,21 @@ int CodeGenStackVM::GetVarID(const VarNode* v) const {
 }
 
 void CodeGenStackVM::VisitExpr_(const LoadNode* op) {
-  this->Push(op->buffer_var);
+  LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+}
+
+void CodeGenStackVM::VisitExpr_(const BufferLoadNode* op) {
+  ICHECK_EQ(op->indices.size(), 1) << "StackVM expects flat 1-d buffers.  "
+                                   << "Has StorageFlatten (TE-based schedules) or "
+                                   << "FlattenBuffer (TIR-based schedules) been run?";
+  auto index = op->indices[0];
+
+  this->Push(op->buffer->data);
   StackVM::OpCode code = StackVM::GetLoad(op->dtype);
-  if (const IntImmNode* index = op->index.as<IntImmNode>()) {
-    this->PushOp(code, index->value);
+  if (const IntImmNode* int_index = index.as<IntImmNode>()) {
+    this->PushOp(code, int_index->value);
   } else {
-    this->Push(op->index);
+    this->Push(index);
     this->PushOp(StackVM::PUSH_I64, op->dtype.element_of().bytes());
     this->PushOp(StackVM::MUL_I64);
     this->PushOp(StackVM::ADDR_ADD);
@@ -154,13 +163,22 @@ void CodeGenStackVM::VisitExpr_(const LoadNode* op) {
 }
 
 void CodeGenStackVM::VisitStmt_(const StoreNode* op) {
-  this->Push(op->buffer_var);
+  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+}
+
+void CodeGenStackVM::VisitStmt_(const BufferStoreNode* op) {
+  ICHECK_EQ(op->indices.size(), 1) << "StackVM expects flat 1-d buffers.  "
+                                   << "Has StorageFlatten (TE-based schedules) or "
+                                   << "FlattenBuffer (TIR-based schedules) been run?";
+  auto index = op->indices[0];
+
+  this->Push(op->buffer->data);
   StackVM::OpCode code = StackVM::GetStore(op->value.dtype());
-  if (const IntImmNode* index = op->index.as<IntImmNode>()) {
+  if (const IntImmNode* int_index = index.as<IntImmNode>()) {
     this->Push(op->value);
-    this->PushOp(code, index->value);
+    this->PushOp(code, int_index->value);
   } else {
-    this->Push(op->index);
+    this->Push(index);
     this->PushOp(StackVM::PUSH_I64, op->value.dtype().element_of().bytes());
     this->PushOp(StackVM::MUL_I64);
     this->PushOp(StackVM::ADDR_ADD);
@@ -175,11 +193,13 @@ void CodeGenStackVM::VisitStmt_(const AllocateNode* op) {
 
 void CodeGenStackVM::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::address_of())) {
-    const LoadNode* l = op->args[0].as<LoadNode>();
-    ICHECK(op->args.size() == 1 && l);
-    this->PushOp(StackVM::LOAD_HEAP, GetVarID(l->buffer_var.get()));
-    this->Push(l->index);
-    this->PushOp(StackVM::PUSH_I64, l->dtype.element_of().bytes());
+    const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
+    ICHECK(op->args.size() == 1 && load);
+    ICHECK_EQ(load->indices.size(), 1) << "CodeGenStackVM only supports flat memory allocations.";
+
+    this->PushOp(StackVM::LOAD_HEAP, GetVarID(load->buffer->data.get()));
+    this->Push(load->indices[0]);
+    this->PushOp(StackVM::PUSH_I64, load->dtype.element_of().bytes());
     this->PushOp(StackVM::MUL_I64);
     this->PushOp(StackVM::ADDR_ADD);
   } else if (op->op.same_as(builtin::reinterpret())) {

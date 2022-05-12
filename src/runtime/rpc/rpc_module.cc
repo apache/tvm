@@ -179,7 +179,7 @@ class RPCModuleNode final : public ModuleNode {
       return WrapRemoteFunc(sess_->GetFunction(name));
     } else {
       InitRemoteFunc(&remote_mod_get_function_, "tvm.rpc.server.ModuleGetFunction");
-      return remote_mod_get_function_(GetRef<Module>(this), name, false);
+      return remote_mod_get_function_(GetRef<Module>(this), name, true);
     }
   }
 
@@ -320,17 +320,32 @@ std::shared_ptr<RPCSession> RPCModuleGetSession(Module mod) {
  * which leads to lower performance.
  */
 inline void CPUCacheFlushImpl(const char* addr, unsigned int len) {
-// TODO(FrozenGene): Support ARM.
-#if (defined(_M_X64) || defined(__x86_64__))
+#if (defined(_M_X64) || defined(__x86_64__) || defined(__aarch64__))
+
+#if defined(__aarch64__)
+  size_t ctr_el0 = 0;
+  asm volatile("mrs %0, ctr_el0" : "=r"(ctr_el0));
+  const size_t cache_line = 4 << ((ctr_el0 >> 16) & 15);
+#else
   const size_t cache_line = 64;
+#endif
+
   if (addr == nullptr || len <= 0) {
     return;
   }
 
   for (uintptr_t uptr = (uintptr_t)addr & ~(cache_line - 1); uptr < (uintptr_t)addr + len;
        uptr += cache_line) {
+#if defined(__aarch64__)
+    asm volatile("dc civac, %0\n\t" : : "r"(reinterpret_cast<const void*>(uptr)) : "memory");
+#else
     _mm_clflush(reinterpret_cast<const void*>(uptr));
+#endif
   }
+
+#if defined(__aarch64__)
+  asm volatile("dmb ishst" : : : "memory");
+#endif
 
 #endif
 }
@@ -340,61 +355,6 @@ inline void CPUCacheFlush(int begin_index, const TVMArgs& args) {
     CPUCacheFlushImpl(static_cast<char*>((args[i].operator DLTensor*()->data)),
                       GetDataSize(*(args[i].operator DLTensor*())));
   }
-}
-
-PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, int min_repeat_ms,
-                             PackedFunc f_preproc) {
-  ICHECK(pf != nullptr);
-
-  if (static_cast<int>(dev.device_type) == static_cast<int>(kDLMicroDev)) {
-    auto get_micro_time_evaluator = runtime::Registry::Get("micro._GetMicroTimeEvaluator");
-    ICHECK(get_micro_time_evaluator != nullptr) << "micro backend not enabled";
-    return (*get_micro_time_evaluator)(pf, dev, number, repeat);
-  }
-
-  auto ftimer = [pf, dev, number, repeat, min_repeat_ms, f_preproc](TVMArgs args,
-                                                                    TVMRetValue* rv) mutable {
-    TVMRetValue temp;
-    std::ostringstream os;
-    // skip first time call, to activate lazy compilation components.
-    pf.CallPacked(args, &temp);
-
-    DeviceAPI::Get(dev)->StreamSync(dev, nullptr);
-
-    for (int i = 0; i < repeat; ++i) {
-      if (f_preproc != nullptr) {
-        f_preproc.CallPacked(args, &temp);
-      }
-      double duration_ms = 0.0;
-
-      do {
-        if (duration_ms > 0.0) {
-          number = static_cast<int>(std::max((min_repeat_ms / (duration_ms / number) + 1),
-                                             number * 1.618));  // 1.618 is chosen by random
-        }
-
-        Timer t = Timer::Start(dev);
-        // start timing
-        for (int i = 0; i < number; ++i) {
-          pf.CallPacked(args, &temp);
-        }
-        t->Stop();
-        int64_t t_nanos = t->SyncAndGetElapsedNanos();
-        duration_ms = t_nanos / 1e6;
-      } while (duration_ms < min_repeat_ms);
-
-      double speed = duration_ms / 1e3 / number;
-      os.write(reinterpret_cast<char*>(&speed), sizeof(speed));
-    }
-
-    std::string blob = os.str();
-    TVMByteArray arr;
-    arr.size = blob.length();
-    arr.data = blob.data();
-    // return the time.
-    *rv = arr;
-  };
-  return PackedFunc(ftimer);
 }
 
 TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
@@ -417,8 +377,9 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
                 << "Cannot find " << f_preproc_name << " in the global function";
             f_preproc = *pf_preproc;
           }
-          return WrapTimeEvaluator(m.GetFunction(name, false), dev, number, repeat, min_repeat_ms,
-                                   f_preproc);
+          PackedFunc pf = m.GetFunction(name, true);
+          CHECK(pf != nullptr) << "Cannot find " << name << " in the global registry";
+          return profiling::WrapTimeEvaluator(pf, dev, number, repeat, min_repeat_ms, f_preproc);
         }
       } else {
         auto* pf = runtime::Registry::Get(name);
@@ -430,7 +391,7 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
               << "Cannot find " << f_preproc_name << " in the global function";
           f_preproc = *pf_preproc;
         }
-        return WrapTimeEvaluator(*pf, dev, number, repeat, min_repeat_ms, f_preproc);
+        return profiling::WrapTimeEvaluator(*pf, dev, number, repeat, min_repeat_ms, f_preproc);
       }
     });
 

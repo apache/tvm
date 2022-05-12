@@ -145,7 +145,7 @@ inline bool StartsWith(const String& str, const char* prefix) {
     if (str.data()[i] != prefix[i]) return false;
   }
   // return true if the str is equal to the prefix
-  return prefix[n + 1] == '\0';
+  return prefix[n] == '\0';
 }
 
 /*!

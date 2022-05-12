@@ -56,6 +56,12 @@ class CodeGenCPU : public CodeGenLLVM {
    */
   void DefineFunctionRegistry(Array<String> func_names);
 
+  /*!
+   * \brief Serialize the metadata object as data, and implement get_c_metadata function.
+   * \param metadata The metadata which should be serialized.
+   */
+  void DefineMetadata(runtime::metadata::Metadata metadata);
+
  protected:
   void AddStartupFunction() final;
   // meta data
@@ -63,7 +69,7 @@ class CodeGenCPU : public CodeGenLLVM {
   // TVM related data types
   llvm::Type* t_tvm_shape_index_{nullptr};
   llvm::Type* t_tvm_func_handle_{nullptr};
-  llvm::StructType* t_tvm_context_{nullptr};
+  llvm::StructType* t_tvm_device_{nullptr};
   llvm::StructType* t_tvm_type_{nullptr};
   llvm::StructType* t_tvm_array_{nullptr};
   llvm::StructType* t_tvm_value_{nullptr};
@@ -105,22 +111,27 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* RuntimeTVMParallelBarrier();
   llvm::Value* CreateStaticHandle();
   llvm::Value* GetPackedFuncHandle(const std::string& str);
-  llvm::Value* PackClosureData(const Array<Var>& fields, uint64_t* num_bytes);
-  llvm::Value* CreateStructRefPtr(DataType t, llvm::Value* buffer, llvm::Value* index, int kind);
-  void UnpackClosureData(llvm::Value* cdata, const Array<Var>& fields,
+  TypedPointer PackClosureData(const Array<Var>& fields, uint64_t* num_bytes,
+                               std::string struct_name = "");
+  TypedPointer CreateStructRefPtr(DataType t, llvm::Value* buffer, llvm::Value* index, int kind);
+  void UnpackClosureData(TypedPointer cdata, const Array<Var>& fields,
                          std::unordered_map<const VarNode*, llvm::Value*>* vmap);
   // Make packed call.
-  llvm::BasicBlock* MakeCallPacked(const Array<PrimExpr>& args, llvm::Value** rvalue,
-                                   llvm::Value** ret_tcode, const DataType& r_type,
-                                   const int64_t begin, const int64_t end);
+  struct PackedCall {
+    llvm::Value* ret_value;
+    llvm::Value* ret_tcode;
+    llvm::BasicBlock* end_block;
+  };
+  PackedCall MakeCallPackedLowered(const Array<PrimExpr>& args, const DataType& r_type,
+                                   const int64_t begin, const int64_t end, bool use_string_lookup);
   // create call into tvm packed function.
-  llvm::Value* CreateCallPacked(const CallNode* op);
+  llvm::Value* CreateCallPacked(const CallNode* op, bool use_string_lookup);
   // Create trace call into tvm packed function.
   llvm::Value* CreateCallTracePacked(const CallNode* op);
   // Create static initialization
   void CreateStaticInit(const std::string& init_fname, const Stmt& body);
   // Create parallel launch
-  void CreateParallelLaunch(const Stmt& body, int num_task);
+  void CreateParallelLaunch(const Stmt& body, int num_task, std::string name = "");
   // Create a new compute scope.
   void CreateComputeScope(const AttrStmtNode* op);
   // Check if the call to packed function is successful

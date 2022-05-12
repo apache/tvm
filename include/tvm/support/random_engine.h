@@ -19,7 +19,8 @@
 
 /*!
  * \file random_engine.h
- * \brief Random number generator, for Sampler and Sampling functions.
+ * \brief Random number generator. It provides a generic interface consistent with
+ * `std::uniform_random_bit_generator`
  */
 
 #ifndef TVM_SUPPORT_RANDOM_ENGINE_H_
@@ -28,6 +29,7 @@
 #include <tvm/runtime/logging.h>
 
 #include <cstdint>  // for uint64_t
+#include <random>
 
 namespace tvm {
 namespace support {
@@ -41,10 +43,11 @@ namespace support {
  *  included for simplification. For full member functions of std::minstd_rand, please check out the
  *  following link: https://en.cppreference.com/w/cpp/numeric/random/linear_congruential_engine
  */
+
 class LinearCongruentialEngine {
  public:
   /*!
-   * \brief The result type is defined as int64_t here for meta_schedule sampler usage.
+   * \brief The result type is defined as uint64_t here to avoid overflow.
    * \note The type name is not in Google style because it is used in STL's distribution inferface.
    */
   using result_type = uint64_t;
@@ -63,13 +66,19 @@ class LinearCongruentialEngine {
    * \brief The minimum possible value of random state here.
    * \note The function name is uncapilized because it is used in STL's distribution inferface.
    */
-  result_type min() { return 0; }
+  static constexpr result_type min() { return 0; }
 
   /*!
    * \brief The maximum possible value of random state here.
    * \note The function name is uncapilized because it is used in STL's distribution inferface.
    */
-  result_type max() { return modulus - 1; }
+  static constexpr result_type max() { return modulus - 1; }
+
+  /*!
+   * \brief Get a device random state
+   * \return The random state
+   */
+  static TRandState DeviceRandom() { return (std::random_device()()) % modulus; }
 
   /*!
    * \brief Operator to move the random state to the next and return the new random state. According
@@ -90,14 +99,25 @@ class LinearCongruentialEngine {
    * \brief Change the start random state of RNG with the seed of a new random state value.
    * \param rand_state The random state given in result_type.
    */
-  void Seed(TRandState rand_state = 1) {
-    rand_state %= modulus;  // Make sure the seed is within the range of modulus.
-    if (rand_state == 0)
-      rand_state = 1;  // Avoid getting all 0 given the current parameter set.
-    else if (rand_state < 0)
-      rand_state += modulus;             // Make sure the rand state is non-negative.
-    ICHECK(rand_state_ptr_ != nullptr);  // Make sure the pointer is not null.
-    *rand_state_ptr_ = rand_state;       // Change pointed random state to given random state value.
+  void Seed(TRandState rand_state) {
+    if (rand_state == -1) {
+      rand_state = DeviceRandom();
+    } else if (rand_state == 0) {
+      rand_state = 1;
+    }
+    ICHECK(rand_state >= 0) << "The random state should be nonnegative";
+    ICHECK(rand_state_ptr_ != nullptr);
+    *rand_state_ptr_ = rand_state % modulus;
+  }
+
+  /*!
+   * \brief Fork a new seed for another RNG from current random state.
+   * \return The forked seed.
+   */
+  TRandState ForkSeed() {
+    // In order for reproducibility, we compute the new seed using RNG's random state and a
+    // different set of parameters. Note that both 32767 and 1999999973 are prime numbers.
+    return ((*this)() * 32767) % 1999999973;
   }
 
   /*!

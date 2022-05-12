@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Test that constants aren't duplicated for Ethos-N"""
+"""Test that constants aren't duplicated for Arm(R) Ethos(TM)-N"""
 
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 
 
@@ -70,10 +70,9 @@ def _get_model():
     return req, params
 
 
+@requires_ethosn
 def test_constant_duplication():
-    if not ethosn_available():
-        return
-
+    np.random.seed(0)
     model, params = _get_model()
     mod = tei.make_module(model, params)
     res = tei.build(mod, params, npu=True, expected_host_ops=1)

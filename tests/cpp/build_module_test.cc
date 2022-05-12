@@ -102,22 +102,27 @@ TEST(BuildModule, Heterogeneous) {
   auto elemwise_add = compute(
       A->shape, [&A, &B](PrimExpr i) { return A[i] + B[i]; }, "elemwise_add");
 
+  // TODO(mbs): device_copy cleanup.
   auto copy = placeholder(shape, DataType::Float(32), "__copy");
   auto elemwise_sub = compute(
       C->shape, [&copy, &C](PrimExpr i) { return copy[i] - C[i]; }, "elemwise_sub");
 
-  With<Target> cuda_scope(target_cuda);
-  auto s1 = topi::cuda::schedule_injective(target_cuda, {elemwise_add});
+  auto fcreate_s1 = [=]() {
+    With<Target> cuda_scope(target_cuda);
+    return topi::cuda::schedule_injective(target_cuda, {elemwise_add});
+  };
 
-  With<Target> llvm_scope(target_llvm);
-  auto s2 = create_schedule({elemwise_sub->op});
+  auto fcreate_s2 = [=]() {
+    With<Target> llvm_scope(target_llvm);
+    return create_schedule({elemwise_sub->op});
+  };
 
   auto args1 = Array<Tensor>({A, B, elemwise_add});
   auto args2 = Array<Tensor>({copy, C, elemwise_sub});
 
   std::unordered_map<Tensor, Buffer> binds;
-  auto lowered_s1 = LowerSchedule(s1, args1, "elemwise_add", binds);
-  auto lowered_s2 = LowerSchedule(s2, args2, "elemwise_sub", binds);
+  auto lowered_s1 = LowerSchedule(fcreate_s1(), args1, "elemwise_add", binds);
+  auto lowered_s2 = LowerSchedule(fcreate_s2(), args2, "elemwise_sub", binds);
   Map<tvm::Target, IRModule> inputs = {{target_cuda, lowered_s1}, {target_llvm, lowered_s2}};
   auto module = build(inputs, Target());
 
@@ -152,9 +157,9 @@ TEST(BuildModule, Heterogeneous) {
   auto b_val = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto c_val = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
-  auto pa = (float*)(a_val->data);
-  auto pb = (float*)(b_val->data);
-  auto pc = (float*)(c_val->data);
+  auto pa = static_cast<float*>(a_val->data);
+  auto pb = static_cast<float*>(b_val->data);
+  auto pc = static_cast<float*>(c_val->data);
 
   // Assign values.
   for (int i = 0; i < n; i++) {
@@ -192,16 +197,10 @@ TEST(BuildModule, Heterogeneous) {
 
   run();
   tvm::runtime::NDArray out = get_output(0);
-  float* p_out = (float*)out->data;
+  float* p_out = static_cast<float*>(out->data);
 
   // Check correctness.
   for (int i = 0; i < n; ++i) {
     ICHECK_LT(std::fabs(p_out[i] - (i + (i + 1.0) - (i - 1.0))), 1e-5);
   }
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
 }

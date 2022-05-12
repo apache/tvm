@@ -96,6 +96,8 @@ def dense_tensorcore_cuda(data, weight, bias=None, out_dtype=None):
 def _schedule_dense_tensorcore(cfg, s, C):
     """Schedule dense operator using Tensorcore"""
     A, B = s[C].op.input_tensors
+    if len(B.op.input_tensors) == 1 and B.op.input_tensors[0] == A:
+        s[B].compute_inline()
     batch, out_dim = get_const_tuple(C.shape)
     data_dtype = A.dtype
     out_dtype = C.dtype
@@ -236,7 +238,7 @@ def _schedule_dense_tensorcore(cfg, s, C):
     s[BF].reorder(o, i, o_ii, i_ii)
 
     # Schedule for A's(B's) shared memory load
-    def shared_shedule(stage, strides):
+    def shared_schedule(stage, strides):
         s[stage].compute_at(s[CF], ko)
         xo, yo = stage.op.axis
         s[stage].storage_align(xo, strides - 1, strides)
@@ -250,8 +252,8 @@ def _schedule_dense_tensorcore(cfg, s, C):
         s[stage].bind(tx, thread_x)
         s[stage].vectorize(vi)
 
-    shared_shedule(AS, AS_align)
-    shared_shedule(BS, BS_align)
+    shared_schedule(AS, AS_align)
+    shared_schedule(BS, BS_align)
 
     shape = (wmma_m, wmma_n, wmma_k)
     AL_gemm = te.placeholder((wmma_m, wmma_k), name="AL_gemm", dtype=data_dtype)

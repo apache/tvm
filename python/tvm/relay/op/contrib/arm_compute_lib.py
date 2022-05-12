@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument
+# pylint: disable=invalid-name, unused-argument, dangerous-default-value
 """Arm Compute Library supported operators."""
 import tvm
 from tvm import relay
@@ -23,7 +23,7 @@ from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.expr import const
 
-from ...dataflow_pattern import is_constant, is_expr, is_op, wildcard
+from ...dataflow_pattern import is_constant, is_expr, is_op, is_tuple, wildcard
 from ..strategy.generic import is_depthwise_conv2d
 from .register import register_pattern_table
 
@@ -42,7 +42,7 @@ def is_arm_compute_runtime_enabled():
     return False
 
 
-def partition_for_arm_compute_lib(mod, params=None, **opts):
+def partition_for_arm_compute_lib(mod, params=None, disabled_ops=["concatenate"], **opts):
     """Partition the graph greedily offloading supported
     operators to Arm Compute Library.
 
@@ -52,6 +52,8 @@ def partition_for_arm_compute_lib(mod, params=None, **opts):
         The module to run passes on.
     params : Optional[Dict[str, NDArray]]
         Constant input parameters.
+    disabled_ops : Optional[list]
+        Ops do not want to offload to ACL.
 
     Returns
     -------
@@ -63,7 +65,7 @@ def partition_for_arm_compute_lib(mod, params=None, **opts):
     seq = tvm.transform.Sequential(
         [
             transform.InferType(),
-            transform.MergeComposite(arm_compute_lib_pattern_table()),
+            transform.MergeComposite(arm_compute_lib_pattern_table(disabled_ops)),
             transform.AnnotateTarget("arm_compute_lib", False),
             transform.PartitionGraph(),
         ]
@@ -128,7 +130,7 @@ def preprocess_module(mod):
 
 
 @register_pattern_table("arm_compute_lib")
-def arm_compute_lib_pattern_table():
+def arm_compute_lib_pattern_table(disabled_ops=["concatenate"]):
     """Get the ACL pattern table."""
 
     def conv_pattern():
@@ -220,6 +222,17 @@ def arm_compute_lib_pattern_table():
         pattern = is_op("sqrt")(pattern)
         return pattern
 
+    def concatenate_pattern():
+        """Create an concatenate pattern from equivalent relay operators.
+
+        Returns
+        -------
+        pattern : dataflow_pattern.AltPattern
+            Denotes the concatenate pattern.
+        """
+        pattern = is_op("concatenate")(is_tuple(None))
+        return pattern
+
     def check_conv(extract):
         """Check conv pattern is supported by ACL."""
         call = extract
@@ -266,6 +279,19 @@ def arm_compute_lib_pattern_table():
         pool = extract.args[0]
         return avg_pool2d(pool)
 
+    def check_concatenate(expr):
+        """Check concatenate pattern is supported by ACL."""
+        if "concatenate" in disabled_ops:
+            return False
+        attrs, type_args = expr.attrs, expr.type_args
+        for idx in range(len(type_args[0].fields)):
+            if type_args[0].fields[idx].dtype not in ["float32", "uint8"]:
+                return False
+        # ACL concatenate only supports maximum 4 dimensions input tensor
+        if attrs.axis not in [-4, -3, -2, -1, 0, 1, 2, 3]:
+            return False
+        return True
+
     return [
         ("arm_compute_lib.conv2d", conv_pattern(), check_conv),
         ("arm_compute_lib.qnn_conv2d", qnn_conv_pattern(), check_qnn_conv),
@@ -274,6 +300,7 @@ def arm_compute_lib_pattern_table():
         ("arm_compute_lib.qnn_conv2d", qnn_conv_pattern(), check_qnn_conv),
         ("arm_compute_lib.avg_pool2d", avg_pool2d_pattern(), check_avg_pool2d),
         ("arm_compute_lib.l2_pool2d", l2_pool2d_pattern(), check_l2_pool2d),
+        ("arm_compute_lib.concatenate", concatenate_pattern(), check_concatenate),
     ]
 
 

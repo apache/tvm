@@ -25,6 +25,7 @@ from functools import partial
 import pytest
 import numpy as np
 import tvm
+import tempfile
 from tvm import te
 from tvm import relay
 
@@ -46,6 +47,7 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import nn_impl
 from tensorflow.python.ops import variables
+from distutils.version import LooseVersion
 
 try:
     from tensorflow import lite as interpreter_wrapper
@@ -161,6 +163,7 @@ def run_tvm_graph(
     target="llvm",
     out_names=None,
     mode="graph_executor",
+    op_converter=relay.frontend.tflite.OperatorConverter,
 ):
     """Generic function to compile on relay and execute on tvm"""
     # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
@@ -185,11 +188,10 @@ def run_tvm_graph(
         dtype_dict[e] = input_data[i].dtype.name
 
     mod, params = relay.frontend.from_tflite(
-        tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict
+        tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict, op_converter=op_converter
     )
 
     if mode in ["debug", "vm"]:
-        ex = relay.create_executor(mode, mod=mod, device=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod["main"].params:
             found = False
@@ -201,7 +203,9 @@ def run_tvm_graph(
             # Interpreter doesn't bind constants, so still need to find in params
             if not found:
                 inputs.append(tvm.nd.array(params[param.name_hint]))
-        result = ex.evaluate()(*inputs)
+        result = relay.create_executor(mode, mod=mod, device=tvm.cpu(), target="llvm").evaluate()(
+            *inputs
+        )
         return vmobj_to_list(result)
     else:
         with tvm.transform.PassContext(opt_level=3):
@@ -321,7 +325,6 @@ def compare_tflite_with_tvm(
                 out_names=out_names,
                 mode=mode,
             )
-
             # WARNING: the results could well be random values clipped to 0 or 255 because of badly tuned output
             # range for the specific operator. While adding test ensure that we aren't getting only clipped values
             # in output tensors that still pass the assertion. For reference see _test_elemwise_qnn_out_range()
@@ -614,6 +617,9 @@ def test_forward_stridedslice():
         )
         _test_stridedslice(
             (4, 4), [1, 0], [4, 4], [1, 1], "float32", shrink_axis_mask=2, quantized=quantized
+        )
+        _test_stridedslice(
+            (3, 4), [-1, 0], [0, 3], [1, 1], "float32", shrink_axis_mask=1, quantized=quantized
         )
 
 
@@ -1263,6 +1269,26 @@ def _test_transpose_conv(
 def test_forward_transpose_conv():
     for quantized in [True, False]:
         for fp16_quantized in [True, False]:
+            # odd size input, padding VALID
+            _test_transpose_conv(
+                [1, 5, 6, 16],
+                [2, 2, 16, 16],
+                [1, 10, 12, 16],
+                [2, 2],
+                "VALID",
+                quantized,
+                fp16_quantized,
+            )
+            # odd size input, padding SAME
+            _test_transpose_conv(
+                [1, 5, 6, 16],
+                [2, 2, 16, 16],
+                [1, 10, 12, 16],
+                [2, 2],
+                "SAME",
+                quantized,
+                fp16_quantized,
+            )
             # kernel 3x3, padding VALID
             _test_transpose_conv(
                 [4, 32, 32, 16],
@@ -1516,7 +1542,9 @@ def test_forward_reshape():
 # ------
 
 
-def _test_resize(tf_resize_op, images_data, size_data, align_corners, quantized=False):
+def _test_resize(
+    tf_resize_op, images_data, size_data, align_corners, half_pixel_centers, quantized=False
+):
     """One iteration of Resize"""
     # Test with tensor and constant
     with tf.Graph().as_default():
@@ -1529,7 +1557,10 @@ def _test_resize(tf_resize_op, images_data, size_data, align_corners, quantized=
             )
             input_range = {"in": (-3, 2)}
             out_tensor = tf_resize_op(
-                images=images_tensor_q, size=size, align_corners=align_corners
+                images=images_tensor_q,
+                size=size,
+                align_corners=align_corners,
+                half_pixel_centers=half_pixel_centers,
             )
             out_tensor = tf.quantization.fake_quant_with_min_max_args(
                 out_tensor, min=-3, max=2, name="out_tensor"
@@ -1544,7 +1575,12 @@ def _test_resize(tf_resize_op, images_data, size_data, align_corners, quantized=
                 input_range=input_range,
             )
         else:
-            out_tensor = tf_resize_op(images=images_tensor, size=size, align_corners=align_corners)
+            out_tensor = tf_resize_op(
+                images=images_tensor,
+                size=size,
+                align_corners=align_corners,
+                half_pixel_centers=half_pixel_centers,
+            )
             compare_tflite_with_tvm([images_data], ["in:0"], [images_tensor], [out_tensor])
 
 
@@ -1560,6 +1596,7 @@ def test_all_resize():
         images_data_float32,
         size_data,
         align_corners=False,
+        half_pixel_centers=False,
         quantized=False,
     )
     _test_resize(
@@ -1567,13 +1604,32 @@ def test_all_resize():
         images_data_float32,
         size_data,
         align_corners=True,
+        half_pixel_centers=False,
         quantized=False,
     )
     _test_resize(
-        tf.image.resize_bilinear, images_data_uint8, size_data, align_corners=False, quantized=True
+        tf.image.resize_bilinear,
+        images_data_uint8,
+        size_data,
+        align_corners=False,
+        half_pixel_centers=False,
+        quantized=True,
     )
     _test_resize(
-        tf.image.resize_bilinear, images_data_uint8, size_data, align_corners=True, quantized=True
+        tf.image.resize_bilinear,
+        images_data_uint8,
+        size_data,
+        align_corners=True,
+        half_pixel_centers=False,
+        quantized=True,
+    )
+    _test_resize(
+        tf.image.resize_bilinear,
+        images_data_uint8,
+        size_data,
+        align_corners=False,
+        half_pixel_centers=True,
+        quantized=True,
     )
     ### RESIZE_NEAREST_NEIGHBOR (was added in v1.13)
     # According to topi resize.h
@@ -1582,7 +1638,11 @@ def test_all_resize():
 
     if "RESIZE_NEAREST_NEIGHBOR" in dir(BuiltinOperator()):
         _test_resize(
-            tf.image.resize_nearest_neighbor, images_data_float32, size_data, align_corners=False
+            tf.image.resize_nearest_neighbor,
+            images_data_float32,
+            size_data,
+            align_corners=False,
+            half_pixel_centers=False,
         )
 
 
@@ -1705,23 +1765,117 @@ def test_forward_concatenation():
 # --------------
 
 
-def _test_unary_elemwise(math_op, data):
+def _test_unary_elemwise(math_op, data, quantized, quant_range=[-6, 6]):
     """One iteration of unary elemwise"""
+    if quantized:
+        with tf.Graph().as_default():
+            quant_min, quant_max = quant_range
+            in_data = array_ops.placeholder(shape=data.shape, dtype="float32", name="in_0")
+            inq_data = tf.quantization.fake_quant_with_min_max_args(
+                in_data, min=quant_min, max=quant_max, name="inq_0"
+            )
+            input_range = {"inq_0": (quant_min, quant_max)}
+            out = math_op(inq_data)
+            out = tf.quantization.fake_quant_with_min_max_args(
+                out, min=quant_min, max=quant_max, name="out"
+            )
+            compare_tflite_with_tvm(
+                data,
+                "inq_0:0",
+                [inq_data],
+                [out],
+                quantized=True,
+                input_range=input_range,
+                experimental_new_converter=True,
+            )
+    else:
+        with tf.Graph().as_default():
+            in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="in")
+            out = math_op(in_data)
+            compare_tflite_with_tvm(data, ["in:0"], [in_data], [out])
 
-    with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="in")
-        out = math_op(in_data)
-        compare_tflite_with_tvm(data, ["in:0"], [in_data], [out])
+
+def _unary_elewise_create_model(math_op, data, offset=0):
+    class Model(tf.Module):
+        @tf.function
+        def tf_function(self, x):
+            op = math_op(x)
+            return op
+
+    dtype = "int8"
+    model = Model()
+
+    # Save the model
+    export_dir = tempfile.gettempdir() + "/tf_model"
+    tf.saved_model.save(
+        model,
+        export_dir,
+        signatures=model.tf_function.get_concrete_function(
+            tf.TensorSpec(data.shape, tf.float32, name="input"),
+        ),
+    )
+
+    # Convert the model
+    def representative_dataset():
+        for _ in range(100):
+            tmp_data = np.random.rand(*tuple(data.shape))
+            yield [tmp_data.astype(np.float32) * 2 - offset]
+
+    converter = tf.lite.TFLiteConverter.from_saved_model(export_dir)
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.representative_dataset = representative_dataset
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+    converter.inference_input_type = tf.int8
+    converter.inference_output_type = tf.int8
+    tflite_model = converter.convert()
+    return tflite_model
 
 
 #######################################################################
 # Abs
-# ---
+# ----
 
 
-def _test_abs(data):
+def _test_abs(data, quantized):
     """One iteration of abs"""
-    return _test_unary_elemwise(math_ops.abs, data)
+    if quantized:
+        tflite_model_quant = _unary_elewise_create_model(tf.math.abs, data, offset=1)
+        tflite_output = run_tflite_graph(tflite_model_quant, data)
+
+        # TFLite 2.6.x upgrade support
+        if tf.__version__ < LooseVersion("2.6.1"):
+            in_node = ["serving_default_input_int8"]
+        else:
+            in_node = ["tfl.quantize"]
+
+        tvm_output = run_tvm_graph(tflite_model_quant, data, in_node)
+        tvm.testing.assert_allclose(
+            np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1e-5, atol=1e-2
+        )
+    else:
+        return _test_unary_elemwise(math_ops.abs, data, quantized)
+
+
+#######################################################################
+# Rsqrt
+# ----
+
+
+def _test_rsqrt(data, quantized):
+    """One iteration of rsqrt"""
+
+    # tensorflow version upgrade support
+    if tf.__version__ < LooseVersion("2.6.1") or not quantized:
+        return _test_unary_elemwise(math_ops.rsqrt, data, quantized, quant_range=[1, 6])
+    else:
+        tflite_model_quant = _unary_elewise_create_model(tf.math.rsqrt, data)
+        tflite_output = run_tflite_graph(tflite_model_quant, data)
+        in_node = ["tfl.quantize"]
+
+        tvm_output = run_tvm_graph(tflite_model_quant, data, in_node)
+        tvm.testing.assert_allclose(
+            np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1e-5, atol=1e-2
+        )
 
 
 #######################################################################
@@ -1729,9 +1883,9 @@ def _test_abs(data):
 # ----
 
 
-def _test_ceil(data):
+def _test_ceil(data, quantized):
     """One iteration of ceil"""
-    return _test_unary_elemwise(math_ops.ceil, data)
+    return _test_unary_elemwise(math_ops.ceil, data, quantized)
 
 
 #######################################################################
@@ -1739,9 +1893,9 @@ def _test_ceil(data):
 # -----
 
 
-def _test_floor(data):
+def _test_floor(data, quantized):
     """One iteration of floor"""
-    return _test_unary_elemwise(math_ops.floor, data)
+    return _test_unary_elemwise(math_ops.floor, data, quantized)
 
 
 #######################################################################
@@ -1749,9 +1903,9 @@ def _test_floor(data):
 # -----
 
 
-def _test_round(data):
+def _test_round(data, quantized):
     """One iteration of round"""
-    return _test_unary_elemwise(math_ops.round, data)
+    return _test_unary_elemwise(math_ops.round, data, quantized)
 
 
 #######################################################################
@@ -1759,9 +1913,9 @@ def _test_round(data):
 # ---
 
 
-def _test_exp(data):
+def _test_exp(data, quantized):
     """One iteration of exp"""
-    return _test_unary_elemwise(math_ops.exp, data)
+    return _test_unary_elemwise(math_ops.exp, data, quantized)
 
 
 #######################################################################
@@ -1769,9 +1923,9 @@ def _test_exp(data):
 # ---
 
 
-def _test_log(data):
+def _test_log(data, quantized):
     """One iteration of log"""
-    return _test_unary_elemwise(math_ops.log, data)
+    return _test_unary_elemwise(math_ops.log, data, quantized, quant_range=[1, 6])
 
 
 #######################################################################
@@ -1779,9 +1933,9 @@ def _test_log(data):
 # ---
 
 
-def _test_sin(data):
+def _test_sin(data, quantized):
     """One iteration of sin"""
-    return _test_unary_elemwise(math_ops.sin, data)
+    return _test_unary_elemwise(math_ops.sin, data, quantized)
 
 
 #######################################################################
@@ -1789,9 +1943,18 @@ def _test_sin(data):
 # ---
 
 
-def _test_cos(data):
+def _test_cos(data, quantized):
     """One iteration of cos"""
-    return _test_unary_elemwise(math_ops.cos, data)
+    if quantized:
+        tflite_model_quant = _unary_elewise_create_model(tf.math.cos, data)
+        tflite_output = run_tflite_graph(tflite_model_quant, data)
+        in_node = ["tfl.quantize"]
+        tvm_output = run_tvm_graph(tflite_model_quant, data, in_node)
+        tvm.testing.assert_allclose(
+            np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1e-5, atol=1e-2
+        )
+    else:
+        return _test_unary_elemwise(math_ops.cos, data, quantized)
 
 
 #######################################################################
@@ -1799,39 +1962,9 @@ def _test_cos(data):
 # ---
 
 
-def _test_tan(data):
+def _test_tan(data, quantized):
     """One iteration of tan"""
-    return _test_unary_elemwise(math_ops.tan, data)
-
-
-#######################################################################
-# Sqrt
-# ----
-
-
-def _test_sqrt(data):
-    """One iteration of sqrt"""
-    return _test_unary_elemwise(math_ops.sqrt, data)
-
-
-#######################################################################
-# Rsqrt
-# -----
-
-
-def _test_rsqrt(data):
-    """One iteration of rsqrt"""
-    return _test_unary_elemwise(math_ops.rsqrt, data)
-
-
-#######################################################################
-# Neg
-# ---
-
-
-def _test_neg(data):
-    """One iteration of neg"""
-    return _test_unary_elemwise(math_ops.neg, data)
+    return _test_unary_elemwise(math_ops.tan, data, quantized)
 
 
 #######################################################################
@@ -1839,9 +1972,29 @@ def _test_neg(data):
 # ------
 
 
-def _test_square(data):
+def _test_square(data, quantized):
     """One iteration of square"""
-    return _test_unary_elemwise(math_ops.square, data)
+    return _test_unary_elemwise(math_ops.square, data, quantized)
+
+
+#######################################################################
+# Neg
+# ------
+
+
+def _test_neg(data, quantized):
+    """One iteration of neg"""
+    return _test_unary_elemwise(math_ops.neg, data, quantized)
+
+
+#######################################################################
+# Neg
+# ------
+
+
+def _test_sqrt(data, quantized):
+    """One iteration of sqrt"""
+    return _test_unary_elemwise(math_ops.sqrt, data, quantized, quant_range=[1, 6])
 
 
 #######################################################################
@@ -1849,40 +2002,66 @@ def _test_square(data):
 # ---
 
 
-def _test_elu(data):
+def _test_elu(data, quantized):
     """One iteration of elu"""
-    return _test_unary_elemwise(nn_ops.elu, data)
+    return _test_unary_elemwise(nn_ops.elu, data, quantized)
 
 
-def _test_forward_unary_elemwise(test_op):
-    # functions that need positive input
-    if test_op.__name__ in {"_test_log", "_test_sqrt", "_test_rsqrt"}:
-        test_op(np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 3)))
+def _test_forward_unary_elemwise(test_op, quant_dtype=None, quantized=True, negtive=True):
+    # input data
+    in_data, inq_data = [], []
+
+    # quantized input data
+    if quantized:
+        quant_dtype = quant_dtype or np.uint8
+        inq_data.append(np.arange(1, 240, 40, dtype=quant_dtype))
+        inq_data.append(np.arange(1, 240, 40, dtype=quant_dtype).reshape((2, 1, 3)))
+        if quant_dtype == np.int8:
+            inq_data.append(np.arange(-128, 127, 45, dtype=np.int8))
+
+    for data in inq_data:
+        test_op(data, quantized=True)
+
+    # normal input data
+    if negtive:
+        in_data.append(np.arange(-2.0, 4.0, dtype=np.float32))
+        in_data.append(np.arange(-2.0, 4.0, dtype=np.float32).reshape((2, 1, 3)))
     else:
-        test_op(np.random.uniform(-10, 10, (3, 2)).astype(np.float32))
+        in_data.append(np.arange(1.0, 7.0, dtype=np.float32))
+        in_data.append(np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 3)))
+
+    for data in in_data:
+        test_op(data, quantized=False)
 
 
 def test_all_unary_elemwise():
-    _test_forward_unary_elemwise(_test_abs)
+    _test_forward_unary_elemwise(_test_abs, quant_dtype=np.int8)
     _test_forward_unary_elemwise(_test_floor)
     _test_forward_unary_elemwise(_test_exp)
-    _test_forward_unary_elemwise(_test_log)
-    _test_forward_unary_elemwise(_test_sin)
-    _test_forward_unary_elemwise(_test_sqrt)
-    _test_forward_unary_elemwise(_test_rsqrt)
-    _test_forward_unary_elemwise(_test_neg)
+    _test_forward_unary_elemwise(_test_log, negtive=False)
     _test_forward_unary_elemwise(_test_square)
+    _test_forward_unary_elemwise(_test_sin)
+    _test_forward_unary_elemwise(_test_neg)
+    _test_forward_unary_elemwise(_test_sqrt, negtive=False)
+    # tensorflow version upgrade support
+    if tf.__version__ < LooseVersion("2.6.1"):
+        _test_forward_unary_elemwise(_test_rsqrt, negtive=False, quant_dtype=np.uint8)
+    else:
+        _test_forward_unary_elemwise(_test_rsqrt, negtive=False, quant_dtype=np.int8)
     # ceil and cos come with TFLite 1.14.0.post1 fbs schema
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         _test_forward_unary_elemwise(_test_ceil)
-        _test_forward_unary_elemwise(_test_cos)
+        if tf.__version__ < LooseVersion("2.6.1"):
+            _test_forward_unary_elemwise(_test_cos, quantized=False)
+        else:
+            _test_forward_unary_elemwise(_test_cos, quant_dtype=np.int8)
         _test_forward_unary_elemwise(_test_round)
         # This fails with TF and Tflite 1.15.2, this could not have been tested
         # in CI or anywhere else. The failure mode is that we see a backtrace
         # from the converter that we need to provide a custom Tan operator
         # implementation.
         # _test_forward_unary_elemwise(_test_tan)
-        _test_forward_unary_elemwise(_test_elu)
+        _test_forward_unary_elemwise(_test_elu, quantized=False)
 
 
 #######################################################################
@@ -2583,6 +2762,22 @@ def test_forward_select():
             )
 
 
+@pytest.mark.parametrize("quant_bits", [2, 4, 8, 16])
+@pytest.mark.parametrize(
+    "value, min, max", [[-10.11, -6, 6], [-3.55, -6, 6], [0, -6, 6], [3.55, -6, 6], [10.11, -6, 6]]
+)
+def test_forward_fake_quant(value, min, max, quant_bits):
+    with tf.Graph().as_default():
+        with tf.Session() as sess:
+            input = tf.placeholder(tf.float32, shape=[1], name="input")
+            out = tf.quantization.fake_quant_with_min_max_args(
+                input, min=min, max=max, num_bits=quant_bits, name=None
+            )
+
+            in_data = np.float32(value)
+            compare_tflite_with_tvm([in_data], ["input:0"], [input], [out])
+
+
 # Squeeze
 # -------
 
@@ -2749,6 +2944,20 @@ def test_forward_pad():
         [
             np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 3)),
             np.array([[1, 1], [2, 2]], dtype=np.int32),
+        ],
+        mode="SYMMETRIC",
+    )
+    _test_pad(
+        [
+            np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 3)),
+            np.array([[1, 1], [2, 2]], dtype=np.int64),
+        ],
+        mode="REFLECT",
+    )
+    _test_pad(
+        [
+            np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 3)),
+            np.array([[1, 1], [2, 2]], dtype=np.int64),
         ],
         mode="SYMMETRIC",
     )
@@ -3115,6 +3324,9 @@ def test_forward_unpack():
     """UNPACK"""
     _test_unpack(np.array(np.random.uniform(0, 5, (3, 1)), dtype=np.int32), axis=1, num_unpacks=1)
     _test_unpack(np.array(np.random.uniform(0, 5, (3, 4)), dtype=np.float32), axis=0, num_unpacks=3)
+    _test_unpack(
+        np.array(np.random.uniform(0, 5, (3, 1, 2)), dtype=np.float32), axis=0, num_unpacks=3
+    )
     # tflite 1.13 doesn't accept negative axis
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         _test_unpack(
@@ -3216,6 +3428,7 @@ def _test_softmax(data):
 def test_forward_softmax():
     """Softmax"""
     _test_softmax(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
+    _test_softmax(np.arange(6.0, dtype=np.float32).reshape((1, 2, 3)))
 
 
 ######################################################################
@@ -3433,7 +3646,41 @@ def test_forward_prelu():
     )
     _test_prelu(
         np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"),
+        np.full((1, 3), 0.2, dtype="float32"),
+    )
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"),
         np.full((1, 1, 3), 0.2, dtype="float32"),
+    )
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"),
+        np.full((1, 1, 1, 3), 0.2, dtype="float32"),
+    )
+    #
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"),
+        np.full((32, 3), 0.2, dtype="float32"),
+    )
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"),
+        np.full((32, 32, 3), 0.2, dtype="float32"),
+    )
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"),
+        np.full((1, 32, 1, 3), 0.2, dtype="float32"),
+    )
+    #
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(1, 1, 3)).astype("float32"),
+        np.full((3,), 0.2, dtype="float32"),
+    )
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(1, 32, 3)).astype("float32"),
+        np.full((32, 3), 0.2, dtype="float32"),
+    )
+    _test_prelu(
+        np.random.uniform(-5, 5, size=(32, 3)).astype("float32"),
+        np.full((3), 0.2, dtype="float32"),
     )
 
 
@@ -3665,6 +3912,7 @@ def _test_fully_connected(
             # reshape N H W C into N H*W*C
             in_data_reshape = array_ops.reshape(in_data, [tensor_in_sizes[0], -1])
             out = math_ops.mat_mul(in_data_reshape, in_filter)
+            # TODO : Need to construct a fc op with (keep_num_dims == True)
 
             # if we have bias
             if bias_in_size:
@@ -3895,6 +4143,72 @@ def test_detection_postprocess():
             rtol=1e-5,
             atol=1e-5,
         )
+
+
+#######################################################################
+# Custom Converter
+# ----------------
+
+
+def test_custom_op_converter():
+    """Test case for user-defined operator converter in TFLite frontend"""
+
+    class DummyOperatorConverter(relay.frontend.tflite.OperatorConverter):
+        """Operator Converter for converting TFLite ops to relay ops"""
+
+        def __init__(self, model, subgraph, exp_tab):
+            super(DummyOperatorConverter, self).__init__(model, subgraph, exp_tab)
+            self.allow_custom_ops = True
+
+            convert_map_overwrite = {"SUB": self.convert_sub_dummy}
+
+            self.convert_map.update(convert_map_overwrite)
+
+        def convert_sub_dummy(self, op):
+            """Convert TFLite SUB"""
+            input_tensors = self.get_input_tensors(op)
+            assert len(input_tensors) == 2, "input tensors length should be 2"
+
+            lhs_tensor = input_tensors[0]
+            rhs_tensor = input_tensors[1]
+
+            lhs_expr = self.get_expr(lhs_tensor.tensor_idx)
+            rhs_expr = self.get_expr(rhs_tensor.tensor_idx)
+
+            temp_expr = relay.op.negative(rhs_expr)
+            out = relay.op.add(lhs_expr, temp_expr)
+
+            return out
+
+    with tf.Graph().as_default():
+        # Generate TFLite model for single addition
+        data = [
+            np.arange(6.0, dtype=np.float32).reshape((2, 1, 1, 3)),
+            np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 1, 3)),
+        ]
+        in_data = [
+            array_ops.placeholder(shape=data[0].shape, dtype="float32", name="in_0"),
+            array_ops.placeholder(shape=data[1].shape, dtype="float32", name="in_1"),
+        ]
+        out = math_ops.subtract(in_data[0], in_data[1])
+        in_name = [x[1] for x in zip(in_data, ("in_0:0", "in_1:0"))]
+        input_tensors = [x for x in in_data]
+        output_tensors = [out]
+        in_node = [0] * len(in_name)
+        for i in range(len(in_name)):
+            in_node[i] = in_name[i].split(":")[0] if ":" in in_name[i] else in_name[i]
+
+        with tf.Session() as sess:
+            converter = tf.lite.TFLiteConverter.from_session(sess, input_tensors, output_tensors)
+            tflite_model_buf = converter.convert()
+    in_data = [x[1] for x in zip(in_data, data)]
+    tvm_output_orig = run_tvm_graph(tflite_model_buf, in_data, in_node)
+    tvm_output_dummy = run_tvm_graph(
+        tflite_model_buf, in_data, in_node, op_converter=DummyOperatorConverter
+    )
+    tvm.testing.assert_allclose(
+        np.squeeze(tvm_output_orig[0]), np.squeeze(tvm_output_dummy[0]), rtol=1e-5, atol=1e-5
+    )
 
 
 #######################################################################
@@ -4520,6 +4834,9 @@ if __name__ == "__main__":
 
     # Detection_PostProcess
     test_detection_postprocess()
+
+    # Overwrite Converter
+    test_custom_op_converter()
 
     # End to End
     test_forward_mobilenet_v1()

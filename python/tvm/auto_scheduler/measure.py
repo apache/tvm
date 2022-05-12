@@ -42,7 +42,7 @@ import tvm._ffi
 from tvm.runtime import Object, module, ndarray
 from tvm.driver import build_module
 from tvm.ir import transform
-from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
+from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
 from tvm.contrib import tar, ndk
 from tvm.contrib.popen_pool import PopenWorker, PopenPoolExecutor, StatusKind
 from tvm.target import Target
@@ -375,13 +375,15 @@ class LocalRunner(ProgramRunner):
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    device: int = 0
+        Which device to run on if multiple are available.
     """
 
     def __init__(
@@ -392,6 +394,7 @@ class LocalRunner(ProgramRunner):
         min_repeat_ms=100,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
+        device=0,
     ):
         if enable_cpu_cache_flush:
             number = 1
@@ -405,6 +408,7 @@ class LocalRunner(ProgramRunner):
             min_repeat_ms,
             cooldown_interval,
             enable_cpu_cache_flush,
+            device,
         )
 
 
@@ -446,13 +450,15 @@ class RPCRunner(ProgramRunner):
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    device: int = 0
+        Which device to run on if multiple are available.
     """
 
     def __init__(
@@ -468,6 +474,7 @@ class RPCRunner(ProgramRunner):
         min_repeat_ms=100,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
+        device=0,
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.RPCRunner,
@@ -482,6 +489,7 @@ class RPCRunner(ProgramRunner):
             min_repeat_ms,
             cooldown_interval,
             enable_cpu_cache_flush,
+            device,
         )
 
         if check_remote(key, host, port, priority, timeout):
@@ -525,13 +533,15 @@ class LocalRPCMeasureContext:
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    device: int = 0
+        Which device to run on if multiple are available.
     """
 
     def __init__(
@@ -544,15 +554,12 @@ class LocalRPCMeasureContext:
         min_repeat_ms=0,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
+        device=0,
     ):
         # pylint: disable=import-outside-toplevel
         from tvm.rpc.tracker import Tracker
         from tvm.rpc.server import Server
 
-        dev = tvm.device("cuda", 0)
-        if dev.exist:
-            cuda_arch = "sm_" + "".join(dev.compute_version.split("."))
-            set_cuda_target_arch(cuda_arch)
         self.tracker = Tracker(port=9000, port_end=10000, silent=True)
         device_key = "$local$device$%d" % self.tracker.port
         self.server = Server(
@@ -574,6 +581,7 @@ class LocalRPCMeasureContext:
             min_repeat_ms,
             cooldown_interval,
             enable_cpu_cache_flush,
+            device,
         )
         # Wait for the processes to start
         time.sleep(0.5)
@@ -651,29 +659,17 @@ def local_build_worker(args):
 
     Parameters
     ----------
-    args: Tuple[MeasureInput, str, int, int]
-        inputs, build-func, time, verbose args passed to local_builder_build
+    args: Tuple[MeasureInput, callable, int]
+        inputs, build-func, verbose args passed to local_builder_build
 
     Returns
     -------
     res : BuildResult
         The build result of this Builder thread.
     """
-    inp, build_func, timeout, verbose = args
-    assert build_func == BuildFunc.name, (
-        "BuildFunc.name: " + BuildFunc.name + ", but args is: " + build_func
-    )
-    build_func = BuildFunc.build_func
+    inp, build_func, verbose = args
 
-    try:
-        res = _local_build_worker(inp, build_func, verbose)
-    # pylint: disable=broad-except
-    except Exception:
-        if verbose >= 1:
-            print(".E", end="", flush=True)  # Build error
-        res = None, [], MeasureErrorNo.COMPILE_HOST, make_traceback_info(), timeout
-
-    return res
+    return _local_build_worker(inp, build_func, verbose)
 
 
 @tvm._ffi.register_func("auto_scheduler.local_builder.build")
@@ -700,14 +696,18 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     res : List[BuildResult]
         The build results of these MeasureInputs.
     """
-    executor = PopenPoolExecutor(n_parallel, timeout)
+    assert build_func == BuildFunc.name, (
+        "BuildFunc.name: " + BuildFunc.name + ", but args is: " + build_func
+    )
+    executor = PopenPoolExecutor(
+        n_parallel, timeout, reset_global_scope, (AutotvmGlobalScope.current,)
+    )
     tuple_res = executor.map_with_error_catching(
         local_build_worker,
         [
             (
                 i.serialize(),
-                build_func,
-                timeout,
+                BuildFunc.build_func,
                 verbose,
             )
             for i in inputs
@@ -718,11 +718,18 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     for res in tuple_res:
         if res.status == StatusKind.COMPLETE:
             results.append(BuildResult(*res.value))
-        else:
-            assert res.status == StatusKind.TIMEOUT
+        elif res.status == StatusKind.TIMEOUT:
             if verbose >= 1:
                 print(".T", end="", flush=True)  # Build timeout
             results.append(BuildResult(None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout))
+        elif res.status == StatusKind.EXCEPTION:
+            if verbose >= 1:
+                print(".E", end="", flush=True)  # Build error
+            results.append(
+                BuildResult(None, [], MeasureErrorNo.COMPILE_HOST, repr(res.value), timeout)
+            )
+        else:
+            raise ValueError("Result status is not expected. Unreachable branch")
 
     return results
 
@@ -876,6 +883,7 @@ def _timed_eval_func(
     cooldown_interval,
     enable_cpu_cache_flush,
     verbose,
+    device,
 ):
     inp = MeasureInput.deserialize(inp_serialized)
     tic = time.time()
@@ -883,7 +891,7 @@ def _timed_eval_func(
     error_msg = None
     try:
         func = module.load_module(build_res.filename)
-        dev = ndarray.device(str(inp.task.target), 0)
+        dev = ndarray.device(str(inp.task.target), device)
         # Limitation:
         # We can not get PackFunction directly in the remote mode as it is wrapped
         # under the std::function. We could lift the restriction later once we fold
@@ -909,6 +917,7 @@ def _timed_eval_func(
             random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
             assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
             assert len(args) == len(build_res.args)
+            loc_args = []
             # pylint: disable=consider-using-enumerate
             for idx in range(len(args)):
                 if args[idx] is None:
@@ -917,11 +926,11 @@ def _timed_eval_func(
                         get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
                     )
                     random_fill(empty_array)
-                    args[idx] = empty_array
+                    loc_args.append(empty_array)
                 else:
-                    args[idx] = ndarray.array(args[idx], dev)
+                    loc_args.append(ndarray.array(args[idx], dev))
             dev.sync()
-            costs = time_f(*args).results
+            costs = time_f(*loc_args).results
         # pylint: disable=broad-except
         except Exception:
             costs = (MAX_FLOAT,)
@@ -951,6 +960,7 @@ def local_run(
     cooldown_interval=0,
     enable_cpu_cache_flush=False,
     verbose=1,
+    device=0,
 ):
     """
     Run function of LocalRunner to test the performance of the input BuildResults.
@@ -981,7 +991,7 @@ def local_run(
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -990,6 +1000,8 @@ def local_run(
         This is only has effect on CPU task.
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during program measuring.
+    device: int = 0
+        Which device to run on if multiple are available.
 
     Returns
     -------
@@ -1025,6 +1037,7 @@ def local_run(
                     cooldown_interval,
                     enable_cpu_cache_flush,
                     verbose,
+                    device,
                 ),
             )
             if isinstance(res, TimeoutError):
@@ -1071,6 +1084,7 @@ def _rpc_run(
     cooldown_interval,
     enable_cpu_cache_flush,
     verbose,
+    device,
 ):
     inp = MeasureInput.deserialize(inp_serialized)
     tic = time.time()
@@ -1081,7 +1095,7 @@ def _rpc_run(
         remote = request_remote(key, host, port, priority, timeout)
         remote.upload(build_res.filename)
         func = remote.load_module(os.path.split(build_res.filename)[1])
-        dev = remote.device(str(inp.task.target), 0)
+        dev = remote.device(str(inp.task.target), device)
         # Limitation:
         # We can not get PackFunction directly in the remote mode as it is wrapped
         # under the std::function. We could lift the restriction later once we fold
@@ -1112,6 +1126,7 @@ def _rpc_run(
             ), "Please make sure USE_RANDOM is ON in the config.cmake on the remote devices"
 
             assert len(args) == len(build_res.args)
+            loc_args = []
             # pylint: disable=consider-using-enumerate
             for idx in range(len(args)):
                 if args[idx] is None:
@@ -1120,16 +1135,16 @@ def _rpc_run(
                         get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
                     )
                     random_fill(empty_array)
-                    args[idx] = empty_array
+                    loc_args.append(empty_array)
                 else:
-                    args[idx] = ndarray.array(args[idx], dev)
+                    loc_args.append(ndarray.array(args[idx], dev))
             dev.sync()
 
             # First run for check that the kernel is correct
-            func.entry_func(*args)
+            func.entry_func(*loc_args)
             dev.sync()
 
-            costs = time_f(*args).results
+            costs = time_f(*loc_args).results
 
             # clean up remote files
             remote.remove(build_res.filename)
@@ -1169,7 +1184,7 @@ def _rpc_run_worker(args):
     res : MeasureResult
         The measure result of this Runner thread.
     """
-    _, build_res, _, _, _, _, _, timeout, _, _, _, _, _, verbose = args
+    _, build_res, _, _, _, _, _, timeout, _, _, _, _, _, verbose, _ = args
     if build_res.error_no != MeasureErrorNo.NO_ERROR:
         return (
             (MAX_FLOAT,),
@@ -1212,6 +1227,7 @@ def rpc_runner_run(
     cooldown_interval=0.0,
     enable_cpu_cache_flush=False,
     verbose=1,
+    device=0,
 ):
     """Run function of RPCRunner to test the performance of the input BuildResults.
 
@@ -1251,7 +1267,7 @@ def rpc_runner_run(
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -1260,6 +1276,8 @@ def rpc_runner_run(
         This is only has effect on CPU task.
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during program measuring.
+    device: int = 0
+        Which device to run on if multiple are available.
 
     Returns
     -------
@@ -1287,6 +1305,7 @@ def rpc_runner_run(
                 cooldown_interval,
                 enable_cpu_cache_flush,
                 verbose,
+                device,
             )
             for inp, build_res in zip(inputs, build_results)
         ],

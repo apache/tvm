@@ -18,6 +18,7 @@
  */
 #include <tvm/runtime/logging.h>
 
+#include <stdexcept>
 #include <string>
 
 #if TVM_LOG_STACK_TRACE
@@ -29,6 +30,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <unordered_map>
 #include <vector>
 
 namespace tvm {
@@ -119,7 +121,22 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
 
 std::string Backtrace() {
   BacktraceInfo bt;
-  bt.max_size = 100;
+
+  // Limit backtrace length based on TVM_BACKTRACE_LIMIT env variable
+  auto user_limit_s = getenv("TVM_BACKTRACE_LIMIT");
+  const auto default_limit = 500;
+
+  if (user_limit_s == nullptr) {
+    bt.max_size = default_limit;
+  } else {
+    // Parse out the user-set backtrace limit
+    try {
+      bt.max_size = std::stoi(user_limit_s);
+    } catch (const std::invalid_argument& e) {
+      bt.max_size = default_limit;
+    }
+  }
+
   if (_bt_state == nullptr) {
     return "";
   }
@@ -166,10 +183,109 @@ namespace tvm {
 namespace runtime {
 namespace detail {
 
+namespace {
+constexpr const char* kSrcPrefix = "/src/";
+// Note: Better would be std::char_traits<const char>::length(kSrcPrefix) but it is not
+// a constexpr on all compilation targets.
+constexpr const size_t kSrcPrefixLength = 5;
+constexpr const char* kDefaultKeyword = "DEFAULT";
+}  // namespace
+
+namespace {
+/*! \brief Convert __FILE__ to a vlog_level_map_ key, which strips any prefix ending iwth src/ */
+std::string FileToVLogMapKey(const std::string& filename) {
+  // Canonicalize the filename.
+  // TODO(mbs): Not Windows friendly.
+  size_t last_src = filename.rfind(kSrcPrefix, std::string::npos, kSrcPrefixLength);
+  // Strip anything before the /src/ prefix, on the assumption that will yield the
+  // TVM project relative filename. If no such prefix fallback to filename without
+  // canonicalization.
+  return (last_src == std::string::npos) ? filename : filename.substr(last_src + kSrcPrefixLength);
+}
+}  // namespace
+
+/* static */
+TvmLogDebugSettings TvmLogDebugSettings::ParseSpec(const char* opt_spec) {
+  TvmLogDebugSettings settings;
+  if (opt_spec == nullptr) {
+    // DLOG and VLOG disabled.
+    return settings;
+  }
+  std::string spec(opt_spec);
+  if (spec.empty() || spec == "0") {
+    // DLOG and VLOG disabled.
+    return settings;
+  }
+  settings.dlog_enabled_ = true;
+  if (spec == "1") {
+    // Legacy specification for enabling just DLOG.
+    return settings;
+  }
+  std::istringstream spec_stream(spec);
+  while (spec_stream) {
+    std::string name;
+    if (!std::getline(spec_stream, name, '=')) {
+      // Reached end.
+      break;
+    }
+    if (name.empty()) {
+      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, empty name";
+      return settings;
+    }
+
+    name = FileToVLogMapKey(name);
+
+    std::string level;
+    if (!std::getline(spec_stream, level, ',')) {
+      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, expecting level";
+      return settings;
+    }
+    if (level.empty()) {
+      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, empty level";
+      return settings;
+    }
+    // Parse level, default to 0 if ill-formed which we don't detect.
+    char* end_of_level = nullptr;
+    int level_val = static_cast<int>(strtol(level.c_str(), &end_of_level, 10));
+    if (end_of_level != level.c_str() + level.size()) {
+      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, invalid level";
+      return settings;
+    }
+    LOG(INFO) << "TVM_LOG_DEBUG enables VLOG statements in '" << name << "' up to level " << level;
+    settings.vlog_level_map_.emplace(name, level_val);
+  }
+  return settings;
+}
+
+bool TvmLogDebugSettings::VerboseEnabledImpl(const std::string& filename, int level) const {
+  // Check for exact match.
+  auto itr = vlog_level_map_.find(FileToVLogMapKey(filename));
+  if (itr != vlog_level_map_.end()) {
+    return level <= itr->second;
+  }
+  // Check for default.
+  itr = vlog_level_map_.find(kDefaultKeyword);
+  if (itr != vlog_level_map_.end()) {
+    return level <= itr->second;
+  }
+  return false;
+}
+
 LogFatal::Entry& LogFatal::GetEntry() {
   static thread_local LogFatal::Entry result;
   return result;
 }
+
+std::string VLogContext::str() const {
+  std::stringstream result;
+  for (const auto* entry : context_stack_) {
+    ICHECK_NOTNULL(entry);
+    result << entry->str();
+    result << ": ";
+  }
+  return result.str();
+}
+
 }  // namespace detail
 }  // namespace runtime
 }  // namespace tvm

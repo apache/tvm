@@ -60,7 +60,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
       buf =
           AllocateSharedMemory(op->dtype, 0, 3, info.alignment, llvm::GlobalValue::ExternalLinkage);
     } else {
-      int32_t constant_size = op->constant_allocation_size();
+      size_t constant_size = op->ConstantAllocationSize();
       ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
 
       if (constant_size % 4 == 0 && info.alignment == 0) {
@@ -138,7 +138,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
     if (sync == "warp") {
       // TODO(tqchen) warp sync in CUDA9
       return nullptr;
-    } else if (sync == "shared") {
+    } else if (sync == "shared" || sync == "shared.dyn") {
       llvm::Function* f =
           llvm::Intrinsic::getDeclaration(module_.get(), ::llvm::Intrinsic::nvvm_barrier0);
       return builder_->CreateCall(f, {});
@@ -274,11 +274,11 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
 
   cg->Init("TVMPTXModule", tm.get(), ctx.get(), false, false, false);
 
-  for (auto kv : mod->functions) {
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
-    auto f = Downcast<PrimFunc>(kv.second);
-    cg->AddFunction(f);
-  }
+  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
+    ICHECK(kv.second->template IsInstance<PrimFuncNode>())
+        << "Can only lower IR Module with PrimFuncs";
+    return Downcast<PrimFunc>(kv.second);
+  });
 
   const auto* flibdevice_path = tvm::runtime::Registry::Get("tvm_callback_libdevice_path");
   if (flibdevice_path != nullptr) {

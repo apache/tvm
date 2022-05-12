@@ -39,10 +39,10 @@ DETECT_GLOBAL_BARRIER = PERSIST_KERNEL
 SKIP_CHECK = False
 
 
-@tvm.register_func
+@tvm.register_func("tvm_callback_cuda_compile", override=True)
 def tvm_callback_cuda_compile(code):
     """Use nvcc compiler for better perf."""
-    ptx = nvcc.compile_cuda(code, target="ptx")
+    ptx = nvcc.compile_cuda(code, target_format="ptx")
     return ptx
 
 

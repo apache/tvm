@@ -46,21 +46,24 @@ and finally run.
 import os
 import tarfile
 import json
-from typing import Optional, Union, List, Dict, Callable, TextIO
+from typing import Optional, Union, Dict, Callable, TextIO
+from pathlib import Path
 import numpy as np
 
 import tvm
 import tvm.contrib.cc
 from tvm import relay
 from tvm.contrib import utils
+from tvm.driver.tvmc import TVMCException
 from tvm.relay.backend.executor_factory import GraphExecutorFactoryModule
+from tvm.runtime.module import BenchmarkResult
+from tvm.runtime.vm import Executable
+
 
 try:
     from tvm.micro import export_model_library_format
 except ImportError:
     export_model_library_format = None
-
-from .common import TVMCException
 
 
 class TVMCModel(object):
@@ -181,6 +184,42 @@ class TVMCModel(object):
         """
         return self._tmp_dir.relpath("model_package.tar")
 
+    def export_vm_format(
+        self,
+        vm_exec: Executable,
+        package_path: Optional[str] = None,
+        lib_format: str = "so",
+    ):
+        """Save this TVMCModel compiled via vm to file.
+        Parameters
+        ----------
+        vm_exec : vm.Executable
+            The VM Executable containing compiled the compiled artifacts needed to run this model.
+        package_path : str, None
+            Where the model should be saved. Note that it will be packaged as a .tar file.
+            If not provided, the package will be saved to a generically named file in tmp.
+        lib_format : str
+            How to export the modules function library. Must be one of "so" or "tar".
+
+        Returns
+        -------
+        package_path : str
+            The path that the package was saved to.
+        """
+        lib_name = "lib." + lib_format
+        temp = self._tmp_dir
+        if package_path is None:
+            package_path = self.default_package_path()
+
+        path_lib = temp.relpath(lib_name)
+        vm_exec.mod.export_library(path_lib)
+        self.lib_path = path_lib
+        # Package up all the temp files into a tar file.
+        with tarfile.open(package_path, "w") as tar:
+            tar.add(path_lib, lib_name)
+
+        return package_path
+
     def export_classic_format(
         self,
         executor_factory: GraphExecutorFactoryModule,
@@ -247,7 +286,7 @@ class TVMCModel(object):
 
     def export_package(
         self,
-        executor_factory: GraphExecutorFactoryModule,
+        executor_factory: Union[GraphExecutorFactoryModule, Executable],
         package_path: Optional[str] = None,
         cross: Optional[Union[str, Callable]] = None,
         cross_options: Optional[str] = None,
@@ -257,7 +296,7 @@ class TVMCModel(object):
         Parameters
         ----------
         executor_factory : GraphExecutorFactoryModule
-            The factory containing compiled the compiled artifacts needed to run this model.
+            The factory containing the compiled artifacts needed to run this model.
         package_path : str, None
             Where the model should be saved. Note that it will be packaged as a .tar file.
             If not provided, the package will be saved to a generically named file in tmp.
@@ -280,7 +319,9 @@ class TVMCModel(object):
         if output_format == "mlf" and cross:
             raise TVMCException("Specifying the MLF output and a cross compiler is not supported.")
 
-        if output_format in ["so", "tar"]:
+        if isinstance(executor_factory, Executable):
+            package_path = self.export_vm_format(executor_factory, package_path, output_format)
+        elif output_format in ["so", "tar"]:
             package_path = self.export_classic_format(
                 executor_factory, package_path, cross, cross_options, output_format
             )
@@ -310,12 +351,26 @@ class TVMCPackage(object):
     ----------
     package_path : str
         The path to the saved TVMCPackage that will be loaded.
+
+    project_dir : Path, str
+        If given and loading a MLF file, the path to the project directory that contains the file.
+
+    use_vm : bool
+        Whether the graph module was compiled with vm or not.
     """
 
-    def __init__(self, package_path: str):
+    def __init__(
+        self,
+        package_path: str,
+        project_dir: Optional[Union[Path, str]] = None,
+    ):
         self._tmp_dir = utils.tempdir()
         self.package_path = package_path
         self.import_package(self.package_path)
+
+        if project_dir and self.type != "mlf":
+            raise TVMCException("Setting 'project_dir' is only allowed when importing a MLF.!")
+        self.project_dir = project_dir
 
     def import_package(self, package_path: str):
         """Load a TVMCPackage from a previously exported TVMCModel.
@@ -338,28 +393,45 @@ class TVMCPackage(object):
 
             has_graph_executor = "graph" in metadata["executors"]
             graph = temp.relpath("executor-config/graph/graph.json") if has_graph_executor else None
-            params = temp.relpath("parameters/default.params")
+            params = temp.relpath(f'parameters/{metadata["model_name"]}.params')
 
             self.type = "mlf"
         else:
             # Classic format
-            lib_name_so = "mod.so"
-            lib_name_tar = "mod.tar"
-            if os.path.exists(temp.relpath(lib_name_so)):
-                self.lib_name = lib_name_so
-            elif os.path.exists(temp.relpath(lib_name_tar)):
-                self.lib_name = lib_name_tar
+            classic_lib_name_so = "mod.so"
+            classic_lib_name_tar = "mod.tar"
+
+            # VM format
+            vm_lib_name_so = "lib.so"
+            vm_lib_name_tar = "lib.tar"
+
+            if os.path.exists(temp.relpath(classic_lib_name_so)):
+                self.lib_name = classic_lib_name_so
+                self.type = "classic"
+            elif os.path.exists(temp.relpath(classic_lib_name_tar)):
+                self.lib_name = classic_lib_name_tar
+                self.type = "classic"
+            elif os.path.exists(temp.relpath(vm_lib_name_so)):
+                self.lib_name = vm_lib_name_so
+                self.type = "vm"
+            elif os.path.exists(temp.relpath(vm_lib_name_tar)):
+                self.lib_name = vm_lib_name_tar
+                self.type = "vm"
             else:
                 raise TVMCException("Couldn't find exported library in the package.")
+
             self.lib_path = temp.relpath(self.lib_name)
 
-            graph = temp.relpath("mod.json")
-            params = temp.relpath("mod.params")
+            graph, params = None, None
+            if self.type == "classic":
+                graph = temp.relpath("mod.json")
+                params = temp.relpath("mod.params")
 
-            self.type = "classic"
-
-        with open(params, "rb") as param_file:
-            self.params = bytearray(param_file.read())
+        if params is not None:
+            with open(params, "rb") as param_file:
+                self.params = bytearray(param_file.read())
+        else:
+            self.params = None
 
         if graph is not None:
             with open(graph) as graph_file:
@@ -371,14 +443,14 @@ class TVMCPackage(object):
 class TVMCResult(object):
     """A class that stores the results of tvmc.run and provides helper utilities."""
 
-    def __init__(self, outputs: Dict[str, np.ndarray], times: List[float]):
+    def __init__(self, outputs: Dict[str, np.ndarray], times: BenchmarkResult):
         """Create a convenience wrapper around the output of tvmc.run
 
         Parameters
         ----------
         outputs : dict
             Outputs dictionary mapping the name of the output to its numpy value.
-        times : list of float
+        times : BenchmarkResult
             The execution times measured by the time evaluator in seconds to produce outputs.
         """
         self.outputs = outputs
@@ -390,29 +462,15 @@ class TVMCResult(object):
         This has the effect of producing a small table that looks like:
         .. code-block::
             Execution time summary:
-            mean (ms)   max (ms)    min (ms)    std (ms)
-            0.14310    0.16161    0.12933    0.01004
+            mean (ms)  median (ms) max (ms)    min (ms)    std (ms)
+            0.14310      0.14310   0.16161     0.12933    0.01004
 
         Returns
         -------
         str
             A formatted string containing the statistics.
         """
-
-        # timestamps
-        mean_ts = np.mean(self.times) * 1000
-        std_ts = np.std(self.times) * 1000
-        max_ts = np.max(self.times) * 1000
-        min_ts = np.min(self.times) * 1000
-
-        header = "Execution time summary:\n{0:^10} {1:^10} {2:^10} {3:^10}".format(
-            "mean (ms)", "max (ms)", "min (ms)", "std (ms)"
-        )
-        stats = "{0:^10.2f} {1:^10.2f} {2:^10.2f} {3:^10.2f}".format(
-            mean_ts, max_ts, min_ts, std_ts
-        )
-
-        return "%s\n%s\n" % (header, stats)
+        return str(self.times)
 
     def get_output(self, name: str):
         """A helper function to grab one of the outputs by name.

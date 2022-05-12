@@ -20,7 +20,7 @@
 source "$(dirname $0)/dev_common.sh"
 
 SCRIPT_NAME="$0"
-DEFAULT_STEPS=( file_type asf cpplint clang_format pylint python_format jnilint cppdocs )
+DEFAULT_STEPS=( file_type asf cpplint clang_format pylint python_format jnilint cppdocs mypy )
 
 inplace_fix=0
 
@@ -37,6 +37,9 @@ function run_lint_step() {
             ;;
         asf)
             cmd=( tests/lint/check_asf_header.sh --local )
+            if [ $inplace_fix -eq 1 ]; then
+                cmd=( "${cmd[@]}" --fix )
+            fi
             ;;
         clang_format)
             if [ $inplace_fix -eq 0 ]; then
@@ -50,6 +53,9 @@ function run_lint_step() {
             ;;
         cpplint)
             cmd=( tests/lint/cpplint.sh )
+            ;;
+        flake8)
+            cmd=( tests/lint/flake8.sh )
             ;;
         pylint)
             cmd=( tests/lint/pylint.sh )
@@ -67,9 +73,15 @@ function run_lint_step() {
         cppdocs)
             cmd=( tests/lint/cppdocs.sh )
             ;;
+        mypy)
+            cmd=( tests/scripts/task_mypy.sh )
+            ;;
         *)
             echo "error: don't know how to run lint step: $1" >&2
             echo "usage: ${SCRIPT_NAME} [-i] <lint_step>" >&2
+            echo >&2
+            echo "options:" >&2
+            echo " -i    Fix lint errors in-place where possible (modifies non-compliant files)" >&2
             echo >&2
             echo "available lint_step: ${DEFAULT_STEPS[@]}" >&2
             exit 2
@@ -78,7 +90,7 @@ function run_lint_step() {
     shift
 
     if [ $validate_only -eq 0 ]; then
-        run_docker "ci_lint" "${cmd[@]}"
+        run_docker -it "ci_lint" "${cmd[@]}"
     fi
 }
 

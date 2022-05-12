@@ -50,19 +50,6 @@ namespace alter_op_layout {
 class AlterTransformMemorizerNode : public TransformMemorizerNode {
  public:
   static constexpr const char* _type_key = "relay.alter_op_layout.AlterTransformMemorizerNode";
-};
-
-/*!
- * \brief Container that provides the transformation function for alter layout..
- */
-class AlterTransformMemorizer : public TransformMemorizer {
- public:
-  AlterTransformMemorizer() {}
-  explicit AlterTransformMemorizer(ObjectPtr<Object> n) : TransformMemorizer(n) {}
-
-  AlterTransformMemorizerNode* operator->() {
-    return static_cast<AlterTransformMemorizerNode*>(get_mutable());
-  }
 
   /*!
    * \brief Defines the call transformation for AlterOpLayout pass. The new layouts are defined by
@@ -102,7 +89,23 @@ class AlterTransformMemorizer : public TransformMemorizer {
     return GetRef<Call>(new_call);
   }
 
-  using TransformMemorizer::CallWithNewLayouts;
+  Call CallWithNewLayouts(const Call& ref_call, const std::vector<Expr>& new_args) override {
+    return CallWithNewLayouts(ref_call, ref_call->attrs, new_args);
+  }
+};
+
+/*!
+ * \brief Container that provides the transformation function for alter layout..
+ */
+class AlterTransformMemorizer : public TransformMemorizer {
+ public:
+  AlterTransformMemorizer() = default;
+  explicit AlterTransformMemorizer(ObjectPtr<Object> n) : TransformMemorizer(n) {}
+
+  AlterTransformMemorizerNode* operator->() {
+    return static_cast<AlterTransformMemorizerNode*>(get_mutable());
+  }
+
   using ContainerType = AlterTransformMemorizerNode;
 };
 
@@ -113,10 +116,12 @@ class AlterTransformMemorizer : public TransformMemorizer {
  */
 Expr AlterOpLayout(const Expr& expr) {
   // TODO(@icemelon9): need to rerun type inference after applying an alter op.
-  AlterTransformMemorizer alterMemorizer(make_object<AlterTransformMemorizerNode>());
-  auto fcontext = [&](const Call& call) -> ObjectRef { return alterMemorizer; };
-
-  return ForwardRewrite(expr, LayoutRewriter<AlterTransformMemorizer>, fcontext);
+  AlterTransformMemorizer alter_memorizer(make_object<AlterTransformMemorizerNode>());
+  std::function<ObjectRef(const Call&)> fcontext = [=](const Call& call) -> ObjectRef {
+    return alter_memorizer;
+  };
+  FForwardRewrite rewrite_func = LayoutRewriter<AlterTransformMemorizer>;
+  return ForwardRewrite(expr, rewrite_func, fcontext);
 }
 
 }  // namespace alter_op_layout

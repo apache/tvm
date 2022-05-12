@@ -15,10 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
 import numpy as np
 import tvm
-from tvm import te
 from tvm import relay
 from tvm.relay.prelude import Prelude
 from tvm.relay import op, create_executor, transform
@@ -31,9 +29,7 @@ from tvm.relay.testing import make_nat_expr, run_infer_type
 
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
     dev = tvm.device("llvm", 0)
-    intrp = create_executor(mod=mod, device=dev, target="llvm")
-
-    result = intrp.evaluate(expr)
+    result = create_executor(mod=mod, device=dev, target="llvm").evaluate(expr)
     np.testing.assert_allclose(result.numpy(), expected_result, rtol=rtol)
 
 
@@ -51,11 +47,11 @@ def tipe(expr):
     return run_opt_pass(expr, [transform.PartialEvaluate(), transform.InferType()])
 
 
-def dcpe(expr, mod=None, grad=False):
+def dcpe(expr, mod=None, grad=False, ignore_impurity=False):
     passes = [
         transform.PartialEvaluate(),
         transform.InferType(),
-        transform.DeadCodeElimination(inline_once=True),
+        transform.DeadCodeElimination(inline_once=True, ignore_impurity=ignore_impurity),
         transform.InferType(),
     ]
     if grad:
@@ -97,7 +93,9 @@ def test_ref():
     body = Let(r, RefCreate(d), body)
     square = Function([d], body)
     expected = run_opt_pass(Function([d], d * d), transform.InferType())
-    assert tvm.ir.structural_equal(dcpe(square), expected)
+    # TODO(mbs): Revisit once DCE eliminates dead writes.
+    actual = dcpe(square, ignore_impurity=True)
+    assert tvm.ir.structural_equal(actual, expected)
 
 
 def test_empty_ad():
@@ -106,7 +104,8 @@ def test_empty_ad():
     t = TensorType(shape, dtype)
     d = Var("d", t)
     f = Function([d], d)
-    g = dcpe(f, grad=True)
+    # TODO(mbs): Revisit once DCE eliminates dead writes.
+    g = dcpe(f, grad=True, ignore_impurity=True)
     expected = Function([d], Tuple([d, Tuple([op.ones_like(d)])]))
     expected = run_opt_pass(expected, transform.InferType())
     assert tvm.ir.structural_equal(g, expected)
@@ -118,7 +117,8 @@ def test_ad():
     t = TensorType(shape, dtype)
     d = Var("d", t)
     f = Function([d], d * d)
-    g = dcpe(f, grad=True)
+    # TODO(mbs): Revisit once DCE eliminates dead writes.
+    g = dcpe(f, grad=True, ignore_impurity=True)
     m = d * d
     x = relay.Var("x")
     o = op.ones_like(x)
@@ -144,9 +144,8 @@ def test_if_ref():
     body = Let(eff, body, RefRead(r))
     f = Function([d], Let(r, RefCreate(const(1)), Let(u, update, body)))
     pe_f = tipe(f)
-    ex = create_executor()
-    f_res = ex.evaluate(f)(const(True))
-    pe_f_res = ex.evaluate(pe_f)(const(True))
+    f_res = create_executor().evaluate(f)(const(True))
+    pe_f_res = create_executor().evaluate(pe_f)(const(True))
     np.testing.assert_allclose(f_res.numpy(), 2 * np.ones_like(f_res.numpy()))
     np.testing.assert_allclose(pe_f_res.numpy(), 2 * np.ones_like(pe_f_res.numpy()))
 
@@ -168,9 +167,8 @@ def test_function_invalidate():
     body = Let(r, RefCreate(const(0)), body)
     f = Function([d], body)
     pe_f = tipe(f)
-    ex = create_executor()
-    f_res = ex.evaluate(f)(const(True))
-    pe_f_res = ex.evaluate(pe_f)(const(True))
+    f_res = create_executor().evaluate(f)(const(True))
+    pe_f_res = create_executor().evaluate(pe_f)(const(True))
     np.testing.assert_allclose(f_res.numpy(), np.ones_like(f_res.numpy()))
     np.testing.assert_allclose(pe_f_res.numpy(), np.ones_like(pe_f_res.numpy()))
 
@@ -352,4 +350,7 @@ def test_tuple_match():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

@@ -19,17 +19,28 @@
 # tag: v0.60
 FROM nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
 
+# Per https://forums.developer.nvidia.com/t/notice-cuda-linux-repository-key-rotation/212772
+# we need to add a new GPG key before running apt update.
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
+
 # Base scripts
+RUN rm /etc/apt/sources.list.d/nvidia-ml.list && apt-get clean
 RUN apt-get update --fix-missing
 
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
+COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
+RUN bash /install/ubuntu_install_googletest.sh
+
 COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
 RUN bash /install/ubuntu1804_install_python.sh
 
 # Globally disable pip cache
-RUN pip config set global.cache-dir false
+RUN pip config set global.no-cache-dir false
+
+COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
+RUN bash /install/ubuntu_install_cmake_source.sh
 
 COPY install/ubuntu1804_install_llvm.sh /install/ubuntu1804_install_llvm.sh
 RUN bash /install/ubuntu1804_install_llvm.sh
@@ -77,14 +88,19 @@ RUN bash /install/ubuntu_install_onnx.sh
 COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
 RUN bash /install/ubuntu_install_tflite.sh
 
-COPY install/ubuntu_install_caffe2.sh /install/ubuntu_install_caffe2.sh
-RUN bash /install/ubuntu_install_caffe2.sh
-
 COPY install/ubuntu_install_dgl.sh /install/ubuntu_install_dgl.sh
 RUN bash /install/ubuntu_install_dgl.sh
 
+ENV NVIDIA_DRIVER_CAPABILITIES compute,graphics,utility
 COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
 RUN bash /install/ubuntu_install_vulkan.sh
+
+COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
+RUN bash /install/ubuntu_install_paddle.sh
+
+# OneFlow deps
+COPY install/ubuntu_install_oneflow.sh /install/ubuntu_install_oneflow.sh
+RUN bash /install/ubuntu_install_oneflow.sh
 
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
@@ -92,6 +108,10 @@ RUN bash /install/ubuntu_install_rust.sh
 ENV RUSTUP_HOME /opt/rust
 ENV CARGO_HOME /opt/rust
 ENV PATH $PATH:$CARGO_HOME/bin
+
+# wasmtime
+COPY install/ubuntu_install_wasmtime.sh /install/ubuntu_install_wasmtime.sh
+RUN bash /install/ubuntu_install_wasmtime.sh
 
 # AutoTVM deps
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
@@ -108,6 +128,11 @@ RUN bash /install/ubuntu_install_universal.sh
 # PAPI profiling deps
 COPY install/ubuntu_install_papi.sh /install/ubuntu_install_papi.sh
 RUN bash /install/ubuntu_install_papi.sh "cuda rocm"
+
+# sccache
+COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
+RUN bash /install/ubuntu_install_sccache.sh
+ENV PATH /opt/sccache:$PATH
 
 # Environment variables
 ENV PATH=/usr/local/nvidia/bin:${PATH}

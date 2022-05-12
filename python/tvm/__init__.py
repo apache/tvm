@@ -23,7 +23,8 @@ import traceback
 
 # top-level alias
 # tvm._ffi
-from ._ffi.base import TVMError, __version__
+from ._ffi.base import TVMError, __version__, _RUNTIME_ONLY
+
 from ._ffi.runtime_ctypes import DataTypeCode, DataType
 from ._ffi import register_object, register_func, register_extension, get_global_func
 
@@ -42,6 +43,8 @@ from .ir import IRModule
 from .ir import transform
 from .ir import instrument
 from .ir import container
+from .ir import PoolInfo
+from .ir import WorkspaceMemoryPools
 from . import ir
 
 # tvm.tir
@@ -67,6 +70,9 @@ from . import support
 
 # Contrib initializers
 from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel
+
+if not _RUNTIME_ONLY and support.libinfo().get("USE_MICRO", "OFF") == "ON":
+    from . import micro
 
 # NOTE: This file should be python2 compatible so we can
 # raise proper error message when user run the package using

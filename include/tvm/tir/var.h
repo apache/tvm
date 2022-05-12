@@ -38,7 +38,7 @@ namespace tir {
  *
  * A variable is uniquely identified by its address.
  *
- * Each variable is only binded once in the following nodes:
+ * Each variable is only bound once in the following nodes:
  * - Allocate
  * - For
  * - Let
@@ -52,7 +52,7 @@ class VarNode : public PrimExprNode {
    */
   String name_hint;
   /*!
-   * \brief type annotaion of the variable.
+   * \brief type annotation of the variable.
    *
    * It is an optional field that provides a refined type of the variable than dtype.
    *
@@ -109,6 +109,12 @@ class Var : public PrimExpr {
    * \return the new Var copy
    */
   TVM_DLL Var copy_with_suffix(const String& suffix) const;
+  /*!
+   * \brief Make a new copy of the variable with specified dtype
+   * \param dtype The specified dtype
+   * \return The new variable
+   */
+  TVM_DLL Var copy_with_dtype(DataType dtype) const;
 
   /*!
    * \brief Get pointer to the internal value.
@@ -235,6 +241,8 @@ enum IterVarType : int {
 /*!
  * \brief An iteration variable representing an iteration
  *  over a one dimensional interval.
+ *
+ *  The dtype of the extent of the `dom` of the IterVar must match the dtype of the internal Var.
  */
 class IterVarNode : public Object {
  public:
@@ -287,6 +295,8 @@ class IterVarNode : public Object {
 /*!
  * \brief Iteration Variable,
  *  represents an iteration over an integer interval.
+ *
+ *  The dtype of the extent of the `dom` of the IterVar must match the dtype of the internal Var.
  */
 class IterVar : public ObjectRef {
  public:

@@ -91,11 +91,30 @@ class PrimFuncNode : public BaseFuncNode {
    */
   Map<tir::Var, Buffer> buffer_map;
 
+  /*! \brief The buffer map prior to flattening.
+   *
+   * This contains the buffers as they exists prior to flattening, and
+   * is used for validating an input tensor passed into the packed
+   * API.  Any buffer that is present in `buffer_map` but not present
+   * in `preflattened_buffer_map` is assumed to be the same before
+   * and after flattening (e.g. a 1-d tensor that is backed by 1-d
+   * flat memory).
+   *
+   * TODO(Lunderberg): Remove preflattened_buffer_map, and instead
+   * declare each flattened buffer as aliasing the original tensor
+   * shape.  This should include improving the StmtExprMutator to
+   * provide easier interactions with Buffer objects, so that the
+   * bookkeeping of relationships between buffers doesn't need to be
+   * repeated across several transforms.
+   */
+  Map<tir::Var, Buffer> preflattened_buffer_map;
+
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("params", &params);
     v->Visit("body", &body);
     v->Visit("ret_type", &ret_type);
     v->Visit("buffer_map", &buffer_map);
+    v->Visit("preflattened_buffer_map", &preflattened_buffer_map);
     v->Visit("attrs", &attrs);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
@@ -104,6 +123,7 @@ class PrimFuncNode : public BaseFuncNode {
   bool SEqualReduce(const PrimFuncNode* other, SEqualReducer equal) const {
     // visit params and buffer_map first as they contains defs.
     return equal.DefEqual(params, other->params) && equal(buffer_map, other->buffer_map) &&
+           equal(preflattened_buffer_map, other->preflattened_buffer_map) &&
            equal(ret_type, other->ret_type) && equal(body, other->body) &&
            equal(attrs, other->attrs);
   }
@@ -111,6 +131,7 @@ class PrimFuncNode : public BaseFuncNode {
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce.DefHash(params);
     hash_reduce(buffer_map);
+    hash_reduce(preflattened_buffer_map);
     hash_reduce(ret_type);
     hash_reduce(body);
     hash_reduce(attrs);
@@ -136,58 +157,91 @@ class PrimFunc : public BaseFunc {
  public:
   /*!
    * \brief Constructor
+   *
    * \param params The parameters of the function.
+   *
    * \param body The body of the function.
+   *
    * \param ret_type The return type of the function.
+   *
    * \param buffer_map The buffer map for parameter buffer unpacking.
+   * This contains buffer objects as they appear in the body of the
+   * PrimFunc.  (e.g. a buffer of shape ``[1024]`` originally
+   * generated as a tensor of shape ``[32, 32]``)
+   *
+   * \param preflattened_buffer_map The buffer map for
+   * parameter buffer unpacking.  This contains buffer
+   * objects as they are expected to be passed in by the
+   * callee.  (e.g. a buffer of shape ``[32, 32]`` originally
+   * generated as a tensor of shape ``[32, 32]``)
+   *
    * \param attrs Additional function attributes.
+   *
    * \param span The location of this object in the source code.
    */
-  TVM_DLL PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type = VoidType(),
-                   Map<tir::Var, Buffer> buffer_map = Map<tir::Var, Buffer>(),
-                   DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
+  TVM_DLL PrimFunc(
+      Array<tir::Var> params, Stmt body, Type ret_type = VoidType(),
+      Map<tir::Var, Buffer> buffer_map = Map<tir::Var, Buffer>(),
+      Optional<Map<tir::Var, Buffer>> preflattened_buffer_map = Optional<Map<tir::Var, Buffer>>(),
+      DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimFunc, BaseFunc, PrimFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimFuncNode);
 };
 
 /*!
- * \brief Describes one parameter that should be linked into the generated module.
- *
- * When parameters are to be linked in with generated code (i.e. on target_host-compatible
- * backends), Relay attaches instances of this object to a global TIR function. Code-generators
- * use the information contained in this node to include the parameter data in the generated
- * module.
+ * \brief Tensor intrinsics for tensorization
  */
-class LinkedParamNode : public Object {
+class TensorIntrinNode : public Object {
  public:
-  /*! \brief Unique numeric identifier used by runtimes to lookup this parameter. */
-  int64_t id;
+  /*! \brief The function to describe the computation. */
+  PrimFunc desc;
+  /*! \brief The function of the implementation for the execution. */
+  PrimFunc impl;
 
-  /*! \brief Parameter data which should get linked into the final module. */
-  ::tvm::runtime::NDArray param;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("id", &id);
-    v->Visit("param", &param);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("desc", &desc);
+    v->Visit("impl", &impl);
   }
 
-  static constexpr const char* _type_key = "tir.LinkedParam";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LinkedParamNode, Object);
+  static constexpr const char* _type_key = "tir.TensorIntrin";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorIntrinNode, Object);
 };
 
 /*!
- * \brief Managed reference to LinkedParamNode.
+ * \brief Managed reference to TensorIntrinNode.
  */
-class LinkedParam : public ObjectRef {
+class TensorIntrin : public ObjectRef {
  public:
-  TVM_DLL LinkedParam(int64_t id, ::tvm::runtime::NDArray param);
+  /*!
+   * \brief Constructor
+   * \param desc The function to describe the computation.
+   * \param impl The function of the implementation for the execution.
+   */
+  TVM_DLL explicit TensorIntrin(PrimFunc desc, PrimFunc impl);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(LinkedParam, ObjectRef, LinkedParamNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(LinkedParamNode);
+  /*!
+   * \brief Create and register a TensorIntrin. After registration, the TensorIntrin can be looked
+   * up with its name.
+   * \param name The name of the TensorIntrin to register
+   * \param intrin The TensorIntrin to register.
+   * \throws This method throws an exception if the TensorIntrin with the specified name already
+   *         exists.
+   */
+  TVM_DLL static void Register(String name, TensorIntrin intrin);
+
+  /*!
+   * \brief Look up TensorIntrin by name. Raises an exception if not found.
+   * \param name The name of the TensorIntrin.
+   * \return The TensorIntrin with the specified name.
+   * \throws This method throws an exception if the TensorIntrin does not exist.
+   */
+  TVM_DLL static TensorIntrin Get(String name);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode)
 };
 
-/*!
+/*
  * \brief Specialize parameters of PrimFunc.
  * \param func The PrimFunc to be specialized.
  * \param param_map The mapping from function params to the instance.
@@ -195,13 +249,14 @@ class LinkedParam : public ObjectRef {
  * \note We can define a Meta TIR function with symbolic shape:
  *
  * \code
- *  @tvm.script.tir
- *  def mem_copy(a: ty.handle, b: ty.handle, m: ty.int32, n: ty.int32) -> None:
- *      A = tir.match_buffer(a, (m, n), "float32")
- *      B = tir.match_buffer(b, (m, n), "float32")
- *
- *      with tir.block([m, n], "") as [vi, vj]:
- *          B[vi, vj] = A[vi, vj]
+ *  @T.prim_func
+ *  def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32) -> None:
+ *      A = T.match_buffer(a, (m, n), "float32")
+ *      B = T.match_buffer(b, (m, n), "float32")
+ *      for i, j in T.grid(m, n):
+ *          with T.block():
+ *              vi, vj = T.axis.remap("SS", [i, j])
+ *              B[vi, vj] = A[vi, vj]
  * \endcode
  *
  * Then we can make it specialized with given shapes or buffers.
@@ -214,13 +269,14 @@ class LinkedParam : public ObjectRef {
  * \endcode
  *
  * \code {.language-id}
- *  @tvm.script.tir
- *  def mem_copy_16_16(a: ty.handle, b: ty.handle) -> None:
- *      A = tir.match_buffer(a, (16, 16), "float32")
- *      B = tir.match_buffer(b, (16, 16), "float32")
- *
- *      with tir.block([16, 16], "") as [vi, vj]:
- *          B[vi, vj] = A[vi, vj]
+ *  @T.prim_func
+ *  def mem_copy_16_16(a: T.handle, b: T.handle) -> None:
+ *      A = T.match_buffer(a, (16, 16), "float32")
+ *      B = T.match_buffer(b, (16, 16), "float32")
+ *      for i, j in T.grid(16, 16):
+ *          with T.block():
+ *              vi, vj = T.axis.remap("SS", [i, j])
+ *              B[vi, vj] = A[vi, vj]
  * \endcode
  */
 PrimFunc Specialize(PrimFunc func, const Map<Var, ObjectRef>& param_map);
@@ -278,14 +334,11 @@ constexpr const char* kNoAlias = "tir.noalias";
 constexpr const char* kIsEntryFunc = "tir.is_entry_func";
 
 /*!
- * \brief Parameters used in the module that should be linked by the codegen.
+ * \brief Mark the function as the global function called from the host.
  *
- * Type: Map<String, LinkableParam>
- *
- * \note This should be present only on a function named
- *     tvm::target::packed_func::kLookupLinkedParam.
+ * Type: Integer
  */
-constexpr const char* kLinkedParams = "tir.linked_params";
+constexpr const char* kIsGlobalFunc = "tir.is_global_func";
 
 }  // namespace attr
 }  // namespace tir

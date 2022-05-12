@@ -113,6 +113,17 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
             tvm.testing.assert_allclose(kout, tout, rtol=1e-5, atol=1e-5)
 
 
+def get_mobilenet(keras):
+    if hasattr(keras.applications, "MobileNet"):
+        # Keras 2.4.x and older
+        MobileNet = keras.applications.MobileNet
+    else:
+        # Keras 2.6.x and newer
+        MobileNet = keras.applications.mobilenet.MobileNet
+
+    return MobileNet
+
+
 @tvm.testing.uses_gpu
 class TestKeras:
     scenarios = [using_classic_keras, using_tensorflow_keras]
@@ -417,19 +428,47 @@ class TestKeras:
         keras_model = keras.models.Model(data, z)
         verify_keras_frontend(keras_model)
 
+    def test_forward_lstm(self, keras):
+        data = keras.layers.Input(shape=(10, 32))
+        rnn_funcs = [
+            keras.layers.LSTM(16),
+            keras.layers.LSTM(16, return_sequences=True),
+            keras.layers.LSTM(16, return_sequences=True, use_bias=False),
+        ]
+        for rnn_func in rnn_funcs:
+            x = rnn_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, need_transpose=False)
+
     def test_forward_rnn(self, keras):
         data = keras.layers.Input(shape=(1, 32))
         rnn_funcs = [
             keras.layers.LSTM(
                 units=16, return_state=False, recurrent_activation="sigmoid", activation="tanh"
             ),
+            keras.layers.LSTM(
+                units=16,
+                return_state=False,
+                recurrent_activation="sigmoid",
+                activation="tanh",
+                use_bias=False,
+            ),
             keras.layers.SimpleRNN(units=16, return_state=False, activation="tanh"),
+            keras.layers.SimpleRNN(units=16, return_state=False, activation="tanh", use_bias=False),
             keras.layers.GRU(
                 units=16,
                 return_state=False,
                 recurrent_activation="sigmoid",
                 activation="tanh",
                 reset_after=False,
+            ),
+            keras.layers.GRU(
+                units=16,
+                return_state=False,
+                recurrent_activation="sigmoid",
+                activation="tanh",
+                reset_after=False,
+                use_bias=False,
             ),
         ]
         for rnn_func in rnn_funcs:
@@ -438,25 +477,48 @@ class TestKeras:
             verify_keras_frontend(keras_model, need_transpose=False)
 
     def test_forward_vgg16(self, keras, layout="NCHW"):
-        keras_model = keras.applications.VGG16(
+        if hasattr(keras.applications, "VGG16"):
+            # Keras 2.4.x and older
+            VGG16 = keras.applications.VGG16
+        else:
+            # Keras 2.6.x and newer
+            VGG16 = keras.applications.vgg16.VGG16
+
+        keras_model = VGG16(
             include_top=True, weights="imagenet", input_shape=(224, 224, 3), classes=1000
         )
         verify_keras_frontend(keras_model, layout=layout)
 
     def test_forward_xception(self, keras, layout="NCHW"):
-        keras_model = keras.applications.Xception(
+        if hasattr(keras.applications, "Xception"):
+            # Keras 2.4.x and older
+            Xception = keras.applications.Xception
+        else:
+            # Keras 2.6.x and newer
+            Xception = keras.applications.xception.Xception
+
+        keras_model = Xception(
             include_top=True, weights="imagenet", input_shape=(299, 299, 3), classes=1000
         )
         verify_keras_frontend(keras_model, layout=layout)
 
     def test_forward_resnet50(self, keras, layout="NCHW"):
-        keras_model = keras.applications.ResNet50(
+        if hasattr(keras.applications, "ResNet50"):
+            # Keras 2.4.x and older
+            ResNet50 = keras.applications.ResNet50
+        else:
+            # Keras 2.6.x and newer
+            ResNet50 = keras.applications.resnet.ResNet50
+
+        keras_model = ResNet50(
             include_top=True, weights="imagenet", input_shape=(224, 224, 3), classes=1000
         )
         verify_keras_frontend(keras_model, layout=layout)
 
     def test_forward_mobilenet(self, keras, layout="NCHW"):
-        keras_model = keras.applications.MobileNet(
+        MobileNet = get_mobilenet(keras)
+
+        keras_model = MobileNet(
             include_top=True, weights="imagenet", input_shape=(224, 224, 3), classes=1000
         )
         verify_keras_frontend(keras_model, layout=layout)
@@ -580,9 +642,9 @@ class TestKeras:
             verify_keras_frontend(keras_model, layout="NDHWC")
 
     def test_forward_nested_layers(self, keras):
-        sub_model = keras.applications.MobileNet(
-            include_top=False, weights="imagenet", input_shape=(224, 224, 3)
-        )
+        MobileNet = get_mobilenet(keras)
+
+        sub_model = MobileNet(include_top=False, weights="imagenet", input_shape=(224, 224, 3))
         keras_model = keras.Sequential(
             [
                 sub_model,
@@ -592,6 +654,41 @@ class TestKeras:
             ]
         )
         verify_keras_frontend(keras_model)
+
+    def test_forward_l2_normalize(self, keras):
+        data = keras.layers.Input(shape=(16, 12, 8))
+        K = keras.backend
+        l2_funcs = [
+            keras.layers.Lambda(lambda v: K.l2_normalize(v, axis=-2)),
+            keras.layers.Lambda(lambda v: K.l2_normalize(x=v, axis=-1)),
+            keras.layers.Lambda(lambda v: K.l2_normalize(axis=1, x=v)),
+            keras.layers.Lambda(lambda v: K.l2_normalize(v, 2)),
+            keras.layers.Lambda(lambda v: K.l2_normalize(v, axis=3)),
+            keras.layers.Lambda(lambda v: K.l2_normalize(v, axis=(2, 3))),
+            keras.layers.Lambda(lambda v: K.l2_normalize(v, (1, 2))),
+            keras.layers.Lambda(lambda v: K.l2_normalize(v, axis=[-2, -1])),
+            keras.layers.Lambda(lambda v: K.l2_normalize(v, [-3, -2])),
+        ]
+        for l2_func in l2_funcs:
+            x = l2_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, layout="NCHW")
+            verify_keras_frontend(keras_model, layout="NHWC")
+
+    def test_forward_time_distributed(self, keras):
+        conv2d_inputs = keras.Input(shape=(10, 128, 128, 3))
+        conv_2d_layer = keras.layers.Conv2D(64, (3, 3))
+        conv2d_model = keras.models.Model(
+            conv2d_inputs, keras.layers.TimeDistributed(conv_2d_layer)(conv2d_inputs)
+        )
+        verify_keras_frontend(conv2d_model, layout="NDHWC")
+
+        dense_inputs = keras.Input(shape=(5, 1))
+        dense_layer = keras.layers.Dense(1)
+        dense_model = keras.models.Model(
+            dense_inputs, keras.layers.TimeDistributed(dense_layer)(dense_inputs)
+        )
+        verify_keras_frontend(dense_model, need_transpose=False)
 
 
 if __name__ == "__main__":
@@ -605,6 +702,7 @@ if __name__ == "__main__":
         sut.test_forward_sequential(keras=k)
         sut.test_forward_pool(keras=k)
         sut.test_forward_conv(keras=k)
+        sut.test_forward_conv1d(keras=k)
         sut.test_forward_batch_norm(keras=k)
         sut.test_forward_upsample(keras=k, interpolation="nearest")
         sut.test_forward_upsample(keras=k, interpolation="bilinear")
@@ -613,6 +711,7 @@ if __name__ == "__main__":
         sut.test_forward_multi_inputs(keras=k)
         sut.test_forward_multi_outputs(keras=k)
         sut.test_forward_reuse_layers(keras=k)
+        sut.test_forward_lstm(keras=k)
         sut.test_forward_rnn(keras=k)
         sut.test_forward_vgg16(keras=k)
         sut.test_forward_vgg16(keras=k, layout="NHWC")
@@ -629,3 +728,5 @@ if __name__ == "__main__":
         sut.test_forward_zero_padding3d(keras=k)
         sut.test_forward_embedding(keras=k)
         sut.test_forward_repeat_vector(keras=k)
+        sut.test_forward_l2_normalize(keras=k)
+        sut.test_forward_time_distributed(keras=k)

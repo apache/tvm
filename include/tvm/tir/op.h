@@ -496,6 +496,22 @@ TVM_DLL PrimExpr truncmod(PrimExpr a, PrimExpr b, Span span = Span());
  */
 TVM_DLL PrimExpr indexdiv(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
+ * \brief compute ceil(a / b) where a and b are non-negative.
+ *
+ * Use this function for shape split calculation.
+ *
+ * This function might take advantage of the fact
+ * that a and b are non-negative.
+ *
+ * \param a left operand
+ * \param b right operand
+ * \param span The location of this operation in the source.
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       shape types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr shapediv(PrimExpr a, PrimExpr b, Span span = Span());
+/*!
  * \brief compute the remainder floor(a / b) where a and b are non-negative.
  *
  * Use this function for index split calculation.
@@ -521,6 +537,17 @@ TVM_DLL PrimExpr indexmod(PrimExpr a, PrimExpr b, Span span = Span());
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span = Span());
+/*!
+ * \brief compute ceil(a / b)
+ *
+ * \param a left operand
+ * \param b right operand
+ * \param span The location of this operation in the source.
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr ceildiv(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
  * \brief compute the remainder of floordiv
  *
@@ -835,10 +862,18 @@ TVM_DLL PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s
                                   Span span = Span());
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY(OpName)                   \
-  inline PrimExpr OpName(PrimExpr x, Span span = Span()) { \
-    static const Op& op = Op::Get("tir." #OpName);         \
-    return tir::Call(x.dtype(), op, {x}, span);            \
+#define TVM_DECLARE_INTRIN_UNARY(OpName)                       \
+  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {     \
+    static const Op& op = Op::Get("tir." #OpName);             \
+    if (x.dtype().is_bfloat16()) {                             \
+      DataType srcType = x.dtype();                            \
+      DataType dstType(kDLFloat, 32, srcType.lanes());         \
+      PrimExpr castX = tir::Cast(dstType, {x}, span);          \
+      PrimExpr result = tir::Call(dstType, op, {castX}, span); \
+      return tir::Cast(srcType, {result}, span);               \
+    } else {                                                   \
+      return tir::Call(x.dtype(), op, {x}, span);              \
+    }                                                          \
   }
 
 TVM_DECLARE_INTRIN_UNARY(exp);
@@ -942,9 +977,9 @@ inline const int64_t* as_const_int(const PrimExpr& x) {
   if (!x.defined()) return nullptr;
   if (const tir::IntImmNode* op = x.as<tir::IntImmNode>()) {
     return &(op->value);
-  } else {
-    return nullptr;
   }
+
+  return nullptr;
 }
 
 /*!
@@ -1016,17 +1051,7 @@ inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr
 TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
 
 // Implementation details after this
-inline bool is_const_int(const PrimExpr& x) {
-  if (x.as<tir::IntImmNode>()) {
-    return true;
-  } else if (const auto* op = x.as<tir::BroadcastNode>()) {
-    const PrimExpr& val = op->value;
-    if (val.as<tir::IntImmNode>()) {
-      return true;
-    }
-  }
-  return false;
-}
+inline bool is_const_int(const PrimExpr& x) { return as_const_int(x); }
 
 inline bool is_const_number(const PrimExpr& x) {
   if (x.as<tir::IntImmNode>()) {
@@ -1040,31 +1065,18 @@ inline bool is_const_number(const PrimExpr& x) {
 }
 
 inline bool is_positive_const(const PrimExpr& a) {
-  if (const tir::IntImmNode* op = a.as<tir::IntImmNode>()) {
-    return op->value > 0;
-  } else {
-    return false;
-  }
+  const int64_t* as_int = as_const_int(a);
+  return as_int && (*as_int > 0);
 }
 
 inline bool is_negative_const(const PrimExpr& a) {
-  if (const tir::IntImmNode* op = a.as<tir::IntImmNode>()) {
-    return op->value < 0;
-  } else {
-    return false;
-  }
+  const int64_t* as_int = as_const_int(a);
+  return as_int && (*as_int < 0);
 }
 
 inline bool is_const_int(const PrimExpr& x, int64_t value) {
-  if (const auto* op = x.as<tir::IntImmNode>()) {
-    return op->value == value;
-  } else if (const auto* op = x.as<tir::BroadcastNode>()) {
-    const PrimExpr& val = op->value;
-    if (const auto* opv = val.as<tir::IntImmNode>()) {
-      return opv->value == value;
-    }
-  }
-  return false;
+  const int64_t* as_int = as_const_int(x);
+  return as_int && (*as_int == value);
 }
 
 inline bool is_no_op(const tir::Stmt& stmt) {

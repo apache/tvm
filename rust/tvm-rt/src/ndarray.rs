@@ -101,6 +101,21 @@ impl NDArrayContainer {
                 .cast::<NDArrayContainer>()
         }
     }
+
+    pub fn as_mut_ptr<'a>(object_ptr: &ObjectPtr<NDArrayContainer>) -> *mut NDArrayContainer
+    where
+        NDArrayContainer: 'a,
+    {
+        let base_offset = memoffset::offset_of!(NDArrayContainer, dl_tensor) as isize;
+        unsafe {
+            object_ptr
+                .ptr
+                .as_ptr()
+                .cast::<u8>()
+                .offset(base_offset)
+                .cast::<NDArrayContainer>()
+        }
+    }
 }
 
 fn cow_usize<'a>(slice: &[i64]) -> Cow<'a, [usize]> {

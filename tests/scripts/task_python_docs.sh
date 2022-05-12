@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,15 +16,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+set -euo pipefail
 
 source tests/scripts/setup-pytest-env.sh
 
 # to avoid CI CPU thread throttling.
 export TVM_BIND_THREADS=0
-export OMP_NUM_THREADS=4
+export OMP_NUM_THREADS=1
+IS_LOCAL=${IS_LOCAL:-0}
+PYTHON_DOCS_ONLY=${PYTHON_DOCS_ONLY:-0}
 
 cleanup()
 {
@@ -32,21 +32,91 @@ cleanup()
 }
 trap cleanup 0
 
-# cleanup old states
-rm -rf docs/_build
-mkdir -p docs/_build/html
-rm -rf docs/gen_modules
-rm -rf docs/doxygen
+clean_files() {
+    # cleanup old states
+    rm -rf docs/_build
+    rm -rf docs/_staging
+    mkdir -p docs/_build/html
+    mkdir -p docs/_staging/html
+    rm -rf docs/gen_modules
+    rm -rf docs/doxygen
+    find . -type f -path "*.pyc" | xargs rm -f
+}
 
+sphinx_precheck() {
+    clean_files
+    echo "PreCheck sphinx doc generation WARNINGS.."
+    make cython3
+
+    pushd docs
+    make clean
+    TVM_TUTORIAL_EXEC_PATTERN=none make html 2>&1 | tee /tmp/$$.log.txt
+    check_sphinx_warnings "docs"
+    popd
+}
+
+
+function join_by { local IFS="$1"; shift; echo "$*"; }
+
+# Convert bash tutorials to Python format
+tests/scripts/task_convert_scripts_to_python.sh
+
+# These warnings are produced during the docs build for various reasons and are
+# known to not signficantly affect the output. Don't add anything new to this
+# list without special consideration of its effects, and don't add anything with
+# a '|' character.
+IGNORED_WARNINGS=(
+    '__mro__'
+    'UserWarning'
+    'FutureWarning'
+    'tensorflow'
+    'Keras'
+    'pytorch'
+    'TensorFlow'
+    'coremltools'
+    '403'
+    'git describe'
+    'scikit-learn version'
+    'doing serial write'
+    'gen_gallery extension is not safe for parallel'
+    'strategy:conv2d NHWC layout is not optimized for x86 with autotvm.'
+    'strategy:depthwise_conv2d NHWC layout is not optimized for x86 with autotvm.'
+    'autotvm:Cannot find config for target=llvm -keys=cpu -link-params=0'
+    'autotvm:One or more operators have not been tuned. Please tune your model for better performance. Use DEBUG logging level to see more details.'
+    'autotvm:Cannot find config for target=cuda -keys=cuda,gpu'
+)
+
+JOINED_WARNINGS=$(join_by '|' "${IGNORED_WARNINGS[@]}")
+
+check_sphinx_warnings() {
+    grep -v -E "$JOINED_WARNINGS" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
+    if grep --quiet -E "WARN" < /tmp/$$.logclean.txt; then
+        echo "Lines with 'WARNING' found in the log, please fix them:"
+        grep -E "WARN" < /tmp/$$.logclean.txt
+        echo "You can reproduce locally by running 'python tests/scripts/ci.py $1'"
+        exit 1
+    fi
+    echo "No WARNINGS to be fixed."
+}
+
+# run precheck step first to fast-fail if there are problems with the docs
+if [ "$IS_LOCAL" != "1" ]; then
+    echo "Running precheck"
+    sphinx_precheck
+else
+    # skip the precheck when doing local builds since it would add overhead to
+    # re-runs (and tutorials are usually not enabled anyways)
+    echo "Skipping precheck"
+fi
+
+
+clean_files
 # prepare auto scheduler tutorials
-rm -rf tutorials/auto_scheduler/*.json
-rm -rf tutorials/get_started/*.json
-cp -f tutorials/auto_scheduler/ci_logs/*.json tutorials/auto_scheduler
-cp -f tutorials/auto_scheduler/ci_logs/*.json tutorials/get_started
+rm -rf gallery/how_to/tune_with_auto_scheduler/*.json
+rm -rf gallery/tutorial/*.json
+cp -f gallery/how_to/tune_with_autoscheduler/ci_logs/*.json gallery/how_to/tune_with_autoscheduler
+cp -f gallery/how_to/tune_with_autoscheduler/ci_logs/*.json gallery/tutorial
 
-# remove stale tutorials and always build from scratch.
-rm -rf docs/tutorials
-rm -rf docs/vta/tutorials
 
 # cleanup stale log files
 find . -type f -path "*.log" | xargs rm -f
@@ -54,15 +124,25 @@ find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
 cd docs
-PYTHONPATH=`pwd`/../python make html |& tee /tmp/$$.log.txt
+PYTHONPATH=$(pwd)/../python make html SPHINXOPTS='-j auto' |& tee /tmp/$$.log.txt
 if grep -E "failed to execute|Segmentation fault" < /tmp/$$.log.txt; then
     echo "Some of sphinx-gallery item example failed to execute."
     exit 1
 fi
+
+check_sphinx_warnings "docs --tutorial-pattern=.*"
+
 cd ..
 
+if [ "$IS_LOCAL" == "1" ] && [ "$PYTHON_DOCS_ONLY" == "1" ]; then
+    echo "PYTHON_DOCS_ONLY was set, skipping other doc builds"
+    rm -rf _docs
+    mv docs/_build/html _docs
+    exit 0
+fi
+
 # C++ doc
-make doc
+make cppdoc
 rm -f docs/doxygen/html/*.map docs/doxygen/html/*.md5
 
 # Java doc
@@ -84,16 +164,19 @@ cd ..
 rm -rf _docs
 mv docs/_build/html _docs
 rm -f _docs/.buildinfo
-mkdir -p _docs/api
-mv docs/doxygen/html _docs/api/doxygen
-mv jvm/core/target/site/apidocs _docs/api/javadoc
+mkdir -p _docs/reference/api
+mv docs/doxygen/html _docs/reference/api/doxygen
+mv jvm/core/target/site/apidocs _docs/reference/api/javadoc
 # mv rust/target/doc _docs/api/rust
-mv web/dist/docs _docs/api/typedoc
+mv web/dist/docs _docs/reference/api/typedoc
+git rev-parse HEAD > _docs/commit_hash
 
-echo "Start creating the docs tarball.."
-# make the tarball
-tar -C _docs -czf docs.tgz .
-echo "Finish creating the docs tarball"
-du -h docs.tgz
+if [ "$IS_LOCAL" != "1" ]; then
+    echo "Start creating the docs tarball.."
+    # make the tarball
+    tar -C _docs -czf docs.tgz .
+    echo "Finish creating the docs tarball"
+    du -h docs.tgz
 
-echo "Finish everything"
+    echo "Finish everything"
+fi

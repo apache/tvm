@@ -31,6 +31,14 @@ from tvm.relay.op.annotation import compiler_begin, compiler_end
 pyxir = None
 
 
+def enabled():
+    """Return whether Vitis-AI support is available"""
+    if not tvm.get_global_func("relay.ext.vitis_ai.available", True):
+        print("Skip because Vitis-AI codegen is not available.")
+        return False
+    return True
+
+
 @transform.function_pass(opt_level=0)
 class VitisAIAnnotationPass:
     """Responsible for annotating Relay expressions for Vitis-AI DPU accelerators
@@ -149,7 +157,7 @@ def partition_for_vitis_ai(mod, params=None, dpu=None, **opts):
     params : Optional[Dict[str, NDArray]]
         Constant input parameters.
     dpu : str
-        The DPU identifier (e.g. DPUCZDX8G-zcu104, DPUCADX8G)
+        The DPU identifier (e.g. DPUCZDX8G-zcu104, DPUCADF8H)
 
     Returns
     -------
@@ -162,13 +170,30 @@ def partition_for_vitis_ai(mod, params=None, dpu=None, **opts):
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
 
+    desired_layouts_in_partition = {
+        "nn.conv2d": ["NHWC", "default"],
+        "nn.upsampling": ["NHWC"],
+        "image.resize2d": ["NHWC"],
+    }
+    desired_layouts_in_main = {
+        "nn.conv2d": ["NCHW", "default"],
+        "nn.upsampling": ["NCHW"],
+        "image.resize2d": ["NCHW"],
+    }
     seq = tvm.transform.Sequential(
         [
+            transform.RemoveUnusedFunctions(),
+            transform.ConvertLayout(desired_layouts_in_partition),
+            transform.FoldConstant(),
             transform.InferType(),
             VitisAIAnnotationPass("vitis_ai", dpu, params),
             transform.MergeCompilerRegions(),
             transform.PartitionGraph(),
+            transform.RemoveUnusedFunctions(),
+            transform.ConvertLayout(desired_layouts_in_main),
+            transform.FoldConstant(),
         ]
     )
 
-    return seq(mod)
+    with tvm.transform.PassContext(opt_level=3):
+        return seq(mod)

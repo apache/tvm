@@ -60,8 +60,7 @@ def test_dyn_upsampling_run():
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-                op_res = intrp.evaluate()(
+                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
                     x_data, np.array(scale_h).astype("float32"), np.array(scale_w).astype("float32")
                 )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
@@ -127,8 +126,7 @@ def test_dyn_upsampling3d_run():
         for target, dev in enabled_targets():
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-                op_res = intrp.evaluate()(
+                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
                     x_data,
                     np.array(scale_d).astype("float32"),
                     np.array(scale_h).astype("float32"),

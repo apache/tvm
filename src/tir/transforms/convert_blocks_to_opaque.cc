@@ -80,7 +80,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
     return std::move(new_realize);
   }
 
-  /*! \brief The map from block vars to thier binding values. */
+  /*! \brief The map from block vars to their binding values. */
   std::unordered_map<const VarNode*, PrimExpr> var_substitutes_;
 };
 

@@ -51,7 +51,7 @@ def test_resize2d():
 
         coord_trans = "asymmetric" if method == "nearest_neighbor" else "align_corners"
         z = relay.image.resize2d(
-            x, size_var, layout, method, coordinate_transformation_mode=coord_trans
+            x, size_var, None, layout, method, coordinate_transformation_mode=coord_trans
         )
 
         zz = run_infer_type(z)
@@ -64,8 +64,9 @@ def test_resize2d():
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-                op_res = intrp.evaluate()(x_data, size)
+                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
+                    x_data, size
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
 
     for method in ["linear", "nearest_neighbor"]:

@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+import sys
 import numpy as np
 import tvm
 from tvm import te
@@ -37,9 +39,7 @@ def run_opt_pass(expr, passes):
 
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
     dev = tvm.device("llvm", 0)
-    intrp = create_executor(mod=mod, device=dev, target="llvm")
-
-    result = intrp.evaluate(expr)
+    result = create_executor(mod=mod, device=dev, target="llvm").evaluate(expr)
     np.testing.assert_allclose(result.numpy(), expected_result, rtol=rtol)
 
 
@@ -94,6 +94,34 @@ def test_if():
     expected_output = relay.Let(c, cond, expected_output)
     expected_output = run_opt_pass(expected_output, transform.InferType())
     assert tvm.ir.structural_equal(anf, expected_output)
+
+
+def test_let_as_subexpr():
+    def on_cpu(x):
+        return relay.annotation.on_device(x, tvm.device("cpu"), constrain_result=True)
+
+    x = relay.Var("x", relay.IncompleteType())
+    c = relay.const(1)
+    l = relay.Let(x, on_cpu(c + c), x)
+    body = l * l
+
+    anf = run_opt_pass(body, [transform.ToANormalForm(), transform.InferType()])
+
+    v0 = relay.Var("v0", relay.IncompleteType())
+    v1 = relay.Var("v1", relay.IncompleteType())
+    v2 = relay.Var("v2", relay.IncompleteType())
+    expected_output = relay.Let(
+        v0,
+        on_cpu(c),
+        relay.Let(
+            x,
+            on_cpu(v0 + v0),
+            relay.Let(v1, x, relay.Let(v2, v1 * v1, v2)),
+        ),
+    )
+    expected_output = run_opt_pass(expected_output, transform.InferType())
+
+    tvm.ir.assert_structural_equal(anf, expected_output)
 
 
 # make sure we dont infinite loop.
@@ -151,6 +179,7 @@ def test_nat_add():
     add = p.mod.get_global_var("nat_add")
     dev = tvm.device("llvm", 0)
     intrp = create_executor(mod=mod, device=dev, target="llvm")
+    # CAUTION: Following calls to intrp.evaluate(...) will re-prepare the prelude.
     assert mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
     assert count(p, intrp.evaluate(add(s(z()), s(z())))) == 2
     expr = add(s(z()), s(z()))
@@ -199,12 +228,4 @@ def test_gradient_if():
 
 
 if __name__ == "__main__":
-    test_explicit_bound()
-    test_order()
-    test_if()
-    test_recursion()
-    test_ref()
-    test_let()
-    test_nat_add()
-    test_function()
-    test_gradient_if()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

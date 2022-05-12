@@ -16,20 +16,21 @@
 # under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Conv2D int8 schedule on ARM"""
-from tvm import te
-from tvm import autotvm
-from .. import tag
+from tvm import te, target, autotvm
 from ..utils import traverse_inline, get_const_tuple
 from ..generic import conv2d as conv2d_generic
 from .. import nn
-from ..nn.conv2d import _get_workload as _get_conv2d_workload
-from .tensor_intrin import dot_int8_int8_int32
+from ...target import codegen
+from ..nn.conv2d import _get_workload as _get_conv2d_workload, unpack_NCHWc_to_nchw
+from ..x86.conv2d_int8 import _pack_data
+from ..nn.utils import get_pad_tuple
+from .tensor_intrin import dot_int8_int8_int32_neon_82, dot_int8_int8_int32_neon
 from .conv2d_gemm import (
     compute_conv2d_gemm_without_weight_transform,
     schedule_conv2d_gemm_interleaved,
     schedule_conv2d_gemm_native,
 )
-from .arm_utils import get_tiling_B_interleaved_t
+from .arm_utils import get_tiling_B_interleaved_t, is_dotprod_available, is_neon_available
 
 
 def _get_default_config(cfg, data, kernel, strides, padding, dilation, out_dtype):
@@ -39,10 +40,10 @@ def _get_default_config(cfg, data, kernel, strides, padding, dilation, out_dtype
     wkl = _get_conv2d_workload(data, kernel, strides, padding, dilation, out_dtype)
     is_kernel_1x1 = wkl.kernel_h == 1 and wkl.kernel_w == 1
     if is_kernel_1x1:
-        conv2d_generic.fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes=2, num_int8_elements=4)
+        conv2d_generic.fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes=4, num_int8_elements=4)
     else:
         conv2d_generic.fallback_schedule_cpu_common_int8(
-            cfg, wkl, int32_lanes=2, num_int8_elements=4
+            cfg, wkl, int32_lanes=4, num_int8_elements=4
         )
 
 
@@ -51,11 +52,40 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
     """Compute conv2d int8 with NCHWc layout"""
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
-    n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
-    in_channel = ic_chunk * ic_bn
 
-    oc_chunk, ic_chunk, kh, kw, ic_bn, oc_bn, n_elems = get_const_tuple(kernel.shape)
-    num_filter = oc_chunk * oc_bn
+    if len(data.shape) == 5:  # data is in nchwc
+        n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
+        in_channel = ic_chunk * ic_bn
+
+        oc_chunk, ic_chunk, kh, kw, ic_bn, oc_bn, _ = get_const_tuple(kernel.shape)
+        num_filter = oc_chunk * oc_bn
+    else:
+        # data is nchw, implicitly treat it as nchw1c
+        n, in_channel, ih, iw = get_const_tuple(data.shape)
+        num_filter, _, kh, kw = get_const_tuple(kernel.shape)
+
+    # Define autotvm tuning space
+    is_kernel_1x1 = kh == 1 and kw == 1
+    pt, pl, pb, pr = get_pad_tuple(padding, (kh, kw))
+    sh, sw = strides if isinstance(strides, (tuple, list)) else (strides, strides)
+    dh, dw = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    dilated_kernel_h = (kh - 1) * dh + 1
+    dilated_kernel_w = (kw - 1) * dw + 1
+    oh = (ih - dilated_kernel_h + pt + pb) // sh + 1
+    ow = (iw - dilated_kernel_w + pl + pr) // sw + 1
+
+    # input and output should be a multiple of 8 (intrinsics are 8 lanes)
+    cfg.define_split(
+        "tile_ic", in_channel, num_outputs=2, filter=lambda y: y.size[-1] % min(8, in_channel) == 0
+    )
+    cfg.define_split(
+        "tile_oc", num_filter, num_outputs=2, filter=lambda y: y.size[-1] % min(8, num_filter) == 0
+    )
+    cfg.define_split("tile_ow", ow, num_outputs=2, filter=lambda y: y.size[-1] <= 64)
+    if is_kernel_1x1:
+        cfg.define_knob("tile_oh", [1, 2] if oh > 1 else [1])
+    else:
+        cfg.define_knob("unroll_kw", [True, False])
 
     # If no config was set, we can fallback to NCHW config.
     if cfg.is_fallback:
@@ -68,9 +98,35 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
             dilation,
             out_dtype,
         )
-    return nn.conv2d_NCHWc_int8_compute(
-        data, kernel, strides, padding, dilation, layout, out_layout, out_dtype
+    # Pack data if raw 4-D data is provided.
+    # This can only happen when autotuning.
+    if len(data.shape) == 4:
+        data, kernel = _pack_data(cfg, data, kernel)
+
+    n_elems = int(kernel.shape[-1])
+
+    return nn.conv2d_NCHWc_int8(
+        data, kernel, strides, padding, dilation, layout, out_layout, out_dtype, n_elems=n_elems
     )
+
+
+def is_int8_hw_support(data_dtype, kernel_dtype):
+    """
+    Checks to ensure that we can use int8 on arm
+    1) The datatypes are correct.
+    2) LLVM version has support for the instructions.
+    """
+    # 1) Check datatypes
+    is_dtype_support = data_dtype == kernel_dtype and "int8" in data_dtype
+
+    # 2) Check LLVM support
+    llvm_version = codegen.llvm_version_major()
+    is_llvm_support = llvm_version >= 8
+
+    # 3) Check target
+    is_target_support = is_neon_available() or is_dotprod_available()
+
+    return is_dtype_support and is_llvm_support and is_target_support
 
 
 @autotvm.register_topi_schedule("conv2d_NCHWc_int8.arm_cpu")
@@ -79,16 +135,7 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
 
-    def traverse(op):
-        """Traverse operators from computation graph"""
-        # inline all one-to-one-mapping operators except the last stage (output)
-        if tag.is_broadcast(op.tag):
-            if op not in s.outputs:
-                s[op].compute_inline()
-            for tensor in op.input_tensors:
-                if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
-                    traverse(tensor.op)
-
+    def _callback(op):
         if "conv2d_NCHWc_int8" in op.tag:
             conv_out = op.output(0)
             kernel_vec = conv_out.op.input_tensors[1]
@@ -104,21 +151,57 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
 
             args = [s, cfg, data_vec, kernel_vec, conv_out, outs[0]]
             # int8 conv kernel is 7-dim
-            _, _, kh, kw, _, _, _ = get_const_tuple(kernel_vec.shape)
+            _, _, kh, kw, _, _, n_elems = get_const_tuple(kernel_vec.shape)
+            assert n_elems == 4
             dtype = "uint" if data.dtype == "uint8" else "int"
+            if is_dotprod_available():
+                intrin = dot_int8_int8_int32_neon_82(int32_lanes=4, dtype=dtype)
+            elif is_neon_available():
+                assert dtype == "int", "uint8 not supported if dot product is not available"
+                intrin = dot_int8_int8_int32_neon()
+            else:
+                raise RuntimeError(
+                    "Cannot schedule schedule_NCHWc_int8 without neon or arm v8.2 neon support"
+                )
+            # On raspberry pi 4s, we see poor performance when the fused
+            # operations are inlined into the main computation body. These
+            # fused ops dominated the runtime on small convolutions repeatedly
+            # blow the cache. Using workloads from resnet50, inceptionv3, and
+            # mobilenetv3, we empirically determine the size at which inline is
+            # not worth it to be kernel heigh * kernel width < 500. These tests
+            # were only run on raspberry pi 4, other arm cpus may have larger
+            # caches where inlining has good performance.
+            if target.Target.current().mcpu == "cortex-a72" and kh * kw < 500:
+                inline_fused = False
+            else:
+                inline_fused = True
             if kh == 1 and kw == 1:
                 conv2d_generic.schedule_conv_NCHWc_cpu_1x1_int8(
-                    *args, int32_lanes=4, intrin=dot_int8_int8_int32(int32_lanes=4, dtype=dtype)
+                    *args, int32_lanes=4, int8_elems=4, intrin=intrin, inline_fused=inline_fused
                 )
             else:
                 conv2d_generic.schedule_conv_NCHWc_cpu_common_int8(
-                    *args, int32_lanes=4, intrin=dot_int8_int8_int32(int32_lanes=4, dtype=dtype)
+                    *args, int32_lanes=4, int8_elems=4, intrin=intrin, inline_fused=inline_fused
                 )
 
-        scheduled_ops.append(op)
-
-    traverse(outs[0].op)
+    traverse_inline(s, outs[0].op, _callback)
     return s
+
+
+def conv2d_nchw_int8(data, kernel, strides, padding, dilation, out_dtype):
+    """Compute conv2d with NCHW layout and int8 dtype"""
+    layout = "NCHW"
+    # pylint: disable=no-value-for-parameter
+    packed_out = conv2d_NCHWc_int8(
+        data, kernel, strides, padding, dilation, layout, layout, out_dtype
+    )
+    return unpack_NCHWc_to_nchw(packed_out, out_dtype)
+
+
+def schedule_conv2d_nchw_int8(outs):
+    """Create the schedule for conv2d_nchw_int8"""
+    # pylint: disable=no-value-for-parameter
+    return schedule_conv2d_NCHWc_int8(outs)
 
 
 def _compute_conv2d_NHWC_quantized(
@@ -218,6 +301,12 @@ def schedule_conv2d_NHWC_quantized_interleaved(cfg, outs):
     return _schedule_conv2d_NHWC_quantized(cfg, outs, True)
 
 
+@autotvm.register_topi_schedule("conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu")
+def schedule_conv2d_NHWC_quantized_interleaved_without_transform(cfg, outs):
+    """Interface for interleaved schedule_conv2d_NHWC_quantized_interleaved"""
+    return _schedule_conv2d_NHWC_quantized(cfg, outs, True)
+
+
 # Native schedules: those schedule won't interleave A (which is left in its native form).
 # The weights are interleaved and transposed
 @autotvm.register_topi_compute("conv2d_NHWC_quantized_native.arm_cpu")
@@ -249,5 +338,11 @@ def compute_conv2d_NHWC_quantized_native_without_transform(
 
 @autotvm.register_topi_schedule("conv2d_NHWC_quantized_native.arm_cpu")
 def schedule_conv2d_NHWC_quantized_native(cfg, outs):
+    """Interface for native schedule_conv2d_NHWC_quantized"""
+    return _schedule_conv2d_NHWC_quantized(cfg, outs, False)
+
+
+@autotvm.register_topi_schedule("conv2d_NHWC_quantized_native_without_transform.arm_cpu")
+def schedule_conv2d_NHWC_quantized_native_without_transform(cfg, outs):
     """Interface for native schedule_conv2d_NHWC_quantized"""
     return _schedule_conv2d_NHWC_quantized(cfg, outs, False)

@@ -121,7 +121,7 @@ def floordiv(lhs, rhs, span=None):
     Returns
     -------
     op : tvm.Expr
-        The result Expr of divide operaton.
+        The result Expr of floordiv operaton.
     """
     return _ffi_api._OpFloorDiv(lhs, rhs, span)  # type: ignore
 
@@ -139,6 +139,6 @@ def cast(src, dtype, span=None):
     Returns
     -------
     op : tvm.Expr
-        The result Expr of divide operaton.
+        The result Expr of cast operaton.
     """
     return _ffi_api._cast(dtype, src, span)  # type: ignore

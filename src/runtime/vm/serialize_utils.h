@@ -58,19 +58,19 @@ struct VMFunctionSerializer {
   size_t num_instructions;
   /*! \brief The parameters of the VMFunction. */
   std::vector<std::string> params;
-  /*! \brief The device type of each parameter of the VMFunction. */
-  std::vector<Index> params_device_type;
+  /*! \brief The index for the devices holding each parameter of the VMFunction. */
+  std::vector<Index> param_device_indexes;
 
   VMFunctionSerializer() = default;
 
   VMFunctionSerializer(const std::string& name, Index register_file_size, size_t num_instructions,
                        const std::vector<std::string>& params,
-                       const std::vector<Index>& params_device_type)
+                       const std::vector<Index>& param_device_indexes)
       : name(name),
         register_file_size(register_file_size),
         num_instructions(num_instructions),
         params(params),
-        params_device_type(params_device_type) {}
+        param_device_indexes(param_device_indexes) {}
 
   /*!
    * \brief Load the serialized function header.
@@ -87,7 +87,7 @@ struct VMFunctionSerializer {
     // Get the number of instructions.
     num_instructions = static_cast<size_t>(std::stoll(func_info[2]));
     if (!strm->Read(&params)) return false;
-    if (!strm->Read(&params_device_type)) return false;
+    if (!strm->Read(&param_device_indexes)) return false;
     return true;
   }
 
@@ -102,7 +102,7 @@ struct VMFunctionSerializer {
     func_info.push_back(std::to_string(num_instructions));
     strm->Write(func_info);
     strm->Write(params);
-    strm->Write(params_device_type);
+    strm->Write(param_device_indexes);
   }
 };
 

@@ -20,9 +20,11 @@ import logging
 
 import re
 from tvm import topi
+from tvm.topi.x86.utils import target_has_vnni
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
 from tvm.relay.ty import is_dynamic
+from tvm.target import Target
 from .generic import *
 from .. import op as _op
 
@@ -281,13 +283,19 @@ def conv2d_transpose_strategy_cpu(attrs, inputs, out_type, target):
     groups = attrs.groups
     assert layout == "NCHW", "only support nchw for now"
     assert dilation == (1, 1), "not support dilate now"
-    assert groups == 1, "only support groups == 1 for now"
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_conv2d_transpose(topi.x86.conv2d_transpose_nchw),
-        wrap_topi_schedule(topi.x86.schedule_conv2d_transpose_nchw),
-        name="conv2d_transpose_nchw.x86",
-    )
+    if groups == 1:
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.x86.conv2d_transpose_nchw),
+            wrap_topi_schedule(topi.x86.schedule_conv2d_transpose_nchw),
+            name="conv2d_transpose_nchw.x86",
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.nn.group_conv2d_transpose_nchw, has_groups=True),
+            wrap_topi_schedule(topi.generic.schedule_group_conv2d_transpose_nchw),
+            name="group_conv2d_transpose_nchw.x86",
+        )
     return strategy
 
 
@@ -354,24 +362,41 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
 def conv1d_strategy_cpu(attrs, inputs, out_type, target):
     """conv1d x86 strategy"""
     layout = attrs.data_layout
+    groups = attrs.groups
     dilation = get_const_tuple(attrs.dilation)
     if dilation[0] < 1:
         raise ValueError("dilation should be a positive value")
     strategy = _op.OpStrategy()
-    if layout == "NCW":
-        strategy.add_implementation(
-            wrap_compute_conv1d(topi.nn.conv1d_ncw),
-            wrap_topi_schedule(topi.x86.schedule_conv1d_ncw),
-            name="conv1d_ncw.x86",
-        )
-    elif layout == "NWC":
-        strategy.add_implementation(
-            wrap_compute_conv1d(topi.nn.conv1d_nwc),
-            wrap_topi_schedule(topi.x86.schedule_conv1d_nwc),
-            name="conv1d_nwc.x86",
-        )
+    if groups == 1:
+        if layout == "NCW":
+            strategy.add_implementation(
+                wrap_compute_conv1d(topi.nn.conv1d_ncw),
+                wrap_topi_schedule(topi.x86.schedule_conv1d_ncw),
+                name="conv1d_ncw.x86",
+            )
+        elif layout == "NWC":
+            strategy.add_implementation(
+                wrap_compute_conv1d(topi.nn.conv1d_nwc),
+                wrap_topi_schedule(topi.x86.schedule_conv1d_nwc),
+                name="conv1d_nwc.x86",
+            )
+        else:
+            raise ValueError("Unsupported conv1d layout {}".format(layout))
     else:
-        raise ValueError("Unsupported conv1d layout {}".format(layout))
+        if layout == "NCW":
+            strategy.add_implementation(
+                wrap_compute_group_conv1d(topi.nn.group_conv1d_ncw),
+                wrap_topi_schedule(topi.x86.schedule_group_conv1d_ncw),
+                name="group_conv1d_ncw.x86",
+            )
+        elif layout == "NWC":
+            strategy.add_implementation(
+                wrap_compute_group_conv1d(topi.nn.group_conv1d_nwc),
+                wrap_topi_schedule(topi.x86.schedule_group_conv1d_nwc),
+                name="group_conv1d_nwc.x86",
+            )
+        else:
+            raise ValueError("Unsupported conv1d layout {}".format(layout))
     return strategy
 
 
@@ -507,11 +532,27 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
 def dense_pack_strategy_cpu(attrs, inputs, out_type, target):
     """dense_pack x86 strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_dense(topi.x86.dense_pack),
-        wrap_topi_schedule(topi.x86.schedule_dense_pack),
-        name="dense_pack.x86",
-    )
+
+    if (
+        inputs[0].dtype == "uint8"
+        and inputs[1].dtype == "int8"
+        and out_type.dtype == "int32"
+        and attrs["weight_layout"] == "NC16n4c"
+    ):
+        strategy.add_implementation(
+            wrap_compute_dense(topi.x86.dense_vnni),
+            wrap_topi_schedule(topi.x86.schedule_dense_vnni),
+            name="dense_vnni.x86",
+            plevel=12,
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_dense(topi.x86.dense_pack),
+            wrap_topi_schedule(topi.x86.schedule_dense_pack),
+            name="dense_pack.x86",
+            plevel=10,
+        )
+
     return strategy
 
 
@@ -519,7 +560,24 @@ def dense_pack_strategy_cpu(attrs, inputs, out_type, target):
 def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     """batch_matmul x86 strategy"""
     strategy = _op.OpStrategy()
-    if is_dynamic(out_type) or is_auto_scheduler_enabled():
+    mcpu = Target.current().mcpu
+
+    if (
+        not attrs.transpose_a
+        and attrs.transpose_b
+        and target_has_vnni(mcpu)
+        and inputs[0].dtype == "uint8"
+        and inputs[1].dtype == "int8"
+        and inputs[1].shape[-2] % 16 == 0
+        and inputs[1].shape[-1] % 4 == 0
+    ):
+        strategy.add_implementation(
+            wrap_compute_batch_matmul(topi.x86.batch_matmul_vnni_compute, need_out_dtype=True),
+            wrap_topi_schedule(topi.x86.schedule_batch_matmul_vnni),
+            name="batch_matmul_vnni.x86",
+            plevel=10,
+        )
+    elif is_dynamic(out_type) or is_auto_scheduler_enabled():
         strategy.add_implementation(
             wrap_compute_batch_matmul(
                 topi.nn.batch_matmul, need_auto_scheduler_layout=True, need_out_dtype=True
@@ -562,6 +620,31 @@ def sparse_dense_strategy_cpu(attrs, inputs, out_type, target):
         name="sparse_dense.x86",
         plevel=10,
     )
+    return strategy
+
+
+@sparse_conv2d_strategy.register("cpu")
+def sparse_conv2d_strategy_cpu(attrs, inputs, out_type, target):
+    """sparse conv2d x86 strategy"""
+    strategy = _op.OpStrategy()
+    if attrs["kernel_size"][0] == 1:
+        strategy.add_implementation(
+            wrap_compute_sparse_conv2d(topi.nn.sparse_conv2d),
+            wrap_topi_schedule(topi.generic.schedule_sparse_conv2d),
+            name="sparse_conv2d.generic",
+        )
+    elif attrs["kernel_size"][0] == 3:
+        if attrs["layout"] == "NHWC":
+            strategy.add_implementation(
+                wrap_compute_sparse_conv2d(topi.x86.spconv2d_3x3_nhwc),
+                wrap_topi_schedule(topi.x86.schedule_spconv2d_3x3_nhwc),
+                name="conv3x3_spNHWC.x86",
+            )
+        elif attrs["layout"] == "NCHW":
+            strategy.add_implementation(
+                wrap_compute_sparse_conv2d(topi.x86.spconv2d_3x3_nchw),
+                wrap_topi_schedule(topi.x86.schedule_spconv2d_3x3_nchw),
+            )
     return strategy
 
 

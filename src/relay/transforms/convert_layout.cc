@@ -58,22 +58,6 @@ class ConvertTransformMemorizerNode : public TransformMemorizerNode {
   explicit ConvertTransformMemorizerNode(Map<String, Array<String>> desired_layouts)
       : desired_layouts_(std::move(desired_layouts)) {}
 
-  /*! \brief A mapping of op_name to array of desired layouts for each input. */
-  Map<String, Array<String>> desired_layouts_;
-};
-
-/*!
- * \brief Container that provides the transformation function for convert layout.
- */
-class ConvertTransformMemorizer : public TransformMemorizer {
- public:
-  ConvertTransformMemorizer() {}
-  explicit ConvertTransformMemorizer(ObjectPtr<Object> n) : TransformMemorizer(n) {}
-
-  ConvertTransformMemorizerNode* operator->() {
-    return static_cast<ConvertTransformMemorizerNode*>(get_mutable());
-  }
-
   /*!
    * \brief Defines the call transformation for ConvertLayout pass. The new layouts should be the
    * desired layout as specified by the user.
@@ -89,7 +73,7 @@ class ConvertTransformMemorizer : public TransformMemorizer {
     Expr new_e;
     bool modified = false;
     if (fconvert_layout.count(op)) {
-      auto desired_layouts = operator->()->desired_layouts_;
+      auto desired_layouts = desired_layouts_;
       if (desired_layouts.find(op->name) != desired_layouts.end()) {
         tvm::Array<tvm::te::Tensor> tinfos;
         for (auto& expr : ref_call->args) {
@@ -124,7 +108,26 @@ class ConvertTransformMemorizer : public TransformMemorizer {
     return Call(new_call->op, new_call->args, new_call->attrs, new_call->type_args, ref_call->span);
   }
 
-  using TransformMemorizer::CallWithNewLayouts;
+  Call CallWithNewLayouts(const Call& ref_call, const std::vector<Expr>& new_args) override {
+    return CallWithNewLayouts(ref_call, ref_call->attrs, new_args);
+  }
+
+  /*! \brief A mapping of op_name to array of desired layouts for each input. */
+  Map<String, Array<String>> desired_layouts_;
+};
+
+/*!
+ * \brief Container that provides the transformation function for convert layout.
+ */
+class ConvertTransformMemorizer : public TransformMemorizer {
+ public:
+  ConvertTransformMemorizer() = default;
+  explicit ConvertTransformMemorizer(ObjectPtr<Object> n) : TransformMemorizer(n) {}
+
+  ConvertTransformMemorizerNode* operator->() {
+    return static_cast<ConvertTransformMemorizerNode*>(get_mutable());
+  }
+
   using ContainerType = ConvertTransformMemorizerNode;
 };
 
@@ -154,6 +157,13 @@ Pass ConvertLayout(const Map<String, Array<String>>& desired_layouts) {
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.ConvertLayout").set_body_typed(ConvertLayout);
+
+TVM_REGISTER_GLOBAL("relay._transform.InferCorrectLayoutOutput")
+    .set_body_typed([](Array<Layout> input_layouts, Array<Layout> output_layouts, Attrs new_attrs) {
+      return InferCorrectLayoutOutput(input_layouts, output_layouts, new_attrs);
+    });
+
+TVM_REGISTER_NODE_TYPE(InferCorrectLayoutOutputNode);
 
 }  // namespace transform
 

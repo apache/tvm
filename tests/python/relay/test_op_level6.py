@@ -20,6 +20,7 @@ import pytest
 import numpy as np
 import tvm
 from tvm import relay
+from tvm.topi.testing import searchsorted_ref
 import tvm.testing
 
 
@@ -45,8 +46,9 @@ def test_sort():
         for target, dev in tvm.testing.enabled_targets():
             for kind in backends:
                 mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-                op_res = intrp.evaluate()(x_data)
+                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     for is_dyn in [False, True]:
@@ -80,8 +82,9 @@ def test_argsort():
         for target, dev in tvm.testing.enabled_targets():
             for kind in backends:
                 mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-                op_res = intrp.evaluate()(x_data)
+                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
+                    x_data
+                )
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res.astype(dtype), rtol=1e-5)
 
     for is_dyn in [False, True]:
@@ -127,8 +130,9 @@ def test_topk():
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, device=dev, target=target)
-                op_res = intrp.evaluate(func)(np_data)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    np_data
+                )
                 if ret_type == "both":
                     tvm.testing.assert_allclose(op_res[0].numpy(), np_values)
                     tvm.testing.assert_allclose(op_res[1].numpy(), np_indices)
@@ -144,6 +148,29 @@ def test_topk():
                 verify_topk(k, axis, ret_type, True, "int64")
                 verify_topk(k, axis, ret_type, False, "float32")
                 verify_topk(k, axis, ret_type, False, "int64", "float16")
+
+
+@tvm.testing.uses_gpu
+def test_searchsorted():
+    def verify_searchsorted(right, dtype):
+        shape = (8, 9, 10)
+        values_shape = shape[:-1] + (10,)
+        sorted_sequence = relay.var("sorted_sequence", relay.TensorType(shape, "float32"))
+        values = relay.var("sorted_sequence", relay.TensorType(values_shape, "float32"))
+        out = relay.searchsorted(sorted_sequence, values, right, dtype)
+        func = relay.Function([sorted_sequence, values], out)
+        sorted_sequence_np = np.sort(np.random.randn(*shape).astype("float32"), axis=-1)
+        values_np = np.random.randn(*values_shape).astype("float32")
+        np_indices = searchsorted_ref(sorted_sequence_np, values_np, right, dtype)
+
+        for target, dev in tvm.testing.enabled_targets():
+            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                sorted_sequence_np, values_np
+            )
+            np.testing.assert_equal(op_res.numpy(), np_indices)
+
+    verify_searchsorted(False, "int32")
+    verify_searchsorted(True, "int64")
 
 
 if __name__ == "__main__":

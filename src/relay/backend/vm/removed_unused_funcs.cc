@@ -10,6 +10,7 @@
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
+ *
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
@@ -23,6 +24,7 @@
  */
 
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
@@ -31,6 +33,8 @@
 #include <iostream>
 #include <unordered_set>
 #include <vector>
+
+#include "../../op/call/call.h"
 
 namespace tvm {
 namespace relay {
@@ -53,7 +57,21 @@ struct CallTracer : ExprVisitor {
   void VisitExpr_(const GlobalVarNode* op) final {
     called_funcs_.insert(op->name_hint);
     auto func = module_->Lookup(op->name_hint);
-    VisitExpr(func);
+    if (const auto* function_node = func.as<FunctionNode>()) {
+      VisitExpr(GetRef<Function>(function_node));
+    }
+    // else: Don't visit PrimFuncs -- we don't need to collect any tir.Calls therein.
+  }
+
+  void VisitExpr_(const CallNode* call_node) final {
+    // TODO(mbs): Cleanup shape functions.
+    CallLoweredProps props = GetCallLoweredProps(call_node);
+    if (props.lowered_func.defined() && props.attrs.metadata.count("prim_shape_fn_var")) {
+      auto callee = Downcast<GlobalVar>(props.attrs.metadata["prim_shape_fn_var"]);
+      // We are implicitly calling the shape function *in addition to* the callee.
+      called_funcs_.insert(callee->name_hint);
+    }
+    ExprVisitor::VisitExpr_(call_node);
   }
 
   void VisitExpr_(const FunctionNode* func_node) final {

@@ -33,7 +33,9 @@
 
 #include <memory>
 #include <string>
+#include <tuple>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -71,6 +73,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   };
 
  public:
+  using ShapeInfo = Map<String, ObjectRef>;
+  using DtypeInfo = Map<String, ObjectRef>;
   /*!
    * \brief Get member function to front-end
    * \param name The name of the function.
@@ -108,6 +112,19 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   int GetInputIndex(const std::string& name);
 
   /*!
+   * \brief Get the input info of Graph by parsing the input nodes.
+   * \return The shape and dtype tuple.
+   */
+  std::tuple<ShapeInfo, DtypeInfo> GetInputInfo() const;
+
+  /*!
+   * \brief Get the output index given the name of output.
+   * \param name The name of the output.
+   * \return The index of output.
+   */
+  int GetOutputIndex(const std::string& name);
+
+  /*!
    * \brief set index-th input to the graph.
    * \param index The input index.
    * \param data_in The input data.
@@ -119,6 +136,12 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    * \param data_ref The input data that is referred.
    */
   void SetInputZeroCopy(int index, DLTensor* data_ref);
+  /*!
+   * \brief set index-th output to the graph without copying the data.
+   * \param index The output index.
+   * \param data_ref The output data that is referred.
+   */
+  void SetOutputZeroCopy(int index, DLTensor* data_ref);
   /*!
    * \brief Get the number of outputs
    *
@@ -193,6 +216,9 @@ class TVM_DLL GraphExecutor : public ModuleNode {
     uint32_t node_id;
     uint32_t index;
     uint32_t version;
+    inline bool operator==(const NodeEntry& other) const {
+      return node_id == other.node_id && index == other.index && version == other.version;
+    }
     // JSON Loader
     void Load(dmlc::JSONReader* reader) {
       reader->BeginArray();
@@ -378,6 +404,12 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   /*! \brief Setup the executors. */
   void SetupOpExecs();
   /*!
+   * \brief Check the legality of external DLTensor*.
+   * \param external The external DLTensor*.
+   * \param eid The data_enrty_ index.
+   */
+  void CheckExternalDLTensor(const DLTensor* external, uint32_t eid) const;
+  /*!
    * \brief Create an execution function given input.
    * \param attrs The node attributes.
    * \param args The arguments to the functor, including inputs and outputs.
@@ -395,10 +427,18 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   std::vector<Node> nodes_;
   /*! \brief The argument nodes. */
   std::vector<uint32_t> input_nodes_;
+  /*! \brief The parameter names. */
+  std::unordered_set<std::string> param_names_;
   /*! \brief Map of input names to input indices. */
   std::unordered_map<std::string, uint32_t> input_map_;
+  /*! \brief Map of output names to output indices. */
+  std::unordered_map<std::string, uint32_t> output_map_;
   /*! \brief Used for quick node input DLTensor* lookup given an input eid. */
   std::vector<std::vector<DLTensor*>> input_dltensors_;
+  /*! \brief Used for quick node output DLTensor* lookup given an output eid. */
+  std::vector<std::vector<DLTensor*>> output_dltensors_;
+  /*! \brief Used for quick node(both model output and op input) DLTensor* lookup given an eid. */
+  std::vector<std::vector<DLTensor*>> both_output_opinput_dltensors_;
   /*! \brief Used for quick entry indexing. */
   std::vector<uint32_t> node_row_ptr_;
   /*! \brief Output entries. */

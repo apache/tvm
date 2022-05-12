@@ -21,6 +21,7 @@ mkdir build
 cd build
 
 cmake ^
+      -G "Visual Studio 16 2019" ^
       -DCMAKE_PREFIX_PATH=%LIBRARY_PREFIX% ^
       -DCMAKE_INSTALL_PREFIX:PATH=%LIBRARY_PREFIX% ^
       -DUSE_LLVM=ON ^
@@ -28,7 +29,7 @@ cmake ^
       -DUSE_CPP_RPC=ON ^
       -DUSE_SORT=ON ^
       -DUSE_RANDOM=ON ^
-      -DUSE_GRAPH_EXECUTOR_DEBUG=ON ^
+      -DUSE_PROFILER=ON ^
       -DINSTALL_DEV=ON ^
       %SRC_DIR%
 

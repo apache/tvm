@@ -88,11 +88,13 @@ class VerilatorRuntime : public JSONRuntimeBase {
  public:
   VerilatorRuntime(const std::string& symbol_name, const std::string& graph_json,
                    const Array<String> const_names)
-      : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
+      : JSONRuntimeBase(symbol_name, graph_json, const_names) {
+    VLOG(0) << "creating verilator runtime";
+  }
 
   ~VerilatorRuntime();
 
-  const char* type_key() const { return "verilator"; }
+  const char* type_key() const final { return "verilator"; }
 
   /*! \brief set verilator library */
   void SetLibrary(const std::string& lib_name);

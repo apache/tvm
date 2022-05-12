@@ -34,18 +34,13 @@ Trace::Trace(Array<Instruction> insts, Map<Instruction, ObjectRef> decisions) {
 
 /**************** Utilities  ****************/
 
-bool IsPostproc(const InstructionKind& inst_kind) {
-  static InstructionKind inst_enter_postproc = InstructionKind::Get("EnterPostproc");
-  return inst_kind.same_as(inst_enter_postproc);
-}
-
 int GetNumValidInstructions(const Array<Instruction>& insts, bool remove_postproc) {
   if (!remove_postproc) {
     return insts.size();
   }
   int n_insts = 0;
   for (const Instruction& inst : insts) {
-    if (!IsPostproc(inst->kind)) {
+    if (!inst->kind->IsPostproc()) {
       ++n_insts;
     } else {
       break;
@@ -114,6 +109,9 @@ Array<ObjectRef> TranslateInputRVs(
     } else if (input->IsInstance<IntImmNode>() || input->IsInstance<FloatImmNode>()) {
       // Case 3. integer or floating-point number
       results.push_back(input);
+    } else if (input->IsInstance<ArrayNode>()) {
+      // Case 4: array
+      results.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), rv_names));
     } else if (input->IsInstance<BlockRVNode>() || inputs->IsInstance<LoopRVNode>() ||
                inputs->IsInstance<VarNode>()) {
       LOG(FATAL) << "IndexError: Random variable is not defined " << input;
@@ -134,6 +132,11 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
     // Case 3. integer or floating-point number
     if (input->IsInstance<IntImmNode>() || input->IsInstance<FloatImmNode>()) {
       results.push_back(input);
+      continue;
+    }
+    // Case 4. array
+    if (input->IsInstance<ArrayNode>()) {
+      results.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), named_rvs));
       continue;
     }
     const auto* str = input.as<StringObj>();
@@ -242,7 +245,7 @@ void TraceNode::ApplyToSchedule(
         decision_provider) const {
   std::unordered_map<const Object*, const Object*> rv_map;
   for (const Instruction& inst : this->insts) {
-    if (remove_postproc && IsPostproc(inst->kind)) {
+    if (remove_postproc && inst->kind->IsPostproc()) {
       break;
     }
     Array<ObjectRef> inputs = TranslateInputRVs(inst->inputs, rv_map);
@@ -266,7 +269,7 @@ ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
   int i = 0;
   for (const Instruction& inst : this->insts) {
     const InstructionKind& kind = inst->kind;
-    if (remove_postproc && IsPostproc(kind)) {
+    if (remove_postproc && kind->IsPostproc()) {
       break;
     }
     json_insts.push_back(Array<ObjectRef>{
@@ -295,7 +298,7 @@ Array<String> TraceNode::AsPython(bool remove_postproc) const {
   Array<String> py_trace;
   py_trace.reserve(this->insts.size());
   for (const Instruction& inst : this->insts) {
-    if (remove_postproc && IsPostproc(inst->kind)) {
+    if (remove_postproc && inst->kind->IsPostproc()) {
       break;
     }
     Array<ObjectRef> attrs;
@@ -440,8 +443,10 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
     }
     // Add its inputs as "used" ones
     for (const ObjectRef& obj : inst->inputs) {
-      if (obj->IsInstance<BlockRVNode>() || obj->IsInstance<LoopRVNode>() ||
-          obj->IsInstance<VarNode>()) {
+      if (!obj.defined()) {
+        continue;
+      } else if (obj->IsInstance<BlockRVNode>() || obj->IsInstance<LoopRVNode>() ||
+                 obj->IsInstance<VarNode>()) {
         used_rvs.insert(obj.get());
         continue;
       } else if (obj->IsInstance<PrimExprNode>()) {

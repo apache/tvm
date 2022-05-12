@@ -42,7 +42,7 @@ class TestErrorSwitch {
     const_cast<TestErrorSwitch&>(other).should_fail = false;
   }
 
-  TestErrorSwitch(bool fail_flag) : should_fail{fail_flag} {}
+  explicit TestErrorSwitch(bool fail_flag) : should_fail{fail_flag} {}
   bool should_fail{false};
 
   ~TestErrorSwitch() {
@@ -380,6 +380,21 @@ TEST(Map, Erase) {
   }
 }
 
+#if TVM_LOG_DEBUG
+TEST(Map, Race) {
+  using namespace tvm::runtime;
+  Map<Integer, Integer> m;
+
+  m.Set(1, 1);
+  Map<tvm::Integer, tvm::Integer>::iterator it = m.begin();
+  EXPECT_NO_THROW({ auto& kv = *it; });
+
+  m.Set(2, 2);
+  // changed. iterator should be re-obtained
+  EXPECT_ANY_THROW({ auto& kv = *it; });
+}
+#endif  // TVM_LOG_DEBUG
+
 TEST(String, MoveFromStd) {
   using namespace std;
   string source = "this is a string";
@@ -694,10 +709,4 @@ TEST(Optional, PackedCall) {
   test_ffi(Optional<String>(s), static_cast<int>(kTVMObjectRValueRefArg));
   test_ffi(s, static_cast<int>(kTVMObjectHandle));
   test_ffi(String(s), static_cast<int>(kTVMObjectRValueRefArg));
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
 }
