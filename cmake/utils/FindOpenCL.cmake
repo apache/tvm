@@ -50,7 +50,9 @@ macro(find_opencl use_opencl)
      if (CMAKE_FIND_ROOT_PATH_MODE_LIBRARY STREQUAL "ONLY")
        set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY BOTH)
      endif()
-     find_library(OpenCL_LIBRARIES NAMES OpenCL PATHS ${__opencl_sdk}/lib ${__opencl_sdk}/lib64 ${__opencl_sdk}/lib/x64/)
+     # we are in the section dedicated to the explicit pointing of OpenCL SDK path, we must not
+     # look for the OpenCL library by default path, but should be limited by provided SDK
+     find_library(OpenCL_LIBRARIES NAMES OpenCL NO_DEFAULT_PATH PATHS ${__opencl_sdk}/lib ${__opencl_sdk}/lib64 ${__opencl_sdk}/lib/x64/)
      if(OpenCL_LIBRARIES)
        set(OpenCL_FOUND TRUE)
      endif()
