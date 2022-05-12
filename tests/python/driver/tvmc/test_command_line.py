@@ -18,10 +18,17 @@ import os
 import platform
 import pytest
 import shutil
+import argparse
 
+from unittest import mock
+from tvm.driver import tvmc
+from tvm.target import Target
 from pytest_lazyfixture import lazy_fixture
 from tvm.driver.tvmc.main import _main
-from tvm.driver.tvmc.model import TVMCException
+from tvm.driver.tvmc.workspace_pools import (
+    generate_workspace_pools_args,
+    workspace_pools_recombobulate,
+)
 
 
 @pytest.mark.skipif(
@@ -155,3 +162,39 @@ def test_tvmc_tune_file_check(capsys, invalid_input):
     )
     on_assert_error = f"'tvmc tune' failed to check invalid FILE: {invalid_input}"
     assert captured.err == expected_err, on_assert_error
+
+
+@mock.patch("tvm.relay.build")
+@mock.patch("tvm.driver.tvmc.load")
+@mock.patch("tvm.transform.PassContext")
+@mock.patch("tvm.driver.tvmc.model.TVMCPackage.__init__", return_value=None)
+@mock.patch("tvm.driver.tvmc.composite_target.get_codegen_by_target")
+def test_compile_check_workspace_pools(mock_ct, mock_pkg, mock_pc, mock_fe, mock_relay):
+    mock_codegen = {}
+    mock_codegen["config_key"] = "relay.ext.mock.options"
+    mock_codegen["pass_pipeline"] = lambda *args, **kwargs: None
+
+    mock_fe.return_value = mock.MagicMock()
+    mock_ct.return_value = mock_codegen
+    mock_relay.return_value = mock.MagicMock()
+
+    parser = argparse.ArgumentParser()
+    generate_workspace_pools_args(parser)
+    parsed, _ = parser.parse_known_args(
+        [
+            "--workspace-pools=sram",
+            "--workspace-pools-target-access=sram:llvm:ro",
+        ]
+    )
+
+    targets = [Target("llvm")]
+    memory_pools = workspace_pools_recombobulate(parsed, targets)
+
+    tvmc_model = tvmc.load("no_file_needed")
+    tvmc.compile(
+        tvmc_model,
+        target="mockcodegen -testopt=value, llvm",
+        workspace_pools=memory_pools,
+    )
+
+    assert mock_relay.call_count == 1
