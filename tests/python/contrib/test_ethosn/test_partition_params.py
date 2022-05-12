@@ -42,7 +42,7 @@ def test_ethosn78_partition_no_error():
 @requires_ethosn
 def test_ethosn78_partition_undefined_variant():
     with pytest.raises(
-        ValueError, match=r".*When targeting Ethos\(TM\)-N78, -variant=n78 should be set.*"
+        ValueError, match=r".*Please specify a variant in the target string, e.g. -variant=n78.*"
     ):
         a = relay.var("a", shape=[2, 7, 8, 8], dtype="uint8")
         w = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype("uint8"))

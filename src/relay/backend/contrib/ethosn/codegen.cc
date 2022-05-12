@@ -220,15 +220,11 @@ String MakeVariant(Optional<EthosnCompilerConfig> configuration) {
   std::string deprecated_variant_string = variant_string;
   std::transform(deprecated_variant_string.begin(), deprecated_variant_string.end(),
                  deprecated_variant_string.begin(), ::tolower);
-  if (deprecated_variant_string == "ethos-n78") {
-    variant_string = "n78";
+  if (variant_string == "n78" || deprecated_variant_string == "ethos-n78") {
+    String tops = configuration.value()->tops;
+    String ple_ratio = configuration.value()->ple_ratio;
+    variant = "Ethos-N78_" + tops + "TOPS_" + ple_ratio + "PLE_RATIO";
   }
-
-  ICHECK_EQ(variant_string, "n78") << "Expected NPU variant to be 'n78' but was " << variant_string;
-
-  String tops = configuration.value()->tops;
-  String ple_ratio = configuration.value()->ple_ratio;
-  variant = "Ethos-N78_" + tops + "TOPS_" + ple_ratio + "PLE_RATIO";
   return variant;
 }
 
