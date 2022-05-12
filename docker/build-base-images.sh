@@ -3,7 +3,7 @@
 # Build base images (one per Python architecture) used in building the remaining TVM docker images.
 set -eux
 
-IMAGES=( )
+declare -a IMAGES
 while [ "${1+x}" == "x" ]; do
     IMAGES=( "${IMAGES[@]}" "$(dirname $0)/Dockerfile.base_$1" )
     shift
