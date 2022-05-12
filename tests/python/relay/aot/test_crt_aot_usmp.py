@@ -47,8 +47,8 @@ from tvm.testing.usmp import is_tvm_backendallocworkspace_calls
 
 
 def _check_for_no_tvm_backendallocworkspace_calls(mod: tvm.runtime.module):
-    assert is_tvm_backendallocworkspace_calls(
-        mod
+    assert (
+        is_tvm_backendallocworkspace_calls(mod) == False
     ), "This is failing because USMP was unable to plan for every tir.allocate node."
 
 

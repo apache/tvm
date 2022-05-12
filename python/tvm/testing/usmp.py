@@ -34,6 +34,6 @@ def is_tvm_backendallocworkspace_calls(mod: tvm.runtime.module) -> bool:
 
         source = dso_mod.get_source()
         if source.count("TVMBackendAllocWorkspace") != 0:
-            return False
+            return True
 
-    return True
+    return False

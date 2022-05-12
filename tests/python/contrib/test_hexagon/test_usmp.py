@@ -84,7 +84,7 @@ def test_conv2d(hexagon_session: Session, aot_host_target, aot_target, usmp_enab
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )
 
-    assert is_tvm_backendallocworkspace_calls(lowered.lib) == usmp_enabled
+    assert is_tvm_backendallocworkspace_calls(lowered.lib) != usmp_enabled
 
     aot_mod = hexagon_session.get_executor_from_factory(lowered)
     aot_mod.set_input(**inputs)
