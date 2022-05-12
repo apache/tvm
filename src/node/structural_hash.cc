@@ -19,6 +19,7 @@
 /*!
  * \file src/node/structural_hash.cc
  */
+#include <dmlc/memory_io.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
 #include <tvm/node/reflection.h>
@@ -30,6 +31,7 @@
 #include <algorithm>
 #include <unordered_map>
 
+#include "../support/base64.h"
 #include "../support/str_escape.h"
 #include "../support/utils.h"
 
@@ -363,7 +365,24 @@ bool NDArrayContainerTrait::SEqualReduce(const runtime::NDArray::Container* lhs,
   }
 }
 
-TVM_REGISTER_REFLECTION_VTABLE(runtime::NDArray::Container, NDArrayContainerTrait);
+TVM_REGISTER_REFLECTION_VTABLE(runtime::NDArray::Container, NDArrayContainerTrait)
+    .set_creator([](const std::string& blob) {
+      dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
+      support::Base64InStream b64strm(&mstrm);
+      b64strm.InitPosition();
+      runtime::NDArray temp;
+      ICHECK(temp.Load(&b64strm));
+      return RefToObjectPtr::Get(temp);
+    })
+    .set_repr_bytes([](const Object* n) -> std::string {
+      std::string blob;
+      dmlc::MemoryStringStream mstrm(&blob);
+      support::Base64OutStream b64strm(&mstrm);
+      const auto* ndarray = static_cast<const runtime::NDArray::Container*>(n);
+      runtime::SaveDLTensor(&b64strm, &ndarray->dl_tensor);
+      b64strm.Finish();
+      return blob;
+    });
 
 struct ArrayNodeTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;

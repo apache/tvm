@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import sys
 import pytest
 from tvm import te
+import numpy as np
 
 
 def test_const_saveload_json():
@@ -160,14 +162,23 @@ def test_dict():
     assert set(dir(x.__class__)) <= set(dir(x))
 
 
+def test_ndarray():
+    dev = tvm.cpu(0)
+    tvm_arr = tvm.nd.array(np.random.rand(4), device=dev)
+    tvm_arr2 = tvm.ir.load_json(tvm.ir.save_json(tvm_arr))
+    tvm.ir.assert_structural_equal(tvm_arr, tvm_arr2)
+    np.testing.assert_array_equal(tvm_arr.numpy(), tvm_arr2.numpy())
+
+
+def test_ndarray_dict():
+    dev = tvm.cpu(0)
+    m1 = {
+        "key1": tvm.nd.array(np.random.rand(4), device=dev),
+        "key2": tvm.nd.array(np.random.rand(4), device=dev),
+    }
+    m2 = tvm.ir.load_json(tvm.ir.save_json(m1))
+    tvm.ir.assert_structural_equal(m1, m2)
+
+
 if __name__ == "__main__":
-    test_string()
-    test_env_func()
-    test_make_node()
-    test_make_smap()
-    test_const_saveload_json()
-    test_make_sum()
-    test_pass_config()
-    test_dict()
-    test_infinity_value()
-    test_minmax_value()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
