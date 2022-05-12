@@ -2116,7 +2116,7 @@ class Schedule(Object):
 
     def _normalize_block_arg(self, block: Union[BlockRV, str]) -> BlockRV:
         if isinstance(block, str):
-            block = self.get_block(block)
+            return self.get_block(block)
 
         return block
 
