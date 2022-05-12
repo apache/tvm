@@ -22,7 +22,7 @@ This document explains various pieces that are involved in testing TVM on an And
 HexagonLauncherRPC is a class to handle interactions with an Android phone which includes Hexagon DSP or Hexagon simulator to run a TVMModule(function/operation/graph) on Hexagon. HexagonLauncherRPC reuses [minRPC](https://github.com/apache/tvm/tree/main/src/runtime/minrpc) implementation to set up an RPC connection from host (your local machine) to Hexagon target, and it is passed through Android RPC server.
 
 ## Build Required Tools/Libraries
-To build TVM for Hexagon and run tests you need to run multiple steps which includes preparing required tools, setup environment variables and build various versions of TVM. Alternatively, you can skip these instructions and use docker image which has pre-installed required tools. We highly recommend to use docker, specially if this is your first time working with Hexagon. For instructions on using docker image follow ["use hexagon docker image"](#use-hexagon-docker-image).
+To build TVM for Hexagon and run tests you need to run multiple steps which includes preparing required tools, setting up environment variables and building various versions of TVM. Alternatively, you can skip these instructions and use docker image which has pre-installed required tools. We highly recommend to use docker, especially if this is your first time working with Hexagon. For instructions on using docker image follow ["use hexagon docker image"](#use-hexagon-docker-image).
 
 - Build TVMRuntime library and C++ RPC server for Android.
 - Build minRPC server along with FastRPC for Hexagon.
@@ -31,10 +31,12 @@ To build TVM for Hexagon and run tests you need to run multiple steps which incl
 
 First, ensure to export Clang libraries to `LD_LIBRARY_PATH` and Hexagon toolchain to `HEXAGON_TOOLCHAIN`:
 ```bash
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"path to `llvm-clang/lib` sub-directory"
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"Path to `llvm-clang/lib` sub-directory. Currently we use LLVM-13 in TVM CI."
 
 export HEXAGON_TOOLCHAIN="Path to Hexagon toolchain. It can be the Hexagon toolchain included in the SDK, for example `HEXAGON_SDK_PATH/tools/HEXAGON_Tools/x.y.z/Tools`.  The `x.y.z` in the path is the toolchain version number, which is specific to the version of the SDK."
 ```
+
+You can find more information about downloading [Hexagon SDK](https://developer.qualcomm.com/software/hexagon-dsp-sdk).
 
 First build Hexagon API application under `apps/hexagon_api`. This step will generate `tvm_rpc_android` and `libtvm_runtime.so` to run on Android. Also, it generates `libtvm_runtime.a` `libtvm_runtime.so`, `libhexagon_rpc_skel.so` and `libhexagon_rpc_sim.so` to run on Hexagon device or Hexagon simulator.
 
@@ -73,15 +75,15 @@ make -j2
 ```
 
 ## Use Hexagon Docker Image
-To use hexagon docker image, install TVM and Hexagon API follow these steps.
+To use hexagon docker image, install TVM and Hexagon API follow these steps from your TVM home directory:
 
 ```bash
 # Log in to docker image
-cd tvm
 ./docker/bash.sh ci_hexagon
 
 # Build TVM
-./tests/scripts/task_config_build_hexagon.sh 
+rm -rf build
+./tests/scripts/task_config_build_hexagon.sh build
 cd build
 cmake ..
 make -j2
@@ -108,10 +110,9 @@ export PYTHONPATH=$PYTHONPATH:"path to `tvm/python`"
 ```
 
 ### Now, follow these steps
-**Note:** If you are using Hexagon docker image, first step is to log into the Hexagon docker image. Following these commands you will log in to the most recent version of Hexagon docker image on your TVM local branch.
+**Note:** If you are using Hexagon docker image, first step is to log into the Hexagon docker image. Following these commands you will log in to the most recent version of Hexagon docker image on your TVM local branch. Since we have already built TVM for hexagon, we can just log in and use it. From your TVM home directory:
 
 ```bash
-cd tvm
 ./docker/bash.sh ci_hexagon
 ```
 
@@ -119,8 +120,8 @@ Now, you need to export few environment variables and execute following commands
 
 ```bash
 # Run RPC Tracker in the background
-export TVM_TRACKER_HOST="0.0.0.0"
-export TVM_TRACKER_PORT=9192
+export TVM_TRACKER_HOST="Your host IP address or 0.0.0.0"
+export TVM_TRACKER_PORT="Port number of your choice."
 python -m tvm.exec.rpc_tracker --host $TVM_TRACKER_HOST --port $TVM_TRACKER_PORT&
 
 # Only For real hardware testing
