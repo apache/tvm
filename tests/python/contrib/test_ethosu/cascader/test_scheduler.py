@@ -67,13 +67,13 @@ def test_compute_cycles_annotation(SRAM, FLASH, TwoConv2DTE):
     conv_1 = sch.stages[9]
     conv_1_iter_vars = conv_1.leaf_iter_vars[0]
     conv_1_attrs = conv_1.iter_var_attrs[conv_1_iter_vars]
-    assert conv_1_attrs.pragma_keys[0] == "compute_cycles"
+    assert conv_1_attrs.pragma_keys[0] == "compute_cycle_hint"
     assert conv_1_attrs.pragma_values[0] == 1440
 
     conv_2 = sch.stages[19]
     conv_2_iter_vars = conv_2.leaf_iter_vars[0]
     conv_2_attrs = conv_2.iter_var_attrs[conv_2_iter_vars]
-    assert conv_2_attrs.pragma_keys[0] == "compute_cycles"
+    assert conv_2_attrs.pragma_keys[0] == "compute_cycle_hint"
     assert conv_2_attrs.pragma_values[0] == 2304
 
 

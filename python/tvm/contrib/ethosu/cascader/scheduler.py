@@ -153,7 +153,7 @@ def apply_proposal(proposal: Proposal, sch: te.Schedule) -> None:
 
                 # Attach AttrStmt directly to npu op so it isn't removed by ReplaceOperators
                 npu_op = part.subgraph.output_tensor.op.input_tensors[0].op.input_tensors[0]
-                sch[npu_op].pragma(npu_op.op.axis[0], "compute_cycles", compute_cycles)
+                sch[npu_op].pragma(npu_op.op.axis[0], "compute_cycle_hint", compute_cycles)
 
         output_tensor_config = plan.output_config
         output_tensor = output_tensor_config.tensor
