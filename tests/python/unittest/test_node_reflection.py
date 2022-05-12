@@ -180,5 +180,17 @@ def test_ndarray_dict():
     tvm.ir.assert_structural_equal(m1, m2)
 
 
+def test_alloc_const():
+    dev = tvm.cpu(0)
+    dtype = "float32"
+    shape = (16,)
+    buf = tvm.tir.decl_buffer(shape, dtype)
+    data = tvm.nd.array(np.random.rand(*shape).astype(dtype), device=dev)
+    body = tvm.tir.Evaluate(0)
+    stmt = tvm.tir.AllocateConst(buf.data, dtype, shape, data, body)
+    stmt2 = tvm.ir.load_json(tvm.ir.save_json(stmt))
+    tvm.ir.assert_structural_equal(stmt, stmt2)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
