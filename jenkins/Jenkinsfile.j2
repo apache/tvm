@@ -246,9 +246,9 @@ def build_base_image(arch_name) {
     script: 'git log -1 --format=\'%h\''
   ).trim()
   sh(
-    script: 'docker/build-base-images.sh ${arch_name}',
-    label: 'Build base image for ${arch_name}'
-  }
+    script: "docker/build-base-images.sh ${arch_name}",
+    label: "Build base image for ${arch_name}"
+  )
   archiveArtifacts artifacts: 'docker/build/base_${arch_name}/**', fingerprint: true
   def files = findFiles(glob: 'docker/build/base_${arch_name}/**')
   pack_lib('${arch_name}-lockfiles', files.join(', '))
@@ -312,64 +312,34 @@ def build_image(arch_name, image_name) {
 
 if (rebuild_docker_images) {
   stage('Docker Image Build') {
+
     // TODO in a follow up PR: Find ecr tag and use in subsequent builds
-    parallel 'ci-lint': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_lint')
+    parallel(
+    {% for arch, img in nodes_by_arch(images) %}
+      {{ ' ' }}'{{ arch }}': {
+        node('{{ img.platform }}') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            build_base_image('{{ arch }}')
+          }
         }
-      }
-    }, 'ci-cpu': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_cpu')
+      },
+    {% endfor %}
+    )
+
+    parallel(
+    {% for image in images %}
+      '{{ image.name }}': {
+        node('{{ image.platform }}') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            build_image('{{ image.arch }}', '{{ image.name }}')
+          }
         }
-      }
-    }, 'ci-gpu': {
-      node('GPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_gpu')
-        }
-      }
-    }, 'ci-qemu': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_qemu')
-        }
-      }
-    }, 'ci-i386': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_i386')
-        }
-      }
-    }, 'ci-arm': {
-      node('ARM') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_arm')
-        }
-      }
-    }, 'ci-wasm': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_wasm')
-        }
-      }
-    }, 'ci-hexagon': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_hexagon')
-        }
-      }
-    }
+      },
+    {% endfor %}
+    )
+
   }
   // // TODO: Once we are able to use the built images, enable this step
   // // If the docker images changed, we need to run the image build before the lint

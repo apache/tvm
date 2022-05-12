@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-11T16:27:38.745360
+// Generated at 2022-05-12T16:16:50.543658
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -323,12 +323,27 @@ stage('Lint') {
 // a method (so the code can't all be inlined)
 lint()
 
-def build_image(image_name) {
+def build_base_image(arch_name) {
+  hash = sh(
+    returnStdout: true,
+    script: 'git log -1 --format=\'%h\''
+  ).trim()
+  sh(
+    script: 'docker/build-base-images.sh ${arch_name}',
+    label: 'Build base image for ${arch_name}'
+  )
+  archiveArtifacts artifacts: 'docker/build/base_${arch_name}/**', fingerprint: true
+  def files = findFiles(glob: 'docker/build/base_${arch_name}/**')
+  pack_lib('${arch_name}-lockfiles', files.join(', '))
+}
+
+def build_image(arch_name, image_name) {
   hash = sh(
     returnStdout: true,
     script: 'git log -1 --format=\'%h\''
   ).trim()
   def full_name = "${image_name}:${env.BRANCH_NAME}-${hash}-${env.BUILD_NUMBER}"
+  unpack_lib('${arch_name}-lockfiles')
   sh(
     script: "${docker_build} ${image_name} --spec ${full_name}",
     label: 'Build docker image'
@@ -380,64 +395,102 @@ def build_image(image_name) {
 
 if (rebuild_docker_images) {
   stage('Docker Image Build') {
+
     // TODO in a follow up PR: Find ecr tag and use in subsequent builds
-    parallel 'ci-lint': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_lint')
+    parallel(
+       'arm64': {
+        node('ARM') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            build_base_image('arm64')
+          }
         }
-      }
-    }, 'ci-cpu': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_cpu')
+      },
+       'x86': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            build_base_image('x86')
+          }
         }
-      }
-    }, 'ci-gpu': {
-      node('GPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_gpu')
+      },
+       'x86_64': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            build_base_image('x86_64')
+          }
         }
-      }
-    }, 'ci-qemu': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_qemu')
+      },
+    )
+
+    parallel(
+      'ci_arm': {
+        node('ARM') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            build_image('arm64', 'ci_arm')
+          }
         }
-      }
-    }, 'ci-i386': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_i386')
+      },
+      'ci_cpu': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            build_image('x86_64', 'ci_cpu')
+          }
         }
-      }
-    }, 'ci-arm': {
-      node('ARM') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_arm')
+      },
+      'ci_gpu': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            build_image('x86_64', 'ci_gpu')
+          }
         }
-      }
-    }, 'ci-wasm': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_wasm')
+      },
+      'ci_hexagon': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            build_image('x86_64', 'ci_hexagon')
+          }
         }
-      }
-    }, 'ci-hexagon': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_hexagon')
+      },
+      'ci_i386': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            build_image('x86', 'ci_i386')
+          }
         }
-      }
-    }
+      },
+      'ci_lint': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            build_image('x86_64', 'ci_lint')
+          }
+        }
+      },
+      'ci_qemu': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            build_image('x86_64', 'ci_qemu')
+          }
+        }
+      },
+      'ci_wasm': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            build_image('x86_64', 'ci_wasm')
+          }
+        }
+      },
+    )
+
   }
   // // TODO: Once we are able to use the built images, enable this step
   // // If the docker images changed, we need to run the image build before the lint
