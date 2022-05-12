@@ -90,6 +90,12 @@ def per_exec_ws(folder) {
 // initialize source codes
 def init_git() {
   checkout scm
+
+  // Clear out all Docker images that aren't going to be used
+  sh(
+    script: "docker image ls --all --format {% raw %}'{{.Repository}}:{{.Tag}}  {{.ID}}'{% endraw %} | { grep -vE '{% for image in images %}{% raw %}${{% endraw %}{{ image.name }}{% raw %}}{% endraw %}{% if not loop.last %}|{% endif %}{% endfor %}' || test \$? = 1; } | { xargs docker rmi || test \$? = 123; }",
+    label: 'Clean old Docker images',
+  )
   // Add more info about job node
   sh (
     script: './tests/scripts/task_show_node_info.sh',
@@ -97,7 +103,7 @@ def init_git() {
   )
 
   // Determine merge commit to use for all stages
-  sh(
+  sh (
     script: 'git fetch origin main',
     label: 'Fetch upstream',
   )
