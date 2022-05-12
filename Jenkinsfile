@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-11T07:57:43.285598
+// Generated at 2022-05-11T16:27:38.745360
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -93,6 +93,12 @@ def per_exec_ws(folder) {
 // initialize source codes
 def init_git() {
   checkout scm
+
+  // Clear out all Docker images that aren't going to be used
+  sh(
+    script: "docker image ls --all --format '{{.Repository}}:{{.Tag}}  {{.ID}}' | { grep -vE '${ci_arm}|${ci_cpu}|${ci_gpu}|${ci_hexagon}|${ci_i386}|${ci_lint}|${ci_qemu}|${ci_wasm}' || test \$? = 1; } | { xargs docker rmi || test \$? = 123; }",
+    label: 'Clean old Docker images',
+  )
   // Add more info about job node
   sh (
     script: './tests/scripts/task_show_node_info.sh',
@@ -100,7 +106,7 @@ def init_git() {
   )
 
   // Determine merge commit to use for all stages
-  sh(
+  sh (
     script: 'git fetch origin main',
     label: 'Fetch upstream',
   )
