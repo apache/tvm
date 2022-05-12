@@ -538,13 +538,14 @@ stage('Build') {
           )
           make(ci_wasm, 'build', '-j2')
           cpp_unittest(ci_wasm)
-          timeout(time: max_time, unit: 'MINUTES') {
-            ci_setup(ci_wasm)
-            sh (
-              script: "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh",
-              label: 'Run WASM lint and tests',
-            )
-          }
+          // Disabled due to NPM errors, see <ISSUE>
+          // timeout(time: max_time, unit: 'MINUTES') {
+          //   ci_setup(ci_wasm)
+          //   sh (
+          //     script: "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh",
+          //     label: 'Run WASM lint and tests',
+          //   )
+          // }
         }
       }
     } else {

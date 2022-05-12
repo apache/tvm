@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-11T16:27:38.745360
+// Generated at 2022-05-12T14:49:23.264091
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -621,13 +621,14 @@ stage('Build') {
           )
           make(ci_wasm, 'build', '-j2')
           cpp_unittest(ci_wasm)
-          timeout(time: max_time, unit: 'MINUTES') {
-            ci_setup(ci_wasm)
-            sh (
-              script: "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh",
-              label: 'Run WASM lint and tests',
-            )
-          }
+          // Disabled due to NPM errors, see <ISSUE>
+          // timeout(time: max_time, unit: 'MINUTES') {
+          //   ci_setup(ci_wasm)
+          //   sh (
+          //     script: "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh",
+          //     label: 'Run WASM lint and tests',
+          //   )
+          // }
         }
       }
     } else {
