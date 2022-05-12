@@ -167,4 +167,4 @@ def run_module_via_rpc(
         rt_mod = session.load_module(filename)
         dev = session.device(dev_type=dev_type, dev_id=0)
         args = [ndarray.array(arg, dev) for arg in args]
-        return continuation(rt_mod, dev, *args)
+        return continuation(rt_mod, dev, args)
