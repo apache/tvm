@@ -24,8 +24,6 @@ from tvm import topi
 from tvm import te
 import tvm.topi.testing
 
-from ..conftest import requires_hexagon_toolchain
-
 
 in_shape, axis, keepdims, reduce_type, dtype = tvm.testing.parameters(
     ((32,), 0, False, "argmax", "float32"),
@@ -100,7 +98,7 @@ def ref_data(in_shape, axis, keepdims, reduce_type, dtype):
     return in_npy, in_npy_map, out_npy
 
 
-@requires_hexagon_toolchain
+@tvm.testing.requires_hexagon
 def test_reduce_map(hexagon_session, ref_data, in_shape, axis, keepdims, reduce_type, dtype):
     in_npy, in_npy_map, out_npy = ref_data
 

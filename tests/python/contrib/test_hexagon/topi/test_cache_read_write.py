@@ -20,8 +20,7 @@ import numpy as np
 
 import tvm.testing
 from tvm import te
-
-from ..conftest import requires_hexagon_toolchain
+from tvm.contrib.hexagon.session import Session
 
 
 def intrin_mem_copy(shape, dtype, dst_scope, src_scope):
@@ -97,8 +96,8 @@ def verify(hexagon_session, s, x, y, z, size):
     np.testing.assert_equal(zt.numpy(), ref)
 
 
-@requires_hexagon_toolchain
-def test_cache_read_write(hexagon_session):
+@tvm.testing.requires_hexagon
+def test_cache_read_write(hexagon_session: Session):
     size = 128
     outer_shape = (size,)
     factor = 16
@@ -139,8 +138,8 @@ def layout_transform_2d(n):
     return [n // 16, te.AXIS_SEPARATOR, n % 16]
 
 
-@requires_hexagon_toolchain
-def test_cache_read_write_2d(hexagon_session):
+@tvm.testing.requires_hexagon
+def test_cache_read_write_2d(hexagon_session: Session):
     size = 128
     outer_shape = (size,)
     factor = 16

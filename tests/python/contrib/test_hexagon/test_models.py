@@ -25,7 +25,6 @@ from tvm import te
 from tvm import relay
 from tvm.relay.backend import Executor, Runtime
 
-from .conftest import requires_hexagon_toolchain
 
 MOBILENET_MODEL = ""
 
@@ -41,7 +40,7 @@ def get_mobilenet():
     return onnx.load(model_path)
 
 
-@requires_hexagon_toolchain
+@tvm.testing.requires_hexagon
 def test_mobilenet(hexagon_session):
     dtype = "float32"
     onnx_model = get_mobilenet()
@@ -88,7 +87,7 @@ def test_mobilenet(hexagon_session):
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 
-@requires_hexagon_toolchain
+@tvm.testing.requires_hexagon
 def test_mobilenet_aot(hexagon_session, aot_host_target, aot_target):
     if hexagon_session._launcher._serial_number == "simulator":
         pytest.skip(msg="Skip on simulator due to long runtime.")
