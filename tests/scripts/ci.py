@@ -195,6 +195,8 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
         command.append("-t")
         scripts = ["interact() {", "  bash", "}", "trap interact 0", ""] + scripts
 
+    command.append("--net=host")
+
     for key, value in env.items():
         command.append("--env")
         command.append(f"{key}={value}")
@@ -352,6 +354,7 @@ def generate_command(
     options: Dict[str, Option],
     help: str,
     precheck: Optional[Callable[[], None]] = None,
+    post_build: Optional[List[str]] = None,
 ):
     """
     Helper to generate CLIs that:
@@ -388,6 +391,9 @@ def generate_command(
                 # is merged and added to the Docker images
                 "python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0",
             ]
+
+        if post_build is not None:
+            scripts += post_build
 
         # Check that a test suite was not used alongside specific test names
         if any(v for v in kwargs.values()) and tests is not None:
@@ -628,11 +634,11 @@ generated = [
     generate_command(
         name="hexagon",
         help="Run Hexagon build and test(s)",
+        post_build=["./tests/scripts/task_build_hexagon_api.sh --output build-hexagon"],
         options={
             "test": (
                 "run Hexagon API/Python tests",
                 [
-                    "./tests/scripts/task_build_hexagon_api.sh",
                     "./tests/scripts/task_python_hexagon.sh",
                 ],
             )
