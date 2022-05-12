@@ -68,11 +68,10 @@ TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.CascaderOptions")
                        int always_copy_size, bool disable_pareto_plans,
                        bool disable_pareto_proposals, bool enable_multi_dimensional_striping,
                        bool disable_block_culling, bool enable_striping) {
-      return CascaderOptions(cascade_region, max_proposals, stripe_factors, max_plan_size,
-                             max_open_plans, max_closed_plans, always_copy_size,
-                             disable_pareto_plans, disable_pareto_proposals,
-                             enable_multi_dimensional_striping, disable_block_culling,
-                             enable_striping);
+      return CascaderOptions(
+          cascade_region, max_proposals, stripe_factors, max_plan_size, max_open_plans,
+          max_closed_plans, always_copy_size, disable_pareto_plans, disable_pareto_proposals,
+          enable_multi_dimensional_striping, disable_block_culling, enable_striping);
     });
 
 TVM_REGISTER_NODE_TYPE(CascaderOptionsNode);

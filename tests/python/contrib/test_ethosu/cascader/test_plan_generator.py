@@ -25,6 +25,7 @@ from tvm.contrib.ethosu.cascader.plan_generator import (
     _generate_graph_plans,
 )
 
+
 @pytest.mark.parametrize("stripe_factors", [3, 4, 8, 16, 10])
 def test_generate_output_stripe_configs_disable_striping(stripe_factors):
     subgraph = cs.TESubgraph([], None)
@@ -45,7 +46,14 @@ def test_generate_output_stripe_configs_disable_striping(stripe_factors):
     tensor_1.add_consumer(part_1)
     tensor_2.add_producer(part_1)
 
-    assert len(_generate_output_stripe_configs(part_1, stripe_factors, enable_striping=False, multi_dimensional=False)) == 1
+    assert (
+        len(
+            _generate_output_stripe_configs(
+                part_1, stripe_factors, enable_striping=False, multi_dimensional=False
+            )
+        )
+        == 1
+    )
 
 
 def test_generate_output_stripe_configs_multi_dimensional():
@@ -187,7 +195,10 @@ def test_generate_single_plans(SRAM, DRAM):
     }
     options = make_options(cascade_region=SRAM, stripe_factors=1)
     output_stripe_configs = _generate_output_stripe_configs(
-        part_1, options.stripe_factors, enable_striping=True, multi_dimensional=True,
+        part_1,
+        options.stripe_factors,
+        enable_striping=True,
+        multi_dimensional=True,
     )
     plans = _generate_single_plans(part_1, output_stripe_configs, home_map, options)
     for plan in plans:

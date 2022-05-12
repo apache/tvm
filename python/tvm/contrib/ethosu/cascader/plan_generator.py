@@ -31,7 +31,7 @@ def _generate_output_stripe_configs(
 ) -> List[StripeConfig]:
     return list(
         _ffi_api.GenerateOutputStripeConfigs(
-            part, stripe_factors, multi_dimensional, enable_striping
+            part, stripe_factors, enable_striping, multi_dimensional
         )
     )
 
