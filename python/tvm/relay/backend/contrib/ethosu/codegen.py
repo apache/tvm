@@ -357,7 +357,7 @@ def _create_cascader(
     return _cascader
 
 
-def _ethos_u55_cascader(sram) -> Callable:
+def _ethos_u55_cascader(sram, enable_striping) -> Callable:
     # TODO(ekalda): Extract the flash info from ConstantPools once it is implemented
     flash = MemoryRegion(name="FLASH", size=10**7, read_bandwidth=4, write_bandwidth=4)
 
@@ -368,6 +368,7 @@ def _ethos_u55_cascader(sram) -> Callable:
         stripe_factors=5,
         max_plan_size=10,
         always_copy_size=1024,
+        enable_striping=enable_striping,
     )
     return _create_cascader(
         options=cascader_options,
@@ -425,7 +426,7 @@ def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
         ), "Exactly one workspace pool needs to be provided for the U55 cascader"
 
         sram = extract_memory_info(workspace_memory_pools.pools[0])
-        tir_mod = LowerToTIR(_ethos_u55_cascader(sram))(mod)
+        tir_mod = LowerToTIR(_ethos_u55_cascader(sram, util.is_striping_enabled()))(mod)
     else:
         tir_mod = LowerToTIR(copy_constants())(mod)
 

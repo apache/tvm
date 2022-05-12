@@ -49,6 +49,8 @@ class CascaderOptionsNode : public Object {
   int max_plan_size;
   /*! \brief The maximum size of Tensor that will always be copied into the cascade region. */
   int always_copy_size;
+  /*! \brief A boolean option to enable striping. */
+  bool enable_striping;
 
   static constexpr const char* _type_key = "contrib.ethosu.cascader.CascaderOptions";
   TVM_DECLARE_FINAL_OBJECT_INFO(CascaderOptionsNode, Object)
@@ -58,7 +60,7 @@ class CascaderOptionsNode : public Object {
 class CascaderOptions : public ObjectRef {
  public:
   CascaderOptions(const MemoryRegion& cascade_region, int max_proposals, int stripe_factors,
-                  int max_plan_size, int always_copy_size);
+                  int max_plan_size, int always_copy_size, bool enable_striping = true);
 
   TVM_DEFINE_OBJECT_REF_METHODS(CascaderOptions, ObjectRef, CascaderOptionsNode);
 };
