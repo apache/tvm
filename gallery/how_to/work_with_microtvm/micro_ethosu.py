@@ -181,7 +181,7 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 #
 
 ################################################################################
-# .. note:: If you don't want to make use of the microNPU and want to offload 
+# .. note:: If you don't want to make use of the microNPU and want to offload
 #    operators to CMSIS-NN only:
 #
 #   * Use ``--target=cmsis-nn,c`` in place of ``--target=ethos-u,cmsis-nn,c``
