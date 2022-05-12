@@ -72,7 +72,6 @@ REGISTERED_CODEGEN = {
         "config_key": "relay.ext.vitis_ai.options",
         "pass_pipeline": partition_for_vitis_ai,
     },
-
     # Deprecated in favour of "ethos-n".
     "ethos-n78": {
         "config_key": "relay.ext.ethos-n.options",

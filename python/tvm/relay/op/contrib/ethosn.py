@@ -69,10 +69,10 @@ def partition_for_ethosn(mod, params=None, **opts):
     # -variant=ethos-n78 deprecated in favour of -variant=n78
     if opts["variant"].lower() == "ethos-n78":
         warnings.warn(
-                "Please use '-variant=n78' instead of the deprecated "
-                "'-variant=ethos-n78', which will be removed in TVM v0.9.",
-                DeprecationWarning,
-            )
+            "Please use '-variant=n78' instead of the deprecated "
+            "'-variant=ethos-n78', which will be removed in TVM v0.9.",
+            DeprecationWarning,
+        )
     elif opts["variant"] != "n78":
         raise ValueError("When targeting Ethos(TM)-N78, -variant=n78 should be set.")
 
