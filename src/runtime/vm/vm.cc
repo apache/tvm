@@ -277,6 +277,22 @@ void VirtualMachine::SetOneInput(std::string func_name, const TVMArgValue& tag,
 
 void VirtualMachine::SetOutputs(std::string name, TVMArgs args) {
   set_outputs_enabled_ = true;
+  std::vector<ObjectRef> external_output_arrays;
+  for (int i = 0; i < args.size(); ++i) {
+    TVMArgValue output_tensor = args[i];
+    if (output_tensor.type_code() == kTVMDLTensorHandle) {
+      DLTensor* dl_tensor = output_tensor;
+      external_output_arrays.emplace_back(NDArray::FromExternalDLTensor(*dl_tensor));
+    } else if (output_tensor.type_code() == kTVMNDArrayHandle) {
+      // TODO(vvchernov): emplace_back?
+      external_output_arrays.push_back(output_tensor.AsObjectRef<tvm::runtime::NDArray>());
+    } else {
+      LOG(FATAL) << "Output tensors of not DLTensor or NDArray type are not supported now!";
+    }
+  }
+  // TODO(vvchernov): I'm not sure we need any tag here. Nevertheless it is required
+  auto output_set = ADT(0, external_output_arrays);
+  WriteRegister(GetResultRegisterIndex(), output_set);
 }
 
 int64_t VirtualMachine::GetInputIndexFromVMFunction(const std::string& func_name,
