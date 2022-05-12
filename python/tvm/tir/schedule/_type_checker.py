@@ -169,7 +169,7 @@ def _type_check_vtable() -> Dict[str, Callable]:
         return None if isinstance(v, type_) else _type_check_err(v, name, type_)
 
     def _type_check_list(v: List[Any], name: str, type_: Any) -> Optional[str]:
-        if not isinstance(v, list):
+        if not isinstance(v, (list, tuple)):
             return _type_check_err(v, name, list)
         for i, x in enumerate(v):
             error_msg = _type_check(x, f"{name}[{i}]", type_)
