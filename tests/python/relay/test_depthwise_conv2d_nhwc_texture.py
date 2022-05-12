@@ -48,9 +48,9 @@ def build_run_compare(
     tvm_mod, params1, input_shape, dtype="float32", target="llvm", gpu_preprocess=None
 ):
 
-    rpc_tracker_host = os.environ["TVM_TRACKER_HOST"]
-    rpc_tracker_port = os.environ["TVM_TRACKER_PORT"]
-    if rpc_tracker_host:
+    if "TVM_TRACKER_HOST" in os.environ and "TVM_TRACKER_PORT" in os.environ:
+        rpc_tracker_host = os.environ["TVM_TRACKER_HOST"]
+        rpc_tracker_port = os.environ["TVM_TRACKER_PORT"]
         run_on_host = 0
         target_host = "llvm -mtriple=arm64-linux-android"
         rpc_tracker_port = int(rpc_tracker_port)
