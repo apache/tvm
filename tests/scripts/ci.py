@@ -681,6 +681,7 @@ def main():
 
     args = parser.parse_args()
 
+    # test
     if args.command is None:
         # Command not found in list, error out
         parser.print_help()
