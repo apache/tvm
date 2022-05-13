@@ -371,22 +371,66 @@ def test_fold_dropout():
 
 
 def test_fold_qnn_const():
-    qx = relay.var("x", shape=[2, 3], dtype="int8")
-
     def before():
-        # Quantized INT8 weights
-        qw = relay.const(np.array([[1, 3, 5], [2, 4, 6]], dtype="int8"), "int8")
-        op = relay.op.nn.dense(
-            relay.qnn.op.dequantize(qx, relay.const(2.0), relay.const(0)),
-            relay.qnn.op.dequantize(qw, relay.const(2.0), relay.const(0)),
+        # QNN op with 2 constant arguments.
+        add = relay.qnn.op.add(
+            relay.const(np.ones((2, 3), dtype="uint8"), dtype="uint8"),
+            relay.const(np.ones((2, 3), dtype="uint8"), dtype="uint8"),
+            lhs_scale=relay.const(2.0),
+            lhs_zero_point=relay.const(0),
+            rhs_scale=relay.const(2.0),
+            rhs_zero_point=relay.const(0),
+            output_scale=relay.const(1.0),
+            output_zero_point=relay.const(0),
         )
-        return relay.Function([qx], op)
+        # QNN op with 1 constant and 1 non-constant arguments.
+        a = relay.var("a", shape=[2, 3], dtype="float32")
+        dense = relay.qnn.op.dense(
+            relay.qnn.op.quantize(a, relay.const(1.0), relay.const(0)),
+            add,
+            input_zero_point=relay.const(0),
+            kernel_zero_point=relay.const(0),
+            input_scale=relay.const(2.0),
+            kernel_scale=relay.const(2.0),
+            units=None,
+        )
+        # QNN op with 2 non-constant arguments.
+        b = relay.var("b", shape=[2], dtype="float32")
+        bias = relay.qnn.op.add(
+            dense,
+            relay.qnn.op.quantize(b, relay.const(1.0), relay.const(0), out_dtype="int32"),
+            lhs_scale=relay.const(2.0),
+            lhs_zero_point=relay.const(0),
+            rhs_scale=relay.const(2.0),
+            rhs_zero_point=relay.const(0),
+            output_scale=relay.const(1.0),
+            output_zero_point=relay.const(0),
+        )
+        return relay.Function([a, b], bias)
 
     def expected():
-        # FP32 weights
-        w = relay.const(np.array([[2.0, 6.0, 10.0], [4.0, 8.0, 12.0]], dtype="float32"), "float32")
-        op = relay.op.nn.dense(relay.qnn.op.dequantize(qx, relay.const(2.0), relay.const(0)), w)
-        return relay.Function([qx], op)
+        a = relay.var("a", shape=[2, 3], dtype="float32")
+        dense = relay.qnn.op.dense(
+            relay.qnn.op.quantize(a, relay.const(1.0), relay.const(0)),
+            relay.const(np.array([[4, 4, 4], [4, 4, 4]], dtype="uint8"), dtype="uint8"),
+            input_zero_point=relay.const(0),
+            kernel_zero_point=relay.const(0),
+            input_scale=relay.const(2.0),
+            kernel_scale=relay.const(2.0),
+            units=None,
+        )
+        b = relay.var("b", shape=[2], dtype="float32")
+        bias = relay.qnn.op.add(
+            dense,
+            relay.qnn.op.quantize(b, relay.const(1.0), relay.const(0), out_dtype="int32"),
+            lhs_scale=relay.const(2.0),
+            lhs_zero_point=relay.const(0),
+            rhs_scale=relay.const(2.0),
+            rhs_zero_point=relay.const(0),
+            output_scale=relay.const(1.0),
+            output_zero_point=relay.const(0),
+        )
+        return relay.Function([a, b], bias)
 
     # Nothing changed after applying FoldConstant
     a = run_opt_pass(before(), transform.FoldConstant())
@@ -409,49 +453,16 @@ def test_fold_quantize():
             const_fp, output_scale=relay.const(0.5), output_zero_point=relay.const(0)
         )
         x = relay.var("x", t)
-        add = relay.op.subtract(x, const_i8)
-        func = relay.Function([x], add)
+        sub = relay.op.subtract(x, const_i8)
+        func = relay.Function([x], sub)
         return func
 
     def expected():
         data = tvm.nd.array(np.array([2, 4, 6], dtype="int8"))
         const_i8 = relay.const(data, dtype="int8")
         x = relay.var("x", t)
-        add = relay.op.subtract(x, const_i8)
-        func = relay.Function([x], add)
-        return func
-
-    # Nothing changed after applying FoldConstant
-    a = run_opt_pass(before(), transform.FoldConstant())
-    b = run_opt_pass(before(), transform.InferType())
-    tvm.ir.assert_structural_equal(a, b)
-
-    # Fold QNN constants
-    a = run_opt_pass(before(), transform.FoldConstant(fold_qnn=True))
-    b = run_opt_pass(expected(), transform.InferType())
-    tvm.ir.assert_structural_equal(a, b)
-
-
-def test_fold_qnn_add():
-    dtype = "uint8"
-
-    def before():
-        add = relay.qnn.op.add(
-            relay.const(np.ones((2, 3), dtype=dtype), dtype=dtype),
-            relay.const(np.ones((2, 3), dtype=dtype), dtype=dtype),
-            relay.const(2.0, dtype="float32"),
-            relay.const(0, dtype="int32"),
-            relay.const(2.0, dtype="float32"),
-            relay.const(0, dtype="int32"),
-            relay.const(1.0, dtype="float32"),
-            relay.const(0, dtype="int32"),
-        )
-        func = relay.Function([], add)
-        return func
-
-    def expected():
-        data = relay.const(np.array([[4, 4, 4], [4, 4, 4]], dtype=dtype), dtype)
-        func = relay.Function([], data)
+        sub = relay.op.subtract(x, const_i8)
+        func = relay.Function([x], sub)
         return func
 
     # Nothing changed after applying FoldConstant

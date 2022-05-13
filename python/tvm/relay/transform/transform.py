@@ -283,6 +283,12 @@ def FoldConstantExpr(expr, mod, fold_qnn=False):
 def FoldConstant(fold_qnn=False):
     """Fold the constant expressions in a Relay program.
 
+    Because of backward compatibility reason it skips QNN primitives from folding by default.
+    There are some transformation passes like FakeQuantizationToInteger, which requires to keep QNN
+    primitives for constant subgraphs. Uncontrolled constant folding of QNN primitives may break
+    applicability of FakeQuantizationToInteger. We suggest to use FoldConstant pass with none
+    default fold_qnn=True value only when all other QNN sensitive passes were already applied.
+
     Parameters
     ----------
     fold_qnn: bool

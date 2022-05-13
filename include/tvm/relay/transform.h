@@ -105,6 +105,12 @@ TVM_DLL Pass LazyGradientInit();
 /*!
  * \brief Fold constant expressions.
  *
+ *  Because of backward compatibility reason it skips QNN primitives from folding by default.
+ *  There are some transformation passes like FakeQuantizationToInteger, which requires to keep QNN
+ *  primitives for constant subgraphs. Uncontrolled constant folding of QNN primitives may break
+ *  applicability of FakeQuantizationToInteger. We suggest to use FoldConstant pass with none
+ *  default fold_qnn=True value only when all other QNN sensitive passes were already applied.
+ *
  * \param fold_qnn Whether to fold constants for QNN operations.
  *
  * \return The pass.
