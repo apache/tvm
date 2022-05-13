@@ -448,6 +448,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
     TVM_TRY_REWRITE(min(x, y) * max(x, y), x * y);
     TVM_TRY_REWRITE(max(x, y) * min(x, y), x * y);
 
+    // Two representations of const*ceildiv(x, c1)
+    TVM_TRY_REWRITE_IF(floordiv(x - floormod(x, c2), c1) * c1, x - floormod(x, c2),
+                       c1.Eval()->value == -c2.Eval()->value);
+
     // canonicalization
     TVM_TRY_RECURSIVE_REWRITE(x * (c1 * y), (x * y) * c1);
     TVM_TRY_RECURSIVE_REWRITE(c1 * x, x * c1);

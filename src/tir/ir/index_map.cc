@@ -50,6 +50,70 @@ IndexMap IndexMap::FromFunc(int ndim, runtime::TypedPackedFunc<Array<PrimExpr>(A
   return IndexMap(initial_indices, func(initial_indices));
 }
 
+std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initial_ranges) const {
+  // Dummy variables to represent the inverse's inputs.
+  Array<Var> output_vars;
+  for (size_t i = 0; i < (*this)->final_indices.size(); i++) {
+    PrimExpr index = (*this)->final_indices[i];
+    // TODO(Lunderberg): Better names for these variables.  A variable
+    // that is passed through unmodified (`index` is an element of
+    // `initial_indices`) should use that input index's name.  A pair
+    // of output indices variables split from a single input index
+    // should be named (X.outer,X.inner).
+    std::stringstream ss;
+    ss << "axis" << i;
+    Var var_index(ss.str(), index.dtype());
+    output_vars.push_back(var_index);
+  }
+
+  // Dummy ranges for the extent of each input.
+  Map<Var, Range> input_iters;
+  ICHECK_EQ((*this)->initial_indices.size(), initial_ranges.size());
+  for (size_t i = 0; i < initial_ranges.size(); i++) {
+    input_iters.Set((*this)->initial_indices[i], initial_ranges[i]);
+  }
+
+  // Unpack the output indices into linear combinations of the initial
+  // indices.
+  arith::Analyzer analyzer;
+  auto padded_iter_map =
+      DetectPaddedIterMap((*this)->final_indices, input_iters, /* predicate = */ 1,
+                          /* require_bijective = */ false, &analyzer,
+                          /* simplify_trivial_iterators = */ false);
+  CHECK(padded_iter_map.errors.empty()) << "Could not parse mapping as sum of iterators.  "
+                                        << "Error: " << padded_iter_map.errors[0];
+
+  // Determine expressions for the input variables, in terms of the
+  // output variables.
+  Map<Var, PrimExpr> inverse_exprs_map = InverseAffineIterMap(
+      padded_iter_map.indices, Array<PrimExpr>(output_vars.begin(), output_vars.end()));
+
+  // Unpack the map to an array, maintaining the same parameter order.
+  Array<PrimExpr> inverse_exprs;
+  for (const auto& index : (*this)->initial_indices) {
+    inverse_exprs.push_back(inverse_exprs_map.at(index));
+  }
+
+  PrimExpr padding_predicate = padded_iter_map.padding_predicate;
+  padding_predicate = arith::NormalizeIterMapToExpr(padding_predicate);
+  padding_predicate = Substitute(padding_predicate, inverse_exprs_map);
+
+  {
+    auto output_ranges = (*this)->MapRanges(initial_ranges);
+    ICHECK_EQ(output_ranges.size(), output_vars.size());
+
+    arith::Analyzer analyzer;
+    for (size_t i = 0; i < output_vars.size(); ++i) {
+      analyzer.Bind(output_vars[i], output_ranges[i]);
+    }
+
+    // Additional simplification steps required to unwrap nested floordiv/floormod
+    padding_predicate = analyzer.Simplify(padding_predicate, 10);
+  }
+
+  return {IndexMap(output_vars, inverse_exprs), padding_predicate};
+}
+
 IndexMap IndexMap::Inverse(Array<Range> initial_ranges) const {
   // Dummy variables to represent the inverse's inputs.
   Array<Var> output_vars;
@@ -202,6 +266,14 @@ TVM_REGISTER_GLOBAL("tir.IndexMap")
     });
 
 TVM_REGISTER_GLOBAL("tir.IndexMapMapIndices").set_body_method<IndexMap>(&IndexMapNode::MapIndices);
+TVM_REGISTER_GLOBAL("tir.IndexMapMapShape").set_body_method<IndexMap>(&IndexMapNode::MapShape);
+TVM_REGISTER_GLOBAL("tir.IndexMapInverse").set_body_method(&IndexMap::Inverse);
+
+TVM_REGISTER_GLOBAL("tir.IndexMapNonSurjectiveInverse")
+    .set_body_typed([](IndexMap forward, Array<Range> initial_ranges) {
+      auto result = forward.NonSurjectiveInverse(initial_ranges);
+      return Array<ObjectRef>{result.first, result.second};
+    });
 
 }  // namespace tir
 }  // namespace tvm
