@@ -57,6 +57,12 @@ inline size_t DefaultTextureLayoutSeparator(size_t shape_rank,
     separator = shape_rank - 2;
   } else if (convention == "global.texture-weight") {
     separator = 1;
+  } else if (convention == "global.texture-nhwc") {
+    if (shape_rank == 3) {
+      separator = 1;
+    } else {
+      separator = 2;
+    }
   } else {
     LOG(FATAL) << "Encountered unknown texture lowering convention: " << convention;
   }
