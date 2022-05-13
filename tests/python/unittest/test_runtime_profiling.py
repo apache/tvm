@@ -284,7 +284,7 @@ def test_estimate_peak_bandwidth(target, dev):
     ), f"Bandwidth should be between 10^9 and 10^12, but it is {bandwidth}"
 
 
-@pytest.mark.skipif(platform.machine() == "i386", reason="Cannot allocate enough memory on i386")
+@tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
 @tvm.testing.parametrize_targets("llvm")
 def test_roofline_analysis(target, dev):
     a = relay.var("a", relay.TensorType((512, 512), "float32"))
