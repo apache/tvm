@@ -129,22 +129,27 @@ class SimplifyConvPad {
     ICHECK(pad_node);
     const PadAttrs* param = pad_node->attrs.as<PadAttrs>();
     ICHECK(param);
-    Array<Expr> args = pad_node->args;
 
     auto x = node_map[x_][0];
     auto w = node_map[w_][0];
 
     // Possibly perform more optimizations if the pad_value is 0
-    const ConstantNode* pad_value = args[1].as<ConstantNode>();
+    const Expr& pv = pad_node->args[1];
+    const ConstantNode* pad_value = pv.as<ConstantNode>();
     if (node_map.find(qconv2d_) != node_map.end()) {
       Attrs attrs = GetAttrs(param, call_node->attrs.as<Conv2DAttrs>());
       auto input_zero_point = node_map[input_zero_point_][0];
       auto kernel_zero_point = node_map[kernel_zero_point_][0];
       auto input_scale = node_map[input_scale_][0];
       auto kernel_scale = node_map[kernel_scale_][0];
-      return Call(call_node->op,
-                  {x, w, input_zero_point, kernel_zero_point, input_scale, kernel_scale}, attrs,
-                  call_node->type_args, call_node->span);
+      // Fold Padding and QNN Convolution only if pad value == input zero point.
+      if (IsEqualScalar(input_zero_point, pv)) {
+        return Call(call_node->op,
+                    {x, w, input_zero_point, kernel_zero_point, input_scale, kernel_scale}, attrs,
+                    call_node->type_args, call_node->span);
+      } else {
+        return post;
+      }
     } else if (param->pad_mode == "constant" && pad_value && ToScalar(pad_value->data) == 0.0) {
       Attrs attrs;
       if (node_map.count(conv1d_)) {
