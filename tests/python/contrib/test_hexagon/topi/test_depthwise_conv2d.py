@@ -21,6 +21,7 @@ import numpy as np
 import pytest
 
 import tvm
+from tvm.contrib.hexagon.session import Session
 import tvm.testing
 import tvm.topi.testing
 
@@ -157,7 +158,7 @@ class BaseDepthwiseConv2D:
     @requires_hexagon_toolchain
     def test_conv2d(
         self,
-        hexagon_session,
+        hexagon_session: Session,
         in_dtype,
         out_dtype,
         layout,

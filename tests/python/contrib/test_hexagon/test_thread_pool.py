@@ -20,6 +20,7 @@ import pytest
 
 import tvm
 import tvm.contrib.hexagon
+from tvm.contrib.hexagon.session import Session
 import tvm.script
 import tvm.testing
 from tvm import te
@@ -53,7 +54,7 @@ class ElemwiseSumIRModule:
                 C[vi] = A[vi] + B[vi]
 
 
-def generate_add_test_data(hexagon_session, n=128 * 1024):
+def generate_add_test_data(hexagon_session: Session, n=128 * 1024):
     a = tvm.nd.array(np.random.uniform(size=n).astype("float32"), hexagon_session.device)
     b = tvm.nd.array(np.random.uniform(size=n).astype("float32"), hexagon_session.device)
     c = tvm.nd.array(np.zeros(n, dtype="float32"), hexagon_session.device)
@@ -85,7 +86,7 @@ def test_speedup(hexagon_session, capsys):
 
 
 @requires_hexagon_toolchain
-def test_elemwise_sum_parallel(hexagon_session):
+def test_elemwise_sum_parallel(hexagon_session: Session):
     if hexagon_session is None:
         pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
 

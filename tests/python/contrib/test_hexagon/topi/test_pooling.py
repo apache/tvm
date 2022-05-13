@@ -22,6 +22,7 @@ import sys
 import tvm
 from tvm import topi
 from tvm import te
+from tvm.contrib.hexagon.session import Session
 import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
 
@@ -57,7 +58,7 @@ class TestAdaptivePool:
     )
 
     @requires_hexagon_toolchain
-    def test_adaptive_pool(self, hexagon_session, dshape, out_size, pool_type, layout):
+    def test_adaptive_pool(self, hexagon_session: Session, dshape, out_size, pool_type, layout):
         dtype = "float32"
         np_data = np.random.uniform(low=0, high=255, size=dshape).astype(dtype)
         np_out = tvm.topi.testing.adaptive_pool(np_data, out_size, pool_type, layout)
