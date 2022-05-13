@@ -84,7 +84,7 @@ void HexagonLog(const std::string& file, int lineno, const std::string& message)
 }  // namespace
 
 namespace detail {
-void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
+[[noreturn]] void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
   HexagonLog(file, lineno, message);
   throw InternalError(file, lineno, message);
 }
