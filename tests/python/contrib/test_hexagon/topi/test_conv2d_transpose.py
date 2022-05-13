@@ -17,6 +17,7 @@
 """Test code for transposed convolution."""
 import numpy as np
 import tvm
+from tvm.contrib.hexagon.session import Session
 import tvm.testing
 from tvm import te
 from tvm import topi
@@ -70,7 +71,7 @@ class BaseConv2DTransposeTests:
     @requires_hexagon_toolchain
     def test_conv2d(
         self,
-        hexagon_session,
+        hexagon_session: Session,
         batch,
         in_channel,
         in_size,

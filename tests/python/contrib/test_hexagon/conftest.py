@@ -21,13 +21,14 @@
 import os
 import random
 import socket
-from typing import Optional
+from typing import Optional, Union
 
 import pytest
 
 import tvm
 import tvm.rpc.tracker
-from tvm.contrib.hexagon.build import HexagonLauncher
+from tvm.contrib.hexagon.build import HexagonLauncher, HexagonLauncherRPC
+from tvm.contrib.hexagon.session import Session
 
 HEXAGON_TOOLCHAIN = "HEXAGON_TOOLCHAIN"
 TVM_TRACKER_HOST = "TVM_TRACKER_HOST"
@@ -84,7 +85,7 @@ listen_port_max = 9000  # Below the search range end (port_end=9199) of RPC serv
 previous_port = None
 
 
-def get_free_port():
+def get_free_port() -> int:
 
     global previous_port
     if previous_port is None:
@@ -100,7 +101,7 @@ def get_free_port():
 
 
 @pytest.fixture(scope="session")
-def _tracker_info() -> (str, int):
+def _tracker_info() -> Union[str, int]:
     env_tracker_host = os.getenv(TVM_TRACKER_HOST, default="")
     env_tracker_port = os.getenv(TVM_TRACKER_PORT, default="")
 
@@ -156,7 +157,9 @@ def adb_server_socket() -> str:
 
 
 @tvm.testing.fixture
-def hexagon_launcher(request, android_serial_number, rpc_server_port, adb_server_socket):
+def hexagon_launcher(
+    request, android_serial_number, rpc_server_port, adb_server_socket
+) -> HexagonLauncherRPC:
     if android_serial_number is None:
         yield None
     else:
@@ -181,7 +184,7 @@ def hexagon_launcher(request, android_serial_number, rpc_server_port, adb_server
 
 
 @tvm.testing.fixture
-def hexagon_session(hexagon_launcher):
+def hexagon_session(hexagon_launcher) -> Session:
     if hexagon_launcher is None:
         yield None
     else:
