@@ -232,7 +232,12 @@ def const_vector(vector, name="const_vector"):
             )
         return now
 
-    return te.compute(vector.shape, select_array, name=name)
+    return te.compute(vector.shape,
+                      select_array,
+                      name=name,
+                      attrs={
+                        "const_vector": True
+                      },)
 
 
 def get_float_tuple(in_tuple):

@@ -526,7 +526,12 @@ void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
           args.push_back(iv->var);
         }
         ICHECK_EQ(compute->body.size(), 1U) << "can only inline compute op with 1 output";
-
+        if (compute->attrs.count("const_vector")) {
+          // Use constant value to keep access to const_vector variables in the te scripts.
+          // TBD: creation of the const array to avoid array recalculation during the kernel execution.
+          stage->attach_type = kGroupRoot;
+          continue;
+        }
         if (feature_extraction_mode && compute->attrs.count("const_matrix")) {
           // Use constant value to replace access of const matrices.
           // This produces wrong IR but is good enough for feature extraction purposes.
