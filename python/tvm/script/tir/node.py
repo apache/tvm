@@ -70,15 +70,14 @@ class Slice:
         if self.stop is None:
             # scalar index
             return self.start
-        extent = Analyzer().simplify(self.stop - self.start)
-        if not isinstance(extent, (int, IntImm)):
-            report_error("Slice's extent should be constant for buffer indices", self.span)
         if self.step < 1:
             report_error("Slice's step should be positive integer", self.span)
-        lanes = (int(extent) + self.step - 1) // self.step
+        lanes = Analyzer().simplify((self.stop - self.start + self.step - 1) // self.step)
+        if not isinstance(lanes, (int, IntImm)):
+            report_error("Slice's lanes should be constant for buffer indices", self.span)
         if lanes == 1:
             return self.start
-        return Ramp(self.start, self.step, lanes, self.span)
+        return Ramp(self.start, self.step, int(lanes), self.span)
 
 
 class BufferSlice(ObjectGeneric):

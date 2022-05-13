@@ -644,32 +644,23 @@ def strided_buffer_region(A: T.handle):
         T.evaluate(T.call_extern("strided_compute", dtype=""))
 
 
-def strided_buffer_region(A: T.handle):
-    # do not allow stride in buffer region
-    A = T.match_buffer((128, 128), "int32")
-    with T.block():
-        T.reads([])
-        T.writes([A[0:128:2, 0:128:3]])  # error
-        T.evaluate(T.call_extern("strided_compute", dtype=""))
-
-
 def access_reversed_slice(A: T.handle):
     # do not allow reversed slice step
     A = T.match_buffer((128,), "int32")
-    A[0:128:-1] = T.broadcast(1, 128)
+    A[0:128:-1] = T.broadcast(1, 128)  # error
 
 
-def access_non_const_slice(A: T.handle):
-    # do not allow reversed slice step
+def access_non_const_slice_length(A: T.handle):
+    # do not allow non-constant slice length
     A = T.match_buffer((128,), "int32")
     for i in range(4):
-        T.evaluate(A[0:i:1])
+        T.evaluate(A[0:i:1])  # error
 
 
 def test_illegal_buffer_slice():
     check_error(strided_buffer_region, 3)
     check_error(access_reversed_slice, 3)
-    check_error(access_non_const_slice, 3)
+    check_error(access_non_const_slice_length, 3)
 
 
 if __name__ == "__main__":
