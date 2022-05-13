@@ -313,7 +313,7 @@ class ScheduleBuilder : public ExprVisitor {
 
   CachedFunc Create(const Function& relay_func, std::function<std::string(std::string)> renamer) {
     LowerToTECompute lower_te_compute(target_);
-    Array<te::Tensor> outputs = lower_te_compute.Lower(relay_func, renamer);
+    Array<te::Tensor> tensor_outs = lower_te_compute.Lower(relay_func, renamer);
     Array<te::Tensor> fn_inputs = lower_te_compute.fn_inputs_;
     VisitExpr(relay_func->body);
 
@@ -323,12 +323,11 @@ class ScheduleBuilder : public ExprVisitor {
     prim_fn_var->checked_type_ = relay_func->checked_type();
 
     // Fusion over tupled results may leave identity relationships
-    // between inputs and outputs, and those should not be scheduled.
-    // Hence schedule only non PlaceholderOp outputs.
-    tvm::Array<te::Tensor> tensor_outs;
-    for (const auto& tensor : outputs) {
-      if (!tensor->op.as<te::PlaceholderOpNode>()) {
-        tensor_outs.push_back(tensor);
+    // between inputs and outputs, copy identity output tensors,
+    // since tir lowering do not support aliasing output to input buffer.
+    for (size_t i = 0; i < tensor_outs.size(); ++i) {
+      if (tensor_outs[i]->op.as<te::PlaceholderOpNode>()) {
+        tensor_outs.Set(i, topi::identity(tensor_outs[i]));
       }
     }
 
@@ -358,9 +357,16 @@ class ScheduleBuilder : public ExprVisitor {
 
       // Use TOPI schedule if user specificed, or the function has no auto_scheduler schedule.
       if (!schedule.defined() && !prim_func.defined()) {
-        auto anchor_impl = lower_te_compute.op_implementations_.find(anchor_op_.operator->());
-        ICHECK(anchor_impl != lower_te_compute.op_implementations_.end());
-        schedule = anchor_impl->second.Schedule(anchor_attrs_, tensor_outs, target_);
+        if (anchor_op_.defined()) {
+          auto anchor_impl = lower_te_compute.op_implementations_.find(anchor_op_.operator->());
+          ICHECK(anchor_impl != lower_te_compute.op_implementations_.end());
+          schedule = anchor_impl->second.Schedule(anchor_attrs_, tensor_outs, target_);
+        } else {
+          auto default_sched = GenericFunc::Get("schedule_injective");
+          ICHECK(default_sched.defined()) << "schedule_injective not registered for " << target_;
+          With<Target> tctx(target_);
+          schedule = default_sched(tensor_outs);
+        }
       }
       if (schedule.defined()) {
         for (const auto& scalar : lower_te_compute.scalars_) {
@@ -371,7 +377,7 @@ class ScheduleBuilder : public ExprVisitor {
       }
     }
 
-    return CachedFunc(target_, prim_fn_var, fn_inputs, outputs, schedule, prim_func, {},
+    return CachedFunc(target_, prim_fn_var, fn_inputs, tensor_outs, schedule, prim_func, {},
                       IRModule(Map<GlobalVar, BaseFunc>({})), lower_te_compute.constant_tensors_);
   }
 
