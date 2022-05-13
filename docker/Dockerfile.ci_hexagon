@@ -56,14 +56,14 @@ ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147
 ENV PATH /opt/android-sdk-linux/platform-tools:$PATH
 
 # Hexagon
-# HEXAGON_SDK_PATH is and env variable in tvmcihexagon/ci-hexagon-base
 COPY install/ubuntu_install_hexagon.sh /install/ubuntu_install_hexagon.sh
 RUN bash /install/ubuntu_install_hexagon.sh
+ENV HEXAGON_SDK_ROOT "/opt/qualcomm/hexagon_sdk"
 ENV CLANG_LLVM_HOME /opt/clang-llvm
 ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/opt/clang-llvm/lib
 ENV PATH /opt/clang-llvm/bin:$PATH
-ENV HEXAGON_TOOLCHAIN "${HEXAGON_SDK_PATH}/tools/HEXAGON_Tools/8.5.08/Tools"
-ENV HEXAGON_GTEST "${HEXAGON_SDK_PATH}/utils/googletest/gtest"
+ENV HEXAGON_TOOLCHAIN "${HEXAGON_SDK_ROOT}/tools/HEXAGON_Tools/8.5.08/Tools"
+ENV HEXAGON_GTEST "${HEXAGON_SDK_ROOT}/utils/googletest/gtest"
 
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
