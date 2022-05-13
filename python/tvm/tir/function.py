@@ -16,13 +16,14 @@
 # under the License.
 """Function data types."""
 
-from typing import Callable, List, Mapping, Optional, Union
+from typing import Callable, List, Mapping, Optional, Union, Tuple
 import inspect
 
+import tvm
 import tvm._ffi
 import tvm.runtime
 from tvm.runtime import Object
-from tvm.ir import BaseFunc
+from tvm.ir import BaseFunc, Range
 from .buffer import Buffer
 from .expr import Var, PrimExpr
 from . import _ffi_api
@@ -296,12 +297,42 @@ class IndexMap(Object):
         final_indices = mapping_function(*args)
         return IndexMap(args, final_indices)
 
+    def is_equivalent_to(self, other_map: "IndexMap") -> bool:
+        """Return if the index maps are equivalent.
+
+        Parameters
+        ----------
+        other_map: IndexMap
+
+            The IndexMap to which the comparison should be made.
+
+        Returns
+        -------
+        is_equivalent: bool
+
+            True if the two mappings represent the same
+            transformation, otherwise False
+        """
+        if len(self.initial_indices) != len(other_map.initial_indices):
+            return False
+        if len(self.final_indices) != len(other_map.final_indices):
+            return False
+
+        analyzer = tvm.arith.Analyzer()
+
+        mapped_other_final_indices = other_map.map_indices(self.initial_indices)
+        for self_index, other_index in zip(self.final_indices, mapped_other_final_indices):
+            if not analyzer.can_prove_equal(self_index, other_index):
+                return False
+
+        return True
+
     def map_indices(self, indices: List[PrimExpr]) -> List[PrimExpr]:
         """Apply the index map to a set of indices
 
         Parameters
         ----------
-        indices : List[PriExpr]
+        indices : List[PrimExpr]
             The indices to be mapped
 
         Returns
@@ -310,3 +341,76 @@ class IndexMap(Object):
             The mapped indices
         """
         return _ffi_api.IndexMapMapIndices(self, indices)
+
+    def map_shape(self, shape: List[PrimExpr]) -> List[PrimExpr]:
+        """Apply the index map to a buffer shape
+
+        Parameters
+        ----------
+        shape : List[PrimExpr]
+            The buffer shape to be mapped
+
+        Returns
+        -------
+        result : List[PrimExpr]
+            The mapped shape
+        """
+        return _ffi_api.IndexMapMapShape(self, shape)
+
+    def inverse(self, shape: List[Union[Range, PrimExpr]]) -> "IndexMap":
+        """Return the inverse of the map
+
+        Throws an error if the function is not bijective.
+
+        Parameters
+        ----------
+        shape: List[Union[Range,PrimExpr]]
+
+            The region over which the inverse should be determined.
+            Used for validating that the mapping is bijective over
+            this range.
+
+        Returns
+        -------
+        inverse : IndexMap
+
+            The inverse
+        """
+
+        shape = [dim if isinstance(dim, Range) else Range(0, dim) for dim in shape]
+        return _ffi_api.IndexMapInverse(self, shape)
+
+    def non_surjective_inverse(
+        self, shape: List[Union[Range, PrimExpr]]
+    ) -> Tuple["IndexMap", PrimExpr]:
+        """Return the inverse of the map
+
+        Can be applied to transformations that introduce padding.
+
+        Parameters
+        ----------
+        shape: List[Union[Range,PrimExpr]]
+
+            The region over which the inverse should be determined.
+            Used for determining the predicate.
+
+        Returns
+        -------
+        result : Tuple[IndexMap, PrimExpr]
+
+            The inverse, and a predicate for which the inverse maps to
+            a valid index in the input range.
+
+        Examples
+        --------
+
+        .. code-block:: python
+
+            index_map = IndexMap.from_func(lambda i: [i//4, i%4])
+            inverse_map, predicate = index_map.non_surjective_inverse([14])
+            assert inverse_map.is_equivalent_to(IndexMap.from_func(lambda j,k: [4*j + k])
+            print(predicate) # Prints "(axis0==3) && (axis2 >= 2)"
+        """
+
+        shape = [dim if isinstance(dim, Range) else Range(0, dim) for dim in shape]
+        return _ffi_api.IndexMapNonSurjectiveInverse(self, shape)
