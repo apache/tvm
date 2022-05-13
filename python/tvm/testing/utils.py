@@ -83,7 +83,7 @@ import tvm._ffi
 
 from tvm.contrib import nvcc, cudnn
 from tvm.error import TVMError
-from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.relay.op.contrib import ethosn
 from tvm.relay.op.contrib import cmsisnn
 from tvm.relay.op.contrib import vitis_ai
 
@@ -514,6 +514,64 @@ def enabled_targets():
     return [(t["target"], tvm.device(t["target"])) for t in _get_targets() if t["is_runnable"]]
 
 
+def _cmake_flag_enabled(flag):
+    flag = tvm.support.libinfo()[flag]
+
+    # Because many of the flags can be library flags, we check if the
+    # flag is not disabled, rather than checking if it is enabled.
+    return flag.lower() not in ["off", "false", "0"]
+
+
+def _cmake_flag_skipif(feature_name, cmake_flag):
+    return pytest.mark.skipif(
+        not _cmake_flag_enabled(cmake_flag),
+        reason=f"{feature_name} support not enabled.  Set {cmake_flag}=ON in config.cmake to enable.",
+    )
+
+
+def _environment_var_enabled(target):
+    enabled_str = os.environ.get("TVM_TEST_TARGETS", "")
+    if enabled_str:
+        enabled_target_names = set(t.strip() for t in enabled_str.split(";"))
+    else:
+        enabled_target_names = DEFAULT_TEST_TARGETS
+
+    target_kind = target.split()[0]
+    return any(enabled.split()[0] == target_kind for enabled in enabled_target_names)
+
+
+def _environment_var_skipif(target_name, target=None):
+    if target is None:
+        target = target_name
+
+    return pytest.mark.skipif(
+        not _environment_var_enabled(target),
+        reason=f"{target_name} tests disabled by TVM_TEST_TARGETS",
+    )
+
+
+def _device_exists(target):
+    target_kind = target.split()[0]
+    return tvm.runtime.enabled(target_kind) and tvm.device(target_kind).exist
+
+
+def _device_skipif(target_name, target=None):
+    if target is None:
+        target = target_name
+
+    return pytest.mark.skipif(
+        not _device_exists(target_kind), reason=f"{target_name} device not present"
+    )
+
+
+def _target_skipif_marks(target_name, cmake_flag, target_kind):
+    return [
+        _cmake_flag_skipif(target_name, cmake_flag),
+        _environment_var_skipif(target_name, target_kind),
+        _device_skipif(target_name, target_kind),
+    ]
+
+
 def _compose(args, decs):
     """Helper to apply multiple markers"""
     if len(args) > 0:
@@ -601,12 +659,14 @@ def requires_cuda(*args):
     f : function
         Function to mark
     """
-    _requires_cuda = [
+    libinfo = tvm.support.libinfo()
+
+    marks = [
         pytest.mark.cuda,
-        pytest.mark.skipif(not device_enabled("cuda"), reason="CUDA support not enabled"),
+        *_target_skipif_marks("CUDA", "USE_CUDA", "cuda"),
         *requires_gpu(),
     ]
-    return _compose(args, _requires_cuda)
+    return _compose(args, marks)
 
 
 def requires_cudnn(*args):
@@ -621,9 +681,8 @@ def requires_cudnn(*args):
     """
 
     requirements = [
-        pytest.mark.skipif(
-            not cudnn.exists(), reason="cuDNN library not enabled, or not installed"
-        ),
+        _cmake_flag_skipif("cuDNN", "USE_CUDNN"),
+        pytest.mark.skipif(not cudnn.exists(), reason="cuDNN library not installed"),
         *requires_cuda(),
     ]
     return _compose(args, requirements)
@@ -641,10 +700,7 @@ def requires_cublas(*args):
     """
 
     requirements = [
-        pytest.mark.skipif(
-            tvm.get_global_func("tvm.contrib.cublas.matmul", True),
-            reason="cuDNN library not enabled",
-        ),
+        _cmake_flag_skipif("cuBLAS", "USE_CUBLAS"),
         *requires_cuda(),
     ]
     return _compose(args, requirements)
@@ -663,7 +719,7 @@ def requires_nvptx(*args):
 
     """
     _requires_nvptx = [
-        pytest.mark.skipif(not device_enabled("nvptx"), reason="NVPTX support not enabled"),
+        _device_skipif("nvptx"),
         *requires_llvm(),
         *requires_gpu(),
     ]
@@ -754,7 +810,7 @@ def requires_opencl(*args):
     """
     _requires_opencl = [
         pytest.mark.opencl,
-        pytest.mark.skipif(not device_enabled("opencl"), reason="OpenCL support not enabled"),
+        *_target_skipif_marks("OpenCL", "USE_OPENCL", "opencl"),
         *requires_gpu(),
     ]
     return _compose(args, _requires_opencl)
@@ -789,7 +845,7 @@ def requires_rocm(*args):
     """
     _requires_rocm = [
         pytest.mark.rocm,
-        pytest.mark.skipif(not device_enabled("rocm"), reason="rocm support not enabled"),
+        *_target_skipif_marks("ROCm", "USE_ROCM", "rocm"),
         *requires_gpu(),
     ]
     return _compose(args, _requires_rocm)
@@ -807,7 +863,7 @@ def requires_metal(*args):
     """
     _requires_metal = [
         pytest.mark.metal,
-        pytest.mark.skipif(not device_enabled("metal"), reason="metal support not enabled"),
+        *_target_skipif_marks("metal", "USE_METAL", "metal"),
         *requires_gpu(),
     ]
     return _compose(args, _requires_metal)
@@ -825,7 +881,7 @@ def requires_vulkan(*args):
     """
     _requires_vulkan = [
         pytest.mark.vulkan,
-        pytest.mark.skipif(not device_enabled("vulkan"), reason="vulkan support not enabled"),
+        *_target_skipif_marks("Vulkan", "USE_VULKAN", "vulkan"),
         *requires_gpu(),
     ]
     return _compose(args, _requires_vulkan)
@@ -843,6 +899,7 @@ def requires_tensorcore(*args):
     """
     _requires_tensorcore = [
         pytest.mark.tensorcore,
+        *requires_cuda(),
         pytest.mark.skipif(
             not tvm.cuda().exist or not nvcc.have_tensorcore(tvm.cuda(0).compute_version),
             reason="No tensorcore present",
@@ -862,7 +919,7 @@ def requires_llvm(*args):
     """
     _requires_llvm = [
         pytest.mark.llvm,
-        pytest.mark.skipif(not device_enabled("llvm"), reason="LLVM support not enabled"),
+        *_target_skipif_marks("LLVM", "USE_LLVM", "llvm"),
     ]
     return _compose(args, _requires_llvm)
 
@@ -876,10 +933,7 @@ def requires_micro(*args):
         Function to mark
     """
     _requires_micro = [
-        pytest.mark.skipif(
-            tvm.support.libinfo().get("USE_MICRO", "OFF") != "ON",
-            reason="MicroTVM support not enabled. Set USE_MICRO=ON in config.cmake to enable.",
-        )
+        _cmake_flag_skipif("MicroTVM", "USE_MICRO"),
     ]
     return _compose(args, _requires_micro)
 
@@ -893,10 +947,7 @@ def requires_rpc(*args):
         Function to mark
     """
     _requires_rpc = [
-        pytest.mark.skipif(
-            tvm.support.libinfo().get("USE_RPC", "OFF") != "ON",
-            reason="RPC support not enabled. Set USE_RPC=ON in config.cmake to enable.",
-        )
+        _cmake_flag_skipif("RPC", "USE_RPC"),
     ]
     return _compose(args, _requires_rpc)
 
@@ -911,14 +962,8 @@ def requires_ethosn(*args):
     """
     marks = [
         pytest.mark.ethosn,
-        pytest.mark.skipif(
-            not ethosn_available(),
-            reason=(
-                "Arm(R) Ethos(TM)-N support not enabled.  "
-                "Set USE_ETHOSN=ON in config.cmake to enable, "
-                "and ensure that hardware support is present."
-            ),
-        ),
+        _cmake_flag_skipif("Arm(R) Ethos(TM)-N", "USE_ETHOSN"),
+        _cmake_flag_skipif("Arm(R) Ethos(TM)-N Hardware", "USE_ETHOSN_HW"),
     ]
     return _compose(args, marks)
 
@@ -933,10 +978,11 @@ def requires_hexagon(*args):
     """
     _requires_hexagon = [
         pytest.mark.hexagon,
-        pytest.mark.skipif(not device_enabled("hexagon"), reason="Hexagon support not enabled"),
+        *_target_skipif_marks("Hexagon", "USE_HEXAGON", "hexagon"),
         *requires_llvm(),
         pytest.mark.skipif(
-            tvm.target.codegen.llvm_version_major() < 7, reason="Hexagon requires LLVM 7 or later"
+            _cmake_flag_enabled("USE_LLVM") and tvm.target.codegen.llvm_version_major() < 7,
+            reason="Hexagon requires LLVM 7 or later",
         ),
     ]
     return _compose(args, _requires_hexagon)
@@ -951,7 +997,9 @@ def requires_cmsisnn(*args):
         Function to mark
     """
 
-    requirements = [pytest.mark.skipif(not cmsisnn.enabled(), reason="CMSIS NN not enabled")]
+    requirements = [
+        _cmake_flag_skipif("CMSIS NN", "USE_CMSISNN"),
+    ]
     return _compose(args, requirements)
 
 
@@ -964,7 +1012,9 @@ def requires_vitis_ai(*args):
         Function to mark
     """
 
-    requirements = [pytest.mark.skipif(not vitis_ai.enabled(), reason="Vitis AI not enabled")]
+    requirements = [
+        _cmake_flag_skipif("Vitis AI", "USE_VITIS_AI"),
+    ]
     return _compose(args, requirements)
 
 
