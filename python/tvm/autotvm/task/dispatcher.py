@@ -221,7 +221,7 @@ class ApplyHistoryBest(DispatchContext):
         from ..record import load_from_file
 
         joint_records = []
-        if not isinstance(records, Iterable):
+        if not isinstance(records, Iterable) or isinstance(records, str):
             records = [records]
 
         for rec in records:
