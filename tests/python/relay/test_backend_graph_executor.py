@@ -300,17 +300,28 @@ def test_compile_return_empty_tuple():
     mod.run()
 
 
+@tvm.testing.uses_gpu
 def test_compile_fused_identity_cast():
+    # a fused function that would optimized to identity
     x = relay.var("x", shape=[16], dtype="float32")
     y = relay.cast(x, "float32")
-    func = relay.Function([x], y)
-    func = func.with_attr("Primitive", 1)
-    x_param = relay.var("xx", shape=[16], dtype="float32")
-    func = relay.Function([x_param], relay.Call(func, [x_param]))
-    mod = tvm.IRModule.from_expr(func)
-    graph, lib, _ = relay.build(mod, "llvm")
-    mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
-    mod.run()
+    func1 = relay.Function([x], y).with_attr("Primitive", 1)
+
+    # a fused function with param pass-through
+    x = relay.var("x", shape=[16], dtype="float32")
+    y = relay.add(x, relay.const(3.14, "float32"))
+    func2 = relay.Function([x], relay.Tuple([x, y])).with_attr("Primitive", 1)
+
+    x_global = relay.var("xx", shape=[16], dtype="float32")
+    tup = func2(x_global)
+    y_global = func1(relay.TupleGetItem(tup, 0) + relay.TupleGetItem(tup, 1))
+
+    mod = tvm.IRModule.from_expr(relay.Function([x_global], y_global))
+    for target, device in tvm.testing.enabled_targets():
+        with tvm.transform.PassContext(opt_level=2):
+            graph, lib, _ = relay.build(mod, target=target)
+            executor = graph_executor.create(graph, lib, device=device)
+            executor.run()
 
 
 def test_graph_executor_nested_tuples():
