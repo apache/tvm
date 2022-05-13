@@ -31,6 +31,7 @@ class UMABackend(object):
         # TODO: variant implementation
         # - variant should allow the user to differentiate between different variants of the same NPU
         # - we need to decide where we want to make the variant decision and which parts of UMA are affected by it
+        self._target_attrs: List = list()
         self._relay_to_relay = UMAPartitioner(self.target_name, merge_compiler_regions)
         self._relay_to_tir = UMALower(self.target_name)
         self._tir_to_runtime = UMACodegen(self.target_name)
@@ -46,6 +47,13 @@ class UMABackend(object):
             The hardware target name.
         """
         ...
+
+    ############################################################################
+    # Target configuration
+    ############################################################################
+    def _register_target_attr(self, name: str) -> None:
+        """Register a target attribute name that can be used during target instantiation."""
+        self._target_attrs.append(name)
 
     ############################################################################
     # Relay to Relay function registration
@@ -245,7 +253,7 @@ class UMABackend(object):
     ############################################################################
     def register(self) -> None:
         registration_func = tvm.get_global_func("relay.backend.contrib.uma.RegisterTarget")
-        registration_func(self.target_name)
+        registration_func(self.target_name, self._target_attrs)
 
         self._relay_to_relay.register()
         self._relay_to_tir.register()

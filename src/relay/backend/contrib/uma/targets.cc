@@ -38,8 +38,8 @@ namespace uma {
 }  // namespace relay
 
 TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
-    .set_body_typed([](String target_name){
-        ::tvm::TargetKindRegEntry::RegisterOrGet(target_name)
+    .set_body_typed([](String target_name, Array<String> attr_names){
+        auto target_kind = ::tvm::TargetKindRegEntry::RegisterOrGet(target_name)
         .set_name()
         .set_device_type(kDLCPU)
         .add_attr_option<Array<String>>("keys")
@@ -51,6 +51,10 @@ TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
         .add_attr_option<Integer>("from_device")
         .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::uma::RelayToTIR(target_name))
         .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::uma::TIRToRuntime);
+
+        for (auto &attr_name : attr_names) {
+            target_kind.add_attr_option<String>(attr_name);
+        }
     });
 
 }  // namespace tvm

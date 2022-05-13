@@ -28,6 +28,11 @@ class UltraTrailBackend(UMABackend):
         super(UltraTrailBackend, self).__init__()
 
         #######################################################################
+        # Target configuration
+        #######################################################################
+        self._register_target_attr("dimension")
+
+        #######################################################################
         # Relay to Relay function registration
         #######################################################################
         self._register_pattern("conv1d_relu", conv1d_relu_pattern())
