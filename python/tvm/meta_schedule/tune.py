@@ -448,7 +448,7 @@ class TuneConfig(NamedTuple):
                 "level": logging._levelToName[  # pylint: disable=protected-access
                     global_logger.level
                 ],
-                "handlers": global_logger.handlers
+                "handlers": [handler.get_name() for handler in global_logger.handlers]
                 + [global_logger_name + ".console", global_logger_name + ".file"],
                 "propagate": False,
             },
