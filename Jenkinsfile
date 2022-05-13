@@ -45,18 +45,18 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-11T16:27:38.745360
+// Generated at 2022-05-13T12:39:39.064143
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:20220505-060045-500703308'
-ci_gpu = 'tlcpack/ci-gpu:20220505-060045-500703308'
-ci_cpu = 'tlcpack/ci-cpu:20220505-060045-500703308'
-ci_wasm = 'tlcpack/ci-wasm:20220505-060045-500703308'
-ci_i386 = 'tlcpack/ci-i386:20220505-060045-500703308'
-ci_qemu = 'tlcpack/ci-qemu:20220505-060045-500703308'
-ci_arm = 'tlcpack/ci-arm:20220505-060045-500703308'
-ci_hexagon = 'tlcpack/ci-hexagon:20220505-060045-500703308'
+ci_lint = 'tlcpack/ci-lint:20220513-055910-fa834f67e'
+ci_gpu = 'tlcpack/ci-gpu:20220513-055910-fa834f67e'
+ci_cpu = 'tlcpack/ci-cpu:20220513-055910-fa834f67e'
+ci_wasm = 'tlcpack/ci-wasm:20220513-055910-fa834f67e'
+ci_i386 = 'tlcpack/ci-i386:20220513-055910-fa834f67e'
+ci_qemu = 'tlcpack/ci-qemu:20220513-055910-fa834f67e'
+ci_arm = 'tlcpack/ci-arm:20220513-055910-fa834f67e'
+ci_hexagon = 'tlcpack/ci-hexagon:20220513-055910-fa834f67e'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
