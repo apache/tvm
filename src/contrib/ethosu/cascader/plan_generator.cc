@@ -106,7 +106,8 @@ std::vector<bool> GetCascadableAxes(const Part& part) {
 }
 
 std::vector<StripeConfig> GenerateOutputStripeConfigs(const Part& part, int stripe_factors,
-                                                      bool enable_striping) {
+                                                      bool enable_striping,
+                                                      bool multi_dimensional) {
   // If stripe_factors is <= 0, then we won't produce any StripeConfigs
   if (stripe_factors <= 0) {
     return std::vector<StripeConfig>();
@@ -147,11 +148,29 @@ std::vector<StripeConfig> GenerateOutputStripeConfigs(const Part& part, int stri
     }
     splits.push_back(std::vector<int>(axis_splits.begin(), axis_splits.end()));
   }
-  // Now calculate all the possible combinations of splits for each dimension
-  // to give us all the possible stripe shapes. For example, if we had two axes
-  // both with possible splits in {128, 64, 32, 1}, the stripe shapes would be:
-  // (128, 128), (128, 64), (128, 32) ... (1, 64), (1, 32), (1, 1)
-  auto stripe_shapes = EnumerateCombinations<int>(splits);
+
+  std::vector<std::vector<int>> stripe_shapes;
+  if (multi_dimensional) {
+    // Now calculate all the possible combinations of splits for each dimension
+    // to give us all the possible stripe shapes. For example, if we had two axes
+    // both with possible splits in {128, 64, 32, 1}, the stripe shapes would be:
+    // (128, 128), (128, 64), (128, 32) ... (1, 64), (1, 32), (1, 1)
+    stripe_shapes = EnumerateCombinations<int>(splits);
+  } else {
+    // Only consider splitting a single axis
+    int axis = 0;
+    for (const auto& split : splits) {
+      for (const auto& axis_split : split) {
+        std::vector<int> stripe_shape = output_shape;
+        if (stripe_shape[axis] != axis_split) {
+          stripe_shape[axis] = axis_split;
+          stripe_shapes.push_back(stripe_shape);
+        }
+      }
+      axis++;
+    }
+    stripe_shapes.push_back(output_shape);
+  }
   auto offset = std::vector<int>(output_dims);
   std::vector<StripeConfig> stripe_configs;
   // Calculate the possible axis orderings such that each axis has the opportunity
@@ -437,7 +456,8 @@ std::unordered_map<std::vector<Part>, std::vector<Plan>> GenerateGraphPlans(
     // output of a Plan. The number generated is a function of stripe_factors and the number of
     // cascadable dimensions in the Part.
     std::vector<StripeConfig> stripe_configs =
-        GenerateOutputStripeConfigs(part, options->stripe_factors, options->enable_striping);
+        GenerateOutputStripeConfigs(part, options->stripe_factors, options->enable_striping,
+                                    options->enable_multi_dimensional_striping);
     // Check to see if the output Tensor is part of any existing open Plans
     if (stripe_configs_by_tensor.find(part->GetOutputTensor()) != stripe_configs_by_tensor.end()) {
       // If there are other open Plans which have this Part's output Tensor as an input, then
@@ -491,10 +511,12 @@ std::unordered_map<std::vector<Part>, std::vector<Plan>> GenerateGraphPlans(
     // and plans_by_config maps.
     for (const auto& part_group : new_part_groups) {
       if (closed_plans.find(part_group) != closed_plans.end()) {
-        closed_plans[part_group] = ParetoCullPlans(closed_plans.at(part_group), 32);
+        closed_plans[part_group] = ParetoCullPlans(
+            closed_plans.at(part_group), options->max_closed_plans, options->disable_pareto_plans);
       }
       for (const auto& it : open_plans[part_group]) {
-        auto pareto_plans = ParetoCullPlans(it.second, 8);
+        auto pareto_plans =
+            ParetoCullPlans(it.second, options->max_open_plans, options->disable_pareto_plans);
         for (const auto& plan : pareto_plans) {
           for (const auto& open_config : plan->GetOpenConfigs()) {
             if (open_config != plan->GetOutputConfig()) {
@@ -515,12 +537,13 @@ std::unordered_map<std::vector<Part>, std::vector<Plan>> GenerateGraphPlans(
 }
 
 TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.GenerateOutputStripeConfigs")
-    .set_body_typed([](Part part, int stripe_factors, bool enable_striping) {
+    .set_body_typed([](Part part, int stripe_factors, bool enable_striping,
+                       bool multi_dimensional) {
       if (stripe_factors < 0) {
         return Array<StripeConfig>();
       }
       return Array<StripeConfig>(
-          GenerateOutputStripeConfigs(part, stripe_factors, enable_striping));
+          GenerateOutputStripeConfigs(part, stripe_factors, enable_striping, multi_dimensional));
     });
 
 TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.GenerateSinglePlans")
