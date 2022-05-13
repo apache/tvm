@@ -78,6 +78,14 @@ class OneFlowGraph_v2(flow.nn.Graph):
         out = self.m(x1, x2, x3)
         return out
 
+class OneFlowGraph_v3(flow.nn.Graph):
+    def __init__(self, module):
+        super().__init__()
+        self.m = module
+
+    def build(self, x1, x2):
+        out = self.m(x1, x2)
+        return out
 
 def get_oneflow_output(model, inputs):
     flow_output = model(inputs)
@@ -87,6 +95,10 @@ def get_oneflow_output(model, inputs):
 def get_oneflow_concat_output(model, input1, input2, input3):
     flow_output = model(input1, input2, input3).numpy()
     return flow_output
+
+
+def get_oneflow_elementwise_output(model, input1, input2):
+    return model(input1, input2).numpy()
 
 
 def get_tvm_output(graph, model_path, inputs: flow.tensor, target="llvm", dtype="float32"):
@@ -132,15 +144,33 @@ def get_tvm_concat_output(
     return tvm_output
 
 
+def get_tvm_elementwise_output(
+    graph, model_path, input1: flow.tensor, input2: flow.tensor, target="llvm", dtype="float32",
+):
+    input1_numpy = input1.numpy()
+    input2_numpy = input2.numpy()
+    if target == "llvm":
+        device = tvm.cpu(0)
+    elif target == "cuda":
+        device = tvm.cuda(0)
+
+    mod, params = relay.frontend.from_oneflow(graph, model_path)
+    with tvm.transform.PassContext(opt_level=10):
+        intrp = relay.build_module.create_executor("graph", mod, device, target)
+    tvm_output = intrp.evaluate()(
+        tvm.nd.array(input1_numpy.astype(dtype)),
+        tvm.nd.array(input2_numpy.astype(dtype)),
+        **params,
+    ).numpy()
+    return tvm_output
+
+
 def verify_conv(
     model,
     name="",
     rtol=1e-5,
     atol=1e-5,
-    inputs=flow.tensor(
-        np.random.rand(1, 3, 224, 224),
-        dtype=flow.float32,
-    ),
+    inputs=flow.tensor(np.random.rand(1, 3, 224, 224), dtype=flow.float32,),
     device="llvm",
 ):
     if device == "cuda":
@@ -166,10 +196,7 @@ def verify_pool(
     name="",
     rtol=1e-5,
     atol=1e-5,
-    inputs=flow.tensor(
-        np.random.rand(1, 3, 224, 224),
-        dtype=flow.float32,
-    ),
+    inputs=flow.tensor(np.random.rand(1, 3, 224, 224), dtype=flow.float32,),
     device="llvm",
 ):
     if device == "cuda":
@@ -195,10 +222,7 @@ def verify_normalization(
     name="",
     rtol=1e-5,
     atol=1e-5,
-    inputs=flow.tensor(
-        np.random.rand(1, 3, 224, 224),
-        dtype=flow.float32,
-    ),
+    inputs=flow.tensor(np.random.rand(1, 3, 224, 224), dtype=flow.float32,),
     device="llvm",
 ):
     if device == "cuda":
@@ -225,10 +249,7 @@ def verify_upsample(
     name="",
     rtol=1e-5,
     atol=1e-5,
-    inputs=flow.tensor(
-        np.random.rand(1, 3, 50, 50),
-        dtype=flow.float32,
-    ),
+    inputs=flow.tensor(np.random.rand(1, 3, 50, 50), dtype=flow.float32,),
     device="llvm",
 ):
     if device == "cuda":
@@ -254,10 +275,7 @@ def verify_convtran(
     name="",
     rtol=1e-5,
     atol=1e-5,
-    inputs=flow.tensor(
-        np.random.rand(1, 3, 50, 50),
-        dtype=flow.float32,
-    ),
+    inputs=flow.tensor(np.random.rand(1, 3, 50, 50), dtype=flow.float32,),
     device="llvm",
 ):
     if device == "cuda":
@@ -283,10 +301,7 @@ def verify_activation(
     name="",
     rtol=1e-5,
     atol=1e-5,
-    inputs=flow.tensor(
-        np.random.rand(10, 10),
-        dtype=flow.float32,
-    ),
+    inputs=flow.tensor(np.random.rand(10, 10), dtype=flow.float32,),
     device="llvm",
 ):
     if device == "cuda":
@@ -312,10 +327,7 @@ def verify_math(
     name="",
     rtol=1e-5,
     atol=1e-5,
-    inputs=flow.tensor(
-        np.random.rand(100, 1),
-        dtype=flow.float32,
-    ),
+    inputs=flow.tensor(np.random.rand(100, 1), dtype=flow.float32,),
     device="llvm",
 ):
     if device == "cuda":
@@ -335,6 +347,59 @@ def verify_math(
     assert_shape(out_flow, out_tvm)
     tvm.testing.assert_allclose(out_flow, out_tvm, rtol=rtol, atol=atol)
 
+
+def verify_math_elementwise(
+    model,
+    name="",
+    rtol=1e-5,
+    atol=1e-5,
+    input=flow.tensor(np.random.rand(100, 1), dtype=flow.float32,),
+    device="llvm",
+):
+    input_y = flow.randn(input.shape)
+    if device == "cuda":
+        model.to(device)
+        input = input.to(device)
+        input_y = input_y.to(device)
+
+    graph = OneFlowGraph(model)
+    graph._compile(input, input_y)
+
+    mkdir(MODEL_HOME)
+    flow.save(model.state_dict(), MODEL_HOME)
+
+    out_flow = get_oneflow_elementwise_output(graph, input, input_y)
+    out_tvm = get_tvm_elementwise_output(graph, MODEL_HOME, input, input_y, target=device)
+    rmdir(MODEL_HOME)
+
+    assert_shape(out_flow, out_tvm)
+    tvm.testing.assert_allclose(out_flow, out_tvm, rtol=rtol, atol=atol)
+
+def verify_matmul(
+    model,
+    name="",
+    rtol=1e-5,
+    atol=1e-5,
+    inputs1=flow.tensor(np.random.randn(2, 5), dtype=flow.float32),
+    inputs2=flow.tensor(np.random.randn(5, 2), dtype=flow.float32),
+    device="llvm",
+):
+    if device == "cuda":
+        model.to(device)
+        inputs1 = inputs1.to(device)
+        inputs2 = inputs2.to(device)
+
+    graph = OneFlowGraph_v3(model)
+    graph._compile(inputs1, inputs2)
+    mkdir(MODEL_HOME)
+    flow.save(model.state_dict(), MODEL_HOME)
+
+    out_flow = get_oneflow_elementwise_output(graph, inputs1, inputs2)
+    out_tvm = get_tvm_elementwise_output(graph, MODEL_HOME, inputs1, inputs2, target=device)
+    rmdir(MODEL_HOME)
+
+    assert_shape(out_flow, out_tvm)
+    tvm.testing.assert_allclose(out_flow, out_tvm, rtol=rtol, atol=atol)
 
 def verify_concat(
     model,
@@ -601,6 +666,15 @@ def test_activation():
         def forward(self, x):
             x = self.active(x)
             return x
+    
+    class HardTanh(flow.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.active = flow.nn.Hardtanh()
+
+        def forward(self, x):
+            x = self.active(x)
+            return x
 
     if os.path.exists(MODEL_HOME):
         rmdir(MODEL_HOME)
@@ -616,6 +690,7 @@ def test_activation():
     model9 = SiLU().eval()
     model10 = LeakyReLU().eval()
     model11 = GELU().eval()
+    model12 = HardTanh().eval()
 
     for device in ["llvm"]:
         verify_activation(model1, device=device)
@@ -629,6 +704,7 @@ def test_activation():
         verify_activation(model9, device=device)
         verify_activation(model10, device=device)
         verify_activation(model11, device=device)
+        verify_activation(model12, device=device)
 
 
 @tvm.testing.uses_gpu
@@ -664,6 +740,10 @@ def test_math():
     class Exp2(flow.nn.Module):
         def forward(self, x):
             return flow.expm1(x)
+    
+    class Variance(flow.nn.Module):
+        def forward(self, x):
+            return flow.var(x, 1, unbiased=False, keepdim=True)
 
     model1 = Sigmoid().eval()
     model2 = Sign().eval()
@@ -671,6 +751,9 @@ def test_math():
     model4 = Log2().eval()
     model5 = Exp().eval()
     model6 = Exp2().eval()
+    model7 = Reciprocal().eval()
+    model8 = Pow().eval()
+    model9 = Variance().eval()
 
     for device in ["llvm"]:
         verify_math(model1, device=device)
@@ -679,6 +762,21 @@ def test_math():
         verify_math(model4, device=device)
         verify_math(model5, device=device)
         verify_math(model6, device=device)
+        verify_math(model7, device=device)
+        verify_math(model8, device=device)
+        verify_math(model9, device=device)
+
+
+@tvm.testing.uses_gpu
+def test_math_elementwise():
+    class Pow(flow.nn.Module):
+        def forward(self, x, y):
+            return flow.pow(x, y)
+
+    model1 = Pow().eval()
+
+    for device in ["llvm"]:
+        verify_math_elementwise(model1, device=device)
 
 
 @tvm.testing.uses_gpu
@@ -709,6 +807,96 @@ def test_concat():
     for device in ["llvm"]:
         verify_concat(model, device=device)
 
+@tvm.testing.uses_gpu
+def test_add_constant():
+    class ConstantAdd(flow.nn.Module):
+        def forward(self, x):
+            out = flow.add(1.0, x)
+            return out
+
+    model = ConstantAdd().eval()
+
+    for device in ["llvm"]:
+        verify_math(
+            model, device=device, inputs=flow.tensor(np.random.randn(3, 6, 9).astype(np.float32))
+        )
+
+
+@tvm.testing.uses_gpu
+def test_logical():
+    class LogicalGreater(flow.nn.Module):
+        def forward(self, x):
+            return x > 1.0
+
+    model1 = LogicalGreater().eval()
+
+    for device in ["llvm"]:
+        verify_math(
+            model1, device=device, inputs=flow.tensor(np.random.randn(3, 6, 9).astype(np.float32))
+        )
+
+@tvm.testing.uses_gpu
+def test_where():
+    class Where(flow.nn.Module):
+        def forward(self, x):
+            return flow.where(x > 0.5, x, x * 2)
+
+    model1 = Where().eval()
+
+    for device in ["llvm"]:
+        verify_math(
+            model1, device=device, inputs=flow.tensor(np.random.randn(3, 6, 9).astype(np.int32))
+        )
+
+@tvm.testing.uses_gpu
+def test_expand():
+    class Expand(flow.nn.Module):
+        def forward(self, x):
+            return x.expand(2, -1, -1)
+
+    model1 = Expand().eval()
+
+    for device in ["llvm"]:
+        verify_math(
+            model1, device=device, inputs=flow.tensor(np.random.randn(1, 6, 9).astype(np.float32))
+        )
+
+@tvm.testing.uses_gpu
+def test_matmul():
+    class MatMul(flow.nn.Module):
+        def forward(self, x, y):
+            return flow._C.matmul(x, y)
+
+    class MatMulTranspose(flow.nn.Module):
+        def forward(self, x, y):
+            return flow._C.matmul(x, y, transpose_b=True)
+    class BatchMatMul(flow.nn.Module):
+        def forward(self, x, y):
+            return flow._C.batch_matmul(x, y)
+    
+    class BroadCastMatMul(flow.nn.Module):
+        def forward(self, x, y):
+            return flow._C.matmul(x, y)
+
+    model1 = MatMul().eval()
+    model2 = MatMulTranspose().eval()
+    model3 = BatchMatMul().eval()
+    model4 = BroadCastMatMul().eval()
+
+    for device in ["llvm"]:
+        verify_matmul(
+            model1, device=device, inputs1=flow.tensor(np.random.randn(2, 3).astype(np.float32)), inputs2=flow.tensor(np.random.randn(3, 3).astype(np.float32)
+        ))
+        verify_matmul(
+            model2, device=device, inputs1=flow.tensor(np.random.randn(1, 2).astype(np.float32)), inputs2=flow.tensor(np.random.randn(3, 2).astype(np.float32)
+        ))
+        verify_matmul(
+            model3, device=device, inputs1=flow.tensor(np.random.randn(2, 1, 2).astype(np.float32)), inputs2=flow.tensor(np.random.randn(2, 2, 3).astype(np.float32)
+        ))
+        verify_matmul(
+            model4, device=device, inputs1=flow.tensor(np.random.randn(3, 8, 8, 16).astype(np.float32)), inputs2=flow.tensor(np.random.randn(16, 8).astype(np.float32)
+        ))
+
 
 if __name__ == "__main__":
     test_conv2d()
@@ -720,4 +908,9 @@ if __name__ == "__main__":
     test_math()
     test_slice()
     test_concat()
+    test_add_constant()
+    test_logical()
+    test_expand()
+    # test_where()
+    test_matmul()
     rmdir("log")
