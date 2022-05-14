@@ -26,7 +26,7 @@ from collections import OrderedDict
 import numpy as np
 import tvm
 from tvm.ir import IRModule
-from tvm.topi.utils import get_const_tuple, swap
+from tvm.topi.utils import get_const_tuple
 
 from .. import analysis
 from .. import expr as _expr
@@ -830,18 +830,20 @@ class LogicalGreater(OneFlowOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
+        res = None
         if attrs.get("has_int_operand", True):
             value = attrs.get("int_operand", 0.0)
-            return _op.greater(inputs[0], _op.full_like(inputs[0], fill_value=_expr.const(value)))
+            res = _op.greater(inputs[0], _op.full_like(inputs[0], fill_value=_expr.const(value)))
         elif attrs.get("has_float_operand", True):
             value = float(attrs.get("float_operand", 0.0))
-            return _op.greater(
+            res = _op.greater(
                 inputs[0], _op.full_like(inputs[0], fill_value=_expr.const(value)).astype("float32")
             )
         else:
             raise AttributeError(
                 "please check if has_int_operand or has_float_operand in your attrs"
             )
+        return res
 
 
 class Log1p(OneFlowOpConverter):
@@ -1314,7 +1316,6 @@ class Where(OneFlowOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
-        inputs = inputs
         condition_rank = len(infer_shape(inputs[0]))
         x_rank = len(infer_shape(inputs[1]))
         y_rank = len(infer_shape(inputs[2]))
@@ -1873,11 +1874,13 @@ class OneflowGraph(object):
 def from_oneflow(graph, model_dir_path):
     """Convert a OneFlow model into an equivalent Relay Function.
 
-    At present, there are two ways to run models in deep learning framework, Dynamic Graph and Static Graph,
-    which are also called Eager Mode and Graph Mode in OneFlow.
+    At present, there are two ways to run models in deep learning framework,
+    Dynamic Graph and Static Graph, which are also called Eager Mode and Graph
+    Mode in OneFlow.
 
     In general, dynamic graphs are easier to use and static graphs have better performance.
-    OneFlow offers nn.Graph, so that users can use the eager-like programming style to build static graphs and train the models.
+    OneFlow offers nn.Graph, so that users can use the eager-like programming style to build
+     static graphs and train the models.
 
     We utilize the intermediate representation of nn.Graph to convert the OneFlow model to Reley.
 
