@@ -1874,13 +1874,13 @@ class OneflowGraph(object):
 def from_oneflow(graph, model_dir_path):
     """Convert a OneFlow model into an equivalent Relay Function.
 
-    At present, there are two ways to run models in deep learning framework,
+    At present, there are two ways to run models in deep learning framework
     Dynamic Graph and Static Graph, which are also called Eager Mode and Graph
     Mode in OneFlow.
 
     In general, dynamic graphs are easier to use and static graphs have better performance.
     OneFlow offers nn.Graph, so that users can use the eager-like programming style to build
-     static graphs and train the models.
+    static graphs and train the models.
 
     We utilize the intermediate representation of nn.Graph to convert the OneFlow model to Reley.
 
