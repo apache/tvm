@@ -38,6 +38,8 @@
 #include <tvm/runtime/crt/graph_executor_module.h>
 #endif
 
+#include <tvm/runtime/crt/aot_executor_module.h>
+
 using namespace std::chrono;
 
 extern "C" {
@@ -136,6 +138,9 @@ int main(int argc, char** argv) {
   CHECK_EQ(TVMGraphExecutorModule_Register(), kTvmErrorNoError,
            "failed to register GraphExecutor TVMModule");
 #endif
+
+  CHECK_EQ(TVMAotExecutorModule_Register(), kTvmErrorNoError,
+           "failed to register AoT Executor TVMModule");
 
   int error = TVMFuncRegisterGlobal("tvm.testing.reset_server",
                                     (TVMFunctionHandle)&testonly_reset_server, 0);

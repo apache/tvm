@@ -229,7 +229,9 @@ def verify_with_ort(
     )
 
 
-def quantize_and_verify_with_ort(onnx_model, input_names, input_shapes, target, dev):
+def quantize_and_verify_with_ort(
+    onnx_model, input_names, input_shapes, target, dev, rtol=1e-5, atol=1e-5
+):
     from onnxruntime.quantization import CalibrationDataReader, QuantType, quantize_static
 
     input_arrays = [np.random.random(shape).astype("float32") for shape in input_shapes]
@@ -258,7 +260,7 @@ def quantize_and_verify_with_ort(onnx_model, input_names, input_shapes, target, 
     # opt_level=1 will cause error with qnn lowering
     model = onnx.load(model_quant)
     verify_with_ort_with_inputs(
-        model, input_arrays, opt_level=2, target=target, dev=dev, use_vm=True
+        model, input_arrays, opt_level=2, target=target, dev=dev, use_vm=True, rtol=rtol, atol=atol
     )
 
 
@@ -400,8 +402,15 @@ def test_expand(target, dev):
     shape = (2, 1, 6)
     data = np.random.uniform(size=in_shape).astype(np.float32)
     ref_data = data * np.ones(shape, dtype=np.float32)
-    _test_expand("expand_with_dim_changed_test", data, shape, ref_data, "int32")
-    _test_expand("expand_with_dim_changed_test", data, shape, ref_data, "int64")
+    _test_expand("expand_larger_target_shape_test", data, shape, ref_data, "int32")
+    _test_expand("expand_larger_target_shape_test", data, shape, ref_data, "int64")
+
+    in_shape = (1, 1)
+    shape = (3,)
+    data = np.random.uniform(size=in_shape).astype(np.float32)
+    ref_data = data * np.ones(shape, dtype=np.float32)
+    _test_expand("expand_smaller_target_shape_test", data, shape, ref_data, "int32")
+    _test_expand("expand_smaller_target_shape_test", data, shape, ref_data, "int64")
 
 
 @tvm.testing.parametrize_targets
@@ -1211,27 +1220,32 @@ def test_gemm(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_matmul(target, dev):
-    a_shape = (4, 3)
-    b_shape = (3, 4)
-    out_shape = [a_shape[0], b_shape[1]]
+    def test_one_matmul(a_shape, b_shape):
+        if len(a_shape) == 1:
+            out_shape = [b_shape[1]]
+        else:
+            out_shape = [a_shape[0], b_shape[1]]
 
-    a_array = np.random.uniform(size=a_shape).astype("float32")
-    b_array = np.random.uniform(size=b_shape).astype("float32")
+        a_array = np.random.uniform(size=a_shape).astype("float32")
+        b_array = np.random.uniform(size=b_shape).astype("float32")
 
-    mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
+        mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
 
-    graph = helper.make_graph(
-        [mul_node],
-        "matmul_test",
-        inputs=[
-            helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
-            helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
-        ],
-        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
-    )
+        graph = helper.make_graph(
+            [mul_node],
+            "matmul_test",
+            inputs=[
+                helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+                helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+        )
 
-    model = helper.make_model(graph, producer_name="matmul_test")
-    verify_with_ort_with_inputs(model, [a_array, b_array], target=target, dev=dev)
+        model = helper.make_model(graph, producer_name="matmul_test")
+        verify_with_ort_with_inputs(model, [a_array, b_array], target=target, dev=dev)
+
+    test_one_matmul((4, 3), (3, 4))
+    test_one_matmul((3,), (3, 1))
 
 
 @tvm.testing.parametrize_targets
@@ -1597,6 +1611,10 @@ def test_softmax(target, dev):
 
     verify_softmax((1, 10), None)
     verify_softmax((1, 10), 1)
+    verify_softmax((1, 2, 3, 10), 0)
+    verify_softmax((1, 2, 3, 10), 2)
+    verify_softmax((1, 2, 3, 4, 10), 3)
+    verify_softmax((1, 2, 3, 4, 10), 4)
 
 
 @tvm.testing.parametrize_targets
@@ -5080,7 +5098,6 @@ unsupported_onnx_tests = [
     "test_reduce_sum_keepdims_random",
     "test_reduce_sum_negative_axes_keepdims_example",
     "test_reduce_sum_negative_axes_keepdims_random",
-    "test_reshape_allowzero_reordered",
     "test_rnn_seq_length",
     "test_round",
     "test_sequence_insert_at_back",
@@ -5512,7 +5529,7 @@ def test_embedlayernormalization(target, dev):
 
     hidden_size = 384
     batch_size = 4
-    sequence_length = 4
+    sequence_length = 3
     vocab_size = 5
 
     input_ids = np.full((batch_size, sequence_length), 3).astype("int32")
@@ -5969,7 +5986,11 @@ def test_qlinearleakyrelu(target, dev):
             outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(in_array.shape))],
         )
         model = helper.make_model(graph, producer_name="qlinearRelu_test")
-        quantize_and_verify_with_ort(model, ["X"], [in_array.shape], target, dev)
+        args = (model, ["X"], [in_array.shape], target, dev)
+        if dev == "cuda":
+            quantize_and_verify_with_ort(*args, rtol=1e-2, atol=1e-2)
+        else:
+            quantize_and_verify_with_ort(*args)
 
     verify_qlinearleakyrelu([2, 4, 5, 6], {"alpha": 0.25})
     verify_qlinearleakyrelu([6, 5, 6, 7], {"alpha": 0.35})

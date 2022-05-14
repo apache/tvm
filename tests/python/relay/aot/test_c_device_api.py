@@ -20,6 +20,7 @@ from collections import OrderedDict
 
 import numpy as np
 import pytest
+import re
 
 from tvm import relay
 from tvm.ir.module import IRModule
@@ -133,7 +134,6 @@ def non_device_api_main_func():
 def test_device_api_hooks_unpacked_api(device_api_main_func):
     """Check for Device API hooks with unpacked internal calls"""
     main_func = device_api_main_func(interface_api="c", use_unpacked_api=True)
-    input_name = main_func.params[0].name
 
     # Activate Device
     assert (
@@ -151,12 +151,12 @@ def test_device_api_hooks_unpacked_api(device_api_main_func):
         + " device_context_ethos_u))\n"
     )
     # Device Call
-    assert (
-        str(main_func.body[1][0][0][1])
-        == "tir.tvm_check_return(0, -1, tir.call_extern("
-        + '"tvmgen_default_ethos_u_main_0",'
-        + f" {input_name}_buffer_var, output_buffer_var, device_context_ethos_u))\n"
+    # We dont need to check exact input and output var names in this test.
+    # Hence, using a regex to cover any legal I/O name.
+    regex = re.compile(
+        'tir\.tvm_check_return\(0, -1, tir\.call_extern\("tvmgen_default_ethos_u_main_0", \w+, \w+, device_context_ethos_u\)\)'
     )
+    assert regex.match(str(main_func.body[1][0][0][1]))
     # Close Device
     assert (
         str(main_func.body[1][0][0][2])

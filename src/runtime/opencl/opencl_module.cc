@@ -79,15 +79,16 @@ class OpenCLWrappedFunc {
       wl.work_size[i] *= wl.work_size[i + 3];
     }
     // launch kernel
-#ifdef USE_PROFILER
-    w_->GetEventQueue(t->device).resize(w_->GetEventQueue(t->device).size() + 1);
-    OPENCL_CALL(clEnqueueNDRangeKernel(queue, kernel, work_dim, nullptr, wl.work_size,
-                                       wl.work_size + 3, 0, nullptr,
-                                       &(w_->GetEventQueue(t->device).back())));
-#else
-    OPENCL_CALL(clEnqueueNDRangeKernel(queue, kernel, work_dim, nullptr, wl.work_size,
-                                       wl.work_size + 3, 0, nullptr, nullptr));
-#endif
+
+    if (w_->IsProfiling(t->device)) {
+      w_->GetEventQueue(t->device).resize(w_->GetEventQueue(t->device).size() + 1);
+      OPENCL_CALL(clEnqueueNDRangeKernel(queue, kernel, work_dim, nullptr, wl.work_size,
+                                         wl.work_size + 3, 0, nullptr,
+                                         &(w_->GetEventQueue(t->device).back())));
+    } else {
+      OPENCL_CALL(clEnqueueNDRangeKernel(queue, kernel, work_dim, nullptr, wl.work_size,
+                                         wl.work_size + 3, 0, nullptr, nullptr));
+    }
   }
 
  private:

@@ -655,19 +655,61 @@ class RelayToTIRVisitor : public MixedModeMutator {
     return Call(new_global_var, call->args, call->attrs, call->type_args, call->span);
   }
 
-  Expr Rewrite_(const CallNode* pre, const Expr& post) override {
-    if (const CallNode* call = post.as<CallNode>()) {
-      auto* func = call->op.as<FunctionNode>();
-      if (func == nullptr) {
-        return post;
+  Expr VisitExpr_(const LetNode* op) final {
+    auto pre_visit = [this](const LetNode* op) {
+      Expr var = this->VisitExpr(op->var);
+      Expr value = this->VisitExpr(op->value);
+      // outlineable function no longer needs let binding
+      if (this->CanOutlineExpr(value)) {
+        this->memo_[var] = value;
       }
+    };
+    auto post_visit = [this](const LetNode* op) {
+      // Rely on the Memoizer to cache pre-visit values
+      Expr value = this->VisitExpr(op->value);
+      Expr body = this->VisitExpr(op->body);
+      auto expr = GetRef<Expr>(op);
+      // drop the let binding
+      if (this->CanOutlineExpr(value)) {
+        this->memo_[expr] = this->VisitExpr(op->body);
+      } else {
+        Var var = Downcast<Var>(this->VisitExpr(op->var));
+        if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+          this->memo_[expr] = expr;
+        } else {
+          this->memo_[expr] = Let(var, value, body);
+        }
+      }
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(op)];
+  }
 
-      auto codegen_name = func->GetAttr<String>(attr::kCompiler);
-      if (codegen_name.defined() && codegen_name == "cmsis-nn") {
-        const CallNode* inner_call = func->body.as<CallNode>();
+  bool CanOutlineExpr(const Expr& expr) {
+    // TODO(@lhutton1): This behaviour is similar to the OutlineCompilerFunctions pass
+    // we could reuse this functionality by separating outlining and lowering in this
+    // pass.
+    if (!expr->IsInstance<FunctionNode>()) {
+      return false;
+    }
+    const auto* func = expr.as<FunctionNode>();
+    auto codegen_name = func->GetAttr<String>(attr::kCompiler);
+    if (!codegen_name.defined() || codegen_name != "cmsis-nn") {
+      return false;
+    }
+    return true;
+  }
+
+  Expr Rewrite_(const CallNode* pre, const Expr& post) override {
+    if (const auto* call = post.as<CallNode>()) {
+      if (CanOutlineExpr(call->op)) {
+        const auto* func = call->op.as<FunctionNode>();
+        ICHECK(func) << "Expected function node but was " << call->op->GetTypeKey();
+        const auto codegen_name = func->GetAttr<String>(attr::kCompiler);
         auto global_func_name = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
         GlobalVar new_global_var(global_func_name.value());
 
+        const CallNode* inner_call = func->body.as<CallNode>();
         if (!inner_call) {
           return CallToFuncWithoutCompilerAttr(new_global_var, GetRef<Call>(call),
                                                GetRef<Function>(func));
@@ -684,21 +726,20 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
         if (comp_name == "cmsis-nn.qnn_softmax") {
           EmitSoftMax(new_global_var, composite_func->body);
-        }
-        if (comp_name == "cmsis-nn.qnn_mul") {
+        } else if (comp_name == "cmsis-nn.qnn_mul") {
           EmitMul(new_global_var, composite_func->body);
-        }
-        if (comp_name == "cmsis-nn.qnn_add") {
+        } else if (comp_name == "cmsis-nn.qnn_add") {
           EmitAdd(new_global_var, composite_func->body);
-        }
-        if (comp_name == "cmsis-nn.qnn_conv2d") {
+        } else if (comp_name == "cmsis-nn.qnn_conv2d") {
           EmitConv2D(new_global_var, composite_func->body);
-        }
-        if (comp_name == "cmsis-nn.qnn_fully_connected") {
+        } else if (comp_name == "cmsis-nn.qnn_fully_connected") {
           EmitFullyConnected(new_global_var, composite_func->body);
-        }
-        if (comp_name == "cmsis-nn.qnn_avg_pool2d" || comp_name == "cmsis-nn.qnn_max_pool2d") {
+        } else if (comp_name == "cmsis-nn.qnn_avg_pool2d" ||
+                   comp_name == "cmsis-nn.qnn_max_pool2d") {
           EmitPool2D(new_global_var, composite_func->body, comp_name.value());
+        } else {
+          return CallToFuncWithoutCompilerAttr(new_global_var, GetRef<Call>(call),
+                                               GetRef<Function>(func));
         }
 
         Array<Expr> args;
@@ -709,7 +750,6 @@ class RelayToTIRVisitor : public MixedModeMutator {
         return Call(new_global_var, args, call->attrs, call->type_args, call->span);
       }
     }
-
     return post;
   }
 

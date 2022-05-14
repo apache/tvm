@@ -34,6 +34,10 @@
 #endif
 #if defined(__hexagon__)
 #include <dlfcn.h>
+#include <qurt.h>
+#include <stdlib.h>
+#define HEXAGON_STACK_SIZE 65536
+#define HEXAGON_STACK_ALIGNMENT 32
 #endif
 #include <algorithm>
 #include <thread>
@@ -41,6 +45,61 @@
 namespace tvm {
 namespace runtime {
 namespace threading {
+#ifdef __hexagon__
+// pthreads are broken on older versions of qurt, so
+// we need to use native APIs instead of std::threads
+class QuRTThread {
+  typedef std::function<void()> Callback;
+
+ public:
+  explicit QuRTThread(Callback worker_callback) : worker_callback_(worker_callback) {
+    static int id = 1;
+    qurt_thread_attr_t attr;
+    char name[32];
+    int ret = posix_memalign(&stack_, HEXAGON_STACK_ALIGNMENT, HEXAGON_STACK_SIZE);
+    CHECK_EQ(ret, 0);
+    // When a std::function<> is cast to bool,
+    // it indicates whether it stores a callable target
+    CHECK_EQ((bool)worker_callback_, true);
+    qurt_thread_attr_init(&attr);
+    qurt_thread_attr_set_stack_size(&attr, HEXAGON_STACK_SIZE);
+    qurt_thread_attr_set_stack_addr(&attr, stack_);
+    snprintf(name, sizeof(name), "worker %d", id++);
+    qurt_thread_attr_set_name(&attr, name);
+    ret = qurt_thread_create(&thread_, &attr, (void (*)(void*))RunFunction, this);
+    CHECK_EQ(ret, QURT_EOK);
+  }
+  QuRTThread(QuRTThread&& other)
+      : thread_(other.thread_),
+        worker_callback_(std::move(other.worker_callback_)),
+        stack_(other.stack_) {
+    other.thread_ = 0;
+    other.stack_ = nullptr;
+  }
+  ~QuRTThread() {
+    if (thread_) {
+      join();
+    }
+    if (stack_) {
+      free(stack_);
+    }
+  }
+  bool joinable() const { return qurt_thread_get_id() != thread_; }
+  void join() {
+    int status;
+    qurt_thread_join(thread_, &status);
+  }
+
+ private:
+  static void RunFunction(QuRTThread* qrt_thread) {
+    qrt_thread->worker_callback_();
+    qurt_thread_exit(QURT_EOK);
+  }
+  qurt_thread_t thread_;
+  Callback worker_callback_;
+  void* stack_ = nullptr;
+};
+#endif  // __hexagon__
 thread_local int max_concurrency = 0;
 class ThreadGroup::Impl {
  public:
@@ -116,6 +175,7 @@ class ThreadGroup::Impl {
   // if worker 0 is offloaded to main, i.e. exclude_worker0 is true,
   // the main thread is bound to core 0.
   void SetAffinity(bool exclude_worker0, AffinityMode mode) {
+#ifndef __hexagon__
     const char* val = getenv("TVM_BIND_THREADS");
     if (val != nullptr && atoi(val) != 1) {
       return;
@@ -131,7 +191,7 @@ class ThreadGroup::Impl {
             SetThreadFullCpuAffinity(threads_[i].native_handle(), mode);
           }
           if (exclude_worker0) {  // main thread run task
-            SetMasterThreadFullCpuAffinity(mode);
+            SetMainThreadFullCpuAffinity(mode);
           }
           break;
         case kLittle:
@@ -165,13 +225,14 @@ class ThreadGroup::Impl {
           break;
       }
       if (exclude_worker0) {  // main thread run task
-        // Master thread will have free migration on needed cores.
+        // Main thread will have free migration on needed cores.
         // Typically, the OS will schedule the main thread to run at core 0,
         // which is idle, when other workers are running.
-        // See the comment inside SetMasterThreadFullCpuAffinity function to get more detail.
-        SetMasterThreadFullCpuAffinity(mode);
+        // See the comment inside SetMainThreadFullCpuAffinity function to get more detail.
+        SetMainThreadFullCpuAffinity(mode);
       }
     }
+#endif  // __hexagon__
   }
 
   void SetThreadFullCpuAffinity(std::thread::native_handle_type thread, AffinityMode mode) {
@@ -185,6 +246,7 @@ class ThreadGroup::Impl {
     // Note: this works well on x86 too. Because x86 doesn't have BIG.LITTLE,
     // our implementation will use kBig mode by default and will let main thread
     // run on intended cores.
+#ifndef __hexagon__
     std::vector<unsigned> ids;
     switch (mode) {
       case kSpecifyOneCorePerThread:
@@ -206,9 +268,10 @@ class ThreadGroup::Impl {
         break;
     }
     SetThreadAffinity(thread, ids);
+#endif  // __hexagon__
   }
 
-  void SetMasterThreadFullCpuAffinity(AffinityMode mode) {
+  void SetMainThreadFullCpuAffinity(AffinityMode mode) {
     SetThreadFullCpuAffinity(CURRENT_THREAD_HANDLE, mode);
   }
 
@@ -259,7 +322,11 @@ class ThreadGroup::Impl {
   }
 
   int num_workers_;
+#if defined(__hexagon__)
+  std::vector<QuRTThread> threads_;
+#else
   std::vector<std::thread> threads_;
+#endif
   std::vector<unsigned int> sorted_order_;
   int big_count_ = 0;
   int little_count_ = 0;
@@ -276,7 +343,17 @@ int ThreadGroup::Configure(AffinityMode mode, int nthreads, bool exclude_worker0
   return impl_->Configure(mode, nthreads, exclude_worker0, cpus);
 }
 
-void Yield() { std::this_thread::yield(); }
+void Yield() {
+#ifdef __hexagon__
+  // QuRT doesn't have a yield API, so instead we sleep for the minimum amount
+  // of time to let the OS schedule another thread. std::this_thread::yield()
+  // compiles down to an empty function.
+  qurt_sleep(1);
+#else
+  std::this_thread::yield();
+#endif
+}
+
 /*!
  * \brief Set the maximum number of available cores.
  */

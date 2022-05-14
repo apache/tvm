@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -18,23 +18,32 @@
 
 set -e
 set -u
+set -o pipefail
 
-source tests/scripts/setup-pytest-env.sh
+function show_usage() {
+    cat <<EOF
+Usage: docker/install/ubuntu_install_cmsis.sh <INSTALLATION_PATH>
+INSTALLATION_PATH is the installation path for the CMSIS.
+EOF
+}
 
-make cython3
+if [ "$#" -lt 1 -o "$1" == "--help" -o "$1" == "-h" ]; then
+    show_usage
+    exit -1
+fi
 
-export TVM_TRACKER_PORT=9190
-export TVM_TRACKER_HOST=0.0.0.0
-env PYTHONPATH=python python3 -m tvm.exec.rpc_tracker --host "${TVM_TRACKER_HOST}" --port "${TVM_TRACKER_PORT}" &
-TRACKER_PID=$!
-sleep 5   # Wait for tracker to bind
+INSTALLATION_PATH=$1
+shift
 
-# Temporary workaround for symbol visibility
-export HEXAGON_SHARED_LINK_FLAGS="-Lbuild/hexagon_api_output -lhexagon_rpc_sim"
+CMSIS_VER="5.8.0"
 
-# HEXAGON_TOOLCHAIN is already set
-export HEXAGON_SDK_ROOT=${HEXAGON_SDK_PATH}
-export ANDROID_SERIAL_NUMBER=simulator
-run_pytest ctypes python-contrib-hexagon-simulator tests/python/contrib/test_hexagon
+# Create installation path directory
+mkdir -p "${INSTALLATION_PATH}"
 
-kill ${TRACKER_PID}
+# Download and extract CMSIS
+cd "${HOME}"
+wget --quiet "https://github.com/ARM-software/CMSIS_5/archive/${CMSIS_VER}.tar.gz"
+tar -xf "${CMSIS_VER}.tar.gz" -C "${INSTALLATION_PATH}" --strip-components=1
+
+# Remove tar file
+rm -f "${CMSIS_VER}.tar.gz"

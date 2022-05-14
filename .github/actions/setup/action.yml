@@ -14,6 +14,7 @@ runs:
       environment-file: conda/build-environment.yaml
       auto-activate-base: false
       use-only-tar-bz2: true
+      python-version: 3.7
   - name: Conda info
     shell: pwsh
     run: |

@@ -26,6 +26,8 @@ cargo install sccache
 mkdir /opt/sccache
 ln "$(which sccache)" /opt/sccache/cc
 ln "$(which sccache)" /opt/sccache/c++
+ln "$(which sccache)" /opt/sccache/clang
+ln "$(which sccache)" /opt/sccache/clang++
 
 # make rust usable by all users after install during container build
 chmod -R a+rw /opt/rust

@@ -16,7 +16,6 @@
 # under the License.
 
 import pytest
-
 from tvm.driver.tvmc import TVMCException
 from tvm.driver.tvmc.target import target_from_cli, tokenize_target, parse_target
 
@@ -34,11 +33,6 @@ def test_target_invalid_more_than_two_tvm_targets():
 def test_target_from_cli__error_target_not_found():
     with pytest.raises(TVMCException):
         _ = target_from_cli("invalidtarget")
-
-
-def test_target_from_cli__error_no_tvm_target():
-    with pytest.raises(TVMCException):
-        _ = target_from_cli("ethos-n77")
 
 
 def test_target_two_tvm_targets():
@@ -158,16 +152,6 @@ def test_parse_quotes_and_separators_on_options():
     assert "+v1.0x,+value" == targets_double_quote[0]["opts"]["option1"]
 
 
-def test_parse_multiple_target_with_opts_ethos_n77():
-    targets = parse_target("ethos-n77 -myopt=value, llvm -device=arm_cpu --system-lib")
-
-    assert len(targets) == 2
-    assert "ethos-n77" == targets[0]["name"]
-    assert "myopt" in targets[0]["opts"]
-    assert "value" == targets[0]["opts"]["myopt"]
-    assert "llvm" == targets[1]["name"]
-
-
 def test_parse_multiple_target_with_opts_ethos_n78():
     targets = parse_target("ethos-n78 -myopt=value, llvm -device=arm_cpu --system-lib")
 
@@ -176,3 +160,9 @@ def test_parse_multiple_target_with_opts_ethos_n78():
     assert "myopt" in targets[0]["opts"]
     assert "value" == targets[0]["opts"]["myopt"]
     assert "llvm" == targets[1]["name"]
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

@@ -82,3 +82,52 @@ class MultiLevelTiling(ScheduleRule):
             reuse_read.as_dict() if reuse_read is not None else None,
             reuse_write.as_dict() if reuse_write is not None else None,
         )
+
+
+@register_object("meta_schedule.MultiLevelTilingWithIntrin")
+class MultiLevelTilingWithIntrin(ScheduleRule):
+    """Extension of MultiLevelTiling for auto-tensorizing with a single intrinsic.
+
+    Parameters
+    ----------
+    intrin_name : str
+        The name of a tensor intrinsic, must be registerd via TensorIntrin.register(...) beforehand
+    structure : str
+        The tiling structure. Recommended:
+        - 'SSRSRS' on CPU
+        - 'SSSRRSRS' on GPU
+    tile_bind : Optional[List[str]]
+        For each level of tiles, which thread axis it is bound to. Recommended:
+        - None on CPU
+        - [blockIdx.x, vthread.x, threadIdx.x] on GPU
+    max_innermost_factor : Optional[int]
+        The maximum size of the innermost factor. None means no limit
+    vector_load_lens : Optional[List[int]]
+        The length of vector lane in vectorized cooperative fetching.
+        None means disable vectorization
+    reuse_read : Optional[ReuseType]
+        Data reuse configuration for reading. None means no reuse.
+    reuse_write : Optional[ReuseType]
+        Data reuse configuration for writing. None means no reuse.
+    """
+
+    def __init__(
+        self,
+        intrin_name: str,
+        structure: str,
+        tile_binds: Optional[List[str]] = None,
+        max_innermost_factor: Optional[int] = None,
+        vector_load_lens: Optional[List[int]] = None,
+        reuse_read: Optional[ReuseType] = None,
+        reuse_write: Optional[ReuseType] = None,
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.ScheduleRuleMultiLevelTilingWithIntrin,  # type: ignore # pylint: disable=no-member
+            intrin_name,
+            structure,
+            tile_binds,
+            max_innermost_factor,
+            vector_load_lens,
+            reuse_read.as_dict() if reuse_read is not None else None,
+            reuse_write.as_dict() if reuse_write is not None else None,
+        )

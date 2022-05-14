@@ -47,11 +47,8 @@ IRModule TestModule() {
 TEST(DeviceDomains, SmokeTest) {
   VirtualDevice cpu = VirtualDevice::ForDeviceType(kDLCPU);
   VirtualDevice cuda = VirtualDevice::ForDeviceType(kDLCUDA);
-  TargetMap target_map;
-  target_map.Set(Integer(static_cast<int>(kDLCPU)), Target("llvm"));
-  target_map.Set(Integer(static_cast<int>(kDLCUDA)), Target("cuda"));
   transform::PassContext ctxt = transform::PassContext::Create();
-  CompilationConfig config(ctxt, target_map, /*optional_host_target=*/{});
+  CompilationConfig config(ctxt, {Target("llvm"), Target("cuda")});
   DeviceDomains domains(config);
   IRModule mod = TestModule();
   Function f = Downcast<Function>(mod->Lookup("f"));

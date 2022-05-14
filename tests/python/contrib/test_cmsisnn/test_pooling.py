@@ -44,8 +44,19 @@ from utils import (
 )
 
 
-def make_model(pool_op, shape, pool_size, strides, padding, dtype, scale, zero_point, relu_type):
-    """Return a model and any parameters it may have"""
+def make_model(
+    pool_op,
+    shape=(1, 28, 28, 12),
+    pool_size=(3, 3),
+    strides=(2, 2),
+    padding="VALID",
+    dtype="int8",
+    scale=1,
+    zero_point=-33,
+    relu_type="RELU",
+    layout="NHWC",
+):
+    """Return a model and any parameters it may have, all parameters are defaulted to known good values"""
     op = relay.var("input", shape=shape, dtype=dtype)
     pad_ = (0, 0, 0, 0)
     if padding == "SAME":
@@ -60,7 +71,7 @@ def make_model(pool_op, shape, pool_size, strides, padding, dtype, scale, zero_p
     if pool_op == relay.nn.avg_pool2d:
         op = relay.cast(op, "int32")
     op = pool_op(
-        op, pool_size=pool_size, strides=strides, padding=pad_, ceil_mode=True, layout="NHWC"
+        op, pool_size=pool_size, strides=strides, padding=pad_, ceil_mode=True, layout=layout
     )
     if pool_op == relay.nn.avg_pool2d:
         op = relay.cast(op, dtype)
@@ -68,12 +79,13 @@ def make_model(pool_op, shape, pool_size, strides, padding, dtype, scale, zero_p
     return op
 
 
+@tvm.testing.requires_corstone300
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("in_shape", [(1, 28, 28, 12), (1, 64, 100, 4)])
 @pytest.mark.parametrize(
     "pool_size, strides, padding", [((3, 3), (2, 2), "SAME"), ((2, 2), (1, 1), "VALID")]
 )
-@pytest.mark.parametrize("relu_type", ["RELU"])
+@pytest.mark.parametrize("relu_type", ["NONE", "RELU"])
 @pytest.mark.parametrize("pool_type", [relay.nn.max_pool2d, relay.nn.avg_pool2d])
 @pytest.mark.parametrize("zero_point, scale", [(-34, 0.0256)])
 def test_op_int8(
@@ -93,15 +105,14 @@ def test_op_int8(
     dtype = "int8"
 
     model = make_model(
-        pool_type,
-        in_shape,
-        pool_size,
-        strides,
-        padding,
-        dtype,
-        scale,
-        zero_point,
-        relu_type,
+        pool_op=pool_type,
+        shape=in_shape,
+        pool_size=pool_size,
+        strides=strides,
+        padding=padding,
+        scale=scale,
+        zero_point=zero_point,
+        relu_type=relu_type,
     )
     orig_mod = make_module(model)
 
@@ -132,17 +143,21 @@ def test_op_int8(
 
 
 @tvm.testing.requires_cmsisnn
-def test_invalid_parameters():
+@pytest.mark.parametrize("op", [relay.nn.avg_pool2d, relay.nn.max_pool2d])
+def test_invalid_datatype(op):
+    model = make_model(pool_op=op, dtype="int64")
+
+    orig_mod = make_module(model)
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod)
+    assert_no_external_function(cmsisnn_mod)
+
+
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("op", [relay.nn.avg_pool2d, relay.nn.max_pool2d])
+def test_invalid_batch_size(op):
     model = make_model(
-        pool_op=relay.nn.avg_pool2d,
-        shape=(1, 28, 28, 12),
-        pool_size=(1, 1),
-        strides=(1, 1),
-        padding="VALID",
-        dtype="uint8",
-        scale=1,
-        zero_point=-33,
-        relu_type="RELU",
+        pool_op=op,
+        shape=(2, 28, 28, 12),
     )
 
     orig_mod = make_module(model)
@@ -150,5 +165,17 @@ def test_invalid_parameters():
     assert_no_external_function(cmsisnn_mod)
 
 
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("op", [relay.nn.avg_pool2d, relay.nn.max_pool2d])
+def test_invalid_layout(op):
+    model = make_model(pool_op=op, layout="NCHW")
+
+    orig_mod = make_module(model)
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod)
+    assert_no_external_function(cmsisnn_mod)
+
+
 if __name__ == "__main__":
+    import sys
+
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

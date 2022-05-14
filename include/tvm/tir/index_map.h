@@ -31,6 +31,8 @@
 #include <tvm/runtime/object.h>
 #include <tvm/tir/var.h>
 
+#include <utility>
+
 namespace tvm {
 namespace tir {
 
@@ -141,11 +143,23 @@ class IndexMap : public ObjectRef {
    *
    * TODO(Lunderberg): Look into allowing non-bijective
    * transformations.  If injective, the inverse mapping could still
-   * be generated with some predicate.  If non-injective, could
-   * simplify the implementation of other optimizations (e.g. double
-   * buffering as a map `lambda *indices: [buffer_loop%2, *indices]`).
+   * be generated with some predicate (see NonSurjectiveInverse).  If
+   * non-injective, could simplify the implementation of other
+   * optimizations (e.g. double buffering as a map `lambda *indices:
+   * [buffer_loop%2, *indices]`).
    */
   IndexMap Inverse(Array<Range> initial_ranges) const;
+
+  /*! \brief Generate the inverse mapping.
+   *
+   * Determine the inverse, where the output range may contain
+   * addresses that do not correspond to an address in the input
+   * range.
+   *
+   * \return The inverted index map, along with the predicate for
+   * which the inverse maps to a valid range.
+   */
+  std::pair<IndexMap, PrimExpr> NonSurjectiveInverse(Array<Range> initial_ranges) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(IndexMap, ObjectRef, IndexMapNode);
 };

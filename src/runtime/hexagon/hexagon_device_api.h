@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_DEVICE_API_V2_H_
-#define TVM_RUNTIME_HEXAGON_HEXAGON_DEVICE_API_V2_H_
+#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_DEVICE_API_H_
+#define TVM_RUNTIME_HEXAGON_HEXAGON_DEVICE_API_H_
 
 #include <tvm/runtime/device_api.h>
 
@@ -38,16 +38,16 @@ namespace hexagon {
 /*!
  * \brief Hexagon Device API that is compiled and run on Hexagon.
  */
-class HexagonDeviceAPIv2 final : public DeviceAPI {
+class HexagonDeviceAPI final : public DeviceAPI {
  public:
-  //! \brief Retrieve the global singleton instance of the HexagonDeviceAPIv2.
-  static HexagonDeviceAPIv2* Global();
+  //! \brief Retrieve the global singleton instance of the HexagonDeviceAPI.
+  static HexagonDeviceAPI* Global();
 
   //! \brief Constructor
-  HexagonDeviceAPIv2() {}
+  HexagonDeviceAPI() {}
 
   //! \brief Destructor
-  ~HexagonDeviceAPIv2() {}
+  ~HexagonDeviceAPI() {}
 
   /*! \brief Currently unimplemented interface to specify the active
    *  Hexagon device.
@@ -148,4 +148,4 @@ class HexagonDeviceAPIv2 final : public DeviceAPI {
 }  // namespace hexagon
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_DEVICE_API_V2_H_
+#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_DEVICE_API_H_

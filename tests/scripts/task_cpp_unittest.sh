@@ -16,8 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -euxo pipefail
 
 # Python is required by apps/bundle_deploy
 source tests/scripts/setup-pytest-env.sh
@@ -35,15 +34,20 @@ python3 tests/scripts/task_build.py \
     --sccache-bucket tvm-sccache-prod \
     --cmake-target cpptest
 
-# "make crttest" requires USE_MICRO to be enabled, which is not always the case.
-if grep crttest build/Makefile > /dev/null; then
-    make crttest  # NOTE: don't parallelize, due to issue with build deps.
-fi
+# crttest requires USE_MICRO to be enabled, which is currently the case
+# with all CI configs
+pushd build
+ninja crttest
+popd
 
-cd build && ctest --gtest_death_test_style=threadsafe && cd ..
+
+pushd build
+ctest --gtest_death_test_style=threadsafe
+popd
 
 # Test MISRA-C runtime
-cd apps/bundle_deploy
+pushd apps/bundle_deploy
 rm -rf build
 make test_dynamic test_static
-cd ../..
+popd
+

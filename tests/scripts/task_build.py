@@ -70,11 +70,16 @@ if __name__ == "__main__":
     available_cpus = nproc // executors
     num_cpus = max(available_cpus, 1)
 
-    sh.run("cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
+    sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
     target = ""
     if args.cmake_target:
         target = args.cmake_target
-    sh.run(f"cmake --build . -- {target} VERBOSE=1 -j{num_cpus}", cwd=build_dir)
+
+    verbose = os.environ.get("VERBOSE", "true").lower() in {"1", "true", "yes"}
+    ninja_args = [target, f"-j{num_cpus}"]
+    if verbose:
+        ninja_args.append("-v")
+    sh.run(f"cmake --build . -- " + " ".join(ninja_args), cwd=build_dir)
 
     if use_sccache:
         logging.info("===== sccache stats =====")

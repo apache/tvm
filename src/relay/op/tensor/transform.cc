@@ -622,6 +622,8 @@ Array<IndexExpr> InferNewShape(const Array<IndexExpr>& data_shape, const Attrs& 
     newshape = param->newshape;
   }
 
+  bool allowzero = param->allowzero;
+
   std::unordered_set<size_t> used_input_dims;
   std::unordered_set<size_t> used_output_dims;
   size_t src_idx = 0;
@@ -634,11 +636,17 @@ Array<IndexExpr> InferNewShape(const Array<IndexExpr>& data_shape, const Attrs& 
       oshape.push_back(newshape[i]);
       ++src_idx;
     } else if (svalue == 0) {
-      // keep same
-      ICHECK_LT(src_idx, ishape.size());
-      used_input_dims.insert(src_idx);
-      used_output_dims.insert(oshape.size());
-      oshape.push_back(ishape[src_idx++]);
+      if (allowzero) {
+        // 0 means empty tensor, thus default behavior
+        oshape.push_back(newshape[i]);
+        ++src_idx;
+      } else {
+        // 0 means to copy at equivilant position in data tensor
+        ICHECK_LT(src_idx, ishape.size());
+        used_input_dims.insert(src_idx);
+        used_output_dims.insert(oshape.size());
+        oshape.push_back(ishape[src_idx++]);
+      }
     } else if (svalue == -1) {
       // inference based on rest
       ICHECK_LT(infer_idx, 0) << "One and only one dim can be inferred";
@@ -908,9 +916,10 @@ Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& in
   return {topi::reshape(inputs[0], newshape)};
 }
 
-Expr MakeReshape(Expr data, Array<Integer> newshape) {
+Expr MakeReshape(Expr data, Array<Integer> newshape, bool allowzero) {
   auto attrs = make_object<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
+  attrs->allowzero = allowzero;
   static const Op& op = Op::Get("reshape");
   return Call(op, {data}, Attrs(attrs), {});
 }
@@ -1799,6 +1808,63 @@ RELAY_REGISTER_OP("sparse_reshape")
     .add_type_rel("sparse_reshape", SparseReshapeRel)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_support_level(3);
+
+TVM_REGISTER_NODE_TYPE(StftAttrs);
+
+bool STFTRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+             const TypeReporter& reporter) {
+  // types: [data, window, result]
+  ICHECK_EQ(types.size(), 3) << "STFTRel expects 3 types but " << types.size() << "provided";
+  ICHECK_EQ(num_inputs, 2) << "Unique: expect 2 inputs but " << num_inputs << " provided";
+  auto data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "Unique: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+  const auto* param = attrs.as<StftAttrs>();
+  const int ndim = static_cast<int>(data->shape.size());
+  std::vector<IndexExpr> oshape;
+  int dim = 0;
+  if (ndim == 2) {
+    oshape.push_back(data->shape[0]);  // batch dimension
+    dim += 1;
+  }
+  oshape.push_back(param->onesided ? param->n_fft / 2 + 1 : param->n_fft);
+  if (data->shape[dim].as<AnyNode>())
+    oshape.push_back(Any());
+  else
+    oshape.push_back(indexdiv((data->shape[dim] - param->n_fft), param->hop_length) +
+                     1);  // n_frames
+  oshape.push_back(2);
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Expr MakeSTFT(Expr data, int n_fft, int hop_length, int win_length, Expr window, bool normalized,
+              bool onesided) {
+  auto attrs = make_object<StftAttrs>();
+  attrs->n_fft = n_fft;
+  attrs->hop_length = hop_length;
+  attrs->win_length = win_length;
+  attrs->normalized = normalized;
+  attrs->onesided = onesided;
+  static const Op& op = Op::Get("stft");
+  return Call(op, {data, window}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.stft").set_body_typed(MakeSTFT);
+
+RELAY_REGISTER_OP("stft")
+    .describe(
+        R"code(The STFT computes the Fourier transform of short overlapping windows of the input.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "the input tensor")
+    .add_argument("window", "Tensor", "the optional window function")
+    .add_type_rel("stft", STFTRel)
+    .set_support_level(3)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 // meshgrid operator
 TVM_REGISTER_NODE_TYPE(MeshgridAttrs);

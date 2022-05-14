@@ -106,6 +106,19 @@ def opaque_access_func() -> None:
 
 
 @T.prim_func
+def opaque_access_with_tvm_access_ptr_func() -> None:
+    A = T.alloc_buffer([1024])
+    B = T.alloc_buffer([1024])
+    C = T.alloc_buffer([1024])
+    with T.block("opaque"):
+        T.reads(A[0:1024], C[0:1024])
+        T.writes(B[0:1024], C[0:1024])
+        T.evaluate(A.access_ptr("r"))
+        T.evaluate(B.access_ptr("w"))
+        T.evaluate(C.access_ptr("rw"))
+
+
+@T.prim_func
 def access_in_if_then_else_func() -> None:
     A = T.alloc_buffer([8])
     B = T.alloc_buffer([8])
@@ -235,6 +248,21 @@ def test_opaque_access():
         tvm.ir.assert_structural_equal(ret0[1], ret1[1])
 
 
+def test_opaque_access_with_tvm_access_ptr():
+    block = opaque_access_with_tvm_access_ptr_func.body.block.body.block
+    alloc_buffers = opaque_access_with_tvm_access_ptr_func.body.block.alloc_buffers
+    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+
+    ret0 = tir.analysis.get_block_read_write_region(block, buffer_var_map)
+    ret1 = tir.analysis.get_block_access_region(block, buffer_var_map)
+    tvm.ir.assert_structural_equal(block.reads, ret0[0])
+    tvm.ir.assert_structural_equal(block.writes, ret0[1])
+    with pytest.raises(ValueError):
+        tvm.ir.assert_structural_equal(ret0[0], ret1[0])
+    with pytest.raises(ValueError):
+        tvm.ir.assert_structural_equal(ret0[1], ret1[1])
+
+
 def test_match_buffer():
     root_block = match_buffer_func.body.block
     block = root_block.body.body.body.block
@@ -333,6 +361,7 @@ if __name__ == "__main__":
     test_block_access_region_detector()
     test_opaque_block()
     test_opaque_access()
+    test_opaque_access_with_tvm_access_ptr()
     test_match_buffer()
     test_access_in_if_then_else_func()
     test_access_in_branch_func()

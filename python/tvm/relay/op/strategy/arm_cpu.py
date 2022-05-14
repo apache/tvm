@@ -36,14 +36,14 @@ def schedule_reduce_cpu(attrs, outs, target):
         return topi.x86.schedule_reduce(outs)
 
 
-@schedule_injective.register(["arm_cpu", "micro_dev"])
+@schedule_injective.register("arm_cpu")
 def schedule_injective_arm_cpu(_, outs, target):
     """schedule injective ops for arm cpu"""
     with target:
         return topi.arm_cpu.schedule_injective(outs)
 
 
-@schedule_concatenate.register(["arm_cpu", "micro_dev"])
+@schedule_concatenate.register("arm_cpu")
 def schedule_concatenate_arm_cpu(_, outs, target):
     """schedule concatenate for arm cpu"""
     with target:
@@ -66,10 +66,11 @@ def schedule_pool_arm_cpu(attrs, outs, target):
             and layout in ("NWC", "NHWC")
         ):
             return topi.arm_cpu.schedule_pool(outs, layout)
+        logger.warning("pool is not optimized for arm cpu.")
         return topi.generic.schedule_pool(outs, layout)
 
 
-@conv2d_strategy.register(["arm_cpu", "micro_dev"])
+@conv2d_strategy.register("arm_cpu")
 def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
     """conv2d arm cpu strategy"""
     strategy = _op.OpStrategy()
@@ -163,7 +164,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_dsp),
                     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_dsp),
-                    name="conv2d_nhwc_dsp.micro_dev",
+                    name="conv2d_nhwc_dsp.arm_cpu",
                 )
             elif kernel_layout == "HWIO":
                 is_aarch64 = topi.arm_cpu.arm_utils.is_aarch64_arm()
@@ -236,6 +237,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="depthwise_conv2d_nhwc.arm_cpu",
                 )
             else:
+                logger.warning("depthwise_conv2d with layout NHWC is not optimized for arm cpu.")
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
                     wrap_topi_schedule(conv2d_generic.schedule_depthwise_conv2d_nhwc),
@@ -408,7 +410,7 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
     return strategy
 
 
-@conv2d_transpose_strategy.register(["arm_cpu", "micro_dev"])
+@conv2d_transpose_strategy.register("arm_cpu")
 def conv2d_transpose_strategy_arm_cpu(attrs, inputs, out_type, target):
     """conv2d_transpose arm cpu strategy"""
     layout = attrs.data_layout
@@ -472,6 +474,7 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
             name="dense_dsp",
         )
     else:
+        logger.warning("dense is not optimized for arm cpu.")
         strategy.add_implementation(
             wrap_compute_dense(
                 topi.nn.dense, need_auto_scheduler_layout=is_auto_scheduler_enabled()
@@ -508,12 +511,14 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 )
             )
     elif layout == "NCW":
+        logger.warning("conv1d with layout %s is not optimized for arm cpu.", layout)
         strategy.add_implementation(
             wrap_compute_conv1d(topi.nn.conv1d_ncw),
             wrap_topi_schedule(topi.generic.schedule_conv1d_ncw),
             name="conv1d_ncw.generic",
         )
     elif layout == "NWC":
+        logger.warning("conv1d with layout %s is not optimized for arm cpu.", layout)
         strategy.add_implementation(
             wrap_compute_conv1d(topi.nn.conv1d_nwc),
             wrap_topi_schedule(topi.generic.schedule_conv1d_nwc),

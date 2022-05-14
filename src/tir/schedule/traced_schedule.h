@@ -98,6 +98,9 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   /******** Schedule: Layout transformation ********/
   void TransformLayout(const BlockRV& block_rv, int buffer_index, BufferIndexType buffer_index_type,
                        const IndexMap& index_map) override;
+  void SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
+                        BufferIndexType buffer_index_type,
+                        const Array<IntImm>& axis_separators) final;
   /******** Schedule: Misc ********/
   void EnterPostproc() final;
 };

@@ -18,8 +18,9 @@
  */
 
 #include <gtest/gtest.h>
-#include <hexagon/hexagon_buffer.h>
 #include <tvm/runtime/container/optional.h>
+
+#include "../src/runtime/hexagon/hexagon_buffer.h"
 
 using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
