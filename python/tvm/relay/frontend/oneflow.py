@@ -111,6 +111,7 @@ def _dtype_shape_promotion(inputs):
             inputs[i] = input_op.astype(max_dtype)
     return inputs
 
+
 def parse_attr(attr):
     """Parse attribute of user op in oneflow."""
     attrs = {}
@@ -261,6 +262,8 @@ class GlobalMaxPool(OneFlowOpConverter):
             "Global max pooling is only implemented for 1D, 2D, and 3D kernels, got %dD."
             % (rank - 2),
         )
+
+
 class Conv(OneFlowOpConverter):
     """A helper class for conv op converters."""
 
@@ -491,8 +494,8 @@ class Flatten(OneFlowOpConverter):
         x = inputs[0]
         input_shape = list(infer_shape(x))
 
-        start = attrs['start_dim']
-        end = attrs['end_dim']
+        start = attrs["start_dim"]
+        end = attrs["end_dim"]
         ndim = len(input_shape)
         if end < 0:
             end += ndim
@@ -526,10 +529,12 @@ class MatMul(OneFlowOpConverter):
 
         a_shape = infer_shape(inputs[0])
         b_shape = infer_shape(inputs[1])
-        if ((transA and transB and a_shape[-2] != b_shape[-1]) or 
-            (transA and not transB and a_shape[-2] != b_shape[-2]) or 
-            (transB and not transA and a_shape[-1] != b_shape[-1]) or
-            (not transB and not transA and a_shape[-1] != b_shape[-2])):
+        if (
+            (transA and transB and a_shape[-2] != b_shape[-1])
+            or (transA and not transB and a_shape[-2] != b_shape[-2])
+            or (transB and not transA and a_shape[-1] != b_shape[-1])
+            or (not transB and not transA and a_shape[-1] != b_shape[-2])
+        ):
             matmul_a = inputs[1]
             matmul_b = inputs[0]
         else:
@@ -627,6 +632,7 @@ class MatMul(OneFlowOpConverter):
         if not np.isclose(alpha, 1.0):
             out = out * _expr.const(alpha, dtype=dtype)
         return out
+
 
 class Reduce(OneFlowOpConverter):
     """Operator converter for reduce ops"""
@@ -731,9 +737,10 @@ class Expand(OneFlowOpConverter):
 
         return out
 
+
 class Transpose(OneFlowOpConverter):
     """Operator converter for transpose."""
-    
+
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
         perm = attrs["perm"]
@@ -824,7 +831,9 @@ class LogicalGreater(OneFlowOpConverter):
             return _op.greater(inputs[0], _op.full_like(inputs[0], fill_value=_expr.const(value)))
         elif attrs.get("has_float_operand", True):
             value = float(attrs.get("float_operand", 0.0))
-            return _op.greater(inputs[0], _op.full_like(inputs[0], fill_value=_expr.const(value)).astype("float32"))
+            return _op.greater(
+                inputs[0], _op.full_like(inputs[0], fill_value=_expr.const(value)).astype("float32")
+            )
         else:
             raise AttributeError(
                 "please check if has_int_operand or has_float_operand in your attrs"
@@ -943,6 +952,7 @@ class ScalarDiv(OneFlowOpConverter):
             )
 
         return res
+
 
 class ScalarPow(OneFlowOpConverter):
     """Operator convert for Pow_scalar"""
@@ -1141,6 +1151,7 @@ class Variance(OneFlowOpConverter):
         unbiased = bool(attrs["unbiased"])
         return _op.reduce.variance(inputs[0], axis=axis, keepdims=keepdims, unbiased=unbiased)
 
+
 class Concat(OneFlowOpConverter):
     """Operator converter for Concat"""
 
@@ -1299,7 +1310,7 @@ class Where(OneFlowOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
-        inputs =  (inputs)
+        inputs = inputs
         condition_rank = len(infer_shape(inputs[0]))
         x_rank = len(infer_shape(inputs[1]))
         y_rank = len(infer_shape(inputs[2]))

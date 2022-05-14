@@ -78,6 +78,7 @@ class OneFlowGraph_v2(flow.nn.Graph):
         out = self.m(x1, x2, x3)
         return out
 
+
 class OneFlowGraph_v3(flow.nn.Graph):
     def __init__(self, module):
         super().__init__()
@@ -86,6 +87,7 @@ class OneFlowGraph_v3(flow.nn.Graph):
     def build(self, x1, x2):
         out = self.m(x1, x2)
         return out
+
 
 def get_oneflow_output(model, inputs):
     flow_output = model(inputs)
@@ -375,6 +377,7 @@ def verify_math_elementwise(
     assert_shape(out_flow, out_tvm)
     tvm.testing.assert_allclose(out_flow, out_tvm, rtol=rtol, atol=atol)
 
+
 def verify_matmul(
     model,
     name="",
@@ -400,6 +403,7 @@ def verify_matmul(
 
     assert_shape(out_flow, out_tvm)
     tvm.testing.assert_allclose(out_flow, out_tvm, rtol=rtol, atol=atol)
+
 
 def verify_concat(
     model,
@@ -666,7 +670,7 @@ def test_activation():
         def forward(self, x):
             x = self.active(x)
             return x
-    
+
     class HardTanh(flow.nn.Module):
         def __init__(self):
             super().__init__()
@@ -675,7 +679,7 @@ def test_activation():
         def forward(self, x):
             x = self.active(x)
             return x
-    
+
     class TensorSoftmax(flow.nn.Module):
         def __init__(self):
             super().__init__()
@@ -714,7 +718,11 @@ def test_activation():
         verify_activation(model10, device=device)
         verify_activation(model11, device=device)
         verify_activation(model12, device=device)
-        verify_activation(model13, device=device, inputs=flow.tensor(np.random.rand(1, 12, 197, 197).astype(np.float32)))
+        verify_activation(
+            model13,
+            device=device,
+            inputs=flow.tensor(np.random.rand(1, 12, 197, 197).astype(np.float32)),
+        )
 
 
 @tvm.testing.uses_gpu
@@ -750,7 +758,7 @@ def test_math():
     class Exp2(flow.nn.Module):
         def forward(self, x):
             return flow.expm1(x)
-    
+
     class Variance(flow.nn.Module):
         def forward(self, x):
             return flow.var(x, 1, unbiased=False, keepdim=True)
@@ -817,6 +825,7 @@ def test_concat():
     for device in ["llvm"]:
         verify_concat(model, device=device)
 
+
 @tvm.testing.uses_gpu
 def test_add_constant():
     class ConstantAdd(flow.nn.Module):
@@ -845,6 +854,7 @@ def test_logical():
             model1, device=device, inputs=flow.tensor(np.random.randn(3, 6, 9).astype(np.float32))
         )
 
+
 @tvm.testing.uses_gpu
 def test_where():
     class Where(flow.nn.Module):
@@ -857,6 +867,7 @@ def test_where():
         verify_math(
             model1, device=device, inputs=flow.tensor(np.random.randn(3, 6, 9).astype(np.int32))
         )
+
 
 @tvm.testing.uses_gpu
 def test_expand():
@@ -871,6 +882,7 @@ def test_expand():
             model1, device=device, inputs=flow.tensor(np.random.randn(1, 6, 9).astype(np.float32))
         )
 
+
 @tvm.testing.uses_gpu
 def test_matmul():
     class MatMul(flow.nn.Module):
@@ -880,10 +892,11 @@ def test_matmul():
     class MatMulTranspose(flow.nn.Module):
         def forward(self, x, y):
             return flow._C.matmul(x, y, transpose_b=True)
+
     class BatchMatMul(flow.nn.Module):
         def forward(self, x, y):
             return flow._C.batch_matmul(x, y)
-    
+
     class BroadCastMatMul(flow.nn.Module):
         def forward(self, x, y):
             return flow._C.matmul(x, y)
@@ -895,17 +908,29 @@ def test_matmul():
 
     for device in ["llvm"]:
         verify_matmul(
-            model1, device=device, inputs1=flow.tensor(np.random.randn(2, 3).astype(np.float32)), inputs2=flow.tensor(np.random.randn(3, 3).astype(np.float32)
-        ))
+            model1,
+            device=device,
+            inputs1=flow.tensor(np.random.randn(2, 3).astype(np.float32)),
+            inputs2=flow.tensor(np.random.randn(3, 3).astype(np.float32)),
+        )
         verify_matmul(
-            model2, device=device, inputs1=flow.tensor(np.random.randn(1, 2).astype(np.float32)), inputs2=flow.tensor(np.random.randn(3, 2).astype(np.float32)
-        ))
+            model2,
+            device=device,
+            inputs1=flow.tensor(np.random.randn(1, 2).astype(np.float32)),
+            inputs2=flow.tensor(np.random.randn(3, 2).astype(np.float32)),
+        )
         verify_matmul(
-            model3, device=device, inputs1=flow.tensor(np.random.randn(2, 1, 2).astype(np.float32)), inputs2=flow.tensor(np.random.randn(2, 2, 3).astype(np.float32)
-        ))
+            model3,
+            device=device,
+            inputs1=flow.tensor(np.random.randn(2, 1, 2).astype(np.float32)),
+            inputs2=flow.tensor(np.random.randn(2, 2, 3).astype(np.float32)),
+        )
         verify_matmul(
-            model4, device=device, inputs1=flow.tensor(np.random.randn(3, 8, 8, 16).astype(np.float32)), inputs2=flow.tensor(np.random.randn(16, 8).astype(np.float32)
-        ))
+            model4,
+            device=device,
+            inputs1=flow.tensor(np.random.randn(3, 8, 8, 16).astype(np.float32)),
+            inputs2=flow.tensor(np.random.randn(16, 8).astype(np.float32)),
+        )
 
 
 if __name__ == "__main__":

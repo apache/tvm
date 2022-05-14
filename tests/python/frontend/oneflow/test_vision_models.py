@@ -74,9 +74,11 @@ class OneFlowGraph(flow.nn.Graph):
         out = self.m(x)
         return out
 
+
 def get_oneflow_output(model, inputs):
     flow_output = model(inputs)
     return flow_output.numpy()
+
 
 def get_tvm_output(graph, model_path, inputs: flow.tensor, target="llvm", dtype="float32"):
     inputs_numpy = inputs.numpy()
@@ -90,6 +92,7 @@ def get_tvm_output(graph, model_path, inputs: flow.tensor, target="llvm", dtype=
         intrp = relay.build_module.create_executor("graph", mod, device, target)
     tvm_output = intrp.evaluate()(tvm.nd.array(inputs_numpy.astype(dtype)), **params).numpy()
     return tvm_output
+
 
 def verify_model(
     model,
@@ -137,6 +140,7 @@ def test_vision_models():
         verify_model(vision_mobilenetv2, device=device)
         verify_model(vision_ghostnet, device=device)
         verify_model(vision_vit, device=device)
+
 
 if __name__ == "__main__":
     test_vision_models()
