@@ -376,37 +376,6 @@ def verify_math(
     tvm.testing.assert_allclose(out_flow, out_tvm, rtol=rtol, atol=atol)
 
 
-def verify_math_elementwise(
-    model,
-    name="",
-    rtol=1e-5,
-    atol=1e-5,
-    input=flow.tensor(
-        np.random.rand(100, 1),
-        dtype=flow.float32,
-    ),
-    device="llvm",
-):
-    input_y = flow.randn(input.shape)
-    if device == "cuda":
-        model.to(device)
-        input = input.to(device)
-        input_y = input_y.to(device)
-
-    graph = OneFlowGraph(model)
-    graph._compile(input, input_y)
-
-    mkdir(MODEL_HOME)
-    flow.save(model.state_dict(), MODEL_HOME)
-
-    out_flow = get_oneflow_elementwise_output(graph, input, input_y)
-    out_tvm = get_tvm_elementwise_output(graph, MODEL_HOME, input, input_y, target=device)
-    rmdir(MODEL_HOME)
-
-    assert_shape(out_flow, out_tvm)
-    tvm.testing.assert_allclose(out_flow, out_tvm, rtol=rtol, atol=atol)
-
-
 def verify_matmul(
     model,
     name="",
@@ -815,18 +784,6 @@ def test_math():
 
 
 @tvm.testing.uses_gpu
-def test_math_elementwise():
-    class Pow(flow.nn.Module):
-        def forward(self, x, y):
-            return flow.pow(x, y)
-
-    model1 = Pow().eval()
-
-    for device in ["llvm"]:
-        verify_math_elementwise(model1, device=device)
-
-
-@tvm.testing.uses_gpu
 def test_slice():
     class Slice(flow.nn.Module):
         def forward(self, x):
@@ -881,20 +838,6 @@ def test_logical():
     for device in ["llvm"]:
         verify_math(
             model1, device=device, inputs=flow.tensor(np.random.randn(3, 6, 9).astype(np.float32))
-        )
-
-
-@tvm.testing.uses_gpu
-def test_where():
-    class Where(flow.nn.Module):
-        def forward(self, x):
-            return flow.where(x > 0.5, x, x * 2)
-
-    model1 = Where().eval()
-
-    for device in ["llvm"]:
-        verify_math(
-            model1, device=device, inputs=flow.tensor(np.random.randn(3, 6, 9).astype(np.int32))
         )
 
 
@@ -975,6 +918,5 @@ if __name__ == "__main__":
     test_add_constant()
     test_logical()
     test_expand()
-    # test_where()
     test_matmul()
     rmdir("log")
