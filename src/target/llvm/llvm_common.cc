@@ -196,6 +196,18 @@ void PrintModule(const llvm::Module* mod) {
   LOG(INFO) << rso.str();
 }
 
+// Testing CLI option
+void LLVMIntOptTest(std::string name, int value) {
+  int old_value = *LLVMCLOption<int>::GetRegistered(name);
+  {
+    With<LLVMCLOption<int>> scope(name, value);
+    ICHECK_EQ(*LLVMCLOption<int>::GetRegistered(name), value);
+  }
+  ICHECK_EQ(*LLVMCLOption<int>::GetRegistered(name), old_value);
+}
+
+TVM_REGISTER_GLOBAL("testing.llvm_opt_int_test").set_body_typed(LLVMIntOptTest);
+
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_LLVM_VERSION

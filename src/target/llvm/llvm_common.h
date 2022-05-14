@@ -76,11 +76,14 @@
 #else
 #include <llvm/Support/TargetRegistry.h>
 #endif
+
+#include <llvm/Support/CommandLine.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 #include <tvm/runtime/container/string.h>
+#include <tvm/support/with.h>
 
 #include <memory>
 #include <string>
@@ -127,6 +130,68 @@ std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target,
 std::string LLVMTargetToString(const Target& target);
 
 void PrintModule(const llvm::Module* mod);
+
+/*!
+ * \brief RAII scope to set LLVM global CLI option.
+ *
+ * \code
+ *
+ *  void MyCodegen() {
+ *     {
+ *       With<LLVMCLOption<int>> scope("unroll-max-count", 2);
+ *       // max-unroll-count set to 2 here
+ *     }
+ *     // global option reset to default.
+ *  }
+ *
+ * \endcode
+ *
+ * \tparam T The argument template parameter type.
+ *
+ * \note Use with care, this code does check the type of the corresponding opt,
+ *       do make sure the right T is supplied here.
+ *       LLVM global state(and llvm in general) is not thread-safe.
+ */
+template <typename T>
+class LLVMCLOption {
+ public:
+  /*!
+   * \brief Get corresponding global cl::opt in LLVM for a given name.
+   * \param name The name of the option.
+   * \return The corresponding option
+   */
+  static llvm::cl::opt<T>* GetRegistered(llvm::StringRef name) {
+    llvm::StringMap<llvm::cl::Option*>& opt_map = llvm::cl::getRegisteredOptions();
+    auto it = opt_map.find(name);
+    if (it == opt_map.end()) return nullptr;
+    // NOTE: this static cast is unsafe and requires the caller to supply the right T.
+    // This is mainly due to llvm API do not expose runtime info of the option type.
+    return static_cast<llvm::cl::opt<T>*>(it->second);
+  }
+
+ private:
+  llvm::cl::opt<T>* opt_;
+  T new_value_;
+  T old_value_;
+
+  friend class With<LLVMCLOption>;
+
+  /*!
+   * \brief constructor
+   * \note Keep it private so it can only be constructed via With<LLVMCLOption<T>>
+   * \param name The argument name
+   * \param new_value The new_value to set when entering the scope.
+   */
+  explicit LLVMCLOption(llvm::StringRef name, T new_value) {
+    opt_ = GetRegistered(name);
+    new_value_ = new_value;
+    old_value_ = *opt_;
+  }
+
+  void EnterWithScope() { *opt_ = new_value_; }
+
+  void ExitWithScope() { *opt_ = old_value_; }
+};
 
 }  // namespace codegen
 }  // namespace tvm

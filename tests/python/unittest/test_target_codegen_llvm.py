@@ -975,5 +975,11 @@ def test_llvm_target_attributes():
         assert n in functions_with_target
 
 
+@tvm.testing.requires_llvm
+def test_llvm_cli_int_opt():
+    tvm.testing._ffi_api.llvm_opt_int_test("unroll-max-count", 2)
+    tvm.testing._ffi_api.llvm_opt_int_test("unroll-max-count", 3)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
