@@ -991,15 +991,12 @@ class Softmax(OneFlowOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
-        axis = attrs.get("axis", 1)
-        ndim = len(infer_shape(inputs[0]))
-        if axis < 0:
-            axis += ndim
-        axes = list(range(axis, ndim))
-        x = inputs[0]
-        m = _op.max(x, axes, keepdims=True)
-        e = _op.exp(x - m)
-        return e / _op.sum(e, axes, keepdims=True)
+        axis = attrs.get("axis", -1)
+        data = inputs[0]
+        if isinstance(axis, str):
+            axis = int(axis)
+
+        return _op.nn.softmax(data, axis=axis)
 
 
 class LogSoftmax(OneFlowOpConverter):

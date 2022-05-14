@@ -675,6 +675,14 @@ def test_activation():
         def forward(self, x):
             x = self.active(x)
             return x
+    
+    class TensorSoftmax(flow.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            x = x.softmax(dim=-1)
+            return x
 
     if os.path.exists(MODEL_HOME):
         rmdir(MODEL_HOME)
@@ -691,6 +699,7 @@ def test_activation():
     model10 = LeakyReLU().eval()
     model11 = GELU().eval()
     model12 = HardTanh().eval()
+    model13 = TensorSoftmax().eval()
 
     for device in ["llvm"]:
         verify_activation(model1, device=device)
@@ -705,6 +714,7 @@ def test_activation():
         verify_activation(model10, device=device)
         verify_activation(model11, device=device)
         verify_activation(model12, device=device)
+        verify_activation(model13, device=device, inputs=flow.tensor(np.random.rand(1, 12, 197, 197).astype(np.float32)))
 
 
 @tvm.testing.uses_gpu
