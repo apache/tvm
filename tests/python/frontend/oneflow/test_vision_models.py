@@ -99,7 +99,10 @@ def verify_model(
     name="",
     rtol=1e-5,
     atol=1e-5,
-    inputs=flow.tensor(np.random.rand(1, 3, 224, 224), dtype=flow.float32,),
+    inputs=flow.tensor(
+        np.random.rand(1, 3, 224, 224),
+        dtype=flow.float32,
+    ),
     device="llvm",
 ):
     if device == "cuda":

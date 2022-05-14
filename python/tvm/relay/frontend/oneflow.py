@@ -314,7 +314,9 @@ class Conv(OneFlowOpConverter):
 
         out = AttrCvt(
             op_name=cls.name,
-            transforms={"group": ("groups", 1),},
+            transforms={
+                "group": ("groups", 1),
+            },
             ignores=["data_format", "filters", "padding_after", "padding_before"],
             custom_check=dimension_constraint(),
         )([data, kernel], attrs, params)
@@ -362,7 +364,9 @@ class ConvTranspose(OneFlowOpConverter):
 
         out = AttrCvt(
             op_name=cls.name,
-            transforms={"group": ("groups", 1),},
+            transforms={
+                "group": ("groups", 1),
+            },
             disables=["filters", "data_format", "padding_before"],
             custom_check=dimension_constraint(),
         )([data, kernel], attrs, params)
@@ -1108,7 +1112,7 @@ class Gelu(OneFlowOpConverter):
     def _impl_v1(cls, inputs, attrs, params):
         data = inputs[0]
         return data * (
-            _expr.const(0.5) + _op.erf(data * _expr.const(0.5 ** 0.5)) * _expr.const(0.5)
+            _expr.const(0.5) + _op.erf(data * _expr.const(0.5**0.5)) * _expr.const(0.5)
         )
 
 
@@ -1539,7 +1543,9 @@ def deal_with_input_convert(
             or "FreeEagerTensor" in node_input
         ):
             _nodes[node_input] = new_var(
-                node_input, shape=node_input_shape, dtype=node_input_dtype,
+                node_input,
+                shape=node_input_shape,
+                dtype=node_input_dtype,
             )
         else:
             names = _input_path_2_name[node_path]
@@ -1867,10 +1873,10 @@ class OneflowGraph(object):
 def from_oneflow(graph, model_dir_path):
     """Convert a OneFlow model into an equivalent Relay Function.
 
-    At present, there are two ways to run models in deep learning framework, Dynamic Graph and Static Graph, 
+    At present, there are two ways to run models in deep learning framework, Dynamic Graph and Static Graph,
     which are also called Eager Mode and Graph Mode in OneFlow.
 
-    In general, dynamic graphs are easier to use and static graphs have better performance. 
+    In general, dynamic graphs are easier to use and static graphs have better performance.
     OneFlow offers nn.Graph, so that users can use the eager-like programming style to build static graphs and train the models.
 
     We utilize the intermediate representation of nn.Graph to convert the OneFlow model to Reley.

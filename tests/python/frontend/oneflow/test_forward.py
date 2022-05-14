@@ -147,7 +147,12 @@ def get_tvm_concat_output(
 
 
 def get_tvm_elementwise_output(
-    graph, model_path, input1: flow.tensor, input2: flow.tensor, target="llvm", dtype="float32",
+    graph,
+    model_path,
+    input1: flow.tensor,
+    input2: flow.tensor,
+    target="llvm",
+    dtype="float32",
 ):
     input1_numpy = input1.numpy()
     input2_numpy = input2.numpy()
@@ -172,7 +177,10 @@ def verify_conv(
     name="",
     rtol=1e-5,
     atol=1e-5,
-    inputs=flow.tensor(np.random.rand(1, 3, 224, 224), dtype=flow.float32,),
+    inputs=flow.tensor(
+        np.random.rand(1, 3, 224, 224),
+        dtype=flow.float32,
+    ),
     device="llvm",
 ):
     if device == "cuda":
@@ -198,7 +206,10 @@ def verify_pool(
     name="",
     rtol=1e-5,
     atol=1e-5,
-    inputs=flow.tensor(np.random.rand(1, 3, 224, 224), dtype=flow.float32,),
+    inputs=flow.tensor(
+        np.random.rand(1, 3, 224, 224),
+        dtype=flow.float32,
+    ),
     device="llvm",
 ):
     if device == "cuda":
@@ -224,7 +235,10 @@ def verify_normalization(
     name="",
     rtol=1e-5,
     atol=1e-5,
-    inputs=flow.tensor(np.random.rand(1, 3, 224, 224), dtype=flow.float32,),
+    inputs=flow.tensor(
+        np.random.rand(1, 3, 224, 224),
+        dtype=flow.float32,
+    ),
     device="llvm",
 ):
     if device == "cuda":
@@ -251,7 +265,10 @@ def verify_upsample(
     name="",
     rtol=1e-5,
     atol=1e-5,
-    inputs=flow.tensor(np.random.rand(1, 3, 50, 50), dtype=flow.float32,),
+    inputs=flow.tensor(
+        np.random.rand(1, 3, 50, 50),
+        dtype=flow.float32,
+    ),
     device="llvm",
 ):
     if device == "cuda":
@@ -277,7 +294,10 @@ def verify_convtran(
     name="",
     rtol=1e-5,
     atol=1e-5,
-    inputs=flow.tensor(np.random.rand(1, 3, 50, 50), dtype=flow.float32,),
+    inputs=flow.tensor(
+        np.random.rand(1, 3, 50, 50),
+        dtype=flow.float32,
+    ),
     device="llvm",
 ):
     if device == "cuda":
@@ -303,7 +323,10 @@ def verify_activation(
     name="",
     rtol=1e-5,
     atol=1e-5,
-    inputs=flow.tensor(np.random.rand(10, 10), dtype=flow.float32,),
+    inputs=flow.tensor(
+        np.random.rand(10, 10),
+        dtype=flow.float32,
+    ),
     device="llvm",
 ):
     if device == "cuda":
@@ -329,7 +352,10 @@ def verify_math(
     name="",
     rtol=1e-5,
     atol=1e-5,
-    inputs=flow.tensor(np.random.rand(100, 1), dtype=flow.float32,),
+    inputs=flow.tensor(
+        np.random.rand(100, 1),
+        dtype=flow.float32,
+    ),
     device="llvm",
 ):
     if device == "cuda":
@@ -355,7 +381,10 @@ def verify_math_elementwise(
     name="",
     rtol=1e-5,
     atol=1e-5,
-    input=flow.tensor(np.random.rand(100, 1), dtype=flow.float32,),
+    input=flow.tensor(
+        np.random.rand(100, 1),
+        dtype=flow.float32,
+    ),
     device="llvm",
 ):
     input_y = flow.randn(input.shape)
