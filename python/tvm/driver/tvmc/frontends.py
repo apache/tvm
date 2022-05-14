@@ -271,18 +271,18 @@ class PaddleFrontend(Frontend):
     def suffixes():
         return ["pdmodel"]
 
-    def load(self, model_file_path, shape_dict=None, **kwargs):
+    def load(self, path, shape_dict=None, **kwargs):
         # pylint: disable=C0415
         import paddle
 
         paddle.enable_static()
         paddle.disable_signal_handler()
 
-        if not os.path.exists(model_file_path):
-            raise TVMCException("File {} is not exist.".format(model_file_path))
-        if not model_file_path.endswith(".pdmodel"):
+        if not os.path.exists(path):
+            raise TVMCException("File {} is not exist.".format(path))
+        if not path.endswith(".pdmodel"):
             raise TVMCException("Path of model file should be endwith suffixes '.pdmodel'.")
-        prefix = "".join(model_file_path.strip().split(".")[:-1])
+        prefix = "".join(path.strip().split(".")[:-1])
         params_file_path = prefix + ".pdiparams"
         if not os.path.exists(params_file_path):
             raise TVMCException("File {} is not exist.".format(params_file_path))
