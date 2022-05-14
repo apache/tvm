@@ -162,11 +162,7 @@ def drive_compile(args):
 
     """
 
-    # For PaddlePaddle, the model contains model_name.pdmodel and model_name.pdiparams
-    # the args.FILE will not contain the suffix
-    if not os.path.isfile(args.FILE) and (
-        not os.path.isfile(args.FILE + ".pdmodel") or not os.path.isfile(args.FILE + ".pdiparams")
-    ):
+    if not os.path.isfile(args.FILE):
         raise TVMCException(
             f"Input file '{args.FILE}' doesn't exist, is a broken symbolic link, or a directory."
         )
