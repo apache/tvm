@@ -860,6 +860,7 @@ def test_llvm_order_functions():
 
 
 @tvm.testing.requires_llvm
+@tvm.testing.skip_if_32bit
 def test_llvm_import():
     """all-platform-minimal-test: check shell dependent clang behavior."""
     # extern "C" is necessary to get the correct signature
