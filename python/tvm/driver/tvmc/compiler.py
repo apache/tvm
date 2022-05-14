@@ -161,7 +161,6 @@ def drive_compile(args):
         Zero if successfully completed
 
     """
-
     if not os.path.isfile(args.FILE):
         raise TVMCException(
             f"Input file '{args.FILE}' doesn't exist, is a broken symbolic link, or a directory."
