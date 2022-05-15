@@ -113,8 +113,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         self._dump_root = dump_root
         self._dump_path = None
         self._run_individual = module["run_individual"]
-        if module.type_key != "rpc":
-            self._run_individual_node = module["run_individual_node"]
+        self._run_individual_node = module["run_individual_node"]
         self._debug_get_output = module["debug_get_output"]
         self._execute_node = module["execute_node"]
         self._get_node_output = module["get_node_output"]
