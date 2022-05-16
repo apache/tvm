@@ -698,21 +698,11 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::AllocTensor: {
         OpStartHook(instr);
-        auto shape = std::vector<int64_t>(instr.alloc_tensor.ndim);
-
-        for (uint32_t i = 0; i < instr.alloc_tensor.ndim; ++i) {
-          shape[i] = instr.alloc_tensor.shape[i];
+        if (set_outputs_enabled_) {
+          WriteAllocatedTensorFromOutside(instr);
+        } else {
+          WriteAllocatedTensor(instr);
         }
-
-        auto storage_obj = ReadRegister(instr.alloc_tensor.storage);
-        auto offset = LoadScalarInt(instr.alloc_tensor.offset);
-        auto storage = Downcast<Storage>(storage_obj);
-        auto obj = storage->AllocNDArray(offset, shape, instr.alloc_tensor.dtype);
-        VLOG(2) << "allocated "
-                << RuntimeObject2String(obj, GetDevice(exec_->host_device_index),
-                                        /*show_contents=*/false);
-
-        WriteRegister(instr.dst, obj);
         OpStopHook();
         pc_++;
         goto main_loop;
@@ -855,6 +845,32 @@ void VirtualMachine::RunLoop() {
       default:
         LOG(FATAL) << "Unknown instruction opcode: " << int(instr.op);
     }
+  }
+}
+
+void VirtualMachine::WriteAllocatedTensor(const Instruction& instr) {
+  auto shape = std::vector<int64_t>(instr.alloc_tensor.ndim);
+
+  for (uint32_t i = 0; i < instr.alloc_tensor.ndim; ++i) {
+    shape[i] = instr.alloc_tensor.shape[i];
+  }
+
+  auto storage_obj = ReadRegister(instr.alloc_tensor.storage);
+  auto offset = LoadScalarInt(instr.alloc_tensor.offset);
+  auto storage = Downcast<Storage>(storage_obj);
+  auto obj = storage->AllocNDArray(offset, shape, instr.alloc_tensor.dtype);
+  VLOG(2) << "allocated "
+          << RuntimeObject2String(obj, GetDevice(exec_->host_device_index),
+                                  /*show_contents=*/false);
+
+  WriteRegister(instr.dst, obj);
+}
+
+void VirtualMachine::WriteAllocatedTensorFromOutside(const Instruction& instr) {
+  if (instr.dst == GetResultRegisterIndex()) {
+    // TODO(vvchernov): check shape
+  } else {
+    WriteAllocatedTensor(instr);
   }
 }
 

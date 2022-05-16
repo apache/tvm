@@ -352,6 +352,21 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
    */
   Index GetResultRegisterIndex();
 
+  /*!
+   * \brief Write new allocated tensor to register_file of frame
+   * \param instr current instruction containing shape and storage info
+   */
+  void WriteAllocatedTensor(const Instruction& instr);
+
+  /*!
+   * \brief 'set_outputs_enabled' is assumed true for using this method.
+   * It is expected that result register has already contained tensor from outside,
+   * new tensor is not allocated and write, but expected shape is checked.
+   * For other register WriteAllocatedMethod is used.
+   * \param instr current instruction containing shape and storage info
+   */
+  void WriteAllocatedTensorFromOutside(const Instruction& instr);
+
  protected:
   /*! \brief The virtual machine's packed function table. */
   std::vector<PackedFunc> packed_funcs_;
