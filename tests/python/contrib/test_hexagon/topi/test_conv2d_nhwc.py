@@ -22,6 +22,7 @@ import sys
 import tvm
 from tvm import topi
 from tvm import te
+from tvm.contrib.hexagon.session import Session
 import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
 
@@ -45,7 +46,7 @@ class BaseConv2DTests:
     @tvm.testing.requires_hexagon
     def test_conv2d_nhwc(
         self,
-        hexagon_session,
+        hexagon_session: Session,
         ref_data,
         batch,
         in_channel,

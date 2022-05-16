@@ -37,4 +37,5 @@ from .device_config import EthosuDeviceConfig
 from .tensor_config import TensorConfigState, MemoryRegion, TensorConfig
 from .plan import Plan
 from .scheduler import apply_proposal, cascade, extract_memory_info
+from .logging import Logging
 from .cascader_options import CascaderOptions

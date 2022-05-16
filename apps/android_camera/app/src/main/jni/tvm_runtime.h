@@ -74,7 +74,7 @@ namespace tvm {
 namespace runtime {
 namespace detail {
 // Override logging mechanism
-void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
+[[noreturn]] void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
   std::string m = file + ":" + std::to_string(lineno) + ": " + message;
   __android_log_write(ANDROID_LOG_DEBUG, "TVM_RUNTIME", m.c_str());
   throw InternalError(file, lineno, message);

@@ -67,6 +67,10 @@ def get_optimal_block_config(
     ethosu.vela.api.NpuShape3D :
         The optimal block config for the operator
     """
+    options = tvm.transform.PassContext.current().config.get("relay.ext.ethos-u.options", None)
+    if options and options.dev_force_block_config:
+        block_config = [int(v) for v in options.dev_force_block_config.split("x")]
+        return vapi.NpuShape3D(height=block_config[0], width=block_config[1], depth=block_config[2])
     all_valid_block_configs = vapi.npu_find_block_configs(npu_op, accel_config)
     return _get_optimal_block_config(all_valid_block_configs)
 

@@ -141,7 +141,7 @@ def test_pareto_cull_plans(num_plans, max_plans, SRAM):
 
     plans = _make_plans(num_plans)
     reference = list(_ref_pareto_cull_plans(plans, max_plans))
-    result = _pareto_cull_plans(plans, max_plans)
+    result = _pareto_cull_plans(plans, max_plans, False)
     assert result == reference
 
 

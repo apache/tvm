@@ -15,18 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
 import sys
 import pytest
 import numpy as np
 
 import tvm.testing
-from tvm import te
 from tvm import relay
 from tvm.relay.backend import Executor, Runtime
+from tvm.contrib.hexagon.session import Session
 
-
-MOBILENET_MODEL = ""
 
 
 def get_mobilenet():
@@ -41,7 +38,7 @@ def get_mobilenet():
 
 
 @tvm.testing.requires_hexagon
-def test_mobilenet(hexagon_session):
+def test_mobilenet(hexagon_session: Session):
     dtype = "float32"
     onnx_model = get_mobilenet()
 
@@ -87,8 +84,11 @@ def test_mobilenet(hexagon_session):
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 
+
+enable_usmp = tvm.testing.parameter(False, True)
+
 @tvm.testing.requires_hexagon
-def test_mobilenet_aot(hexagon_session, aot_host_target, aot_target):
+def test_mobilenet_aot(hexagon_session: Session, aot_host_target, aot_target, enable_usmp):
     if hexagon_session._launcher._serial_number == "simulator":
         pytest.skip(msg="Skip on simulator due to long runtime.")
 
@@ -103,7 +103,8 @@ def test_mobilenet_aot(hexagon_session, aot_host_target, aot_target):
     inputs = {input_name: data_in}
 
     target_llvm = tvm.target.Target("llvm")
-    with tvm.transform.PassContext(opt_level=3):
+    config = {"tir.usmp.enable": enable_usmp}
+    with tvm.transform.PassContext(opt_level=3, config=config):
         hexagon_lowered = tvm.relay.build(
             relay_mod,
             tvm.target.Target(aot_target, host=aot_host_target),
@@ -112,6 +113,12 @@ def test_mobilenet_aot(hexagon_session, aot_host_target, aot_target):
             params=params,
         )
 
+    aot_mod = hexagon_session.get_executor_from_factory(hexagon_lowered)
+    aot_mod.set_input(**inputs)
+    aot_mod.run()
+    hexagon_output = aot_mod.get_output(0).numpy()
+
+    with tvm.transform.PassContext(opt_level=3):
         llvm_lowered = tvm.relay.build(
             relay_mod,
             tvm.target.Target(target_llvm, host=target_llvm),
@@ -119,11 +126,6 @@ def test_mobilenet_aot(hexagon_session, aot_host_target, aot_target):
             executor=Executor("graph", {"link-params": True}),
             params=params,
         )
-
-    aot_mod = hexagon_session.get_executor_from_factory(hexagon_lowered)
-    aot_mod.set_input(**inputs)
-    aot_mod.run()
-    hexagon_output = aot_mod.get_output(0).numpy()
 
     llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
     llvm_graph_mod.set_input(**inputs)

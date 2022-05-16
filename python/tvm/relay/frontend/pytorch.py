@@ -3535,6 +3535,7 @@ def _pytorch_result_type(dtypes, non_tensor_inputs):
 def _convert_dtype_value(val):
     """converts a PyTorch the PyTorch numeric type id to a torch scalar type."""
     convert_torch_dtype_map = {
+        11: "torch.bool",
         7: "torch.float64",
         6: "torch.float32",
         5: "torch.float16",

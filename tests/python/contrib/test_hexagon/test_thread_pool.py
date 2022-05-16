@@ -53,7 +53,7 @@ class ElemwiseSumIRModule:
                 C[vi] = A[vi] + B[vi]
 
 
-def generate_add_test_data(hexagon_session, n=128 * 1024):
+def generate_add_test_data(hexagon_session: Session, n=128 * 1024):
     a = tvm.nd.array(np.random.uniform(size=n).astype("float32"), hexagon_session.device)
     b = tvm.nd.array(np.random.uniform(size=n).astype("float32"), hexagon_session.device)
     c = tvm.nd.array(np.zeros(n, dtype="float32"), hexagon_session.device)

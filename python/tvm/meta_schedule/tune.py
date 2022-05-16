@@ -433,16 +433,23 @@ class TuneConfig(NamedTuple):
         else:
             config = self.logger_config
 
-        global_logger_name = "tvm.meta_schedule"
         config.setdefault("loggers", {})
         config.setdefault("handlers", {})
         config.setdefault("formatters", {})
 
+        global_logger_name = "tvm.meta_schedule"
+        global_logger = logging.getLogger(global_logger_name)
+        if global_logger.level is logging.NOTSET:
+            global_logger.setLevel(logging.INFO)
+
         config["loggers"].setdefault(
             global_logger_name,
             {
-                "level": "INFO",
-                "handlers": [global_logger_name + ".console", global_logger_name + ".file"],
+                "level": logging._levelToName[  # pylint: disable=protected-access
+                    global_logger.level
+                ],
+                "handlers": [handler.get_name() for handler in global_logger.handlers]
+                + [global_logger_name + ".console", global_logger_name + ".file"],
                 "propagate": False,
             },
         )
@@ -502,12 +509,11 @@ class TuneConfig(NamedTuple):
         logging.config.dictConfig(p_config)
 
         # check global logger
-        global_logger = logging.getLogger(global_logger_name)
         if global_logger.level not in [logging.DEBUG, logging.INFO]:
-            global_logger.critical(
+            global_logger.warning(
                 "Logging level set to %s, please set to logging.INFO"
                 " or logging.DEBUG to view full log.",
-                logging._levelToName[logger.level],  # pylint: disable=protected-access
+                logging._levelToName[global_logger.level],  # pylint: disable=protected-access
             )
         global_logger.info("Logging directory: %s", log_dir)
 

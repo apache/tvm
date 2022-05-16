@@ -94,6 +94,9 @@ model_url = (
 model_path = download_testdata(model_url, "resnet50-v2-7.onnx", module="onnx")
 onnx_model = onnx.load(model_path)
 
+# Seed numpy's RNG to get consistent results
+np.random.seed(0)
+
 ################################################################################
 # Downloading, Preprocessing, and Loading the Test Image
 # ------------------------------------------------------
@@ -305,7 +308,7 @@ runner = autotvm.LocalRunner(
 ################################################################################
 # Create a simple structure for holding tuning options. We use an XGBoost
 # algorithim for guiding the search. For a production job, you will want to set
-# the number of trials to be larger than the value of 10 used here. For CPU we
+# the number of trials to be larger than the value of 20 used here. For CPU we
 # recommend 1500, for GPU 3000-4000. The number of trials required can depend
 # on the particular model and processor, so it's worth spending some time
 # evaluating performance across a range of values to find the best balance
@@ -320,7 +323,7 @@ runner = autotvm.LocalRunner(
 
 tuning_option = {
     "tuner": "xgb",
-    "trials": 10,
+    "trials": 20,
     "early_stopping": 100,
     "measure_option": autotvm.measure_option(
         builder=autotvm.LocalBuilder(build_func="default"), runner=runner

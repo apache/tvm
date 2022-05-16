@@ -23,10 +23,11 @@ import tvm.testing
 from tvm import te
 from tvm import relay
 from tvm.relay.backend import Executor, Runtime
+from tvm.contrib.hexagon.session import Session
 
 
 @tvm.testing.requires_hexagon
-def test_add(hexagon_session):
+def test_add(hexagon_session: Session):
     dtype = "int8"
     A = tvm.te.placeholder((2,), dtype=dtype)
     B = tvm.te.placeholder((1,), dtype=dtype)
@@ -51,7 +52,7 @@ def test_add(hexagon_session):
 
 
 @tvm.testing.requires_hexagon
-def test_add_vtcm(hexagon_session):
+def test_add_vtcm(hexagon_session: Session):
     dtype = "int8"
     A = tvm.te.placeholder((2,), dtype=dtype)
     B = tvm.te.placeholder((1,), dtype=dtype)
@@ -120,7 +121,7 @@ class TestMatMul:
 
 
 @tvm.testing.requires_hexagon
-def test_graph_executor(hexagon_session):
+def test_graph_executor(hexagon_session: Session):
     dtype = "float32"
     data = relay.var("data", relay.TensorType((1, 64, 64, 3), dtype))
     weight = relay.var("weight", relay.TensorType((5, 5, 3, 8), dtype))
@@ -176,7 +177,7 @@ def test_graph_executor(hexagon_session):
 
 
 @tvm.testing.requires_hexagon
-def test_graph_executor_multiple_conv2d(hexagon_session):
+def test_graph_executor_multiple_conv2d(hexagon_session: Session):
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
@@ -253,7 +254,7 @@ def test_graph_executor_multiple_conv2d(hexagon_session):
 
 
 @tvm.testing.requires_hexagon
-def test_aot_executor(hexagon_session, aot_host_target, aot_target):
+def test_aot_executor(hexagon_session: Session, aot_host_target, aot_target):
     dtype = "float32"
     input_shape = (1, 128, 128, 3)
     w_shape = (5, 5, 3, 8)
@@ -312,7 +313,7 @@ def test_aot_executor(hexagon_session, aot_host_target, aot_target):
 
 
 @tvm.testing.requires_hexagon
-def test_aot_executor_multiple_conv2d(hexagon_session, aot_host_target, aot_target):
+def test_aot_executor_multiple_conv2d(hexagon_session: Session, aot_host_target, aot_target):
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
