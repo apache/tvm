@@ -24,13 +24,16 @@ public:
       auto& node = nodes_[nid];
       if (node.GetOpType() == "kernel") {
         auto op_name = node.GetOpName();
+
+        // Check if has bias or relu fusion.
         has_bias_ = op_name.find("_bias") != std::string::npos;
         has_relu_ = op_name.find("_relu") != std::string::npos;
 
-        std::cout << "op name: " << node.GetOpName() << std::endl;
+        // Get M, N, K, lda, ldb, ldc.
         auto data_entry = node.GetInputs()[0];
         auto weight_entry = node.GetInputs()[1];
         json::JSONGraphNodeEntry out_entry(nid, 0);
+
         std::vector<int64_t> input_shape = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
         std::vector<int64_t> weight_shape = nodes_[weight_entry.id_].GetOpShape()[weight_entry.index_];
         std::vector<int64_t> out_shape = nodes_[out_entry.id_].GetOpShape()[out_entry.index_];
@@ -39,13 +42,14 @@ public:
         N = weight_shape[0];
         K = input_shape[1];
 
-        relu_mask_.resize(M * N, 0);
-
         int lda = N;
         int ldb = K;
         int ldc = N;
-        libxsmm_datatype dtype = LIBXSMM_DATATYPE_F32;
 
+        // Curently we support fp32 only.
+        libxsmm_datatype dtype = LIBXSMM_DATATYPE_F32;
+        
+        // Configure GEMM related parameters 
         libxsmm_bitfield l_flags = LIBXSMM_GEMM_FLAG_NONE | LIBXSMM_GEMM_FLAG_BETA_0;
         libxsmm_bitfield l_prefetch_flags = LIBXSMM_GEMM_PREFETCH_NONE;
         libxsmm_gemm_shape l_shape = libxsmm_create_gemm_shape(N, M, K, lda, ldb, ldc, dtype, dtype, dtype, dtype);
@@ -69,8 +73,11 @@ public:
           l_argops.cp_unary_flags = LIBXSMM_MELTW_FLAG_UNARY_NONE;
           l_argops.cp_unary_type    = LIBXSMM_MELTW_TYPE_UNARY_RELU;
           l_argops.ldcp             = ldc;
+          // relu mask should have the same size as matrix C.
+          relu_mask_.resize(M * N, 0);
         }
-
+        
+        // Use "libxsmm_gemmfunction" for GEMM kernel, and "libxsmm_gemmfunction_ext" for fused GEMM kernel.
         if (has_bias_ || has_relu_) {
           gemm_fusion_kernel_ = libxsmm_dispatch_brgemm_ext_v2(l_shape, l_flags, l_prefetch_flags, l_brconfig, l_argops, l_postops);
         } else {
@@ -81,8 +88,7 @@ public:
   }
 
   void Run() override {
-    std::cout << "Run()" << std::endl;
-    std::cout << "has_relu_:" << has_relu_ << std::endl;
+    // Get input/output buffers.
     auto data_eid = EntryID(input_nodes_[0], 0);
     auto filter_eid = EntryID(input_nodes_[1], 0);
     auto output_eid = EntryID(outputs_[0]);
@@ -91,6 +97,7 @@ public:
     void *filter_handle = data_entry_[filter_eid]->data;
     void *output_handle = data_entry_[output_eid]->data;
 
+    // Transpose weight matrix since libxsmm only support GEMM rather than DENSE.
     if (!transposed_filter_handle_) {
       TVMDeviceAllocDataSpace(dev, K * N * sizeof(float), kAllocAlignment, type_hint, &transposed_filter_handle_);
       for (int k = 0; k < K; ++ k) {
@@ -100,8 +107,8 @@ public:
       }
     }
 
-    unsigned long long int blocks = 1;
     if (has_bias_ || has_relu_) {
+      // Setup GEMM params.
       libxsmm_gemm_ext_param gemm_param_ext;
       gemm_param_ext.a.secondary = NULL;
       gemm_param_ext.b.secondary = NULL;
@@ -118,12 +125,12 @@ public:
       if (has_relu_) {
         gemm_param_ext.c.secondary = relu_mask_.data();
       }
-      gemm_param_ext.op.tertiary = &blocks;
+      gemm_param_ext.op.tertiary = &blocks_;
 
-      std::cout << "Before gemm_fusion_kernel_" << std::endl;
+      // Run GEMM fusion kernel.
       gemm_fusion_kernel_(&gemm_param_ext);
-      std::cout << "After gemm_fusion_kernel_" << std::endl;
     } else {
+      // Setup GEMM params.
       libxsmm_gemm_param gemm_param;
       gemm_param.a.secondary = NULL;
       gemm_param.b.secondary = NULL;
@@ -131,8 +138,9 @@ public:
       gemm_param.a.primary = transposed_filter_handle_;
       gemm_param.b.primary = data_handle;
       gemm_param.c.primary = output_handle;
-      gemm_param.op.tertiary = &blocks;
+      gemm_param.op.tertiary = &blocks_;
 
+      // Run GEMM kernel.
       gemm_kernel_(&gemm_param);
     }
   }
@@ -146,7 +154,10 @@ private:
   libxsmm_gemmfunction gemm_kernel_;
   libxsmm_gemmfunction_ext gemm_fusion_kernel_;
 
+  // Transposed weight is saved to avoid redundant transpose in following steps. 
+  // TODO(wenxizhu): check if current graph executor is in inference mode.
   void *transposed_filter_handle_{nullptr};
+
   DLDevice dev {kDLCPU, 0};
   DLDataType type_hint {2, 32, 1};
 
@@ -157,7 +168,11 @@ private:
   bool has_bias_{false};
   bool has_relu_{false};
 
+  // LIBXSMM supports a feature named "relu mask" bitmap: 0 for relu and 1 for non-relu. 
+  // For now since tvm doesn't support relu mask, just set all to 0.
   std::vector<unsigned char> relu_mask_;
+
+  unsigned long long int blocks_ = 1;
 };
 
 runtime::Module LibxsmmJSONRuntimeCreate(String symbol_name, String graph_json, const Array<String>& const_names) {
