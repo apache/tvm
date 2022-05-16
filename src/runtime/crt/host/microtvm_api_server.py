@@ -62,6 +62,7 @@ class Handler(server.ProjectAPIHandler):
                     "verbose",
                     optional=["build"],
                     type="bool",
+                    default=False,
                     help="Run make with verbose output",
                 ),
                 server.ProjectOption(
