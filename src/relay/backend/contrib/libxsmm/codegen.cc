@@ -4,8 +4,6 @@
 
 #include "../../utils.h"
 #include "../codegen_json/codegen_json.h"
-#include "../../../../printer/text_printer.h"
-
 
 namespace tvm {
 namespace relay {
@@ -14,18 +12,19 @@ namespace contrib {
 using namespace backend;
 
 class LibxsmmJSONSerializer : public backend::contrib::JSONSerializer {
-using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
-using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
+  using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
+  using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
 
-public:
-  LibxsmmJSONSerializer(const std::string &symbol, const Expr &expr) : JSONSerializer(symbol, expr) {}
+ public:
+  LibxsmmJSONSerializer(const std::string& symbol, const Expr& expr)
+      : JSONSerializer(symbol, expr) {}
 
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* call_node) override {
     std::string name;
-    const CallNode *call = call_node;
-    if (const auto *op_node = call_node->op.as<OpNode>()) {
+    const CallNode* call = call_node;
+    if (const auto* op_node = call_node->op.as<OpNode>()) {
       name = op_node->name;
-    } else if (const auto *function_node = call_node->op.as<FunctionNode>()) {
+    } else if (const auto* function_node = call_node->op.as<FunctionNode>()) {
       auto comp = function_node->GetAttr<String>(attr::kComposite);
       name = comp.value();
 
@@ -44,24 +43,25 @@ public:
         LOG(FATAL) << "Unrecognized LIBXSMM pattern: " << name;
       }
     } else {
-        LOG(FATAL) << "LIBXSMM JSON runtime does not support call to " << call_node->op->GetTypeKey();
+      LOG(FATAL) << "LIBXSMM JSON runtime does not support call to " << call_node->op->GetTypeKey();
     }
-    
+
     std::vector<JSONGraphNodeEntry> inputs;
-    for (const auto &arg : call_node->args) {
+    for (const auto& arg : call_node->args) {
       auto res = VisitExpr(arg);
       inputs.insert(inputs.end(), res.begin(), res.end());
     }
 
     auto node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
-    
+
     SetCallNodeAttribute(node, call);
     return AddNode(node, GetRef<Expr>(call_node));
   }
 };
 
 /*!
- * \brief The extrenal compiler/codegen tool. It takes a Relay expression/module and compile it into a runtime module.
+ * \brief The extrenal compiler/codegen tool. It takes a Relay expression/module and compile it into
+ * a runtime module.
  */
 runtime::Module LibxsmmCompiler(const ObjectRef& ref) {
   ICHECK(ref->IsInstance<FunctionNode>());
@@ -79,6 +79,6 @@ runtime::Module LibxsmmCompiler(const ObjectRef& ref) {
 }
 
 TVM_REGISTER_GLOBAL("relay.ext.libxsmm").set_body_typed(LibxsmmCompiler);
-} // namespace contrib
-} // namespace relay
-} // namespace t
+}  // namespace contrib
+}  // namespace relay
+}  // namespace tvm

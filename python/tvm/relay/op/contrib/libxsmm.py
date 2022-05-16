@@ -28,9 +28,10 @@ from .register import register_pattern_table
 
 
 def use_libxsmm(m, n, k):
-  """Conditions to enable libxsmm BYOC.
-     Currently we enable libxsmm when cube_root(m * n * k ) <= 256 since it has significant performance improvement."""
-  return bool(np.cbrt(m * n * k) <= 256)
+    """Conditions to enable libxsmm BYOC.
+    Currently we enable libxsmm when cube_root(m * n * k ) <= 256 since it has significant performance improvement."""
+    return bool(np.cbrt(m * n * k) <= 256)
+
 
 @tvm.ir.register_op_attr("nn.dense", "target.libxsmm")
 def dense(expr):
@@ -40,21 +41,23 @@ def dense(expr):
     k = int(args[0].checked_type.shape[1])
     return use_libxsmm(m, n, k)
 
+
 def get_root_call(call, root_op_name):
-  if not isinstance(call, relay.Call):
-    return None
-  if str(call.op) == root_op_name:
-    return call
-  return get_root_call(call.args[0], root_op_name)
+    if not isinstance(call, relay.Call):
+        return None
+    if str(call.op) == root_op_name:
+        return call
+    return get_root_call(call.args[0], root_op_name)
+
 
 def check_dense_shape(call):
-  dense = get_root_call(call, "nn.dense")
-  data = dense.args[0].checked_type
-  weight = dense.args[1].checked_type
-  m = int(data.shape[0])
-  n = int(weight.shape[0])
-  k = int(data.shape[1])
-  return use_libxsmm(m, n, k)
+    dense = get_root_call(call, "nn.dense")
+    data = dense.args[0].checked_type
+    weight = dense.args[1].checked_type
+    m = int(data.shape[0])
+    n = int(weight.shape[0])
+    k = int(data.shape[1])
+    return use_libxsmm(m, n, k)
 
 
 def make_dense_pattern(with_bias=False, eltwise=None):
@@ -70,7 +73,7 @@ def make_dense_pattern(with_bias=False, eltwise=None):
         dense_out = dense
     if eltwise:
         dense_out = is_op(eltwise)(dense_out)
-        pattern_name += ("_" + eltwise.split(".")[-1])
+        pattern_name += "_" + eltwise.split(".")[-1]
     return [pattern_name, dense_out, check_dense_shape]
 
 
@@ -100,4 +103,4 @@ def partition_for_libxsmm(mod, params=None):
     with tvm.transform.PassContext(opt_level=3):
         mod = seq(mod)
 
-    return mod;
+    return mod

@@ -26,8 +26,11 @@ from tvm import testing
 
 
 def check_libxsmm_used(mod, libxsmm_enabled):
-    num_libxsmm_subgraphs = sum([1 if "libxsmm" in gv.name_hint else 0 for gv in mod.get_global_vars()])
+    num_libxsmm_subgraphs = sum(
+        [1 if "libxsmm" in gv.name_hint else 0 for gv in mod.get_global_vars()]
+    )
     assert num_libxsmm_subgraphs == 1 if libxsmm_enabled else num_libxsmm_subgraphs == 0
+
 
 def run_and_verify(mod, input_dict, params, target, libxsmm_enabled=True):
     dev = tvm.cpu()
