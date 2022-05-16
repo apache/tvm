@@ -85,20 +85,23 @@ class BoundDeducer : public ExprVisitor {
   void VisitExpr(const PrimExpr& e) final {
     if (!success_) return;
     if (iter_ < path_.size() && e.get() == path_[iter_++]) {
-      ExprVisitor::VisitExpr(e);
+      if (const AddNode* op = e.as<AddNode>()) {
+        VisitExpr_(op);
+      } else if (const SubNode* op = e.as<SubNode>()) {
+        VisitExpr_(op);
+      } else if (const MulNode* op = e.as<MulNode>()) {
+        VisitExpr_(op);
+      } else if (e->IsInstance<VarNode>()) {
+        return;
+      } else {
+        success_ = false;
+        return;
+      }
     } else {
       success_ = false;
       return;
     }
   }
-
-  void VisitExpr_(const LTNode* op) final { success_ = false; }
-
-  void VisitExpr_(const LENode* op) final { success_ = false; }
-
-  void VisitExpr_(const GTNode* op) final { success_ = false; }
-
-  void VisitExpr_(const GENode* op) final { success_ = false; }
 
   void VisitExpr_(const AddNode* op) final {
     bool left = op->a.get() == path_[iter_];
