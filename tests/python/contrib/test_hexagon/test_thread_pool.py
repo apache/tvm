@@ -68,9 +68,6 @@ def benchmark_func(mod, name, args, hexagon_session):
 
 @tvm.testing.requires_hexagon
 def test_speedup(hexagon_session: Session, capsys):
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
-
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
     func = tvm.build(
         ElemwiseSumIRModule, target=tvm.target.Target(target_hexagon, host=target_hexagon)
@@ -86,9 +83,6 @@ def test_speedup(hexagon_session: Session, capsys):
 
 @tvm.testing.requires_hexagon
 def test_elemwise_sum_parallel(hexagon_session: Session):
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
-
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
     func = tvm.build(
         ElemwiseSumIRModule, target=tvm.target.Target(target_hexagon, host=target_hexagon)
