@@ -651,6 +651,16 @@ def compile_models(
                         compiled_mods.append(
                             AOTCompiledTestModel(model=model, executor_factory=executor_factory)
                         )
+                    else:
+                        executor_factory = tvm.relay.build(
+                            model.module,
+                            tvm.target.Target(target, host=target),
+                            params=model.params,
+                            mod_name=model.name,
+                        )
+                        compiled_mods.append(
+                            AOTCompiledTestModel(model=model, executor_factory=executor_factory)
+                        )
         else:
             with tvm.transform.PassContext(opt_level=3, config=config):
                 # TODO(Mousius) - Remove once executor/runtime are fully removed from Target
