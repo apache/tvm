@@ -19,7 +19,7 @@
 import tvm
 
 from abc import abstractmethod
-from typing import List, Dict, Callable, Optional
+from typing import Union, Dict, Callable, Optional
 
 from tvm.relay.backend.contrib.uma.api.partitioner import UMAPartitioner
 from tvm.relay.backend.contrib.uma.api.lower import UMALower
@@ -31,7 +31,7 @@ class UMABackend(object):
         # TODO: variant implementation
         # - variant should allow the user to differentiate between different variants of the same NPU
         # - we need to decide where we want to make the variant decision and which parts of UMA are affected by it
-        self._target_attrs: List = list()
+        self._target_attrs: Dict = dict()
         self._relay_to_relay = UMAPartitioner(self.target_name, merge_compiler_regions)
         self._relay_to_tir = UMALower(self.target_name)
         self._tir_to_runtime = UMACodegen(self.target_name)
@@ -51,9 +51,11 @@ class UMABackend(object):
     ############################################################################
     # Target configuration
     ############################################################################
-    def _register_target_attr(self, name: str) -> None:
+    def _register_target_attr(
+        self, name: str, default: Optional[Union[str, int, bool]] = "",
+    ) -> None:
         """Register a target attribute name that can be used during target instantiation."""
-        self._target_attrs.append(name)
+        self._target_attrs[name] = default
 
     ############################################################################
     # Relay to Relay function registration

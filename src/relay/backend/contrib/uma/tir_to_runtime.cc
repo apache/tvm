@@ -82,7 +82,7 @@ class UMACodegen : public codegen::CodeGenCHost {
 runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
-  UMACodegen codegen (target->str());
+  UMACodegen codegen (target->kind->name);
   Array<String> function_names;
   codegen.Init(output_ssa, emit_asserts);
   for (auto kv : mod->functions) {

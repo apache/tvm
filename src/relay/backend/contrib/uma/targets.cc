@@ -38,7 +38,7 @@ namespace uma {
 }  // namespace relay
 
 TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
-    .set_body_typed([](String target_name, Array<String> attr_names){
+    .set_body_typed([](String target_name, Map<String, ObjectRef> attr_options){
         auto target_kind = ::tvm::TargetKindRegEntry::RegisterOrGet(target_name)
         .set_name()
         .set_device_type(kDLCPU)
@@ -52,8 +52,22 @@ TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
         .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::uma::RelayToTIR(target_name))
         .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::uma::TIRToRuntime);
 
-        for (auto &attr_name : attr_names) {
-            target_kind.add_attr_option<String>(attr_name);
+        for (auto &attr_option : attr_options) {
+          try {
+            target_kind.add_attr_option<String>(attr_option.first, Downcast<String>(attr_option.second));
+            continue;
+          } catch (...) {}
+          try {
+            target_kind.add_attr_option<Bool>(attr_option.first, Downcast<Bool>(attr_option.second));
+            continue;
+          } catch (...) {}
+          try {
+            target_kind.add_attr_option<Integer>(attr_option.first, Downcast<Integer>(attr_option.second));
+            continue;
+          } catch (...) {
+            LOG(FATAL) << "Attribute option of type " << attr_option.second->GetTypeKey() 
+                       << " can not be added. Only String, Integer, or Bool are supported.";
+          }
         }
     });
 

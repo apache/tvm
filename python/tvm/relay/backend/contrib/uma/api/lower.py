@@ -61,6 +61,7 @@ class UMALower(object):
         tir_prim_func = tir_prim_func.with_attr(
             "global_symbol", relay_prim_func.attrs["global_symbol"]
         )
+        # TODO: The target should probably come from somewhere else instead of being created here.
         tir_prim_func = tir_prim_func.with_attr("target", tvm.target.Target(self.target_name))
         tir_prim_func = tir_prim_func.with_attr("relay_attrs", relay_prim_func.attrs)
         return tir_prim_func
