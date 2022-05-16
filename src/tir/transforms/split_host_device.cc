@@ -281,7 +281,12 @@ class HostDeviceSplitter : public StmtMutator {
         // Create a new version of v.
         auto it = handle_data_type_.find(var.get());
         if (it != handle_data_type_.end()) {
-          tir::Var new_var(var->name_hint, PointerType(PrimType((*it).second->dtype)));
+          String storage_scope;
+          if (auto* ptr_type = var->type_annotation.as<PointerTypeNode>()) {
+            storage_scope = ptr_type->storage_scope;
+          }
+          tir::Var new_var(var->name_hint,
+                           PointerType(PrimType((*it).second->dtype), storage_scope));
           params.push_back(new_var);
           remap_vars.Set(var, new_var);
         } else {
