@@ -30,7 +30,6 @@ from tvm.ir import Span
 from tvm.tir import IntImm, IterVar, Var
 
 from .node import BufferSlice
-from .utils import buffer_slice_to_region
 
 from ..context_maintainer import BlockInfo, ContextMaintainer
 from ..registry import register
@@ -168,7 +167,7 @@ class MatchBuffer(SpecialStmt):
                     )
                 self.context.func_buffer_map[param] = buffer
             elif isinstance(param, BufferSlice):
-                buffer_region = buffer_slice_to_region(param)
+                buffer_region = param.as_buffer_region()
                 self.context.current_block_scope().match_buffers.append(
                     tvm.tir.MatchBufferRegion(buffer, buffer_region)
                 )
