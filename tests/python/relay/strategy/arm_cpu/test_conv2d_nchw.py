@@ -94,21 +94,6 @@ class BasicConv2dTests:
         )
 
 
-# TODO(mehrdadh): Add hardware that supports this schedule
-# class TestConv2d_OIHW_int8_large_kernel(BasicConv2dTests):
-#     """This test is for conv2d_nchw_int8.arm_cpu schedule."""
-
-#     data_shape, kernel_size, num_filter, strides, padding, dilation = tvm.testing.parameters(
-#         ((1, 64, 32, 32), (3, 3), 12, 1, 0, 1),
-#         ((1, 128, 32, 32), (3, 3), 12, 1, 0, 1),
-#         ((1, 64, 32, 32), (5, 5), 16, 1, 0, 1),
-#     )
-
-#     dtype = tvm.testing.parameter("int8")
-#     kernel_layout = tvm.testing.parameter("OIHW")
-#     schedule_name = tvm.testing.parameter("conv2d_nchw_int8.arm_cpu")
-
-
 class TestConv2d_OIHW_small_kernel(BasicConv2dTests):
     """This test is for conv2d_nchw_spatial_pack.arm_cpu schedule."""
 
@@ -119,9 +104,6 @@ class TestConv2d_OIHW_small_kernel(BasicConv2dTests):
     )
     kernel_layout = tvm.testing.parameter("OIHW")
     schedule_name = tvm.testing.parameter("conv2d_nchw_spatial_pack.arm_cpu")
-
-
-# TODO(mehrdadh): Add test for `OIHW\d*o` layout format for conv2d_nchw_spatial_pack.arm_cpu schedule.
 
 
 if __name__ == "__main__":

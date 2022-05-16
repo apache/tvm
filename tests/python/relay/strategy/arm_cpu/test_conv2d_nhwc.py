@@ -150,10 +150,5 @@ class TestConv2d_HWIO(BasicConv2dTests):
     schedule_name = tvm.testing.parameter("conv2d_nhwc_spatial_pack.arm_cpu")
 
 
-# TODO(mehrdadh): Add test for conv2d_NHWC_quantized_native.arm_cpu
-
-# TODO(mehrdadh): Add test for conv2d_NHWC_quantized_interleaved.arm_cpu
-
-
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
