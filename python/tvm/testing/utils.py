@@ -62,7 +62,6 @@ function in this module. Then targets using this node should be added to the
 `TVM_TEST_TARGETS` environment variable in the CI.
 
 """
-import collections
 import copy
 import copyreg
 import ctypes
@@ -89,9 +88,6 @@ import tvm._ffi
 
 from tvm.contrib import nvcc, cudnn
 from tvm.error import TVMError
-from tvm.relay.op.contrib import ethosn
-from tvm.relay.op.contrib import cmsisnn
-from tvm.relay.op.contrib import vitis_ai
 
 
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
@@ -657,7 +653,8 @@ class Feature:
             yield pytest.mark.skipif(
                 all(enabled.split()[0] != target_kind for enabled in _tvm_test_targets()),
                 reason=(
-                    f"{self.target_kind_enabled} tests disabled by TVM_TEST_TARGETS environment variable"
+                    f"{self.target_kind_enabled} tests disabled "
+                    f"by TVM_TEST_TARGETS environment variable"
                 ),
             )
 
@@ -977,8 +974,8 @@ def _tvm_test_targets():
         # Use dict instead of set for de-duplication so that the
         # targets stay in the order specified.
         return list({t.strip(): None for t in target_str.split(";") if t.strip()})
-    else:
-        return DEFAULT_TEST_TARGETS
+
+    return DEFAULT_TEST_TARGETS
 
 
 def _compose(args, decs):
