@@ -180,6 +180,8 @@ class ApplyConfig(DispatchContext):
 
 class ApplyFixedConfig(DispatchContext):
     """Apply a config of a deterministic schedule.
+    This is used for building a single Relay operator with deterministic schedule
+    for testing schedules at Relay level.
 
     Parameters
     ----------
@@ -199,7 +201,7 @@ class ApplyFixedConfig(DispatchContext):
         """Override query"""
         self.workload = workload
 
-        # Creat a config from correct task
+        # Create a config from correct task
         for task in self._tasks:
             if task.name == workload[0]:
                 config = task.config_space.get(0)
@@ -211,7 +213,7 @@ class ApplyFixedConfig(DispatchContext):
             )
         # Add low cost to the target schedule and high cost to others.
         if workload[0] == self._schedule_name:
-            config.cost = 0.000001
+            config.cost = 1e-6
         else:
             config.cost = 100000
         return config
