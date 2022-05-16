@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-13T12:39:39.064143
+// Generated at 2022-05-16T23:10:27.079900
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -56,7 +56,7 @@ ci_wasm = 'tlcpack/ci-wasm:20220513-055910-fa834f67e'
 ci_i386 = 'tlcpack/ci-i386:20220513-055910-fa834f67e'
 ci_qemu = 'tlcpack/ci-qemu:20220513-055910-fa834f67e'
 ci_arm = 'tlcpack/ci-arm:20220513-055910-fa834f67e'
-ci_hexagon = 'tlcpack/ci-hexagon:20220513-055910-fa834f67e'
+ci_hexagon = 'tlcpack/ci-hexagon:20220516-190055-672ce3365'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
