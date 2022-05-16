@@ -166,7 +166,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "tflite",
                 "torch",
                 "torchvision",
-                "xgboost",
+                "xgboost==1.5.2",
             ],
         ),
     ),
