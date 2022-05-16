@@ -14,11 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""Common functions for AOT test cases"""
 import sys
 import datetime
-import itertools
-import logging
 import os
 import pathlib
 import re
@@ -27,19 +25,13 @@ import subprocess
 import tarfile
 import tempfile
 from typing import Any, NamedTuple, Union, Optional, List, Dict
-
-import pytest
 import numpy as np
-
-pytest.importorskip("tvm.micro")
 
 import tvm
 from tvm import relay
-from tvm import te
 from tvm import autotvm
 from tvm.contrib import utils, graph_executor
-from tvm.relay.backend import te_compiler, Executor, Runtime
-from tvm.relay.backend.te_compiler import TECompiler
+from tvm.relay.backend import Executor, Runtime
 from tvm.relay.backend.utils import mangle_module_name
 from tvm.micro import export_model_library_format
 from tvm.micro.testing.utils import mlf_extract_workspace_size_bytes
@@ -195,7 +187,8 @@ def _mangle_name(mod_name, name):
 def _emit_data_linkage(output_file, data_linkage):
     if data_linkage is not None:
         output_file.write(
-            f'__attribute__((section("{data_linkage.section}"), aligned({data_linkage.alignment}))) '
+            f'__attribute__((section("{data_linkage.section}"), '
+            f"aligned({data_linkage.alignment}))) "
         )
 
 
@@ -221,12 +214,10 @@ def _emit_main_prologue(
         main_file.write("static uint8_t g_aot_memory[WORKSPACE_SIZE];\n")
         main_file.write("tvm_workspace_t app_workspace;\n")
         main_file.write(
-            """
-            
+            """\n
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
     return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
-}
-
+}\n
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
     return StackMemoryManager_Free(&app_workspace,ptr);
 }
@@ -235,33 +226,27 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
     else:
         # An implementation is not needed for these if the stack allocator is not used
         main_file.write(
-            """
-            
+            """\n
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
     return kTvmErrorFunctionCallNotImplemented;
-}
-
+}\n
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
     return kTvmErrorFunctionCallNotImplemented;
-}
-
+}\n
             """
         )
     main_file.write(
-        """
-    
-void TVMPlatformAbort(tvm_crt_error_t code) { exit(-1); }
-
+        """\n
+void TVMPlatformAbort(tvm_crt_error_t code) { exit(-1); }\n
 void TVMLogf(const char* msg, ...) {
   va_list args;
   va_start(args, msg);
   vfprintf(stdout, msg, args);
   va_end(args);
-}
-    
+}\n
 TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {}
 int main(){\n
-    """
+"""
     )
     main_file.write(custom_prologue)
 
@@ -276,8 +261,10 @@ def _emit_main_data(main_file, input_map, output_map, mod_name):
     for key in output_map:
         sanitized_tensor_name = re.sub(r"\W", "_", key)
         main_file.write(
-            f'#include "{_mangle_name(mod_name,"expected_output_data")}_{sanitized_tensor_name}.h"\n'
-            f'#include "{_mangle_name(mod_name,"output_data")}_{sanitized_tensor_name}.h"\n'
+            f'#include "{_mangle_name(mod_name,"expected_output_data")}_'
+            f'{sanitized_tensor_name}.h"\n'
+            f'#include "{_mangle_name(mod_name,"output_data")}_'
+            f'{sanitized_tensor_name}.h"\n'
         )
 
 
@@ -294,7 +281,8 @@ def _emit_main_device_structs(main_file, devices, mod_name):
 def _emit_main_workspace_pool_structs(main_file, workspace_pool_names, mod_name):
     if workspace_pool_names and len(workspace_pool_names) > 0:
         main_file.write(
-            f"struct {_mangle_name(mod_name, 'workspace_pools')} {_mangle_name(mod_name, 'workspace_pools')} = {{"
+            f"struct {_mangle_name(mod_name, 'workspace_pools')} "
+            f"{_mangle_name(mod_name, 'workspace_pools')} = {{"
         )
         for workspace_pool_name in workspace_pool_names:
             main_file.write(f"\t.{workspace_pool_name} = {workspace_pool_name},\n")
@@ -308,7 +296,8 @@ def _emit_main_data_structs(main_file, input_map, output_map, mod_name):
     for key in input_map:
         sanitized_tensor_name = re.sub(r"\W", "_", key)
         main_file.write(
-            f"\t.{sanitized_tensor_name} = {_mangle_name(mod_name, 'input_data')}_{sanitized_tensor_name},\n"
+            f"\t.{sanitized_tensor_name} = {_mangle_name(mod_name, 'input_data')}_"
+            f"{sanitized_tensor_name},\n"
         )
     main_file.write("};\n")
 
@@ -318,7 +307,8 @@ def _emit_main_data_structs(main_file, input_map, output_map, mod_name):
     for key in output_map:
         sanitized_tensor_name = re.sub(r"\W", "_", key)
         main_file.write(
-            f"\t.{sanitized_tensor_name} = {_mangle_name(mod_name, 'output_data')}_{sanitized_tensor_name},\n"
+            f"\t.{sanitized_tensor_name} = {_mangle_name(mod_name, 'output_data')}_"
+            f"{sanitized_tensor_name},\n"
         )
     main_file.write("};\n")
 
@@ -359,7 +349,7 @@ def _emit_main_c_interface_call(
 
     main_file_string = ""
     for sub_string in sub_strings:
-        main_file_string += sub_string
+        main_file_string.join(sub_string)
 
     main_file.write(main_file_string)
 
@@ -437,14 +427,13 @@ def _emit_main_compare(main_file, outputs, output_tolerance, mod_name, use_inter
         else:
             actual_data_name = _mangle_name(mod_name, f"output_data_{sanitized_tensor_name}")
         main_file.write(
-            f"""
-            for (int i = 0; i<{data_length_var_name}; i++) {{
-                if ({comparison_function}({actual_data_name}[i]-{expected_data_name}[i]) > {tolerance}) {{
-                    printf("{AOT_FAILURE_TOKEN}\\n");
-                    return -1;
-                }}
-            }}
-            """
+            f"for (int i = 0; i<{data_length_var_name}; i++) {{\n"
+            f"\tif ({comparison_function}({actual_data_name}[i]-"
+            f"{expected_data_name}[i]) > {tolerance}) {{\n"
+            f'\t\tprintf("{AOT_FAILURE_TOKEN}\\n");\n'
+            f"\t\treturn -1;\n"
+            f"\t}}\n"
+            f"}}"
         )
 
 
@@ -553,7 +542,8 @@ def _create_main(
 def _create_header_file(tensor_name, npy_data, output_path, data_linkage):
     """
     This method generates a header file containing the data contained in the numpy array provided.
-    It is used to capture the tensor data (for both inputs and expected outputs) to be bundled into the standalone application.
+    It is used to capture the tensor data (for both inputs and expected outputs)
+    to be bundled into the standalone application.
     """
     file_path = pathlib.Path(f"{output_path}/" + tensor_name).resolve()
     # create header file
@@ -580,11 +570,11 @@ def _convert_to_relay(
     """Convert a tflite model buffer in a Relay module"""
     # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
     try:
-        import tflite.Model
+        import tflite.Model  # pylint: disable=import-outside-toplevel
 
         tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
     except AttributeError:
-        import tflite
+        import tflite  # pylint: disable=import-outside-toplevel
 
         tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
     except ImportError:
