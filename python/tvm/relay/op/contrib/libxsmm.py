@@ -1,32 +1,44 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# pylint: disable=invalid-name
+"""Patterns supported LIBXSMM."""
+import numpy as np
+
 import tvm
 from tvm import relay
 from tvm.ir.transform import Sequential
 from tvm.relay import transform
+
 from ...dataflow_pattern import wildcard, is_op, is_constant
 from .register import register_pattern_table
-import numpy as np
 
+
+def use_libxsmm(m, n, k):
+  """Conditions to enable libxsmm BYOC.
+     Currently we enable libxsmm when cube_root(m * n * k ) <= 256 since it has significant performance improvement."""
+  return bool(np.cbrt(m * n * k) <= 256)
 
 @tvm.ir.register_op_attr("nn.dense", "target.libxsmm")
 def dense(expr):
     args = expr.args
-    print("args[0].shape", args[0].checked_type.shape)
-    print("args[1].shape", args[1].checked_type.shape)
     m = int(args[0].checked_type.shape[0])
     n = int(args[1].checked_type.shape[0])
     k = int(args[0].checked_type.shape[1])
-    return bool(np.cbrt(m * n * k) <= 256)
-
-def _register_external_op_helper(op_name, supported=True):
-
-  @tvm.ir.register_op_attr(op_name, "target.libxsmm")
-  def _func_wrapper(expr):
-    return supported
-
-  return _func_wrapper
-
-#_register_external_op_helper("nn.bias_add")
-#_register_external_op_helper("nn.relu")
+    return use_libxsmm(m, n, k)
 
 def get_root_call(call, root_op_name):
   if not isinstance(call, relay.Call):
@@ -36,15 +48,13 @@ def get_root_call(call, root_op_name):
   return get_root_call(call.args[0], root_op_name)
 
 def check_dense_shape(call):
-  dense = get_root_call(call, "nn.dense") 
+  dense = get_root_call(call, "nn.dense")
   data = dense.args[0].checked_type
   weight = dense.args[1].checked_type
   m = int(data.shape[0])
   n = int(weight.shape[0])
   k = int(data.shape[1])
-  print("m:{}, n:{}, k:{}".format(m, n, k))
-  print("(m * n * k) ** (1/3): {}".format((m * n * k) ** (1/3) <= 256))
-  return  (m * n * k) ** (1/3) <= 256
+  return use_libxsmm(m, n, k)
 
 
 def make_dense_pattern(with_bias=False, eltwise=None):
@@ -66,7 +76,7 @@ def make_dense_pattern(with_bias=False, eltwise=None):
 
 @register_pattern_table("libxsmm")
 def pattern_table():
-    elt_list = ["nn.relu", "sigmoid", None]
+    elt_list = ["nn.relu", None]
     libxsmm_patterns = []
     for with_bias in [True, False]:
         for elt in elt_list:
