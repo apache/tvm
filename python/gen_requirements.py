@@ -166,7 +166,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "tflite",
                 "torch",
                 "torchvision",
-                "xgboost==1.5.2",
+                "xgboost",
             ],
         ),
     ),
@@ -277,7 +277,7 @@ CONSTRAINTS = [
     ("torch", None),
     ("torchvision", None),
     ("tornado", None),
-    ("xgboost", ">=1.1.0"),  # From PR #4953.
+    ("xgboost", "<1.6.0"),  # From PR #4953.
 ]
 
 ################################################################################
