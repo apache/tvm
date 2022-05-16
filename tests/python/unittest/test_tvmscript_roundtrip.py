@@ -3272,6 +3272,22 @@ def buffer_axis_separator():
     return element_wise
 
 
+def buffer_ramp_access_as_slice_index():
+    @T.prim_func
+    def buffer_ramp_access(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (128,), "float32")
+        B = T.match_buffer(b, (128,), "float32")
+        C = T.match_buffer(c, (128,), "float32")
+        for i in range(128):
+            A[i : i + 1 : 1] = i
+        for i in range(4):
+            B[i * 32 : i * 32 + 32] = A[i * 32 : i * 32 + 32 : 1] + T.broadcast(1.0, 32)
+        for i in range(4):
+            C[i : i + 128 : 4] = B[i : i + 128 : 4] + T.broadcast(1.0, 32)
+
+    return buffer_ramp_access
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3308,6 +3324,7 @@ ir_generator = tvm.testing.parameter(
     string_annotation_escaping,
     pointer_type,
     buffer_axis_separator,
+    buffer_ramp_access_as_slice_index,
 )
 
 
