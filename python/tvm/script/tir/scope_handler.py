@@ -26,7 +26,6 @@ from tvm.ir import Span, Range
 from tvm.tir import Stmt, PrimExpr, IterVar, Var, Buffer, BufferRegion, ForKind
 
 from .node import BufferSlice
-from .utils import buffer_slice_to_region
 
 from ..context_maintainer import ContextMaintainer
 from ..registry import register
@@ -327,12 +326,10 @@ class Block(WithScopeHandler):
 
             # create block read/write regions
             reads: List[BufferRegion] = (
-                [buffer_slice_to_region(read) for read in block_info.reads]
-                if block_info.reads
-                else []
+                [read.as_buffer_region() for read in block_info.reads] if block_info.reads else []
             )
             writes: List[BufferRegion] = (
-                [buffer_slice_to_region(write) for write in block_info.writes]
+                [write.as_buffer_region() for write in block_info.writes]
                 if block_info.writes
                 else []
             )
