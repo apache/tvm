@@ -557,7 +557,8 @@ class ReverseComputeInliner : public BaseInliner {
         /*input_iters=*/consumer_iter_doms,
         /*predicate=*/true,
         /*require_bijective=*/true,
-        /*analyzer=*/&analyzer);
+        /*analyzer=*/&analyzer,
+        /*simplify_trivial_iterators=*/false);
     if (buffer_load_iter_map_.empty()) {
       // Failure: indices of BufferLoad are not bijective affine
       return false;
