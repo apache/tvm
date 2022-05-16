@@ -276,15 +276,15 @@ class IndexMap(Object):
         mapping_function : Callable
 
             The function to map from source indices to target indices.
-            The function should accept tir.Var parameters and return a
-            list. Each element of the returned list should be a
-            tir.PrimExpr.
+            The function should accept `tir.Var` parameters and return
+            a list. Each element of the returned list should be a
+            `tir.PrimExpr`.
 
         ndim: Optional[int]
 
             The dimensionality of the buffer to which this
-            transformation should be applied.  If mapping_function
-            uses variadic argument *args, ndim must be specified.  If
+            transformation should be applied.  If mapping_function uses
+            variadic argument `*args`, `ndim` must be specified.  If
             mapping_function does not use variadic arguments, ndim is
             optional.
 
@@ -292,7 +292,7 @@ class IndexMap(Object):
         -------
         index_map: IndexMap
 
-            Returns an IndexMap representing the mapping_function.
+            Returns an IndexMap representing the `mapping_function`.
 
         """
         index_map, axis_separators = IndexMap.from_func_with_separators(mapping_function, ndim)
@@ -314,13 +314,13 @@ class IndexMap(Object):
             The function to map from source indices to target indices.
             The function should accept tir.Var parameters and return a
             list. Each element of the returned list should be either a
-            tir.PrimExpr or the object IndexMap.AXIS_SEPARATOR.
+            `tir.PrimExpr` or the object `IndexMap.AXIS_SEPARATOR`.
 
         ndim: Optional[int]
 
             The dimensionality of the buffer to which this
-            transformation should be applied.  If mapping_function
-            uses variadic argument *args, ndim must be specified.  If
+            transformation should be applied.  If mapping_function uses
+            variadic argument `*args`, ndim must be specified.  If
             mapping_function does not use variadic arguments, ndim is
             optional.
 
@@ -329,8 +329,8 @@ class IndexMap(Object):
         ret: Tuple[IndexMap, List[int]]
 
             Returns a tuple whose first element is an IndexMap
-            representing the mapping_function, and whose second index
-            is a list of indices at which IndexMap.AXIS_SEPARATOR
+            representing the `mapping_function`, and whose second index
+            is a list of indices at which `IndexMap.AXIS_SEPARATOR`
             occurred.
 
         """
