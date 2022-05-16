@@ -218,6 +218,8 @@ class NDArray(NDArrayBase):
             dtype = str(t)
         if dtype == "int4":
             dtype = "int8"
+        if dtype == "bfloat16":
+            dtype = "uint16"
         np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags["C_CONTIGUOUS"]
         data = np_arr.ctypes.data_as(ctypes.c_void_p)
