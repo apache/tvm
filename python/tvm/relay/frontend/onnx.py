@@ -102,6 +102,16 @@ def get_type(elem_type):
     except ImportError as e:
         raise ImportError("Unable to import onnx which is required {}".format(e))
 
+    try:
+        from onnx import TensorProto
+    except ImportError as e:
+        raise ImportError("Unable to import TensorProto from onnx {}".format(e))
+
+    # Onnx mapping converts bfloat16 to float16 because
+    # numpy does not have a bfloat16 data type. However,
+    # tvm has one, so we force the return type to be bfloat16
+    if elem_type == int(TensorProto.BFLOAT16):
+        return "bfloat16"
     return str(TENSOR_TYPE_TO_NP_TYPE[elem_type])
 
 
@@ -1703,11 +1713,21 @@ class Cast(OnnxOpConverter):
     @classmethod
     def _impl_v5(cls, inputs, attr, params):
         try:
-            from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
-
-            attr["to"] = str(TENSOR_TYPE_TO_NP_TYPE[attr["to"]])
+            from onnx import TensorProto
         except ImportError as e:
-            raise ImportError("Unable to import onnx.mapping which is required {}".format(e))
+            raise ImportError("Unable to import TensorProto from onnx {}".format(e))
+
+        # If onnx mapping is used, bfloat16 gets converted to float16
+        # which is not the desired behavior
+        if attr["to"] == int(TensorProto.BFLOAT16):
+            attr["to"] = "bfloat16"
+        else:
+            try:
+                from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
+
+                attr["to"] = str(TENSOR_TYPE_TO_NP_TYPE[attr["to"]])
+            except ImportError as e:
+                raise ImportError("Unable to import onnx.mapping which is required {}".format(e))
         return AttrCvt(op_name="cast", transforms={"to": "dtype"})(inputs, attr)
 
 
