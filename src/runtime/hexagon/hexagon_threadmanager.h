@@ -15,10 +15,6 @@
 namespace tvm {
 namespace runtime {
 namespace hexagon {    
-
-// platform constants
-//#define MEM_ALIGNMENT 32
-//#define HVX_MODE QURT_HVX_MODE_128B
   
 class HexagonThreadManager {
   typedef void (*voidfunc)(void*);
@@ -47,8 +43,8 @@ private:
   static void thread_exit(void* status);
   static void thread_main(void* context);
   unsigned nthreads;
-  HexagonBuffer* stack_buffer;
-  HexagonBuffer* pipe_buffer;
+  void* stack_buffer;
+  void* pipe_buffer;
   unsigned thread_stack_size;  //bytes
   unsigned thread_pipe_size;  // bytes
   unsigned thread_pipe_size_words;  // words (qurt_pipe_data_t, 64 bit on this platform)

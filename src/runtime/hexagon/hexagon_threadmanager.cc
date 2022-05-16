@@ -2,6 +2,8 @@
 
 #if defined(__hexagon__)
 
+#include <stdlib.h>
+
 namespace tvm {
 namespace runtime {
 namespace hexagon {
@@ -21,11 +23,12 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   this->thread_pipe_size = thread_pipe_size_words * sizeof(qurt_pipe_data_t);
   
   // Allocate all stack space for threads
-  Optional<String> scope;
-  stack_buffer = new HexagonBuffer(thread_stack_size_bytes * nthreads, MEM_ALIGNMENT, scope);
+  int ret = posix_memalign(&stack_buffer, MEM_ALIGNMENT, thread_stack_size_bytes * nthreads);
+  CHECK_EQ(ret, 0);
   
   // Allocate space for pipe buffers (command queues)
-  pipe_buffer = new HexagonBuffer(thread_pipe_size * nthreads, MEM_ALIGNMENT, scope);
+  ret = posix_memalign(&pipe_buffer, MEM_ALIGNMENT, thread_pipe_size * nthreads);
+  CHECK_EQ(ret, 0);
 
   SpawnThreads();
 }
@@ -65,18 +68,24 @@ HexagonThreadManager::~HexagonThreadManager() {
   free(threads);
   free(pipes);
   free(contexts);
-  delete stack_buffer;
-  delete pipe_buffer;
+  free(stack_buffer);
+  free(pipe_buffer);
 }
 
 void HexagonThreadManager::SpawnThreads() {
-  char* next_stack_start = (char*) stack_buffer->GetPointer();
-  char* next_pipe_start = (char*) pipe_buffer->GetPointer();
+  char* next_stack_start = (char*) stack_buffer;
+  char* next_pipe_start = (char*) pipe_buffer;
 
-  // allocate TM array for threads and pipes
-  threads = static_cast<qurt_thread_t*>(malloc(sizeof(qurt_thread_t)*nthreads));
-  pipes = static_cast<qurt_pipe_t*>(malloc(sizeof(qurt_pipe_t)*nthreads));
-  contexts = static_cast<ThreadContext**>(malloc(sizeof(ThreadContext*)*nthreads));
+  int ret;
+  // array of thread objects
+  posix_memalign((void**)&threads, MEM_ALIGNMENT, sizeof(qurt_thread_t) * nthreads);
+  CHECK_EQ(ret, 0);
+  // array of pipe objects
+  ret = posix_memalign((void**)&pipes, MEM_ALIGNMENT, sizeof(qurt_pipe_t) * nthreads);
+  CHECK_EQ(ret, 0);
+  // array of ThreadContexts
+  ret = posix_memalign((void**)&contexts, MEM_ALIGNMENT, sizeof(ThreadContext) * nthreads);
+  CHECK_EQ(ret, 0);
   
   // First, create pipe resources for all threads
   for (int i = 0; i < nthreads; i++) {
