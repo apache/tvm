@@ -552,7 +552,8 @@ class TVMScriptParser(Transformer):
             3. (Store)       Var[PrimExpr] = PrimExpr
             4. with scope handlers with concise scoping and var def
                 4.1 var = T.allocate()
-            5. A call to a pure python function, consuming and producing TVMScript values
+            5. A call to a pure python function, consuming and producing TVMScript values.
+               The outputs are inlined into the following body (no variable is created).
                x, y = f(...)
         """
 
