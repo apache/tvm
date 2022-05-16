@@ -479,6 +479,7 @@ def build(
         func_metadata = bld_mod.get_function_metadata()
         devices = bld_mod.get_devices()
         lowered_ir_mods = bld_mod.get_irmodule()
+        
         executor_codegen_metadata = bld_mod.get_executor_codegen_metadata()
 
         if str(executor) == "aot":
@@ -497,7 +498,7 @@ def build(
             )
         elif str(executor) == "graph":
             executor_factory = _executor_factory.GraphExecutorFactoryModule(
-                ir_mod, target, executor, graph_json, runtime_mod, mod_name, params, func_metadata
+                ir_mod, target, executor, graph_json, runtime_mod, mod_name, params, func_metadata, lowered_ir_mods = lowered_ir_mods
             )
         else:
             assert False, "Executor " + executor + " not supported"

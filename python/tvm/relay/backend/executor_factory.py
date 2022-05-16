@@ -168,6 +168,8 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         The parameters of module
     function_metadata : Map of String to FunctionInfo
         This holds a map function names to their information
+    lowered_ir_mods : Optional[Dict[Target, IRModule]]
+        The IR modules lowered per Target.
     """
 
     def __init__(
@@ -180,6 +182,7 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         libmod_name,
         params,
         function_metadata,
+        lowered_ir_mods = None
     ):
         assert isinstance(graph_json_str, string_types)
         fcreate = get_global_func("tvm.graph_executor_factory.create")
@@ -198,6 +201,7 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         self.params = params
         self.iter_cnt = 0
         self.function_metadata = function_metadata
+        self.lowered_ir_mods = lowered_ir_mods
 
     def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
         return self.module.export_library(file_name, fcompile, addons, **kwargs)
