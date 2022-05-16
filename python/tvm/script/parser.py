@@ -21,6 +21,7 @@ different python versions. Synr also provides an error handling context that we
 use for error reporting.
 """
 # pylint: disable=invalid-name, inconsistent-return-statements, no-else-return
+import types
 import json
 import operator
 import inspect
@@ -580,10 +581,14 @@ class TVMScriptParser(Transformer):
                 arg_list = self.parse_arg_list(func, node.rhs)
                 func.handle(node, self.context, arg_list, node.rhs.func_name.span)
                 return self.parse_body(node)
-            elif callable(func):
+            elif isinstance(func, types.FunctionType):
                 # Pattern 5
                 args = [self.transform(arg) for arg in node.rhs.params]
                 out = func(*args)
+
+                if len(node.lhs) == 1 and not isinstance(out, list):
+                    out = [out]
+
                 assert len(out) == len(node.lhs)
 
                 for var, value in zip(node.lhs, out):
