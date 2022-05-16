@@ -2833,6 +2833,48 @@ def test_conv(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_convtranspose(target, dev):
+    def verify_convtranspose_with_output_shape(
+        x_shape,
+        w_shape,
+        output_shape,
+        kernel_shape,
+        strides,
+        dilations,
+        auto_pad="SAME_UPPER",
+        group=1,
+    ):
+        node = helper.make_node(
+            "ConvTranspose",
+            inputs=["x", "W"],
+            outputs=["y"],
+            kernel_shape=kernel_shape,
+            # Default values for other attributes:
+            strides=strides,
+            dilations=dilations,
+            output_shape=output_shape,
+            auto_pad=auto_pad,
+        )
+
+        if group is not None:
+            group_attr = helper.make_attribute("group", group)
+            node.attribute.append(group_attr)
+
+        graph = helper.make_graph(
+            [node],
+            "ConvTranspose_with_output_shape_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
+                helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_shape)),
+            ],
+            outputs=[
+                helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 1] + list(output_shape))
+            ],
+        )
+
+        model = helper.make_model(graph, producer_name="convtranspose_output_shape_test")
+
+        verify_with_ort(model, [x_shape, w_shape], use_vm=True, target=target, dev=dev)
+
     def verify_convtranspose_with_padding(
         x_shape,
         w_shape,
@@ -2995,6 +3037,28 @@ def test_convtranspose(target, dev):
         #     repeat(1, D),
         #     repeat(2, D),
         # )
+
+    # Convolution with output_shape
+    for D in [1, 2, 3]:
+        for N in range(60, 66):
+            verify_convtranspose_with_output_shape(
+                (1, 1) + repeat(32, D),
+                (1, 1) + repeat(4, D),
+                repeat(N, D),
+                repeat(4, D),
+                repeat(2, D),
+                repeat(1, D),
+            )
+
+            verify_convtranspose_with_output_shape(
+                (1, 1) + repeat(32, D),
+                (1, 1) + repeat(4, D),
+                repeat(N, D),
+                repeat(4, D),
+                repeat(2, D),
+                repeat(1, D),
+                auto_pad="SAME_LOWER",
+            )
 
 
 @tvm.testing.parametrize_targets
@@ -5053,7 +5117,6 @@ unsupported_onnx_tests = [
     "test_castlike_STRING_to_FLOAT_expanded",
     "test_convtranspose_autopad_same",
     "test_convtranspose_dilations",
-    "test_convtranspose_output_shape",
     "test_cumsum_1d",
     "test_cumsum_1d_exclusive",
     "test_cumsum_1d_reverse",
