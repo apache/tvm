@@ -3,11 +3,12 @@
 #if defined(__hexagon__)
 
 #include <stdlib.h>
+#include <sstream>
 
 namespace tvm {
 namespace runtime {
 namespace hexagon {
-
+  
 HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words) {
   CHECK_LE(num_threads, QURT_MAX_HTHREAD_LIMIT);
   this->nthreads = num_threads;
@@ -75,7 +76,7 @@ HexagonThreadManager::~HexagonThreadManager() {
 void HexagonThreadManager::SpawnThreads() {
   char* next_stack_start = (char*) stack_buffer;
   char* next_pipe_start = (char*) pipe_buffer;
-
+  
   int ret;
   // array of thread objects
   posix_memalign((void**)&threads, MEM_ALIGNMENT, sizeof(qurt_thread_t) * nthreads);
@@ -97,7 +98,7 @@ void HexagonThreadManager::SpawnThreads() {
     qurt_pipe_attr_set_elements(&pipe_attr, thread_pipe_size_words);
 
     // create the pipe
-    int rc = qurt_pipe_init(&pipes[i], &pipe_attr);
+    int rc = qurt_pipe_init(&(pipes[i]), &pipe_attr);
     CHECK_EQ(rc, QURT_EOK);
   }
 
@@ -105,16 +106,21 @@ void HexagonThreadManager::SpawnThreads() {
   for (int i = 0; i < nthreads; i++) {
     // create initialize the thread attr
     qurt_thread_attr_t thread_attr;
+    char name[32];
     qurt_thread_attr_init(&thread_attr);
     qurt_thread_attr_set_stack_addr(&thread_attr, next_stack_start);
-    next_stack_start += thread_stack_size;
     qurt_thread_attr_set_stack_size(&thread_attr, thread_stack_size);
+    snprintf(name, sizeof(name), "thread %d", i);
+    qurt_thread_attr_set_name(&thread_attr, name);
+    next_stack_start += thread_stack_size;
 
     // create the thread
     contexts[i] = new ThreadContext(this, i);
-    int rc = qurt_thread_create(&threads[i], &thread_attr, thread_main, (void*)&contexts[i]);
+    int rc = qurt_thread_create(&(threads[i]), &thread_attr, thread_main, (void*)contexts[i]);
     CHECK_EQ(rc, QURT_EOK);
   }
+
+  LOG(INFO) << "Threads created" << "\n";
 }
 
 void HexagonThreadManager::GetStreamHandles(std::vector<TVMStreamHandle>* out) {
@@ -170,26 +176,26 @@ void HexagonThreadManager::SyncFromTo(unsigned signal_thread, unsigned wait_thre
   Dispatch(wait_thread, thread_wait_free, (void*)sem);
 }
   
- void HexagonThreadManager::thread_signal(void* semaphore) {
+void HexagonThreadManager::thread_signal(void* semaphore) {
   qurt_sem_add( (qurt_sem_t*) semaphore, QURT_MAX_HTHREAD_LIMIT);
 }
 
- void HexagonThreadManager::thread_wait(void* semaphore) {
+void HexagonThreadManager::thread_wait(void* semaphore) {
   qurt_sem_down( (qurt_sem_t*) semaphore);
 }
 
 /* Wait on the passed semaphore object, then free it. */
- void HexagonThreadManager::thread_wait_free(void* semaphore) {
+void HexagonThreadManager::thread_wait_free(void* semaphore) {
   qurt_sem_down((qurt_sem_t*)semaphore);  // blocks until signal is complete
   qurt_sem_destroy((qurt_sem_t*)semaphore);
   free(semaphore);
 }
 
- void HexagonThreadManager::thread_exit(void* status) {
+void HexagonThreadManager::thread_exit(void* status) {
   qurt_thread_exit( (int) status);
 }
 
- void HexagonThreadManager::thread_main(void* context) {
+void HexagonThreadManager::thread_main(void* context) {
   ThreadContext* tc = static_cast<ThreadContext*>(context);
   unsigned index = tc->index;
   qurt_pipe_t* mypipe = &(tc->tm->pipes[index]);
