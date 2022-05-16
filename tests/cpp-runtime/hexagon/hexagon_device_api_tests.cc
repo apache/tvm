@@ -115,11 +115,8 @@ TEST_F(HexagonDeviceAPITest, allocnd_erros) {
   EXPECT_THROW(hexapi->AllocDataSpace(invalid_dev, 2, shape2d, int8, global_vtcm_scope),
                InternalError);
 
-  // 0 dimensions
-  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, 0, shape2d, int8, global_vtcm_scope), InternalError);
-
-  // too many dimensions
-  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, 3, shape2d, int8, global_vtcm_scope), InternalError);
+  // Hexagon VTCM allocations must have 0 (scalar) 1 or 2 dimensions
+  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, 3, shape3d, int8, global_vtcm_scope), InternalError);
 
   // null shape
   EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, 2, nullptr, int8, global_vtcm_scope), InternalError);
@@ -129,4 +126,23 @@ TEST_F(HexagonDeviceAPITest, allocnd_erros) {
 
   // cpu & global.vtcm scope
   EXPECT_THROW(hexapi->AllocDataSpace(cpu_dev, 2, shape2d, int8, global_vtcm_scope), InternalError);
+}
+
+TEST_F(HexagonDeviceAPITest, alloc_scalar) {
+  void* cpuscalar = hexapi->AllocDataSpace(cpu_dev, 0, new int64_t, int8, global_scope);
+  CHECK(cpuscalar != nullptr);
+
+  void* hexscalar = hexapi->AllocDataSpace(hex_dev, 0, new int64_t, int8, global_vtcm_scope);
+  CHECK(hexscalar != nullptr);
+}
+
+// alloc and free of the same buffer on different devices should throw
+// but it currently works with no error
+// hexagon and cpu device types may merge long term which would make this test case moot
+// disabling this test case, for now
+// TODO(HWE): Re-enable or delete this test case once we land on device type strategy
+TEST_F(HexagonDeviceAPITest, DISABLED_alloc_free_diff_dev) {
+  void* buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
+  CHECK(buf != nullptr);
+  EXPECT_THROW(hexapi->FreeDataSpace(cpu_dev, buf), InternalError);
 }
