@@ -591,7 +591,7 @@ class TVMScriptParser(Transformer):
                 body = self.parse_body(node)
 
                 for var, value in zip(node.lhs, out):
-                    self.context.remove_symbol(var.name)
+                    self.context.remove_symbol(var.id.name)
 
                 return body
 
