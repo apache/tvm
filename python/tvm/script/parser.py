@@ -630,7 +630,7 @@ class TVMScriptParser(Transformer):
             return tvm.tir.LetStmt(var, value, body, span=tvm_span_from_synr(node.span))
 
         self.report_error(
-            """Assignments should be either
+            """Assignments should be one of:
             1. A "special statement" with return value
                 1.1 Buffer = T.match_buffer()/T.buffer_decl()
                 1.2 Var = T.var()
@@ -638,7 +638,10 @@ class TVMScriptParser(Transformer):
             2. A store into a buffer: Buffer[PrimExpr, PrimExpr, ..., PrimExpr] = PrimExpr
             3. A store into a variable: Var[PrimExpr] = PrimExpr
             4. A with scope handler with concise scoping and var def
-                4.1 var = T.allocate()""",
+                4.1 var = T.allocate()
+            5. The right-hand side being a call to a pure python function, consuming and
+               producing TVMScript values.
+               x, y = f(...)""",
             node.span,
         )
 
