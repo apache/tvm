@@ -28,12 +28,10 @@ from tvm.contrib.download import download_testdata
 from tvm.relay.op.contrib import cmsisnn
 
 from utils import skip_if_no_reference_system, get_range_for_dtype_str
+from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
 from tvm.micro.testing.aot_test_utils import (
-    AOTTestModel,
     AOT_CORSTONE300_RUNNER,
     AOT_USMP_CORSTONE300_RUNNER,
-    generate_ref_data,
-    compile_and_run,
 )
 
 

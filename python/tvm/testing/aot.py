@@ -574,6 +574,27 @@ def _create_header_file(tensor_name, npy_data, output_path, data_linkage):
         header_file.write("};\n\n")
 
 
+def _convert_to_relay(
+    tflite_model_buf,
+):
+    """Convert a tflite model buffer in a Relay module"""
+    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
+    try:
+        import tflite.Model
+
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+    except AttributeError:
+        import tflite
+
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+    except ImportError:
+        raise ImportError("The tflite package must be installed")
+
+    mod, params = relay.frontend.from_tflite(tflite_model)
+    mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
+    return mod, params
+
+
 def compile_models(
     models: Union[List[AOTTestModel], AOTTestModel],
     interface_api: str,
@@ -884,27 +905,6 @@ def generate_ref_data(mod, input_data, params=None, target="llvm"):
         output_tensor_names = main.attrs["output_tensor_names"]
 
     return dict(zip(output_tensor_names, out))
-
-
-def _convert_to_relay(
-    tflite_model_buf,
-):
-    """Convert a tflite model buffer in a Relay module"""
-    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
-    try:
-        import tflite.Model
-
-        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
-    except AttributeError:
-        import tflite
-
-        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
-    except ImportError:
-        raise ImportError("The tflite package must be installed")
-
-    mod, params = relay.frontend.from_tflite(tflite_model)
-    mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
-    return mod, params
 
 
 def create_relay_module_and_inputs_from_tflite_file(tflite_model_file):

@@ -27,11 +27,9 @@ import tvm
 from tvm import IRModule
 from tvm import relay
 from tvm.relay import backend, testing
+from tvm.testing.aot import generate_ref_data
 from tvm.micro.testing.aot_test_utils import (
     AOT_DEFAULT_RUNNER,
-    AOTTestModel,
-    generate_ref_data,
-    compile_and_run,
 )
 
 
