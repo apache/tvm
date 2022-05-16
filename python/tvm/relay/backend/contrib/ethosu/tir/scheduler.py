@@ -263,6 +263,12 @@ def schedule_cache_reads(sch):
         if stage.attach_type != 2:  # Not inlined
             if _detect_cache_read(stage):
                 fax = stage.fuse(*stage.op.axis)
+
+                # propagate pragmas placed on the outer loop
+                attrs = stage.iter_var_attrs[stage.op.axis[0]]
+                for k, v in zip(attrs.pragma_keys, attrs.pragma_values):
+                    stage.pragma(fax, k.value, v)
+
                 stage.pragma(fax, "op", "ethosu_copy")
 
 

@@ -64,17 +64,18 @@ def test_compute_cycles_annotation(SRAM, FLASH, TwoConv2DTE):
     sch, te_graph, const_dict = TwoConv2DTE
     cs.cascade(sch, te_graph, const_dict, options, SRAM, FLASH, [SRAM], device_config)
 
-    conv_1 = sch.stages[9]
-    conv_1_iter_vars = conv_1.leaf_iter_vars[0]
-    conv_1_attrs = conv_1.iter_var_attrs[conv_1_iter_vars]
-    assert conv_1_attrs.pragma_keys[0] == "compute_cycle_hint"
-    assert conv_1_attrs.pragma_values[0] == 1440
+    # Stages that should have compute cycle annotations
+    # [copy, copy, conv2d, copy, conv2d]
+    stages = [6, 8, 9, 18, 19]
+    # Expected hints for each operation
+    compute_cycles_hints = [1440, 4624, 1440, 2844, 2304]
 
-    conv_2 = sch.stages[19]
-    conv_2_iter_vars = conv_2.leaf_iter_vars[0]
-    conv_2_attrs = conv_2.iter_var_attrs[conv_2_iter_vars]
-    assert conv_2_attrs.pragma_keys[0] == "compute_cycle_hint"
-    assert conv_2_attrs.pragma_values[0] == 2304
+    for stage, compute_cycles_hint in zip(stages, compute_cycles_hints):
+        op = sch.stages[stage]
+        op_iter_vars = op.leaf_iter_vars[0]
+        op_attrs = op.iter_var_attrs[op_iter_vars]
+        assert op_attrs.pragma_keys[0] == "compute_cycles_hint"
+        assert op_attrs.pragma_values[0] == compute_cycles_hint
 
 
 if __name__ == "__main__":

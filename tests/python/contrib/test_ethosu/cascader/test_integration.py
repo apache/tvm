@@ -26,7 +26,7 @@ pytest.importorskip("ethosu.vela")
 
 import tvm
 from tvm import relay
-from tvm.relay.backend.contrib.ethosu.codegen import _create_cascader
+from tvm.relay.backend.contrib.ethosu.codegen import _create_cascader, copy_constants
 from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
 from tvm.contrib.ethosu.cascader import MemoryRegion, EthosuDeviceConfig, CascaderOptions
 
@@ -78,7 +78,9 @@ def test_check_compute_cycle_hint():
     mod = relay.transform.InferType()(mod)
     tir_mod = _lower_to_tir(mod["main"], _ethos_u55_cascader())[0]
     primfunc = tir_mod["main"]
+    ops = primfunc.body.body.body.seq
 
-    npu_op = primfunc.body.body.body.seq[2]
-    assert npu_op.attr_key == "pragma_compute_cycle_hint"
-    assert npu_op.value == 320
+    compute_cycles_hints = [256, 304, 320]
+    for op, compute_cycle_hint in zip(ops, compute_cycles_hints):
+        assert op.attr_key == "pragma_compute_cycles_hint"
+        assert op.value == compute_cycle_hint
