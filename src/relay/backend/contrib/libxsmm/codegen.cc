@@ -60,16 +60,15 @@ public:
   }
 };
 
+/*!
+ * \brief The extrenal compiler/codegen tool. It takes a Relay expression/module and compile it into a runtime module.
+ */
 runtime::Module LibxsmmCompiler(const ObjectRef& ref) {
   ICHECK(ref->IsInstance<FunctionNode>());
   auto func = Downcast<Function>(ref);
   auto func_name = backend::GetExtSymbol(func);
-  std::cout << "func_name: " << func_name << std::endl;
 
-  std::cout << "Before LibxsmmJSONSerializer" << std::endl;
   LibxsmmJSONSerializer serializer(func_name, func);
-  std::cout << ::tvm::PrettyPrint(func) << std::endl;
-  std::cout << "After LibxsmmJSONSerializer" << std::endl;
   serializer.serialize();
   std::string graph_json = serializer.GetJSON();
   auto params = serializer.GetParams();
@@ -77,8 +76,6 @@ runtime::Module LibxsmmCompiler(const ObjectRef& ref) {
   ICHECK(pf != nullptr) << "Cannot find JSON runtime module to create.";
   auto mod = (*pf)(func_name, graph_json, params);
   return mod;
-  //LOG(FATAL) << "Hangle after serialize() for debug purpose." << std::endl;
-  //std::cout << "LibxsmmCompiler return here" << std::endl;
 }
 
 TVM_REGISTER_GLOBAL("relay.ext.libxsmm").set_body_typed(LibxsmmCompiler);
