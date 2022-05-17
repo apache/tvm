@@ -219,7 +219,7 @@ def _emit_main_prologue(
             """\n
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
     return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
-}\n
+}
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
     return StackMemoryManager_Free(&app_workspace,ptr);
 }
@@ -231,15 +231,15 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
             """\n
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
     return kTvmErrorFunctionCallNotImplemented;
-}\n
+}
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
     return kTvmErrorFunctionCallNotImplemented;
-}\n
+}
             """
         )
     main_file.write(
         """\n
-void TVMPlatformAbort(tvm_crt_error_t code) { exit(-1); }\n
+void TVMPlatformAbort(tvm_crt_error_t code) { exit(-1); }
 void TVMLogf(const char* msg, ...) {
   va_list args;
   va_start(args, msg);
@@ -248,7 +248,7 @@ void TVMLogf(const char* msg, ...) {
 }\n
 TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {}
 int main(){\n
-"""
+    """
     )
     main_file.write(custom_prologue)
 
@@ -298,8 +298,8 @@ def _emit_main_data_structs(main_file, input_map, output_map, mod_name):
     for key in input_map:
         sanitized_tensor_name = re.sub(r"\W", "_", key)
         main_file.write(
-            f"\t.{sanitized_tensor_name} = {_mangle_name(mod_name, 'input_data')}_"
-            f"{sanitized_tensor_name},\n"
+            f"\t.{sanitized_tensor_name} = "
+            f"{_mangle_name(mod_name, 'input_data')}_{sanitized_tensor_name},\n"
         )
     main_file.write("};\n")
 
@@ -318,13 +318,11 @@ def _emit_main_data_structs(main_file, input_map, output_map, mod_name):
 def _emit_main_data_setup(main_file, input_map, output_map, mod_name):
     num_outputs = len(output_map)
     num_inputs = len(input_map)
-
     main_file.write(f'void* {_mangle_name(mod_name,"inputs")}[{num_inputs}] = {{ ')
     for key in input_map:
         sanitized_tensor_name = re.sub(r"\W", "_", key)
         main_file.write(f'{_mangle_name(mod_name,"input_data")}_{sanitized_tensor_name}, ')
     main_file.write("};\n")
-
     main_file.write(f'void* {_mangle_name(mod_name,"outputs")}[{num_outputs}]  = {{ ')
     for key in output_map:
         sanitized_tensor_name = re.sub(r"\W", "_", key)
@@ -349,10 +347,7 @@ def _emit_main_c_interface_call(
     # Adding brackets and newline instead
     sub_strings[-1] = sub_strings[-1] + ");\n"
 
-    main_file_string = ""
-    for sub_string in sub_strings:
-        main_file_string.join(sub_string)
-
+    main_file_string = "".join(sub_strings)
     main_file.write(main_file_string)
 
 
@@ -776,7 +771,7 @@ def run_and_check(
 
         # Verify that compiles fine
         file_dir = os.path.dirname(os.path.abspath(__file__))
-        makefile_dir = os.path.join(file_dir, "../../../../tests/python/relay/aot")
+        makefile_dir = os.path.join(file_dir, "../../../tests/python/relay/aot")
         codegen_path = os.path.join(base_path, "codegen")
         makefile = os.path.join(makefile_dir, f"{runner.makefile}.mk")
         fvp_dir = "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/"
@@ -789,7 +784,7 @@ def run_and_check(
         make_command = (
             f"make -f {makefile} build_dir={build_path}"
             + f" CFLAGS='{cflags}'"
-            + f" TVM_ROOT={file_dir}/../../../.."
+            + f" TVM_ROOT={file_dir}/../../.."
             + f" AOT_TEST_ROOT={makefile_dir}"
             + f" CODEGEN_ROOT={codegen_path}"
             + f" STANDALONE_CRT_DIR={tvm.micro.get_standalone_crt_dir()}"
