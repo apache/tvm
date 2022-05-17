@@ -239,7 +239,7 @@ def match_ethosu_pooling(output_tensor, device_config):
     ifm_dtype = input_tensors[0].dtype
     ofm_dtype = output_tensor.dtype
 
-    # Use channels form a stage of TE graph where the IFM is always NHWC
+    # Use channels from a stage of TE graph where the IFM is always NHWC
     channels = int(pool2d.shape[3])
     pool_shape_h = int(pool2d.op.attrs["pool_shape_h"])
     pool_shape_w = int(pool2d.op.attrs["pool_shape_w"])
