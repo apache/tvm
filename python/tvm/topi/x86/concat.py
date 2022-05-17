@@ -18,7 +18,7 @@
 "concatenate related operators"
 from typing import Optional
 import tvm
-from tvm import te, topi
+from tvm import te
 import numpy as np
 from ..utils import get_const_int, const_vector
 
