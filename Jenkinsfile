@@ -45,18 +45,18 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-11T16:27:38.745360
+// Generated at 2022-05-17T09:16:58.363027
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:20220505-060045-500703308'
-ci_gpu = 'tlcpack/ci-gpu:20220505-060045-500703308'
-ci_cpu = 'tlcpack/ci-cpu:20220505-060045-500703308'
-ci_wasm = 'tlcpack/ci-wasm:20220505-060045-500703308'
-ci_i386 = 'tlcpack/ci-i386:20220505-060045-500703308'
-ci_qemu = 'tlcpack/ci-qemu:20220505-060045-500703308'
-ci_arm = 'tlcpack/ci-arm:20220505-060045-500703308'
-ci_hexagon = 'tlcpack/ci-hexagon:20220505-060045-500703308'
+ci_lint = 'tlcpack/ci-lint:20220513-055910-fa834f67e'
+ci_gpu = 'tlcpack/ci-gpu:20220513-055910-fa834f67e'
+ci_cpu = 'tlcpack/ci-cpu:20220517-094028-de21c8f2e'
+ci_wasm = 'tlcpack/ci-wasm:20220513-055910-fa834f67e'
+ci_i386 = 'tlcpack/ci-i386:20220513-055910-fa834f67e'
+ci_qemu = 'tlcpack/ci-qemu:20220517-094028-de21c8f2e'
+ci_arm = 'tlcpack/ci-arm:20220513-055910-fa834f67e'
+ci_hexagon = 'tlcpack/ci-hexagon:20220516-190055-672ce3365'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -688,7 +688,7 @@ stage('Build') {
   },
   'BUILD: Hexagon': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-hexagon") {
           init_git()
           sh (
@@ -845,7 +845,7 @@ stage('Test') {
   },
   'unittest: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-cpu") {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
@@ -873,7 +873,7 @@ stage('Test') {
   },
   'python: i386 1 of 3': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
           try {
             init_git()
@@ -904,7 +904,7 @@ stage('Test') {
   },
   'python: i386 2 of 3': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
           try {
             init_git()
@@ -934,7 +934,7 @@ stage('Test') {
   },
   'python: i386 3 of 3': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
           try {
             init_git()
@@ -964,7 +964,7 @@ stage('Test') {
   },
   'test: Hexagon 1 of 4': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
           try {
             init_git()
@@ -997,7 +997,7 @@ stage('Test') {
   },
   'test: Hexagon 2 of 4': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
           try {
             init_git()
@@ -1029,7 +1029,7 @@ stage('Test') {
   },
   'test: Hexagon 3 of 4': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
           try {
             init_git()
@@ -1061,7 +1061,7 @@ stage('Test') {
   },
   'test: Hexagon 4 of 4': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
           try {
             init_git()
@@ -1093,7 +1093,7 @@ stage('Test') {
   },
   'test: QEMU': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-qemu") {
           timeout(time: max_time, unit: 'MINUTES') {
             try {

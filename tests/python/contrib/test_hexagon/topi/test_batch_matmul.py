@@ -22,10 +22,11 @@ import sys
 import tvm
 from tvm import topi
 from tvm import te
+from tvm.contrib.hexagon.session import Session
 import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
+from tvm.contrib.hexagon.session import Session
 
-from ..conftest import requires_hexagon_toolchain
 
 dtype = tvm.testing.parameter(
     "float32",
@@ -45,8 +46,8 @@ class TestMatMulFloat:
     )
 
     # TODO(mehrdadh): add dynamic testing
-    @requires_hexagon_toolchain
-    def test_batch_matmul(self, hexagon_session, x_batch, y_batch, M, N, K, dtype):
+    @tvm.testing.requires_hexagon
+    def test_batch_matmul(self, hexagon_session: Session, x_batch, y_batch, M, N, K, dtype):
         if dtype == "float16":
             pytest.xfail("float16 is not supported.")
 
@@ -97,8 +98,8 @@ class TestMatMulInt8:
         (5, 1, 16, 16, 32),
     )
 
-    @requires_hexagon_toolchain
-    def test_batch_matmul_int8(self, hexagon_session, x_batch, y_batch, M, N, K):
+    @tvm.testing.requires_hexagon
+    def test_batch_matmul_int8(self, hexagon_session: Session, x_batch, y_batch, M, N, K):
         dtype = "int8"
         out_dtype = "int8"
         assert x_batch == y_batch or x_batch == 1 or y_batch == 1

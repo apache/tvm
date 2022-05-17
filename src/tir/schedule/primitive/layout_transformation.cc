@@ -52,6 +52,7 @@ class TransformLayoutRewriter : private StmtExprMutator {
   void RewriteBufferAccess(Buffer* buffer, Array<PrimExpr>* indices) {
     *buffer = new_buffer_;
     *indices = index_map_->MapIndices(*indices);
+    (*indices).MutateByApply([this](const PrimExpr& index) { return analyzer_.Simplify(index); });
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -85,6 +86,9 @@ class TransformLayoutRewriter : private StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BlockNode* op) final {
+    for (const auto& iter_var : op->iter_vars) {
+      analyzer_.Bind(iter_var->var, iter_var->dom);
+    }
     Block block = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
     auto infered_access_regions = GetBlockReadWriteRegion(block, buffer_data_to_buffer_);
     auto* n = block.CopyOnWrite();
@@ -97,6 +101,7 @@ class TransformLayoutRewriter : private StmtExprMutator {
   const Buffer& old_buffer_;
   const Buffer& new_buffer_;
   const IndexMap& index_map_;
+  arith::Analyzer analyzer_;
   Map<Var, Buffer> buffer_data_to_buffer_;
   Map<Block, Block> block_sref_reuse_;
 };

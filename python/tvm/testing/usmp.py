@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,22 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+""" This file contains USMP tests harnesses."""
 
-set -e
-set -u
+import tvm
 
-BUILD_DIR=$1
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
-cp ../cmake/config.cmake .
 
-echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_RPC ON\) >> config.cmake
-echo set\(USE_MICRO ON\) >> config.cmake
-echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
-echo set\(USE_LLVM "${CLANG_LLVM_HOME}/bin/llvm-config"\) >> config.cmake
-echo set\(CMAKE_CXX_COMPILER "/opt/sccache/clang++"\) >> config.cmake
-echo set\(USE_HEXAGON "ON"\) >> config.cmake
-echo set\(USE_HEXAGON_SDK "${HEXAGON_SDK_ROOT}"\) >> config.cmake
-echo set\(USE_CCACHE OFF\) >> config.cmake
-echo set\(SUMMARIZE ON\) >> config.cmake
+def is_tvm_backendallocworkspace_calls(mod: tvm.runtime.module) -> bool:
+    """TVMBackendAllocWorkspace call check.
+
+    This checker checks whether any c-source produced has TVMBackendAllocWorkspace calls.
+    If USMP is invoked, none of them should have TVMBAW calls
+    """
+    dso_modules = mod._collect_dso_modules()
+    for dso_mod in dso_modules:
+        if dso_mod.type_key not in ["c", "llvm"]:
+            assert (
+                False
+            ), 'Current AoT codegen flow should only produce type "c" or "llvm" runtime modules'
+
+        source = dso_mod.get_source()
+        if source.count("TVMBackendAllocWorkspace") != 0:
+            return True
+
+    return False

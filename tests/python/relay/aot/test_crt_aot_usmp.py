@@ -43,20 +43,13 @@ from aot_test_utils import (
     run_and_check,
     create_relay_module_and_inputs_from_tflite_file,
 )
+from tvm.testing.usmp import is_tvm_backendallocworkspace_calls
 
 
-def check_for_no_tvm_backendallocworkspace_calls(mod: tvm.runtime.module):
-    """This checker checks whether any c-source produced has TVMBackendAllocWorkspace calls.
-    If USMP is invoked, none of them should have TVMBAW calls"""
-    dso_modules = mod._collect_dso_modules()
-    for dso_mod in dso_modules:
-        assert (
-            dso_mod.type_key == "c"
-        ), 'Current CRT AoT codegen flow should only produce type "c" runtime modules'
-        source = dso_mod.get_source()
-        assert (
-            source.count("TVMBackendAllocWorkspace") == 0
-        ), "This is failing because USMP was unable to plan for every tir.allocate node"
+def _check_for_no_tvm_backendallocworkspace_calls(mod: tvm.runtime.module):
+    assert (
+        is_tvm_backendallocworkspace_calls(mod) == False
+    ), "This is failing because USMP was unable to plan for every tir.allocate node."
 
 
 @pytest.mark.parametrize(
@@ -138,7 +131,7 @@ def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_sha
     )
 
     for compiled_model in compiled_test_mods:
-        check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+        _check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
 
     run_and_check(
         models=compiled_test_mods,
@@ -197,7 +190,7 @@ def test_byoc_microtvm(merge_compiler_regions):
     )
 
     for compiled_model in compiled_test_mods:
-        check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+        _check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
 
     run_and_check(
         models=compiled_test_mods,
@@ -251,7 +244,7 @@ def test_tflite_model_u1_usecase(model_url, usmp_algo, workspace_size):
     )
 
     for compiled_model in compiled_test_mods:
-        check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+        _check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
 
     # Checking the workspace size reported in model library format
     mlf_memory_map = mlf._build_function_memory_map(
@@ -330,7 +323,7 @@ def test_tflite_model_u3_usecase_single_external_pool(model_url, usmp_algo):
     )
 
     for compiled_model in compiled_test_mods:
-        check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+        _check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
 
     run_and_check(
         models=compiled_test_mods,
@@ -390,7 +383,7 @@ def test_tflite_model_u3_usecase_two_external_pools(model_url, usmp_algo):
     )
 
     for compiled_model in compiled_test_mods:
-        check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+        _check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
 
     run_and_check(
         models=compiled_test_mods,
@@ -458,7 +451,7 @@ def test_tflite_model_u2_usecase_two_models_with_a_single_external_pool(model_ur
     )
 
     for compiled_model in compiled_test_mods:
-        check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+        _check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
 
     run_and_check(
         models=compiled_test_mods,
@@ -526,7 +519,7 @@ def test_tflite_model_u4_usecase_single_external_pool(model_url, usmp_algo):
     )
 
     for compiled_model in compiled_test_mods:
-        check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+        _check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
 
     run_and_check(
         models=compiled_test_mods,
@@ -602,7 +595,7 @@ def test_tflite_model_u4_usecase_two_external_pools(model_url, usmp_algo):
     )
 
     for compiled_model in compiled_test_mods:
-        check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+        _check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
 
     run_and_check(
         models=compiled_test_mods,

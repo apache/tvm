@@ -102,6 +102,16 @@ def get_type(elem_type):
     except ImportError as e:
         raise ImportError("Unable to import onnx which is required {}".format(e))
 
+    try:
+        from onnx import TensorProto
+    except ImportError as e:
+        raise ImportError("Unable to import TensorProto from onnx {}".format(e))
+
+    # Onnx mapping converts bfloat16 to float16 because
+    # numpy does not have a bfloat16 data type. However,
+    # tvm has one, so we force the return type to be bfloat16
+    if elem_type == int(TensorProto.BFLOAT16):
+        return "bfloat16"
     return str(TENSOR_TYPE_TO_NP_TYPE[elem_type])
 
 
@@ -638,19 +648,45 @@ class ConvTranspose(OnnxOpConverter):
         data = inputs[0]
         input_shape = infer_shape(data)
         ndim = len(input_shape)
-        if "auto_pad" in attr:
-            attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
-            if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
+        if "auto_pad" in attr or "output_shape" in attr:
+            if "auto_pad" in attr:
+                attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
+            if "output_shape" in attr or attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
                 # Warning: Convolution does not yet support dynamic shapes,
                 # one will need to run dynamic_to_static on this model after import
-                data = autopad(
-                    data,
-                    attr.get("strides", [1] * (ndim - 2)),
-                    attr["kernel_shape"],
-                    attr.get("dilations", [1] * (ndim - 2)),
-                    deconv=True,
-                    mode=attr["auto_pad"],
-                )
+                kernel_shape = attr["kernel_shape"]
+                kndim = len(kernel_shape)
+                dilations = attr.get("dilations", [1] * kndim)
+                output_padding = attr.get("output_padding", [0] * kndim)
+                strides = attr["strides"]
+                total_pad = [0] * kndim
+                # https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConvTranspose
+                if "output_shape" in attr:
+                    for i in range(kndim):
+                        total_pad[i] = (
+                            strides[i] * (input_shape[ndim - kndim + i] - 1)
+                            + output_padding[i]
+                            + ((kernel_shape[i] - 1) * dilations[i] + 1)
+                            - attr["output_shape"][i]
+                        )
+                    left = [p // 2 for p in total_pad]
+                    right = [total_pad[i] - left[i] for i in range(kndim)]
+                    if "output_shape" in attr and "auto_pad" not in attr:
+                        pad = right + left
+                    elif "LOWER" in attr["auto_pad"]:
+                        pad = left + right
+                    else:
+                        pad = right + left
+                    attr["pads"] = pad
+                else:
+                    data = autopad(
+                        data,
+                        attr.get("strides", [1] * (ndim - 2)),
+                        attr["kernel_shape"],
+                        attr.get("dilations", [1] * (ndim - 2)),
+                        deconv=True,
+                        mode=attr["auto_pad"],
+                    )
             elif attr["auto_pad"] == "VALID":
                 attr["pads"] = tuple([0 for i in range(ndim - 2)])
             elif attr["auto_pad"] == "NOTSET":
@@ -658,7 +694,8 @@ class ConvTranspose(OnnxOpConverter):
             else:
                 msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
                 raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
-            attr.pop("auto_pad")
+            if "auto_pad" in attr:
+                attr.pop("auto_pad")
 
         out = AttrCvt(
             op_name=dimension_picker("conv", "_transpose"),
@@ -693,9 +730,10 @@ class ConvTranspose(OnnxOpConverter):
         data = inputs[0]
         input_shape = infer_shape(data)
         ndim = len(input_shape)
-        if "auto_pad" in attr:
-            attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
-            if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
+        if "auto_pad" in attr or "output_shape" in attr:
+            if "auto_pad" in attr:
+                attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
+            if "output_shape" in attr or attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
                 # Warning: Convolution does not yet support dynamic shapes,
                 # one will need to run dynamic_to_static on this model after import
                 kernel_shape = attr["kernel_shape"]
@@ -704,13 +742,27 @@ class ConvTranspose(OnnxOpConverter):
                 output_padding = attr.get("output_padding", [0] * kndim)
                 strides = attr["strides"]
                 total_pad = [0] * kndim
-                for i in range(kndim):
-                    total_pad[i] = (
-                        output_padding[i] + ((kernel_shape[i] - 1) * dilations[i] + 1) - strides[i]
-                    )
+                # https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConvTranspose
+                if "output_shape" in attr:
+                    for i in range(kndim):
+                        total_pad[i] = (
+                            strides[i] * (input_shape[ndim - kndim + i] - 1)
+                            + output_padding[i]
+                            + ((kernel_shape[i] - 1) * dilations[i] + 1)
+                            - attr["output_shape"][i]
+                        )
+                else:
+                    for i in range(kndim):
+                        total_pad[i] = (
+                            output_padding[i]
+                            + ((kernel_shape[i] - 1) * dilations[i] + 1)
+                            - strides[i]
+                        )
                 left = [p // 2 for p in total_pad]
                 right = [total_pad[i] - left[i] for i in range(kndim)]
-                if "LOWER" in attr["auto_pad"]:
+                if "output_shape" in attr and "auto_pad" not in attr:
+                    pad = right + left
+                elif "LOWER" in attr["auto_pad"]:
                     pad = left + right
                 else:
                     pad = right + left
@@ -722,7 +774,8 @@ class ConvTranspose(OnnxOpConverter):
             else:
                 msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
                 raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
-            attr.pop("auto_pad")
+            if "auto_pad" in attr:
+                attr.pop("auto_pad")
 
         out = AttrCvt(
             op_name=dimension_picker("conv", "_transpose"),
@@ -1703,11 +1756,21 @@ class Cast(OnnxOpConverter):
     @classmethod
     def _impl_v5(cls, inputs, attr, params):
         try:
-            from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
-
-            attr["to"] = str(TENSOR_TYPE_TO_NP_TYPE[attr["to"]])
+            from onnx import TensorProto
         except ImportError as e:
-            raise ImportError("Unable to import onnx.mapping which is required {}".format(e))
+            raise ImportError("Unable to import TensorProto from onnx {}".format(e))
+
+        # If onnx mapping is used, bfloat16 gets converted to float16
+        # which is not the desired behavior
+        if attr["to"] == int(TensorProto.BFLOAT16):
+            attr["to"] = "bfloat16"
+        else:
+            try:
+                from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
+
+                attr["to"] = str(TENSOR_TYPE_TO_NP_TYPE[attr["to"]])
+            except ImportError as e:
+                raise ImportError("Unable to import onnx.mapping which is required {}".format(e))
         return AttrCvt(op_name="cast", transforms={"to": "dtype"})(inputs, attr)
 
 
