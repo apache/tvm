@@ -44,7 +44,7 @@ def graph_split(expr, split_conf, params=None):
             for i in range(0, len(snode_dep) - 1):
                 dep = snode_dep[i]
                 if var in dep["nodes"]:
-                    # Mark the previous subgraph node as a dependency of this subgraph node
+                    # Mark the previous subgraph node as a dependency.
                     dep["nodes"][var] = dep["nodes"][var] + 1
                     dep["ref_nodes"][var] = dep["nodes"][var]
                     # The var of this call is a free_var
@@ -56,7 +56,7 @@ def graph_split(expr, split_conf, params=None):
                 new_input_idx = new_input_idx + 1
             else:
                 new_args.append(var)
-        # if the call have a free_var recreate it
+        # if the call have a free_var, recreate it.
         if need_update:
             value = tvm.relay.expr.Call(
                 value.op, new_args, value.attrs, value.type_args, value.span
@@ -65,7 +65,6 @@ def graph_split(expr, split_conf, params=None):
 
     def merge_constant_expr(constant_expr, expr):
         # merge constant express with a express
-        # If body not let, then reached end of the express
         if not isinstance(constant_expr.body, tvm.relay.expr.Let):
             return tvm.relay.expr.Let(constant_expr.var, constant_expr.value, expr)
 
@@ -74,8 +73,8 @@ def graph_split(expr, split_conf, params=None):
         )
 
     def _recursion(anf, pipeline_mods, split_conf, constant_expr):
-        # Enumrate all operator of compute graph then split the compute graph into a group subgraph.
-        # Do the split work
+        # Enumrate all operators of compute graph, then split the compute graph into a group of
+        # subgraph.
         nonlocal operator_index_map
         nonlocal new_input_idx
         nonlocal snode_dep
@@ -90,8 +89,7 @@ def graph_split(expr, split_conf, params=None):
             )
         if isinstance(anf, tvm.relay.expr.Let):
             value = anf.value
-            # record constan expr to make sure all sugraph can find correct
-            # constant.
+            # record the constant expr to make sure all sugraph can find correct constant.
             if isinstance(value, tvm.relay.expr.Constant):
                 if not constant_expr:
                     constant_expr = tvm.relay.expr.Let(anf.var, value, anf.var)
@@ -101,7 +99,7 @@ def graph_split(expr, split_conf, params=None):
                 new_args = []
                 # build current var list
                 cur_node_dep["nodes"][anf.var] = 0
-                # check if in current subgraph there is any previous graph node dep
+                # Get the dependency information of the nodes.
                 value, snode_dep, new_input_idx = parse_dependency(value, snode_dep, new_input_idx)
                 if isinstance(value.op, tvm.ir.Op):
                     if value.op.name in operator_index_map:
@@ -125,7 +123,8 @@ def graph_split(expr, split_conf, params=None):
                         )
                         snode_dep.pop()
                         dep_vars = get_dep_var(snode_dep)
-                        # Assembly the output to support a module have 1+ output
+                        # When the nodes of current subgraph are the depedency node of other
+                        # subgraph, we need to set them as the output of current subgraph.
                         body = relay.Tuple(dep_vars) if len(dep_vars) > 1 else anf.var
                         # when current subgraph use previous subgraph constant,
                         # such constant may become free varaible due to the constant
@@ -149,8 +148,7 @@ def graph_split(expr, split_conf, params=None):
     snode_dep = [{"nodes": {}, "ref_nodes": {}}]
     pipeline_mods = []
     operator_index_map = {}
-    # the splitting of graph will generate new subgraph with new input, this index is used
-    # to generate the name of new input.
+    # Used to tracking new input which caused by graph splitting.
     new_input_idx = 0
     constant_expr = None
     subgraph_split_conf = split_conf.copy()
