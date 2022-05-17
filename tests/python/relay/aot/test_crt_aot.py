@@ -37,15 +37,14 @@ from tvm.relay.backend import Executor, Runtime
 from tvm.micro import model_library_format as mlf
 from tvm.micro import export_model_library_format
 from tvm.ir.instrument import pass_instrument
-from tvm.micro.testing.aot_test_utils import (
+from tvm.testing.aot import (
     AOTTestModel,
     generate_ref_data,
     compile_and_run,
     compile_models,
-    parametrize_aot_options,
     create_relay_module_and_inputs_from_tflite_file,
 )
-from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER
+from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER, parametrize_aot_options
 
 
 def test_error_c_interface_with_packed_api():
