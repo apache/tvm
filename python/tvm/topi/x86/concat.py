@@ -131,12 +131,4 @@ def concatenate(data: tvm.te.Tensor, axis: Optional[int] = 0):
     -------
     ret : tvm.te.Tensor
     """
-    out_shape = data[0].shape
-    sizeVec_found = False
-    for i in out_shape:
-        if isinstance(i, tvm.tir.expr.SizeVar):
-            sizeVec_found = True
-    if sizeVec_found:
-        # workaround to support dynamic shape
-        return topi.transform.concatenate(data, axis=axis)
     return _concat(data, axis=axis)

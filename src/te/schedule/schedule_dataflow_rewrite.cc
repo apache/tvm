@@ -511,6 +511,10 @@ void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
   std::vector<bool> changed(sch->stages.size(), false);
   std::vector<Stmt> new_hybrid_body(sch->stages.size());
   std::vector<bool> hybrid_changed(sch->stages.size(), false);
+  // (sshtin): this workaround allows to inline extern ops.
+  // All inputs for extern op should not be inlined because inlining happens
+  // before generation of TE script for particular extern op. That may lead to
+  // crash during lowering or building stages.
   std::unordered_map<Operation, Operation> ext_ops;
   for (size_t i = 0; i  < sch->stages.size(); i++) {
     Stage stage = sch->stages[i];

@@ -19,7 +19,7 @@
 import logging
 import re
 
-from tvm import _ffi, ir, te, topi
+from tvm import _ffi, ir, te, topi, tir
 from tvm.target import generic_func, override_native_generic_func
 from tvm.topi.utils import get_const_float, get_const_int, get_const_tuple, get_float_tuple
 
@@ -1786,6 +1786,13 @@ def concatenate_strategy_cpu(attrs, inputs, out_type, target):
     """concatenate x86 strategy"""
     strategy = _op.OpStrategy()
     use_old_concat = False
+    for inpt in inputs:
+        shape = inpt.shape
+        for i in shape:
+            if isinstance(i, tir.expr.SizeVar):
+                if i.name == "any_dim":
+                    use_old_concat = True
+                break
     if use_old_concat:
         strategy.add_implementation(
             wrap_compute_concat(topi.transform.concatenate),
