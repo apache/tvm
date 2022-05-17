@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import logging
 from typing import Any, NamedTuple, Union, Optional, List, Dict
 import numpy as np
 
@@ -36,6 +37,7 @@ from tvm.relay.backend.utils import mangle_module_name
 from tvm.micro import export_model_library_format
 from tvm.micro.testing.utils import mlf_extract_workspace_size_bytes
 
+_LOG = logging.getLogger(__name__)
 
 NP_TYPE_TO_C = {
     "int8": "int8_t",
