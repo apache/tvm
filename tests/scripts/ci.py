@@ -561,11 +561,14 @@ def add_subparser(
     return subparser
 
 
+CPP_UNITTEST = ("run c++ unitests", ["./tests/scripts/task_cpp_unittest.sh"])
+
 generated = [
     generate_command(
         name="gpu",
         help="Run GPU build and test(s)",
         options={
+            "cpp": CPP_UNITTEST,
             "topi": ("run topi tests", ["./tests/scripts/task_python_topi.sh"]),
             "unittest": (
                 "run unit tests",
@@ -582,6 +585,7 @@ generated = [
         name="cpu",
         help="Run CPU build and test(s)",
         options={
+            "cpp": CPP_UNITTEST,
             "integration": (
                 "run integration tests",
                 ["./tests/scripts/task_python_integration.sh"],
@@ -601,6 +605,7 @@ generated = [
         name="i386",
         help="Run i386 build and test(s)",
         options={
+            "cpp": CPP_UNITTEST,
             "integration": (
                 "run integration tests",
                 [
@@ -619,26 +624,28 @@ generated = [
         name="qemu",
         help="Run QEMU build and test(s)",
         options={
+            "cpp": CPP_UNITTEST,
             "test": (
                 "run microTVM tests",
                 [
                     "./tests/scripts/task_python_microtvm.sh",
                     "./tests/scripts/task_demo_microtvm.sh",
                 ],
-            )
+            ),
         },
     ),
     generate_command(
         name="hexagon",
         help="Run Hexagon build and test(s)",
         options={
+            "cpp": CPP_UNITTEST,
             "test": (
                 "run Hexagon API/Python tests",
                 [
                     "./tests/scripts/task_build_hexagon_api.sh",
                     "./tests/scripts/task_python_hexagon.sh",
                 ],
-            )
+            ),
         },
     ),
     generate_command(
@@ -646,13 +653,14 @@ generated = [
         help="Run ARM build and test(s) (native or via QEMU on x86)",
         precheck=check_arm_qemu,
         options={
+            "cpp": CPP_UNITTEST,
             "python": (
                 "run full Python tests",
                 [
                     "./tests/scripts/task_python_unittest.sh",
                     "./tests/scripts/task_python_arm_compute_library.sh",
                 ],
-            )
+            ),
         },
     ),
 ]

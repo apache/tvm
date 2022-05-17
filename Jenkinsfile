@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-17T10:32:14.621387
+// Generated at 2022-05-17T09:16:58.363027
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -688,7 +688,7 @@ stage('Build') {
   },
   'BUILD: Hexagon': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-hexagon") {
           init_git()
           sh (
@@ -845,7 +845,7 @@ stage('Test') {
   },
   'unittest: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-cpu") {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
@@ -873,7 +873,7 @@ stage('Test') {
   },
   'python: i386 1 of 3': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
           try {
             init_git()
@@ -904,7 +904,7 @@ stage('Test') {
   },
   'python: i386 2 of 3': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
           try {
             init_git()
@@ -934,7 +934,7 @@ stage('Test') {
   },
   'python: i386 3 of 3': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
           try {
             init_git()
@@ -964,7 +964,7 @@ stage('Test') {
   },
   'test: Hexagon 1 of 4': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
           try {
             init_git()
@@ -997,7 +997,7 @@ stage('Test') {
   },
   'test: Hexagon 2 of 4': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
           try {
             init_git()
@@ -1029,7 +1029,7 @@ stage('Test') {
   },
   'test: Hexagon 3 of 4': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
           try {
             init_git()
@@ -1061,7 +1061,7 @@ stage('Test') {
   },
   'test: Hexagon 4 of 4': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
           try {
             init_git()
@@ -1093,7 +1093,7 @@ stage('Test') {
   },
   'test: QEMU': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-qemu") {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
