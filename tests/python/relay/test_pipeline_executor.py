@@ -29,7 +29,7 @@ from tvm._ffi import get_global_func
 from tvm.contrib import cc as _cc
 
 
-"""Split graph into a list of subgraph"""
+"""Splitting graph into a list of subgraph"""
 
 
 def graph_split(expr, split_conf, params=None):
