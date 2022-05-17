@@ -916,6 +916,7 @@ def _test_tflite2_quantized_convolution(
         kernel_size=(kernel_shape[0], kernel_shape[1]),
         activation=tf.nn.relu,
         padding=padding,
+        data_format=data_format,
     )(data_in)
     keras_model = tf.keras.models.Model(data_in, conv)
 
@@ -945,6 +946,7 @@ def test_forward_quantized_convolution():
             (1, 28, 28, 1),
             (1, 1),
             12,
+            data_format="NHWC",
             int_quant_dtype=int_quant_dtype,
         )
 
@@ -4650,10 +4652,10 @@ def test_forward_tflite_float16():
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 
-def test_forward_tflite_mobilenet_int16():
+def test_forward_mobilenet_int16():
     """Test int16 quantized model"""
     # MobilenetV2
-    tflite_model_file = tf_testing.get_workload_official(
+    model_file = tf_testing.get_workload_official(
         "https://storage.googleapis.com/download.tensorflow.org/models/mobilenet_v1_2018_02_22/mobilenet_v1_0.25_128.tgz",
         "mobilenet_v1_0.25_128_frozen.pb",
     )
@@ -4668,7 +4670,7 @@ def test_forward_tflite_mobilenet_int16():
     data = get_real_image(128, 128, quantized=False)
 
     converter = tf.lite.TFLiteConverter.from_frozen_graph(
-        tflite_model_file, ["input"], ["MobilenetV1/Predictions/Reshape_1"]
+        model_file, ["input"], ["MobilenetV1/Predictions/Reshape_1"]
     )
 
     def representative_dataset():
