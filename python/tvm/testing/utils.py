@@ -1033,7 +1033,7 @@ def requires_nvcc_version(major_version, minor_version=0, release_version=0):
     version_str = ".".join(str(v) for v in min_version)
     requires = [
         pytest.mark.skipif(nvcc_version < min_version, reason=f"Requires NVCC >= {version_str}"),
-        *requires_cuda(),
+        *requires_cuda.marks(),
     ]
 
     def inner(func):
