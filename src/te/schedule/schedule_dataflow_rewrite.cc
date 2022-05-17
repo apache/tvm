@@ -516,7 +516,7 @@ void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
   // before generation of TE script for particular extern op. That may lead to
   // crash during lowering or building stages.
   std::unordered_map<Operation, Operation> ext_ops;
-  for (size_t i = 0; i  < sch->stages.size(); i++) {
+  for (size_t i = 0; i < sch->stages.size(); i++) {
     Stage stage = sch->stages[i];
     auto ext_op = stage->op.as<ExternOpNode>();
     if (ext_op) {

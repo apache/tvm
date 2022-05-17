@@ -132,7 +132,6 @@ class TensorToBufferMapper : public StmtExprMutator {
     return tir::BufferLoad(buffer, GetIndices(op->indices, buffer->shape));
   }
 
-
  private:
   Buffer GetOrAllocBuffer(const Tensor& tensor, String storage_scope = "") {
     return GetBuffer(tensor, storage_scope, true);
