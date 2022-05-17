@@ -22,9 +22,7 @@ import tvm.testing
 from tvm import te
 from tvm import topi
 import tvm.topi.testing
-from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.utils import get_const_tuple
-from ..conftest import requires_hexagon_toolchain
 
 
 # TODO Should add kernal to tvm.testing.fixture
@@ -68,7 +66,7 @@ def shift_shape(output_padding):
 
 
 class BaseConv2DTransposeTests:
-    @requires_hexagon_toolchain
+    @tvm.testing.requires_hexagon
     def test_conv2d(
         self,
         hexagon_session: Session,
