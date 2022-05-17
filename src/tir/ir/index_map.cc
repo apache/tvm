@@ -159,24 +159,29 @@ IndexMap IndexMap::Inverse(Array<Range> initial_ranges) const {
   return IndexMap(output_vars, inverse_exprs);
 }
 
-Array<PrimExpr> IndexMapNode::MapIndices(const Array<PrimExpr>& indices) const {
+Array<PrimExpr> IndexMapNode::MapIndices(const Array<PrimExpr>& indices,
+                                         arith::Analyzer* analyzer) const {
   ICHECK_EQ(indices.size(), initial_indices.size());
 
-  arith::Analyzer analyzer;
+  Map<Var, PrimExpr> vmap;
 
   for (size_t i = 0; i < initial_indices.size(); i++) {
-    analyzer.Bind(initial_indices[i], indices[i]);
+    vmap.Set(initial_indices[i], indices[i]);
   }
 
-  Array<PrimExpr> output;
-  for (const auto& output_dim : final_indices) {
-    output.push_back(analyzer.Simplify(output_dim));
+  arith::Analyzer local_analyzer;
+  if (!analyzer) {
+    analyzer = &local_analyzer;
   }
+
+  Array<PrimExpr> output = final_indices;
+  output.MutateByApply(
+      [&](const PrimExpr& index) { return analyzer->Simplify(Substitute(index, vmap)); });
 
   return output;
 }
 
-Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges) const {
+Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer* analyzer) const {
   ICHECK_EQ(ranges.size(), initial_indices.size());
 
   Map<Var, Range> input_iters;
@@ -189,25 +194,30 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges) const {
     dom_map[initial_indices[i].get()] = arith::IntSet::FromRange(ranges[i]);
   }
 
+  arith::Analyzer local_analyzer;
+  if (!analyzer) {
+    analyzer = &local_analyzer;
+  }
+
   Array<Range> output;
-  arith::Analyzer analyzer;
   for (const auto& final_index : final_indices) {
     auto int_set = arith::EvalSet(final_index, dom_map);
-    output.push_back(Range::FromMinExtent(analyzer.Simplify(int_set.min()),
-                                          analyzer.Simplify(int_set.max() - int_set.min() + 1)));
+    output.push_back(Range::FromMinExtent(analyzer->Simplify(int_set.min()),
+                                          analyzer->Simplify(int_set.max() - int_set.min() + 1)));
   }
 
   return output;
 }
 
-Array<PrimExpr> IndexMapNode::MapShape(const Array<PrimExpr>& shape) const {
+Array<PrimExpr> IndexMapNode::MapShape(const Array<PrimExpr>& shape,
+                                       arith::Analyzer* analyzer) const {
   ICHECK_EQ(shape.size(), initial_indices.size());
 
   Array<Range> ranges;
   for (auto& dim : shape) {
     ranges.push_back(Range(0, dim));
   }
-  Array<Range> mapped = MapRanges(std::move(ranges));
+  Array<Range> mapped = MapRanges(std::move(ranges), analyzer);
 
   Array<PrimExpr> output;
   for (auto& range : mapped) {
@@ -265,8 +275,12 @@ TVM_REGISTER_GLOBAL("tir.IndexMap")
       return IndexMap(initial_indices, final_indices);
     });
 
-TVM_REGISTER_GLOBAL("tir.IndexMapMapIndices").set_body_method<IndexMap>(&IndexMapNode::MapIndices);
-TVM_REGISTER_GLOBAL("tir.IndexMapMapShape").set_body_method<IndexMap>(&IndexMapNode::MapShape);
+TVM_REGISTER_GLOBAL("tir.IndexMapMapIndices")
+    .set_body_typed([](IndexMap map, Array<PrimExpr> indices) { return map->MapIndices(indices); });
+
+TVM_REGISTER_GLOBAL("tir.IndexMapMapShape").set_body_typed([](IndexMap map, Array<PrimExpr> shape) {
+  return map->MapShape(shape);
+});
 TVM_REGISTER_GLOBAL("tir.IndexMapInverse").set_body_method(&IndexMap::Inverse);
 
 TVM_REGISTER_GLOBAL("tir.IndexMapNonSurjectiveInverse")
