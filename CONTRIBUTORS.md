@@ -143,6 +143,7 @@ We do encourage everyone to work anything they are interested in.
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
+- [Ramana Radhakrishnan](https://github.com/u99127): @u99127
 - [Andrew Reusch](https://github.com/areusch): @areusch
 - [David Riazati](https://github.com/driazati): @driazati
 - [Jared Roesch](https://github.com/jroesch): @jroesch

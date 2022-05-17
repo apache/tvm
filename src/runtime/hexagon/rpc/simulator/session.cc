@@ -466,6 +466,18 @@ std::string SimulatorRPCChannel::Cpu_::str() const {
   return default_cpu_;
 }
 
+// LOG(FATAL) always throws an exception or terminates the
+// process, but the compiler doesn't know that.
+#if (__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wreturn-type"
+#endif
+
+#if (__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wreturn-type"
+#endif
+
 std::string SimulatorRPCChannel::Message_::str() const {
   switch (msg.code) {
     case Message::kNone:
@@ -483,9 +495,18 @@ std::string SimulatorRPCChannel::Message_::str() const {
     case Message::kSendEnd:
       return "kSendEnd";
     default:
+      LOG(FATAL) << "Internal error: Unrecognized code value: " << msg.code;
       break;
   }
 }
+
+#if (__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+
+#if (__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 SimulatorRPCChannel::SDKInfo_::SDKInfo_(const std::string& sdk_root, const std::string& cpu)
     : root(sdk_root) {
