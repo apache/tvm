@@ -31,6 +31,7 @@ of the DispatchContext base class.
 from __future__ import absolute_import as _abs
 
 import logging
+from collections.abc import Iterable
 
 import numpy as np
 
@@ -212,7 +213,7 @@ class ApplyHistoryBest(DispatchContext):
             Collection of tuning records.
             If is str, then it should be the filename of a records log file.
             Each row of this file is an encoded record pair. If it is a list
-            it can either be a list of paths to logs that will loaded jointly or
+            it can either be a list of paths to logs that will be loaded jointly or
             an iterator of measurement results.
         """
         # pylint: disable=import-outside-toplevel
@@ -220,7 +221,7 @@ class ApplyHistoryBest(DispatchContext):
         from ..record import load_from_file
 
         joint_records = []
-        if not isinstance(records, (list, tuple)):
+        if not isinstance(records, Iterable) or isinstance(records, str):
             records = [records]
 
         for rec in records:

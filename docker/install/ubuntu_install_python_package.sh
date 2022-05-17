@@ -30,7 +30,7 @@ pip3 install --upgrade \
     numpy~=1.19.5 \
     orderedset \
     packaging \
-    Pillow \
+    Pillow==9.1.0 \
     psutil \
     pytest \
     tlcpack-sphinx-addon==0.2.1 \
