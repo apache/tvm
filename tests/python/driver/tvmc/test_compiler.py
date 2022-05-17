@@ -25,7 +25,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.testing.utils import ethosn_available
+from tvm.relay.op.contrib.ethosn import ethosn_available
 from tvm.relay.backend import Runtime, Executor
 
 from tvm.contrib.target.vitis_ai import vitis_ai_available
