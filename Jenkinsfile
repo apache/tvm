@@ -56,7 +56,7 @@ ci_wasm = 'tlcpack/ci-wasm:20220513-055910-fa834f67e'
 ci_i386 = 'tlcpack/ci-i386:20220513-055910-fa834f67e'
 ci_qemu = 'tlcpack/ci-qemu:20220517-094028-de21c8f2e'
 ci_arm = 'tlcpack/ci-arm:20220513-055910-fa834f67e'
-ci_hexagon = 'tlcpack/ci-hexagon:20220513-055910-fa834f67e'
+ci_hexagon = 'tlcpack/ci-hexagon:20220516-190055-672ce3365'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
