@@ -265,9 +265,10 @@ def schedule_cache_reads(sch):
                 fax = stage.fuse(*stage.op.axis)
 
                 # propagate pragmas placed on the outer loop
-                attrs = stage.iter_var_attrs[stage.op.axis[0]]
-                for k, v in zip(attrs.pragma_keys, attrs.pragma_values):
-                    stage.pragma(fax, k.value, v)
+                if len(stage.op.axis) > 0 and stage.op.axis[0] in stage.iter_var_attrs:
+                    attrs = stage.iter_var_attrs[stage.op.axis[0]]
+                    for k, v in zip(attrs.pragma_keys, attrs.pragma_values):
+                        stage.pragma(fax, k.value, v)
 
                 stage.pragma(fax, "op", "ethosu_copy")
 

@@ -68,7 +68,7 @@ def test_compute_cycles_annotation(SRAM, FLASH, TwoConv2DTE):
     # [copy, copy, conv2d, copy, conv2d]
     stages = [6, 8, 9, 18, 19]
     # Expected hints for each operation
-    compute_cycles_hints = [1440, 4624, 1440, 2844, 2304]
+    compute_cycles_hints = [4096, 5120, 1632, 2560, 2304]
 
     for stage, compute_cycles_hint in zip(stages, compute_cycles_hints):
         op = sch.stages[stage]

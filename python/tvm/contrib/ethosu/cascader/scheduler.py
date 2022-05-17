@@ -31,6 +31,7 @@ from .parts import EthosuPart
 from .tensor_config import MemoryRegion
 from .proposal import Proposal
 from .proposal_generator import generate_proposals
+from .plan_generator import get_copy_cycles_hint
 from .graph import create_cascader_graph
 from .device_config import EthosuDeviceConfig
 from .logging import Logging
@@ -176,9 +177,7 @@ def apply_proposal(proposal: Proposal, sch: te.Schedule) -> None:
                 if tensor_config.home_region != tensor_config.copy_region:
                     copy_te_tensors.append(part.subgraph.input_tensors[i])
 
-                    compute_cycles_hint = part.get_performance_info(
-                        tensor_config.stripe_configs[0], tensor_config.buffer_mode
-                    ).compute_cycles
+                    compute_cycles_hint, _ = get_copy_cycles_hint(tensor_config)
                     compute_cycles_hints.append(compute_cycles_hint)
 
         for te_tensor, compute_cycles_hint in zip(copy_te_tensors, compute_cycles_hints):
