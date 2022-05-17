@@ -65,7 +65,7 @@ def verify_trace_roundtrip(
         Trace.apply_json_to_schedule(json_obj=json_obj, sch=new_sch)
     elif text_format == "python":
         py_trace = "\n".join(trace.as_python())
-        exec(py_trace, tvm.tir.__dict__, {"sch": new_sch})
+        exec(py_trace, tvm.tir.__dict__, {"sch": new_sch})  # pylint: disable=exec-used
     else:
         assert text_format in ("json", "python"), f"Unknown text format: {text_format}"
 
