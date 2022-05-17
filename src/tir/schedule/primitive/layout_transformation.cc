@@ -51,8 +51,7 @@ class TransformLayoutRewriter : private StmtExprMutator {
 
   void RewriteBufferAccess(Buffer* buffer, Array<PrimExpr>* indices) {
     *buffer = new_buffer_;
-    *indices = index_map_->MapIndices(*indices);
-    (*indices).MutateByApply([this](const PrimExpr& index) { return analyzer_.Simplify(index); });
+    *indices = index_map_->MapIndices(*indices, &analyzer_);
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
