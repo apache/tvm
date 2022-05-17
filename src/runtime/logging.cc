@@ -197,6 +197,12 @@ std::string FileToVLogMapKey(const std::string& filename) {
   // Canonicalize the filename.
   // TODO(mbs): Not Windows friendly.
   size_t last_src = filename.rfind(kSrcPrefix, std::string::npos, kSrcPrefixLength);
+  if (last_src == std::string::npos) {
+    std::string no_slash_src{kSrcPrefix + 1};
+    if (filename.substr(0, no_slash_src.size()) == no_slash_src) {
+      return filename.substr(no_slash_src.size());
+    }
+  }
   // Strip anything before the /src/ prefix, on the assumption that will yield the
   // TVM project relative filename. If no such prefix fallback to filename without
   // canonicalization.

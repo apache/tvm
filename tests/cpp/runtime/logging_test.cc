@@ -86,11 +86,14 @@ TEST(TvmLogDebugSettings, IllFormed) {
 
 TEST(TvmLogDebugSettings, SpecPrefix) {
   TvmLogDebugSettings settings = TvmLogDebugSettings::ParseSpec(
-      "../src/foo/bar.cc=3,src/baz.cc=-1,foo/bar/src/another/file.cc=4");
+      "../src/foo/bar.cc=3,src/baz.cc=3,foo/bar/src/another/file.cc=4");
   EXPECT_TRUE(settings.dlog_enabled());
   EXPECT_TRUE(settings.VerboseEnabled("my/filesystem/src/foo/bar.cc", 3));
-  EXPECT_FALSE(settings.VerboseEnabled("my/filesystem/src/baz.cc", 0));
+  EXPECT_TRUE(settings.VerboseEnabled("foo/bar.cc", 3));
+  EXPECT_TRUE(settings.VerboseEnabled("my/filesystem/src/baz.cc", 3));
+  EXPECT_TRUE(settings.VerboseEnabled("baz.cc", 3));
   EXPECT_TRUE(settings.VerboseEnabled("my/filesystem/src/another/file.cc", 4));
+  EXPECT_TRUE(settings.VerboseEnabled("another/file.cc", 4));
 }
 
 }  // namespace
