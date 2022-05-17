@@ -143,8 +143,14 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       } else {
         auto it = inputs_.find(func_name);
         ICHECK(it != inputs_.end()) << "Input has not been set for function " << func_name;
-        const std::vector<ObjectRef>& func_args = it->second;
-        *rv = Invoke(func, func_args);
+        const std::vector<ObjectRef>& input_args = it->second;
+        if (set_outputs_enabled_.count(func_name) && set_outputs_enabled_[func_name]) {
+          ICHECK(outputs_.count(func_name)) << "Outputs have not been set for function " << func_name;
+          *rv = Invoke(func, input_args, outputs_[func_name]);
+          set_outputs_enabled_[func_name] = false;
+        } else {
+          *rv = Invoke(func, input_args);
+        }
       }
     });
   } else if (name == "invoke_stateful") {
@@ -275,24 +281,47 @@ void VirtualMachine::SetOneInput(std::string func_name, const TVMArgValue& tag,
   SetInputTensorWithIndex(inputs_[func_name], tensor, inp_index, dev);
 }
 
-void VirtualMachine::SetOutputs(std::string name, TVMArgs args) {
-  set_outputs_enabled_ = true;
-  std::vector<ObjectRef> external_output_arrays;
-  for (int i = 0; i < args.size(); ++i) {
-    TVMArgValue output_tensor = args[i];
+void VirtualMachine::SetOutputs(std::string func_name, TVMArgs args) {
+  set_outputs_enabled_[func_name] = true;
+  size_t outputs_size = args.size();
+  // First args is func_name
+  ICHECK_GT(outputs_size, 1)
+    << "There is no output arguments set";
+
+  std::vector<ObjectRef> func_args(outputs_size - 1);
+  for (size_t i = 1; i < outputs_size; ++i) {
+    // TODO(vvchernov): device?
+    // TODO(vvchernov): correct index sequence for multiple outputs?
+    func_args[i-1] = TensorFromTVMArgValueToObjectRef(args[i]);
+  }
+  outputs_.erase(func_name);
+  outputs_.emplace(func_name, func_args);
+}
+
+void VirtualMachine::SetOutputTensorsToRegister(const std::vector<ObjectRef>& outputs) {
+  size_t size = outputs.size();
+
+  Index res_ind = GetResultRegisterIndex();
+  if (size == 1) {
+    WriteRegister(res_ind, outputs[0]);
+  } else {
+    // TODO(vvchernov): I'm not sure we need any tag here. Nevertheless it is required
+    auto output_set = ADT(0, outputs);
+    WriteRegister(res_ind, output_set);
+  }
+}
+
+ObjectRef VirtualMachine::TensorFromTVMArgValueToObjectRef(const TVMArgValue& output_tensor) const {
     if (output_tensor.type_code() == kTVMDLTensorHandle) {
       DLTensor* dl_tensor = output_tensor;
-      external_output_arrays.emplace_back(NDArray::FromExternalDLTensor(*dl_tensor));
+      return NDArray::FromExternalDLTensor(*dl_tensor);
     } else if (output_tensor.type_code() == kTVMNDArrayHandle) {
-      // TODO(vvchernov): emplace_back?
-      external_output_arrays.push_back(output_tensor.AsObjectRef<tvm::runtime::NDArray>());
+      return output_tensor.AsObjectRef<tvm::runtime::NDArray>();
     } else {
-      LOG(FATAL) << "Output tensors of not DLTensor or NDArray type are not supported now!";
+      LOG(FATAL) << "It supports tensor of DLTensor or NDArray type only! Given type is "
+          << output_tensor.type_code();
     }
-  }
-  // TODO(vvchernov): I'm not sure we need any tag here. Nevertheless it is required
-  auto output_set = ADT(0, external_output_arrays);
-  WriteRegister(GetResultRegisterIndex(), output_set);
+    return ObjectRef();
 }
 
 int64_t VirtualMachine::GetInputIndexFromVMFunction(const std::string& func_name,
@@ -401,6 +430,22 @@ ObjectRef VirtualMachine::Invoke(const std::string& name, const std::vector<Obje
   Index func_index = it->second;
   VLOG(2) << "Invoke Global " << name << " at index " << func_index;
   return Invoke(exec_->functions[func_index], args);
+}
+
+ObjectRef VirtualMachine::Invoke(const VMFunction& func,
+                                 const std::vector<ObjectRef>& input_args,
+                                 const std::vector<ObjectRef>& output_args) {
+  DLOG(INFO) << "Executing Function: " << std::endl << func;
+  for (int i = 0; i < static_cast<int>(devices_.size()); ++i) {
+    DLOG(INFO) << "Device " << i << " has device type " << devices_[i].device_type
+               << " and device id " << devices_[i].device_id
+               << (i == exec_->host_device_index ? " (using as host device)" : "");
+  }
+
+  InvokeGlobal(func, input_args);
+  SetOutputTensorsToRegister(output_args);
+  RunLoop(set_outputs_enabled_[func.name]);
+  return return_register_;
 }
 
 void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
@@ -541,7 +586,7 @@ int64_t VirtualMachine::LoadScalarInt(Index r) const {
   return result;
 }
 
-Index VirtualMachine::GetResultRegisterIndex() {
+Index VirtualMachine::GetResultRegisterIndex() const {
   Index op_index = 0;
   while (code_[op_index].op != Opcode::Ret) {
     ++op_index;
@@ -550,11 +595,12 @@ Index VirtualMachine::GetResultRegisterIndex() {
   return code_[op_index].result;
 }
 
-void VirtualMachine::RunLoop() {
+void VirtualMachine::RunLoop(bool set_output_enabled) {
   ICHECK(this->exec_);
   ICHECK(this->code_);
   pc_ = 0;
   Index frame_start = frames_.size();
+  Index res_reg_index = GetResultRegisterIndex();
   while (true) {
   main_loop:
     auto const& instr = code_[this->pc_];
@@ -698,8 +744,8 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::AllocTensor: {
         OpStartHook(instr);
-        if (set_outputs_enabled_) {
-          WriteAllocatedTensorFromOutside(instr);
+        if (set_output_enabled) {
+          WriteAllocatedTensorFromOutside(instr, res_reg_index);
         } else {
           WriteAllocatedTensor(instr);
         }
@@ -787,7 +833,6 @@ void VirtualMachine::RunLoop() {
         auto caller_return_register = frames_.back().caller_return_register;
 
         if (PopFrame() == frame_start) {
-          set_outputs_enabled_ = false;
           return;
           // Otherwise we are just returning from a local call.
         } else {
@@ -866,8 +911,8 @@ void VirtualMachine::WriteAllocatedTensor(const Instruction& instr) {
   WriteRegister(instr.dst, obj);
 }
 
-void VirtualMachine::WriteAllocatedTensorFromOutside(const Instruction& instr) {
-  if (instr.dst == GetResultRegisterIndex()) {
+void VirtualMachine::WriteAllocatedTensorFromOutside(const Instruction& instr, Index res_index) {
+  if (instr.dst == res_index) {
     // TODO(vvchernov): check shape
   } else {
     WriteAllocatedTensor(instr);

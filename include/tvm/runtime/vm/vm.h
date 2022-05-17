@@ -227,6 +227,17 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
   ObjectRef Invoke(const std::string& name, const std::vector<ObjectRef>& args);
 
   /*!
+   * \brief Invoke a VM function.
+   * \param func The function.
+   * \param input_args The input arguments to the function.
+   * \param output_args The pre-allocated output arguments of the function.
+   * \return The object(s) representing the result.
+   */
+  ObjectRef Invoke(const VMFunction& func,
+                   const std::vector<ObjectRef>& input_args,
+                   const std::vector<ObjectRef>& output_args);
+
+  /*!
    * \brief Invoke a PackedFunction
    *
    * \param packed_index The offset of the PackedFunction in all functions.
@@ -249,7 +260,7 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
             const std::vector<AllocatorType>& alloc_types);
 
   /*! \brief Run VM dispatch loop. */
-  void RunLoop();
+  void RunLoop(bool set_output_enabled = false);
 
   /*! \brief Get device from the device list based on a given device index. */
   Device GetDevice(Index device_index) const;
@@ -287,6 +298,12 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
    * \param args outputs to the function.
    */
   void SetOutputs(std::string name, TVMArgs args);
+
+  /*!
+   * \brief Set pre-allocated outputs to register for specified function.
+   * \param outputs set of output tensors.
+   */
+  void SetOutputTensorsToRegister(const std::vector<ObjectRef>& outputs);
 
   /*!
    * \brief Internal hook for profiling the start of an op.
@@ -347,10 +364,18 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
                                const TVMArgValue& tensor, int index, Device dev);
 
   /*!
-   * \brief Get index of outputs in register_file from frame
-   * \return index
+   * \brief Convert tensor from TVMArgValue to ObjectRef.
+   * DLTensor and NDArray types are supported.
+   * \param tensor given arg value containing tensor.
+   * \return tensor in ObjectRef format
    */
-  Index GetResultRegisterIndex();
+  ObjectRef TensorFromTVMArgValueToObjectRef(const TVMArgValue& tensor) const;
+
+  /*!
+   * \brief Get index of outputs in register_file from func code
+   * \return result register index
+   */
+  Index GetResultRegisterIndex() const;
 
   /*!
    * \brief Write new allocated tensor to register_file of frame
@@ -365,7 +390,7 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
    * For other register WriteAllocatedMethod is used.
    * \param instr current instruction containing shape and storage info
    */
-  void WriteAllocatedTensorFromOutside(const Instruction& instr);
+  void WriteAllocatedTensorFromOutside(const Instruction& instr, Index res_index);
 
  protected:
   /*! \brief The virtual machine's packed function table. */
@@ -384,7 +409,7 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
   ObjectPtr<Executable> exec_;
   /*! \brief The function name to inputs mapping. */
   std::unordered_map<std::string, std::vector<ObjectRef>> inputs_;
-  bool set_outputs_enabled_ = false;
+  std::unordered_map<std::string, bool> set_outputs_enabled_;
   /*! \brief The function name to pre-allocated outputs mapping. */
   std::unordered_map<std::string, std::vector<ObjectRef>> outputs_;
   /*!
