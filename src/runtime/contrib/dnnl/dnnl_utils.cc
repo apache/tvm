@@ -23,11 +23,14 @@
 
 #include "dnnl_utils.h"
 
+#include "tvm/runtime/logging.h"
+
 namespace tvm {
 namespace runtime {
 namespace contrib {
-using dt = dnnl::memory::data_type;
-dt dtype_dl2dnnl(DLDataType dltype) {
+
+dnnl::memory::data_type dtype_dl2dnnl(DLDataType dltype) {
+  using dt = dnnl::memory::data_type;
   dt dnnl_type = dt::undef;
   if (dltype.code == DataType::TypeCode::kFloat) {
     if (dltype.bits == 16) {
@@ -51,6 +54,23 @@ dt dtype_dl2dnnl(DLDataType dltype) {
   }
   return dnnl_type;
 }
+
+dnnl::memory::dims shape_dl2dnnl(const std::vector<int64_t>& shape) {
+  if (shape.empty()) return {1};  // DNNL scalar representation is 1D tensor
+  return shape;
+}
+
+dnnl::memory::desc MakePlainDesc(const std::vector<int64_t>& shape, DLDataType dltype) {
+  auto dnnl_shape = shape_dl2dnnl(shape);
+  auto dnnl_dtype = dtype_dl2dnnl(dltype);
+
+  auto dnnl_plain_strides = dnnl::memory::dims(dnnl_shape.size(), 1);
+  for (int i = dnnl_shape.size() - 2; i >= 0; i--)
+    dnnl_plain_strides[i] = dnnl_plain_strides[i + 1] * dnnl_shape[i + 1];
+
+  return {dnnl_shape, dnnl_dtype, dnnl_plain_strides};
+}
+
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm
