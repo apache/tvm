@@ -543,8 +543,10 @@ void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
           args.push_back(iv->var);
         }
         if (ext_ops.find(stage->op) != ext_ops.end()) {
-          // The extern op can try to get access to the input tensors as a row data, that can lead to error in TE scripts.
-          // TBD: creation of the const array to avoid array recalculation during the kernel execution but it will not work with  dynamic shaping.
+          // sshtin: The extern op can try to get access to the input tensors as a row data,
+          // that can lead to error in TE scripts.
+          // TBD: creation of the const array to avoid array recalculation during
+          // kernel execution but it may not work with dynamic shaping in some cases.
           stage->attach_type = kGroupRoot;
           continue;
         }
