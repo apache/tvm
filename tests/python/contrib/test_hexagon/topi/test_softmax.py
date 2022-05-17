@@ -26,8 +26,6 @@ from tvm.contrib.hexagon.session import Session
 import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
 
-from ..conftest import requires_hexagon_toolchain
-
 dtype = tvm.testing.parameter(
     "float16",
     "float32",
@@ -54,7 +52,7 @@ softmax_operation, shape = tvm.testing.parameters(
 )
 
 
-@requires_hexagon_toolchain
+@tvm.testing.requires_hexagon
 def test_softmax(hexagon_session: Session, shape, dtype, softmax_operation):
     if dtype == "float16":
         pytest.xfail("float16 is not supported.")

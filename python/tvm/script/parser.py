@@ -631,7 +631,14 @@ class TVMScriptParser(Transformer):
                     f"cannot be indexed by {len(indexes)}-dimensional indices.",
                     node.params[1].span,
                 )
+
+            def __convert_index(x):
+                if isinstance(x, Slice):
+                    return x.as_index_expr(self.report_error)
+                return x
+
             # BufferStore
+            indexes = [__convert_index(x) for x in indexes]
             return tvm.tir.BufferStore(
                 symbol,
                 tvm.runtime.convert(rhs, span=rhs_span),
@@ -948,11 +955,18 @@ class TVMScriptParser(Transformer):
         )
 
     def transform_Slice(self, node):
+        """Index slice visitor."""
         start = self.transform(node.start)
         end = self.transform(node.end)
-        if not (isinstance(node.step, ast.Constant) and node.step.value == 1):
-            self.report_error("Only step size 1 is supported for slices.", node.step.span)
-        return Slice(start, end)
+        if not (
+            isinstance(node.step, ast.Constant)
+            and isinstance(node.step.value, int)
+            and node.step.value > 0
+        ):
+            self.report_error(
+                "Only positive integer step size is supported for slices.", node.step.span
+            )
+        return Slice(start, end, node.step.value, tvm_span_from_synr(node.span))
 
     def transform_Subscript(self, node):
         """Array access visitor.
