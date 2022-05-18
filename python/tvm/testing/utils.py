@@ -645,7 +645,7 @@ class Feature:
                 yield pytest.mark.skipif(True, reason=res)
             else:
                 yield pytest.mark.skipif(
-                    res, reason=f"Compile-time support for {self.long_name} not present"
+                    not res, reason=f"Compile-time support for {self.long_name} not present"
                 )
 
         if self.target_kind_enabled is not None:
@@ -677,7 +677,7 @@ class Feature:
                 yield pytest.mark.skipif(True, reason=res)
             else:
                 yield pytest.mark.skipif(
-                    res, reason=f"Run-time support for {self.long_name} not present"
+                    not res, reason=f"Run-time support for {self.long_name} not present"
                 )
 
         if self.target_kind_hardware is not None:
