@@ -76,7 +76,9 @@ IndexMap IndexMap::Inverse(Array<Range> initial_ranges) const {
   // Unpack the output indices into linear combinations of the initial
   // indices.
   arith::Analyzer analyzer;
-  auto iter_map = DetectIterMap((*this)->final_indices, input_iters, 1, true, &analyzer);
+  auto iter_map = DetectIterMap((*this)->final_indices, input_iters, /* predicate = */ 1,
+                                /* require_bijective = */ true, &analyzer,
+                                /* simplify_trivial_iterators = */ false);
   CHECK(iter_map.size()) << "Index transformation was not bijective.";
 
   // Determine expressions for the input variables, in terms of the

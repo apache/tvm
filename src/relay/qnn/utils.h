@@ -106,9 +106,11 @@ std::string SelectRequntizeParameter(const std::string& arg_value, const std::st
 static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_shape,
                               const Expr& input_scale, const Expr& input_zero_point,
                               const Expr& output_scale, const Expr& output_zero_point,
-                              const DataType& out_dtype, const std::string& rounding = "None",
+                              const DataType& out_dtype, const int& axis = -1,
+                              const std::string& rounding = "None",
                               const std::string& compute_dtype = "None") {
   auto attrs = make_object<RequantizeAttrs>();
+  attrs->axis = axis;
   attrs->out_dtype = std::move(out_dtype);
   const RequantizeConfig& cfg = RequantizeConfig::Current();
   attrs->rounding =
@@ -267,6 +269,12 @@ static inline std::vector<float> GetFloatVectorFromConstant(const Expr& expr) {
   }
   return vals;
 }
+
+Expr MakeQnnConv2D(Expr data, Expr weight, Expr input_zero_point, Expr kernel_zero_point,
+                   Expr input_scale, Expr kernel_scale, Array<IndexExpr> strides,
+                   Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
+                   IndexExpr channels, Array<IndexExpr> kernel_size, String data_layout,
+                   String kernel_layout, String out_layout, DataType out_dtype);
 
 }  // namespace qnn
 }  // namespace relay

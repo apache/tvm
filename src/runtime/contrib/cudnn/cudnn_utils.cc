@@ -140,6 +140,8 @@ ConvEntry::ConvEntry() {
   CUDNN_CALL(cudnnCreateFilterDescriptor(&filter_desc));
   CUDNN_CALL(cudnnCreateTensorDescriptor(&input_desc));
   CUDNN_CALL(cudnnCreateTensorDescriptor(&output_desc));
+  CUDNN_CALL(cudnnCreateTensorDescriptor(&bias_desc));
+  CUDNN_CALL(cudnnCreateActivationDescriptor(&activation_desc));
 }
 
 ConvEntry::~ConvEntry() {
@@ -147,6 +149,8 @@ ConvEntry::~ConvEntry() {
   CUDNN_CALL(cudnnDestroyConvolutionDescriptor(conv_desc));
   CUDNN_CALL(cudnnDestroyTensorDescriptor(input_desc));
   CUDNN_CALL(cudnnDestroyTensorDescriptor(output_desc));
+  CUDNN_CALL(cudnnDestroyTensorDescriptor(bias_desc));
+  CUDNN_CALL(cudnnDestroyActivationDescriptor(activation_desc));
   CleanWorkspace();
 }
 

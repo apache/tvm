@@ -789,6 +789,24 @@ def Inline():
     return _ffi_api.Inline()
 
 
+def InlineComposites(target):
+    """Perform inlining on the given Relay IR module. The functions originate
+    from the MergeComposite pass based on an input pattern table will fold back
+    to main. Currently, this is used for the TRT BYOC which expects a single
+    primitive function to operate on.
+
+    Parameters
+    ----------
+    target: str
+        The byoc target for which ops need to fold back to primitive function.
+    Returns
+    -------
+    ret: tvm.transform.Pass
+        The registered pass that performs inlining for a Relay IR module.
+    """
+    return _ffi_api.InlineComposites(target)
+
+
 def gradient(expr, mod=None, mode="higher_order"):
     """
     Transform the input function,
@@ -1291,6 +1309,33 @@ def FakeQuantizationToInteger(hard_fail=False, use_qat=False):
         The registered FakeQuantizationToInteger pass.
     """
     return _ffi_api.FakeQuantizationToInteger(hard_fail, use_qat)
+
+
+def FlattenAtrousConv():
+    # pylint: disable=anomalous-backslash-in-string
+    """
+    The purpose of this pass is to find a sequence of space_to_batch_nd-conv2d-batch_to_space_nd
+    operations:
+
+    .. code-block:: text
+
+      x     w
+      |     |
+      s2b   |
+       \\   /
+        conv2d
+         |
+         b2s
+
+    and convert them into subgraphs with a convolution with the modified "dilation" and
+    recalculated "padding" parameters.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered FlattenAtrousConv pass.
+    """
+    return _ffi_api.FlattenAtrousConv()
 
 
 def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):

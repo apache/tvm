@@ -47,7 +47,7 @@ logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_tune_parser(subparsers, _):
+def add_tune_parser(subparsers, _, json_params):
     """Include parser for 'tune' subcommand"""
 
     parser = subparsers.add_parser("tune", help="auto-tune a model")
@@ -136,13 +136,13 @@ def add_tune_parser(subparsers, _):
     )
     parser.add_argument(
         "--enable-autoscheduler",
-        help="enable tuning the graph through the autoscheduler",
+        help="enable tuning the graph through the AutoScheduler tuner",
         action="store_true",
     )
 
     auto_scheduler_group = parser.add_argument_group(
-        "Autoscheduler options",
-        "Autoscheduler options, used when --enable-autoscheduler is provided",
+        "AutoScheduler options",
+        "AutoScheduler options, used when --enable-autoscheduler is provided",
     )
 
     auto_scheduler_group.add_argument(
@@ -204,8 +204,8 @@ def add_tune_parser(subparsers, _):
         action="store_true",
     )
     autotvm_group = parser.add_argument_group(
-        "autotvm options",
-        "autotvm options, used when the autoscheduler is not enabled",
+        "AutoTVM options",
+        "AutoTVM options, used when the AutoScheduler is not enabled",
     )
     autotvm_group.add_argument(
         "--tuner",
@@ -224,6 +224,9 @@ def add_tune_parser(subparsers, _):
         type=parse_shape_string,
     )
 
+    for one_entry in json_params:
+        parser.set_defaults(**one_entry)
+
 
 def drive_tune(args):
     """Invoke auto-tuning with command line arguments
@@ -233,6 +236,11 @@ def drive_tune(args):
     args: argparse.Namespace
         Arguments from command line parser.
     """
+    if not os.path.isfile(args.FILE):
+        raise TVMCException(
+            f"Input file '{args.FILE}' doesn't exist, is a broken symbolic link, or a directory."
+        )
+
     tvmc_model = frontends.load_model(args.FILE, args.model_format, shape_dict=args.input_shapes)
 
     # Specify hardware parameters, although they'll only be used if autoscheduling.

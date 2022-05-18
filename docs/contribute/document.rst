@@ -17,8 +17,12 @@
 
 .. _doc_guide:
 
-Write Documentation for TVM
-===========================
+Documentation
+=============
+
+.. contents::
+  :depth: 2
+  :local:
 
 TVM documentation loosely follows the `formal documentation style described by
 Divio <https://documentation.divio.com>`_. This system has been chosen because

@@ -23,7 +23,6 @@ This class include methods to parse the custom operator to extract
 the command stream and perform an equivalency check for single operator
 test cases.
 """
-from distutils.version import LooseVersion
 from typing import List
 
 import os
@@ -45,6 +44,7 @@ from tvm.topi.nn.utils import get_pad_tuple
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.backend.contrib.ethosu import preprocess
+import tvm.relay.testing.tf as tf_testing
 
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tests.python.relay.aot.aot_test_utils import (
@@ -109,7 +109,7 @@ def deserialize_command_stream(blob):
     return cmms
 
 
-def create_test_runner(accel="ethos-u55-256", enable_usmp=True):
+def create_test_runner(accel="ethos-u55-256", enable_usmp=True, enable_cascader=False):
     file_dir = os.path.dirname(os.path.abspath(__file__))
     test_root = os.path.join(file_dir, "reference_system")
     _, ethosu_variant, ethosu_macs = accel.split("-")
@@ -134,6 +134,7 @@ def create_test_runner(accel="ethos-u55-256", enable_usmp=True):
         pass_config={
             "relay.ext.ethos-u.options": {
                 "accelerator_config": accel,
+                "enable_cascader": enable_cascader,
             },
             "tir.usmp.enable": enable_usmp,
             "tir.usmp.algorithm": "hill_climb",
@@ -143,9 +144,15 @@ def create_test_runner(accel="ethos-u55-256", enable_usmp=True):
 
 
 def build_source(
-    module, inputs, outputs, accel="ethos-u55-256", output_tolerance=0, enable_usmp=True
+    module,
+    inputs,
+    outputs,
+    accel="ethos-u55-256",
+    output_tolerance=0,
+    enable_usmp=True,
+    enable_cascader=False,
 ):
-    test_runner = create_test_runner(accel, enable_usmp)
+    test_runner = create_test_runner(accel, enable_usmp, enable_cascader)
     return compile_models(
         models=AOTTestModel(
             module=module,
@@ -165,12 +172,13 @@ def verify_source(
     models: List[AOTCompiledTestModel],
     accel="ethos-u55-256",
     enable_usmp=True,
+    enable_cascader=False,
 ):
     """
     This method verifies the generated source from an NPU module by building it and running on an FVP.
     """
     interface_api = "c"
-    test_runner = create_test_runner(accel, enable_usmp)
+    test_runner = create_test_runner(accel, enable_usmp, enable_cascader)
     run_and_check(
         models,
         test_runner,
@@ -202,14 +210,10 @@ def generate_ref_data_tflite(model):
     """
     expected_output_data = {}
 
-    # older versions of TFLite don't give access to reference kernels
-    if tf.__version__ < LooseVersion("2.5.0"):
-        interpreter = tf.lite.Interpreter(model_content=model)
-    else:
-        interpreter = tf.lite.Interpreter(
-            model_content=model,
-            experimental_op_resolver_type=tf.lite.experimental.OpResolverType.BUILTIN_REF,
-        )
+    interpreter = tf.lite.Interpreter(
+        model_content=model,
+        experimental_op_resolver_type=tf.lite.experimental.OpResolverType.BUILTIN_REF,
+    )
 
     interpreter.allocate_tensors()
 
@@ -230,8 +234,12 @@ def generate_ref_data_tflite(model):
         )
         for input_detail in input_details
     }
-    for index, value in enumerate(input_data.values()):
-        interpreter.set_tensor(index, value)
+    input_index = {input_detail["name"]: input_detail["index"] for input_detail in input_details}
+
+    for input_name in input_data.keys():
+        data = input_data[input_name]
+        index = input_index[input_name]
+        interpreter.set_tensor(index, data)
     interpreter.invoke()
 
     expected_output_data = {
@@ -240,6 +248,14 @@ def generate_ref_data_tflite(model):
     }
 
     return input_data, expected_output_data
+
+
+def get_tflite_model(model_url):
+    """Get a TFLite model from URL."""
+    tflite_model_file = tf_testing.get_workload_official(model_url[0], model_url[1])
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    return tflite_model_buf
 
 
 def get_tflite_graph(tf_func, shapes, ranges=None):
@@ -276,7 +292,13 @@ def get_tflite_graph(tf_func, shapes, ranges=None):
 
 
 def compare_ethosu_with_reference(
-    mod, input_data, output_data, accel_type, output_tolerance=0, print_cmm=False
+    mod,
+    input_data,
+    output_data,
+    accel_type,
+    output_tolerance=0,
+    print_cmm=False,
+    enable_cascader=False,
 ):
     compiled_models = build_source(
         mod,
@@ -284,6 +306,7 @@ def compare_ethosu_with_reference(
         output_data,
         accel_type,
         output_tolerance=output_tolerance,
+        enable_cascader=enable_cascader,
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
@@ -296,11 +319,17 @@ def compare_ethosu_with_reference(
         cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
         print_payload(cmms)
 
-    verify_source(compiled_models, accel_type)
+    verify_source(compiled_models, accel_type, enable_cascader=enable_cascader)
 
 
 def compare_tvm_with_tflite(
-    tf_func, shapes, accel_type, ranges=None, output_tolerance=0, print_cmm=False
+    tf_func,
+    shapes,
+    accel_type,
+    ranges=None,
+    output_tolerance=0,
+    print_cmm=False,
+    enable_cascader=False,
 ):
     mod, tflite_graph = get_tflite_graph(tf_func, shapes, ranges)
 
@@ -314,6 +343,7 @@ def compare_tvm_with_tflite(
         accel_type,
         output_tolerance=output_tolerance,
         print_cmm=print_cmm,
+        enable_cascader=enable_cascader,
     )
 
 

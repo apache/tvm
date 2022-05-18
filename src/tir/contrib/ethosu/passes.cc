@@ -62,7 +62,7 @@ class HoistAllocatesMutator : public StmtExprMutator {
   HoistAllocatesMutator() {}
 
   PrimFunc operator()(PrimFunc main_func) {
-    Stmt new_main_func_body = this->VisitStmt(main_func->body);
+    Stmt new_main_func_body = SeqStmt::Flatten(this->VisitStmt(main_func->body));
 
     // Write all allocates that were removed in reverse order
     for (auto it = allocates_.rbegin(); it != allocates_.rend(); it++) {
@@ -85,19 +85,7 @@ class HoistAllocatesMutator : public StmtExprMutator {
  private:
   Stmt VisitStmt_(const AllocateNode* op) override {
     allocates_.push_back(GetRef<Allocate>(op));
-
-    // Skip the allocate node itself
-    if (const auto* seq = op->body.as<SeqStmtNode>()) {
-      // Traverse the allocate body recursively and flatten
-      Array<Stmt> new_stmts;
-      new_stmts.reserve(seq->seq.size());
-      for (const Stmt& old_stmt : seq->seq) {
-        new_stmts.push_back(VisitStmt(old_stmt));
-      }
-      return SeqStmt::Flatten(new_stmts);
-    } else {
-      return VisitStmt(op->body);
-    }
+    return VisitStmt(op->body);
   }
 
   /*! A stack to store allocates as they are visited. */

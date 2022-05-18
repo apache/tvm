@@ -76,6 +76,12 @@ def test_buffer_access_ptr_extent():
     aptr = Ab.access_ptr("rw", offset=100)
     assert tvm.ir.structural_equal(aptr.args[3], Ab.strides[0] * m - 100)
 
+    # Test extent from input params
+    aptr = Ab.access_ptr("rw", extent=200)
+    assert tvm.ir.structural_equal(aptr.args[3], 200)
+    aptr = Ab.access_ptr("rw", offset=100, extent=100)
+    assert tvm.ir.structural_equal(aptr.args[3], 100)
+
 
 def test_buffer_vload():
     m = te.size_var("m")
@@ -99,7 +105,7 @@ def test_buffer_vload_nullptr():
     buf_load = tvm.tir.expr.BufferLoad(buffer=buf, indices=tvm.runtime.convert([0]))
     buf_load_stmt = tvm.tir.stmt.Evaluate(buf_load)
     for_loop = tvm.tir.stmt.For(
-        loop_var=var, kind=0, min_val=0, extent=buf_load, body=buf_load_stmt
+        loop_var=var, kind=0, min_val=0, extent=tvm.tir.Cast("int32", buf_load), body=buf_load_stmt
     )
     buf_func = tvm.tir.PrimFunc(params={}, body=for_loop)
     mod = tvm.IRModule({"main": buf_func})

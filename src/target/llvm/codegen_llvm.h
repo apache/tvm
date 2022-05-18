@@ -23,6 +23,7 @@
  */
 #ifndef TVM_TARGET_LLVM_CODEGEN_LLVM_H_
 #define TVM_TARGET_LLVM_CODEGEN_LLVM_H_
+#include <llvm/IR/GlobalValue.h>
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/arith/analyzer.h>
@@ -125,18 +126,6 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    */
   void AddLinkModule(std::unique_ptr<llvm::Module>&& mod);
   /*!
-   * \brief Link parameters into the module so they don't need to be supplied at runtime.
-   * Parameters can be linked into the module so that the generated code is easier to use, or so
-   * that RAM space doesn't need to be allocated for them. This function adds the given parameters
-   * to the generated LLVM module.
-   * \param storage_id_offset Offset added to the index of each entry in params_by_sid to form the
-   *     storage_id of that parameter. Storage ids for parameters are expected to be contiguous.
-   * \param params_by_sid Array of NDArray. Each entry is a parameter. The index of the array (added
-   *     to sid_offset) is the storage_id of the param.
-   * \param param_names Array containing the name for each param in params_by_sid.
-   */
-  void LinkParameters(const Map<String, LinkedParam> params);
-  /*!
    * \brief Create Value for expression e
    * \param e The expression to be created value for.
    * \return created value.
@@ -189,6 +178,13 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
+
+  // Get constant string
+  llvm::Constant* GetConstString(const std::string& str);
+
+  llvm::Constant* GetGlobalConstant(
+      llvm::Constant* const_data, const std::string& name = "",
+      llvm::GlobalValue::LinkageTypes linkage_type = llvm::GlobalValue::InternalLinkage);
 
  protected:
   /*!
@@ -353,8 +349,6 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
                     int* p_native_bits);
   // Returns whether the LLVM type has padding for alignment
   bool HasAlignmentPadding(DataType dtype);
-  // Get constant string
-  llvm::Constant* GetConstString(const std::string& str);
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(const CallNode* op, llvm::Function* f,
                                     const std::vector<llvm::Value*>& args);
@@ -383,11 +377,33 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
                        const Var& loop_var, const Stmt& body);
   // add alias information.
-  void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, PrimExpr index);
+  void AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_var, PrimExpr index,
+                    DataType access_dtype);
 
   llvm::GlobalVariable* AllocateSharedMemory(DataType dtype, size_t size,
                                              unsigned int shared_address_space, int alignment,
                                              llvm::GlobalValue::LinkageTypes linkage);
+
+  /*!
+   * \brief Get the `i`th argument to the given function, respecting LLVM API changes.
+   *
+   * NOTE: in LLVM < 10.0, the underlying API returns a const llvm::Argument*. To provide a uniform
+   * API, const is removed here. Proper usage of LLVM APIs depends on having a non-const Argument*,
+   * so we take this appraoch here rather than adding const.
+   *
+   * \param function The function containing the arguments.
+   * \param i The index of the argument to retrieve.
+   * \return The retrieved argument.
+   */
+  llvm::Argument* GetArg(const llvm::Function* function, int i) const {
+#if TVM_LLVM_VERSION >= 100
+    return function->getArg(i);
+#elif TVM_LLVM_VERSION >= 50
+    return const_cast<llvm::Argument*>(&function->arg_begin()[i]);
+#else
+    return const_cast<llvm::Argument*>(&*std::next(function->arg_begin(), i));
+#endif
+  }
 
   // The IRBuilder.
   using IRBuilder = llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter>;
@@ -447,6 +463,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
   const Op& builtin_call_llvm_intrin_ = builtin::call_llvm_intrin();
   const Op& builtin_call_llvm_pure_intrin_ = builtin::call_llvm_pure_intrin();
+  const Op& builtin_lookup_param_ = builtin::lookup_param();
+  const Op& builtin_tvm_call_cpacked_lowered_ = builtin::tvm_call_cpacked_lowered();
 
   /*! \brief Helper struct for debug infos. */
   struct DebugInfo {
@@ -481,6 +499,7 @@ void CodeGenLLVM::AddFunctionsOrdered(IterType begin, IterType end, ConvType pfu
     return name_a < name_b;
   });
   for (auto& f : funcs) {
+    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
     AddFunction(f);
   }
 }

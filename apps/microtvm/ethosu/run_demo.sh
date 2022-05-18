@@ -162,11 +162,11 @@ curl -sS  https://raw.githubusercontent.com/tensorflow/tensorflow/master/tensorf
     -o ./labels_mobilenet_quant_v1_224.txt
 
 # Get input image
-curl -sS https://upload.wikimedia.org/wikipedia/commons/1/18/Falkland_Islands_Penguins_29.jpg -o penguin.jpg
+curl -sS https://s3.amazonaws.com/model-server/inputs/kitten.jpg -o kitten.jpg
 
 # Create C header files
 cd ..
-python3 ./convert_image.py ./build/penguin.jpg
+python3 ./convert_image.py ./build/kitten.jpg
 python3 ./convert_labels.py ./build/labels_mobilenet_quant_v1_224.txt
 
 # Build demo executable

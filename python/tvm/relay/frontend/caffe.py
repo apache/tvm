@@ -640,7 +640,7 @@ class OperatorConverter(object):
         return out
 
     def convert_reduction(self, op):
-        """ Convert Reduction layer """
+        """Convert Reduction layer"""
         reduction_dic = ["NOP", "SUM", "ASUM", "SUMSQ", "MEAN"]
 
         inputs = op.bottom

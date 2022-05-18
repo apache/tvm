@@ -583,6 +583,40 @@ def tiled_after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
+def tiled_trivial_binding(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [1, 128, 128], "float32")
+    B = T.alloc_buffer([1, 128, 128], "float32")
+    C = T.match_buffer(c, [1, 128, 128], "float32")
+    for i_0, j_0, i_1, j_1 in T.grid(8, 8, 16, 16):
+        with T.block("B"):
+            vi = T.axis.S(128, i_0 * 16 + i_1)
+            vj = T.axis.S(128, j_0 * 16 + j_1)
+            B[0, vi, vj] = A[0, vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[0, vi, vj] = B[0, vi, vj] + 1.0
+
+
+@T.prim_func
+def tiled_trivial_binding_after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [1, 128, 128], "float32")
+    B = T.alloc_buffer([1, 128, 128], "float32")
+    C = T.match_buffer(c, [1, 128, 128], "float32")
+    for i_0, j_0, i_1 in T.grid(8, 8, 16):
+        for j_1 in T.serial(0, 16):
+            with T.block("B"):
+                vi = T.axis.S(128, i_0 * 16 + i_1)
+                vj = T.axis.S(128, j_0 * 16 + j_1)
+                B[0, vi, vj] = A[0, vi, vj] * 2.0
+        for j_1 in T.serial(0, 16):
+            with T.block("C"):
+                vi = T.axis.S(128, i_0 * 16 + i_1)
+                vj = T.axis.S(128, j_0 * 16 + j_1)
+                C[0, vi, vj] = B[0, vi, vj] + 1.0
+
+
+@T.prim_func
 def factorized(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16, 16], "float32")
     B = T.match_buffer(b, [16], "float32")
@@ -1147,6 +1181,15 @@ def test_reverse_compute_at_tiled():
     sch.reverse_compute_at(block, loop, preserve_unit_loops=False)
     tvm.ir.assert_structural_equal(tiled_after_reverse_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=tiled)
+
+
+def test_reverse_compute_at_tiled_trivial_binding():
+    sch = tir.Schedule(tiled_trivial_binding, debug_mask="all")
+    block = sch.get_block("C")
+    _, _, loop, _ = sch.get_loops(sch.get_block("B"))
+    sch.reverse_compute_at(block, loop, preserve_unit_loops=False)
+    tvm.ir.assert_structural_equal(tiled_trivial_binding_after_reverse_compute_at, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=tiled_trivial_binding)
 
 
 def test_reverse_compute_at_blockized_2():

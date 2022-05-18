@@ -37,6 +37,7 @@
 #include "codegen_cpu.h"
 #include "codegen_params.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm_common.h"
 namespace tvm {
 namespace codegen {
 
@@ -134,11 +135,11 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(global_symbol.defined())
       << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
-  ICHECK(module_->getFunction(static_cast<std::string>(global_symbol.value())) == nullptr)
-      << "Function " << global_symbol << " already exist in module";
-
-  function_ = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                                     global_symbol.value().operator std::string(), module_.get());
+  function_ = module_->getFunction(static_cast<std::string>(global_symbol.value()));
+  if (function_ == nullptr) {
+    function_ = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
+                                       global_symbol.value().operator std::string(), module_.get());
+  }
   function_->setCallingConv(llvm::CallingConv::C);
   function_->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
 
@@ -187,72 +188,6 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   if (ret_void) {
     builder_->CreateRetVoid();
   } else {
-    builder_->CreateRet(ConstInt32(0));
-  }
-}
-
-void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
-  // It would be nice to de-dupe these declarations frm src/tir/transforms/make_packed_api.cc,
-  // but they are at a different layer in the compiler...
-  llvm::Type* t_int_p = t_int_->getPointerTo(GetGlobalAddressSpace());
-
-  // args, tcodes, num_args, ret_value, ret_tcode, resource_handle
-  std::vector<llvm::Type*> param_types{t_void_p_, t_int_p, t_int_, t_void_p_, t_int_p, t_void_p_};
-  llvm::FunctionType* ftype = llvm::FunctionType::get(t_int_, param_types, false);
-
-  llvm::Function* function =
-      llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                             ::tvm::runtime::symbol::tvm_lookup_linked_param, module_.get());
-  function->setCallingConv(llvm::CallingConv::C);
-  function->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
-
-  llvm::BasicBlock* entry = llvm::BasicBlock::Create(*ctx_, "entry", function);
-  builder_->SetInsertPoint(entry);
-
-  auto getArg = [function](int i) -> llvm::Argument* {
-#if TVM_LLVM_VERSION >= 100
-    return function->getArg(i);
-#elif TVM_LLVM_VERSION >= 50
-    return &function->arg_begin()[i];
-#else
-    return &*std::next(function->arg_begin(), i);
-#endif
-  };
-
-  llvm::Type* t_int64_p = t_int64_->getPointerTo(GetGlobalAddressSpace());
-  llvm::Value* sid = builder_->CreateLoad(t_int64_, builder_->CreateBitCast(getArg(0), t_int64_p));
-
-  auto ret_tcode = builder_->CreateBitCast(getArg(4), t_int_p);
-  auto ret_value =
-      builder_->CreateBitCast(getArg(3), t_void_p_->getPointerTo(GetGlobalAddressSpace()));
-
-  llvm::BasicBlock* default_block = llvm::BasicBlock::Create(*ctx_, "default_block", function);
-  llvm::SwitchInst* switch_inst = builder_->CreateSwitch(sid, default_block, params.size() + 1);
-
-  builder_->SetInsertPoint(default_block);
-  builder_->CreateStore(llvm::ConstantInt::get(t_int_, kTVMNullptr), ret_tcode);
-  builder_->CreateRet(ConstInt32(kTvmErrorNoError));
-
-  // Add data to the global section.
-  for (auto kv : params) {
-    auto array = NDArrayToLLVMArray(ctx_, kv.second->param);
-    std::string symbol_name = std::string(::tvm::runtime::symbol::tvm_param_prefix) + kv.first;
-    llvm::GlobalVariable* param_symbol = new llvm::GlobalVariable(
-        *module_, array->getType(), true, llvm::GlobalValue::InternalLinkage, array, symbol_name);
-    auto dtype = tvm::runtime::DataType(kv.second->param->dtype);
-    size_t align = std::max(tvm::runtime::GetVectorBytes(dtype), tvm::runtime::kAllocAlignment);
-#if TVM_LLVM_VERSION >= 100
-    param_symbol->setAlignment(llvm::Align(align));
-#else
-    param_symbol->setAlignment(align);
-#endif
-
-    llvm::BasicBlock* case_block = llvm::BasicBlock::Create(*ctx_, "case_" + symbol_name, function);
-    switch_inst->addCase(
-        llvm::cast<llvm::ConstantInt>(llvm::ConstantInt::get(t_int64_, kv.second->id)), case_block);
-    builder_->SetInsertPoint(case_block);
-    builder_->CreateStore(builder_->CreatePointerCast(param_symbol, t_void_p_), ret_value);
-    builder_->CreateStore(llvm::ConstantInt::get(t_int_, kTVMOpaqueHandle), ret_tcode);
     builder_->CreateRet(ConstInt32(0));
   }
 }
@@ -388,6 +323,7 @@ void CodeGenLLVM::Optimize() {
     fpass.run(*it);
   }
   fpass.doFinalization();
+  // PrintModule(module_.get());
   mpass.run(*module_);
 }
 
@@ -466,8 +402,9 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const PrimExpr& expr) const {
 //
 // This trick comes from Halide's CodeGen_LLVM
 //
-void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer, PrimExpr index) {
-  if (alias_var_set_.count(buffer) != 0) {
+void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_var, PrimExpr index,
+                               DataType access_dtype) {
+  if (alias_var_set_.count(buffer_var) != 0) {
     // Mark all possibly aliased pointer as same type.
     llvm::MDNode* meta = md_tbaa_alias_set_;
     inst->setMetadata("tbaa", md_builder_->createTBAAStructTagNode(meta, meta, 0));
@@ -479,52 +416,41 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer, P
   arith::PVar<int> planes;
   // create meta-data for alias analysis
   // Use a group of binary tree ranges of memory banks.
-  if (index.defined()) {
-    if (arith::ramp(pbase, pstride, planes).Match(index)) {
-      base = pbase.Eval()->value;
-      int64_t xwith = planes.Eval() * pstride.Eval()->value;
-      width = 1;
-      while (width < xwith) {
-        width *= 2;
-      }
-      while (base % width) {
-        base -= base % width;
-        width *= 2;
-      }
-    } else if (auto* ptr = index.as<tir::IntImmNode>()) {
-      width = 1;
-      base = ptr->value;
+  int64_t xwith = 0;
+  if (arith::ramp(pbase, pstride, planes).Match(index)) {
+    base = pbase.Eval()->value;
+    xwith = planes.Eval() * pstride.Eval()->value;
+  } else if (auto* ptr = index.as<tir::IntImmNode>()) {
+    base = ptr->value;
+    xwith = 1;
+  }
+  // adjust address index unit to byte
+  const int64_t unit_bit_width = 8;
+  const int64_t access_elem_bits = access_dtype.bits() * access_dtype.lanes();
+  base = base * access_elem_bits / unit_bit_width;
+  xwith = (xwith * access_elem_bits + unit_bit_width - 1) / unit_bit_width;
+  if (xwith > 0) {
+    width = 1;
+    while (width < xwith) {
+      width *= 2;
+    }
+    while (base % width) {
+      base -= base % width;
+      width *= 2;
     }
   }
+
   llvm::MDNode* meta = md_tbaa_root_;
   std::ostringstream buffer_addr;
-  buffer_addr << buffer;
+  buffer_addr << buffer_var;
   meta = md_builder_->createTBAAScalarTypeNode(buffer_addr.str(), meta);
-
-  // Extract the underlying type of the allocated buffer.
-  DataType dtype = buffer->dtype;
-  if (buffer->type_annotation.defined()) {
-    Type element_type = Downcast<PointerType>(buffer->type_annotation)->element_type;
-    if (auto* ptype = element_type.as<PrimTypeNode>()) {
-      dtype = ptype->dtype;
-    }
-  }
-  llvm::Type* buf_type = DTypeToLLVMType(dtype);
-  if (!buf_type) {
-    buf_type = t_void_p_;
-  }
-
-  std::string tmp;
-  llvm::raw_string_ostream buffer_type(tmp);
-  buffer_type << *buf_type;
-  meta = md_builder_->createTBAAScalarTypeNode(buffer_type.str(), meta);
 
   // create a tree-shape access structure.
   if (width != 0) {
     for (int64_t w = 1024; w >= width; w /= 2) {
       int64_t b = (base / w) * w;
       std::stringstream os;
-      os << buffer << ".w" << w << ".b" << b;
+      os << buffer_var << ".w" << w << ".b" << b;
       meta = md_builder_->createTBAAScalarTypeNode(os.str(), meta);
     }
   }
@@ -770,21 +696,27 @@ llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* va
   }
 }
 
-llvm::Constant* CodeGenLLVM::GetConstString(const std::string& str) {
-  auto it = str_map_.find(str);
-  if (it != str_map_.end()) return it->second;
-  llvm::Type* type = llvm::ArrayType::get(t_char_, str.length() + 1);
-  llvm::GlobalVariable* global = new llvm::GlobalVariable(
-      *module_, type, true, llvm::GlobalValue::PrivateLinkage, nullptr, ".str");
+llvm::Constant* CodeGenLLVM::GetGlobalConstant(llvm::Constant* const_data, const std::string& name,
+                                               llvm::GlobalValue::LinkageTypes linkage_type) {
+  llvm::Type* ty = const_data->getType();
+  llvm::GlobalVariable* global =
+      new llvm::GlobalVariable(*module_, ty, true, linkage_type, const_data, name);
 #if TVM_LLVM_VERSION >= 100
   global->setAlignment(llvm::Align(1));
 #else
   global->setAlignment(1);
 #endif
-  global->setInitializer(llvm::ConstantDataArray::getString(*ctx_, str));
   llvm::Constant* zero = ConstInt32(0);
   llvm::Constant* indices[] = {zero, zero};
-  llvm::Constant* ptr = llvm::ConstantExpr::getGetElementPtr(type, global, indices);
+  llvm::Constant* ptr = llvm::ConstantExpr::getGetElementPtr(ty, global, indices);
+  return ptr;
+}
+
+llvm::Constant* CodeGenLLVM::GetConstString(const std::string& str) {
+  auto it = str_map_.find(str);
+  if (it != str_map_.end()) return it->second;
+  auto llvm_str = llvm::ConstantDataArray::getString(*ctx_, str);
+  auto ptr = GetGlobalConstant(llvm_str, ".str", llvm::GlobalValue::PrivateLinkage);
   str_map_[str] = ptr;
   return ptr;
 }
@@ -1006,13 +938,19 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(builtin::address_of())) {
     const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
     ICHECK(op->args.size() == 1 && load);
-    ICHECK_EQ(load->indices.size(), 1) << "LLVM only supports flat memory allocations.";
-    PrimExpr index = load->indices[0];
-    if (const RampNode* r = index.as<RampNode>()) {
-      index = r->base;
+
+    Array<PrimExpr> indices = load->indices;
+    if (const RampNode* r = indices[indices.size() - 1].as<RampNode>()) {
+      indices.Set(indices.size() - 1, r->base);
     }
+
+    std::vector<llvm::Value*> indices_val;
+    for (const auto& index : indices) {
+      indices_val.push_back(MakeValue(index));
+    }
+
     TypedPointer buffer_ptr = CreateBufferPtr(MakeValue(load->buffer->data), load->buffer->dtype,
-                                              {MakeValue(index)}, load->dtype);
+                                              indices_val, load->dtype);
     unsigned addrspace =
         llvm::dyn_cast<llvm::PointerType>(buffer_ptr.addr->getType())->getAddressSpace();
     return builder_->CreatePointerCast(buffer_ptr.addr, t_char_->getPointerTo(addrspace));
@@ -1301,12 +1239,16 @@ void CodeGenLLVM::BufferAccessHelper(
   PrimExpr last_index = indices[indices.size() - 1];
   ICHECK_EQ(value_dtype.lanes(), last_index.dtype().lanes() * buffer_element_dtype.lanes());
 
+  // Record index and elemtype in original form used for alias info
+  PrimExpr last_index_origin = last_index;
+  DataType buffer_element_dtype_origin = buffer_element_dtype;
+
   bool is_volatile = volatile_buf_.count(buffer->data.get());
 
   // If the buffer index is a contiguous ramp node, we only need to
   // access the first element, then cast to the value type.
   if (const RampNode* ramp_index = last_index.as<RampNode>()) {
-    if (ramp_index && is_one(ramp_index->stride)) {
+    if (is_one(ramp_index->stride)) {
       last_index = ramp_index->base;
     }
   }
@@ -1357,7 +1299,7 @@ void CodeGenLLVM::BufferAccessHelper(
         CreateBufferPtr(MakeValue(buffer->data), buffer_element_dtype, all_index_values,
                         value_dtype.with_lanes(value_dtype.lanes() / last_index.dtype().lanes()));
     auto instruction = make_instruction(buffer_ptr, subelement_i, alignment, is_volatile);
-    AddAliasInfo(instruction, buffer->data.get(), last_index);
+    AddAliasInfo(instruction, buffer->data.get(), last_index_origin, buffer_element_dtype_origin);
   }
 }
 
@@ -1412,7 +1354,10 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
       return this->CreateCallExtern(GetType(GetRef<PrimExpr>(op)), op_attr_global_symbol_[call_op],
                                     op->args, false);
     } else {
-      return CreateIntrinsic(op);
+      VLOG(2) << "CreateIntrinsic: " << GetRef<Call>(op);
+      auto x = CreateIntrinsic(op);
+      VLOG(2) << "CreateIntrinsic done";
+      return x;
     }
   } else {
     ICHECK(op->op.as<GlobalVarNode>());
@@ -1557,7 +1502,7 @@ void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
   ICHECK(!is_zero(op->condition));
   llvm::Value* buf = nullptr;
 
-  size_t constant_size = op->ConstantAllocationSize();
+  int32_t constant_size = op->ConstantAllocationSize();
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation";
   StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
   if (constant_size % 4 == 0 && info.alignment == 0) {

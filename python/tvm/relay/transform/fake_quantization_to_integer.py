@@ -109,6 +109,20 @@ register_unary_identity("min")
 register_unary_identity("image.resize2d")
 
 
+@register_fake_quantization_to_integer("abs")
+def abs_(expr, type_map):
+    """Rewrite an abs op"""
+    assert len(expr.args) == 1
+    arg = expr.args[0]
+    t = type_map[arg]
+
+    min_value = relay.const(np.iinfo(t.dtype).min, t.dtype)
+    one = relay.const(1, t.dtype)
+    out = relay.op.where(relay.op.equal(min_value, arg), arg + one, arg)
+    out = relay.op.abs(out)
+    return [out, t]
+
+
 @register_fake_quantization_to_integer("nn.adaptive_avg_pool1d")
 def adaptive_avgpool1d(expr, type_map):
     """Rewrite an adaptive avgpool op"""
@@ -451,6 +465,8 @@ def register_binary_qnn(op_name, op):
             right_t.zero_point,
             out_t.scale,
             out_t.zero_point,
+            left_t.axis,
+            right_t.axis,
         )
 
         return [out, out_t]
@@ -526,3 +542,4 @@ register_unary_qnn("exp", relay.qnn.op.exp)
 register_unary_qnn("erf", relay.qnn.op.erf)
 register_unary_qnn("sigmoid", relay.qnn.op.sigmoid)
 register_unary_qnn("tanh", relay.qnn.op.tanh)
+register_unary_qnn("log", relay.qnn.op.log)

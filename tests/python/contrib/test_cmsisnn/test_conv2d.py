@@ -214,7 +214,6 @@ def test_conv2d_symmetric_padding_int8(
     )
 
 
-@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10314")
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
 @pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
@@ -282,7 +281,6 @@ def test_conv2d_asymmetric_padding_int8(
     )
     orig_mod = make_module(model)
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
-
     # validate pattern matching
     assert_partitioned_function(orig_mod, cmsisnn_mod)
 
@@ -304,7 +302,48 @@ def test_conv2d_asymmetric_padding_int8(
     )
 
 
-@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10314")
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3)])
+@pytest.mark.parametrize("kernel_shape", [(3, 2), (1, 3)])
+@pytest.mark.parametrize("strides, dilation", [((3, 2), (1, 1))])
+@pytest.mark.parametrize("padding", ["SAME", "VALID"])
+@pytest.mark.parametrize("activation", ["NONE", "RELU"])
+def test_conv2d_int8_tflite(ifm_shape, kernel_shape, strides, dilation, padding, activation):
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
+    dtype = "int8"
+
+    from tvm.relay.testing.tflite import TFLiteModel
+
+    tfl_model = TFLiteModel(dtype)
+    conv2d_function = tfl_model.create_conv2d_single(
+        kernel_shape, strides, padding, dilation, activation
+    )
+    tfl_model.create_tflite_model(conv2d_function, [ifm_shape])
+    relay_mod, relay_params = tfl_model.convert_to_relay()
+
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(relay_mod, relay_params)
+
+    # validate pattern matching
+    assert_partitioned_function(relay_mod, cmsisnn_mod)
+
+    # validate CMSIS-NN output against TFLite output
+    input_map, output_map, output_tolerance = tfl_model.generate_reference_data()
+    compile_and_run(
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=input_map,
+            outputs=output_map,
+            params=relay_params,
+            output_tolerance=output_tolerance,
+        ),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
+
+
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("ifm_shape", [(1, 28, 28, 12), (1, 64, 100, 4)])
 @pytest.mark.parametrize("kernel_size", [(3, 3)])

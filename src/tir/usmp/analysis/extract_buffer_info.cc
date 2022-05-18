@@ -227,10 +227,8 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
       auto pool_candidates =
           Downcast<Array<PoolInfo>>(op->annotations[kPoolCandidatesAllocateAttr]);
 
-      // TODO(@manupa-arm): improve the error when the responsible component for attaching a single
-      // pool is added
       ICHECK(pool_candidates.size() > 0)
-          << "The core compiler should at least attach a single PoolInfo. If there were no "
+          << "The AssignPoolInfo pass should at least attach a single PoolInfo. If there were no "
              "user-given arguments for memory pools, the default behaviour is a single size "
              "un-restricted pool is assigned";
       PrimFunc func = scope_stack_.top().func;
@@ -241,8 +239,24 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
         workspace_alignment =
             executor_config.value()->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
       }
-      auto buffer_info = BufferInfo(GetUniqueBufferName(op->buffer_var->name_hint), size_bytes,
-                                    pool_candidates, workspace_alignment);
+
+      BufferInfoKind bi_kind = BufferInfoKind::kIntermediate;
+      String buffer_info_name = op->buffer_var->name_hint;
+      if (op->annotations.find(kInputTensorAllocate) != op->annotations.end()) {
+        bi_kind = BufferInfoKind::kInput;
+        // using original input name instead of the buffer_var name
+        // because this name will be used in the lowering to convey
+        // the pool allocation.
+        buffer_info_name = Downcast<String>(op->annotations[kInputTensorAllocate]);
+      } else if (op->annotations.find(kOutputTensorAllocate) != op->annotations.end()) {
+        bi_kind = BufferInfoKind::kOutput;
+        // using original output name instead of the buffer_var name
+        // because this name will be used in the lowering to convey
+        // the pool allocation.
+        buffer_info_name = Downcast<String>(op->annotations[kOutputTensorAllocate]);
+      }
+      auto buffer_info = BufferInfo(GetUniqueBufferName(buffer_info_name), size_bytes,
+                                    pool_candidates, workspace_alignment, bi_kind);
       auto allocate = GetRef<Allocate>(op);
       allocate_infos[op->buffer_var] =
           AllocateInfo{allocate, scope_stack_.top().func, scope_stack_.top().call};

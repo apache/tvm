@@ -618,19 +618,28 @@ class BinaryElementwiseParams:
     and extract the parameter information.
     """
 
-    def __init__(self, func_body: Call, operator_type: str, has_quantization_parameters: bool):
+    def __init__(self, func_body: Call, operator_type: str, is_quantized_operation: bool):
         from tvm.relay.backend.contrib.ethosu.util import BinaryElementwiseArgs
+        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
 
+        current_call = func_body
         clip = None
-        if str(func_body.op) == "clip":
-            clip = func_body
-            binary_op = clip.args[0]
+        requantize = None
+
+        if is_quantized_operation:
+            if str(current_call.op) == "clip":
+                clip = current_call
+                current_call = clip.args[0]
         else:
-            binary_op = func_body
+            if str(current_call.op) == "qnn.requantize":
+                requantize = current_call
+                clip = current_call.args[0]
+                current_call = clip.args[0]
+        binary_op = current_call
 
         layout = "NHWC"
 
-        if has_quantization_parameters:
+        if is_quantized_operation:
             self.ifm = TensorParams(
                 binary_op.args[BinaryElementwiseArgs.IFM.value],
                 layout,
@@ -653,14 +662,20 @@ class BinaryElementwiseParams:
             self.ifm = TensorParams(
                 binary_op.args[BinaryElementwiseArgs.IFM.value],
                 layout,
+                requantize.args[RequantArgs.IFM_SCALE.value] if requantize else None,
+                requantize.args[RequantArgs.IFM_ZERO_POINT.value] if requantize else None,
             )
             self.ifm2 = TensorParams(
                 binary_op.args[BinaryElementwiseArgs.IFM2.value],
                 layout,
+                requantize.args[RequantArgs.IFM_SCALE.value] if requantize else None,
+                requantize.args[RequantArgs.IFM_ZERO_POINT.value] if requantize else None,
             )
             self.ofm = TensorParams(
-                binary_op,
+                func_body,
                 layout,
+                requantize.args[RequantArgs.OFM_SCALE.value] if requantize else None,
+                requantize.args[RequantArgs.OFM_ZERO_POINT.value] if requantize else None,
             )
         self.activation = clip
         self.operator_type = operator_type
@@ -859,9 +874,12 @@ def minimum_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     """
     This function creates the pattern for minimum with optional fused RELU activation.
     """
-    pattern = is_op("minimum")(wildcard(), wildcard())
-    pattern = pattern.optional(is_op("clip"))
-    return pattern
+    minimum = is_op("minimum")(wildcard(), wildcard())
+    optional_min_clip = is_op("clip")(minimum)
+    optional_min_clip = is_op("qnn.requantize")(
+        optional_min_clip, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    return minimum | optional_min_clip
 
 
 class MaxParams(BinaryElementwiseParams):
@@ -894,9 +912,12 @@ def maximum_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     """
     This function creates the pattern for maximum with optional fused RELU activation.
     """
-    pattern = is_op("maximum")(wildcard(), wildcard())
-    pattern = pattern.optional(is_op("clip"))
-    return pattern
+    maximum = is_op("maximum")(wildcard(), wildcard())
+    optional_max_clip = is_op("clip")(maximum)
+    optional_max_clip = is_op("qnn.requantize")(
+        optional_max_clip, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    return maximum | optional_max_clip
 
 
 class ShlParams(BinaryElementwiseParams):
@@ -1767,7 +1788,10 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
 # pylint: disable=unused-argument
 @requires_vela
 def partition_for_ethosu(
-    mod: tvm.ir.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None, **opts
+    mod: tvm.ir.IRModule,
+    params: Optional[Dict[str, tvm.runtime.NDArray]] = None,
+    mod_name: str = "default",
+    **opts,
 ):
     """This helper function partition the relay graph as produced by the
     relay frontend for a given model into external functions
@@ -1779,6 +1803,8 @@ def partition_for_ethosu(
         The IRModule that gets generated from a relay frontend
     params : Optional[Dict[str, tvm.runtime.NDArray]]
         Constant input parameters.
+    mod_name: str, optional
+        The module name
 
     Returns
     -------
@@ -1796,7 +1822,7 @@ def partition_for_ethosu(
     mod = relay.transform.AnnotateTarget("ethos-u")(mod)
     mod = relay.transform.MergeCompilerRegions()(mod)
     mod = relay.transform.InferType()(mod)
-    mod = relay.transform.PartitionGraph()(mod)
+    mod = relay.transform.PartitionGraph(mod_name)(mod)
     mod = relay.transform.InferType()(mod)
     mod = preprocess.preprocess_ext_io()(mod)
     return mod

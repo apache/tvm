@@ -31,6 +31,30 @@ static const char kErrBodyReverseInline[] = R"(The body of the inlined block sho
 where A is the only buffer the block consumes, whose indices are distinct atomic variables,
 and there should not no variables other than the index variables)";
 
+class HasInitBlock : public ScheduleError {
+ public:
+  explicit HasInitBlock(IRModule mod, Block block) : mod_(mod), block_(block) {}
+
+  String FastErrorString() const final { return "ScheduleError: The block has init statement"; }
+
+  String DetailRenderTemplate() const final {
+    return "ScheduleError: The block has init statement: {0}";
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+
+  static void Check(const IRModule& mod, const Block& block) {
+    if (block->init.defined()) {
+      throw HasInitBlock(mod, block);
+    }
+  }
+
+ private:
+  IRModule mod_;
+  Block block_;
+};
+
 class NotSingleReadWriteBuffer : public ScheduleError {
  public:
   explicit NotSingleReadWriteBuffer(IRModule mod, bool is_read, Block block)
@@ -572,6 +596,7 @@ void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
                        bool check_only = false) {
   const BlockNode* _producer_block = TVM_SREF_TO_BLOCK(_producer_block, producer_block_sref);
   Block producer_block = GetRef<Block>(_producer_block);
+  HasInitBlock::Check(self->mod, producer_block);
   Buffer inlined_buffer = NotSingleReadWriteBuffer::GetSingleWrite(self, producer_block);
   // Step 1. Get the scope block
   StmtSRef scope_root_sref = GetScopeRoot(self, producer_block_sref,
@@ -616,6 +641,7 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
                               bool check_only = false) {
   const BlockNode* _consumer_block = TVM_SREF_TO_BLOCK(_consumer_block, consumer_block_sref);
   Block consumer_block = GetRef<Block>(_consumer_block);
+  HasInitBlock::Check(self->mod, consumer_block);
   // Step 1. Get the scope block
   StmtSRef scope_root_sref = GetScopeRoot(self, consumer_block_sref,  //
                                           /*require_stage_pipeline=*/true);

@@ -26,6 +26,8 @@
 #include <fstream>
 #include <ios>
 #include <iterator>
+#include <ostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -130,9 +132,9 @@ bool write_output_config(const std::string& file_name, OutputConfig* output_conf
 }
 
 Model::Model(tvm::runtime::Module executor, tvm::runtime::Module module, std::string json)
-    : graph_executor(executor), graph_module(module), graph_json(json) {
+    : model_executor(executor), graph_module(module), graph_json(json) {
   // Lookup "run" ahead of time to reduce overhead in the model execution.
-  run = get_module_func(graph_executor, "run");
+  run = get_module_func(model_executor, "run");
 }
 
 const tvm::runtime::PackedFunc get_runtime_func(const std::string& name) {
@@ -148,8 +150,8 @@ const tvm::runtime::PackedFunc get_module_func(tvm::runtime::Module module,
 }
 
 void reset_device_api() {
-  const tvm::runtime::PackedFunc api = get_runtime_func("device_api.hexagon.v2");
-  tvm::runtime::Registry::Register("device_api.hexagon", true).set_body(api);
+  const tvm::runtime::PackedFunc api = get_runtime_func("device_api.hexagon");
+  tvm::runtime::Registry::Register("device_api.cpu", true).set_body(api);
 }
 
 tvm::runtime::Module load_module(const std::string& file_name) {
@@ -157,9 +159,21 @@ tvm::runtime::Module load_module(const std::string& file_name) {
       get_runtime_func("runtime.module.loadfile_hexagon");
   tvm::runtime::TVMRetValue rv = loader(file_name);
   if (rv.type_code() == kTVMModuleHandle) {
+    ICHECK_EQ(rv.type_code(), kTVMModuleHandle)
+        << __func__ << ": loaded " << file_name << ", but did not get module handle";
     return rv.operator tvm::runtime::Module();
   }
   return tvm::runtime::Module();
+}
+
+std::ostream& operator<<(std::ostream& os, const tvm::Array<tvm::String>& strings) {
+  os << '[';
+  for (int i = 0, e = strings.size(); i != e; ++i) {
+    if (i != 0) os << ',';
+    os << static_cast<std::string>(strings[i]);
+  }
+  os << ']';
+  return os;
 }
 
 tvm::runtime::Module create_graph_executor(const std::string& graph_json,
@@ -170,10 +184,25 @@ tvm::runtime::Module create_graph_executor(const std::string& graph_json,
   uint64_t device_type = device.device_type;
   uint64_t device_id = device.device_id;
 
-  std::string linked_params = "tvm.runtime.hexagon.lookup_linked_params";
-  const tvm::runtime::PackedFunc lookup_linked_params = get_runtime_func(linked_params);
-  // Use default param lookup function (linked into the module).
-  tvm::runtime::TVMRetValue rv =
-      create_executor(graph_json, graph_module, lookup_linked_params, device_type, device_id);
+  if (graph_json.empty()) {
+    LOG(ERROR) << __func__ << ": graph executor requires graph JSON";
+    return tvm::runtime::Module();
+  }
+  tvm::runtime::TVMRetValue rv = create_executor(graph_json, graph_module, device_type, device_id);
   return rv.operator tvm::runtime::Module();
+}
+
+tvm::runtime::Module create_aot_executor(tvm::runtime::Module factory_module, tvm::Device device) {
+  tvm::runtime::PackedFunc list_modules = get_module_func(factory_module, "list_module_names");
+  tvm::Array<tvm::String> module_names = list_modules();
+  if (module_names.size() != 1) {
+    LOG(WARNING) << __func__ << ": expecting single module, got: " << module_names << ", using "
+                 << module_names[0];
+  }
+  tvm::runtime::PackedFunc f = get_module_func(factory_module, module_names[0]);
+  if (f.get() == nullptr) {
+    LOG(ERROR) << __func__ << ": failed to obtain function " << module_names[0];
+    return tvm::runtime::Module();
+  }
+  return f(device);
 }

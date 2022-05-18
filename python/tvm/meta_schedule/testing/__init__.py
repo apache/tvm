@@ -15,4 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Testing utilities in meta schedule"""
-from .utils import DummyDatabase, DummyBuilder, DummyRunner, DummyRunnerFuture, DummyMutator
+from .utils import (
+    DummyDatabase,
+    DummyBuilder,
+    DummyRunner,
+    DummyRunnerFuture,
+    DummyMutator,
+    apply_fixed_schedules,
+)

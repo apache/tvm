@@ -85,10 +85,6 @@ previous_port = None
 
 
 def get_free_port():
-    # https://stackoverflow.com/a/52872579/2689797
-    def is_port_in_use(port: int) -> bool:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            return s.connect_ex(("localhost", port)) == 0
 
     global previous_port
     if previous_port is None:
@@ -96,7 +92,7 @@ def get_free_port():
     else:
         port = previous_port + 1
 
-    while is_port_in_use(port):
+    while tvm.contrib.hexagon.build._is_port_in_use(port):
         port = port + 1 if port < listen_port_max else listen_port_min
 
     previous_port = port
@@ -206,3 +202,19 @@ def terminate_rpc_servers():
     yield []
     if serial == "simulator":
         os.system("ps ax | grep tvm_rpc_x86 | awk '{print $1}' | xargs kill")
+
+
+aot_host_target = tvm.testing.parameter(
+    "c",
+    "llvm -keys=hexagon -link-params=0 -mattr=+hvxv68,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp -mcpu=hexagonv68 -mtriple=hexagon",
+)
+
+
+@tvm.testing.fixture
+def aot_target(aot_host_target):
+    if aot_host_target == "c":
+        yield tvm.target.hexagon("v68")
+    elif aot_host_target.startswith("llvm"):
+        yield aot_host_target
+    else:
+        assert False, "Incorrect AoT host target: {aot_host_target}. Options are [c, llvm]."

@@ -18,3 +18,55 @@
 {% macro per_exec_ws(folder) -%}
   "workspace/exec_${env.EXECUTOR_NUMBER}/{{ folder }}"
 {%- endmacro -%}
+
+{% macro sharded_test_step(name, num_shards, node, ws, platform) %}
+{% for shard_index in range(1, num_shards + 1) %}
+  '{{ name }} {{ shard_index }} of {{ num_shards }}': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('{{ node }}') {
+        ws({{ per_exec_ws(ws) }}) {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM={{ platform }}',
+                'TVM_NUM_SHARDS={{ num_shards }}',
+                'TVM_SHARD_INDEX={{ shard_index - 1 }}'], {
+                {{ caller(shard_index) | trim | indent(width=12) }}
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('{{ name }} {{ shard_index }} of {{ num_shards }}')
+    }
+  },
+{% endfor %}
+{% endmacro %}
+
+
+{% macro test_step(name, node, ws, platform) %}
+  '{{ name }}': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('{{ node }}') {
+        ws({{ per_exec_ws(ws) }}) {
+          timeout(time: max_time, unit: 'MINUTES') {
+            try {
+              init_git()
+              withEnv(['PLATFORM={{ platform }}'], {
+                {{ caller() | indent(width=12) | trim }}
+              })
+            } finally {
+              junit 'build/pytest-results/*.xml'
+            }
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('{{ name }}')
+    }
+  },
+{% endmacro %}

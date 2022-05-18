@@ -26,9 +26,9 @@ def test_convert_ssa():
     var_type = ir.PointerType(ir.PrimType(dtype))
     v = tir.Var("i1", var_type)
     buf = tir.decl_buffer([16], dtype=dtype, data=v)
-    for_stmt = tir.For(v, zero, zero, tir.ForKind.SERIAL, nop)
+    let = tir.LetStmt(v, v, nop)
     load = tir.Evaluate(tir.BufferLoad(buf, [zero]))
-    seq = tir.SeqStmt([for_stmt, for_stmt, load])
+    seq = tir.SeqStmt([let, let, load])
     func = tir.PrimFunc([], seq)
     mod = tvm.IRModule({"main": func})
     mod = tir.transform.InjectVirtualThread()(

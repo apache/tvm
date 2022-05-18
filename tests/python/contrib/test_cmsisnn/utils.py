@@ -18,7 +18,6 @@
 """CMSIS-NN functions for testing networks"""
 
 import platform
-
 import math
 import numpy as np
 import pytest
