@@ -144,7 +144,7 @@ def _val2type(value: Any):
         if len(types) == 1:
             return List[types.pop()]  # type: ignore
 
-        return List[Any]
+        return List[Union[tuple(types)]]  # type: ignore
 
     if isinstance(value, tuple):
         types = tuple(_val2type(x) for x in value)  # type: ignore
