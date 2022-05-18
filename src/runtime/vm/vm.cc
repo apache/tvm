@@ -310,16 +310,16 @@ void VirtualMachine::PrintInfoAndSetInputArgs(const VMFunction& func, const std:
   InvokeGlobal(func, args);
 }
 
-void VirtualMachine::SetOutputTensorsToRegister(const std::vector<ObjectRef>& outputs) {
+void VirtualMachine::SetOutputTensorsToRegister(const std::string& func_name, const std::vector<ObjectRef>& outputs) {
   size_t size = outputs.size();
 
   Index res_ind = GetResultRegisterIndex();
-  if (size == 1) {
-    WriteRegister(res_ind, outputs[0]);
-  } else {
-    // TODO(vvchernov): I'm not sure we need any tag here. Nevertheless it is required
-    auto output_set = ADT(0, outputs);
-    WriteRegister(res_ind, output_set);
+  CollectOutputTensorRegIndices(func_name);
+  auto& reg_indices = output_tensor_reg_indices_[func_name];
+  ICHECK_EQ(reg_indices.size(), size)
+      << "Number of outside output tensors should be equal to model outputs number";
+  for (size_t i = 0; i < size; ++i) {
+    WriteRegister(reg_indices[i], outputs[i]);
   }
 }
 
@@ -441,7 +441,7 @@ ObjectRef VirtualMachine::Invoke(const VMFunction& func,
                                  const std::vector<ObjectRef>& input_args,
                                  const std::vector<ObjectRef>& output_args) {
   PrintInfoAndSetInputArgs(func, input_args);
-  SetOutputTensorsToRegister(output_args);
+  SetOutputTensorsToRegister(func.name, output_args);
   RunLoop(set_outputs_enabled_[func.name]);
   return return_register_;
 }
@@ -591,6 +591,28 @@ Index VirtualMachine::GetResultRegisterIndex() const {
   }
 
   return code_[op_index].result;
+}
+
+void VirtualMachine::CollectOutputTensorRegIndices(const std::string& func_name) {
+  if (!output_tensor_reg_indices_[func_name].empty()) {
+    return;
+  }
+
+  auto& reg_indices = output_tensor_reg_indices_[func_name];
+  Index res_index = GetResultRegisterIndex();
+  Index op_index = 0;
+  while (code_[op_index].dst != res_index) {
+    ++op_index;
+  }
+  if (code_[op_index].op == Opcode::AllocTensor) {
+    reg_indices.emplace_back(res_index);
+  } else if (code_[op_index].op == Opcode::AllocADT) {
+    for (Index i = 0; i < code_[op_index].num_fields; ++i) {
+      reg_indices.push_back(code_[op_index].datatype_fields[i]);
+    }
+  } else {
+    // TODO(vvchernov): possible extension
+  }
 }
 
 void VirtualMachine::RunLoop(bool set_output_enabled) {

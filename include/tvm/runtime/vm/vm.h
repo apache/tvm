@@ -308,9 +308,10 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
 
   /*!
    * \brief Set pre-allocated outputs to register for specified function.
+   * \param func_name The function's name.
    * \param outputs set of output tensors.
    */
-  void SetOutputTensorsToRegister(const std::vector<ObjectRef>& outputs);
+  void SetOutputTensorsToRegister(const std::string& func_name, const std::vector<ObjectRef>& outputs);
 
   /*!
    * \brief Internal hook for profiling the start of an op.
@@ -385,8 +386,16 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
   Index GetResultRegisterIndex() const;
 
   /*!
-   * \brief Write new allocated tensor to register_file of frame
-   * \param instr current instruction containing shape and storage info
+   * \brief Collect indices from register_file for output tensors.
+   * It helps to replace output tensors allocated in RunLoop by
+   * tensors pre-allocated outside. Scenario is when `set_output` is used
+   * \param func_name The function's name.
+   */
+  void CollectOutputTensorRegIndices(const std::string& func_name);
+
+  /*!
+   * \brief Write new allocated tensor to register_file of frame.
+   * \param instr current instruction containing shape and storage info.
    */
   void WriteAllocatedTensor(const Instruction& instr);
 
@@ -394,8 +403,9 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
    * \brief 'set_outputs_enabled' is assumed true for using this method.
    * It is expected that result register has already contained tensor from outside,
    * new tensor is not allocated and write, but expected shape is checked.
-   * For other register WriteAllocatedMethod is used.
-   * \param instr current instruction containing shape and storage info
+   * For other register WriteAllocatedTensor method is used.
+   * \param instr current instruction containing shape and storage info.
+   * \param res_index register index of result.
    */
   void WriteAllocatedTensorFromOutside(const Instruction& instr, Index res_index);
 
@@ -416,7 +426,10 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
   ObjectPtr<Executable> exec_;
   /*! \brief The function name to inputs mapping. */
   std::unordered_map<std::string, std::vector<ObjectRef>> inputs_;
+  /*! \brief The function name to flag enabling scenario with set outputs. */
   std::unordered_map<std::string, bool> set_outputs_enabled_;
+  /*! \brief The function name to indices of output tensors in register file. */
+  std::unordered_map<std::string, std::vector<Index>> output_tensor_reg_indices_;
   /*! \brief The function name to pre-allocated outputs mapping. */
   std::unordered_map<std::string, std::vector<ObjectRef>> outputs_;
   /*!
