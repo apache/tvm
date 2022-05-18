@@ -29,10 +29,9 @@ from tvm._ffi import get_global_func
 from tvm.contrib import cc as _cc
 
 
-"""Splitting graph into a list of subgraph"""
-
-
 def graph_split(expr, split_conf, params=None):
+    """Splitting graph into a list of subgraphs"""
+
     def get_dep_var(sub_var_dep):
         return [var for var, _ in sub_var_dep[len(sub_var_dep) - 1]["ref_nodes"].items()]
 
@@ -41,22 +40,21 @@ def graph_split(expr, split_conf, params=None):
         need_update = False
         for var in value.args:
             is_free_var = False
-            for i in range(0, len(snode_dep) - 1):
-                dep = snode_dep[i]
+            for dep in snode_dep[:-1]:
                 if var in dep["nodes"]:
                     # Mark the previous subgraph node as a dependency.
                     dep["nodes"][var] = dep["nodes"][var] + 1
                     dep["ref_nodes"][var] = dep["nodes"][var]
                     # The var of this call is a free_var
                     is_free_var = True
-            # if the var of this call is free_var, recreate it and give it a fixed input name.
+            # if the var of this call is a free_var, recreate it and give it a fixed input name.
             if is_free_var:
                 need_update = True
                 new_args.append(relay.var(f"data_n_{new_input_idx}", var.checked_type))
                 new_input_idx = new_input_idx + 1
             else:
                 new_args.append(var)
-        # if the call have a free_var, recreate it.
+        # if the 'tvm.relay.expr.Call' has a free_var, recreate it with new name as 'data_n_*'.
         if need_update:
             value = tvm.relay.expr.Call(
                 value.op, new_args, value.attrs, value.type_args, value.span
@@ -73,7 +71,7 @@ def graph_split(expr, split_conf, params=None):
         )
 
     def _recursion(anf, pipeline_mods, split_conf, constant_expr):
-        # Enumrate all operators of compute graph, then split the compute graph into a group of
+        # Enumurate all operators of compute graph, then split the compute graph into a group of
         # subgraph.
         nonlocal operator_index_map
         nonlocal new_input_idx
@@ -89,7 +87,7 @@ def graph_split(expr, split_conf, params=None):
             )
         if isinstance(anf, tvm.relay.expr.Let):
             value = anf.value
-            # record the constant expr to make sure all sugraph can find correct constant.
+            # record the constant expr to make sure all sugraphs can find correct constant.
             if isinstance(value, tvm.relay.expr.Constant):
                 if not constant_expr:
                     constant_expr = tvm.relay.expr.Let(anf.var, value, anf.var)
@@ -108,11 +106,15 @@ def graph_split(expr, split_conf, params=None):
                         operator_index_map[value.op.name] = 0
                     split_operator_name = split_conf[0]["op_name"] if split_conf else ""
                     split_operator_index = split_conf[0]["op_index"] if split_conf else ""
+                    # if a operator name and repeating count in the network match with the values
+                    # of the 'split configuration', then this place is where we should do the
+                    # graph splitting.
                     if (
                         split_conf
                         and split_operator_name in operator_index_map
                         and operator_index_map[split_operator_name] >= split_operator_index
                     ):
+                        # Do graph splitting.
                         split_conf.pop(0)
                         snode_dep.append({"nodes": {}, "ref_nodes": {}})
                         ann = _recursion(
@@ -123,13 +125,13 @@ def graph_split(expr, split_conf, params=None):
                         )
                         snode_dep.pop()
                         dep_vars = get_dep_var(snode_dep)
-                        # When the nodes of current subgraph are the depedency node of other
+                        # When the nodes of the current subgraph are the depedency node of another
                         # subgraph, we need to set them as the output of current subgraph.
                         body = relay.Tuple(dep_vars) if len(dep_vars) > 1 else anf.var
-                        # when current subgraph use previous subgraph constant,
-                        # such constant may become free varaible due to the constant
-                        # not exist, merge the previous constant with current subgraph
-                        # to avoid such issue.
+                        # when the operator of current subgraph uses previous subgraph constant
+                        # as the argument of a "relay.expr.call", such constant may become a free
+                        # varaible if the constant does not exist in the current subgraph.
+                        # merge the previous constant with current subgraph to avoid such issue.
                         if constant_expr:
                             ann = merge_constant_expr(constant_expr, ann)
                         ann = run_opt_pass(ann, transform.ToGraphNormalForm())
@@ -190,13 +192,13 @@ def get_network():
     net1_output3 = relay.concatenate((net1_output1, net1_output2), axis=0)
     (net1_output3, _) = relay.split(net1_output3, indices_or_sections=2, axis=0)
     net1_output3 = relay.add(net1_output3, mv2)
-    # The second model use output named net1_output1 of the first model as the first input,
+    # The second model uses the output named net1_output3 of the first model as the first input,
     # the second input of the second model is data21.
     net2 = relay.add(net1_output3, mv2)
     net2 = relay.add(net2, data21)
     net2_output = relay.add(net2, mv3)
-    # The third model use the output named net2_output of the second model as the first input
-    # and use the output named net1_output2 of the first model as the second input.
+    # The third model uses the output named net2_output of the second model as the first input
+    # and uses the output named net1_output2 of the first model as the second input.
     net3 = relay.multiply(net2_output, mv3)
     net3 = relay.add(net3, net1_output2)
     return tvm.IRModule.from_expr(relay.Function([data, data21], relay.Tuple([net3]))), dshape
@@ -495,7 +497,7 @@ def test_pipeline():
 
             # The mod3 output[0] will be connected to pipeline output[0].
             pipe_config[mod3]["output"][0].connect(pipe_config["output"]["0"])
-            # Print configueration (print(pipe_config)), the result looks like following.
+            # Print configuration (print(pipe_config)), the result looks like following.
             #
             # Inputs
             #   |data_a: mod1:data_0
