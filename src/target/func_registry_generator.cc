@@ -31,13 +31,7 @@ namespace target {
 
 std::string GenerateFuncRegistryNames(const Array<String>& function_names) {
   std::stringstream ss;
-
-  unsigned char function_nums[sizeof(uint16_t)];
-  *reinterpret_cast<uint16_t*>(function_nums) = function_names.size();
-  for (auto f : function_nums) {
-    ss << f;
-  }
-
+  ss << (unsigned char)(function_names.size());
   for (auto f : function_names) {
     ss << f << '\0';
   }
