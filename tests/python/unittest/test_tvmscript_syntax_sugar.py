@@ -323,6 +323,28 @@ def test_func_call():
 
     assert_structural_equal(mma_sync_m16n16k16_desc, mma_sync_m16n16k16_desc_manual)
 
+    # The following is an example of an error message from calling an invalid function
+
+    # error: Error occured when invoking the function sqrt:
+    # loop of ufunc does not support argument 0 of type Var which has no callable sqrt method
+    #  --> test_tvmscript_syntax_sugar.py:334:19
+    #      |
+    #  334 |              ind = sqrt(i)
+    #      |                    ^^^^^^^
+    # note: run with `TVM_BACKTRACE=1` environment variable to display a backtrace.
+
+    # Uncomment to see the error above.
+    # def sqrt(x):
+    #     import numpy as np
+    #     return np.sqrt(x)
+
+    # @T.prim_func
+    # def loop(a: T.handle) -> None:
+    #     A = T.match_buffer(a, (128,))
+    #     for i in T.serial(128):
+    #         ind = sqrt(i)
+    #         A[i] = A[ind]
+
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

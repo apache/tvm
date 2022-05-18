@@ -584,7 +584,16 @@ class TVMScriptParser(Transformer):
             elif isinstance(func, types.FunctionType):
                 # Pattern 5
                 args = [self.transform(arg) for arg in node.rhs.params]
-                out = func(*args)
+                try:
+                    out = func(*args)
+                except Exception as e:
+                    self.report_error(
+                        "Error occured when invoking the function "
+                        + func.__name__
+                        + ": \n"
+                        + str(e),
+                        node.rhs.span,
+                    )
 
                 if len(node.lhs) == 1 and not isinstance(out, list):
                     out = [out]
