@@ -310,6 +310,8 @@ TVM_DLL Map<String, String> GetLibInfo() {
       {"USE_THRUST", TVM_INFO_USE_THRUST},
       {"USE_VITIS_AI", TVM_INFO_USE_VITIS_AI},
       {"USE_VULKAN", TVM_INFO_USE_VULKAN},
+      {"USE_CLML", TVM_INFO_USE_CLML},
+      {"USE_CLML_GRAPH_EXECUTOR", TVM_INFO_USE_CLML_GRAPH_EXECUTOR},
   };
   return result;
 }
