@@ -398,6 +398,57 @@ TVM_REGISTER_GLOBAL("runtime.NumThreads").set_body_typed([]() -> int32_t {
 });
 
 namespace threading {
+
+#if TVM_THREADPOOL_USE_OPENMP
+/*!
+ * \brief Helper function that allows to pin threads to cores in case of multi instance execution
+ *        when we use OpenMP thread pool.
+ *
+ * \param mode Affinity mode (now supports only kSpecifyOneCorePerThread and
+ *             kSpecifyThreadShareAllCore).
+ * \param nthreads The number of threads to use (0 = use all).
+ * \param cpus A list of CPU ids to set 'cpu affinity'.
+ *
+ */
+static void ConfigureOMP(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthreads,
+                         const std::vector<unsigned int>& cpus) {
+#if defined(__linux__) || defined(__ANDROID__)
+  const int num_workers = MaxConcurrency();
+
+  if (mode == ThreadGroup::kSpecifyOneCorePerThread) {
+#pragma omp parallel num_threads(num_workers)
+    {
+      int core_id = cpus[omp_get_thread_num()];
+      cpu_set_t cpuset;
+      CPU_ZERO(&cpuset);
+      CPU_SET(core_id, &cpuset);
+#if defined(__ANDROID__)
+      sched_setaffinity(pthread_self(), sizeof(cpu_set_t), &cpuset);
+#else
+      pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+#endif
+    }
+  } else if (mode == ThreadGroup::kSpecifyThreadShareAllCore) {
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    for (auto id : cpus) {
+      CPU_SET(id, &cpuset);
+    }
+
+#pragma omp parallel num_threads(num_workers)
+    {
+#if defined(__ANDROID__)
+      sched_setaffinity(pthread_self(), sizeof(cpu_set_t), &cpuset);
+#else
+      pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+#endif
+    }
+  }
+#endif
+}
+
+#endif
+
 void ResetThreadPool() { tvm::runtime::ThreadPool::ThreadLocal()->Reset(); }
 /*!
  * \brief configure the CPU id affinity
@@ -410,7 +461,11 @@ void ResetThreadPool() { tvm::runtime::ThreadPool::ThreadLocal()->Reset(); }
 void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthreads,
                std::vector<unsigned int> cpus) {
   tvm::runtime::threading::SetMaxConcurrency(cpus.size());
+#if !TVM_THREADPOOL_USE_OPENMP
   tvm::runtime::ThreadPool::ThreadLocal()->UpdateWorkerConfiguration(mode, nthreads, cpus);
+#else
+  ConfigureOMP(mode, nthreads, cpus);
+#endif
 }
 int32_t NumThreads() { return tvm::runtime::ThreadPool::ThreadLocal()->NumThreads(); }
 }  // namespace threading

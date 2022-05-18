@@ -27,8 +27,6 @@ import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.nn.utils import get_pad_tuple
 
-from ..conftest import requires_hexagon_toolchain
-
 
 dtype = tvm.testing.parameter("float32")
 random_seed = tvm.testing.parameter(0)
@@ -91,7 +89,7 @@ class BaseConv2DTests:
     dilation = tvm.testing.parameter(1)
     batch = tvm.testing.parameter(1)
 
-    @requires_hexagon_toolchain
+    @tvm.testing.requires_hexagon
     def test_conv2d_nchw(
         self,
         hexagon_session: Session,

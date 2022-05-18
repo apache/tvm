@@ -404,6 +404,10 @@ def _get_targets(target_str=None):
         if target_kind == "cuda" and "cudnn" in tvm.target.Target(target).attrs.get("libs", []):
             is_enabled = tvm.support.libinfo()["USE_CUDNN"].lower() in ["on", "true", "1"]
             is_runnable = is_enabled and cudnn.exists()
+        elif target_kind == "hexagon":
+            is_enabled = tvm.support.libinfo()["USE_HEXAGON"].lower() in ["on", "true", "1"]
+            # If Hexagon has compile-time support, we can always fall back
+            is_runnable = is_enabled and "ANDROID_SERIAL_NUMBER" in os.environ
         else:
             is_enabled = tvm.runtime.enabled(target_kind)
             is_runnable = is_enabled and tvm.device(target_kind).exist
