@@ -419,9 +419,7 @@ def test_compile_tflite_module_with_external_codegen_cmsisnn(
 def test_compile_tflite_module_with_external_codegen_ethos_n78(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
     tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
-    tvmc_package = tvmc.compile(
-        tvmc_model, target="ethos-n78 -variant=ethos-n78, llvm", dump_code="relay"
-    )
+    tvmc_package = tvmc.compile(tvmc_model, target="ethos-n -variant=n78, llvm", dump_code="relay")
     dumps_path = tvmc_package.package_path + ".relay"
 
     # check for output types
