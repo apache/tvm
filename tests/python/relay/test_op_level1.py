@@ -522,6 +522,7 @@ def test_concatenate2():
                     t_shape = tuple(temp)
                     do_concat_test(shapes, t_shape, dtype, axis, dev, target)
 
+
 @tvm.testing.uses_gpu
 def test_concatenate3():
     for target, dev in tvm.testing.enabled_targets():
@@ -531,9 +532,10 @@ def test_concatenate3():
         for dtype in ["float32"]:
             axis = -2
             ending = 1
-            shapes = [[3,2,1,ending], [3,2,1,ending]]
-            t_shape = [3,2,2,ending]
+            shapes = [[3, 2, 1, ending], [3, 2, 1, ending]]
+            t_shape = [3, 2, 2, ending]
             do_concat_test(shapes, t_shape, dtype, axis, dev, target)
+
 
 def test_batch_norm_fold_const():
     axis = 1

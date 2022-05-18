@@ -83,7 +83,7 @@ def _concat(a_tuple, axis=0):
     if len(out_shape[axis + 1 :]) == 0:
         rightVal = out_shape[axis]
     else:
-        rightVal = np.prod(out_shape[axis :])
+        rightVal = np.prod(out_shape[axis:])
     # check if dimensions tail is (1 , ... , 1, axis, ...)
     if len(out_shape[:axis]) == 0:
         leftVal = out_shape[axis]
