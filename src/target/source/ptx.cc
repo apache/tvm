@@ -641,19 +641,27 @@ std::string PrintLoadMatrixAssembly(bool trans, int num, const std::string& type
 std::string PrintCpAsyncAssembly(const std::string& shared_ptr,
                                  const std::string& shared_elem_offset,
                                  const std::string& global_ptr,
-                                 const std::string& global_elem_offset, size_t bytes) {
-
-    // unsigned int addr;
-    // __asm__ __volatile__(
-    //   "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-    //   : "=r"(addr)
-    //   : "l"((void *)({smem_addr}))
-    // );
-
-    // this->stream << "__asm__ __volatile__(\"cp.async.ca.shared.global  [" + dst + dst_offset +
-    //                     "], [" + src + src_offset + "], " + size + "\");\n";
-
-  return "";
+                                 const std::string& global_elem_offset, const std::string& bytes) {
+  std::string asm_code = R"(
+  {
+    unsigned int addr;
+    __asm__ __volatile__(
+      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
+      : "=r"(addr)
+      : "l"((void *)({smem_addr}))
+    );
+    __asm__ __volatile__(
+      "cp.async.ca.shared.global [%1], [%2], %3;\n"
+       :"r"(addr), "l"(global_ptr), "n"(bytes)
+    );
+  }
+)";
+  Replacer replacer;
+  replacer.register_rule("{smem_addr}", shared_ptr + " + " + shared_elem_offset);
+  replacer.register_rule("{global_ptr}", global_ptr + " + " + global_elem_offset);
+  replacer.register_rule("{bytes}  ", bytes);
+  asm_code = replacer.rewrite(asm_code);
+  return asm_code;
 }
 
 }  // namespace codegen

@@ -82,7 +82,7 @@ std::string PrintLoadMatrixAssembly(bool trans, int num, const std::string& type
 std::string PrintCpAsyncAssembly(const std::string& shared_ptr,
                                  const std::string& shared_elem_offset,
                                  const std::string& global_ptr,
-                                 const std::string& global_elem_offset, size_t bytes);
+                                 const std::string& global_elem_offset, const std::string& bytes);
 
 }  // namespace codegen
 }  // namespace tvm
