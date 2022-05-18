@@ -47,7 +47,7 @@ import numpy as np
 M = 4096
 N = 4096
 K = 4096
-measure_perf = True
+measure_perf = False
 gflops = (N * M * K) * 2 / 1e9
 
 
