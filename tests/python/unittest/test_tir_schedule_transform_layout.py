@@ -166,7 +166,7 @@ def test_simplify():
     block_outer = sch.blockize(i_inner)
 
     B = sch.cache_read(block_outer, 0, "global")
-    sch.transform_layout(B, 0, "write", lambda i, j: (i // 16, j // 16, i % 16, j % 16))
+    sch.transform_layout(B, ("write", 0), lambda i, j: (i // 16, j // 16, i % 16, j % 16))
 
     @T.prim_func
     def ref(B: T.Buffer[(8, 8, 16, 16), "float32"], C: T.Buffer[(128, 128), "float32"]):
