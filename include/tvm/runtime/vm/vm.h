@@ -300,6 +300,13 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
   void SetOutputs(std::string name, TVMArgs args);
 
   /*!
+   * \brief Preparation part of Invoke method before RunLoop.
+   * \param func the function.
+   * \param args input args
+   */
+  void PrintInfoAndSetInputArgs(const VMFunction& func, const std::vector<ObjectRef>& args);
+
+  /*!
    * \brief Set pre-allocated outputs to register for specified function.
    * \param outputs set of output tensors.
    */

@@ -298,6 +298,18 @@ void VirtualMachine::SetOutputs(std::string func_name, TVMArgs args) {
   outputs_.emplace(func_name, func_args);
 }
 
+
+void VirtualMachine::PrintInfoAndSetInputArgs(const VMFunction& func, const std::vector<ObjectRef>& args) {
+  VLOG(2) << "Executing Function: " << std::endl << func;
+  for (int i = 0; i < static_cast<int>(devices_.size()); ++i) {
+    VLOG(2) << "Device " << i << " has device type " << devices_[i].device_type
+            << " and device id " << devices_[i].device_id
+            << (i == exec_->host_device_index ? " (using as host device)" : "");
+  }
+
+  InvokeGlobal(func, args);
+}
+
 void VirtualMachine::SetOutputTensorsToRegister(const std::vector<ObjectRef>& outputs) {
   size_t size = outputs.size();
 
@@ -411,14 +423,7 @@ void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<Obje
 }
 
 ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<ObjectRef>& args) {
-  VLOG(2) << "Executing Function: " << std::endl << func;
-  for (int i = 0; i < static_cast<int>(devices_.size()); ++i) {
-    VLOG(2) << "Device " << i << " has device type " << devices_[i].device_type << " and device id "
-            << devices_[i].device_id
-            << (i == exec_->host_device_index ? " (using as host device)" : "");
-  }
-
-  InvokeGlobal(func, args);
+  PrintInfoAndSetInputArgs(func, args);
   RunLoop();
   return return_register_;
 }
@@ -435,14 +440,7 @@ ObjectRef VirtualMachine::Invoke(const std::string& name, const std::vector<Obje
 ObjectRef VirtualMachine::Invoke(const VMFunction& func,
                                  const std::vector<ObjectRef>& input_args,
                                  const std::vector<ObjectRef>& output_args) {
-  DLOG(INFO) << "Executing Function: " << std::endl << func;
-  for (int i = 0; i < static_cast<int>(devices_.size()); ++i) {
-    DLOG(INFO) << "Device " << i << " has device type " << devices_[i].device_type
-               << " and device id " << devices_[i].device_id
-               << (i == exec_->host_device_index ? " (using as host device)" : "");
-  }
-
-  InvokeGlobal(func, input_args);
+  PrintInfoAndSetInputArgs(func, input_args);
   SetOutputTensorsToRegister(output_args);
   RunLoop(set_outputs_enabled_[func.name]);
   return return_register_;
