@@ -34,6 +34,12 @@
 #include <utility>
 
 namespace tvm {
+namespace arith {
+class Analyzer;
+}
+}  // namespace tvm
+
+namespace tvm {
 namespace tir {
 
 /*!
@@ -78,10 +84,14 @@ class IndexMapNode : public Object {
    * \param indices The indices in the input space.  Should contain
    * one value for each variable in `initial_indices`.
    *
+   * \param analyzer An optional analyzer to be used to simplify the
+   * resulting expressions.  If null, will use a fresh analyzer.
+   *
    * \returns The indices in the output space.  Contains one value for
    * each expression in `final_indices`.
    */
-  Array<PrimExpr> MapIndices(const Array<PrimExpr>& indices) const;
+  Array<PrimExpr> MapIndices(const Array<PrimExpr>& indices,
+                             arith::Analyzer* analyzer = nullptr) const;
 
   /*! \brief Map a memory range to the output space
    *
@@ -93,20 +103,26 @@ class IndexMapNode : public Object {
    * \param ranges The ranges in the input space.  Should contain one
    * value for each variable in `initial_indices`.
    *
+   * \param analyzer An optional analyzer to be used to simplify the
+   * resulting expressions.  If null, will use a fresh analyzer.
+   *
    * \returns The ranges in the output space.  Contains one value for
    * each expression in `final_indices`.
    */
-  Array<Range> MapRanges(const Array<Range>& ranges) const;
+  Array<Range> MapRanges(const Array<Range>& ranges, arith::Analyzer* analyzer = nullptr) const;
 
   /*! \brief Map a buffer shape to the output space
    *
    * \param shape The buffer shape in the input space.  Should contain
    * one value for each variable in `initial_indices`.
    *
+   * \param analyzer An optional analyzer to be used to simplify the
+   * resulting expressions.  If null, will use a fresh analyzer.
+   *
    * \returns The buffer shape in the output space.  Contains one
    * value for each expression in `final_indices`.
    */
-  Array<PrimExpr> MapShape(const Array<PrimExpr>& shape) const;
+  Array<PrimExpr> MapShape(const Array<PrimExpr>& shape, arith::Analyzer* analyzer = nullptr) const;
 
   /*!
    * \brief Convert to string representation in Python.
