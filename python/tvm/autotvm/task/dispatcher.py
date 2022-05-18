@@ -31,6 +31,8 @@ of the DispatchContext base class.
 from __future__ import absolute_import as _abs
 
 import logging
+import typing
+from typing import Union
 
 import numpy as np
 
@@ -187,13 +189,18 @@ class ApplyFixedConfig(DispatchContext):
     ----------
     tasks : list[tvm.autotvm.task.task.Task]
         List of autoTVM tasks.
-    schedule_name : str
-        Name of schedule to use.
+    schedule_names : str, List[str]
+        Name of schedules to use.
     """
 
-    def __init__(self, tasks, schedule_name: str):
+    def __init__(self, tasks, schedule_names: Union[str, typing.List[str]]):
         super(ApplyFixedConfig, self).__init__()
-        self._schedule_name = schedule_name
+        if isinstance(schedule_names, str):
+            self._schedule_names = list(schedule_names)
+        elif isinstance(schedule_names, list):
+            self._schedule_names = schedule_names
+        else:
+            raise RuntimeError("Incorrect type: " + schedule_names)
         self._tasks = tasks
         self.workload = None
 
@@ -212,7 +219,7 @@ class ApplyFixedConfig(DispatchContext):
                 "workload: %s does not exist in %s" % (str(workload), str(self._tasks))
             )
         # Add low cost to the target schedule and high cost to others.
-        if workload[0] == self._schedule_name:
+        if workload[0] in self._schedule_names:
             config.cost = 1e-6
         else:
             config.cost = 100000
