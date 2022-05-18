@@ -77,8 +77,8 @@ def matmul(m, n, k, in_dtype, out_dtype, b_transposed):
 
 def is_ampere_or_newer():
     arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    return major * 10 + minor >= 80
+    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
+    return major >= 8
 
 
 def run_test(
@@ -187,10 +187,10 @@ def run_test(
     sch.tensorize(sch.get_loops(block_init_c)[-2], mma_fill_intrin)
     sch.tensorize(sch.get_loops(C_warp)[-2], mma_store_intrin)
 
-    f = tvm.build(sch.mod["main"], target="cuda", name="dense")
-
     if not is_ampere_or_newer():
         return None
+
+    f = tvm.build(sch.mod["main"], target="cuda", name="dense")
 
     dev = tvm.device("cuda", 0)
 
