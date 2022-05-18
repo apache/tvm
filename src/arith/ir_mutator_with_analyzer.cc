@@ -35,6 +35,13 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const ForNode* op) {
   return StmtExprMutator::VisitStmt_(op);
 }
 
+Stmt IRMutatorWithAnalyzer::VisitStmt_(const BlockNode* op) {
+  for (const auto& iter_var : op->iter_vars) {
+    analyzer_->Bind(iter_var->var, iter_var->dom);
+  }
+  return StmtExprMutator::VisitStmt_(op);
+}
+
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const LetStmtNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
   if (SideEffect(value) <= CallEffectKind::kPure) {
