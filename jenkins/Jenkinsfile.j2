@@ -58,7 +58,7 @@ ci_wasm = 'tlcpack/ci-wasm:20220513-055910-fa834f67e'
 ci_i386 = 'tlcpack/ci-i386:20220513-055910-fa834f67e'
 ci_qemu = 'tlcpack/ci-qemu:20220517-094028-de21c8f2e'
 ci_arm = 'tlcpack/ci-arm:20220513-055910-fa834f67e'
-ci_hexagon = 'tlcpack/ci-hexagon:20220513-055910-fa834f67e'
+ci_hexagon = 'tlcpack/ci-hexagon:20220516-190055-672ce3365'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -80,7 +80,7 @@ upstream_revision = null
 docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM'
 docker_build = 'docker/build.sh'
 // timeout in minutes
-max_time = 120
+max_time = 180
 rebuild_docker_images = false
 
 def per_exec_ws(folder) {
@@ -605,7 +605,7 @@ stage('Build') {
   },
   'BUILD: Hexagon': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws({{ m.per_exec_ws('tvm/build-hexagon') }}) {
           init_git()
           sh (
@@ -681,7 +681,8 @@ stage('Test') {
   {% endcall %}
   {% call m.test_step(
     name="unittest: CPU",
-    node="CPU", ws="tvm/ut-python-cpu",
+    node="CPU-SMALL",
+    ws="tvm/ut-python-cpu",
     platform="cpu",
   ) %}
     unpack_lib('cpu', tvm_multilib_tsim)
@@ -696,11 +697,11 @@ stage('Test') {
   {% endcall %}
   {% call(shard_index, num_shards) m.sharded_test_step(
     name="python: i386",
-    node="CPU",
-      num_shards=3,
-      ws="tvm/integration-python-i386",
-      platform="i386",
-    ) %}
+    node="CPU-SMALL",
+    num_shards=3,
+    ws="tvm/integration-python-i386",
+    platform="i386",
+  ) %}
     unpack_lib('i386', tvm_multilib)
     ci_setup(ci_i386)
     {% if shard_index == 1 %}
@@ -715,7 +716,8 @@ stage('Test') {
   {% endcall %}
   {% call(shard_index, num_shards) m.sharded_test_step(
     name="test: Hexagon",
-    node="CPU", ws="tvm/test-hexagon",
+    node="CPU-SMALL",
+    ws="tvm/test-hexagon",
     platform="hexagon",
     num_shards=4,
   ) %}
@@ -735,7 +737,8 @@ stage('Test') {
   {% endcall %}
   {% call m.test_step(
     name="test: QEMU",
-    node="CPU", ws="tvm/test-qemu",
+    node="CPU-SMALL",
+    ws="tvm/test-qemu",
     platform="qemu",
   ) %}
     unpack_lib('qemu', tvm_lib)

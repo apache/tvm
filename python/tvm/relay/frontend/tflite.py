@@ -390,6 +390,7 @@ class OperatorConverter(object):
             return {
                 TensorType.UINT8: np.uint8,
                 TensorType.INT8: np.int8,
+                TensorType.INT16: np.int16,
                 TensorType.FLOAT16: np.float16,
                 TensorType.FLOAT32: np.float32,
                 TensorType.INT32: np.int32,
@@ -430,6 +431,8 @@ class OperatorConverter(object):
 
         if tensor_type == TensorType.INT8:
             return "int8"
+        if tensor_type == TensorType.INT16:
+            return "int16"
         if tensor_type == TensorType.UINT8:
             return "uint8"
         if tensor_type == TensorType.FLOAT16:
@@ -2149,7 +2152,9 @@ class OperatorConverter(object):
             qnn_conv2d_params = dict(params)
             qnn_conv2d_params["input_zero_point"] = input_tensor.qnn_params["zero_point"]
             qnn_conv2d_params["kernel_zero_point"] = weight_tensor.qnn_params["zero_point"]
-            qnn_conv2d_params["out_dtype"] = "int32"
+            qnn_conv2d_params["out_dtype"] = (
+                "int64" if output_tensor_type_str == "int16" else "int32"
+            )
             qnn_conv2d_params["input_scale"] = input_tensor.qnn_params["scale"]
             qnn_conv2d_params["kernel_scale"] = weight_tensor.qnn_params["scale"]
             out = _qnn.op.conv2d(in_expr, weight_expr, **qnn_conv2d_params)
@@ -2160,8 +2165,8 @@ class OperatorConverter(object):
         if len(input_tensors) == 3:
             bias_tensor = input_tensors[2]
             bias_tensor_type = bias_tensor.tensor.Type()
-            # bias tensor type should be INT32 (quantization) or FLOAT32
-            assert bias_tensor_type in (TensorType.INT32, TensorType.FLOAT32)
+            # bias tensor type should be INT32 (int8 qnn) or INT64 (int16 qnn) or FLOAT32
+            assert bias_tensor_type in (TensorType.INT32, TensorType.INT64, TensorType.FLOAT32)
             bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
             if self.has_expr(bias_tensor.tensor_idx):
                 bias_expr = self.get_expr(bias_tensor.tensor_idx)

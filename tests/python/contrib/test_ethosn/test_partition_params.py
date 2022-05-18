@@ -22,7 +22,7 @@ import tvm
 from tvm import relay
 import numpy as np
 
-from tvm.relay.op.contrib.ethosn import partition_for_ethosn78
+from tvm.relay.op.contrib.ethosn import partition_for_ethosn
 from tvm.testing import requires_ethosn
 
 
@@ -35,14 +35,14 @@ def test_ethosn78_partition_no_error():
     res = relay.nn.bias_add(res, b, axis=1)
 
     mod = tvm.IRModule.from_expr(res)
-    opts = {"variant": "Ethos-N78"}
-    partition_for_ethosn78(mod, **opts)
+    opts = {"variant": "n78"}
+    partition_for_ethosn(mod, **opts)
 
 
 @requires_ethosn
 def test_ethosn78_partition_undefined_variant():
     with pytest.raises(
-        ValueError, match=r".*When targeting Ethos\(TM\)-N78, -variant=Ethos-N78 should be set.*"
+        ValueError, match=r".*Please specify a variant in the target string, e.g. -variant=n78.*"
     ):
         a = relay.var("a", shape=[2, 7, 8, 8], dtype="uint8")
         w = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype("uint8"))
@@ -53,13 +53,13 @@ def test_ethosn78_partition_undefined_variant():
         res = relay.nn.bias_add(res, b, axis=1)
 
         mod = tvm.IRModule.from_expr(res)
-        partition_for_ethosn78(mod)
+        partition_for_ethosn(mod)
 
 
 @requires_ethosn
 def test_ethosn78_partition_invalid_variant():
     with pytest.raises(
-        ValueError, match=r".*When targeting Ethos\(TM\)-N78, -variant=Ethos-N78 should be set.*"
+        ValueError, match=r".*When targeting Ethos\(TM\)-N78, -variant=n78 should be set.*"
     ):
         a = relay.var("a", shape=[2, 7, 8, 8], dtype="uint8")
         w = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype("uint8"))
@@ -71,4 +71,4 @@ def test_ethosn78_partition_invalid_variant():
 
         mod = tvm.IRModule.from_expr(res)
         opts = {"variant": "Ethos-N"}
-        partition_for_ethosn78(mod, **opts)
+        partition_for_ethosn(mod, **opts)
