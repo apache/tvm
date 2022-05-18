@@ -1822,9 +1822,8 @@ def concatenate_strategy_cpu(attrs, inputs, out_type, target):
     for inpt in inputs:
         shape = inpt.shape
         for i in shape:
-            if isinstance(i, tir.expr.SizeVar):
-                if i.name == "any_dim":
-                    use_old_concat = True
+            if not isinstance(i, tir.expr.IntImm):
+                use_old_concat = True
                 break
     if use_old_concat:
         strategy.add_implementation(
