@@ -891,15 +891,6 @@ requires_opencl = Feature(
     parent_features="gpu",
 )
 
-# Mark a test as requiring the corstone300 FVP
-requires_corstone300 = Feature(
-    "corstone300",
-    "Corstone-300",
-    compile_time_check=lambda: (
-        (shutil.which("arm-none-eabi-gcc") is None) or "ARM embedded toolchain unavailable"
-    ),
-)
-
 # Mark a test as requiring the rocm runtime
 requires_rocm = Feature(
     "rocm",
@@ -955,6 +946,16 @@ requires_hexagon = Feature(
 
 # Mark a test as requiring the CMSIS NN library
 requires_cmsisnn = Feature("cmsisnn", "CMSIS NN", cmake_flag="USE_CMSISNN")
+
+# Mark a test as requiring the corstone300 FVP
+requires_corstone300 = Feature(
+    "corstone300",
+    "Corstone-300",
+    compile_time_check=lambda: (
+        (shutil.which("arm-none-eabi-gcc") is None) or "ARM embedded toolchain unavailable"
+    ),
+    parent_features="cmsisnn",
+)
 
 # Mark a test as requiring Vitis AI to run
 requires_vitis_ai = Feature("vitis_ai", "Vitis AI", cmake_flag="USE_VITIS_AI")
