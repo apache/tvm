@@ -43,13 +43,13 @@ MOBILENET_V2_URL = (
 @pytest.mark.parametrize(
     "accel_type, model_url, workspace_size",
     [
-        ("ethos-u65-256", MOBILENET_V1_URL, 1423344),
-        ("ethos-u65-256", MOBILENET_V2_URL, 2185584),
-        ("ethos-u55-256", MOBILENET_V1_URL, 1423344),
-        ("ethos-u55-256", MOBILENET_V2_URL, 2185584),
-        ("ethos-u55-128", MOBILENET_V2_URL, 2185584),
-        ("ethos-u55-64", MOBILENET_V2_URL, 2185584),
-        ("ethos-u55-32", MOBILENET_V2_URL, 2185584),
+        ("ethos-u65-256", MOBILENET_V1_URL, 1892704),
+        ("ethos-u65-256", MOBILENET_V2_URL, 2257984),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1892704),
+        ("ethos-u55-256", MOBILENET_V2_URL, 2257984),
+        ("ethos-u55-128", MOBILENET_V2_URL, 2257984),
+        ("ethos-u55-64", MOBILENET_V2_URL, 2257984),
+        ("ethos-u55-32", MOBILENET_V2_URL, 2258000),
     ],
 )
 def test_networks_without_usmp(accel_type, model_url, workspace_size):
@@ -71,8 +71,8 @@ def test_networks_without_usmp(accel_type, model_url, workspace_size):
 @pytest.mark.parametrize(
     "accel_type, model_url, workspace_size",
     [
-        ("ethos-u65-256", MOBILENET_V1_URL, 1205872),
-        ("ethos-u55-256", MOBILENET_V2_URL, 1507152),
+        ("ethos-u65-256", MOBILENET_V1_URL, 1206880),
+        ("ethos-u55-256", MOBILENET_V2_URL, 1509408),
     ],
 )
 def test_networks_with_usmp(accel_type, model_url, workspace_size):

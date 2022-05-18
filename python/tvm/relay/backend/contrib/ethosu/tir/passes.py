@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-argument, no-else-return, inconsistent-return-statements, too-many-nested-blocks
 """The TIR passes to be run on Arm(R) Ethos(TM)-U NPU TIR Compiler."""
 from collections import namedtuple
+from typing import Optional
 import numpy as np  # type: ignore
 
 import tvm
@@ -913,3 +914,27 @@ def HoistAllocates() -> tvm.IRModule:
         The new module with hoisted allocate nodes.
     """
     return _ffi_api.HoistAllocates()
+
+
+def CopyComputeReordering(max_copy_movements: Optional[int] = None) -> tvm.IRModule:
+    """
+    Reorders copy and compute nodes in such a way that independent DMA copies,
+    and computes happen in parallel.
+    Copies to buffers with local scope are not reordered, indeed they copy LUT
+    into the SHRAM which already happens in parallel with copying weights into
+    the weights encoder.
+
+    Parameters
+    ----------
+    max_copy_movements: Optional[int]
+        The maximum number of movements allowed for a copy.
+        If None, the pass context option
+        tir.contrib.ethos-u.copy_compute_reordering_max_copy_movements
+        is used if provided, otherwise the default value will be 1.
+
+    Returns
+    -------
+    tvm.IRModule
+        The new module with copy and compute nodes reordered.
+    """
+    return _ffi_api.CopyComputeReordering(max_copy_movements)

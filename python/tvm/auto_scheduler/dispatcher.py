@@ -25,6 +25,7 @@ as a schedule configuration here.
 
 import logging
 import pathlib
+from collections.abc import Iterable
 
 import numpy as np
 
@@ -199,7 +200,7 @@ class ApplyHistoryBest(DispatchContext):
             if it is not None, only load the first `n_lines` lines of log
         """
         joint_records = []
-        if not isinstance(records, (list, tuple)):
+        if not isinstance(records, Iterable) or isinstance(records, str):
             records = [records]
 
         for rec in records:
