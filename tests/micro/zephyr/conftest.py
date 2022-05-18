@@ -59,7 +59,7 @@ def tvm_debug(request):
 
 
 @pytest.fixture
-def temp_dir(board):
+def temp_dir(board, tvm_debug):
     parent_dir = pathlib.Path(os.path.dirname(__file__))
     filename = os.path.splitext(os.path.basename(__file__))[0]
     board_workspace = (
@@ -76,4 +76,6 @@ def temp_dir(board):
     if not os.path.exists(board_workspace.parent):
         os.makedirs(board_workspace.parent)
 
-    return tempdir(board_workspace)
+    keep_for_debug = tvm_debug if tvm_debug else None
+    test_temp_dir = tempdir(custom_path=board_workspace, keep_for_debug=keep_for_debug)
+    return test_temp_dir

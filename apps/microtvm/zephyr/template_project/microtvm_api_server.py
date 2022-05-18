@@ -27,7 +27,6 @@ import os.path
 import pathlib
 import queue
 import re
-import select
 import shlex
 import shutil
 import subprocess
@@ -35,7 +34,7 @@ import sys
 import tarfile
 import tempfile
 import threading
-import time
+from typing import Union
 import usb
 
 import serial
@@ -424,6 +423,28 @@ class Handler(server.ProjectAPIHandler):
 
         return float(f"{version_major}.{version_minor}")
 
+    def _load_cmsis(self, lib_path: Union[str, pathlib.Path]):
+        """Copy CMSIS header files to generated project."""
+
+        cmsis_path = pathlib.Path(os.environ["CMSIS_PATH"])
+
+        lib_path = pathlib.Path(lib_path)
+        if not lib_path.exists():
+            lib_path.mkdir()
+
+        include_directories = ["CMSIS/DSP/Include", "CMSIS/DSP/Include/dsp", "CMSIS/NN/Include"]
+        for include_path in include_directories:
+            include_path = pathlib.Path(include_path)
+            src = cmsis_path / include_path
+            dest = lib_path
+            if include_path.name != "Include":
+                dest = lib_path / include_path.name
+                dest.mkdir()
+
+            for item in src.iterdir():
+                if not item.is_dir():
+                    shutil.copy(item, dest / item.name)
+
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # Check Zephyr version
         version = self._get_platform_version(get_zephyr_base(options))
@@ -454,6 +475,15 @@ class Handler(server.ProjectAPIHandler):
         with tarfile.TarFile(project_model_library_format_tar_path) as tf:
             os.makedirs(extract_path)
             tf.extractall(path=extract_path)
+
+        # Add CMSIS libraries if required.
+        if options["project_type"] == "host_driven":
+            lib2_path = pathlib.Path(extract_path) / "codegen" / "host" / "src" / "default_lib2.c"
+            if lib2_path.exists():
+                with open(lib2_path, "r") as lib1_f:
+                    lib2_content = lib1_f.read()
+                if "<arm_nnsupportfunctions.h>" in lib2_content and "<arm_math.h>" in lib2_content:
+                    self._load_cmsis(pathlib.Path(project_dir) / "include")
 
         if self._is_qemu(options):
             shutil.copytree(API_SERVER_DIR / "qemu-hack", project_dir / "qemu-hack")

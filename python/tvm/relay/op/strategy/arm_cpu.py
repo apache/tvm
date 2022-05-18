@@ -75,6 +75,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
     """conv2d arm cpu strategy"""
     strategy = _op.OpStrategy()
     data, kernel = inputs
+    out_dtype = attrs.get_str("out_dtype")
     dilation_h, dilation_w = attrs.get_int_tuple("dilation")
     stride_h, stride_w = attrs.get_int_tuple("strides")
     padding = attrs.get_int_tuple("padding")
@@ -161,11 +162,14 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
             )
         elif layout == "NHWC":
             if isa.has_dsp_support and kernel_layout == "HWOI":
-                strategy.add_implementation(
-                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_dsp),
-                    wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_dsp),
-                    name="conv2d_nhwc_dsp.arm_cpu",
-                )
+                # TODO(mehrdadh): Only integer type due to
+                # https://github.com/apache/tvm/issues/11351
+                if data.dtype in ["int8", "int16"] and out_dtype == "int32":
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_dsp),
+                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_dsp),
+                        name="conv2d_nhwc_dsp.arm_cpu",
+                    )
             elif kernel_layout == "HWIO":
                 is_aarch64 = topi.arm_cpu.arm_utils.is_aarch64_arm()
                 has_dot_prod = topi.arm_cpu.arm_utils.is_dotprod_available()
