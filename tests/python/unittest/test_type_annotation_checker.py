@@ -34,12 +34,14 @@ test_cases = [
         "positive_cases": [
             [5],
             [],
+            # Tuples are allowed to be used as lists, because both are
+            # represented in FFI as tvm::runtime::Array.
+            (1, 2, 3),
         ],
         "negative_cases": [
             None,
             5,
             ["5"],
-            (1, 2, 3),
         ],
     },
     {
