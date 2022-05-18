@@ -607,7 +607,7 @@ stage('Test') {
   parallel(
   {% call(shard_index, num_shards) m.sharded_test_step(
     name="unittest: GPU",
-    num_shards=2,
+    num_shards=3,
     node="GPU",
     ws="tvm/ut-python-gpu",
     platform="gpu",
@@ -640,8 +640,8 @@ stage('Test') {
   {% endcall %}
   {% call(shard_index, num_shards) m.sharded_test_step(
     name="integration: CPU",
-    node="CPU",
-      num_shards=2,
+    node="CPU-SMALL",
+      num_shards=6,
       ws="tvm/integration-python-cpu",
       platform="cpu",
     ) %}
@@ -671,7 +671,7 @@ stage('Test') {
   {% call(shard_index, num_shards) m.sharded_test_step(
     name="python: i386",
     node="CPU-SMALL",
-    num_shards=3,
+    num_shards=5,
     ws="tvm/integration-python-i386",
     platform="i386",
   ) %}
@@ -692,7 +692,7 @@ stage('Test') {
     node="CPU-SMALL",
     ws="tvm/test-hexagon",
     platform="hexagon",
-    num_shards=4,
+    num_shards=5,
   ) %}
     {{ m.download_artifacts(tag='hexagon', filenames=tvm_lib) }}
     ci_setup(ci_hexagon)
@@ -727,11 +727,12 @@ stage('Test') {
       label: 'Run microTVM demos',
     )
   {% endcall %}
-  {% call m.test_step(
+  {% call(shard_index, num_shards) m.sharded_test_step(
     name="topi: aarch64",
     node="ARM",
     ws="tvm/ut-python-arm",
     platform="arm",
+    num_shards=2,
 ) %}
     {{ m.download_artifacts(tag='arm', filenames=tvm_multilib) }}
     ci_setup(ci_arm)
@@ -747,7 +748,7 @@ stage('Test') {
   {% endcall %}
   {% call(shard_index, num_shards) m.sharded_test_step(
     name="integration: aarch64",
-    num_shards=2,
+    num_shards=4,
     node="ARM", ws="tvm/ut-python-arm",
     platform="arm",
   ) %}
@@ -762,7 +763,7 @@ stage('Test') {
   {% call(shard_index, num_shards) m.sharded_test_step(
     name="topi: GPU",
     node="GPU",
-    num_shards=2,
+    num_shards=4,
     ws="tvm/topi-python-gpu",
     platform="gpu",
   ) %}
@@ -775,7 +776,7 @@ stage('Test') {
   {% endcall %}
   {% call(shard_index, num_shards) m.sharded_test_step(
     name="frontend: GPU", node="GPU",
-    num_shards=3,
+    num_shards=5,
     ws="tvm/frontend-python-gpu",
     platform="gpu",
   ) %}
@@ -788,7 +789,7 @@ stage('Test') {
   {% endcall %}
   {% call m.test_step(
     name="frontend: CPU",
-    node="CPU",
+    node="CPU-SMALL",
     ws="tvm/frontend-python-cpu",
     platform="cpu",
 ) %}
@@ -799,11 +800,12 @@ stage('Test') {
       label: 'Run Python frontend tests',
     )
   {% endcall %}
-  {% call m.test_step(
+  {% call(shard_index, num_shards) m.sharded_test_step(
     name="frontend: aarch64",
     node="ARM",
     ws="tvm/frontend-python-arm",
     platform="arm",
+    num_shards=2,
 ) %}
     {{ m.download_artifacts(tag='arm', filenames=tvm_multilib) }}
     ci_setup(ci_arm)

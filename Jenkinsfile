@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-19T14:04:32.815769
+// Generated at 2022-05-20T08:23:58.637952
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -781,7 +781,7 @@ stage('Test') {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
   }
   parallel(
-  'unittest: GPU 1 of 2': {
+  'unittest: GPU 1 of 3': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('GPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-gpu") {
@@ -790,7 +790,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=gpu',
-                'TVM_NUM_SHARDS=2',
+                'TVM_NUM_SHARDS=3',
                 'TVM_SHARD_INDEX=0'], {
                 sh(
                         script: """
@@ -842,10 +842,10 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('unittest: GPU 1 of 2')
+      Utils.markStageSkippedForConditional('unittest: GPU 1 of 3')
     }
   },
-  'unittest: GPU 2 of 2': {
+  'unittest: GPU 2 of 3': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('GPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-gpu") {
@@ -854,7 +854,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=gpu',
-                'TVM_NUM_SHARDS=2',
+                'TVM_NUM_SHARDS=3',
                 'TVM_SHARD_INDEX=1'], {
                 sh(
                         script: """
@@ -892,19 +892,65 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('unittest: GPU 2 of 2')
+      Utils.markStageSkippedForConditional('unittest: GPU 2 of 3')
     }
   },
-  'integration: CPU 1 of 2': {
+  'unittest: GPU 3 of 3': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('GPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-gpu") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=gpu',
+                'TVM_NUM_SHARDS=3',
+                'TVM_SHARD_INDEX=2'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_gpu)
+                sh (
+                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
+                  label: 'Run Python GPU unit tests',
+                )
+                sh (
+                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
+                  label: 'Run Python GPU integration tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('unittest: GPU 3 of 3')
+    }
+  },
+  'integration: CPU 1 of 6': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
           try {
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=cpu',
-                'TVM_NUM_SHARDS=2',
+                'TVM_NUM_SHARDS=6',
                 'TVM_SHARD_INDEX=0'], {
                 sh(
                         script: """
@@ -936,19 +982,19 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('integration: CPU 1 of 2')
+      Utils.markStageSkippedForConditional('integration: CPU 1 of 6')
     }
   },
-  'integration: CPU 2 of 2': {
+  'integration: CPU 2 of 6': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
           try {
             init_git()
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=cpu',
-                'TVM_NUM_SHARDS=2',
+                'TVM_NUM_SHARDS=6',
                 'TVM_SHARD_INDEX=1'], {
                 sh(
                         script: """
@@ -980,7 +1026,183 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('integration: CPU 2 of 2')
+      Utils.markStageSkippedForConditional('integration: CPU 2 of 6')
+    }
+  },
+  'integration: CPU 3 of 6': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU-SMALL') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=cpu',
+                'TVM_NUM_SHARDS=6',
+                'TVM_SHARD_INDEX=2'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_cpu)
+                sh (
+                  script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                  label: 'Run CPU integration tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('integration: CPU 3 of 6')
+    }
+  },
+  'integration: CPU 4 of 6': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU-SMALL') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=cpu',
+                'TVM_NUM_SHARDS=6',
+                'TVM_SHARD_INDEX=3'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_cpu)
+                sh (
+                  script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                  label: 'Run CPU integration tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('integration: CPU 4 of 6')
+    }
+  },
+  'integration: CPU 5 of 6': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU-SMALL') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=cpu',
+                'TVM_NUM_SHARDS=6',
+                'TVM_SHARD_INDEX=4'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_cpu)
+                sh (
+                  script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                  label: 'Run CPU integration tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('integration: CPU 5 of 6')
+    }
+  },
+  'integration: CPU 6 of 6': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU-SMALL') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=cpu',
+                'TVM_NUM_SHARDS=6',
+                'TVM_SHARD_INDEX=5'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_cpu)
+                sh (
+                  script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                  label: 'Run CPU integration tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('integration: CPU 6 of 6')
     }
   },
   'unittest: CPU': {
@@ -1027,7 +1249,7 @@ stage('Test') {
       Utils.markStageSkippedForConditional('unittest: CPU')
     }
   },
-  'python: i386 1 of 3': {
+  'python: i386 1 of 5': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
@@ -1036,7 +1258,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=i386',
-                'TVM_NUM_SHARDS=3',
+                'TVM_NUM_SHARDS=5',
                 'TVM_SHARD_INDEX=0'], {
                 sh(
                         script: """
@@ -1069,10 +1291,10 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('python: i386 1 of 3')
+      Utils.markStageSkippedForConditional('python: i386 1 of 5')
     }
   },
-  'python: i386 2 of 3': {
+  'python: i386 2 of 5': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
@@ -1081,7 +1303,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=i386',
-                'TVM_NUM_SHARDS=3',
+                'TVM_NUM_SHARDS=5',
                 'TVM_SHARD_INDEX=1'], {
                 sh(
                         script: """
@@ -1113,10 +1335,10 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('python: i386 2 of 3')
+      Utils.markStageSkippedForConditional('python: i386 2 of 5')
     }
   },
-  'python: i386 3 of 3': {
+  'python: i386 3 of 5': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
@@ -1125,7 +1347,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=i386',
-                'TVM_NUM_SHARDS=3',
+                'TVM_NUM_SHARDS=5',
                 'TVM_SHARD_INDEX=2'], {
                 sh(
                         script: """
@@ -1157,10 +1379,98 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('python: i386 3 of 3')
+      Utils.markStageSkippedForConditional('python: i386 3 of 5')
     }
   },
-  'test: Hexagon 1 of 4': {
+  'python: i386 4 of 5': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU-SMALL') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=i386',
+                'TVM_NUM_SHARDS=5',
+                'TVM_SHARD_INDEX=3'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_i386)
+                python_unittest(ci_i386)
+                sh (
+                  script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
+                  label: 'Run i386 integration tests',
+                )
+                fsim_test(ci_i386)
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('python: i386 4 of 5')
+    }
+  },
+  'python: i386 5 of 5': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU-SMALL') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=i386',
+                'TVM_NUM_SHARDS=5',
+                'TVM_SHARD_INDEX=4'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_i386)
+                python_unittest(ci_i386)
+                sh (
+                  script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
+                  label: 'Run i386 integration tests',
+                )
+                fsim_test(ci_i386)
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('python: i386 5 of 5')
+    }
+  },
+  'test: Hexagon 1 of 5': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
@@ -1169,7 +1479,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=hexagon',
-                'TVM_NUM_SHARDS=4',
+                'TVM_NUM_SHARDS=5',
                 'TVM_SHARD_INDEX=0'], {
                 sh(
                         script: """
@@ -1202,10 +1512,10 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('test: Hexagon 1 of 4')
+      Utils.markStageSkippedForConditional('test: Hexagon 1 of 5')
     }
   },
-  'test: Hexagon 2 of 4': {
+  'test: Hexagon 2 of 5': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
@@ -1214,7 +1524,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=hexagon',
-                'TVM_NUM_SHARDS=4',
+                'TVM_NUM_SHARDS=5',
                 'TVM_SHARD_INDEX=1'], {
                 sh(
                         script: """
@@ -1246,10 +1556,10 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('test: Hexagon 2 of 4')
+      Utils.markStageSkippedForConditional('test: Hexagon 2 of 5')
     }
   },
-  'test: Hexagon 3 of 4': {
+  'test: Hexagon 3 of 5': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
@@ -1258,7 +1568,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=hexagon',
-                'TVM_NUM_SHARDS=4',
+                'TVM_NUM_SHARDS=5',
                 'TVM_SHARD_INDEX=2'], {
                 sh(
                         script: """
@@ -1290,10 +1600,10 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('test: Hexagon 3 of 4')
+      Utils.markStageSkippedForConditional('test: Hexagon 3 of 5')
     }
   },
-  'test: Hexagon 4 of 4': {
+  'test: Hexagon 4 of 5': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
@@ -1302,7 +1612,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=hexagon',
-                'TVM_NUM_SHARDS=4',
+                'TVM_NUM_SHARDS=5',
                 'TVM_SHARD_INDEX=3'], {
                 sh(
                         script: """
@@ -1334,7 +1644,51 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('test: Hexagon 4 of 4')
+      Utils.markStageSkippedForConditional('test: Hexagon 4 of 5')
+    }
+  },
+  'test: Hexagon 5 of 5': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU-SMALL') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=hexagon',
+                'TVM_NUM_SHARDS=5',
+                'TVM_SHARD_INDEX=4'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_hexagon)
+                sh (
+                  script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
+                  label: 'Build Hexagon API',
+                )
+                sh (
+                  script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+                  label: 'Run Hexagon tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('test: Hexagon 5 of 5')
     }
   },
   'test: QEMU': {
@@ -1381,14 +1735,17 @@ stage('Test') {
       Utils.markStageSkippedForConditional('test: QEMU')
     }
   },
-  'topi: aarch64': {
+  'topi: aarch64 1 of 2': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('ARM') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
-          timeout(time: max_time, unit: 'MINUTES') {
-            try {
-              init_git()
-              withEnv(['PLATFORM=arm'], {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=arm',
+                'TVM_NUM_SHARDS=2',
+                'TVM_SHARD_INDEX=0'], {
                 sh(
                         script: """
                           set -eux
@@ -1415,17 +1772,17 @@ stage('Test') {
                   label: 'Run TOPI tests',
                 )
               })
-            } finally {
-              junit 'build/pytest-results/*.xml'
             }
+          } finally {
+            junit 'build/pytest-results/*.xml'
           }
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('topi: aarch64')
+      Utils.markStageSkippedForConditional('topi: aarch64 1 of 2')
     }
   },
-  'integration: aarch64 1 of 2': {
+  'topi: aarch64 2 of 2': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('ARM') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
@@ -1435,6 +1792,53 @@ stage('Test') {
               withEnv([
                 'PLATFORM=arm',
                 'TVM_NUM_SHARDS=2',
+                'TVM_SHARD_INDEX=1'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_arm)
+                cpp_unittest(ci_arm)
+                sh (
+                  script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
+                  label: 'Run test_arm_compute_lib test',
+                )
+                sh (
+                  script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_topi.sh",
+                  label: 'Run TOPI tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('topi: aarch64 2 of 2')
+    }
+  },
+  'integration: aarch64 1 of 4': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('ARM') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=arm',
+                'TVM_NUM_SHARDS=4',
                 'TVM_SHARD_INDEX=0'], {
                 sh(
                         script: """
@@ -1465,10 +1869,10 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('integration: aarch64 1 of 2')
+      Utils.markStageSkippedForConditional('integration: aarch64 1 of 4')
     }
   },
-  'integration: aarch64 2 of 2': {
+  'integration: aarch64 2 of 4': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('ARM') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
@@ -1477,7 +1881,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=arm',
-                'TVM_NUM_SHARDS=2',
+                'TVM_NUM_SHARDS=4',
                 'TVM_SHARD_INDEX=1'], {
                 sh(
                         script: """
@@ -1508,10 +1912,96 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('integration: aarch64 2 of 2')
+      Utils.markStageSkippedForConditional('integration: aarch64 2 of 4')
     }
   },
-  'topi: GPU 1 of 2': {
+  'integration: aarch64 3 of 4': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('ARM') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=arm',
+                'TVM_NUM_SHARDS=4',
+                'TVM_SHARD_INDEX=2'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_arm)
+                python_unittest(ci_arm)
+                sh (
+                  script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh",
+                  label: 'Run CPU integration tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('integration: aarch64 3 of 4')
+    }
+  },
+  'integration: aarch64 4 of 4': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('ARM') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=arm',
+                'TVM_NUM_SHARDS=4',
+                'TVM_SHARD_INDEX=3'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_arm)
+                python_unittest(ci_arm)
+                sh (
+                  script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh",
+                  label: 'Run CPU integration tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('integration: aarch64 4 of 4')
+    }
+  },
+  'topi: GPU 1 of 4': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('GPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
@@ -1520,7 +2010,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=gpu',
-                'TVM_NUM_SHARDS=2',
+                'TVM_NUM_SHARDS=4',
                 'TVM_SHARD_INDEX=0'], {
                 sh(
                         script: """
@@ -1550,10 +2040,10 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('topi: GPU 1 of 2')
+      Utils.markStageSkippedForConditional('topi: GPU 1 of 4')
     }
   },
-  'topi: GPU 2 of 2': {
+  'topi: GPU 2 of 4': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('GPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
@@ -1562,7 +2052,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=gpu',
-                'TVM_NUM_SHARDS=2',
+                'TVM_NUM_SHARDS=4',
                 'TVM_SHARD_INDEX=1'], {
                 sh(
                         script: """
@@ -1592,10 +2082,94 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('topi: GPU 2 of 2')
+      Utils.markStageSkippedForConditional('topi: GPU 2 of 4')
     }
   },
-  'frontend: GPU 1 of 3': {
+  'topi: GPU 3 of 4': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('GPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=gpu',
+                'TVM_NUM_SHARDS=4',
+                'TVM_SHARD_INDEX=2'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_gpu)
+                sh (
+                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh",
+                  label: 'Run TOPI tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('topi: GPU 3 of 4')
+    }
+  },
+  'topi: GPU 4 of 4': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('GPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=gpu',
+                'TVM_NUM_SHARDS=4',
+                'TVM_SHARD_INDEX=3'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_gpu)
+                sh (
+                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh",
+                  label: 'Run TOPI tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('topi: GPU 4 of 4')
+    }
+  },
+  'frontend: GPU 1 of 5': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('GPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
@@ -1604,7 +2178,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=gpu',
-                'TVM_NUM_SHARDS=3',
+                'TVM_NUM_SHARDS=5',
                 'TVM_SHARD_INDEX=0'], {
                 sh(
                         script: """
@@ -1634,10 +2208,10 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('frontend: GPU 1 of 3')
+      Utils.markStageSkippedForConditional('frontend: GPU 1 of 5')
     }
   },
-  'frontend: GPU 2 of 3': {
+  'frontend: GPU 2 of 5': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('GPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
@@ -1646,7 +2220,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=gpu',
-                'TVM_NUM_SHARDS=3',
+                'TVM_NUM_SHARDS=5',
                 'TVM_SHARD_INDEX=1'], {
                 sh(
                         script: """
@@ -1676,10 +2250,10 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('frontend: GPU 2 of 3')
+      Utils.markStageSkippedForConditional('frontend: GPU 2 of 5')
     }
   },
-  'frontend: GPU 3 of 3': {
+  'frontend: GPU 3 of 5': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('GPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
@@ -1688,7 +2262,7 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               withEnv([
                 'PLATFORM=gpu',
-                'TVM_NUM_SHARDS=3',
+                'TVM_NUM_SHARDS=5',
                 'TVM_SHARD_INDEX=2'], {
                 sh(
                         script: """
@@ -1718,12 +2292,96 @@ stage('Test') {
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('frontend: GPU 3 of 3')
+      Utils.markStageSkippedForConditional('frontend: GPU 3 of 5')
+    }
+  },
+  'frontend: GPU 4 of 5': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('GPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=gpu',
+                'TVM_NUM_SHARDS=5',
+                'TVM_SHARD_INDEX=3'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_gpu)
+                sh (
+                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh",
+                  label: 'Run Python frontend tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('frontend: GPU 4 of 5')
+    }
+  },
+  'frontend: GPU 5 of 5': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('GPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=gpu',
+                'TVM_NUM_SHARDS=5',
+                'TVM_SHARD_INDEX=4'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_gpu)
+                sh (
+                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh",
+                  label: 'Run Python frontend tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('frontend: GPU 5 of 5')
     }
   },
   'frontend: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU') {
+      node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-cpu") {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
@@ -1760,14 +2418,17 @@ stage('Test') {
       Utils.markStageSkippedForConditional('frontend: CPU')
     }
   },
-  'frontend: aarch64': {
+  'frontend: aarch64 1 of 2': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('ARM') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
-          timeout(time: max_time, unit: 'MINUTES') {
-            try {
-              init_git()
-              withEnv(['PLATFORM=arm'], {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=arm',
+                'TVM_NUM_SHARDS=2',
+                'TVM_SHARD_INDEX=0'], {
                 sh(
                         script: """
                           set -eux
@@ -1789,14 +2450,56 @@ stage('Test') {
                   label: 'Run Python frontend tests',
                 )
               })
-            } finally {
-              junit 'build/pytest-results/*.xml'
             }
+          } finally {
+            junit 'build/pytest-results/*.xml'
           }
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('frontend: aarch64')
+      Utils.markStageSkippedForConditional('frontend: aarch64 1 of 2')
+    }
+  },
+  'frontend: aarch64 2 of 2': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('ARM') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
+          try {
+            init_git()
+            timeout(time: max_time, unit: 'MINUTES') {
+              withEnv([
+                'PLATFORM=arm',
+                'TVM_NUM_SHARDS=2',
+                'TVM_SHARD_INDEX=1'], {
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                ci_setup(ci_arm)
+                sh (
+                  script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
+                  label: 'Run Python frontend tests',
+                )
+              })
+            }
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('frontend: aarch64 2 of 2')
     }
   },
   'docs: GPU': {
