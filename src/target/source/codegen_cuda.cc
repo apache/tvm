@@ -821,6 +821,17 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string smem_elem_offset = this->PrintExpr(op->args[6]);
     this->stream << PrintLoadMatrixAssembly(trans, num, type, local_ptr, local_elem_offset,
                                             smem_ptr, smem_elem_offset);
+  } else if (op->op.same_as(builtin::ptx_cp_async())) {
+    std::string dst = this->PrintExpr(op->args[0]);
+    std::string src = this->PrintExpr(op->args[1]);
+    std::string size = this->PrintExpr(op->args[2]);
+    this->stream << "__asm__ __volatile__(\"cp.async.ca.shared.global  [" + dst + "], [" + src +
+                        "], " + size + "\");\n";
+  } else if (op->op.same_as(builtin::ptx_commit_group())) {
+    this->stream << "__asm__ __volatile__(\"cp.async.commit_group\");\n";
+  } else if (op->op.same_as(builtin::ptx_wait_group())) {
+    std::string N = this->PrintExpr(op->args[0]);
+    this->stream << "__asm__ __volatile__(\"cp.async.wait_group " + N + "\");\n";
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
