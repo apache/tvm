@@ -233,8 +233,7 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
    * \param output_args The pre-allocated output arguments of the function.
    * \return The object(s) representing the result.
    */
-  ObjectRef Invoke(const VMFunction& func,
-                   const std::vector<ObjectRef>& input_args,
+  ObjectRef Invoke(const VMFunction& func, const std::vector<ObjectRef>& input_args,
                    const std::vector<ObjectRef>& output_args);
 
   /*!
@@ -311,7 +310,8 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
    * \param func_name The function's name.
    * \param outputs set of output tensors.
    */
-  void SetOutputTensorsToRegister(const std::string& func_name, const std::vector<ObjectRef>& outputs);
+  void SetOutputTensorsToRegister(const std::string& func_name,
+                                  const std::vector<ObjectRef>& outputs);
 
   /*!
    * \brief Internal hook for profiling the start of an op.

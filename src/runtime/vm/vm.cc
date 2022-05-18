@@ -145,7 +145,8 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         ICHECK(it != inputs_.end()) << "Input has not been set for function " << func_name;
         const std::vector<ObjectRef>& input_args = it->second;
         if (set_outputs_enabled_.count(func_name) && set_outputs_enabled_[func_name]) {
-          ICHECK(outputs_.count(func_name)) << "Outputs have not been set for function " << func_name;
+          ICHECK(outputs_.count(func_name))
+              << "Outputs have not been set for function " << func_name;
           *rv = Invoke(func, input_args, outputs_[func_name]);
           set_outputs_enabled_[func_name] = false;
         } else {
@@ -285,35 +286,34 @@ void VirtualMachine::SetOutputs(std::string func_name, TVMArgs args) {
   set_outputs_enabled_[func_name] = true;
   size_t outputs_size = args.size();
   // First args is func_name
-  ICHECK_GT(outputs_size, 1)
-    << "There is no output arguments set";
+  ICHECK_GT(outputs_size, 1) << "There is no output arguments set";
 
   std::vector<ObjectRef> func_args(outputs_size - 1);
   for (size_t i = 1; i < outputs_size; ++i) {
     // TODO(vvchernov): device?
     // TODO(vvchernov): correct index sequence for multiple outputs?
-    func_args[i-1] = TensorFromTVMArgValueToObjectRef(args[i]);
+    func_args[i - 1] = TensorFromTVMArgValueToObjectRef(args[i]);
   }
   outputs_.erase(func_name);
   outputs_.emplace(func_name, func_args);
 }
 
-
-void VirtualMachine::PrintInfoAndSetInputArgs(const VMFunction& func, const std::vector<ObjectRef>& args) {
+void VirtualMachine::PrintInfoAndSetInputArgs(const VMFunction& func,
+                                              const std::vector<ObjectRef>& args) {
   VLOG(2) << "Executing Function: " << std::endl << func;
   for (int i = 0; i < static_cast<int>(devices_.size()); ++i) {
-    VLOG(2) << "Device " << i << " has device type " << devices_[i].device_type
-            << " and device id " << devices_[i].device_id
+    VLOG(2) << "Device " << i << " has device type " << devices_[i].device_type << " and device id "
+            << devices_[i].device_id
             << (i == exec_->host_device_index ? " (using as host device)" : "");
   }
 
   InvokeGlobal(func, args);
 }
 
-void VirtualMachine::SetOutputTensorsToRegister(const std::string& func_name, const std::vector<ObjectRef>& outputs) {
+void VirtualMachine::SetOutputTensorsToRegister(const std::string& func_name,
+                                                const std::vector<ObjectRef>& outputs) {
   size_t size = outputs.size();
 
-  Index res_ind = GetResultRegisterIndex();
   CollectOutputTensorRegIndices(func_name);
   auto& reg_indices = output_tensor_reg_indices_[func_name];
   ICHECK_EQ(reg_indices.size(), size)
@@ -324,16 +324,16 @@ void VirtualMachine::SetOutputTensorsToRegister(const std::string& func_name, co
 }
 
 ObjectRef VirtualMachine::TensorFromTVMArgValueToObjectRef(const TVMArgValue& output_tensor) const {
-    if (output_tensor.type_code() == kTVMDLTensorHandle) {
-      DLTensor* dl_tensor = output_tensor;
-      return NDArray::FromExternalDLTensor(*dl_tensor);
-    } else if (output_tensor.type_code() == kTVMNDArrayHandle) {
-      return output_tensor.AsObjectRef<tvm::runtime::NDArray>();
-    } else {
-      LOG(FATAL) << "It supports tensor of DLTensor or NDArray type only! Given type is "
-          << output_tensor.type_code();
-    }
-    return ObjectRef();
+  if (output_tensor.type_code() == kTVMDLTensorHandle) {
+    DLTensor* dl_tensor = output_tensor;
+    return NDArray::FromExternalDLTensor(*dl_tensor);
+  } else if (output_tensor.type_code() == kTVMNDArrayHandle) {
+    return output_tensor.AsObjectRef<tvm::runtime::NDArray>();
+  } else {
+    LOG(FATAL) << "It supports tensor of DLTensor or NDArray type only! Given type is "
+               << output_tensor.type_code();
+  }
+  return ObjectRef();
 }
 
 int64_t VirtualMachine::GetInputIndexFromVMFunction(const std::string& func_name,
@@ -437,8 +437,7 @@ ObjectRef VirtualMachine::Invoke(const std::string& name, const std::vector<Obje
   return Invoke(exec_->functions[func_index], args);
 }
 
-ObjectRef VirtualMachine::Invoke(const VMFunction& func,
-                                 const std::vector<ObjectRef>& input_args,
+ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<ObjectRef>& input_args,
                                  const std::vector<ObjectRef>& output_args) {
   PrintInfoAndSetInputArgs(func, input_args);
   SetOutputTensorsToRegister(func.name, output_args);
