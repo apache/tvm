@@ -33,7 +33,7 @@ def graph_split(expr, split_conf, params=None):
     """Splitting graph into a list of subgraphs"""
 
     def get_dep_var(sub_var_dep):
-        return [var for var, _ in sub_var_dep[len(sub_var_dep) - 1]["ref_nodes"].items()]
+        return [var for var in sub_var_dep[len(sub_var_dep) - 1]["ref_nodes"]]
 
     def parse_dependency(value, snode_dep, new_input_idx):
         new_args = []
@@ -43,7 +43,7 @@ def graph_split(expr, split_conf, params=None):
             for dep in snode_dep[:-1]:
                 if var in dep["nodes"]:
                     # Mark the previous subgraph node as a dependency.
-                    dep["nodes"][var] = dep["nodes"][var] + 1
+                    dep["nodes"][var] += 1
                     dep["ref_nodes"][var] = dep["nodes"][var]
                     # The var of this call is a free_var
                     is_free_var = True
@@ -51,7 +51,7 @@ def graph_split(expr, split_conf, params=None):
             if is_free_var:
                 need_update = True
                 new_args.append(relay.var(f"data_n_{new_input_idx}", var.checked_type))
-                new_input_idx = new_input_idx + 1
+                new_input_idx += 1
             else:
                 new_args.append(var)
         # if the 'tvm.relay.expr.Call' has a free_var, recreate it with new name as 'data_n_*'.
@@ -101,7 +101,7 @@ def graph_split(expr, split_conf, params=None):
                 value, snode_dep, new_input_idx = parse_dependency(value, snode_dep, new_input_idx)
                 if isinstance(value.op, tvm.ir.Op):
                     if value.op.name in operator_index_map:
-                        operator_index_map[value.op.name] = operator_index_map[value.op.name] + 1
+                        operator_index_map[value.op.name] += 1
                     else:
                         operator_index_map[value.op.name] = 0
                     split_operator_name = split_conf[0]["op_name"] if split_conf else ""
