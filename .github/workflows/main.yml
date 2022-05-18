@@ -108,9 +108,6 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '11'
-      - name: Set up NDK
-        run: |
-          echo "y" | sudo /usr/local/lib/android/sdk/tools/bin/sdkmanager --install "ndk;24.0.8215888" --sdk_root=${ANDROID_SDK_ROOT}
       - name: Build TVM
         shell: bash -l {0}
         run: |
@@ -118,14 +115,14 @@ jobs:
           cd build
           ../tests/scripts/task_config_build_jvm.sh .
           cmake ..
-          make -j8
+          cmake --build . --target tvm_runtime
       - name: Build TVM4J
         run: |
           make jvmpkg
       - name: Build android_rpc
         working-directory: apps/android_rpc
         run: |
-          export PATH="${ANDROID_HOME}/ndk/24.0.8215888:$PATH"
+          export PATH="${ANDROID_NDK_HOME}:$PATH"
           gradle clean build
       - name: Upload android_rpc APK
         uses: actions/upload-artifact@v2
@@ -135,7 +132,7 @@ jobs:
       - name: Build android_deploy
         working-directory: apps/android_deploy
         run: |
-          export PATH="${ANDROID_HOME}/ndk/24.0.8215888:$PATH"
+          export PATH="${ANDROID_NDK_HOME}:$PATH"
           gradle clean build
       - name: Upload android_deploy APK
         uses: actions/upload-artifact@v2
@@ -146,14 +143,16 @@ jobs:
         working-directory: apps/android_camera
         run: |
           mkdir -p app/src/main/assets/models/
-          export TVM_NDK_CC=${ANDROID_HOME}/ndk/24.0.8215888/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++
+          export TVM_NDK_CC=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++
           export TVM_HOME=~/work/tvm/tvm
           export PYTHONPATH=$TVM_HOME/python:${PYTHONPATH}
-          pip3 install numpy decorator attrs scipy keras mxnet tensorflow
+          python3 ../../python/gen_requirements.py
+          pip3 install -r ../../python/requirements/core.txt
           cd models
+          pip3 install -r requirements.txt
           python3 prepare_model.py
           cd ..
-          export PATH="${ANDROID_HOME}/ndk/24.0.8215888:$PATH"
+          export PATH="${ANDROID_NDK_HOME}:$PATH"
           gradle clean build
       - name: Upload android_camera APK
         uses: actions/upload-artifact@v2
