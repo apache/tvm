@@ -59,7 +59,7 @@ class Expected:
         A: T.Buffer[(1,), "float32"],
         B: T.Buffer[(1,), "float32"],
         C: T.Buffer[(1,), "float32"],
-        device_context: T.handle,
+        device_context: T.Buffer[(1,), "float32"],
     ) -> T.handle:
         T.evaluate(C.data)
 
