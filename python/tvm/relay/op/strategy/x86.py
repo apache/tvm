@@ -19,7 +19,7 @@
 import logging
 
 import re
-from tvm import topi
+from tvm import topi, tir
 from tvm.topi.x86.utils import target_has_vnni
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
