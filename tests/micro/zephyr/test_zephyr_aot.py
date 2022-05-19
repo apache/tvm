@@ -33,7 +33,6 @@ import tvm.relay as relay
 from tvm.relay.backend import Executor, Runtime
 
 from tvm.contrib.download import download_testdata
-from tvm.micro.testing import aot_transport_init_wait, aot_transport_find_message
 
 import test_utils
 

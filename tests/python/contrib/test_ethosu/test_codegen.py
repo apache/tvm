@@ -29,7 +29,7 @@ from tvm import relay
 from tvm.relay.backend.contrib.ethosu import util
 
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
-from tests.python.relay.aot.aot_test_utils import generate_ref_data
+from tvm.testing.aot import generate_ref_data
 
 from . import infra
 

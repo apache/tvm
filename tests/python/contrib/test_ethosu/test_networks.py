@@ -24,7 +24,7 @@ import numpy as np
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tvm.micro import model_library_format as mlf
 
-from tests.python.relay.aot.aot_test_utils import convert_to_relay
+from tvm.testing.aot import convert_to_relay
 
 from . import infra
 
