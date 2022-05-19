@@ -16,6 +16,7 @@
 # under the License.
 import tvm
 from tvm import te
+from tvm.script import tir as T
 
 
 def test_stmt_simplify():
@@ -133,9 +134,41 @@ def test_complex_likely_elimination():
     assert "if" not in str(stmt)
 
 
+def test_load_store_noop():
+    """Store of a value that was just read from the same location is a no-op."""
+
+    @T.prim_func
+    def before(A: T.Buffer[(1,), "float32"]):
+        A[0] = A[0]
+
+    @T.prim_func
+    def expected(A: T.Buffer[(1,), "float32"]):
+        T.evaluate(0)
+
+    after = tvm.tir.transform.Simplify()(tvm.IRModule.from_expr(before))["main"]
+    tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_load_store_noop_after_simplify():
+    """As test_load_store_noop, but requiring simplification to identify.
+
+    Previously, a bug caused the self-assignment of a buffer to
+    checked based on the pre-simplification assignment, not the
+    post-simplification.  This test is to identify any similar
+    regression.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[(1,), "float32"]):
+        A[0] = A[0] + (5.0 - 5.0)
+
+    @T.prim_func
+    def expected(A: T.Buffer[(1,), "float32"]):
+        T.evaluate(0)
+
+    after = tvm.tir.transform.Simplify()(tvm.IRModule.from_expr(before))["main"]
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 if __name__ == "__main__":
-    test_stmt_simplify()
-    test_thread_extent_simplify()
-    test_if_likely()
-    test_basic_likely_elimination()
-    test_complex_likely_elimination()
+    sys.exit(pytest.main(sys.argv))
