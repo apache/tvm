@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "hexagon_buffer.h"
+#include "hexagon_threadmanager.h"
 
 namespace tvm {
 namespace runtime {
@@ -44,10 +45,19 @@ class HexagonDeviceAPI final : public DeviceAPI {
   static HexagonDeviceAPI* Global();
 
   //! \brief Constructor
-  HexagonDeviceAPI() {}
+  HexagonDeviceAPI() {
+    #if defined(__hexagon__)
+    thread_manager = new HexagonThreadManager(6, 16*(1<<10), 1<<10);
+    thread_manager->GetStreamHandles(free_streams);
+    #endif
+  }
 
   //! \brief Destructor
-  ~HexagonDeviceAPI() {}
+  ~HexagonDeviceAPI() {
+    #if defined(__hexagon__)
+    delete thread_manager;
+    #endif
+  }
 
   /*! \brief Currently unimplemented interface to specify the active
    *  Hexagon device.
@@ -120,6 +130,13 @@ class HexagonDeviceAPI final : public DeviceAPI {
    */
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
 
+  // Interface functions for threads
+  TVMStreamHandle CreateStream(Device dev);
+  void FreeStream(Device dev, TVMStreamHandle stream);
+  void SetStream(Device dev, TVMStreamHandle stream);
+  void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst);
+  void Dispatch(Device dev, PackedFunc f, TVMArgs args, TVMRetValue* rv, TVMStreamHandle stream = (void*)-1);
+
  protected:
   //! Standard Device API interface to copy data from one storage to another.
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
@@ -154,6 +171,12 @@ class HexagonDeviceAPI final : public DeviceAPI {
   void FreeHexagonBuffer(void* ptr);
   //! Lookup table for the HexagonBuffer managing an allocation.
   std::unordered_map<void*, std::unique_ptr<HexagonBuffer>> hexagon_buffer_map_;
+
+  #if defined(__hexagon__)
+  HexagonThreadManager* thread_manager;
+  #endif
+  std::vector<TVMStreamHandle> free_streams;
+  TVMStreamHandle active_stream = (void*)-1;
 };
 }  // namespace hexagon
 }  // namespace runtime

@@ -13,8 +13,6 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   CHECK_LE(num_threads, QURT_MAX_HTHREAD_LIMIT);
   this->nthreads = num_threads;
   
-  number_semaphores = 0;
-  semaphores = NULL;
   threads = NULL;
   pipes = NULL;
   contexts = NULL;
@@ -38,7 +36,7 @@ HexagonThreadManager::~HexagonThreadManager() {
   
   // dispatch a command to each thread to exit with status 0
   for (int i = 0; i < nthreads; i++) {
-    Dispatch(i, &thread_exit, (void*) 0);
+    Dispatch((TVMStreamHandle)i, &thread_exit, (void*) 0);
   }
 
   // join with each thread (wait for them to terminate); if already exited, call returns immediately
@@ -57,14 +55,6 @@ HexagonThreadManager::~HexagonThreadManager() {
     }
   }
 
-  // Dealloc semaphores
-  if (number_semaphores > 0) {
-    for (int i = 0; i < number_semaphores; i++) {
-      qurt_sem_destroy(&semaphores[i]);
-    }
-    free(semaphores);
-  }
-
   // Dealloc memory blocks
   free(threads);
   free(pipes);
@@ -79,7 +69,7 @@ void HexagonThreadManager::SpawnThreads() {
   
   int ret;
   // array of thread objects
-  posix_memalign((void**)&threads, MEM_ALIGNMENT, sizeof(qurt_thread_t) * nthreads);
+  ret = posix_memalign((void**)&threads, MEM_ALIGNMENT, sizeof(qurt_thread_t) * nthreads);
   CHECK_EQ(ret, 0);
   // array of pipe objects
   ret = posix_memalign((void**)&pipes, MEM_ALIGNMENT, sizeof(qurt_pipe_t) * nthreads);
@@ -123,26 +113,27 @@ void HexagonThreadManager::SpawnThreads() {
   LOG(INFO) << "Threads created" << "\n";
 }
 
-void HexagonThreadManager::GetStreamHandles(std::vector<TVMStreamHandle>* out) {
+void HexagonThreadManager::GetStreamHandles(std::vector<TVMStreamHandle> out) {
   for (int i = 0; i < nthreads; i++) {
-    out->push_back(static_cast<TVMStreamHandle>((void*)i));  // threads identified by index into `threads` array
+    out.push_back((TVMStreamHandle)i);  // threads identified by index into `threads` array
   }
 }
   
 /*
-AllocateSyncs is not necessary if a program ONLY uses dynamically-allocated semaphores --- i.e., `SyncFromTo` is the only
-sync mechanism called.
+PreallocateSyncs is not necessary, but can eliminate runtime overhead for semaphore allocation and vector resizing.
 */
-void HexagonThreadManager::AllocateSyncs(unsigned number_syncs) {
-  number_semaphores = number_syncs;
-  semaphores = (qurt_sem_t*) malloc(sizeof(qurt_sem_t) * number_syncs);
-  for (int i = 0; i < number_syncs; i++) {
-    qurt_sem_init_val(&semaphores[i], 0);
-  }
+void HexagonThreadManager::PreallocateSyncs(unsigned number_syncs) {
+  check_semaphore(number_syncs);
 }
-
-void HexagonThreadManager::Dispatch(unsigned thread, voidfunc f, void* args) {
-  Command* cmd = new Command(f, args);
+  
+void HexagonThreadManager::Dispatch(TVMStreamHandle thread, PackedFunc f, TVMArgs args, TVMRetValue* rv) {
+  WrappedPackedFunc* wrapped = new WrappedPackedFunc(f, args, rv);  // WrappedPackedFunc object freed by receiving thread
+  Dispatch(thread, thread_unpack, (void*)wrapped);
+}
+  
+void HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* args) {
+  unsigned thread = (unsigned)stream;
+  Command* cmd = new Command(f, args);  // Command object freed by receiving thread
   qurt_pipe_data_t msg = (qurt_pipe_data_t)(cmd);
   qurt_pipe_t* pipeAddr = &pipes[thread];
 
@@ -154,22 +145,31 @@ void HexagonThreadManager::Dispatch(unsigned thread, voidfunc f, void* args) {
   }
 }
 
-void HexagonThreadManager::Signal(unsigned thread, unsigned syncID) {
-  CHECK_LT(syncID, number_semaphores);
-  qurt_sem_t* semaphore = &semaphores[syncID];
-  Dispatch(thread, thread_signal, (void*) semaphore);
+void HexagonThreadManager::check_semaphore(unsigned syncID) {
+  // extend the semaphore vector if it's not long enough
+  if (syncID >= semaphores.size()) {
+    auto oldsize = semaphores.size();
+    semaphores.resize(syncID);
+    for (int i = oldsize; i < syncID; i++) {
+      qurt_sem_init_val(&semaphores[i], 0);
+    }
+  }
+}
+  
+void HexagonThreadManager::Signal(TVMStreamHandle thread, SyncPoint syncID) {
+  check_semaphore(syncID);
+  Dispatch(thread, thread_signal, (void*) &semaphores[syncID]);
 }
 
-void HexagonThreadManager::Wait(unsigned thread, unsigned syncID) {
-  CHECK_LT(syncID, number_semaphores);
-  qurt_sem_t* semaphore = &semaphores[syncID];
-  Dispatch(thread, thread_wait, (void*) semaphore);
+void HexagonThreadManager::Wait(TVMStreamHandle thread, SyncPoint syncID) {
+  check_semaphore(syncID);
+  Dispatch(thread, thread_wait, (void*) &semaphores[syncID]);
 }
 
 /* Create a sync_from_to relationship with a dynamic semaphore allocation.
 Makes use of thread_wait_free to also free the semaphore after sync is complete.
 */
-void HexagonThreadManager::SyncFromTo(unsigned signal_thread, unsigned wait_thread) {
+void HexagonThreadManager::SyncFromTo(TVMStreamHandle signal_thread, TVMStreamHandle wait_thread) {
   qurt_sem_t* sem = (qurt_sem_t*) malloc(sizeof(qurt_sem_t));
   qurt_sem_init_val(sem, 0);
   Dispatch(signal_thread, thread_signal, (void*)sem);
@@ -195,6 +195,15 @@ void HexagonThreadManager::thread_exit(void* status) {
   qurt_thread_exit( (int) status);
 }
 
+void HexagonThreadManager::thread_unpack(void* wpf) {
+  WrappedPackedFunc* wrapped = static_cast<WrappedPackedFunc*>(wpf);
+  PackedFunc f = wrapped->f;
+  TVMArgs args = wrapped->args;
+  TVMRetValue* rv = wrapped->rv;
+  delete wrapped;  // reclaim memory before call in case call is thread_exit
+  f->CallPacked(args, rv);
+}
+  
 void HexagonThreadManager::thread_main(void* context) {
   ThreadContext* tc = static_cast<ThreadContext*>(context);
   unsigned index = tc->index;
@@ -205,7 +214,7 @@ void HexagonThreadManager::thread_main(void* context) {
     Command* cmd = (Command*)(msg);
     voidfunc f = cmd->f;
     void* args = cmd->args;
-    delete cmd;  // reclaim memory before call in case call is thread_exit
+    delete cmd;
     f(args);
   }
   // thread exit is handled by dispatching an exit command

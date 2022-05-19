@@ -180,6 +180,39 @@ void HexagonDeviceAPI::FreeHexagonBuffer(void* ptr) {
   hexagon_buffer_map_.erase(it);
 }
 
+// Interface functions for threads
+TVMStreamHandle HexagonDeviceAPI::CreateStream(Device dev) {
+  CHECK(free_streams.size() > 0);
+  TVMStreamHandle ret = free_streams[free_streams.size()-1];
+  free_streams.pop_back();
+  return ret;
+}
+  
+void HexagonDeviceAPI::FreeStream(Device dev, TVMStreamHandle stream) {
+  free_streams.push_back(stream);
+}
+  
+void HexagonDeviceAPI::SetStream(Device dev, TVMStreamHandle stream) {
+  active_stream = stream;
+}
+  
+void HexagonDeviceAPI::SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
+  #if defined(__hexagon__)
+  thread_manager->SyncFromTo(event_src, event_dst);
+  #endif
+}
+
+void HexagonDeviceAPI::Dispatch(Device dev, PackedFunc f, TVMArgs args, TVMRetValue* rv, TVMStreamHandle stream) {
+  if (stream < (void*)0) {
+    CHECK_GE(active_stream, (void*)0);
+    stream = active_stream;
+  }
+  #if defined(__hexagon__)
+  thread_manager->Dispatch(stream, f, args, rv);
+  #endif
+}
+
+  
 TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
   void* dst = args[0];
   void* src = args[1];
