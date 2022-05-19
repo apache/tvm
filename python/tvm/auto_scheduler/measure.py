@@ -224,7 +224,7 @@ def recover_measure_input(inp, rebuild_state=False):
     from .search_task import SearchTask  # lazily import to avoid recursive dependency
 
     task = inp.task
-    task.target, task.target_host = Target.check_and_update_host_consist(
+    task.target, task.target_host = Target.canonicalize_target_and_host(
         task.target, task.target_host
     )
     new_task = SearchTask(
@@ -612,7 +612,7 @@ def _local_build_worker(inp_serialized, build_func, verbose):
     tic = time.time()
     inp = MeasureInput.deserialize(inp_serialized)
     task = inp.task
-    task.target, task.target_host = Target.check_and_update_host_consist(
+    task.target, task.target_host = Target.canonicalize_target_and_host(
         task.target, task.target_host
     )
 

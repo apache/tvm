@@ -448,7 +448,7 @@ class SearchTask(Object):
 
         assert target is not None, "Must specify a target."
 
-        target, target_host = Target.check_and_update_host_consist(target, target_host)
+        target, target_host = Target.canonicalize_target_and_host(target, target_host)
 
         if layout_rewrite_option is None:
             layout_rewrite_option = LayoutRewriteOption.get_target_default(target)
@@ -559,7 +559,7 @@ class SearchTask(Object):
         raise ValueError("Invalid print_mode: %s" % print_mode)
 
     def __getstate__(self):
-        self.target, self.target_host = Target.check_and_update_host_consist(
+        self.target, self.target_host = Target.canonicalize_target_and_host(
             self.target, self.target_host
         )
         return {
@@ -587,7 +587,7 @@ class SearchTask(Object):
         if workload[0] not in WORKLOAD_FUNC_REGISTRY:
             register_workload_tensors(state["workload_key"], state["compute_dag"].tensors)
 
-        state["target"], state["target_host"] = Target.check_and_update_host_consist(
+        state["target"], state["target_host"] = Target.canonicalize_target_and_host(
             state["target"], state["target_host"]
         )
         self.__init_handle_by_constructor__(

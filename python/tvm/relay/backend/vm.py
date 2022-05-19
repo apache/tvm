@@ -128,7 +128,7 @@ class VMCompiler(object):
             By default, llvm is used if it is enabled,
             otherwise a stackvm intepreter is used.
         """
-        raw_targets = Target.canonicalize_target_and_host(target, target_host)
+        raw_targets = Target.canonicalize_multi_targets_and_host(target, target_host)
         tophub_context = self._tophub_context(raw_targets)
         with tophub_context:
             self._lower(mod, raw_targets)
@@ -164,7 +164,7 @@ class VMCompiler(object):
         params : dict
             The parameters of the final module.
         """
-        raw_targets = Target.canonicalize_target_and_host(target, target_host)
+        raw_targets = Target.canonicalize_multi_targets_and_host(target, target_host)
         if params:
             self.set_params(params)
         return self._optimize(mod, raw_targets), self.get_params()

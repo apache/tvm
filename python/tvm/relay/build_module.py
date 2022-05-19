@@ -46,44 +46,6 @@ from .backend.vm import VMExecutor
 from .transform import InferType
 
 
-def build_target_by_device_type_map(target):
-    """Build a map from DLDevice device_type to a Target used with that device.
-
-    At runtime, TVM assigns target code to DLDevices by determining a device_type for each Target.
-    This function handles this process at compile time and, as a side effect, validates that exactly
-    one target maps to one device_type.
-
-    Parameters
-    ----------
-    target : Target or str or dict
-       If a Target or str: assumes that exactly one device type is present in the model.
-       If a dict: keys are tvm.ndarray.device, values are the targets used for each device.
-
-    Returns
-    -------
-
-    """
-    target = target if target else Target.current()
-    if target is None:
-        raise ValueError("Target is not set in env or passed as argument.")
-
-    tgts = {}
-    if isinstance(target, (str, Target)):
-        dev_type = tvm_expr.IntImm("int32", _nd.device(str(target)).device_type)
-        tgts[dev_type] = Target(target)
-    elif isinstance(target, dict):
-        for dev, tgt in target.items():
-            dev_type = tvm_expr.IntImm("int32", _nd.device(dev).device_type)
-            tgts[dev_type] = Target(tgt)
-    else:
-        raise TypeError(
-            "target is expected to be str or "
-            + "tvm.target.Target, but received "
-            + "{}".format(type(target))
-        )
-    return tgts
-
-
 def _convert_param_map(params):
     inputs = {}
     for name, param in params.items():
@@ -173,7 +135,7 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
-        raw_targets = Target.canonicalize_target_and_host(target, target_host)
+        raw_targets = Target.canonicalize_multi_targets_and_host(target, target_host)
 
         # Setup the params.
         if params:
@@ -225,7 +187,7 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
-        raw_targets = Target.canonicalize_target_and_host(target, target_host)
+        raw_targets = Target.canonicalize_multi_targets_and_host(target, target_host)
 
         # Setup the params.
         if params:
@@ -272,7 +234,7 @@ class BuildModule(object):
         return ret
 
     def get_irmodule(self):
-        """Returns the Target IRModule's post-lowering"""
+        """Returns the TargetIRModule's post-lowering"""
         return self._get_irmodule()
 
 
@@ -283,8 +245,9 @@ def _module_export(module, file_name):  # fcompile, addons, kwargs?
 
 @register_func("tvm.relay.build")
 def _build_module_no_factory_impl(mod, target, target_host, params, mod_name):
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
-    return build(mod, target, params=params, mod_name=mod_name).module
+    return build(
+        mod, target=target, target_host=target_host, params=params, mod_name=mod_name
+    ).module
 
 
 def _build_module_no_factory(mod, target=None, target_host=None, params=None, mod_name="default"):
@@ -436,20 +399,12 @@ def build(
             "target_host parameter is going to be deprecated. "
             "Please pass in tvm.target.Target(target, host=target_host) instead."
         )
-
-    target, target_host = Target.check_and_update_host_consist(
-        target, target_host, target_is_dict_key=False
-    )
-
-    target = build_target_by_device_type_map(target)
-    if isinstance(target_host, (str, Target)):
-        target_host = Target(target_host)
-    elif target_host:
-        raise ValueError("target host must be the type of str, " + "tvm.target.Target, or None")
+    raw_targets = Target.canonicalize_multi_targets_and_host(target, target_host)
+    target_host = raw_targets[0].host
 
     # All of this logic is to raise deprecation warnings for various parameters
     # TODO(Mousius) Remove these after some time
-    deprecated_params_target = target_host or list(target.values())[0]
+    deprecated_params_target = target_host or list(raw_targets)[0]
     deprecated_executor, deprecated_runtime = _reconstruct_from_deprecated_options(
         deprecated_params_target
     )
@@ -461,7 +416,7 @@ def build(
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
     if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
-        tophub_context = autotvm.tophub.context(list(target.values()))
+        tophub_context = autotvm.tophub.context(list(raw_targets))
     else:
         tophub_context = autotvm.utils.EmptyContext()
 
@@ -469,7 +424,7 @@ def build(
         bld_mod = BuildModule()
         graph_json, runtime_mod, params = bld_mod.build(
             mod=ir_mod,
-            target=target,
+            target=raw_targets,
             params=params,
             executor=executor,
             runtime=runtime,
@@ -485,7 +440,7 @@ def build(
             executor_factory = _executor_factory.AOTExecutorFactoryModule(
                 ir_mod,
                 lowered_ir_mods,
-                target,
+                raw_targets,
                 executor,
                 runtime,
                 runtime_mod,
@@ -497,7 +452,14 @@ def build(
             )
         elif str(executor) == "graph":
             executor_factory = _executor_factory.GraphExecutorFactoryModule(
-                ir_mod, target, executor, graph_json, runtime_mod, mod_name, params, func_metadata
+                ir_mod,
+                raw_targets,
+                executor,
+                graph_json,
+                runtime_mod,
+                mod_name,
+                params,
+                func_metadata,
             )
         else:
             assert False, "Executor " + executor + " not supported"
@@ -543,18 +505,18 @@ def optimize(mod, target=None, params=None):
             DeprecationWarning,
         )
 
-    target = build_target_by_device_type_map(target)
+    raw_targets = Target.canonicalize_multi_targets_and_host(target)
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
     if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
-        tophub_context = autotvm.tophub.context(list(target.values()))
+        tophub_context = autotvm.tophub.context(raw_targets)
     else:
         tophub_context = autotvm.utils.EmptyContext()
 
     with tophub_context:
         bld_mod = BuildModule()
-        mod, params = bld_mod.optimize(mod, target=target, params=params)
+        mod, params = bld_mod.optimize(mod, target=raw_targets, params=params)
     return mod, params
 
 

@@ -261,11 +261,13 @@ def build(
             raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
         annotated_mods[tar] = mod.with_attr("runtime", runtime)
 
-    annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
+    annotated_mods, target_host = Target.canonicalize_target_map_and_host(
+        annotated_mods, target_host
+    )
 
+    # TODO(mbs): Subsumed by CompilationConfig, but tir_to_runtime bypasses that.
     if not target_host:
         for tar, mod in annotated_mods.items():
-            tar = Target(tar)
             device_type = ndarray.device(tar.kind.name, 0).device_type
             if device_type == ndarray.cpu(0).device_type:
                 target_host = tar
@@ -273,11 +275,15 @@ def build(
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
-    annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
+    annotated_mods, target_host = Target.canonicalize_target_map_and_host(
+        annotated_mods, target_host
+    )
 
     rt_mod_host = _driver_ffi.tir_to_runtime(annotated_mods, target_host)
 
-    annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
+    annotated_mods, target_host = Target.canonicalize_target_map_and_host(
+        annotated_mods, target_host
+    )
 
     if not isinstance(target_host, Target):
         target_host = Target(target_host)

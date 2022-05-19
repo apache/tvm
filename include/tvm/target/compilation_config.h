@@ -27,6 +27,8 @@
 
 #include <tvm/target/virtual_device.h>
 
+#include <string>
+
 namespace tvm {
 
 /*!
@@ -114,11 +116,16 @@ class CompilationConfigNode : public Object {
   void VisitAttrs(AttrVisitor* v);
 
   /*!
-   * \brief Return the unique \p Target to use for \p device_type. Fail if no such target exists.
+   * \brief Returns the unique \p Target to use for \p device_type. Fail if no such target exists.
    *
    * This will be the first primitive target with matching device type.
    */
-  Target FindPrimitiveTargetOrFail(DLDeviceType device_type) const;
+  Target FindPrimitiveTargetForDeviceOrFail(DLDeviceType device_type) const;
+
+  /*!
+   * \brief Returns the unique \p Target to use for \p kind_name. Returns null if none such.
+   */
+  Optional<Target> FindPrimitiveTargetForKind(const std::string& kind_name) const;
 
   /*!
    * \brief Returns a \p VirtualDevice agreeing with \p virtual_device on all its constrained

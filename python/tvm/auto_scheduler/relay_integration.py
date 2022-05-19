@@ -115,13 +115,7 @@ def extract_tasks(
         The weight (i.e. the number of appearance) of extracted tasks
     """
     # pylint: disable=import-outside-toplevel
-    if target_host is not None:
-        warnings.warn(
-            "target_host parameter is going to be deprecated. "
-            "Please pass in tvm.target.Target(target, host=target_host) instead."
-        )
-
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    target, target_host = Target.canonicalize_target_and_host(target, target_host)
 
     # Run the compiler to collect all TOPI calls during compilation.
     env = TracingEnvironment(
