@@ -58,10 +58,6 @@ class DispatchContext(object):
     def __init__(self):
         self._old_ctx = DispatchContext.current
 
-    # TODO(mbs): Collage only: Allow cache query
-    def contains(self, target, workload):
-        raise NotImplementedError()
-
     def query(self, target, workload):
         """
         Query the context to get the specific config for a template.
@@ -301,9 +297,8 @@ class ApplyHistoryBest(DispatchContext):
         counter = 0
         for inp, res in joint_records:
             counter += 1
-            # TODO(mbs): Collage only: Cache the error so don't re-tune
-            # if res.error_no != 0:
-            #     continue
+            if res.error_no != 0:
+                continue
 
             # use target keys in tvm target system as key to build best map
             for k in inp.target.keys:
@@ -325,14 +320,7 @@ class ApplyHistoryBest(DispatchContext):
                 if np.mean(other_res.costs) > np.mean(res.costs):
                     best_by_model[key] = (inp, res)
 
-        # TODO(mbs): Collage only: Too verbose
-        # logger.info("Finished loading %d records", counter)
-
-    # TODO(mbs): Collage only: Allow cache query
-    def contains(self, target, workload):
-        # logger.info(
-        #    f"look for match with {target} and {workload} with {len(self._best_user_defined)} user-defined, {len(self.best_by_model)} model and {len(self.best_by_targetkey)} target entries")
-        return self._query_inside(target, workload) is not None
+        logger.debug("Finish loading %d records", counter)
 
     def _query_inside(self, target, workload):
         if target is None:

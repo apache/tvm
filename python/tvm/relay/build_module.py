@@ -24,7 +24,6 @@ import numpy as np
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext
 from tvm.target import Target
-from tvm.tir import expr as tvm_expr
 
 from .. import autotvm
 from .. import nd as _nd
@@ -135,7 +134,7 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
-        raw_targets = Target.canonicalize_multi_targets_and_host(target, target_host)
+        raw_targets = Target.canon_multi_target_and_host(target, target_host)
 
         # Setup the params.
         if params:
@@ -187,7 +186,7 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
-        raw_targets = Target.canonicalize_multi_targets_and_host(target, target_host)
+        raw_targets = Target.canon_multi_target_and_host(target, target_host)
 
         # Setup the params.
         if params:
@@ -399,7 +398,7 @@ def build(
             "target_host parameter is going to be deprecated. "
             "Please pass in tvm.target.Target(target, host=target_host) instead."
         )
-    raw_targets = Target.canonicalize_multi_targets_and_host(target, target_host)
+    raw_targets = Target.canon_multi_target_and_host(target, target_host)
     target_host = raw_targets[0].host
 
     # All of this logic is to raise deprecation warnings for various parameters
@@ -505,7 +504,7 @@ def optimize(mod, target=None, params=None):
             DeprecationWarning,
         )
 
-    raw_targets = Target.canonicalize_multi_targets_and_host(target)
+    raw_targets = Target.canon_multi_target_and_host(target)
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub

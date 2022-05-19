@@ -218,7 +218,7 @@ class Target(Object):
         return list(_ffi_api.ListTargetKinds())
 
     @staticmethod
-    def canonicalize_target(target):
+    def canon_target(target):
         """Given a single target-like object, returns the TVM Target object representing it.
         Can convert from:
         - None (to None).
@@ -233,40 +233,40 @@ class Target(Object):
         return Target(target)
 
     @staticmethod
-    def canonicalize_multi_targets(multi_targets):
+    def canon_multi_target(multi_targets):
         """Given a single target-like object, or a collection-like object of target-like objects,
         returns a TVM Array of TVM Target objects representing then. Can convert from:
         - None (to None).
-        - A single target-like object in a form recognized by canonicalize_target.
+        - A single target-like object in a form recognized by canon_target.
         - A Python list or TVM Array of target-like objects in a form recognized by
-        canonicalize_target.
+        canon_target.
         - A Python dict or TVM Map from TVM IntImm objects representing device types to
-        a target-like object in a form recognized by canonicalize_target. (This is a legacy
+        a target-like object in a form recognized by canon_target. (This is a legacy
         method to represent heterogeneous targets. The keys are ignored.)
         """
         if multi_targets is None:
             return None
         if isinstance(multi_targets, (dict, Map)) and "kind" not in multi_targets:
             # Convert legacy heterogeneous map representation to ordinary list of targets.
-            return Target.canonicalize_multi_targets([t for _, t in multi_targets.items()])
+            return Target.canon_multi_target([t for _, t in multi_targets.items()])
         if isinstance(multi_targets, (list, Array)):
             # Multiple Target results.
-            return convert([Target.canonicalize_target(t) for t in multi_targets])
+            return convert([Target.canon_target(t) for t in multi_targets])
         # Single Target result.
-        return convert([Target.canonicalize_target(multi_targets)])
+        return convert([Target.canon_target(multi_targets)])
 
     @staticmethod
-    def canonicalize_multi_targets_and_host(target, target_host=None):
+    def canon_multi_target_and_host(target, target_host=None):
         """Returns a TVM Array<Target> capturing target and target_host. The given target can be in
-        any form recognized by Target.canonicalize_multi_targets. If given, target_host can be in
-        any form recognized by Target.canonicalize_target. If target_host is given it will be set
+        any form recognized by Target.canon_multi_target. If given, target_host can be in
+        any form recognized by Target.canon_target. If target_host is given it will be set
         as the 'host' in each result Target object (and a warning given).
         """
         # Convert target to Array<Target>, but not yet accounting for any host.
-        raw_targets = Target.canonicalize_multi_targets(target)
+        raw_targets = Target.canon_multi_target(target)
         assert raw_targets is not None
         # Convert host to Target, if given.
-        target_host = Target.canonicalize_target(target_host)
+        target_host = Target.canon_target(target_host)
         if target_host is not None:
             warnings.warn(
                 "target_host parameter is going to be deprecated. "
@@ -277,17 +277,17 @@ class Target(Object):
         return raw_targets
 
     @staticmethod
-    def canonicalize_target_and_host(target, target_host=None):
+    def canon_target_and_host(target, target_host=None):
         """Returns a TVM Target capturing target and target_host. Also returns the host in
         canonical form. The given target can be in any form recognized by
-        Target.canonicalize_target. If given, target_host can be in any form recognized by
-        Target.canonicalize_target. If target_host is given it will be set as the 'host' in the
+        Target.canon_target. If given, target_host can be in any form recognized by
+        Target.canon_target. If target_host is given it will be set as the 'host' in the
         result Target object (and a warning given).
 
         Note that this method does not support heterogeneous compilation targets.
         """
-        target = Target.canonicalize_target(target)
-        target_host = Target.canonicalize_target(target_host)
+        target = Target.canon_target(target)
+        target_host = Target.canon_target(target_host)
         if target is None:
             assert target_host is None, "Target host is not empty when target is empty."
         if target_host is not None:
@@ -301,11 +301,11 @@ class Target(Object):
         return target, target_host
 
     @staticmethod
-    def canonicalize_target_map_and_host(target_map, target_host=None):
+    def canon_target_map_and_host(target_map, target_host=None):
         """Returns target_map as a map from TVM Target's in canonical form to IRModules. The keys
-        of the input target_map can be in any form recognized by Target.canonicalize_target.
+        of the input target_map can be in any form recognized by Target.canon_target.
         Similarly, if given, target_host can be in any form recognized by
-        Target.canonicalize_target. The final target_map keys will capture the target_host in
+        Target.canon_target. The final target_map keys will capture the target_host in
         canonical form. Also returns the target_host in canonical form."""
         new_target_map = {}
         if target_host is not None:
@@ -313,9 +313,9 @@ class Target(Object):
                 "target_host parameter is going to be deprecated. "
                 "Please pass in tvm.target.Target(target, host=target_host) instead."
             )
-            target_host = Target.canonicalize_target(target_host)
+            target_host = Target.canon_target(target_host)
         for tgt, mod in target_map.items():
-            tgt = Target.canonicalize_target(tgt)
+            tgt = Target.canon_target(tgt)
             assert tgt is not None
             if target_host is not None:
                 tgt = Target(tgt, target_host)

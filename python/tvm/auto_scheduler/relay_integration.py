@@ -26,7 +26,6 @@ import json
 import logging
 import threading
 import traceback
-import warnings
 
 import tvm
 from tvm import autotvm, transform
@@ -115,7 +114,7 @@ def extract_tasks(
         The weight (i.e. the number of appearance) of extracted tasks
     """
     # pylint: disable=import-outside-toplevel
-    target, target_host = Target.canonicalize_target_and_host(target, target_host)
+    target, target_host = Target.canon_target_and_host(target, target_host)
 
     # Run the compiler to collect all TOPI calls during compilation.
     env = TracingEnvironment(

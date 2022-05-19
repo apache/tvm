@@ -17,7 +17,6 @@
 """The interface of expr function exposed from C++."""
 import tvm._ffi
 import tvm.driver
-from tvm.target import Target
 
 
 @tvm._ffi.register_func("relay.backend.build")
