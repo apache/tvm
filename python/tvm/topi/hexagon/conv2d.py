@@ -18,6 +18,7 @@
 """Schedule for conv2d"""
 
 import tvm
+from ..utils import traverse_inline
 
 
 def schedule_conv2d_nhwc(outs):
@@ -52,3 +53,36 @@ def schedule_conv2d(outs, layout="NHWC"):
         return schedule_conv2d_nchw(outs)
 
     raise ValueError(f"Unexpected layout={layout}")
+
+
+def schedule_depthwise_conv2d_nchw(outs):
+    return schedule_conv2d_nchw(outs)
+
+
+def schedule_depthwise_conv2d_nhwc(out):
+    return schedule_conv2d_nhwc(out)
+
+
+def schedule_conv2d_transpose_nchw(outs):
+    """Create schedule for tensors"""
+    outs = [outs] if isinstance(outs, tvm.te.tensor.Tensor) else outs
+    s = schedule_conv2d_nchw(outs)
+
+    def _callback(op):
+        if "unpack_nchwc" in op.tag:
+            conv_out = op.input_tensors[0]
+            # retrieve data
+            data_vec = conv_out.op.input_tensors[0]
+            if isinstance(data_vec, tvm.te.ComputeOp):
+                data_pad = data_vec.op.input_tensors[0]
+                data_dilate = data_pad.op.input_tensors[0]
+                s[data_dilate].compute_inline()
+                s[data_pad].compute_inline()
+            # retrieve kernel
+            kernel_vec = conv_out.op.input_tensors[1]
+            if isinstance(kernel_vec, tvm.te.ComputeOp):
+                kernel_transform = kernel_vec.op.input_tensors[0]
+                s[kernel_transform].compute_inline()
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s

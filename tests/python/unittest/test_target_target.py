@@ -48,10 +48,11 @@ def test_all_targets_device_type_verify():
     all_targets = [tvm.target.Target(t) for t in tvm.target.Target.list_kinds()]
 
     for tgt in all_targets:
-        # skip target hook
+        # skip targets with hooks or otherwise intended to be used with external codegen
         relay_to_tir = tgt.get_kind_attr("RelayToTIR")
         tir_to_runtime = tgt.get_kind_attr("TIRToRuntime")
-        if relay_to_tir is not None or tir_to_runtime is not None:
+        is_external_codegen = tgt.get_kind_attr("is_external_codegen")
+        if relay_to_tir is not None or tir_to_runtime is not None or is_external_codegen:
             continue
 
         if tgt.kind.name not in tvm._ffi.runtime_ctypes.Device.STR2MASK:
@@ -402,6 +403,44 @@ def test_check_and_update_host_consist_4():
     assert isinstance(target_2, dict)
     assert target_2[cuda_device_type].kind.name == "cuda"
     assert host_2.kind.name == "llvm"
+
+
+def test_canonicalize_target_and_host_0():
+    with pytest.raises(AssertionError):
+        Target.canonicalize_target_and_host(None)
+
+
+def test_canonicalize_target_and_host_1():
+    raw_targets = Target.canonicalize_target_and_host({"kind": "llvm"})
+    assert len(raw_targets) == 1
+    assert raw_targets[0].kind.name == "llvm"
+
+
+def test_canonicalize_target_and_host_2():
+    raw_targets = Target.canonicalize_target_and_host({1: "llvm", 2: "cuda"})
+    assert len(raw_targets) == 2
+    assert raw_targets[0].kind.name == "llvm"
+    assert raw_targets[1].kind.name == "cuda"
+
+
+def test_canonicalize_target_and_host_3():
+    raw_targets = Target.canonicalize_target_and_host(["llvm", "cuda"])
+    assert len(raw_targets) == 2
+    assert raw_targets[0].kind.name == "llvm"
+    assert raw_targets[1].kind.name == "cuda"
+
+
+def test_canonicalize_target_and_host_4():
+    raw_targets = Target.canonicalize_target_and_host("llvm")
+    assert len(raw_targets) == 1
+    assert raw_targets[0].kind.name == "llvm"
+
+
+def test_canonicalize_target_and_host_5():
+    raw_targets = Target.canonicalize_target_and_host("cuda", "llvm")
+    assert len(raw_targets) == 1
+    assert raw_targets[0].kind.name == "cuda"
+    assert raw_targets[0].host.kind.name == "llvm"
 
 
 def test_target_attr_bool_value():

@@ -27,13 +27,7 @@ import csv
 
 import tvm.testing
 from tvm import te
-from tvm import relay
-from tvm.relay.backend import Executor, Runtime
-from tvm.contrib import utils, ndk
-from tvm.contrib.hexagon.build import HexagonLauncher
-import tvm.contrib.hexagon as hexagon
-
-from .conftest import requires_hexagon_toolchain
+from tvm.contrib.hexagon.build import HexagonLauncherRPC
 
 RPC_SERVER_PORT = 7070
 
@@ -47,8 +41,8 @@ HVX_VECTOR_BYTES = 128
 # server to bind to the same port until the wait time elapses.
 
 
-@requires_hexagon_toolchain
-def test_elemwise_add(android_serial_number, hexagon_launcher):
+@tvm.testing.requires_hexagon
+def test_elemwise_add(hexagon_launcher: HexagonLauncherRPC):
     """
     Starting with an elementwise-add computation, try various schedules / optimizations to
     see the impact they have on performance.
@@ -162,19 +156,6 @@ def test_elemwise_add(android_serial_number, hexagon_launcher):
     def test_one_config(dtype, sched_type, mem_scope, num_vectors_per_tensor):
         version_name = f"dtype:{dtype}-schedtype:{sched_type}-memscope:{mem_scope}-numvecs:{num_vectors_per_tensor}"
         print(f"CONFIGURATION: {version_name}")
-
-        if num_vectors_per_tensor == 1 and mem_scope == "global.vtcm":
-            # 2022-04-12 (cconvey): There's currently a bug in which TVM doesn't
-            # recognize the mapping of 1D memory <--> 2D memory as being bijective
-            # when num_vectors_per_tensor == 1.
-            br.record_skip(
-                dtype,
-                sched_type,
-                mem_scope,
-                num_vectors_per_tensor,
-                f"Expect to hit bug where 1D-2D bijective transform not recognized.",
-            )
-            return
 
         if num_vectors_per_tensor == 2048 and mem_scope == "global.vtcm":
             br.record_skip(

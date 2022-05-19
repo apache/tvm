@@ -126,18 +126,6 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    */
   void AddLinkModule(std::unique_ptr<llvm::Module>&& mod);
   /*!
-   * \brief Link parameters into the module so they don't need to be supplied at runtime.
-   * Parameters can be linked into the module so that the generated code is easier to use, or so
-   * that RAM space doesn't need to be allocated for them. This function adds the given parameters
-   * to the generated LLVM module.
-   * \param storage_id_offset Offset added to the index of each entry in params_by_sid to form the
-   *     storage_id of that parameter. Storage ids for parameters are expected to be contiguous.
-   * \param params_by_sid Array of NDArray. Each entry is a parameter. The index of the array (added
-   *     to sid_offset) is the storage_id of the param.
-   * \param param_names Array containing the name for each param in params_by_sid.
-   */
-  void LinkParameters(const Map<String, LinkedParam> params);
-  /*!
    * \brief Create Value for expression e
    * \param e The expression to be created value for.
    * \return created value.
@@ -350,13 +338,12 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Function* GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type* ret_type,
                                    llvm::ArrayRef<llvm::Type*> arg_types);
   /*!
-   * \brief Lookup or create a GlobalVariable whose content is the data field of a DLTensor for a
-   * given linked_param() CallNode.
-   * \param param_name Parameter name (e.g. unmangled, from lookup_param node).
-   * \return the GlobalVariable indicated in the brief.
+   * \brief Set target-related attributes on the LLVM function \p func. This
+   *        includes "target-cpu" and "target-features" if present.
+   *
+   * \param func The function to set attributes on.
    */
-  llvm::GlobalVariable* GetLinkedParamSymbol(const ::std::string& param_name,
-                                             llvm::ConstantArray* array);
+  void SetTargetAttributes(llvm::Function* func);
   /*!
    * \brief Get the number of elements in the given vector value.
    * \param vec The value, must be of a vector type.
@@ -397,7 +384,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
                        const Var& loop_var, const Stmt& body);
   // add alias information.
-  void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, PrimExpr index);
+  void AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_var, PrimExpr index,
+                    DataType access_dtype);
 
   llvm::GlobalVariable* AllocateSharedMemory(DataType dtype, size_t size,
                                              unsigned int shared_address_space, int alignment,

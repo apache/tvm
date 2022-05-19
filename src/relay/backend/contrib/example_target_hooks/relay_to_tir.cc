@@ -94,23 +94,67 @@ class ConvertAddToSubtract : public MixedModeMutator {
     ir_module_->Add(new_global_var, replacement_func);
   }
 
+  Expr VisitExpr_(const LetNode* op) final {
+    auto pre_visit = [this](const LetNode* op) {
+      Expr var = this->VisitExpr(op->var);
+      Expr value = this->VisitExpr(op->value);
+
+      // Outlineable function no longer needs let binding
+      if (this->CanLowerExpr(value)) {
+        this->memo_[var] = value;
+      }
+    };
+    auto post_visit = [this](const LetNode* op) {
+      // Rely on the Memoizer to cache pre-visit values
+      Expr value = this->VisitExpr(op->value);
+      Expr body = this->VisitExpr(op->body);
+      auto expr = GetRef<Expr>(op);
+
+      // Drop the let binding
+      if (this->CanLowerExpr(value)) {
+        this->memo_[expr] = this->VisitExpr(op->body);
+      } else {
+        Var var = Downcast<Var>(this->VisitExpr(op->var));
+        if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+          this->memo_[expr] = expr;
+        } else {
+          this->memo_[expr] = Let(var, value, body);
+        }
+      }
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(op)];
+  }
+
+  bool CanLowerExpr(const Expr& expr) {
+    const auto* func = expr.as<FunctionNode>();
+    if (func == nullptr) {
+      return false;
+    }
+    auto func_name = func->GetAttr<String>(::tvm::attr::kGlobalSymbol);
+    if (!func_name.defined()) {
+      return false;
+    }
+    if (func_name != "replace_add_with_subtract") {
+      return false;
+    }
+    return true;
+  }
+
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     if (const CallNode* call = post.as<CallNode>()) {
-      auto* func = call->op.as<FunctionNode>();
-      if (func == nullptr) {
-        return post;
-      }
+      if (CanLowerExpr(call->op)) {
+        auto* func = call->op.as<FunctionNode>();
+        auto func_name = func->GetAttr<String>(::tvm::attr::kGlobalSymbol);
 
-      auto func_name = func->GetAttr<String>(::tvm::attr::kGlobalSymbol);
-      if (func_name.defined() && func_name == "replace_add_with_subtract") {
         // Introduce a new global var to map the function to and copy the source type
         // over for InferType
         GlobalVar new_global_var(func_name.value());
         new_global_var->checked_type_ = func->checked_type();
         ReplaceAddWithSubtractPrimFunc(new_global_var, GetRef<Function>(func));
 
-        // Since we are replacing the Relay function with a call to a TIR function, we must use the
-        // call_lowered op.
+        // Since we are replacing the Relay function with a call to a TIR function, we must use
+        // the call_lowered op.
         CallLoweredAttrs attrs;
         attrs.metadata.Set("relay_attrs", call->attrs);
         ICHECK(call->type_args.empty()) << "lowered functions cannot be polymorphic";

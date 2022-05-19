@@ -432,6 +432,17 @@ class Device(ctypes.Structure):
         """
         return self._GetDeviceAttr(self.device_type, self.device_id, 12)
 
+    def texture_spatial_limit(self):
+        """Returns limits for textures by spatial dimensions
+
+        Returns
+        -------
+        limit : int or None
+            Maximum size of the texture by spatial dimensions
+
+        """
+        return self._GetDeviceAttr(self.device_type, self.device_id, 12)
+
     def create_raw_stream(self):
         """Create a new runtime stream at the context.
 

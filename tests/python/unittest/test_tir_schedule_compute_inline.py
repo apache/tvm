@@ -170,6 +170,112 @@ def elementwise_multi_reverse_loads_inlined(a: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
+def elementwise_reverse_affine_load(
+    A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(8, 32, 8, 8), "float32"]
+) -> None:
+    B = T.alloc_buffer((128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j, k, l in T.grid(8, 32, 8, 8):
+        with T.block("C"):
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+            C[vi, vj, vk, vl] = B[
+                ((((vi * 32) + vj) * 8 + vk) * 8 + vl) // 128,
+                ((((vi * 32) + vj) * 8 + vk) * 8 + vl) % 128,
+            ]
+
+
+@T.prim_func
+def elementwise_reverse_affine_load_inlined(
+    A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(8, 32, 8, 8), "float32"]
+) -> None:
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[
+                (vj + vi * 128) // 2048,
+                (vj + vi * 128) // 64 % 32,
+                ((vj + vi * 128) // 8) % 8,
+                (vj + vi * 128) % 8,
+            ] = (
+                A[vi, vj] * 2.0
+            )
+
+
+@T.prim_func
+def elementwise_reverse_affine_load_unit_iter(
+    A: T.Buffer[(128, 128), "float32"],
+    B: T.Buffer[(8, 16, 1), "float32"],
+    D: T.Buffer[(1, 8, 16, 128), "float32"],
+) -> None:
+    C = T.alloc_buffer((128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] * 2.0
+    for i, j, k in T.grid(8, 16, 128):
+        with T.block("C"):
+            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+            D[0, vi, vj, vk] = C[vi * 16 + vj, vk] + B[vi, vj, 0]
+
+
+@T.prim_func
+def elementwise_reverse_affine_load_unit_iter_inlined(
+    A: T.Buffer[(128, 128), "float32"],
+    B: T.Buffer[(8, 16, 1), "float32"],
+    D: T.Buffer[(1, 8, 16, 128), "float32"],
+) -> None:
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[0, vi // 16, vi % 16, vj] = A[vi, vj] * 2.0 + B[vi // 16, vi % 16, 0]
+
+
+@T.prim_func
+def elementwise_multi_reverse_affine_load(
+    A: T.Buffer[(128, 128), "float32"],
+    C: T.Buffer[(8, 16, 128), "float32"],
+) -> None:
+    B = T.alloc_buffer((128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j, k in T.grid(8, 16, 128):
+        with T.block("C"):
+            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+            C[vi, vj, vk] = B[vi * 16 + vj, vk] + B[vi * 16 + vj, vk]
+
+
+@T.prim_func
+def elementwise_multi_reverse_affine_load_inlined(
+    A: T.Buffer[(128, 128), "float32"],
+    C: T.Buffer[(8, 16, 128), "float32"],
+) -> None:
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi // 16, vi % 16, vj] = A[vi, vj] * 2.0 + A[vi, vj] * 2.0
+
+
+@T.prim_func
+def elementwise_reverse_non_affine_load(
+    A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(8, 16, 128), "float32"]
+) -> None:
+    B = T.alloc_buffer((128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j, k in T.grid(8, 16, 128):
+        with T.block("C"):
+            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+            C[vi, vj, vk] = B[vi * 16 + vj, vi * 16 + vj]
+
+
+@T.prim_func
 def opaque_access_load(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.alloc_buffer((128, 128))
@@ -183,11 +289,7 @@ def opaque_access_load(a: T.handle, c: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(B[0:128, 0:128])
             T.writes(C[0:128, 0:128])
-            T.evaluate(
-                T.tvm_access_ptr(
-                    T.type_annotation(dtype="float32"), B.data, 0, 128, "r", dtype="handle"
-                )
-            )
+            T.evaluate(B.access_ptr("r", extent=128))
             C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -205,16 +307,8 @@ def opaque_access_store(a: T.handle, c: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(B[0:128, 0:128])
             T.writes(C[0:128, 0:128])
-            T.evaluate(
-                T.tvm_access_ptr(
-                    T.type_annotation(dtype="float32"), B.data, 0, 128, "r", dtype="handle"
-                )
-            )
-            T.evaluate(
-                T.tvm_access_ptr(
-                    T.type_annotation(dtype="float32"), C.data, 0, 128, "w", dtype="handle"
-                )
-            )
+            T.evaluate(B.access_ptr("r", extent=128))
+            T.evaluate(C.access_ptr("w", extent=128))
             C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -296,16 +390,8 @@ def access_opaque_ptr_then_elemwise(a: T.handle, b: T.handle) -> None:
         # annotated opaque partial access
         T.reads(A[0:512])
         T.writes(A_cache[0:512])
-        T.evaluate(
-            T.tvm_access_ptr(
-                T.type_annotation(dtype="float32"), A.data, 0, 512, "r", dtype="handle"
-            )
-        )
-        T.evaluate(
-            T.tvm_access_ptr(
-                T.type_annotation(dtype="float32"), A_cache.data, 0, 512, "w", dtype="handle"
-            )
-        )
+        T.evaluate(A.access_ptr("r", extent=512))
+        T.evaluate(A_cache.access_ptr("w", extent=512))
     for i in range(512):
         with T.block("BB"):
             vi = T.axis.remap("S", [i])
@@ -325,16 +411,8 @@ def access_opaque_ptr_then_elemwise_inline(a: T.handle, b: T.handle) -> None:
         # annotated opaque partial access should be kept
         T.reads(A[0:512])
         T.writes([A_cache[0:512]])
-        T.evaluate(
-            T.tvm_access_ptr(
-                T.type_annotation(dtype="float32"), A.data, 0, 512, "r", dtype="handle"
-            )
-        )
-        T.evaluate(
-            T.tvm_access_ptr(
-                T.type_annotation(dtype="float32"), A_cache.data, 0, 512, "w", dtype="handle"
-            )
-        )
+        T.evaluate(A.access_ptr("r", extent=512))
+        T.evaluate(A_cache.access_ptr("w", extent=512))
     for i in T.serial(0, 512):
         with T.block("B"):
             vi = T.axis.spatial(512, i)
@@ -400,6 +478,51 @@ def inline_block_with_init(
                 B[ax0_1, ax1_1, ax2_1, ax3_1] = (
                     B[ax0_1, ax1_1, ax2_1, ax3_1] + B_rf[ax0_1, ax1_1, ax2_1, ax3_1, vi4]
                 )
+
+
+@T.prim_func
+def exp_exp_opaque_access_with_tvm_access_ptr(
+    lookup_table: T.Buffer[(1024,), "int8"],
+    x: T.Buffer[(16,), "float16"],
+    compute: T.Buffer[(16,), "float16"],
+) -> None:
+    compute_1 = T.alloc_buffer([16], dtype="float16")
+    for i0 in T.serial(16):
+        with T.block("compute"):
+            i0_1 = T.axis.spatial(16, i0)
+            T.reads(x[i0_1])
+            T.writes(compute_1[i0_1])
+            compute_1[i0_1] = T.exp(x[i0_1], dtype="float16")
+    for i0 in T.serial(16):
+        with T.block("compute_1"):
+            i0_2 = T.axis.spatial(16, i0)
+            T.reads(compute_1[i0_2], lookup_table[0:1024])
+            T.writes(compute[i0_2])
+            compute[i0_2] = T.exp(
+                compute_1[i0_2],
+                lookup_table.access_ptr("r"),
+                dtype="float16",
+            )
+
+
+@T.prim_func
+def exp_exp_opaque_access_with_tvm_access_ptr_inlined(
+    lookup_table: T.Buffer[(1024,), "int8"],
+    x: T.Buffer[(16,), "float16"],
+    compute: T.Buffer[(16,), "float16"],
+) -> None:
+    for i0 in T.serial(16):
+        with T.block("compute_1"):
+            i0_1 = T.axis.spatial(16, i0)
+            # Do not put the opaque access to new write region when opaque access
+            # wrapped with a tvm_access_ptr and the access mask set to "read only"
+            T.reads(x[i0_1], lookup_table[0:1024])
+            T.writes(compute[i0_1])
+            compute[i0_1] = T.exp(
+                T.exp(x[i0_1], dtype="float16"),
+                lookup_table.access_ptr("r"),
+                dtype="float16",
+            )
 
 
 # pylint: enable=no-member,invalid-name,unused-variable
@@ -503,6 +626,40 @@ def test_reverse_compute_multi_reverse_loads():
     verify_trace_roundtrip(sch=sch, mod=elementwise_multi_reverse_loads)
 
 
+def test_reverse_compute_inline_affine_load():
+    sch = tir.Schedule(elementwise_reverse_affine_load, debug_mask="all")
+    block_c = sch.get_block("C")
+    sch.reverse_compute_inline(block_c)
+    tvm.ir.assert_structural_equal(elementwise_reverse_affine_load_inlined, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=elementwise_reverse_affine_load)
+
+
+def test_reverse_compute_inline_multi_affine_load():
+    sch = tir.Schedule(elementwise_multi_reverse_affine_load, debug_mask="all")
+    block_c = sch.get_block("C")
+    sch.reverse_compute_inline(block_c)
+    tvm.ir.assert_structural_equal(elementwise_multi_reverse_affine_load_inlined, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=elementwise_multi_reverse_affine_load)
+
+
+def test_reverse_compute_inline_affine_load_unit_iter():
+    sch = tir.Schedule(elementwise_reverse_affine_load_unit_iter, debug_mask="all")
+    block_c = sch.get_block("C")
+    sch.reverse_compute_inline(block_c)
+    print(sch.mod.script())
+    tvm.ir.assert_structural_equal(
+        elementwise_reverse_affine_load_unit_iter_inlined, sch.mod["main"]
+    )
+    verify_trace_roundtrip(sch=sch, mod=elementwise_reverse_affine_load_unit_iter)
+
+
+def test_reverse_compute_fail_non_affine_load():
+    sch = tir.Schedule(elementwise_reverse_non_affine_load, debug_mask="all")
+    block_c = sch.get_block("C")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.reverse_compute_inline(block_c)
+
+
 def test_reverse_compute_fail_multi_reverse_loads():
     sch = tir.Schedule(elementwise_multi_loads, debug_mask="all")
     block_c = sch.get_block("C")
@@ -567,6 +724,16 @@ def test_inline_block_with_init():
     block = sch.get_block(name="tensor_rf", func_name="main")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.compute_inline(block=block)
+
+
+def test_compute_inline_opaque_access_with_tvm_access_ptr():
+    """Test opaque access with tvm_access_ptr after compute inline"""
+    sch = tir.Schedule(exp_exp_opaque_access_with_tvm_access_ptr, debug_mask="all")
+    compute = sch.get_block("compute")
+    sch.compute_inline(compute)
+    tvm.ir.assert_structural_equal(
+        exp_exp_opaque_access_with_tvm_access_ptr_inlined, sch.mod["main"]
+    )
 
 
 if __name__ == "__main__":

@@ -46,13 +46,6 @@
 namespace tvm {
 namespace codegen {
 
-static std::string get_name(const PrimFunc& f) {
-  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
-  ICHECK(global_symbol.defined())
-      << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
-  return std::string(global_symbol.value());
-}
-
 // Hexagon code generation
 class CodeGenHexagon final : public CodeGenCPU {
  public:
@@ -268,16 +261,6 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::V
 }
 
 namespace {
-// Check if the function matches the TVMBackendPackedCFunc prototype.
-bool UsesExportABI(const PrimFunc& f) {
-  if (f->attrs.defined()) {
-    auto it = f->attrs->dict.find("calling_conv");
-    return it != f->attrs->dict.end() &&
-           Downcast<Integer>((*it).second) == CallingConv::kCPackedFunc;
-  }
-  return false;
-}
-
 DMLC_ATTRIBUTE_UNUSED std::ostream& operator<<(std::ostream& os, const llvm::Module& m) {
   std::string ms;
   llvm::raw_string_ostream sos(ms);
@@ -297,7 +280,6 @@ void ProcessLLVMOptions(const std::vector<std::string>& llvm_vec) {
 
   llvm::cl::ParseCommandLineOptions(llvm_vec.size(), args);
 }
-
 }  // namespace
 
 runtime::Module BuildHexagon(IRModule mod, Target target) {
@@ -349,23 +331,8 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
 
   std::vector<PrimFunc> funcs;
   std::string entry_func;
-  Map<String, LinkedParam> linked_params;
-  bool could_have_linked_params = mod->ShouldLinkParameters();
 
   for (auto kv : mod->functions) {
-    if (could_have_linked_params &&
-        kv.first->name_hint == ::tvm::runtime::symbol::tvm_lookup_linked_param) {
-      // If `f` is the linked-params function, extract the parameters from the
-      // attribute dictionary, and skip the codegen.
-      auto attrs_dict = Downcast<Map<String, ObjectRef>>(kv.second->attrs->dict);
-      CHECK(attrs_dict.find(::tvm::tir::attr::kLinkedParams) != attrs_dict.end())
-          << "no " << ::tvm::tir::attr::kLinkedParams << " attribute found!";
-
-      CHECK(linked_params.empty()) << "Multiple linked-param functions";
-      linked_params =
-          Downcast<Map<String, LinkedParam>>(attrs_dict[::tvm::tir::attr::kLinkedParams]);
-      continue;
-    }
     if (!kv.second->IsInstance<PrimFuncNode>()) {
       // (@jroesch): we relax constraints here, Relay functions will just be ignored.
       DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
@@ -384,10 +351,6 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
   if (entry_func.length() != 0) {
     cg->AddMainFunction(entry_func);
-  }
-
-  if (!linked_params.empty()) {
-    cg->LinkParameters(linked_params);
   }
 
   // Uncomment to get the LLVM module right out of codegen, before optimizations.
@@ -463,17 +426,16 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   int rc = (*f)(so_name, o_names, extra_args);
   ICHECK(rc == 0) << "Failed to link " << so_name;
 
-  // Move it to ExtractFuncInfo?
-  std::set<std::string> export_abi;
-  for (auto kv : mod->functions) {
-    auto f = Downcast<PrimFunc>(kv.second);
-    if (UsesExportABI(f)) export_abi.insert(get_name(f));
-  }
-  return HexagonModuleCreate(so_name, "so", ExtractFuncInfo(mod), asm_str, obj_str, ir_str, bc_str,
-                             export_abi);
+  return HexagonModuleCreate(so_name, "so", ExtractFuncInfo(mod), asm_str, obj_str, ir_str, bc_str);
 }
 
 TVM_REGISTER_GLOBAL("target.build.hexagon").set_body_typed(BuildHexagon);
+
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_hexagon")
+    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+      CodeGenLLVM* cg = new CodeGenHexagon();
+      *rv = static_cast<void*>(cg);
+    });
 
 }  // namespace codegen
 }  // namespace tvm

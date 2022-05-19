@@ -142,6 +142,7 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   }
   function_->setCallingConv(llvm::CallingConv::C);
   function_->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
+  SetTargetAttributes(function_);
 
   // set var map and align information
   auto arg_it = function_->arg_begin();
@@ -180,84 +181,9 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   }
 #endif
 
-  llvm::StringRef fs = target_machine_->getTargetFeatureString();
-  if (!fs.empty()) {
-    function_->addFnAttr("target-features", fs);
-  }
-
   if (ret_void) {
     builder_->CreateRetVoid();
   } else {
-    builder_->CreateRet(ConstInt32(0));
-  }
-}
-
-llvm::GlobalVariable* CodeGenLLVM::GetLinkedParamSymbol(const std::string& param_name,
-                                                        llvm::ConstantArray* array) {
-  std::string symbol_name = std::string(::tvm::runtime::symbol::tvm_param_prefix) + param_name;
-  llvm::GlobalVariable* var = module_->getGlobalVariable(symbol_name, true /* AllowInternal */);
-  if (var == nullptr) {
-    CHECK(array != nullptr) << "Expect param symbol " << symbol_name
-                            << " to either be defined or for the array to be supplied";
-    var = new llvm::GlobalVariable(*module_, static_cast<llvm::Type*>(array->getType()), true,
-                                   llvm::GlobalValue::InternalLinkage, array, symbol_name);
-  }
-  return var;
-}
-
-void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
-  // It would be nice to de-dupe these declarations frm src/tir/transforms/make_packed_api.cc,
-  // but they are at a different layer in the compiler...
-  llvm::Type* t_int_p = t_int_->getPointerTo(GetGlobalAddressSpace());
-
-  // args, tcodes, num_args, ret_value, ret_tcode, resource_handle
-  std::vector<llvm::Type*> param_types{t_void_p_, t_int_p, t_int_, t_void_p_, t_int_p, t_void_p_};
-  llvm::FunctionType* ftype = llvm::FunctionType::get(t_int_, param_types, false);
-
-  llvm::Function* function =
-      llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                             ::tvm::runtime::symbol::tvm_lookup_linked_param, module_.get());
-  function->setCallingConv(llvm::CallingConv::C);
-  function->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
-
-  llvm::BasicBlock* entry = llvm::BasicBlock::Create(*ctx_, "entry", function);
-  builder_->SetInsertPoint(entry);
-
-  llvm::Type* t_int64_p = t_int64_->getPointerTo(GetGlobalAddressSpace());
-  llvm::Value* sid =
-      builder_->CreateLoad(t_int64_, builder_->CreateBitCast(GetArg(function, 0), t_int64_p));
-
-  auto ret_tcode = builder_->CreateBitCast(GetArg(function, 4), t_int_p);
-  auto ret_value = builder_->CreateBitCast(GetArg(function, 3),
-                                           t_void_p_->getPointerTo(GetGlobalAddressSpace()));
-
-  llvm::BasicBlock* default_block = llvm::BasicBlock::Create(*ctx_, "default_block", function);
-  llvm::SwitchInst* switch_inst = builder_->CreateSwitch(sid, default_block, params.size() + 1);
-
-  builder_->SetInsertPoint(default_block);
-  builder_->CreateStore(llvm::ConstantInt::get(t_int_, kTVMNullptr), ret_tcode);
-  builder_->CreateRet(ConstInt32(kTvmErrorNoError));
-
-  // Add data to the global section.
-  for (auto kv : params) {
-    auto array = NDArrayToLLVMArray(ctx_, kv.second->param);
-    llvm::GlobalVariable* param_symbol = GetLinkedParamSymbol(kv.first, array);
-    auto dtype = tvm::runtime::DataType(kv.second->param->dtype);
-    size_t align = std::max(tvm::runtime::GetVectorBytes(dtype), tvm::runtime::kAllocAlignment);
-#if TVM_LLVM_VERSION >= 100
-    param_symbol->setAlignment(llvm::Align(align));
-#else
-    param_symbol->setAlignment(align);
-#endif
-    param_symbol->setInitializer(array);
-
-    llvm::BasicBlock* case_block =
-        llvm::BasicBlock::Create(*ctx_, "case_" + param_symbol->getName(), function);
-    switch_inst->addCase(
-        llvm::cast<llvm::ConstantInt>(llvm::ConstantInt::get(t_int64_, kv.second->id)), case_block);
-    builder_->SetInsertPoint(case_block);
-    builder_->CreateStore(builder_->CreatePointerCast(param_symbol, t_void_p_), ret_value);
-    builder_->CreateStore(llvm::ConstantInt::get(t_int_, kTVMOpaqueHandle), ret_tcode);
     builder_->CreateRet(ConstInt32(0));
   }
 }
@@ -472,8 +398,9 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const PrimExpr& expr) const {
 //
 // This trick comes from Halide's CodeGen_LLVM
 //
-void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer, PrimExpr index) {
-  if (alias_var_set_.count(buffer) != 0) {
+void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_var, PrimExpr index,
+                               DataType access_dtype) {
+  if (alias_var_set_.count(buffer_var) != 0) {
     // Mark all possibly aliased pointer as same type.
     llvm::MDNode* meta = md_tbaa_alias_set_;
     inst->setMetadata("tbaa", md_builder_->createTBAAStructTagNode(meta, meta, 0));
@@ -485,52 +412,41 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer, P
   arith::PVar<int> planes;
   // create meta-data for alias analysis
   // Use a group of binary tree ranges of memory banks.
-  if (index.defined()) {
-    if (arith::ramp(pbase, pstride, planes).Match(index)) {
-      base = pbase.Eval()->value;
-      int64_t xwith = planes.Eval() * pstride.Eval()->value;
-      width = 1;
-      while (width < xwith) {
-        width *= 2;
-      }
-      while (base % width) {
-        base -= base % width;
-        width *= 2;
-      }
-    } else if (auto* ptr = index.as<tir::IntImmNode>()) {
-      width = 1;
-      base = ptr->value;
+  int64_t xwith = 0;
+  if (arith::ramp(pbase, pstride, planes).Match(index)) {
+    base = pbase.Eval()->value;
+    xwith = planes.Eval() * pstride.Eval()->value;
+  } else if (auto* ptr = index.as<tir::IntImmNode>()) {
+    base = ptr->value;
+    xwith = 1;
+  }
+  // adjust address index unit to byte
+  const int64_t unit_bit_width = 8;
+  const int64_t access_elem_bits = access_dtype.bits() * access_dtype.lanes();
+  base = base * access_elem_bits / unit_bit_width;
+  xwith = (xwith * access_elem_bits + unit_bit_width - 1) / unit_bit_width;
+  if (xwith > 0) {
+    width = 1;
+    while (width < xwith) {
+      width *= 2;
+    }
+    while (base % width) {
+      base -= base % width;
+      width *= 2;
     }
   }
+
   llvm::MDNode* meta = md_tbaa_root_;
   std::ostringstream buffer_addr;
-  buffer_addr << buffer;
+  buffer_addr << buffer_var;
   meta = md_builder_->createTBAAScalarTypeNode(buffer_addr.str(), meta);
-
-  // Extract the underlying type of the allocated buffer.
-  DataType dtype = buffer->dtype;
-  if (buffer->type_annotation.defined()) {
-    Type element_type = Downcast<PointerType>(buffer->type_annotation)->element_type;
-    if (auto* ptype = element_type.as<PrimTypeNode>()) {
-      dtype = ptype->dtype;
-    }
-  }
-  llvm::Type* buf_type = DTypeToLLVMType(dtype);
-  if (!buf_type) {
-    buf_type = t_void_p_;
-  }
-
-  std::string tmp;
-  llvm::raw_string_ostream buffer_type(tmp);
-  buffer_type << *buf_type;
-  meta = md_builder_->createTBAAScalarTypeNode(buffer_type.str(), meta);
 
   // create a tree-shape access structure.
   if (width != 0) {
     for (int64_t w = 1024; w >= width; w /= 2) {
       int64_t b = (base / w) * w;
       std::stringstream os;
-      os << buffer << ".w" << w << ".b" << b;
+      os << buffer_var << ".w" << w << ".b" << b;
       meta = md_builder_->createTBAAScalarTypeNode(os.str(), meta);
     }
   }
@@ -967,6 +883,17 @@ llvm::Function* CodeGenLLVM::GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type
 #endif  // TVM_LLVM_VERSION
 }
 
+void CodeGenLLVM::SetTargetAttributes(llvm::Function* func) {
+  llvm::StringRef cpu = target_machine_->getTargetCPU();
+  if (!cpu.empty()) {
+    func->addFnAttr("target-cpu", cpu);
+  }
+  llvm::StringRef features = target_machine_->getTargetFeatureString();
+  if (!features.empty()) {
+    func->addFnAttr("target-features", features);
+  }
+}
+
 llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   if (op->op.same_as(builtin_call_llvm_intrin_) || op->op.same_as(builtin_call_llvm_pure_intrin_)) {
     ICHECK_GE(op->args.size(), 2U);
@@ -1319,12 +1246,16 @@ void CodeGenLLVM::BufferAccessHelper(
   PrimExpr last_index = indices[indices.size() - 1];
   ICHECK_EQ(value_dtype.lanes(), last_index.dtype().lanes() * buffer_element_dtype.lanes());
 
+  // Record index and elemtype in original form used for alias info
+  PrimExpr last_index_origin = last_index;
+  DataType buffer_element_dtype_origin = buffer_element_dtype;
+
   bool is_volatile = volatile_buf_.count(buffer->data.get());
 
   // If the buffer index is a contiguous ramp node, we only need to
   // access the first element, then cast to the value type.
   if (const RampNode* ramp_index = last_index.as<RampNode>()) {
-    if (ramp_index && is_one(ramp_index->stride)) {
+    if (is_one(ramp_index->stride)) {
       last_index = ramp_index->base;
     }
   }
@@ -1375,7 +1306,7 @@ void CodeGenLLVM::BufferAccessHelper(
         CreateBufferPtr(MakeValue(buffer->data), buffer_element_dtype, all_index_values,
                         value_dtype.with_lanes(value_dtype.lanes() / last_index.dtype().lanes()));
     auto instruction = make_instruction(buffer_ptr, subelement_i, alignment, is_volatile);
-    AddAliasInfo(instruction, buffer->data.get(), last_index);
+    AddAliasInfo(instruction, buffer->data.get(), last_index_origin, buffer_element_dtype_origin);
   }
 }
 
@@ -1419,9 +1350,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
 llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
   if (auto* ptr_op = op->op.as<OpNode>()) {
     auto call_op = GetRef<Op>(ptr_op);
-    if (op->op.same_as(builtin_lookup_param_)) {
-      return GetLinkedParamSymbol(Downcast<StringImm>(op->args[0])->value, nullptr);
-    } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
+    if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       // call extern intrinsic
       ICHECK_GE(op->args.size(), 1U);
       auto global_symbol = Downcast<StringImm>(op->args[0]);

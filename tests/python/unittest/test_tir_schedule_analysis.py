@@ -48,14 +48,6 @@ def _make_loops(loop_vars: List[Var], extents: List[int]) -> List[For]:
     ]
 
 
-def _assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
-    iters_1 = map1.map_indices(map2.initial_indices)
-    iters_2 = map2.final_indices
-    assert len(iters_1) == len(iters_2)
-    for iter1, iter2 in zip(iters_1, iters_2):
-        assert expr_deep_equal(iter1, iter2)
-
-
 def test_suggest_index_map_simple():
     i, j = _make_vars("i", "j")
     index_map = suggest_index_map(
@@ -78,7 +70,7 @@ def test_suggest_index_map_simple():
             floormod(y, 16),
         ],
     )
-    _assert_equal_index_map(index_map, expected_index_map)
+    assert index_map.is_equivalent_to(expected_index_map)
 
 
 def test_suggest_index_map_bijective():
@@ -98,7 +90,7 @@ def test_suggest_index_map_bijective():
             floordiv(x, 2),
         ],
     )
-    _assert_equal_index_map(index_map, expected_index_map)
+    assert index_map.is_equivalent_to(expected_index_map)
 
 
 @tvm.script.ir_module

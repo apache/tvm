@@ -29,5 +29,9 @@ source ~/.profile
 cd ~
 ~/ubuntu_init_zephyr_project.sh ~/zephyr
 
+# Install CMSIS
+cd ~
+~/ubuntu_install_cmsis.sh ~/cmsis
+
 # Cleanup
-rm -f ubuntu_init_zephyr_project.sh
+rm -f ubuntu_init_zephyr_project.sh ubuntu_install_cmsis.sh

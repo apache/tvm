@@ -15,26 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
-import pathlib
 import sys
 import pytest
 import numpy as np
-import logging
 
 import tvm.testing
 from tvm import te
 from tvm import relay
 from tvm.relay.backend import Executor, Runtime
-from tvm.contrib import utils, ndk
-from tvm.contrib.hexagon.build import HexagonLauncher
-import tvm.contrib.hexagon as hexagon
-
-from .conftest import requires_hexagon_toolchain
+from tvm.contrib.hexagon.session import Session
 
 
-@requires_hexagon_toolchain
-def test_add(hexagon_session):
+@tvm.testing.requires_hexagon
+def test_add(hexagon_session: Session):
     dtype = "int8"
     A = tvm.te.placeholder((2,), dtype=dtype)
     B = tvm.te.placeholder((1,), dtype=dtype)
@@ -58,8 +51,8 @@ def test_add(hexagon_session):
     assert (C_data.numpy() == np.array([6, 7])).all()
 
 
-@requires_hexagon_toolchain
-def test_add_vtcm(hexagon_session):
+@tvm.testing.requires_hexagon
+def test_add_vtcm(hexagon_session: Session):
     dtype = "int8"
     A = tvm.te.placeholder((2,), dtype=dtype)
     B = tvm.te.placeholder((1,), dtype=dtype)
@@ -72,6 +65,7 @@ def test_add_vtcm(hexagon_session):
     )
 
     mod = hexagon_session.load_module(func)
+
     A_data = tvm.nd.empty(A.shape, A.dtype, hexagon_session.device, "global.vtcm")
     A_data.copyfrom(np.array([2, 3]))
 
@@ -91,7 +85,7 @@ class TestMatMul:
     N = tvm.testing.parameter(32)
     K = tvm.testing.parameter(32)
 
-    @requires_hexagon_toolchain
+    @tvm.testing.requires_hexagon
     def test_matmul(self, hexagon_session, M, N, K):
         X = te.placeholder((M, K), dtype="float32")
         Y = te.placeholder((K, N), dtype="float32")
@@ -126,8 +120,8 @@ class TestMatMul:
         tvm.testing.assert_allclose(zt.numpy(), ztcpu.numpy(), rtol=1e-4)
 
 
-@requires_hexagon_toolchain
-def test_graph_executor(hexagon_session):
+@tvm.testing.requires_hexagon
+def test_graph_executor(hexagon_session: Session):
     dtype = "float32"
     data = relay.var("data", relay.TensorType((1, 64, 64, 3), dtype))
     weight = relay.var("weight", relay.TensorType((5, 5, 3, 8), dtype))
@@ -182,8 +176,8 @@ def test_graph_executor(hexagon_session):
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 
-@requires_hexagon_toolchain
-def test_graph_executor_multiple_conv2d(hexagon_session):
+@tvm.testing.requires_hexagon
+def test_graph_executor_multiple_conv2d(hexagon_session: Session):
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
@@ -259,19 +253,8 @@ def test_graph_executor_multiple_conv2d(hexagon_session):
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 
-def _workaround_create_aot_shared():
-    # The C codegen uses TVM/RT functions directly. On Hexagon it should use
-    # functions pointers via __TVMxyz variables. This workaround makes the
-    # runtime symbols visible to the compiled shared library.
-    extra_link_flags = os.environ.get("HEXAGON_SHARED_LINK_FLAGS")
-    extra_options = str(extra_link_flags).split() if extra_link_flags else []
-    return lambda so_name, files, hexagon_arch, options: hexagon.create_aot_shared(
-        so_name, files, hexagon_arch, options=extra_options + options
-    )
-
-
-@requires_hexagon_toolchain
-def test_aot_executor(hexagon_session):
+@tvm.testing.requires_hexagon
+def test_aot_executor(hexagon_session: Session, aot_host_target, aot_target):
     dtype = "float32"
     input_shape = (1, 128, 128, 3)
     w_shape = (5, 5, 3, 8)
@@ -290,8 +273,6 @@ def test_aot_executor(hexagon_session):
     relay_mod = tvm.IRModule.from_expr(f)
     relay_mod = relay.transform.InferType()(relay_mod)
 
-    target_hexagon = tvm.target.hexagon("v68")
-
     weight_data = np.random.rand(w_shape[0], w_shape[1], w_shape[2], w_shape[3]).astype(dtype=dtype)
     input_data = np.random.rand(
         input_shape[0], input_shape[1], input_shape[2], input_shape[3]
@@ -304,7 +285,7 @@ def test_aot_executor(hexagon_session):
         lowered = tvm.relay.build(
             relay_mod,
             params=params,
-            target=tvm.target.Target(target_hexagon, host="c"),
+            target=tvm.target.Target(aot_target, host=aot_host_target),
             runtime=Runtime("cpp"),
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )
@@ -331,8 +312,8 @@ def test_aot_executor(hexagon_session):
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 
-@requires_hexagon_toolchain
-def test_aot_executor_multiple_conv2d(hexagon_session):
+@tvm.testing.requires_hexagon
+def test_aot_executor_multiple_conv2d(hexagon_session: Session, aot_host_target, aot_target):
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
@@ -362,8 +343,6 @@ def test_aot_executor_multiple_conv2d(hexagon_session):
     relay_mod = tvm.IRModule.from_expr(f)
     relay_mod = relay.transform.InferType()(relay_mod)
 
-    target_hexagon = tvm.target.hexagon("v68")
-
     weight1_data = np.random.rand(w1_shape[0], w1_shape[1], w1_shape[2], w1_shape[3]).astype(
         dtype=dtype
     )
@@ -381,7 +360,7 @@ def test_aot_executor_multiple_conv2d(hexagon_session):
         lowered = tvm.relay.build(
             relay_mod,
             params=params,
-            target=tvm.target.Target(target_hexagon, host="c"),
+            target=tvm.target.Target(aot_target, host=aot_host_target),
             runtime=Runtime("cpp"),
             executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
         )

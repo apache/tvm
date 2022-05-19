@@ -19,6 +19,10 @@
 # tag: v0.60
 FROM nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
 
+# Per https://forums.developer.nvidia.com/t/notice-cuda-linux-repository-key-rotation/212772
+# we need to add a new GPG key before running apt update.
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
+
 # Base scripts
 RUN rm /etc/apt/sources.list.d/nvidia-ml.list && apt-get clean
 RUN apt-get update --fix-missing
@@ -26,11 +30,17 @@ RUN apt-get update --fix-missing
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
+COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
+RUN bash /install/ubuntu_install_googletest.sh
+
 COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
 RUN bash /install/ubuntu1804_install_python.sh
 
 # Globally disable pip cache
 RUN pip config set global.no-cache-dir false
+
+COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
+RUN bash /install/ubuntu_install_cmake_source.sh
 
 COPY install/ubuntu1804_install_llvm.sh /install/ubuntu1804_install_llvm.sh
 RUN bash /install/ubuntu1804_install_llvm.sh
@@ -74,6 +84,9 @@ RUN bash /install/ubuntu_install_darknet.sh
 
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh
+
+COPY install/ubuntu_install_libtorch.sh /install/ubuntu_install_libtorch.sh
+RUN bash /install/ubuntu_install_libtorch.sh
 
 COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
 RUN bash /install/ubuntu_install_tflite.sh
@@ -122,6 +135,7 @@ RUN bash /install/ubuntu_install_papi.sh "cuda rocm"
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh
+ENV PATH /opt/sccache:$PATH
 
 # Environment variables
 ENV PATH=/usr/local/nvidia/bin:${PATH}

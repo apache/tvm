@@ -372,29 +372,6 @@ def test_error_index_type():
     check_error(error_bufferslice_index_type, 8)
 
 
-def error_index_with_stop() -> None:
-    A = T.alloc_buffer((128, 128), "float32")
-    for i, j in T.grid(128, 128):
-        with T.block():
-            vi, vj = T.axis.remap("SS", [i, j])
-            A[vi, vj] = A[vi, 1:10] + 1  # error
-
-
-def error_bufferslice_index_with_stop() -> None:
-    A = T.alloc_buffer((1,), "int32")
-    B = T.alloc_buffer((16, 16), "float32")
-    C = T.alloc_buffer((16, 16), "float32")
-    for i, j in T.grid(16, 16):
-        with T.block():
-            vi, vj = T.axis.remap("SS", [i, j])
-            C[vi, vj] = B[vi, A[0:1]]  # error
-
-
-def test_error_index_with_stop_slice():
-    check_error(error_index_with_stop, 6)
-    check_error(error_bufferslice_index_with_stop, 8)
-
-
 def special_stmt_except() -> None:
     A = T.alloc_buffer("(128, 128)", "float32")  # error
     T.evaluate(1.0)
@@ -656,6 +633,34 @@ def preflattened_buffer_map_offset_factor_nonint(foo: T.handle):
 
 def test_preflattened_buffer_map_offset_factor():
     check_error(preflattened_buffer_map_offset_factor_nonint, 3)
+
+
+def strided_buffer_region(A: T.handle):
+    # do not allow stride in buffer region
+    A = T.match_buffer((128, 128), "int32")
+    with T.block():
+        T.reads([])
+        T.writes([A[0:128:2, 0:128:3]])  # error
+        T.evaluate(T.call_extern("strided_compute", dtype=""))
+
+
+def access_reversed_slice(A: T.handle):
+    # do not allow reversed slice step
+    A = T.match_buffer((128,), "int32")
+    A[0:128:-1] = T.broadcast(1, 128)  # error
+
+
+def access_non_const_slice_length(A: T.handle):
+    # do not allow non-constant slice length
+    A = T.match_buffer((128,), "int32")
+    for i in range(4):
+        T.evaluate(A[0:i:1])  # error
+
+
+def test_illegal_buffer_slice():
+    check_error(strided_buffer_region, 3)
+    check_error(access_reversed_slice, 3)
+    check_error(access_non_const_slice_length, 3)
 
 
 if __name__ == "__main__":

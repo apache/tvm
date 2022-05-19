@@ -3241,6 +3241,53 @@ def string_annotation_escaping():
     return string_annotation_of_special_chars
 
 
+def pointer_type():
+    @T.prim_func
+    def func_with_ptr_type_annotations(x: T.Ptr[T.int32], y: T.Ptr[T.int32, "shared"]):
+        xx = T.allocate([16], "int32", "global")
+        yy = T.allocate([16], "int32", "shared")
+        a: T.Ptr[T.int32] = T.address_of(xx[0], dtype="handle")
+        b: T.Ptr[T.int32, "shared"] = T.address_of(yy[0], dtype="handle")
+        T.evaluate(T.call_extern("copy", a, b, dtype=""))
+
+    return func_with_ptr_type_annotations
+
+
+def buffer_axis_separator():
+    @T.prim_func
+    def element_wise(a: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (128, 128), "float32", axis_separators=[1])
+        C = T.match_buffer(c, (128, 128), "float32")
+        B = T.alloc_buffer((128, 128), "float32", axis_separators=[1])
+
+        for i, j in T.grid(128, 128):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                B[vi, vj] = A[vi, vj] * T.float32(2)
+        for i, j in T.grid(128, 128):
+            with T.block("C"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = B[vi, vj] + T.float32(1)
+
+    return element_wise
+
+
+def buffer_ramp_access_as_slice_index():
+    @T.prim_func
+    def buffer_ramp_access(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (128,), "float32")
+        B = T.match_buffer(b, (128,), "float32")
+        C = T.match_buffer(c, (128,), "float32")
+        for i in range(128):
+            A[i : i + 1 : 1] = i
+        for i in range(4):
+            B[i * 32 : i * 32 + 32] = A[i * 32 : i * 32 + 32 : 1] + T.broadcast(1.0, 32)
+        for i in range(4):
+            C[i : i + 128 : 4] = B[i : i + 128 : 4] + T.broadcast(1.0, 32)
+
+    return buffer_ramp_access
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3275,6 +3322,9 @@ ir_generator = tvm.testing.parameter(
     parse_bufferslice_as_range_bound,
     int64_support,
     string_annotation_escaping,
+    pointer_type,
+    buffer_axis_separator,
+    buffer_ramp_access_as_slice_index,
 )
 
 

@@ -111,8 +111,7 @@ class PackedCallLegalizer : public StmtExprMutator {
 
  private:
   IRModule mod_;
-  InputMap inputs_;      // Store the inputs to the primfunc that don't need to be packed.
-  int tvm_value_index_;  // Index of the actual tvm_value variable
+  InputMap inputs_;  // Store the inputs to the primfunc that don't need to be packed.
 };
 
 namespace transform {

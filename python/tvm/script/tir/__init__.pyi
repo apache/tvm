@@ -199,6 +199,7 @@ def match_buffer(
     align: int = -1,
     offset_factor: int = 0,
     buffer_type: str = "default",
+    axis_separators: Optional[List[int]] = None,
 ) -> Buffer: ...
 def buffer_decl(
     shape: Sequence[Union[PrimExpr, int]],
@@ -210,6 +211,7 @@ def buffer_decl(
     align: int = -1,
     offset_factor: int = 0,
     buffer_type: str = "default",
+    axis_separators: Optional[List[int]] = None,
 ) -> Buffer: ...
 def alloc_buffer(
     shape: Sequence[Union[PrimExpr, int]],
@@ -221,11 +223,13 @@ def alloc_buffer(
     align: int = -1,
     offset_factor: int = 0,
     buffer_type: str = "default",
+    axis_separators: Optional[List[int]] = None,
 ) -> Buffer: ...
 
 """
 special_stmt - Reads/Writes
 """
+
 @overload
 def reads(read_regions: List[BufferSlice]) -> None: ...
 @overload
@@ -337,6 +341,7 @@ def Assert(condition: Union[PrimExpr, builtins.bool], message: str) -> PrimExpr:
 """
 Scope handler - Loops
 """
+
 @overload
 def serial(
     begin: Union[PrimExpr, int],

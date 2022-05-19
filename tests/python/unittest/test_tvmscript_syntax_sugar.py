@@ -235,5 +235,116 @@ def test_match_buffer_int64():
     assert_structural_equal(original, after_roundtrip, True)
 
 
+def test_letstmt_bufferload_without_type_annotation():
+    # Variable assignment of PrimExpr types uses the dtype of the
+    # PrimExpr to determine the variable's dtype.  Parsing of
+    # buf[indices] is done by generating a BufferSlice object, which
+    # handles both store and load cases.  BufferSlice is not a
+    # PrimExpr, and implements BufferSlice.dtype explicitly.
+
+    # Failure occurred during parsing of the tvmscript.
+    @T.prim_func
+    def func_without_type_annotation(A: T.Buffer[(1,), "int32"]):
+        x = A[0]
+        T.evaluate(x)
+
+
+def test_letstmt_bind_with_constant():
+    @T.prim_func
+    def constant_binds():
+        x = 1
+        y = 42.0
+        T.evaluate(T.cast(x, "float32") + y)
+
+    @T.prim_func
+    def constant_binds_wrapped():
+        x = T.int32(1)
+        y = T.float32(42.0)
+        T.evaluate(T.cast(x, "float32") + y)
+
+    assert_structural_equal(constant_binds, constant_binds_wrapped)
+
+
+def test_func_call():
+    def shared_16x16_to_ldmatrix_32x8_layout(i, j):
+        thread_id = (i % 8) * 4 + (j % 8) // 2
+        return thread_id, (j // 8) * 4 + (i // 8) * 2 + (j % 2)
+
+    @T.prim_func
+    def mma_sync_m16n16k16_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
+        B = T.match_buffer(b, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
+        C = T.match_buffer(c, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
+
+        with T.block("root"):
+            T.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
+            T.writes(C[0:32, 0:8])
+            for i, j, k in T.grid(16, 16, 16):
+                with T.block("C"):
+                    i, j, k = T.axis.remap("SSR", [i, j, k])
+                    thread_id_C, local_id_C = shared_16x16_to_ldmatrix_32x8_layout(i, j)
+                    thread_id_A, local_id_A = shared_16x16_to_ldmatrix_32x8_layout(i, k)
+                    thread_id_B, local_id_B = shared_16x16_to_ldmatrix_32x8_layout(k, j)
+
+                    T.reads(
+                        C[thread_id_C, local_id_C],
+                        A[thread_id_A, local_id_A],
+                        B[thread_id_B, local_id_B],
+                    )
+                    T.writes(C[thread_id_C, local_id_C])
+
+                    C[thread_id_C, local_id_C] += (
+                        A[thread_id_A, local_id_A] * B[thread_id_B, local_id_B]
+                    )
+
+    @T.prim_func
+    def mma_sync_m16n16k16_desc_manual(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
+        B = T.match_buffer(b, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
+        C = T.match_buffer(c, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
+
+        with T.block("root"):
+            T.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
+            T.writes(C[0:32, 0:8])
+            for i, j, k in T.grid(16, 16, 16):
+                with T.block("C"):
+                    i, j, k = T.axis.remap("SSR", [i, j, k])
+                    T.reads(
+                        C[i % 8 * 4 + j % 8 // 2, j // 8 * 4 + i // 8 * 2 + j % 2],
+                        A[i % 8 * 4 + k % 8 // 2, k // 8 * 4 + i // 8 * 2 + k % 2],
+                        B[k % 8 * 4 + j % 8 // 2, j // 8 * 4 + k // 8 * 2 + j % 2],
+                    )
+                    T.writes(C[i % 8 * 4 + j % 8 // 2, j // 8 * 4 + i // 8 * 2 + j % 2])
+                    C[i % 8 * 4 + j % 8 // 2, j // 8 * 4 + i // 8 * 2 + j % 2] = (
+                        C[i % 8 * 4 + j % 8 // 2, j // 8 * 4 + i // 8 * 2 + j % 2]
+                        + A[i % 8 * 4 + k % 8 // 2, k // 8 * 4 + i // 8 * 2 + k % 2]
+                        * B[k % 8 * 4 + j % 8 // 2, j // 8 * 4 + k // 8 * 2 + j % 2]
+                    )
+
+    assert_structural_equal(mma_sync_m16n16k16_desc, mma_sync_m16n16k16_desc_manual)
+
+    # The following is an example of an error message from calling an invalid function
+
+    # error: Error occured when invoking the function sqrt:
+    # loop of ufunc does not support argument 0 of type Var which has no callable sqrt method
+    #  --> test_tvmscript_syntax_sugar.py:334:19
+    #      |
+    #  334 |              ind = sqrt(i)
+    #      |                    ^^^^^^^
+    # note: run with `TVM_BACKTRACE=1` environment variable to display a backtrace.
+
+    # Uncomment to see the error above.
+    # def sqrt(x):
+    #     import numpy as np
+    #     return np.sqrt(x)
+
+    # @T.prim_func
+    # def loop(a: T.handle) -> None:
+    #     A = T.match_buffer(a, (128,))
+    #     for i in T.serial(128):
+    #         ind = sqrt(i)
+    #         A[i] = A[ind]
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

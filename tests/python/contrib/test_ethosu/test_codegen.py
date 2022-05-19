@@ -37,11 +37,11 @@ from . import infra
 ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32", "ethos-u65-256"]
 
 
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES + ["ethos-u65-512"])
 @pytest.mark.parametrize("ifm_shape", [(1, 299, 299, 2), (1, 55, 55, 3)])
 @pytest.mark.parametrize("kernel_shape", [(3, 2), (1, 3)])
 @pytest.mark.parametrize("strides, dilation", [((1, 1), (2, 1)), ((3, 2), (1, 1))])
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
-@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("activation", ["NONE", "RELU"])
 def test_ethosu_conv2d_single(
     ifm_shape,
@@ -79,7 +79,7 @@ def test_ethosu_conv2d_single(
 @pytest.mark.parametrize("kernel_shape", [(3, 2), (1, 3)])
 @pytest.mark.parametrize("strides, dilation", [((1, 1), (2, 1)), ((3, 2), (1, 1))])
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
-@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES + ["ethos-u65-512"])
 @pytest.mark.parametrize("activation", ["NONE", "RELU"])
 def test_ethosu_conv2d_double(
     ifm_shape,

@@ -42,13 +42,15 @@ using namespace tvm::relay::backend;
 class InterfaceCNode : public runtime::ModuleNode {
  public:
   InterfaceCNode(std::string module_name, Array<String> inputs, Array<String> outputs,
-                 Array<tir::usmp::AllocatedPoolInfo> pools, Array<String> devices,
+                 Array<tir::usmp::AllocatedPoolInfo> pools,
+                 Map<String, tir::usmp::PoolAllocation> io_pool_allocations, Array<String> devices,
                  int workspace_size)
       : module_name_(module_name),
         inputs_(inputs),
         outputs_(outputs),
         devices_(devices),
         pools_(FilterExternalPools(pools)),
+        io_pool_allocations_(io_pool_allocations),
         workspace_size_(workspace_size) {}
   const char* type_key() const { return "h"; }
 
@@ -72,6 +74,13 @@ class InterfaceCNode : public runtime::ModuleNode {
         pool_names.push_back(pool->pool_info->pool_name);
       }
       EmitStruct(code, "workspace_pools", pool_names);
+    }
+
+    if (!io_pool_allocations_.empty()) {
+      std::string inputs_struct = ToCVariableStyle(PrefixGeneratedName({module_name_, "inputs"}));
+      EmitMapIOToPoolsFunction(code, inputs_struct, "map_inputs", inputs_);
+      std::string outputs_struct = ToCVariableStyle(PrefixGeneratedName({module_name_, "outputs"}));
+      EmitMapIOToPoolsFunction(code, outputs_struct, "map_outputs", outputs_);
     }
 
     EmitRunFunction(code);
@@ -152,9 +161,11 @@ class InterfaceCNode : public runtime::ModuleNode {
         ToCVariableStyle(PrefixGeneratedName({module_name_, "workspace_pools"}));
 
     code_stream << "/*!\n"
-                << " * \\brief entrypoint function for TVM module \"" << module_name_ << "\"\n"
-                << " * \\param inputs Input tensors for the module \n"
-                << " * \\param outputs Output tensors for the module \n";
+                << " * \\brief entrypoint function for TVM module \"" << module_name_ << "\"\n";
+    if (io_pool_allocations_.empty()) {
+      code_stream << " * \\param inputs Input tensors for the module \n";
+      code_stream << " * \\param outputs Output tensors for the module \n";
+    }
 
     if (!devices_.empty()) {
       code_stream << " * \\param devices Device context pointers for the module \n";
@@ -167,8 +178,10 @@ class InterfaceCNode : public runtime::ModuleNode {
                 << "int32_t " << run_function << "(\n";
 
     std::stringstream call_args_ss;
-    call_args_ss << "  struct " << inputs_struct << "* inputs,\n";
-    call_args_ss << "  struct " << outputs_struct << "* outputs,\n";
+    if (io_pool_allocations_.empty()) {
+      call_args_ss << "  struct " << inputs_struct << "* inputs,\n";
+      call_args_ss << "  struct " << outputs_struct << "* outputs,\n";
+    }
     if (!devices_.empty()) {
       call_args_ss << "  struct " << devices_struct << "* devices,\n";
     }
@@ -179,6 +192,23 @@ class InterfaceCNode : public runtime::ModuleNode {
     call_args_str.pop_back();
     call_args_str.pop_back();
     code_stream << call_args_str << "\n);\n";
+  }
+
+  void EmitMapIOToPoolsFunction(std::stringstream& code_stream, const std::string& struct_type,
+                                const std::string& function_name,
+                                const Array<String>& tensor_names) {
+    code_stream << "/*!\n"
+                << " * \\brief Maps I/O inside the workspace pools for TVM module \""
+                << module_name_ << "\"\n"
+                << " * \\param workspace_pools Workspace memory pool struct for the module \n"
+                << " * \\return I/O tensor struct for the module \n";
+    std::string map_function = ToCVariableStyle(PrefixGeneratedName({module_name_, function_name}));
+    code_stream << " */\n"
+                << "struct " << struct_type << " " << map_function << "(\n";
+    std::string pools_struct =
+        ToCVariableStyle(PrefixGeneratedName({module_name_, "workspace_pools"}));
+    code_stream << "  struct " << pools_struct << "* workspace_pools\n";
+    code_stream << ");\n\n";
   }
 
   Array<tir::usmp::AllocatedPoolInfo> FilterExternalPools(
@@ -197,14 +227,16 @@ class InterfaceCNode : public runtime::ModuleNode {
   Array<String> outputs_;
   Array<String> devices_;
   Array<tir::usmp::AllocatedPoolInfo> pools_;
+  Map<String, tir::usmp::PoolAllocation> io_pool_allocations_;
   int workspace_size_;
 };
 
 runtime::Module InterfaceCCreate(std::string module_name, Array<String> inputs,
                                  Array<String> outputs, Array<tir::usmp::AllocatedPoolInfo> pools,
+                                 Map<String, tir::usmp::PoolAllocation> io_pool_allocations,
                                  Array<String> devices, int workspace_size) {
-  auto n =
-      make_object<InterfaceCNode>(module_name, inputs, outputs, pools, devices, workspace_size);
+  auto n = make_object<InterfaceCNode>(module_name, inputs, outputs, pools, io_pool_allocations,
+                                       devices, workspace_size);
   return runtime::Module(n);
 }
 

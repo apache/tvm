@@ -42,3 +42,11 @@ def schedule_injective(outs):
 
 def schedule_softmax(outs):
     return schedule_injective(outs)
+
+
+def schedule_elemwise(outs):
+    return schedule_injective(outs)
+
+
+def schedule_broadcast(outs):
+    return schedule_injective(outs)
