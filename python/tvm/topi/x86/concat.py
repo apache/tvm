@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-variable,unused-argument,invalid-name
 "concatenate related operators"
 from typing import Optional
 import tvm
@@ -79,16 +78,8 @@ def _concat(a_tuple, axis=0):
     out_shape = a_tuple[0].shape[:axis] + [join_size] + a_tuple[0].shape[axis + 1 :]
     in_outers_tensor = const_vector(in_outers)
     in_cumsum_tensor = const_vector(in_outers_cumsum, name="cumsum")
-    # check if dimensions tail is (... , axis, 1, ... , 1)
-    if len(out_shape[axis + 1 :]) == 0:
-        rightVal = out_shape[axis]
-    else:
-        rightVal = np.prod(out_shape[axis:])
-    # check if dimensions tail is (1 , ... , 1, axis, ...)
-    if len(out_shape[:axis]) == 0:
-        leftVal = out_shape[axis]
-    else:
-        leftVal = np.prod(out_shape[:axis])
+    rightVal = np.prod(out_shape[axis:])
+    leftVal = np.prod(out_shape[:axis])
 
     if (
         len(a_tuple[0].shape) == 1
@@ -105,8 +96,8 @@ def _concat(a_tuple, axis=0):
             name="concatenate_ext",
         )
 
-    inner = get_const_int(int(np.prod(out_shape[:axis])))
-    outer = get_const_int(int(np.prod(out_shape[axis:])))
+    inner = get_const_int(int(leftVal))
+    outer = get_const_int(int(rightVal))
     return te.extern(
         [out_shape],
         list(a_tuple) + [in_outers_tensor, in_cumsum_tensor],

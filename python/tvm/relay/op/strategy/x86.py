@@ -741,3 +741,34 @@ def conv2d_winograd_without_weight_transfrom_strategy_cpu(attrs, inputs, out_typ
             "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)
         )
     return strategy
+
+
+@concatenate_strategy.register(["cpu"])
+def concatenate_strategy_cpu(attrs, inputs, out_type, target):
+    """concatenate x86 strategy"""
+    strategy = _op.OpStrategy()
+    use_only_old_concat = False
+    for inpt in inputs:
+        shape = inpt.shape
+        for i in shape:
+            if not isinstance(i, tir.expr.IntImm):
+                use_only_old_concat = True
+                break
+    if use_only_old_concat:
+        strategy.add_implementation(
+            wrap_compute_concat(topi.transform.concatenate),
+            wrap_topi_schedule(topi.x86.injective.schedule_concatenate),
+            name="concatenate.generic",
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_concat(topi.x86.concatenate),
+            wrap_topi_schedule(topi.x86.schedule_concatenate_cpu),
+            name="concatenate.cpu",
+        )
+        strategy.add_implementation(
+            wrap_compute_concat(topi.transform.concatenate),
+            wrap_topi_schedule(topi.x86.injective.schedule_concatenate),
+            name="concatenate.generic",
+        )
+    return strategy
