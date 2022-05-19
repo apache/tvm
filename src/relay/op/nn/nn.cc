@@ -540,10 +540,12 @@ Example::
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(2)
     .add_type_rel("BatchFlatten", BatchFlattenRel)
-    .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                                             const Type& out_type) {
-      return Array<te::Tensor>{topi::nn::flatten(inputs[0])};
-    });
+    .set_attr<FTVMCompute>("FTVMCompute",
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_type) {
+                             return Array<te::Tensor>{topi::nn::flatten(inputs[0])};
+                           })
+    .set_attr<TReshapeOp>("TReshapeOp", true);
 
 // relu
 TVM_REGISTER_GLOBAL("relay.op.nn._make.relu").set_body_typed([](Expr data) {
