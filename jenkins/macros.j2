@@ -90,7 +90,7 @@
   },
 {% endmacro %}
 
-{% macro upload_artifacts(tag, filenames, folders=[]) %}
+{% macro upload_artifacts(tag, filenames, folders=None) %}
 sh(
             script: """
               set -eux
