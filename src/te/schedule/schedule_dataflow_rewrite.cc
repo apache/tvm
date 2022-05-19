@@ -515,6 +515,12 @@ void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
   // All inputs for extern op should not be inlined because inlining happens
   // before generation of TE script for particular extern op. That may lead to
   // crash during lowering or building stages.
+  // The problem description:
+  // In case of operations fuzing arguments inlining
+  // prevents creation of ProducerNode for extern operation.
+  // Instead of the creation it supposed to use operation argument as inlined buffer
+  // but extern_op TIR generation can be peformed after inlining procedure so
+  // newly generated TIR does not have reference to input data at all.
   std::unordered_map<Operation, Operation> ext_ops;
   for (size_t i = 0; i < sch->stages.size(); i++) {
     Stage stage = sch->stages[i];
