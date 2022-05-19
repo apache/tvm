@@ -180,8 +180,7 @@ constexpr double kMaxFloat16 = 65504.0;
 
 FloatImm ValueToFloatImm(double value, int width) {
   if (width == 16) {
-    if (!std::isinf(value) &&
-        (value < -kMaxFloat16 || value > kMaxFloat16)) {
+    if (!std::isinf(value) && (value < -kMaxFloat16 || value > kMaxFloat16)) {
       return {};
     }
     return FloatImm(kFloat16, value);

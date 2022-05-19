@@ -26,6 +26,9 @@ namespace tvm {
 namespace support {
 namespace {
 
+// Note that functional testing is via test_ir_parser.py and test_ir_text_printer.py.
+// Here we just check handling which is difficult to test via the standard Python API.
+
 TEST(Scalars, IntImmToNDArray_Unsupported) {
   ASSERT_THROW(IntImmToNDArray(IntImm(DataType::Int(15), 42)), runtime::InternalError);
 }
