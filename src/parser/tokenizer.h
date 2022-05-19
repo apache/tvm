@@ -216,12 +216,12 @@ struct Tokenizer {
                             << "invalid floating point number `" << literal_text << "`");
       }
       value = is_pos ? value : -value;
-      bool clipped;
-      std::tie(token->data, clipped) = support::ValueToFloatImm(value, width);
-      if (clipped) {
+      token->data = support::ValueToFloatImm(value, width);
+      if (!token->data.defined()) {
         this->diag_ctx.Emit(Diagnostic::Error(token->span)
                             << "floating point number `" << literal_text
-                            << "` out of range for width " << width);
+                            << "` unrepresentable in width " << width);
+        token->data = support::ValueToFloatImm(0.0, width);
       }
     } else {
       int64_t value = 0;
@@ -240,17 +240,18 @@ struct Tokenizer {
                             << "invalid integer number `" << literal_text << "`");
       }
       value = is_pos ? value : -value;
-      bool clipped;
-      std::tie(token->data, clipped) = support::ValueToIntImm(value, width);
-      if (clipped && suffix.empty()) {
+      token->data = support::ValueToIntImm(value, width);
+      if (!token->data.defined() && suffix.empty()) {
         // Without any i suffix the legacy behavior was to default to int64 if out of range
         // for int32.
         width = 64;
-        std::tie(token->data, clipped) = support::ValueToIntImm(value, width);
+        token->data = support::ValueToIntImm(value, width);
       }
-      if (clipped) {
-        this->diag_ctx.Emit(Diagnostic::Error(token->span) << "integer number `" << literal_text
-                                                           << "` out of range for width " << width);
+      if (!token->data.defined()) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span)
+                            << "integer number `" << literal_text << "` unrepresentable in width "
+                            << width);
+        token->data = support::ValueToIntImm(0, width);
       }
     }
 

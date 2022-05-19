@@ -30,6 +30,7 @@
 namespace tvm {
 namespace support {
 
+/*! \brief The standard scalar dtypes. */
 static const DataType kInt16 = DataType::Int(16);
 static const DataType kInt32 = DataType::Int(32);
 static const DataType kInt64 = DataType::Int(64);
@@ -51,13 +52,13 @@ runtime::NDArray IntImmToNDArray(const IntImm& int_imm) {
   DLDevice dev = {DLDeviceType::kDLCPU, 0};
   auto data = runtime::NDArray::Empty({}, int_imm->dtype, dev);
   if (int_imm.dtype() == kInt16) {
-    auto array = reinterpret_cast<int16_t*>(data->data);
+    auto* array = reinterpret_cast<int16_t*>(data->data);
     array[0] = static_cast<int16_t>(int_imm->value);
   } else if (int_imm.dtype() == kInt32) {
-    auto array = reinterpret_cast<int32_t*>(data->data);
+    auto* array = reinterpret_cast<int32_t*>(data->data);
     array[0] = static_cast<int32_t>(int_imm->value);
   } else if (int_imm.dtype() == kInt64) {
-    auto array = reinterpret_cast<int64_t*>(data->data);
+    auto* array = reinterpret_cast<int64_t*>(data->data);
     array[0] = int_imm->value;
   } else {
     LOG(FATAL) << "Unrecognized numeric literal dtype: " << DLDataType2String(int_imm.dtype());
@@ -69,13 +70,13 @@ runtime::NDArray FloatImmToNDArray(const FloatImm& float_imm) {
   DLDevice dev = {DLDeviceType::kDLCPU, 0};
   auto data = runtime::NDArray::Empty({}, float_imm->dtype, dev);
   if (float_imm.dtype() == kFloat16) {
-    auto array = reinterpret_cast<uint16_t*>(data->data);
+    auto* array = reinterpret_cast<uint16_t*>(data->data);
     array[0] = __gnu_f2h_ieee(static_cast<float>(float_imm->value));
   } else if (float_imm.dtype() == kFloat32) {
-    auto array = reinterpret_cast<float*>(data->data);
+    auto* array = reinterpret_cast<float*>(data->data);
     array[0] = static_cast<float>(float_imm->value);
   } else if (float_imm.dtype() == kFloat64) {
-    auto array = reinterpret_cast<double*>(data->data);
+    auto* array = reinterpret_cast<double*>(data->data);
     array[0] = float_imm->value;
   } else {
     LOG(FATAL) << "Unrecognized numeric literal dtype: " << DLDataType2String(float_imm.dtype());
@@ -152,53 +153,46 @@ std::string FloatImmToString(const FloatImm& float_imm) {
   return os.str();
 }
 
-std::pair<IntImm, bool> ValueToIntImm(int64_t value, int width) {
-  bool clipped = false;
+IntImm ValueToIntImm(int64_t value, int width) {
   if (width == 16) {
-    if (value < std::numeric_limits<int16_t>::min()) {
-      value = std::numeric_limits<int16_t>::min();
-      clipped = true;
+    if (value < std::numeric_limits<int16_t>::min() ||
+        value > std::numeric_limits<int16_t>::max()) {
+      return {};
     }
-    if (value > std::numeric_limits<int16_t>::max()) {
-      value = std::numeric_limits<int16_t>::max();
-      clipped = true;
-    }
-    return {IntImm(kInt16, value), clipped};
+    return IntImm(kInt16, value);
   } else if (width == 32) {
-    if (value < std::numeric_limits<int32_t>::min()) {
-      value = std::numeric_limits<int32_t>::min();
-      clipped = true;
+    if (value < std::numeric_limits<int32_t>::min() ||
+        value > std::numeric_limits<int32_t>::max()) {
+      return {};
     }
-    if (value > std::numeric_limits<int32_t>::max()) {
-      value = std::numeric_limits<int32_t>::max();
-      clipped = true;
-    }
-    return {IntImm(kInt32, value), clipped};
+    return IntImm(kInt32, value);
   } else if (width == 64) {
-    return {IntImm(kInt64, value), clipped};
+    return IntImm(kInt64, value);
   } else {
     LOG(FATAL) << "Unrecognized int scalar width: " << width;
     return {};
   }
 }
 
-std::pair<FloatImm, bool> ValueToFloatImm(double value, int width) {
-  bool clipped = false;
+// 2^15 * (1 + 1023/1024)
+// See https://en.wikipedia.org/wiki/Half-precision_floating-point_format
+constexpr double kMaxFloat16 = 65504.0;
+
+FloatImm ValueToFloatImm(double value, int width) {
   if (width == 16) {
-    // TODO(mbs): Limits for fp16?
-    return {FloatImm(kFloat16, value), clipped};
+    if (!std::isinf(value) &&
+        (value < -kMaxFloat16 || value > kMaxFloat16)) {
+      return {};
+    }
+    return FloatImm(kFloat16, value);
   } else if (width == 32) {
-    if (!std::isinf(value) && value < -std::numeric_limits<float>::max()) {
-      value = -std::numeric_limits<float>::max();
-      clipped = true;
+    if (!std::isinf(value) &&
+        (value < -std::numeric_limits<float>::max() || value > std::numeric_limits<float>::max())) {
+      return {};
     }
-    if (!std::isinf(value) && value > std::numeric_limits<float>::max()) {
-      value = std::numeric_limits<float>::max();
-      clipped = true;
-    }
-    return {FloatImm(kFloat32, value), clipped};
+    return FloatImm(kFloat32, value);
   } else if (width == 64) {
-    return {FloatImm(kFloat64, value), clipped};
+    return FloatImm(kFloat64, value);
   } else {
     LOG(FATAL) << "Unrecognized float scalar width: " << width;
     return {};

@@ -186,7 +186,10 @@ def test_int_literal():
     assert_parses_as("2147483648", relay.const(2147483648, "int64"))
 
     with pytest.raises(tvm.error.DiagnosticError):
+        # Unrepresentable
         parse_text("2147483648i32")
+    with pytest.raises(tvm.error.DiagnosticError):
+        # Unrepresentable
         parse_text("32768i16")
 
 
@@ -215,7 +218,11 @@ def test_float_literal():
     assert_parses_as("3f64", relay.const(3.0, "float64"))
 
     with pytest.raises(tvm.error.DiagnosticError):
+        # Unrepresentable
         parse_text("3.40283e+38f32")
+    with pytest.raises(tvm.error.DiagnosticError):
+        # Unrepresentable
+        parse_text("65505f16")
 
 
 def test_bool_literal():

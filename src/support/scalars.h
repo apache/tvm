@@ -54,13 +54,12 @@ std::string IntImmToString(const IntImm& int_imm);
 std::string FloatImmToString(const FloatImm& float_imm);
 
 /*!
- * \brief Returns TIR immediate for given value and width. Boolean will be true if value
- * was clipped in order to stay within range for width. However:
- *  - we ignore underflow
- *  - we don't currently check for float16 limits.
+ * \brief Returns TIR immediate for given value and width. Result will be null if value is
+ * out of range in width. Note however for floating point we don't check if the value is
+ * representable without loss of precision.
  */
-std::pair<IntImm, bool> ValueToIntImm(int64_t value, int width);
-std::pair<FloatImm, bool> ValueToFloatImm(double value, int width);
+IntImm ValueToIntImm(int64_t value, int width);
+FloatImm ValueToFloatImm(double value, int width);
 
 }  // namespace support
 }  // namespace tvm
