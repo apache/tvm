@@ -399,53 +399,14 @@ def make(docker_type, path, make_flag) {
   }
 }
 
-// Specifications to Jenkins "stash" command for use with various pack_ and unpack_ functions.
-tvm_runtime = 'build/libtvm_runtime.so, build/config.cmake'  // use libtvm_runtime.so.
-tvm_lib = 'build/libtvm.so, ' + tvm_runtime  // use libtvm.so to run the full compiler.
-// LLVM upstream lib
-tvm_multilib = 'build/libtvm.so, ' +
-               'build/libvta_fsim.so, ' +
-               tvm_runtime
+// Filenames for stashing between build and test steps
+{% set tvm_runtime = ['build/libtvm_runtime.so', 'build/config.cmake'] %}
+{% set tvm_lib = ['build/libtvm.so'] + tvm_runtime %}
+{% set tvm_multilib = ['build/libtvm.so', 'build/libvta_fsim.so'] + tvm_runtime %}
+{% set tvm_multilib_tsim = ['build/libvta_tsim.so'] + tvm_multilib %}
+{% set microtvm_template_projects = ['build/microtvm_template_projects',] %}
+s3_prefix = "tvm-jenkins-artifacts-prod/tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"
 
-tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
-                    tvm_multilib
-
-microtvm_tar_gz = 'build/microtvm_template_projects.tar.gz'
-
-// pack libraries for later use
-def pack_lib(name, libs) {
-  sh (script: """
-     echo "Packing ${libs} into ${name}"
-     echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
-     """, label: 'Stash libraries and show md5')
-  stash includes: libs, name: name
-}
-
-// unpack libraries saved before
-def unpack_lib(name, libs) {
-  unstash name
-  sh (script: """
-     echo "Unpacked ${libs} from ${name}"
-     echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
-     """, label: 'Unstash libraries and show md5')
-}
-
-// compress microtvm template projects and pack the tar.
-def pack_microtvm_template_projects(name) {
-  sh(
-    script: 'cd build && tar -czvf microtvm_template_projects.tar.gz microtvm_template_projects/',
-    label: 'Compress microtvm_template_projects'
-  )
-  pack_lib(name + '-microtvm-libs', microtvm_tar_gz)
-}
-
-def unpack_microtvm_template_projects(name) {
-  unpack_lib(name + '-microtvm-libs', microtvm_tar_gz)
-  sh(
-    script: 'cd build && tar -xzvf microtvm_template_projects.tar.gz',
-    label: 'Unpack microtvm_template_projects'
-  )
-}
 
 def ci_setup(image) {
   sh (
@@ -482,24 +443,36 @@ def cpp_unittest(image) {
   )
 }
 
+
+def add_microtvm_permissions() {
+  {% for folder in microtvm_template_projects %}
+  sh(
+    script: 'find {{ folder }} -type f | xargs chmod +x',
+    label: 'Add execute permissions for microTVM files',
+  )
+  {% endfor %}
+}
+
+
 def build() {
 stage('Build') {
   environment {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
   }
-  parallel 'BUILD: GPU': {
+  parallel(
+    'BUILD: GPU': {
     if (!skip_ci) {
       node('CPU-SMALL') {
         ws({{ m.per_exec_ws('tvm/build-gpu') }}) {
           init_git()
           sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
           make("${ci_gpu} --no-gpu", 'build', '-j2')
-          pack_lib('gpu', tvm_multilib)
-          pack_microtvm_template_projects('gpu')
+          {{ m.upload_artifacts(tag='gpu', filenames=tvm_multilib, folders=microtvm_template_projects) }}
+
           // compiler test
           sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
           make("${ci_gpu} --no-gpu", 'build2', '-j2')
-          pack_lib('gpu2', tvm_multilib)
+          {{ m.upload_artifacts(tag='gpu2', filenames=tvm_multilib) }}
         }
       }
     }
@@ -514,7 +487,7 @@ stage('Build') {
             label: 'Create CPU cmake config',
           )
           make(ci_cpu, 'build', '-j2')
-          pack_lib('cpu', tvm_multilib_tsim)
+          {{ m.upload_artifacts(tag='cpu', filenames=tvm_multilib_tsim) }}
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_cpu)
             // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
@@ -561,7 +534,7 @@ stage('Build') {
             label: 'Create i386 cmake config',
           )
           make(ci_i386, 'build', '-j2')
-          pack_lib('i386', tvm_multilib_tsim)
+          {{ m.upload_artifacts(tag='i386', filenames=tvm_multilib_tsim) }}
         }
       }
     } else {
@@ -578,7 +551,7 @@ stage('Build') {
             label: 'Create ARM cmake config',
           )
           make(ci_arm, 'build', '-j4')
-          pack_lib('arm', tvm_multilib)
+          {{ m.upload_artifacts(tag='arm', filenames=tvm_multilib) }}
         }
       }
      } else {
@@ -595,8 +568,7 @@ stage('Build') {
             label: 'Create QEMU cmake config',
           )
           make(ci_qemu, 'build', '-j2')
-          pack_lib('qemu', tvm_lib)
-          pack_microtvm_template_projects('qemu')
+          {{ m.upload_artifacts(tag='qemu', filenames=tvm_lib, folders=microtvm_template_projects) }}
         }
       }
      } else {
@@ -613,13 +585,14 @@ stage('Build') {
             label: 'Create Hexagon cmake config',
           )
           make(ci_hexagon, 'build', '-j2')
-          pack_lib('hexagon', tvm_lib)
+          {{ m.upload_artifacts(tag='hexagon', filenames=tvm_lib) }}
         }
       }
      } else {
       Utils.markStageSkippedForConditional('BUILD: Hexagon')
     }
-  }
+  },
+  )
 }
 }
 
@@ -640,14 +613,14 @@ stage('Test') {
     platform="gpu",
   ) %}
     {% if shard_index == 1 %}
-    unpack_lib('gpu2', tvm_multilib)
+    {{ m.download_artifacts(tag='gpu2', filenames=tvm_multilib) }}
     cpp_unittest(ci_gpu)
 
-    unpack_lib('gpu', tvm_multilib)
+    {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib) }}
     ci_setup(ci_gpu)
     cpp_unittest(ci_gpu)
     {% else %}
-    unpack_lib('gpu', tvm_multilib)
+    {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib) }}
     ci_setup(ci_gpu)
     {% endif %}
     {% if shard_index == 2 or num_shards < 2 %}
@@ -672,7 +645,7 @@ stage('Test') {
       ws="tvm/integration-python-cpu",
       platform="cpu",
     ) %}
-    unpack_lib('cpu', tvm_multilib_tsim)
+    {{ m.download_artifacts(tag='cpu', filenames=tvm_multilib_tsim) }}
     ci_setup(ci_cpu)
     sh (
       script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
@@ -685,7 +658,7 @@ stage('Test') {
     ws="tvm/ut-python-cpu",
     platform="cpu",
   ) %}
-    unpack_lib('cpu', tvm_multilib_tsim)
+    {{ m.download_artifacts(tag='cpu', filenames=tvm_multilib_tsim) }}
     ci_setup(ci_cpu)
     cpp_unittest(ci_cpu)
     python_unittest(ci_cpu)
@@ -702,7 +675,7 @@ stage('Test') {
     ws="tvm/integration-python-i386",
     platform="i386",
   ) %}
-    unpack_lib('i386', tvm_multilib)
+    {{ m.download_artifacts(tag='i386', filenames=tvm_multilib) }}
     ci_setup(ci_i386)
     {% if shard_index == 1 %}
     cpp_unittest(ci_i386)
@@ -721,7 +694,7 @@ stage('Test') {
     platform="hexagon",
     num_shards=4,
   ) %}
-    unpack_lib('hexagon', tvm_lib)
+    {{ m.download_artifacts(tag='hexagon', filenames=tvm_lib) }}
     ci_setup(ci_hexagon)
     {% if shard_index == 1 %}
     cpp_unittest(ci_hexagon)
@@ -741,8 +714,8 @@ stage('Test') {
     ws="tvm/test-qemu",
     platform="qemu",
   ) %}
-    unpack_lib('qemu', tvm_lib)
-    unpack_microtvm_template_projects('qemu')
+    {{ m.download_artifacts(tag='qemu', filenames=tvm_lib, folders=microtvm_template_projects) }}
+    add_microtvm_permissions()
     ci_setup(ci_qemu)
     cpp_unittest(ci_qemu)
     sh (
@@ -760,7 +733,7 @@ stage('Test') {
     ws="tvm/ut-python-arm",
     platform="arm",
 ) %}
-    unpack_lib('arm', tvm_multilib)
+    {{ m.download_artifacts(tag='arm', filenames=tvm_multilib) }}
     ci_setup(ci_arm)
     cpp_unittest(ci_arm)
     sh (
@@ -778,7 +751,7 @@ stage('Test') {
     node="ARM", ws="tvm/ut-python-arm",
     platform="arm",
   ) %}
-    unpack_lib('arm', tvm_multilib)
+    {{ m.download_artifacts(tag='arm', filenames=tvm_multilib) }}
     ci_setup(ci_arm)
     python_unittest(ci_arm)
     sh (
@@ -793,7 +766,7 @@ stage('Test') {
     ws="tvm/topi-python-gpu",
     platform="gpu",
   ) %}
-    unpack_lib('gpu', tvm_multilib)
+    {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib) }}
     ci_setup(ci_gpu)
     sh (
       script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh",
@@ -806,7 +779,7 @@ stage('Test') {
     ws="tvm/frontend-python-gpu",
     platform="gpu",
   ) %}
-    unpack_lib('gpu', tvm_multilib)
+    {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib) }}
     ci_setup(ci_gpu)
     sh (
       script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh",
@@ -819,7 +792,7 @@ stage('Test') {
     ws="tvm/frontend-python-cpu",
     platform="cpu",
 ) %}
-    unpack_lib('cpu', tvm_multilib)
+    {{ m.download_artifacts(tag='cpu', filenames=tvm_multilib) }}
     ci_setup(ci_cpu)
     sh (
       script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh",
@@ -832,7 +805,7 @@ stage('Test') {
     ws="tvm/frontend-python-arm",
     platform="arm",
 ) %}
-    unpack_lib('arm', tvm_multilib)
+    {{ m.download_artifacts(tag='arm', filenames=tvm_multilib) }}
     ci_setup(ci_arm)
     sh (
       script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
@@ -844,8 +817,8 @@ stage('Test') {
       node('GPU') {
         ws({{ m.per_exec_ws('tvm/docs-python-gpu') }}) {
           init_git()
-          unpack_lib('gpu', tvm_multilib)
-          unpack_microtvm_template_projects('gpu')
+          {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib, folders=microtvm_template_projects) }}
+          add_microtvm_permissions()
           timeout(time: 180, unit: 'MINUTES') {
             ci_setup(ci_gpu)
             sh (
@@ -853,7 +826,7 @@ stage('Test') {
               label: 'Build docs',
             )
           }
-          pack_lib('docs', 'docs.tgz')
+          {{ m.upload_artifacts(tag='docs', filenames=["docs.tgz"]) }}
           archiveArtifacts(artifacts: 'docs.tgz', fingerprint: true)
         }
       }
@@ -928,7 +901,7 @@ stage('Deploy') {
   if (env.BRANCH_NAME == 'main' && env.DOCS_DEPLOY_ENABLED == 'yes') {
     node('CPU') {
       ws({{ m.per_exec_ws('tvm/deploy-docs') }}) {
-        unpack_lib('docs', 'docs.tgz')
+        {{ m.download_artifacts(tag='docs', filenames=["docs.tgz"]) }}
         deploy_docs()
       }
     }

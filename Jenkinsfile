@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-17T17:26:21.660243
+// Generated at 2022-05-19T11:41:58.421857
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -482,53 +482,9 @@ def make(docker_type, path, make_flag) {
   }
 }
 
-// Specifications to Jenkins "stash" command for use with various pack_ and unpack_ functions.
-tvm_runtime = 'build/libtvm_runtime.so, build/config.cmake'  // use libtvm_runtime.so.
-tvm_lib = 'build/libtvm.so, ' + tvm_runtime  // use libtvm.so to run the full compiler.
-// LLVM upstream lib
-tvm_multilib = 'build/libtvm.so, ' +
-               'build/libvta_fsim.so, ' +
-               tvm_runtime
+// Filenames for stashing between build and test steps
+s3_prefix = "tvm-jenkins-artifacts-prod/tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"
 
-tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
-                    tvm_multilib
-
-microtvm_tar_gz = 'build/microtvm_template_projects.tar.gz'
-
-// pack libraries for later use
-def pack_lib(name, libs) {
-  sh (script: """
-     echo "Packing ${libs} into ${name}"
-     echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
-     """, label: 'Stash libraries and show md5')
-  stash includes: libs, name: name
-}
-
-// unpack libraries saved before
-def unpack_lib(name, libs) {
-  unstash name
-  sh (script: """
-     echo "Unpacked ${libs} from ${name}"
-     echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
-     """, label: 'Unstash libraries and show md5')
-}
-
-// compress microtvm template projects and pack the tar.
-def pack_microtvm_template_projects(name) {
-  sh(
-    script: 'cd build && tar -czvf microtvm_template_projects.tar.gz microtvm_template_projects/',
-    label: 'Compress microtvm_template_projects'
-  )
-  pack_lib(name + '-microtvm-libs', microtvm_tar_gz)
-}
-
-def unpack_microtvm_template_projects(name) {
-  unpack_lib(name + '-microtvm-libs', microtvm_tar_gz)
-  sh(
-    script: 'cd build && tar -xzvf microtvm_template_projects.tar.gz',
-    label: 'Unpack microtvm_template_projects'
-  )
-}
 
 def ci_setup(image) {
   sh (
@@ -565,24 +521,63 @@ def cpp_unittest(image) {
   )
 }
 
+
+def add_microtvm_permissions() {
+  sh(
+    script: 'find build/microtvm_template_projects -type f | xargs chmod +x',
+    label: 'Add execute permissions for microTVM files',
+  )
+}
+
+
 def build() {
 stage('Build') {
   environment {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
   }
-  parallel 'BUILD: GPU': {
+  parallel(
+    'BUILD: GPU': {
     if (!skip_ci) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-gpu") {
           init_git()
           sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
           make("${ci_gpu} --no-gpu", 'build', '-j2')
-          pack_lib('gpu', tvm_multilib)
-          pack_microtvm_template_projects('gpu')
+          sh(
+            script: """
+              set -eux
+              md5sum build/libtvm.so
+              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu/build/libtvm.so
+              md5sum build/libvta_fsim.so
+              aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/gpu/build/libvta_fsim.so
+              md5sum build/libtvm_runtime.so
+              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/gpu/build/libtvm_runtime.so
+              md5sum build/config.cmake
+              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/gpu/build/config.cmake
+              aws s3 cp --no-progress build/microtvm_template_projects s3://${s3_prefix}/gpu/build/microtvm_template_projects --recursive
+            """,
+            label: 'Upload artifacts to S3',
+          )
+
+
           // compiler test
           sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
           make("${ci_gpu} --no-gpu", 'build2', '-j2')
-          pack_lib('gpu2', tvm_multilib)
+          sh(
+            script: """
+              set -eux
+              md5sum build/libtvm.so
+              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu2/build/libtvm.so
+              md5sum build/libvta_fsim.so
+              aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/gpu2/build/libvta_fsim.so
+              md5sum build/libtvm_runtime.so
+              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/gpu2/build/libtvm_runtime.so
+              md5sum build/config.cmake
+              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/gpu2/build/config.cmake
+            """,
+            label: 'Upload artifacts to S3',
+          )
+
         }
       }
     }
@@ -597,7 +592,23 @@ stage('Build') {
             label: 'Create CPU cmake config',
           )
           make(ci_cpu, 'build', '-j2')
-          pack_lib('cpu', tvm_multilib_tsim)
+          sh(
+            script: """
+              set -eux
+              md5sum build/libvta_tsim.so
+              aws s3 cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/cpu/build/libvta_tsim.so
+              md5sum build/libtvm.so
+              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/cpu/build/libtvm.so
+              md5sum build/libvta_fsim.so
+              aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/cpu/build/libvta_fsim.so
+              md5sum build/libtvm_runtime.so
+              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/cpu/build/libtvm_runtime.so
+              md5sum build/config.cmake
+              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/cpu/build/config.cmake
+            """,
+            label: 'Upload artifacts to S3',
+          )
+
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_cpu)
             // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
@@ -644,7 +655,23 @@ stage('Build') {
             label: 'Create i386 cmake config',
           )
           make(ci_i386, 'build', '-j2')
-          pack_lib('i386', tvm_multilib_tsim)
+          sh(
+            script: """
+              set -eux
+              md5sum build/libvta_tsim.so
+              aws s3 cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/i386/build/libvta_tsim.so
+              md5sum build/libtvm.so
+              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/i386/build/libtvm.so
+              md5sum build/libvta_fsim.so
+              aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/i386/build/libvta_fsim.so
+              md5sum build/libtvm_runtime.so
+              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/i386/build/libtvm_runtime.so
+              md5sum build/config.cmake
+              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/i386/build/config.cmake
+            """,
+            label: 'Upload artifacts to S3',
+          )
+
         }
       }
     } else {
@@ -661,7 +688,21 @@ stage('Build') {
             label: 'Create ARM cmake config',
           )
           make(ci_arm, 'build', '-j4')
-          pack_lib('arm', tvm_multilib)
+          sh(
+            script: """
+              set -eux
+              md5sum build/libtvm.so
+              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/arm/build/libtvm.so
+              md5sum build/libvta_fsim.so
+              aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/arm/build/libvta_fsim.so
+              md5sum build/libtvm_runtime.so
+              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/arm/build/libtvm_runtime.so
+              md5sum build/config.cmake
+              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/arm/build/config.cmake
+            """,
+            label: 'Upload artifacts to S3',
+          )
+
         }
       }
      } else {
@@ -678,8 +719,20 @@ stage('Build') {
             label: 'Create QEMU cmake config',
           )
           make(ci_qemu, 'build', '-j2')
-          pack_lib('qemu', tvm_lib)
-          pack_microtvm_template_projects('qemu')
+          sh(
+            script: """
+              set -eux
+              md5sum build/libtvm.so
+              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/qemu/build/libtvm.so
+              md5sum build/libtvm_runtime.so
+              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/qemu/build/libtvm_runtime.so
+              md5sum build/config.cmake
+              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/qemu/build/config.cmake
+              aws s3 cp --no-progress build/microtvm_template_projects s3://${s3_prefix}/qemu/build/microtvm_template_projects --recursive
+            """,
+            label: 'Upload artifacts to S3',
+          )
+
         }
       }
      } else {
@@ -696,13 +749,26 @@ stage('Build') {
             label: 'Create Hexagon cmake config',
           )
           make(ci_hexagon, 'build', '-j2')
-          pack_lib('hexagon', tvm_lib)
+          sh(
+            script: """
+              set -eux
+              md5sum build/libtvm.so
+              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/hexagon/build/libtvm.so
+              md5sum build/libtvm_runtime.so
+              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/hexagon/build/libtvm_runtime.so
+              md5sum build/config.cmake
+              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/hexagon/build/config.cmake
+            """,
+            label: 'Upload artifacts to S3',
+          )
+
         }
       }
      } else {
       Utils.markStageSkippedForConditional('BUILD: Hexagon')
     }
-  }
+  },
+  )
 }
 }
 
@@ -726,10 +792,38 @@ stage('Test') {
                 'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=0'], {
-                unpack_lib('gpu2', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 cpp_unittest(ci_gpu)
 
-                unpack_lib('gpu', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_gpu)
                 cpp_unittest(ci_gpu)
                 sh (
@@ -762,7 +856,21 @@ stage('Test') {
                 'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=1'], {
-                unpack_lib('gpu', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_gpu)
                 sh (
                   script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
@@ -798,7 +906,23 @@ stage('Test') {
                 'PLATFORM=cpu',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=0'], {
-                unpack_lib('cpu', tvm_multilib_tsim)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_cpu)
                 sh (
                   script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
@@ -826,7 +950,23 @@ stage('Test') {
                 'PLATFORM=cpu',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=1'], {
-                unpack_lib('cpu', tvm_multilib_tsim)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_cpu)
                 sh (
                   script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
@@ -851,7 +991,23 @@ stage('Test') {
             try {
               init_git()
               withEnv(['PLATFORM=cpu'], {
-                unpack_lib('cpu', tvm_multilib_tsim)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_cpu)
                 cpp_unittest(ci_cpu)
                 python_unittest(ci_cpu)
@@ -882,7 +1038,21 @@ stage('Test') {
                 'PLATFORM=i386',
                 'TVM_NUM_SHARDS=3',
                 'TVM_SHARD_INDEX=0'], {
-                unpack_lib('i386', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_i386)
                 cpp_unittest(ci_i386)
                 python_unittest(ci_i386)
@@ -913,7 +1083,21 @@ stage('Test') {
                 'PLATFORM=i386',
                 'TVM_NUM_SHARDS=3',
                 'TVM_SHARD_INDEX=1'], {
-                unpack_lib('i386', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_i386)
                 python_unittest(ci_i386)
                 sh (
@@ -943,7 +1127,21 @@ stage('Test') {
                 'PLATFORM=i386',
                 'TVM_NUM_SHARDS=3',
                 'TVM_SHARD_INDEX=2'], {
-                unpack_lib('i386', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_i386)
                 python_unittest(ci_i386)
                 sh (
@@ -973,7 +1171,19 @@ stage('Test') {
                 'PLATFORM=hexagon',
                 'TVM_NUM_SHARDS=4',
                 'TVM_SHARD_INDEX=0'], {
-                unpack_lib('hexagon', tvm_lib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_hexagon)
                 cpp_unittest(ci_hexagon)
                 sh (
@@ -1006,7 +1216,19 @@ stage('Test') {
                 'PLATFORM=hexagon',
                 'TVM_NUM_SHARDS=4',
                 'TVM_SHARD_INDEX=1'], {
-                unpack_lib('hexagon', tvm_lib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_hexagon)
                 sh (
                   script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
@@ -1038,7 +1260,19 @@ stage('Test') {
                 'PLATFORM=hexagon',
                 'TVM_NUM_SHARDS=4',
                 'TVM_SHARD_INDEX=2'], {
-                unpack_lib('hexagon', tvm_lib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_hexagon)
                 sh (
                   script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
@@ -1070,7 +1304,19 @@ stage('Test') {
                 'PLATFORM=hexagon',
                 'TVM_NUM_SHARDS=4',
                 'TVM_SHARD_INDEX=3'], {
-                unpack_lib('hexagon', tvm_lib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_hexagon)
                 sh (
                   script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
@@ -1099,8 +1345,21 @@ stage('Test') {
             try {
               init_git()
               withEnv(['PLATFORM=qemu'], {
-                unpack_lib('qemu', tvm_lib)
-                unpack_microtvm_template_projects('qemu')
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+                add_microtvm_permissions()
                 ci_setup(ci_qemu)
                 cpp_unittest(ci_qemu)
                 sh (
@@ -1130,7 +1389,21 @@ stage('Test') {
             try {
               init_git()
               withEnv(['PLATFORM=arm'], {
-                unpack_lib('arm', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_arm)
                 cpp_unittest(ci_arm)
                 sh (
@@ -1163,7 +1436,21 @@ stage('Test') {
                 'PLATFORM=arm',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=0'], {
-                unpack_lib('arm', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_arm)
                 python_unittest(ci_arm)
                 sh (
@@ -1192,7 +1479,21 @@ stage('Test') {
                 'PLATFORM=arm',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=1'], {
-                unpack_lib('arm', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_arm)
                 python_unittest(ci_arm)
                 sh (
@@ -1221,7 +1522,21 @@ stage('Test') {
                 'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=0'], {
-                unpack_lib('gpu', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_gpu)
                 sh (
                   script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh",
@@ -1249,7 +1564,21 @@ stage('Test') {
                 'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=2',
                 'TVM_SHARD_INDEX=1'], {
-                unpack_lib('gpu', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_gpu)
                 sh (
                   script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh",
@@ -1277,7 +1606,21 @@ stage('Test') {
                 'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=3',
                 'TVM_SHARD_INDEX=0'], {
-                unpack_lib('gpu', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_gpu)
                 sh (
                   script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh",
@@ -1305,7 +1648,21 @@ stage('Test') {
                 'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=3',
                 'TVM_SHARD_INDEX=1'], {
-                unpack_lib('gpu', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_gpu)
                 sh (
                   script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh",
@@ -1333,7 +1690,21 @@ stage('Test') {
                 'PLATFORM=gpu',
                 'TVM_NUM_SHARDS=3',
                 'TVM_SHARD_INDEX=2'], {
-                unpack_lib('gpu', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_gpu)
                 sh (
                   script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh",
@@ -1358,7 +1729,21 @@ stage('Test') {
             try {
               init_git()
               withEnv(['PLATFORM=cpu'], {
-                unpack_lib('cpu', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_cpu)
                 sh (
                   script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh",
@@ -1383,7 +1768,21 @@ stage('Test') {
             try {
               init_git()
               withEnv(['PLATFORM=arm'], {
-                unpack_lib('arm', tvm_multilib)
+                sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
                 ci_setup(ci_arm)
                 sh (
                   script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
@@ -1405,8 +1804,23 @@ stage('Test') {
       node('GPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/docs-python-gpu") {
           init_git()
-          unpack_lib('gpu', tvm_multilib)
-          unpack_microtvm_template_projects('gpu')
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+              md5sum build/libtvm.so
+              aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+              md5sum build/libvta_fsim.so
+              aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+              md5sum build/libtvm_runtime.so
+              aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+              md5sum build/config.cmake
+              aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/microtvm_template_projects build/microtvm_template_projects --recursive
+            """,
+            label: 'Download artifacts from S3',
+          )
+
+          add_microtvm_permissions()
           timeout(time: 180, unit: 'MINUTES') {
             ci_setup(ci_gpu)
             sh (
@@ -1414,7 +1828,15 @@ stage('Test') {
               label: 'Build docs',
             )
           }
-          pack_lib('docs', 'docs.tgz')
+          sh(
+            script: """
+              set -eux
+              md5sum docs.tgz
+              aws s3 cp --no-progress docs.tgz s3://${s3_prefix}/docs/docs.tgz
+            """,
+            label: 'Upload artifacts to S3',
+          )
+
           archiveArtifacts(artifacts: 'docs.tgz', fingerprint: true)
         }
       }
@@ -1489,7 +1911,15 @@ stage('Deploy') {
   if (env.BRANCH_NAME == 'main' && env.DOCS_DEPLOY_ENABLED == 'yes') {
     node('CPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docs") {
-        unpack_lib('docs', 'docs.tgz')
+        sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress s3://${s3_prefix}/docs/docs.tgz docs.tgz
+              md5sum docs.tgz
+            """,
+            label: 'Download artifacts from S3',
+          )
+
         deploy_docs()
       }
     }
