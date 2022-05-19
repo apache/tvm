@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
 import tvm
 from tvm.script import tir as T
 import numpy as np
@@ -22,9 +21,7 @@ import tvm.testing
 
 
 @T.prim_func
-def ptx_cp_async(
-    A: T.Buffer[(32, 128), "float16"], B: T.Buffer[(32, 128), "float16"]
-) -> None:
+def ptx_cp_async(A: T.Buffer[(32, 128), "float16"], B: T.Buffer[(32, 128), "float16"]) -> None:
     T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
     bx = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -37,9 +34,12 @@ def ptx_cp_async(
 
         for i in range(16):
             T.evaluate(
-                T.ptx_cp_async(A_shared.data, tx * 128 + 8 * i, A.data, tx * 128 + 8 * i, 16, dtype="float16")
+                T.ptx_cp_async(
+                    A_shared.data, tx * 128 + 8 * i, A.data, tx * 128 + 8 * i, 16, dtype="float16"
                 )
+            )
 
+        # TODO(masahi): Remove dtype requirement from TVMScript parser
         T.evaluate(T.ptx_commit_group(dtype="float16"))
         T.evaluate(T.ptx_wait_group(0, dtype="float16"))
 
