@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file src/relay/backend/manifest_lifetimes.cc
- * \brief Analysis and explicit manifestation of variable lifetimes. NOTE: the input IR should be in
- * ANF and post-memory-lowering (explicit manifestation of allocations).
+ * \file src/relay/backend/liveness_analysis.cc
+ * \brief  Analysis that collects the live variables before and after each node.
+ * NOTE: the input IR should be in ANF.
  */
 
-#include "manifest_lifetimes.h"
+#include "./liveness_analysis.h"
 
 #include <list>
 #include <unordered_set>
@@ -226,141 +226,6 @@ LivenessAnalysis LivenessAnalysis::Analyze(const ControlFlowGraph& cfg,
 
   return a;
 }
-
-Expr KillInserter::VisitExpr_(const LetNode* let_node) {
-  Expr expr = GetRef<Expr>(let_node);
-  LetList ll;
-
-  while (const LetNode* inner_let_node = expr.as<LetNode>()) {
-    ll.Push(inner_let_node->var, VisitExpr(inner_let_node->value));
-
-    ICHECK(!inner_let_node->value.as<VarNode>()) << "aliasing should have been eliminated.";
-    ICHECK(cfg_->let_map.count(expr)) << "all Let exprs should be mapped in the CFG";
-
-    const ControlFlowGraph::NodePtr n = cfg_->let_map.at(expr);
-
-    const VarSet& li = lva_->live_in.at(n);
-    const VarSet& lo = lva_->live_out.at(n);
-
-    // Killed vars = live in - live out.
-    VarSet kills;
-    for (const Var& v : li) {
-      if (!lo.count(v)) {
-        kills.insert(v);
-      }
-    }
-
-    for (const Var& v : kills) {
-      ll.Push(Call(Op::Get("memory.kill"), {v}));
-    }
-
-    expr = inner_let_node->body;
-  }
-
-  return ll.Get(VisitExpr(expr));
-}
-
-Expr AliasEliminator::VisitExpr_(const LetNode* let_node) {
-  Expr expr = GetRef<Expr>(let_node);
-  LetList ll;
-  std::vector<Var> aliased_vars;
-
-  while (const LetNode* inner_let_node = expr.as<LetNode>()) {
-    const Var& var = inner_let_node->var;
-    const Expr& val = inner_let_node->value;
-    bool aliased = false;
-    ICHECK(!alias_.count(var));
-
-    if (const VarNode* alias_of_n = AsIgnoringOnDevice<VarNode>(val)) {
-      alias_[var] = Downcast<Var>(VisitExpr_(alias_of_n));
-      aliased = true;
-    } else if (AsIgnoringOnDevice<CallNode>(val)) {
-      // Copying to the same device is aliasing.
-      // WARNING: this must be kept in sync with the VM compiler logic in
-      // src/relay/backend/vm/compiler.cc, line 541, in DeviceAwareVisitExpr_(const CallNode*).
-      Expr unwrapped = IgnoreOnDevice(val);
-      DeviceCopyProps copy_props = GetDeviceCopyProps(unwrapped);
-      if (copy_props.body.defined()) {
-        if (copy_props.src_virtual_device->device_type() ==
-                copy_props.dst_virtual_device->device_type() &&
-            copy_props.src_virtual_device->virtual_device_id ==
-                copy_props.dst_virtual_device->virtual_device_id) {
-          Expr to_copy = Downcast<Call>(unwrapped)->args[0];
-          if (const VarNode* alias_of_n = to_copy.as<VarNode>()) {
-            alias_[var] = Downcast<Var>(VisitExpr_(alias_of_n));
-            aliased = true;
-          }
-        }
-      }
-    }
-
-    if (!aliased) {
-      ll.Push(var, VisitExpr(val));
-    } else {
-      aliased_vars.push_back(var);
-    }
-
-    expr = inner_let_node->body;
-  }
-
-  Expr body = ll.Get(VisitExpr(expr));
-
-  // remove the aliased vars so that alias_ only tracks things in scope
-  for (const Var& v : aliased_vars) {
-    alias_.erase(v);
-  }
-
-  return body;
-}
-
-Expr AliasEliminator::VisitExpr_(const VarNode* var_node) {
-  Var var = GetRef<Var>(var_node);
-  if (alias_.count(var)) {
-    return alias_[var];
-  }
-  return var;
-}
-
-Expr AliasEliminator::VisitExpr_(const FunctionNode* func_node) {
-  Expr new_body = VisitExpr(func_node->body);
-  return WithFields(GetRef<Function>(func_node), /*opt_params=*/NullOpt, /*opt_body=*/new_body);
-}
-
-Expr AliasEliminator::VisitExpr_(const MatchNode* match_node) {
-  if (const VarNode* data_var_node = AsIgnoringOnDevice<VarNode>(match_node->data)) {
-    Var data_var = Downcast<Var>(VisitExpr_(data_var_node));
-    std::vector<Clause> new_clauses;
-    for (const Clause& clause : match_node->clauses) {
-      const PatternVarNode* pv_node = nullptr;
-      if ((pv_node = clause->lhs.as<PatternVarNode>())) {
-        alias_[pv_node->var] = data_var;
-      }
-      new_clauses.push_back(Clause(clause->lhs, VisitExpr(clause->rhs)));
-      if (pv_node) {
-        alias_.erase(pv_node->var);
-      }
-    }
-    return Match(data_var, new_clauses, match_node->complete, match_node->span);
-  } else {
-    return ExprMutator::VisitExpr_(match_node);
-  }
-}
-
-Pass ManifestLifetimes() {
-  auto pass_func = [](Function f, IRModule m, PassContext pc) -> Function {
-    f = Downcast<Function>(AliasEliminator().Mutate(f));
-    Arena arena;
-    ControlFlowGraph cfg = ControlFlowGraph::Create(&arena, f);
-    UseDefAnalysis use_def = UseDefAnalysis::Analyze(cfg);
-    LivenessAnalysis lva = LivenessAnalysis::Analyze(cfg, use_def);
-    KillInserter ki(&cfg, &lva);
-    Function nf = Downcast<Function>(ki.Mutate(f));
-    return nf;
-  };
-  return CreateFunctionPass(pass_func, 0, "ManifestLifetimes", {});
-}
-
-TVM_REGISTER_GLOBAL("relay._transform.ManifestLifetimes").set_body_typed(ManifestLifetimes);
 
 }  // namespace transform
 }  // namespace relay

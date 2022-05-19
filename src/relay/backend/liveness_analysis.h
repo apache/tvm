@@ -18,13 +18,13 @@
  */
 
 /*!
- * \file src/relay/backend/manifest_lifetimes.h
- * \brief Analysis and explicit manifestation of variable lifetimes. NOTE: the input IR should be in
- * ANF and post-memory-lowering (explicit manifestation of allocations).
+ * \file src/relay/backend/liveness_analysis.h
+ * \brief  Analysis that collects the live variables before and after each node.
+ * NOTE: the input IR should be in ANF.
  */
 
-#ifndef TVM_RELAY_BACKEND_MANIFEST_LIFETIMES_H_
-#define TVM_RELAY_BACKEND_MANIFEST_LIFETIMES_H_
+#ifndef TVM_RELAY_BACKEND_LIVENESS_ANALYSIS_H_
+#define TVM_RELAY_BACKEND_LIVENESS_ANALYSIS_H_
 
 #include <tvm/relay/transform.h>
 
@@ -263,103 +263,8 @@ struct LivenessAnalysis {
   static LivenessAnalysis Analyze(const ControlFlowGraph& cfg, const UseDefAnalysis& use_def);
 };
 
-/*!
- * \brief Helper class to insert kills using liveness information.
- */
-class KillInserter : public ExprMutator {
- public:
-  KillInserter(const ControlFlowGraph* cfg, const LivenessAnalysis* lva) : cfg_(cfg), lva_(lva) {}
-
-  // Limitations
-  // -----------
-  // (1) For simplicity, we only insert kills when visiting Let bindings, and always emit the kill
-  // as a single subsequent binding. This is slightly inaccurate; for example, if the condition of
-  // an If is dead after the test, we can immediately kill the condition in each branch:
-  //   let %x = if (%dead_cond) {
-  //     let %_0 = memory.kill(%dead_cond);
-  //     ...
-  //   } else {
-  //     let %_1 = memory.kill(%dead_cond);
-  //     ...
-  //   }
-  // as opposed to:
-  //   let %x = if (%dead_cond) ...
-  //   let %_0 = memory.kill(%dead_cond);
-  //
-  // (2) Killed variables are calculated as live in - live out, which misses variables that are
-  // actually dead but not in a live-in set. Example:
-  //   @f(%x: int, %y: int, %c: bool) {
-  //     let %w = if (%c) {
-  //       let %z = %y + %y;
-  //       %z
-  //     } else {
-  //       %y
-  //     };
-  //     %w
-  //   }
-  // After inserting kills:
-  //   @f(%x: int, %y: int, %c: bool) {
-  //     /* %x is always dead, so never in any live in or live out set */
-  //     let %w = if (%c) {
-  //       let %z = %y + %y;
-  //       let %_0 = memory.kill(%y);
-  //       %z
-  //     } else {
-  //       %y
-  //       /* %y is dead at this point */
-  //     };
-  //     let %_1 = memory.kill(%c);
-  //     /* no kill for %y since it's not in the live-in of %w AND %w isn't a let binding */
-  //     %w
-  //   }
-  //
-  // (3) When the result expr of an If branch is a variable, and this expr is the last use of the
-  // var, we cannot "kill" the var since it is being returned. The VM compiler also emits a Move
-  // instruction to merge the branch results, which creates another ObjectRef to the Object held
-  // by the var. The var is also not in the subsequent live-in (since it is indeed dead by this
-  // point), so it won't be killed. An example can be seen in the previous code block for (2), where
-  // %y is not killed if the else-branch is taken (and indeed it can be killed, as %w is mapped to
-  // a new register and holds a fresh reference to the object referenced by %y).
-  //
-  // However, these limitations are unlikely to cause large leaks in practice.
-
-  Expr VisitExpr_(const LetNode* let_node);
-
- private:
-  const ControlFlowGraph* cfg_;
-  const LivenessAnalysis* lva_;
-};
-
-/*!
- * \brief Helper class to eliminate variable aliasing. This pass anticipates the VM compiler's
- * register aliasing behavior so as to avoid killing vars that point to the same register. An
- * alternative approach would be to track aliasing within the VM compiler itself, so that kill
- * instructions are only emitted when all aliases are killed.
- */
-class AliasEliminator : public MixedModeMutator {
- public:
-  using MixedModeMutator::VisitExpr_;
-
-  Expr VisitExpr_(const LetNode* let_node) override;
-  Expr VisitExpr_(const VarNode* var_node) override;
-  Expr VisitExpr_(const FunctionNode* func_node) override;
-
-  // The only register-level aliasing that occurs in Match expressions is when
-  // the deconstructed expression is a Var, and the matched pattern is also a Var.
-  Expr VisitExpr_(const MatchNode* match_node) override;
-
- private:
-  /*!
-   * \brief Mapping of var -> var it's an alias of. Note that transitive aliases
-   * (e.g. x = 0; y = x; z = y) are mapped to the non-aliased variable (in this example "x").
-   */
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> alias_;
-};
-
-Pass ManifestLifetimes();
-
 }  // namespace transform
 }  // namespace relay
 }  // namespace tvm
 
-#endif  // TVM_RELAY_BACKEND_MANIFEST_LIFETIMES_H_
+#endif  // TVM_RELAY_BACKEND_LIVENESS_ANALYSIS_H_

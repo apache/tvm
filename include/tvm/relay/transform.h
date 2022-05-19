@@ -556,6 +556,15 @@ TVM_DLL Pass PlanDevices(CompilationConfig config);
  */
 TVM_DLL Pass FlattenAtrousConv();
 
+/*!
+ * \brief Annotates the memory usage of each primitive function by analyzing the liveness
+ * of the input/output tensors at each function callsite and calculating the total amount of
+ * memory these tensors require. This is added as a "used_memory" annotation to the function
+ * in question. In addition, the containing function is annotated with an "io_used_memory"
+ * annotation which refers to the total memory required for the IO tensors.
+ */
+TVM_DLL Pass AnnotateUsedMemory();
+
 }  // namespace transform
 
 /*!

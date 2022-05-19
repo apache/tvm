@@ -36,8 +36,9 @@ class CheckUsedMemoryAnnotation(ExprVisitor):
     what is expected.
     """
 
-    def __init__(self, expected_annotations):
+    def __init__(self, expected_annotations, expected_io_annotation):
         self.expected_annotations = expected_annotations
+        self.expected_io_annotation = expected_io_annotation
         super().__init__()
 
     def visit_function(self, fn):
@@ -56,14 +57,20 @@ class CheckUsedMemoryAnnotation(ExprVisitor):
             )
         super().visit_function(fn)
 
+    def __call__(self, fn):
+        assert (
+            fn.attrs["io_used_memory"] == self.expected_io_annotation
+        ), "Expected IO annotation did not match."
+        self.visit(fn.body)
 
-def _check_used_memory_annotations(mod, expected_annotations):
+
+def _check_used_memory_annotations(mod, expected_annotations, expected_io_annotation):
     mod = relay.transform.InferType()(mod)
     mod = relay.transform.ToANormalForm()(mod)
     mod = relay.transform.InferType()(mod)
     mod = AnnotateUsedMemory()(mod)
 
-    CheckUsedMemoryAnnotation(expected_annotations).visit(mod["main"].body)
+    CheckUsedMemoryAnnotation(expected_annotations, expected_io_annotation)(mod["main"])
 
 
 def _create_primitive_function(expr):
@@ -88,7 +95,8 @@ def test_simple():
     mod = tvm.IRModule.from_expr(call)
 
     expected_annotations = [2 * (1 * 2 * 2 * 4)]
-    _check_used_memory_annotations(mod, expected_annotations)
+    expected_io_annotation = 2 * (1 * 2 * 2 * 4)
+    _check_used_memory_annotations(mod, expected_annotations, expected_io_annotation)
 
 
 def test_multiple_functions():
@@ -116,7 +124,8 @@ def test_multiple_functions():
         (1 * 7 * 7 * 2) + (1 * 6 * 6 * 2),
         (1 * 6 * 6 * 2) + (1 * 5 * 5 * 2),
     ]
-    _check_used_memory_annotations(mod, expected_annotations)
+    expected_io_annotation = (1 * 8 * 8 * 2) + (1 * 5 * 5 * 2)
+    _check_used_memory_annotations(mod, expected_annotations, expected_io_annotation)
 
 
 def test_mixed_data_types():
@@ -138,7 +147,8 @@ def test_mixed_data_types():
     expected_annotations = [
         (1 * 2 * 2 * 2) * 2 + (1 * 2 * 2 * 2) * 4,
     ]
-    _check_used_memory_annotations(mod, expected_annotations)
+    expected_io_annotation = (1 * 2 * 2 * 2) * 2 + (1 * 2 * 2 * 2) * 4
+    _check_used_memory_annotations(mod, expected_annotations, expected_io_annotation)
 
 
 def test_parallel_function_call():
@@ -166,7 +176,105 @@ def test_parallel_function_call():
         # the output tensor from the previous function is also alive
         (1 * 4 * 5 * 6) + (1 * 4 * 30) + (1 * 4 * 30),
     ]
-    _check_used_memory_annotations(mod, expected_annotations)
+    expected_io_annotation = (1 * 4 * 5 * 6) + (1 * 4 * 60)
+    _check_used_memory_annotations(mod, expected_annotations, expected_io_annotation)
+
+
+def test_many_different_parallel_calls():
+    """
+    Test a graph that calls many different functions in parallel.
+
+                    input
+            /         |         \
+    prim_func_1  prim_func_2  prim_func_3
+           \         |         /
+                 prim_func_4
+    """
+
+    def get_inner_func_1():
+        x = relay.var("x", shape=(1, 4, 5, 6), dtype="int8")
+        x = relay.tanh(x)
+        x = _create_primitive_function(x)
+        return x
+
+    def get_inner_func_2():
+        x = relay.var("x", shape=(1, 4, 5, 6), dtype="int8")
+        x = relay.nn.max_pool2d(x, pool_size=(1, 1), layout="NHWC")
+        x = _create_primitive_function(x)
+        return x
+
+    def get_inner_func_3():
+        x = relay.var("x", shape=(1, 4, 5, 6), dtype="int8")
+        x = relay.abs(x)
+        x = relay.nn.relu(x)
+        x = relay.exp(x)
+        x = _create_primitive_function(x)
+        return x
+
+    def get_inner_func_4():
+        x = relay.var("x", shape=(1, 4, 5, 6), dtype="int8")
+        y = relay.var("y", shape=(1, 4, 5, 6), dtype="int8")
+        z = relay.var("z", shape=(1, 4, 5, 6), dtype="int8")
+        out = relay.concatenate([x, y, z], axis=3)
+        out = _create_primitive_function(out)
+        return out
+
+    ifm = relay.var("input", shape=(1, 4, 5, 6), dtype="int8")
+    x = relay.Call(get_inner_func_1(), [ifm])
+    y = relay.Call(get_inner_func_2(), [ifm])
+    z = relay.Call(get_inner_func_3(), [ifm])
+    a = relay.Call(get_inner_func_4(), [x, y, z])
+    mod = tvm.IRModule.from_expr(a)
+
+    expected_annotations = [
+        (1 * 4 * 5 * 6) + (1 * 4 * 5 * 6),
+        # output from prim_func_1 is also still alive
+        (1 * 4 * 5 * 6) + (1 * 4 * 5 * 6) + (1 * 4 * 5 * 6),
+        # outputs from prim_func_1 and prim_func_2 are also still alive
+        (1 * 4 * 5 * 6) + (1 * 4 * 5 * 6) + (1 * 4 * 5 * 6) + (1 * 4 * 5 * 6),
+        (1 * 4 * 5 * 6) + (1 * 4 * 5 * 6) + (1 * 4 * 5 * 6) + (1 * 4 * 5 * 18),
+    ]
+    expected_io_annotation = (1 * 4 * 5 * 6) + (1 * 4 * 5 * 18)
+    _check_used_memory_annotations(mod, expected_annotations, expected_io_annotation)
+
+
+def test_nested_branches():
+    """
+    Tests a graph with branches that also branch.
+
+             input
+            /     \
+          /        \
+    prim_func_1  prim_func_2
+                   /     \
+                  /       \
+            prim_func_3   prim_func_4
+    """
+
+    def get_generic_inner_func():
+        x = relay.var("x", shape=(1, 2, 2, 4), dtype="int8")
+        x = relay.nn.relu(x)
+        return _create_primitive_function(x)
+
+    ifm = relay.var("input", shape=(1, 2, 2, 4), dtype="int8")
+    a = relay.Call(get_generic_inner_func(), [ifm])
+    b = relay.Call(get_generic_inner_func(), [ifm])
+    c = relay.Call(get_generic_inner_func(), [b])
+    d = relay.Call(get_generic_inner_func(), [b])
+    out = relay.concatenate([a, c, d], axis=3)
+    mod = tvm.IRModule.from_expr(out)
+
+    expected_annotations = [
+        (1 * 2 * 2 * 4) + (1 * 2 * 2 * 4),
+        # output from prim_func_1 is also still alive
+        (1 * 2 * 2 * 4) + (1 * 2 * 2 * 4) + (1 * 2 * 2 * 4),
+        # output from prim_func_1 is also still alive
+        (1 * 2 * 2 * 4) + (1 * 2 * 2 * 4) + (1 * 2 * 2 * 4),
+        # outputs from prim_func_1 and prim_func_3 are also still alive
+        (1 * 2 * 2 * 4) + (1 * 2 * 2 * 4) + (1 * 2 * 2 * 4) + (1 * 2 * 2 * 4),
+    ]
+    expected_io_annotation = (1 * 2 * 2 * 4) + (1 * 2 * 2 * 12)
+    _check_used_memory_annotations(mod, expected_annotations, expected_io_annotation)
 
 
 def test_composite_inner_function():
@@ -177,18 +285,18 @@ def test_composite_inner_function():
 
     def get_inner_func():
         x = relay.var("x", shape=(1, 2, 2, 4), dtype="int8")
-        x = relay.nn.max_pool2d(x, pool_size=(2, 2))
+        x = relay.nn.max_pool2d(x, pool_size=(2, 2), layout="NHWC")
         x = relay.Function(relay.analysis.free_vars(x), x)
         x = x.with_attr("Composite", "my_composite_func")
 
         y = relay.var("y", shape=(1, 2, 2, 4), dtype="int8")
         z = relay.Call(x, [y])
-        z = _create_primitive_function(z)
-        return x
+        return _create_primitive_function(z)
 
     ifm = relay.var("input", shape=(1, 2, 2, 4), dtype="int8")
     x = relay.Call(get_inner_func(), [ifm])
     mod = tvm.IRModule.from_expr(x)
 
     expected_annotations = [(1 * 2 * 2 * 4) + (1 * 1 * 1 * 4)]
-    _check_used_memory_annotations(mod, expected_annotations)
+    expected_io_annotation = (1 * 2 * 2 * 4) + (1 * 1 * 1 * 4)
+    _check_used_memory_annotations(mod, expected_annotations, expected_io_annotation)

@@ -48,7 +48,6 @@
 #include "../op/call/call.h"
 #include "../op/memory/device_copy.h"
 #include "../transforms/device_aware_visitors.h"
-#include "./aot/annotate_used_memory.cc"
 #include "./name_transforms.h"
 #include "./te_compiler.h"
 #include "./utils.h"
