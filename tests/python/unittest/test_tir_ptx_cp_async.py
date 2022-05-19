@@ -40,6 +40,7 @@ def ptx_cp_async(
                 T.ptx_cp_async(A_shared.data, tx * 128 + 8 * i, A.data, tx * 128 + 8 * i, 16, dtype="float16")
                 )
 
+        T.evaluate(T.ptx_commit_group(dtype="float16"))
         T.evaluate(T.ptx_wait_group(0, dtype="float16"))
 
         for i in range(128):
