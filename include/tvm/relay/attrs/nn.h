@@ -99,6 +99,12 @@ struct Conv1DAttrs : public tvm::AttrsNode<Conv1DAttrs> {
             "Dimension ordering of weight. Can be 'OIW', or 'WIO', etc."
             "'O', 'I', 'W' stands for num_filter, input_channel, and width"
             "dimensions respectively.");
+    TVM_ATTR_FIELD(out_layout)
+        .set_default("")
+        .describe(
+            "Dimension ordering of output. Can be 'NCW', 'NWC', etc."
+            "'N', 'C', 'W' stands for batch, channel, and width"
+            "dimensions respectively. Default to be same as input layout.");
 
     // use 0 bits to indicate none.
     TVM_ATTR_FIELD(out_dtype)

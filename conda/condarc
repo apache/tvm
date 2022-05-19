@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,31 +15,28 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+# See https://docs.conda.io/projects/conda/en/latest/configuration.html for details
 
-# install libraries for python package on ubuntu
-pip3 install --upgrade \
-    attrs \
-    cloudpickle \
-    cython \
-    decorator \
-    mypy \
-    numpy~=1.19.5 \
-    orderedset \
-    packaging \
-    Pillow==9.1.0 \
-    psutil \
-    pytest \
-    tlcpack-sphinx-addon==0.2.1 \
-    pytest-profiling \
-    pytest-xdist \
-    requests \
-    scipy \
-    Jinja2 \
-    synr==0.6.0 \
-    junitparser==2.4.2 \
-    six \
-    tornado \
-    pytest-lazy-fixture
+# remote_connect_timeout_secs (float)
+#   The number seconds conda will wait for your client to establish a
+#   connection to a remote url resource.
+# 
+remote_connect_timeout_secs: 10
+
+# remote_max_retries (int)
+#   The maximum number of retries each HTTP connection should attempt.
+# 
+remote_max_retries: 6
+
+# remote_backoff_factor (int)
+#   The factor determines the time HTTP connection should wait for
+#   attempt.
+# 
+remote_backoff_factor: 5
+
+# remote_read_timeout_secs (float)
+#   Once conda has connected to a remote resource and sent an HTTP
+#   request, the read timeout is the number of seconds conda will wait for
+#   the server to send a response.
+# 
+remote_read_timeout_secs: 60.0

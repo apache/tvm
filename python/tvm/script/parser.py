@@ -20,7 +20,8 @@ We use [synr](https://synr.readthedocs.io) to get an AST that is stable over
 different python versions. Synr also provides an error handling context that we
 use for error reporting.
 """
-# pylint: disable=invalid-name, inconsistent-return-statements, no-else-return
+# pylint: disable=invalid-name, inconsistent-return-statements, no-else-return, broad-except
+import types
 import json
 import operator
 import inspect
@@ -543,7 +544,7 @@ class TVMScriptParser(Transformer):
         AST abstract grammar:
             Assign(expr* targets, expr value, string? type_comment)
 
-        By now 3 patterns of Assign is supported:
+        By now 5 patterns of Assign is supported:
             1. special stmts with return value
                 1.1 Buffer = T.match_buffer()/T.buffer_decl()
                 1.2 Var = T.var()
@@ -552,6 +553,9 @@ class TVMScriptParser(Transformer):
             3. (Store)       Var[PrimExpr] = PrimExpr
             4. with scope handlers with concise scoping and var def
                 4.1 var = T.allocate()
+            5. A call to a pure python function, consuming and producing TVMScript values.
+               The outputs are inlined into the following body (no variable is created).
+               x, y = f(...)
         """
 
         if isinstance(node.rhs, ast.Call):
@@ -577,6 +581,35 @@ class TVMScriptParser(Transformer):
                 arg_list = self.parse_arg_list(func, node.rhs)
                 func.handle(node, self.context, arg_list, node.rhs.func_name.span)
                 return self.parse_body(node)
+            elif isinstance(func, types.FunctionType):
+                # Pattern 5
+                args = [self.transform(arg) for arg in node.rhs.params]
+                try:
+                    out = func(*args)
+                except Exception as e:
+                    self.report_error(
+                        "Error occured when invoking the function "
+                        + func.__name__
+                        + ": \n"
+                        + str(e),
+                        node.rhs.span,
+                    )
+
+                if len(node.lhs) == 1 and not isinstance(out, list):
+                    out = [out]
+
+                assert len(out) == len(node.lhs)
+
+                for var, value in zip(node.lhs, out):
+                    self.context.update_symbol(var.id.name, value, node)
+
+                body = self.parse_body(node)
+
+                for var, value in zip(node.lhs, out):
+                    self.context.remove_symbol(var.id.name)
+
+                return body
+
         if isinstance(node.rhs, (ast.Call, ast.Constant)):
             # Pattern 4 of let binding
             value = self.transform(node.rhs)
@@ -606,7 +639,7 @@ class TVMScriptParser(Transformer):
             return tvm.tir.LetStmt(var, value, body, span=tvm_span_from_synr(node.span))
 
         self.report_error(
-            """Assignments should be either
+            """Assignments should be one of:
             1. A "special statement" with return value
                 1.1 Buffer = T.match_buffer()/T.buffer_decl()
                 1.2 Var = T.var()
@@ -614,7 +647,10 @@ class TVMScriptParser(Transformer):
             2. A store into a buffer: Buffer[PrimExpr, PrimExpr, ..., PrimExpr] = PrimExpr
             3. A store into a variable: Var[PrimExpr] = PrimExpr
             4. A with scope handler with concise scoping and var def
-                4.1 var = T.allocate()""",
+                4.1 var = T.allocate()
+            5. The right-hand side being a call to a pure python function, consuming and
+               producing TVMScript values.
+               x, y = f(...)""",
             node.span,
         )
 
