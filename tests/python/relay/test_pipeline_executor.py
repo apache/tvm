@@ -30,7 +30,7 @@ from tvm.contrib import cc as _cc
 
 
 def graph_split(expr, split_conf, params=None):
-    """Splitting graph into a list of subgraphs"""
+    """Splitting the graph into a list of subgraphs"""
 
     def get_dep_var(sub_var_dep):
         return [var for var in sub_var_dep[len(sub_var_dep) - 1]["ref_nodes"]]
