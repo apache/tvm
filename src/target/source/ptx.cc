@@ -651,15 +651,16 @@ std::string PrintCpAsyncAssembly(const std::string& shared_ptr,
       : "l"((void *)({smem_addr}))
     );
     __asm__ __volatile__(
-      "cp.async.ca.shared.global [%1], [%2], %3;\n"
-       :"r"(addr), "l"(global_ptr), "n"(bytes)
+      "cp.async.ca.shared.global [%0], [%1], 16;"
+       : "=r"(addr)
+       : "l"((void*)({global_ptr}))
     );
   }
 )";
   Replacer replacer;
   replacer.register_rule("{smem_addr}", shared_ptr + " + " + shared_elem_offset);
   replacer.register_rule("{global_ptr}", global_ptr + " + " + global_elem_offset);
-  replacer.register_rule("{bytes}  ", bytes);
+  //  replacer.register_rule("{bytes}  ", bytes);
   asm_code = replacer.rewrite(asm_code);
   return asm_code;
 }

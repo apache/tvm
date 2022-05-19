@@ -23,7 +23,7 @@ import tvm.testing
 
 @T.prim_func
 def ptx_cp_async(
-    A: T.Buffer[(32, 128), "float16"], B: T.Buffer[(16, 128), "float16"]
+    A: T.Buffer[(32, 128), "float16"], B: T.Buffer[(32, 128), "float16"]
 ) -> None:
     T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
     bx = T.env_thread("blockIdx.x")
@@ -32,13 +32,15 @@ def ptx_cp_async(
     T.launch_thread(tx, 32)
     with T.block():
         A_shared = T.alloc_buffer([32, 128], "float16", scope="shared")
+        T.reads(A[0:32, 0:128])
+        T.writes(B[0:32, 0:128])
 
         for i in range(16):
             T.evaluate(
                 T.ptx_cp_async(A_shared.data, tx * 128 + 8 * i, A.data, tx * 128 + 8 * i, 16, dtype="float16")
             )
 
-        T.ptx_wait_group(0)
+        T.evaluate(T.ptx_wait_group(0, dtype="float16"))
 
         for i in range(128):
             B[tx, i] = A_shared[tx, i]
@@ -48,10 +50,20 @@ def ptx_cp_async(
 def test_ptx_cp_async():
     f = ptx_cp_async
     arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major * 10 + minor < 80:
+    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
+    if major < 8:
         # Require at least SM80
         return
+
+    mod = tvm.build(f, target="cuda")
+    A_np = np.random.rand(32, 128).astype("float16")
+    B_np = np.zeros((32, 128)).astype("float16")
+    dev = tvm.cuda(0)
+    A_nd = tvm.nd.array(A_np, device=dev)
+    B_nd = tvm.nd.array(B_np, device=dev)
+    mod(A_nd, B_nd)
+    tvm.testing.assert_allclose(B_nd.numpy(), A_np)
+
 
 if __name__ == "__main__":
     test_ptx_cp_async()
