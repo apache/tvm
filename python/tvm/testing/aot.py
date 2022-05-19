@@ -561,7 +561,7 @@ def _create_header_file(tensor_name, npy_data, output_path, data_linkage):
         header_file.write("};\n\n")
 
 
-def _convert_to_relay(
+def convert_to_relay(
     tflite_model_buf,
 ):
     """Convert a tflite model buffer in a Relay module"""
@@ -909,7 +909,7 @@ def create_relay_module_and_inputs_from_tflite_file(tflite_model_file):
     and params from a tflite file"""
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
-    mod, params = _convert_to_relay(tflite_model_buf)
+    mod, params = convert_to_relay(tflite_model_buf)
 
     inputs = dict()
     for param in mod["main"].params:
