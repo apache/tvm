@@ -232,7 +232,8 @@ def verify_with_ort(
 def quantize_and_verify_with_ort(
     onnx_model, input_names, input_shapes, target, dev, rtol=1e-5, atol=1e-5
 ):
-    from onnxruntime.quantization import CalibrationDataReader, QuantType, quantize_static
+    from onnxruntime.quantization import (CalibrationDataReader, QuantType,
+                                          quantize_static)
 
     input_arrays = [np.random.random(shape).astype("float32") for shape in input_shapes]
 
@@ -1593,6 +1594,13 @@ def test_upsample3d_trilinear(target, dev):
 def test_softmax(target, dev):
     def verify_softmax(inshape, axis):
         opname = "Softmax"
+        inshape = list(inshape)
+
+        # Set dynamic batch size for anys
+        for i in range(len(inshape)):
+            if not isinstance(inshape[i], int):
+                inshape[i] = 3
+
         indata = np.random.uniform(size=inshape).astype(np.float32)
         outshape = inshape
         y = helper.make_node(opname, ["in"], ["out"])
@@ -1616,6 +1624,7 @@ def test_softmax(target, dev):
     verify_softmax((1, 2, 3, 10), 2)
     verify_softmax((1, 2, 3, 4, 10), 3)
     verify_softmax((1, 2, 3, 4, 10), 4)
+    verify_softmax((relay.Any(), 2, 3, 4, 10), 4)
 
 
 @tvm.testing.parametrize_targets
