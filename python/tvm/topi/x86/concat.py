@@ -38,35 +38,35 @@ def _concat(a_tuple, axis=0):
     ret : tvm.te.Tensor
     """
 
-    def gen_ir_1D(data_bufs, in_outers_tensor, in_cumsum_tensor, out_buf):
-        ib = tvm.tir.ir_builder.create()
-        data_bufs1 = [ib.buffer_ptr(data_buf) for data_buf in data_bufs]
-        out_buf = ib.buffer_ptr(out_buf)
-        outers = ib.buffer_ptr(in_outers_tensor)
-        cumsum = ib.buffer_ptr(in_cumsum_tensor)
+    def gen_ir_1d(data_bufs, in_outers_tensor, in_cumsum_tensor, out_buf):
+        i_b = tvm.tir.ir_builder.create()
+        data_bufs1 = [i_b.buffer_ptr(data_buf) for data_buf in data_bufs]
+        out_buf = i_b.buffer_ptr(out_buf)
+        outers = i_b.buffer_ptr(in_outers_tensor)
+        cumsum = i_b.buffer_ptr(in_cumsum_tensor)
         for i in range(len(a_tuple)):
-            with ib.for_range(0, outers[i], name="j") as j:
+            with i_b.for_range(0, outers[i], name="j") as j:
                 out_buf[cumsum[i] + j] = data_bufs1[i][j]
-        return ib.get()
+        return i_b.get()
 
     def gen_ir(data_bufs, in_outers_tensor, in_cumsum_tensor, out_buf, inner, outer):
-        ib = tvm.tir.ir_builder.create()
-        data_bufs1 = [ib.buffer_ptr(data_buf) for data_buf in data_bufs]
-        out_buf = ib.buffer_ptr(out_buf)
-        outers = ib.buffer_ptr(in_outers_tensor)
-        cumsum = ib.buffer_ptr(in_cumsum_tensor)
+        i_b = tvm.tir.ir_builder.create()
+        data_bufs1 = [i_b.buffer_ptr(data_buf) for data_buf in data_bufs]
+        out_buf = i_b.buffer_ptr(out_buf)
+        outers = i_b.buffer_ptr(in_outers_tensor)
+        cumsum = i_b.buffer_ptr(in_cumsum_tensor)
         if inner > 1:
-            with ib.for_range(0, inner, name="inn", kind="parallel") as inn:
+            with i_b.for_range(0, inner, name="inn", kind="parallel") as inn:
                 pos = inn * outer
                 for i in range(len(a_tuple)):
                     offset = inn * outers[i]
-                    with ib.for_range(0, outers[i], name="j") as j:
+                    with i_b.for_range(0, outers[i], name="j") as j:
                         out_buf[pos + cumsum[i] + j] = data_bufs1[i][offset + j]
         else:
             for i in range(len(a_tuple)):
-                with ib.for_range(0, outers[i], name="j", kind="parallel") as j:
+                with i_b.for_range(0, outers[i], name="j", kind="parallel") as j:
                     out_buf[cumsum[i] + j] = data_bufs1[i][j]
-        return ib.get()
+        return i_b.get()
 
     if axis < 0:
         axis += len(a_tuple[0].shape)
@@ -78,26 +78,26 @@ def _concat(a_tuple, axis=0):
     out_shape = a_tuple[0].shape[:axis] + [join_size] + a_tuple[0].shape[axis + 1 :]
     in_outers_tensor = const_vector(in_outers)
     in_cumsum_tensor = const_vector(in_outers_cumsum, name="cumsum")
-    rightVal = np.prod(out_shape[axis:])
-    leftVal = np.prod(out_shape[:axis])
+    right_val = np.prod(out_shape[axis:])
+    left_val = np.prod(out_shape[:axis])
 
     if (
         len(a_tuple[0].shape) == 1
-        or rightVal == 1
-        or (leftVal == 1 and axis == len(a_tuple[0].shape) - 1)
-        or (leftVal == 1 and rightVal == 1)
+        or right_val == 1
+        or (left_val == 1 and axis == len(a_tuple[0].shape) - 1)
+        or (left_val == 1 and right_val == 1)
     ):
         # badly parallelized case
         return te.extern(
             [out_shape],
             list(a_tuple) + [in_outers_tensor, in_cumsum_tensor],
-            lambda ins, outs: gen_ir_1D(ins, ins[-2], ins[-1], outs[0]),
+            lambda ins, outs: gen_ir_1d(ins, ins[-2], ins[-1], outs[0]),
             dtype=dtype,
             name="concatenate_ext",
         )
 
-    inner = get_const_int(int(leftVal))
-    outer = get_const_int(int(rightVal))
+    inner = get_const_int(int(left_val))
+    outer = get_const_int(int(right_val))
     return te.extern(
         [out_shape],
         list(a_tuple) + [in_outers_tensor, in_cumsum_tensor],
