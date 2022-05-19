@@ -168,7 +168,7 @@ def paddle_model(paddle_resnet50):
 
 @pytest.fixture
 def tflite_model(tflite_mobilenet_v1_1_quant):
-    if pytest.importorskip("tflitex", reason="'tflite' module not installed"):
+    if pytest.importorskip("tflite", reason="'tflite' module not installed"):
         return tflite_mobilenet_v1_1_quant
 
 
