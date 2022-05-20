@@ -2178,7 +2178,7 @@ class Schedule(Object):
 
         return (buffer_index_type, buffer_index, buffer_obj)
 
-    # @type_checked
+    @type_checked
     def transform_layout(
         self,
         block: Union[BlockRV, str],
@@ -2286,7 +2286,7 @@ class Schedule(Object):
                 self, block, buffer_index, buffer_index_type_enum, axis_separators
             )
 
-    # @type_checked
+    @type_checked
     def set_axis_separator(
         self,
         block: Union[BlockRV, str],
