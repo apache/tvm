@@ -189,10 +189,14 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
 
     docker_bash = REPO_ROOT / "docker" / "bash.sh"
 
-    command = [docker_bash, "--name", name]
+    command = [docker_bash]
+    if sys.stdout.isatty():
+        command.append("-t")
+
+    command.append("--name")
+    command.append(name)
     if interactive:
         command.append("-i")
-        command.append("-t")
         scripts = ["interact() {", "  bash", "}", "trap interact 0", ""] + scripts
 
     for key, value in env.items():
@@ -226,6 +230,7 @@ def docs(
     cpu: bool = False,
     interactive: bool = False,
     skip_build: bool = False,
+    docker_image: Optional[str] = None,
 ) -> None:
     """
     Build the documentation from gallery/ and docs/. By default this builds only
@@ -238,6 +243,7 @@ def docs(
     cpu -- Run with the ci-cpu image and use CMake defaults for building TVM (if no GPUs are available)
     skip_build -- skip build and setup scripts
     interactive -- start a shell after running build / test scripts
+    docker-image -- manually specify the docker image to use
     """
     config = "./tests/scripts/task_config_build_gpu.sh"
     build_dir = get_build_dir("gpu")
@@ -245,9 +251,9 @@ def docs(
         clean_exit("--full cannot be used with --cpu")
 
     extra_setup = []
-    image = "ci_gpu"
+    image = "ci_gpu" if docker_image is None else docker_image
     if cpu:
-        image = "ci_cpu"
+        image = "ci_cpu" if docker_image is None else docker_image
         build_dir = get_build_dir("cpu")
         config = " && ".join(
             [
@@ -285,7 +291,6 @@ def docs(
     scripts = extra_setup + [
         config + f" {build_dir}",
         f"./tests/scripts/task_build.py --build-dir {build_dir}",
-        "python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0",
     ]
 
     if skip_build:
@@ -319,13 +324,14 @@ def serve_docs(directory: str = "_docs") -> None:
     cmd([sys.executable, "-m", "http.server"], cwd=directory_path)
 
 
-def lint(interactive: bool = False, fix: bool = False) -> None:
+def lint(interactive: bool = False, fix: bool = False, docker_image: Optional[str] = None) -> None:
     """
     Run CI's Sanity Check step
 
     arguments:
     interactive -- start a shell after running build / test scripts
     fix -- where possible (currently black and clang-format) edit files in place with formatting fixes
+    docker-image -- manually specify the docker image to use
     """
     env = {}
     if fix:
@@ -334,7 +340,7 @@ def lint(interactive: bool = False, fix: bool = False) -> None:
 
     docker(
         name=gen_name(f"ci-lint"),
-        image="ci_lint",
+        image="ci_lint" if docker_image is None else docker_image,
         scripts=["./tests/scripts/task_lint.sh"],
         env=env,
         interactive=interactive,
@@ -359,13 +365,20 @@ def generate_command(
     """
 
     def fn(
-        tests: Optional[List[str]], skip_build: bool = False, interactive: bool = False, **kwargs
+        tests: Optional[List[str]],
+        skip_build: bool = False,
+        interactive: bool = False,
+        docker_image: Optional[str] = None,
+        verbose: bool = False,
+        **kwargs,
     ) -> None:
         """
         arguments:
         tests -- pytest test IDs (e.g. tests/python or tests/python/a_file.py::a_test[param=1])
         skip_build -- skip build and setup scripts
         interactive -- start a shell after running build / test scripts
+        docker-image -- manually specify the docker image to use
+        verbose -- run verbose build
         """
         if precheck is not None:
             precheck()
@@ -376,9 +389,6 @@ def generate_command(
             scripts = [
                 f"./tests/scripts/task_config_build_{name}.sh {get_build_dir(name)}",
                 f"./tests/scripts/task_build.py --build-dir {get_build_dir(name)}",
-                # This can be removed once https://github.com/apache/tvm/pull/10257
-                # is merged and added to the Docker images
-                "python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0",
             ]
 
         # Check that a test suite was not used alongside specific test names
@@ -396,13 +406,14 @@ def generate_command(
 
         docker(
             name=gen_name(f"ci-{name}"),
-            image=f"ci_{name}",
+            image=f"ci_{name}" if docker_image is None else docker_image,
             scripts=scripts,
             env={
                 # Need to specify the library path manually or else TVM can't
                 # determine which build directory to use (i.e. if there are
                 # multiple copies of libtvm.so laying around)
                 "TVM_LIBRARY_PATH": str(REPO_ROOT / get_build_dir(name)),
+                "VERBOSE": "true" if verbose else "false",
             },
             interactive=interactive,
         )
@@ -550,11 +561,14 @@ def add_subparser(
     return subparser
 
 
+CPP_UNITTEST = ("run c++ unitests", ["./tests/scripts/task_cpp_unittest.sh"])
+
 generated = [
     generate_command(
         name="gpu",
         help="Run GPU build and test(s)",
         options={
+            "cpp": CPP_UNITTEST,
             "topi": ("run topi tests", ["./tests/scripts/task_python_topi.sh"]),
             "unittest": (
                 "run unit tests",
@@ -571,6 +585,7 @@ generated = [
         name="cpu",
         help="Run CPU build and test(s)",
         options={
+            "cpp": CPP_UNITTEST,
             "integration": (
                 "run integration tests",
                 ["./tests/scripts/task_python_integration.sh"],
@@ -590,6 +605,7 @@ generated = [
         name="i386",
         help="Run i386 build and test(s)",
         options={
+            "cpp": CPP_UNITTEST,
             "integration": (
                 "run integration tests",
                 [
@@ -608,26 +624,28 @@ generated = [
         name="qemu",
         help="Run QEMU build and test(s)",
         options={
+            "cpp": CPP_UNITTEST,
             "test": (
                 "run microTVM tests",
                 [
                     "./tests/scripts/task_python_microtvm.sh",
                     "./tests/scripts/task_demo_microtvm.sh",
                 ],
-            )
+            ),
         },
     ),
     generate_command(
         name="hexagon",
         help="Run Hexagon build and test(s)",
         options={
+            "cpp": CPP_UNITTEST,
             "test": (
                 "run Hexagon API/Python tests",
                 [
                     "./tests/scripts/task_build_hexagon_api.sh",
                     "./tests/scripts/task_python_hexagon.sh",
                 ],
-            )
+            ),
         },
     ),
     generate_command(
@@ -635,13 +653,14 @@ generated = [
         help="Run ARM build and test(s) (native or via QEMU on x86)",
         precheck=check_arm_qemu,
         options={
+            "cpp": CPP_UNITTEST,
             "python": (
                 "run full Python tests",
                 [
                     "./tests/scripts/task_python_unittest.sh",
                     "./tests/scripts/task_python_arm_compute_library.sh",
                 ],
-            )
+            ),
         },
     ),
 ]

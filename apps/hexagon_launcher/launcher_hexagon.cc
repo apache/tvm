@@ -64,7 +64,22 @@ AEEResult __QAIC_HEADER(launcher_rpc_load)(remote_handle64 handle, const char* m
   }
 
   tvm::runtime::Module module = load_module(module_path);
-  tvm::runtime::Module executor = create_graph_executor(graph_json, module, Model::device());
+  std::string module_type = module->type_key();
+  tvm::runtime::Module executor;
+  if (module_type == "AotExecutorFactory") {
+    executor = create_aot_executor(module, Model::external());
+  } else if (module_type == "library") {
+    // We're not expecting "GraphExecutorFactory" here.
+    executor = create_graph_executor(graph_json, module, Model::device());
+  } else {
+    LOG(ERROR) << __func__ << ": unexpected module type: " << module_type;
+    // Fall through.
+  }
+
+  if (executor.get() == nullptr) {
+    LOG(ERROR) << __func__ << ": failed to create executor for module" << module_path;
+    return AEE_EUNABLETOLOAD;
+  }
 
   TheModel = std::make_unique<Model>(executor, module, graph_json);
   return AEE_SUCCESS;
@@ -84,7 +99,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_get_num_inputs)(remote_handle64 handle, int
   }
 
   tvm::runtime::PackedFunc get_num_inputs =
-      get_module_func(TheModel->graph_executor, "get_num_inputs");
+      get_module_func(TheModel->model_executor, "get_num_inputs");
   *num_inputs = get_num_inputs();
   return AEE_SUCCESS;
 }
@@ -119,7 +134,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_set_input)(remote_handle64 handle, int inpu
 
   auto input = tvm::runtime::NDArray::FromDLPack(&managed);
 
-  tvm::runtime::PackedFunc set_input = get_module_func(TheModel->graph_executor, "set_input");
+  tvm::runtime::PackedFunc set_input = get_module_func(TheModel->model_executor, "set_input");
   set_input(input_idx, input);
 
   return AEE_SUCCESS;
@@ -132,7 +147,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_get_num_outputs)(remote_handle64 handle, in
   }
 
   tvm::runtime::PackedFunc get_num_outputs =
-      get_module_func(TheModel->graph_executor, "get_num_outputs");
+      get_module_func(TheModel->model_executor, "get_num_outputs");
   *num_outputs = get_num_outputs();
   return AEE_SUCCESS;
 }
@@ -152,7 +167,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_get_output)(remote_handle64 handle, int out
     return AEE_EBADPARM;
   }
 
-  tvm::runtime::PackedFunc get_output = get_module_func(TheModel->graph_executor, "get_output");
+  tvm::runtime::PackedFunc get_output = get_module_func(TheModel->model_executor, "get_output");
   tvm::runtime::NDArray output = get_output(output_idx);
 
   std::vector<int64_t> shape_vec{output->shape, output->shape + output->ndim};
@@ -163,7 +178,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_get_output)(remote_handle64 handle, int out
     delete static_cast<tvm::runtime::NDArray::Container*>(container);
   });
 
-  tvm::runtime::NDArray host_output(GetObjectPtr<tvm::Object>(container));
+  tvm::runtime::NDArray host_output(tvm::runtime::GetObjectPtr<tvm::runtime::Object>(container));
 
   if (meta_size != 0) {
     auto* meta = reinterpret_cast<tensor_meta*>(output_meta);

@@ -40,6 +40,7 @@ echo "Checking MyPy Type defs in tvm.relay.op.contrib"
 mypy --disallow-untyped-defs python/tvm/relay/op/contrib/cublas.py
 mypy --disallow-untyped-defs python/tvm/relay/op/contrib/cudnn.py
 mypy --disallow-untyped-defs python/tvm/relay/op/contrib/te_target.py
+mypy --disallow-untyped-defs python/tvm/relay/op/contrib/tensorrt.py
 
 #TODO(@mikepapadim): This is failing atm
 # echo "Checking MyPy Type defs in the tvm.relay.backend.contrib.ethosu package."

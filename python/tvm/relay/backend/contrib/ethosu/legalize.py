@@ -920,7 +920,7 @@ class MeanRewriter(DFPatternCallback):
 
         if axis == [1, 2] and params.keepdims:
             weight_scale = 1
-            weight_values = np.ones([out_channels, filter_height, filter_width, in_channels])
+            weight_values = np.ones([out_channels, filter_height, filter_width, 1])
             scale_bias = vela_api.pack_biases(
                 biases=np.zeros(ifm_shape[-1]),
                 ifm_scale=params.ifm.q_params.scale_f32,
@@ -985,7 +985,7 @@ class MeanRewriter(DFPatternCallback):
             )
         else:
             weight_scale = 1 / (filter_height * filter_width)
-            weight_values = np.ones([out_channels, filter_height, filter_width, in_channels])
+            weight_values = np.ones([out_channels, filter_height, filter_width, 1])
             bias = -1 * int(params.ifm.q_params.zero_point) * filter_height * filter_width
 
             scale_bias = vela_api.pack_biases(

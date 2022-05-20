@@ -221,26 +221,12 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
     std::vector<PrimFunc> funcs;
     std::string entry_func;
-    Map<String, LinkedParam> linked_params;
-    bool found_linked_params = false;
-    bool could_have_linked_params = mod->ShouldLinkParameters();
     relay::Runtime runtime =
         mod->GetAttr<relay::Runtime>(tvm::attr::kRuntime).value_or(relay::Runtime::Create("cpp"));
     bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
     bool target_c_runtime = runtime->name == "crt";
 
     for (auto kv : mod->functions) {
-      if (could_have_linked_params &&
-          kv.first->name_hint == ::tvm::runtime::symbol::tvm_lookup_linked_param) {
-        Map<String, ObjectRef> attrs_dict =
-            Downcast<Map<String, ObjectRef>>(kv.second->attrs->dict);
-        CHECK(attrs_dict.find(::tvm::tir::attr::kLinkedParams) != attrs_dict.end())
-            << "no " << ::tvm::tir::attr::kLinkedParams << " attribute found!";
-        linked_params =
-            Downcast<Map<String, LinkedParam>>(attrs_dict[::tvm::tir::attr::kLinkedParams]);
-        found_linked_params = true;
-        continue;
-      }
       if (!kv.second->IsInstance<PrimFuncNode>()) {
         // (@jroesch): we relax constraints here, Relay functions will just be ignored.
         DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got "
@@ -257,7 +243,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       funcs.push_back(f);
     }
     // TODO(@jroesch): follow up on this condition.
-    // ICHECK(funcs.size() > 0 || (could_have_linked_params && found_linked_params));
+    // ICHECK(funcs.size() > 0);
     // TODO(tqchen): remove the entry function behavior as it does not
     // makes sense when we start to use multiple modules.
     cg->Init("TVMMod", tm_.get(), ctx_.get(), system_lib, system_lib, target_c_runtime);
@@ -308,9 +294,6 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
     cg->SetFastMathFlag(fmf);
 
-    if (found_linked_params) {
-      cg->LinkParameters(linked_params);
-    }
     cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
     if (entry_func.length() != 0) {
       cg->AddMainFunction(entry_func);

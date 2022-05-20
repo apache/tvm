@@ -61,13 +61,16 @@ std::vector<T> ThinVector(const std::vector<T>& vec, size_t max_size);
  * \brief Cull plans which are not Pareto optimal then thin them down.
  * \param plans The plans to apply the Pareto culling to.
  * \param max_plans The maximum number of plans after the culling.
+ * \param disable_pareto_metric Whether to only select from Pareto frontier or not.
  * \return The culled plans.
  * \note Plan Pareto-optimality is determined based upon a Plan's memory_usage
  * and cycles.
  */
-std::vector<Plan> ParetoCullPlans(std::vector<Plan> plans, size_t max_plans);
+std::vector<Plan> ParetoCullPlans(std::vector<Plan> plans, size_t max_plans,
+                                  bool disable_pareto_metric);
 
-std::vector<Proposal> ParetoCullProposals(std::vector<Proposal> proposals, size_t max_proposals);
+std::vector<Proposal> ParetoCullProposals(std::vector<Proposal> proposals, size_t max_proposals,
+                                          bool disable_pareto_metric);
 
 }  // namespace cascader
 }  // namespace ethosu

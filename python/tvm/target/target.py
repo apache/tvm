@@ -16,7 +16,6 @@
 # under the License.
 """Target data structure."""
 import json
-import os
 import re
 import warnings
 
@@ -24,7 +23,7 @@ import tvm._ffi
 from tvm._ffi import register_func as _register_func
 from tvm.runtime import Object, convert
 from tvm.runtime.container import String
-from tvm.ir.container import Map
+from tvm.ir.container import Map, Array
 
 from . import _ffi_api
 
@@ -217,6 +216,65 @@ class Target(Object):
     def list_kinds():
         """Returns the list of available target names."""
         return list(_ffi_api.ListTargetKinds())
+
+    @staticmethod
+    def canonicalize_target(target):
+        """Given a single target-like object, returns the TVM Target object representing it.
+        Can convert from:
+        - None (to None).
+        - An existing TVM Target object.
+        - A string.
+        - A Python dictionary binding the target 'kind' and other attributes.
+        """
+        if target is None:
+            return None
+        if isinstance(target, Target):
+            return target
+        return Target(target)
+
+    @staticmethod
+    def canonicalize_multi_targets(multi_targets):
+        """Given a single or collection of target-like objects, returns a TVM Array of Target
+        objects representing then. Can convert from:
+        - None (to None).
+        - A single target-like object in a form recognized by canonicalize_target.
+        - A Python list or TVM Array of target-like objects in a form recognized by
+        canonicalize_target.
+        - A Python dict or TVM Map from TVM IntImm objects representing device types to
+        a target-like object in a form recognized by canonicalize_target.
+        """
+        if multi_targets is None:
+            return None
+        if isinstance(multi_targets, (dict, Map)) and "kind" not in multi_targets:
+            # Convert legacy heterogeneous map representation to ordinary list of targets.
+            return Target.canonicalize_multi_targets([t for _, t in multi_targets.items()])
+        if isinstance(multi_targets, (list, Array)):
+            # Multiple Target results.
+            return convert([Target.canonicalize_target(t) for t in multi_targets])
+        # Single Target result.
+        return convert([Target.canonicalize_target(multi_targets)])
+
+    @staticmethod
+    def canonicalize_target_and_host(target, target_host=None):
+        """Returns a TVM Array<Target> capturing target and target_host. The given target can be in
+        any form recognized by Target.canonicalize_target or Target.canonicalize_multi_targets. If
+        given target_host can be in any form recognized by Target.canonicalize_target. If
+        target_host is given it will be set as the 'host' in each result Target object (and a
+        warning given).
+        """
+        # Convert target to Array<Target>, but not yet accounting for any host.
+        raw_targets = Target.canonicalize_multi_targets(target)
+        assert raw_targets is not None
+        # Convert host to Target, if given.
+        target_host = Target.canonicalize_target(target_host)
+        if target_host is None:
+            return raw_targets
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
+        )
+        # Make sure the (canonical) host is captured in all the (canonical) targets.
+        return convert([Target(t, target_host) for t in raw_targets])
 
     @staticmethod
     def check_and_update_host_consist(target, host=None, target_is_dict_key=True):
@@ -527,11 +585,6 @@ def hexagon(cpu_ver="v66", **kwargs):
     -----------------------------
     hvx : int (default: 128)
         Size of HVX vector in bytes. Value of 0 disables HVX codegen.
-    sim_options : str or list of str (default: None)
-        User defined sim arguments. CPU version defaults to cpu_ver.
-        Otherwise, separate versions are used for codegen and sim. Not
-        all allowed cpu strings will be valid, simulator will throw an
-        error if invalid. Does not affect codegen.
     llvm_options : str or list of str (default: None)
         User defined compiler arguments.
     use_qfloat : bool (default: True for cpu_ver >= v68, False otherwise)
@@ -570,7 +623,6 @@ def hexagon(cpu_ver="v66", **kwargs):
     arch_version = get_arch_version(cpu_ver)
     config = {
         "hvx": 128,
-        "sim_options": None,
         "llvm_options": None,
         "use_qfloat": arch_version >= 68,
         "use_ieee_fp": False,
@@ -579,10 +631,12 @@ def hexagon(cpu_ver="v66", **kwargs):
     config.update(kwargs)
 
     # Warn about obsolete parameter names.
-    if config.get("sim_args"):
-        msg = "The keyword parameter 'sim_args' is deprecated, use 'sim_options' instead"
+    if config.get("sim_args") or config.get("sim_options"):
+        msg = (
+            "Setting simulator options in target is deprecated, set environment variable "
+            "HEXAGON_SIM_ARGS instead"
+        )
         warnings.warn(msg, stacklevel=2)
-        config.update({"sim_options": config["sim_args"]})
     if config.get("llvm_args"):
         msg = "The keyword parameter 'llvm_args' is deprecated, use 'llvm_options' instead"
         warnings.warn(msg, stacklevel=2)
@@ -619,65 +673,6 @@ def hexagon(cpu_ver="v66", **kwargs):
 
         return target + mcpu + " " + create_target_features(config)
 
-    # Simulator options string
-    def create_sim_options(cpu_ver, config):
-        """Create simulator option string."""
-
-        def validate_hvx_length(codegen_hvx, sim_options):
-            if sim_options and "--hvx_length" in sim_options:
-                # If --hvx_length was specified, check HVX length of sim
-                # vs codegen
-                i = sim_options.index("hvx_length") + len("hvx_length") + 1
-                sim_hvx = sim_options[i : i + 3]
-                if sim_hvx != str(codegen_hvx):
-                    msg = "sim hvx {} and codegen hvx {} mismatch!".format(sim_hvx, codegen_hvx)
-                    # Set the stacklevel to the tvm.target.hexagon() call.
-                    warnings.warn(msg, stacklevel=4)
-            elif codegen_hvx != 0:
-                # If --hvx_length was not given, add it if HVX is enabled
-                sim_options = sim_options + " " if isinstance(sim_options, str) else ""
-                sim_options += "--hvx_length " + str(codegen_hvx)
-            return sim_options or ""
-
-        hvx = config["hvx"]
-        sim_options = config["sim_options"]
-        if not sim_options:
-            return cpu_ver + " " + validate_hvx_length(hvx, sim_options)
-
-        sim_cpu = cpu_ver + " "
-
-        # Add user defined args
-        if isinstance(sim_options, list):
-            sim_options = " ".join(sim_options)
-
-        # Check for supplied sim cpu version
-        if "v6" in sim_options:
-            sim_cpu = ""
-
-            # Regex match for allowed cpus
-            valid_cpu_str_regex = (
-                r"(?P<pre>--.*\s)?(--m)?"
-                + r"(?P<base_version>v6[25678])(?P<sub_version>[a-z])?"
-                + r"(?P<l2_size>_[0-9]+)?(?P<rev>_rev[0-9])?\s?(?P<post>--.*)?"
-            )
-            m = re.match(valid_cpu_str_regex, sim_options.lower())
-            if not m:
-                raise ValueError('Invalid simulator argument string "{}"'.format(sim_options))
-
-            # Parse options into correct order
-            cpu_attr = {x: str(m.groupdict()[x] or "") for x in m.groupdict()}
-            sim_options = (
-                cpu_attr["base_version"]
-                + cpu_attr["sub_version"]
-                + cpu_attr["l2_size"]
-                + cpu_attr["rev"]
-                + " "
-                + cpu_attr["pre"]
-                + cpu_attr["post"]
-            )
-
-        return sim_cpu + " " + validate_hvx_length(hvx, sim_options)
-
     # LLVM options string
     def create_llvm_options(cpu_ver, config):  # pylint: disable=unused-argument
         """Create LLVM options string."""
@@ -704,9 +699,6 @@ def hexagon(cpu_ver="v66", **kwargs):
             if k in features:
                 opts += " --" + features[k] + "=" + str(config[k])
         return opts
-
-    # Sim args
-    os.environ["HEXAGON_SIM_ARGS"] = create_sim_options(cpu_ver, config)
 
     target_str = create_llvm_target(cpu_ver, config)
     llvm_str = create_llvm_options(cpu_ver, config)
@@ -753,6 +745,20 @@ def stm32(series="unknown", options=None):
         raise ValueError(f"Series {series} is not supported by tvm.target.stm32.")
     opts = _merge_opts(STM32_SUPPORTED_SERIES[series], options)
     return Target(" ".join(["c"] + opts))
+
+
+def adreno(model="unknown", options=None):
+    """Returns a Qualcomm GPU target.
+    Parameters
+    ----------
+    model: str
+        The model of this device
+    options : str or list of str
+        Additional options
+    """
+    opts = ["-device=adreno", "-model=%s" % model]
+    opts = _merge_opts(opts, options)
+    return Target(" ".join(["opencl"] + opts))
 
 
 def create(target):

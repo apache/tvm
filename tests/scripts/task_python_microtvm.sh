@@ -51,3 +51,5 @@ export TVM_MICRO_USE_HW=1
 export TVM_MICRO_BOARD=qemu_x86
 python3 gallery/how_to/work_with_microtvm/micro_tflite.py
 python3 gallery/how_to/work_with_microtvm/micro_autotune.py
+
+run_pytest ctypes python-relay-strategy-arm_cpu tests/python/relay/strategy/arm_cpu --enable-corstone300-tests

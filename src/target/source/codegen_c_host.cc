@@ -403,7 +403,6 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   CodeGenCHost cg;
   cg.Init(output_ssa, emit_asserts, target->str(), devices);
   cg.SetConstantsByteAlignment(target->GetAttr<Integer>("constants-byte-alignment").value_or(16));
-  Map<String, LinkedParam> linked_params;
   PrimFunc aot_executor_fn;
 
   std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> funcs;

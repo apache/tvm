@@ -81,6 +81,7 @@ We do encourage everyone to work anything they are interested in.
 - [Eddie Yan](https://github.com/eqy) (PMC): @eqy - runtime, autotvm, rpc, topi
 - [Hao Yu](https://github.com/comaniac): @comaniac (PMC) - relay, byoc, auto_scheduler
 - [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, auto_scheduler, topi, relay
+- [Xiyou Zhou](https://github.com/zxybazh): @zxybazh - relay
 - [wrongtest](https://github.com/wrongtest): @wrongtest - tir, tvm-script, arith
 
 ## Reviewers
@@ -101,6 +102,7 @@ We do encourage everyone to work anything they are interested in.
 - [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
+- [Altan Haan](https://github.com/altanh): @altanh
 - [Mehrdad Hessar](https://github.com/mehrdadh): @mehrdadh
 - [Bohan Hou](https://github.com/spectrometerHBH): @spectrometerHBH
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei
@@ -115,6 +117,7 @@ We do encourage everyone to work anything they are interested in.
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574
+- [Nicola Lancellotti](https://github.com/nicolalancellotti): @NicolaLancellotti
 - [Wuwei Lin](https://github.com/vinx13): @vinx13
 - [Andrew Liu](https://github.com/hypercubestart): @hypercubestart
 - [Henry Liu](https://github.com/optima2005): @optima2005
@@ -135,10 +138,12 @@ We do encourage everyone to work anything they are interested in.
 - [Jiawei Liu](https://github.com/ganler): @ganler
 - [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies
 - [Wei Pan](https://github.com/wpan11nv): @wpan11nv
+- [Michalis Papadimitriou](https://github.com/mikepapadim): @mikepapadim
 - [Ashutosh Parkhi](https://github.com/ashutosh-arm): @ashutosh-arm
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
+- [Ramana Radhakrishnan](https://github.com/u99127): @u99127
 - [Andrew Reusch](https://github.com/areusch): @areusch
 - [David Riazati](https://github.com/driazati): @driazati
 - [Jared Roesch](https://github.com/jroesch): @jroesch

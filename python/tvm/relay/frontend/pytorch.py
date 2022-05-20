@@ -277,7 +277,7 @@ class PyTorchOpConverter:
         if len(inputs) == 1:
             data = self.pytorch_promote_types(inputs[:1], input_types[:1])
             return get_relay_op(name_reduce)(data[0])
-        elif len(inputs) >= 2 and isinstance(inputs[1], int):
+        elif len(inputs) >= 2 and isinstance(inputs[1], (list, int)):
             data = self.pytorch_promote_types(inputs[:1], input_types[:1])
             dim = inputs[1]
             keepdims = inputs[2] if len(inputs) > 2 else False
@@ -1698,6 +1698,8 @@ class PyTorchOpConverter:
             return output
         elif len(a_shape) > 2:
             inputs_0 = _op.reshape(inputs_0, [-1, a_shape[-1]])
+        elif len(a_shape) == 1:
+            return _op.squeeze(_op.nn.matmul(_op.expand_dims(inputs_0, axis=0), inputs_1), axis=[0])
 
         if len(b_shape) > 2:
             trans_axes = list(range(len(b_shape)))
@@ -2187,6 +2189,17 @@ class PyTorchOpConverter:
         )
 
         return _op.nn.bias_add(conv_out, bias)
+
+    def stft(self, inputs, input_types):
+        data = inputs[0]
+        n_fft = inputs[1]
+        hop_length = inputs[2]
+        win_length = inputs[3]
+        window = inputs[4]
+        normalized = inputs[5]
+        onesided = inputs[6]
+
+        return _op.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
 
     def unbind(self, inputs, input_types):
         data = inputs[0]
@@ -2996,6 +3009,9 @@ class PyTorchOpConverter:
             "aten::sub": self.sub,
             "aten::max": self.max,
             "aten::min": self.min,
+            "aten::amax": self.max,
+            "aten::amin": self.min,
+            "aten::stft": self.stft,
             "aten::mul": self.make_elemwise("multiply"),
             "aten::pow": self.make_elemwise("power"),
             "aten::arange": self.arange,
@@ -3521,6 +3537,7 @@ def _pytorch_result_type(dtypes, non_tensor_inputs):
 def _convert_dtype_value(val):
     """converts a PyTorch the PyTorch numeric type id to a torch scalar type."""
     convert_torch_dtype_map = {
+        11: "torch.bool",
         7: "torch.float64",
         6: "torch.float32",
         5: "torch.float16",

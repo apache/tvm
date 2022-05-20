@@ -79,6 +79,8 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   TRandState rand_state_ = -1;
   /*! \brief The schedule rules to be applied in order. */
   Array<ScheduleRule> sch_rules_{nullptr};
+  /*! \brief The logging function to use. */
+  PackedFunc logging_func;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `rand_state_` is not visited
@@ -90,6 +92,7 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
     CHECK(context->sch_rules.defined())
         << "ValueError: Schedules rules not given in PostOrderApply!";
     this->sch_rules_ = context->sch_rules;
+    this->logging_func = context->logging_func;
   }
 
   Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod_) final {
@@ -143,8 +146,9 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
         const bool has_schedule_rule = custom_schedule_fn != nullptr;
 
         if (ann.defined() && !has_schedule_rule) {
-          LOG(WARNING) << "Custom schedule rule not found, ignoring schedule_rule annotation: "
-                       << ann.value();
+          TVM_PY_LOG(WARNING, this->logging_func)
+              << "Custom schedule rule not found, ignoring schedule_rule annotation: "
+              << ann.value();
         }
 
         if ((has_schedule_rule && sch_rule.defined()) ||

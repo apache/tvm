@@ -233,7 +233,12 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTransformLayout")
       return self->TransformLayout(block_rv, buffer_index,
                                    static_cast<BufferIndexType>(buffer_index_type), index_map);
     });
-
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetAxisSeparator")
+    .set_body_typed([](Schedule self, const BlockRV& block_rv, int buffer_index,
+                       int buffer_index_type, const Array<IntImm>& axis_separators) {
+      return self->SetAxisSeparator(
+          block_rv, buffer_index, static_cast<BufferIndexType>(buffer_index_type), axis_separators);
+    });
 /******** (FFI) Misc ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleEnterPostproc")
     .set_body_method<Schedule>(&ScheduleNode::EnterPostproc);

@@ -285,6 +285,73 @@ class IterSumExpr : public IterMapExpr {
 Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                  const PrimExpr& predicate, bool require_bijective,
                                  arith::Analyzer* analyzer, bool simplify_trivial_iterators = true);
+
+/*! \brief A utility struct for return values from DetectPaddedIterMap
+ */
+struct PaddedIterMapResult {
+  // Any errors that occurred while converting the input indices.  If
+  // the array is empty, the conversion was successful.
+  Array<String> errors;
+
+  // The detected pattern if a match exists.
+  Array<IterSumExpr> indices;
+
+  /* \brief Boolean expression indicating if padding was required
+   *
+   * `requires_padding` evaluates to true if the returned indices
+   * contain padding relative to the provided expressions, and false
+   * otherwise.  If `input_iters` contains a variable extent, this
+   * expression may be in terms of those variables.
+   */
+  PrimExpr requires_padding;
+
+  /* \brief Boolean expression indicating if a specific value w
+   *
+   * `padding_predicate` evaluates to true for a set of indices that
+   * are outside the bounds of the provided index iterators, but
+   * inside the bounds of the returned index iterators.  This
+   * expression is in terms of the variables provided in
+   * `input_iters`.
+   */
+  PrimExpr padding_predicate;
+};
+
+/*!
+ * \brief Detect if indices can be written as
+ *  [y_0 + c_0, y_1 + c_1, ..., y_n + c_n]
+ *
+ *  Here y = some-quasi-affine-iter-map(input_iters) and c are
+ *  symbolic constants.  The y_i iterators may be padded to fit this
+ *  representation.
+ *
+ *  We also requires that y_i and y_j to be independent for i != j.
+ *
+ *  For returned value rv, the following is always true:
+ *  - rv.indices[i]->args.size() <=1: only one iterator per element.
+ *
+ * \param indices The indices to detect pattern for.
+ *
+ * \param input_iters Map from variable to iterator's range.
+ *
+ * \param predicate The predicate constraints on the input iterators
+ *
+ * \param require_bijective A boolean flag that indicates whether the
+ * mapping should be bijective.  If true, no padding may be
+ * introduced.
+ *
+ * \param analyzer Analyzer used to get context information.
+ *
+ * \param simplify_trivial_iterators If true, iterators with extent of
+ *           1 will be replaced with a constant value.
+ *
+ * \return An instance of PaddedIterMapResult.
+ */
+PaddedIterMapResult DetectPaddedIterMap(const Array<PrimExpr>& indices,
+                                        const Map<Var, Range>& input_iters,
+                                        const PrimExpr& predicate, bool require_bijective,
+                                        arith::Analyzer* analyzer,
+                                        bool simplify_trivial_iterators = true);
+
 /*!
  * \brief Use IterVarMap detector to rewrite and simplify the indices
  *
@@ -352,11 +419,11 @@ Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
                                       bool require_bijective, arith::Analyzer* analyzer);
 
 /*!
- * \brief Given an IterMapExpr, transform it to normal PrimExpr.
- * \param expr The input IterMapExpr.
+ * \brief Given an expression that may contain IterMapExpr, transform it to normal PrimExpr.
+ * \param expr The input expression, which may contain IterMapExpr.
  * \return The corresponding normal PrimExpr.
  */
-PrimExpr NormalizeIterMapToExpr(const IterMapExpr& expr);
+PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr);
 
 }  // namespace arith
 }  // namespace tvm

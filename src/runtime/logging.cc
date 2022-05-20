@@ -197,6 +197,12 @@ std::string FileToVLogMapKey(const std::string& filename) {
   // Canonicalize the filename.
   // TODO(mbs): Not Windows friendly.
   size_t last_src = filename.rfind(kSrcPrefix, std::string::npos, kSrcPrefixLength);
+  if (last_src == std::string::npos) {
+    std::string no_slash_src{kSrcPrefix + 1};
+    if (filename.substr(0, no_slash_src.size()) == no_slash_src) {
+      return filename.substr(no_slash_src.size());
+    }
+  }
   // Strip anything before the /src/ prefix, on the assumption that will yield the
   // TVM project relative filename. If no such prefix fallback to filename without
   // canonicalization.
@@ -222,6 +228,15 @@ TvmLogDebugSettings TvmLogDebugSettings::ParseSpec(const char* opt_spec) {
     return settings;
   }
   std::istringstream spec_stream(spec);
+  auto tell_pos = [&](const std::string& last_read) {
+    int pos = spec_stream.tellg();
+    if (pos == -1) {
+      LOG(INFO) << "override pos: " << last_read;
+      // when pos == -1, failbit was set due to std::getline reaching EOF without seeing delimiter.
+      pos = spec.size() - last_read.size();
+    }
+    return pos;
+  };
   while (spec_stream) {
     std::string name;
     if (!std::getline(spec_stream, name, '=')) {
@@ -229,7 +244,7 @@ TvmLogDebugSettings TvmLogDebugSettings::ParseSpec(const char* opt_spec) {
       break;
     }
     if (name.empty()) {
-      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, empty name";
+      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed at position " << tell_pos(name) << ": empty filename";
       return settings;
     }
 
@@ -237,18 +252,21 @@ TvmLogDebugSettings TvmLogDebugSettings::ParseSpec(const char* opt_spec) {
 
     std::string level;
     if (!std::getline(spec_stream, level, ',')) {
-      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, expecting level";
+      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed at position " << tell_pos(level)
+                 << ": expecting \"=<level>\" after \"" << name << "\"";
       return settings;
     }
     if (level.empty()) {
-      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, empty level";
+      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed at position " << tell_pos(level)
+                 << ": empty level after \"" << name << "\"";
       return settings;
     }
     // Parse level, default to 0 if ill-formed which we don't detect.
     char* end_of_level = nullptr;
     int level_val = static_cast<int>(strtol(level.c_str(), &end_of_level, 10));
     if (end_of_level != level.c_str() + level.size()) {
-      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed, invalid level";
+      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed at position " << tell_pos(level)
+                 << ": invalid level: \"" << level << "\"";
       return settings;
     }
     LOG(INFO) << "TVM_LOG_DEBUG enables VLOG statements in '" << name << "' up to level " << level;

@@ -26,8 +26,14 @@ from .stripe_config import StripeConfig
 from .graph import CascaderGraph, Part, Tensor
 
 
-def _generate_output_stripe_configs(part: Part, stripe_factors: int) -> List[StripeConfig]:
-    return list(_ffi_api.GenerateOutputStripeConfigs(part, stripe_factors))
+def _generate_output_stripe_configs(
+    part: Part, stripe_factors: int, enable_striping: bool, multi_dimensional: bool
+) -> List[StripeConfig]:
+    return list(
+        _ffi_api.GenerateOutputStripeConfigs(
+            part, stripe_factors, enable_striping, multi_dimensional
+        )
+    )
 
 
 def _generate_single_plans(

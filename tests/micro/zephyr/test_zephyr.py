@@ -30,7 +30,7 @@ import tvm.relay as relay
 from tvm.relay.backend import Executor, Runtime
 from tvm.relay.testing import byoc
 from tvm.contrib import utils
-from tvm.micro.testing import check_tune_log
+from tvm.micro.testing.utils import check_tune_log
 
 import test_utils
 

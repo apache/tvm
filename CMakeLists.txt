@@ -43,6 +43,7 @@ tvm_option(ROCM_PATH "The path to rocm" /opt/rocm)
 tvm_option(USE_HEXAGON "Build with Hexagon support" OFF)
 tvm_option(USE_HEXAGON_SDK "Path to the Hexagon SDK root (required for Hexagon support)" /path/to/sdk)
 tvm_option(USE_HEXAGON_RPC "Enable Hexagon RPC using minRPC implementation over Android." OFF)
+tvm_option(USE_HEXAGON_GTEST "Path to Hexagon specific gtest version for runtime cpp tests." /path/to/hexagon/gtest)
 tvm_option(USE_RPC "Build with RPC" ON)
 tvm_option(USE_THREADS "Build with thread support" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
@@ -317,6 +318,7 @@ list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
 tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
+  src/runtime/minrpc/*.cc
 )
 
 if(BUILD_FOR_HEXAGON)
@@ -432,7 +434,7 @@ if(USE_GTEST)
         # GTest::gtest.
         get_target_property(GTEST_LIB_PATH GTest::gtest IMPORTED_LOCATION)
         if("${GTEST_LIB_PATH}" STREQUAL "GTEST_LIB_PATH-NOTFOUND")
-          message(FATAL_ERROR "Neither GTest::GTest nor GTets::gtest targets defined IMPORTED_LOCATION")
+          message(FATAL_ERROR "Neither GTest::GTest nor GTest::gtest targets defined IMPORTED_LOCATION")
         endif()
       endif()
       get_filename_component(GTEST_LIB_DIR "${GTEST_LIB_PATH}" DIRECTORY)
@@ -598,6 +600,15 @@ endif()
 target_link_libraries(tvm PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
+if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
+  include(FetchContent)
+  FetchContent_Declare(googletest SOURCE_DIR "${USE_HEXAGON_GTEST}")
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
+  target_link_libraries(tvm_runtime PUBLIC gtest)
+  include_directories("${USE_HEXAGON_GTEST}/include")
+endif()
+
 # Set flags for clang
 include(cmake/modules/ClangFlags.cmake)
 set(CRC16_INCLUDE_PATH "3rdparty/libcrc/include")
@@ -634,10 +645,15 @@ if(GTEST_FOUND)
   tvm_file_glob(GLOB_RECURSE TEST_SRCS tests/cpp/*.cc)
   add_executable(cpptest ${TEST_SRCS})
   # include runtime files for unit testing
-  target_include_directories(cpptest PUBLIC "src/runtime")
   target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main GTest::gmock pthread dl)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
+  if(USE_RELAY_DEBUG)
+    target_compile_definitions(cpptest PRIVATE "USE_RELAY_DEBUG")
+    target_compile_definitions(cpptest PRIVATE "TVM_LOG_DEBUG")
+  else()
+    target_compile_definitions(cpptest PRIVATE "NDEBUG")
+  endif()
   # For some reason, compile definitions are not propagated correctly, so we manually add them here
   target_compile_definitions(cpptest PUBLIC $<TARGET_PROPERTY:tvm,INTERFACE_COMPILE_DEFINITIONS>)
   gtest_discover_tests(cpptest)
@@ -649,6 +665,9 @@ add_custom_target(runtime DEPENDS tvm_runtime)
 # Installation rules
 install(TARGETS tvm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
+if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
+  install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
+endif()
 
 if (INSTALL_DEV)
   install(
@@ -746,35 +765,6 @@ if(BUILD_FOR_HEXAGON)
     add_dependencies(runtime hexagon_rpc_skel)
   endif()
 endif()
-
-#Caches the build.
-#Note that ccache-3.x doesn't support nvcc well, so CUDA kernels may never hit the cache and still
-#need to be re-compiled every time. Using ccache 4.0+ can resolve this issue.
-
-if(USE_CCACHE) # True for AUTO, ON, /path/to/ccache
-  if("${USE_CCACHE}" STREQUAL "AUTO") # Auto mode
-    find_program(CCACHE_FOUND ccache)
-    if(CCACHE_FOUND)
-      message(STATUS "Found the path to ccache, enabling ccache")
-      set(PATH_TO_CCACHE ccache)
-    else()
-      message(STATUS "Didn't find the path to CCACHE, disabling ccache")
-    endif(CCACHE_FOUND)
-  elseif("${USE_CCACHE}" MATCHES ${IS_TRUE_PATTERN})
-    find_program(CCACHE_FOUND ccache)
-    if(CCACHE_FOUND)
-      message(STATUS "Found the path to ccache, enabling ccache")
-      set(PATH_TO_CCACHE ccache)
-    else()
-      message(FATAL_ERROR "Cannot find ccache. Set USE_CCACHE mode to AUTO or OFF to build without ccache. USE_CCACHE=" "${USE_CCACHE}")
-    endif(CCACHE_FOUND)
-  else() # /path/to/ccache
-    set(PATH_TO_CCACHE USE_CCACHE)
-    message(STATUS "Setting ccache path to " "${PATH_TO_CCACHE}")
-  endif()
-  # Set the flag for ccache
-  set(CXX_COMPILER_LAUNCHER PATH_TO_CCACHE)
-endif(USE_CCACHE)
 
 find_and_set_linker(${USE_ALTERNATIVE_LINKER})
 

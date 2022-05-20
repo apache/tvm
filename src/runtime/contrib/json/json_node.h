@@ -281,6 +281,12 @@ class JSONGraphNode {
    */
   bool HasAttr(const std::string& key) const { return attrs_.find(key) != attrs_.end(); }
 
+  void CaptureAttrs(const JSONGraphNode& that) {
+    for (const auto& kv : that.attrs_) {
+      attrs_[kv.first] = kv.second;
+    }
+  }
+
   virtual ~JSONGraphNode() {}
 
  private:

@@ -47,7 +47,7 @@ from tvm.relay.backend.contrib.ethosu import preprocess
 import tvm.relay.testing.tf as tf_testing
 
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
-from tests.python.relay.aot.aot_test_utils import (
+from tvm.testing.aot import (
     AOTCompiledTestModel,
     AOTDataLinkage,
     AOTTestModel,

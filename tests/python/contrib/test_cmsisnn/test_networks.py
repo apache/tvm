@@ -28,16 +28,14 @@ from tvm.contrib.download import download_testdata
 from tvm.relay.op.contrib import cmsisnn
 
 from utils import skip_if_no_reference_system, get_range_for_dtype_str
-from tests.python.relay.aot.aot_test_utils import (
-    AOTTestModel,
+from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
+from tvm.micro.testing.aot_test_utils import (
     AOT_CORSTONE300_RUNNER,
     AOT_USMP_CORSTONE300_RUNNER,
-    generate_ref_data,
-    compile_and_run,
 )
 
 
-def convert_to_relay(
+def _convert_to_relay(
     tflite_model_buf,
     input_data,
     input_node,
@@ -95,7 +93,7 @@ def test_cnn_small(test_runner):
     rng = np.random.default_rng(12345)
     input_data = rng.integers(in_min, high=in_max, size=input_shape, dtype=dtype)
 
-    orig_mod, params = convert_to_relay(tflite_model_buf, input_data, "input")
+    orig_mod, params = _convert_to_relay(tflite_model_buf, input_data, "input")
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
 
     # validate CMSIS-NN output against CPU output

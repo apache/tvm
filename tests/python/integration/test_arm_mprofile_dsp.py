@@ -20,12 +20,8 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relay
-from tests.python.relay.aot.aot_test_utils import (
-    AOTTestModel,
-    AOT_CORSTONE300_RUNNER,
-    generate_ref_data,
-    compile_and_run,
-)
+from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
+from tvm.micro.testing.aot_test_utils import AOT_CORSTONE300_RUNNER
 
 
 @tvm.testing.requires_corstone300

@@ -38,8 +38,22 @@ class CascaderOptions(Object):
         How many striping factors to try per axis.
     max_plan_size : int
         The maximum number of Parts in a Plan.
+    max_open_plans : int
+        The maximum number of open Plans to keep after culling.
+    max_closed_plans : int
+        The maxmum number of closed Plans to keep after culling.
     always_copy_size : int
         The maximum size of a Tensor that will always be copied into the cascade region.
+    disable_pareto_plans : bool
+        Disable pareto culling for Plans.
+    disable_pareto_proposals : bool
+        Disable pareto culling for Proposals.
+    enable_multi_dimensional_striping : bool
+        Enable striping in multiple dimensions simultaneously.
+    disable_block_culling : bool
+        Disable culling of block configs.
+    enable_striping : bool
+        A boolean option to enable striping
 
     """
 
@@ -49,7 +63,14 @@ class CascaderOptions(Object):
         max_proposals: int,
         stripe_factors: int,
         max_plan_size: int,
+        max_open_plans: int,
+        max_closed_plans: int,
         always_copy_size: int,
+        disable_pareto_plans: bool = False,
+        disable_pareto_proposals: bool = False,
+        enable_multi_dimensional_striping: bool = False,
+        disable_block_culling: bool = True,
+        enable_striping: bool = False,
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.CascaderOptions,
@@ -57,5 +78,12 @@ class CascaderOptions(Object):
             max_proposals,
             stripe_factors,
             max_plan_size,
+            max_open_plans,
+            max_closed_plans,
             always_copy_size,
+            disable_pareto_plans,
+            disable_pareto_proposals,
+            enable_multi_dimensional_striping,
+            disable_block_culling,
+            enable_striping,
         )
