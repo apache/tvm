@@ -32,14 +32,13 @@ from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.backend import Executor, Runtime
 from tvm import WorkspaceMemoryPools, PoolInfo
 from tvm.micro import model_library_format as mlf
-from aot_test_utils import (
+from tvm.micro.testing.aot_test_utils import parametrize_aot_options
+from tvm.testing.aot import (
     AOTTestModel,
     AOTTestRunner,
     generate_ref_data,
-    convert_to_relay,
     compile_and_run,
     compile_models,
-    parametrize_aot_options,
     run_and_check,
     create_relay_module_and_inputs_from_tflite_file,
 )
