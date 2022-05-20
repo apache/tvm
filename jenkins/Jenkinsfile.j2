@@ -447,7 +447,7 @@ def cpp_unittest(image) {
 def add_microtvm_permissions() {
   {% for folder in microtvm_template_projects %}
   sh(
-    script: 'find {{ folder }} -type f | xargs chmod +x',
+    script: 'find {{ folder }} -type f | grep qemu-hack | xargs chmod +x',
     label: 'Add execute permissions for microTVM files',
   )
   {% endfor %}

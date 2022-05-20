@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-19T11:41:58.421857
+// Generated at 2022-05-19T14:04:32.815769
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -524,7 +524,7 @@ def cpp_unittest(image) {
 
 def add_microtvm_permissions() {
   sh(
-    script: 'find build/microtvm_template_projects -type f | xargs chmod +x',
+    script: 'find build/microtvm_template_projects -type f | grep qemu-hack | xargs chmod +x',
     label: 'Add execute permissions for microTVM files',
   )
 }
