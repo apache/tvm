@@ -336,7 +336,7 @@ def _export_graph_model_library_format(
         "model_name": mod.libmod_name,
         "export_datetime": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%SZ"),
         "memory": _build_memory_map(mod),
-        "target": {int(k): str(v) for k, v in mod.target.items()},
+        "target": [str(t) for t in mod.target],
         "executors": executor,
         "style": "full-model",
     }

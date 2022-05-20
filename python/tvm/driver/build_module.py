@@ -238,12 +238,6 @@ def build(
             f"but got {type(inputs)}."
         )
 
-    if target_host is not None:
-        warnings.warn(
-            "target_host parameter is going to be deprecated. "
-            "Please pass in tvm.target.Target(target, host=target_host) instead."
-        )
-
     if not isinstance(inputs, (dict, container.Map)):
         target = Target.current() if target is None else target
         target = target if target else "llvm"
@@ -263,7 +257,8 @@ def build(
 
     annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
 
-    # TODO(mbs): Subsumed by CompilationConfig, but tir_to_runtime bypasses that.
+    # TODO(mbs): CompilationConfig implements the same host target defaulting logic, but
+    # tir_to_runtime currently bypasses that.
     if not target_host:
         for tar, mod in annotated_mods.items():
             device_type = ndarray.device(tar.kind.name, 0).device_type

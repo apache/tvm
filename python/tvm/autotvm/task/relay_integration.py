@@ -81,11 +81,6 @@ def extract_from_program(mod, params, target, target_host=None, ops=None):
     task: Array of autotvm.task.Task
         collected tasks
     """
-    if target_host is not None:
-        warnings.warn(
-            "target_host parameter is going to be deprecated. "
-            "Please pass in tvm.target.Target(target, host=target_host) instead."
-        )
     target, target_host = Target.canon_target_and_host(target, target_host)
     return extract_from_multiple_program([mod], [params], target, ops=ops)
 

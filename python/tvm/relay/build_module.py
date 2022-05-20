@@ -393,12 +393,8 @@ def build(
             DeprecationWarning,
         )
 
-    if target_host is not None:
-        warnings.warn(
-            "target_host parameter is going to be deprecated. "
-            "Please pass in tvm.target.Target(target, host=target_host) instead."
-        )
     raw_targets = Target.canon_multi_target_and_host(target, target_host)
+    assert len(raw_targets) > 0
     target_host = raw_targets[0].host
 
     # All of this logic is to raise deprecation warnings for various parameters
