@@ -270,7 +270,7 @@ class Target(Object):
             return None
         if isinstance(multi_targets, (dict, Map)) and "kind" not in multi_targets:
             # Convert legacy heterogeneous map representation to ordinary list of targets.
-            return Target.canon_multi_target([t for t in multi_targets.values()])
+            return Target.canon_multi_target(multi_targets.values())
         if isinstance(multi_targets, (list, Array)):
             # Multiple Target results.
             return convert([Target.canon_target(tgt) for tgt in multi_targets])
