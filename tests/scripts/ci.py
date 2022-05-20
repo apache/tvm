@@ -141,14 +141,6 @@ def check_gpu():
         )
 
 
-def check_build():
-    if (REPO_ROOT / "build").exists():
-        warnings.append(
-            "Existing build dir found may be interfering with the Docker "
-            "build (you may need to remove it)"
-        )
-
-
 def gen_name(s: str) -> str:
     # random 4 letters
     suffix = "".join([random.choice(string.ascii_lowercase) for i in range(5)])
@@ -227,38 +219,33 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
 def docs(
     tutorial_pattern: Optional[str] = None,
     full: bool = False,
-    cpu: bool = False,
     interactive: bool = False,
     skip_build: bool = False,
     docker_image: Optional[str] = None,
 ) -> None:
     """
     Build the documentation from gallery/ and docs/. By default this builds only
-    the Python docs.
+    the Python docs without any tutorials.
 
     arguments:
-    full -- Build all language docs, not just Python
-    precheck -- Run Sphinx precheck script
-    tutorial-pattern -- Regex for which tutorials to execute when building docs (can also be set via TVM_TUTORIAL_EXEC_PATTERN)
-    cpu -- Run with the ci-cpu image and use CMake defaults for building TVM (if no GPUs are available)
+    full -- Build all language docs, not just Python (this will use the 'ci_gpu' Docker image)
+    tutorial-pattern -- Regex for which tutorials to execute when building docs (this will use the 'ci_gpu' Docker image)
     skip_build -- skip build and setup scripts
     interactive -- start a shell after running build / test scripts
     docker-image -- manually specify the docker image to use
     """
-    config = "./tests/scripts/task_config_build_gpu.sh"
     build_dir = get_build_dir("gpu")
-    if cpu and full:
-        clean_exit("--full cannot be used with --cpu")
 
     extra_setup = []
     image = "ci_gpu" if docker_image is None else docker_image
-    if cpu:
+    if not full and tutorial_pattern is None:
+        # TODO: Change this to tlcpack/docs once that is uploaded
         image = "ci_cpu" if docker_image is None else docker_image
         build_dir = get_build_dir("cpu")
-        config = " && ".join(
+        config_script = " && ".join(
             [
-                "mkdir -p build",
-                "pushd build",
+                f"mkdir -p {build_dir}",
+                f"pushd {build_dir}",
                 "cp ../cmake/config.cmake .",
                 # The docs import tvm.micro, so it has to be enabled in the build
                 "echo set\(USE_MICRO ON\) >> config.cmake",
@@ -287,9 +274,10 @@ def docs(
         ]
     else:
         check_gpu()
+        config_script = f"./tests/scripts/task_config_build_gpu.sh {build_dir}"
 
     scripts = extra_setup + [
-        config + f" {build_dir}",
+        config_script,
         f"./tests/scripts/task_build.py --build-dir {build_dir}",
     ]
 
@@ -307,7 +295,6 @@ def docs(
         "IS_LOCAL": "1",
         "TVM_LIBRARY_PATH": str(REPO_ROOT / build_dir),
     }
-    check_build()
     docker(name=gen_name("docs"), image=image, scripts=scripts, env=env, interactive=interactive)
 
 
