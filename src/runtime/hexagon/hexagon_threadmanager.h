@@ -17,6 +17,8 @@
 namespace tvm {
 namespace runtime {
 namespace hexagon {    
+
+#define DBG(msg) DLOG(INFO) << msg << "\n"
   
 class HexagonThreadManager {
   typedef void (*voidfunc)(void*);
@@ -25,7 +27,7 @@ class HexagonThreadManager {
 public:
   HexagonThreadManager(unsigned num_threads, unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words);
   ~HexagonThreadManager();
-  void GetStreamHandles(std::vector<TVMStreamHandle> out);
+  void GetStreamHandles(std::vector<TVMStreamHandle>* out);
   //void GetThreadHandles(std::vector<void*>* out);
   void PreallocateSyncs(unsigned number_syncs);
   void Dispatch(TVMStreamHandle thread, voidfunc f, void* args);
@@ -33,6 +35,8 @@ public:
   void Signal(TVMStreamHandle thread, SyncPoint syncID);
   void Wait(TVMStreamHandle thread, SyncPoint syncID);
   void SyncFromTo(TVMStreamHandle signal_thread, TVMStreamHandle wait_thread);
+  void Start(); // Unblock threads to start execution
+  void WaitOnThreads();  // Blocking call to wait until all threads have empty queues
   
 private:
   struct ThreadContext {
@@ -60,6 +64,7 @@ private:
   qurt_pipe_t* pipes;
   ThreadContext** contexts;
   std::vector<qurt_sem_t> semaphores;
+  qurt_sem_t* start_semaphore;
   #endif
 
   /*

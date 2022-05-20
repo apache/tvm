@@ -212,6 +212,12 @@ void HexagonDeviceAPI::Dispatch(Device dev, PackedFunc f, TVMArgs args, TVMRetVa
   #endif
 }
 
+void HexagonDeviceAPI::Start(Device dev) {
+  #if defined(__hexagon__)
+  thread_manager->Start();
+  #endif
+}
+
   
 TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
   void* dst = args[0];

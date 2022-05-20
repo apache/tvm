@@ -48,7 +48,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
   HexagonDeviceAPI() {
     #if defined(__hexagon__)
     thread_manager = new HexagonThreadManager(6, 16*(1<<10), 1<<10);
-    thread_manager->GetStreamHandles(free_streams);
+    thread_manager->GetStreamHandles(&free_streams);
     #endif
   }
 
@@ -136,6 +136,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
   void SetStream(Device dev, TVMStreamHandle stream);
   void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst);
   void Dispatch(Device dev, PackedFunc f, TVMArgs args, TVMRetValue* rv, TVMStreamHandle stream = (void*)-1);
+  void Start(Device dev);
 
  protected:
   //! Standard Device API interface to copy data from one storage to another.

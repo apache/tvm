@@ -10,6 +10,8 @@ namespace runtime {
 namespace hexagon {
   
 HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words) {
+  // Note: could technically manage more software threads than allowable hardware threads, but there is no system constant defined
+  //  in the qurt libs for that maximum.
   CHECK_LE(num_threads, QURT_MAX_HTHREAD_LIMIT);
   this->nthreads = num_threads;
   
@@ -29,22 +31,42 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   ret = posix_memalign(&pipe_buffer, MEM_ALIGNMENT, thread_pipe_size * nthreads);
   CHECK_EQ(ret, 0);
 
+  DBG("Buffers allocated; spawning threads");
   SpawnThreads();
+
+  // Initially, block all threads until we get the Start() call
+  start_semaphore = (qurt_sem_t*)malloc(sizeof(qurt_sem_t));
+  qurt_sem_init_val(start_semaphore, 0);
+  for (int i = 0; i < nthreads; i ++) {
+    Dispatch((TVMStreamHandle)i, thread_wait, start_semaphore);
+  }
 }
 
 HexagonThreadManager::~HexagonThreadManager() {
+
+  // In case Start() was never explicitly called, call it now to prevent deadlock
+  if (qurt_sem_get_val(start_semaphore) == 0) {
+    Start();
+  }
   
   // dispatch a command to each thread to exit with status 0
   for (int i = 0; i < nthreads; i++) {
     Dispatch((TVMStreamHandle)i, &thread_exit, (void*) 0);
   }
 
-  // join with each thread (wait for them to terminate); if already exited, call returns immediately
+  // join with each thread (wait for them to terminate); if already exited, the call returns immediately
   int status;  // don't actually care what the thread exit status was
   for (int i = 0; i < nthreads; i++) {
     qurt_thread_join(threads[i], &status);
   }
 
+  // destroy semaphores
+  qurt_sem_destroy(start_semaphore);
+  free(start_semaphore);
+  for (int i = 0; i < semaphores.size(); i++) {
+    qurt_sem_destroy(&semaphores[i]);
+  }
+  
   // Delete pipe objects and contexts
   for (int i = 0; i < nthreads; i++) {
     if (pipes != NULL) {
@@ -92,6 +114,8 @@ void HexagonThreadManager::SpawnThreads() {
     CHECK_EQ(rc, QURT_EOK);
   }
 
+  DBG("Pipes created");
+
   // Create all threads
   for (int i = 0; i < nthreads; i++) {
     // create initialize the thread attr
@@ -110,12 +134,12 @@ void HexagonThreadManager::SpawnThreads() {
     CHECK_EQ(rc, QURT_EOK);
   }
 
-  LOG(INFO) << "Threads created" << "\n";
+  DBG("Threads created");
 }
 
-void HexagonThreadManager::GetStreamHandles(std::vector<TVMStreamHandle> out) {
+void HexagonThreadManager::GetStreamHandles(std::vector<TVMStreamHandle>* out) {
   for (int i = 0; i < nthreads; i++) {
-    out.push_back((TVMStreamHandle)i);  // threads identified by index into `threads` array
+    out->push_back((TVMStreamHandle)i);  // threads identified by index into `threads` array
   }
 }
   
@@ -133,6 +157,7 @@ void HexagonThreadManager::Dispatch(TVMStreamHandle thread, PackedFunc f, TVMArg
   
 void HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* args) {
   unsigned thread = (unsigned)stream;
+  DBG("Dispatching to stream " << std::to_string(thread));
   Command* cmd = new Command(f, args);  // Command object freed by receiving thread
   qurt_pipe_data_t msg = (qurt_pipe_data_t)(cmd);
   qurt_pipe_t* pipeAddr = &pipes[thread];
@@ -140,11 +165,42 @@ void HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* ar
   int trysend = qurt_pipe_try_send(pipeAddr, msg);
   if (trysend) {
     // log that the pipe was full, then do a blocking send
-    DLOG(INFO) << "Blocking on dispatch to thread " << thread << " due to full pipe\n";
+    DBG("Blocking on dispatch to thread " << thread << " due to full pipe");
     qurt_pipe_send(pipeAddr, msg);
   }
 }
 
+void HexagonThreadManager::Start() {
+  thread_signal(start_semaphore);
+}
+
+void HexagonThreadManager::WaitOnThreads() {
+  // Using standard signal mechanism to block the "main" thread on all worker threads.
+  // Note: this would be slightly more efficient as a barrier, but would need some extra code to
+  //  wait on the barrier that would only be used once.
+  
+  std::vector<qurt_sem_t> finished;
+  finished.resize(nthreads);
+  
+  // initialize one semaphore for each thread
+  for (int i = 0; i < nthreads; i++) {
+    qurt_sem_init_val(&finished[i], 0);
+  }
+  // dispatch signal() command to each thread on their private semaphore
+  for (int i = 0; i < nthreads; i++) {
+    Dispatch((TVMStreamHandle)i, thread_signal, &finished[i]);
+  }
+  // wait on each semaphore, one at a time
+  for (int i = 0; i < nthreads; i++) {
+    thread_wait(&finished[i]);
+  }
+  
+  // clean up
+  for (int i = 0; i < nthreads; i++) {
+    qurt_sem_destroy(&finished[i]);
+  }
+}
+  
 void HexagonThreadManager::check_semaphore(unsigned syncID) {
   // extend the semaphore vector if it's not long enough
   if (syncID >= semaphores.size()) {
@@ -192,6 +248,7 @@ void HexagonThreadManager::thread_wait_free(void* semaphore) {
 }
 
 void HexagonThreadManager::thread_exit(void* status) {
+  DBG("thread exiting");
   qurt_thread_exit( (int) status);
 }
 
@@ -208,8 +265,11 @@ void HexagonThreadManager::thread_main(void* context) {
   ThreadContext* tc = static_cast<ThreadContext*>(context);
   unsigned index = tc->index;
   qurt_pipe_t* mypipe = &(tc->tm->pipes[index]);
+
+  DBG("Thread " << std::to_string(index) << " spawned");
    
   while (true) {  // loop, executing commands from pipe
+    DBG("Thread " << std::to_string(index) << " receiving command");
     qurt_pipe_data_t msg = qurt_pipe_receive(mypipe);  // blocks if empty
     Command* cmd = (Command*)(msg);
     voidfunc f = cmd->f;
