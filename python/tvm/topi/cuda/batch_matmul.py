@@ -367,7 +367,7 @@ def _schedule_batch_matmul_int8(cfg, s, output):
     # dp4a tensorize
 
     target = tvm.target.Target.current(allow_none=False)
-    do_tensorize = True
+    do_tensorize = target.supports_integer_dot_product
 
     if is_target(["vulkan", "rocm"]):
         do_tensorize = "+dotprod" in target.mattr or target.supports_integer_dot_product
