@@ -131,4 +131,4 @@ def test_one_hot_grad(target, dev, index_dtype, val_dtype):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

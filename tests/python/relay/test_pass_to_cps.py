@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.relay.analysis import detect_feature
 from tvm.relay.transform import to_cps, un_cps
@@ -123,7 +124,4 @@ def test_cps_pe():
 
 
 if __name__ == "__main__":
-    import sys
-    import pytest
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

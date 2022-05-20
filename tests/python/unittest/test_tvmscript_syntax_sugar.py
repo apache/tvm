@@ -18,6 +18,7 @@
 import sys
 
 import pytest
+import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.script import tir as T
 from tvm.script.parser import from_source
@@ -347,4 +348,4 @@ def test_func_call():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

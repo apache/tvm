@@ -107,4 +107,4 @@ class TestConv2d_OIHW_small_kernel(BasicConv2dTests):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

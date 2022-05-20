@@ -25,6 +25,7 @@ from unittest import mock
 import pytest
 
 import tvm
+import tvm.testing
 
 
 # Implementing as a fixture so that the tvm.micro import doesn't occur
@@ -494,4 +495,4 @@ def test_invalid_request(BaseTestHandler):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()
