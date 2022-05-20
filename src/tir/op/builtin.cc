@@ -256,6 +256,12 @@ TIR_DEFINE_BUILTIN_FUNC(ptx_commit_group)
 TIR_DEFINE_BUILTIN_FUNC(ptx_wait_group)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
+TIR_DEFINE_BUILTIN_FUNC(mma_store).set_attr<TCallEffectKind>("TCallEffectKind",
+                                                             Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(mma_fill).set_attr<TCallEffectKind>("TCallEffectKind",
+                                                            Integer(CallEffectKind::kOpaque));
+
 TIR_DEFINE_BUILTIN_FUNC(vectorhigh)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
