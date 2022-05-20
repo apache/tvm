@@ -233,6 +233,30 @@ class Target(Object):
         return Target(target)
 
     @staticmethod
+    def canon_target_and_host(target, target_host=None):
+        """Returns a TVM Target capturing target and target_host. Also returns the host in
+        canonical form. The given target can be in any form recognized by
+        Target.canon_target. If given, target_host can be in any form recognized by
+        Target.canon_target. If target_host is given it will be set as the 'host' in the
+        result Target object (and a warning given).
+
+        Note that this method does not support heterogeneous compilation targets.
+        """
+        target = Target.canon_target(target)
+        target_host = Target.canon_target(target_host)
+        if target is None:
+            assert target_host is None, "Target host is not empty when target is empty."
+        if target_host is not None:
+            warnings.warn(
+                "target_host parameter is going to be deprecated. "
+                "Please pass in tvm.target.Target(target, host=target_host) instead."
+            )
+            target = Target(target, target_host)
+        if target is not None:
+            target_host = target.host
+        return target, target_host
+
+    @staticmethod
     def canon_multi_target(multi_targets):
         """Given a single target-like object, or a collection-like object of target-like objects,
         returns a TVM Array of TVM Target objects representing then. Can convert from:
@@ -275,30 +299,6 @@ class Target(Object):
             # Make sure the (canonical) host is captured in all the (canonical) targets.
             raw_targets = convert([Target(t, target_host) for t in raw_targets])
         return raw_targets
-
-    @staticmethod
-    def canon_target_and_host(target, target_host=None):
-        """Returns a TVM Target capturing target and target_host. Also returns the host in
-        canonical form. The given target can be in any form recognized by
-        Target.canon_target. If given, target_host can be in any form recognized by
-        Target.canon_target. If target_host is given it will be set as the 'host' in the
-        result Target object (and a warning given).
-
-        Note that this method does not support heterogeneous compilation targets.
-        """
-        target = Target.canon_target(target)
-        target_host = Target.canon_target(target_host)
-        if target is None:
-            assert target_host is None, "Target host is not empty when target is empty."
-        if target_host is not None:
-            warnings.warn(
-                "target_host parameter is going to be deprecated. "
-                "Please pass in tvm.target.Target(target, host=target_host) instead."
-            )
-            target = Target(target, target_host)
-        if target is not None:
-            target_host = target.host
-        return target, target_host
 
     @staticmethod
     def canon_target_map_and_host(target_map, target_host=None):
