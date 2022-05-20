@@ -364,6 +364,14 @@ TVM_DLL Pass PointerValueTypeRewrite();
 TVM_DLL Pass HoistIfThenElse();
 
 /*!
+ * \brief Hoist loop-invariant IfThenElse nodes to
+ * outside the elligible loops.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass HoistExpression();
+
+/*!
  * \brief Lower cross-thread reduction from thread
  * bindings to intrinsic function calls.
  * \return The pass.
