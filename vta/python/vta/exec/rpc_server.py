@@ -101,10 +101,11 @@ def server_start():
         cfg["TARGET"] = env.TARGET
         pkg = pkg_config(cfg)
         # check if the configuration is already the same
-        old_cfg = env.pkg.cfg_dict
-        if pkg.same_config(old_cfg):
-            logging.info("Skip reconfig_runtime due to same config.")
-            return
+        if os.path.isfile(cfg_path):
+            old_cfg = json.loads(env.pkg.cfg_json)
+            if pkg.same_config(old_cfg):
+                logging.info("Skip reconfig_runtime due to same config.")
+                return
         cflags = ["-O2", "-std=c++14"]
         cflags += pkg.cflags
         ldflags = pkg.ldflags
