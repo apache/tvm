@@ -115,7 +115,7 @@ jobs:
           cd build
           ../tests/scripts/task_config_build_jvm.sh .
           cmake ..
-          cmake --build . --target tvm_runtime
+          make
       - name: Build TVM4J
         run: |
           make jvmpkg
