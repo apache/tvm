@@ -6038,6 +6038,7 @@ def test_qlinearmul(target, dev):
     verify_qlinearmul([5, 1, 7], [2, 7], [5, 2, 7])
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/11375")
 @tvm.testing.parametrize_targets
 def test_qlinearleakyrelu(target, dev):
     def verify_qlinearleakyrelu(inshape, kwargs):
@@ -6063,6 +6064,7 @@ def test_qlinearleakyrelu(target, dev):
     verify_qlinearleakyrelu([5, 1, 4, 6], {"alpha": 0.65})
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/11375")
 @tvm.testing.parametrize_targets
 def test_qlinearsigmoid(target, dev):
     def verify_qlinearsigmoid(a_shape):
