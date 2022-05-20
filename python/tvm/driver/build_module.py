@@ -17,8 +17,6 @@
 
 # pylint: disable=invalid-name
 """The build utils in python."""
-import warnings
-
 from typing import Union, Optional, List, Mapping
 
 import tvm.tir

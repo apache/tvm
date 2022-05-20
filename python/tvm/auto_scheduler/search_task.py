@@ -380,9 +380,9 @@ class SearchTask(Object):
         The ComputeDAG for the corresponding compute declaration.
     workload_key : str
         The workload key for the corresponding compute declaration.
-    target : tvm.target.Target
+    target : any target-like object, see Target.canon_target
         The target device of this search task.
-    target_host : Optional[tvm.target.Target]
+    target_host : None or any target-like object, see Target.canon_target
         The target host device of this search task.
     hardware_params : Optional[HardwareParams]
         Hardware parameters used in this search task.
