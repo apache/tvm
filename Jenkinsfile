@@ -45,13 +45,13 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-19T14:04:32.815769
+// Generated at 2022-05-20T18:06:10.772162
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = 'tlcpack/ci-lint:20220513-055910-fa834f67e'
-ci_gpu = 'tlcpack/ci-gpu:20220513-055910-fa834f67e'
-ci_cpu = 'tlcpack/ci-cpu:20220517-094028-de21c8f2e'
+ci_gpu = 'tlcpack/ci-gpu:20220519-055908-ddfa1da69'
+ci_cpu = 'tlcpack/ci-cpu:20220519-055908-ddfa1da69'
 ci_wasm = 'tlcpack/ci-wasm:20220513-055910-fa834f67e'
 ci_i386 = 'tlcpack/ci-i386:20220513-055910-fa834f67e'
 ci_qemu = 'tlcpack/ci-qemu:20220517-094028-de21c8f2e'
