@@ -145,6 +145,7 @@ RUN bash /install/ubuntu_install_paddle.sh
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh
+ENV PATH /opt/sccache:$PATH
 
 # Libxsmm deps
 COPY install/ubuntu_install_libxsmm.sh /install

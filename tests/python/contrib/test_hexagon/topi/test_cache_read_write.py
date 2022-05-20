@@ -17,11 +17,11 @@
 
 import pytest
 import numpy as np
+from tvm.contrib.hexagon.session import Session
 
 import tvm.testing
 from tvm import te
-
-from ..conftest import requires_hexagon_toolchain
+from tvm.contrib.hexagon.session import Session
 
 
 def intrin_mem_copy(shape, dtype, dst_scope, src_scope):
@@ -70,7 +70,7 @@ def intrin_mem_copy(shape, dtype, dst_scope, src_scope):
     return te.decl_tensor_intrin(dst.op, intrin_func, binds={src: src_buffer, dst: dst_buffer})
 
 
-def verify(hexagon_session, s, x, y, z, size):
+def verify(hexagon_session: Session, s, x, y, z, size):
     print(tvm.lower(s, [x, y, z]))
 
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
@@ -97,8 +97,8 @@ def verify(hexagon_session, s, x, y, z, size):
     np.testing.assert_equal(zt.numpy(), ref)
 
 
-@requires_hexagon_toolchain
-def test_cache_read_write(hexagon_session):
+@tvm.testing.requires_hexagon
+def test_cache_read_write(hexagon_session: Session):
     size = 128
     outer_shape = (size,)
     factor = 16
@@ -139,8 +139,8 @@ def layout_transform_2d(n):
     return [n // 16, te.AXIS_SEPARATOR, n % 16]
 
 
-@requires_hexagon_toolchain
-def test_cache_read_write_2d(hexagon_session):
+@tvm.testing.requires_hexagon
+def test_cache_read_write_2d(hexagon_session: Session):
     size = 128
     outer_shape = (size,)
     factor = 16

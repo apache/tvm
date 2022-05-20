@@ -267,10 +267,23 @@ def test_estimate_peak_fma_flops(target, dev):
     flops = tvm.utils.estimate_peak_fma_flops(tvm.target.Target(target), dev)
     # Assume we can achieve 1 GFLOP/s per thread, which is 1 FLOP per cycle on a 1GHz cpu.
     assert (
-        flops > 10**9 * tvm.runtime.num_threads() and flops < 10**14
-    ), f"FLOP/s should be between 10^9 * num_threads and 10^14, but it is {flops}"
+        flops > 10**9 and flops < 10**14
+    ), f"FLOP/s should be between 10^9 and 10^14, but it is {flops}"
 
 
+def test_estimate_peak_fma_flops_rpc():
+    target = "llvm -mattr=+fma,+avx2"
+    server = rpc.Server(key="profiling")
+    remote = rpc.connect("127.0.0.1", server.port, key="profiling")
+    dev = remote.device(target)
+    flops = tvm.utils.estimate_peak_fma_flops(tvm.target.Target(target), dev, remote=remote)
+    # Assume we can achieve 1 GFLOP/s per thread, which is 1 FLOP per cycle on a 1GHz cpu.
+    assert (
+        flops > 10**9 and flops < 10**14
+    ), f"FLOP/s should be between 10^9 and 10^14, but it is {flops}"
+
+
+@tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
 @tvm.testing.parametrize_targets("llvm")
 def test_estimate_peak_bandwidth(target, dev):
     # This test uses vectorized instructions so we need a target that supports them
@@ -284,7 +297,21 @@ def test_estimate_peak_bandwidth(target, dev):
     ), f"Bandwidth should be between 10^9 and 10^12, but it is {bandwidth}"
 
 
-@pytest.mark.skipif(platform.machine() == "i386", reason="Cannot allocate enough memory on i386")
+@tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
+def test_estimate_peak_bandwidth_rpc():
+    target = "llvm -mattr=+fma,+avx2"
+    server = rpc.Server(key="profiling")
+    remote = rpc.connect("127.0.0.1", server.port, key="profiling")
+    dev = remote.device(target)
+    bandwidth = tvm.utils.estimate_peak_bandwidth(tvm.target.Target(target), dev, remote=remote)
+    # Assume we can achieve 1 GB/s. DDR2 should transfer somewhere around 6
+    # GB/s, so this should leave enough wiggle room.
+    assert (
+        bandwidth > 10**9 and bandwidth < 10**12
+    ), f"Bandwidth should be between 10^9 and 10^12, but it is {bandwidth}"
+
+
+@tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
 @tvm.testing.parametrize_targets("llvm")
 def test_roofline_analysis(target, dev):
     a = relay.var("a", relay.TensorType((512, 512), "float32"))
@@ -293,6 +320,32 @@ def test_roofline_analysis(target, dev):
     mod = tvm.IRModule.from_expr(relay.Function([a, b], c))
     params = {}
     report = tvm.utils.roofline_analysis(mod, params, target, dev)
+
+    assert "Bound" in report.table()
+    assert "Percent of Theoretical Optimal" in report.table()
+    for call in report.calls:
+        if "Percent of Theoretical Optimal" in call:
+            # Ideally we'd like a little tighter bound here, but it is hard to
+            # know how well this dense will perform without tuning. And we
+            # don't have an operator that uses a specific number of flops.
+            assert call["Percent of Theoretical Optimal"].ratio >= 0
+
+
+@tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
+def test_roofline_analysis_rpc():
+    target = "llvm"
+
+    a = relay.var("a", relay.TensorType((512, 512), "float32"))
+    b = relay.var("b", relay.TensorType((512, 512), "float32"))
+    c = relay.nn.dense(a, b)
+    mod = tvm.IRModule.from_expr(relay.Function([a, b], c))
+    params = {}
+
+    server = rpc.Server(key="profiling")
+    remote = rpc.connect("127.0.0.1", server.port, key="profiling")
+    dev = remote.device(target)
+
+    report = tvm.utils.roofline_analysis(mod, params, target, dev, remote=remote)
 
     assert "Bound" in report.table()
     assert "Percent of Theoretical Optimal" in report.table()

@@ -211,6 +211,7 @@ class ConstructNetworkVisitor : public MixedModeVisitor, private ErrorReportingP
   EthosnError MakeSplitLayer(const Call& call, sl::TensorsAndId* outs);
   EthosnError MakeDepthToSpaceLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeReluLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeLeakyReLULayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
 
   /*! \brief A look-up table from Expr to layers. */
   std::map<Expr, std::vector<std::shared_ptr<sl::Operand>>> operand_table_;
@@ -250,7 +251,7 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
   String compiler_algorithm;
 
   TVM_DECLARE_ATTRS(EthosnCompilerConfigNode, "ext.attrs.EthosnCompilerConfigNode") {
-    TVM_ATTR_FIELD(variant).describe("See Ethos-N documentation.").set_default("Ethos-N78");
+    TVM_ATTR_FIELD(variant).describe("See Ethos-N documentation.").set_default("n78");
     TVM_ATTR_FIELD(sram_size)
         .describe("Optionally override the default sram size. See Ethos(TM)-N documentation.")
         .set_default("0");

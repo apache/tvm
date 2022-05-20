@@ -38,6 +38,7 @@
 
 #include "../../support/str_escape.h"
 #include "../rpc/rpc_channel.h"
+#include "../rpc/rpc_channel_logger.h"
 #include "../rpc/rpc_endpoint.h"
 #include "../rpc/rpc_session.h"
 #include "crt_config.h"
@@ -404,6 +405,13 @@ TVM_REGISTER_GLOBAL("micro._rpc_connect").set_body([](TVMArgs args, TVMRetValue*
     throw std::runtime_error(ss.str());
   }
   std::unique_ptr<RPCChannel> channel(micro_channel);
+  bool enable_logging = false;
+  if (args.num_args > 7) {
+    enable_logging = args[7];
+  }
+  if (enable_logging) {
+    channel.reset(new RPCChannelLogging(std::move(channel)));
+  }
   auto ep = RPCEndpoint::Create(std::move(channel), args[0], "", args[6]);
   auto sess = CreateClientSession(ep);
   *rv = CreateRPCSessionModule(sess);

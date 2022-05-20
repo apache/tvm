@@ -194,8 +194,10 @@ class Serial2DConvolution(SerializableFormat):
         ofm: SerialFeatureMap,
         kernel: SerialKernel,
         weight: SerialAddressRange,
+        weight2: SerialAddressRange,
         weight_zero_point: int,
         scale_bias: SerialAddressRange,
+        scale_bias2: SerialAddressRange,
         padding: SerialPadding,
         activation: SerialActivation,
         rounding_mode: str,
@@ -206,8 +208,10 @@ class Serial2DConvolution(SerializableFormat):
         self.ofm = ofm
         self.kernel = kernel
         self.weight = weight
+        self.weight2 = weight2
         self.weight_zero_point = weight_zero_point
         self.scale_bias = scale_bias
+        self.scale_bias2 = scale_bias2
         self.padding = padding
         self.activation = activation
         self.rounding_mode = rounding_mode
