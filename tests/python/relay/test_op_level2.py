@@ -30,6 +30,8 @@ from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
 from tvm.topi.cuda.conv3d_winograd import _infer_tile_size
 
+executor_kind = tvm.testing.parameter("graph", "vm")
+
 
 @tvm.testing.uses_gpu
 def test_conv1d_infer_type():
@@ -1301,7 +1303,7 @@ def test_avg_pool2d_no_count_pad():
 
 
 @tvm.testing.uses_gpu
-def test_flatten_infer_type():
+def test_flatten_infer_type(executor_kind):
     d1, d2, d3, d4 = te.size_var("d1"), te.size_var("d2"), te.size_var("d3"), te.size_var("d4")
     x = relay.var("x", relay.TensorType((d1, d2, d3, d4), "float32"))
     y = relay.nn.batch_flatten(x)
@@ -1330,10 +1332,10 @@ def test_flatten_infer_type():
     ref_res = x_data.flatten().reshape(o_shape)
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -1438,7 +1440,7 @@ def test_pad_run_dynamic_pad_value():
 
 @tvm.testing.uses_gpu
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
-def test_lrn(dtype):
+def test_lrn(executor_kind, dtype):
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     x = relay.var("x", shape=(n, c, h, w), dtype=dtype)
     y = relay.nn.lrn(x, size=10, axis=2, bias=0.5, alpha=0.00001, beta=0.75)
@@ -1461,14 +1463,14 @@ def test_lrn(dtype):
     ref_res = tvm.topi.testing.lrn_python(x_data, size, axis, bias, alpha, beta)
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
-def test_l2_normalize():
+def test_l2_normalize(executor_kind):
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     x = relay.var("x", shape=(n, c, h, w))
     y = relay.nn.l2_normalize(x, eps=0.001, axis=[1])
@@ -1489,10 +1491,10 @@ def test_l2_normalize():
     ref_res = tvm.topi.testing.l2_normalize_python(x_data, eps, axis)
 
     for target, dev in tvm.testing.enabled_targets():
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 def batch_flatten(data):
