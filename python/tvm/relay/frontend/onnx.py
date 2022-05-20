@@ -259,23 +259,39 @@ def matmul_out_dtype(inputs, out_dtype):
             return out
 
         # Determine the output batch dimension.
+        new_a_shape = a_shape
+        new_b_shape = b_shape
         if a_rank > b_rank:
-            out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
-        elif a_rank < b_rank:
-            out_batch = _op.strided_slice(b_shape, [0], [b_rank - 2])
-        # If its unclear how broadcasting should be applied, the output
-        # shape is determined by choosing the maximum value from each input.
-        else:
-            out_batch = _op.concatenate(
+            rank_diff = a_rank - b_rank
+            new_b_shape = _op.concatenate(
                 [
-                    _op.maximum(
-                        _op.strided_slice(a_shape, [i], [i + 1]),
-                        _op.strided_slice(b_shape, [i], [i + 1]),
-                    )
-                    for i in range(a_rank - 2)
+                    _expr.const([1] * rank_diff, dtype=infer_type(b_shape).checked_type.dtype),
+                    b_shape,
                 ],
                 0,
             )
+        elif a_rank < b_rank:
+            rank_diff = b_rank - a_rank
+            new_a_shape = _op.concatenate(
+                [
+                    _expr.const([1] * rank_diff, dtype=infer_type(a_shape).checked_type.dtype),
+                    a_shape,
+                ],
+                0,
+            )
+        else:
+            pass
+
+        out_batch = _op.concatenate(
+            [
+                _op.maximum(
+                    _op.strided_slice(new_b_shape, [i], [i + 1]),
+                    _op.strided_slice(new_a_shape, [i], [i + 1]),
+                )
+                for i in range(max(a_rank, b_rank) - 2)
+            ],
+            0,
+        )
 
         b_type = infer_type(inputs[1])
         # Convert to dense if the second matrix is 2d and non-dynamic

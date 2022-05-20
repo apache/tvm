@@ -632,6 +632,25 @@ TVM_DLL const Op& ptx_mma_sp();
  */
 TVM_DLL const Op& ptx_ldmatrix();
 
+/*!
+ * \brief tvm intrinsics for ptx async copy from global to shared memory
+ *
+ * void ptx_cp_async(Var shared_ptr, Expr shared_offset, Var global_ptr, Expr global_offset, size_t
+ * bytes);
+ *
+ */
+TVM_DLL const Op& ptx_cp_async();
+
+/*!
+ * \brief tvm intrinsics for ptx async copy commit and wait.
+ *
+ * void ptx_commit_group();
+ * void ptx_wait_group(int num);
+ *
+ */
+TVM_DLL const Op& ptx_commit_group();
+TVM_DLL const Op& ptx_wait_group();
+
 // TODO(tvm-team) replace the usage of the vector operations by Shuffle.
 /*!
  * \brief Get the high level half of the vector

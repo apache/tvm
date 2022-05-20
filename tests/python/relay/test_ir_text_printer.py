@@ -47,16 +47,28 @@ def show(text):
         print(text)
 
 
-# Commented due to weird memory allocation error
-# def test_large_graph():
-#    x = relay.var("x", shape=(3, 2))
-#    y = relay.var("y")
-#    one = relay.const(10e10, dtype="float32")
-#    z = relay.add(x, one)
-#    for i in range(int(9e5)):
-#        z = relay.add(z, one)
-#    f = relay.Function([x, y], z)
-#    show(astext(f))
+def assert_prints_as(expr, str):
+    assert astext(expr) == SEMVER + str
+
+
+def test_scalars():
+    assert_prints_as(relay.const(42, "int16"), "42i16")
+    assert_prints_as(relay.const(42, "int32"), "42")
+    assert_prints_as(relay.const(42, "int64"), "42i64")
+    assert_prints_as(relay.const(3.0, "float16"), "3f16")
+    assert_prints_as(relay.const(3.0, "float32"), "3f")
+    assert_prints_as(relay.const(3.0, "float64"), "3f64")
+
+
+def test_large_graph():
+    x = relay.var("x", shape=(3, 2))
+    y = relay.var("y")
+    one = relay.const(10e10, dtype="float32")
+    z = relay.add(x, one)
+    for i in range(int(9e4)):
+        z = relay.add(z, one)
+    f = relay.Function([x, y], z)
+    show(astext(f))
 
 
 def test_func():
@@ -295,4 +307,7 @@ def test_slash_in_identifier():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

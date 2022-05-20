@@ -31,6 +31,6 @@ echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
 echo set\(USE_LLVM "${CLANG_LLVM_HOME}/bin/llvm-config"\) >> config.cmake
 echo set\(CMAKE_CXX_COMPILER "/opt/sccache/clang++"\) >> config.cmake
 echo set\(USE_HEXAGON "ON"\) >> config.cmake
-echo set\(USE_HEXAGON_SDK "${HEXAGON_SDK_PATH}"\) >> config.cmake
+echo set\(USE_HEXAGON_SDK "${HEXAGON_SDK_ROOT}"\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake

@@ -31,6 +31,8 @@ of the DispatchContext base class.
 from __future__ import absolute_import as _abs
 
 import logging
+import typing
+from typing import Union
 from collections.abc import Iterable
 
 import numpy as np
@@ -172,6 +174,57 @@ class ApplyConfig(DispatchContext):
         """Override query"""
         self.workload = workload
         return self._config
+
+    def update(self, target, workload, cfg):
+        """Override update"""
+        self.workload = workload
+        self._config = cfg
+
+
+class ApplyFixedConfig(DispatchContext):
+    """Apply a config of a deterministic schedule.
+    This is used for building a single Relay operator with deterministic schedule
+    for testing schedules at Relay level.
+
+    Parameters
+    ----------
+    tasks : list[tvm.autotvm.task.task.Task]
+        List of autoTVM tasks.
+    schedule_names : str, List[str]
+        Name of schedules to use.
+    """
+
+    def __init__(self, tasks, schedule_names: Union[str, typing.List[str]]):
+        super(ApplyFixedConfig, self).__init__()
+        if isinstance(schedule_names, str):
+            self._schedule_names = list(schedule_names)
+        elif isinstance(schedule_names, list):
+            self._schedule_names = schedule_names
+        else:
+            raise RuntimeError("Incorrect type: " + schedule_names)
+        self._tasks = tasks
+        self.workload = None
+
+    def _query_inside(self, target, workload):
+        """Override query"""
+        self.workload = workload
+
+        # Create a config from correct task
+        for task in self._tasks:
+            if task.name == workload[0]:
+                config = task.config_space.get(0)
+                break
+
+        if not config:
+            raise RuntimeError(
+                "workload: %s does not exist in %s" % (str(workload), str(self._tasks))
+            )
+        # Add low cost to the target schedule and high cost to others.
+        if workload[0] in self._schedule_names:
+            config.cost = 1e-6
+        else:
+            config.cost = 100000
+        return config
 
     def update(self, target, workload, cfg):
         """Override update"""
