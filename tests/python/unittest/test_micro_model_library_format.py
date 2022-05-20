@@ -62,13 +62,13 @@ def test_export_operator_model_library_format():
 
     with open(os.path.join(extract_dir, "metadata.json")) as json_f:
         metadata = json.load(json_f)
-        assert metadata["version"] == 5
+        assert metadata["version"] == 6
         assert metadata["model_name"] == "add"
         export_datetime = datetime.datetime.strptime(
             metadata["export_datetime"], "%Y-%m-%d %H:%M:%SZ"
         )
         assert (datetime.datetime.now() - export_datetime) < datetime.timedelta(seconds=60 * 5)
-        assert metadata["target"] == {"1": str(target)}
+        assert metadata["target"] == [str(target)]
 
         assert metadata["memory"]["add"][0]["dtype"] == "int8"
         assert metadata["memory"]["add"][0]["shape"] == [2]
@@ -156,13 +156,13 @@ def test_export_model_library_format_c(
 
         with open(os.path.join(extract_dir, "metadata.json")) as json_f:
             metadata = json.load(json_f)
-            assert metadata["version"] == 5
+            assert metadata["version"] == 6
             assert metadata["model_name"] == "add"
             export_datetime = datetime.datetime.strptime(
                 metadata["export_datetime"], "%Y-%m-%d %H:%M:%SZ"
             )
             assert (datetime.datetime.now() - export_datetime) < datetime.timedelta(seconds=60 * 5)
-            assert metadata["target"] == {"1": str(target)}
+            assert metadata["target"] == [str(target)]
             if str(executor) == "graph":
                 assert metadata["memory"]["sids"] == [
                     {"storage_id": 0, "size_bytes": 2, "input_binding": "a"},
@@ -242,13 +242,13 @@ def test_export_model_library_format_llvm():
 
         with open(os.path.join(extract_dir, "metadata.json")) as json_f:
             metadata = json.load(json_f)
-            assert metadata["version"] == 5
+            assert metadata["version"] == 6
             assert metadata["model_name"] == "add"
             export_datetime = datetime.datetime.strptime(
                 metadata["export_datetime"], "%Y-%m-%d %H:%M:%SZ"
             )
             assert (datetime.datetime.now() - export_datetime) < datetime.timedelta(seconds=60 * 5)
-            assert metadata["target"] == {"1": str(target)}
+            assert metadata["target"] == [str(target)]
             assert metadata["memory"]["sids"] == [
                 {"storage_id": 0, "size_bytes": 2, "input_binding": "a"},
                 {"storage_id": 1, "size_bytes": 8, "input_binding": "b"},
@@ -324,13 +324,13 @@ def test_export_model_library_format_workspace(executor, runtime):
 
     with open(os.path.join(extract_dir, "metadata.json")) as json_f:
         metadata = json.load(json_f)
-        assert metadata["version"] == 5
+        assert metadata["version"] == 6
         assert metadata["model_name"] == "qnn_conv2d"
         export_datetime = datetime.datetime.strptime(
             metadata["export_datetime"], "%Y-%m-%d %H:%M:%SZ"
         )
         assert (datetime.datetime.now() - export_datetime) < datetime.timedelta(seconds=60 * 5)
-        assert metadata["target"] == {"1": str(target)}
+        assert metadata["target"] == [str(target)]
         assert metadata["memory"]["functions"]["main"] == [
             {
                 "constants_size_bytes": 0,

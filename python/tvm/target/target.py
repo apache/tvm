@@ -251,9 +251,7 @@ class Target(Object):
                 "target_host parameter is going to be deprecated. "
                 "Please pass in tvm.target.Target(target, host=target_host) instead."
             )
-            target = Target(target, target_host)
-        if target is not None:
-            target_host = target.host
+            target = target.with_host(target_host)
         return target, target_host
 
     @staticmethod
@@ -272,10 +270,10 @@ class Target(Object):
             return None
         if isinstance(multi_targets, (dict, Map)) and "kind" not in multi_targets:
             # Convert legacy heterogeneous map representation to ordinary list of targets.
-            return Target.canon_multi_target([t for _, t in multi_targets.items()])
+            return Target.canon_multi_target([t for t in multi_targets.values()])
         if isinstance(multi_targets, (list, Array)):
             # Multiple Target results.
-            return convert([Target.canon_target(t) for t in multi_targets])
+            return convert([Target.canon_target(tgt) for tgt in multi_targets])
         # Single Target result.
         return convert([Target.canon_target(multi_targets)])
 
@@ -297,7 +295,7 @@ class Target(Object):
                 "Please pass in tvm.target.Target(target, host=target_host) instead."
             )
             # Make sure the (canonical) host is captured in all the (canonical) targets.
-            raw_targets = convert([Target(t, target_host) for t in raw_targets])
+            raw_targets = convert([tgt.with_host(target_host) for tgt in raw_targets])
         return raw_targets
 
     @staticmethod
@@ -307,21 +305,29 @@ class Target(Object):
         Similarly, if given, target_host can be in any form recognized by
         Target.canon_target. The final target_map keys will capture the target_host in
         canonical form. Also returns the target_host in canonical form."""
-        new_target_map = {}
         if target_host is not None:
             warnings.warn(
                 "target_host parameter is going to be deprecated. "
                 "Please pass in tvm.target.Target(target, host=target_host) instead."
             )
             target_host = Target.canon_target(target_host)
+        new_target_map = {}
         for tgt, mod in target_map.items():
             tgt = Target.canon_target(tgt)
             assert tgt is not None
             if target_host is not None:
-                tgt = Target(tgt, target_host)
-            target_host = tgt.host
+                tgt = tgt.with_host(target_host)
             new_target_map[tgt] = mod
         return new_target_map, target_host
+
+    @staticmethod
+    def target_or_current(target):
+        """Returns target, or the current target in the environment if target is None"""
+        if target is None:
+            target = Target.current()
+        if target is None:
+            raise ValueError("Target is not set in env or passed as argument.")
+        return target
 
 
 # TODO(@tvm-team): Deprecate the helper functions below. Encourage the usage of config dict instead.

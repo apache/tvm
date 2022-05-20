@@ -340,9 +340,10 @@ def build(
     ir_mod : :py:class:`~tvm.IRModule`
         The IR module to build. Using relay.Function is deprecated.
 
-    target : any multi-target like object, see Target.canon_multi_target
+    target : None, or any multi-target like object, see Target.canon_multi_target
         For homogeneous compilation, the unique build target.
         For heterogeneous compilation, a dictionary or list of possible build targets.
+        Defaults to the current target in the environment if None.
 
     target_host : None, or any target like object, see Target.canon_target
         Host compilation target, if target is device.
@@ -388,7 +389,7 @@ def build(
             DeprecationWarning,
         )
 
-    raw_targets = Target.canon_multi_target_and_host(target, target_host)
+    raw_targets = Target.canon_multi_target_and_host(Target.target_or_current(target), target_host)
     assert len(raw_targets) > 0
     target_host = raw_targets[0].host
 
@@ -465,9 +466,10 @@ def optimize(mod, target=None, params=None):
     mod : :py:class:`~tvm.IRModule`
         The module to build. Using relay.Function is deprecated.
 
-    target : any multi-target like object, see Target.canon_multi_target
+    target : None, or any multi-target like object, see Target.canon_multi_target
         For homogeneous compilation, the unique build target.
         For heterogeneous compilation, a dictionary or list of possible build targets.
+        Defaults to the current target in the environment if None.
 
     params : dict of str to NDArray
         Input parameters to the graph that do not change
@@ -494,7 +496,7 @@ def optimize(mod, target=None, params=None):
             DeprecationWarning,
         )
 
-    raw_targets = Target.canon_multi_target_and_host(target)
+    raw_targets = Target.canon_multi_target_and_host(Target.target_or_current(target))
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub

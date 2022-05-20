@@ -313,7 +313,7 @@ def _make_tar(source_dir, tar_file_path, mod):
             tar_f.add(get_standalone_crt_dir(), arcname=STANDALONE_CRT_URL)
 
 
-_GENERATED_VERSION = 5
+_GENERATED_VERSION = 6
 
 
 def _export_graph_model_library_format(
