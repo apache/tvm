@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-20T18:06:10.772162
+// Generated at 2022-05-20T13:24:01.371704
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -86,6 +86,20 @@ docker_build = 'docker/build.sh'
 max_time = 180
 rebuild_docker_images = false
 
+// skips builds from branch indexing; sourced from https://www.jvt.me/posts/2020/02/23/jenkins-multibranch-skip-branch-index/
+// execute this before anything else, including requesting any time on an agent
+if (currentBuild.getBuildCauses().toString().contains('BranchIndexingCause')) {
+  print "INFO: Build skipped due to trigger being Branch Indexing"
+  currentBuild.result = 'ABORTED' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
+  return
+}
+
+// Filenames for stashing between build and test steps
+s3_prefix = "tvm-jenkins-artifacts-prod/tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"
+
+// General note: Jenkins has limits on the size of a method (or top level code)
+// that are pretty strict, so most usage of groovy methods in these templates
+// are purely to satisfy the JVM
 def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
 }
@@ -183,146 +197,52 @@ def should_skip_ci(pr_number) {
   return git_skip_ci_code == 0
 }
 
-// skips builds from branch indexing; sourced from https://www.jvt.me/posts/2020/02/23/jenkins-multibranch-skip-branch-index/
-// execute this before anything else, including requesting any time on an agent
-if (currentBuild.getBuildCauses().toString().contains('BranchIndexingCause')) {
-  print "INFO: Build skipped due to trigger being Branch Indexing"
-  currentBuild.result = 'ABORTED' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
-  return
-}
-
-cancel_previous_build()
-
-def lint() {
-stage('Lint') {
-  parallel(
-  'Lint 1 of 2': {
+def prepare() {
+  stage('Prepare') {
     node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/lint") {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
         init_git()
-        timeout(time: max_time, unit: 'MINUTES') {
-          withEnv([
-            'TVM_NUM_SHARDS=2',
-            'TVM_SHARD_INDEX=0'], {
-            ci_arm = params.ci_arm_param ?: ci_arm
-            ci_cpu = params.ci_cpu_param ?: ci_cpu
-            ci_gpu = params.ci_gpu_param ?: ci_gpu
-            ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
-            ci_i386 = params.ci_i386_param ?: ci_i386
-            ci_lint = params.ci_lint_param ?: ci_lint
-            ci_qemu = params.ci_qemu_param ?: ci_qemu
-            ci_wasm = params.ci_wasm_param ?: ci_wasm
+        ci_arm = params.ci_arm_param ?: ci_arm
+        ci_cpu = params.ci_cpu_param ?: ci_cpu
+        ci_gpu = params.ci_gpu_param ?: ci_gpu
+        ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
+        ci_i386 = params.ci_i386_param ?: ci_i386
+        ci_lint = params.ci_lint_param ?: ci_lint
+        ci_qemu = params.ci_qemu_param ?: ci_qemu
+        ci_wasm = params.ci_wasm_param ?: ci_wasm
 
-            sh (script: """
-              echo "Docker images being used in this build:"
-              echo " ci_arm = ${ci_arm}"
-              echo " ci_cpu = ${ci_cpu}"
-              echo " ci_gpu = ${ci_gpu}"
-              echo " ci_hexagon = ${ci_hexagon}"
-              echo " ci_i386 = ${ci_i386}"
-              echo " ci_lint = ${ci_lint}"
-              echo " ci_qemu = ${ci_qemu}"
-              echo " ci_wasm = ${ci_wasm}"
-            """, label: 'Docker image names')
+        sh (script: """
+          echo "Docker images being used in this build:"
+          echo " ci_arm = ${ci_arm}"
+          echo " ci_cpu = ${ci_cpu}"
+          echo " ci_gpu = ${ci_gpu}"
+          echo " ci_hexagon = ${ci_hexagon}"
+          echo " ci_i386 = ${ci_i386}"
+          echo " ci_lint = ${ci_lint}"
+          echo " ci_qemu = ${ci_qemu}"
+          echo " ci_wasm = ${ci_wasm}"
+        """, label: 'Docker image names')
 
-            is_docs_only_build = sh (
-              returnStatus: true,
-              script: './tests/scripts/git_change_docs.sh',
-              label: 'Check for docs only changes',
-            )
-            skip_ci = should_skip_ci(env.CHANGE_ID)
-            skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
-            rebuild_docker_images = sh (
-              returnStatus: true,
-              script: './tests/scripts/git_change_docker.sh',
-              label: 'Check for any docker changes',
-            )
-            if (skip_ci) {
-              // Don't rebuild when skipping CI
-              rebuild_docker_images = false
-            }
-            if (rebuild_docker_images) {
-              // Exit before linting so we can use the newly created Docker images
-              // to run the lint
-              return
-            }
-            sh (
-              script: "${docker_run} ${ci_lint} ./tests/scripts/task_lint.sh",
-              label: 'Run lint',
-            )
-          })
+        is_docs_only_build = sh (
+          returnStatus: true,
+          script: './tests/scripts/git_change_docs.sh',
+          label: 'Check for docs only changes',
+        )
+        skip_ci = should_skip_ci(env.CHANGE_ID)
+        skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
+        rebuild_docker_images = sh (
+          returnStatus: true,
+          script: './tests/scripts/git_change_docker.sh',
+          label: 'Check for any docker changes',
+        )
+        if (skip_ci) {
+          // Don't rebuild when skipping CI
+          rebuild_docker_images = false
         }
       }
     }
-  },
-  'Lint 2 of 2': {
-    node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/lint") {
-        init_git()
-        timeout(time: max_time, unit: 'MINUTES') {
-          withEnv([
-            'TVM_NUM_SHARDS=2',
-            'TVM_SHARD_INDEX=1'], {
-            ci_arm = params.ci_arm_param ?: ci_arm
-            ci_cpu = params.ci_cpu_param ?: ci_cpu
-            ci_gpu = params.ci_gpu_param ?: ci_gpu
-            ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
-            ci_i386 = params.ci_i386_param ?: ci_i386
-            ci_lint = params.ci_lint_param ?: ci_lint
-            ci_qemu = params.ci_qemu_param ?: ci_qemu
-            ci_wasm = params.ci_wasm_param ?: ci_wasm
-
-            sh (script: """
-              echo "Docker images being used in this build:"
-              echo " ci_arm = ${ci_arm}"
-              echo " ci_cpu = ${ci_cpu}"
-              echo " ci_gpu = ${ci_gpu}"
-              echo " ci_hexagon = ${ci_hexagon}"
-              echo " ci_i386 = ${ci_i386}"
-              echo " ci_lint = ${ci_lint}"
-              echo " ci_qemu = ${ci_qemu}"
-              echo " ci_wasm = ${ci_wasm}"
-            """, label: 'Docker image names')
-
-            is_docs_only_build = sh (
-              returnStatus: true,
-              script: './tests/scripts/git_change_docs.sh',
-              label: 'Check for docs only changes',
-            )
-            skip_ci = should_skip_ci(env.CHANGE_ID)
-            skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
-            rebuild_docker_images = sh (
-              returnStatus: true,
-              script: './tests/scripts/git_change_docker.sh',
-              label: 'Check for any docker changes',
-            )
-            if (skip_ci) {
-              // Don't rebuild when skipping CI
-              rebuild_docker_images = false
-            }
-            if (rebuild_docker_images) {
-              // Exit before linting so we can use the newly created Docker images
-              // to run the lint
-              return
-            }
-            sh (
-              script: "${docker_run} ${ci_lint} ./tests/scripts/task_lint.sh",
-              label: 'Run lint',
-            )
-          })
-        }
-      }
-    }
-  },
-  )
+  }
 }
-}
-
-// [note: method size]
-// This has to be extracted into a method due to JVM limitations on the size of
-// a method (so the code can't all be inlined)
-lint()
-
 def build_image(image_name) {
   hash = sh(
     returnStdout: true,
@@ -378,7 +298,7 @@ def build_image(image_name) {
   )
 }
 
-if (rebuild_docker_images) {
+def build_docker_images() {
   stage('Docker Image Build') {
     // TODO in a follow up PR: Find ecr tag and use in subsequent builds
     parallel 'ci-lint': {
@@ -481,11 +401,46 @@ def make(docker_type, path, make_flag) {
     }
   }
 }
-
-// Filenames for stashing between build and test steps
-s3_prefix = "tvm-jenkins-artifacts-prod/tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"
-
-
+def lint() {
+  stage('Lint') {
+    parallel(
+  'Lint 1 of 2': {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/lint") {
+        init_git()
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv([
+            'TVM_NUM_SHARDS=2',
+            'TVM_SHARD_INDEX=0'], {
+            sh (
+                script: "${docker_run} ${ci_lint} ./tests/scripts/task_lint.sh",
+                label: 'Run lint',
+              )
+          })
+        }
+      }
+    }
+  },
+  'Lint 2 of 2': {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/lint") {
+        init_git()
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv([
+            'TVM_NUM_SHARDS=2',
+            'TVM_SHARD_INDEX=1'], {
+            sh (
+                script: "${docker_run} ${ci_lint} ./tests/scripts/task_lint.sh",
+                label: 'Run lint',
+              )
+          })
+        }
+      }
+    }
+  },
+    )
+  }
+}
 def ci_setup(image) {
   sh (
     script: "${docker_run} ${image} ./tests/scripts/task_ci_setup.sh",
@@ -528,7 +483,6 @@ def add_microtvm_permissions() {
     label: 'Add execute permissions for microTVM files',
   )
 }
-
 
 def build() {
 stage('Build') {
@@ -771,10 +725,6 @@ stage('Build') {
   )
 }
 }
-
-// [note: method size]
-build()
-
 def test() {
 stage('Test') {
   environment {
@@ -1845,10 +1795,6 @@ stage('Test') {
   )
 }
 }
-
-// [note: method size]
-test()
-
 /*
 stage('Build packages') {
   parallel 'conda CPU': {
@@ -1907,11 +1853,13 @@ def deploy_docs() {
   }
 }
 
-stage('Deploy') {
-  if (env.BRANCH_NAME == 'main' && env.DOCS_DEPLOY_ENABLED == 'yes') {
-    node('CPU') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docs") {
-        sh(
+
+def deploy() {
+  stage('Deploy') {
+    if (env.BRANCH_NAME == 'main' && env.DOCS_DEPLOY_ENABLED == 'yes') {
+      node('CPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docs") {
+          sh(
             script: """
               set -eux
               aws s3 cp --no-progress s3://${s3_prefix}/docs/docs.tgz docs.tgz
@@ -1920,8 +1868,26 @@ stage('Deploy') {
             label: 'Download artifacts from S3',
           )
 
-        deploy_docs()
+          deploy_docs()
+        }
       }
     }
   }
 }
+
+
+cancel_previous_build()
+
+prepare()
+
+if (rebuild_docker_images) {
+  build_docker_images()
+}
+
+lint()
+
+build()
+
+test()
+
+deploy()
