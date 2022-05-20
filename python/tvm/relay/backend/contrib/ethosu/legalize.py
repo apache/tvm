@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, import-outside-toplevel, no-value-for-parameter
 """A set of passes to legalize some of operations for the NPU"""
-from typing import List, Type, Callable, Any, Dict
+from typing import List, Type, Callable
 import math
 
 import numpy as np  # type: ignore
