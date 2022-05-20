@@ -313,7 +313,8 @@ void VirtualMachine::SetInputTensorWithIndex(std::vector<ObjectRef>& tensors,
     DLTensor* tensor = inp_tensor;
     if (dev.device_type == tensor->device.device_type &&
         dev.device_id == tensor->device.device_id &&
-        reinterpret_cast<size_t>(tensor->data) % tvm::runtime::kAllocAlignment == 0) {
+        reinterpret_cast<size_t>(static_cast<char*>(tensor->data) + tensor->byte_offset) %
+                tvm::runtime::kAllocAlignment == 0) {
       tensors[index] = NDArray::FromExternalDLTensor(*tensor);
     } else {
       tensors[index] = NDArray::NewFromDLTensor(tensor, dev);
