@@ -67,13 +67,13 @@ namespace tvm {
   static constexpr const char* _type_key = TypeKey;              \
   TVM_DECLARE_FINAL_OBJECT_INFO(ClassName, ::tvm::BaseAttrsNode) \
   template <typename FVisit>                                     \
-  void __VisitAttrs__(FVisit& __fvisit__)  // NOLINT(*)
+  void _tvm_VisitAttrs(FVisit& _tvm_fvisit)  // NOLINT(*)
 
 /*!
  * \brief Declare an attribute field.
  * \param FieldName The field name.
  */
-#define TVM_ATTR_FIELD(FieldName) __fvisit__(#FieldName, &FieldName)
+#define TVM_ATTR_FIELD(FieldName) _tvm_fvisit(#FieldName, &FieldName)
 
 /*!
  * \brief Create a NodeRef type that represents null.
@@ -835,12 +835,12 @@ class AttrsNode : public BaseAttrsNode {
  public:
   void VisitAttrs(AttrVisitor* v) {
     ::tvm::detail::AttrNormalVisitor vis(v);
-    self()->__VisitAttrs__(vis);
+    self()->_tvm_VisitAttrs(vis);
   }
 
   void VisitNonDefaultAttrs(AttrVisitor* v) {
     ::tvm::detail::AttrNonDefaultVisitor vis(v);
-    self()->__VisitAttrs__(vis);
+    self()->_tvm_VisitAttrs(vis);
   }
 
   void InitByPackedArgs(const runtime::TVMArgs& args, bool allow_unknown) final {
@@ -861,7 +861,7 @@ class AttrsNode : public BaseAttrsNode {
         return false;
       };
       auto vis = ::tvm::detail::CreateInitVisitor(DerivedType::_type_key, ffind);
-      self()->__VisitAttrs__(vis);
+      self()->_tvm_VisitAttrs(vis);
       hit_count = vis.hit_count_;
     } else {
       // construct a map then do lookup.
@@ -879,7 +879,7 @@ class AttrsNode : public BaseAttrsNode {
         return false;
       };
       auto vis = ::tvm::detail::CreateInitVisitor(DerivedType::_type_key, ffind);
-      self()->__VisitAttrs__(vis);
+      self()->_tvm_VisitAttrs(vis);
       hit_count = vis.hit_count_;
     }
     // error handling, slow path
@@ -887,7 +887,7 @@ class AttrsNode : public BaseAttrsNode {
       for (int i = 0; i < args.size(); i += 2) {
         ::tvm::detail::AttrExistVisitor visitor;
         visitor.key_ = args[i].operator std::string();
-        self()->__VisitAttrs__(visitor);
+        self()->_tvm_VisitAttrs(visitor);
         if (!visitor.exist_) {
           std::ostringstream os;
           os << DerivedType::_type_key << ": does not have field \'" << visitor.key_
@@ -903,18 +903,18 @@ class AttrsNode : public BaseAttrsNode {
   bool SEqualReduce(const DerivedType* other, SEqualReducer equal) const {
     DerivedType* pself = self();
     ::tvm::detail::AttrsSEqualVisitor visitor(pself, other, equal);
-    self()->__VisitAttrs__(visitor);
+    self()->_tvm_VisitAttrs(visitor);
     return visitor.result_;
   }
 
   void SHashReduce(SHashReducer hash_reducer) const {
     ::tvm::detail::AttrsSHashVisitor visitor(hash_reducer);
-    self()->__VisitAttrs__(visitor);
+    self()->_tvm_VisitAttrs(visitor);
   }
 
   Array<AttrFieldInfo> ListFieldInfo() const final {
     ::tvm::detail::AttrDocVisitor visitor;
-    self()->__VisitAttrs__(visitor);
+    self()->_tvm_VisitAttrs(visitor);
     return visitor.fields_;
   }
 
