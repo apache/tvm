@@ -422,7 +422,9 @@ def _write_tir_and_build_operator_memory_map(src_dir, targets, ir_module_by_targ
         return shape
 
     memory_map = {}
-    for target_device_type, target in targets.items():
+    for target in targets:
+        # TODO(mbs): The device type is not unique, better would be to use target.kind.name
+        target_device_type = target.kind.device_type
         ir_mod = ir_module_by_target[target]
         printer = get_global_func("tir.ModelLibraryFormatPrinter")(False, None, False)
         with open(src_dir / f"tir-{target_device_type}.txt", "w") as f:
@@ -467,7 +469,7 @@ def _export_operator_model_library_format(mod: build_module.OperatorModule, temp
                 "Model Library Format"
             )
 
-        targets += target
+        targets.append(target)
 
     src_dir = tempdir / "src"
     src_dir.mkdir()
