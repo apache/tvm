@@ -252,6 +252,8 @@ class Target(Object):
                 "Please pass in tvm.target.Target(target, host=target_host) instead."
             )
             target = target.with_host(target_host)
+        if target is not None:
+            target_host = target.host
         return target, target_host
 
     @staticmethod
@@ -270,7 +272,7 @@ class Target(Object):
             return None
         if isinstance(multi_targets, (dict, Map)) and "kind" not in multi_targets:
             # Convert legacy heterogeneous map representation to ordinary list of targets.
-            return Target.canon_multi_target(multi_targets.values())
+            return Target.canon_multi_target(list(multi_targets.values()))
         if isinstance(multi_targets, (list, Array)):
             # Multiple Target results.
             return convert([Target.canon_target(tgt) for tgt in multi_targets])
@@ -317,6 +319,7 @@ class Target(Object):
             assert tgt is not None
             if target_host is not None:
                 tgt = tgt.with_host(target_host)
+            target_host = tgt.host
             new_target_map[tgt] = mod
         return new_target_map, target_host
 

@@ -460,7 +460,7 @@ def _export_operator_model_library_format(mod: build_module.OperatorModule, temp
     file_name : str
         Path to the .tar archive to generate.
     """
-    targets = {}
+    targets = []
     for target in mod.ir_module_by_target.keys():
         if str(target.kind) not in ("llvm", "c"):
             raise UnsupportedInModelLibraryFormatError(
@@ -468,7 +468,7 @@ def _export_operator_model_library_format(mod: build_module.OperatorModule, temp
                 "Model Library Format"
             )
 
-        targets[int(_nd.device(str(target)).device_type)] = target
+        targets += target
 
     src_dir = tempdir / "src"
     src_dir.mkdir()
@@ -479,7 +479,7 @@ def _export_operator_model_library_format(mod: build_module.OperatorModule, temp
         "model_name": mod.name,
         "export_datetime": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%SZ"),
         "memory": memory_map,
-        "target": {k: str(v) for k, v in targets.items()},
+        "target": [str(t) for t in targets],
         "executors": [],
         "style": "operator",
     }
