@@ -14,10 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""
+Graph split Helper function.
+========================
+Helper definition for graph split.
+"""
 import tvm
 from tvm import relay
-from tvm.testing import utils
 from tvm.relay import transform, build_module
 from tvm.relay.testing import run_opt_pass
 
@@ -26,7 +29,7 @@ def graph_split(expr, split_conf, params=None):
     """Splitting the graph into a list of subgraphs"""
 
     def get_dep_var(sub_var_dep):
-        return [var for var in sub_var_dep[len(sub_var_dep) - 1]["ref_nodes"]]
+        return list(sub_var_dep[-1]["ref_nodes"].keys())
 
     def parse_dependency(value, snode_dep, new_input_idx):
         new_args = []
@@ -87,7 +90,6 @@ def graph_split(expr, split_conf, params=None):
                 else:
                     constant_expr = tvm.relay.expr.Let(anf.var, value, constant_expr)
             if isinstance(value, tvm.relay.expr.Call):
-                new_args = []
                 # build current var list
                 cur_node_dep["nodes"][anf.var] = 0
                 # Get the dependency information of the nodes.
@@ -137,8 +139,8 @@ def graph_split(expr, split_conf, params=None):
                 value,
                 _recursion(anf.body, pipeline_mods, split_conf, constant_expr),
             )
-        else:
-            return anf
+
+        return anf
 
     snode_dep = [{"nodes": {}, "ref_nodes": {}}]
     pipeline_mods = []
