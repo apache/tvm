@@ -39,6 +39,7 @@ def _concat(a_tuple, axis=0):
     """
 
     def gen_ir_1d(data_bufs, in_outers_tensor, in_cumsum_tensor, out_buf):
+        """Custom conactenation execution."""
         i_b = tvm.tir.ir_builder.create()
         data_bufs1 = [i_b.buffer_ptr(data_buf) for data_buf in data_bufs]
         out_buf = i_b.buffer_ptr(out_buf)
@@ -50,6 +51,7 @@ def _concat(a_tuple, axis=0):
         return i_b.get()
 
     def gen_ir(data_bufs, in_outers_tensor, in_cumsum_tensor, out_buf, inner, outer):
+        """Common case of conactenation execution."""
         i_b = tvm.tir.ir_builder.create()
         data_bufs1 = [i_b.buffer_ptr(data_buf) for data_buf in data_bufs]
         out_buf = i_b.buffer_ptr(out_buf)
@@ -108,7 +110,7 @@ def _concat(a_tuple, axis=0):
 
 
 def concatenate(data: tvm.te.Tensor, axis: Optional[int] = 0):
-    """Join a sequence of arrays along an existing axis.
+    """Join a sequence of arrays along an existing axis. Optimized for CPU exeution.
 
     Parameters
     ----------
