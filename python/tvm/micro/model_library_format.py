@@ -31,7 +31,6 @@ from tvm.micro import get_standalone_crt_dir
 from .._ffi import get_global_func
 from ..contrib import utils
 from ..driver import build_module
-from ..runtime import ndarray as _nd
 from ..relay.backend import executor_factory
 from ..relay.backend.name_transforms import to_c_variable_style, prefix_generated_name
 from ..relay import param_dict
