@@ -253,6 +253,7 @@ class Target(Object):
             )
             target = target.with_host(target_host)
         if target is not None:
+            # In case the target already had a host, extract it here.
             target_host = target.host
         return target, target_host
 
@@ -319,6 +320,7 @@ class Target(Object):
             assert tgt is not None
             if target_host is not None:
                 tgt = tgt.with_host(target_host)
+            # In case the first target already has a host, extract it here.
             target_host = tgt.host
             new_target_map[tgt] = mod
         return new_target_map, target_host
