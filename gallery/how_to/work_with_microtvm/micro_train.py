@@ -370,6 +370,7 @@ model.fit(train_dataset, validation_data=validation_dataset, epochs=3, verbose=2
 # the conversion. By default, TFLite keeps the inputs and outputs of our model as floats, so we must
 # explicitly tell it to avoid this behavior.
 
+
 def representative_dataset():
     for image_batch, label_batch in full_dataset.take(10):
         yield [image_batch]
@@ -563,6 +564,8 @@ arduino_project = tvm.micro.generate_project(
 
 shutil.rmtree(f"{FOLDER}/models/project/build", ignore_errors=True)
 # sphinx_gallery_start_ignore
+from unittest.mock import MagicMock
+
 arduino_project = MagicMock()
 # sphinx_gallery_end_ignore
 arduino_project.build()

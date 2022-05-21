@@ -84,6 +84,7 @@ IGNORED_WARNINGS=(
     'autotvm:Cannot find config for target=llvm -keys=cpu -link-params=0'
     'autotvm:One or more operators have not been tuned. Please tune your model for better performance. Use DEBUG logging level to see more details.'
     'autotvm:Cannot find config for target=cuda -keys=cuda,gpu'
+    'absl:For model inputs containing unsupported operations'
 )
 
 JOINED_WARNINGS=$(join_by '|' "${IGNORED_WARNINGS[@]}")
