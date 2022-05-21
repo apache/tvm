@@ -14,20 +14,36 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""A postprocessor that adds thread binding to unbound blocks"""
+"""Auto-bind Rule that binds blocks to threads if needed"""
+from typing import List, Optional
 
-from tvm._ffi.registry import register_object
+from tvm._ffi import register_object
 
 from .. import _ffi_api
-from .postproc import Postproc
+from .schedule_rule import ScheduleRule
 
 
-@register_object("meta_schedule.RewriteUnboundBlock")
-class RewriteUnboundBlock(Postproc):
-    """A postprocessor that adds thread binding to unbound blocks"""
+@register_object("meta_schedule.AutoBind")
+class AutoBind(ScheduleRule):
+    """Auto bind loops around the block to BlockIdx and ThreadIdx
 
-    def __init__(self, max_threadblocks: int = 256) -> None:
+    Parameters
+    ----------
+    max_threadblocks: int
+        The maximum number of threadblock on GPU.
+    thread_extents: Optional[List[int]]
+        Candidates of thread axis extent.
+    """
+
+    def __init__(
+        self,
+        max_threadblocks: int = 256,
+        thread_extents: Optional[List[int]] = None,
+    ) -> None:
+        if thread_extents is None:
+            thread_extents = [32, 64, 128, 256, 512, 1024]
         self.__init_handle_by_constructor__(
-            _ffi_api.PostprocRewriteUnboundBlock,  # type: ignore # pylint: disable=no-member
+            _ffi_api.ScheduleRuleAutoBind,  # type: ignore # pylint: disable=no-member
             max_threadblocks,
+            thread_extents,
         )

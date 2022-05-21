@@ -1096,6 +1096,11 @@ def _conv2d_winograd_nhwc_impl(
         bgemm = auto_scheduler.rewrite_compute_body(bgemm, auto_scheduler_rewritten_layout)
 
     # inverse transform
+    if target is not None:
+        target_kind = "meta_schedule.winograd_inverse." + target.kind.name
+    else:
+        target_kind = "None"
+
     r_a = te.reduce_axis((0, alpha), "r_a")
     r_b = te.reduce_axis((0, alpha), "r_b")
     inverse = te.compute(
@@ -1106,7 +1111,7 @@ def _conv2d_winograd_nhwc_impl(
         name="inverse",
         attrs={
             "auto_scheduler_simplify_const_tensor_indices": ["vh", "vw", "r_a", "r_b"],
-            "schedule_rule": "meta_schedule.winograd_inverse",
+            "schedule_rule": target_kind,
         },
         # the attrs are necessary hints for the auto-scheduler
     )

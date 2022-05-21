@@ -14,16 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-The tvm.meta_schedule.schedule_rule package.
-Meta Schedule schedule rules are used for modification of
-blocks in a schedule. See also PostOrderApply.
-"""
-from .add_rfactor import AddRFactor
-from .auto_bind import AutoBind
-from .auto_inline import AutoInline
-from .cross_thread_reduction import CrossThreadReduction
-from .multi_level_tiling import MultiLevelTiling, MultiLevelTilingWithIntrin, ReuseType
-from .parallel_vectorize_unroll import ParallelizeVectorizeUnroll
-from .random_compute_location import RandomComputeLocation
-from .schedule_rule import PyScheduleRule, ScheduleRule
+"""Mutator that mutates the thread binding extent"""
+from tvm._ffi.registry import register_object
+
+from .. import _ffi_api
+from .mutator import Mutator
+
+
+@register_object("meta_schedule.MutateThreadBinding")
+class MutateThreadBinding(Mutator):
+    """Mutator that mutates the binding extent"""
+
+    def __init__(self) -> None:
+        """Mutator that mutates the binding extent"""
+        self.__init_handle_by_constructor__(
+            _ffi_api.MutateThreadBinding,  # type: ignore # pylint: disable=no-member
+        )
