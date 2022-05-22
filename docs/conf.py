@@ -203,7 +203,7 @@ latex_documents = [
 intersphinx_mapping = {
     "python": ("https://docs.python.org/{.major}".format(sys.version_info), None),
     # "numpy": ("https://numpy.org/doc/stable", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy-1.8.0/html-scipyorg/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy-1.8.0/", None),
     # "matplotlib": ("https://matplotlib.org/", None),
 }
 
