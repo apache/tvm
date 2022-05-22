@@ -27,7 +27,7 @@ INSTALLATION_PATH is the installation path for the CMSIS.
 EOF
 }
 
-if [ "$#" -lt 1 -o "$1" == "--help" -o "$1" == "-h" ]; then
+if [ "$#" -lt 1 ] || [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
     show_usage
     exit -1
 fi
