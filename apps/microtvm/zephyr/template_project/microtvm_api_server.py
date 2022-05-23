@@ -69,6 +69,8 @@ WEST_CMD = default = sys.executable + " -m west" if sys.executable else None
 
 ZEPHYR_BASE = os.getenv("ZEPHYR_BASE")
 
+CMSIS_PATH = os.getenv("CMSIS_PATH")
+
 # Data structure to hold the information microtvm_api_server.py needs
 # to communicate with each of these boards.
 try:
@@ -332,6 +334,13 @@ def get_zephyr_base(options: dict):
     return zephyr_base
 
 
+def get_cmsis_path(options: dict):
+    """Returns CMSIS dependency path"""
+    cmsis_path = options.get("cmsis_path", CMSIS_PATH)
+    assert cmsis_path, "'cmsis_path' option not passed and not found by default!"
+    return cmsis_path
+
+
 class Handler(server.ProjectAPIHandler):
     def __init__(self):
         super(Handler, self).__init__()
@@ -423,10 +432,10 @@ class Handler(server.ProjectAPIHandler):
 
         return float(f"{version_major}.{version_minor}")
 
-    def _load_cmsis(self, lib_path: Union[str, pathlib.Path]):
+    def _load_cmsis(self, lib_path: Union[str, pathlib.Path], cmsis_path: Union[str, pathlib.Path]):
         """Copy CMSIS header files to generated project."""
 
-        cmsis_path = pathlib.Path(os.environ["CMSIS_PATH"])
+        cmsis_path = pathlib.Path(cmsis_path)
 
         lib_path = pathlib.Path(lib_path)
         if not lib_path.exists():
@@ -444,6 +453,17 @@ class Handler(server.ProjectAPIHandler):
             for item in src.iterdir():
                 if not item.is_dir():
                     shutil.copy(item, dest / item.name)
+
+    def _cmsis_required(self, project_path: Union[str, pathlib.Path]) -> bool:
+        """Check if CMSIS dependency is required."""
+        project_path = pathlib.Path(project_path)
+        for path in (project_path / "codegen" / "host" / "src").iterdir():
+            if path.is_file():
+                with open(path, "r") as lib_f:
+                    lib_content = lib_f.read()
+                if "<arm_nnsupportfunctions.h>" in lib_content and "<arm_math.h>" in lib_content:
+                    return True
+        return False
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # Check Zephyr version
@@ -477,13 +497,8 @@ class Handler(server.ProjectAPIHandler):
             tf.extractall(path=extract_path)
 
         # Add CMSIS libraries if required.
-        if options["project_type"] == "host_driven":
-            lib2_path = pathlib.Path(extract_path) / "codegen" / "host" / "src" / "default_lib2.c"
-            if lib2_path.exists():
-                with open(lib2_path, "r") as lib1_f:
-                    lib2_content = lib1_f.read()
-                if "<arm_nnsupportfunctions.h>" in lib2_content and "<arm_math.h>" in lib2_content:
-                    self._load_cmsis(pathlib.Path(project_dir) / "include")
+        if self._cmsis_required(extract_path):
+            self._load_cmsis(pathlib.Path(project_dir) / "include", get_cmsis_path(options))
 
         if self._is_qemu(options):
             shutil.copytree(API_SERVER_DIR / "qemu-hack", project_dir / "qemu-hack")

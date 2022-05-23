@@ -555,13 +555,22 @@ def test_schedule_build_with_cmsis_dependency(temp_dir, board, west_cmd, tvm_deb
         "zephyr_board": board,
     }
 
+    project_dir = temp_dir / "project"
     project = tvm.micro.generate_project(
         str(test_utils.TEMPLATE_PROJECT_DIR),
         mod,
-        temp_dir / "project",
+        project_dir,
         project_options,
     )
     project.build()
+
+    generated_project_include_files = []
+    for path in (project_dir / "include").iterdir():
+        if path.is_file():
+            generated_project_include_files.append(path.name)
+
+    assert "arm_math.h" in generated_project_include_files
+    assert "arm_nnsupportfunctions.h" in generated_project_include_files
 
 
 if __name__ == "__main__":
