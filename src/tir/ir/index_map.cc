@@ -77,16 +77,16 @@ std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initia
   // indices.
   arith::Analyzer analyzer;
   auto padded_iter_map =
-      DetectPaddedIterMap((*this)->final_indices, input_iters, /* predicate = */ 1,
-                          /* require_bijective = */ false, &analyzer,
-                          /* simplify_trivial_iterators = */ false);
-  CHECK(padded_iter_map.errors.empty()) << "Could not parse mapping as sum of iterators.  "
-                                        << "Error: " << padded_iter_map.errors[0];
+      DetectIterMap((*this)->final_indices, input_iters, /* predicate = */ 1,
+                    /* check_level = */ arith::IterMapLevel::Injective, &analyzer,
+                    /* simplify_trivial_iterators = */ false);
+  CHECK(padded_iter_map->errors.empty()) << "Could not parse mapping as sum of iterators.  "
+                                         << "Error: " << padded_iter_map->errors[0];
 
   // Determine expressions for the input variables, in terms of the
   // output variables.
   Map<Var, PrimExpr> inverse_exprs_map = InverseAffineIterMap(
-      padded_iter_map.indices, Array<PrimExpr>(output_vars.begin(), output_vars.end()));
+      padded_iter_map->indices, Array<PrimExpr>(output_vars.begin(), output_vars.end()));
 
   // Unpack the map to an array, maintaining the same parameter order.
   Array<PrimExpr> inverse_exprs;
@@ -94,7 +94,7 @@ std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initia
     inverse_exprs.push_back(inverse_exprs_map.at(index));
   }
 
-  PrimExpr padding_predicate = padded_iter_map.padding_predicate;
+  PrimExpr padding_predicate = padded_iter_map->padding_predicate;
   padding_predicate = arith::NormalizeIterMapToExpr(padding_predicate);
   padding_predicate = Substitute(padding_predicate, inverse_exprs_map);
 
@@ -141,14 +141,14 @@ IndexMap IndexMap::Inverse(Array<Range> initial_ranges) const {
   // indices.
   arith::Analyzer analyzer;
   auto iter_map = DetectIterMap((*this)->final_indices, input_iters, /* predicate = */ 1,
-                                /* require_bijective = */ true, &analyzer,
+                                /* require_bijective = */ arith::IterMapLevel::Bijective, &analyzer,
                                 /* simplify_trivial_iterators = */ false);
-  CHECK(iter_map.size()) << "Index transformation was not bijective.";
+  CHECK(iter_map->indices.size()) << "Index transformation was not bijective.";
 
   // Determine expressions for the input variables, in terms of the
   // output variables.
-  Map<Var, PrimExpr> inverse_exprs_map =
-      InverseAffineIterMap(iter_map, Array<PrimExpr>(output_vars.begin(), output_vars.end()));
+  Map<Var, PrimExpr> inverse_exprs_map = InverseAffineIterMap(
+      iter_map->indices, Array<PrimExpr>(output_vars.begin(), output_vars.end()));
 
   // Unpack the map to an array, maintaining the same parameter order.
   Array<PrimExpr> inverse_exprs;

@@ -1273,7 +1273,7 @@ def test_compute_at_non_perfect_channel_group():
         for c_o in range(2):
             for ax0 in range(23):
                 with T.block("init"):
-                    vi = T.axis.spatial(45, c_o * 360 // 16 + ax0)
+                    vi = T.axis.spatial(45, c_o * 22 + ax0)
                     B[vi] = vi
             for h, w, c_i in T.grid(8, 8, 360):
                 with T.block("compute"):
@@ -1287,10 +1287,7 @@ def test_compute_at_non_perfect_channel_group():
         sch.compute_at(sch.get_block("init"), loop)
         tvm.ir.assert_structural_equal(sch.mod["main"], grouped_channel_bias_non_perfect_tiled)
 
-    check_sched("none")
-    with pytest.raises(tvm.TVMError, match="region_cover"):
-        # TODO: try fix region cover proof
-        check_sched("all")
+    check_sched("all")
 
 
 def test_fail_subtree_complete_block():

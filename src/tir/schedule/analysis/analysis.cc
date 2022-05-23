@@ -533,16 +533,16 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
   if (loop_var_ranges.empty()) {
     return true;
   }
-  Array<arith::IterSumExpr> results = arith::DetectIterMap(
+  auto res = arith::DetectIterMap(
       /*indices=*/realize->iter_values,
       /*input_iters=*/loop_var_ranges,
       /*predicate=*/realize->predicate,
-      /*require_bijective=*/false,
+      /*check_level=*/arith::IterMapLevel::Surjective,
       /*analyzer=*/analyzer);
-  if (results.empty()) {
+  if (res->indices.empty()) {
     return false;
   }
-  for (const arith::IterSumExpr& sum_expr : results) {
+  for (const arith::IterSumExpr& sum_expr : res->indices) {
     const Array<arith::IterSplitExpr>& args = sum_expr->args;
     if (!args.empty() && !is_one(args[0]->scale)) {
       return false;

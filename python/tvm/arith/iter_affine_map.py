@@ -117,14 +117,14 @@ def detect_iter_map(
 
     Returns
     -------
-    results : List[IterSumExpr]
+    results : IterMapResult
         The iter map matching result.
-        Empty array if no match can be found.
+        The result's .indices is empty array if no match can be found.
 
     """
     return _ffi_api.DetectIterMap(
         indices, input_iters, predicate, require_bijective, simplify_trivial_iterators
-    )
+    ).indices
 
 
 def normalize_iter_map_to_expr(expr):

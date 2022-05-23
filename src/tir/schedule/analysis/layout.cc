@@ -77,8 +77,11 @@ class SplitExprCollector {
                                         const PrimExpr& predicate,           //
                                         bool require_bijective,              //
                                         arith::Analyzer* analyzer) {
-    Array<arith::IterSumExpr> iter_sum_exprs = arith::DetectIterMap(
-        {analyzer->Simplify(index)}, input_iters, predicate, require_bijective, analyzer);
+    auto check_level =
+        require_bijective ? arith::IterMapLevel::Bijective : arith::IterMapLevel::Surjective;
+    arith::IterMapResult res = arith::DetectIterMap({analyzer->Simplify(index)}, input_iters,
+                                                    predicate, check_level, analyzer);
+    const auto& iter_sum_exprs = res->indices;
     if (iter_sum_exprs.empty()) {
       return {};
     }

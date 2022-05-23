@@ -16,7 +16,6 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import te
 from tvm.tir import floormod, floordiv
 
 
@@ -385,8 +384,15 @@ def test_predicate():
         [(i * 32 + j) % 16],
         var_dom([(i, 5), (j, 32)]),
         tvm.tir.all(1 <= i * 32 + j, i * 32 + j <= 32),
+        require_bijective=True,
     )
     assert len(res) == 0
+    res = tvm.arith.detect_iter_map(
+        [(i * 32 + j) % 16],
+        var_dom([(i, 5), (j, 32)]),
+        tvm.tir.all(1 <= i * 32 + j, i * 32 + j <= 32),
+    )
+    assert_iter_sum_pattern(res[0], 16, 0)
     res = tvm.arith.detect_iter_map(
         [(i * 32 + j - 1) % 16, (i * 32 + j - 1) // 16],
         var_dom([(i, 5), (j, 32)]),
@@ -942,6 +948,87 @@ def test_free_variables():
         ),
     )
     assert_iter_sum_pattern(res[0], 9, z * z)
+
+
+def test_padding():
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    fld = tvm.tir.floordiv
+    flm = tvm.tir.floormod
+
+    def assert_padding_pattern(expect_dict, dom_map, predicate=True, require_bijective=False):
+        keys = list(expect_dict.keys())
+        res = tvm.arith.detect_iter_map(
+            keys, dom_map, predicate=predicate, require_bijective=require_bijective
+        )
+        assert len(res) == len(keys)
+        print(res)
+        for i, iter_expr in enumerate(keys):
+            extent, base, scale = expect_dict[iter_expr]
+            assert_iter_sum_pattern(res[i], extent, base, scale)
+
+    def assert_padding_pattern_failure(iters, dom_map, predicate=True, require_bijective=False):
+        res = tvm.arith.detect_iter_map(
+            list(iters), dom_map, predicate=predicate, require_bijective=False
+        )
+        assert len(res) == 0
+
+    # left padding only, offset divisible
+    sum = 64 + y
+    dom_map = var_dom([(y, 192)])
+    assert_padding_pattern(
+        {fld(sum, 32): (6, 2, 1), flm(sum, 32): (32, 0, 1)},
+        dom_map,
+        require_bijective=True,
+    )
+
+    # left padding only, offset non-divisible
+    sum = 80 + y
+    dom_map = var_dom([(y, 176)])
+    assert_padding_pattern(
+        {fld(sum, 32): (6, 2, 1)},
+        dom_map,
+    )
+    assert_padding_pattern(
+        {flm(fld(sum, 2), 16): (16, 0, 1), flm(sum, 2): (2, 0, 1)},
+        dom_map,
+    )
+    assert_padding_pattern_failure({fld(sum, 32), flm(sum, 32)}, dom_map)
+
+    # right padding only, offset divisible
+    sum = x * 32 + y * 8
+    dom_map = var_dom([(x, 5), (y, 4)])
+    assert_padding_pattern(
+        {fld(sum, 16): (10, 0, 1), flm(sum, 16): (2, 0, 8)},
+        dom_map,
+    )
+    assert_padding_pattern_failure({fld(sum, 5)}, dom_map)
+
+    # right padding only, offset non-divisible
+    dom_map = var_dom([(x, 26)])
+    assert_padding_pattern(
+        {fld(x, 15): (2, 0, 1)},
+        dom_map,
+    )
+    assert_padding_pattern(
+        {flm(fld(x, 3), 5): (5, 0, 1), flm(x, 3): (3, 0, 1)},
+        dom_map,
+    )
+
+    # padding constants on both side
+    sum = x + 71
+    dom_map = var_dom([(x, 45)])
+    assert_padding_pattern({fld(sum, 32): (2, 2, 1)}, dom_map)
+    assert_padding_pattern(
+        {flm(fld(x, 4), 8): (8, 0, 1), flm(x, 4): (4, 0, 1)},
+        dom_map,
+    )
+
+    # padding for free iteration part
+    sum = x * 360 + y
+    dom_map = var_dom([(y, 360)])
+    assert_padding_pattern({fld(sum, 16): (23, fld(x * 360 - flm(x, 2) * 8, 16), 1)}, dom_map)
+    assert_padding_pattern({flm(x * 360 + y, 16): (16, 0, 1)}, dom_map)
 
 
 if __name__ == "__main__":
