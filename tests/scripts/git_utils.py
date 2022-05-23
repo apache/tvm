@@ -20,6 +20,7 @@ import json
 import subprocess
 import re
 import base64
+import logging
 from urllib import request
 from typing import Dict, Tuple, Any, Optional, List
 
