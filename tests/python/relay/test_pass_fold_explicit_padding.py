@@ -71,6 +71,9 @@ def test_simplify_conv():
         mod1 = tvm.IRModule.from_expr(conv)
         mod2 = tvm.IRModule.from_expr(zz)
 
+        op_freqs = relay.analysis.list_op_freqs(mod2)
+        assert "nn.pad" not in op_freqs
+
         with tvm.transform.PassContext():
             func1 = relay.create_executor(
                 "vm", mod=mod1, device=tvm.cpu(), target="llvm"
@@ -81,11 +84,6 @@ def test_simplify_conv():
 
         result1 = func1(x_np, w_np)
         result2 = func2(x_np, w_np)
-        print("result", result1)
-
-        breakpoint()
-
-        # breakpoint()
 
         tvm.testing.assert_allclose(result1.numpy(), result2.numpy(), rtol=1e-5, atol=1e-5)
 
