@@ -108,7 +108,8 @@ class TestUnaryOp:
             # use graph by execuor default for testing, as we need
             # create function explicitly to avoid constant-folding.
             op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
-            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
+            tolerance = 1e-2 if dtype == "float16" else 1e-5
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=tolerance)
 
 
 @tvm.testing.uses_gpu
