@@ -22,7 +22,7 @@ from tvm import te
 from tvm.contrib import cublas
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from .. import nn, generic
-from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor, is_target
+from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor
 from .tensor_intrin import dp4a
 
 

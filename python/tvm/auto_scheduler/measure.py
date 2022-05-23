@@ -1286,7 +1286,7 @@ def rpc_runner_run(
     """
     assert len(inputs) == len(build_results), "Measure input size should be equal to build results"
     # This pool is not doing computationally intensive work, so we can use threads
-    executor = PopenPoolExecutor(n_parallel)
+    executor = PopenPoolExecutor(n_parallel, timeout=360)
     tuple_res = executor.map_with_error_catching(
         _rpc_run_worker,
         [

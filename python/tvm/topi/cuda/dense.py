@@ -24,7 +24,7 @@ from tvm.contrib import cublas
 from .tensor_intrin import dp4a
 from .. import tag
 from .. import generic
-from ..utils import traverse_inline, get_const_tuple, is_target
+from ..utils import traverse_inline, get_const_tuple
 
 logger = logging.getLogger("topi")
 
