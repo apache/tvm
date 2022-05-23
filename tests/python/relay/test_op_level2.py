@@ -1183,6 +1183,7 @@ def test_pool1d():
                 count_include_pad=False,
                 ceil_mode=False,
             )
+            breakpoint()
             for target, dev in tvm.testing.enabled_targets():
                 op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
                     data
@@ -1190,15 +1191,15 @@ def test_pool1d():
                 tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_pool1d(relay.nn.max_pool1d, "max")
-    _test_pool1d(relay.nn.max_pool1d, "max", dtype="int32")
-    _test_pool1d(relay.nn.max_pool1d, "max", pool_size=2, strides=2, padding=0)
-    _test_pool1d(relay.nn.max_pool1d, "max", pool_size=2, strides=2, padding=0, dilation=2)
-    _test_pool1d(relay.nn.avg_pool1d, "avg")
-    _test_pool1d(relay.nn.avg_pool1d, "avg", dtype="int32")
-    _test_pool1d(relay.nn.avg_pool1d, "avg", pool_size=2, strides=2, padding=0)
-    _test_pool1d(relay.nn.avg_pool1d, "avg", pool_size=2, strides=2, padding=0, dilation=2)
-    _test_global_pool1d(relay.nn.global_max_pool1d, np.max)
-    _test_global_pool1d(relay.nn.global_avg_pool1d, np.mean)
+    # _test_pool1d(relay.nn.max_pool1d, "max", dtype="int32")
+    # _test_pool1d(relay.nn.max_pool1d, "max", pool_size=2, strides=2, padding=0)
+    # _test_pool1d(relay.nn.max_pool1d, "max", pool_size=2, strides=2, padding=0, dilation=2)
+    # _test_pool1d(relay.nn.avg_pool1d, "avg")
+    # _test_pool1d(relay.nn.avg_pool1d, "avg", dtype="int32")
+    # _test_pool1d(relay.nn.avg_pool1d, "avg", pool_size=2, strides=2, padding=0)
+    # _test_pool1d(relay.nn.avg_pool1d, "avg", pool_size=2, strides=2, padding=0, dilation=2)
+    # _test_global_pool1d(relay.nn.global_max_pool1d, np.max)
+    # _test_global_pool1d(relay.nn.global_avg_pool1d, np.mean)
 
 
 @tvm.testing.uses_gpu

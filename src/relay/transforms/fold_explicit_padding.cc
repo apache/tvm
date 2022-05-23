@@ -35,7 +35,7 @@ namespace tvm {
 namespace relay {
 
 /*!
- * \brief SimplifyConvPad matches a pad followed by a conv/convtranspose/pool/etc
+ * \brief SimplifyConvPad matches a pad followed by a conv
  * with a pad attribute and merges the padding into the kernel.
  */
 class SimplifyConvPad {
@@ -61,15 +61,15 @@ class SimplifyConvPad {
     qconv2d_ = IsOp("qnn.conv2d")(
         {pad_, w_, input_zero_point_, kernel_zero_point_, input_scale_, kernel_scale_});
       
-    avg_pool1d_ = IsOp("nn.avg_pool1d");
-    avg_pool2d_ = IsOp("nn.avg_pool2d");
-    avg_pool3d_ = IsOp("nn.avg_pool3d");
-    max_pool1d_ = IsOp("nn.max_pool1d");
-    max_pool2d_ = IsOp("nn.max_pool2d");
-    max_pool3d_ = IsOp("nn.max_pool3d");
-    pool_ = (avg_pool1d_ || avg_pool2d_ || avg_pool3d_ || max_pool1d_ || max_pool2d_ || max_pool3d_)({pad_});
+    // avg_pool1d_ = IsOp("nn.avg_pool1d");
+    // avg_pool2d_ = IsOp("nn.avg_pool2d");
+    // avg_pool3d_ = IsOp("nn.avg_pool3d");
+    // max_pool1d_ = IsOp("nn.max_pool1d");
+    // max_pool2d_ = IsOp("nn.max_pool2d");
+    // max_pool3d_ = IsOp("nn.max_pool3d");
+    // pool_ = (avg_pool1d_ || avg_pool2d_ || avg_pool3d_ || max_pool1d_ || max_pool2d_ || max_pool3d_)({pad_});
 
-    pattern_ = conv_ || qconv2d_ || pool_;
+    pattern_ = conv_ || qconv2d_;  // || pool_;
   }
 
   template <typename T>
@@ -93,6 +93,10 @@ class SimplifyConvPad {
     new_attrs->data_layout = old_attrs->data_layout;
     new_attrs->kernel_layout = old_attrs->kernel_layout;
     new_attrs->out_layout = old_attrs->out_layout;
+
+    // TODO @anwang: Conv2d and Conv3d attrs additionally have auto_scheduler_rewritten_layout.
+    //  But that isn't passed through. When is that attr propagated? Is dropping it here
+    //  problematic?
     new_attrs->out_dtype = old_attrs->out_dtype;
     return Attrs(new_attrs);
   }
@@ -198,6 +202,144 @@ class SimplifyConvPad {
   DFPattern kernel_zero_point_;
   DFPattern input_scale_;
   DFPattern kernel_scale_;
+  // /*! \brief Pattern pool */
+  // DFPattern pool_;
+  // DFPattern avg_pool1d_;
+  // DFPattern avg_pool2d_;
+  // DFPattern avg_pool3d_;
+  // DFPattern max_pool1d_;
+  // DFPattern max_pool2d_;
+  // DFPattern max_pool3d_;
+};
+
+
+/*!
+ * \brief SimplifyPoolPad matches a pad followed by a conv/convtranspose/pool/etc
+ * with a pad attribute and merges the padding into the kernel.
+ */
+class SimplifyPoolPad {
+ public:
+  DFPattern pattern() const { return pattern_; }
+
+  SimplifyPoolPad() {
+    x_ = IsWildcard();
+    pad_ = IsOp("nn.pad")({x_, IsWildcard()});
+      
+    avg_pool1d_ = IsOp("nn.avg_pool1d");
+    avg_pool2d_ = IsOp("nn.avg_pool2d");
+    avg_pool3d_ = IsOp("nn.avg_pool3d");
+    max_pool1d_ = IsOp("nn.max_pool1d");
+    max_pool2d_ = IsOp("nn.max_pool2d");
+    max_pool3d_ = IsOp("nn.max_pool3d");
+    pool_ = (avg_pool1d_ || avg_pool2d_ || avg_pool3d_ || max_pool1d_ || max_pool2d_ || max_pool3d_)({pad_});
+
+    pattern_ = pool_;
+  }
+
+  template <typename T>
+  Attrs MakePoolAttrs(const T* old_attrs, const Array<PrimExpr> padding) const {
+    ICHECK(old_attrs);
+    ICHECK(padding.size() == old_attrs->padding.size())
+        << "Number of dimensions to pad and pool padding attributes should have the same "
+           "extent";
+
+    auto new_attrs = make_object<T>();
+    Array<PrimExpr> combined_padding;
+    std::cout << "old padding size " << padding.size() << std::endl;
+    for (size_t i = 0; i < padding.size(); ++i) {
+      auto added_item = padding[i] + old_attrs->padding[i];
+      std::cout << "added item " << added_item << std::endl;
+      combined_padding.push_back(added_item);
+    }
+    std::cout << "combined padding length " << combined_padding.size() << std::endl;
+
+    // TODO @anwang: generalize for avg pool as well, or split out?
+    new_attrs->pool_size = old_attrs->pool_size;
+    new_attrs->strides = old_attrs->strides;
+    new_attrs->dilation = old_attrs->dilation;
+    new_attrs->padding = combined_padding;
+    new_attrs->layout = old_attrs->layout;
+    new_attrs->out_layout = old_attrs->out_layout;
+    new_attrs->ceil_mode = old_attrs->ceil_mode;
+
+    return Attrs(new_attrs);
+  }
+
+  template <typename T>
+  Attrs GetAttrs(const PadAttrs* param, const T* attrs) const {
+    ICHECK(param);
+    ICHECK(attrs);
+    ICHECK(attrs->layout.size() == param->pad_width.size())
+        << "Data Layout and padding attributes should have the same extent";
+
+    // TODO @anwang: figure this part out, seems conv specific
+
+    std::string data_layout = attrs->layout;
+    std::set<char> image_dims({'H', 'W', 'D'});
+    Array<PrimExpr> padding;
+    // If we're padding a non-spatial dimension, don't simplify
+    // Pool can only pad on spatial axes
+    for (size_t i = 0; i < param->pad_width.size(); ++i) {
+      if (!image_dims.count(data_layout[i])) {
+        for (size_t j = 0; j < param->pad_width[i].size(); ++j) {
+          if (param->pad_width[i][j] != 0) {
+            return Attrs();
+          }
+        }
+      }
+    }
+    for (size_t j = 0; j < param->pad_width[0].size(); ++j) {
+      for (size_t i = 0; i < param->pad_width.size(); ++i) {
+        if (image_dims.count(data_layout[i])) {
+          padding.push_back(param->pad_width[i][j]);
+        }
+      }
+    }
+
+    return MakePoolAttrs(attrs, padding);
+  }
+
+  Expr callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const {
+    const CallNode* call_node = post.as<CallNode>();
+    ICHECK(call_node);
+    auto pad = node_map[pad_][0];
+    const CallNode* pad_node = pad.as<CallNode>();
+    ICHECK(pad_node);
+    const PadAttrs* param = pad_node->attrs.as<PadAttrs>();
+    ICHECK(param);
+    Array<Expr> args = pad_node->args;
+
+    auto x = node_map[x_][0];
+
+    // Possibly perform more optimizations if the pad_value is 0
+    const ConstantNode* pad_value = args[1].as<ConstantNode>();
+    if (param->pad_mode == "constant" && pad_value && ToScalar(pad_value->data) == 0.0) {
+      Attrs attrs;
+      if (node_map.count(max_pool1d_)) {
+        attrs = GetAttrs(param, call_node->attrs.as<MaxPool1DAttrs>());
+      } else if (node_map.count(max_pool2d_)) {
+        attrs = GetAttrs(param, call_node->attrs.as<MaxPool2DAttrs>());
+      } else if (node_map.count(max_pool3d_)) {
+        attrs = GetAttrs(param, call_node->attrs.as<MaxPool3DAttrs>());
+      } else {
+        return post;
+      }
+      if (!attrs.defined()) {
+        return post;
+      }
+      return Call(call_node->op, {x}, attrs, call_node->type_args, call_node->span);
+    }
+    return post;
+  }
+
+ private:
+  /*! \brief Pattern for rewriting */
+  DFPattern pattern_;
+  /*! \brief Pattern input */
+  DFPattern x_;
+  /*! \brief Pattern pad */
+  DFPattern pad_;
   /*! \brief Pattern pool */
   DFPattern pool_;
   DFPattern avg_pool1d_;
@@ -208,11 +350,14 @@ class SimplifyConvPad {
   DFPattern max_pool3d_;
 };
 
+
+
 class SimplifyExplicitPadding {
  public:
   explicit SimplifyExplicitPadding(IRModule mod) : mod_(mod) {
+    // CreateCallback(SimplifyPoolPad());
     CreateCallback(SimplifyConvPad());
-    // TODO(mbrookhart): ConvTranspose(Pad(x)), Pool(Pad(x))
+    // TODO(mbrookhart): ConvTranspose(Pad(x))
   }
   template <typename T>
   void CreateCallback(const T& pattern) {
