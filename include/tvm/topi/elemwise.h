@@ -513,6 +513,15 @@ inline Tensor fast_erf_float32(const Tensor& data, std::string name, std::string
 }
 
 /*!
+ * \brief Fast_erf_float expression from Eigen for float16.
+ */
+inline Tensor fast_erf_float16(const Tensor& data, std::string name, std::string tag) {
+  return compute(
+      data->shape, [&](const Array<Var>& i) { return fast_erf_float_expr(data(i), 16); }, name,
+      tag);
+}
+
+/*!
  * \brief Fast erf implementation
  *
  * \param x The input tensor
@@ -525,6 +534,9 @@ inline Tensor fast_erf(const Tensor& x, std::string name = "T_fast_erf",
                        std::string tag = kElementWise) {
   if (x->dtype == DataType::Float(32)) {
     auto ret = fast_erf_float32(x, name, tag);
+    return ret;
+  } else if (x->dtype == DataType::Float(16)) {
+    auto ret = fast_erf_float16(x, name, tag);
     return ret;
   } else {
     return topi::erf(x);
