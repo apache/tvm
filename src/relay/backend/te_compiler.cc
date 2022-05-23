@@ -926,17 +926,17 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, const Compila
   }
 
   for (const auto& dev_and_size : device_workspace) {
-    Target target = config->FindPrimitiveTargetOrFail(dev_and_size.first);
+    Target target = config->FindPrimitiveTargetForDeviceOrFail(dev_and_size.first);
     workspace_sizes.Set(target, dev_and_size.second);
     relay_primfuncs.Set(target, func);
   }
   for (const auto& dev_and_size : device_io) {
-    Target target = config->FindPrimitiveTargetOrFail(dev_and_size.first);
+    Target target = config->FindPrimitiveTargetForDeviceOrFail(dev_and_size.first);
     io_sizes.Set(target, dev_and_size.second);
   }
 
   for (const auto& dev_and_size : device_consts) {
-    Target target = config->FindPrimitiveTargetOrFail(dev_and_size.first);
+    Target target = config->FindPrimitiveTargetForDeviceOrFail(dev_and_size.first);
     ICHECK_EQ(constant_sizes.count(target), 0);
     constant_sizes.Set(target, dev_and_size.second);
   }

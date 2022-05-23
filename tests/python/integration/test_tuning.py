@@ -129,8 +129,8 @@ def teardown_module():
 
 
 def get_sample_task(target=tvm.target.cuda(), target_host=None):
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
     """return a sample task for testing"""
+    target, target_host = Target.canon_target_and_host(target, target_host)
     task = autotvm.task.create(
         "testing/conv2d_no_batching", args=(1, 7, 7, 512, 512, 3, 3), target=target
     )

@@ -44,9 +44,7 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
 
-    args.target, args.target_host = Target.check_and_update_host_consist(
-        args.target, args.target_host
-    )
+    args.target, args.target_host = Target.canon_target_and_host(args.target, args.target_host)
     measure_peak_all(args.target, args.target_host, args.rpc_host, args.rpc_port)
 
 
