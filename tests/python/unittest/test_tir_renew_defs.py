@@ -19,6 +19,7 @@ import pytest
 import sys
 
 import tvm
+import tvm.testing
 from tvm.script import tir as T
 from tvm.tir.buffer import Buffer
 from tvm.tir.function import PrimFunc
@@ -168,4 +169,4 @@ def test_symbolic_func():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

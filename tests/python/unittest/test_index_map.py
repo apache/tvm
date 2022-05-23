@@ -18,6 +18,7 @@
 import pytest
 
 import tvm
+import tvm.testing
 from tvm.tir import IndexMap
 from tvm.ir import assert_structural_equal
 
@@ -186,4 +187,4 @@ def test_nonsurjective_inverse(padding_test_case):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

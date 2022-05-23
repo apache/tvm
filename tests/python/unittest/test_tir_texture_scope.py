@@ -18,6 +18,7 @@
 import pytest
 
 import tvm
+import tvm.testing
 from tvm.ir.module import IRModule
 from tvm import tir
 from tvm.script import tir as T
@@ -59,4 +60,4 @@ def test_texture_scope():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()
