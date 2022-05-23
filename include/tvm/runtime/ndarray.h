@@ -169,16 +169,6 @@ class NDArray : public ObjectRef {
    */
   TVM_DLL static NDArray FromExternalDLTensor(DLTensor* dl_tensor, const Device& dst_dev);
   /*!
-   * \brief Create a NDArray backed by an external DLTensor.
-   *
-   * This allows us to create a NDArray using the memory
-   * allocated by an external source. Responsibility for memory
-   * retaining lies with the external source.
-   * \param dl_tensor The DLTensor to copy from.
-   * \return The created NDArray view.
-   */
-  TVM_DLL static NDArray FromExternalDLTensor(const DLTensor& dl_tensor);
-  /*!
    * \brief Create new NDArray, data is copied from DLTensor.
    *
    * \param dl_tensor The DLTensor to copy from.
@@ -209,6 +199,10 @@ class NDArray : public ObjectRef {
 
   TVM_DLL ShapeTuple Shape() const;
   TVM_DLL runtime::DataType DataType() const;
+  // internal namespace
+  struct Internal;
+
+ private:
   /*!
    * \brief Check conditions for construction NDArray over DLTensor without copying.
    * There are three conditions to check:
@@ -220,8 +214,16 @@ class NDArray : public ObjectRef {
    * \return true if all conditions are satisfied.
    */
   TVM_DLL static bool AbilityOfZeroCopyForDLTensor(DLTensor* tensor, const Device& dev);
-  // internal namespace
-  struct Internal;
+  /*!
+   * \brief Safeless create a NDArray backed by an external DLTensor.
+   *
+   * This allows us to create a NDArray using the memory
+   * allocated by an external source. Responsibility for memory
+   * retaining lies with the external source.
+   * \param dl_tensor The DLTensor to copy from.
+   * \return The created NDArray view.
+   */
+  TVM_DLL static NDArray FromExternalDLTensor(const DLTensor& dl_tensor);
 
  protected:
   friend class TVMPODValue_;
