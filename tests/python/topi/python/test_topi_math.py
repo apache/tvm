@@ -161,7 +161,7 @@ def ewise_ref_data(topi_name, dtype):
         a_np += ((np.abs(np.fmod(a_np, 1)) - 0.5) < 1e-6) * 1e-4
 
     b_np = config["ref"](a_np)
-    
+
     if config.get("cast_output", False):
         b_np = b_np.astype(dtype)
 

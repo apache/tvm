@@ -66,7 +66,9 @@ class TestUnaryOp:
 
     dtype = tvm.testing.parameter("float16", "float32")
 
-    relay_op, ref_func, supports_fp16 = tvm.testing.parameters(*op_list.values(), ids=op_list.keys())
+    relay_op, ref_func, supports_fp16 = tvm.testing.parameters(
+        *op_list.values(), ids=op_list.keys()
+    )
 
     def test_unary_op(self, target, dev, relay_op, ref_func, supports_fp16, dtype):
         target = tvm.target.Target(target)

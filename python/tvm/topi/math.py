@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Elementwise operators"""
-# pylint: disable=redefined-builtin
+# pylint: disable=redefined-builtin,unused-arguments
 import tvm
 from tvm import te
 from . import tag

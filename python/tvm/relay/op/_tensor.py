@@ -96,7 +96,7 @@ register_broadcast_schedule("fast_erf")
 @register_legalize("erf")
 def legalize_erf(attrs, inputs, types):
     """Legalize ERF op.
-    
+
     Parameters
     ----------
     attrs : tvm.ir.Attrs

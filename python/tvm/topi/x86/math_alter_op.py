@@ -50,9 +50,9 @@ def _erf_legalize(attrs, inputs, arg_types):
     data_dtype = data_tensor.dtype
     # If input is not fp32, we must cast to it.
     if data_dtype != "float32":
-       data = relay.cast(data, "float32")
-       output = relay.erf(data)
-       return relay.cast(output, data_dtype)
-    
+        data = relay.cast(data, "float32")
+        output = relay.erf(data)
+        return relay.cast(output, data_dtype)
+
     # Otherwise do nothing.
     return None

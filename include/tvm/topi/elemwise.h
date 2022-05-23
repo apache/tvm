@@ -538,8 +538,7 @@ inline Tensor fast_erf(const Tensor& x, std::string name = "T_fast_erf",
   } else if (x->dtype == DataType::Float(16)) {
     auto ret = fast_erf_float16(x, name, tag);
     return ret;
-  } 
-  else {
+  } else {
     return topi::erf(x);
   }
 }
