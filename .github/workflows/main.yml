@@ -146,8 +146,8 @@ jobs:
           export TVM_NDK_CC=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++
           export TVM_HOME=~/work/tvm/tvm
           export PYTHONPATH=$TVM_HOME/python:${PYTHONPATH}
-          python3 ../../python/gen_requirements.py
-          pip3 install -r ../../python/requirements/core.txt
+          python3 ${TVM_HOME}/python/gen_requirements.py
+          pip3 install -r ${TVM_HOME}/python/requirements/core.txt
           cd models
           pip3 install -r requirements.txt
           python3 prepare_model.py
