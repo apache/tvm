@@ -294,7 +294,7 @@ runtime::DataType NDArray::DataType() const {
 
 bool NDArray::AbilityOfZeroCopyForDLTensor(DLTensor* tensor, const Device& dev) {
   bool device_check = (dev.device_type == tensor->device.device_type);
-  bool device_id_check =(dev.device_id == tensor->device.device_id);
+  bool device_id_check = (dev.device_id == tensor->device.device_id);
   bool alignment_check =
       (reinterpret_cast<size_t>(static_cast<char*>(tensor->data) + tensor->byte_offset) %
            tvm::runtime::kAllocAlignment ==
