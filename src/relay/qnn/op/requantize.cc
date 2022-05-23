@@ -511,15 +511,9 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const Array<tvm::PrimExpr> oshape = data->shape;
   // assign output type
   auto out_dtype = requantize_attrs->out_dtype;
-<<<<<<< HEAD
-  // ICHECK(out_dtype == DataType::Int(8) || out_dtype == DataType::UInt(8) ||
-  //       out_dtype == DataType::Int(32))
-  //    << "Output type should be one of [int8, uint8, int32] but was " << out_dtype;
-=======
-  ICHECK(out_dtype == DataType::Int(8) || out_dtype == DataType::UInt(8) ||
-         out_dtype == DataType::Int(16) || out_dtype == DataType::Int(32))
-      << "Output type should be one of [int8, uint8, int16, int32] but was " << out_dtype;
->>>>>>> main
+  //ICHECK(out_dtype == DataType::Int(8) || out_dtype == DataType::UInt(8) ||
+  //       out_dtype == DataType::Int(16) || out_dtype == DataType::Int(32))
+  //    << "Output type should be one of [int8, uint8, int16, int32] but was " << out_dtype;
   reporter->Assign(types[5], TensorType(oshape, out_dtype));
   return true;
 }
