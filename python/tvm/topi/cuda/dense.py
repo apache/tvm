@@ -172,9 +172,7 @@ def _schedule_dense_int8(cfg, s, output):
     ko, ki = s[CC].split(ko, factor=4)
     ko, kt = cfg["tile_k"].apply(s, CC, ko)
     target = tvm.target.Target.current(allow_none=False)
-    do_tensorize = target.supports_integer_dot_product
-    if is_target(["vulkan", "rocm"]):
-        do_tensorize = "+dotprod" in target.mattr or target.supports_integer_dot_product
+    do_tensorize = "+dotprod" in target.mattr or target.supports_integer_dot_product
 
     if do_tensorize:
         dtypes = (data.dtype, weight.dtype)
