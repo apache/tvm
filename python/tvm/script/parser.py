@@ -786,9 +786,9 @@ class TVMScriptParser(Transformer):
             withitem = (expr context_expr, expr? optional_vars)
         By now 2 patterns of With is supported:
             1. with scope handler with symbol def
-                with T.block(*axes)/T.allocate() as targets:
+                with T.allocate() as targets:
             2. with scope handler without symbol def
-                with T.let()/T.Assert()/T.attr()/T.realize()
+                with T.block(*axes)/T.let()/T.Assert()/T.attr()/T.realize()
         """
 
         if not isinstance(node.rhs, ast.Call):
