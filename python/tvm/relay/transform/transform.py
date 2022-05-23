@@ -261,7 +261,7 @@ def LazyGradientInit():
     return _ffi_api.LazyGradientInit()
 
 
-def FoldConstantExpr(expr, mod):
+def FoldConstantExpr(expr, mod, fold_qnn=False):
     """Fold the constant expressions in a Relay program.
     Parameters
     ----------
@@ -269,24 +269,37 @@ def FoldConstantExpr(expr, mod):
         The expression to fold
     mod: IRModule
         The module the expr lives in (for global calls)
+    fold_qnn: bool
+        Whether to fold constants for QNN operations.
 
     Returns
     -------
     new_expr: Expr
         The expr after Constant Folding
     """
-    return _ffi_api.FoldConstantExpr(expr, mod)
+    return _ffi_api.FoldConstantExpr(expr, mod, fold_qnn)
 
 
-def FoldConstant():
+def FoldConstant(fold_qnn=False):
     """Fold the constant expressions in a Relay program.
+
+    Because of backward compatibility reason it skips QNN primitives from folding by default.
+    There are some transformation passes like FakeQuantizationToInteger, which requires to keep QNN
+    primitives for constant subgraphs. Uncontrolled constant folding of QNN primitives may break
+    applicability of FakeQuantizationToInteger. We suggest to use FoldConstant pass with none
+    default fold_qnn=True value only when all other QNN sensitive passes were already applied.
+
+    Parameters
+    ----------
+    fold_qnn: bool
+        Whether to fold constants for QNN operations.
 
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass for constant folding.
     """
-    return _ffi_api.FoldConstant()
+    return _ffi_api.FoldConstant(fold_qnn)
 
 
 def FuseOps(fuse_opt_level=-1):

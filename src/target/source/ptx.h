@@ -79,6 +79,19 @@ std::string PrintLoadMatrixAssembly(bool trans, int num, const std::string& type
                                     const std::string& smem_ptr,
                                     const std::string& smem_elem_offset);
 
+/*!
+ * \brief Print ptx cp.async assembly string given parameters.
+ * \param shared_ptr: The pointer to the destination shared memory.
+ * \param shared_elem_offset: The offset into the shared memory.
+ * \param global_ptr: The pointer to the global memory.
+ * \param global_elem_offset: The offset into the global memory.
+ * \param bytes: The number of bytes to copy, valid values are 4, 8, and 16.
+ */
+std::string PrintCpAsyncAssembly(const std::string& shared_ptr,
+                                 const std::string& shared_elem_offset,
+                                 const std::string& global_ptr,
+                                 const std::string& global_elem_offset, const std::string& bytes);
+
 }  // namespace codegen
 }  // namespace tvm
 

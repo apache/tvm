@@ -39,6 +39,7 @@ ENV PATH $PATH:$CARGO_HOME/bin
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh
+ENV PATH /opt/sccache:$PATH
 
 COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
 RUN bash /install/ubuntu_install_llvm.sh

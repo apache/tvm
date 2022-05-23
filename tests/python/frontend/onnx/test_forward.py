@@ -402,8 +402,15 @@ def test_expand(target, dev):
     shape = (2, 1, 6)
     data = np.random.uniform(size=in_shape).astype(np.float32)
     ref_data = data * np.ones(shape, dtype=np.float32)
-    _test_expand("expand_with_dim_changed_test", data, shape, ref_data, "int32")
-    _test_expand("expand_with_dim_changed_test", data, shape, ref_data, "int64")
+    _test_expand("expand_larger_target_shape_test", data, shape, ref_data, "int32")
+    _test_expand("expand_larger_target_shape_test", data, shape, ref_data, "int64")
+
+    in_shape = (1, 1)
+    shape = (3,)
+    data = np.random.uniform(size=in_shape).astype(np.float32)
+    ref_data = data * np.ones(shape, dtype=np.float32)
+    _test_expand("expand_smaller_target_shape_test", data, shape, ref_data, "int32")
+    _test_expand("expand_smaller_target_shape_test", data, shape, ref_data, "int64")
 
 
 @tvm.testing.parametrize_targets
@@ -1279,6 +1286,7 @@ def test_batch_matmul(target, dev):
     verify_batch_matmul((4, 32, 16), (16, 32), (4, 32, 32))
     verify_batch_matmul((4, 32, 16, 32), (32, 16), (4, 32, 16, 16))
     verify_batch_matmul((4, 32, 16, 32), (1, 32, 32, 16), (4, 32, 16, 16))
+    verify_batch_matmul((4, 1, 16, 32), (1, 32, 32, 16), (4, 32, 16, 16))
     # Test transb=False
     verify_batch_matmul(
         (2, 3, 4, 3),
@@ -2826,6 +2834,48 @@ def test_conv(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_convtranspose(target, dev):
+    def verify_convtranspose_with_output_shape(
+        x_shape,
+        w_shape,
+        output_shape,
+        kernel_shape,
+        strides,
+        dilations,
+        auto_pad="SAME_UPPER",
+        group=1,
+    ):
+        node = helper.make_node(
+            "ConvTranspose",
+            inputs=["x", "W"],
+            outputs=["y"],
+            kernel_shape=kernel_shape,
+            # Default values for other attributes:
+            strides=strides,
+            dilations=dilations,
+            output_shape=output_shape,
+            auto_pad=auto_pad,
+        )
+
+        if group is not None:
+            group_attr = helper.make_attribute("group", group)
+            node.attribute.append(group_attr)
+
+        graph = helper.make_graph(
+            [node],
+            "ConvTranspose_with_output_shape_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
+                helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_shape)),
+            ],
+            outputs=[
+                helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 1] + list(output_shape))
+            ],
+        )
+
+        model = helper.make_model(graph, producer_name="convtranspose_output_shape_test")
+
+        verify_with_ort(model, [x_shape, w_shape], use_vm=True, target=target, dev=dev)
+
     def verify_convtranspose_with_padding(
         x_shape,
         w_shape,
@@ -2988,6 +3038,28 @@ def test_convtranspose(target, dev):
         #     repeat(1, D),
         #     repeat(2, D),
         # )
+
+    # Convolution with output_shape
+    for D in [1, 2, 3]:
+        for N in range(60, 66):
+            verify_convtranspose_with_output_shape(
+                (1, 1) + repeat(32, D),
+                (1, 1) + repeat(4, D),
+                repeat(N, D),
+                repeat(4, D),
+                repeat(2, D),
+                repeat(1, D),
+            )
+
+            verify_convtranspose_with_output_shape(
+                (1, 1) + repeat(32, D),
+                (1, 1) + repeat(4, D),
+                repeat(N, D),
+                repeat(4, D),
+                repeat(2, D),
+                repeat(1, D),
+                auto_pad="SAME_LOWER",
+            )
 
 
 @tvm.testing.parametrize_targets
@@ -5026,9 +5098,7 @@ unsupported_onnx_tests = [
     "test_bernoulli_double_expanded",
     "test_bernoulli_seed",
     "test_bernoulli_seed_expanded",
-    "test_cast_BFLOAT16_to_FLOAT",
     "test_cast_DOUBLE_to_FLOAT16",
-    "test_cast_FLOAT_to_BFLOAT16",
     "test_cast_FLOAT_to_STRING",
     "test_cast_STRING_to_FLOAT",
     "test_castlike_BFLOAT16_to_FLOAT",
@@ -5048,7 +5118,6 @@ unsupported_onnx_tests = [
     "test_castlike_STRING_to_FLOAT_expanded",
     "test_convtranspose_autopad_same",
     "test_convtranspose_dilations",
-    "test_convtranspose_output_shape",
     "test_cumsum_1d",
     "test_cumsum_1d_exclusive",
     "test_cumsum_1d_reverse",
@@ -5178,6 +5247,11 @@ def test_onnx_nodes(target, dev, onnx_test):
         # roialign results to 4 decimal places
         atol = 1e-4
 
+    if "to_BFLOAT16" in test_dir:
+        # the tolerance here is for the comparison in uint16 space, but is not as significant
+        # of a delta in bfloat16 space because it's representing the mantissa being off by 1
+        atol = 1
+
     if "_sce_" in test_dir:
         # complicated loss functions like SoftmaxCrossEntropy can have minor variations
         # in accuracy depending on implementation
@@ -5198,7 +5272,6 @@ def test_onnx_nodes(target, dev, onnx_test):
                 outputs.append(numpy_helper.to_array(new_tensor))
             else:
                 raise ImportError(str(tensor) + " not labeled as an import or an output")
-
     tvm_val = get_tvm_output_with_vm(onnx_model, inputs, target, dev)
     if len(outputs) == 1:
         tvm.testing.assert_allclose(outputs[0], tvm_val, rtol=rtol, atol=atol)
@@ -5965,6 +6038,7 @@ def test_qlinearmul(target, dev):
     verify_qlinearmul([5, 1, 7], [2, 7], [5, 2, 7])
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/11375")
 @tvm.testing.parametrize_targets
 def test_qlinearleakyrelu(target, dev):
     def verify_qlinearleakyrelu(inshape, kwargs):
@@ -5990,6 +6064,7 @@ def test_qlinearleakyrelu(target, dev):
     verify_qlinearleakyrelu([5, 1, 4, 6], {"alpha": 0.65})
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/11375")
 @tvm.testing.parametrize_targets
 def test_qlinearsigmoid(target, dev):
     def verify_qlinearsigmoid(a_shape):

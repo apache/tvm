@@ -1698,6 +1698,8 @@ class PyTorchOpConverter:
             return output
         elif len(a_shape) > 2:
             inputs_0 = _op.reshape(inputs_0, [-1, a_shape[-1]])
+        elif len(a_shape) == 1:
+            return _op.squeeze(_op.nn.matmul(_op.expand_dims(inputs_0, axis=0), inputs_1), axis=[0])
 
         if len(b_shape) > 2:
             trans_axes = list(range(len(b_shape)))
@@ -3535,6 +3537,7 @@ def _pytorch_result_type(dtypes, non_tensor_inputs):
 def _convert_dtype_value(val):
     """converts a PyTorch the PyTorch numeric type id to a torch scalar type."""
     convert_torch_dtype_map = {
+        11: "torch.bool",
         7: "torch.float64",
         6: "torch.float32",
         5: "torch.float16",

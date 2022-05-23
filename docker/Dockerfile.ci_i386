@@ -65,3 +65,4 @@ RUN bash /install/ubuntu_install_verilator.sh
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh
+ENV PATH /opt/sccache:$PATH

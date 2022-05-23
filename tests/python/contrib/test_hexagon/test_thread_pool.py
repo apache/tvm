@@ -20,11 +20,11 @@ import pytest
 
 import tvm
 import tvm.contrib.hexagon
+from tvm.contrib.hexagon.session import Session
 import tvm.script
 import tvm.testing
 from tvm import te
 
-from .conftest import requires_hexagon_toolchain
 from tvm.script import tir as T
 
 
@@ -53,7 +53,7 @@ class ElemwiseSumIRModule:
                 C[vi] = A[vi] + B[vi]
 
 
-def generate_add_test_data(hexagon_session, n=128 * 1024):
+def generate_add_test_data(hexagon_session: Session, n=128 * 1024):
     a = tvm.nd.array(np.random.uniform(size=n).astype("float32"), hexagon_session.device)
     b = tvm.nd.array(np.random.uniform(size=n).astype("float32"), hexagon_session.device)
     c = tvm.nd.array(np.zeros(n, dtype="float32"), hexagon_session.device)
@@ -66,11 +66,8 @@ def benchmark_func(mod, name, args, hexagon_session):
     return evaluator(a, b, c, n).mean
 
 
-@requires_hexagon_toolchain
-def test_speedup(hexagon_session, capsys):
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
-
+@tvm.testing.requires_hexagon
+def test_speedup(hexagon_session: Session, capsys):
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
     func = tvm.build(
         ElemwiseSumIRModule, target=tvm.target.Target(target_hexagon, host=target_hexagon)
@@ -84,11 +81,8 @@ def test_speedup(hexagon_session, capsys):
         print("... speedup of {:.2f}".format(serial_mean / parallel_mean), end=" ")
 
 
-@requires_hexagon_toolchain
-def test_elemwise_sum_parallel(hexagon_session):
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test, ANDROID_SERIAL_NUMBER is not set.")
-
+@tvm.testing.requires_hexagon
+def test_elemwise_sum_parallel(hexagon_session: Session):
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
     func = tvm.build(
         ElemwiseSumIRModule, target=tvm.target.Target(target_hexagon, host=target_hexagon)

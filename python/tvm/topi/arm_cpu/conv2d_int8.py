@@ -126,7 +126,7 @@ def is_int8_hw_support(data_dtype, kernel_dtype):
     # 3) Check target
     is_target_support = is_neon_available() or is_dotprod_available()
 
-    return is_dtype_support and is_llvm_support
+    return is_dtype_support and is_llvm_support and is_target_support
 
 
 @autotvm.register_topi_schedule("conv2d_NCHWc_int8.arm_cpu")

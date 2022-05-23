@@ -38,9 +38,6 @@ if [[ "${device_serial}" == "simulator" ]]; then
 
     # Temporary workaround for symbol visibility
     export HEXAGON_SHARED_LINK_FLAGS="-Lbuild/hexagon_api_output -lhexagon_rpc_sim"
-
-    # HEXAGON_TOOLCHAIN is already set
-    export HEXAGON_SDK_ROOT=${HEXAGON_SDK_PATH}
 fi
 
 export ANDROID_SERIAL_NUMBER=${device_serial}

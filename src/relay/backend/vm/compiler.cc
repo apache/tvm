@@ -1170,9 +1170,10 @@ void VMCompiler::Codegen() {
     lib = tvm::TIRToRuntime(per_tvm_target_modules, config_->host_target);
   }
 
-  lib = codegen::CreateMetadataModule(params_, lib, ext_mods, config_->host_target,
-                                      Runtime::Create("cpp"),
-                                      relay::backend::ExecutorCodegenMetadata());
+  lib =
+      codegen::CreateMetadataModule(params_, lib, ext_mods, config_->host_target,
+                                    Runtime::Create("cpp"), Executor::Create("graph"),  // DNS HACK
+                                    relay::backend::ExecutorCodegenMetadata());
   exec_->SetLib(lib);
 }
 
