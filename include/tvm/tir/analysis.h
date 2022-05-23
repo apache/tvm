@@ -57,6 +57,16 @@ struct ExprDeepEqual {
 };
 
 /*!
+ * \brief Hash of primexpr without var remapping.
+ *
+ * \sa ExprDeepEqual
+ *
+ * \param e PrimExpr to hash
+ * \return The hash of the PrimExpr
+ */
+int64_t ExprDeepHash(const PrimExpr& e);
+
+/*!
  * \brief Visit the PrimFuncs in the IRModule
  * \tparam FLambda The type of the PrimFunc visitor
  * \param mod The IRModule to be visited

@@ -261,8 +261,8 @@ TVM_REGISTER_GLOBAL("node.StructuralHash")
       return static_cast<int64_t>(hashed_value);
     });
 
-size_t StructuralHash::operator()(const ObjectRef& object) const {
-  return VarCountingSHashHandler().Hash(object, false);
+size_t StructuralHash::operator()(const ObjectRef& object, bool map_free_vars) const {
+  return VarCountingSHashHandler().Hash(object, map_free_vars);
 }
 
 // SEQualReduce traits for runtime containers.

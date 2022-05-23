@@ -35,7 +35,8 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>  // For the declaration of the pass
 
-#include <algorithm>      // For std::find_if
+#include <algorithm>  // For std::find_if
+#include <map>
 #include <unordered_map>  // For the hashtable datatype
 #include <utility>
 #include <vector>
@@ -742,41 +743,36 @@ bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b) {
  */
 std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
     const ComputationTable& table) {
-  std::vector<std::pair<PrimExpr, size_t>> result;
-
-  // table.size() is an upper-bound of the number of elements in the resulting vector,
-  // as we might merge semantically equivalent computations.
-  // We do this reservation even if it might reserve slightly more space than is needed in the end
-  result.reserve(table.size());
-
-  // Traverse through map in a sorted order on keys to maintain deterministic behavior
-  // We do this by comparing the string repr of each PrimExpr to get a determinstic ordering
-  std::vector<std::pair<PrimExpr, size_t>> sorted_map_items(table.begin(), table.end());
-
-  sort(sorted_map_items.begin(), sorted_map_items.end(),
-       [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
-         std::stringstream a_stream;
-         std::stringstream b_stream;
-         a_stream << a.first;
-         b_stream << b.first;
-         return a_stream.str().compare(b_stream.str()) < 0;
-       });
+  std::map<int64_t, std::pair<PrimExpr, size_t>> equiv_computations;
 
   // For each element in the hashtable
-  for (auto elem : sorted_map_items) {
+  for (auto elem : table) {
     // We try to see if a semantically equivalent term is already in the resulting vector
-    auto it_found = std::find_if(result.begin(), result.end(),
-                                 [elem](std::pair<PrimExpr, size_t> already_seen) {
-                                   return EquivalentTerms(already_seen.first, elem.first);
-                                 });
+    int64_t hash = ExprDeepHash(elem.first);
+    auto it_found = equiv_computations.find(hash);
     // And if so, we increase (by `elem.second`) its count
-    if (it_found != result.end()) {
-      it_found->second += elem.second;
+    if (it_found != equiv_computations.end()) {
+      it_found->second.second += elem.second;
     } else {
       // If we could not find a semantically equivalent term in the resulting vector, we add it
-      result.push_back(elem);
+      equiv_computations[hash] = elem;
     }
   }
+  std::vector<std::pair<PrimExpr, size_t>> result;
+  result.reserve(result.size());
+  for (auto p : equiv_computations) {
+    result.push_back(p.second);
+  }
+  // Traverse through map in a sorted order on keys to maintain deterministic behavior
+  // We do this by comparing the string repr of each PrimExpr to get a determinstic ordering
+  std::sort(result.begin(), result.end(),
+            [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
+              std::stringstream a_stream;
+              std::stringstream b_stream;
+              a_stream << a.first;
+              b_stream << b.first;
+              return a_stream.str().compare(b_stream.str()) < 0;
+            });
   return result;
 }
 

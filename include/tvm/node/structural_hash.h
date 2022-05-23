@@ -79,9 +79,11 @@ class StructuralHash : public BaseValueHash {
   /*!
    * \brief Compute structural hashing value for an object.
    * \param key The left operand.
+   * \param map_free_vars Whether to map free variables by their occurrence
+   * number. Otherwise the underlying pointer value is used.
    * \return The hash value.
    */
-  TVM_DLL size_t operator()(const ObjectRef& key) const;
+  TVM_DLL size_t operator()(const ObjectRef& key, bool map_free_vars = false) const;
 };
 
 /*!

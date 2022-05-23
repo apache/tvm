@@ -23,6 +23,7 @@
  */
 #include <tvm/node/reflection.h>
 #include <tvm/node/structural_equal.h>
+#include <tvm/node/structural_hash.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
 
@@ -64,6 +65,8 @@ bool ExprDeepEqual::operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
   }
   return DeepCmpSEqualHandler().SEqualReduce(lhs, rhs, false);
 }
+
+int64_t ExprDeepHash(const PrimExpr& e) { return StructuralHash()(e, false); }
 
 TVM_REGISTER_GLOBAL("tir.analysis.expr_deep_equal")
     .set_body_typed([](const PrimExpr& lhs, const PrimExpr& rhs) {
