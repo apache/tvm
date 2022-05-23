@@ -25,7 +25,6 @@
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/debug.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory.h>
@@ -309,16 +308,7 @@ void VirtualMachine::CreateInputsOrCheckSize(const std::string& func_name, size_
 void VirtualMachine::SetInputTensorWithIndex(std::vector<ObjectRef>& tensors,
                                              const TVMArgValue& inp_tensor, int index, Device dev) {
   if (inp_tensor.type_code() == kTVMDLTensorHandle) {
-    // Automatically convert input DLTensors to NDArray
-    DLTensor* tensor = inp_tensor;
-    if (dev.device_type == tensor->device.device_type &&
-        dev.device_id == tensor->device.device_id &&
-        reinterpret_cast<size_t>(static_cast<char*>(tensor->data) + tensor->byte_offset) %
-                tvm::runtime::kAllocAlignment == 0) {
-      tensors[index] = NDArray::FromExternalDLTensor(*tensor);
-    } else {
-      tensors[index] = NDArray::NewFromDLTensor(tensor, dev);
-    }
+    tensors[index] = NDArray::FromExternalDLTensor(inp_tensor, dev);
   } else {
     tensors[index] = CopyTo(inp_tensor, dev);
   }

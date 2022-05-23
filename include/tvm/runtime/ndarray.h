@@ -156,6 +156,18 @@ class NDArray : public ObjectRef {
   TVM_DLL static NDArray Empty(ShapeTuple shape, DLDataType dtype, Device dev,
                                Optional<String> mem_scope = NullOpt);
   /*!
+   * \brief Try to create a NDArray backed by an external DLTensor without copying.
+   *
+   * If AbilityOfZeroCopyForDLTensor is true a NDArray is created
+   * using the memory allocated by an external source.
+   * Responsibility for memory retaining lies with the external source.
+   * Otherwise new NDArray is created, the data is copied from the DLTensor.
+   * \param dl_tensor The pointer of DLTensor to copy from.
+   * \param dst_dev device of destination NDArray
+   * \return The created NDArray view.
+   */
+  TVM_DLL static NDArray FromExternalDLTensor(DLTensor* dl_tensor, const Device& dst_dev);
+  /*!
    * \brief Create a NDArray backed by an external DLTensor.
    *
    * This allows us to create a NDArray using the memory
@@ -172,7 +184,7 @@ class NDArray : public ObjectRef {
    * \param dev device location of the created NDArray.
    * \return The created NDArray view.
    */
-  TVM_DLL static NDArray NewFromDLTensor(DLTensor* dl_tensor, Device dev);
+  TVM_DLL static NDArray NewFromDLTensor(DLTensor* dl_tensor, const Device& dev);
   /*!
    * \brief Create a NDArray backed by a dlpack tensor.
    *
@@ -196,6 +208,7 @@ class NDArray : public ObjectRef {
 
   TVM_DLL ShapeTuple Shape() const;
   TVM_DLL runtime::DataType DataType() const;
+  TVM_DLL static bool AbilityOfZeroCopyForDLTensor(DLTensor* tensor, const Device& dev);
   // internal namespace
   struct Internal;
 

@@ -205,6 +205,14 @@ NDArray NDArray::Empty(ShapeTuple shape, DLDataType dtype, Device dev, Optional<
   return ret;
 }
 
+NDArray NDArray::FromExternalDLTensor(DLTensor* dl_tensor, const Device& dst_dev) {
+  if (AbilityOfZeroCopyForDLTensor(dl_tensor, dst_dev)) {
+    return NDArray::FromExternalDLTensor(*dl_tensor);
+  } else {
+    return NDArray::NewFromDLTensor(dl_tensor, dst_dev);
+  }
+}
+
 NDArray NDArray::FromExternalDLTensor(const DLTensor& dl_tensor) {
   NDArray::Container* data = new NDArray::Container();
 
@@ -219,7 +227,7 @@ NDArray NDArray::FromExternalDLTensor(const DLTensor& dl_tensor) {
   return NDArray(GetObjectPtr<Object>(data));
 }
 
-NDArray NDArray::NewFromDLTensor(DLTensor* tensor, Device dev) {
+NDArray NDArray::NewFromDLTensor(DLTensor* tensor, const Device& dev) {
   std::vector<int64_t> shape;
   for (int64_t i = 0; i < tensor->ndim; i++) {
     shape.push_back(tensor->shape[i]);
@@ -276,8 +284,17 @@ void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle str
 }
 
 ShapeTuple NDArray::Shape() const { return get_mutable()->shape_; }
+
 runtime::DataType NDArray::DataType() const {
   return runtime::DataType(get_mutable()->dl_tensor.dtype);
+}
+
+bool NDArray::AbilityOfZeroCopyForDLTensor(DLTensor* tensor, const Device& dev) {
+  bool device_check = (dev.device_type == tensor->device.device_type);
+  bool device_id_check =(dev.device_id == tensor->device.device_id);
+  bool alignment_check = (reinterpret_cast<size_t>(static_cast<char*>(tensor->data)
+                         + tensor->byte_offset) % tvm::runtime::kAllocAlignment == 0);
+  return device_check && device_id_check && alignment_check;
 }
 
 TVM_REGISTER_OBJECT_TYPE(NDArray::Container);
