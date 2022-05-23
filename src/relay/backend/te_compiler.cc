@@ -299,11 +299,10 @@ class TECompilerImpl : public TECompilerNode {
       // the module's globals. Furthermore, the external codegen tool must bind the compiled
       // function to the "global_symbol" attribute on the source_func. So do not use GetUniqueName
       // here.
-      auto target = Target("ext_dev");
       auto global_var = GlobalVar(opt_global_symbol.value());
       global_var->checked_type_ = key->source_func->checked_type();
       ir_module->Add(global_var, key->source_func);
-      value->cached_func = CachedFunc(target, global_var, {}, {}, te::Schedule{nullptr},
+      value->cached_func = CachedFunc(key->target, global_var, {}, {}, te::Schedule{nullptr},
                                       tir::PrimFunc{nullptr}, {}, ir_module);
       // Collect these here as it's removed in LowerExternalFunctions()
       device_contexts_.Set(value->cached_func->prim_fn_var, opt_compiler.value());
@@ -531,14 +530,14 @@ using AnalysisRemapping = std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual
  */
 class LowerTensorExprMutator : public DeviceAwareExprMutator {
  public:
-  LowerTensorExprMutator(const IRModule& module, ProcessFn process_fn, String module_name,
-                         TECompiler compiler, VirtualDevice host_virtual_device)
+  LowerTensorExprMutator(IRModule module, ProcessFn process_fn, CompilationConfig config,
+                         String module_name, TECompiler compiler)
       : DeviceAwareExprMutator(module),
-        module_(module),
+        module_(std::move(module)),
         process_fn_(std::move(process_fn)),
+        config_(std::move(config)),
         module_name_(std::move(module_name)),
         compiler_(std::move(compiler)),
-        host_virtual_device_(std::move(host_virtual_device)),
         debug_op_(Op::Get("debug")) {}
 
   /*!
@@ -638,7 +637,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       // Shape function keys use the underlying primitive function as their 'function',
       // but the generic 'cpu' target as the target since all shape functions run
       // on the host cpu irrespective of where the primitive runs.
-      CCacheKey shape_key(func, host_virtual_device_->target);
+      CCacheKey shape_key(func, config_->host_virtual_device->target);
       CachedFunc lowered_shape_func = compiler_->LowerShapeFunc(shape_key);
 
       // Capture the shape function's global var and parameters 'states' in call
@@ -733,7 +732,8 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
 
     // Special case: device_copies are left as calls to primitive operators
     // (thus undoing FuseOps) so that each backend can handle them directly.
-    // TODO(mbs): device_copy cleanup. Would be better for FuseOps to just leave device_copy alone.
+    // TODO(mbs): device_copy cleanup. Would be better for FuseOps to just leave device_copy
+    // alone.
     if (const auto* function_node = primitive_func.as<FunctionNode>()) {
       DeviceCopyProps device_copy_props = GetDeviceCopyProps(function_node->body);
       if (device_copy_props.body.defined()) {
@@ -771,10 +771,18 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     // Typical case: call to fused primitive Relay Function.
     // Find the desired target device.
     Target target;
-    if (primitive_func->GetAttr<String>(attr::kCompiler).defined()) {
-      // The generic 'external device' target.
-      // TODO(mbs): Retire once replaced unified BYOC compiler and target machinery
-      target = Target("ext_dev");
+    Optional<String> opt_compiler = primitive_func->GetAttr<String>(attr::kCompiler);
+    if (opt_compiler.defined()) {
+      // This function needs to be compiled with external codegen.
+      Optional<Target> opt_target = config_->FindPrimitiveTargetForKind(opt_compiler.value());
+      if (opt_target.defined()) {
+        // The target is what's supplied by the compilation config for kind matching the
+        // "Compiler" name.
+        target = opt_target.value();
+      } else {
+        // Legacy fallback.
+        target = Target("ext_dev");
+      }
     } else {
       // The target corresponding to the call_node expression's annotation.
       VirtualDevice virtual_device = GetVirtualDevice(GetRef<Call>(call_node));
@@ -791,6 +799,8 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
 
   IRModule module_;
   ProcessFn process_fn_;
+  /*! \brief All available targets. */
+  CompilationConfig config_;
   // Map from in-scope let-bound variables to Functions known to be primitive, or PrimFuncs which
   // have already been lowered. We'll rewrite these to the fresh global vars bound to the lowered
   // primitive function as we go. Those vars will be bound in the target device-type specific
@@ -799,21 +809,15 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
   std::unordered_map<const VarNode*, BaseFunc> primitive_functions_;
   String module_name_;
   TECompiler compiler_;
-  /*!
-   * \brief The \p VirtualDevice for the host, which is where all shape-related data and computation
-   * must live.
-   */
-  VirtualDevice host_virtual_device_;
   // Cache ops that need to be frequently used later to reduce lookup overhead.
   const Op& debug_op_;
 };
 
 Pass LowerTensorExpr(const String& module_name, TECompiler compiler, ProcessFn process_fn,
-                     VirtualDevice host_virtual_device) {
+                     CompilationConfig config) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function func, IRModule module, PassContext ctx) {
-        LowerTensorExprMutator lower_te(module, process_fn, module_name, compiler,
-                                        host_virtual_device);
+        LowerTensorExprMutator lower_te(module, process_fn, config, module_name, compiler);
         return Downcast<Function>(lower_te.Mutate(func));
       };
   return CreateFunctionPass(pass_func, 0, "LowerTensorExpr", {});
@@ -1043,7 +1047,7 @@ void UpdateFunctionMetadata(BaseFunc func,
 }
 
 IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn process_fn,
-                 VirtualDevice host_virtual_device) {
+                 CompilationConfig config) {
   TECompiler compiler(module);
 
   // TODO(mbs): This is all unnecessarily convoluted. Better would be to accumulate the rewritten
@@ -1058,8 +1062,8 @@ IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn pr
   //    GlobalVar, and calls updated (sticking with regular Relay Call).
   //  - Calls to functions tagged with "Primitive" are compiled to PrimFuncs, and calls updated
   //    (using call_lowered convention).
-  IRModule updated_module = LowerTensorExpr(module_name, compiler, std::move(process_fn),
-                                            std::move(host_virtual_device))(module);
+  IRModule updated_module =
+      LowerTensorExpr(module_name, compiler, std::move(process_fn), std::move(config))(module);
 
   // The Functions tagged with "Compiler" are now residing in the cache ready to be
   // compiled by LowerExternalFunctions. However we still need a record of them in the
@@ -1159,15 +1163,14 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod) {
   return per_target_modules;
 }
 
-Pass LowerTEPass(const String& module_name, ProcessFn process_fn,
-                 VirtualDevice host_virtual_device) {
+Pass LowerTEPass(String module_name, ProcessFn process_fn, CompilationConfig complilation_config) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule module,
                                                                             PassContext ctx) {
-    return LowerTE(module, module_name, process_fn, host_virtual_device);
+    return LowerTE(module, module_name, process_fn, complilation_config);
   };
 
   return tvm::transform::Sequential(
-      {tvm::relay::transform::RelayToTIRTargetHook(),
+      {tvm::relay::transform::RelayToTIRTargetHook(complilation_config),
        tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {"InferType"}), InferType(),
        tvm::tir::transform::ExtractPrimFuncConstants()});
 }

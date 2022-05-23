@@ -1079,7 +1079,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           // lowering process directly.
           tec::UpdateFunctionMetadata(func, this->function_metadata_, workspace_byte_alignment);
         },
-        config_->host_virtual_device)(mod);
+        config_)(mod);
 
     auto lowered_main = lowered_mod->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());

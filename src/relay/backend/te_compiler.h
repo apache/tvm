@@ -189,7 +189,8 @@ IRModule LowerTE(
     const IRModule& module, backend::StaticMemoryPlan memory_plan, const String& module_name,
     ProcessFn process_fn = [](BaseFunc f) {});
 
-/*! \brief Pass to lower an IRModule's primitive functions to TIR.
+/*!
+ * \brief Pass to lower an IRModule's primitive functions to TIR.
  *
  * This is the "back half" of the Relay compiler which lowers "primitive functions"
  * to TE expressions, schedules them, and then to TIR. It annotates all functions
@@ -198,11 +199,11 @@ IRModule LowerTE(
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process
  * each function that we lower
- * \param host_virtual_device \p VirtualDevice for host data and computations
- * \returns The pass which lowers primative functions to TIR
+ * \param config All available targets.
+ * \returns The pass which lowers primitive functions to TIR
  */
-transform::Pass LowerTEPass(const String& module_name, ProcessFn process_fn,
-                            VirtualDevice host_virtual_device);
+transform::Pass LowerTEPass(String module_name, ProcessFn process_fn, CompilationConfig config);
+
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm

@@ -22,7 +22,7 @@ import sys
 import pytest
 
 import tvm
-from tvm import relay, runtime
+from tvm import relay, runtime, testing
 from tvm.contrib import utils
 
 

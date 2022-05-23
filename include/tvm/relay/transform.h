@@ -464,9 +464,11 @@ TVM_DLL Pass SimplifyExpr();
 /*!
  * \brief Run any registered RelayToTIR passes registered on the functions in a module.
  *
+ * \param config All available targets.
+ *
  * \return The pass.
  */
-TVM_DLL Pass RelayToTIRTargetHook();
+TVM_DLL Pass RelayToTIRTargetHook(CompilationConfig config);
 
 /*!
  * \brief A pass for manifesting explicit memory allocations and rewriting
