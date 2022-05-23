@@ -215,4 +215,4 @@ def test_concatenate_grad(executor_kind, target, dev):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

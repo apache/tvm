@@ -111,4 +111,4 @@ def test_unique(dev, target, in_dtype, is_sorted, with_counts, arr_size, maxval)
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

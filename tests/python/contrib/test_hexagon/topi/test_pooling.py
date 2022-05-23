@@ -20,6 +20,7 @@ import pytest
 import sys
 
 import tvm
+import tvm.testing
 from tvm import topi
 from tvm import te
 from tvm.contrib.hexagon.session import Session
@@ -736,4 +737,4 @@ class TestPool3D:
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

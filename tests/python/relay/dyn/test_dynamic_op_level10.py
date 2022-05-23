@@ -151,7 +151,4 @@ def test_dyn_one_hot(executor_kind):
 
 
 if __name__ == "__main__":
-    import sys
-    import pytest
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

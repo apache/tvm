@@ -16,6 +16,7 @@
 # under the License.
 import pytest
 import tvm
+import tvm.testing
 
 
 def test_make_virtual_device_for_device():
@@ -45,7 +46,4 @@ def test_make_virtual_device_for_device_target_and_memory_scope():
 
 
 if __name__ == "__main__":
-    import sys
-    import pytest
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

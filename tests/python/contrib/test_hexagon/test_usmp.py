@@ -109,4 +109,4 @@ def test_conv2d(hexagon_session: Session, aot_host_target, aot_target, usmp_enab
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

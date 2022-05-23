@@ -135,4 +135,4 @@ def test_mobilenet_aot(hexagon_session: Session, aot_host_target, aot_target, en
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

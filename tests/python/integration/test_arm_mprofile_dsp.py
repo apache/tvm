@@ -349,4 +349,4 @@ def test_avgpool_1d(data_shape_ncw, pool_size, strides, padding):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()
