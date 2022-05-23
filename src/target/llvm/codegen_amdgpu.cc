@@ -23,6 +23,27 @@
  */
 #ifdef TVM_LLVM_VERSION
 
+#include <llvm/ADT/SmallString.h>
+#include <llvm/IR/Attributes.h>
+#include <llvm/IR/CallingConv.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalValue.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/Intrinsics.h>
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/IR/IntrinsicsAMDGPU.h>
+#endif
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IRReader/IRReader.h>
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/Support/Alignment.h>
+#endif
+#include <llvm/Support/CodeGen.h>
+#include <llvm/Support/SourceMgr.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#include <llvm/Transforms/Utils/Cloning.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
@@ -30,6 +51,7 @@
 #include "../../runtime/rocm/rocm_module.h"
 #include "../build_common.h"
 #include "codegen_llvm.h"
+#include "llvm_common.h"
 
 namespace tvm {
 namespace codegen {
@@ -60,6 +82,9 @@ static inline int DetectROCMmaxThreadsPerBlock() {
 // AMDGPU code generator.
 class CodeGenAMDGPU : public CodeGenLLVM {
  public:
+  CodeGenAMDGPU() = default;
+  virtual ~CodeGenAMDGPU() = default;
+
   void AddFunction(const PrimFunc& f) final {
     // add function as void return value
     CodeGenLLVM::AddFunctionInternal(f, true);
@@ -128,17 +153,17 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   // Return the thread index via intrinsics.
   llvm::Value* GetThreadIndex(const IterVar& iv) final {
     runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
-    llvm::Intrinsic::ID intrin_id = ::llvm::Intrinsic::amdgcn_workitem_id_x;
+    llvm::Intrinsic::ID intrin_id = llvm::Intrinsic::amdgcn_workitem_id_x;
     if (ts.rank == 1) {
       switch (ts.dim_index) {
         case 0:
-          intrin_id = ::llvm::Intrinsic::amdgcn_workitem_id_x;
+          intrin_id = llvm::Intrinsic::amdgcn_workitem_id_x;
           break;
         case 1:
-          intrin_id = ::llvm::Intrinsic::amdgcn_workitem_id_y;
+          intrin_id = llvm::Intrinsic::amdgcn_workitem_id_y;
           break;
         case 2:
-          intrin_id = ::llvm::Intrinsic::amdgcn_workitem_id_z;
+          intrin_id = llvm::Intrinsic::amdgcn_workitem_id_z;
           break;
         default:
           LOG(FATAL) << "unknown workitem idx";
@@ -147,13 +172,13 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       ICHECK_EQ(ts.rank, 0);
       switch (ts.dim_index) {
         case 0:
-          intrin_id = ::llvm::Intrinsic::amdgcn_workgroup_id_x;
+          intrin_id = llvm::Intrinsic::amdgcn_workgroup_id_x;
           break;
         case 1:
-          intrin_id = ::llvm::Intrinsic::amdgcn_workgroup_id_y;
+          intrin_id = llvm::Intrinsic::amdgcn_workgroup_id_y;
           break;
         case 2:
-          intrin_id = ::llvm::Intrinsic::amdgcn_workgroup_id_z;
+          intrin_id = llvm::Intrinsic::amdgcn_workgroup_id_z;
           break;
         default:
           LOG(FATAL) << "unknown workgroup idx";
@@ -169,7 +194,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       return nullptr;
     } else if (sync == "shared") {
       llvm::Function* f =
-          llvm::Intrinsic::getDeclaration(module_.get(), ::llvm::Intrinsic::amdgcn_s_barrier);
+          llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::amdgcn_s_barrier);
       return builder_->CreateCall(f, {});
     } else {
       LOG(FATAL) << "Do not support sync " << sync;

@@ -24,12 +24,29 @@
 
 #include "llvm_common.h"
 
+#if TVM_LLVM_VERSION >= 140
+#include <llvm/MC/TargetRegistry.h>
+#else
+#include <llvm/Support/TargetRegistry.h>
+#endif
+#include <llvm/Support/CodeGen.h>
+#include <llvm/Support/Host.h>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Target/TargetOptions.h>
+#include <tvm/ir/expr.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <sstream>
+#include <string>
 
 namespace tvm {
 namespace codegen {
