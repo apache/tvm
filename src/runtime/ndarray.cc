@@ -206,11 +206,14 @@ NDArray NDArray::Empty(ShapeTuple shape, DLDataType dtype, Device dev, Optional<
 }
 
 NDArray NDArray::FromExternalDLTensor(DLTensor* dl_tensor, const Device& dst_dev) {
+  NDArray arr;
   if (AbilityOfZeroCopyForDLTensor(dl_tensor, dst_dev)) {
-    return NDArray::FromExternalDLTensor(*dl_tensor);
+    arr = NDArray::FromExternalDLTensor(*dl_tensor);
   } else {
-    return NDArray::NewFromDLTensor(dl_tensor, dst_dev);
+    arr = NDArray::NewFromDLTensor(dl_tensor, dst_dev);
   }
+  ICHECK(arr.IsContiguous()) << "External DLTensor is not contiguous. It does not support for now";
+  return arr;
 }
 
 NDArray NDArray::FromExternalDLTensor(const DLTensor& dl_tensor) {

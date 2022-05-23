@@ -158,6 +158,7 @@ class NDArray : public ObjectRef {
   /*!
    * \brief Try to create a NDArray backed by an external DLTensor without copying.
    *
+   * Fail if DLTensor is not contiguous.
    * If AbilityOfZeroCopyForDLTensor is true a NDArray is created
    * using the memory allocated by an external source.
    * Responsibility for memory retaining lies with the external source.
@@ -208,6 +209,16 @@ class NDArray : public ObjectRef {
 
   TVM_DLL ShapeTuple Shape() const;
   TVM_DLL runtime::DataType DataType() const;
+  /*!
+   * \brief Check conditions for construction NDArray over DLTensor without copying.
+   * There are three conditions to check:
+   * 1. Destination device is the same as DLTensor device
+   * 2. Destination device id is the same as DLTensor device id
+   * 3. Memory in DLTensor is aligned as expected for NDArray
+   * \param tensor the DLTensor.
+   * \param dev destination device.
+   * \return true if all conditions are satisfied.
+   */
   TVM_DLL static bool AbilityOfZeroCopyForDLTensor(DLTensor* tensor, const Device& dev);
   // internal namespace
   struct Internal;
