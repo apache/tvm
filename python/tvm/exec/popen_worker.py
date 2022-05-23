@@ -24,6 +24,9 @@ import traceback
 import pickle
 import logging
 import cloudpickle
+import psutil
+import time
+import multiprocessing
 
 from tvm.contrib.popen_pool import StatusKind
 
@@ -33,6 +36,17 @@ class TimeoutStatus:
 
     def __init__(self):
         self.status = StatusKind.RUNNING
+
+def kill_main(timeout, pid):
+    try:
+        time.sleep(timeout)
+        p = psutil.Process(pid)
+        try:
+            p.kill()
+        except psutil.NoSuchProcess:
+            pass
+    except (KeyboardInterrupt, IOError):
+        pass
 
 
 def main():
@@ -78,20 +92,21 @@ def main():
         status = TimeoutStatus()
 
         if timeout is not None:
-            watcher = threading.Timer(timeout, _cancel_run, [status])
-            watcher.daemon = True
+            watcher = multiprocessing.Process(target=kill_main, args=(timeout, os.getpid()))
             watcher.start()
 
         # pylint: disable=broad-except
         try:
             result = fn(*args, **kwargs)
             ret_value = (StatusKind.COMPLETE, result)
+        except (KeyboardInterrupt, IOError):
+            raise
         except Exception as exception:
             msg = traceback.format_exc()
             ret_value = (StatusKind.EXCEPTION, type(exception)(msg))
 
         if timeout is not None:
-            watcher.cancel()
+            watcher.kill()
 
         lock.acquire()
         if status.status == StatusKind.RUNNING:
