@@ -26,6 +26,8 @@ import tvm.topi.testing
 from tvm.contrib.nvcc import have_fp16
 import tvm.testing
 
+executor_kind = tvm.testing.parameter("graph", "vm")
+
 
 def sigmoid(x):
     one = np.ones_like(x)
@@ -286,7 +288,7 @@ def test_log_softmax():
 
 
 @tvm.testing.uses_gpu
-def test_concatenate():
+def test_concatenate(executor_kind):
     for dtype in ["float16", "float32"]:
         n, t, d = te.size_var("n"), te.size_var("t"), 100
         x = relay.var("x", shape=(n, t, d))
@@ -336,17 +338,13 @@ def test_concatenate():
                 and not have_fp16(tvm.cuda(0).compute_version)
             ):
                 continue
-            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+            op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
                 x_data, y_data, t_data
             )
-            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=0.01)
-            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
-                x_data, y_data, t_data
-            )
-            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=0.01)
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
 
-def test_dropout():
+def test_dropout(executor_kind):
     for dtype in ["float16", "float32"]:
         n, t, d = te.size_var("n"), te.size_var("t"), te.size_var("d")
         input_ty = relay.TensorType((n, t, d), dtype)
@@ -361,9 +359,8 @@ def test_dropout():
     y = relay.nn.dropout(x, rate=0.5)
     func = relay.Function([], y)
     for target, dev in tvm.testing.enabled_targets():
-        for backend in ["debug", "graph"]:
-            op_res = relay.create_executor("debug", device=dev, target=target).evaluate(func)()
-            tvm.testing.assert_allclose(op_res.numpy(), in_np, rtol=0.01)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)()
+        tvm.testing.assert_allclose(op_res.numpy(), in_np, rtol=0.01)
 
 
 def test_batch_norm():
@@ -490,7 +487,7 @@ def test_matmul_type_check():
 
 
 @tvm.testing.uses_gpu
-def test_matmul():
+def test_matmul(executor_kind):
     for dtype in ["float16", "float32"]:
         # Matmul accuracy for float16 is poor
         if dtype == "float16":
@@ -529,14 +526,10 @@ def test_matmul():
         ref_res = np.dot(x_data.transpose(), w_data)
 
         for target, dev in tvm.testing.enabled_targets():
-            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+            op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
                 x_data, w_data
             )
-            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
-                x_data, w_data
-            )
-            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @pytest.mark.xfail
@@ -552,7 +545,7 @@ def test_dense_type_check():
 
 
 @tvm.testing.uses_gpu
-def test_dense():
+def test_dense(executor_kind):
     for dtype in ["float16", "float32"]:
         # Dense accuracy for float16 is poor
         if dtype == "float16":
@@ -591,14 +584,10 @@ def test_dense():
         ref_res = np.dot(x_data, w_data.T)
 
         for target, dev in tvm.testing.enabled_targets():
-            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+            op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
                 x_data, w_data
             )
-            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
-                x_data, w_data
-            )
-            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu

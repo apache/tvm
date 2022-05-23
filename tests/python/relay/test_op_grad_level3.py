@@ -24,9 +24,11 @@ from tvm.relay.testing import check_grad, run_infer_type, run_opt_pass, _np_rand
 from tvm.relay.transform import gradient
 import tvm.testing
 
+executor_kind = tvm.testing.parameter("debug")
+
 
 @tvm.testing.uses_gpu
-def test_clip():
+def test_clip(executor_kind):
     for dtype in ("float32", "float64"):
         ref = lambda x: np.where(
             x > 10.0, np.zeros_like(x), np.where(x < 1.0, np.zeros_like(x), np.ones_like(x))
@@ -41,49 +43,49 @@ def test_clip():
         bwd_func = run_infer_type(gradient(fwd_func))
 
         for target, dev in tvm.testing.enabled_targets():
-            op_res, (op_grad,) = relay.create_executor(device=dev, target=target).evaluate(
-                bwd_func
-            )(data)
+            op_res, (op_grad,) = relay.create_executor(
+                executor_kind, device=dev, target=target
+            ).evaluate(bwd_func)(data)
             np.testing.assert_allclose(op_grad.numpy(), ref_grad, rtol=0.01)
 
 
-def verify_transpose_grad(d_shape, axes=None):
+def verify_transpose_grad(d_shape, axes=None, executor_kind="vm"):
     data = relay.var("data", relay.TensorType(d_shape, "float32"))
     fwd_func = relay.Function([data], relay.transpose(data, axes=axes))
-    check_grad(fwd_func)
+    check_grad(fwd_func, executor_kind=executor_kind)
 
 
-def test_transpose_grad():
-    verify_transpose_grad((1, 2, 3, 4))
-    verify_transpose_grad((1, 2, 3, 4), axes=(0, 2, 3, 1))
+def test_transpose_grad(executor_kind):
+    verify_transpose_grad((1, 2, 3, 4), executor_kind=executor_kind)
+    verify_transpose_grad((1, 2, 3, 4), axes=(0, 2, 3, 1), executor_kind=executor_kind)
 
 
-def test_negative_grad():
+def test_negative_grad(executor_kind):
     data = relay.var("data", relay.TensorType((10, 4), "float32"))
     fwd_func = relay.Function([data], relay.negative(data))
-    check_grad(fwd_func)
+    check_grad(fwd_func, executor_kind=executor_kind)
 
 
-def test_cast_grad():
+def test_cast_grad(executor_kind):
     data = relay.var("data", relay.TensorType((10, 4), "float32"))
     fwd_func = relay.Function([data], relay.cast(data, "float64"))
-    check_grad(fwd_func)
+    check_grad(fwd_func, executor_kind=executor_kind)
 
 
-def test_cast_like_grad():
+def test_cast_like_grad(executor_kind):
     data = relay.var("data", shape=(10, 4), dtype="float32")
     like = relay.var("like", shape=(1,), dtype="float64")
     fwd_func = relay.Function([data, like], relay.cast_like(data, like))
-    check_grad(fwd_func)
+    check_grad(fwd_func, executor_kind=executor_kind)
 
 
-def test_copy_grad():
+def test_copy_grad(executor_kind):
     data = relay.var("data", relay.TensorType((10, 4), "float64"))
     fwd_func = relay.Function([data], relay.copy(data))
-    check_grad(fwd_func)
+    check_grad(fwd_func, executor_kind=executor_kind)
 
 
-def test_take_grad():
+def test_take_grad(executor_kind):
     data_dtype = relay.TensorType((3, 4, 5), "float64")
     data = relay.var("data", data_dtype)
     indices = relay.var("indices", relay.TensorType((relay.Any(),), "int32"))
@@ -92,28 +94,28 @@ def test_take_grad():
 
     # take on axis
     fwd_func = relay.Function([data, indices], relay.take(data, indices, axis=1))
-    check_grad(fwd_func, inputs=inputs, test_inputs=test_inputs)
+    check_grad(fwd_func, inputs=inputs, test_inputs=test_inputs, executor_kind=executor_kind)
 
     # take on flattened
     fwd_func = relay.Function([data, indices], relay.take(data, indices, axis=None))
-    check_grad(fwd_func, inputs=inputs, test_inputs=test_inputs)
+    check_grad(fwd_func, inputs=inputs, test_inputs=test_inputs, executor_kind=executor_kind)
 
 
-def test_stack_grad():
+def test_stack_grad(executor_kind):
     args = [relay.var(c, shape=(2, 3, 4), dtype="float64") for c in "xyz"]
     fwd_func = relay.Function(args, relay.stack(args, axis=0))
-    check_grad(fwd_func)
+    check_grad(fwd_func, executor_kind=executor_kind)
 
 
-def test_squeeze_grad():
+def test_squeeze_grad(executor_kind):
     data = relay.var("data", shape=(2, 1, 1, 3, 4, 1), dtype="float64")
     fwd_func = relay.Function([data], relay.squeeze(data))
     fwd_func_subset = relay.Function([data], relay.squeeze(data, axis=[1, -1]))
-    check_grad(fwd_func)
-    check_grad(fwd_func_subset)
+    check_grad(fwd_func, executor_kind=executor_kind)
+    check_grad(fwd_func_subset, executor_kind=executor_kind)
 
 
-def test_arange_grad():
+def test_arange_grad(executor_kind):
     # TODO: testing arange numerically is strange because two-sided approx can
     #       produce different output shapes
     dtype = "float64"
@@ -122,23 +124,25 @@ def test_arange_grad():
     step = relay.var("step", relay.TensorType((), dtype))
     values = [np.array(v, dtype=dtype) for v in [2.5, 9.5, 1.8]]
     fwd_func = relay.Function([start, stop, step], relay.arange(start, stop, step, dtype))
-    check_grad(fwd_func, inputs=values)
+    check_grad(fwd_func, inputs=values, executor_kind=executor_kind)
 
 
-def test_gather_nd_grad():
+def test_gather_nd_grad(executor_kind):
     data = relay.var("data", relay.TensorType((2, 3), "float64"))
     indices = relay.var("indices", relay.TensorType((2, 4), "int64"))
     fwd = relay.Function([data, indices], relay.gather_nd(data, indices))
     data_np = np.random.rand(2, 3).astype("float64")
     indices_np = np.array([[0, 1, 1, 0], [0, 1, 0, 0]], dtype="int64")
-    check_grad(fwd, inputs=[data_np, indices_np], test_inputs=[data_np])
+    check_grad(
+        fwd, inputs=[data_np, indices_np], test_inputs=[data_np], executor_kind=executor_kind
+    )
 
 
-def test_reshape_like_grad():
+def test_reshape_like_grad(executor_kind):
     data = relay.var("data", shape=(2, 3, 4), dtype="float32")
     shape_like = relay.var("shape_like", shape=(6, 2, 2), dtype="float32")
     fwd_func = relay.Function([data, shape_like], relay.reshape_like(data, shape_like))
-    check_grad(fwd_func)
+    check_grad(fwd_func, executor_kind=executor_kind)
 
 
 def test_zeros_ones_grad_const_ints():
@@ -172,7 +176,7 @@ def test_zeros_ones_grad_const_expr():
         tvm.ir.assert_structural_equal(bwd_func.ret_type, expected_ty_dyn)
 
 
-def test_zeros_ones_grad_dynamic():
+def test_zeros_ones_grad_dynamic(executor_kind):
     rank = np.random.randint(low=1, high=5, dtype="int32")
     dyn_shape = np.random.randint(low=1, high=4, size=(rank,), dtype="int32")
     shape_data = relay.var("shape_data", shape=(rank,), dtype="int32")
@@ -182,9 +186,9 @@ def test_zeros_ones_grad_dynamic():
         bwd_func = run_infer_type(gradient(run_infer_type(fwd_func)))
 
         for target, dev in tvm.testing.enabled_targets():
-            res, (grad,) = relay.create_executor(device=dev, target=target).evaluate(bwd_func)(
-                dyn_shape
-            )
+            res, (grad,) = relay.create_executor(executor_kind, device=dev, target=target).evaluate(
+                bwd_func
+            )(dyn_shape)
             tvm.testing.assert_allclose(res.numpy(), op_ref(dyn_shape, dtype="float32"))
             tvm.testing.assert_allclose(grad.numpy(), np.zeros((rank,), dtype="int32"))
 
