@@ -219,7 +219,7 @@ def elementwise_reverse_affine_load_unit_iter(
     for i, j, k, l in T.grid(1, 8, 16, 128):
         with T.block("C"):
             vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
-            D[vi, vj, vk, vl] = C[vi * 16 + vj, vk] + B[vj, vk, vi]
+            D[vi, vj, vk, vl] = C[vj * 16 + vk, vl] + B[vj, vk, vi]
 
 
 @T.prim_func
@@ -277,7 +277,7 @@ def elementwise_reverse_affine_chain(
     for i, j, k in T.grid(8, 16, 128):
         with T.block("C"):
             vi, vj, vk = T.axis.remap("SSS", [i, j, k])
-            C[vi, vj, vk] = B[vi * 16 + vj, vk] + B[vi * 16 + vj, vk]
+            C[vi, vj, vk] = B[vi * 16 + vj, vk] + 1.0
     for i, j, k, l in T.grid(1, 8, 16, 128):
         with T.block("D"):
             vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
@@ -292,7 +292,7 @@ def elementwise_reverse_affine_chain_inlined(
     for i, j in T.grid(128, 128):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
-            D[0, vi // 16, vi % 16, vj] = A[vi, vj] * 2.0
+            D[0, vi // 16, vi % 16, vj] = A[vi, vj] * 2.0 + 1.0
 
 
 @T.prim_func
@@ -724,12 +724,17 @@ def test_reverse_compute_inline_affine_load_unit_iter_simplified():
     verify_trace_roundtrip(sch=sch, mod=elementwise_reverse_affine_load_unit_iter_simplified)
 
 
-def test_reverse_compute_inline_affine_chain():
+@pytest.mark.parametrize("reverse_order", [True, False])
+def test_reverse_compute_inline_affine_chain(reverse_order):
     sch = tir.Schedule(elementwise_reverse_affine_chain, debug_mask="all")
     block_c = sch.get_block("C")
     block_d = sch.get_block("D")
-    sch.reverse_compute_inline(block_c)
-    sch.reverse_compute_inline(block_d)
+    if reverse_order:
+        sch.reverse_compute_inline(block_d)
+        sch.reverse_compute_inline(block_c)
+    else:
+        sch.reverse_compute_inline(block_c)
+        sch.reverse_compute_inline(block_d)
     tvm.ir.assert_structural_equal(
         elementwise_reverse_affine_chain_inlined, sch.mod["main"]
     )

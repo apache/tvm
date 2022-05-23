@@ -256,7 +256,7 @@ class IterMapRewriter : public ExprMutator {
     if (require_bijective) {
       // all input marks must be visited
       for (const IterMark& mark : input_marks_) {
-        if (collector.visited_.count(mark) == 0) {
+        if (collector.visited_.count(mark) == 0 && !is_one(mark->extent)) {
           return false;
         }
       }
