@@ -223,7 +223,8 @@ class OperatorConverter(object):
 
     def unbind(self, data, axis=1):
         """
-        This is a slightly modified version compared to the one in common.py
+        This is a modified version compared to the one in common.py.
+        In onnx files the timestep index is shape[0], in tflite it is shape[1].
 
          Parameters
          ----------
