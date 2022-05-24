@@ -681,6 +681,4 @@ def test_compile_tflite_module_with_mod_name_and_ethosu(
 
 
 if __name__ == "__main__":
-    import sys
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

@@ -150,4 +150,4 @@ class TestDepthwiseConv2d_NHWC_HWOI(BasicDepthwiseConv2dTests):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

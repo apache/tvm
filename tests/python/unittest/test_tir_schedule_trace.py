@@ -20,6 +20,7 @@ import sys
 
 import pytest
 import tvm
+import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
 from tvm.tir.schedule import BlockRV, Instruction, InstructionKind, LoopRV, Trace
@@ -275,4 +276,4 @@ def test_apply_json_to_schedule_1():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

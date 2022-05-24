@@ -19,6 +19,7 @@ import sys
 
 import numpy
 import pytest
+import tvm.testing
 
 from tvm import tir
 from tvm.script import tir as T
@@ -206,4 +207,4 @@ def test_sample_perfect_tile_after_copy():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()
