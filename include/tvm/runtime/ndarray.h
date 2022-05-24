@@ -156,18 +156,29 @@ class NDArray : public ObjectRef {
   TVM_DLL static NDArray Empty(ShapeTuple shape, DLDataType dtype, Device dev,
                                Optional<String> mem_scope = NullOpt);
   /*!
-   * \brief Try to create a NDArray backed by an external DLTensor without copying.
+   * \brief Create a NDArray backed by an external DLTensor.
+   * First of all it tries to do it without copying.
    *
-   * Fail if DLTensor is not contiguous.
    * If AbilityOfZeroCopyForDLTensor is true a NDArray is created
    * using the memory allocated by an external source.
    * Responsibility for memory retaining lies with the external source.
    * Otherwise new NDArray is created, the data is copied from the DLTensor.
-   * \param dl_tensor The pointer of DLTensor to copy from.
+   * \param dl_tensor The pointer of DLTensor.
    * \param dst_dev device of destination NDArray
    * \return The created NDArray view.
    */
   TVM_DLL static NDArray FromExternalDLTensor(DLTensor* dl_tensor, const Device& dst_dev);
+  /*!
+   * \brief Safe create a NDArray backed by an external DLTensor.
+   *
+   * If DLTensor is not contiguous or has bad aligned data, It fails.
+   * This allows us to create a NDArray using the memory
+   * allocated by an external source. Responsibility for memory
+   * retaining lies with the external source.
+   * \param dl_tensor The DLTensor for NDArray base.
+   * \return The created NDArray view.
+   */
+  TVM_DLL static NDArray FromExternalDLTensor(const DLTensor& dl_tensor);
   /*!
    * \brief Create new NDArray, data is copied from DLTensor.
    *
@@ -214,16 +225,7 @@ class NDArray : public ObjectRef {
    * \return true if all conditions are satisfied.
    */
   TVM_DLL static bool AbilityOfZeroCopyForDLTensor(DLTensor* tensor, const Device& dev);
-  /*!
-   * \brief Safeless create a NDArray backed by an external DLTensor.
-   *
-   * This allows us to create a NDArray using the memory
-   * allocated by an external source. Responsibility for memory
-   * retaining lies with the external source.
-   * \param dl_tensor The DLTensor to copy from.
-   * \return The created NDArray view.
-   */
-  TVM_DLL static NDArray FromExternalDLTensor(const DLTensor& dl_tensor);
+  TVM_DLL static bool IsAligned(const DLTensor& tensor);
 
  protected:
   friend class TVMPODValue_;
@@ -371,7 +373,7 @@ inline size_t GetDataSize(const DLTensor& arr) {
  * \param arr The input DLTensor.
  * \return The check result.
  */
-inline bool IsContiguous(const DLTensor& arr) {
+static inline bool IsContiguous(const DLTensor& arr) {
   if (arr.strides == nullptr) return true;
   int64_t expected_stride = 1;
   for (int32_t i = arr.ndim; i != 0; --i) {
