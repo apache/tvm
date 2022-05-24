@@ -97,9 +97,8 @@ class ParallelLauncher {
   ~ParallelLauncher() { delete[] sync_counter_; }
   // Wait n jobs to finish
   int WaitForJobs() {
-    while (num_pending_.load() != 0) {
-      tvm::runtime::threading::Yield();
-    }
+    std::unique_lock<std::mutex> lck(finish_mutex_);
+    finish_.wait(lck, num_pending_.load() == 0 || has_error_.load());
     if (!has_error_.load()) return 0;
     std::ostringstream os;
     for (size_t i = 0; i < par_errors_.size(); ++i) {
@@ -116,9 +115,15 @@ class ParallelLauncher {
     num_pending_.fetch_sub(1);
     par_errors_[task_id] = TVMGetLastError();
     has_error_.store(true);
+    finish_.notify_all();
   }
   // Signal that one job has finished.
-  void SignalJobFinish() { num_pending_.fetch_sub(1); }
+  void SignalJobFinish() {
+    num_pending_.fetch_sub(1);
+    if (num_pending_.load() == 0) {
+      finish_.notify_all();
+    }
+  }
   // Get thread local version of the store.
   static ParallelLauncher* ThreadLocal() { return dmlc::ThreadLocalStore<ParallelLauncher>::Get(); }
   // The parallel lambda
@@ -140,6 +145,9 @@ class ParallelLauncher {
   std::atomic<int32_t>* sync_counter_{nullptr};
   // The error message
   std::vector<std::string> par_errors_;
+  // All the jobs have been finished
+  std::condition_variable finish_;
+  std::mutex finish_mutex_;
 };
 
 /*! \brief Lock-free single-producer-single-consumer queue for each thread */
