@@ -334,11 +334,11 @@ def get_zephyr_base(options: dict):
     return zephyr_base
 
 
-def get_cmsis_path(options: dict):
+def get_cmsis_path(options: dict) -> pathlib.Path:
     """Returns CMSIS dependency path"""
     cmsis_path = options.get("cmsis_path", CMSIS_PATH)
     assert cmsis_path, "'cmsis_path' option not passed and not found by default!"
-    return cmsis_path
+    return pathlib.Path(cmsis_path)
 
 
 class Handler(server.ProjectAPIHandler):
@@ -432,28 +432,6 @@ class Handler(server.ProjectAPIHandler):
 
         return float(f"{version_major}.{version_minor}")
 
-    def _load_cmsis(self, lib_path: Union[str, pathlib.Path], cmsis_path: Union[str, pathlib.Path]):
-        """Copy CMSIS header files to generated project."""
-
-        cmsis_path = pathlib.Path(cmsis_path)
-
-        lib_path = pathlib.Path(lib_path)
-        if not lib_path.exists():
-            lib_path.mkdir()
-
-        include_directories = ["CMSIS/DSP/Include", "CMSIS/DSP/Include/dsp", "CMSIS/NN/Include"]
-        for include_path in include_directories:
-            include_path = pathlib.Path(include_path)
-            src = cmsis_path / include_path
-            dest = lib_path
-            if include_path.name != "Include":
-                dest = lib_path / include_path.name
-                dest.mkdir()
-
-            for item in src.iterdir():
-                if not item.is_dir():
-                    shutil.copy(item, dest / item.name)
-
     def _cmsis_required(self, project_path: Union[str, pathlib.Path]) -> bool:
         """Check if CMSIS dependency is required."""
         project_path = pathlib.Path(project_path)
@@ -496,10 +474,6 @@ class Handler(server.ProjectAPIHandler):
             os.makedirs(extract_path)
             tf.extractall(path=extract_path)
 
-        # Add CMSIS libraries if required.
-        if self._cmsis_required(extract_path):
-            self._load_cmsis(pathlib.Path(project_dir) / "include", get_cmsis_path(options))
-
         if self._is_qemu(options):
             shutil.copytree(API_SERVER_DIR / "qemu-hack", project_dir / "qemu-hack")
 
@@ -515,8 +489,8 @@ class Handler(server.ProjectAPIHandler):
                 shutil.copy2(src_path, dst_path)
 
         # Populate Makefile.
-        with open(API_SERVER_DIR / "CMakeLists.txt.template", "r") as cmake_template_f:
-            with open(project_dir / "CMakeLists.txt", "w") as cmake_f:
+        with open(project_dir / "CMakeLists.txt", "w") as cmake_f:
+            with open(API_SERVER_DIR / "CMakeLists.txt.template", "r") as cmake_template_f:
                 for line in cmake_template_f:
                     if self.API_SERVER_CRT_LIBS_TOKEN in line:
                         crt_libs = self.CRT_LIBS_BY_PROJECT_TYPE[options["project_type"]]
@@ -528,6 +502,20 @@ class Handler(server.ProjectAPIHandler):
                     flags = options.get("compile_definitions")
                     for item in flags:
                         cmake_f.write(f"target_compile_definitions(app PUBLIC {item})\n")
+
+            # Include CMSIS libraries if required.
+            if self._cmsis_required(extract_path):
+                cmsis_path = get_cmsis_path(options)
+                cmake_f.write("\n")
+                cmake_f.write(
+                    f'target_include_directories(tvm_model PRIVATE {str(cmsis_path / "CMSIS" / "DSP" / "Include")})\n'
+                )
+                cmake_f.write(
+                    f'target_include_directories(tvm_model PRIVATE {str(cmsis_path / "CMSIS" / "DSP" / "Include" / "dsp")})\n'
+                )
+                cmake_f.write(
+                    f'target_include_directories(tvm_model PRIVATE {str(cmsis_path / "CMSIS" / "NN" / "Include")})\n'
+                )
 
         self._create_prj_conf(project_dir, options)
 

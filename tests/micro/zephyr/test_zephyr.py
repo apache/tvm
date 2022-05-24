@@ -564,13 +564,13 @@ def test_schedule_build_with_cmsis_dependency(temp_dir, board, west_cmd, tvm_deb
     )
     project.build()
 
-    generated_project_include_files = []
-    for path in (project_dir / "include").iterdir():
-        if path.is_file():
-            generated_project_include_files.append(path.name)
+    with open(project_dir / "CMakeLists.txt", "r") as cmake_f:
+        cmake_content = cmake_f.read()
 
-    assert "arm_math.h" in generated_project_include_files
-    assert "arm_nnsupportfunctions.h" in generated_project_include_files
+    assert "CMSIS/DSP/Include" in cmake_content
+    assert "CMSIS/DSP/Include/dsp" in cmake_content
+    assert "CMSIS/DSP/Include" in cmake_content
+    assert "CMSIS/NN/Include" in cmake_content
 
 
 if __name__ == "__main__":
