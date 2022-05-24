@@ -16,9 +16,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -x  # NOTE(areusch): Adding to diagnose flaky timeouts
+set -euxo pipefail
+
 
 source tests/scripts/setup-pytest-env.sh
 
