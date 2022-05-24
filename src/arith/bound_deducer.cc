@@ -71,7 +71,7 @@ std::vector<const Object*> GetPath(PrimExpr target, PrimExpr expr) {
 enum CompareOp { kGreater, kLess, kEqual };
 
 // a visitor to deduce the bound of a variable from a expression
-class BoundDeducer : public ExprVisitor {
+class BoundDeducer : public ExprFunctor<void(const PrimExpr&)> {
  public:
   friend class BoundDeduceInputChecker;
   friend class Converter;
@@ -85,20 +85,16 @@ class BoundDeducer : public ExprVisitor {
   void VisitExpr(const PrimExpr& e) final {
     if (!success_) return;
     if (iter_ < path_.size() && e.get() == path_[iter_++]) {
-      ExprVisitor::VisitExpr(e);
+      ExprFunctor::VisitExpr(e);
     } else {
       success_ = false;
       return;
     }
   }
 
-  void VisitExpr_(const LTNode* op) final { success_ = false; }
+  void VisitExprDefault_(const Object* op) final { success_ = false; }
 
-  void VisitExpr_(const LENode* op) final { success_ = false; }
-
-  void VisitExpr_(const GTNode* op) final { success_ = false; }
-
-  void VisitExpr_(const GENode* op) final { success_ = false; }
+  void VisitExpr_(const VarNode* op) final {}
 
   void VisitExpr_(const AddNode* op) final {
     bool left = op->a.get() == path_[iter_];
