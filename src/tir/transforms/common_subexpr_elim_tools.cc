@@ -731,6 +731,10 @@ bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b) {
   return EqualTerms(a, b);
 }
 
+struct ExprDeepHashStruct {
+  int64_t operator()(const PrimExpr& e) const { return ExprDeepHash(e); }
+};
+
 /*!
  * \brief Transforms a hashtable of syntactic computations into a vector or pairs
           (expression, counter) where equivalent computations are merged and their counters added.
@@ -743,27 +747,23 @@ bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b) {
  */
 std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
     const ComputationTable& table) {
-  std::map<int64_t, std::pair<PrimExpr, size_t>> equiv_computations;
+  std::unordered_map<PrimExpr, size_t, ExprDeepHashStruct, ExprDeepEqual> equiv_computations;
 
   // For each element in the hashtable
   for (auto elem : table) {
     // We try to see if a semantically equivalent term is already in the resulting vector
-    int64_t hash = ExprDeepHash(elem.first);
-    auto it_found = equiv_computations.find(hash);
+    auto it_found = equiv_computations.find(elem.first);
     // And if so, we increase (by `elem.second`) its count
     if (it_found != equiv_computations.end()) {
-      it_found->second.second += elem.second;
+      it_found->second += elem.second;
     } else {
       // If we could not find a semantically equivalent term in the resulting vector, we add it
-      equiv_computations[hash] = elem;
+      equiv_computations[elem.first] = elem.second;
     }
   }
-  std::vector<std::pair<PrimExpr, size_t>> result;
-  result.reserve(result.size());
-  for (auto p : equiv_computations) {
-    result.push_back(p.second);
-  }
-  // Traverse through map in a sorted order on keys to maintain deterministic behavior
+  std::vector<std::pair<PrimExpr, size_t>> result(equiv_computations.begin(),
+                                                  equiv_computations.end());
+  // Sort results to maintain deterministic behavior
   // We do this by comparing the string repr of each PrimExpr to get a determinstic ordering
   std::sort(result.begin(), result.end(),
             [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
