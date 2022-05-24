@@ -74,7 +74,9 @@
     script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
     label: 'Run i386 integration tests',
   )
+  {% if shard_index == 2 or num_shards < 2 %}
   fsim_test(ci_i386)
+  {% endif %}
 {% endcall %}
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="test: Hexagon",
@@ -156,7 +158,9 @@
 ) %}
   {{ m.download_artifacts(tag='arm', filenames=tvm_multilib) }}
   ci_setup(ci_arm)
+  {% if shard_index == 1 %}
   cpp_unittest(ci_arm)
+  {% endif %}
   sh (
     script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
     label: 'Run test_arm_compute_lib test',
