@@ -37,7 +37,7 @@ namespace runtime {
 
 class StackVMModuleNode : public runtime::ModuleNode {
  public:
-  const char* type_key() const { return "stackvm"; }
+  const char* type_key() const final { return "stackvm"; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == runtime::symbol::tvm_module_main) {
