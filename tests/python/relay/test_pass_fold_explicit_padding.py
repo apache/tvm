@@ -22,8 +22,7 @@ from tvm.relay.testing import run_opt_pass
 import numpy as np
 
 
-# Test to replace, old version
-def test_simplify_conv():
+def test_simplify_conv_pad():
     convs = [relay.nn.conv1d, relay.nn.conv2d, relay.nn.conv3d]
 
     def validate(ndim, pad_width, pad_value, pad_mode, orig_padding, layout):
@@ -66,6 +65,8 @@ def test_simplify_conv():
 
         zz = run_opt_pass(conv, transform.FoldExplicitPadding())
         expected = run_opt_pass(after, transform.InferType())
+        if ndim == 1 and pad_width == [[0, 0], [0, 0], [0, 0]] and orig_padding == [2, 0]:
+            breakpoint()
         assert tvm.ir.structural_equal(zz, expected)
 
         mod1 = tvm.IRModule.from_expr(conv)
@@ -100,21 +101,28 @@ def test_simplify_conv():
                         layout = layout[0:2] + layout[5 - ndim :]
                         padding = [[0, 0]] * 2 + [i_pad] * ndim
 
-                    validate(ndim, padding, 1, "edge", orig_pad * ndim, layout)
-                    validate(ndim, padding, 1, "constant", orig_pad * ndim, layout)
-                    validate(ndim, padding, 1, "reflect", orig_pad * ndim, layout)
-                    breakpoint()
+                    validate(ndim, padding, 0, "constant", orig_pad * ndim, layout)
+                    # validate(ndim, padding, 1, "edge", orig_pad * ndim, layout)
+                    # validate(ndim, padding, 1, "reflect", orig_pad * ndim, layout)
+                    # breakpoint()
                     # raise AssertionError('done')
 
-    ndim = 2
-    validate(ndim, [[0, 0]] * 2 + [i_pad] * ndim, 1, "constant", orig_pad * ndim, "NCHW")
-    validate(ndim, [[0, 0]] * 2 + [i_pad] * ndim, 0, "edge", orig_pad * ndim, "NCHW")
+
+def get_min_value(dtype):
+    if np.issubdtype(dtype, np.floating):
+        return np.finfo(dtype).min
+    elif np.issubdtype(dtype, np.integer):
+        return np.iinfo(dtype).min
+    else:
+        raise ValueError("Cannot get min value for dtypes that are not integer or not floating")
 
 
 def test_simplify_pool_pad():
     pools = [relay.nn.max_pool1d, relay.nn.max_pool2d, relay.nn.max_pool3d]
 
-    def validate(ndim, pad_width, pad_value, pad_mode, orig_padding, layout):
+    def validate(ndim, pad_width, pad_value, pad_mode, orig_padding, layout, pool_size, dtype):
+        pad_value_const = relay.const(pad_value, dtype=dtype)
+
         if layout[1] == "C":
             shape = [1, 3] + [10] * ndim
         elif layout[-1] == "C":
@@ -122,82 +130,74 @@ def test_simplify_pool_pad():
         else:
             raise ValueError("This test only supports NC* and N*C")
 
-        x = relay.var("x", shape=shape, dtype="float32")
-        pad = relay.nn.pad(x, pad_width, pad_value, pad_mode)
+        x = relay.var("x", shape=shape, dtype=dtype)
+        pad = relay.nn.pad(x, pad_width, pad_value_const, pad_mode)
         if layout[1] == "C":
-            pool = pools[ndim - 1](pad, padding=orig_padding)
+            pool = pools[ndim - 1](pad, padding=orig_padding, pool_size=pool_size)
         else:
             pool = pools[ndim - 1](
-                pad, padding=orig_padding, layout=layout,
+                pad, padding=orig_padding, layout=layout, pool_size=pool_size
             )
 
-        if pad_mode == "constant" and pad_value == 0:
+        # Compute the min possible value for the given dtype -- this is maxpool's
+        # default pad value.
+        if pad_mode == "constant" and pad_value == get_min_value(dtype):
             new_padding = []
             for j in range(2):
                 for i in range(len(pad_width)):
                     if layout[i] in ["D", "H", "W"]:
                         new_padding.append(pad_width[i][j])
+            for i in range(len(new_padding)):
+                new_padding[i] += orig_padding[i]
             if layout[1] == "C":
-                after = pools[ndim - 1](x, padding=new_padding)
+                after = pools[ndim - 1](x, padding=new_padding, pool_size=pool_size)
             else:
                 after = pools[ndim - 1](
-                    x, padding=new_padding, layout=layout,
+                    x, padding=new_padding, layout=layout, pool_size=pool_size
                 )
         else:
             after = pool
 
-        # breakpoint()
         zz = run_opt_pass(pool, transform.FoldExplicitPadding())
         expected = run_opt_pass(after, transform.InferType())
+
         assert tvm.ir.structural_equal(zz, expected)
 
         mod1 = tvm.IRModule.from_expr(pool)
         mod2 = tvm.IRModule.from_expr(zz)
+
+        op_freqs = relay.analysis.list_op_freqs(mod2)
+        assert "nn.pad" not in op_freqs
 
         with tvm.transform.PassContext():
             func1 = relay.create_executor(
                 "vm", mod=mod1, device=tvm.cpu(), target="llvm"
             ).evaluate()
         func2 = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm").evaluate()
-        x_np = np.random.rand(*shape).astype("float32")
-
-        # TODO: Raw input, remove later
-        pool_0 = pools[0](
-            x, padding=[1, 1], layout=layout,
-        )
-        mod3 = tvm.IRModule.from_expr(pool_0)
-        func3 = relay.create_executor("vm", mod=mod3, device=tvm.cpu(), target="llvm").evaluate()
+        x_np = np.random.rand(*shape).astype(dtype)
 
         result1 = func1(x_np)
         result2 = func2(x_np)
-        result3 = func3(x_np)
-        breakpoint()
 
         tvm.testing.assert_allclose(result1.numpy(), result2.numpy(), rtol=1e-5, atol=1e-5)
 
-
-    # Failing test case:
-    validate(1, [[0, 0], [0, 0], [1, 1]], 0, "constant", [0, 0], "NCW")
-
-    # TODO: also condition on pool_size
     for orig_pad in [[0, 0], [2, 0], [0, 2]]:
         for i_pad in [[0, 0], [1, 1], [1, 0]]:
             for ndim in [1, 2, 3]:
-                for channels_last in [0, 1]:
-                    if channels_last:
-                        layout = "NDHWC"
-                        layout = layout[0:1] + layout[4 - ndim : 4] + layout[-1:]
-                        padding = [[0, 0]] + [i_pad] * ndim + [[0, 0]]
-                    else:
-                        layout = "NCDHW"
-                        layout = layout[0:2] + layout[5 - ndim :]
-                        padding = [[0, 0]] * 2 + [i_pad] * ndim
+                for dtype in ["float32", "int32"]:
+                    min_val = get_min_value(dtype)
 
-                    validate(ndim, padding, 0, "constant", orig_pad * ndim, layout)
-    ndim = 2
-    validate(ndim, [[0, 0]] * 2 + [i_pad] * ndim, 1, "constant", orig_pad * ndim, "NCHW")
-    validate(ndim, [[0, 0]] * 2 + [i_pad] * ndim, 0, "edge", orig_pad * ndim, "NCHW")
- 
+                    for channels_last in [0, 1]:
+                        if channels_last:
+                            layout = "NDHWC"
+                            layout = layout[0:1] + layout[4 - ndim : 4] + layout[-1:]
+                            padding = [[0, 0]] + [i_pad] * ndim + [[0, 0]]
+                        else:
+                            layout = "NCDHW"
+                            layout = layout[0:2] + layout[5 - ndim :]
+                            padding = [[0, 0]] * 2 + [i_pad] * ndim
+
+                        validate(ndim, padding, min_val, "constant", orig_pad * ndim, layout, 2, dtype)
 
 # def validate_simplify_pad(ndim, pad_width, pad_value, pad_mode, orig_padding, layout):
 #     if layout[1] == "C":

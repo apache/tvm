@@ -26,7 +26,9 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/tir/op.h>
 
 #include "../op/tensor/transform.h"
 #include "pattern_utils.h"
@@ -214,7 +216,7 @@ class SimplifyConvPad {
 
 
 /*!
- * \brief SimplifyPoolPad matches a pad followed by a conv/convtranspose/pool/etc
+ * \brief SimplifyPoolPad matches a pad followed by a pool
  * with a pad attribute and merges the padding into the kernel.
  */
 class SimplifyPoolPad {
@@ -245,13 +247,10 @@ class SimplifyPoolPad {
 
     auto new_attrs = make_object<T>();
     Array<PrimExpr> combined_padding;
-    std::cout << "old padding size " << padding.size() << std::endl;
     for (size_t i = 0; i < padding.size(); ++i) {
       auto added_item = padding[i] + old_attrs->padding[i];
-      std::cout << "added item " << added_item << std::endl;
       combined_padding.push_back(added_item);
     }
-    std::cout << "combined padding length " << combined_padding.size() << std::endl;
 
     // TODO @anwang: generalize for avg pool as well, or split out?
     new_attrs->pool_size = old_attrs->pool_size;
@@ -314,17 +313,42 @@ class SimplifyPoolPad {
 
     // Possibly perform more optimizations if the pad_value is 0
     const ConstantNode* pad_value = args[1].as<ConstantNode>();
-    if (param->pad_mode == "constant" && pad_value && ToScalar(pad_value->data) == 0.0) {
+
+    // The default pad constant for max pool is the min possible value for the dtype
+    if (param->pad_mode == "constant" && pad_value) {
       Attrs attrs;
-      if (node_map.count(max_pool1d_)) {
-        attrs = GetAttrs(param, call_node->attrs.as<MaxPool1DAttrs>());
-      } else if (node_map.count(max_pool2d_)) {
-        attrs = GetAttrs(param, call_node->attrs.as<MaxPool2DAttrs>());
-      } else if (node_map.count(max_pool3d_)) {
-        attrs = GetAttrs(param, call_node->attrs.as<MaxPool3DAttrs>());
-      } else {
-        return post;
+
+      auto min_value = tvm::min_value(tvm::runtime::DataType(pad_value->data->dtype));
+      const FloatImmNode* maybe_min_float = min_value.as<FloatImmNode>();
+      const IntImmNode* maybe_min_int = min_value.as<IntImmNode>();
+
+      auto pad_scalar = ToScalar(pad_value->data);
+
+      if ((node_map.count(max_pool1d_) || node_map.count(max_pool2d_) || node_map.count(max_pool3d_))
+          && ((maybe_min_float && pad_scalar == maybe_min_float->value)
+          || (maybe_min_int && pad_scalar == maybe_min_int->value))) {
+          // When the pad value in the preceding pad op matches the default max pool pad value
+          // (minimum possible value for the dtype), fold.
+          if (node_map.count(max_pool1d_)) {
+            attrs = GetAttrs(param, call_node->attrs.as<MaxPool1DAttrs>());
+          } else if (node_map.count(max_pool2d_)) {
+            attrs = GetAttrs(param, call_node->attrs.as<MaxPool2DAttrs>());
+          } else if (node_map.count(max_pool3d_)) {
+            attrs = GetAttrs(param, call_node->attrs.as<MaxPool3DAttrs>());
+          }
+      } else if ((node_map.count(avg_pool1d_) || node_map.count(avg_pool2d_) || node_map.count(avg_pool3d_))
+          && pad_scalar == 0
+      ) {
+        // When the pad value in the preceding pad op matches the default avg pool pad value (0), fold.
+          if (node_map.count(avg_pool1d_)) {
+            attrs = GetAttrs(param, call_node->attrs.as<AvgPool1DAttrs>());
+          } else if (node_map.count(avg_pool2d_)) {
+            attrs = GetAttrs(param, call_node->attrs.as<AvgPool2DAttrs>());
+          } else if (node_map.count(avg_pool3d_)) {
+            attrs = GetAttrs(param, call_node->attrs.as<AvgPool3DAttrs>());
+          }
       }
+
       if (!attrs.defined()) {
         return post;
       }
@@ -350,12 +374,10 @@ class SimplifyPoolPad {
   DFPattern max_pool3d_;
 };
 
-
-
 class SimplifyExplicitPadding {
  public:
   explicit SimplifyExplicitPadding(IRModule mod) : mod_(mod) {
-    // CreateCallback(SimplifyPoolPad());
+    CreateCallback(SimplifyPoolPad());
     CreateCallback(SimplifyConvPad());
     // TODO(mbrookhart): ConvTranspose(Pad(x))
   }
