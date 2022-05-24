@@ -5140,7 +5140,6 @@ unsupported_onnx_tests = [
     "test_maxpool_with_argmax_2d_precomputed_pads",
     "test_maxpool_with_argmax_2d_precomputed_strides",
     "test_maxunpool_export_with_output_shape",
-    "test_mvn",
     # This test fails llvm with a lowering error:
     "test_nllloss_NCd1d2d3_none_no_weight_negative_ii_expanded",
     "test_optional_has_element",
@@ -6750,3 +6749,4 @@ if __name__ == "__main__":
     test_random_normal()
     test_random_normal_like()
     test_LinearRegressor()
+    test_mvn()
