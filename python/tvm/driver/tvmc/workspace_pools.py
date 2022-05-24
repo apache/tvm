@@ -31,6 +31,7 @@ logger = logging.getLogger("TVMC")
 
 
 def generate_workspace_pools_args(parser):
+    """Generates arguments for each Workspace Pools's options"""
     parser.add_argument(
         "--workspace-pools",
         help="""The name of the memory pool
@@ -120,8 +121,8 @@ def _target_attributes_to_pools(attr, targets):
             target_attributes[pool_name][matched_targets[0]] = target_value
         else:
             raise TVMCException(
-                """The workspace pool target specification for target
-                  access needs to be the same TVM target as when specifying targets to use."""
+                "The workspace pool target specification for target access "
+                "needs to be the same TVM target as when specifying targets to use."
             )
 
     return target_attributes
@@ -132,6 +133,7 @@ def _attribute_to_pools(attr):
 
 
 def workspace_pools_recombobulate(parsed, targets):
+    """Reconstructs the Workspace Pools args and returns a WorkspaceMemoryPool object"""
     WORKSPACE_POOL_PARAMS = [
         "workspace_pools_size_hint_bytes",
         "workspace_pools_target_access",
