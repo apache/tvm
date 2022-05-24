@@ -592,7 +592,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B") as [vi, vj]:
+                    with T.block("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 

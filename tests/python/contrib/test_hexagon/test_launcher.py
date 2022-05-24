@@ -388,4 +388,4 @@ def test_aot_executor_multiple_conv2d(hexagon_session: Session, aot_host_target,
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

@@ -890,4 +890,4 @@ def test_meta_schedule_local_runner_add_test():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

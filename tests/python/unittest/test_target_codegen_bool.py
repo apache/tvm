@@ -17,6 +17,7 @@
 """codegen related to bool types"""
 
 import tvm
+import tvm.testing
 from tvm import te
 import numpy as np
 import tvm.testing
@@ -71,4 +72,4 @@ def test_cmp_load_store(target, dev, arr_size, compute, schedule):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

@@ -62,7 +62,7 @@ def elementwise_with_root(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
 
-    with T.block() as []:
+    with T.block():
         for i, j in T.grid(128, 128):
             with T.block():
                 vi, vj = T.axis.remap("SS", [i, j])
@@ -78,8 +78,8 @@ def func_with_opaque_block(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
 
-    with T.block() as []:
-        with T.block() as []:
+    with T.block():
+        with T.block():
             B[0, 0] = A[0, 0] + T.float32(1)
         for i, j in T.grid(128, 128):
             with T.block():
@@ -93,7 +93,7 @@ def func_with_part_access_region(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
 
-    with T.block() as []:
+    with T.block():
         for i, j in T.grid(128, 128):
             with T.block():
                 vi, vj = T.axis.remap("SS", [i, j])
@@ -263,7 +263,7 @@ def match_buffer_func(a: T.handle) -> None:
             A0 = T.match_buffer(A[i, 0:16], (16))
             with T.block():
                 for j in range(0, 16):
-                    with T.block() as []:
+                    with T.block():
                         A1 = T.match_buffer(A0[j], ())
                         A1[()] = 1.0
 
@@ -280,7 +280,7 @@ def expected_match_buffer_func(a: T.handle) -> None:
                 T.reads([])
                 T.writes(A0[0:16])
                 for j in range(0, 16):
-                    with T.block() as []:
+                    with T.block():
                         T.reads([])
                         T.writes(A0[j])
                         A1 = T.match_buffer(A0[j], ())

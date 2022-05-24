@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.relay.backend import Executor
 from tvm.relay import transform
@@ -572,7 +573,4 @@ def test_pass_link_params():
 
 
 if __name__ == "__main__":
-    import sys
-    import pytest
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

@@ -28,9 +28,10 @@ from tvm.relay.testing import check_grad
 
 index_dtype = tvm.testing.parameter("int32", "int64")
 val_dtype = tvm.testing.parameter("float32", "float64")
+executor_kind = tvm.testing.parameter("debug")
 
 
-def test_cross_entropy_grad(target, dev, val_dtype):
+def test_cross_entropy_grad(executor_kind, target, dev, val_dtype):
     target = tvm.target.Target(target)
     if target.kind.name == "vulkan" and val_dtype == "float64":
         # GLSL.std.450's Log implementation only takes 16/32-bit floats.
@@ -44,10 +45,11 @@ def test_cross_entropy_grad(target, dev, val_dtype):
         scale=0.1,
         mean=1,
         target_devices=[(target, dev)],
+        executor_kind=executor_kind,
     )
 
 
-def test_cross_entropy_with_logits_grad(target, dev, val_dtype):
+def test_cross_entropy_with_logits_grad(executor_kind, target, dev, val_dtype):
     x = relay.var("x", shape=(2, 5), dtype=val_dtype)
     y = relay.var("y", shape=(2, 5), dtype=val_dtype)
     check_grad(
@@ -56,13 +58,16 @@ def test_cross_entropy_with_logits_grad(target, dev, val_dtype):
         scale=0.1,
         mean=1,
         target_devices=[(target, dev)],
+        executor_kind=executor_kind,
     )
 
 
-def test_checkpoint(target, dev):
+def test_checkpoint(executor_kind, target, dev):
     inputs = [relay.var("x{}".format(i), shape=(1,)) for i in range(4)]
     output = relay.multiply(relay.add(inputs[0], inputs[1]), relay.add(inputs[2], inputs[3]))
-    check_grad(relay.Function(inputs, relay.annotation.checkpoint(output)))
+    check_grad(
+        relay.Function(inputs, relay.annotation.checkpoint(output)), executor_kind=executor_kind
+    )
 
     scope = relay.ScopeBuilder()
     out_tuple = scope.let(
@@ -76,7 +81,11 @@ def test_checkpoint(target, dev):
         )
     )
     out_single = scope.get()
-    check_grad(relay.Function(inputs, out_single), target_devices=[(target, dev)])
+    check_grad(
+        relay.Function(inputs, out_single),
+        target_devices=[(target, dev)],
+        executor_kind=executor_kind,
+    )
 
 
 class TestBatchMatmulGrad:
@@ -87,7 +96,9 @@ class TestBatchMatmulGrad:
         ((2, 5, 3), (2, 4, 5), True, True),
     )
 
-    def test_batch_matmul_grad(self, target, dev, a_shape, b_shape, transpose_a, transpose_b):
+    def test_batch_matmul_grad(
+        self, executor_kind, target, dev, a_shape, b_shape, transpose_a, transpose_b
+    ):
         tensor_a = relay.var("tensor_a", relay.TensorType(a_shape, "float32"))
         tensor_b = relay.var("tensor_b", relay.TensorType(b_shape, "float32"))
         check_grad(
@@ -98,18 +109,20 @@ class TestBatchMatmulGrad:
                 ),
             ),
             target_devices=[(target, dev)],
+            executor_kind=executor_kind,
         )
 
 
-def test_reverse_reshape_grad(target, dev):
+def test_reverse_reshape_grad(executor_kind, target, dev):
     x = relay.var("x", shape=(3, 4, 5), dtype="float64")
     check_grad(
         relay.Function([x], relay.op.reverse_reshape(x, (-1, 0))),
         target_devices=[(target, dev)],
+        executor_kind=executor_kind,
     )
 
 
-def test_one_hot_grad(target, dev, index_dtype, val_dtype):
+def test_one_hot_grad(executor_kind, target, dev, index_dtype, val_dtype):
     indices_shape = (3, 4)
     depth = 5
     axis = -1
@@ -127,8 +140,14 @@ def test_one_hot_grad(target, dev, index_dtype, val_dtype):
     y = relay.one_hot(indices, on_val, off_val, depth, axis, val_dtype)
     f = relay.Function([indices, on_val, off_val], y)
 
-    check_grad(f, inputs=inputs, test_inputs=test_inputs, target_devices=[(target, dev)])
+    check_grad(
+        f,
+        inputs=inputs,
+        test_inputs=test_inputs,
+        target_devices=[(target, dev)],
+        executor_kind=executor_kind,
+    )
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()
