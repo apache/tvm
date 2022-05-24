@@ -38,19 +38,36 @@ void CompilationConfigNode::VisitAttrs(AttrVisitor* v) {
   // NOTE: The virtual_device_cache_ is not accessible via FFI.
 }
 
-Target CompilationConfigNode::FindPrimitiveTargetOrFail(DLDeviceType device_type) const {
+Target CompilationConfigNode::FindPrimitiveTargetForDeviceOrFail(DLDeviceType device_type) const {
   ICHECK_GT(device_type, 0) << "Invalid device type";
   auto itr = std::find_if(
       primitive_targets.begin(), primitive_targets.end(),
       [device_type](const Target& target) { return target->kind->device_type == device_type; });
   if (itr == primitive_targets.end()) {
     std::stringstream msg;
-    msg << "No target is specified for device '" << runtime::DeviceName(device_type)
-        << "' mapped to device type " << device_type << ". The available targets are:" << std::endl;
+    msg << "No target is specified for device type " << device_type
+        << ". The available device types and targets are:" << std::endl;
     for (const auto& target : primitive_targets) {
       msg << "  " << target->kind->device_type << "-> " << target->ToDebugString() << std::endl;
     }
     LOG(FATAL) << msg.str();
+  }
+  return *itr;
+}
+
+Optional<Target> CompilationConfigNode::FindPrimitiveTargetForKind(
+    const std::string& kind_name) const {
+  Optional<TargetKind> opt_kind = TargetKind::Get(kind_name);
+  if (!opt_kind.defined()) {
+    VLOG(1) << "No such target kind for '" << kind_name << "'";
+    return {};
+  }
+  auto itr =
+      std::find_if(primitive_targets.begin(), primitive_targets.end(),
+                   [kind_name](const Target& target) { return target->kind->name == kind_name; });
+  if (itr == primitive_targets.end()) {
+    VLOG(1) << "No target available matching kind '" << kind_name << "'";
+    return {};
   }
   return *itr;
 }
@@ -64,7 +81,7 @@ VirtualDevice CompilationConfigNode::CanonicalVirtualDevice(
   // TODO(mbs): Proper diagnostics.
   CHECK(device_type != kInvalidDeviceType)
       << "VirtualDevice annotations must include at least a device_type";
-  Target target = FindPrimitiveTargetOrFail(virtual_device->device_type());
+  Target target = FindPrimitiveTargetForDeviceOrFail(virtual_device->device_type());
   return virtual_device_cache_.Unique(VirtualDevice(device_type, virtual_device->virtual_device_id,
                                                     target, virtual_device->memory_scope));
 }
@@ -140,15 +157,20 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
   ICHECK_GT(primitive_targets.size(), 0U);
 
   //
-  // Check the primitive_targets are ordered correctly re Target::IsExternalCodegenFor.
+  // Check the primitive_targets are ordered correctly re Target::IsExternalCodegenFor,
+  // and make sure no two targets share a kind name.
   //
 
   // TODO(mbs): We could just sort the list, but given all the implicit defaulting for backwards
   // compat it seems we should avoid making this any more magical than necessary. But revisit
   // if usability suffers.
   std::unordered_set<DLDeviceType> primitive_target_device_types;
+  std::unordered_set<std::string> kind_names;
   for (const auto& target : primitive_targets) {
     primitive_target_device_types.emplace(static_cast<DLDeviceType>(target->kind->device_type));
+    CHECK(kind_names.emplace(target->kind->name).second) << "Multiple targets have been given"
+                                                            "for the same device kind '"
+                                                         << target->kind->name << "'";
   }
   for (DLDeviceType device_type : primitive_target_device_types) {
     Target first_primitive_target;
@@ -158,10 +180,7 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
       }
       if (!first_primitive_target.defined()) {
         first_primitive_target = current_primitive_target;
-        CHECK(!first_primitive_target.IsExternalCodegen())
-            << "The first given target for device type " << device_type
-            << " must not be for an external codegen, however given "
-            << first_primitive_target->ToDebugString();
+        // Note it is valid to have only one external codegen target.
       } else {
         CHECK(current_primitive_target.IsExternalCodegenFor(first_primitive_target))
             << "When given multiple targets for the device type " << device_type
@@ -205,7 +224,7 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
   //
   default_primitive_virtual_device = virtual_device_cache_.Unique(VirtualDevice(
       default_primitive_device_type,
-      /*virtual_device_id=*/0, FindPrimitiveTargetOrFail(default_primitive_device_type)));
+      /*virtual_device_id=*/0, FindPrimitiveTargetForDeviceOrFail(default_primitive_device_type)));
 
   ICHECK(default_primitive_virtual_device.defined());
   ICHECK(default_primitive_virtual_device->target.defined());

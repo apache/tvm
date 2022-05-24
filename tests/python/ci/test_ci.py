@@ -20,6 +20,7 @@ import sys
 import json
 import textwrap
 import pytest
+import tvm.testing
 
 from test_utils import REPO_ROOT
 
@@ -732,4 +733,4 @@ def test_github_tag_teams(tmpdir_factory):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

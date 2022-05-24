@@ -62,6 +62,7 @@ function in this module. Then targets using this node should be added to the
 `TVM_TEST_TARGETS` environment variable in the CI.
 
 """
+import inspect
 import copy
 import copyreg
 import ctypes
@@ -1513,3 +1514,8 @@ def identity_after(x, sleep):
 def terminate_self():
     """Testing function to terminate the process."""
     sys.exit(-1)
+
+
+def main():
+    test_file = inspect.getsourcefile(sys._getframe(1))
+    sys.exit(pytest.main([test_file] + sys.argv[1:]))

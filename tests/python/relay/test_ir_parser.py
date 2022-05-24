@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 
 import tvm
+import tvm.testing
 from tvm import relay
 import tvm.relay.testing
 from numpy import isclose
@@ -1028,6 +1029,4 @@ def test_init_module_and_metatable():
 
 
 if __name__ == "__main__":
-    import sys
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

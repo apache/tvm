@@ -496,7 +496,7 @@ class LocalRunner(RPCRunner):
 def _build_func_common(measure_input, runtime=None, check_gpu=None, build_option=None):
     """Common part for building a configuration"""
     target, task, config = measure_input
-    target, task.target_host = Target.check_and_update_host_consist(target, task.target_host)
+    target, task.target_host = Target.canon_target_and_host(target, task.target_host)
 
     with target:
         s, args = task.instantiate(config)

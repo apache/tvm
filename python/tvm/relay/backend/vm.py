@@ -39,12 +39,11 @@ def compile(mod, target=None, target_host=None, params=None):
     mod : tvm.IRModule
         The Relay module to build.
 
-    target : str, :any:`tvm.target.Target`, or dict of str(i.e.
-        device/context name) to str/tvm.target.Target, optional
-        For heterogeneous compilation, it is a dictionary indicating context
-        to target mapping. For homogeneous compilation, it is a build target.
+    target : any multi-target like object, see Target.canon_multi_target
+        For homogeneous compilation, the unique build target.
+        For heterogeneous compilation, a dictionary or list of possible build targets.
 
-    target_host : str or :any:`tvm.target.Target`, optional
+    target_host : None, or any target-like object, see Target.canon_target
         Host compilation target, if target is device.
         When TVM compiles device specific program such as CUDA,
         we also need host(CPU) side code to interact with the driver
@@ -114,21 +113,14 @@ class VMCompiler(object):
         mod : tvm.IRModule
             The Relay module to build.
 
-        target : str, :any:`tvm.target.Target`, or dict of str(i.e.
-            device/context name) to str/tvm.target.Target, optional
-            For heterogeneous compilation, it is a dictionary indicating context
-            to target mapping. For homogeneous compilation, it is a build target.
+        target : any multi-target like object, see Target.canon_multi_target
+            For homogeneous compilation, the unique build target.
+            For heterogeneous compilation, a dictionary or list of possible build targets.
 
-        target_host : str or :any:`tvm.target.Target`, optional
+        target_host : any target-like object, see Target.canon_target
             Host compilation target, if target is device.
-            When TVM compiles device specific program such as CUDA,
-            we also need host(CPU) side code to interact with the driver
-            to setup the dimensions and parameters correctly.
-            target_host is used to specify the host side codegen target.
-            By default, llvm is used if it is enabled,
-            otherwise a stackvm intepreter is used.
         """
-        raw_targets = Target.canonicalize_target_and_host(target, target_host)
+        raw_targets = Target.canon_multi_target_and_host(target, target_host)
         tophub_context = self._tophub_context(raw_targets)
         with tophub_context:
             self._lower(mod, raw_targets)
@@ -144,13 +136,12 @@ class VMCompiler(object):
         ----------
         mod : tvm.IRModule
 
-        target : str, :any:`tvm.target.Target`, or dict of str (i.e.
-            device/context name) to str/tvm.target.Target, optional
+        target : any multi-target like object, see Target.canon_multi_target
+            For homogeneous compilation, the unique build target.
+            For heterogeneous compilation, a dictionary or list of possible build targets.
 
-        target_host : str or :any:`tvm.target.Target`, optional
-            The compilation target for host.
-            By default, llvm is used if it is enabled,
-            otherwise a stackvm intepreter is used.
+        target_host : any target-like object, see Target.canon_target
+            Host compilation target, if target is device.
 
         params : dict of str to NDArray
             Input parameters to the graph that do not change
@@ -164,7 +155,7 @@ class VMCompiler(object):
         params : dict
             The parameters of the final module.
         """
-        raw_targets = Target.canonicalize_target_and_host(target, target_host)
+        raw_targets = Target.canon_multi_target_and_host(target, target_host)
         if params:
             self.set_params(params)
         return self._optimize(mod, raw_targets), self.get_params()

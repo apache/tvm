@@ -105,4 +105,4 @@ def test_softmax(target, dev, shape, dtype, ref_data, softmax_operation):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

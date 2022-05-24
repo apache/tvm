@@ -148,4 +148,4 @@ class TestGroupConv2d_NHWC_HWIO(BasicGroupConv2dTests):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

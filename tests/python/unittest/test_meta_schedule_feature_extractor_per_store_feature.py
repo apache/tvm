@@ -20,6 +20,7 @@ from typing import Callable, List
 
 import pytest
 import tvm
+import tvm.testing
 from numpy.testing import assert_allclose
 from tvm import meta_schedule as ms
 from tvm import te, tir
@@ -1588,4 +1589,4 @@ def test_cpu_layout_transform():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

@@ -22,6 +22,7 @@ from typing import List
 
 import pytest
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.meta_schedule.arg_info import TensorInfo
 from tvm.meta_schedule.builder import BuilderInput, LocalBuilder
@@ -168,4 +169,4 @@ def test_relay_model(model_name: str, input_shape: List[int], use_trt: bool):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()
