@@ -44,6 +44,10 @@ ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::outputs() {
 ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::pools() {
   return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->pools, data_->num_pools);
 }
+ArrayAccessor<struct TVMConstantInfo, ConstantInfoMetadata> MetadataNode::consts() {
+  return ArrayAccessor<struct TVMConstantInfo, ConstantInfoMetadata>(data_->consts,
+                                                                     data_->num_consts);
+}
 
 TVM_REGISTER_OBJECT_TYPE(MetadataBaseNode);
 
@@ -67,6 +71,12 @@ TensorInfo::TensorInfo(const struct ::TVMTensorInfo* data)
 TVM_REGISTER_OBJECT_TYPE(TensorInfoNode);
 
 const char* TensorInfoNode::get_c_struct_name() const { return "TVMTensorInfo"; }
+
+ConstantInfoMetadata::ConstantInfoMetadata(const struct ::TVMConstantInfo* data)
+    : MetadataBase{make_object<ConstantInfoMetadataNode>(data)} {}
+TVM_REGISTER_OBJECT_TYPE(ConstantInfoMetadataNode);
+
+const char* ConstantInfoMetadataNode::get_c_struct_name() const { return "TVMConstantInfo"; }
 
 }  // namespace metadata
 

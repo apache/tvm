@@ -143,7 +143,7 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspacePoolsAndDevices) {
                << "  struct tvmgen_ultimate_cat_spotter_devices* devices\n"
                << ");\n";
 
-  PoolInfo pool_info = PoolInfo("my_memory_pool", {});
+  PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info =
       tir::usmp::AllocatedPoolInfo(pool_info, 100000);
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},

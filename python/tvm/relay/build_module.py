@@ -139,7 +139,6 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
-        raw_targets = Target.canon_multi_target_and_host(target, target_host)
 
         # Setup the params.
         if params:
@@ -653,7 +652,7 @@ class AotExecutor(_interpreter.Executor):
         # generated code.
         temp_so_dir = contrib_utils.TempDirectory()
         temp_so = temp_so_dir / "temp.so"
-        mod.export_library(temp_so, cc="gcc", options=["-std=c11"])
+        mod.export_library(temp_so, cc="c++", options=["-std=gnu++14"])
 
         mod = load_module(temp_so)
         aot_mod = mod["default"](self.device)

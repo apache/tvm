@@ -134,7 +134,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ",\n  write_bandwidth_bytes_per_cycle=" << node->write_bandwidth_bytes_per_cycle
                 << ",\n  read_latency_cycles=" << node->read_latency_cycles
                 << ",\n  write_latency_cycles=" << node->write_latency_cycles
-                << ",\n  target_burst_bytes=" << node->target_burst_bytes << ")"
+                << ",\n  target_burst_bytes=" << node->target_burst_bytes
+                << ",\n  is_internal=" << node->is_internal << ")"
                 << "\n";
     });
 
@@ -199,7 +200,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ",\n  write_bandwidth_bytes_per_cycle=" << node->write_bandwidth_bytes_per_cycle
                 << ",\n  read_latency_cycles=" << node->read_latency_cycles
                 << ",\n  write_latency_cycles=" << node->write_latency_cycles
-                << ",\n  target_burst_bytes=" << node->target_burst_bytes << ")"
+                << ",\n  target_burst_bytes=" << node->target_burst_bytes
+                << ",\n  is_internal=" << node->is_internal << ")"
                 << "\n";
     });
 

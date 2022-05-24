@@ -27,6 +27,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 
+struct TVMConstantInfo;
 namespace tvm {
 
 /*!
@@ -264,7 +265,8 @@ struct ConstantInfoNode : public Object {
 
 class ConstantInfo : public ObjectRef {
  public:
-  TVM_DLL ConstantInfo(String name, Integer byte_offset, runtime::NDArray data);
+  TVM_DLL ConstantInfo(const struct ::TVMConstantInfo* data);
+  ConstantInfo(String name, Integer byte_offset, runtime::NDArray data);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ConstantInfo, ObjectRef, ConstantInfoNode);
 };
 

@@ -54,13 +54,19 @@ struct TVMMetadata {
   const struct TVMTensorInfo* outputs;
   /*! \brief Number of elements in `outputs` array. */
   int64_t num_outputs;
-  /*! \brief Memory Pools needed by the AOT main function.
+  /*! \brief Workspace Memory Pools needed by the AOT main function.
    * The order of the elements is the same as in the arguments to run_model. That is to say,
    * this array specifies the last `num_pools` arguments to run_model.
    */
   const struct TVMTensorInfo* pools;
   /*! \brief Number of elements in `pools` array. */
   int64_t num_pools;
+  /*! \brief Constant pools needed by the AOT main function.
+   */
+  const struct TVMConstantInfo* consts;
+  /*! \brief Number of elements in `consts` array. */
+  int64_t num_consts;
+
   /*! \brief Name of the model, as passed to tvm.relay.build. */
   const char* mod_name;
 };
@@ -80,6 +86,17 @@ struct TVMTensorInfo {
   int64_t num_shape;
   /*! \brief Data type of one element of this tensor. */
   DLDataType dtype;
+};
+
+/*!
+ * \brief Describes one constant argument to `run_model`.
+ *
+ */
+struct TVMConstantInfo {
+  const char* name_hint;
+  int64_t byte_offset;
+  int64_t data_len;
+  const void* data_bytes;
 };
 
 #ifdef __cplusplus

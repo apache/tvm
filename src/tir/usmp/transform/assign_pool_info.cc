@@ -56,7 +56,7 @@ class PoolInfoAssigner : public StmtExprMutator {
                 module->GetAttr<WorkspaceMemoryPools>(tvm::attr::kWorkspaceMemoryPools).defined()
                     ? ConstantMemoryPools()
                     : ConstantMemoryPools({ConstantPoolInfo(
-                          "global_const_workspace", {target_host.value()}, {},
+                          "global_const_workspace", {CreateDefaultMemoryPool(module)->targets}, {},
                           PoolInfoProperties(kUnrestrictedPoolSizeHint, kUnknownClockFrequency,
                                              kUnknownReadBandwidth, kUnknownWriteBandwidth, 0, 0,
                                              {{target_host.value(), 1}}, Bool(true)))}));
@@ -108,7 +108,16 @@ WorkspacePoolInfo PoolInfoAssigner::CreateDefaultMemoryPool(const tvm::IRModule&
   }
   Array<Target> targets;
   for (const auto& kv : target_access) {
-    targets.push_back(kv.first);
+    bool exist = false;
+    // Exclude targets with the same string representation
+    for (const auto& t : targets) {
+      if (t->str() == kv.first->str()) {
+        exist = true;
+      }
+    }
+    if (!exist) {
+      targets.push_back(kv.first);
+    }
   }
   return WorkspacePoolInfo(
       "global_workspace", targets,

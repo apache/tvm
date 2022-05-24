@@ -700,7 +700,10 @@ def run_and_check(
     """
 
     def run_and_check_body(base_path):
-        cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} -DTVM_RUNTIME_CONST_ALLOC_ALIGNMENT_BYTES={constant_byte_alignment} "
+        cflags = (
+            f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
+            f" -DTVM_RUNTIME_CONST_ALLOC_ALIGNMENT_BYTES={constant_byte_alignment} "
+        )
         # The calculated workspaces will not account for stack allocator tags used for debugging
         if debug_calculated_workspaces:
             cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
@@ -906,7 +909,9 @@ def generate_ref_data(mod, input_data, params=None, target="llvm"):
     else:
         main = mod["main"]
     if main.attrs is None or main.attrs["output_tensor_names"] is None:
-        output_tensor_names = ["output" if i == 0 else f"output{i+1}" for i in range(output_count)]
+        output_tensor_names = (
+            ["output"] if output_count == 1 else [f"output{i}" for i in range(output_count)]
+        )
     else:
         output_tensor_names = main.attrs["output_tensor_names"]
 

@@ -1057,7 +1057,7 @@ def test_aot_uses_anf():
     executor = Executor(
         "aot",
         {
-            "workspace-byte-alignment": 8,
+            "workspace-alignment": 8,
             "interface-api": "c",
             "unpacked-api": True,
         },

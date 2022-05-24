@@ -23,6 +23,7 @@
  */
 #include "source_module.h"
 
+#include <dmlc/memory_io.h>
 #include <tvm/runtime/metadata.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
@@ -702,9 +703,26 @@ class MetadataSerializer : public AttrVisitor {
     WriteKey(key);
   }
 
+  // Serialiding NDArray as tuple of len, data
   void Visit(const char* key, runtime::NDArray* value) final {
-    // TODO(areusch): probably we could consolidate --link-params here, tho...
-    ICHECK(false) << "do not support serializing NDArray as metadata";
+    WriteComma();
+    std::string bytes;
+    dmlc::MemoryStringStream stream(&bytes);
+    value->Save(&stream);
+    // Serializing length of the data of NDArray
+    code_ << stream.Tell();
+    WriteComma();
+    // Serializing NDArray as bytestream
+    code_ << "\"";
+    std::stringstream ss;
+    char buf[6] = {0};
+    for (uint8_t c : bytes) {
+      snprintf(buf, sizeof(buf), "\\x%02x", c);
+      ss << buf;
+    }
+    std::string as_bytes(ss.str());
+    code_ << as_bytes;
+    code_ << "\"\n";
   }
 
   void VisitArray(runtime::metadata::MetadataArray array) {
@@ -778,7 +796,11 @@ class MetadataSerializer : public AttrVisitor {
     if (key != nullptr) {  // NOTE: outermost call passes nullptr key
       address_.push_back(key);
     }
+    WriteComma();
+    code_ << "{\n";
+    is_first_item_ = true;
     ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
+    code_ << "}\n";
     if (key != nullptr) {  // NOTE: outermost call passes nullptr key
       address_.pop_back();
     }
@@ -846,7 +868,7 @@ class MetadataSerializer : public AttrVisitor {
 
     // Finally, emit overall struct.
     address_.push_back(metadata::kMetadataGlobalSymbol);
-    code_ << "static const struct TVMMetadata " << metadata::AddressFromParts(address_) << " = {"
+    code_ << "static const struct TVMMetadata " << metadata::AddressFromParts(address_) << "[1] = {"
           << std::endl;
     Visit(nullptr, &metadata);
     code_ << "};" << std::endl;

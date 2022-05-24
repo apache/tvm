@@ -19,6 +19,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <tvm/ir/memory_pools.h>
 #include <tvm/ir/type.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/metadata.h>
@@ -39,9 +40,19 @@ const struct TVMTensorInfo kNormalOutputs[1] = {
 
 const int64_t kNormalPool1Shape[3] = {3, 8, 8};
 const struct TVMTensorInfo kNormalPools[1] = {{"pool1", kNormalPool1Shape, 3, DLDataType{3, 4, 7}}};
+const struct TVMConstantInfo kNormalConsts[1] = {{"consts1", 0, 0, {}}};
 
 const struct TVMMetadata kNormal = {
-    TVM_METADATA_VERSION, kNormalInputs, 2, kNormalOutputs, 1, kNormalPools, 1, "default",
+    TVM_METADATA_VERSION,
+    kNormalInputs,
+    2,
+    kNormalOutputs,
+    1,
+    kNormalPools,
+    1,
+    kNormalConsts,
+    1,
+    "default",
 };
 }  // namespace
 
@@ -61,6 +72,7 @@ using ::tvm::runtime::Array;
 using ::tvm::runtime::Downcast;
 using ::tvm::runtime::ObjectRef;
 
+using ::tvm::runtime::metadata::ConstantInfoMetadata;
 using ::tvm::runtime::metadata::Metadata;
 using ::tvm::runtime::metadata::MetadataArray;
 using ::tvm::runtime::metadata::MetadataKind;
@@ -157,9 +169,10 @@ TEST(Metadata, Visitor) {
   TestVisitor v;
   ::tvm::ReflectionVTable::Global()->VisitAttrs(md.operator->(), &v);
 
-  EXPECT_THAT(v.keys, ElementsAre(StrEq("version"), StrEq("inputs"), StrEq("num_inputs"),
-                                  StrEq("outputs"), StrEq("num_outputs"), StrEq("pools"),
-                                  StrEq("num_pools"), StrEq("mod_name")));
+  EXPECT_THAT(v.keys,
+              ElementsAre(StrEq("version"), StrEq("inputs"), StrEq("num_inputs"), StrEq("outputs"),
+                          StrEq("num_outputs"), StrEq("pools"), StrEq("num_pools"), StrEq("consts"),
+                          StrEq("num_consts"), StrEq("mod_name")));
   EXPECT_THAT(Downcast<tvm::IntImm>(v.values[0])->value, Eq(TVM_METADATA_VERSION));
 
   EXPECT_THAT(Downcast<tvm::IntImm>(v.values[0])->value, Eq(TVM_METADATA_VERSION));
@@ -203,7 +216,17 @@ TEST(Metadata, Visitor) {
   auto num_pools = Downcast<tvm::IntImm>(v.values[6]);
   EXPECT_THAT(num_pools->value, Eq(1));
 
-  auto mod_name = Downcast<tvm::String>(v.values[7]);
+  auto consts_array = Downcast<MetadataArray>(v.values[7]);
+  EXPECT_THAT(consts_array->kind, Eq(MetadataKind::kMetadata));
+  EXPECT_THAT(consts_array->type_key, StrEq("metadata.ConstantInfoNode"));
+  auto consts1 = Downcast<ConstantInfoMetadata>(consts_array->array[0]);
+
+  EXPECT_THAT(consts1->name_hint(), Eq("consts1"));
+
+  auto num_consts = Downcast<tvm::IntImm>(v.values[8]);
+  EXPECT_THAT(num_consts->value, Eq(1));
+
+  auto mod_name = Downcast<tvm::String>(v.values[9]);
   EXPECT_THAT(mod_name, Eq("default"));
 }
 
@@ -226,6 +249,9 @@ TEST(Metadata, InMemory) {
           {TensorInfo(make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
               tvm::String("Pool1"), std::vector<int64_t>{5, 10, 10},
               tvm::runtime::DataType(DLDataType{3, 4, 7})))}),
+      std::vector<tvm::ConstantInfo>({tvm::ConstantInfo(
+          "const1", 64,
+          tvm::runtime::NDArray::Empty({64}, tvm::runtime::DataType::Int(64), {kDLCPU}))}),
       "default"));
 
   auto md_data = md->data();
@@ -270,7 +296,7 @@ TEST(Metadata, ZeroElementLists) {
           {TensorInfo(make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
               tvm::String("Output1"), std::vector<int64_t>{},
               tvm::runtime::DataType(DLDataType{3, 4, 5})))}),
-      std::vector<TensorInfo>({}), "default"));
+      std::vector<TensorInfo>({}), std::vector<tvm::ConstantInfo>({}), "default"));
 
   EXPECT_THAT(md->data()->num_inputs, Eq(0));
   EXPECT_THAT(md->inputs().size(), Eq(0));
@@ -324,7 +350,8 @@ TEST(DiscoverArraysVisitor, DiscoverArrays) {
                                    DiscoveredNameEq("kTvmgenMetadata_outputs_0_shape"),
                                    DiscoveredNameEq("kTvmgenMetadata_outputs"),
                                    DiscoveredNameEq("kTvmgenMetadata_pools_0_shape"),
-                                   DiscoveredNameEq("kTvmgenMetadata_pools")}));
+                                   DiscoveredNameEq("kTvmgenMetadata_pools"),
+                                   DiscoveredNameEq("kTvmgenMetadata_consts")}));
 }
 
 // In Debug builds the _type_key is no longer inlined but also has no
@@ -381,5 +408,13 @@ TEST(DiscoverComplexTypesVisitor, DiscoverComplexTypes) {
   Metadata md = Metadata(&kNormal);
   visitor.Discover(md);
 
-  EXPECT_THAT(q, ElementsAre(TVMObjectIsInstance<TensorInfo>(), TVMObjectIsInstance<Metadata>()));
+  EXPECT_THAT(
+      q, ElementsAre(TVMObjectIsInstance<TensorInfo>(), TVMObjectIsInstance<ConstantInfoMetadata>(),
+                     TVMObjectIsInstance<Metadata>()));
+}
+
+TEST(Metadata, TVMConstantInfo) {
+  std::vector<tvm::runtime::metadata::MetadataBase> q;
+  std::unique_ptr<TVMConstantInfo[]> ci{new struct TVMConstantInfo[10]};
+  EXPECT_TRUE(ci.get() != nullptr);
 }

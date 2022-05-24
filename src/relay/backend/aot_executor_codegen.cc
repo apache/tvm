@@ -917,13 +917,19 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         for (const auto& tgt : allocated_pool_info->pool_info->targets) {
           VLOG(1) << "USMP requires target " << tgt->ToDebugString() << " to have pool size "
                   << allocated_pool_info->allocated_size->value;
-
-          if (main_func_info->workspace_sizes.find(tgt) == main_func_info->workspace_sizes.end()) {
-            main_func_info->workspace_sizes.Set(tgt, allocated_pool_info->allocated_size);
+          size_t size = allocated_pool_info->allocated_size->value;
+          if (allocated_pool_info->pool_info->IsInstance<ConstantPoolInfoNode>()) {
+            size += main_func_info->constant_sizes.count(tgt)
+                        ? main_func_info->constant_sizes[tgt]->value
+                        : 0;
+            main_func_info->constant_sizes.Set(tgt, size);
+          } else if (allocated_pool_info->pool_info->IsInstance<WorkspacePoolInfoNode>()) {
+            size += main_func_info->workspace_sizes.count(tgt)
+                        ? main_func_info->workspace_sizes[tgt]->value
+                        : 0;
+            main_func_info->workspace_sizes.Set(tgt, size);
           } else {
-            main_func_info->workspace_sizes.Set(tgt,
-                                                main_func_info->workspace_sizes[tgt]->value +
-                                                    allocated_pool_info->allocated_size->value);
+            LOG(FATAL) << "Unknown pool type: " << allocated_pool_info->pool_info->GetTypeKey();
           }
         }
       }

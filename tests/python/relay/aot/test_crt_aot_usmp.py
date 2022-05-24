@@ -92,20 +92,22 @@ def test_synthetic(interface_api, use_unpacked_api, test_runner):
 
 
 @pytest.mark.parametrize(
-    "workspace_byte_alignment,constant_byte_alignment,main_workspace_size",
+    "workspace_byte_alignment,constant_byte_alignment,main_workspace_size,main_constant_size",
     [
-        (8, 8, 18228),
-        (16, 8, 18228),
-        (256, 8, 18740),
-        (8, 16, 18236),
-        (16, 16, 18236),
-        (256, 16, 18748),
-        (8, 256, 19084),
-        (16, 256, 19084),
-        (256, 256, 19596),
+        (8, 8, 17280, 948),
+        (16, 8, 17280, 948),
+        (256, 8, 17792, 948),
+        (8, 16, 17280, 956),
+        (16, 16, 17280, 956),
+        (256, 16, 17792, 956),
+        (8, 256, 17280, 1804),
+        (16, 256, 17280, 1804),
+        (256, 256, 17792, 1804),
     ],
 )
-def test_memory_planning(workspace_byte_alignment, constant_byte_alignment, main_workspace_size):
+def test_memory_planning(
+    workspace_byte_alignment, constant_byte_alignment, main_workspace_size, main_constant_size
+):
     """Checks calculated workspace against known values"""
     mod, params = tvm.relay.testing.synthetic.get_workload()
     target = "c"
@@ -132,6 +134,7 @@ def test_memory_planning(workspace_byte_alignment, constant_byte_alignment, main
     assert (
         sum(lib.function_metadata["__tvm_main__"].workspace_sizes.values()) == main_workspace_size
     )
+    assert sum(lib.function_metadata["__tvm_main__"].constant_sizes.values()) == main_constant_size
 
 
 @parametrize_aot_options
@@ -263,14 +266,14 @@ MOBILENET_V2_URL = (
 
 
 @pytest.mark.parametrize(
-    "model_url, usmp_algo, workspace_size,",
+    "model_url, usmp_algo, workspace_size, constant_size",
     [
-        (MOBILENET_V1_URL, "greedy_by_size", 13313704),
-        (MOBILENET_V1_URL, "greedy_by_conflicts", 12912296),
-        (MOBILENET_V1_URL, "hill_climb", 11708072),
+        (MOBILENET_V1_URL, "greedy_by_size", 4845696, 8468008),
+        (MOBILENET_V1_URL, "greedy_by_conflicts", 4444288, 8468008),
+        (MOBILENET_V1_URL, "hill_climb", 3240064, 8468008),
     ],
 )
-def test_tflite_model_u1_usecase(model_url, usmp_algo, workspace_size):
+def test_tflite_model_u1_usecase(model_url, usmp_algo, workspace_size, constant_size):
     """
     This checks for ML models and the memory used by them
     when using USMP with different algorithms
@@ -307,7 +310,7 @@ def test_tflite_model_u1_usecase(model_url, usmp_algo, workspace_size):
         compiled_test_mods[0].executor_factory.function_metadata
     )
     assert mlf_memory_map["main"][0]["workspace_size_bytes"] == workspace_size
-    assert mlf_memory_map["main"][0]["constants_size_bytes"] == 0
+    assert mlf_memory_map["main"][0]["constants_size_bytes"] == constant_size
     # That should match to workspace size that will be codegen'd to the entry point.
     allocated_pool_info_size = sum(
         [
@@ -319,7 +322,7 @@ def test_tflite_model_u1_usecase(model_url, usmp_algo, workspace_size):
             )
         ]
     )
-    assert allocated_pool_info_size == workspace_size
+    assert allocated_pool_info_size == workspace_size + constant_size
 
     run_and_check(
         models=compiled_test_mods,
@@ -537,9 +540,7 @@ def test_tflite_model_u4_usecase_single_external_pool(model_url, usmp_algo):
 
     pool_name = "my_memory_pool"
     target = tvm.target.Target("c")
-    workspace_memory_pools = WorkspaceMemoryPools(
-        [PoolInfo(pool_name, {target: PoolInfo.READ_WRITE_ACCESS})]
-    )
+    workspace_memory_pools = WorkspaceMemoryPools([WorkspacePoolInfo(pool_name, [target])])
 
     tflite_model_file = tf_testing.get_workload_official(
         model_url[0],
@@ -607,10 +608,10 @@ def test_tflite_model_u4_usecase_two_external_pools(model_url, usmp_algo):
     target = tvm.target.Target("c")
     workspace_memory_pools = WorkspaceMemoryPools(
         [
-            PoolInfo(
-                "my_memory_pool_1", {target: PoolInfo.READ_WRITE_ACCESS}, size_hint_bytes=2500000
+            WorkspacePoolInfo(
+                "my_memory_pool_1", [target], PoolInfoProperties(size_hint_bytes=2500000)
             ),
-            PoolInfo("my_memory_pool_2", {target: PoolInfo.READ_WRITE_ACCESS}),
+            WorkspacePoolInfo("my_memory_pool_2", [target]),
         ]
     )
 
