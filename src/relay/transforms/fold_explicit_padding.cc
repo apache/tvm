@@ -247,8 +247,10 @@ class SimplifyPoolPad {
 
     auto new_attrs = make_object<T>();
     Array<PrimExpr> combined_padding;
+    std::cout << "padding length " << padding.size() << std::endl;
     for (size_t i = 0; i < padding.size(); ++i) {
       auto added_item = padding[i] + old_attrs->padding[i];
+      std::cout << "adding item to padding " << added_item << std::endl;
       combined_padding.push_back(added_item);
     }
 
@@ -405,6 +407,13 @@ class SimplifyExplicitPadding {
  * support implicit padding and fuses them.
  */
 Expr FoldExplicitPadding(const Expr& expr, const IRModule& mod) {
+  for (auto kv : mod->functions) {
+    std::cout << "func kv.first " << PrettyPrint(kv.first) <<  ", " << PrettyPrint(kv.second) << std::endl;
+    if (auto* n = kv.second.as<tvm::tir::PrimFuncNode>()) {
+      auto func = GetRef<tvm::tir::PrimFunc>(n);
+      std::cout << "func " << func << std::endl;
+    }
+  }
   return SimplifyExplicitPadding(mod).Simplify(expr);
 }
 
