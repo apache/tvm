@@ -63,6 +63,7 @@ def assert_iter_sum_pattern(sum_expr, extent, base, scale=1):
 def test_trivial():
     x = tvm.tir.Var("x", "int32"), 3
     y = tvm.tir.Var("y", "int32"), 4
+    z = tvm.tir.Var("z", "int32"), 1
 
     res = tvm.arith.detect_iter_map([x[0], y[0], 3], var_dom([x, y]))
 
@@ -78,6 +79,24 @@ def test_trivial():
 
     # not independent
     res = tvm.arith.detect_iter_map([x[0], x[0], 3], var_dom([x, y]))
+    assert len(res) == 0
+
+    res = tvm.arith.detect_iter_map(
+        [x[0], y[0]], var_dom([x, y, z]), require_bijective=True, simplify_trivial_iterators=True
+    )
+    assert len(res) == 2
+    assert_iter_sum_pattern(res[0], 3, 0)
+    assert_iter_sum_pattern(res[1], 4, 0)
+
+    res = tvm.arith.detect_iter_map(
+        [x[0], y[0]], var_dom([x, y, z]), require_bijective=True, simplify_trivial_iterators=False
+    )
+    assert len(res) == 2
+    assert_iter_sum_pattern(res[0], 3, 0)
+    assert_iter_sum_pattern(res[1], 4, 0)
+
+    # not bijective
+    res = tvm.arith.detect_iter_map([x[0], z[0]], var_dom([x, y, z]), require_bijective=True)
     assert len(res) == 0
 
 
@@ -926,13 +945,4 @@ def test_free_variables():
 
 
 if __name__ == "__main__":
-    test_split()
-    test_trivial()
-    test_fuse()
-    test_compound()
-    test_predicate()
-    test_normalize_iter_map_to_expr()
-    test_subspace_division()
-    test_complex()
-    test_inverse_affine_iter_map()
-    test_free_variables()
+    tvm.testing.main()
