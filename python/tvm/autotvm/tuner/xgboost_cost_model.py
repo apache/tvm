@@ -329,15 +329,16 @@ class XGBoostCostModel(CostModel):
             for i, fea in zip(need_extract, feas):
                 fea_cache[i] = fea.value if fea.status == StatusKind.COMPLETE else None
 
-        feature_len = None
+        feature_len = -1
         for idx in indexes:
             if fea_cache[idx] is not None:
-                feature_len = fea_cache[idx].shape[-1]
-                break
+                feature_len = max(fea_cache[idx].shape[-1], feature_len)
 
         ret = np.empty((len(indexes), feature_len), dtype=np.float32)
         for i, ii in enumerate(indexes):
             t = fea_cache[ii]
+            if t.shape[0] < feature_len:
+                t = np.pad(t, (0, feature_len - t.shape[0]))
             ret[i, :] = t if t is not None else 0
         return ret
 
