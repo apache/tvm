@@ -265,8 +265,7 @@ def elementwise_reverse_affine_load_unit_iter_simplified_inlined(
 
 @T.prim_func
 def elementwise_reverse_affine_chain(
-    A: T.Buffer[(128, 128), "float32"],
-    D: T.Buffer[(1, 8, 16, 128), "float32"]
+    A: T.Buffer[(128, 128), "float32"], D: T.Buffer[(1, 8, 16, 128), "float32"]
 ):
     B = T.alloc_buffer((128, 128))
     C = T.alloc_buffer((8, 16, 128))
@@ -286,8 +285,7 @@ def elementwise_reverse_affine_chain(
 
 @T.prim_func
 def elementwise_reverse_affine_chain_inlined(
-    A: T.Buffer[(128, 128), "float32"],
-    D: T.Buffer[(1, 8, 16, 128), "float32"]
+    A: T.Buffer[(128, 128), "float32"], D: T.Buffer[(1, 8, 16, 128), "float32"]
 ) -> None:
     for i, j in T.grid(128, 128):
         with T.block("B"):
@@ -735,9 +733,7 @@ def test_reverse_compute_inline_affine_chain(reverse_order):
     else:
         sch.reverse_compute_inline(block_c)
         sch.reverse_compute_inline(block_d)
-    tvm.ir.assert_structural_equal(
-        elementwise_reverse_affine_chain_inlined, sch.mod["main"]
-    )
+    tvm.ir.assert_structural_equal(elementwise_reverse_affine_chain_inlined, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_reverse_affine_chain)
 
 
