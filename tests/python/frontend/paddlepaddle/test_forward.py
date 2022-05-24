@@ -707,6 +707,7 @@ def test_forward_gather_nd():
         verify_model(GatherNd(), [x_data, y_data])
 
 
+@pytest.skip(reason="See https://github.com/apache/tvm/issues/11435")
 @tvm.testing.uses_gpu
 def test_forward_group_norm():
     class GroupNorm(nn.Layer):
