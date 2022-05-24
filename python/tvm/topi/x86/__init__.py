@@ -42,8 +42,5 @@ from .conv2d_alter_op import *
 from .dense_alter_op import *
 from .scatter import *
 from .group_conv2d import *
-<<<<<<< HEAD
 from .math_alter_op import *
-=======
 from .concat import *
->>>>>>> [TE] Optimized version of concatenation layer
