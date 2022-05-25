@@ -48,13 +48,6 @@ def schedule_reduce_cpu(attrs, outs, target):
         return topi.x86.schedule_reduce(outs)
 
 
-@schedule_concatenate.register("cpu")
-def schedule_concatenate_cpu(attrs, outs, target):
-    """schedule concatenate op for x86"""
-    with target:
-        return topi.transform.schedule_concatenate(outs)
-
-
 @schedule_pool.register("cpu")
 def schedule_pool_cpu(attrs, outs, target):
     """schedule pooling ops for x86"""
