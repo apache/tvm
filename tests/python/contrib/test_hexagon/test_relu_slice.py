@@ -36,13 +36,16 @@ def transform_numpy(arr_np):
         0, 1, 3, 6, 2, 4, 7, 5
     )
 
+
 def transform_2d(arr_np):
     N, H, W, C, h, w1, c, w2 = arr_np.shape
     return arr_np.reshape(N * H * W * C, h * w1 * c * w2)
 
+
 @tvm.testing.fixture
 def input_np(in_shape, dtype):
     return np.random.uniform(size=in_shape).astype(dtype)
+
 
 @tvm.testing.fixture
 def input_np_padded(input_np, in_shape, padded_in_shape):
@@ -54,19 +57,21 @@ def input_np_padded(input_np, in_shape, padded_in_shape):
     )
     return input_padded
 
+
 class BaseRelu:
     in_shape = tvm.testing.parameter(
-        (1,  8, 4, 32),
+        (1, 8, 4, 32),
         (1, 16, 4, 32),
         (1, 16, 8, 32),
         (1, 16, 8, 64),
-        (2,  8, 4, 32),
+        (2, 8, 4, 32),
         (2, 16, 4, 32),
         (2, 16, 8, 32),
         (2, 16, 8, 64),
     )
-    dtype         = tvm.testing.parameter("float16")
+    dtype = tvm.testing.parameter("float16")
     working_scope = tvm.testing.parameter("global.vtcm")
+
 
 class TestReluSlice(BaseRelu):
     @tvm.testing.fixture
@@ -80,7 +85,7 @@ class TestReluSlice(BaseRelu):
     @tvm.testing.fixture
     def expected_output_np(self, input_np):
         output_np = input_np * (input_np > 0)
-        return output_np 
+        return output_np
 
     @tvm.testing.requires_hexagon
     def test_relu(
@@ -95,7 +100,7 @@ class TestReluSlice(BaseRelu):
         working_scope,
         hexagon_session,
     ):
-        InputTensor  = tvm.te.placeholder(padded_in_shape, name="InputTensor", dtype=dtype)
+        InputTensor = tvm.te.placeholder(padded_in_shape, name="InputTensor", dtype=dtype)
 
         OutputTensor = sl.relu_te_compute(InputTensor, in_shape, dtype)
 
@@ -103,33 +108,31 @@ class TestReluSlice(BaseRelu):
             return [n, h // 8, w // 4, c // 32, h % 8, (w % 4) // 2, c % 32, w % 2]
 
         target_hexagon = tvm.target.hexagon("v69", codegen_options="emit-llvm, emit-asm=1")
-        target         = tvm.target.Target(target_hexagon, host=target_hexagon)
+        target = tvm.target.Target(target_hexagon, host=target_hexagon)
 
         reluf16_func = te.create_prim_func([InputTensor, OutputTensor])
         tir_s = sl.reluf16_stir_sched(
-                reluf16_func,
-                transform_crouton_activation,
-            )
+            reluf16_func,
+            transform_crouton_activation,
+        )
 
         func_name = "reluf16"
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_assert": True}):
-            tir_irm = tvm.lower(
-                tir_s.mod, [InputTensor, OutputTensor], name=func_name
-            )
+            tir_irm = tvm.lower(tir_s.mod, [InputTensor, OutputTensor], name=func_name)
             runtime_module = tvm.build(
                 tir_irm, [InputTensor, OutputTensor], target=target, name=func_name
             )
 
-        input_np_transformed  = transform_numpy(input_np_padded)
-        input_np_tr_2d        = transform_2d(input_np_transformed)
+        input_np_transformed = transform_numpy(input_np_padded)
+        input_np_tr_2d = transform_2d(input_np_transformed)
         output_np_transformed = transform_numpy(expected_output_np)
-        output_np_tr_2d       = transform_2d(output_np_transformed)
+        output_np_tr_2d = transform_2d(output_np_transformed)
 
         input_arr = tvm.nd.empty(
             input_np_tr_2d.shape,
             input_np_tr_2d.dtype,
             hexagon_session.device,
-            mem_scope = working_scope,
+            mem_scope=working_scope,
         )
         input_arr.copyfrom(input_np_tr_2d)
 
@@ -137,7 +140,7 @@ class TestReluSlice(BaseRelu):
             output_np_tr_2d.shape,
             output_np_tr_2d.dtype,
             hexagon_session.device,
-            mem_scope = working_scope,
+            mem_scope=working_scope,
         )
 
         mod = hexagon_session.load_module(runtime_module)
