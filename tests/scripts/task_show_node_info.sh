@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -x
+set -euxo pipefail
 
 echo "===== JENKINS INFO ====="
 echo "NODE_NAME=$NODE_NAME"

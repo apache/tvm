@@ -28,7 +28,7 @@
         tools:ignore="AllowBackup,MissingApplicationIcon">
         <activity
             android:name="org.apache.tvm.android.androidcamerademo.MainActivity"
-            android:label="@string/app_name"
+            android:exported="true"
             android:screenOrientation="portrait"
             android:theme="@style/AppTheme.NoActionBar"
             tools:ignore="LockedOrientationActivity">
