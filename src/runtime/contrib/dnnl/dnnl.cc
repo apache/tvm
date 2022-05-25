@@ -306,6 +306,24 @@ extern "C" void dnnl_binary_op(float* data, float* weight, float* out, int algo_
   read_from_dnnl_memory(out, dst_memory);
 }
 
+// DNNL Conv2d single OP 
+TVM_REGISTER_GLOBAL("tvm.contrib.mkldnn.conv2d").set_body([](TVMArgs args, TVMRetValue* ret) {
+  DLTensor* input = args[0];                
+  DLTensor* weights = args[1];
+  DLTensor* output = args[2];
+  int PH_L = args[3],                       
+      PW_L = args[4],                       
+      PH_R = args[5],                       
+      PW_R = args[6],                       
+      SH = args[7],                         
+      SW = args[8],                         
+      G = args[9];                          
+
+  dnnl_conv2d(static_cast<float*>(input->data), static_cast<float*>(weights->data), static_cast<float*>(output->data), 
+              input->shape[0], input->shape[1], input->shape[2], input->shape[3], output->shape[1], G,
+              PH_L, PW_L , PH_R, PW_R , weights->shape[2], weights->shape[3], SH, SW);
+});
+
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm
