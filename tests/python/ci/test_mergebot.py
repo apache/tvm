@@ -106,6 +106,12 @@ test_data = {
         "expected": "Co-authored-by: Some One <someone@email.com>",
         "detail": "Check that a merge request with co-authors generates the correct commit message",
     },
+    "no-recomment": {
+        "number": 11442,
+        "filename": "pr11442-no-recomment.json",
+        "expected": "No merge requested, exiting",
+        "detail": "Check that comments after a failed merge don't trigger another merge",
+    },
 }
 
 

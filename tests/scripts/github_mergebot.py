@@ -408,6 +408,9 @@ class PR:
         ]
 
         def parse_action(comment: Dict[str, Any]) -> Optional[str]:
+            if comment["author"]["login"] == "github-actions":
+                return "commented"
+
             if not self.comment_can_merge(comment):
                 return None
 
