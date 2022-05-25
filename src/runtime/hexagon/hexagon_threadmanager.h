@@ -49,7 +49,7 @@ private:
     ThreadContext(HexagonThreadManager* tm, unsigned index) : tm(tm), index(index) {}; 
   };
   
-  void SpawnThreads();
+  void SpawnThreads(unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words);
   void check_semaphore(unsigned syncID);
   static void thread_signal(void* semaphore);
   static void thread_wait(void* semaphore);
@@ -60,10 +60,7 @@ private:
   unsigned nthreads;
   void* stack_buffer;
   void* pipe_buffer;
-  unsigned thread_stack_size;  //bytes
-  unsigned thread_pipe_size;  // bytes
   #if defined(__hexagon__)
-  unsigned thread_pipe_size_words;  // words (qurt_pipe_data_t, 64 bit on this platform)
   qurt_thread_t* threads;
   qurt_pipe_t* pipes;
   ThreadContext** contexts;

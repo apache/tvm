@@ -29,11 +29,8 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   pipes = NULL;
   contexts = NULL;
 
-  this->thread_stack_size = thread_stack_size_bytes;
-  this->thread_pipe_size_words = thread_pipe_size_words;
-  this->thread_pipe_size = thread_pipe_size_words * sizeof(qurt_pipe_data_t);
-  
   // Allocate all stack space for threads
+  unsigned thread_pipe_size = thread_pipe_size_words * sizeof(qurt_pipe_data_t);
   int ret = posix_memalign(&stack_buffer, MEM_ALIGNMENT, thread_stack_size_bytes * nthreads);
   CHECK_EQ(ret, 0);
   
@@ -42,7 +39,7 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   CHECK_EQ(ret, 0);
 
   DBG("Buffers allocated; spawning threads");
-  SpawnThreads();
+  SpawnThreads(thread_stack_size_bytes, thread_pipe_size_words);
 
   // Initially, block all threads until we get the Start() call
   start_semaphore = (qurt_sem_t*)malloc(sizeof(qurt_sem_t));
@@ -95,9 +92,10 @@ HexagonThreadManager::~HexagonThreadManager() {
   free(pipe_buffer);
 }
 
-void HexagonThreadManager::SpawnThreads() {
+void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words) {
   char* next_stack_start = (char*) stack_buffer;
   char* next_pipe_start = (char*) pipe_buffer;
+  unsigned thread_pipe_size = thread_pipe_size_words * sizeof(qurt_pipe_data_t);
   
   int ret;
   // array of thread objects
@@ -133,10 +131,10 @@ void HexagonThreadManager::SpawnThreads() {
     char name[32];
     qurt_thread_attr_init(&thread_attr);
     qurt_thread_attr_set_stack_addr(&thread_attr, next_stack_start);
-    qurt_thread_attr_set_stack_size(&thread_attr, thread_stack_size);
+    qurt_thread_attr_set_stack_size(&thread_attr, thread_stack_size_bytes);
     snprintf(name, sizeof(name), "thread %d", i);
     qurt_thread_attr_set_name(&thread_attr, name);
-    next_stack_start += thread_stack_size;
+    next_stack_start += thread_stack_size_bytes;
 
     // create the thread
     contexts[i] = new ThreadContext(this, i);
