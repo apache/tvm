@@ -53,6 +53,7 @@ TEST_F(HexagonThreadManagerTest, start_wait) {
   htm->WaitOnThreads();
   CHECK_EQ(42, 42);
 }
+
 TEST(HexagonThreadManager, init) {
   auto tm = new HexagonThreadManager(6, 16*1024, 1024);
   delete tm;

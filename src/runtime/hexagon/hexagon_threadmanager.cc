@@ -25,16 +25,7 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
     thread_pipe_size_words = MIN_PIPE_SIZE_WORDS;
   }
 
-  // Allocate all stack space for threads
-  unsigned thread_pipe_size = thread_pipe_size_words * sizeof(qurt_pipe_data_t);
-  int ret = posix_memalign(&stack_buffer, MEM_ALIGNMENT, thread_stack_size_bytes * nthreads);
-  CHECK_EQ(ret, 0);
-  
-  // Allocate space for pipe buffers (command queues)
-  ret = posix_memalign(&pipe_buffer, MEM_ALIGNMENT, thread_pipe_size * nthreads);
-  CHECK_EQ(ret, 0);
-
-  DBG("Buffers allocated; spawning threads");
+  DBG("Spawning threads");
   SpawnThreads(thread_stack_size_bytes, thread_pipe_size_words);
 
   // Initially, block all threads until we get the Start() call
@@ -89,11 +80,14 @@ HexagonThreadManager::~HexagonThreadManager() {
 }
 
 void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words) {
-  char* next_stack_start = (char*) stack_buffer;
-  char* next_pipe_start = (char*) pipe_buffer;
   unsigned thread_pipe_size = thread_pipe_size_words * sizeof(qurt_pipe_data_t);
   
-  int ret;
+  // allocate all stack space for threads
+  int ret = posix_memalign(&stack_buffer, MEM_ALIGNMENT, thread_stack_size_bytes * nthreads);
+  CHECK_EQ(ret, 0);
+  // allocate space for pipe buffers (command queues)
+  ret = posix_memalign(&pipe_buffer, MEM_ALIGNMENT, thread_pipe_size * nthreads);
+  CHECK_EQ(ret, 0);
   // array of thread objects
   ret = posix_memalign((void**)&threads, MEM_ALIGNMENT, sizeof(qurt_thread_t) * nthreads);
   CHECK_EQ(ret, 0);
@@ -104,7 +98,10 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes, unsign
   ret = posix_memalign((void**)&contexts, MEM_ALIGNMENT, sizeof(ThreadContext) * nthreads);
   CHECK_EQ(ret, 0);
   
+  DBG("Buffers allocated");
+
   // First, create pipe resources for all threads
+  char* next_pipe_start = (char*) pipe_buffer;
   for (int i = 0; i < nthreads; i++) {
     qurt_pipe_attr_t pipe_attr;
     qurt_pipe_attr_init(&pipe_attr);
@@ -121,6 +118,7 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes, unsign
   DBG("Pipes created");
 
   // Create all threads
+  char* next_stack_start = (char*) stack_buffer;
   for (int i = 0; i < nthreads; i++) {
     // create initialize the thread attr
     qurt_thread_attr_t thread_attr;
