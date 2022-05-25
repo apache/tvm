@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
+
 from tvm import te
 from tvm.script import tir as T
 
@@ -171,4 +173,4 @@ def test_load_store_noop_after_simplify():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()
