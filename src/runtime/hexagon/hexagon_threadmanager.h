@@ -19,6 +19,10 @@ namespace runtime {
 namespace hexagon {    
 
 #define DBG(msg) DLOG(INFO) << msg << "\n"
+#define MIN_STACK_SIZE_BYTES 0x40
+#define MAX_STACK_SIZE_BYTES 0x10000
+#define MIN_PIPE_SIZE_WORDS 0x40
+#define MAX_PIPE_SIZE_WORDS 0x10000
   
 class HexagonThreadManager {
   typedef void (*voidfunc)(void*);

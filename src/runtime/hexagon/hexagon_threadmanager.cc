@@ -14,7 +14,17 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   //  in the qurt libs for that maximum.
   CHECK_LE(num_threads, QURT_MAX_HTHREAD_LIMIT);
   this->nthreads = num_threads;
-  
+
+  CHECK_LE(thread_stack_size_bytes, MAX_STACK_SIZE_BYTES);
+  if (thread_stack_size_bytes < MIN_STACK_SIZE_BYTES) {
+    thread_stack_size_bytes = MIN_STACK_SIZE_BYTES;
+  }
+
+  CHECK_LE(thread_pipe_size_words, MAX_PIPE_SIZE_WORDS);
+  if (thread_pipe_size_words < MIN_PIPE_SIZE_WORDS) {
+    thread_pipe_size_words = MIN_PIPE_SIZE_WORDS;
+  }
+
   threads = NULL;
   pipes = NULL;
   contexts = NULL;

@@ -26,14 +26,33 @@
 using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
 
-// TEST(suitename, testname)
-// TEST(HexagonThreadManager, _)
-// EXPECT_EQ(a, b)
-// EXPECT_THROW({...}, exception)
+class HexagonThreadManagerTest : public ::testing::Test {
+  protected:
+  void SetUp() override {
+    htm = new HexagonThreadManager(6, 16*1024, 1024);
+  }
+  void TearDown() override {
+    delete htm;
+  }
+  HexagonThreadManager *htm {nullptr};
+};
 
-// TEST(HexagonThreadManager, ) {
-// }
+TEST_F(HexagonThreadManagerTest, init) {
+  CHECK(htm != nullptr);
+}
 
+// TODO: doesn't technically need the fixture
+TEST_F(HexagonThreadManagerTest, ctor_errors) {
+  ASSERT_ANY_THROW(HexagonThreadManager(60, 16*1024, 1024));
+  ASSERT_ANY_THROW(HexagonThreadManager(6, MAX_STACK_SIZE_BYTES + 1, 1024));
+  ASSERT_ANY_THROW(HexagonThreadManager(6, 16*1024, MAX_PIPE_SIZE_WORDS + 1));
+}
+
+TEST_F(HexagonThreadManagerTest, start_wait) {
+  htm->Start();
+  htm->WaitOnThreads();
+  CHECK_EQ(42, 42);
+}
 TEST(HexagonThreadManager, init) {
   auto tm = new HexagonThreadManager(6, 16*1024, 1024);
   delete tm;
