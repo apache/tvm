@@ -16,8 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -euxo pipefail
 
 export TVM_HOME="$(git rev-parse --show-toplevel)"
 echo "Using TVM_HOME=$TVM_HOME"

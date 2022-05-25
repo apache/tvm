@@ -16,9 +16,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+set -euxo pipefail
+
 source tests/scripts/setup-pytest-env.sh
 
 echo "Checking MyPy Type defs in the TensorIR schedule package."

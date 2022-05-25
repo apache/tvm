@@ -43,6 +43,15 @@ def add_microtvm_permissions() {
   {% endfor %}
 }
 
+def add_hexagon_permissions() {
+  {% for folder in hexagon_api %}
+  sh(
+    script: 'find {{ folder }} -type f | xargs chmod +x',
+    label: 'Add execute permissions for hexagon files',
+  )
+  {% endfor %}
+}
+
 def build() {
 stage('Build') {
   environment {
@@ -174,7 +183,11 @@ stage('Build') {
             label: 'Create Hexagon cmake config',
           )
           make(ci_hexagon, 'build', '-j2')
-          {{ m.upload_artifacts(tag='hexagon', filenames=tvm_lib) }}
+          sh (
+            script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
+            label: 'Build Hexagon API',
+          )
+          {{ m.upload_artifacts(tag='hexagon', filenames=tvm_lib, folders=hexagon_api) }}
         }
       }
      } else {
