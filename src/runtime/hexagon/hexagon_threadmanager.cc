@@ -29,17 +29,16 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   SpawnThreads(thread_stack_size_bytes, thread_pipe_size_words);
 
   // Initially, block all threads until we get the Start() call
-  start_semaphore = (qurt_sem_t*)malloc(sizeof(qurt_sem_t));
-  qurt_sem_init_val(start_semaphore, 0);
+  qurt_sem_init_val(&start_semaphore, 0);
   for (int i = 0; i < nthreads; i ++) {
-    Dispatch((TVMStreamHandle)i, thread_wait, start_semaphore);
+    Dispatch((TVMStreamHandle)i, thread_wait, &start_semaphore);
   }
 }
 
 HexagonThreadManager::~HexagonThreadManager() {
 
   // In case Start() was never explicitly called, call it now to prevent deadlock
-  if (qurt_sem_get_val(start_semaphore) == 0) {
+  if (qurt_sem_get_val(&start_semaphore) == 0) {
     Start();
   }
   
@@ -55,8 +54,7 @@ HexagonThreadManager::~HexagonThreadManager() {
   }
 
   // destroy semaphores
-  qurt_sem_destroy(start_semaphore);
-  free(start_semaphore);
+  qurt_sem_destroy(&start_semaphore);
   for (int i = 0; i < semaphores.size(); i++) {
     qurt_sem_destroy(&semaphores[i]);
   }
@@ -173,7 +171,7 @@ void HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* ar
 }
 
 void HexagonThreadManager::Start() {
-  thread_signal(start_semaphore);
+  thread_signal(&start_semaphore);
 }
 
 void HexagonThreadManager::WaitOnThreads() {

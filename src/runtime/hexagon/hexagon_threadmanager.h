@@ -65,7 +65,7 @@ private:
   qurt_pipe_t* pipes {nullptr};
   ThreadContext** contexts {nullptr};
   std::vector<qurt_sem_t> semaphores;
-  qurt_sem_t* start_semaphore;
+  qurt_sem_t start_semaphore;
   #endif
 
   /*
