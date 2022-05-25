@@ -207,7 +207,7 @@ def main():
         continuation=f_timer,
     )
 
-    def f_per_layer(rt_mod, dev, inputs):
+    def f_per_layer(rt_mod, dev, input_data):
         # pylint: disable=import-outside-toplevel
         from tvm.contrib.debugger.debug_executor import create
 
