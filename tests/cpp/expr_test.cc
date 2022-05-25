@@ -20,7 +20,7 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/te/operation.h>
-#include "tvm/node/structural_equal.h"
+#include <tvm/node/structural_equal.h>
 
 TEST(Expr, Basic) {
   using namespace tvm;
