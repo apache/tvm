@@ -216,10 +216,9 @@ NDArray NDArray::FromExternalDLTensor(DLTensor* dl_tensor, const Device& dst_dev
 }
 
 NDArray NDArray::FromExternalDLTensor(const DLTensor& dl_tensor) {
-  ICHECK(::tvm::runtime::IsContiguous(dl_tensor)) <<
-      "External DLTensor is not contiguous. It does not support for now";
-  ICHECK(IsAligned(dl_tensor)) <<
-      "Data in DLTensor is not aligned as required by NDArray";
+  ICHECK(::tvm::runtime::IsContiguous(dl_tensor))
+      << "External DLTensor is not contiguous. It does not support for now";
+  ICHECK(IsAligned(dl_tensor)) << "Data in DLTensor is not aligned as required by NDArray";
   NDArray::Container* data = new NDArray::Container();
 
   data->SetDeleter(Internal::SelfDeleter);
@@ -234,8 +233,8 @@ NDArray NDArray::FromExternalDLTensor(const DLTensor& dl_tensor) {
 }
 
 NDArray NDArray::NewFromDLTensor(DLTensor* tensor, const Device& dev) {
-  ICHECK(::tvm::runtime::IsContiguous(*tensor)) <<
-      "DLTensor is not contiguous. It does not support for now";
+  ICHECK(::tvm::runtime::IsContiguous(*tensor))
+      << "DLTensor is not contiguous. It does not support for now";
   std::vector<int64_t> shape;
   for (int64_t i = 0; i < tensor->ndim; i++) {
     shape.push_back(tensor->shape[i]);
@@ -306,7 +305,8 @@ bool NDArray::AbilityOfZeroCopyForDLTensor(DLTensor* tensor, const Device& dev) 
 
 bool NDArray::IsAligned(const DLTensor& tensor) {
   return (reinterpret_cast<size_t>(static_cast<char*>(tensor.data) + tensor.byte_offset) %
-          tvm::runtime::kAllocAlignment == 0);
+              tvm::runtime::kAllocAlignment ==
+          0);
 }
 
 TVM_REGISTER_OBJECT_TYPE(NDArray::Container);
