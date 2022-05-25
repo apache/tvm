@@ -141,23 +141,23 @@ class RelayToTIRVisitor : public MixedModeMutator {
     // %3 = qnn.requantize(%2, %input_scale_const_4, %cmsisnn_shift_const_5,
     //                     %output_scale_scalar, %output_zero_point_scalar)
     // clip(%3, a_min=%min_scalar, a_max=%max_scalar)
-    int filter_scale_pos = 3;
-    int input_scale_pos = 4;
+    // Position of scales in the global function for Conv2D
+    const int filter_scale_pos = 3;
+    const int input_scale_pos = bias_add_call ? 5 : 4;
     BufferCreator buffer_creator;
     tir::Var input = buffer_creator.CreateBufferVar("input", DataType::Handle(8));
     tir::Var filter = buffer_creator.CreateBufferVar("filter", DataType::Handle(8));
     tir::Var multiplier = buffer_creator.CreateBufferVar("multiplier", DataType::Handle(32));
     if (bias_add_call) {
       buffer_creator.CreateBufferVar("bias", DataType::Handle(32));
-      input_scale_pos = 5;
     }
     tir::Var shift = buffer_creator.CreateBufferVar("shift", DataType::Handle(32));
     tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
 
     // Relay function contains input_scale and filter_scale as function parameters at the following
     // locations in the global partitioned function for Conv2D
-    skip_call_args_.push_back(filter_scale_pos);
-    skip_call_args_.push_back(input_scale_pos);
+    skip_call_args_.insert(filter_scale_pos);
+    skip_call_args_.insert(input_scale_pos);
 
     // Individual arguments to the structs arguments of the CMSIS-NN API are filled into call_extern
     // https://github.com/ARM-software/CMSIS_5/blob/def6f800f95661eb3451d317f7d0dde504f6020d/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_wrapper_s8.c#L50
@@ -748,8 +748,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
                                                GetRef<Function>(func));
         }
 
-        // Drop out the redundant arguments and their arg_types from the call to the global
-        // partitioned function.
+        // Drop out the redundant arguments, and the arg_types from the global function call
         Array<Expr> args;
         Array<Type> arg_types;
         auto* func_type = new_global_var->checked_type_.as<FuncTypeNode>();
@@ -763,7 +762,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
           args.push_back(VisitExpr(arg));
           arg_types.push_back(func_type->arg_types[arg_id]);
         }
-        if (!skip_call_args_.empty()) {
+        if (arg_types.size() != func_type->arg_types.size()) {
           new_global_var->checked_type_ =
               FuncType(arg_types, func_type->ret_type, {}, func_type->type_constraints);
         }
@@ -781,7 +780,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
   /*! \brief Unique id for context buffer needed by CMSIS-NN layers. */
   int32_t context_buffer_id_;
   /*! \brief Skip arguments in the call to global partitioned function. */
-  std::list<int32_t> skip_call_args_;
+  std::unordered_set<int32_t> skip_call_args_;
   IRModule ir_module_;
   Target target_;
 };
