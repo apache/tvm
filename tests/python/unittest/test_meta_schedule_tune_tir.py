@@ -122,7 +122,7 @@ def test_tune_run_module_via_rpc():
     rt_mod = tvm.build(matmul, target)
 
     # construct the input
-    input_data = []
+    input_data = {}
     input_shape = (128, 128)
     input_dtype = "float32"
     dev = tvm.cpu()
@@ -133,13 +133,13 @@ def test_tune_run_module_via_rpc():
         for j in range(128):
             for k in range(128):
                 c_np[i, j] = c_np[i, j] + a_np[i, k] * b_np[j, k]
-    input_data.append(tvm.nd.array(a_np, dev))
-    input_data.append(tvm.nd.array(b_np, dev))
-    input_data.append(tvm.nd.array(np.zeros(input_shape).astype(input_dtype), dev))
+    input_data["a"] = a_np
+    input_data["b"] = b_np
+    input_data["c"] = np.zeros(input_shape).astype(input_dtype)
 
     def f_timer(rt_mod, dev, input_data):
-        rt_mod(input_data[0], input_data[1], input_data[2])
-        return input_data[2]
+        rt_mod(input_data["a"], input_data["b"], input_data["c"])
+        return input_data["c"]
 
     result = run_module_via_rpc(
         rpc_config=rpc_config,
