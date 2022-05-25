@@ -263,10 +263,10 @@ class IterSumExpr : public IterMapExpr {
 enum IterMapLevel {
   // Require the mapping to be bijective.
   Bijective = 0,
-  // Require the mapping to be subjective.
+  // Require the mapping to be surjective.
   Surjective = 1,
-  // Require the mapping to be injective.
-  Injective = 2
+  // No mapping safety check.
+  NoCheck = 3
 };
 
 /*!
@@ -327,7 +327,7 @@ class IterMapResult : public ObjectRef {
  * \param indices The indices to detect pattern for.
  * \param input_iters Map from variable to iterator's range.
  * \param predicate The predicate constraints on the input iterators
- * \param check_level The iter mapping check level.
+ * \param check_level The iter mapping checking level.
  * \param analyzer Analyzer used to get context information.
  * \param simplify_trivial_iterators If true, iterators with extent of
  *           1 will be replaced with a constant value.
@@ -345,12 +345,12 @@ IterMapResult DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range
  * \param indices The indices to detect pattern for.
  * \param input_iters Map from variable to iterator's range.
  * \param input_pred The predicate constraints on the input iterators
- * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
+ * \param check_level The iter mapping checking level.
  *
  * \return The indices after rewrite
  */
 Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
-                                const PrimExpr& input_pred, bool require_bijective);
+                                const PrimExpr& input_pred, IterMapLevel check_level);
 
 /*!
  * \brief Apply the inverse of the affine transformation to the outputs.
@@ -390,7 +390,7 @@ Map<Var, PrimExpr> InverseAffineIterMap(const Array<IterSumExpr>& iter_map,
  * \param input_iters Map from variable to iterator's range.
  * \param sub_iters Iterators of subspace.
  * \param predicate The predicate constraints on the input iterators
- * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
+ * \param check_level The iter mapping checking level.
  * \param analyzer Analyzer used to get context information.
  *
  * \return The result list has length len(bindings) + 1
@@ -403,7 +403,7 @@ Map<Var, PrimExpr> InverseAffineIterMap(const Array<IterSumExpr>& iter_map,
 Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
                                       const Map<Var, Range>& input_iters,
                                       const Array<Var>& sub_iters, const PrimExpr& predicate,
-                                      bool require_bijective, arith::Analyzer* analyzer);
+                                      IterMapLevel check_level, arith::Analyzer* analyzer);
 
 /*!
  * \brief Given an expression that may contain IterMapExpr, transform it to normal PrimExpr.

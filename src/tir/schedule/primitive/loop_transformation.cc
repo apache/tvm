@@ -115,7 +115,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
     Array<PrimExpr> v = arith::IterMapSimplify(/*indices=*/op->iter_values,
                                                /*input_iters=*/loop_var2extent_,
                                                /*input_pred=*/op->predicate,
-                                               /*require_bijective=*/false);
+                                               /*check_level=*/arith::IterMapLevel::Surjective);
     if (v.same_as(op->iter_values)) {
       return GetRef<Stmt>(op);
     } else {

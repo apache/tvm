@@ -76,10 +76,9 @@ std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initia
   // Unpack the output indices into linear combinations of the initial
   // indices.
   arith::Analyzer analyzer;
-  auto padded_iter_map =
-      DetectIterMap((*this)->final_indices, input_iters, /* predicate = */ 1,
-                    /* check_level = */ arith::IterMapLevel::Injective, &analyzer,
-                    /* simplify_trivial_iterators = */ false);
+  auto padded_iter_map = DetectIterMap((*this)->final_indices, input_iters, /* predicate = */ 1,
+                                       /*check_level=*/arith::IterMapLevel::NoCheck, &analyzer,
+                                       /*simplify_trivial_iterators=*/false);
   CHECK(padded_iter_map->errors.empty()) << "Could not parse mapping as sum of iterators.  "
                                          << "Error: " << padded_iter_map->errors[0];
 
@@ -141,7 +140,7 @@ IndexMap IndexMap::Inverse(Array<Range> initial_ranges) const {
   // indices.
   arith::Analyzer analyzer;
   auto iter_map = DetectIterMap((*this)->final_indices, input_iters, /* predicate = */ 1,
-                                /* require_bijective = */ arith::IterMapLevel::Bijective, &analyzer,
+                                /* check_level = */ arith::IterMapLevel::Bijective, &analyzer,
                                 /* simplify_trivial_iterators = */ false);
   CHECK(iter_map->indices.size()) << "Index transformation was not bijective.";
 
