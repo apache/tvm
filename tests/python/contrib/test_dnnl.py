@@ -37,6 +37,8 @@ run_module = tvm.testing.parameter(
     ids=["compile", "run"],
 )
 
+bf16_supported = "avx512" in open("/proc/cpuinfo", "r").read()
+
 
 def partition_for_dnnl(mod, params=None, alter_layout=True):
     """Partition the graph greedily offloading supported operators to DNNL.
@@ -148,7 +150,7 @@ def run_and_verify(mod, input, params, target, run_module, subgraph_num=None, te
             (True, False, False),
             (True, True, False),
         ]
-        if test_bf16:
+        if test_bf16 and bf16_supported:
             configs += [(True, False, True), (True, True, True)]
         for use_dnnl, alter_layout, use_bf16 in configs:
             result_key = (
