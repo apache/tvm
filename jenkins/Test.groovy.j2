@@ -6,7 +6,7 @@
 // that each individual method isn't too big.
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="unittest: GPU",
-  num_shards=3,
+  num_shards=2,
   node="GPU",
   ws="tvm/ut-python-gpu",
   platform="gpu",
@@ -111,7 +111,7 @@
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="topi: GPU",
   node="GPU",
-  num_shards=4,
+  num_shards=3,
   ws="tvm/topi-python-gpu",
   platform="gpu",
   test_method_names=test_method_names,
@@ -126,7 +126,7 @@
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="frontend: GPU",
   node="GPU",
-  num_shards=6,
+  num_shards=3,
   ws="tvm/frontend-python-gpu",
   platform="gpu",
   test_method_names=test_method_names,
