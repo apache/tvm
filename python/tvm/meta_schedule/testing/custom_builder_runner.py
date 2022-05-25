@@ -17,7 +17,7 @@
 """Customized builder and runner methods"""
 # pylint: disable=import-outside-toplevel
 
-from typing import TYPE_CHECKING, Callable, Dict, List
+from typing import TYPE_CHECKING, Callable, Dict, List, Any
 
 if TYPE_CHECKING:
     import numpy as np  # type: ignore
@@ -145,7 +145,7 @@ def run_module_via_rpc(
     rpc_config: "RPCConfig",
     lib: "Module",
     dev_type: str,
-    args: List["np.ndarray"],
+    args: Dict[str, Any],
     continuation: Callable,
 ):
     """Execute a tvm.runtime.Module on RPC remote"""
