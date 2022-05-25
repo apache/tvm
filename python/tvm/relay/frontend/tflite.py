@@ -224,11 +224,13 @@ class OperatorConverter(object):
     def unbind(self, data, axis=1):
         """
         This is a modified version compared to the one in common.py.
-        In onnx files the timestep index is shape[0], in tflite it is shape[1].
+        The onnx version takes a relay.Expr.Call, the tflite 
+        version a TensorWrapper. Also this version by default splits 
+        along axis 1 and not axis 0 as the onnx version.
 
          Parameters
          ----------
-         data : relay.Expr
+         data : tvm.relay.frontend.tflite.TensorWrapper
              Input tensor
          axis : int
              Axis along which tensor is split.
