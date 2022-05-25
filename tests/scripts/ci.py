@@ -526,7 +526,7 @@ def add_subparser(
             kwargs["required"] = not is_optional and not has_default
 
         if str(arg_type).startswith("typing.List"):
-            kwargs["nargs"] = "+"
+            kwargs["action"] = "append"
 
         if arg_cli_name[0] not in seen_prefixes:
             subparser.add_argument(f"-{arg_cli_name[0]}", f"--{arg_cli_name}", **kwargs)
