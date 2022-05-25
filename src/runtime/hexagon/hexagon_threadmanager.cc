@@ -25,10 +25,6 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
     thread_pipe_size_words = MIN_PIPE_SIZE_WORDS;
   }
 
-  threads = NULL;
-  pipes = NULL;
-  contexts = NULL;
-
   // Allocate all stack space for threads
   unsigned thread_pipe_size = thread_pipe_size_words * sizeof(qurt_pipe_data_t);
   int ret = posix_memalign(&stack_buffer, MEM_ALIGNMENT, thread_stack_size_bytes * nthreads);

@@ -61,9 +61,9 @@ private:
   void* stack_buffer;
   void* pipe_buffer;
   #if defined(__hexagon__)
-  qurt_thread_t* threads;
-  qurt_pipe_t* pipes;
-  ThreadContext** contexts;
+  qurt_thread_t* threads {nullptr};
+  qurt_pipe_t* pipes {nullptr};
+  ThreadContext** contexts {nullptr};
   std::vector<qurt_sem_t> semaphores;
   qurt_sem_t* start_semaphore;
   #endif
