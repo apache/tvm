@@ -722,8 +722,8 @@ def test_forward_group_norm():
     for input_shape in input_shapes:
         num_channels = input_shape[1]
         input_data = paddle.uniform(input_shape)
-        verify_model(GroupNorm(num_channels, 1), input_data)
-        verify_model(GroupNorm(num_channels, 2), input_data)
+        verify_model(GroupNorm(num_channels, 1), input_data, rtol=1e-4, atol=1e-4)
+        verify_model(GroupNorm(num_channels, 2), input_data, rtol=1e-4, atol=1e-4)
 
 
 @tvm.testing.uses_gpu
