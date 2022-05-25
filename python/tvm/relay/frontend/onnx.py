@@ -4977,21 +4977,21 @@ class Momentum(OnnxOpConverter):
         result = output_tensors + output_momentums
         return _expr.TupleWrapper(_expr.Tuple(result), len(result))
 
- 
+
 class Round(OnnxOpConverter):
     """Operator converter for round op."""
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
-        # See the tutorial for full implementation details: 
+        # See the tutorial for full implementation details:
         # https://www.youtube.com/watch?v=fZvNG-oKK5Q&list=PL_4zDggB-DBpynCEnC9hV-1euZrP3xDRK&index=4
 
         # Onnx round uses Banker's rounding which rounds .5 to the nearest even integer
 
         x = inputs[0]
-        half = _expr.const(0.5, dtype='float32')
-        one = _expr.const(1, dtype='float32')
-        two = _expr.const(2, dtype='float32')
+        half = _expr.const(0.5, dtype="float32")
+        one = _expr.const(1, dtype="float32")
+        two = _expr.const(2, dtype="float32")
 
         rounded = _op.ceil(x - half)
         bankers_mask = one - (_op.ceil(x + half) - _op.floor(x + half))
