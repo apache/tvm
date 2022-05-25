@@ -106,7 +106,7 @@ def main(model_str, output_path):
         f.write(graph)
     print("dumping params...")
     with open(output_path_str + "/" + "deploy_param.params", "wb") as f:
-        f.write(runtime.save_param_dict(params))
+        f.write(tvm.runtime.save_param_dict(params))
     print("dumping labels...")
     synset_url = "".join(
         [
