@@ -29,6 +29,7 @@
 #include <memory>
 #include <utility>
 
+#include "../../support/ssize.h"
 #include "../minrpc/minrpc_server_logging.h"
 #include "rpc_channel.h"
 
@@ -98,11 +99,11 @@ class SnifferIOHandler {
 
   void MessageStart(size_t message_size_bytes) {}
 
-  tvm_ssize_t PosixWrite(const uint8_t* buf, size_t buf_size_bytes) { return 0; }
+  ssize_t PosixWrite(const uint8_t* buf, size_t buf_size_bytes) { return 0; }
 
   void MessageDone() {}
 
-  tvm_ssize_t PosixRead(uint8_t* buf, size_t buf_size_bytes) {
+  ssize_t PosixRead(uint8_t* buf, size_t buf_size_bytes) {
     return receive_buffer_->Read(buf, buf_size_bytes);
   }
 
