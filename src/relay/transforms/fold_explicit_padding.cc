@@ -29,6 +29,7 @@
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tir/op.h>
+#include <tvm/topi/nn/pooling.h>
 
 #include "../op/tensor/transform.h"
 #include "pattern_utils.h"
@@ -46,37 +47,39 @@ class SimplifyConvPad {
 
   SimplifyConvPad() {
     x_ = IsWildcard();
-    w_ = IsWildcard();
     pad_ = IsOp("nn.pad")({x_, IsWildcard()});
+
+    // pad->conv patterns
+    w_ = IsWildcard();
     conv1d_ = IsOp("nn.conv1d");
     conv2d_ = IsOp("nn.conv2d");
     conv3d_ = IsOp("nn.conv3d");
     contrib_conv2d_nchwc_ = IsOp("nn.contrib_conv2d_NCHWc");
-
     conv_ = (conv1d_ || conv2d_ || conv3d_ || contrib_conv2d_nchwc_)({pad_, w_});
 
     input_zero_point_ = IsWildcard();
     kernel_zero_point_ = IsWildcard();
     input_scale_ = IsWildcard();
     kernel_scale_ = IsWildcard();
-
     qconv2d_ = IsOp("qnn.conv2d")(
         {pad_, w_, input_zero_point_, kernel_zero_point_, input_scale_, kernel_scale_});
-      
-    // avg_pool1d_ = IsOp("nn.avg_pool1d");
-    // avg_pool2d_ = IsOp("nn.avg_pool2d");
-    // avg_pool3d_ = IsOp("nn.avg_pool3d");
-    // max_pool1d_ = IsOp("nn.max_pool1d");
-    // max_pool2d_ = IsOp("nn.max_pool2d");
-    // max_pool3d_ = IsOp("nn.max_pool3d");
-    // pool_ = (avg_pool1d_ || avg_pool2d_ || avg_pool3d_ || max_pool1d_ || max_pool2d_ || max_pool3d_)({pad_});
 
-    pattern_ = conv_ || qconv2d_;  // || pool_;
+    // pad->pool patterns
+    avg_pool1d_ = IsOp("nn.avg_pool1d");
+    avg_pool2d_ = IsOp("nn.avg_pool2d");
+    avg_pool3d_ = IsOp("nn.avg_pool3d");
+    avg_pool_ = avg_pool1d_ || avg_pool2d_ || avg_pool3d_;
+    max_pool1d_ = IsOp("nn.max_pool1d");
+    max_pool2d_ = IsOp("nn.max_pool2d");
+    max_pool3d_ = IsOp("nn.max_pool3d");
+    max_pool_ = max_pool1d_ || max_pool2d_ || max_pool3d_;
+    pool_ = (avg_pool_ || max_pool_)({pad_});
+
+    pattern_ = conv_ || qconv2d_ || pool_;
   }
 
   template <typename T>
-  Attrs MakeConvAttrs(const T* old_attrs, const Array<PrimExpr> padding) const {
-    ICHECK(old_attrs);
+  Array<PrimExpr> get_combined_padding(const T* old_attrs, Array<PrimExpr> padding) const {
     ICHECK(padding.size() == old_attrs->padding.size())
         << "Number of dimensions to pad and convolution padding attributes should have the same "
            "extent";
@@ -86,6 +89,14 @@ class SimplifyConvPad {
     for (size_t i = 0; i < padding.size(); ++i) {
       combined_padding.push_back(padding[i] + old_attrs->padding[i]);
     }
+    return combined_padding;
+  }
+
+  template <typename T>
+  Attrs MakeConvAttrs(const T* old_attrs, const Array<PrimExpr> padding) const {
+    // Creates attrs from old_attrs with fields shared by 1D, 2D, 3D pool attrs flavors
+    ICHECK(old_attrs);
+    auto combined_padding = get_combined_padding(old_attrs, padding);
     new_attrs->strides = old_attrs->strides;
     new_attrs->padding = combined_padding;
     new_attrs->dilation = old_attrs->dilation;
@@ -95,16 +106,49 @@ class SimplifyConvPad {
     new_attrs->data_layout = old_attrs->data_layout;
     new_attrs->kernel_layout = old_attrs->kernel_layout;
     new_attrs->out_layout = old_attrs->out_layout;
-
-    // TODO @anwang: Conv2d and Conv3d attrs additionally have auto_scheduler_rewritten_layout.
-    //  But that isn't passed through. When is that attr propagated? Is dropping it here
-    //  problematic?
     new_attrs->out_dtype = old_attrs->out_dtype;
     return Attrs(new_attrs);
   }
 
   template <typename T>
-  Attrs GetAttrs(const PadAttrs* param, const T* attrs) const {
+  Attrs MakeConv2D3DAttrs(const T* old_attrs, const Array<PrimExpr> padding) const {
+    // Propagate additional Conv2D- and Conv3D-specific attrs
+    auto attrs = MakeConvAttrs(old_attrs, padding);
+    attrs->auto_scheduler_rewritten_layout = old_attrs->auto_scheduler_rewritten_layout;
+    return attrs;
+  }
+
+  template <typename T>
+  Attrs MakePoolAttrs(const T* old_attrs, const Array<PrimExpr> padding) const {
+    // Creates attrs from old_attrs with fields shared by 1D, 2D, 3D pool attrs flavors
+    ICHECK(old_attrs);
+    auto combined_padding = get_combined_padding(old_attrs, padding);
+    new_attrs->pool_size = old_attrs->pool_size;
+    new_attrs->strides = old_attrs->strides;
+    new_attrs->dilation = old_attrs->dilation;
+    new_attrs->padding = combined_padding;
+    new_attrs->layout = old_attrs->layout;
+    new_attrs->out_layout = old_attrs->out_layout;
+    new_attrs->ceil_mode = old_attrs->ceil_mode;
+    return Attrs(new_attrs);
+  }
+
+  template <typename T>
+  Attrs MakeAvgPoolAttrs(const T* old_attrs, const Array<PrimExpr> padding) const {
+    // Propagate additional AvgPool-specific attrs
+    auto attrs = MakePoolAttrs(old_attrs, padding);
+    attrs->count_include_pad = old_attrs->count_include_pad;
+    return attrs;
+  }
+
+  template <typename T>
+  bool GetAvgPoolAttrsCountIncludePad(const T* attrs) const {
+    // Helper function to get the `count_include_pad` field from 1D, 2D, 3D avg pool attrs
+    return attrs->count_include_pad;
+  }
+
+  template <typename T>
+  Attrs GetAttrs(const PadAttrs* param, const T* attrs, DFPattern pattern) const {
     ICHECK(param);
     ICHECK(attrs);
     ICHECK(attrs->data_layout.size() == param->pad_width.size())
@@ -132,7 +176,16 @@ class SimplifyConvPad {
       }
     }
 
-    return MakeConvAttrs(attrs, padding);
+    if (pattern == conv1d_) {
+      return MakeConvAttrs(attrs, padding);
+    } else if (pattern == conv2d_ || pattern == qconv2d_ || pattern == conv3d_) {
+      return MakeConv2D3DAttrs(attrs, padding);
+    } else if (pattern == max_pool_) {
+      return MakePoolAttrs(attrs, padding);
+    } else if (pattern == avg_pool_) {
+      return MakeAvgPoolAttrs(attrs, padding);
+    }
+    ICHECK(false) << "Unsupported fold explicit padding case, where given pattern is not mapped to attrs";
   }
 
   Expr callback(const Expr& pre, const Expr& post,
@@ -152,7 +205,7 @@ class SimplifyConvPad {
     const Expr& pv = pad_node->args[1];
     const ConstantNode* pad_value = pv.as<ConstantNode>();
     if (node_map.find(qconv2d_) != node_map.end()) {
-      Attrs attrs = GetAttrs(param, call_node->attrs.as<Conv2DAttrs>());
+      Attrs attrs = GetAttrs(param, call_node->attrs.as<Conv2DAttrs>(), qconv2d_);
       auto input_zero_point = node_map[input_zero_point_][0];
       auto kernel_zero_point = node_map[kernel_zero_point_][0];
       auto input_scale = node_map[input_scale_][0];
@@ -162,17 +215,19 @@ class SimplifyConvPad {
         return Call(call_node->op,
                     {x, w, input_zero_point, kernel_zero_point, input_scale, kernel_scale}, attrs,
                     call_node->type_args, call_node->span);
-      } else {
-        return post;
       }
-    } else if (param->pad_mode == "constant" && pad_value && ToScalar(pad_value->data) == 0.0) {
+      return post;
+    }
+    
+
+    if (param->pad_mode == "constant" && pad_value && ToScalar(pad_value->data) == 0.0) {
       Attrs attrs;
       if (node_map.count(conv1d_)) {
-        attrs = GetAttrs(param, call_node->attrs.as<Conv1DAttrs>());
+        attrs = GetAttrs(param, call_node->attrs.as<Conv1DAttrs>(), conv1d_);
       } else if (node_map.count(conv2d_)) {
-        attrs = GetAttrs(param, call_node->attrs.as<Conv2DAttrs>());
+        attrs = GetAttrs(param, call_node->attrs.as<Conv2DAttrs>(), conv2d_);
       } else if (node_map.count(conv3d_)) {
-        attrs = GetAttrs(param, call_node->attrs.as<Conv3DAttrs>());
+        attrs = GetAttrs(param, call_node->attrs.as<Conv3DAttrs>(), conv3d_);
       } else {
         return post;
       }
@@ -181,6 +236,49 @@ class SimplifyConvPad {
       }
       return Call(call_node->op, {x, w}, attrs, call_node->type_args, call_node->span);
     }
+    // The default pad constant for max pool is the min possible value for the dtype
+    if (param->pad_mode == "constant" && pad_value) {
+      Attrs attrs;
+
+      auto min_value = tvm::min_value(tvm::runtime::DataType(pad_value->data->dtype));
+      const FloatImmNode* maybe_min_float = min_value.as<FloatImmNode>();
+      const IntImmNode* maybe_min_int = min_value.as<IntImmNode>();
+
+      auto pad_scalar = ToScalar(pad_value->data);
+
+      if (node_map.count(max_pool_)
+          && ((maybe_min_float && pad_scalar == maybe_min_float->value)
+          || (maybe_min_int && pad_scalar == maybe_min_int->value))) {
+          // When the pad value in the preceding pad op matches the default max pool pad value
+          // (minimum possible value for the dtype), fold.
+          if (node_map.count(max_pool1d_)) {
+            attrs = GetAttrs(param, call_node->attrs.as<MaxPool1DAttrs>(), max_pool1d_);
+          } else if (node_map.count(max_pool2d_)) {
+            attrs = GetAttrs(param, call_node->attrs.as<MaxPool2DAttrs>(), max_pool2d_);
+          } else if (node_map.count(max_pool3d_)) {
+            attrs = GetAttrs(param, call_node->attrs.as<MaxPool3DAttrs>(), max_pool3d_);
+          }
+      } else if (node_map.count(avg_pool_) && pad_scalar == 0) {
+          // When the pad value in the preceding pad op matches the default avg pool pad value (0), fold.
+          auto obj = AvgPool1DAttrs;
+          if (node_map.count(avg_pool1d_)) {
+            auto old_attrs = call_node->attrs.as<AvgPool1DAttrs>();
+            if (old_attrs->count_include_pad) {
+              attrs = GetAttrs(param, old_attrs, avg_pool1d_);
+            }
+          } else if (node_map.count(avg_pool2d_)) {
+            attrs = GetAttrs(param, call_node->attrs.as<AvgPool2DAttrs>());
+          } else if (node_map.count(avg_pool3d_)) {
+            attrs = GetAttrs(param, call_node->attrs.as<AvgPool3DAttrs>());
+          }
+      }
+
+      if (!attrs.defined()) {
+        return post;
+      }
+      return Call(call_node->op, {x}, attrs, call_node->type_args, call_node->span);
+    }
+
     return post;
   }
 
@@ -204,14 +302,16 @@ class SimplifyConvPad {
   DFPattern kernel_zero_point_;
   DFPattern input_scale_;
   DFPattern kernel_scale_;
-  // /*! \brief Pattern pool */
-  // DFPattern pool_;
-  // DFPattern avg_pool1d_;
-  // DFPattern avg_pool2d_;
-  // DFPattern avg_pool3d_;
-  // DFPattern max_pool1d_;
-  // DFPattern max_pool2d_;
-  // DFPattern max_pool3d_;
+  /*! \brief Pattern pool */
+  DFPattern pool_;
+  DFPattern avg_pool1d_;
+  DFPattern avg_pool2d_;
+  DFPattern avg_pool3d_;
+  DFPattern avg_pool_;
+  DFPattern max_pool1d_;
+  DFPattern max_pool2d_;
+  DFPattern max_pool3d_;
+  DFPattern max_pool_;
 };
 
 
@@ -230,10 +330,14 @@ class SimplifyPoolPad {
     avg_pool1d_ = IsOp("nn.avg_pool1d");
     avg_pool2d_ = IsOp("nn.avg_pool2d");
     avg_pool3d_ = IsOp("nn.avg_pool3d");
+    avg_pool_ = avg_pool1d_ || avg_pool2d_ || avg_pool3d_;
+
     max_pool1d_ = IsOp("nn.max_pool1d");
     max_pool2d_ = IsOp("nn.max_pool2d");
     max_pool3d_ = IsOp("nn.max_pool3d");
-    pool_ = (avg_pool1d_ || avg_pool2d_ || avg_pool3d_ || max_pool1d_ || max_pool2d_ || max_pool3d_)({pad_});
+    max_pool_ = max_pool1d_ || max_pool2d_ || max_pool3d_;
+
+    pool_ = (avg_pool_ || max_pool_)({pad_});
 
     pattern_ = pool_;
   }
@@ -263,6 +367,9 @@ class SimplifyPoolPad {
     new_attrs->out_layout = old_attrs->out_layout;
     new_attrs->ceil_mode = old_attrs->ceil_mode;
 
+    // TODO count_include_pad
+    // new_attrs->count_include_pad = true;
+
     return Attrs(new_attrs);
   }
 
@@ -272,8 +379,6 @@ class SimplifyPoolPad {
     ICHECK(attrs);
     ICHECK(attrs->layout.size() == param->pad_width.size())
         << "Data Layout and padding attributes should have the same extent";
-
-    // TODO @anwang: figure this part out, seems conv specific
 
     std::string data_layout = attrs->layout;
     std::set<char> image_dims({'H', 'W', 'D'});
@@ -326,7 +431,7 @@ class SimplifyPoolPad {
 
       auto pad_scalar = ToScalar(pad_value->data);
 
-      if ((node_map.count(max_pool1d_) || node_map.count(max_pool2d_) || node_map.count(max_pool3d_))
+      if (node_map.count(max_pool_)
           && ((maybe_min_float && pad_scalar == maybe_min_float->value)
           || (maybe_min_int && pad_scalar == maybe_min_int->value))) {
           // When the pad value in the preceding pad op matches the default max pool pad value
@@ -338,10 +443,8 @@ class SimplifyPoolPad {
           } else if (node_map.count(max_pool3d_)) {
             attrs = GetAttrs(param, call_node->attrs.as<MaxPool3DAttrs>());
           }
-      } else if ((node_map.count(avg_pool1d_) || node_map.count(avg_pool2d_) || node_map.count(avg_pool3d_))
-          && pad_scalar == 0
-      ) {
-        // When the pad value in the preceding pad op matches the default avg pool pad value (0), fold.
+      } else if (node_map.count(avg_pool_) && pad_scalar == 0) {
+          // When the pad value in the preceding pad op matches the default avg pool pad value (0), fold.
           if (node_map.count(avg_pool1d_)) {
             attrs = GetAttrs(param, call_node->attrs.as<AvgPool1DAttrs>());
           } else if (node_map.count(avg_pool2d_)) {
@@ -371,9 +474,11 @@ class SimplifyPoolPad {
   DFPattern avg_pool1d_;
   DFPattern avg_pool2d_;
   DFPattern avg_pool3d_;
+  DFPattern avg_pool_;
   DFPattern max_pool1d_;
   DFPattern max_pool2d_;
   DFPattern max_pool3d_;
+  DFPattern max_pool_;
 };
 
 class SimplifyExplicitPadding {
@@ -407,13 +512,6 @@ class SimplifyExplicitPadding {
  * support implicit padding and fuses them.
  */
 Expr FoldExplicitPadding(const Expr& expr, const IRModule& mod) {
-  for (auto kv : mod->functions) {
-    std::cout << "func kv.first " << PrettyPrint(kv.first) <<  ", " << PrettyPrint(kv.second) << std::endl;
-    if (auto* n = kv.second.as<tvm::tir::PrimFuncNode>()) {
-      auto func = GetRef<tvm::tir::PrimFunc>(n);
-      std::cout << "func " << func << std::endl;
-    }
-  }
   return SimplifyExplicitPadding(mod).Simplify(expr);
 }
 

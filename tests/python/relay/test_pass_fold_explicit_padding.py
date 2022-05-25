@@ -18,6 +18,7 @@ import tvm
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import run_opt_pass
+from tvm import utils
 
 import numpy as np
 
@@ -167,24 +168,22 @@ def test_simplify_pool_pad():
         mod1 = tvm.IRModule.from_expr(pool)
         mod2 = tvm.IRModule.from_expr(zz)
 
-        with tvm.target.Target("llvm"):
-            print("lowered", tvm.lower(mod1))
-
         op_freqs = relay.analysis.list_op_freqs(mod2)
         assert "nn.pad" not in op_freqs
 
-        with tvm.transform.PassContext():
+        saver = utils.roofline.SaveLoweredTIR()
+        with tvm.transform.PassContext(instruments=[saver]):
             func1 = relay.create_executor(
                 "vm", mod=mod1, device=tvm.cpu(), target="llvm"
             ).evaluate()
-        func2 = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm").evaluate()
+            # lib = tvm.build(mod1, target="llvm")
+            # print("lowered1", saver.functions)
+            # print("lowered", tvm.lower(mod1))
+        
+        saver = utils.roofline.SaveLoweredTIR()
+        with tvm.transform.PassContext(instruments=[saver]):
+            func2 = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm").evaluate()
         x_np = np.random.rand(*shape).astype(dtype)
-        x_np = np.array([[[1., 2., 0.08561891, 0.66677123, 0.712168  ,
-            0.3077096 , 0.4447409 , 0.48310065, 0.31768492, 0.3523509 ],
-            [4., 5., 0.83128524, 0.566566  , 0.89646584,
-            0.03289136, 0.49500588, 0.69858265, 0.64992315, 0.54595727],
-            [0.48607197, 0.8520656 , 0.93248516, 0.27241838, 0.47612262,
-            0.6197623 , 0.63885266, 0.863492  , 0.6482    , 0.6099867 ]]]).astype("float32")
 
         result1 = func1(x_np)
         result2 = func2(x_np)
@@ -213,7 +212,7 @@ def test_simplify_pool_pad():
 
                     # validate(max_pools, ndim, padding, float_min_val, "constant", orig_pad * ndim, layout, 2, "float32")
                     validate(avg_pools, ndim, padding, 0, "constant", orig_pad * ndim, layout, 2, "float32")
-    
+
     # Check max pool pad folding with int dtype
     # validate(max_pools, 2, [[0, 0], [1, 1], [0, 0]], int_min_val, "constant", [2, 0], "NCHW", 2, "int32")
 
