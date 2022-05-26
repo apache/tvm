@@ -291,11 +291,12 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
                                  Integer buffer_index_type, IndexMap index_map) {
     PythonAPICall py("transform_layout");
     py.Input("block", block_rv);
-    py.Input("buffer_index", buffer_index);
-    py.Input("buffer_index_type", '"' +
-                                      std::string(BufferIndexType2Str(
-                                          static_cast<BufferIndexType>(buffer_index_type->value))) +
-                                      '"');
+
+    std::ostringstream os;
+    os << "(\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
+       << "\", " << buffer_index << ")";
+    py.Input("buffer", os.str());
+
     py.Input("index_map", index_map->ToPythonString());
     return py.Str();
   }
@@ -343,11 +344,12 @@ struct SetAxisSeparatorTraits : public UnpackedInstTraits<SetAxisSeparatorTraits
                                  Integer buffer_index_type, Array<IntImm> axis_separators) {
     PythonAPICall py("set_axis_separator");
     py.Input("block", block_rv);
-    py.Input("buffer_index", buffer_index);
-    py.Input("buffer_index_type", '"' +
-                                      std::string(BufferIndexType2Str(
-                                          static_cast<BufferIndexType>(buffer_index_type->value))) +
-                                      '"');
+
+    std::ostringstream os;
+    os << "(\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
+       << "\", " << buffer_index << ")";
+    py.Input("buffer", os.str());
+
     py.Input("axis_separators", axis_separators);
     return py.Str();
   }
