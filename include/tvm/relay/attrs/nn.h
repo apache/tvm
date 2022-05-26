@@ -377,9 +377,9 @@ struct Conv3DTransposeAttrs : public tvm::AttrsNode<Conv3DTransposeAttrs> {
   Array<IndexExpr> output_padding;
   Array<IndexExpr> dilation;
   int groups;
-  std::string data_layout;
-  std::string kernel_layout;
-  std::string out_layout;
+  tvm::string data_layout;
+  tvm::string kernel_layout;
+  tvm::string out_layout;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv3DTransposeAttrs, "relay.attrs.Conv3DTransposeAttrs") {
