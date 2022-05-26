@@ -1,5 +1,5 @@
 
-name: Merge
+name: tvm-bot
 on:
   status:
   pull_request_review:
@@ -12,16 +12,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  maybe-merge:
+  run-tvm-bot:
     if: github.repository == 'apache/tvm'
     runs-on: ubuntu-20.04
+    if: ${{ github.event.issue.pull_request }}
     steps:
       - uses: actions/checkout@v2
-      - name: Merge if requested and possible
+      - name: Run tvm-bot
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TVM_BOT_JENKINS_TOKEN: ${{ secrets.TVM_BOT_JENKINS_TOKEN }}
           PR_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_COMMENT: ${{ toJson(github.event.comment) }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -eux
-          python tests/scripts/github_mergebot.py --pr "$PR_NUMBER" --run-url "$RUN_URL"
+          python tests/scripts/github_tvmbot.py --pr "$PR_NUMBER" --run-url "$RUN_URL" --trigger-comment-json "$ISSUE_COMMENT"

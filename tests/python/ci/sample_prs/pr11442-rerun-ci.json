@@ -3,7 +3,7 @@
   "body": "(See https://discuss.tvm.apache.org/t/byoc-supporting-cutlass-byoc-with-collage/12796/6 for\r\ncontext, which in turn is part of Collage (https://github.com/apache/tvm-rfcs/blob/main/rfcs/0062-collage.md).\r\n\r\nThis adds a new 'DSO exportable' runtime module representing the contents of a .o file. It\r\nallows external codegen toolchains to yield a result which:\r\n - Like CSource modules, can be conveyed directly to the final export_library compilation\r\n   step for linking into the final .so and saved to a know location without risk the\r\n   underlying code artifact will be lost.\r\n - Like DSOLibrary modules, are self contained so that no additional compile-time arguments\r\n   need be conveyed from the CSource module to the final export_library command line\r\n\r\nSince this is the third flavor of 'DSO exportable' module, add a Module::IsDSOExportable.\r\n\r\nSince adding the above, can't resist also adding a Module::ImplementsFunction virtual and\r\ncalling it from TEComplier to check if an external codegen function actually provided the\r\nimplementation it promised.\r\n\r\nNote:\r\n - I've left the existing implementation of runtime.load_module alone which\r\n   relinks .o files to .so files.\r\n - Though also contained in the .o metadata, I require static libraries to always\r\n   carry their list of exported function names.\r\n\r\nThis is all pretty stop gap pending a good rework of TVM to supoprt the notion of artifacts\r\nand, perhaps, build rules.\r\n",
   "state": "OPEN",
   "author": {
-    "login": "mbs-octoml"
+    "login": "abc"
   },
   "comments": {
     "pageInfo": {
@@ -64,15 +64,7 @@
           "login": "mbs-octoml"
         },
         "updatedAt": "2022-05-25T22:12:37Z",
-        "body": "Hmff."
-      },
-      {
-        "authorAssociation": "NONE",
-        "author": {
-          "login": "github-actions"
-        },
-        "updatedAt": "2022-05-25T22:12:55Z",
-        "body": "Cannot merge, did not find any approving reviews from users with write access on 96d4e62da5a7b78da18d0ee28cc6261d8fbf31c4"
+        "body": "@tvm-bot rerun"
       }
     ]
   },
