@@ -280,5 +280,36 @@ Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::Block
 
 TVM_REGISTER_GLOBAL("tir.schedule.TileWithTensorIntrin").set_body_typed(TileWithTensorIntrin);
 
+/******** BlockBufferAccessSimplifier ********/
+void BlockBufferAccessSimplifier::SimplifyAccessRegion(Array<BufferRegion>* old_access_regions) {
+  auto fmutate = [this](const BufferRegion& buffer_region) {
+    std::vector<Range> new_buffer_region;
+    for (const auto& range : buffer_region->region) {
+      new_buffer_region.push_back(Range::FromMinExtent(analyzer_->Simplify(range->min),
+                                                       analyzer_->Simplify(range->extent)));
+    }
+    return BufferRegion(buffer_region->buffer, new_buffer_region);
+  };
+  (*old_access_regions).MutateByApply(fmutate);
+}
+
+Stmt BlockBufferAccessSimplifier::VisitStmt_(const BlockNode* op) {
+  Block block = Downcast<Block>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
+  auto* n = block.CopyOnWrite();
+  SimplifyAccessRegion(&n->reads);
+  SimplifyAccessRegion(&n->writes);
+  return std::move(block);
+}
+
+Stmt BlockBufferAccessSimplifier::VisitStmt_(const BufferStoreNode* op) {
+  auto node = Downcast<BufferStore>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
+  return VisitBufferAccess(std::move(node));
+}
+
+PrimExpr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
+  auto node = Downcast<BufferLoad>(arith::IRMutatorWithAnalyzer::VisitExpr_(op));
+  return VisitBufferAccess(std::move(node));
+}
+
 }  // namespace tir
 }  // namespace tvm
