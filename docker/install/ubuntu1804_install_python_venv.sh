@@ -22,8 +22,7 @@ set -o pipefail
 
 # install python and pip, don't modify this, modify install_python_package.sh
 apt-get update
-apt-get install -y software-properties-common
-apt-get install -y python3.7-dev python3-setuptools python3.7-venv
+apt-install-and-clear -y software-properties-common python3.7-dev python3-setuptools python3.7-venv
 
 python3 -mvenv /opt/tvm-venv
 

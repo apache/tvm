@@ -37,7 +37,7 @@ trap cleanup 0
 # Ubuntu 16.04 dependencies
 apt-get update
 
-apt-get install -y \
+apt-install-and-clear -y \
     bsdmainutils \
     build-essential \
     cmake \

@@ -19,6 +19,8 @@
 # tag: v0.60
 FROM nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
 
+COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
+
 # Per https://forums.developer.nvidia.com/t/notice-cuda-linux-repository-key-rotation/212772
 # we need to add a new GPG key before running apt update.
 RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
@@ -55,7 +57,7 @@ COPY install/ubuntu_install_sphinx.sh /install/ubuntu_install_sphinx.sh
 RUN bash /install/ubuntu_install_sphinx.sh
 
 # Enable doxygen for c++ doc build
-RUN apt-get update && apt-get install -y doxygen libprotobuf-dev protobuf-compiler
+RUN apt-get update && apt-install-and-clear -y doxygen libprotobuf-dev protobuf-compiler
 
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
 RUN bash /install/ubuntu_install_java.sh
