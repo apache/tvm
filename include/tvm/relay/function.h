@@ -170,19 +170,34 @@ const FunctionNode* AsOptimizableFunctionNode(const BaseFunc& base_func);
  * \brief namespace of the attributes that can be attached to a relay::Function.
  */
 namespace attr {
-/*! \brief Mark the function as a primitive function. */
-constexpr const char* kPrimitive = "Primitive";
+
 /*!
- * \brief Indicate the compiler that should be used for building this function.
+ * \brief Mark the function as a primitive function. Should be bound to \p Integer(1).
+ *
+ * Type: Integer
+ */
+constexpr const char* kPrimitive = "Primitive";
+
+/*!
+ * \brief Mark the function as being 'extern', ie implemented in a runtime::Module. Should be bound
+ * to \p Integer(1). Typically accompanied by "Primitive".
+ *
+ * Type: Integer
+ */
+constexpr const char* kExtern = "Extern";
+
+/*!
+ * \brief Indicate the external codegen 'compiler' that should be used for building this function.
  * When this is unset or set to "default", the default compilation pipeline will be used.
+ *
+ * Type: String
  */
 constexpr const char* kCompiler = "Compiler";
+
 /*! \brief Indicate if the function is a closure. */
 constexpr const char* kClosure = "Closure";
 /*! \brief Store a Var to parameter/Constant mapping on a Function. */
 constexpr const char* kParams = "__params__";
-/*! \brief Store the unique external symbol for external compilers. */
-constexpr const char* kExternalSymbol = "ExternalSymbol";
 /*! \brief Mark if the function should be avoided being optimized. */
 constexpr const char* kSkipOptimization = "SkipOptimization";
 /*! \brief Treat the function as a composite operator. */
@@ -193,6 +208,7 @@ constexpr const char* kInline = "Inline";
 constexpr const char* kPartitionedFromPattern = "PartitionedFromPattern";
 /*! \brief Mark the function as only composed of reshape operations. */
 constexpr const char* kReshapeOnly = "relay.reshape_only";
+
 }  // namespace attr
 
 }  // namespace relay
