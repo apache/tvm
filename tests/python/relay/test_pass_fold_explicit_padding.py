@@ -188,15 +188,12 @@ def test_simplify_pool_pad():
         result1 = func1(x_np)
         result2 = func2(x_np)
 
-        if not np.allclose(result1.numpy(), result2.numpy(), rtol=1e-5, atol=1e-5):
-            breakpoint()
         tvm.testing.assert_allclose(result1.numpy(), result2.numpy(), rtol=1e-5, atol=1e-5)
 
-    validate(avg_pools, 1, [[0, 0], [0, 0], [1, 1]], 0, "constant", [0, 0], "NCW", 2, "float32")
-    breakpoint()
+    # validate(avg_pools, 1, [[0, 0], [0, 0], [1, 1]], 0, "constant", [0, 0], "NCW", 2, "float32")
 
     float_min_val = get_min_value("float32")
-    int_min_val = get_min_value("int32")
+    # Test fold cases
     for orig_pad in [[0, 0], [2, 0], [0, 2]]:
         for i_pad in [[0, 0], [1, 1], [1, 0]]:
             for ndim in [1, 2, 3]:
@@ -210,11 +207,14 @@ def test_simplify_pool_pad():
                         layout = layout[0:2] + layout[5 - ndim :]
                         padding = [[0, 0]] * 2 + [i_pad] * ndim
 
-                    # validate(max_pools, ndim, padding, float_min_val, "constant", orig_pad * ndim, layout, 2, "float32")
-                    validate(avg_pools, ndim, padding, 0, "constant", orig_pad * ndim, layout, 2, "float32")
+                    validate(max_pools, ndim, padding, float_min_val, "constant", orig_pad * ndim, layout, 2, "float32")
 
+    int_min_val = get_min_value("int32")
+    validate(avg_pools, ndim, padding, 0, "constant", orig_pad * ndim, layout, 2, "float32")
     # Check max pool pad folding with int dtype
     # validate(max_pools, 2, [[0, 0], [1, 1], [0, 0]], int_min_val, "constant", [2, 0], "NCHW", 2, "int32")
+
+    # Test no fold cases
 
 
 def fold_pad_qconv2d():
