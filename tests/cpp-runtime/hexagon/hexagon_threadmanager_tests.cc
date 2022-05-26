@@ -30,15 +30,18 @@ class HexagonThreadManagerTest : public ::testing::Test {
   protected:
   void SetUp() override {
     htm = new HexagonThreadManager(6, MIN_STACK_SIZE_BYTES, MIN_PIPE_SIZE_WORDS);
+    htm->GetStreamHandles(&streams);
   }
   void TearDown() override {
     delete htm;
   }
   HexagonThreadManager *htm {nullptr};
+  std::vector<TVMStreamHandle> streams;
 };
 
 TEST_F(HexagonThreadManagerTest, init) {
   CHECK(htm != nullptr);
+  CHECK_EQ(streams.size(), 6);
 }
 
 // TODO: doesn't technically need the fixture
@@ -59,24 +62,30 @@ TEST_F(HexagonThreadManagerTest, start_wait) {
   CHECK_EQ(42, 42);
 }
 
-TEST_F(HexagonThreadManagerTest, streams) {
-  std::vector<TVMStreamHandle> streams;
-  htm->GetStreamHandles(&streams);
-  CHECK_EQ(streams.size(), 6);
-}
-
 TEST_F(HexagonThreadManagerTest, wait_signal) {
-  std::vector<TVMStreamHandle> streams;
-  htm->GetStreamHandles(&streams);
   htm->Wait(streams[0], 0);
   htm->Signal(streams[1], 0);
   htm->WaitOnThreads();
   CHECK_EQ(42, 42);
 }
 
+TEST_F(HexagonThreadManagerTest, re_signal) {
+  htm->Wait(streams[0], 0);
+  htm->Signal(streams[1], 0);
+  htm->Signal(streams[1], 0);
+  htm->WaitOnThreads();
+  CHECK_EQ(42, 42);
+}
+
+TEST_F(HexagonThreadManagerTest, re_wait) {
+  htm->Wait(streams[0], 0);
+  htm->Signal(streams[1], 0);
+  htm->Wait(streams[0], 0);
+  htm->WaitOnThreads();
+  CHECK_EQ(42, 42);
+}
+
 TEST_F(HexagonThreadManagerTest, wait_signal_x2) {
-  std::vector<TVMStreamHandle> streams;
-  htm->GetStreamHandles(&streams);
   htm->Wait(streams[0], 0);
   htm->Signal(streams[1], 0);
   htm->Wait(streams[1], 1);
@@ -85,6 +94,34 @@ TEST_F(HexagonThreadManagerTest, wait_signal_x2) {
   CHECK_EQ(42, 42);
 }
 
+TEST_F(HexagonThreadManagerTest, signal_wait) {
+  htm->Signal(streams[1], 0);
+  htm->Wait(streams[0], 0);
+  htm->WaitOnThreads();
+  CHECK_EQ(42, 42);
+}
+
+/*
+TEST_F(HexagonThreadManagerTest, more_htm) {
+  auto more_htm = new HexagonThreadManager(6, MIN_STACK_SIZE_BYTES, MIN_PIPE_SIZE_WORDS);
+  std::vector<TVMStreamHandle> streams;
+  htm->GetStreamHandles(&streams);
+  htm->Wait(streams[0], 0);
+  htm->Signal(streams[1], 0);
+  htm->Wait(streams[1], 1);
+  htm->Signal(streams[0], 1);
+  htm->WaitOnThreads();
+  std::vector<TVMStreamHandle> more_streams;
+  more_htm->GetStreamHandles(&more_streams);
+  more_htm->Wait(more_streams[0], 2);
+  more_htm->Signal(more_streams[1], 2);
+  more_htm->Wait(more_streams[1], 3);
+  more_htm->Signal(more_streams[0], 3);
+  more_htm->WaitOnThreads();
+  delete more_htm;
+  CHECK_EQ(42, 42);
+}
+*/
 
 void thread_print(void* msg) {
   LOG(WARNING) << (char*)msg << "\n";
