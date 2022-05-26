@@ -60,14 +60,19 @@ deployed to Arduino using TVM.
 # Installing the Prerequisites
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
-# To run this tutorial, we will need Tensorflow and TFLite to train our model, pyserial and tlcpack
-# (a community build of TVM) to compile and test it, and imagemagick and curl to preprocess data.
-# We will also need to install the Arduino CLI and the mbed_nano package to test our model.
+# This tutorial will use TensorFlow to train the model - a widely used machine learning library
+# created by Google. TensorFlow is a very low-level library, however, so we will the Keras
+# interface to talk to TensorFlow. We will also use TensorFlow Lite to perform quantization on
+# our model, as TensorFlow by itself does not support this.
+#
+# Once we have our generated model, we will use TVM to compile and test it. To avoid having to
+# build from source, we'll install ``tlcpack`` - a community build of TVM. Lastly, we'll also
+# install ``imagemagick`` and ``curl`` to preprocess data:
 #
 #     .. code-block:: bash
 #
 #       %%bash
-#       pip install -q tensorflow tflite pyserial
+#       pip install -q tensorflow tflite
 #       pip install -q tlcpack-nightly -f https://tlcpack.ai/wheels
 #       apt-get -qq install imagemagick curl
 #
@@ -82,7 +87,7 @@ deployed to Arduino using TVM.
 # This tutorial demonstrates training a neural network, which is requires a lot of computing power
 # and will go much faster if you have a GPU. If you are viewing this tutorial on Google Colab, you
 # can enable a GPU by going to **Runtime->Change runtime type** and selecting "GPU" as our hardware
-# accelerator. If you are running locally, you can `follow Tensorflow's guide <https://www.tensorflow.org/guide/gpu>`_ instead.
+# accelerator. If you are running locally, you can `follow TensorFlow's guide <https://www.tensorflow.org/guide/gpu>`_ instead.
 #
 # We can test our GPU installation with the following code:
 
@@ -131,7 +136,7 @@ FOLDER = tempfile.mkdtemp()
 # a small enough fraction not to matter - just keep in mind that this will drive down our percieved
 # accuracy slightly.
 #
-# We could use the Tensorflow dataloader utilities, but we'll instead do it manually to make sure
+# We could use the TensorFlow dataloader utilities, but we'll instead do it manually to make sure
 # it's easy to change the datasets being used. We'll end up with the following file hierarchy:
 #
 #     .. code-block::
@@ -267,7 +272,7 @@ validation_dataset = full_dataset.skip(len(train_dataset))
 #
 # In this tutorial, we will use an RGB 64x64 input image and alpha 0.25. This is not quite
 # ideal, but it allows the finished model to fit in 192 KB of RAM, while still letting us perform
-# transfer learning using the official Tensorflow source models (if we used alpha <0.25 or a
+# transfer learning using the official TensorFlow source models (if we used alpha <0.25 or a
 # grayscale input, we wouldn't be able to do this).
 #
 # What is Transfer Learning?
@@ -290,10 +295,11 @@ validation_dataset = full_dataset.skip(len(train_dataset))
 # We can take advantage of this by starting training with a MobileNet model that was trained on
 # ImageNet, and already knows how to identify those lines and shapes. We can then just remove the
 # last few layers from this pretrained model, and add our own final layers. We'll then train this
-# conglomerate model for a few epochs on our cars vs non-cars dataset, to fine tune the first layers
-# and train from scratch the last layers.
+# conglomerate model for a few epochs on our cars vs non-cars dataset, to adjust the first layers
+# and train from scratch the last layers. This process of training an already-partially-trained
+# model is called *fine-tuning*.
 #
-# Source MobileNets for transfer learning have been `pretrained by the Tensorflow folks <https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.md>`_, so we
+# Source MobileNets for transfer learning have been `pretrained by the TensorFlow folks <https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.md>`_, so we
 # can just download the one closest to what we want (the 128x128 input model with 0.25 depth scale).
 
 os.makedirs(f"{FOLDER}/models")
@@ -326,8 +332,8 @@ model.add(tf.keras.layers.Flatten())
 model.add(tf.keras.layers.Dense(2, activation="softmax"))
 
 ######################################################################
-# Training Our Network
-# ^^^^^^^^^^^^^^^^^^^^
+# Fine Tuning Our Network
+# ^^^^^^^^^^^^^^^^^^^^^^^
 # When training neural networks, we must set a parameter called the **learning rate** that controls
 # how fast our network learns. It must be set carefully - too slow, and our network will take
 # forever to train; too fast, and our network won't be able to learn some fine details. Generally
@@ -361,8 +367,8 @@ model.fit(train_dataset, validation_data=validation_dataset, epochs=3, verbose=2
 #
 # To address both issues we will **quantize** the model - representing the weights as eight bit
 # integers. It's more complex than just rounding, though - to get the best performance, TensorFlow
-# tracks how each neuron in our model activates, so we can figure out how to best represent the
-# while being relatively truthful to the original model.
+# tracks how each neuron in our model activates, so we can figure out how most accurately simulate
+# the neuron's original activations with integer operations.
 #
 # We will help TensorFlow do this by creating a representative dataset - a subset of the original
 # that is used for tracking how those neurons activate. We'll then pass this into a ``TFLiteConverter``
@@ -388,7 +394,7 @@ quantized_model = converter.convert()
 ######################################################################
 # Download the Model if Desired
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-# We've now got a finished model, that you can use locally or in other tutorials (try autotuning
+# We've now got a finished model that you can use locally or in other tutorials (try autotuning
 # this model or viewing it on `https://netron.app/ <https://netron.app/>`_). But before we do
 # those things, we'll have to write it to a file (``quantized.tflite``). If you're running this
 # tutorial on Google Colab, you'll have to uncomment the last two lines to download the file
@@ -403,8 +409,8 @@ with open(QUANTIZED_MODEL_PATH, "wb") as f:
 ######################################################################
 # Compiling With TVM For Arduino
 # ------------------------------
-# Tensorflow has a built-in framework for deploying to microcontrollers - `TFLite Micro <https://www.tensorflow.org/lite/microcontrollers>`_. However,
-# it's poorly supported by development boards, and does not support autotuning. We will use Apache
+# TensorFlow has a built-in framework for deploying to microcontrollers - `TFLite Micro <https://www.tensorflow.org/lite/microcontrollers>`_. However,
+# it's poorly supported by development boards and does not support autotuning. We will use Apache
 # TVM instead.
 #
 # TVM can be used either with its command line interface (``tvmc``) or with its Python interface. The
@@ -481,8 +487,8 @@ arduino_project = tvm.micro.generate_project(
 # Testing our Arduino Project
 # ---------------------------
 # Consider the following two 224x224 images from the author's camera roll - one of a car, one not.
-# We will test our Arduino project by loading both of these images, and executing the compiled model
-# on them both.
+# We will test our Arduino project by loading both of these images and executing the compiled model
+# on them.
 #
 # .. image:: https://raw.githubusercontent.com/guberti/web-data/micro-train-tutorial-data/testdata/microTVM/data/model_train_images_combined.png
 #      :align: center
@@ -494,7 +500,7 @@ arduino_project = tvm.micro.generate_project(
 #
 # It's also challenging to load raw data onto an Arduino, as only C/CPP files (and similar) are
 # compiled. We can work around this by embedding our raw data in a hard-coded C array with the
-# built-in utility ``bin2c``, that will output a file resembling the following:
+# built-in utility ``bin2c`` that will output a file like below:
 #
 #     .. code-block:: c
 #
@@ -559,8 +565,8 @@ arduino_project = tvm.micro.generate_project(
 # Now that our project has been generated, TVM's job is mostly done! We can still call
 # ``arduino_project.build()`` and ``arduino_project.upload()``, but these just use ``arduino-cli``'s
 # compile and flash commands underneath. We could also begin autotuning our model, but that's a
-# subject for a different tutorial. To finish up, we'll first test that our program compiles does
-# not throw any compiler errors:
+# subject for a different tutorial. To finish up, we'll verify no compiler errors are thrown
+# by our project:
 
 shutil.rmtree(f"{FOLDER}/models/project/build", ignore_errors=True)
 # sphinx_gallery_start_ignore
@@ -622,8 +628,8 @@ shutil.rmtree(FOLDER)
 #       Other object results:
 #       0, 255
 #
-# The first number represents the model's confidence that the object **is** a car, and ranges from
-# 0-255. The second number represents the model's confidence that the object **is not** a car, and
+# The first number represents the model's confidence that the object **is** a car and ranges from
+# 0-255. The second number represents the model's confidence that the object **is not** a car and
 # is also 0-255. These results mean the model is very sure that the first image is a car, and the
 # second image is not (which is correct). Hence, our model is working!
 #
@@ -632,7 +638,7 @@ shutil.rmtree(FOLDER)
 # In this tutorial, we used transfer learning to quickly train an image recognition model to
 # identify cars. We modified its input dimensions and last few layers to make it better at this,
 # and to make it faster and smaller. We then quantified the model and compiled it using TVM to
-# create an Arduino sketch. Lastly, we tested the model using two static images, to prove it works
+# create an Arduino sketch. Lastly, we tested the model using two static images to prove it works
 # as intended.
 #
 # Next Steps
