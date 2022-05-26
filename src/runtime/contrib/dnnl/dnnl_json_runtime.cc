@@ -33,6 +33,7 @@
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 #include "dnnl.hpp"
+#include "dnnl_utils.h"
 
 namespace tvm {
 namespace runtime {
@@ -66,8 +67,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Fill in the input buffers.
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
       auto eid = EntryID(input_nodes_[i], 0);
-      // TODO(@comaniac): Support other data lengths.
-      size_t offset_in_bytes = entry_out_mem_[eid].second * 4;
+      size_t offset_in_bytes =
+          entry_out_mem_[eid].second * ((data_entry_[eid]->dtype.bits + 7) / 8);
       size_t buffer_size = GetDataSize(*data_entry_[eid]);
       write_to_dnnl_memory(data_entry_[eid]->data, entry_out_mem_[eid].first, buffer_size,
                            offset_in_bytes);
@@ -82,7 +83,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Read output buffers.
     for (size_t i = 0; i < outputs_.size(); ++i) {
       auto eid = EntryID(outputs_[i]);
-      size_t offset_in_bytes = entry_out_mem_[eid].second * 4;
+      size_t offset_in_bytes =
+          entry_out_mem_[eid].second * ((data_entry_[eid]->dtype.bits + 7) / 8);
       size_t buffer_size = GetDataSize(*data_entry_[eid]);
       read_from_dnnl_memory(data_entry_[eid]->data, entry_out_mem_[eid].first, buffer_size,
                             offset_in_bytes);
@@ -90,7 +92,501 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
  private:
-  // Build up the engine based on the input graph.
+  tag layout2tag(std::string layout) {
+    static const std::map<std::string, tag> str2tag = {{"nc", tag::nc},
+                                                       {"cn", tag::cn},
+                                                       {"tn", tag::tn},
+                                                       {"nt", tag::nt},
+                                                       {"ncw", tag::ncw},
+                                                       {"nwc", tag::nwc},
+                                                       {"nchw", tag::nchw},
+                                                       {"nhwc", tag::nhwc},
+                                                       {"chwn", tag::chwn},
+                                                       {"ncdhw", tag::ncdhw},
+                                                       {"ndhwc", tag::ndhwc},
+                                                       {"oi", tag::oi},
+                                                       {"io", tag::io},
+                                                       {"oiw", tag::oiw},
+                                                       {"owi", tag::owi},
+                                                       {"wio", tag::wio},
+                                                       {"iwo", tag::iwo},
+                                                       {"oihw", tag::oihw},
+                                                       {"hwio", tag::hwio},
+                                                       {"ohwi", tag::ohwi},
+                                                       {"ihwo", tag::ihwo},
+                                                       {"iohw", tag::iohw},
+                                                       {"oidhw", tag::oidhw},
+                                                       {"dhwio", tag::dhwio},
+                                                       {"odhwi", tag::odhwi},
+                                                       {"iodhw", tag::iodhw},
+                                                       {"idhwo", tag::idhwo},
+                                                       {"goiw", tag::goiw},
+                                                       {"gowi", tag::gowi},
+                                                       {"wigo", tag::wigo},
+                                                       {"gohwi", tag::gohwi},
+                                                       {"goihw", tag::goihw},
+                                                       {"hwigo", tag::hwigo},
+                                                       {"giohw", tag::giohw},
+                                                       {"goidhw", tag::goidhw},
+                                                       {"giodhw", tag::giodhw},
+                                                       {"godhwi", tag::godhwi},
+                                                       {"dhwigo", tag::dhwigo},
+                                                       {"tnc", tag::tnc},
+                                                       {"ntc", tag::ntc},
+                                                       {"ldnc", tag::ldnc},
+                                                       {"ldigo", tag::ldigo},
+                                                       {"ldgoi", tag::ldgoi},
+                                                       {"ldio", tag::ldio},
+                                                       {"ldoi", tag::ldoi},
+                                                       {"ldgo", tag::ldgo},
+                                                       {"nCdhw16c", tag::nCdhw16c},
+                                                       {"nCdhw4c", tag::nCdhw4c},
+                                                       {"nCdhw8c", tag::nCdhw8c},
+                                                       {"nChw16c", tag::nChw16c},
+                                                       {"nChw4c", tag::nChw4c},
+                                                       {"nChw8c", tag::nChw8c},
+                                                       {"nCw16c", tag::nCw16c},
+                                                       {"nCw4c", tag::nCw4c},
+                                                       {"nCw8c", tag::nCw8c},
+                                                       {"NCw16n16c", tag::NCw16n16c},
+                                                       {"NChw16n16c", tag::NChw16n16c},
+                                                       {"NCdhw16n16c", tag::NCdhw16n16c},
+                                                       {"NCdhw32n32c", tag::NCdhw32n32c},
+                                                       {"NChw32n32c", tag::NChw32n32c},
+                                                       {"IOhw16i16o", tag::IOhw16i16o},
+                                                       {"OI16i16o", tag::OI16i16o},
+                                                       {"OI16i32o", tag::OI16i32o},
+                                                       {"OI16i64o", tag::OI16i64o},
+                                                       {"OI8i16o2i", tag::OI8i16o2i},
+                                                       {"OI8i32o2i", tag::OI8i32o2i},
+                                                       {"OI8i64o2i", tag::OI8i64o2i},
+                                                       {"OI4i16o4i", tag::OI4i16o4i},
+                                                       {"OI4i32o4i", tag::OI4i32o4i},
+                                                       {"OI4i64o4i", tag::OI4i64o4i},
+                                                       {"Ohwi32o", tag::Ohwi32o},
+                                                       {"IOdhw16i16o", tag::IOdhw16i16o},
+                                                       {"gIOhw16i16o", tag::gIOhw16i16o},
+                                                       {"gOhwi32o", tag::gOhwi32o},
+                                                       {"Goidhw16g", tag::Goidhw16g},
+                                                       {"IOw16o16i", tag::IOw16o16i},
+                                                       {"OIw16i16o", tag::OIw16i16o},
+                                                       {"OIw16i32o", tag::OIw16i32o},
+                                                       {"OIw16i64o", tag::OIw16i64o},
+                                                       {"IOw16i16o", tag::IOw16i16o},
+                                                       {"gIOw16i16o", tag::gIOw16i16o},
+                                                       {"OIw16o16i", tag::OIw16o16i},
+                                                       {"Oiw16o", tag::Oiw16o},
+                                                       {"OIw4i16o4i", tag::OIw4i16o4i},
+                                                       {"OIw4i32o4i", tag::OIw4i32o4i},
+                                                       {"OIw4i64o4i", tag::OIw4i64o4i},
+                                                       {"OIw2i8o4i", tag::OIw2i8o4i},
+                                                       {"OIw4i4o", tag::OIw4i4o},
+                                                       {"OIw4o4i", tag::OIw4o4i},
+                                                       {"Oiw4o", tag::Oiw4o},
+                                                       {"OIw8i16o2i", tag::OIw8i16o2i},
+                                                       {"OIw8i32o2i", tag::OIw8i32o2i},
+                                                       {"OIw8i64o2i", tag::OIw8i64o2i},
+                                                       {"OIw8i8o", tag::OIw8i8o},
+                                                       {"OIw8o16i2o", tag::OIw8o16i2o},
+                                                       {"OIw8o8i", tag::OIw8o8i},
+                                                       {"OIw8o4i", tag::OIw8o4i},
+                                                       {"OIw16i16o4i", tag::OIw16i16o4i},
+                                                       {"OIw16i32o4i", tag::OIw16i32o4i},
+                                                       {"OIw16i48o4i", tag::OIw16i48o4i},
+                                                       {"OIw16i64o4i", tag::OIw16i64o4i},
+                                                       {"OIw16i16o2i", tag::OIw16i16o2i},
+                                                       {"OIw16i32o2i", tag::OIw16i32o2i},
+                                                       {"OIw16i48o2i", tag::OIw16i48o2i},
+                                                       {"OIw16i64o2i", tag::OIw16i64o2i},
+                                                       {"OIw16o16i2o", tag::OIw16o16i2o},
+                                                       {"Owi16o", tag::Owi16o},
+                                                       {"OwI16o2i", tag::OwI16o2i},
+                                                       {"Owi4o", tag::Owi4o},
+                                                       {"Owi8o", tag::Owi8o},
+                                                       {"IOhw16o16i", tag::IOhw16o16i},
+                                                       {"Ohwi16o", tag::Ohwi16o},
+                                                       {"OhwI16o2i", tag::OhwI16o2i},
+                                                       {"Ohwi4o", tag::Ohwi4o},
+                                                       {"Ohwi8o", tag::Ohwi8o},
+                                                       {"OIhw16i16o", tag::OIhw16i16o},
+                                                       {"OIhw16i32o", tag::OIhw16i32o},
+                                                       {"OIhw16i64o", tag::OIhw16i64o},
+                                                       {"OIhw16o16i", tag::OIhw16o16i},
+                                                       {"Oihw16o", tag::Oihw16o},
+                                                       {"OIhw4i16o4i", tag::OIhw4i16o4i},
+                                                       {"OIhw4i32o4i", tag::OIhw4i32o4i},
+                                                       {"OIhw4i64o4i", tag::OIhw4i64o4i},
+                                                       {"OIhw4i4o", tag::OIhw4i4o},
+                                                       {"OIhw4o4i", tag::OIhw4o4i},
+                                                       {"Oihw4o", tag::Oihw4o},
+                                                       {"OIhw8i16o2i", tag::OIhw8i16o2i},
+                                                       {"OIhw8i32o2i", tag::OIhw8i32o2i},
+                                                       {"OIhw8i64o2i", tag::OIhw8i64o2i},
+                                                       {"OIhw8i8o", tag::OIhw8i8o},
+                                                       {"OIhw8o16i2o", tag::OIhw8o16i2o},
+                                                       {"OIhw8o8i", tag::OIhw8o8i},
+                                                       {"OIhw8o4i", tag::OIhw8o4i},
+                                                       {"OIhw2i8o4i", tag::OIhw2i8o4i},
+                                                       {"IOdhw16o16i", tag::IOdhw16o16i},
+                                                       {"Odhwi16o", tag::Odhwi16o},
+                                                       {"OdhwI16o2i", tag::OdhwI16o2i},
+                                                       {"Odhwi4o", tag::Odhwi4o},
+                                                       {"Odhwi8o", tag::Odhwi8o},
+                                                       {"OIdhw16i16o", tag::OIdhw16i16o},
+                                                       {"OIdhw16i32o", tag::OIdhw16i32o},
+                                                       {"OIdhw16i64o", tag::OIdhw16i64o},
+                                                       {"OIdhw16o16i", tag::OIdhw16o16i},
+                                                       {"Oidhw16o", tag::Oidhw16o},
+                                                       {"OIdhw4i4o", tag::OIdhw4i4o},
+                                                       {"OIdhw4o4i", tag::OIdhw4o4i},
+                                                       {"Oidhw4o", tag::Oidhw4o},
+                                                       {"OIdhw8i16o2i", tag::OIdhw8i16o2i},
+                                                       {"OIdhw8i32o2i", tag::OIdhw8i32o2i},
+                                                       {"OIdhw8i64o2i", tag::OIdhw8i64o2i},
+                                                       {"OIdhw4i16o4i", tag::OIdhw4i16o4i},
+                                                       {"OIdhw16i16o4i", tag::OIdhw16i16o4i},
+                                                       {"OIdhw16i32o4i", tag::OIdhw16i32o4i},
+                                                       {"OIdhw16i48o4i", tag::OIdhw16i48o4i},
+                                                       {"OIdhw16i64o4i", tag::OIdhw16i64o4i},
+                                                       {"OIdhw16i16o2i", tag::OIdhw16i16o2i},
+                                                       {"OIdhw16i32o2i", tag::OIdhw16i32o2i},
+                                                       {"OIdhw16i48o2i", tag::OIdhw16i48o2i},
+                                                       {"OIdhw16i64o2i", tag::OIdhw16i64o2i},
+                                                       {"OIdhw4i32o4i", tag::OIdhw4i32o4i},
+                                                       {"OIdhw4i64o4i", tag::OIdhw4i64o4i},
+                                                       {"OIdhw2i8o4i", tag::OIdhw2i8o4i},
+                                                       {"OIdhw8i8o", tag::OIdhw8i8o},
+                                                       {"OIdhw8o8i", tag::OIdhw8o8i},
+                                                       {"OIdhw8o4i", tag::OIdhw8o4i},
+                                                       {"gIOw16o16i", tag::gIOw16o16i},
+                                                       {"gOIw16i16o", tag::gOIw16i16o},
+                                                       {"gOIw16o16i", tag::gOIw16o16i},
+                                                       {"gOiw16o", tag::gOiw16o},
+                                                       {"gOIw4i16o4i", tag::gOIw4i16o4i},
+                                                       {"gOIw2i8o4i", tag::gOIw2i8o4i},
+                                                       {"gOIw4i4o", tag::gOIw4i4o},
+                                                       {"gOIw4o4i", tag::gOIw4o4i},
+                                                       {"gOiw4o", tag::gOiw4o},
+                                                       {"gOIw8i16o2i", tag::gOIw8i16o2i},
+                                                       {"gOIw8i8o", tag::gOIw8i8o},
+                                                       {"gOIw8o16i2o", tag::gOIw8o16i2o},
+                                                       {"gOIw8o8i", tag::gOIw8o8i},
+                                                       {"gOIw8o4i", tag::gOIw8o4i},
+                                                       {"gOIw16i16o4i", tag::gOIw16i16o4i},
+                                                       {"gOIw16i16o2i", tag::gOIw16i16o2i},
+                                                       {"gOIw16o16i2o", tag::gOIw16o16i2o},
+                                                       {"gOwi16o", tag::gOwi16o},
+                                                       {"gOwI16o2i", tag::gOwI16o2i},
+                                                       {"gOwi4o", tag::gOwi4o},
+                                                       {"gOwi8o", tag::gOwi8o},
+                                                       {"Goiw8g", tag::Goiw8g},
+                                                       {"Goiw16g", tag::Goiw16g},
+                                                       {"gIOhw16o16i", tag::gIOhw16o16i},
+                                                       {"gOhwi16o", tag::gOhwi16o},
+                                                       {"gOhwI16o2i", tag::gOhwI16o2i},
+                                                       {"gOhwi4o", tag::gOhwi4o},
+                                                       {"gOhwi8o", tag::gOhwi8o},
+                                                       {"Goihw16g", tag::Goihw16g},
+                                                       {"gOIhw16i16o", tag::gOIhw16i16o},
+                                                       {"gOIhw16o16i", tag::gOIhw16o16i},
+                                                       {"gOihw16o", tag::gOihw16o},
+                                                       {"gOIhw4i16o4i", tag::gOIhw4i16o4i},
+                                                       {"gOIhw2i8o4i", tag::gOIhw2i8o4i},
+                                                       {"gOIhw4i4o", tag::gOIhw4i4o},
+                                                       {"gOIhw4o4i", tag::gOIhw4o4i},
+                                                       {"gOihw4o", tag::gOihw4o},
+                                                       {"Goihw8g", tag::Goihw8g},
+                                                       {"gOIhw8i16o2i", tag::gOIhw8i16o2i},
+                                                       {"gOIhw8i8o", tag::gOIhw8i8o},
+                                                       {"gOIhw8o16i2o", tag::gOIhw8o16i2o},
+                                                       {"OIw4o8i8o4i", tag::OIw4o8i8o4i},
+                                                       {"OIdhw4o8i8o4i", tag::OIdhw4o8i8o4i},
+                                                       {"OIhw4o8i8o4i", tag::OIhw4o8i8o4i},
+                                                       {"OIhw2o8i8o2i", tag::OIhw2o8i8o2i},
+                                                       {"gOIw4o8i8o4i", tag::gOIw4o8i8o4i},
+                                                       {"gOIdhw4o8i8o4i", tag::gOIdhw4o8i8o4i},
+                                                       {"gOIhw4o8i8o4i", tag::gOIhw4o8i8o4i},
+                                                       {"gOIhw2o8i8o2i", tag::gOIhw2o8i8o2i},
+                                                       {"OIhw16i16o4i", tag::OIhw16i16o4i},
+                                                       {"OIhw16i32o4i", tag::OIhw16i32o4i},
+                                                       {"OIhw16i48o4i", tag::OIhw16i48o4i},
+                                                       {"OIhw16i64o4i", tag::OIhw16i64o4i},
+                                                       {"OIhw16i16o2i", tag::OIhw16i16o2i},
+                                                       {"OIhw16i32o2i", tag::OIhw16i32o2i},
+                                                       {"OIhw16i48o2i", tag::OIhw16i48o2i},
+                                                       {"OIhw16i64o2i", tag::OIhw16i64o2i},
+                                                       {"OIhw16o16i2o", tag::OIhw16o16i2o},
+                                                       {"gOIhw16i16o4i", tag::gOIhw16i16o4i},
+                                                       {"gOIhw16i16o2i", tag::gOIhw16i16o2i},
+                                                       {"gOIhw16o16i2o", tag::gOIhw16o16i2o},
+                                                       {"gOIhw8o8i", tag::gOIhw8o8i},
+                                                       {"gOIhw8o4i", tag::gOIhw8o4i},
+                                                       {"gIOdhw16i16o", tag::gIOdhw16i16o},
+                                                       {"gIOdhw16o16i", tag::gIOdhw16o16i},
+                                                       {"gOdhwi16o", tag::gOdhwi16o},
+                                                       {"gOdhwI16o2i", tag::gOdhwI16o2i},
+                                                       {"gOdhwi4o", tag::gOdhwi4o},
+                                                       {"gOdhwi8o", tag::gOdhwi8o},
+                                                       {"gOIdhw16i16o", tag::gOIdhw16i16o},
+                                                       {"gOIdhw16o16i", tag::gOIdhw16o16i},
+                                                       {"gOidhw16o", tag::gOidhw16o},
+                                                       {"gOIdhw4i4o", tag::gOIdhw4i4o},
+                                                       {"gOIdhw4o4i", tag::gOIdhw4o4i},
+                                                       {"gOidhw4o", tag::gOidhw4o},
+                                                       {"gOIdhw8i16o2i", tag::gOIdhw8i16o2i},
+                                                       {"gOIdhw4i16o4i", tag::gOIdhw4i16o4i},
+                                                       {"gOIdhw16i16o4i", tag::gOIdhw16i16o4i},
+                                                       {"gOIdhw16i16o2i", tag::gOIdhw16i16o2i},
+                                                       {"gOIdhw2i8o4i", tag::gOIdhw2i8o4i},
+                                                       {"gOIdhw8i8o", tag::gOIdhw8i8o},
+                                                       {"gOIdhw8o8i", tag::gOIdhw8o8i},
+                                                       {"gOIdhw8o4i", tag::gOIdhw8o4i},
+                                                       {"gOIw2i4o2i", tag::gOIw2i4o2i},
+                                                       {"gOIhw2i4o2i", tag::gOIhw2i4o2i},
+                                                       {"gOIdhw2i4o2i", tag::gOIdhw2i4o2i},
+                                                       {"gOIw2o4i2o", tag::gOIw2o4i2o},
+                                                       {"gOIhw2o4i2o", tag::gOIhw2o4i2o},
+                                                       {"gOIdhw2o4i2o", tag::gOIdhw2o4i2o},
+                                                       {"gOIw4i8o2i", tag::gOIw4i8o2i},
+                                                       {"gOIhw4i8o2i", tag::gOIhw4i8o2i},
+                                                       {"gOIdhw4i8o2i", tag::gOIdhw4i8o2i},
+                                                       {"gOIw4o8i2o", tag::gOIw4o8i2o},
+                                                       {"gOIhw4o8i2o", tag::gOIhw4o8i2o},
+                                                       {"gOIdhw4o8i2o", tag::gOIdhw4o8i2o},
+                                                       {"ldOi32o", tag::ldOi32o},
+                                                       {"ldOI32o4i", tag::ldOI32o4i},
+                                                       {"ldgOi32o", tag::ldgOi32o},
+                                                       {"ldgOI32o2i", tag::ldgOI32o2i},
+                                                       {"ldgOI32o4i", tag::ldgOI32o4i},
+                                                       {"OwI16o4i", tag::OwI16o4i},
+                                                       {"OhwI16o4i", tag::OhwI16o4i},
+                                                       {"gOwI16o4i", tag::gOwI16o4i},
+                                                       {"gOhwI16o4i", tag::gOhwI16o4i},
+                                                       {"OdhwI16o4i", tag::OdhwI16o4i},
+                                                       {"gOdhwI16o4i", tag::gOdhwI16o4i},
+                                                       {"Owi32o", tag::Owi32o},
+                                                       {"OwI32o2i", tag::OwI32o2i},
+                                                       {"OwI32o4i", tag::OwI32o4i},
+                                                       {"Owi48o", tag::Owi48o},
+                                                       {"OwI48o2i", tag::OwI48o2i},
+                                                       {"OwI48o4i", tag::OwI48o4i},
+                                                       {"Owi64o", tag::Owi64o},
+                                                       {"OwI64o2i", tag::OwI64o2i},
+                                                       {"OwI64o4i", tag::OwI64o4i},
+                                                       {"wIo2i", tag::wIo2i},
+                                                       {"wIo4i", tag::wIo4i},
+                                                       {"gOwi32o", tag::gOwi32o},
+                                                       {"gOwI32o2i", tag::gOwI32o2i},
+                                                       {"gOwI32o4i", tag::gOwI32o4i},
+                                                       {"gOwi48o", tag::gOwi48o},
+                                                       {"gOwI48o2i", tag::gOwI48o2i},
+                                                       {"gOwI48o4i", tag::gOwI48o4i},
+                                                       {"gOwi64o", tag::gOwi64o},
+                                                       {"gOwI64o2i", tag::gOwI64o2i},
+                                                       {"gOwI64o4i", tag::gOwI64o4i},
+                                                       {"gwio", tag::gwio},
+                                                       {"gwIo2i", tag::gwIo2i},
+                                                       {"gwIo4i", tag::gwIo4i},
+                                                       {"OhwI32o", tag::OhwI32o},
+                                                       {"OhwI32o2i", tag::OhwI32o2i},
+                                                       {"OhwI32o4i", tag::OhwI32o4i},
+                                                       {"Ohwi48o", tag::Ohwi48o},
+                                                       {"OhwI48o2i", tag::OhwI48o2i},
+                                                       {"OhwI48o4i", tag::OhwI48o4i},
+                                                       {"Ohwi64o", tag::Ohwi64o},
+                                                       {"OhwI64o2i", tag::OhwI64o2i},
+                                                       {"OhwI64o4i", tag::OhwI64o4i},
+                                                       {"hwIo2i", tag::hwIo2i},
+                                                       {"hwIo4i", tag::hwIo4i},
+                                                       {"gOhwI32o", tag::gOhwI32o},
+                                                       {"gOhwI32o2i", tag::gOhwI32o2i},
+                                                       {"gOhwI32o4i", tag::gOhwI32o4i},
+                                                       {"gOhwi48o", tag::gOhwi48o},
+                                                       {"gOhwI48o2i", tag::gOhwI48o2i},
+                                                       {"gOhwI48o4i", tag::gOhwI48o4i},
+                                                       {"gOhwi64o", tag::gOhwi64o},
+                                                       {"gOhwI64o2i", tag::gOhwI64o2i},
+                                                       {"gOhwI64o4i", tag::gOhwI64o4i},
+                                                       {"ghwio", tag::ghwio},
+                                                       {"ghwIo2i", tag::ghwIo2i},
+                                                       {"ghwIo4i", tag::ghwIo4i},
+                                                       {"Odhwi32o", tag::Odhwi32o},
+                                                       {"OdhwI32o2i", tag::OdhwI32o2i},
+                                                       {"OdhwI32o4i", tag::OdhwI32o4i},
+                                                       {"Odhwi48o", tag::Odhwi48o},
+                                                       {"OdhwI48o2i", tag::OdhwI48o2i},
+                                                       {"OdhwI48o4i", tag::OdhwI48o4i},
+                                                       {"Odhwi64o", tag::Odhwi64o},
+                                                       {"OdhwI64o2i", tag::OdhwI64o2i},
+                                                       {"OdhwI64o4i", tag::OdhwI64o4i},
+                                                       {"dhwIo2i", tag::dhwIo2i},
+                                                       {"dhwIo4i", tag::dhwIo4i},
+                                                       {"gOdhwi32o", tag::gOdhwi32o},
+                                                       {"gOdhwI32o2i", tag::gOdhwI32o2i},
+                                                       {"gOdhwI32o4i", tag::gOdhwI32o4i},
+                                                       {"gOdhwi48o", tag::gOdhwi48o},
+                                                       {"gOdhwI48o2i", tag::gOdhwI48o2i},
+                                                       {"gOdhwI48o4i", tag::gOdhwI48o4i},
+                                                       {"gOdhwi64o", tag::gOdhwi64o},
+                                                       {"gOdhwI64o2i", tag::gOdhwI64o2i},
+                                                       {"gOdhwI64o4i", tag::gOdhwI64o4i},
+                                                       {"gdhwio", tag::gdhwio},
+                                                       {"gdhwIo2i", tag::gdhwIo2i},
+                                                       {"gdhwIo4i", tag::gdhwIo4i},
+                                                       {"ldIo32i", tag::ldIo32i},
+                                                       {"ldgIo32i", tag::ldgIo32i},
+                                                       {"ldgIO32i2o", tag::ldgIO32i2o},
+                                                       {"nCdhw32c", tag::nCdhw32c},
+                                                       {"nChw32c", tag::nChw32c},
+                                                       {"nCw32c", tag::nCw32c},
+                                                       {"NCw32n16c", tag::NCw32n16c},
+                                                       {"NChw32n16c", tag::NChw32n16c},
+                                                       {"NCdhw32n16c", tag::NCdhw32n16c},
+                                                       {"NCw32n32c", tag::NCw32n32c},
+                                                       {"OI16i16o4i", tag::OI16i16o4i},
+                                                       {"IOw8o16i2o", tag::IOw8o16i2o},
+                                                       {"IOhw8o16i2o", tag::IOhw8o16i2o},
+                                                       {"Owhi16o", tag::Owhi16o},
+                                                       {"OIdhw8o16i2o", tag::OIdhw8o16i2o},
+                                                       {"IOdhw8o16i2o", tag::IOdhw8o16i2o},
+                                                       {"Goiw4g", tag::Goiw4g},
+                                                       {"gIOw8o16i2o", tag::gIOw8o16i2o},
+                                                       {"Goiw32g", tag::Goiw32g},
+                                                       {"Goihw4g", tag::Goihw4g},
+                                                       {"gIOhw8o16i2o", tag::gIOhw8o16i2o},
+                                                       {"Goihw32g", tag::Goihw32g},
+                                                       {"gOwhi16o", tag::gOwhi16o},
+                                                       {"IOw4i8o8i4o", tag::IOw4i8o8i4o},
+                                                       {"IOhw4i8o8i4o", tag::IOhw4i8o8i4o},
+                                                       {"IOdhw4i8o8i4o", tag::IOdhw4i8o8i4o},
+                                                       {"gIOw4i8o8i4o", tag::gIOw4i8o8i4o},
+                                                       {"gIOhw4i8o8i4o", tag::gIOhw4i8o8i4o},
+                                                       {"gIOdhw4i8o8i4o", tag::gIOdhw4i8o8i4o},
+                                                       {"gOIdhw8o16i2o", tag::gOIdhw8o16i2o},
+                                                       {"gIOdhw8o16i2o", tag::gIOdhw8o16i2o},
+                                                       {"Goidhw32g", tag::Goidhw32g},
+                                                       {"OI16i32o4i", tag::OI16i32o4i},
+                                                       {"OI16i48o4i", tag::OI16i48o4i},
+                                                       {"OI16i64o4i", tag::OI16i64o4i},
+                                                       {"OI16i16o2i", tag::OI16i16o2i},
+                                                       {"OI16i32o2i", tag::OI16i32o2i},
+                                                       {"OI16i48o2i", tag::OI16i48o2i},
+                                                       {"OI16i64o2i", tag::OI16i64o2i},
+                                                       {"OwI16i16o2i", tag::OwI16i16o2i},
+                                                       {"gOwI16i16o2i", tag::gOwI16i16o2i},
+                                                       {"OhwI16i16o2i", tag::OhwI16i16o2i},
+                                                       {"gOhwI16i16o2i", tag::gOhwI16i16o2i},
+                                                       {"OdhwI16i16o2i", tag::OdhwI16i16o2i},
+                                                       {"gOdhwI16i16o2i", tag::gOdhwI16i16o2i},
+                                                       {"OwI16i16o4i", tag::OwI16i16o4i},
+                                                       {"gOwI16i16o4i", tag::gOwI16i16o4i},
+                                                       {"OhwI16i16o4i", tag::OhwI16i16o4i},
+                                                       {"gOhwI16i16o4i", tag::gOhwI16i16o4i},
+                                                       {"OdhwI16i16o4i", tag::OdhwI16i16o4i},
+                                                       {"gOdhwI16i16o4i", tag::gOdhwI16i16o4i},
+                                                       {"OwI16i32o2i", tag::OwI16i32o2i},
+                                                       {"OwI16i32o4i", tag::OwI16i32o4i},
+                                                       {"OwI16i48o2i", tag::OwI16i48o2i},
+                                                       {"OwI16i48o4i", tag::OwI16i48o4i},
+                                                       {"OwI16i64o2i", tag::OwI16i64o2i},
+                                                       {"OwI16i64o4i", tag::OwI16i64o4i},
+                                                       {"gOwI16i32o2i", tag::gOwI16i32o2i},
+                                                       {"gOwI16i32o4i", tag::gOwI16i32o4i},
+                                                       {"gOwI16i48o2i", tag::gOwI16i48o2i},
+                                                       {"gOwI16i48o4i", tag::gOwI16i48o4i},
+                                                       {"gOwI16i64o2i", tag::gOwI16i64o2i},
+                                                       {"gOwI16i64o4i", tag::gOwI16i64o4i},
+                                                       {"OhwI16i32o2i", tag::OhwI16i32o2i},
+                                                       {"OhwI16i32o4i", tag::OhwI16i32o4i},
+                                                       {"OhwI16i48o2i", tag::OhwI16i48o2i},
+                                                       {"OhwI16i48o4i", tag::OhwI16i48o4i},
+                                                       {"OhwI16i64o2i", tag::OhwI16i64o2i},
+                                                       {"OhwI16i64o4i", tag::OhwI16i64o4i},
+                                                       {"gOhwI16i32o2i", tag::gOhwI16i32o2i},
+                                                       {"gOhwI16i32o4i", tag::gOhwI16i32o4i},
+                                                       {"gOhwI16i48o2i", tag::gOhwI16i48o2i},
+                                                       {"gOhwI16i48o4i", tag::gOhwI16i48o4i},
+                                                       {"gOhwI16i64o2i", tag::gOhwI16i64o2i},
+                                                       {"gOhwI16i64o4i", tag::gOhwI16i64o4i},
+                                                       {"OdhwI16i32o2i", tag::OdhwI16i32o2i},
+                                                       {"OdhwI16i32o4i", tag::OdhwI16i32o4i},
+                                                       {"OdhwI16i48o2i", tag::OdhwI16i48o2i},
+                                                       {"OdhwI16i48o4i", tag::OdhwI16i48o4i},
+                                                       {"OdhwI16i64o2i", tag::OdhwI16i64o2i},
+                                                       {"OdhwI16i64o4i", tag::OdhwI16i64o4i},
+                                                       {"gOdhwI16i32o2i", tag::gOdhwI16i32o2i},
+                                                       {"gOdhwI16i32o4i", tag::gOdhwI16i32o4i},
+                                                       {"gOdhwI16i48o2i", tag::gOdhwI16i48o2i},
+                                                       {"gOdhwI16i48o4i", tag::gOdhwI16i48o4i},
+                                                       {"gOdhwI16i64o2i", tag::gOdhwI16i64o2i},
+                                                       {"gOdhwI16i64o4i", tag::gOdhwI16i64o4i},
+                                                       {"hwioG16g", tag::hwioG16g},
+                                                       {"NCdhw40n32c", tag::NCdhw40n32c},
+                                                       {"NChw40n32c", tag::NChw40n32c},
+                                                       {"NCw40n32c", tag::NCw40n32c},
+                                                       {"OIdhw4o8i8o2i", tag::OIdhw4o8i8o2i},
+                                                       {"OIhw4o8i8o2i", tag::OIhw4o8i8o2i},
+                                                       {"OIw4o8i8o2i", tag::OIw4o8i8o2i},
+                                                       {"gOIdhw4o8i8o2i", tag::gOIdhw4o8i8o2i},
+                                                       {"gOIhw4o8i8o2i", tag::gOIhw4o8i8o2i},
+                                                       {"gOIw4o8i8o2i", tag::gOIw4o8i8o2i},
+                                                       {"IOdhw4i8o8i2o", tag::IOdhw4i8o8i2o},
+                                                       {"IOhw4i8o8i2o", tag::IOhw4i8o8i2o},
+                                                       {"IOw4i8o8i2o", tag::IOw4i8o8i2o},
+                                                       {"gIOdhw4i8o8i2o", tag::gIOdhw4i8o8i2o},
+                                                       {"gIOhw4i8o8i2o", tag::gIOhw4i8o8i2o},
+                                                       {"gIOw4i8o8i2o", tag::gIOw4i8o8i2o},
+                                                       {"NCdhw40n16c", tag::NCdhw40n16c},
+                                                       {"NCw40n16c", tag::NCw40n16c},
+                                                       {"NChw40n16c", tag::NChw40n16c},
+                                                       {"NCw2c32n8c", tag::NCw2c32n8c},
+                                                       {"NChw2c32n8c", tag::NChw2c32n8c},
+                                                       {"NCdhw2c32n8c", tag::NCdhw2c32n8c},
+                                                       {"OIw2i8o16i4o", tag::OIw2i8o16i4o},
+                                                       {"OIhw2i8o16i4o", tag::OIhw2i8o16i4o},
+                                                       {"OIdhw2i8o16i4o", tag::OIdhw2i8o16i4o},
+                                                       {"OIw2o8i16o4i", tag::OIw2o8i16o4i},
+                                                       {"OIw2o8i16o2i", tag::OIw2o8i16o2i},
+                                                       {"IOw2i8o16i4o", tag::IOw2i8o16i4o},
+                                                       {"IOw2i8o16i2o", tag::IOw2i8o16i2o},
+                                                       {"OIhw2o8i16o4i", tag::OIhw2o8i16o4i},
+                                                       {"OIhw2o8i16o2i", tag::OIhw2o8i16o2i},
+                                                       {"IOhw2i8o16i4o", tag::IOhw2i8o16i4o},
+                                                       {"IOhw2i8o16i2o", tag::IOhw2i8o16i2o},
+                                                       {"OIdhw2o8i16o4i", tag::OIdhw2o8i16o4i},
+                                                       {"OIdhw2o8i16o2i", tag::OIdhw2o8i16o2i},
+                                                       {"IOdhw2i8o16i4o", tag::IOdhw2i8o16i4o},
+                                                       {"IOdhw2i8o16i2o", tag::IOdhw2i8o16i2o},
+                                                       {"gOIw2o8i16o2i", tag::gOIw2o8i16o2i},
+                                                       {"gIOw2i8o16i2o", tag::gIOw2i8o16i2o},
+                                                       {"gIOhw2i8o16i2o", tag::gIOhw2i8o16i2o},
+                                                       {"gIOdhw2i8o16i2o", tag::gIOdhw2i8o16i2o},
+                                                       {"gOIhw2o8i16o2i", tag::gOIhw2o8i16o2i},
+                                                       {"gOIdhw2o8i16o2i", tag::gOIdhw2o8i16o2i},
+                                                       {"gOIw2o8i16o4i", tag::gOIw2o8i16o4i},
+                                                       {"gOIhw2o8i16o4i", tag::gOIhw2o8i16o4i}};
+    std::string key = "";
+    for (const auto& c : layout) {
+      if (std::isalpha(c, std::locale("C"))) {
+        char lower_c = std::tolower(c);
+        if (std::isupper(c) && (layout.find(lower_c) != std::string::npos)) {
+          key.push_back(c);
+        } else {
+          key.push_back(lower_c);
+        }
+      } else if (std::isdigit(c)) {
+        key.push_back(c);
+      } else {
+        LOG(FATAL) << "invalid char '" << c << "' in " << layout << std::endl;
+      }
+    }
+    if (str2tag.count(key) == 0) {
+      LOG(WARNING) << "convert unregistered layout '" << key << "' to tag::any";
+      return tag::any;
+    } else {
+      return str2tag.at(key);
+    }
+  }
 
   std::map<std::string, dnnl::algorithm> elt_name2algo{
       {"abs", dnnl::algorithm::eltwise_abs},
@@ -104,62 +600,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       {"tanh", dnnl::algorithm::eltwise_tanh},
       {"sigmoid", dnnl::algorithm::eltwise_logistic},
       {"clip", dnnl::algorithm::eltwise_clip},
-  };
-
-  std::map<std::string, tag> layout_dict{
-      {"", tag::any},
-      {"NCW", tag::ncw},
-      {"NWC", tag::nwc},
-      {"OIW", tag::oiw},
-      {"GOIW", tag::goiw},
-      {"NCHW", tag::nchw},
-      {"NHWC", tag::nhwc},
-      {"OIHW", tag::oihw},
-      {"GOIHW", tag::goihw},
-      {"NCDHW", tag::ncdhw},
-      {"NDHWC", tag::ndhwc},
-      {"OIDHW", tag::oidhw},
-      {"GOIDHW", tag::goidhw},
-      {"IOHW", tag::iohw},
-      {"GIOHW", tag::giohw},
-      {"IODHW", tag::iodhw},
-      {"GIODHW", tag::giodhw},
-
-      // Blocking layout.
-      {"NCW8c", tag::nCw8c},
-      {"NCW16c", tag::nCw16c},
-      {"OIW16i16o", tag::OIw8i8o},
-      {"OIW16i16o", tag::OIw16i16o},
-      {"OWI8o", tag::Owi8o},
-      {"OWI16o", tag::Owi16o},
-      {"NCHW4c", tag::nChw4c},
-      {"NCHW8c", tag::nChw8c},
-      {"NCHW16c", tag::nChw16c},
-      {"OIHW8i8o", tag::OIhw8i8o},
-      {"IOHW8i8o", tag::any},
-      {"OIHW16i16o", tag::OIhw16i16o},
-      {"IOHW16i16o", tag::IOhw16i16o},
-      {"GOIHW4i4o", tag::gOIhw4i4o},
-      {"GOIHW8i8o", tag::gOIhw8i8o},
-      {"GOIHW16i16o", tag::gOIhw16i16o},
-      {"OHWI8o", tag::Ohwi8o},
-      {"OHWI16o", tag::Ohwi16o},
-      {"OHWI32o", tag::Ohwi32o},
-      {"OHWI48o", tag::Ohwi48o},
-      {"OHWI64o", tag::Ohwi64o},
-      {"GOIHW8g", tag::Goihw8g},
-      {"GOIHW16g", tag::Goihw16g},
-      {"NCDHW8c", tag::nCdhw8c},
-      {"NCDHW16c", tag::nCdhw16c},
-      {"OIDHW16i16o", tag::OIdhw16i16o},
-      {"IODHW16i16o", tag::IOdhw16i16o},
-      {"OIDHW8i8o", tag::OIdhw8i8o},
-      {"IODHW8i8o", tag::any},
-      {"ODHWI8o", tag::Odhwi8o},
-      {"ODHWI16o", tag::Odhwi16o},
-      {"ODHWI32o", tag::Odhwi32o},
-      {"ODHWI48o", tag::Odhwi48o},
-      {"ODHWI64o", tag::Odhwi64o},
   };
 
   bool ParsingOpName(const std::string op_name, dnnl::primitive_attr attr) {
@@ -202,12 +642,13 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     }
     // Push the correct shapes of each axis into the output_dims
     for (auto a : axis) {
-      dnnl::memory::dim shape = 1;
       if (layout.find(a) != std::string::npos) {
-        shape *= input_dims[layout.find(a)];
+        dnnl::memory::dim shape = input_dims[layout.find(a)];
         char lower_a = std::tolower(a);
-        if (layout.find(lower_a) != std::string::npos) {
-          shape *= input_dims[layout.find(lower_a)];
+        for (size_t i = 0; i < layout.size(); ++i) {
+          if (lower_a == layout[i]) {
+            shape *= input_dims[i];
+          }
         }
         out_dims.push_back(shape);
       }
@@ -238,6 +679,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     return out_dims;
   }
 
+  // Build up the engine based on the input graph.
   void BuildEngine() {
     engine_ = dnnl::engine(dnnl::engine::kind::cpu, 0);
     stream_ = dnnl::stream(engine_);
@@ -301,11 +743,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // has not yet been bound to the other DNNL memory; otherwise it may have memory leak.
     ICHECK_EQ(entry_out_mem_.count(eid), 0);
 
-    // TODO(@comanic): Support other data types (i.e., int8).
-    auto data_node = nodes_[entry.id_];
-    auto dltype = data_node.GetOpDataType()[entry.index_];
-    ICHECK_EQ(dltype.bits, 32);
-
     entry_out_mem_[eid] = {mem, offset};
     return entry_out_mem_[eid].first;
   }
@@ -338,17 +775,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     std::string data_layout = node.GetAttr<std::vector<std::string>>("data_layout")[0];
     std::string kernel_layout = node.GetAttr<std::vector<std::string>>("kernel_layout")[0];
 
-    // Check layout.
-    if (layout_dict.find(data_layout) == layout_dict.end()) {
-      LOG(FATAL) << "Unsupported data layout for conv: " << data_layout;
-    }
-
-    if (layout_dict.find(kernel_layout) == layout_dict.end()) {
-      layout_dict.insert({kernel_layout, tag::any});
-      LOG(WARNING) << "Unregistered kernel layout for conv: " << kernel_layout
-                   << ", transfer to tag::any";
-    }
-
     // Memory shapes.
     dnnl::memory::dims src_dims = TransDims2Plain(input_shape, data_layout);
     dnnl::memory::dims weights_dims_ = TransDims2Plain(weight_shape, kernel_layout);
@@ -360,6 +786,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     dnnl::memory::dims dst_dims = src_dims;
     dst_dims[1] = channels;
     weights_dims_[0] = channels;
+    weights_dims_[1] = src_dims[1];
     for (size_t i = 2; i < src_dims.size(); i++) {
       dnnl::memory::dim K = weights_dims_[i];
       dnnl::memory::dim S = strides_dims[i - 2];
@@ -380,10 +807,11 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     }
 
     // Memory descriptions.
-    auto conv_src_md = dnnl::memory::desc(src_dims, dt::f32, layout_dict[data_layout]);
-    auto conv_weights_md = dnnl::memory::desc(weights_dims, dt::f32, layout_dict[kernel_layout]);
-    auto conv_bias_md = dnnl::memory::desc(bias_dims, dt::f32, tag::any);
-    auto conv_dst_md = dnnl::memory::desc(dst_dims, dt::f32, tag::any);
+    auto dtype = dtype_dl2dnnl(nodes_[data_entry.id_].GetOpDataType()[data_entry.index_]);
+    auto conv_src_md = dnnl::memory::desc(src_dims, dtype, layout2tag(data_layout));
+    auto conv_weights_md = dnnl::memory::desc(weights_dims, dtype, layout2tag(kernel_layout));
+    auto conv_bias_md = dnnl::memory::desc(bias_dims, dtype, tag::any);
+    auto conv_dst_md = dnnl::memory::desc(dst_dims, dtype, tag::any);
 
     // Conv description.
     auto conv_desc =
@@ -413,7 +841,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     auto conv_dst_memory = BindDNNLMemory(out_entry, conv_prim_desc.dst_desc());
 
     // Bias memory.
-    auto conv_bias_memory = dnnl::memory({bias_dims, dt::f32, tag::x}, engine_);
+    auto conv_bias_memory = dnnl::memory({bias_dims, dtype, tag::x}, engine_);
     if (has_bias) {
       auto bias_entry = node.GetInputs()[2];
       BindDNNLMemory(bias_entry, conv_bias_memory);
@@ -461,17 +889,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     std::string data_layout = node.GetAttr<std::vector<std::string>>("data_layout")[0];
     std::string kernel_layout = node.GetAttr<std::vector<std::string>>("kernel_layout")[0];
 
-    // Check layout.
-    if (layout_dict.find(data_layout) == layout_dict.end()) {
-      LOG(FATAL) << "Unsupported data layout for deconv: " << data_layout;
-    }
-
-    if (layout_dict.find(kernel_layout) == layout_dict.end()) {
-      layout_dict.insert({kernel_layout, tag::any});
-      LOG(WARNING) << "Unregistered kernel layout for deconv: " << data_layout
-                   << ", transfer to tag::any";
-    }
-
     // Memory shapes.
     dnnl::memory::dims src_dims = TransDims2Plain(input_shape, data_layout);
     dnnl::memory::dims weights_dims_ = TransDims2Plain(weight_shape, kernel_layout);
@@ -482,6 +899,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
         kernel_layout.replace(kernel_layout.find("OI"), 2, "IO");
       }
     }
+    weights_dims_[0] = channels;
+    weights_dims_[1] = src_dims[1];
     dnnl::memory::dims bias_dims = {channels};
     dnnl::memory::dims strides_dims = TransformStr2Dims(str_strides);
     dnnl::memory::dims dilates_dims = TransformStr2Dims(str_dilates, true);
@@ -508,10 +927,11 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     }
 
     // Memory descriptions.
-    auto deconv_src_md = dnnl::memory::desc(src_dims, dt::f32, layout_dict[data_layout]);
-    auto deconv_weights_md = dnnl::memory::desc(weights_dims, dt::f32, layout_dict[kernel_layout]);
-    auto deconv_bias_md = dnnl::memory::desc(bias_dims, dt::f32, tag::any);
-    auto deconv_dst_md = dnnl::memory::desc(dst_dims, dt::f32, tag::any);
+    auto dtype = dtype_dl2dnnl(nodes_[data_entry.id_].GetOpDataType()[data_entry.index_]);
+    auto deconv_src_md = dnnl::memory::desc(src_dims, dtype, layout2tag(data_layout));
+    auto deconv_weights_md = dnnl::memory::desc(weights_dims, dtype, layout2tag(kernel_layout));
+    auto deconv_bias_md = dnnl::memory::desc(bias_dims, dtype, tag::x);
+    auto deconv_dst_md = dnnl::memory::desc(dst_dims, dtype, tag::any);
 
     // Transposed covn2d description.
     auto deconv_desc =
@@ -541,7 +961,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     auto deconv_dst_memory = BindDNNLMemory(out_entry, deconv_prim_desc.dst_desc());
 
     // Bias memory.
-    auto deconv_bias_memory = dnnl::memory({bias_dims, dt::f32, tag::x}, engine_);
+    auto deconv_bias_memory = dnnl::memory({bias_dims, dtype, tag::x}, engine_);
     if (has_bias) {
       auto bias_entry = node.GetInputs()[2];
       BindDNNLMemory(bias_entry, deconv_bias_memory);
@@ -581,10 +1001,12 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     dnnl::memory::dims out_dims = out_shape;
 
     // Memory descriptions.
-    auto data_md = dnnl::memory::desc({data_dims, dt::f32, tag::nc});
-    auto weight_md = dnnl::memory::desc({weight_dims, dt::f32, tag::nc});
-    auto bias_md = dnnl::memory::desc({bias_dims, dt::f32, tag::x});
-    auto dst_md = dnnl::memory::desc({out_dims, dt::f32, tag::nc});
+    auto dl_dtype = nodes_[data_entry.id_].GetOpDataType()[data_entry.index_];
+    auto dtype = dtype_dl2dnnl(dl_dtype);
+    auto data_md = dnnl::memory::desc({data_dims, dtype, tag::nc});
+    auto weight_md = dnnl::memory::desc({weight_dims, dtype, tag::nc});
+    auto bias_md = dnnl::memory::desc({bias_dims, dtype, tag::x});
+    auto dst_md = dnnl::memory::desc({out_dims, dtype, tag::nc});
 
     // Dense description.
     auto dense_desc = dnnl::inner_product_forward::desc(dnnl::prop_kind::forward_inference, data_md,
@@ -607,7 +1029,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       BindDNNLMemory(bias_entry, bias_memory);
     } else {
       float bias[OC] = {0};
-      write_to_dnnl_memory(bias, bias_memory, OC * sizeof(float));
+      write_to_dnnl_memory(bias, bias_memory, OC * ((dl_dtype.bits + 7) / 8));
     }
 
     // Output memory.
@@ -632,7 +1054,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     float epsilon = std::stof(node.GetAttr<std::vector<std::string>>("epsilon")[0]);
 
     // Memory description.
-    dnnl::memory::desc data_md = GenDNNLMemDescByShape(data_shape, dt::f32);
+    auto dtype = dtype_dl2dnnl(nodes_[data_entry.id_].GetOpDataType()[data_entry.index_]);
+    dnnl::memory::desc data_md = GenDNNLMemDescByShape(data_shape, dtype);
 
     // BN description.
     auto bn_desc = dnnl::batch_normalization_forward::desc(
@@ -679,11 +1102,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     std::vector<std::string> str_dilates = node.GetAttr<std::vector<std::string>>("dilation");
     std::string layout = node.GetAttr<std::vector<std::string>>("layout")[0];
 
-    // Check layout.
-    if (layout_dict.find(layout) == layout_dict.end()) {
-      LOG(FATAL) << "Unsupported layout for pooling: " << layout;
-    }
-
     // Attributes related to AvgPool
     if (algo == dnnl::algorithm::pooling_avg) {
       int int_countpad = std::stoi(node.GetAttr<std::vector<std::string>>("count_include_pad")[0]);
@@ -701,8 +1119,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     dnnl::memory::dims padding_dims_r = TransformStr2Dims(str_padding_r);
 
     // Memory descriptions.
-    auto pool_src_md = dnnl::memory::desc(src_dims, dt::f32, layout_dict[layout]);
-    auto pool_dst_md = dnnl::memory::desc(dst_dims, dt::f32, tag::any);
+    auto dtype = dtype_dl2dnnl(nodes_[data_entry.id_].GetOpDataType()[data_entry.index_]);
+    auto pool_src_md = dnnl::memory::desc(src_dims, dtype, layout2tag(layout));
+    auto pool_dst_md = dnnl::memory::desc(dst_dims, dtype, tag::any);
 
     // Pooling description.
     auto pool_desc = dnnl::pooling_forward::desc(dnnl::prop_kind::forward_inference, algo,
@@ -729,7 +1148,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     auto data_entry = node.GetInputs()[0];
     dnnl::memory::dims shape = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
-    dnnl::memory::desc data_md = GenDNNLMemDescByShape(shape, dt::f32);
+    auto dtype = dtype_dl2dnnl(nodes_[data_entry.id_].GetOpDataType()[data_entry.index_]);
+    dnnl::memory::desc data_md = GenDNNLMemDescByShape(shape, dtype);
     float alpha = 0., beta = 0.;
     if (op_name == "clip") {
       alpha = std::stof(node.GetAttr<std::vector<std::string>>("a_min")[0]);
@@ -762,7 +1182,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     if (axis < 0) {
       axis = shape.size() + axis;
     }
-    dnnl::memory::desc data_md = GenDNNLMemDescByShape(shape, dt::f32);
+    auto dtype = dtype_dl2dnnl(nodes_[data_entry.id_].GetOpDataType()[data_entry.index_]);
+    dnnl::memory::desc data_md = GenDNNLMemDescByShape(shape, dtype);
 
     auto softmax_desc =
         dnnl::softmax_forward::desc(dnnl::prop_kind::forward_inference, data_md, axis);
@@ -790,7 +1211,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     ICHECK_EQ(node.GetInputs().size(), 2U);
     for (auto entry : node.GetInputs()) {
       auto data_shape = nodes_[entry.id_].GetOpShape()[entry.index_];
-      dnnl::memory::desc data_md = GenDNNLMemDescByShape(data_shape, dt::f32);
+      auto dtype = dtype_dl2dnnl(nodes_[entry.id_].GetOpDataType()[entry.index_]);
+      dnnl::memory::desc data_md = GenDNNLMemDescByShape(data_shape, dtype);
 
       data_dims.push_back(data_shape);
       data_mds.push_back(data_md);
