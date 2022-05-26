@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=unused-wildcard-import
 import numpy as np
-import pytest
 
 import tvm
 from tvm import relay
@@ -599,6 +598,64 @@ def test_match_fake_diamond():
 
     # Check
     assert not diamond.match(out)
+
+
+def test_at_most_one_parent():
+    # Pattern
+    P = is_op("nn.conv2d")(wildcard(), wildcard())  # 'parent'
+    I = is_op("nn.relu")(wildcard())  # 'intermediate' ('path' in the code)
+    C = is_op("add")(wildcard(), wildcard())  # 'child'
+    pattern = dominates(P, I, C)
+
+    #       n6(P)
+    #      /  \
+    #     n7   \
+    #    /      \
+    #    n8(P)  n10(I)
+    #    \      /
+    #    n9(I) /
+    #      \  /
+    #      n11(C)
+
+    x = relay.var("x")
+    w = relay.var("w")
+    n6 = relay.op.nn.conv2d(x, w)  # matches P
+    n7 = relay.op.tanh(n6)  # does not match I
+    n8 = relay.op.nn.conv2d(n7, w)  # matches P
+    n9 = relay.op.nn.relu(n8)  # matches I
+    n10 = relay.op.nn.relu(n6)  # matches I
+    n11 = relay.add(n9, n10)  # matches C
+
+    # Does not match: Can't match the parent pattern P at both 8 and 6.
+    # Note that if we did allow P to be used twice the implementation would
+    # need to be changed to not 'jump over' n7.
+    assert not pattern.match(n11)
+
+
+def test_parallel_injective():
+    # Pattern
+    P = is_op("add")(wildcard(), wildcard())  # 'parent'
+    I = is_op("squeeze")(wildcard()) | is_op("transpose")(
+        wildcard()
+    )  # 'intermediate' ('path' in the code)
+    C = is_op("left_shift")(wildcard(), wildcard())  # 'child'
+    pattern = dominates(P, I, C)
+
+    #
+    #      n5(P)
+    #     /     \
+    #  n6(I)   n8(I)
+    #     \     /
+    #      n9(C)
+    #
+
+    x = relay.var("x", shape=(10, 20))
+    n5 = relay.add(x, relay.const(1, "float32"))
+    n6 = relay.squeeze(n5)
+    n8 = relay.transpose(n5, axes=[0, 1])
+    n9 = relay.left_shift(n6, n8)
+
+    assert pattern.match(n9)
 
 
 def test_match_dominator():
@@ -1760,4 +1817,4 @@ def test_rewrite_once():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

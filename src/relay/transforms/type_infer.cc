@@ -949,6 +949,11 @@ TVM_REGISTER_GLOBAL("relay._transform.InferTypeLocal").set_body_typed([](const E
   return InferTypeLocal(expr);
 });
 
+Expr InferTypeExpr(const Expr& expr) {
+  InferTypeLocal(expr);
+  return expr;
+}
+
 Pass InferType() {
   auto pass_info = PassInfo(0, "InferType", {});
   return tvm::transform::CreateModulePass(
