@@ -16,8 +16,9 @@
 # under the License.
 """Function data types."""
 
-from typing import Callable, List, Mapping, Optional, Union, Tuple
+import collections
 import inspect
+from typing import Callable, List, Mapping, Optional, Union, Tuple
 
 import tvm
 import tvm._ffi
@@ -258,6 +259,11 @@ class IndexMap(Object):
     initial_indices: List[Var]
     final_indices: List[PrimExpr]
 
+    # Sentinel value used to indicate which groups of pre-flattening axes
+    # should be used to post-flattening axes axes.  See
+    # Stage.transform_layout for more details.
+    AXIS_SEPARATOR = "axis_separator"
+
     def __init__(self, initial_indices, final_indices):
         self.__init_handle_by_constructor__(_ffi_api.IndexMap, initial_indices, final_indices)
 
@@ -268,34 +274,117 @@ class IndexMap(Object):
         Parameters
         ----------
         mapping_function : Callable
-            The function to map from source indices to target indices
+
+            The function to map from source indices to target indices.
+            The function should accept `tir.Var` parameters and return
+            a list. Each element of the returned list should be a
+            `tir.PrimExpr`.
+
+        ndim: Optional[int]
+
+            The dimensionality of the buffer to which this
+            transformation should be applied.  If mapping_function uses
+            variadic argument `*args`, `ndim` must be specified.  If
+            mapping_function does not use variadic arguments, ndim is
+            optional.
+
+        Returns
+        -------
+        index_map: IndexMap
+
+            Returns an IndexMap representing the `mapping_function`.
+
+        """
+        index_map, axis_separators = IndexMap.from_func_with_separators(mapping_function, ndim)
+        assert not axis_separators, (
+            "The mapping_function provided to IndexMap.from_func "
+            "may not return IndexMap.AXIS_SEPARATOR.  "
+            "If required, please use IndexMap.from_func_with_separators instead."
+        )
+        return index_map
+
+    @staticmethod
+    def from_func_with_separators(mapping_function: Callable, ndim: Optional[int] = None):
+        """Create an index map from a function
+
+        Parameters
+        ----------
+        mapping_function : Callable
+
+            The function to map from source indices to target indices.
+            The function should accept tir.Var parameters and return a
+            list. Each element of the returned list should be either a
+            `tir.PrimExpr` or the object `IndexMap.AXIS_SEPARATOR`.
+
+        ndim: Optional[int]
+
+            The dimensionality of the buffer to which this
+            transformation should be applied.  If mapping_function uses
+            variadic argument `*args`, ndim must be specified.  If
+            mapping_function does not use variadic arguments, ndim is
+            optional.
+
+        Returns
+        -------
+        ret: Tuple[IndexMap, List[int]]
+
+            Returns a tuple whose first element is an IndexMap
+            representing the `mapping_function`, and whose second index
+            is a list of indices at which `IndexMap.AXIS_SEPARATOR`
+            occurred.
+
         """
         params = inspect.signature(mapping_function).parameters
-        default_index_dtype = "int32"
+
         args = []
         var_arg_name = None
+        kwargs = collections.OrderedDict()
+        default_index_dtype = "int32"
+
         for name, param in params.items():
             if param.kind in [
                 inspect.Parameter.POSITIONAL_ONLY,
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
             ]:
                 args.append(tvm.tir.Var(name, default_index_dtype))
+
             elif param.kind == inspect.Parameter.VAR_POSITIONAL:
                 var_arg_name = name
+
+            elif param.kind == inspect.Parameter.KEYWORD_ONLY:
+                kwargs[name] = tvm.tir.Var(name, default_index_dtype)
+
             else:
-                raise ValueError("transform_layout mapping may not have *args or **kwargs")
+                raise ValueError("transform_layout mapping may not have *args")
 
         # Now that all the named arguments have been collected,
         # everything that remains should go to the *args, if
         # specified.
         if var_arg_name is not None:
             assert ndim is not None, "ndim must be specified when *args is used"
-            num_var_args = ndim - len(args)
+            num_var_args = ndim - len(args) - len(kwargs)
             for i in range(num_var_args):
                 args.append(tvm.tir.Var(f"{var_arg_name}_{i}", default_index_dtype))
 
-        final_indices = mapping_function(*args)
-        return IndexMap(args, final_indices)
+        mapping = mapping_function(*args, **kwargs)
+
+        initial_indices = args + list(kwargs.values())
+
+        final_indices = []
+        axis_separators = []
+        for val in mapping:
+            if isinstance(val, tvm.ir.PrimExpr):
+                final_indices.append(val)
+            elif val is IndexMap.AXIS_SEPARATOR:
+                axis_separators.append(len(final_indices))
+            else:
+                raise TypeError(
+                    "Expected mapping function to return list of "
+                    "either tvm.ir.PrimExpr or IndexMap.AXIS_SEPARATOR.  "
+                    "Instead received {val} of type {type(val)}."
+                )
+
+        return IndexMap(initial_indices, final_indices), axis_separators
 
     def is_equivalent_to(self, other_map: "IndexMap") -> bool:
         """Return if the index maps are equivalent.
