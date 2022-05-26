@@ -22,6 +22,8 @@
 import os
 import random
 from typing import Optional, Union
+import pathlib
+import datetime
 
 import pytest
 
@@ -29,6 +31,7 @@ import tvm
 import tvm.rpc.tracker
 from tvm.contrib.hexagon.build import HexagonLauncher, HexagonLauncherRPC
 from tvm.contrib.hexagon.session import Session
+from tvm.contrib.utils import tempdir
 
 HEXAGON_TOOLCHAIN = "HEXAGON_TOOLCHAIN"
 TVM_TRACKER_HOST = "TVM_TRACKER_HOST"
@@ -156,9 +159,28 @@ def adb_server_socket() -> str:
     return os.getenv(ADB_SERVER_SOCKET, default="tcp:5037")
 
 
+@pytest.fixture
+def temp_dir():
+    workspace = (
+        pathlib.Path(os.path.abspath("."))
+        / f"hexagon_workspace"
+        / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    )
+    workspace_base = str(workspace)
+    number = 1
+    while workspace.exists():
+        workspace = pathlib.Path(workspace_base + f"-{number}")
+        number += 1
+    if not os.path.exists(workspace.parent):
+        os.makedirs(workspace.parent)
+
+    # return tempdir(custom_path=board_workspace, keep_for_debug=True)
+    return tempdir(custom_path=workspace)
+
+
 @tvm.testing.fixture
 def hexagon_launcher(
-    request, android_serial_number, rpc_server_port, adb_server_socket
+    request, android_serial_number, rpc_server_port, adb_server_socket, temp_dir
 ) -> HexagonLauncherRPC:
     """Initials and returns hexagon launcher if ANDROID_SERIAL_NUMBER is defined"""
     if android_serial_number is None:
@@ -176,7 +198,9 @@ def hexagon_launcher(
             "rpc_server_port": rpc_server_port,
             "adb_server_socket": adb_server_socket,
         }
-        launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
+        launcher = HexagonLauncher(
+            serial_number=android_serial_number, rpc_info=rpc_info, host_workspace=temp_dir
+        )
         launcher.start_server()
         try:
             yield launcher

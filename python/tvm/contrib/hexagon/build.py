@@ -318,7 +318,11 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
     ]
 
     def __init__(
-        self, serial_number: str, rpc_info: dict, workspace: Union[str, pathlib.Path] = None
+        self,
+        serial_number: str,
+        rpc_info: dict,
+        workspace: Union[str, pathlib.Path] = None,
+        host_workspace: Union[str, pathlib.Path] = None,
     ):
         """Configure a new HexagonLauncherAndroid
 
@@ -335,6 +339,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         """
         if not rpc_info.get("workspace_base"):
             rpc_info["workspace_base"] = self.ANDROID_HEXAGON_TEST_BASE_DIR
+        self._host_workspace = host_workspace
         self._serial_number = serial_number
         adb_socket = rpc_info["adb_server_socket"] if rpc_info["adb_server_socket"] else "tcp:5037"
         self._adb_device_sub_cmd = ["adb", "-L", adb_socket, "-s", self._serial_number]
@@ -472,6 +477,15 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         # Remove workspace directory on remote target
         subprocess.Popen(self._adb_device_sub_cmd + ["shell", f"rm -rf {self._workspace}"])
 
+    def _copy_artifacts_to_host(self):
+        # Copy generated artifacts from device to host
+        if self._host_workspace:
+            for file in ["tvm_rpc_android.farf", "tvm_rpc_android.log"]:
+                subprocess.Popen(
+                    self._adb_device_sub_cmd
+                    + ["pull", str(self._workspace / file), str(self._host_workspace / file)]
+                )
+
     def start_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._copy_binaries()
@@ -481,6 +495,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._cleanup_port_forwarding()
         self._terminate_remote()
+        self._copy_artifacts_to_host()
         self._cleanup_directory()
 
 
@@ -593,7 +608,12 @@ def _is_port_in_use(port: int) -> bool:
 
 
 # pylint: disable=invalid-name
-def HexagonLauncher(serial_number: str, rpc_info: dict, workspace: Union[str, pathlib.Path] = None):
+def HexagonLauncher(
+    serial_number: str,
+    rpc_info: dict,
+    workspace: Union[str, pathlib.Path] = None,
+    host_workspace: Union[str, pathlib.Path] = None,
+):
     if serial_number == "simulator":
         return HexagonLauncherSimulator(rpc_info, workspace)
-    return HexagonLauncherAndroid(serial_number, rpc_info, workspace)
+    return HexagonLauncherAndroid(serial_number, rpc_info, workspace, host_workspace)
