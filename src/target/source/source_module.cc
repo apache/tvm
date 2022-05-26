@@ -59,7 +59,7 @@ using runtime::SaveBinaryToFile;
 class SourceModuleNode : public runtime::ModuleNode {
  public:
   SourceModuleNode(std::string code, std::string fmt) : code_(code), fmt_(fmt) {}
-  const char* type_key() const { return "source"; }
+  const char* type_key() const final { return "source"; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "Source module cannot execute, to get executable module"
@@ -87,7 +87,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
   CSourceModuleNode(const std::string& code, const std::string& fmt,
                     const Array<String>& func_names, const Array<String>& const_vars)
       : code_(code), fmt_(fmt), const_vars_(const_vars), func_names_(func_names) {}
-  const char* type_key() const { return "c"; }
+  const char* type_key() const final { return "c"; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     // Currently c-source module is used as demonstration purposes with binary metadata module
@@ -121,6 +121,12 @@ class CSourceModuleNode : public runtime::ModuleNode {
     } else {
       ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     }
+  }
+
+  bool IsDSOExportable() const final { return true; }
+
+  bool ImplementsFunction(const String& name, bool query_imports) final {
+    return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();
   }
 
  protected:
@@ -166,7 +172,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         metadata_(metadata) {
     CreateSource();
   }
-  const char* type_key() const { return "c"; }
+  const char* type_key() const final { return "c"; }
 
   std::string GetSource(const std::string& format) final { return code_.str(); }
 
@@ -185,6 +191,12 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     } else {
       ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     }
+  }
+
+  bool IsDSOExportable() const final { return true; }
+
+  bool ImplementsFunction(const String& name, bool query_imports) final {
+    return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();
   }
 
  protected:
@@ -908,7 +920,7 @@ class DeviceSourceModuleNode final : public runtime::ModuleNode {
     }
   }
 
-  const char* type_key() const { return type_key_.c_str(); }
+  const char* type_key() const final { return type_key_.c_str(); }
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);
