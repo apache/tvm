@@ -56,7 +56,7 @@ def test_tir_external_generation_inline_without_target_instance(check_result):
     check_result(func, inputs, (8,), x_data - y_data)
 
 
-# TODO(mbs): The check_aot_executor_result does not support the list-of-targets, mostly because
+# TODO(mbs): The check_aot_executor_result does not support list-of-targets, mostly because
 # tvm.testing.aot.compile_and_run requires the target to be a kind name string, and
 # tvm.testing.aot.compile_models requires a single Target object. However, code outside of
 # tvm.testing.aot is ready for this more general form.

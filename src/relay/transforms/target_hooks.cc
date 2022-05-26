@@ -34,7 +34,8 @@ namespace {
 
 /*!
  * \brief A pass extracted from a target kind's "RelayToTIR" attribute, along with any
- * 'external codegen' Target instance with matching kind name.
+ * 'external codegen' Target instance with matching kind name which should be current when
+ * the pass is applied.
  */
 struct CustomPass {
   std::string target_kind_name;
@@ -47,6 +48,10 @@ struct CustomPass {
         opt_target(std::move(opt_target)) {}
 };
 
+/*!
+ * \brief Collect all the \p CustomPasses needed according to the "Compiler" attributes on
+ * inlined or global functions.
+ */
 class TargetHookVisitor : public MixedModeVisitor {
  public:
   TargetHookVisitor(IRModule mod, CompilationConfig config)
@@ -56,10 +61,19 @@ class TargetHookVisitor : public MixedModeVisitor {
 
   std::vector<CustomPass> Visit() {
     ICHECK(custom_passes_.empty());
-    for (const auto& it : mod_->functions) {
-      if (const auto* function_node = it.second.as<FunctionNode>()) {
-        // May be a top-level function with "Compiler" attribute.
+    // To ensure the passes are run in a deterministic order we'll search for functions in
+    // lexicographic order.
+    std::vector<std::pair<std::string, BaseFunc>> functions;
+    for (const auto& kv : mod_->functions) {
+      functions.emplace_back(kv.first->name_hint, kv.second);
+    }
+    std::sort(functions.begin(), functions.end());
+    for (const auto& kv : functions) {
+      if (const auto* function_node = kv.second.as<FunctionNode>()) {
+        // May be a top-level function with a "Compiler" attribute.
         MaybeAddPassForFunction(function_node);
+      }
+      if (const auto* function_node = AsOptimizableFunctionNode(kv.second)) {
         // May have calls to inlined "Compiler" functions in body.
         VisitExpr(GetRef<Function>(function_node));
       }
@@ -88,7 +102,7 @@ class TargetHookVisitor : public MixedModeVisitor {
   }
 
   /*!
-   * \brief If \p function_node has a "Compiler" attribute, check if we should include a
+   * \brief If \p function_node has a "Compiler" attribute, checks if we should include a
    * matching custom pass. Otherwise no-op.
    */
   void MaybeAddPassForFunction(const FunctionNode* function_node) {

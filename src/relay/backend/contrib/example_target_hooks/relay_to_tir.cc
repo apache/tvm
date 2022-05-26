@@ -43,7 +43,7 @@ namespace {
  * TIR PrimFunc implementing subtraction.
  *
  * Illustrates six aspects a custom 'lowering' style pass may need to account for:
- *  - Lowerable functions can appear inline as calls ops, bound to let-bound variables, or as
+ *  - Lowerable functions can appear inline as call ops, bound to let-bound variables, or as
  *    global functions.
  *  - Let-bound lowerable functions should be inlined on-the-fly since after processing the
  *    let-binding is no longer required.
@@ -55,7 +55,9 @@ namespace {
  *    was extracted.
  *
  * Though not illustrated here, it is also valid for a "RelayToTIR" custom pass to add
- * runtime::Modules to the output IRModule's "external_mods" attribute.
+ * runtime::Modules to the output IRModule's "external_mods" attribute. In this case the
+ * IRModule must be left with an 'extern' Function definition with the matching "external_symbol"
+ * name.
  */
 class ConvertAddToSubtract : public MixedModeMutator {
  public:
@@ -89,14 +91,9 @@ class ConvertAddToSubtract : public MixedModeMutator {
     //     - First encounter: create global var, rewrite to PrimFunc, add binding, replace call.
     //     - Thereafter (via object sharing): discover global var already in module, replace call
     //  - Global function:
-    //     - func_name == global_var->name_hint
-    //        - First encounter: rewrite to PrimFunc and update binding, replace call
-    //        - Thereafter (via global var): Just replace call
-    //     - func_name != global_var->name_hint
-    //        - First encounter: create global var, rewrite to PrimFunc, add binding, replace call
-    //          (The original Relay function should also be tagged as 'extern', ie given attribute
-    //           "ExternalSymbol".)
-    //        - Thereafter (via global var): discover global var already in module, replace call
+    //     - Assume func_name == global_var->name_hint
+    //     - First encounter: create global var, rewrite to PrimFunc, update binding, replace call
+    //     - Thereafter (via global var): discover global var already in module, replace call
     // --------------------------------------------------------------------------------------------
 
     // If necessary, introduce a new global var to map the function to and copy the source type
@@ -170,6 +167,8 @@ class ConvertAddToSubtract : public MixedModeMutator {
 
     return global_var;
   }
+
+  using MixedModeMutator::VisitExpr_;
 
   Expr VisitExpr_(const LetNode* op) final {
     auto pre_visit = [this](const LetNode* op) {
