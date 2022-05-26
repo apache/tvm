@@ -131,8 +131,8 @@ def match_ethosu_identity(output_tensor, device_config):
     ofm_dtype = output_tensor.dtype
 
     input_tensors_shape = input_tensors[0].shape
-    ifm_channels = int(input_tensors_shape[3] if len(input_tensors_shape) > 3 else 1)
-    ofm_channels = ifm_channels
+    length = len(input_tensors_shape)
+    channels = int(input_tensors_shape[length - 1]) if length >= 3 else 1
 
     subkernels = len(device_config.get_kernel_steps(identity.op.name, 1, 1, ifm_dtype))
 
@@ -143,8 +143,8 @@ def match_ethosu_identity(output_tensor, device_config):
         propagators[0],
         identity.op.attrs,
         output_tensor.shape,
-        ofm_channels,
-        ifm_channels,
+        channels,
+        channels,
         output_layout,
         input_layout,
         ifm_dtype,

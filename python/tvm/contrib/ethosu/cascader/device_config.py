@@ -55,9 +55,9 @@ class _Shape:
                 self.width = int(shape[2])
                 self.depth = int(shape[3])
             elif length == 3:
-                self.height = int(shape[1])
-                self.width = int(shape[2])
-                self.depth = 1
+                self.height = int(shape[0])
+                self.width = int(shape[1])
+                self.depth = int(shape[2])
             elif length == 2:
                 self.height = int(shape[0])
                 self.width = int(shape[1])
