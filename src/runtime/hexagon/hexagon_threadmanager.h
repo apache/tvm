@@ -22,9 +22,9 @@ namespace hexagon {
 
 // TODO: adjust as necessary
 #define MIN_STACK_SIZE_BYTES 0x4000 // 16KB
-#define MAX_STACK_SIZE_BYTES 0x10000
-#define MIN_PIPE_SIZE_WORDS 0x400 // 1KB
-#define MAX_PIPE_SIZE_WORDS 0x10000
+#define MAX_STACK_SIZE_BYTES 0x10000 // 64KB 
+#define MIN_PIPE_SIZE_WORDS 0x400 // 1K words
+#define MAX_PIPE_SIZE_WORDS 0x1000 // 4K words
   
 class HexagonThreadManager {
   typedef void (*voidfunc)(void*);
@@ -63,9 +63,9 @@ private:
   void* stack_buffer;
   void* pipe_buffer;
   #if defined(__hexagon__)
-  qurt_thread_t* threads {nullptr};
-  qurt_pipe_t* pipes {nullptr};
-  ThreadContext** contexts {nullptr};
+  qurt_thread_t* threads;
+  qurt_pipe_t* pipes;
+  ThreadContext** contexts;
   std::vector<qurt_sem_t> semaphores;
   qurt_sem_t start_semaphore;
   #endif

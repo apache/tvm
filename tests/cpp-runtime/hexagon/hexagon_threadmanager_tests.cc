@@ -35,7 +35,7 @@ class HexagonThreadManagerTest : public ::testing::Test {
   void TearDown() override {
     delete htm;
   }
-  HexagonThreadManager *htm {nullptr};
+  HexagonThreadManager *htm;
   std::vector<TVMStreamHandle> streams;
 };
 
@@ -44,7 +44,6 @@ TEST_F(HexagonThreadManagerTest, init) {
   CHECK_EQ(streams.size(), 6);
 }
 
-// TODO: doesn't technically need the fixture
 TEST_F(HexagonThreadManagerTest, ctor_errors) {
   ASSERT_ANY_THROW(HexagonThreadManager(60, 16*1024, 1024));
   ASSERT_ANY_THROW(HexagonThreadManager(6, MAX_STACK_SIZE_BYTES + 1, 1024));
@@ -101,30 +100,33 @@ TEST_F(HexagonThreadManagerTest, signal_wait) {
   CHECK_EQ(42, 42);
 }
 
-/*
-TEST_F(HexagonThreadManagerTest, more_htm) {
-  auto more_htm = new HexagonThreadManager(6, MIN_STACK_SIZE_BYTES, MIN_PIPE_SIZE_WORDS);
-  std::vector<TVMStreamHandle> streams;
-  htm->GetStreamHandles(&streams);
-  htm->Wait(streams[0], 0);
-  htm->Signal(streams[1], 0);
-  htm->Wait(streams[1], 1);
-  htm->Signal(streams[0], 1);
+TEST_F(HexagonThreadManagerTest, sync_from_to) {
+  htm->SyncFromTo(streams[0], streams[1]);
   htm->WaitOnThreads();
-  std::vector<TVMStreamHandle> more_streams;
-  more_htm->GetStreamHandles(&more_streams);
-  more_htm->Wait(more_streams[0], 2);
-  more_htm->Signal(more_streams[1], 2);
-  more_htm->Wait(more_streams[1], 3);
-  more_htm->Signal(more_streams[0], 3);
-  more_htm->WaitOnThreads();
-  delete more_htm;
   CHECK_EQ(42, 42);
 }
-*/
 
-void thread_print(void* msg) {
-  LOG(WARNING) << (char*)msg << "\n";
+TEST_F(HexagonThreadManagerTest, sync_from_to_self) {
+  htm->SyncFromTo(streams[0], streams[0]);
+  htm->WaitOnThreads();
+  CHECK_EQ(42, 42);
+}
+
+TEST_F(HexagonThreadManagerTest, sync_from_to_x2) {
+  htm->SyncFromTo(streams[0], streams[1]);
+  htm->SyncFromTo(streams[1], streams[0]);
+  htm->WaitOnThreads();
+  CHECK_EQ(42, 42);
+}
+
+TEST_F(HexagonThreadManagerTest, sync_from_to_all) {
+  htm->SyncFromTo(streams[0], streams[1]);
+  htm->SyncFromTo(streams[1], streams[2]);
+  htm->SyncFromTo(streams[2], streams[3]);
+  htm->SyncFromTo(streams[3], streams[4]);
+  htm->SyncFromTo(streams[4], streams[5]);
+  htm->WaitOnThreads();
+  CHECK_EQ(42, 42);
 }
 
 struct ToWrite {
@@ -139,25 +141,7 @@ void thread_write_val(void* towrite) {
   delete cmd;
 }
 
-TEST(HexagonThreadManager, dispatch_prints) {
-  auto tm = new HexagonThreadManager(6, 16*1024, 1024);
-  std::vector<TVMStreamHandle> streams;
-  tm->GetStreamHandles(&streams);
-  std::vector<std::string> strings;
-  strings.resize(streams.size());
-  DBG(std::to_string(streams.size()) << " streams");
-  for (int i = 0; i < streams.size(); i++) {
-    strings[i] += "In thread " + std::to_string(i);
-    tm->Dispatch(streams[i], thread_print, (void*)strings[0].c_str());
-  }
-  tm->Start();
-  delete tm;
-}
-
-TEST(HexagonThreadManager, dispatch_writes) {
-  auto tm = new HexagonThreadManager(6, 16*1024, 1024);
-  std::vector<TVMStreamHandle> streams;
-  tm->GetStreamHandles(&streams);
+TEST_F(HexagonThreadManagerTest, dispatch_writes) {
   std::vector<int> array;
   std::vector<int> truth;
   array.resize(streams.size());
@@ -165,15 +149,30 @@ TEST(HexagonThreadManager, dispatch_writes) {
   for (int i = 0; i < streams.size(); i++) {
     int val = i * 2;
     ToWrite* cmd = new ToWrite(&array[i], val);
-    tm->Dispatch(streams[i], thread_write_val, cmd);
+    htm->Dispatch(streams[i], thread_write_val, cmd);
     truth[i] = val;
   }
-  tm->Start();
-  tm->WaitOnThreads();
-  delete tm;
+  htm->Start();
+  htm->WaitOnThreads();
   for (int i = 0; i < streams.size(); i++) {
     DBG(std::to_string(array[i]) << " " << std::to_string(truth[i]));
     CHECK_EQ(array[i], truth[i]);
   }
+}
+
+void thread_print(void* msg) {
+  LOG(WARNING) << (char*)msg << "\n";
+}
+
+TEST_F(HexagonThreadManagerTest, dispatch_prints) {
+  std::vector<std::string> strings;
+  strings.resize(streams.size());
+  DBG(std::to_string(streams.size()) << " streams");
+  for (int i = 0; i < streams.size(); i++) {
+    strings[i] += "In thread " + std::to_string(i);
+    htm->Dispatch(streams[i], thread_print, (void*)strings[0].c_str());
+  }
+  htm->Start();
+  htm->WaitOnThreads();
 }
 
