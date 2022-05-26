@@ -553,6 +553,7 @@ def test_schedule_build_with_cmsis_dependency(temp_dir, board, west_cmd, tvm_deb
         "west_cmd": west_cmd,
         "verbose": bool(build_config.get("debug")),
         "zephyr_board": board,
+        "cmsis_path": os.getenv("CMSIS_PATH"),
     }
 
     project_dir = temp_dir / "project"

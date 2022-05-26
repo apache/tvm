@@ -69,8 +69,6 @@ WEST_CMD = default = sys.executable + " -m west" if sys.executable else None
 
 ZEPHYR_BASE = os.getenv("ZEPHYR_BASE")
 
-CMSIS_PATH = os.getenv("CMSIS_PATH")
-
 # Data structure to hold the information microtvm_api_server.py needs
 # to communicate with each of these boards.
 try:
@@ -324,6 +322,12 @@ PROJECT_OPTIONS = [
         type="str",
         help="Extra definitions added project compile.",
     ),
+    server.ProjectOption(
+        "cmsis_path",
+        optional=["generate_project"],
+        type="str",
+        help="Path to the CMSIS directory.",
+    ),
 ]
 
 
@@ -336,8 +340,8 @@ def get_zephyr_base(options: dict):
 
 def get_cmsis_path(options: dict) -> pathlib.Path:
     """Returns CMSIS dependency path"""
-    cmsis_path = options.get("cmsis_path", CMSIS_PATH)
-    assert cmsis_path, "'cmsis_path' option not passed and not found by default!"
+    cmsis_path = options.get("cmsis_path")
+    assert cmsis_path, "'cmsis_path' option not passed!"
     return pathlib.Path(cmsis_path)
 
 
