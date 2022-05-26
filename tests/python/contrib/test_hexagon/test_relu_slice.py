@@ -102,9 +102,9 @@ class TestReluSlice(BaseRelu):
     ):
         InputTensor = tvm.te.placeholder(padded_in_shape, name="InputTensor", dtype=dtype)
 
-        OutputTensor = sl.relu_te_compute(InputTensor, in_shape, dtype)
+        OutputTensor = sl.relu_te_compute(InputTensor, dtype)
 
-        def transform_crouton_activation(n, h, w, c):
+        def layout_func(n, h, w, c):
             return [n, h // 8, w // 4, c // 32, h % 8, (w % 4) // 2, c % 32, w % 2]
 
         target_hexagon = tvm.target.hexagon("v69", codegen_options="emit-llvm, emit-asm=1")
@@ -113,7 +113,7 @@ class TestReluSlice(BaseRelu):
         reluf16_func = te.create_prim_func([InputTensor, OutputTensor])
         tir_s = sl.reluf16_stir_sched(
             reluf16_func,
-            transform_crouton_activation,
+            layout_func,
         )
 
         func_name = "reluf16"
@@ -147,4 +147,4 @@ class TestReluSlice(BaseRelu):
         mod(input_arr, output_arr)
         output_np = output_arr.numpy()
 
-        np.testing.assert_allclose(output_np, output_np_tr_2d, atol=1.0, rtol=0.05)
+        np.testing.assert_allclose(output_np, output_np_tr_2d)
