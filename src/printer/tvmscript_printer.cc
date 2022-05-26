@@ -1566,7 +1566,7 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   if (op->body->IsInstance<BlockRealizeNode>() &&
       op->body.as<BlockRealizeNode>()->iter_values.empty()) {
     const BlockNode* block = op->body.as<BlockRealizeNode>()->block.get();
-    if (block->annotations.empty()) {
+    if (block->annotations.empty() && !ContainsOptionalInfo(GetRef<Stmt>(block))) {
       // Skip print root block
       body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
       body << PrintBlockBody(block);
