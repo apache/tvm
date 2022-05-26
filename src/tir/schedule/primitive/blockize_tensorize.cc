@@ -699,7 +699,7 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
   static String UnpackedAsPython(Array<String> outputs, String block_or_loop_rv, String intrin) {
     PythonAPICall py("tensorize");
     py.Input("block_or_loop", block_or_loop_rv);
-    py.Input("intrin", intrin);
+    py.Input("tensor_intrin", intrin);
     return py.Str();
   }
 

@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-23T16:38:45.963400
+// Generated at 2022-05-24T17:03:03.321649
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -641,7 +641,7 @@ stage('Build') {
   },
   'BUILD: arm': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('ARM') {
+      node('ARM-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-arm") {
           init_git()
           sh (
@@ -1710,7 +1710,7 @@ def shard_run_test_Hexagon_7_of_7() {
 
 def shard_run_integration_aarch64_1_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM') {
+    node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
           init_git()
@@ -1754,7 +1754,7 @@ def shard_run_integration_aarch64_1_of_4() {
 
 def shard_run_integration_aarch64_2_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM') {
+    node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
           init_git()
@@ -1798,7 +1798,7 @@ def shard_run_integration_aarch64_2_of_4() {
 
 def shard_run_integration_aarch64_3_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM') {
+    node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
           init_git()
@@ -1842,7 +1842,7 @@ def shard_run_integration_aarch64_3_of_4() {
 
 def shard_run_integration_aarch64_4_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM') {
+    node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
           init_git()
@@ -2319,7 +2319,7 @@ def shard_run_frontend_GPU_6_of_6() {
 
 def shard_run_topi_aarch64_1_of_2() {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM') {
+    node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
           init_git()
@@ -2367,7 +2367,7 @@ def shard_run_topi_aarch64_1_of_2() {
 
 def shard_run_topi_aarch64_2_of_2() {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM') {
+    node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
           init_git()
@@ -2416,7 +2416,7 @@ def shard_run_topi_aarch64_2_of_2() {
 
 def shard_run_frontend_aarch64_1_of_2() {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM') {
+    node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
         try {
           init_git()
@@ -2459,7 +2459,7 @@ def shard_run_frontend_aarch64_1_of_2() {
 
 def shard_run_frontend_aarch64_2_of_2() {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('ARM') {
+    node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
         try {
           init_git()

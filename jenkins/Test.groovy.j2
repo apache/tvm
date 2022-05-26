@@ -95,7 +95,8 @@
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="integration: aarch64",
   num_shards=4,
-  node="ARM", ws="tvm/ut-python-arm",
+  node="ARM-SMALL",
+  ws="tvm/ut-python-arm",
   platform="arm",
   test_method_names=test_method_names,
 ) %}
@@ -139,7 +140,7 @@
 {% endcall %}
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="topi: aarch64",
-  node="ARM",
+  node="ARM-SMALL",
   ws="tvm/ut-python-arm",
   platform="arm",
   num_shards=2,
@@ -159,7 +160,7 @@
 {% endcall %}
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="frontend: aarch64",
-  node="ARM",
+  node="ARM-SMALL",
   ws="tvm/frontend-python-arm",
   platform="arm",
   num_shards=2,
