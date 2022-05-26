@@ -171,8 +171,12 @@ class CUDAWrappedFunc {
       if (wl.dyn_shmem_size >= (48 << 10)) {
         // Assumption: dyn_shmem_size doesn't change across different invocations of
         // fcache_[device_id]
-        cuFuncSetAttribute(fcache_[device_id], CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
-                           wl.dyn_shmem_size);
+        CUresult result = cuFuncSetAttribute(
+            fcache_[device_id], CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, wl.dyn_shmem_size);
+        if (result != CUDA_SUCCESS) {
+          LOG(FATAL) << "Failed to set the allowed dynamic shared memory size to "
+                     << wl.dyn_shmem_size;
+        }
       }
     }
     CUstream strm = static_cast<CUstream>(CUDAThreadEntry::ThreadLocal()->stream);
