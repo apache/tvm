@@ -139,3 +139,37 @@ class BenchmarksTable:
                     csv_line_dict[col_name] = str_value
 
             writer.writerow(csv_line_dict)
+
+
+def get_benchmark_id(keys_dict):
+    """
+    Given a dictionary with the distinguishing characteristics of a particular benchmark
+    line item, compute a string that uniquely identifies the benchmark.
+
+    The returned string:
+    - is a valid directory name on the host's file systems, and
+    - should be easy for humans to parse
+
+    Note that the insertion order for `keys_dict` affects the computed name.
+    """
+    # Creat a copy, because we might be modifying it.
+    d = dict(keys_dict)
+
+    # Sniff for shape-like lists, because we want them in a form that's both
+    # readable and filesystem-friendly...
+    for k, v in d.items():
+        if isinstance(v, list) or isinstance(v, tuple):
+            v2 = "_".join([str(x) for x in v])
+            d[k] = v2
+
+    return "-".join([f"{k}:{v}" for k, v in d.items()])
+
+
+def get_benchmark_decription(keys_dict):
+    """
+    Similar to `get_benchmark_id`, but the focus is on human-readability.
+
+    The returned string contains no line-breaks, but may contain spaces and
+    other characters that make it unsuitable for use as a filename.
+    """
+    return " ".join([f"{k}={v}" for k, v in keys_dict.items()])
