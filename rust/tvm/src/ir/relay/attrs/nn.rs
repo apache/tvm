@@ -99,6 +99,7 @@ pub struct Conv3DAttrsNode {
 #[ref_name = "Conv3DTransposeAttrs"]
 #[type_key = "relay.attrs.Conv3DTransposeAttrs"]
 pub struct Conv3DTransposeAttrsNode {
+    pub base: BaseAttrsNode,
     pub channels: IndexExpr,
     pub kernel_size: Array<IndexExpr>,
     pub strides: Array<IndexExpr>,
