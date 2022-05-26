@@ -19,11 +19,11 @@ if((USE_DNNL_CODEGEN STREQUAL "ON") OR (USE_DNNL_CODEGEN STREQUAL "JSON"))
   add_definitions(-DUSE_JSON_RUNTIME=1)
   tvm_file_glob(GLOB DNNL_RELAY_CONTRIB_SRC src/relay/backend/contrib/dnnl/*.cc)
   list(APPEND COMPILER_SRCS ${DNNL_RELAY_CONTRIB_SRC})
-  list(APPEND COMPILER_SRCS ${JSON_RELAY_CONTRIB_SRC})
 
   find_library(EXTERN_LIBRARY_DNNL dnnl)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_LIBRARY_DNNL})
-  tvm_file_glob(GLOB DNNL_CONTRIB_SRC src/runtime/contrib/dnnl/dnnl_json_runtime.cc)
+  tvm_file_glob(GLOB DNNL_CONTRIB_SRC src/runtime/contrib/dnnl/dnnl_json_runtime.cc
+                                      src/runtime/contrib/dnnl/dnnl_utils.cc)
   list(APPEND RUNTIME_SRCS ${DNNL_CONTRIB_SRC})
   message(STATUS "Build with DNNL JSON runtime: " ${EXTERN_LIBRARY_DNNL})
 elseif(USE_DNNL_CODEGEN STREQUAL "C_SRC")

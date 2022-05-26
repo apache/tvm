@@ -79,10 +79,11 @@ cd -
 # wasmtime $RUST_DIR/target/wasm32-wasi/debug/test-wasm32.wasm
 # cd -
 
-# run nn graph test
-cd tests/test_nn
-cargo run
-cd -
+# Disabled, see https://github.com/apache/tvm/issues/11419
+# # run nn graph test
+# cd tests/test_nn
+# cargo run
+# cd -
 
 # Finally we test the TVM crate which provides both runtime
 # and compiler bindings.

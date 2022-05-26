@@ -301,6 +301,42 @@ int GetInteriorMemoryUsage(const std::vector<TensorConfig>& input_configs,
   return memory_usage;
 }
 
+/**
+ * \brief Returns a hint estimating the number of cycles required for
+ * the copy specified by tensor_config.
+ *
+ * \param tensor_config  The tensor configuration to estimate.
+ * \return mem2mem_cycles Total estimated cycles.
+ * \return initial_mem2mem_cycles Estimated cycles for the first block.
+ */
+std::pair<int, int> GetCopyCyclesHint(const TensorConfig& tensor_config) {
+  Tensor tensor = tensor_config->GetTensor();
+  MemoryRegion home_region = tensor_config->GetHomeRegion();
+  MemoryRegion copy_region = tensor_config->GetCopyRegion();
+  int initial_mem2mem_cycles = 0;
+  int mem2mem_cycles = 0;
+
+  // This Tensor needs to be copied - Count stripes for this config
+  for (const auto& stripe_config : tensor_config->GetStripeConfigs()) {
+    std::map<std::vector<int>, int> input_blocks = CountStripes(stripe_config, true);
+    bool first_block = true;
+    for (const auto& block : input_blocks) {
+      int bytes_transferred = mul_reduce(block.first) * tensor->GetDataType().bytes() *
+                              tensor->GetCompressionRatio() * block.second;
+      int read_cycles = bytes_transferred * home_region->read_bandwidth + home_region->read_latency;
+      int write_cycles = bytes_transferred * copy_region->write_bandwidth;
+
+      if (first_block) {
+        first_block = false;
+        initial_mem2mem_cycles += std::max(read_cycles, write_cycles);
+      }
+      mem2mem_cycles += std::max(read_cycles, write_cycles);
+    }
+  }
+
+  return {mem2mem_cycles, initial_mem2mem_cycles};
+}
+
 std::vector<Plan> GenerateSinglePlans(
     const Part& part, const std::vector<StripeConfig>& output_stripe_configs,
     const std::unordered_map<Tensor, std::vector<MemoryRegion>, ObjectPtrHash, ObjectPtrEqual>&
@@ -372,28 +408,12 @@ std::vector<Plan> GenerateSinglePlans(
         BlockConfig block_config = perf_info->block_config;
         for (size_t i = 0; i < input_configs.size(); i++) {
           Tensor tensor = input_configs[i]->GetTensor();
-          MemoryRegion home_region = input_configs[i]->GetHomeRegion();
           MemoryRegion copy_region = input_configs[i]->GetCopyRegion();
 
           if (input_configs[i]->DoCopy()) {
-            // This Tensor needs to be copied - Count stripes for this config
-            for (const auto& stripe_config : input_configs[i]->GetStripeConfigs()) {
-              std::map<std::vector<int>, int> input_blocks = CountStripes(stripe_config, true);
-              bool first_block = true;
-              for (const auto& block : input_blocks) {
-                int bytes_transferred = mul_reduce(block.first) * tensor->GetDataType().bytes() *
-                                        tensor->GetCompressionRatio() * block.second;
-                int read_cycles = bytes_transferred * home_region->read_bandwidth +
-                                  input_configs[i]->GetHomeRegion()->read_latency;
-                int write_cycles = bytes_transferred * copy_region->write_bandwidth;
-
-                if (first_block) {
-                  first_block = false;
-                  initial_mem2mem_cycles += std::max(read_cycles, write_cycles);
-                }
-                mem2mem_cycles += std::max(read_cycles, write_cycles);
-              }
-            }
+            std::pair<int, int> ret = GetCopyCyclesHint(input_configs[i]);
+            mem2mem_cycles += ret.first;
+            initial_mem2mem_cycles += ret.second;
           }
           float read_efficiency =
               GetTransferEfficiency(tensor, block_config->GetInputBlockShape(), copy_region);
@@ -583,6 +603,12 @@ TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.GenerateGraphPlans")
         tclosed_plans.Set(part_arr, plan_arr);
       }
       return tclosed_plans;
+    });
+
+TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.GetCopyCyclesHint")
+    .set_body_typed([](TensorConfig tensor_config) {
+      std::pair<int, int> ret = GetCopyCyclesHint(tensor_config);
+      return Array<Integer>({ret.first, ret.second});
     });
 
 }  // namespace cascader
