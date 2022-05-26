@@ -75,7 +75,7 @@ class MetadataModuleNode : public ::tvm::runtime::ModuleNode {
   explicit MetadataModuleNode(runtime::metadata::Metadata metadata)
       : metadata_{::std::move(metadata)} {}
 
-  const char* type_key() const { return "metadata_module"; }
+  const char* type_key() const final { return "metadata_module"; }
 
   static Module LoadFromBinary() {
     return Module(make_object<MetadataModuleNode>(runtime::metadata::Metadata()));

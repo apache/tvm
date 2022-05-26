@@ -121,7 +121,7 @@ TVM_REGISTER_GLOBAL("testing.object_use_count").set_body([](TVMArgs args, TVMRet
 
 class FrontendTestModuleNode : public runtime::ModuleNode {
  public:
-  virtual const char* type_key() const { return "frontend_test"; }
+  const char* type_key() const final { return "frontend_test"; }
 
   static constexpr const char* kAddFunctionName = "__add_function";
 
