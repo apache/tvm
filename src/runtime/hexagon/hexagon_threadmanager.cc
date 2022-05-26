@@ -13,7 +13,7 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   // Note: could technically manage more software threads than allowable hardware threads, but there is no system constant defined
   //  in the qurt libs for that maximum.
   CHECK_LE(num_threads, QURT_MAX_HTHREAD_LIMIT);
-  this->nthreads = num_threads;
+  nthreads = num_threads;
 
   CHECK_LE(thread_stack_size_bytes, MAX_STACK_SIZE_BYTES);
   if (thread_stack_size_bytes < MIN_STACK_SIZE_BYTES) {
@@ -65,7 +65,7 @@ HexagonThreadManager::~HexagonThreadManager() {
       qurt_pipe_delete(&pipes[i]);  // with manual buffers, cannot use qurt_pipe_destroy()
     }
     if (contexts != NULL) {
-      delete contexts[i];
+      delete contexts[i]; // TODO: is there a qurt function for this?
     }
   }
 
@@ -179,6 +179,11 @@ void HexagonThreadManager::WaitOnThreads() {
   // Note: this would be slightly more efficient as a barrier, but would need some extra code to
   //  wait on the barrier that would only be used once.
   
+  // In case Start() was never explicitly called, call it now to prevent deadlock
+  if (qurt_sem_get_val(&start_semaphore) == 0) {
+    Start();
+  }
+
   std::vector<qurt_sem_t> finished;
   finished.resize(nthreads);
   
@@ -205,8 +210,8 @@ void HexagonThreadManager::check_semaphore(unsigned syncID) {
   // extend the semaphore vector if it's not long enough
   if (syncID >= semaphores.size()) {
     auto oldsize = semaphores.size();
-    semaphores.resize(syncID);
-    for (int i = oldsize; i < syncID; i++) {
+    semaphores.resize(syncID + 1);
+    for (int i = oldsize; i < semaphores.size(); i++) {
       qurt_sem_init_val(&semaphores[i], 0);
     }
   }

@@ -29,7 +29,7 @@ using namespace tvm::runtime::hexagon;
 class HexagonThreadManagerTest : public ::testing::Test {
   protected:
   void SetUp() override {
-    htm = new HexagonThreadManager(6, 16*1024, 1024);
+    htm = new HexagonThreadManager(6, MIN_STACK_SIZE_BYTES, MIN_PIPE_SIZE_WORDS);
   }
   void TearDown() override {
     delete htm;
@@ -48,17 +48,43 @@ TEST_F(HexagonThreadManagerTest, ctor_errors) {
   ASSERT_ANY_THROW(HexagonThreadManager(6, 16*1024, MAX_PIPE_SIZE_WORDS + 1));
 }
 
+TEST_F(HexagonThreadManagerTest, wait_on_threads) {
+  htm->WaitOnThreads();
+  CHECK_EQ(42, 42);
+}
+
 TEST_F(HexagonThreadManagerTest, start_wait) {
   htm->Start();
   htm->WaitOnThreads();
   CHECK_EQ(42, 42);
 }
 
-TEST(HexagonThreadManager, init) {
-  auto tm = new HexagonThreadManager(6, 16*1024, 1024);
-  delete tm;
-  CHECK_EQ(0,0);
+TEST_F(HexagonThreadManagerTest, streams) {
+  std::vector<TVMStreamHandle> streams;
+  htm->GetStreamHandles(&streams);
+  CHECK_EQ(streams.size(), 6);
 }
+
+TEST_F(HexagonThreadManagerTest, wait_signal) {
+  std::vector<TVMStreamHandle> streams;
+  htm->GetStreamHandles(&streams);
+  htm->Wait(streams[0], 0);
+  htm->Signal(streams[1], 0);
+  htm->WaitOnThreads();
+  CHECK_EQ(42, 42);
+}
+
+TEST_F(HexagonThreadManagerTest, wait_signal_x2) {
+  std::vector<TVMStreamHandle> streams;
+  htm->GetStreamHandles(&streams);
+  htm->Wait(streams[0], 0);
+  htm->Signal(streams[1], 0);
+  htm->Wait(streams[1], 1);
+  htm->Signal(streams[0], 1);
+  htm->WaitOnThreads();
+  CHECK_EQ(42, 42);
+}
+
 
 void thread_print(void* msg) {
   LOG(WARNING) << (char*)msg << "\n";
