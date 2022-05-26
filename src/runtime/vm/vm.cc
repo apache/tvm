@@ -308,7 +308,11 @@ void VirtualMachine::CreateInputsOrCheckSize(const std::string& func_name, size_
 void VirtualMachine::SetInputTensorWithIndex(std::vector<ObjectRef>& tensors,
                                              const TVMArgValue& inp_tensor, int index, Device dev) {
   if (inp_tensor.type_code() == kTVMDLTensorHandle) {
-    tensors[index] = NDArray::FromExternalDLTensor(inp_tensor, dev);
+    if (NDArray::AbilityOfZeroCopyForDLTensor(inp_tensor, dev)) {
+      tensors[index] = NDArray::FromExternalDLTensor(*inp_tensor);
+    } else {
+      tensors[index] = NDArray::NewFromDLTensor(inp_tensor, dev);
+    }
   } else {
     tensors[index] = CopyTo(inp_tensor, dev);
   }
