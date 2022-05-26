@@ -156,7 +156,7 @@ def three_stage_compute(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), 
                 with T.block():
                     T.reads(B[tx, 0])
                     T.writes(C[tx, 0])
-                    C[tx, 0] = A[tx, 0] + T.float32(2)
+                    C[tx, 0] = B[tx, 0] + T.float32(2)
                 with T.block():
                     T.reads(C[tx, 0])
                     T.writes(D[tx, i])
@@ -185,7 +185,7 @@ def transformed_three_stage_compute(
                         T.where(1 <= i)
                         T.reads(B[0:2, tx, 0])
                         T.writes(C[0:2, tx, 0])
-                        C[(i + 1) % 2, tx, 0] = A[tx, 0] + T.float32(2)
+                        C[(i + 1) % 2, tx, 0] = B[(i + 1) % 2, tx, 0] + T.float32(2)
             with T.block():
                 T.reads(A[tx, 2:16], B[0:2, tx, 0], C[0:2, tx, 0])
                 T.writes(B[0:2, tx, 0], C[0:2, tx, 0], D[tx, 0:14])
@@ -197,7 +197,7 @@ def transformed_three_stage_compute(
                     with T.block():
                         T.reads(B[0:2, tx, 0])
                         T.writes(C[0:2, tx, 0])
-                        C[(i + 1) % 2, tx, 0] = A[tx, 0] + T.float32(2)
+                        C[(i + 1) % 2, tx, 0] = B[(i + 1) % 2, tx, 0] + T.float32(2)
                     with T.block():
                         T.reads(C[0:2, tx, 0])
                         T.writes(D[tx, i])
@@ -210,7 +210,7 @@ def transformed_three_stage_compute(
                         T.where(i < 1)
                         T.reads(B[0:2, tx, 0])
                         T.writes(C[0:2, tx, 0])
-                        C[(i + 1) % 2, tx, 0] = A[tx, 0] + T.float32(2)
+                        C[(i + 1) % 2, tx, 0] = B[(i + 1) % 2, tx, 0] + T.float32(2)
                     with T.block():
                         T.reads(C[0:2, tx, 0])
                         T.writes(D[tx, i + 14])
@@ -1023,4 +1023,5 @@ def test_error_missing_annotation():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_three_stage_compute()
