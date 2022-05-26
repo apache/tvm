@@ -49,7 +49,7 @@ def allocate_hexagon_array(
 
     boundaries = [0, *axis_separators, len(tensor_shape)]
     physical_shape = [
-        numpy.prod(tensor_shape[dim_i:dim_f])
+        int(numpy.prod(tensor_shape[dim_i:dim_f]))
         for dim_i, dim_f in zip(boundaries[:-1], boundaries[1:])
     ]
 
@@ -60,6 +60,19 @@ def allocate_hexagon_array(
 
     return arr._create_view(tensor_shape)
 
+# Transpose and reshape numpy array according to the specified layout
+def transform_numpy(arr_np, layout):
+    if layout == "nhwc":
+        return arr_np
+    elif layout == "nhwc-8h2w32c2w":
+        N, H, W, C = arr_np.shape
+        return arr_np.reshape([N, H // 8, 8, W // 4, 2, 2, C // 32, 32]).transpose(0, 1, 3, 6, 2, 4, 7, 5)
+    elif layout == "n11c-1024c":
+        shape = arr_np.shape
+        assert (shape[1] == 1 and shape[2] == 1) or len(shape) == 2, "The size of H and W must be 1!"
+        return arr_np.reshape([shape[0], shape[-1]//1024, 1024]).transpose(0, 1, 2)
+    else:
+        raise RuntimeError(f"Unexpected layout '{layout}'")
 
 def ceildiv(o, d):
     assert o >= 0
@@ -300,3 +313,24 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
         raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
 
     raise RuntimeError(f"Unexpected current_layout '{current_layout}'")
+
+def getZeroPoint_Scale(input_np_float):
+    float_max = numpy.amax(input_np_float)
+    float_min = numpy.amin(input_np_float)
+
+    zero_point = round(-(float_min * 255)/(float_max-float_min))
+
+    scale = (float_max-float_min)/255
+
+    return zero_point, scale
+
+def quantize(input_np_float, dtype):
+    zero_point, scale = getZeroPoint_Scale(input_np_float)
+
+    shape = input_np_float.shape
+
+    quantized_input_np = numpy.zeros(shape, 'uint8')
+    quantized_input_np = (input_np_float/scale) + zero_point
+    quantized_input_np = quantized_input_np.astype(dtype)
+
+    return {"zero": zero_point, "scale": scale, "data": quantized_input_np}
