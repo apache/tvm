@@ -14,43 +14,50 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
+"""Hexagon slice relu op"""
 
 import tvm
 from tvm import te, tir
-from tvm.ir.module import IRModule
-from tvm.script import tir as T
 
 
-def relu_te_compute(Input, out_shape, dtype):
+def relu_te_compute(Input, dtype):
+    """
+    Compute assumes the input layout to be NHWC
+    """
     x = tvm.tir.const(0, dtype)
     Output = te.compute(
-        out_shape, lambda n, h, w, c: tvm.te.max(Input[n, h, w, c], x), name="reluf16"
+        Input.shape, lambda n, h, w, c: tvm.te.max(Input[n, h, w, c], x), name="reluf16"
     )
     return Output
 
 
-def reluf16_te_sched(Output, Input, transform_crouton_activation):
+def reluf16_te_sched(Output, Input, layout):
+    """
+    Schedule assumes the layout function to be bijective
+    """
     s = tvm.te.create_schedule(Output.op)
-    s[Input].transform_layout(transform_crouton_activation)
-    out_axes = s[Output].transform_layout(transform_crouton_activation)
+    s[Input].transform_layout(layout)
+    out_axes = s[Output].transform_layout(layout)
     fused = s[Output].fuse(out_axes[6], out_axes[7])
     s[Output].vectorize(fused)
     return s
 
 
-def reluf16_stir_sched(func, transform_crouton_activation):
+def reluf16_stir_sched(func, layout):
+    """
+    Schedule assumes the layout function to be bijective
+    """
     sch = tir.Schedule(func, debug_mask="all")
     block = sch.get_block("reluf16")
-    n, i, j, k = sch.get_loops(block)
-    i1, i2 = sch.split(i, [None, 8])
-    j1, j2 = sch.split(j, [None, 4])
-    k1, k2 = sch.split(k, [None, 32])
-    j3, j4 = sch.split(j2, [None, 2])
-    sch.reorder(n, i1, j1, k1, i2, j3, k2, j4)
-    sch.transform_layout(block, 0, "read", transform_crouton_activation)
-    sch.set_axis_separator(block, 0, "read", [4])
-    sch.transform_layout(block, 0, "write", transform_crouton_activation)
-    sch.set_axis_separator(block, 0, "write", [4])
-    fused = sch.fuse(k2, j4)
+    n, h, w, c = sch.get_loops(block)
+    ho, hi = sch.split(h, [None, 8])
+    wo, wi = sch.split(w, [None, 4])
+    co, ci = sch.split(c, [None, 32])
+    wio, wii = sch.split(wi, [None, 2])
+    sch.reorder(n, ho, wo, co, hi, wio, ci, wii)
+    sch.transform_layout(block, ("read", 0), layout)
+    sch.transform_layout(block, ("write", 0), layout)
+    fused = sch.fuse(ci, wii)
     sch.vectorize(fused)
     return sch
