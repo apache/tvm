@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-24T17:03:03.321649
+// Generated at 2022-05-26T15:43:31.409794
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -136,11 +136,28 @@ def init_git() {
     label: 'Merge to origin/main'
   )
 
-  retry(5) {
-    timeout(time: 2, unit: 'MINUTES') {
-      sh (script: 'git submodule update --init -f', label: 'Update git submodules')
-    }
-  }
+  sh(
+    script: '''
+      set -eux
+      n=0
+      max_retries=3
+      backoff_max=30
+      until [ "$n" -ge $max_retries ]
+      do
+          timeout 5m git submodule update --init -f --jobs 0 && break
+          n=$((n+1))
+          if [ "$n" -eq $max_retries ]; then
+              echo "failed to update $n / $max_retries, giving up"
+              exit 1
+          fi
+
+          WAIT=$((RANDOM % "$backoff_max"))
+          echo "failed to update $n / $max_retries, waiting $WAIT to try again"
+          sleep $WAIT
+      done
+    ''',
+    label: 'Update git submodules',
+  )
 }
 
 def should_skip_slow_tests(pr_number) {
