@@ -224,8 +224,8 @@ class OperatorConverter(object):
     def unbind(self, data, axis=1):
         """
         This is a modified version compared to the one in common.py.
-        The onnx version takes a relay.Expr.Call, the tflite 
-        version a TensorWrapper. Also this version by default splits 
+        The onnx version takes a relay.Expr.Call, the tflite
+        version a TensorWrapper. Also this version by default splits
         along axis 1 and not axis 0 as the onnx version.
 
          Parameters
