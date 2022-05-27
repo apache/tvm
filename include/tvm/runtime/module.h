@@ -32,10 +32,10 @@
 #include <tvm/runtime/object.h>
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <mutex>
 
 namespace tvm {
 namespace runtime {
