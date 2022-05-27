@@ -123,7 +123,7 @@ class SimplifyExplicitPad {
     if (!attrs.defined()) {
       return Attrs();
     }
-  
+
     T* new_attrs = const_cast<T*>(attrs.template as<T>());
     new_attrs->auto_scheduler_rewritten_layout = old_attrs->auto_scheduler_rewritten_layout;
     return attrs;
@@ -179,7 +179,8 @@ class SimplifyExplicitPad {
     return attrs;
   }
 
-  static const Optional<Array<PrimExpr>> get_padding(const PadAttrs* param, std::string data_layout) {
+  static const Optional<Array<PrimExpr>> get_padding(const PadAttrs* param,
+                                                     std::string data_layout) {
     ICHECK(param);
     ICHECK(data_layout.size() == param->pad_width.size())
         << "Data Layout and padding attributes should have the same extent";
@@ -272,7 +273,8 @@ class SimplifyExplicitPad {
         const FloatImmNode* maybe_min_float = min_value.as<FloatImmNode>();
         const IntImmNode* maybe_min_int = min_value.as<IntImmNode>();
 
-        if ((maybe_min_float && pad_scalar == maybe_min_float->value) || (maybe_min_int && pad_scalar == maybe_min_int->value)) {
+        if ((maybe_min_float && pad_scalar == maybe_min_float->value) ||
+            (maybe_min_int && pad_scalar == maybe_min_int->value)) {
           if (node_map.count(max_pool1d_)) {
             attrs = MakePoolAttrs(param, call_node->attrs.as<MaxPool1DAttrs>());
           } else if (node_map.count(max_pool2d_)) {
@@ -325,7 +327,6 @@ class SimplifyExplicitPadding {
  public:
   explicit SimplifyExplicitPadding(IRModule mod) : mod_(mod) {
     CreateCallback(SimplifyExplicitPad());
-    // TODO(mbrookhart): ConvTranspose(Pad(x))
   }
   template <typename T>
   void CreateCallback(const T& pattern) {
