@@ -698,7 +698,6 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<FullElementwise>();
   composer.AddRewrite<SimplifyConsecutiveAdd>();
-  // composer.AddRewrite<FoldExplicitPadding>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
 

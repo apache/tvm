@@ -181,6 +181,8 @@ class SimplifyExplicitPad {
 
   static const Optional<Array<PrimExpr>> get_padding(const PadAttrs* param,
                                                      std::string data_layout) {
+    // Gets spatial axes padding from the given PadAttrs `param`. If padding
+    // is non-zero on non-spatial axes, return NullOpt.
     ICHECK(param);
     ICHECK(data_layout.size() == param->pad_width.size())
         << "Data Layout and padding attributes should have the same extent";
