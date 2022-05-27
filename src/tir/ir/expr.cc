@@ -100,6 +100,7 @@ Var Var::copy_with_dtype(DataType dtype) const {
   } else {
     new_ptr = make_object<VarNode>(*node);
   }
+  new_ptr->type_annotation = GetTypeFromRuntimeDataType(dtype);
   new_ptr->dtype = std::move(dtype);
   return Var(new_ptr);
 }
