@@ -166,6 +166,4 @@ def test_threefry_generate_out_size():
 
 
 if __name__ == "__main__":
-    import sys
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

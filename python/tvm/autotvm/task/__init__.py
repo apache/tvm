@@ -36,6 +36,7 @@ from .code_hash import attach_code_hash, attach_code_hash_to_arg
 from .dispatcher import (
     DispatchContext,
     ApplyConfig,
+    ApplyFixedConfig,
     ApplyHistoryBest,
     FallbackContext,
     clear_fallback_cache,

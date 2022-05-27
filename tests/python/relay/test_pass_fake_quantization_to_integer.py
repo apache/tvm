@@ -18,6 +18,7 @@
 import numpy as np
 import pytest
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.relay.transform import fake_quantization_to_integer
 
@@ -1017,6 +1018,4 @@ def test_fq_qat_intermediate_infertype():
 
 
 if __name__ == "__main__":
-    import sys
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

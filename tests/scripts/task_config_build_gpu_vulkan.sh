@@ -23,6 +23,6 @@
 # Jenkinsfile from the ci-docker-staging branch, but the task scripts
 # from the PR branch.
 
-set -euo pipefail
+set -euxo pipefail
 
 ./tests/scripts/task_config_build_gpu_other.sh

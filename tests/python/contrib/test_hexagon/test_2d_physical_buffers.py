@@ -29,7 +29,7 @@ from tvm import te
 from tvm.tir.stmt_functor import post_order_visit
 from tvm.contrib.hexagon.build import HexagonLauncher
 
-from .conftest import requires_hexagon_toolchain
+from tvm.contrib.hexagon.pytest_plugin import requires_hexagon_toolchain
 from .infrastructure import allocate_hexagon_array
 
 # Needed to register the link_shared packedfunc.
@@ -336,4 +336,4 @@ class TestElementWise:
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

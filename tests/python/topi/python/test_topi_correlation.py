@@ -21,6 +21,7 @@ import numpy as np
 import pytest
 
 import tvm
+import tvm.testing
 import tvm.topi.testing
 
 from tvm import autotvm, te, topi
@@ -93,4 +94,4 @@ def test_correlation_nchw(
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

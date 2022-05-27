@@ -17,17 +17,16 @@
 
 import os
 import os.path
-import pathlib
 import sys
 import pytest
 import numpy as np
 import logging
 import tempfile
-import csv
 
 import tvm.testing
 from tvm import te
 from tvm.contrib.hexagon.build import HexagonLauncherRPC
+from .benchmark_util import BenchmarksTable
 
 RPC_SERVER_PORT = 7070
 
@@ -58,112 +57,22 @@ def test_elemwise_add(hexagon_launcher: HexagonLauncherRPC):
     print("-" * 80)
     print()
 
-    # TODO: We should move this into a separate test fixture, to make it easier to write
-    # additional benchmarking functions.  We'd just need to generalize the assumptions regarding
-    # the particular fields being tracked as independent variables.
-    class benchmark_results_collection:
-        def __init__(self):
-            self.row_dicts_ = []
-
-        def num_failures(self):
-            num = 0
-            for d in self.row_dicts_:
-                if d["status"] == "FAIL":
-                    num += 1
-            return num
-
-        def num_skips(self):
-            num = 0
-            for d in self.row_dicts_:
-                if d["status"] == "SKIP":
-                    num += 1
-            return num
-
-        def record_success(
-            self, dtype, sched_type, mem_scope, num_vecs_per_tensor, benchmark_result
-        ):
-            median_usec = benchmark_result.median * 1000000
-            min_usec = benchmark_result.min * 1000000
-            max_usec = benchmark_result.max * 1000000
-
-            self.row_dicts_.append(
-                {
-                    "dtype": dtype,
-                    "sched_type": sched_type,
-                    "mem_scope": mem_scope,
-                    "num_vecs_per_tensor": num_vecs_per_tensor,
-                    "status": "OK",
-                    "median(µsec)": f"{median_usec:.3}",
-                    "min(µsec)": f"{min_usec:.3}",
-                    "max(µsec)": f"{max_usec:.3}",
-                }
-            )
-
-        def record_failure(self, dtype, sched_type, mem_scope, num_vecs_per_tensor, error_text):
-            self.row_dicts_.append(
-                {
-                    "dtype": dtype,
-                    "sched_type": sched_type,
-                    "mem_scope": mem_scope,
-                    "num_vecs_per_tensor": num_vecs_per_tensor,
-                    "status": "FAIL",
-                    "comment": error_text,
-                }
-            )
-
-        def record_skip(self, dtype, sched_type, mem_scope, num_vecs_per_tensor, comment_text):
-            self.row_dicts_.append(
-                {
-                    "dtype": dtype,
-                    "sched_type": sched_type,
-                    "mem_scope": mem_scope,
-                    "num_vecs_per_tensor": num_vecs_per_tensor,
-                    "status": "SKIP",
-                    "comment": comment_text,
-                }
-            )
-
-        def dump(self, f):
-            csv.register_dialect(
-                "benchmarks",
-                delimiter="\t",
-                quotechar='"',
-                quoting=csv.QUOTE_MINIMAL,
-            )
-
-            fieldnames = [
-                "dtype",
-                "sched_type",
-                "mem_scope",
-                "num_vecs_per_tensor",
-                "status",
-                "median(µsec)",
-                "min(µsec)",
-                "max(µsec)",
-                "comment",
-            ]
-
-            writer = csv.DictWriter(f, fieldnames, dialect="benchmarks", restval="")
-
-            writer.writeheader()
-            for d in self.row_dicts_:
-                writer.writerow(d)
-
-    br = benchmark_results_collection()
+    bt = BenchmarksTable()
 
     # Create and benchmark a single primfunc.
-    # If an unexpected problem occurs, raise an exception.  Otherwise add a row of output to 'br'.
+    # If an unexpected problem occurs, raise an exception.  Otherwise add a row of output to 'bt'.
     def test_one_config(dtype, sched_type, mem_scope, num_vectors_per_tensor):
         version_name = f"dtype:{dtype}-schedtype:{sched_type}-memscope:{mem_scope}-numvecs:{num_vectors_per_tensor}"
+        print()
         print(f"CONFIGURATION: {version_name}")
 
         if num_vectors_per_tensor == 2048 and mem_scope == "global.vtcm":
-            br.record_skip(
-                dtype,
-                sched_type,
-                mem_scope,
-                num_vectors_per_tensor,
-                f"Expect to exceed VTCM budget.",
+            bt.record_skip(
+                dtype=dtype,
+                sched_type=sched_type,
+                mem_scope=mem_scope,
+                num_vectors_per_tensor=num_vectors_per_tensor,
+                comments="Expect to exceed VTCM budget.",
             )
             return
 
@@ -255,24 +164,44 @@ def test_elemwise_add(hexagon_launcher: HexagonLauncherRPC):
                     timer = mod.time_evaluator("elemwise_add", sess.device, number=10, repeat=1)
                     timing_result = timer(A_data, B_data, C_data)
 
-                    print("TIMING RESULT: {}".format(timing_result))
-
                     # Verify that the computation actually happened, and produced the correct result.
                     result = C_data.numpy()
                     tvm.testing.assert_allclose(host_numpy_C_data_expected, result)
 
-                    br.record_success(
-                        dtype, sched_type, mem_scope, num_vectors_per_tensor, timing_result
+                    bt.record_success(
+                        timing_result,
+                        dtype=dtype,
+                        sched_type=sched_type,
+                        mem_scope=mem_scope,
+                        num_vectors_per_tensor=num_vectors_per_tensor,
                     )
 
             except Exception as err:
                 f.write("ERROR:\n")
                 f.write("{}\n".format(err))
-                br.record_failure(
-                    dtype, sched_type, mem_scope, num_vectors_per_tensor, f"See {report_path}"
+                bt.record_fail(
+                    dtype=dtype,
+                    sched_type=sched_type,
+                    mem_scope=mem_scope,
+                    num_vectors_per_tensor=num_vectors_per_tensor,
+                    comments=f"See {report_path}",
                 )
 
     # -----------------------------------------------------------------------------------------------
+
+    csv_column_order = [
+        "dtype",
+        "sched_type",
+        "mem_scope",
+        "num_vectors_per_tensor",
+        "row_status",
+        "timings_min_usecs",
+        "timings_max_usecs",
+        "timings_median_usecs",
+        "timings_mean_usecs",
+        "timings_stddev_usecs",
+        "comments",
+    ]
 
     # Hexagon v69 allows more dtypes, but we're sticking with v68 for now.
     for dtype in [
@@ -300,7 +229,7 @@ def test_elemwise_add(hexagon_launcher: HexagonLauncherRPC):
                     test_one_config(dtype, sched_type, mem_scope, num_vectors_per_tensor)
 
                     # Report our progress.
-                    br.dump(sys.stdout)
+                    bt.print_csv(sys.stdout, csv_column_order)
 
     print("-" * 80)
     print(f"OUTPUT DIRECTORY: {host_output_dir}")
@@ -309,8 +238,8 @@ def test_elemwise_add(hexagon_launcher: HexagonLauncherRPC):
 
     tabular_output_filename = os.path.join(host_output_dir, "benchmark-results.csv")
     with open(tabular_output_filename, "w") as csv_file:
-        br.dump(csv_file)
+        bt.print_csv(csv_file, csv_column_order)
     print(f"BENCHMARK RESULTS FILE: {tabular_output_filename}")
 
-    if br.num_failures() > 0:
+    if bt.has_fail() > 0:
         pytest.fail("At least one benchmark configuration failed", pytrace=False)

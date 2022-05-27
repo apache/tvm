@@ -21,6 +21,7 @@ from typing import List
 
 import pytest
 import tvm
+import tvm.testing
 from tvm import meta_schedule as ms
 from tvm.meta_schedule import TuneContext
 from tvm.meta_schedule.runner import RunnerResult
@@ -242,4 +243,4 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

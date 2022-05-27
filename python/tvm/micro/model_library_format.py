@@ -31,7 +31,6 @@ from tvm.micro import get_standalone_crt_dir
 from .._ffi import get_global_func
 from ..contrib import utils
 from ..driver import build_module
-from ..runtime import ndarray as _nd
 from ..relay.backend import executor_factory
 from ..relay.backend.name_transforms import to_c_variable_style, prefix_generated_name
 from ..relay import param_dict
@@ -313,7 +312,7 @@ def _make_tar(source_dir, tar_file_path, mod):
             tar_f.add(get_standalone_crt_dir(), arcname=STANDALONE_CRT_URL)
 
 
-_GENERATED_VERSION = 5
+_GENERATED_VERSION = 6
 
 
 def _export_graph_model_library_format(
@@ -336,7 +335,7 @@ def _export_graph_model_library_format(
         "model_name": mod.libmod_name,
         "export_datetime": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%SZ"),
         "memory": _build_memory_map(mod),
-        "target": {int(k): str(v) for k, v in mod.target.items()},
+        "target": [str(t) for t in mod.target],
         "executors": executor,
         "style": "full-model",
     }
@@ -423,7 +422,9 @@ def _write_tir_and_build_operator_memory_map(src_dir, targets, ir_module_by_targ
         return shape
 
     memory_map = {}
-    for target_device_type, target in targets.items():
+    for target in targets:
+        # TODO(mbs): The device type is not unique, better would be to use target.kind.name
+        target_device_type = target.kind.device_type
         ir_mod = ir_module_by_target[target]
         printer = get_global_func("tir.ModelLibraryFormatPrinter")(False, None, False)
         with open(src_dir / f"tir-{target_device_type}.txt", "w") as f:
@@ -460,7 +461,7 @@ def _export_operator_model_library_format(mod: build_module.OperatorModule, temp
     file_name : str
         Path to the .tar archive to generate.
     """
-    targets = {}
+    targets = []
     for target in mod.ir_module_by_target.keys():
         if str(target.kind) not in ("llvm", "c"):
             raise UnsupportedInModelLibraryFormatError(
@@ -468,7 +469,7 @@ def _export_operator_model_library_format(mod: build_module.OperatorModule, temp
                 "Model Library Format"
             )
 
-        targets[int(_nd.device(str(target)).device_type)] = target
+        targets.append(target)
 
     src_dir = tempdir / "src"
     src_dir.mkdir()
@@ -479,7 +480,7 @@ def _export_operator_model_library_format(mod: build_module.OperatorModule, temp
         "model_name": mod.name,
         "export_datetime": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%SZ"),
         "memory": memory_map,
-        "target": {k: str(v) for k, v in targets.items()},
+        "target": [str(t) for t in targets],
         "executors": [],
         "style": "operator",
     }

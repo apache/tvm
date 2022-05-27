@@ -2840,7 +2840,7 @@ def rank0_block():
         B = T.alloc_buffer((), "float32")
         B[()] = A[()]
 
-        with T.block("update") as []:
+        with T.block("update"):
             T.reads([A[()]])
             T.writes([B[()]])
             for i in range(1):
@@ -3335,4 +3335,4 @@ def test_roundtrip(ir_generator):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

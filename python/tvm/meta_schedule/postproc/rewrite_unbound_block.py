@@ -17,6 +17,7 @@
 """A postprocessor that adds thread binding to unbound blocks"""
 
 from tvm._ffi.registry import register_object
+
 from .. import _ffi_api
 from .postproc import Postproc
 
@@ -25,8 +26,8 @@ from .postproc import Postproc
 class RewriteUnboundBlock(Postproc):
     """A postprocessor that adds thread binding to unbound blocks"""
 
-    def __init__(self, max_threadblock: int = 256) -> None:
+    def __init__(self, max_threadblocks: int = 256) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.PostprocRewriteUnboundBlock,  # type: ignore # pylint: disable=no-member
-            max_threadblock,
+            max_threadblocks,
         )

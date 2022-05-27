@@ -55,8 +55,23 @@ bool QuantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   axis = (axis < 0) ? ((rank > 0) ? data->shape.size() + axis : 0) : axis;
 
   // If zero point and scale are scalar then axis doesnt matter.
-  bool scale_is_scalar = (types[1].as<TensorTypeNode>())->shape.size() == 0;
-  bool zp_is_scalar = (types[2].as<TensorTypeNode>())->shape.size() == 0;
+  bool scale_is_scalar, zp_is_scalar;
+
+  if (auto ttype = types[1].as<TensorTypeNode>()) {
+    scale_is_scalar = ttype->shape.size() == 0;
+  } else {
+    ICHECK(types[1].as<IncompleteTypeNode>())
+        << "Quantize: expect to be TensorType but get " << types[1];
+    return false;
+  }
+
+  if (auto ttype = types[2].as<TensorTypeNode>()) {
+    zp_is_scalar = ttype->shape.size() == 0;
+  } else {
+    ICHECK(types[2].as<IncompleteTypeNode>())
+        << "Quantize: expect to be TensorType but get " << types[2];
+    return false;
+  }
 
   if (!(scale_is_scalar && zp_is_scalar)) {
     ICHECK_LT(axis, rank > 0 ? rank : 1) << "axis " << quantize_attrs->axis << " is out of range";

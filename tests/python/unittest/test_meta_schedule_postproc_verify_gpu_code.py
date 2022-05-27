@@ -20,6 +20,7 @@ import sys
 
 import pytest
 import tvm
+import tvm.testing
 from tvm import tir
 from tvm.meta_schedule import TuneContext
 from tvm.meta_schedule.postproc import VerifyGPUCode
@@ -452,4 +453,4 @@ def test_postproc_verify_gpu_6():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

@@ -15,13 +15,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-set -x
-PATH="$PATH:/usr/local/bin"
-CURR_DIR=$(cd `dirname $0`; pwd)
-ROOT_DIR="$CURR_DIR/../../../../../.."
-javac -h $CURR_DIR -classpath "$ROOT_DIR/jvm/core/target/*" $ROOT_DIR/jvm/core/src/main/java/org/apache/tvm/LibInfo.java || exit -1
-mv $CURR_DIR/org_apache_tvm_LibInfo.h $CURR_DIR/org_apache_tvm_native_c_api.h
-cp -f $ROOT_DIR/jvm/native/src/main/native/org_apache_tvm_native_c_api.cc $CURR_DIR/ || exit -1
-cp -f $ROOT_DIR/jvm/native/src/main/native/jni_helper_func.h $CURR_DIR/ || exit -1
-rm -rf $CURR_DIR/../libs
-ndk-build --directory=$CURR_DIR
+
+set -e
+set -u
+set -o pipefail
+
+pushd /usr/local/
+wget -q https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-1.11.0%2Bcpu.zip
+unzip libtorch-cxx11-abi-shared-with-deps-1.11.0+cpu.zip
+# now it is in /usr/local/libtorch
+popd
