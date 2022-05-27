@@ -1034,9 +1034,15 @@ def test_error_missing_annotation():
     _check_error(simple_compute_missing_annotation)
 
 
+@tvm.testing.requires_cuda
 def test_three_stage_gemm():
     N = K = M = 4096
     i_factors, j_factors, k_factors = [4, 8, 2, 4, 1], [1, 64, 2, 1, 2], [128, 2, 1]
+
+    def is_ampere_or_newer():
+        arch = tvm.contrib.nvcc.get_target_compute_version()
+        major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
+        return major >= 8
 
     def index_map(i, j):
         return (
@@ -1071,17 +1077,18 @@ def test_three_stage_gemm():
     sch.annotate(k0, ann_key="software_pipeline_stage", ann_val=[0, 0, 3])
     sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
 
-    f = tvm.build(sch.mod["main"], target="cuda")
+    if is_ampere_or_newer():
+        f = tvm.build(sch.mod["main"], target="cuda")
 
-    dev = tvm.device("cuda", 0)
-    a_np = np.random.uniform(size=(N, K)).astype("float16")
-    b_np = np.random.uniform(size=(K, M)).astype("float16")
-    c_np = np.dot(a_np.astype("float32"), b_np.astype("float32"))
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(b_np, dev)
-    c = tvm.nd.array(np.zeros((N, M), dtype="float32"), dev)
-    f(a, b, c)
-    tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
+        dev = tvm.device("cuda", 0)
+        a_np = np.random.uniform(size=(N, K)).astype("float16")
+        b_np = np.random.uniform(size=(K, M)).astype("float16")
+        c_np = np.dot(a_np.astype("float32"), b_np.astype("float32"))
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros((N, M), dtype="float32"), dev)
+        f(a, b, c)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
 
 
 if __name__ == "__main__":

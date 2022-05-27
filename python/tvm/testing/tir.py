@@ -79,7 +79,7 @@ def mma_schedule(
     mma_store_intrin,
     shared_scope="shared",
 ):
-    """Create a tensorized schedule for 4k GEMM with MMA intrinsics."""
+    """Create a tensorized schedule for GEMM with MMA intrinsics."""
     ir_module = tvm.IRModule({"main": workload})
     sch = tvm.tir.Schedule(ir_module)
 
