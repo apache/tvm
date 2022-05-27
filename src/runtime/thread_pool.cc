@@ -98,7 +98,7 @@ class ParallelLauncher {
   // Wait n jobs to finish
   int WaitForJobs() {
     std::unique_lock<std::mutex> lock(finish_mutex_);
-    finish_cv_.wait(lock, [this] { return num_pending_.load() == 0 || has_error_.load() == true; });
+    finish_cv_.wait(lock, [this] { return num_pending_.load() == 0; });
     if (!has_error_.load()) return 0;
     std::ostringstream os;
     for (size_t i = 0; i < par_errors_.size(); ++i) {
@@ -119,11 +119,8 @@ class ParallelLauncher {
   }
   // Signal that one job has finished.
   void SignalJobFinish() {
-    num_pending_.fetch_sub(1);
-    if (num_pending_.load() == 0) {
+    if (num_pending_.fetch_sub(1) <= 1) {
       finish_cv_.notify_all();
-    } else {
-      finish_cv_.notify_one();
     }
   }
   // Get thread local version of the store.
