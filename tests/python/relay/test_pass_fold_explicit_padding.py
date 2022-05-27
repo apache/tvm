@@ -18,7 +18,6 @@ import tvm
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import run_opt_pass
-from tvm import utils
 
 import numpy as np
 
@@ -26,8 +25,7 @@ import numpy as np
 def test_simplify_conv_pad():
     convs = [relay.nn.conv1d, relay.nn.conv2d, relay.nn.conv3d]
 
-    def validate(ndim, pad_width, pad_value, pad_mode, orig_padding, layout):
-        np.random.seed(0)
+    def validate(ndim, pad_width, pad_value, pad_mode, orig_padding, layout, no_fold=False):
         if layout[1] == "C":
             shape = [1, 3] + [10] * ndim
             wshape = [8, 3] + [3] * ndim
@@ -71,8 +69,9 @@ def test_simplify_conv_pad():
         mod1 = tvm.IRModule.from_expr(conv)
         mod2 = tvm.IRModule.from_expr(zz)
 
-        op_freqs = relay.analysis.list_op_freqs(mod2)
-        assert "nn.pad" not in op_freqs
+        if not no_fold:
+            op_freqs = relay.analysis.list_op_freqs(mod2)
+            assert "nn.pad" not in op_freqs
 
         with tvm.transform.PassContext():
             func1 = relay.create_executor(
@@ -87,6 +86,7 @@ def test_simplify_conv_pad():
 
         tvm.testing.assert_allclose(result1.numpy(), result2.numpy(), rtol=1e-5, atol=1e-5)
 
+    # Test fold cases
     for orig_pad in [[0, 0], [2, 0], [0, 2]]:
         for i_pad in [[0, 0], [1, 1], [1, 0]]:
             for ndim in [1, 2, 3]:
@@ -101,10 +101,13 @@ def test_simplify_conv_pad():
                         padding = [[0, 0]] * 2 + [i_pad] * ndim
 
                     validate(ndim, padding, 0, "constant", orig_pad * ndim, layout)
-                    # validate(ndim, padding, 1, "edge", orig_pad * ndim, layout)
-                    # validate(ndim, padding, 1, "reflect", orig_pad * ndim, layout)
-                    # breakpoint()
-                    # raise AssertionError('done')
+
+    # Test no fold cases
+    ndim = 2
+    # Conv only folds when pad_value=0
+    validate(ndim, [[0, 0]] * 2 + [i_pad] * ndim, 1, "constant", orig_pad * ndim, "NCHW", no_fold=True)
+    # Conv only folds when pad's pad_mode="constant"
+    validate(ndim, [[0, 0]] * 2 + [i_pad] * ndim, 0, "edge", orig_pad * ndim, "NCHW", no_fold=True)
 
 
 def get_min_value(dtype):
@@ -119,7 +122,8 @@ def get_min_value(dtype):
 def test_simplify_pool_pad():
     max_pools = [relay.nn.max_pool1d, relay.nn.max_pool2d, relay.nn.max_pool3d]
     avg_pools = [relay.nn.avg_pool1d, relay.nn.avg_pool2d, relay.nn.avg_pool3d]
-    def validate(pools, ndim, pad_width, pad_value, pad_mode, orig_padding, layout, pool_size, dtype):
+
+    def validate(pools, ndim, pad_width, pad_value, pad_mode, orig_padding, layout, pool_size, dtype, no_fold=False, **kwargs):
         pad_value_const = relay.const(pad_value, dtype=dtype)
 
         if layout[1] == "C":
@@ -132,10 +136,10 @@ def test_simplify_pool_pad():
         x = relay.var("x", shape=shape, dtype=dtype)
         pad = relay.nn.pad(x, pad_width, pad_value_const, pad_mode)
         if layout[1] == "C":
-            pool = pools[ndim - 1](pad, padding=orig_padding, pool_size=pool_size)
+            pool = pools[ndim - 1](pad, padding=orig_padding, pool_size=pool_size, **kwargs)
         else:
             pool = pools[ndim - 1](
-                pad, padding=orig_padding, layout=layout, pool_size=pool_size
+                pad, padding=orig_padding, layout=layout, pool_size=pool_size, **kwargs
             )
 
         if pools == max_pools:
@@ -151,11 +155,17 @@ def test_simplify_pool_pad():
                         new_padding.append(pad_width[i][j])
             for i in range(len(new_padding)):
                 new_padding[i] += orig_padding[i]
+            
+            if pools == avg_pools and all(v == 0 for v in orig_padding):
+                # If the orig padding for AvgPool is all zero and the pad op to fold
+                # has non-zero pad width, the resultant folded AvgPool will have
+                # count_include_pad=True so AvgPool's divisor is agnostic of pad boundaries
+                kwargs["count_include_pad"] = True
             if layout[1] == "C":
-                after = pools[ndim - 1](x, padding=new_padding, pool_size=pool_size)
+                after = pools[ndim - 1](x, padding=new_padding, pool_size=pool_size, **kwargs)
             else:
                 after = pools[ndim - 1](
-                    x, padding=new_padding, layout=layout, pool_size=pool_size
+                    x, padding=new_padding, layout=layout, pool_size=pool_size, **kwargs
                 )
         else:
             after = pool
@@ -168,30 +178,23 @@ def test_simplify_pool_pad():
         mod1 = tvm.IRModule.from_expr(pool)
         mod2 = tvm.IRModule.from_expr(zz)
 
-        op_freqs = relay.analysis.list_op_freqs(mod2)
-        assert "nn.pad" not in op_freqs
+        if not no_fold:
+            op_freqs = relay.analysis.list_op_freqs(mod2)
+            assert "nn.pad" not in op_freqs
 
-        saver = utils.roofline.SaveLoweredTIR()
-        with tvm.transform.PassContext(instruments=[saver]):
+        with tvm.transform.PassContext():
             func1 = relay.create_executor(
                 "vm", mod=mod1, device=tvm.cpu(), target="llvm"
             ).evaluate()
-            # lib = tvm.build(mod1, target="llvm")
-            # print("lowered1", saver.functions)
-            # print("lowered", tvm.lower(mod1))
         
-        saver = utils.roofline.SaveLoweredTIR()
-        with tvm.transform.PassContext(instruments=[saver]):
-            func2 = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm").evaluate()
+        func2 = relay.create_executor("vm", mod=mod2, device=tvm.cpu(), target="llvm").evaluate()
         x_np = np.random.rand(*shape).astype(dtype)
 
         result1 = func1(x_np)
         result2 = func2(x_np)
 
         tvm.testing.assert_allclose(result1.numpy(), result2.numpy(), rtol=1e-5, atol=1e-5)
-
-    # validate(avg_pools, 1, [[0, 0], [0, 0], [1, 1]], 0, "constant", [0, 0], "NCW", 2, "float32")
-
+        
     float_min_val = get_min_value("float32")
     # Test fold cases
     for orig_pad in [[0, 0], [2, 0], [0, 2]]:
@@ -209,15 +212,26 @@ def test_simplify_pool_pad():
 
                     validate(max_pools, ndim, padding, float_min_val, "constant", orig_pad * ndim, layout, 2, "float32")
 
-    int_min_val = get_min_value("int32")
-    validate(avg_pools, ndim, padding, 0, "constant", orig_pad * ndim, layout, 2, "float32")
     # Check max pool pad folding with int dtype
-    # validate(max_pools, 2, [[0, 0], [1, 1], [0, 0]], int_min_val, "constant", [2, 0], "NCHW", 2, "int32")
+    int_min_val = get_min_value("int32")
+    validate(max_pools, 2, [[0, 0], [0, 0], [0, 2], [2, 0]], int_min_val, "constant", [2, 0, 0, 0], "NCHW", 2, "int32")
+    # Fold when original AvgPool has its own padding but count_include_pad=True
+    validate(avg_pools, 2, [[0, 0], [0, 0], [0, 2], [2, 0]], 0, "constant", [0, 0, 1, 0], "NCHW", 2, "float32", count_include_pad=True)
+    # Fold when count_include_pad=False but original AvgPool has no orig padding
+    validate(avg_pools, 2, [[0, 0], [0, 0], [0, 2], [2, 0]], 0, "constant", [0, 0, 0, 0], "NCHW", 2, "float32")
 
     # Test no fold cases
+    # AvgPool only folds pad when count_include_pad (False by default) is True
+    validate(avg_pools, 2, [[0, 0], [0, 0], [0, 2], [2, 0]], 0, "constant", [0, 0, 0, 0], "NCHW", 2, "float32", no_fold=True)
+    # MaxPool only folds pad when pad_value is the min for its dtype
+    validate(max_pools, 1, [[0, 0], [0, 0], [0, 2]], 0, "constant", [0, 0], "NCHW", 2, "float32", no_fold=True)
+    # AvgPool only folds pad when pad_value=0
+    validate(avg_pools, 1, [[0, 0], [0, 0], [0, 2]], 1, "constant", [0, 0], "NCHW", 2, "float32", no_fold=True)
+    # Pools only fold when pad_mode="constant"
+    validate(avg_pools, 1, [[0, 0], [0, 0], [0, 2]], 0, "edge", [0, 0], "NCHW", 2, "float32", no_fold=True)
 
 
-def fold_pad_qconv2d():
+def test_fold_pad_qconv2d():
     def before():
         x = relay.var("x", shape=(1, 56, 56, 64), dtype="int8")
         weight = relay.var("weight", shape=(3, 3, 64, 64), dtype="int8")
@@ -292,5 +306,5 @@ def test_pad_qconv2d_no_fold():
 if __name__ == "__main__":
     test_simplify_conv_pad()
     test_simplify_pool_pad()
-    fold_pad_qconv2d()
+    test_fold_pad_qconv2d()
     test_pad_qconv2d_no_fold()
