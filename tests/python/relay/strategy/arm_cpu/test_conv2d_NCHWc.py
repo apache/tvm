@@ -116,9 +116,8 @@ class TestConv2d_NCHWc(BasicConv2dTests):
         ((1, 16, 32, 32), (3, 3), 12, (1, 1), (1, 1), (1, 1), "int8", "OIHW2i8o", "NCHW8c"),
         ((1, 16, 32, 32), (3, 3), 12, (1, 1), (1, 1), (1, 1), "int16", "OIHW2i8o", "NCHW8c"),
         ((1, 16, 32, 32), (3, 3), 12, (1, 1), (1, 1), (1, 1), "int32", "OIHW2i8o", "NCHW8c"),
-        
         # ResNet18 workloads
-        #this test does not fit in corstone300 DCTM section.
+        # this test does not fit in corstone300 DCTM section.
         # ((1, 3, 112, 112), (7, 7), 64, (2, 2), (3, 3), (1, 1), "int8", "OIHW4i4o", "NCHW4c"),
         ((1, 64, 28, 28), (3, 3), 64, (1, 1), (1, 1), (1, 1), "int8", "OIHW4i4o", "NCHW4c"),
         ((1, 64, 28, 28), (1, 1), 64, (1, 1), (0, 0), (1, 1), "int8", "OIHW4i4o", "NCHW4c"),
