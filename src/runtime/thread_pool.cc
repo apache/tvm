@@ -119,8 +119,7 @@ class ParallelLauncher {
   }
   // Signal that one job has finished.
   void SignalJobFinish() {
-    num_pending_.fetch_sub(1);
-    if (num_pending_.load() == 0) {
+    if (num_pending_.fetch_sub(1) <= 1) {
       finish_cv_.notify_all();
     } else {
       finish_cv_.notify_one();
