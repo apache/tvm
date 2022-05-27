@@ -540,16 +540,6 @@ void CodeGenOpenCL::VisitExpr_(const OrNode* op, std::ostream& os) {
   os << ")";
 }
 
-void CodeGenOpenCL::VisitExpr_(const SelectNode* op, std::ostream& os) {
-  os << "select(";
-  PrintExpr(op->false_value, os);
-  os << ", ";
-  PrintExpr(op->true_value, os);
-  os << ", ";
-  PrintExpr(op->condition, os);
-  os << ")";
-}
-
 void CodeGenOpenCL::SetTextureScope(
     const std::unordered_map<const VarNode*, std::string>& scope) {  // NOLINT(*)
   for (auto& texture : scope) {
