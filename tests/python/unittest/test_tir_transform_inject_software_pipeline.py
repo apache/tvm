@@ -24,7 +24,7 @@ import tvm.tir.tensor_intrin.cuda
 from tvm import tir, te, TVMError
 from tvm.script import tir as T
 from tvm.meta_schedule.testing import te_workload
-from tvm.testing.tir import mma_4k_schedule
+from tvm.testing.tir import mma_schedule
 from tvm.tir.tensor_intrin.cuda import (
     LDMATRIX_16x16_A_DYN_INTRIN,
     LDMATRIX_16x16_B_DYN_INTRIN,
@@ -1047,7 +1047,7 @@ def test_three_stage_gemm():
 
     workload = te.create_prim_func(te_workload.matmul_fp16(N, M, K))
 
-    sch = mma_4k_schedule(
+    sch = mma_schedule(
         workload,
         16,
         "float16",
@@ -1066,21 +1066,22 @@ def test_three_stage_gemm():
         "shared.dyn",
     )
 
-    print(sch.mod.script())
+    k0 = sch.get_loops(sch.get_block("C_o_update"))[3]
+
+    sch.annotate(k0, ann_key="software_pipeline_stage", ann_val=[0, 0, 3])
+    sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
 
     f = tvm.build(sch.mod["main"], target="cuda")
 
-    # dev = tvm.device("cuda", 0)
-    # a_np = np.random.uniform(size=(N, K)).astype("float16")
-    # b_np = np.random.uniform(size=(K, M)).astype("float16")
-    # c_np = np.dot(a_np.astype("float32"), b_np.astype("float32"))
-    # a = tvm.nd.array(a_np, dev)
-    # b = tvm.nd.array(b_np, dev)
-    # c = tvm.nd.array(np.zeros((N, M), dtype="float32"), dev)
-    # f(a, b, c)
-    # # print(f.imported_modules[0].get_source())
-    # tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
-    # print("ok")
+    dev = tvm.device("cuda", 0)
+    a_np = np.random.uniform(size=(N, K)).astype("float16")
+    b_np = np.random.uniform(size=(K, M)).astype("float16")
+    c_np = np.dot(a_np.astype("float32"), b_np.astype("float32"))
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(b_np, dev)
+    c = tvm.nd.array(np.zeros((N, M), dtype="float32"), dev)
+    f(a, b, c)
+    tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
 
 
 if __name__ == "__main__":

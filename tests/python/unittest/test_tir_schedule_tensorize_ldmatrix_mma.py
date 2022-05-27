@@ -42,7 +42,7 @@ from tvm.tir.tensor_intrin.cuda import (
 )
 import tvm.testing
 import numpy as np
-from tvm.testing.tir import mma_4k_schedule
+from tvm.testing.tir import mma_schedule
 
 
 M = 4096
@@ -99,7 +99,7 @@ def run_test(
     mma_fill_intrin,
     mma_store_intrin,
 ):
-    sch = mma_4k_schedule(
+    sch = mma_schedule(
         te.create_prim_func(matmul(M, N, K, in_dtype, out_dtype, b_transposed)),
         k_inner,
         in_dtype,

@@ -61,7 +61,7 @@ def check_error(func, rel_lineno):
         ), f'check_error expects "{expected_error_text} in str(errors): {errors}'
 
 
-def mma_4k_schedule(
+def mma_schedule(
     workload,
     k_inner,
     in_dtype,
