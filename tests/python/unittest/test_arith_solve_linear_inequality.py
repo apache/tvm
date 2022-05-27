@@ -21,6 +21,7 @@ import tvm
 from tvm import te, arith, ir, tir, testing
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/11458")
 def test_solution_consistency():
     seed = random.randrange(sys.maxsize)
     print(
