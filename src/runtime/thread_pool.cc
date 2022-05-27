@@ -115,11 +115,13 @@ class ParallelLauncher {
     num_pending_.fetch_sub(1);
     par_errors_[task_id] = TVMGetLastError();
     has_error_.store(true);
+    std::unique_lock<std::mutex> lock(finish_mutex_);
     finish_cv_.notify_all();
   }
   // Signal that one job has finished.
   void SignalJobFinish() {
     if (num_pending_.fetch_sub(1) <= 1) {
+      std::unique_lock<std::mutex> lock(finish_mutex_);
       finish_cv_.notify_all();
     }
   }
