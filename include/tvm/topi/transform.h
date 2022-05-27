@@ -1467,10 +1467,11 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, int axes = 2,
     for (; it != input_indices.end(); ++it) B_indices.push_back(*it);
 
     // Some passes don't like reductions with empty axis, so avoid it here
-    if (iter_vars.empty())
+    if (iter_vars.empty()) {
       return A(A_indices) * B(B_indices);
-    else
+    } else {
       return sum(A(A_indices) * B(B_indices), iter_vars);
+    }
   };
 
   return compute(output_shape, func, name, tag);
@@ -1513,19 +1514,21 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, Array<PrimExp
     Array<PrimExpr> A_indices;
     for (unsigned i = 0; i < A->shape.size(); ++i) {
       auto axes_pos = std::find(A_axes_val.begin(), A_axes_val.end(), i);
-      if (axes_pos == A_axes_val.end())
+      if (axes_pos == A_axes_val.end()) {
         A_indices.push_back(input_indices[idx_input++]);
-      else
+      } else {
         A_indices.push_back(iter_vars[axes_pos - A_axes_val.begin()]);
+      }
     }
 
     Array<PrimExpr> B_indices;
     for (unsigned i = 0; i < B->shape.size(); ++i) {
       auto axes_pos = std::find(B_axes_val.begin(), B_axes_val.end(), i);
-      if (axes_pos == B_axes_val.end())
+      if (axes_pos == B_axes_val.end()) {
         B_indices.push_back(input_indices[idx_input++]);
-      else
+      } else {
         B_indices.push_back(iter_vars[axes_pos - B_axes_val.begin()]);
+      }
     }
     return sum(A(A_indices) * B(B_indices), iter_vars);
   };
