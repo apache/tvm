@@ -21,7 +21,6 @@ from __future__ import absolute_import as _abs
 import subprocess
 import os
 import warnings
-import logging
 
 import tvm._ffi
 from tvm.target import Target
@@ -103,7 +102,6 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
     # if cxx_compiler_path != "":
     #    cmd += ["-ccbin", cxx_compiler_path]
 
-    logging.info("invoking '%s'", cmd)
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     (out, _) = proc.communicate()
