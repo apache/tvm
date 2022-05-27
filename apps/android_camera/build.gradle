@@ -19,14 +19,14 @@
 
 buildscript {
     repositories {
-        jcenter()
+        gradlePluginPortal()
         maven {
             url 'https://maven.google.com'
         }
-        google()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.6.1'
+        classpath 'com.android.tools.build:gradle:7.1.2'
+
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
     }
@@ -34,13 +34,12 @@ buildscript {
 
 allprojects {
     repositories {
-        jcenter()
+        gradlePluginPortal()
         maven {
-            url 'https://maven.google.com'
+          url 'https://maven.google.com'
         }
         mavenLocal()
         mavenCentral()
-        google()
     }
 }
 

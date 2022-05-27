@@ -46,30 +46,33 @@ def rsqrt(x):
 
 
 class TestUnaryOp:
+    # Tuple of (operator, reference op, supports fp16)
     op_list = {
-        "log": (tvm.relay.log, np.log),
-        "exp": (tvm.relay.exp, np.exp),
-        "erf": (tvm.relay.erf, scipy.special.erf),
-        "sqrt": (tvm.relay.sqrt, np.sqrt),
-        "rqsrt": (tvm.relay.rsqrt, rsqrt),
-        "sigmoid": (tvm.relay.sigmoid, sigmoid),
-        "tanh": (tvm.relay.tanh, np.tanh),
-        "relu": (relay.nn.relu, relu),
-        "cos": (tvm.relay.cos, np.cos),
-        "sin": (tvm.relay.sin, np.sin),
-        "tan": (tvm.relay.tan, np.tan),
-        "atan": (tvm.relay.atan, np.arctan),
-        "ceil": (tvm.relay.ceil, np.ceil),
-        "floor": (tvm.relay.floor, np.floor),
-        "trunc": (tvm.relay.trunc, np.trunc),
-        "round": (tvm.relay.round, np.round),
+        "log": (tvm.relay.log, np.log, True),
+        "exp": (tvm.relay.exp, np.exp, True),
+        "erf": (tvm.relay.erf, scipy.special.erf, True),
+        "sqrt": (tvm.relay.sqrt, np.sqrt, True),
+        "rqsrt": (tvm.relay.rsqrt, rsqrt, True),
+        "sigmoid": (tvm.relay.sigmoid, sigmoid, True),
+        "tanh": (tvm.relay.tanh, np.tanh, False),
+        "relu": (relay.nn.relu, relu, True),
+        "cos": (tvm.relay.cos, np.cos, True),
+        "sin": (tvm.relay.sin, np.sin, True),
+        "tan": (tvm.relay.tan, np.tan, False),
+        "atan": (tvm.relay.atan, np.arctan, False),
+        "ceil": (tvm.relay.ceil, np.ceil, True),
+        "floor": (tvm.relay.floor, np.floor, True),
+        "trunc": (tvm.relay.trunc, np.trunc, True),
+        "round": (tvm.relay.round, np.round, False),
     }
 
     dtype = tvm.testing.parameter("float16", "float32")
 
-    relay_op, ref_func = tvm.testing.parameters(*op_list.values(), ids=op_list.keys())
+    relay_op, ref_func, supports_fp16 = tvm.testing.parameters(
+        *op_list.values(), ids=op_list.keys()
+    )
 
-    def test_unary_op(self, target, dev, relay_op, ref_func, dtype):
+    def test_unary_op(self, target, dev, relay_op, ref_func, supports_fp16, dtype):
         target = tvm.target.Target(target)
         if dtype == "float16":
             if target.kind.name == "cuda":
@@ -79,7 +82,7 @@ class TestUnaryOp:
                     )
             elif target.kind.name == "vulkan" and not target.attrs.get("supports_float16", False):
                 pytest.xfail("No float16 support on vulkan target (supports_float16=False)")
-            else:
+            elif not supports_fp16:
                 pytest.xfail(f"No float16 support on {target.kind.name} target")
 
         if target.kind.name == "vulkan" and relay_op in [
@@ -107,7 +110,8 @@ class TestUnaryOp:
             # use graph by execuor default for testing, as we need
             # create function explicitly to avoid constant-folding.
             op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
-            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
+            tolerance = 1e-2 if dtype == "float16" else 1e-5
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=tolerance)
 
 
 @tvm.testing.uses_gpu

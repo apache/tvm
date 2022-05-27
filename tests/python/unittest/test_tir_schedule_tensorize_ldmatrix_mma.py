@@ -177,9 +177,9 @@ def run_test(
     else:
         loop_b = tile_wmma_fragment(B_warp, k_inner, 16)
 
-    sch.transform_layout(A_warp, 0, "write", index_map_A)
-    sch.transform_layout(B_warp, 0, "write", index_map_B)
-    sch.transform_layout(C_warp, 0, "read", index_map_C)
+    sch.transform_layout(A_warp, ("write", 0), index_map_A)
+    sch.transform_layout(B_warp, ("write", 0), index_map_B)
+    sch.transform_layout(C_warp, ("read", 0), index_map_C)
 
     sch.tensorize(loop_a, ldmatrix_a_intrin)
     sch.tensorize(loop_b, ldmatrix_b_intrin)

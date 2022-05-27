@@ -47,12 +47,13 @@ class Workload(Object):
         )
 
     def as_json(self) -> Any:
-        """Export the workload to a JSON string.
+        """Export the workload to JSON as a python object.
 
         Returns
         -------
-        json_str : str
-            The JSON string exported.
+        json : Any
+            The JSON serialized as a python object (e.g. a Dict or List).
+            Use json.dumps() to get the associated json string.
         """
         return _json_de_tvm(_ffi_api.WorkloadAsJSON(self))  # type: ignore # pylint: disable=no-member
 

@@ -216,10 +216,10 @@ def elementwise_reverse_affine_load_unit_iter(
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = A[vi, vj] * 2.0
-    for i, j, k in T.grid(8, 16, 128):
+    for i, j, k, l in T.grid(1, 8, 16, 128):
         with T.block("C"):
-            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
-            D[0, vi, vj, vk] = C[vi * 16 + vj, vk] + B[vi, vj, 0]
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+            D[vi, vj, vk, vl] = C[vj * 16 + vk, vl] + B[vj, vk, vi]
 
 
 @T.prim_func
@@ -232,6 +232,65 @@ def elementwise_reverse_affine_load_unit_iter_inlined(
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             D[0, vi // 16, vi % 16, vj] = A[vi, vj] * 2.0 + B[vi // 16, vi % 16, 0]
+
+
+@T.prim_func
+def elementwise_reverse_affine_load_unit_iter_simplified(
+    A: T.Buffer[(128, 128), "float32"],
+    B: T.Buffer[(8, 16, 1), "float32"],
+    D: T.Buffer[(1, 8, 16, 128), "float32"],
+) -> None:
+    C = T.alloc_buffer((128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] * 2.0
+    for i, j, k in T.grid(8, 16, 128):
+        with T.block("C"):
+            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+            D[0, vi, vj, vk] = C[vi * 16 + vj, vk] + B[vi, vj, 0]
+
+
+@T.prim_func
+def elementwise_reverse_affine_load_unit_iter_simplified_inlined(
+    A: T.Buffer[(128, 128), "float32"],
+    B: T.Buffer[(8, 16, 1), "float32"],
+    D: T.Buffer[(1, 8, 16, 128), "float32"],
+) -> None:
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[0, vi // 16, vi % 16, vj] = A[vi, vj] * 2.0 + B[vi // 16, vi % 16, 0]
+
+
+@T.prim_func
+def elementwise_reverse_affine_chain(
+    A: T.Buffer[(128, 128), "float32"], D: T.Buffer[(1, 8, 16, 128), "float32"]
+):
+    B = T.alloc_buffer((128, 128))
+    C = T.alloc_buffer((8, 16, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j, k in T.grid(8, 16, 128):
+        with T.block("C"):
+            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+            C[vi, vj, vk] = B[vi * 16 + vj, vk] + 1.0
+    for i, j, k, l in T.grid(1, 8, 16, 128):
+        with T.block("D"):
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+            D[vi, vj, vk, vl] = C[vj, vk, vl]
+
+
+@T.prim_func
+def elementwise_reverse_affine_chain_inlined(
+    A: T.Buffer[(128, 128), "float32"], D: T.Buffer[(1, 8, 16, 128), "float32"]
+) -> None:
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[0, vi // 16, vi % 16, vj] = A[vi, vj] * 2.0 + 1.0
 
 
 @T.prim_func
@@ -647,11 +706,35 @@ def test_reverse_compute_inline_affine_load_unit_iter():
     sch = tir.Schedule(elementwise_reverse_affine_load_unit_iter, debug_mask="all")
     block_c = sch.get_block("C")
     sch.reverse_compute_inline(block_c)
-    print(sch.mod.script())
     tvm.ir.assert_structural_equal(
         elementwise_reverse_affine_load_unit_iter_inlined, sch.mod["main"]
     )
     verify_trace_roundtrip(sch=sch, mod=elementwise_reverse_affine_load_unit_iter)
+
+
+def test_reverse_compute_inline_affine_load_unit_iter_simplified():
+    sch = tir.Schedule(elementwise_reverse_affine_load_unit_iter_simplified, debug_mask="all")
+    block_c = sch.get_block("C")
+    sch.reverse_compute_inline(block_c)
+    tvm.ir.assert_structural_equal(
+        elementwise_reverse_affine_load_unit_iter_simplified_inlined, sch.mod["main"]
+    )
+    verify_trace_roundtrip(sch=sch, mod=elementwise_reverse_affine_load_unit_iter_simplified)
+
+
+@pytest.mark.parametrize("reverse_order", [True, False])
+def test_reverse_compute_inline_affine_chain(reverse_order):
+    sch = tir.Schedule(elementwise_reverse_affine_chain, debug_mask="all")
+    block_c = sch.get_block("C")
+    block_d = sch.get_block("D")
+    if reverse_order:
+        sch.reverse_compute_inline(block_d)
+        sch.reverse_compute_inline(block_c)
+    else:
+        sch.reverse_compute_inline(block_c)
+        sch.reverse_compute_inline(block_d)
+    tvm.ir.assert_structural_equal(elementwise_reverse_affine_chain_inlined, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=elementwise_reverse_affine_chain)
 
 
 def test_reverse_compute_fail_non_affine_load():

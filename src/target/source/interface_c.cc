@@ -52,7 +52,7 @@ class InterfaceCNode : public runtime::ModuleNode {
         pools_(FilterExternalPools(pools)),
         io_pool_allocations_(io_pool_allocations),
         workspace_size_(workspace_size) {}
-  const char* type_key() const { return "h"; }
+  const char* type_key() const final { return "h"; }
 
   std::string GetSource(const std::string& format) final {
     std::stringstream code;

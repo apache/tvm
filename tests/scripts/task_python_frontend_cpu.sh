@@ -17,8 +17,7 @@
 # under the License.
 
 # Test frontends that only need CPU resources
-set -e
-set -u
+set -euxo pipefail
 
 source tests/scripts/setup-pytest-env.sh
 # to avoid openblas threading error
