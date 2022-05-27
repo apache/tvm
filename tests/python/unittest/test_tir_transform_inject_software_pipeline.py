@@ -16,9 +16,11 @@
 # under the License.
 import pytest
 import sys
+import numpy as np
 
 import tvm
 import tvm.testing
+import tvm.tir.tensor_intrin.cuda
 from tvm import tir, te, TVMError
 from tvm.script import tir as T
 
@@ -1022,6 +1024,411 @@ def test_error_missing_annotation():
     _check_error(simple_compute_missing_annotation)
 
 
+def test_three_stage_gemm():
+    @tvm.script.ir_module
+    class Module_pipelined:
+        @T.prim_func
+        def main(
+            A: T.Buffer[(4096, 4096), "float16"],
+            B: T.Buffer[(4096, 4096), "float16"],
+            C: T.Buffer[(4096, 4096), "float32"],
+        ) -> None:
+            # function attr dict
+            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            # var definition
+            tx = T.env_thread("threadIdx.x")
+            s0 = T.var("int32")
+            s0_1 = T.var("int32")
+            s0_2 = T.var("int32")
+            s1 = T.var("int32")
+            s1_1 = T.var("int32")
+            s1_2 = T.var("int32")
+            # body
+            # with T.block("root")
+            A_shared = T.alloc_buffer([4096, 4096], dtype="float16", scope="shared.dyn")
+            B_shared = T.alloc_buffer([4096, 4096], dtype="float16", scope="shared.dyn")
+            A_shared_warp = T.alloc_buffer([256, 256, 32, 8], dtype="float16", scope="warp")
+            B_shared_warp = T.alloc_buffer([256, 256, 32, 8], dtype="float16", scope="warp")
+            C_warp = T.alloc_buffer([256, 256, 32, 8], dtype="float32", scope="warp")
+            for i0_0_0_i1_0_0_fused in T.thread_binding(4, thread="blockIdx.x"):
+                for i0_0_1_i1_0_1_fused in T.thread_binding(512, thread="blockIdx.y"):
+                    for i1_0_2_i0_0_2_fused in T.thread_binding(4, thread="threadIdx.y"):
+                        for i0_0_3_init, i1_0_4_init in T.grid(4, 2):
+                            with T.block("C_o_init"):
+                                i_o = T.axis.spatial(
+                                    256,
+                                    i0_0_0_i1_0_0_fused * 64
+                                    + i0_0_1_i1_0_1_fused // 64 * 8
+                                    + i1_0_2_i0_0_2_fused % 2 * 4
+                                    + i0_0_3_init,
+                                )
+                                j_o = T.axis.spatial(
+                                    256,
+                                    i0_0_1_i1_0_1_fused % 64 * 4
+                                    + i1_0_2_i0_0_2_fused // 2 * 2
+                                    + i1_0_4_init,
+                                )
+                                T.reads()
+                                T.writes(C_warp[i_o, j_o, 0:32, 0:8])
+                                with T.block("C_init_o"):
+                                    i_init_o = T.axis.spatial(1, 0)
+                                    j_init_o = T.axis.spatial(1, 0)
+                                    T.reads()
+                                    T.writes(C_warp[i_o, j_o, 0:32, 0:8])
+                                    C_warp_1 = T.match_buffer(
+                                        C_warp[i_o, j_o, 0:32, 0:8],
+                                        [32, 8],
+                                        dtype="float32",
+                                        scope="warp",
+                                        offset_factor=1,
+                                    )
+                                    T.launch_thread(tx, 32)
+                                    T.evaluate(
+                                        T.mma_fill(
+                                            8, C_warp_1.data, C_warp_1.elem_offset, dtype="float32"
+                                        )
+                                    )
+                        for i2_0_0 in T.serial(
+                            128,
+                            annotations={
+                                "software_pipeline_order": [0, 1, 2],
+                                "software_pipeline_stage": [0, 0, 3],
+                            },
+                        ):
+                            for ax0_ax1_fused_0 in T.serial(4):
+                                for ax0_ax1_fused_1 in T.thread_binding(4, thread="threadIdx.y"):
+                                    for ax0_ax1_fused_2 in T.thread_binding(
+                                        32, thread="threadIdx.x"
+                                    ):
+                                        for ax0_ax1_fused_3 in T.vectorized(8):
+                                            with T.block("A_shared"):
+                                                v0 = T.axis.spatial(
+                                                    4096,
+                                                    i0_0_0_i1_0_0_fused * 1024
+                                                    + i0_0_1_i1_0_1_fused // 64 * 128
+                                                    + (
+                                                        ax0_ax1_fused_0 * 1024
+                                                        + ax0_ax1_fused_1 * 256
+                                                        + ax0_ax1_fused_2 * 8
+                                                        + ax0_ax1_fused_3
+                                                    )
+                                                    // 32,
+                                                )
+                                                v1 = T.axis.spatial(
+                                                    4096,
+                                                    i2_0_0 * 32
+                                                    + (
+                                                        ax0_ax1_fused_0 * 1024
+                                                        + ax0_ax1_fused_1 * 256
+                                                        + ax0_ax1_fused_2 * 8
+                                                        + ax0_ax1_fused_3
+                                                    )
+                                                    % 32,
+                                                )
+                                                T.reads(A[v0, v1])
+                                                T.writes(A_shared[v0, v1])
+                                                T.block_attr({"buffer_dim_align": [[0, 0, 32, 8]]})
+                                                A_shared[v0, v1] = A[v0, v1]
+                            for ax0_ax1_fused_0 in T.serial(2):
+                                for ax0_ax1_fused_1 in T.thread_binding(4, thread="threadIdx.y"):
+                                    for ax0_ax1_fused_2 in T.thread_binding(
+                                        32, thread="threadIdx.x"
+                                    ):
+                                        for ax0_ax1_fused_3 in T.vectorized(8):
+                                            with T.block("B_shared"):
+                                                v0 = T.axis.spatial(
+                                                    4096,
+                                                    i2_0_0 * 32
+                                                    + (
+                                                        ax0_ax1_fused_0 * 1024
+                                                        + ax0_ax1_fused_1 * 256
+                                                        + ax0_ax1_fused_2 * 8
+                                                        + ax0_ax1_fused_3
+                                                    )
+                                                    // 64,
+                                                )
+                                                v1 = T.axis.spatial(
+                                                    4096,
+                                                    i0_0_1_i1_0_1_fused % 64 * 64
+                                                    + (
+                                                        ax0_ax1_fused_0 * 1024
+                                                        + ax0_ax1_fused_1 * 256
+                                                        + ax0_ax1_fused_2 * 8
+                                                        + ax0_ax1_fused_3
+                                                    )
+                                                    % 64,
+                                                )
+                                                T.reads(B[v0, v1])
+                                                T.writes(B_shared[v0, v1])
+                                                T.block_attr({"buffer_dim_align": [[0, 0, 32, 8]]})
+                                                B_shared[v0, v1] = B[v0, v1]
+                            for i2_0_1 in T.serial(2):
+                                for ax0_0, ax1_0 in T.grid(4, 1):
+                                    with T.block("A_shared_warp_o"):
+                                        v0_o = T.axis.spatial(
+                                            256,
+                                            i0_0_0_i1_0_0_fused * 64
+                                            + i0_0_1_i1_0_1_fused // 64 * 8
+                                            + i1_0_2_i0_0_2_fused % 2 * 4
+                                            + ax0_0,
+                                        )
+                                        v1_o = T.axis.spatial(256, i2_0_0 * 2 + i2_0_1)
+                                        T.reads(
+                                            A_shared[
+                                                v0_o * 16 : v0_o * 16 + 16,
+                                                v1_o * 16 : v1_o * 16 + 16,
+                                            ]
+                                        )
+                                        T.writes(A_shared_warp[v0_o, v1_o, 0:32, 0:8])
+                                        warp = T.match_buffer(
+                                            A_shared_warp[v0_o, v1_o, 0:32, 0:8],
+                                            [32, 8],
+                                            dtype="float16",
+                                            scope="warp",
+                                            offset_factor=16,
+                                        )
+                                        shared = T.match_buffer(
+                                            A_shared[
+                                                v0_o * 16 : v0_o * 16 + 16,
+                                                v1_o * 16 : v1_o * 16 + 16,
+                                            ],
+                                            [16, 16],
+                                            dtype="float16",
+                                            strides=[s0, s1],
+                                            scope="shared.dyn",
+                                            offset_factor=16,
+                                        )
+                                        T.launch_thread(tx, 32)
+                                        T.evaluate(
+                                            T.ptx_ldmatrix(
+                                                False,
+                                                4,
+                                                ".b16",
+                                                warp.data,
+                                                warp.elem_offset + 8 * tx,
+                                                T.tvm_access_ptr(
+                                                    T.type_annotation(dtype="float16"),
+                                                    shared.data,
+                                                    shared.elem_offset,
+                                                    s0 * 16,
+                                                    1,
+                                                    dtype="handle",
+                                                ),
+                                                s0 * (tx % 16) + 8 * (tx // 16),
+                                                dtype="float16",
+                                            )
+                                        )
+                                for ax0_0, ax1_0 in T.grid(1, 2):
+                                    with T.block("B_shared_warp_o"):
+                                        v0_o = T.axis.spatial(256, i2_0_0 * 2 + i2_0_1)
+                                        v1_o = T.axis.spatial(
+                                            256,
+                                            i0_0_1_i1_0_1_fused % 64 * 4
+                                            + i1_0_2_i0_0_2_fused // 2 * 2
+                                            + ax1_0,
+                                        )
+                                        T.reads(
+                                            B_shared[
+                                                v0_o * 16 : v0_o * 16 + 16,
+                                                v1_o * 16 : v1_o * 16 + 16,
+                                            ]
+                                        )
+                                        T.writes(B_shared_warp[v0_o, v1_o, 0:32, 0:8])
+                                        warp_1 = T.match_buffer(
+                                            B_shared_warp[v0_o, v1_o, 0:32, 0:8],
+                                            [32, 8],
+                                            dtype="float16",
+                                            scope="warp",
+                                            offset_factor=16,
+                                        )
+                                        shared_1 = T.match_buffer(
+                                            B_shared[
+                                                v0_o * 16 : v0_o * 16 + 16,
+                                                v1_o * 16 : v1_o * 16 + 16,
+                                            ],
+                                            [16, 16],
+                                            dtype="float16",
+                                            strides=[s0_1, s1_1],
+                                            scope="shared.dyn",
+                                            offset_factor=16,
+                                        )
+                                        T.launch_thread(tx, 32)
+                                        T.evaluate(
+                                            T.ptx_ldmatrix(
+                                                True,
+                                                4,
+                                                ".b16",
+                                                warp_1.data,
+                                                warp_1.elem_offset + 8 * tx,
+                                                T.tvm_access_ptr(
+                                                    T.type_annotation(dtype="float16"),
+                                                    shared_1.data,
+                                                    shared_1.elem_offset,
+                                                    s0_1 * 16,
+                                                    1,
+                                                    dtype="handle",
+                                                ),
+                                                s0_1 * (tx % 16) + 8 * (tx // 16),
+                                                dtype="float16",
+                                            )
+                                        )
+                                for i0_0_3, i1_0_3, i2_0_2, i0_0_4, i1_0_4 in T.grid(4, 1, 1, 1, 2):
+                                    with T.block("C_o_update"):
+                                        i_o = T.axis.spatial(
+                                            256,
+                                            i0_0_0_i1_0_0_fused * 64
+                                            + i0_0_1_i1_0_1_fused // 64 * 8
+                                            + i1_0_2_i0_0_2_fused % 2 * 4
+                                            + i0_0_3,
+                                        )
+                                        j_o = T.axis.spatial(
+                                            256,
+                                            i0_0_1_i1_0_1_fused % 64 * 4
+                                            + i1_0_2_i0_0_2_fused // 2 * 2
+                                            + i1_0_4,
+                                        )
+                                        k_o = T.axis.reduce(256, i2_0_0 * 2 + i2_0_1)
+                                        T.reads(
+                                            C_warp[i_o, j_o, 0:32, 0:8],
+                                            A_shared_warp[i_o, k_o, 0:32, 0:8],
+                                            B_shared_warp[k_o, j_o, 0:32, 0:8],
+                                        )
+                                        T.writes(C_warp[i_o, j_o, 0:32, 0:8])
+                                        with T.block("C_o"):
+                                            i_o_1 = T.axis.spatial(1, 0)
+                                            j_o_1 = T.axis.spatial(1, 0)
+                                            k_o_1 = T.axis.reduce(1, 0)
+                                            T.reads(
+                                                C_warp[i_o, j_o, 0:32, 0:8],
+                                                A_shared_warp[i_o, k_o, 0:32, 0:8],
+                                                B_shared_warp[k_o, j_o, 0:32, 0:8],
+                                            )
+                                            T.writes(C_warp[i_o, j_o, 0:32, 0:8])
+                                            A_1 = T.match_buffer(
+                                                A_shared_warp[i_o, k_o, 0:32, 0:8],
+                                                [32, 8],
+                                                dtype="float16",
+                                                scope="warp",
+                                                offset_factor=16,
+                                            )
+                                            B_1 = T.match_buffer(
+                                                B_shared_warp[k_o, j_o, 0:32, 0:8],
+                                                [32, 8],
+                                                dtype="float16",
+                                                scope="warp",
+                                                offset_factor=16,
+                                            )
+                                            C_1 = T.match_buffer(
+                                                C_warp[i_o, j_o, 0:32, 0:8],
+                                                [32, 8],
+                                                dtype="float32",
+                                                scope="warp",
+                                                offset_factor=16,
+                                            )
+                                            T.launch_thread(tx, 32)
+                                            T.evaluate(
+                                                T.ptx_mma(
+                                                    "m16n8k16",
+                                                    "row",
+                                                    "col",
+                                                    "fp16",
+                                                    "fp16",
+                                                    "fp32",
+                                                    A_1.data,
+                                                    A_1.elem_offset + tx * 8,
+                                                    B_1.data,
+                                                    B_1.elem_offset + tx * 8,
+                                                    C_1.data,
+                                                    C_1.elem_offset + tx * 8,
+                                                    False,
+                                                    dtype="float32",
+                                                )
+                                            )
+                                            T.evaluate(
+                                                T.ptx_mma(
+                                                    "m16n8k16",
+                                                    "row",
+                                                    "col",
+                                                    "fp16",
+                                                    "fp16",
+                                                    "fp32",
+                                                    A_1.data,
+                                                    A_1.elem_offset + tx * 8,
+                                                    B_1.data,
+                                                    B_1.elem_offset + tx * 8 + 8 // 2,
+                                                    C_1.data,
+                                                    C_1.elem_offset + tx * 8 + 8 // 2,
+                                                    False,
+                                                    dtype="float32",
+                                                )
+                                            )
+                        for ax0_0, ax1_0 in T.grid(4, 2):
+                            with T.block("C_warp_o"):
+                                v0_o = T.axis.spatial(
+                                    256,
+                                    i0_0_0_i1_0_0_fused * 64
+                                    + i0_0_1_i1_0_1_fused // 64 * 8
+                                    + i1_0_2_i0_0_2_fused % 2 * 4
+                                    + ax0_0,
+                                )
+                                v1_o = T.axis.spatial(
+                                    256,
+                                    i0_0_1_i1_0_1_fused % 64 * 4
+                                    + i1_0_2_i0_0_2_fused // 2 * 2
+                                    + ax1_0,
+                                )
+                                T.reads(C_warp[v0_o, v1_o, 0:32, 0:8])
+                                T.writes(C[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                                C_warp_2 = T.match_buffer(
+                                    C_warp[v0_o, v1_o, 0:32, 0:8],
+                                    [32, 8],
+                                    dtype="float32",
+                                    scope="warp",
+                                    offset_factor=1,
+                                )
+                                C_2 = T.match_buffer(
+                                    C[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16],
+                                    [16, 16],
+                                    dtype="float32",
+                                    strides=[s0_2, s1_2],
+                                    offset_factor=1,
+                                )
+                                T.launch_thread(tx, 32)
+                                T.evaluate(
+                                    T.mma_store(
+                                        16,
+                                        16,
+                                        T.tvm_access_ptr(
+                                            T.type_annotation(dtype="float32"),
+                                            C_2.data,
+                                            C_2.elem_offset,
+                                            s0_2 * 16,
+                                            2,
+                                            dtype="handle",
+                                        ),
+                                        C_warp_2.data,
+                                        C_warp_2.elem_offset,
+                                        s0_2,
+                                        dtype="float32",
+                                    )
+                                )
+
+    f = tvm.build(Module_pipelined, target="cuda")
+
+    N = K = M = 4096
+    dev = tvm.device("cuda", 0)
+    a_np = np.random.uniform(size=(N, K)).astype("float16")
+    b_np = np.random.uniform(size=(K, M)).astype("float16")
+    c_np = np.dot(a_np.astype("float32"), b_np.astype("float32"))
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(b_np, dev)
+    c = tvm.nd.array(np.zeros((N, M), dtype="float32"), dev)
+    f(a, b, c)
+    # print(f.imported_modules[0].get_source())
+    tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
+    print("ok")
+
+
 if __name__ == "__main__":
     # tvm.testing.main()
-    test_three_stage_compute()
+    test_three_stage_gemm()
