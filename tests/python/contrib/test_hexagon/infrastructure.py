@@ -229,16 +229,18 @@ def conv2d_compute(X, filt, pad, stride, dilation):
     return output_shape, compute
 
 
-# Transpose and reshape numpy array according to the specified layout
-def transform_numpy(arr_np, layout):
-    if layout == "nhwc":
-        return arr_np
-    elif layout == "nhwc-8h2w32c2w":
-        N, H, W, C = arr_np.shape
-        return arr_np.reshape([N, H // 8, 8, W // 4, 2, 2, C // 32, 32]).transpose(0, 1, 3, 6, 2, 4, 7, 5)
-    elif layout == "n11c-1024c":
-        N, H, W, C = arr_np.shape
-        assert (H == 1 and W == 1), "The size of H and W must be 1!"
-        return arr_np.reshape([N, C//1024, 1024]).transpose(0, 1, 2)
-    else:
-        raise RuntimeError(f"Unexpected layout '{layout}'")
+# Reshape and transpose numpy array according to the specified layout
+def transform_numpy(arr_np, current_layout: str, new_layout:str):
+    if current_layout == "nhwc":
+        if new_layout == "nhwc":
+            return arr_np
+        if new_layout in ["nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-1d"]:
+            N, H, W, C = arr_np.shape
+            return arr_np.reshape([N, H // 8, 8, W // 4, 2, 2, C // 32, 32]).transpose(0, 1, 3, 6, 2, 4, 7, 5)
+        if new_layout in ["n11c-1024c-2d", "n11c-1024c-1d"]:
+            N, H, W, C = arr_np.shape
+            assert (H == 1 and W == 1), "The size of H and W must be 1"
+            return arr_np.reshape([N, 1, 1, C//1024, 1024])
+
+        raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
+    raise RuntimeError(f"Unexpected current_layout '{current_layout}'")

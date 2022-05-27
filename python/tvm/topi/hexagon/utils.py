@@ -39,37 +39,8 @@ def get_layout_transform_fn(layout):
         return nhwc_8h2w32c2w_2d
     if layout == "nhwc-8h2w32c2w-1d":
         return nhwc_8h2w32c2w_1d
-    elif layout == "n11c-1024c-2d":
+    if layout == "n11c-1024c-2d":
         return n11c_1024c_2d
-    elif layout == "n11c-1024c-1d":
+    if layout == "n11c-1024c-1d":
         return n11c_1024c_1d
-    else:
-        raise RuntimeError(f"Unexpected layout '{layout}'")
-
-
-def apply_transform(s, block, block_index: int, buffer_type: str, layout: str):
-    """Apply transform layout on a buffer
-
-    Parameters
-    ----------
-    s: Schedule
-    block : BlockRV
-        The block that accesses the target buffer
-    buffer_index: int
-        The index of the buffer in block's read or write region
-    buffer_type : str
-        Type of the buffer index, "read" or "write"
-    layout : str
-        Layout of the buffer
-    """
-    transform_fn = get_layout_transform_fn(layout)
-    if layout == "nhwc-8h2w32c2w-1d":
-        axis_separators = [4]
-    elif layout == "n11c-1024c-1d":
-        axis_separators = [2]
-    else:
-        raise RuntimeError(f"Unexpected layout '{layout}'")
-
-    s.transform_layout(block, block_index, buffer_type, transform_fn)
-    if axis_separators:
-        s.set_axis_separator(block, block_index, buffer_type, axis_separators)
+    raise RuntimeError(f"Unexpected layout '{layout}'")
