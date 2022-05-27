@@ -24,6 +24,7 @@ target = "opencl"
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_opencl
+@pytest.mark.skip(reason="Testing purposes")
 def test_opencl_ternary_expression():
     def check_if_then_else(dev, n, dtype):
         A = te.placeholder((n,), name="A", dtype=dtype)
@@ -185,7 +186,7 @@ def test_opencl_type_casting():
 
 
 if __name__ == "__main__":
-    test_opencl_ternary_expression()
+    # test_opencl_ternary_expression()
     test_opencl_inf_nan()
     test_opencl_max()
     test_opencl_erf()

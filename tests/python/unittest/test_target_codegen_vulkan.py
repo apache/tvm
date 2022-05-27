@@ -87,6 +87,7 @@ def test_array_copy(dev, dtype, fuzz_seed):
 
 
 @tvm.testing.exclude_targets("llvm")
+@pytest.mark.skip(reason="Testing purposes")
 def test_array_vectorize_add(target, dev, dtype):
     arr_size = 64
     lanes = 2
