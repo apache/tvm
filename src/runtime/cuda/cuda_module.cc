@@ -164,11 +164,22 @@ class CUDAWrappedFunc {
   void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
     int device_id;
     CUDA_CALL(cudaGetDevice(&device_id));
+    ThreadWorkLoad wl = launch_param_config_.Extract(args);
+
     if (fcache_[device_id] == nullptr) {
       fcache_[device_id] = m_->GetFunc(device_id, func_name_);
+      if (wl.dyn_shmem_size >= (48 << 10)) {
+        // Assumption: dyn_shmem_size doesn't change across different invocations of
+        // fcache_[device_id]
+        CUresult result = cuFuncSetAttribute(
+            fcache_[device_id], CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, wl.dyn_shmem_size);
+        if (result != CUDA_SUCCESS) {
+          LOG(FATAL) << "Failed to set the allowed dynamic shared memory size to "
+                     << wl.dyn_shmem_size;
+        }
+      }
     }
     CUstream strm = static_cast<CUstream>(CUDAThreadEntry::ThreadLocal()->stream);
-    ThreadWorkLoad wl = launch_param_config_.Extract(args);
     CUresult result = cuLaunchKernel(fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1),
                                      wl.grid_dim(2), wl.block_dim(0), wl.block_dim(1),
                                      wl.block_dim(2), wl.dyn_shmem_size, strm, void_args, nullptr);
