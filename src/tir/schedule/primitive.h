@@ -449,7 +449,7 @@ TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int
  * The index_map is required to be bijective affine since we need its inverse mapping.
  * \param self The state of the schedule
  * \param block_sref The block sref that refers to the block to be transformed
- * \param affine_index_map The transformation to apply.
+ * \param index_map The transformation to apply.
  */
 TVM_DLL void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
                                   const IndexMap& index_map);

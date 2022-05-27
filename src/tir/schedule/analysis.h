@@ -285,7 +285,8 @@ bool GetVarsTouchedByBlockIters(const BlockRealize& block_realize,
  * \param analyzer The arithmetic analyzer
  * \throw ScheduleError If the loop doesn't starts with zero.
  */
-void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref, arith::Analyzer* analyzer);
+void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
+                             arith::Analyzer* analyzer);
 
 /******** Block-loop relation ********/
 

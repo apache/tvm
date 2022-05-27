@@ -2296,7 +2296,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block_rv : BlockRV
+        block : BlockRV
             The block to be transformed
 
         index_map : Union[IndexMap, Callable]

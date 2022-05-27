@@ -281,7 +281,6 @@ class IndexMapNotApplicableToBlockIterError : public ScheduleError {
   IRModule mod_;
   Block block_;
   IndexMap index_map_;
-
 };
 
 class NotTrivialBindingError : public ScheduleError {
@@ -405,7 +404,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   Array<IterVar> new_block_iters;  // new block iters
   Array<PrimExpr> new_block_vars;  // iter_var->var of new block iters
   for (size_t i = 0; i < index_map->final_indices.size(); ++i) {
-    Var new_block_var{"bv" + std::to_string(i), DataType::Int(32)};
+    Var new_block_var{"v" + std::to_string(i), DataType::Int(32)};
     new_block_vars.push_back(new_block_var);
     IterVarType iter_type = DetectNewBlockIterType(transformed_block_iters[i], block_iter_type);
     if (iter_type == kOpaque) {
@@ -419,7 +418,8 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   // in the body.
 
   auto inverse_map = arith::InverseAffineIterMap(iter_map, new_block_vars);
-  // Trivial block iters will be simplified in DetectIterMap, they should be mapped to constant zero.
+  // Trivial block iters will be simplified in DetectIterMap, they should be mapped to constant
+  // zero.
   for (const auto& iter_var : block_ptr->iter_vars) {
     if (inverse_map.find(iter_var->var) == inverse_map.end()) {
       ICHECK(is_one(iter_var->dom->extent));
@@ -447,7 +447,8 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   // Generate outer loops
   Stmt body = GetRef<Stmt>(new_block_realize);
   for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; --i) {
-    body = For(Downcast<Var>(new_loop_vars[i]), 0, new_block_iter_range[i], ForKind::kSerial, std::move(body));
+    body = For(Downcast<Var>(new_loop_vars[i]), 0, new_block_iter_range[i], ForKind::kSerial,
+               std::move(body));
   }
 
   // Step 6: Do the actual replacement

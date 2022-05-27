@@ -550,9 +550,8 @@ class ScheduleNode : public runtime::Object {
    * \details The block iters and the block body are transformed by the given index_map.
    * Outer loops corresponding to each new block iter are regenerated.
    * The index_map is required to be bijective affine since we need its inverse mapping.
-   * \param self The state of the schedule
-   * \param block_sref The block sref that refers to the block to be transformed
-   * \param affine_index_map The transformation to apply.
+   * \param block_rv The block to be transformed
+   * \param index_map The transformation to apply.
    */
   virtual void TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) = 0;
 

@@ -688,10 +688,12 @@ bool GetVarsTouchedByBlockIters(const BlockRealize& block_realize,
 
 /******** Loop properties ********/
 
-void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref, arith::Analyzer* analyzer) {
+void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
+                             arith::Analyzer* analyzer) {
   class LoopNotStartWithZeroError : public ScheduleError {
-  public:
-    explicit LoopNotStartWithZeroError(IRModule mod, For loop) : mod_(mod), loop_(std::move(loop)) {}
+   public:
+    explicit LoopNotStartWithZeroError(IRModule mod, For loop)
+        : mod_(mod), loop_(std::move(loop)) {}
 
     String FastErrorString() const final {
       return "ScheduleError: The primitive only supports loop starting with 0";
