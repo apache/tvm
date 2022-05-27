@@ -48,6 +48,7 @@ def test_cascade(SRAM, FLASH, TwoConv2DWithSliceTE, TwoConv2DTE, MobileNetv1Star
         cs.cascade(sch, te_graph, const_dict, options, SRAM, FLASH, [SRAM], device_config)
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/11483")
 def test_compute_cycles_annotation(SRAM, FLASH, TwoConv2DTE):
     device_config = cs.EthosuDeviceConfig("ethos-u55-256")
     options = infra.make_options(
