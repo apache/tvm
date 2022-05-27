@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, missing-function-docstring
 """Common functions for popen_pool test cases"""
-import time
 import tvm
+from . import _ffi_api
 
 TEST_GLOBAL_STATE_1 = 0
 TEST_GLOBAL_STATE_2 = 0
@@ -72,4 +72,4 @@ def slow_summation(n):
 
 
 def timeout_job(n):
-    time.sleep(n * 1.5)
+    _ffi_api.sleep_in_ffi(n * 1.5)
