@@ -117,8 +117,6 @@ def run_test(
         mma_store_intrin,
     )
 
-    print(sch.mod.script())
-
     if not is_ampere_or_newer():
         return None
 
