@@ -173,8 +173,8 @@ def test_opencl_type_casting():
         lcond = "(convert_uint4(((uint4)((((int)get_local_id(0)) == 3), (((int)get_local_id(0)) == 3), (((int)get_local_id(0)) == 3), (((int)get_local_id(0)) == 3)))))"
         rcond = "(convert_uint4((((int4)((0)+(1*0), (0)+(1*1), (0)+(1*2), (0)+(1*3))) == ((int4)(3, 3, 3, 3)))))"
         cond = "({} && {})".format(lcond, rcond)
-        ternary = "{} ? {} : {}".format(cond, true_branch, false_branch)
-        count = assembly.count(ternary)
+        select = "select({}, {}, {})".format(false_branch, true_branch, cond)
+        count = assembly.count(select)
         assert count == 1
 
         fun(c)
