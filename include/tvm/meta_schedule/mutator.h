@@ -119,13 +119,21 @@ class Mutator : public runtime::ObjectRef {
    * \return The created mutator.
    */
   TVM_DLL static Mutator MutateParallel(int64_t max_jobs_per_core);
-  /*! \brief Create a Mutator that mutates auto unroll step */
+  /*!
+   * \brief Create a Mutator that mutates auto unroll step
+   * \return The mutator created
+   */
   TVM_DLL static Mutator MutateUnroll();
   /*!
    * \brief Create a Mutator that mutates the outcome of SampleComputeLocation
    * \return The mutator created
    */
   TVM_DLL static Mutator MutateComputeLocation();
+  /*!
+   * \brief Create a Mutator that mutates auto thread binding.
+   * \return The mutator created
+   */
+  TVM_DLL static Mutator MutateThreadBinding();
   /*!
    * \brief Create a mutator with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.

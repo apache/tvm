@@ -440,7 +440,7 @@ def nhwc_winograd_cuda(
             bgemm[r_a][r_b][p][co] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]
         ),
         name="inverse",
-        attrs={"schedule_rule": "meta_schedule.winograd_inverse"},
+        attrs={"schedule_rule": "meta_schedule.winograd_inverse.cuda"},
     )
 
     # Output

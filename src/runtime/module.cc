@@ -83,6 +83,7 @@ Module Module::LoadFromFile(const std::string& file_name, const std::string& for
     fmt = "so";
   }
   std::string load_f_name = "runtime.module.loadfile_" + fmt;
+  VLOG(1) << "Loading module from '" << file_name << "' of format '" << fmt << "'";
   const PackedFunc* f = Registry::Get(load_f_name);
   ICHECK(f != nullptr) << "Loader for `." << format << "` files is not registered,"
                        << " resolved to (" << load_f_name << ") in the global registry."
@@ -130,6 +131,12 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
 std::string ModuleNode::GetFormat() {
   LOG(FATAL) << "Module[" << type_key() << "] does not support GetFormat";
   return "";
+}
+
+bool ModuleNode::IsDSOExportable() const { return false; }
+
+bool ModuleNode::ImplementsFunction(const String& name, bool query_imports) {
+  return GetFunction(name, query_imports) != nullptr;
 }
 
 bool RuntimeEnabled(const std::string& target) {
@@ -191,8 +198,15 @@ TVM_REGISTER_GLOBAL("runtime.ModuleGetFormat").set_body_typed([](Module mod) {
 TVM_REGISTER_GLOBAL("runtime.ModuleLoadFromFile").set_body_typed(Module::LoadFromFile);
 
 TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
-    .set_body_typed([](Module mod, tvm::String name, tvm::String fmt) {
-      mod->SaveToFile(name, fmt);
+    .set_body_typed([](Module mod, String name, tvm::String fmt) { mod->SaveToFile(name, fmt); });
+
+TVM_REGISTER_GLOBAL("runtime.ModuleIsDSOExportable").set_body_typed([](Module mod) {
+  return mod->IsDSOExportable();
+});
+
+TVM_REGISTER_GLOBAL("runtime.ModuleImplementsFunction")
+    .set_body_typed([](Module mod, String name, bool query_imports) {
+      return mod->ImplementsFunction(std::move(name), query_imports);
     });
 
 TVM_REGISTER_OBJECT_TYPE(ModuleNode);

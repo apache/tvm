@@ -31,6 +31,11 @@ under the License.
     <string name="label_key">Key</string>
     <string name="label_persistent">Enable RPC</string>
 
+    <string name="label_address_hint">192.168.1.1</string>
+    <string name="label_port_hint">9190</string>
+    <string name="label_key_hint">android</string>
+
+
     <string name="switch_on">Enabled</string>
     <string name="switch_off">Disabled</string>
 

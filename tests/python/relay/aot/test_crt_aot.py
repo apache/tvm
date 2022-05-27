@@ -37,16 +37,14 @@ from tvm.relay.backend import Executor, Runtime
 from tvm.micro import model_library_format as mlf
 from tvm.micro import export_model_library_format
 from tvm.ir.instrument import pass_instrument
-from aot_test_utils import (
+from tvm.testing.aot import (
     AOTTestModel,
-    AOT_DEFAULT_RUNNER,
     generate_ref_data,
-    convert_to_relay,
     compile_and_run,
     compile_models,
-    parametrize_aot_options,
     create_relay_module_and_inputs_from_tflite_file,
 )
+from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER, parametrize_aot_options
 
 
 def test_error_c_interface_with_packed_api():
@@ -994,7 +992,7 @@ def test_workspace_calculation_cmsis_nn():
     ):
         lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
     mlf_memory_map = mlf._build_function_memory_map(lib.function_metadata)
-    assert mlf_memory_map["main"][0]["workspace_size_bytes"] == 9904
+    assert mlf_memory_map["main"][0]["workspace_size_bytes"] == 14384
 
 
 def test_aot_codegen_checks_returns():
@@ -1075,4 +1073,4 @@ def test_aot_uses_anf():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

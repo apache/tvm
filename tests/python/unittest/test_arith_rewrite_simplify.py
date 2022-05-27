@@ -972,5 +972,13 @@ def test_div_zero_simplify():
         assert "division by zero" in str(cm.execption)
 
 
+def test_sub_bufferload():
+    ck = RewriteChecker()
+    buf = tvm.tir.decl_buffer([1], dtype="float32")
+    load = tvm.tir.BufferLoad(buf, [0])
+    expr = load - load
+    ck.verify(expr, 0.0)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

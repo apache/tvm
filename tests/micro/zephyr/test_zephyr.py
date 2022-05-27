@@ -26,11 +26,12 @@ import onnx
 from PIL import Image
 
 import tvm
+import tvm.testing
 import tvm.relay as relay
 from tvm.relay.backend import Executor, Runtime
 from tvm.relay.testing import byoc
 from tvm.contrib import utils
-from tvm.micro.testing import check_tune_log
+from tvm.micro.testing.utils import check_tune_log
 
 import test_utils
 
@@ -504,4 +505,4 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

@@ -21,6 +21,7 @@ import shlex
 import sys
 
 import tvm
+import tvm.testing
 from tvm.autotvm.measure.executor import Executor
 from tvm.driver import tvmc
 from tvm.driver.tvmc.main import _main
@@ -164,4 +165,4 @@ def test_tvmc_import_package_mlf_aot(tflite_mobilenet_v1_1_quant, tflite_compile
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

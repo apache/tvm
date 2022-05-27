@@ -152,13 +152,6 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   // Should only be triggered when op is a free variable being visited for the
   // first time.
   Doc VisitExpr_(const VarNode* op) final;
-  /*!
-   * \brief special method to print out const scalar
-   * \param dtype The data type
-   * \param value The value to be printed.
-   */
-  template <typename T>
-  static Doc ScalarLiteral(DataType dtype, const T& value);
   Doc VisitExpr_(const ConstantNode* op) final;
   Doc VisitExpr_(const TupleNode* op) final;
   Doc VisitExpr_(const TupleGetItemNode* op) final;

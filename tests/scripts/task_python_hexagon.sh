@@ -16,8 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -euxo pipefail
 
 device_serial="simulator"
 if [ $# -ge 1 ] && [[ "$1" = "--device" ]]; then
@@ -38,13 +37,7 @@ if [[ "${device_serial}" == "simulator" ]]; then
 
     # Temporary workaround for symbol visibility
     export HEXAGON_SHARED_LINK_FLAGS="-Lbuild/hexagon_api_output -lhexagon_rpc_sim"
-
-    # HEXAGON_TOOLCHAIN is already set
-    export HEXAGON_SDK_ROOT=${HEXAGON_SDK_PATH}
 fi
-
-# should be removed after Hexagon Docker update
-export HEXAGON_GTEST="${HEXAGON_SDK_PATH}/utils/googletest/gtest"
 
 export ANDROID_SERIAL_NUMBER=${device_serial}
 run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon

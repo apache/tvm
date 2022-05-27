@@ -26,7 +26,7 @@ from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.hexagon.session import Session
 from tvm.testing.usmp import is_tvm_backendallocworkspace_calls
 
-from .conftest import requires_hexagon_toolchain
+from tvm.contrib.hexagon.pytest_plugin import requires_hexagon_toolchain
 
 usmp_enabled = tvm.testing.parameter(False, True)
 
@@ -109,4 +109,4 @@ def test_conv2d(hexagon_session: Session, aot_host_target, aot_target, usmp_enab
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

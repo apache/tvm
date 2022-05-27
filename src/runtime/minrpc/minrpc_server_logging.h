@@ -140,7 +140,7 @@ class MinRPCSniffer {
     uint8_t* buf = reinterpret_cast<uint8_t*>(data);
     size_t ndone = 0;
     while (ndone < size) {
-      tvm_ssize_t ret = io_->PosixRead(buf, size - ndone);
+      ssize_t ret = io_->PosixRead(buf, size - ndone);
       if (ret <= 0) {
         this->ThrowError(RPCServerStatus::kReadError);
         return false;

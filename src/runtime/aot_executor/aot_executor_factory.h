@@ -63,7 +63,7 @@ class TVM_DLL AotExecutorFactory : public runtime::ModuleNode {
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const override { return "AotExecutorFactory"; }
+  const char* type_key() const final { return "AotExecutorFactory"; }
 
   /*!
    * \brief Save the module to binary stream.

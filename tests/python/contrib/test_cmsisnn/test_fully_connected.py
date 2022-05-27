@@ -23,14 +23,9 @@ import tvm
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
-
-from tests.python.relay.aot.aot_test_utils import (
-    AOTTestModel,
-    AOT_CORSTONE300_RUNNER,
+from tvm.testing.aot import generate_ref_data, AOTTestModel, compile_and_run
+from tvm.micro.testing.aot_test_utils import (
     AOT_USMP_CORSTONE300_RUNNER,
-    AOT_DEFAULT_RUNNER,
-    generate_ref_data,
-    compile_and_run,
 )
 from utils import (
     skip_if_no_reference_system,
@@ -239,4 +234,4 @@ def test_invalid_parameters(
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

@@ -16,8 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -euxo pipefail
 
 export PYTHONPATH=python
 export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"

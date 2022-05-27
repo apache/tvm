@@ -150,7 +150,7 @@ class MinRPCReturns : public MinRPCReturnInterface {
     const uint8_t* buf = static_cast<const uint8_t*>(data);
     size_t ndone = 0;
     while (ndone < size) {
-      tvm_ssize_t ret = io_->PosixWrite(buf, size - ndone);
+      ssize_t ret = io_->PosixWrite(buf, size - ndone);
       if (ret <= 0) {
         this->ThrowError(RPCServerStatus::kWriteError);
       }
@@ -526,7 +526,7 @@ class MinRPCExecute : public MinRPCExecInterface {
     uint8_t* buf = static_cast<uint8_t*>(data);
     size_t ndone = 0;
     while (ndone < size) {
-      tvm_ssize_t ret = io_->PosixRead(buf, size - ndone);
+      ssize_t ret = io_->PosixRead(buf, size - ndone);
       if (ret <= 0) return ret;
       ndone += ret;
       buf += ret;
@@ -757,7 +757,7 @@ class MinRPCServer {
     uint8_t* buf = static_cast<uint8_t*>(data);
     size_t ndone = 0;
     while (ndone < size) {
-      tvm_ssize_t ret = io_->PosixRead(buf, size - ndone);
+      ssize_t ret = io_->PosixRead(buf, size - ndone);
       if (ret == 0) {
         if (allow_clean_shutdown_) {
           Shutdown();

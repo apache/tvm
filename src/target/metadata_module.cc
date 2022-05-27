@@ -190,10 +190,6 @@ runtime::Module CreateMetadataModule(
   Array<runtime::Module> crt_exportable_modules;
   Array<runtime::Module> non_crt_exportable_modules;
 
-  auto DSOExportable = [](tvm::runtime::Module& mod) {
-    return !std::strcmp(mod->type_key(), "llvm") || !std::strcmp(mod->type_key(), "c");
-  };
-
   bool is_targeting_crt = runtime->name == "crt";
 
   // Wrap all submodules in the initialization wrapper.
@@ -219,7 +215,7 @@ runtime::Module CreateMetadataModule(
 
     // TODO(@manupa-arm) : we should be able to use csource_metadata
     // if the variables are empty when all the runtime modules implement get_func_names
-    if (symbol_const_vars.empty() && is_targeting_crt && DSOExportable(mod) &&
+    if (symbol_const_vars.empty() && is_targeting_crt && mod->IsDSOExportable() &&
         (target->kind->name == "c" || target->kind->name == "llvm")) {
       crt_exportable_modules.push_back(mod);
     } else {
