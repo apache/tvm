@@ -29,5 +29,5 @@ pip3 install \
     matplotlib \
     sphinx==4.2.0 \
     sphinx_autodoc_annotation \
-    "git+https://github.com/sphinx-gallery/sphinx-gallery.git" \
+    "git+https://github.com/sphinx-gallery/sphinx-gallery.git@6142f1791151849b5bec4bf3959f75697ba226cd" \
     sphinx_rtd_theme
