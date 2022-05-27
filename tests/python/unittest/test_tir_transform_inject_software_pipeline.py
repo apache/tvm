@@ -1085,5 +1085,4 @@ def test_three_stage_gemm():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_three_stage_gemm()
+    tvm.testing.main()
