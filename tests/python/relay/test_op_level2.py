@@ -1183,7 +1183,6 @@ def test_pool1d():
                 count_include_pad=False,
                 ceil_mode=False,
             )
-            breakpoint()
             for target, dev in tvm.testing.enabled_targets():
                 op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
                     data

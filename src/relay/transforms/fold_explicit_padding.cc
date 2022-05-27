@@ -93,7 +93,7 @@ class SimplifyExplicitPad {
 
   template <typename T>
   Attrs MakeConvAttrs(const PadAttrs* param, const T* old_attrs) const {
-    // Creates attrs from old_attrs with fields shared by 1D, 2D, 3D pool attrs flavors
+    // Creates attrs from old_attrs with fields shared by 1D, 2D, 3D conv attrs
     ICHECK(old_attrs);
     ICHECK(param);
     auto padding = get_padding(param, old_attrs->data_layout);
@@ -131,7 +131,7 @@ class SimplifyExplicitPad {
 
   template <typename T>
   Attrs MakePoolAttrs(const PadAttrs* param, const T* old_attrs) const {
-    // Creates attrs from old_attrs with fields shared by 1D, 2D, 3D pool attrs flavors
+    // Creates attrs from old_attrs with fields shared by 1D, 2D, 3D pool attrs
     ICHECK(old_attrs);
     ICHECK(param);
     auto padding = get_padding(param, old_attrs->layout);
