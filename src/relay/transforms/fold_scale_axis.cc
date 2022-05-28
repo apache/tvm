@@ -666,7 +666,7 @@ Expr ForwardFoldScaleAxis(const Expr& data) {
 class BackwardTransformer;
 
 /*!
- * \brief Preparation function for for pass scale backward.
+ * \brief Preparation function for pass scale backward.
  * \param call The call node.
  * \param in_messages Messages from the input containing allowed input scaling and whether
  *        positive scale is required.
