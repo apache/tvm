@@ -364,7 +364,7 @@ class Schedule : public ObjectRef {
                             const Array<Operation>& readers);
   /*!
    * \brief Create a cache write tensor for producing tensor.
-   *  The the tensor will take over body of original tensor op.
+   *  The tensor will take over body of original tensor op.
    *
    *  This function can be used to do data layout transformation.
    *  If there is a split/fuse/reorder on the data parallel axis of tensor
@@ -381,7 +381,7 @@ class Schedule : public ObjectRef {
   TVM_DLL Array<Tensor> cache_write(const Array<Tensor>& tensor, const std::string& scope);
   /*!
    * \brief Create a cache write tensor for producing tensor.
-   *  The the tensor will take over body of original tensor op.
+   *  The tensor will take over body of original tensor op.
    *
    *  This function can be used to do data layout transformation.
    *  If there is a split/fuse/reorder on the data parallel axis of tensor

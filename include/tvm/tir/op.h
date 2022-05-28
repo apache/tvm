@@ -723,7 +723,7 @@ TVM_DLL PrimExpr isfinite(PrimExpr x, Span span = Span());
 TVM_DLL PrimExpr isinf(PrimExpr x, Span span = Span());
 
 /*!
- * \brief sum of of source expression over axis
+ * \brief sum of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  * \param init The value with which to initialize the output.
@@ -734,7 +734,7 @@ TVM_DLL PrimExpr sum(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> 
                      Span span = Span());
 
 /*!
- * \brief logical And of of source expression over axis
+ * \brief logical And of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  * \param init The value with which to initialize the output.
@@ -744,7 +744,7 @@ TVM_DLL PrimExpr all(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> 
                      Span span = Span());
 
 /*!
- * \brief logical Or of of source expression over axis
+ * \brief logical Or of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  * \param init The value with which to initialize the output.
@@ -755,7 +755,7 @@ TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> 
                      Span span = Span());
 
 /*!
- * \brief max of of source expression over axis
+ * \brief max of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  * \param init The value with which to initialize the output.
@@ -766,7 +766,7 @@ TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> 
                      Span span = Span());
 
 /*!
- * \brief max of of source expression over axis
+ * \brief max of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  * \param init The value with which to initialize the output.
@@ -777,7 +777,7 @@ TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr> 
                      Span span = Span());
 
 /*!
- * \brief product of of source expression over axis
+ * \brief product of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  * \param init The value with which to initialize the output.

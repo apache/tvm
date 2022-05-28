@@ -40,7 +40,7 @@ extern "C" {
  * \param args The arguments
  * \param type_codes The type codes of the arguments
  * \param num_args Number of arguments.
- * \param out_ret_value The output value of the the return value.
+ * \param out_ret_value The output value of the return value.
  * \param out_ret_tcode The output type code of the return value.
  * \param resource_handle Pointer to associated resource.
  *

@@ -425,7 +425,7 @@ class FuncTypeNode : public TypeNode {
   Array<TypeVar> type_params;
   /*!
    * \brief potential constraint the type need to obey
-   * \note this field is reserved for futher purposes.
+   * \note this field is reserved for further purposes.
    */
   Array<TypeConstraint> type_constraints;
 

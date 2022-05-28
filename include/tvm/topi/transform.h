@@ -640,7 +640,7 @@ inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int a
  *
  * \param x The input tensor
  * \param begin The indices to begin with in the slicing
- * \param end Indicies indicating end of the slice
+ * \param end Indices indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
  * in that case, the input tensor will be reversed in that particular axis
  * \param name The name of the operation
@@ -697,7 +697,7 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begi
  *
  * \param x The input tensor
  * \param begin The indices to begin with in the slicing
- * \param end Indicies indicating end of the slice
+ * \param end Indices indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
  * in that case, the input tensor will be reversed in that particular axis
  * \param name The name of the operation
@@ -728,7 +728,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
  *
  * \param ishape The input tensor shape
  * \param begin The indices to begin with in the slicing
- * \param end Indicies indicating end of the slice
+ * \param end Indices indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
  * in that case, the input tensor will be reversed in that particular axis
  * \param axes Axes along which slicing is applied. When it is specified, the length of begin, end,
@@ -754,7 +754,7 @@ inline Array<PrimExpr> StridedSliceOutputShape(
  *
  * \param x The input tensor
  * \param begin The indices to begin with in the slicing
- * \param end Indicies indicating end of the slice
+ * \param end Indices indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
  * in that case, the input tensor will be reversed in that particular axis
  * \param axes Axes along which slicing is applied. When it is specified, the length of begin, end,
@@ -802,7 +802,7 @@ inline Tensor strided_slice_with_axes(const Tensor& x, const Array<Integer>& beg
  *
  * \param x The input tensor
  * \param begin The indices to begin with in the slicing
- * \param end Indicies indicating end of the slice
+ * \param end Indices indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
  * in that case, the input tensor will be reversed in that particular axis
  * \param slice_mode Specifies the slice mode
