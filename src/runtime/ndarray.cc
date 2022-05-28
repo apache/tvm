@@ -240,6 +240,10 @@ NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
   data->SetDeleter(Internal::DLPackDeleter);
   // fill up content.
   data->manager_ctx = tensor;
+  ICHECK(::tvm::runtime::IsContiguous(tensor->dl_tensor))
+      << "DLManagedTensor is not contiguous. It does not support for now";
+  ICHECK(IsAligned(tensor->dl_tensor))
+      << "Data in DLManagedTensor is not aligned as required by NDArray";
   data->dl_tensor = tensor->dl_tensor;
   // update shape_
   std::vector<ShapeTuple::index_type> shape;
