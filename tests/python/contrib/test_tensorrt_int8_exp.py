@@ -58,7 +58,7 @@ def skip_runtime_test():
 def test_trt_int8():
     """
     This Function is used to use tensorrt int8 to compile a resnet34 model,
-    and compare cosine distance between the output of the original model and trt int8 tvm ouput
+    and compare cosine distance between the output of the original model and trt int8 tvm output
 
     """
     if skip_codegen_test() or skip_runtime_test():
