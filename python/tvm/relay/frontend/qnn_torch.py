@@ -108,7 +108,7 @@ def make_conv_packed_param(qweight, bias, packed_params):
 
 
 def get_weight_quant_params(script_module, packed_param_names):
-    """Retrive and unpack weight parameters from quantized modules"""
+    """Retrieve and unpack weight parameters from quantized modules"""
     import torch
 
     param_name = "_packed_params"
