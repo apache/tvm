@@ -185,3 +185,18 @@ TEST(ThreadingBackend, TVMBackendAffinityConfigure) {
     t->join();
   }
 }
+
+TEST(ThreadingBackend, TVMX86MaxConcurrency) {
+#if defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
+  tvm::runtime::threading::Cpu cpu;
+  if (cpu.is_intel()) {
+    // Hardware concurrency is number of threads per core multiplied to number of cores
+    // We can use this metric for determination if Cpu class works anyhow properly
+    // The exact verification should be based on knowledge of hardware or
+    // OS utilities that is not generic and cannot be used in test
+    EXPECT_EQ(cpu.get_num_cores(tvm::runtime::threading::CoreLevel) *
+                  cpu.get_num_cores(tvm::runtime::threading::SmtLevel),
+              std::thread::hardware_concurrency());
+  }
+#endif
+}

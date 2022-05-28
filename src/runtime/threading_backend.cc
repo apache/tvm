@@ -40,11 +40,158 @@
 #define HEXAGON_STACK_ALIGNMENT 32
 #endif
 #include <algorithm>
+#include <string>
 #include <thread>
 #define CURRENT_THREAD_HANDLE (static_cast<std::thread::native_handle_type>(0))
 namespace tvm {
 namespace runtime {
 namespace threading {
+#if defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
+#ifdef _MSC_VER
+#if (_MSC_VER < 1400)
+static inline __declspec(naked) void __cpuid(int[4], int) {
+  __asm {
+        push  ebx
+        push  esi
+        mov   eax, dword ptr [esp + 4 * 2 + 8]  // eaxIn
+        cpuid
+        mov   esi, dword ptr [esp + 4 * 2 + 4]  // data
+        mov   dword ptr [esi], eax
+        mov   dword ptr [esi + 4], ebx
+        mov   dword ptr [esi + 8], ecx
+        mov   dword ptr [esi + 12], edx
+        pop   esi
+        pop   ebx
+        ret
+  }
+}
+#else
+#include <intrin.h>  // for __cpuid
+#endif
+#else
+#ifndef __GNUC_PREREQ
+#define __GNUC_PREREQ(major, minor) \
+  ((((__GNUC__) << 16) + (__GNUC_MINOR__)) >= (((major) << 16) + (minor)))
+#endif
+#if __GNUC_PREREQ(4, 3) && !defined(__APPLE__)
+#include <cpuid.h>
+#else
+// avoid err on Apple: can't find a register in class `BREG' while reloading `asm'
+#if defined(__APPLE__) && defined(_M_IX86)
+#define __cpuid(eaxIn, a, b, c, d)                                         \
+  __asm__ __volatile__("pushl %%ebx\ncpuid\nmovl %%ebp, %%esi\npopl %%ebx" \
+                       : "=a"(a), "=S"(b), "=c"(c), "=d"(d)                \
+                       : "0"(eaxIn))
+#define __cpuid_count(eaxIn, ecxIn, a, b, c, d)                            \
+  __asm__ __volatile__("pushl %%ebx\ncpuid\nmovl %%ebp, %%esi\npopl %%ebx" \
+                       : "=a"(a), "=S"(b), "=c"(c), "=d"(d)                \
+                       : "0"(eaxIn), "2"(ecxIn))
+#else
+#define __cpuid(eaxIn, a, b, c, d) \
+  __asm__ __volatile__("cpuid\n" : "=a"(a), "=b"(b), "=c"(c), "=d"(d) : "0"(eaxIn))
+#define __cpuid_count(eaxIn, ecxIn, a, b, c, d) \
+  __asm__ __volatile__("cpuid\n" : "=a"(a), "=b"(b), "=c"(c), "=d"(d) : "0"(eaxIn), "2"(ecxIn))
+#endif
+#endif
+#endif
+
+unsigned int Cpu::get_num_cores(IntelCpuTopologyLevel level) const {
+  if (!x2apic_supported_) throw std::string("x2apic_supported_ is not supported");
+  switch (level) {
+    case SmtLevel:
+      return num_cores_[level - 1];
+    case CoreLevel:
+      return num_cores_[level - 1] / num_cores_[SmtLevel - 1];
+    default:
+      throw std::string("x2apic_supported_ is not supported");
+  }
+}
+
+/*
+  data[] = { eax, ebx, ecx, edx }
+*/
+void Cpu::get_cpuid(unsigned int eaxIn, unsigned int data[4]) {
+#ifdef _MSC_VER
+  __cpuid(reinterpret_cast<int*>(data), eaxIn);
+#else
+  __cpuid(eaxIn, data[0], data[1], data[2], data[3]);
+#endif
+}
+void Cpu::get_cpuid_ex(unsigned int eaxIn, unsigned int ecxIn, unsigned int data[4]) {
+#ifdef _MSC_VER
+  __cpuidex(reinterpret_cast<int*>(data), eaxIn, ecxIn);
+#else
+  __cpuid_count(eaxIn, ecxIn, data[0], data[1], data[2], data[3]);
+#endif
+}
+
+typedef uint64_t Type;
+static const Type NONE = 0;
+static const Type tINTEL = 1 << 24;
+static const Type tAMD = 1 << 25;
+
+Cpu::Cpu() : type_(NONE), x2apic_supported_(false), num_cores_() {
+  unsigned int data[4] = {};
+  const unsigned int& ECX = data[2];
+  get_cpuid(0, data);
+  static const char intel[] = "ntel";
+  static const char amd[] = "cAMD";
+  if (ECX == get32bit_ss_be(amd)) {
+    type_ |= tAMD;
+  }
+  if (ECX == get32bit_ss_be(intel)) {
+    type_ |= tINTEL;
+  }
+
+  set_num_cores();
+}
+bool Cpu::is_intel() { return type_ & tINTEL; }
+
+bool Cpu::is_amd() { return type_ & tAMD; }
+
+unsigned int Cpu::get32bit_ss_be(const char* x) const {
+  return x[0] | (x[1] << 8) | (x[2] << 16) | (x[3] << 24);
+}
+
+unsigned int Cpu::extract_bit(unsigned int val, unsigned int base, unsigned int end) {
+  return (val >> base) & ((1u << (end - base)) - 1);
+}
+
+void Cpu::set_num_cores() {
+  if ((type_ & tINTEL) == 0) return;
+
+  unsigned int data[4] = {};
+
+  /* CAUTION: These numbers are configuration as shipped by Intel. */
+  get_cpuid_ex(0x0, 0, data);
+  if (data[0] >= 0xB) {
+    /*
+      if leaf 11 exists(x2APIC is supported),
+      we use it to get the number of smt cores and cores on socket
+
+      leaf 0xB can be zeroed-out by a hypervisor
+    */
+    x2apic_supported_ = true;
+    for (unsigned int i = 0; i < max_topology_levels; i++) {
+      get_cpuid_ex(0xB, i, data);
+      IntelCpuTopologyLevel level = (IntelCpuTopologyLevel)extract_bit(data[2], 8, 15);
+      if (level == SmtLevel || level == CoreLevel) {
+        num_cores_[level - 1] = extract_bit(data[1], 0, 15);
+      }
+    }
+    /*
+      Fallback values in case a hypervisor has 0xB leaf zeroed-out.
+    */
+    num_cores_[SmtLevel - 1] = (std::max)(1u, num_cores_[SmtLevel - 1]);
+    num_cores_[CoreLevel - 1] = (std::max)(num_cores_[SmtLevel - 1], num_cores_[CoreLevel - 1]);
+  } else {
+    // Failed to deremine num of cores without x2APIC support
+    num_cores_[SmtLevel - 1] = 0;
+    num_cores_[CoreLevel - 1] = 0;
+  }
+}
+
+#endif
 #ifdef __hexagon__
 // pthreads are broken on older versions of qurt, so
 // we need to use native APIs instead of std::threads
@@ -378,8 +525,13 @@ int MaxConcurrency() {
       max_concurrency = atoi(val);
     } else {
       max_concurrency = std::thread::hardware_concurrency();
-#if defined(_M_X64) || defined(__x86_64__)
-      max_concurrency /= 2;  // ignore hyper-threading
+#if defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
+      Cpu cpu;
+      if (cpu.is_intel()) {
+        max_concurrency = cpu.get_num_cores(CoreLevel);
+      } else {
+        max_concurrency /= 2;  // assume hyper-threading exists on all non intel platforms, ignore
+      }
 #elif defined(__hexagon__)
       // With unsigned PDs, getting the number of available hardware threads
       // is not supported in earlier versions of QuRT. In such cases assume 4.

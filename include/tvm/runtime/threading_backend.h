@@ -146,6 +146,72 @@ void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthr
  */
 int32_t NumThreads();
 
+#if defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
+
+typedef enum { SmtLevel = 1, CoreLevel = 2 } IntelCpuTopologyLevel;
+
+/**
+  CPU detection class
+*/
+class Cpu {
+ public:
+  /**
+   * @brief Construct a new Cpu object and initializes architecture specific parameters
+   */
+  Cpu();
+
+  /**
+   * @brief Returns the number of cores and number of virtual threads per core
+   *
+   * @param level SmtLevel stands for threads per core, CoreLevel stands for number of cores
+   * @return number of threads/cores
+   */
+  unsigned int get_num_cores(IntelCpuTopologyLevel level) const;
+
+  /**
+   * @brief Returns if current architecture is Intel
+   */
+  bool is_intel();
+
+  /**
+   * @brief Returns if current architecture is AMD
+   */
+  bool is_amd();
+
+ private:
+  /**
+   * @brief calls platform dependent cpuid instruction
+   */
+  void get_cpuid(unsigned int eaxIn, unsigned int data[4]);
+
+  /**
+   * @brief calls platform dependent cpuidex instruction
+   */
+  void get_cpuid_ex(unsigned int eaxIn, unsigned int ecxIn, unsigned int data[4]);
+
+  /**
+   * @brief Builds 32bit continuous word from array of chars
+   */
+  unsigned int get32bit_ss_be(const char* x) const;
+
+  /**
+   * @brief Extracts bits from val starting from base bit to end bit
+   */
+  unsigned int extract_bit(unsigned int val, unsigned int base, unsigned int end);
+
+  /**
+   * @brief Initializes number of cores/threads per core
+   */
+  void set_num_cores();
+
+  uint64_t type_;
+  // system topology
+  bool x2apic_supported_;
+  static const size_t max_topology_levels = 2;
+  unsigned int num_cores_[max_topology_levels];
+};
+#endif
+
 }  // namespace threading
 }  // namespace runtime
 }  // namespace tvm
