@@ -49,7 +49,7 @@ class TargetNode : public Object {
   TargetKind kind;
   /*! \brief Target host information, must be Target type */
   Optional<ObjectRef> host;
-  /*! \brief Tag of the the target, can be empty */
+  /*! \brief Tag of the target, can be empty */
   String tag;
   /*! \brief Keys for this target */
   Array<String> keys;
