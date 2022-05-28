@@ -26,7 +26,7 @@ and optimizing tvm generated kernels. The goal:
 
 ## Guidelines
 - Use numpy-style naming convention for known ops
-- Seperate operator declaration from schedule when possible.
+- Separate operator declaration from schedule when possible.
   - This can be inconvenient but enables more general scheduling across ops.
   - We can always recover the tensors from its outputs by traversing the tree.
 - Deliberately assert the requirements

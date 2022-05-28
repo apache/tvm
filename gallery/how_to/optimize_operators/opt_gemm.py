@@ -340,7 +340,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 ###################################################################################################
 # Parallel
 # --------
-# Futhermore, we can also utilize multi-core processors to do the thread-level parallelization.
+# Furthermore, we can also utilize multi-core processors to do the thread-level parallelization.
 
 s = te.create_schedule(C.op)
 
@@ -390,4 +390,4 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # our generated code can achieve 60% of the `numpy` performance with MKL.
 # Note that the outputs on the web page reflect the running times on a non-exclusive
 # Docker container, thereby they are *unreliable*. It is highly encouraged to run the
-# tutorial by yourself to observe the performance gain acheived by TVM.
+# tutorial by yourself to observe the performance gain achieved by TVM.

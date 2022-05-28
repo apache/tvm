@@ -314,7 +314,7 @@ except ValueError as ex:
     print("Catching", str(ex).split("\n")[-1])
 
 ###############################################################################
-# Exceptions occured in ``should_run``, ``run_before_pass``, ``run_after_pass``
+# Exceptions occurred in ``should_run``, ``run_before_pass``, ``run_after_pass``
 # are not handled explicitly -- we rely on the context manager (the ``with`` syntax)
 # to exit ``PassContext`` safely.
 #

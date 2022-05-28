@@ -31,7 +31,7 @@
 #include <../../../src/runtime/file_utils.h>
 
 #if defined(USE_CUSTOM_DSO_LOADER) && USE_CUSTOM_DSO_LOADER == 1
-// internal TVM header to achive Library class
+// internal TVM header to achieve Library class
 #include <../../../src/runtime/library_module.h>
 #include <custom_dlfcn.h>
 #endif
