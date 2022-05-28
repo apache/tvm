@@ -211,7 +211,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         new_attrs["channels"] = CO
 
         # pre-compute winograd_nnpack transform
-        # for winograd_nnpack_fp16, the the precompute prune pass must run on device,
+        # for winograd_nnpack_fp16, the precompute prune pass must run on device,
         # where float16 is supported
         weight_dtype = "float32"
         weight_expr = inputs[1]

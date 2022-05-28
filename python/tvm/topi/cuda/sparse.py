@@ -131,8 +131,8 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
         # pylint: disable=invalid-name, simplifiable-if-statement
         # TODO(tkonolige): use tensorcores for block multiply
         # TODO(tkonolige): use vectorize on loads
-        # TODO(tkonolige): seperate implementation if M is small
-        # TODO(tkonolige): seperate implementation for large block sizes
+        # TODO(tkonolige): separate implementation if M is small
+        # TODO(tkonolige): separate implementation for large block sizes
         ib = tvm.tir.ir_builder.create()
 
         if tvm.target.Target.current(allow_none=False).kind.name == "cuda":

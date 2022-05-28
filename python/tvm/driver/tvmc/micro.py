@@ -266,7 +266,7 @@ def create_project_handler(args):
     try:
         project.generate_project_from_mlf(template_dir, project_dir, mlf_path, options)
     except ServerError as error:
-        print("The following error occured on the Project API server side: \n", error)
+        print("The following error occurred on the Project API server side: \n", error)
         sys.exit(1)
 
 
@@ -292,7 +292,7 @@ def build_handler(args):
         prj = project.GeneratedProject.from_directory(project_dir, options=options)
         prj.build()
     except ServerError as error:
-        print("The following error occured on the Project API server side: ", error)
+        print("The following error occurred on the Project API server side: ", error)
         sys.exit(1)
 
 
@@ -310,5 +310,5 @@ def flash_handler(args):
         prj = project.GeneratedProject.from_directory(project_dir, options=options)
         prj.flash()
     except ServerError as error:
-        print("The following error occured on the Project API server side: ", error)
+        print("The following error occurred on the Project API server side: ", error)
         sys.exit(1)

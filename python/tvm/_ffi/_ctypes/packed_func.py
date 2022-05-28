@@ -39,7 +39,7 @@ TVMRetValueHandle = ctypes.c_void_p
 
 
 def _ctypes_free_resource(rhandle):
-    """callback to free resources when it it not needed."""
+    """callback to free resources when it is not needed."""
     pyobj = ctypes.cast(rhandle, ctypes.py_object)
     ctypes.pythonapi.Py_DecRef(pyobj)
 

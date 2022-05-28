@@ -885,7 +885,7 @@ class OperatorConverter(object):
 
 
 def _rebuild_layers(predict_layer):
-    """Rebuild caffe layer. If the the caffe net include in-place layers, repalce its top
+    """Rebuild caffe layer. If the caffe net include in-place layers, repalce its top
     with its name and update the bottom of other layer that is related to it.
     """
     # dict of input name that will be changed to new name

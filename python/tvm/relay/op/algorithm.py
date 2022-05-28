@@ -45,7 +45,7 @@ def sort(data, axis=-1, is_ascend=1):
 
 
 def argsort(data, axis=-1, is_ascend=1, dtype="int32"):
-    """Performs sorting along the given axis and returns an array of indicies
+    """Performs sorting along the given axis and returns an array of indices
     having same shape as an input array that index data in sorted order.
 
     Parameters

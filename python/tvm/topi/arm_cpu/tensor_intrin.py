@@ -860,7 +860,7 @@ def gemm_acc_nx16_int8_int8_int32(dtype, rows):
     dtype : str, {"uint8", "int8"}
         Whether it works on unsigned int or signed int
     rows : int
-        Number of of the output rows "n"
+        Number of the output rows "n"
 
     Returns
     -------

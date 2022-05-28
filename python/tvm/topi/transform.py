@@ -183,7 +183,7 @@ def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end"):
         The indices to begin with in the slicing.
 
     end : list of int
-        Indicies indicating end of the slice.
+        Indices indicating end of the slice.
 
     strides : list of int, optional
         Specifies the stride values, it can be negative
@@ -243,7 +243,7 @@ def strided_set(a, v, begin, end, strides=None):
         The indices to begin with in the slicing.
 
     end: tvm.te.Tensor
-        Indicies indicating end of the slice.
+        Indices indicating end of the slice.
 
     strides: tvm.te.Tensor, optional
         Specifies the stride values, it can be negative
