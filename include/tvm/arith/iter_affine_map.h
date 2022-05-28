@@ -308,8 +308,11 @@ class IterMapResultNode : public Object {
  */
 class IterMapResult : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(IterMapResult, ObjectRef, IterMapResultNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(IterMapResultNode);
+  // constructor
+  IterMapResult() { data_ = make_object<IterMapResultNode>(); }
+
+  /*! \return mutable pointers to the node. */
+  IterMapResultNode* operator->() const { return static_cast<IterMapResultNode*>(get_mutable()); }
 };
 
 /*!

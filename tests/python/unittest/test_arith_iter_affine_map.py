@@ -58,8 +58,10 @@ def assert_iter_sum_pattern(
         predicate=predicate,
         check_level=check_level,
         simplify_trivial_iterators=simplify_trivial_iterators,
-    ).indices
-    assert len(res) == len(keys)
+    )
+    indices = res.indices
+    assert len(indices) == len(keys), res.errors
+    print(indices)
     for i, input_iter in enumerate(keys):
         spec = expect_dict[input_iter]
         (
@@ -68,7 +70,7 @@ def assert_iter_sum_pattern(
         ) = spec[0:2]
         scale = spec[2] if len(spec) > 2 else 1
         expect_iter = spec[3] if len(spec) > 3 else None
-        sum_expr = res[i]
+        sum_expr = indices[i]
         assert isinstance(sum_expr, tvm.arith.IterSumExpr)
         if extent == 1:
             assert len(sum_expr.args) == 0
@@ -954,6 +956,40 @@ def test_padding():
     dom_map = var_dom([(y, 360)])
     assert_iter_sum_pattern({fld(sum, 16): (23, fld(x * 360 - flm(x, 2) * 8, 16), 1)}, dom_map)
     assert_iter_sum_pattern({flm(x * 360 + y, 16): (16, 0, 1)}, dom_map)
+
+    # multiple split with same mark offset, could
+    # be surjective on missing (padded // LCM)
+    assert_iter_sum_pattern(
+        {
+            flm(x + 10, 3): (3, 0),
+            flm(fld(x + 10, 3), 4): (4, 0),
+            flm(fld(fld(x + 10, 3), 4), 5): (5, 0),
+        },
+        var_dom([(x, 240)]),
+    )
+    assert_iter_sum_failure(
+        {
+            flm(x + 10, 3),
+            flm(fld(x + 10, 3), 4),
+            flm(fld(fld(x + 10, 3), 4), 5),
+            fld(fld(fld(x + 10, 3), 4), 5),
+        },
+        var_dom([(x, 240)]),
+    )
+
+    # different offsets on splits
+    assert_iter_sum_pattern(
+        {
+            flm(x + 1, 3): (3, 0),
+            flm(fld(x + 10, 3) + 2, 4): (4, 0),
+            flm(fld(fld(x + 10, 3), 4) + 3, 5): (5, 0),
+        },
+        var_dom([(x, 240)]),
+    )
+
+    # original extent is smaller than the divident
+    # it is not surjective wrt to the region [0, 16)
+    assert_iter_sum_failure({flm(x, 16)}, var_dom([(x, 3)]))
 
 
 if __name__ == "__main__":
