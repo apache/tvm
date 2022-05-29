@@ -546,6 +546,16 @@ class ScheduleNode : public runtime::Object {
                                BufferIndexType buffer_index_type, const IndexMap& index_map) = 0;
 
   /*!
+   * \brief Apply a transformation represented by IndexMap to block
+   * \details The block iters and the block body are transformed by the given index_map.
+   * Outer loops corresponding to each new block iter are regenerated.
+   * The index_map is required to be bijective affine since we need its inverse mapping.
+   * \param block_rv The block to be transformed
+   * \param index_map The transformation to apply.
+   */
+  virtual void TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) = 0;
+
+  /*!
    * \brief Set the axis separator of a buffer, where the buffer is specified by a block and a read
    * or write index
    * \param block_rv The block that accesses the target buffer.

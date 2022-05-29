@@ -26,6 +26,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "../../arith/ir_mutator_with_analyzer.h"
 #include "../ir/functor_common.h"
 
 namespace tvm {
@@ -171,6 +172,44 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
  */
 Optional<tir::LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::BlockRV& block_rv,
                                            const String& intrin_name);
+
+/******** Block mutation ********/
+
+/*!
+ * \brief Simplifier for indices of buffer access and block buffer access regions.
+ */
+class BlockBufferAccessSimplifier : public arith::IRMutatorWithAnalyzer {
+ public:
+  /*!
+   * \brief Simplify indices of buffer access and block buffer access regions in the statement
+   * \param stmt The statement to be simplified
+   * \param analyzer The arithmetic analyzer
+   * \return The simplified statement
+   */
+  static Stmt Simplify(const Stmt& stmt, arith::Analyzer* analyzer) {
+    BlockBufferAccessSimplifier simplifier(analyzer);
+    return simplifier(stmt);
+  }
+
+ private:
+  explicit BlockBufferAccessSimplifier(arith::Analyzer* analyzer)
+      : IRMutatorWithAnalyzer(analyzer) {}
+
+  using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::VisitStmt_;
+
+  void SimplifyAccessRegion(Array<BufferRegion>* old_access_regions);
+  Stmt VisitStmt_(const BlockNode* op) final;
+  Stmt VisitStmt_(const BufferStoreNode* op) final;
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final;
+
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    node.CopyOnWrite()->indices.MutateByApply(
+        [this](const PrimExpr& expr) { return analyzer_->Simplify(expr); });
+    return node;
+  }
+};
 
 }  // namespace tir
 }  // namespace tvm

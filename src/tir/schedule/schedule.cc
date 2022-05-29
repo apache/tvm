@@ -233,6 +233,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTransformLayout")
       return self->TransformLayout(block_rv, buffer_index,
                                    static_cast<BufferIndexType>(buffer_index_type), index_map);
     });
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTransformBlockLayout")
+    .set_body_method<Schedule>(&ScheduleNode::TransformBlockLayout);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetAxisSeparator")
     .set_body_typed([](Schedule self, const BlockRV& block_rv, int buffer_index,
                        int buffer_index_type, const Array<IntImm>& axis_separators) {
