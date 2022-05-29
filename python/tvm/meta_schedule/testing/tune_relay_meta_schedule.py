@@ -103,10 +103,13 @@ def main():
         ARGS.input_shape,
         cache_dir=ARGS.cache_dir,
     )
+    input_info = {input_name: input_shape}
+    input_data = {}
     print(f"Workload: {ARGS.workload}")
-    print(f"  input_name: {input_name}")
-    print(f"  input_shape: {input_shape}")
-    print(f"  input_dtype: {input_dtype}")
+    for input_name, input_shape in input_info.items():
+        print(f"  input_name: {input_name}")
+        print(f"  input_shape: {input_shape}")
+        print(f"  input_dtype: {input_dtype}")
     alloc_repeat = 1
     runner = ms.runner.RPCRunner(
         rpc_config=ARGS.rpc_config,
@@ -133,10 +136,13 @@ def main():
         params=params,
     )
     graph, rt_mod, params = lib.graph_json, lib.lib, lib.params
-    if input_dtype.startswith("float"):
-        input_data = np.random.uniform(size=input_shape).astype(input_dtype)
-    else:
-        input_data = np.random.randint(low=0, high=10000, size=input_shape, dtype=input_dtype)
+    for input_name, input_shape in input_info.items():
+        if input_dtype.startswith("float"):
+            input_data[input_name] = np.random.uniform(size=input_shape).astype(input_dtype)
+        else:
+            input_data[input_name] = np.random.randint(
+                low=0, high=10000, size=input_shape, dtype=input_dtype
+            )
 
     def f_timer(rt_mod, dev, input_data):
         # pylint: disable=import-outside-toplevel
@@ -145,7 +151,8 @@ def main():
         # pylint: enable=import-outside-toplevel
 
         mod = GraphModule(rt_mod["default"](dev))
-        mod.set_input(input_name, input_data)
+        for input_name, input_value in input_data.items():
+            mod.set_input(input_name, input_value)
         ftimer = mod.module.time_evaluator(
             "run",
             dev,
@@ -159,7 +166,7 @@ def main():
         rpc_config=ARGS.rpc_config,
         lib=lib,
         dev_type=ARGS.target.kind.name,
-        args=[input_data],
+        args=input_data,
         continuation=f_timer,
     )
 
@@ -169,7 +176,8 @@ def main():
 
         # pylint: enable=import-outside-toplevel
         mod = create(graph, rt_mod, dev)
-        mod.set_input(input_name, input_data)
+        for input_name, input_value in input_data.items():
+            mod.set_input(input_name, input_value)
         graph_nodes = [n["name"] for n in json.loads(graph)["nodes"]]
         graph_time = mod.run_individual(number=10, repeat=1, min_repeat_ms=5000)
         print("|graph_nodes| = ", len(graph_nodes))
@@ -182,7 +190,7 @@ def main():
         rpc_config=ARGS.rpc_config,
         lib=rt_mod,
         dev_type=ARGS.target.kind.name,
-        args=[input_data],
+        args=input_data,
         continuation=f_per_layer,
     )
 

@@ -16,11 +16,23 @@
 # under the License.
 import pytest
 import sys
+import numpy as np
 
 import tvm
 import tvm.testing
+import tvm.tir.tensor_intrin.cuda
 from tvm import tir, te, TVMError
 from tvm.script import tir as T
+from tvm.meta_schedule.testing import te_workload
+from tvm.testing.tir import mma_schedule
+from tvm.tir.tensor_intrin.cuda import (
+    LDMATRIX_16x16_A_DYN_INTRIN,
+    LDMATRIX_16x16_B_DYN_INTRIN,
+    MMA_f16f16f32_INTRIN,
+    MMA_fill_16x16_f32_INTRIN,
+    MMA_store_16x16_f32_global_INTRIN,
+    shared_16x16_to_ldmatrix_32x8_layout,
+)
 
 
 def _check(original, transformed):
@@ -156,7 +168,7 @@ def three_stage_compute(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), 
                 with T.block():
                     T.reads(B[tx, 0])
                     T.writes(C[tx, 0])
-                    C[tx, 0] = A[tx, 0] + T.float32(2)
+                    C[tx, 0] = B[tx, 0] + T.float32(2)
                 with T.block():
                     T.reads(C[tx, 0])
                     T.writes(D[tx, i])
@@ -185,7 +197,7 @@ def transformed_three_stage_compute(
                         T.where(1 <= i)
                         T.reads(B[0:2, tx, 0])
                         T.writes(C[0:2, tx, 0])
-                        C[(i + 1) % 2, tx, 0] = A[tx, 0] + T.float32(2)
+                        C[(i + 1) % 2, tx, 0] = B[(i + 1) % 2, tx, 0] + T.float32(2)
             with T.block():
                 T.reads(A[tx, 2:16], B[0:2, tx, 0], C[0:2, tx, 0])
                 T.writes(B[0:2, tx, 0], C[0:2, tx, 0], D[tx, 0:14])
@@ -197,7 +209,7 @@ def transformed_three_stage_compute(
                     with T.block():
                         T.reads(B[0:2, tx, 0])
                         T.writes(C[0:2, tx, 0])
-                        C[(i + 1) % 2, tx, 0] = A[tx, 0] + T.float32(2)
+                        C[(i + 1) % 2, tx, 0] = B[(i + 1) % 2, tx, 0] + T.float32(2)
                     with T.block():
                         T.reads(C[0:2, tx, 0])
                         T.writes(D[tx, i])
@@ -210,7 +222,7 @@ def transformed_three_stage_compute(
                         T.where(i < 1)
                         T.reads(B[0:2, tx, 0])
                         T.writes(C[0:2, tx, 0])
-                        C[(i + 1) % 2, tx, 0] = A[tx, 0] + T.float32(2)
+                        C[(i + 1) % 2, tx, 0] = B[(i + 1) % 2, tx, 0] + T.float32(2)
                     with T.block():
                         T.reads(C[0:2, tx, 0])
                         T.writes(D[tx, i + 14])
@@ -1020,6 +1032,63 @@ def test_error_conflicting_order():
 
 def test_error_missing_annotation():
     _check_error(simple_compute_missing_annotation)
+
+
+@tvm.testing.requires_cuda
+def test_three_stage_gemm():
+    N = K = M = 4096
+    i_factors, j_factors, k_factors = [4, 8, 2, 4, 1], [1, 64, 2, 1, 2], [128, 2, 1]
+
+    def is_ampere_or_newer():
+        arch = tvm.contrib.nvcc.get_target_compute_version()
+        major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
+        return major >= 8
+
+    def index_map(i, j):
+        return (
+            i // 16,
+            j // 16,
+            *shared_16x16_to_ldmatrix_32x8_layout(i % 16, j % 16),
+        )
+
+    workload = te.create_prim_func(te_workload.matmul_fp16(N, M, K))
+
+    sch = mma_schedule(
+        workload,
+        16,
+        "float16",
+        False,
+        i_factors,
+        j_factors,
+        k_factors,
+        index_map,
+        index_map,
+        index_map,
+        LDMATRIX_16x16_A_DYN_INTRIN,
+        LDMATRIX_16x16_B_DYN_INTRIN,
+        MMA_f16f16f32_INTRIN,
+        MMA_fill_16x16_f32_INTRIN,
+        MMA_store_16x16_f32_global_INTRIN,
+        "shared.dyn",
+    )
+
+    k0 = sch.get_loops(sch.get_block("C_o_update"))[3]
+
+    sch.annotate(k0, ann_key="software_pipeline_stage", ann_val=[0, 0, 3])
+    sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
+
+    if is_ampere_or_newer():
+        f = tvm.build(sch.mod["main"], target="cuda")
+
+        dev = tvm.device("cuda", 0)
+        a_np = np.random.uniform(size=(N, K)).astype("float16")
+        b_np = np.random.uniform(size=(K, M)).astype("float16")
+        c_np = np.dot(a_np.astype("float32"), b_np.astype("float32"))
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros((N, M), dtype="float32"), dev)
+        f(a, b, c)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
 
 
 if __name__ == "__main__":

@@ -37,6 +37,8 @@ run_module = tvm.testing.parameter(
     ids=["compile", "run"],
 )
 
+bf16_supported = "avx512" in open("/proc/cpuinfo", "r").read()
+
 
 def partition_for_dnnl(mod, params=None, alter_layout=True):
     """Partition the graph greedily offloading supported operators to DNNL.
@@ -109,7 +111,10 @@ def partition_for_dnnl(mod, params=None, alter_layout=True):
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.nd.NDArray):
-        return [o.numpy()]
+        o_np = o.numpy()
+        if o_np.dtype == np.uint16:
+            o_np = np.left_shift(o_np.astype("uint32"), 16).view("<f4")
+        return [o_np]
     elif isinstance(o, tvm.runtime.container.ADT) or isinstance(o, list):
         return [vmobj_to_list(f) for f in o]
     else:
@@ -121,10 +126,13 @@ def assert_result_dict_holds(result_dict):
         res1 = vmobj_to_list(result_dict[k1])
         res2 = vmobj_to_list(result_dict[k2])
         for r1, r2 in zip(res1, res2):
-            tvm.testing.assert_allclose(r1, r2, rtol=1e-3, atol=1e-3)
+            if "bf16" in k1 or "bf16" in k2:
+                np.testing.assert_array_almost_equal(r1, r2, decimal=1)
+            else:
+                tvm.testing.assert_allclose(r1, r2, rtol=1e-3, atol=1e-3)
 
 
-def run_and_verify(mod, input, params, target, run_module, subgraph_num=None):
+def run_and_verify(mod, input, params, target, run_module, subgraph_num=None, test_bf16=True):
     def check_dnnl_used(mod, subgraph_num=None):
         num_dnnl_subgraphs = sum(
             [1 if "dnnl" in gv.name_hint else 0 for gv in mod.get_global_vars()]
@@ -137,13 +145,30 @@ def run_and_verify(mod, input, params, target, run_module, subgraph_num=None):
     dev = tvm.cpu()
     result_dict = dict()
     for mode in ["graph", "vm"]:
-        for use_dnnl, alter_layout in [(False, False), (True, False), (True, True)]:
-            result_key = mode + ("_dnnl" if use_dnnl else "") + ("_layout" if alter_layout else "")
+        configs = [
+            (False, False, False),
+            (True, False, False),
+            (True, True, False),
+        ]
+        if test_bf16 and bf16_supported:
+            configs += [(True, False, True), (True, True, True)]
+        for use_dnnl, alter_layout, use_bf16 in configs:
+            result_key = (
+                mode
+                + ("_dnnl" if use_dnnl else "")
+                + ("_layout" if alter_layout else "")
+                + ("_bf16" if use_bf16 else "_fp32")
+            )
+            processed_mod = mod
+            if use_bf16:
+                processed_mod = relay.transform.ToMixedPrecision("bfloat16")(processed_mod)
+                if tvm.ir.structural_equal(processed_mod, mod):
+                    print("can not convert to bfloat16, skipping...")
+                    continue
             if use_dnnl:
-                processed_mod = partition_for_dnnl(mod, params, alter_layout)
-                check_dnnl_used(processed_mod, subgraph_num)
-            else:
-                processed_mod = mod
+                processed_mod = partition_for_dnnl(processed_mod, params, alter_layout)
+                check_dnnl_used(processed_mod)
+
             with tvm.transform.PassContext(opt_level=3):
                 func = relay.create_executor(
                     mode, mod=processed_mod, device=dev, target=target
@@ -158,7 +183,9 @@ def run_and_verify(mod, input, params, target, run_module, subgraph_num=None):
         assert_result_dict_holds(result_dict)
 
 
-def run_and_verify_func(config, run_module, subgraph_num=None, target="llvm", dtype="float32"):
+def run_and_verify_func(
+    config, run_module, subgraph_num=None, target="llvm", dtype="float32", test_bf16=True
+):
     """Test a Relay func by compiling, running, and comparing TVM and DNNL outputs.
     Parameters
     ----------
@@ -176,7 +203,13 @@ def run_and_verify_func(config, run_module, subgraph_num=None, target="llvm", dt
         if k not in is_param
     }
     run_and_verify(
-        f, input_dict, params, subgraph_num=subgraph_num, target=target, run_module=run_module
+        f,
+        input_dict,
+        params,
+        subgraph_num=subgraph_num,
+        target=target,
+        run_module=run_module,
+        test_bf16=test_bf16,
     )
 
 
@@ -586,7 +619,6 @@ def test_elementwise(run_module, dtype="float32"):
         relay.exp,
         relay.log,
         relay.sqrt,
-        relay.round,
         relay.nn.relu,
         relay.tanh,
         relay.sigmoid,
@@ -956,14 +988,14 @@ def test_prune_dnnl_subgraph(run_module):
     """In this test, OP "add" should be offloaded from dnnl codegen."""
 
     def get_graph():
-        x1 = relay.var("x1", shape=(1, 64, 56, 56))
-        x2 = relay.var("x2", shape=(1, 64, 56, 56))
-        bias = relay.var("bias", shape=(64,))
-        weight = relay.var("weight", shape=(64, 64, 3, 3))
+        x1 = relay.var("x1", shape=(1, 32, 56, 56))
+        x2 = relay.var("x2", shape=(1, 32, 56, 56))
+        bias = relay.var("bias", shape=(32,))
+        weight = relay.var("weight", shape=(32, 32, 3, 3))
         y = relay.nn.conv2d(
             x1,
             weight,
-            channels=64,
+            channels=32,
             kernel_size=(3, 3),
             padding=(1, 1),
         )
@@ -972,16 +1004,16 @@ def test_prune_dnnl_subgraph(run_module):
         y = relay.nn.global_max_pool2d(y)
         y = relay.add(y, x2)
         dic = {
-            "x1": (1, 64, 56, 56),
-            "x2": (1, 64, 56, 56),
-            "weight": (64, 64, 3, 3),
-            "bias": (64,),
+            "x1": (1, 32, 56, 56),
+            "x2": (1, 32, 56, 56),
+            "weight": (32, 32, 3, 3),
+            "bias": (32,),
         }
         param_lst = ["weight", "bias"]
         out = tvm.IRModule.from_expr(y)
         return out, dic, param_lst
 
-    run_and_verify_func(get_graph(), subgraph_num=1, run_module=run_module)
+    run_and_verify_func(get_graph(), subgraph_num=1, run_module=run_module, test_bf16=False)
 
 
 if __name__ == "__main__":

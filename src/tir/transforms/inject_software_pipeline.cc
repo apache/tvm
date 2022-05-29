@@ -135,7 +135,8 @@ class PipelineOpaqueAccessRewriter {
         } else {
           offset = new_buffer->strides[0];
         }
-        PrimExpr new_index = old_index + floormod(pipeline_loop_->loop_var, 2) * offset;
+        PrimExpr new_index =
+            old_index + floormod(pipeline_loop_->loop_var, new_buffer->shape[0]) * offset;
         new_args.Set(2, new_index);
         return Call(call->dtype, call->op, new_args, call->span);
       }

@@ -19,6 +19,8 @@
 """The build utils in python."""
 from typing import Union, Optional, List, Mapping
 
+import warnings
+
 import tvm.tir
 
 from tvm.runtime import Module
@@ -255,8 +257,13 @@ def build(
 
     annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
 
-    # TODO(mbs): CompilationConfig implements the same host target defaulting logic, but
-    # tir_to_runtime currently bypasses that.
+    # TODO(mbs): Both CompilationConfig and TIRToRuntime implement the same host target
+    #  defaulting logic, but there's currently no way to get back the decided host.
+    if target_host is not None:
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
+        )
     if not target_host:
         for tar, mod in annotated_mods.items():
             device_type = ndarray.device(tar.kind.name, 0).device_type

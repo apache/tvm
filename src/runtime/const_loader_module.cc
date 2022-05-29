@@ -79,7 +79,7 @@ class ConstLoaderModuleNode : public ModuleNode {
     return PackedFunc(nullptr);
   }
 
-  const char* type_key() const { return "const_loader"; }
+  const char* type_key() const final { return "const_loader"; }
 
   /*!
    * \brief Get the list of constants that is required by the given module.

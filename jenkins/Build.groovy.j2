@@ -141,7 +141,7 @@ stage('Build') {
   },
   'BUILD: arm': {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('ARM') {
+      node('ARM-SMALL') {
         ws({{ m.per_exec_ws('tvm/build-arm') }}) {
           init_git()
           sh (
