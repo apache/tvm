@@ -41,7 +41,7 @@ from tvm.relay.expr import GlobalVar
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 from ... import _ffi_api
-from ...dataflow_pattern import wildcard, is_op
+from ...dataflow_pattern import wildcard, is_op, is_constant, rewrite, DFPatternCallback
 from .register import register_pattern_table
 
 logger = logging.getLogger("DNNL")
@@ -92,6 +92,7 @@ _register_external_op_helper("sigmoid")
 _register_external_op_helper("nn.softmax")
 _register_external_op_helper("add")
 _register_external_op_helper("multiply")
+_register_external_op_helper("nn.layer_norm")
 
 
 def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
@@ -526,3 +527,52 @@ def prune_dnnl_subgraphs(mod):
     new_mod["main"] = SubgraphRemover(subgraphs_to_remove, mod, new_mod).visit(mod["main"])
     new_mod = transform.RemoveUnusedFunctions()(new_mod)
     return new_mod
+
+
+class LayerNormRewrite(DFPatternCallback):
+    '''
+    A callback to rewrite the following operators into a single layer normalization operator.
+
+    1   %4 = mean(%3, axis=[-1], keepdims=True) /* ty=Tensor[(1, 3136, 1), float32] */;
+    2   %5 = subtract(%3, %4) /* ty=Tensor[(1, 3136, 64), float32] */;
+    3   %6 = cast(%5, dtype="float32") /* ty=Tensor[(1, 3136, 64), float32] */;
+    4   %7 = power(%6, 2f /* ty=float32 */) /* ty=Tensor[(1, 3136, 64), float32] */;
+    5   %8 = mean(%7, axis=[-1], keepdims=True) /* ty=Tensor[(1, 3136, 1), float32] */;
+    6   %9 = add(%8, 1e-05f /* ty=float32 */) /* ty=Tensor[(1, 3136, 1), float32] */;
+    7   %10 = sqrt(%9) /* ty=Tensor[(1, 3136, 1), float32] */;
+    8   %11 = divide(%5, %10) /* ty=Tensor[(1, 3136, 64), float32] */;
+    9   %12 = multiply(%11, meta[relay.Constant][2] /* ty=Tensor[(64), float32] */) /* ty=Tensor[(1, 3136, 64), float32] */;
+    10   %13 = add(%12, meta[relay.Constant][3] /* ty=Tensor[(64), float32] */) /* ty=Tensor[(1, 3136, 64), float32] */;
+    '''
+
+    def __init__(self):
+        super(LayerNormRewrite, self).__init__()
+        self.data = wildcard()
+        self.eps = wildcard()
+        self.gamma = wildcard()
+        self.beta = wildcard()
+        mu = is_op("mean")(self.data)
+        diff = is_op("subtract")(self.data, mu)
+        cdiff = diff | is_op("cast")(diff)
+        p1 = is_op("power")(cdiff, is_constant())
+        mp1 = is_op("mean")(p1)
+        added_eps = is_op("add")(mp1, self.eps)
+        deno = is_op("sqrt")(added_eps)
+        div_out = is_op("divide")(diff, deno)
+        weighted = is_op("multiply")(div_out, self.gamma)
+        added_bias = is_op("add")(weighted, self.beta)
+        self.pattern = added_bias
+
+    def callback(self, pre, post, node_map):
+        data = node_map[self.data][0]
+        gamma = node_map[self.gamma][0]
+        beta = node_map[self.beta][0]
+        return relay.op.nn.layer_norm(data=data, gamma=gamma, beta=beta, epsilon=1e-5)
+
+
+def rewrite_layer_norm(mod):
+    """Rewrite the input graph to replace multiple operators with a TVM native layer normalization
+       operator so that we can offload them to dnnl layer normalization byoc part.
+    """
+    mod["main"] = rewrite(LayerNormRewrite(), mod["main"])
+    return mod

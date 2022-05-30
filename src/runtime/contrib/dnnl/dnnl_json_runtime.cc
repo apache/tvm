@@ -203,6 +203,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
           Binary(nid, dnnl::algorithm::binary_add);
         } else if ("multiply" == op_name) {
           Binary(nid, dnnl::algorithm::binary_mul);
+        } else if ("nn.layer_norm" == op_name) {
+          LayerNorm(nid);
         } else {
           LOG(FATAL) << "Unsupported op: " << op_name;
         }
@@ -447,6 +449,47 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
                                                              {DNNL_ARG_SCALE_SHIFT, scale_shift_tr},
                                                              {DNNL_ARG_MEAN, mean_tr},
                                                              {DNNL_ARG_VARIANCE, var_tr}});
+  }
+
+  void LayerNorm(const size_t& nid) {
+    auto node = nodes_[nid];
+
+    auto data_entry = node.GetInputs()[0];
+    auto gamma_entry = node.GetInputs()[1];
+    auto beta_entry = node.GetInputs()[2];
+    
+    dnnl::memory::dims data_shape = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
+
+    float epsilon = std::stof(node.GetAttr<std::vector<std::string>>("epsilon")[0]);
+
+    // Memory description.
+    dnnl::memory::desc data_md = GenDNNLMemDescByShape(data_shape, dt::f32);
+
+    // LN description.
+    auto lnorm_desc = dnnl::layer_normalization_forward::desc(
+        dnnl::prop_kind::forward_inference, data_md, epsilon,
+        dnnl::normalization_flags::use_scale | dnnl::normalization_flags::use_shift);
+
+    auto lnorm_prim_desc = dnnl::layer_normalization_forward::primitive_desc(lnorm_desc, engine_);
+    auto lnorm_prim = dnnl::layer_normalization_forward(lnorm_prim_desc);
+
+    net_.push_back(lnorm_prim);
+
+    // Memories.
+    auto data_memory = BindDNNLMemory(data_entry, data_md);
+    JSONGraphNodeEntry out_entry(nid, 0);
+    auto dst_memory = BindDNNLMemory(out_entry, data_md);
+    auto scale_memory = BindDNNLMemory(gamma_entry, data_md);
+    auto shift_memory = BindDNNLMemory(beta_entry, data_md);
+    auto mean_memory = dnnl::memory(lnorm_prim_desc.mean_desc(), engine_);
+    auto variance_memory = dnnl::memory(lnorm_prim_desc.variance_desc(), engine_);
+
+    net_args_.push_back({{DNNL_ARG_SRC, data_memory},
+                         {DNNL_ARG_MEAN, mean_memory},
+                         {DNNL_ARG_VARIANCE, variance_memory},
+                         {DNNL_ARG_SCALE, scale_memory},
+                         {DNNL_ARG_SHIFT, shift_memory},
+                         {DNNL_ARG_DST, dst_memory}});
   }
 
   void Pooling(const size_t& nid, dnnl::algorithm algo) {
