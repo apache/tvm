@@ -30,6 +30,7 @@
 #include <unordered_set>
 
 #include "../transforms/device_aware_visitors.h"
+#include "../transforms/pass_utils.h"
 #include "./liveness_analysis.h"
 #include "./utils.h"
 
@@ -38,11 +39,12 @@ namespace relay {
 namespace backend {
 
 /*!
- * \brief Annotates the memory usage of each primitive function by analyzing the liveness
- * of the input/output tensors at each function callsite and calculating the total amount of
- * memory these tensors require. This is added as a "used_memory" annotation to the function
- * in question. In addition, the containing function is annotated with an "io_used_memory"
- * annotation which refers to the total memory required for the IO tensors.
+ * \brief Annotates the minimum required memory of each primitive function callsite by analyzing
+ * the liveness of the input/output tensors at each function callsite and calculating the total
+ * amount of memory these tensors require. This is added as a "used_memory" annotation to the
+ * function in question as a list of the number of bytes for each callsite. In addition, the
+ * containing function is annotated with an "io_used_memory" annotation which refers to the total
+ * memory required for the IO tensors.
  *
  * A simple example:
  *
@@ -57,8 +59,9 @@ namespace backend {
  *
  * After:
  * def @main(%input: Tensor[(1, 2, 2, 4), int8], io_used_memory=32) -> Tensor[(1, 2, 2, 4), int8] {
- *   let %x_0: fn (%x: Tensor[(1, 2, 2, 4), int8], Primitive=1, used_memory=32) -> Tensor[(1, 2, 2,
- * 4), int8] { nn.max_pool2d(%x, pool_size=[1, 1], padding=[0, 0, 0, 0])
+ *   let %x_0: fn (%x: Tensor[(1, 2, 2, 4), int8], Primitive=1, used_memory=[32]) -> Tensor[(1, 2,
+ * 2, 4), int8] {
+ *      nn.max_pool2d(%x, pool_size=[1, 1], padding=[0, 0, 0, 0])
  *   };
  *   let %x_1: Tensor[(1, 2, 2, 4), int8] = %x_0(%input);
  *   %x_1
@@ -85,12 +88,14 @@ class AnnotateUsedMemoryMutator : public transform::DeviceAwareExprMutator {
     for (const Var& param : func->params) {
       Type type = param->checked_type();
       ICHECK(type.defined()) << "InferType pass should be run before AnnotateUsedMemory.";
+      ICHECK(!IsDynamic(type)) << "AnnotateUsedMemory does not support dynamic shapes.";
       io_used_memory += CalculateRelayExprSizeBytes(type);
     }
 
     // Outputs
     Type type = func->body->checked_type();
     ICHECK(type.defined()) << "InferType pass should be run before AnnotateUsedMemory.";
+    ICHECK(!IsDynamic(type)) << "AnnotateUsedMemory does not support dynamic shapes.";
     io_used_memory += CalculateRelayExprSizeBytes(type);
 
     Expr new_func_body = VisitExpr(func->body);
@@ -146,19 +151,22 @@ class AnnotateUsedMemoryMutator : public transform::DeviceAwareExprMutator {
         for (const auto& var : live_tensors) {
           Type type = var->checked_type();
           ICHECK(type.defined()) << "InferType pass should be run before AnnotateUsedMemory.";
+          ICHECK(!IsDynamic(type)) << "AnnotateUsedMemory does not support dynamic shapes.";
           used_memory += CalculateRelayExprSizeBytes(type);
         }
-        used_memory_annotations_[call_op] = used_memory;
+        IntImm annotation(DataType::UInt(64), used_memory);
+        used_memory_annotations_[call_op].push_back(annotation);
       }
     } else if (let_value->IsInstance<FunctionNode>()) {
       Function func = Downcast<Function>(let_value);
       ICHECK(used_memory_annotations_.find(let_var) != used_memory_annotations_.end())
           << "Could not find used_memory value for primitive function bound at "
           << let_var->name_hint();
-      uint64_t used_memory = used_memory_annotations_[let_var];
+      Array<IntImm> used_memory = used_memory_annotations_[let_var];
       used_memory_annotations_.erase(let_var);
+
       Function new_func = WithAttr(std::move(func), "used_memory",
-                                   tvm::IntImm(tvm::DataType::UInt(64), used_memory));
+                                   Array<IntImm>(used_memory.rbegin(), used_memory.rend()));
       return Let(let_var, new_func, post_let_node->body, post_let_node->span);
     }
 
@@ -185,9 +193,9 @@ class AnnotateUsedMemoryMutator : public transform::DeviceAwareExprMutator {
   transform::LivenessAnalysis liveness_;
   /*! \brief Var's that reference primitive functions. */
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> let_bound_prim_func_;
-  /*! \brief Stores the calculated used_memory values so they can be annotated on the relevant
-   * function. */
-  std::unordered_map<Var, uint64_t, ObjectPtrHash, ObjectPtrEqual> used_memory_annotations_;
+  /*! \brief Stores the calculated uint64 used_memory values so they can be annotated on the
+   * relevant function. */
+  std::unordered_map<Var, Array<IntImm>, ObjectPtrHash, ObjectPtrEqual> used_memory_annotations_;
 };
 
 }  // namespace backend
