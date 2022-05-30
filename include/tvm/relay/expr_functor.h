@@ -240,6 +240,8 @@ class MixedModeVisitor : public ::tvm::relay::ExprVisitor {
    */
   explicit MixedModeVisitor(int visit_limit = 1);
 
+  using ExprVisitor::VisitExpr_;
+
   /*!
    * \brief VisitExpr is finalized to preserve call expansion of dataflow regions
    */
