@@ -19,11 +19,12 @@
 from tvm import te
 from tvm.topi import tag
 from tvm.tir import IntImm
-from tvm.topi.generic.injective import schedule_injective_from_existing
+from tvm.topi.generic.injective \
+    import schedule_injective_from_existing as schedule_injective_for_concat
 from ..utils import is_empty_shape
 
 
-def schedule_injective_from_existing_ref(sch, out):
+def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
     Parameters
     ----------
@@ -77,7 +78,7 @@ def schedule_injective(outs):
     te.schedule.AutoInlineInjective(s)
 
     if not is_empty_shape(x.shape):
-        schedule_injective_from_existing_ref(s, x)
+        schedule_injective_from_existing(s, x)
     return s
 
 
@@ -147,7 +148,8 @@ def schedule_concatenate_cpu(outs):
 
     def traverse(op):
         if tag.is_injective(op.tag):
-            schedule_injective_from_existing(s, op.output(0))
+            schedule_injective_for_concat(s, op.output(0))
+
         for tensor in op.input_tensors:
             if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                 traverse(tensor.op)

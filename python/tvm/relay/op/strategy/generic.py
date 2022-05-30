@@ -1808,7 +1808,7 @@ def concatenate_strategy(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_concat(topi.concatenate),
-        wrap_topi_schedule(topi.generic.schedule_extern),
+        wrap_topi_schedule(topi.generic.schedule_injective),
         name="concatenate",
     )
     return strategy
