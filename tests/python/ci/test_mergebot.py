@@ -35,11 +35,21 @@ class TempGit:
             raise RuntimeError(f"git command failed: '{args}'")
 
 
+SUCCESS_EXPECTED_OUTPUT = """
+Dry run, would have merged with url=pulls/10786/merge and data={
+  "commit_title": "[Hexagon] 2-d allocation cleanup (#10786)",
+  "commit_message": "- Added device validity check in allocation. HexagonDeviceAPI should only be called for CPU/Hexagon types.\\n\\n- Check for \\"global.vtcm\\" scope instead of \\"vtcm\\".  The ccope of N-d allocations produced by `LowerVtcmAlloc` should be `\\"global.vtcm\\"`.  The previous check allowed unsupported scope such as `\\"local.vtcm\\"`.\\n\\n- Remove `vtcmallocs` entry after calling free.\\n\\nPreviously, the vtcm allocation map kept dangling pointers to `HexagonBuffer` objects after they had been freed.\\n\\n- Rename N-d alloc and free packed functions.  Since most of the similar device functions use snake case, renaming `*.AllocND` to `*.alloc_nd` and `*.FreeND` to `*.free_nd`.\\n\\n\\ncc someone\\n\\n\\nCo-authored-by: Adam Straw <astraw@octoml.ai>",
+  "sha": "6f04bcf57d07f915a98fd91178f04d9e92a09fcd",
+  "merge_method": "squash"
+}
+""".strip()
+
+
 test_data = {
     "successful-merge": {
         "number": 10786,
         "filename": "pr10786-merges.json",
-        "expected": "Dry run, would have merged with url=pulls/10786/merge",
+        "expected": SUCCESS_EXPECTED_OUTPUT,
         "detail": "Everything is fine so this PR will merge",
     },
     "no-request": {
@@ -95,6 +105,12 @@ test_data = {
         "filename": "pr10786-co-authors.json",
         "expected": "Co-authored-by: Some One <someone@email.com>",
         "detail": "Check that a merge request with co-authors generates the correct commit message",
+    },
+    "no-recomment": {
+        "number": 11442,
+        "filename": "pr11442-no-recomment.json",
+        "expected": "No merge requested, exiting",
+        "detail": "Check that comments after a failed merge don't trigger another merge",
     },
 }
 

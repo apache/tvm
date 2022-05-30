@@ -31,9 +31,12 @@ cdef void _c_dlpack_deleter(object pycaps):
 def _from_dlpack(object dltensor):
     cdef DLManagedTensor* ptr
     cdef DLTensorHandle chandle
+    cdef int c_api_ret_code
     if pycapsule.PyCapsule_IsValid(dltensor, _c_str_dltensor):
         ptr = <DLManagedTensor*>pycapsule.PyCapsule_GetPointer(dltensor, _c_str_dltensor)
-        CALL(TVMArrayFromDLPack(ptr, &chandle))
+        with nogil:
+            c_api_ret_code = TVMArrayFromDLPack(ptr, &chandle)
+        CHECK_CALL(c_api_ret_code)
         # set name and destructor to be empty
         pycapsule.PyCapsule_SetDestructor(dltensor, NULL)
         pycapsule.PyCapsule_SetName(dltensor, _c_str_used_dltensor)
@@ -82,12 +85,18 @@ cdef class NDArrayBase:
         self.c_is_view = is_view
 
     def __dealloc__(self):
+        cdef int c_api_ret_code
         if self.c_is_view == 0:
-            CALL(TVMArrayFree(self.chandle))
+            with nogil:
+                c_api_ret_code = TVMArrayFree(self.chandle)
+            CHECK_CALL(c_api_ret_code)
 
     def _copyto(self, target_nd):
         """Internal function that implements copy to target ndarray."""
-        CALL(TVMArrayCopyFromTo(self.chandle, (<NDArrayBase>target_nd).chandle, NULL))
+        cdef int c_api_ret_code
+        with nogil:
+            c_api_ret_code = TVMArrayCopyFromTo(self.chandle, (<NDArrayBase>target_nd).chandle, NULL)
+        CHECK_CALL(c_api_ret_code)
         return target_nd
 
     def to_dlpack(self):
@@ -98,9 +107,12 @@ cdef class NDArrayBase:
         dlpack : DLPack tensor view of the array data
         """
         cdef DLManagedTensor* dltensor
+        cdef int c_api_ret_code
         if self.c_is_view != 0:
             raise ValueError("to_dlpack do not work with memory views")
-        CALL(TVMArrayToDLPack(self.chandle, &dltensor))
+        with nogil:
+            c_api_ret_code = TVMArrayToDLPack(self.chandle, &dltensor)
+        CHECK_CALL(c_api_ret_code)
         return pycapsule.PyCapsule_New(dltensor, _c_str_dltensor, _c_dlpack_deleter)
 
 

@@ -686,6 +686,35 @@ bool GetVarsTouchedByBlockIters(const BlockRealize& block_realize,
   return has_block_vars_of_other_types;
 }
 
+/******** Loop properties ********/
+
+void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
+                             arith::Analyzer* analyzer) {
+  class LoopNotStartWithZeroError : public ScheduleError {
+   public:
+    explicit LoopNotStartWithZeroError(IRModule mod, For loop)
+        : mod_(mod), loop_(std::move(loop)) {}
+
+    String FastErrorString() const final {
+      return "ScheduleError: The primitive only supports loop starting with 0";
+    }
+
+    String DetailRenderTemplate() const final {
+      return "The loop {0} does not start with 0, which is not supported";
+    }
+
+    IRModule mod() const final { return mod_; }
+    Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+
+    IRModule mod_;
+    For loop_;
+  };
+  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  if (!analyzer->CanProve(loop->min == 0)) {
+    throw LoopNotStartWithZeroError(self->mod, GetRef<For>(loop));
+  }
+}
+
 /******** Block-loop relation ********/
 
 Array<StmtSRef> GetChildBlockSRefOnSRefTree(const ScheduleState& self,

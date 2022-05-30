@@ -2287,6 +2287,67 @@ class Schedule(Object):
             )
 
     @type_checked
+    def transform_block_layout(
+        self,
+        block: BlockRV,
+        index_map: Union[IndexMap, Callable],
+    ) -> None:
+        """Apply a transformation represented by IndexMap to block
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block to be transformed
+
+        index_map : Union[IndexMap, Callable]
+            The transformation to apply.
+
+        Examples
+        --------
+
+        Before transform_block_layout, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_transform_block_layout(
+                A: T.Buffer[(16, 16), "float32"],
+                B: T.Buffer[(16, 16), "float32"]
+            ) -> None:
+                for i, j in T.grid(16, 16):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do transform_block_layout:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_transform_block_layout)
+            sch.transform_block_layout(sch.get_block("B"), lambda i, j: (i * 16 + j,))
+            print(sch.mod["main"].script())
+
+        After applying transform_block_layout, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_transform_block_layout(
+                A: T.Buffer[(16, 16), "float32"],
+                B: T.Buffer[(16, 16), "float32"]
+            ) -> None:
+                for i in range(256):
+                    with T.block("B"):
+                        vi, = T.axis.remap("S", [i])
+                        B[vi // 16, vi % 16] = A[vi // 16, vi % 16] * 2.0
+        """
+        if callable(index_map):
+            index_map = IndexMap.from_func(index_map)
+        _ffi_api.ScheduleTransformBlockLayout(  # type: ignore # pylint: disable=no-member
+            self, block, index_map
+        )
+
+    @type_checked
     def set_axis_separator(
         self,
         block: Union[BlockRV, str],

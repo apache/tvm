@@ -22,6 +22,7 @@ import argparse
 import warnings
 import logging
 import traceback
+import re
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
@@ -33,7 +34,7 @@ Review = Dict[str, Any]
 CIJob = Dict[str, Any]
 
 EXPECTED_JOBS = ["tvm-ci/pr-head"]
-THANKS_MESSAGE = "Thanks for contributing to TVM!   Please refer to guideline https://tvm.apache.org/docs/contribute/ for useful information and tips. After the pull request is submitted, please request code reviews from [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers) by @ them in the pull request thread."
+THANKS_MESSAGE = r"(\s*)Thanks for contributing to TVM!   Please refer to guideline https://tvm.apache.org/docs/contribute/ for useful information and tips. After the pull request is submitted, please request code reviews from \[Reviewers\]\(https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers\) by  them in the pull request thread.(\s*)"
 
 
 def to_json_str(obj: Any) -> str:
@@ -315,11 +316,12 @@ class PR:
 
     def processed_body(self) -> str:
         body = self.raw["body"].strip().replace("\r", "")
-        body = body.replace(
-            THANKS_MESSAGE,
-            "",
-        )
-        return body
+        # Remove any @-mentions of people
+        body = re.sub(r"(\s)@", "\g<1>", body)
+
+        # Remove the auto-inserted text since it's not useful to have in the commit log
+        body = re.sub(THANKS_MESSAGE, "\n\n", body)
+        return body.strip()
 
     def body_with_co_authors(self) -> str:
         """
@@ -350,7 +352,7 @@ class PR:
         """
         url = f"pulls/{self.number}/merge"
 
-        title = self.raw["title"]
+        title = self.raw["title"] + f" (#{self.number})"
         body = self.body_with_co_authors()
         logging.info(f"Full commit:\n{title}\n\n{body}")
 
@@ -406,6 +408,9 @@ class PR:
         ]
 
         def parse_action(comment: Dict[str, Any]) -> Optional[str]:
+            if comment["author"]["login"] == "github-actions":
+                return "commented"
+
             if not self.comment_can_merge(comment):
                 return None
 

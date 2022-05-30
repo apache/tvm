@@ -38,7 +38,7 @@ cdef inline object make_ret_object(void* chandle):
     cdef object handle
     object_type = OBJECT_TYPE
     handle = ctypes_handle(chandle)
-    CALL(TVMObjectGetTypeIndex(chandle, &tindex))
+    CHECK_CALL(TVMObjectGetTypeIndex(chandle, &tindex))
 
     if tindex < len(OBJECT_TYPE):
         cls = OBJECT_TYPE[tindex]
@@ -101,7 +101,7 @@ cdef class ObjectBase:
             self._set_handle(value)
 
     def __dealloc__(self):
-        CALL(TVMObjectFree(self.chandle))
+        CHECK_CALL(TVMObjectFree(self.chandle))
 
     def __init_handle_by_constructor__(self, fconstructor, *args):
         """Initialize the handle by calling constructor function.

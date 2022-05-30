@@ -2195,6 +2195,19 @@ class Mean(OnnxOpConverter):
         return _op.mean(concat, axis=0, keepdims=False)
 
 
+class MeanVarianceNormalization(OnnxOpConverter):
+    """Operator converter for MeanVarianceNormalization."""
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        axis = attr.get("axes", (0, 2, 3))
+        data_mean = _op.mean(inputs[0], axis=axis, keepdims=True)
+        data_mean_squared = _op.power(data_mean, _expr.const(2, "float32"))
+        data_squared = _op.power(inputs[0], _expr.const(2, "float32"))
+        data_squared_mean = _op.mean(data_squared, axis=axis, keepdims=True)
+        return (inputs[0] - data_mean) / _op.sqrt(data_squared_mean - data_mean_squared)
+
+
 class HardSigmoid(OnnxOpConverter):
     """Operator converter for HardSigmoid."""
 
@@ -5072,7 +5085,7 @@ def _get_convert_map(opset):
         # 'GRUUnit'
         # 'ATen'
         # 'ImageScaler'
-        # 'MeanVarianceNormalization'
+        "MeanVarianceNormalization": MeanVarianceNormalization.get_converter(opset),
         # 'Crop'
         # 'Embedding'
         "Upsample": Upsample.get_converter(opset),
