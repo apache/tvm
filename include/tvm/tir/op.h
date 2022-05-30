@@ -61,6 +61,15 @@ namespace tvm {
 TVM_DLL Type GetType(const PrimExpr& expr);
 
 /*!
+ * \brief Get the type corresponding to DataType
+ * \param dtype The data type
+ * \return The result type
+ *
+ * \sa tvm/ir/type.h for discussion about the relation between Type and runtime::DataType.
+ */
+TVM_DLL Type GetTypeFromRuntimeDataType(const DataType& dtype);
+
+/*!
  * \brief Get the implied DataType for storing values with type during runtime.
  *
  * \param type The input type.
