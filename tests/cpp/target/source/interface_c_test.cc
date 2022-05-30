@@ -126,6 +126,33 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspacePools) {
   ASSERT_THAT(header_source, HasSubstr(run_function.str()));
 }
 
+TEST(InterfaceAPI, ContainsRunFunctionWithWorkspacePoolsAndDevices) {
+  std::stringstream run_function;
+
+  run_function << "/*!\n"
+               << " * \\brief entrypoint function for TVM module \"ultimate_cat_spotter\"\n"
+               << " * \\param inputs Input tensors for the module \n"
+               << " * \\param outputs Output tensors for the module \n"
+               << " * \\param workspace_pools Workspace memory pool pointers for the module \n"
+               << " * \\param devices Device context pointers for the module \n"
+               << " */\n"
+               << "int32_t tvmgen_ultimate_cat_spotter_run(\n"
+               << "  struct tvmgen_ultimate_cat_spotter_inputs* inputs,\n"
+               << "  struct tvmgen_ultimate_cat_spotter_outputs* outputs,\n"
+               << "  struct tvmgen_ultimate_cat_spotter_workspace_pools* workspace_pools,\n"
+               << "  struct tvmgen_ultimate_cat_spotter_devices* devices\n"
+               << ");\n";
+
+  PoolInfo pool_info = PoolInfo("my_memory_pool", {});
+  tir::usmp::AllocatedPoolInfo allocated_pool_info =
+      tir::usmp::AllocatedPoolInfo(pool_info, 100000);
+  runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
+                                                 {allocated_pool_info}, {}, {"device"}, 0);
+  std::string header_source = test_module->GetSource();
+
+  ASSERT_THAT(header_source, HasSubstr(run_function.str()));
+}
+
 TEST(InterfaceAPI, ContainsRunFunctionWithWorkspaceIO) {
   std::stringstream run_function_with_map_functions;
 
