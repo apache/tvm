@@ -618,7 +618,12 @@ bool TVMScriptPrinter::IsSimpleBuffer(const Buffer& buf) {
 
 Doc TVMScriptPrinter::PrintInlineBufferBind(const Buffer& buffer) {
   Doc doc;
-  doc << tir_prefix_ << ".Buffer[" << PrintTuple(buffer->shape.as<ArrayNode>());
+  doc << tir_prefix_ << ".Buffer[";
+  if (buffer->shape.size() == 1) {
+    doc << Print(buffer->shape[0]);
+  } else {
+    doc << PrintTuple(buffer->shape.as<ArrayNode>());
+  }
   doc << ", " << PrintDType(buffer->dtype) << "]";
   return doc;
 }
