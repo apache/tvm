@@ -412,38 +412,58 @@ Array<te::Operation> CollectOrderedOps(const Array<te::Tensor>& arg_list) {
   return order;
 }
 
-void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo& info, Array<Stmt>& root_stmts, arith::Analyzer& analyzer) {
+void InitializeBufferBinds(const Array<te::Operation>& ordered_ops, CreateFuncInfo* info) {
+  // Process any TE operations which contain user defined buffers
+  for (const auto& op : ordered_ops) {
+    // Initialize the tensor2buffer binds map with buffers defined by the te.extern
+    if (const auto extern_op = op.as<te::ExternOpNode>()) {
+      ICHECK_EQ(extern_op->inputs.size(), extern_op->input_placeholders.size());
+      for (size_t i = 0; i < extern_op->inputs.size(); ++i) {
+        const te::Tensor& input = extern_op->inputs[i];
+        const Buffer& buffer = extern_op->input_placeholders[i];
+        info->tensor2buffers[input] = buffer;
+      }
+    }
+  }
+}
+
+void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info, Array<Stmt>* root_stmts,
+                         arith::Analyzer* analyzer) {
   if (const auto* placeholder = op.as<te::PlaceholderOpNode>()) {
     // Case 1. PlaceholderOp (te.placeholder)
     ICHECK_EQ(op->num_outputs(), 1);
     const te::Tensor& tensor = op.output(0);
     // Check op is in op list
-    ICHECK(info.IsArg(tensor));
-    const Buffer& buffer =
-        decl_buffer(placeholder->shape, placeholder->dtype, placeholder->name, "global");
-    info.tensor2buffers[tensor] = buffer;
+    ICHECK(info->IsArg(tensor));
+    // Declare a buffer for any argument tensors without a pre-existing
+    // buffer declaration recorded in the tensor2buffer binds map
+    if (info->tensor2buffers.count(tensor) == 0) {
+      const Buffer& buffer =
+          decl_buffer(placeholder->shape, placeholder->dtype, placeholder->name, "global");
+      info->tensor2buffers[tensor] = buffer;
+    }
   } else if (const auto* compute_op = op.as<te::ComputeOpNode>()) {
     // Case 2. ComputeOp (te.compute)
-    root_stmts.push_back(
-        GenerateStmtFromCompute(GetRef<te::ComputeOp>(compute_op), &info, &analyzer));
+    root_stmts->push_back(
+        GenerateStmtFromCompute(GetRef<te::ComputeOp>(compute_op), info, analyzer));
   } else if (const auto extern_op = op.as<te::ExternOpNode>()) {
     // Case 3. ExternOp (te.extern)
-    root_stmts.push_back(GenerateStmtFromExternOp(GetRef<te::ExternOp>(extern_op), &info));
+    root_stmts->push_back(GenerateStmtFromExternOp(GetRef<te::ExternOp>(extern_op), info));
   } else {
     ICHECK(false) << "TypeError: Unsupported Operation: " << op->GetTypeKey() << ". "
                   << "Only te.placeholder and te.compute are allowed for now.";
   }
 }
 
-PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list, Array<Stmt>& root_stmts,
-                                     CreateFuncInfo& info) {
+PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
+                                     const Array<Stmt>& root_stmts, CreateFuncInfo* info) {
   Array<Var> parameters;
   Map<Var, Buffer> buffer_map;
   for (const te::Tensor& tensor : arg_list) {
     Var arg("var_" + tensor->GetNameHint(), PrimType(DataType::Handle()));
     parameters.push_back(arg);
-    auto it = info.tensor2buffers.find(tensor);
-    ICHECK(it != info.tensor2buffers.end());
+    auto it = info->tensor2buffers.find(tensor);
+    ICHECK(it != info->tensor2buffers.end());
     buffer_map.Set(arg, it->second);
   }
   PrimFunc func = WithAttrs(PrimFunc(/*params=*/std::move(parameters),
@@ -453,7 +473,7 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list, Array<St
                             {{"global_symbol", String("main")}, {"tir.noalias", Bool(true)}});
   const auto* complete = runtime::Registry::Get("script.Complete");
   ICHECK(complete);
-  func = (*complete)(std::move(func), info.root_alloc);
+  func = (*complete)(std::move(func), info->root_alloc);
   return LayoutFreePlaceholdersNormalizer().Process(std::move(func));
 }
 
@@ -467,12 +487,16 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
 
   // Step 1. Create ordered array of operations and validate they are supported.
   Array<te::Operation> order = CollectOrderedOps(arg_list);
-  // Step 2. Rewrite compute stages into blocks.
+
+  // Step 2. Initialize buffer binds map
+  InitializeBufferBinds(order, &info);
+
+  // Step 3. Rewrite compute stages into blocks.
   for (const te::Operation& op : order) {
-    RewriteStageToBlock(op, info, root_stmts, analyzer);
+    RewriteStageToBlock(op, &info, &root_stmts, &analyzer);
   }
-  // Step 3. Create func and complete prim func.
-  return GenerateAndCompletePrimFunc(arg_list, root_stmts, info);
+  // Step 4. Create func and complete prim func.
+  return GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
 }
 
 TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_typed(CreatePrimFunc);
