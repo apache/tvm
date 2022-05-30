@@ -37,6 +37,10 @@ from . import infra
 ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32", "ethos-u65-256"]
 
 
+def is_u55_accel_type(accel_type):
+    return "u55" in accel_type
+
+
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES + ["ethos-u65-512"])
 @pytest.mark.parametrize("ifm_shape", [(1, 299, 299, 2), (1, 55, 55, 3)])
 @pytest.mark.parametrize("kernel_shape", [(3, 2), (1, 3)])
@@ -270,9 +274,7 @@ def test_ethosu_binary_elementwise(
         shapes=[ifm_shape, ifm2_shape],
         ranges=[(0, 1), (0, 2)],
         accel_type=accel_type,
-        # non 4D ops legalize into identity op that is not currently supported in the cascader
-        enable_cascader=(len(ifm_shape) == 4 and len(ifm2_shape) == 4)
-        and ("u65" not in accel_type),
+        enable_cascader=is_u55_accel_type(accel_type),
     )
 
 
@@ -301,8 +303,7 @@ def test_binary_add_with_non_4d_shapes(
         shapes=[ifm_shape, ifm2_shape],
         ranges=[(0, 1), (0, 2)],
         accel_type=accel_type,
-        # non 4D ops legalize into identity op that is not currently supported in the cascader
-        enable_cascader=False,
+        enable_cascader=is_u55_accel_type(accel_type),
     )
 
 
@@ -567,13 +568,12 @@ def test_ethosu_identity_codegen(ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp
     ethosu_mod = infra.create_ethosu_partition(cpu_mod)
 
     infra.compare_ethosu_with_reference(
-        # identity op is not supported in cascader
         ethosu_mod,
         input_data,
         output_data,
         accel_type,
         output_tolerance=1,
-        enable_cascader=False,
+        enable_cascader=is_u55_accel_type(accel_type),
     )
 
 
@@ -603,9 +603,12 @@ def test_relay_reshape_codegen(ifm_shape, new_shape, accel_type):
     output_data = generate_ref_data(cpu_mod, input_data)
     ethosu_mod = infra.create_ethosu_partition(cpu_mod)
 
-    # reshape ops legalize into identity op that is not currently supported in the cascader
     infra.compare_ethosu_with_reference(
-        ethosu_mod, input_data, output_data, accel_type, enable_cascader=False
+        ethosu_mod,
+        input_data,
+        output_data,
+        accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
     )
 
 
@@ -626,8 +629,9 @@ def test_tflite_slice(accel_type, ifm_shape, begin, size):
     def slice_func(x):
         return tf.slice(x, begin, size)
 
-    # Ops that get legalized to identity is currently not supported by the cascader
-    infra.compare_tvm_with_tflite(slice_func, [ifm_shape], accel_type, enable_cascader=False)
+    infra.compare_tvm_with_tflite(
+        slice_func, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -642,9 +646,8 @@ def test_tflite_strided_slice(accel_type, ifm_shape, begin, end):
     def strided_slice_func(x):
         return tf.strided_slice(x, begin, end)
 
-    # Ops that get legalized to identity are currently not supported by the cascader
     infra.compare_tvm_with_tflite(
-        strided_slice_func, [ifm_shape], accel_type, enable_cascader=False
+        strided_slice_func, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
     )
 
 
@@ -667,12 +670,11 @@ def test_ethosu_unary_elementwise(
             op = tf.math.abs(x)
         return op
 
-    # non-4D tensors are legalized to identity which are not supported by the cascader
     infra.compare_tvm_with_tflite(
         abs_func,
         [ifm_shape],
         accel_type,
-        enable_cascader=(len(ifm_shape) == 4) and ("u65" not in accel_type),
+        enable_cascader=is_u55_accel_type(accel_type),
     )
 
 
@@ -752,8 +754,9 @@ def test_tflite_tanh(accel_type):
         op = tf.nn.tanh(x)
         return op
 
-    # Ops that get legalized to identity are currently not supported by the cascader
-    infra.compare_tvm_with_tflite(tanh_func, [ifm_shape], accel_type, enable_cascader=False)
+    infra.compare_tvm_with_tflite(
+        tanh_func, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -774,7 +777,6 @@ def test_tflite_concat(shapes, axis, accel_type):
         op = tf.concat(list(inputs), axis)
         return op
 
-    # Ops that get legalized to identity are currently not supported by the cascader
     infra.compare_tvm_with_tflite(concat_func, shapes, accel_type, enable_cascader=False)
 
 
@@ -788,8 +790,9 @@ def test_tflite_sigmoid(accel_type):
         op = tf.nn.sigmoid(x)
         return op
 
-    # Ops that get legalized to identity are currently not supported by the cascader
-    infra.compare_tvm_with_tflite(sigmoid_function, [ifm_shape], accel_type, enable_cascader=False)
+    infra.compare_tvm_with_tflite(
+        sigmoid_function, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 # This codegen test checks both, split and split_v
@@ -813,7 +816,6 @@ def test_tflite_split(accel_type, ifm_shape, num_or_size_splits, axis):
         op = tf.split(x, num_or_size_splits, axis=axis)
         return op
 
-    # Ops that get legalized to identity are currently not supported by the cascader
     infra.compare_tvm_with_tflite(split_func, [ifm_shape], accel_type, enable_cascader=False)
 
 
@@ -845,9 +847,12 @@ def test_ethosu_requantize(accel_type, ifm_shape, ifm_scale, ifm_zp, ofm_scale, 
     output_data = generate_ref_data(cpu_mod, input_data)
     ethosu_mod = partition_for_ethosu(cpu_mod)
 
-    # Ops that get legalized to identity are currently not supported by the cascader
     infra.compare_ethosu_with_reference(
-        ethosu_mod, input_data, output_data, accel_type, enable_cascader=False
+        ethosu_mod,
+        input_data,
+        output_data,
+        accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
     )
 
 
@@ -860,8 +865,9 @@ def test_tflite_expand_dims(accel_type, ifm_shape, axis):
     def expand_dims_func(x):
         return tf.expand_dims(x, axis=axis)
 
-    # Ops that get legalized to identity are currently not supported by the cascader
-    infra.compare_tvm_with_tflite(expand_dims_func, [ifm_shape], accel_type, enable_cascader=False)
+    infra.compare_tvm_with_tflite(
+        expand_dims_func, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -875,8 +881,9 @@ def test_tflite_squeeze(accel_type, ifm_shape, axis):
     def squeeze_func(x):
         return tf.squeeze(x, axis=axis)
 
-    # Ops that get legalized to identity are currently not supported by the cascader
-    infra.compare_tvm_with_tflite(squeeze_func, [ifm_shape], accel_type, enable_cascader=False)
+    infra.compare_tvm_with_tflite(
+        squeeze_func, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -894,8 +901,9 @@ def test_tflite_resize2d_nearest_neighbor(accel_type, ifm_shape, size):
             x, size, align_corners=align_corners, half_pixel_centers=False
         )
 
-    # Ops that get legalized to identity are currently not supported by the cascader
-    infra.compare_tvm_with_tflite(resize_model, [ifm_shape], accel_type, enable_cascader=False)
+    infra.compare_tvm_with_tflite(
+        resize_model, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -918,8 +926,9 @@ def test_tflite_resize2d_bilinear(accel_type, ifm_shape, size, align_corners):
             x, size, align_corners=align_corners, half_pixel_centers=False
         )
 
-    # Ops that get legalized to identity are currently not supported by the cascader
-    infra.compare_tvm_with_tflite(resize_model, [ifm_shape], accel_type, enable_cascader=False)
+    infra.compare_tvm_with_tflite(
+        resize_model, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -959,9 +968,11 @@ def test_tflite_transpose_convolution(
             op = tf.nn.bias_add(op, bias)
         return op
 
-    # Ops that get legalized to identity are currently not supported by the cascader
     infra.compare_tvm_with_tflite(
-        conv2d_transpose, [ifm_shape], accel_type=accel_type, enable_cascader=False
+        conv2d_transpose,
+        [ifm_shape],
+        accel_type=accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
     )
 
 
@@ -982,7 +993,6 @@ def test_tflite_pack(accel_type, ifm_shapes, axis):
     def pack_func(*inputs):
         return tf.stack(inputs, axis=axis)
 
-    # Ops that get legalized to identity are currently not supported by the cascader
     infra.compare_tvm_with_tflite(pack_func, ifm_shapes, accel_type, enable_cascader=False)
 
 
@@ -998,7 +1008,6 @@ def test_tflite_unpack(accel_type, ifm_shape, axis):
     def unpack_func(x):
         return tf.unstack(x, axis=axis)
 
-    # Ops that get legalized to identity are currently not supported by the cascader
     infra.compare_tvm_with_tflite(unpack_func, [ifm_shape], accel_type, enable_cascader=False)
 
 
@@ -1012,8 +1021,9 @@ def test_tflite_leaky_relu(accel_type, ifm_shape, alpha):
     def leaky_relu_func(x):
         return tf.nn.leaky_relu(x, alpha=alpha)
 
-    # Ops that get legalized to identity are currently not supported by the cascader
-    infra.compare_tvm_with_tflite(leaky_relu_func, [ifm_shape], accel_type, enable_cascader=False)
+    infra.compare_tvm_with_tflite(
+        leaky_relu_func, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -1045,8 +1055,9 @@ def test_tflite_fully_connected(
             x = tf.nn.relu(x)
         return x
 
-    # Ops that get legalized to identity are currently not supported by the cascader
-    infra.compare_tvm_with_tflite(fully_connected, [ifm_shape], accel_type, enable_cascader=False)
+    infra.compare_tvm_with_tflite(
+        fully_connected, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
 
 
 if __name__ == "__main__":
