@@ -31,6 +31,10 @@ from ..dataflow_pattern import (
 
 
 def is_version_greater_than(ver):
+    """
+    Returns True if the local PyTorch version is greater
+    than the one given as an argument.
+    """
     import torch
     from distutils.version import LooseVersion
 
