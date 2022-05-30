@@ -19,8 +19,9 @@
 from tvm import te
 from tvm.topi import tag
 from tvm.tir import IntImm
-from tvm.topi.generic.injective \
-    import schedule_injective_from_existing as schedule_injective_for_concat
+from tvm.topi.generic.injective import (
+    schedule_injective_from_existing as schedule_injective_for_concat,
+)
 from ..utils import is_empty_shape
 
 
