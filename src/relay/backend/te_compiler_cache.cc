@@ -193,7 +193,7 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
     } else {
       const auto* ttype = op->checked_type().as<TensorTypeNode>();
       std::stringstream ss;
-      ss << "constant_" << const_index++;
+      ss << "cc_constant_" << const_index++;
       tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype, ss.str());
       constant_tensors_[op] = tensor;
       return {tensor};
