@@ -65,6 +65,7 @@ namespace tir {
 Var::Var(String name_hint, DataType dtype, Span span) {
   auto n = make_object<VarNode>();
   n->name_hint = std::move(name_hint);
+  n->type_annotation = GetTypeFromRuntimeDataType(dtype);
   n->dtype = std::move(dtype);
   n->span = std::move(span);
   data_ = std::move(n);
@@ -99,6 +100,7 @@ Var Var::copy_with_dtype(DataType dtype) const {
   } else {
     new_ptr = make_object<VarNode>(*node);
   }
+  new_ptr->type_annotation = GetTypeFromRuntimeDataType(dtype);
   new_ptr->dtype = std::move(dtype);
   return Var(new_ptr);
 }
@@ -126,6 +128,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 SizeVar::SizeVar(String name_hint, DataType dtype, Span span) {
   auto n = make_object<SizeVarNode>();
   n->name_hint = std::move(name_hint);
+  n->type_annotation = GetTypeFromRuntimeDataType(dtype);
   n->dtype = std::move(dtype);
   n->span = std::move(span);
   data_ = std::move(n);
