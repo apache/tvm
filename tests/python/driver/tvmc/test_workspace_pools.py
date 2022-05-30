@@ -250,25 +250,25 @@ def test_workspace_pools_recombobulate_multi_target():
     parsed, _ = parser.parse_known_args(
         [
             "--workspace-pools=sram",
-            "--workspace-pools-target-access=sram:c:rw,sram:cmsis-nn:ro",
-            "--workspace-pools-target-burst-bytes=sram:c:8,sram:cmsis-nn:4",
+            "--workspace-pools-target-access=sram:c:rw,sram:llvm:ro",
+            "--workspace-pools-target-burst-bytes=sram:c:8,sram:llvm:4",
         ]
     )
 
     c_target = Target("c")
-    cmsis_nn_target = Target("cmsis-nn")
+    llvm_target = Target("llvm")
 
-    targets = [c_target, cmsis_nn_target]
+    targets = [c_target, llvm_target]
     memory_pools = workspace_pools_recombobulate(parsed, targets)
 
     assert len(memory_pools.pools) == 1
 
     assert len(memory_pools.pools[0].target_access) == 2
     assert memory_pools.pools[0].target_access[c_target] == PoolInfo.READ_WRITE_ACCESS
-    assert memory_pools.pools[0].target_access[cmsis_nn_target] == PoolInfo.READ_ONLY_ACCESS
+    assert memory_pools.pools[0].target_access[llvm_target] == PoolInfo.READ_ONLY_ACCESS
     assert len(memory_pools.pools[0].target_burst_bytes) == 2
     assert memory_pools.pools[0].target_burst_bytes[c_target] == 8
-    assert memory_pools.pools[0].target_burst_bytes[cmsis_nn_target] == 4
+    assert memory_pools.pools[0].target_burst_bytes[llvm_target] == 4
 
 
 def test_workspace_pools_recombobulate_no_target_burst_bytes():
@@ -309,22 +309,22 @@ def test_workspace_pools_recombobulate_multi_target_multi_pool():
     parsed, _ = parser.parse_known_args(
         [
             "--workspace-pools=sram",
-            "--workspace-pools-target-access=sram:c:rw,sram:cmsis-nn:ro",
-            "--workspace-pools-target-burst-bytes=sram:c:8,sram:cmsis-nn:4",
+            "--workspace-pools-target-access=sram:c:rw,sram:llvm:ro",
+            "--workspace-pools-target-burst-bytes=sram:c:8,sram:llvm:4",
         ]
     )
 
     c_target = Target("c")
-    cmsis_nn_target = Target("cmsis-nn")
+    llvm_target = Target("llvm")
 
-    targets = [c_target, cmsis_nn_target]
+    targets = [c_target, llvm_target]
     memory_pools = workspace_pools_recombobulate(parsed, targets)
 
     assert len(memory_pools.pools) == 1
 
     assert len(memory_pools.pools[0].target_access) == 2
     assert memory_pools.pools[0].target_access[c_target] == PoolInfo.READ_WRITE_ACCESS
-    assert memory_pools.pools[0].target_access[cmsis_nn_target] == PoolInfo.READ_ONLY_ACCESS
+    assert memory_pools.pools[0].target_access[llvm_target] == PoolInfo.READ_ONLY_ACCESS
     assert len(memory_pools.pools[0].target_burst_bytes) == 2
     assert memory_pools.pools[0].target_burst_bytes[c_target] == 8
-    assert memory_pools.pools[0].target_burst_bytes[cmsis_nn_target] == 4
+    assert memory_pools.pools[0].target_burst_bytes[llvm_target] == 4
