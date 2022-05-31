@@ -223,7 +223,7 @@ NDArray NDArray::FromExternalDLTensor(const DLTensor& dl_tensor) {
 
 NDArray NDArray::NewFromDLTensor(DLTensor* tensor, const Device& dev) {
   ICHECK(::tvm::runtime::IsContiguous(*tensor))
-      << "DLTensor is not contiguous. Copying from incontiguous data does not support for now";
+      << "DLTensor is not contiguous. Copying from non-contiguous data is currently not supported";
   std::vector<int64_t> shape;
   for (int64_t i = 0; i < tensor->ndim; i++) {
     shape.push_back(tensor->shape[i]);
