@@ -35,15 +35,16 @@ The slice op implementation for avg_pool2d makes serveral assumptions:
    for the input.
 """
 
+
 def validate_out_shape(out_shape, in_shape, kernel, stride, dilation):
     ob, oh, ow, oc = out_shape
     ib, ih, iw, ic = in_shape
     kh, kw = kernel
     sh, sw = stride
     dh, dw = dilation
-    if (ih < (oh - 1) * sh + dh * (kh - 1)  + 1 ):
+    if ih < (oh - 1) * sh + dh * (kh - 1) + 1:
         raise RuntimeError(f"Output height is too large")
-    if (iw < (ow - 1) * sw + dw * (kw - 1)  + 1 ):
+    if iw < (ow - 1) * sw + dw * (kw - 1) + 1:
         raise RuntimeError(f"Output width is too large")
 
 
@@ -52,7 +53,7 @@ def avg_pool2d_compute(A, out_shape, kernel, stride, dilation):
     rh = te.reduce_axis((0, kh), name="rh")
     rw = te.reduce_axis((0, kw), name="rw")
     ob, oh, ow, oc = out_shape
-    if (isinstance(ob, int)):
+    if isinstance(ob, int):
         validate_out_shape(out_shape, A.shape, kernel, stride, dilation)
 
     sh, sw = stride
@@ -124,7 +125,7 @@ def STIR_schedule_n11c_1024c(outs, ins, output_layout: str, input_layout: str):
     # Schedule 'Sum'
     s.compute_at(Sum, cio)
     Sum_axis = s.get_loops(Sum)
-    s.reorder(Sum_axis[-2], Sum_axis[-1], Sum_axis[-3]) #
+    s.reorder(Sum_axis[-2], Sum_axis[-1], Sum_axis[-3])
     # s.vectorize(Sum_axis[-3]) # Doesn't work
     return s
 

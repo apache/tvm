@@ -282,12 +282,8 @@ class TestAvgPool2dSlice:
     @tvm.testing.fixture
     def input_np_padded(self, input_np, input_shape, input_shape_padded, padding):
         pad_before_h, pad_before_w = padding[:2]
-        pad_after_h = (
-            input_shape_padded[1] - input_shape[1] - pad_before_h
-        )
-        pad_after_w = (
-            input_shape_padded[2] - input_shape[2] - pad_before_w
-        )
+        pad_after_h = input_shape_padded[1] - input_shape[1] - pad_before_h
+        pad_after_w = input_shape_padded[2] - input_shape[2] - pad_before_w
         input_padded = np.pad(
             input_np,
             ((0, 0), (pad_before_h, pad_after_h), (pad_before_w, pad_after_w), (0, 0)),
@@ -320,8 +316,7 @@ class TestAvgPool2dSlice:
         target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape_padded, name="A", dtype=dtype)
 
-        M = sl.avg_pool2d_compute(
-            A, output_shape, kernel, stride, dilation)
+        M = sl.avg_pool2d_compute(A, output_shape, kernel, stride, dilation)
 
         # tir schedule
         tir_schedule = sl.avg_pool2d_STIR_schedule(M, A, output_layout, input_layout)
