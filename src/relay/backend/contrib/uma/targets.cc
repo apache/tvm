@@ -49,7 +49,7 @@ TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
         .add_attr_option<Array<String>>("libs")
         .add_attr_option<Target>("host")
         .add_attr_option<Integer>("from_device")
-        .set_attr<FTVMRelayToTIR>(tvm::attr::kRelayToTIR, relay::contrib::uma::RelayToTIR(target_name))
+        .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::uma::RelayToTIR(target_name))
         .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::uma::TIRToRuntime);
 
         for (auto &attr_option : attr_options) {

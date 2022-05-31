@@ -89,11 +89,6 @@ def schedule_conv1d_ncw(outs):
     nn, kk, xx = s[outs[0]].op.axis
     rc, rx = s[outs[0]].op.reduce_axis
 
-
-    print("==================")
-    print(outs)
-    print("==================")
-
     # kk_outer, kk_inner = s[outs[0]].split(kk, 8)
     # xx_outer, xx_inner = s[outs[0]].split(xx, 1)
 

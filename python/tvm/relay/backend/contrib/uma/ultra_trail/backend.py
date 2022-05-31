@@ -34,7 +34,6 @@ class UltraTrailBackend(UMABackend):
         # Target configuration
         #######################################################################
         self._register_target_attr("dimension")
-        #self._register_target_preprocessor(lambda x: {"attr": x})
 
         #######################################################################
         # Relay to Relay function registration
@@ -47,7 +46,7 @@ class UltraTrailBackend(UMABackend):
         #######################################################################
         # Relay to TIR function registration
         #######################################################################
-        self._register_operator_strategy("nn.conv1d", custom_conv1d_strategy, plevel=11)
+        self._register_operator_strategy("nn.conv1d", custom_conv1d_strategy, plevel=9)
 
         self._register_tir_pass(PassPhase.TIR_PHASE_0, CodegenGenerateExternCalls())
 
