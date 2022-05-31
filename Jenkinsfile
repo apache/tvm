@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-26T15:43:31.409794
+// Generated at 2022-05-27T14:45:11.226042
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -108,11 +108,7 @@ def per_exec_ws(folder) {
 def init_git() {
   checkout scm
 
-  // Clear out all Docker images that aren't going to be used
-  sh(
-    script: "docker image ls --all --format '{{.Repository}}:{{.Tag}}  {{.ID}}' | { grep -vE '${ci_arm}|${ci_cpu}|${ci_gpu}|${ci_hexagon}|${ci_i386}|${ci_lint}|${ci_qemu}|${ci_wasm}' || test \$? = 1; } | { xargs docker rmi || test \$? = 123; }",
-    label: 'Clean old Docker images',
-  )
+
   // Add more info about job node
   sh (
     script: './tests/scripts/task_show_node_info.sh',
@@ -157,6 +153,23 @@ def init_git() {
       done
     ''',
     label: 'Update git submodules',
+  )
+}
+
+def docker_init(image) {
+  // Clear out all Docker images that aren't going to be used
+  sh(
+    script: """
+    set -eux
+    docker image ls --all
+    IMAGES=\$(docker image ls --all --format '{{.Repository}}:{{.Tag}}  {{.ID}}')
+
+    echo -e "Found images:\\n\$IMAGES"
+    echo "\$IMAGES" | { grep -vE '${image}' || test \$? = 1; } | { xargs docker rmi || test \$? = 123; }
+
+    docker image ls --all
+    """,
+    label: 'Clean old Docker images',
   )
 }
 
@@ -321,6 +334,7 @@ def build_docker_images() {
     parallel 'ci-lint': {
       node('CPU') {
         timeout(time: max_time, unit: 'MINUTES') {
+          docker_init('none')
           init_git()
           build_image('ci_lint')
         }
@@ -328,6 +342,7 @@ def build_docker_images() {
     }, 'ci-cpu': {
       node('CPU') {
         timeout(time: max_time, unit: 'MINUTES') {
+          docker_init('none')
           init_git()
           build_image('ci_cpu')
         }
@@ -335,6 +350,7 @@ def build_docker_images() {
     }, 'ci-gpu': {
       node('GPU') {
         timeout(time: max_time, unit: 'MINUTES') {
+          docker_init('none')
           init_git()
           build_image('ci_gpu')
         }
@@ -342,6 +358,7 @@ def build_docker_images() {
     }, 'ci-qemu': {
       node('CPU') {
         timeout(time: max_time, unit: 'MINUTES') {
+          docker_init('none')
           init_git()
           build_image('ci_qemu')
         }
@@ -349,6 +366,7 @@ def build_docker_images() {
     }, 'ci-i386': {
       node('CPU') {
         timeout(time: max_time, unit: 'MINUTES') {
+          docker_init('none')
           init_git()
           build_image('ci_i386')
         }
@@ -356,6 +374,7 @@ def build_docker_images() {
     }, 'ci-arm': {
       node('ARM') {
         timeout(time: max_time, unit: 'MINUTES') {
+          docker_init('none')
           init_git()
           build_image('ci_arm')
         }
@@ -363,6 +382,7 @@ def build_docker_images() {
     }, 'ci-wasm': {
       node('CPU') {
         timeout(time: max_time, unit: 'MINUTES') {
+          docker_init('none')
           init_git()
           build_image('ci_wasm')
         }
@@ -370,6 +390,7 @@ def build_docker_images() {
     }, 'ci-hexagon': {
       node('CPU') {
         timeout(time: max_time, unit: 'MINUTES') {
+          docker_init('none')
           init_git()
           build_image('ci_hexagon')
         }
@@ -424,6 +445,7 @@ def lint() {
   'Lint 1 of 2': {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/lint") {
+        docker_init(ci_lint)
         init_git()
         timeout(time: max_time, unit: 'MINUTES') {
           withEnv([
@@ -441,6 +463,7 @@ def lint() {
   'Lint 2 of 2': {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/lint") {
+        docker_init(ci_lint)
         init_git()
         timeout(time: max_time, unit: 'MINUTES') {
           withEnv([
@@ -518,6 +541,7 @@ stage('Build') {
     if (!skip_ci) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-gpu") {
+          docker_init(ci_gpu)
           init_git()
           sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
           make("${ci_gpu} --no-gpu", 'build', '-j2')
@@ -564,6 +588,7 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cpu") {
+          docker_init(ci_cpu)
           init_git()
           sh (
             script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
@@ -603,6 +628,7 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-wasm") {
+          docker_init(ci_wasm)
           init_git()
           sh (
             script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
@@ -627,6 +653,7 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-i386") {
+          docker_init(ci_i386)
           init_git()
           sh (
             script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build",
@@ -660,6 +687,7 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('ARM-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-arm") {
+          docker_init(ci_arm)
           init_git()
           sh (
             script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",
@@ -691,6 +719,7 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-qemu") {
+          docker_init(ci_qemu)
           init_git()
           sh (
             script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh build",
@@ -721,6 +750,7 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-hexagon") {
+          docker_init(ci_hexagon)
           init_git()
           sh (
             script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
@@ -765,6 +795,7 @@ def shard_run_unittest_GPU_1_of_3() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-gpu") {
         try {
+          docker_init(ci_gpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -830,6 +861,7 @@ def shard_run_unittest_GPU_2_of_3() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-gpu") {
         try {
+          docker_init(ci_gpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -881,6 +913,7 @@ def shard_run_unittest_GPU_3_of_3() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-gpu") {
         try {
+          docker_init(ci_gpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -929,6 +962,7 @@ def shard_run_integration_CPU_1_of_6() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
         try {
+          docker_init(ci_cpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -974,6 +1008,7 @@ def shard_run_integration_CPU_2_of_6() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
         try {
+          docker_init(ci_cpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1019,6 +1054,7 @@ def shard_run_integration_CPU_3_of_6() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
         try {
+          docker_init(ci_cpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1064,6 +1100,7 @@ def shard_run_integration_CPU_4_of_6() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
         try {
+          docker_init(ci_cpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1109,6 +1146,7 @@ def shard_run_integration_CPU_5_of_6() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
         try {
+          docker_init(ci_cpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1154,6 +1192,7 @@ def shard_run_integration_CPU_6_of_6() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
         try {
+          docker_init(ci_cpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1200,6 +1239,7 @@ def shard_run_python_i386_1_of_5() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
         try {
+          docker_init(ci_i386)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1246,6 +1286,7 @@ def shard_run_python_i386_2_of_5() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
         try {
+          docker_init(ci_i386)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1291,6 +1332,7 @@ def shard_run_python_i386_3_of_5() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
         try {
+          docker_init(ci_i386)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1336,6 +1378,7 @@ def shard_run_python_i386_4_of_5() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
         try {
+          docker_init(ci_i386)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1381,6 +1424,7 @@ def shard_run_python_i386_5_of_5() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
         try {
+          docker_init(ci_i386)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1427,6 +1471,7 @@ def shard_run_test_Hexagon_1_of_7() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
+          docker_init(ci_hexagon)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1471,6 +1516,7 @@ def shard_run_test_Hexagon_2_of_7() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
+          docker_init(ci_hexagon)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1514,6 +1560,7 @@ def shard_run_test_Hexagon_3_of_7() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
+          docker_init(ci_hexagon)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1557,6 +1604,7 @@ def shard_run_test_Hexagon_4_of_7() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
+          docker_init(ci_hexagon)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1600,6 +1648,7 @@ def shard_run_test_Hexagon_5_of_7() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
+          docker_init(ci_hexagon)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1643,6 +1692,7 @@ def shard_run_test_Hexagon_6_of_7() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
+          docker_init(ci_hexagon)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1686,6 +1736,7 @@ def shard_run_test_Hexagon_7_of_7() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
         try {
+          docker_init(ci_hexagon)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1730,6 +1781,7 @@ def shard_run_integration_aarch64_1_of_4() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
+          docker_init(ci_arm)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1774,6 +1826,7 @@ def shard_run_integration_aarch64_2_of_4() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
+          docker_init(ci_arm)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1818,6 +1871,7 @@ def shard_run_integration_aarch64_3_of_4() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
+          docker_init(ci_arm)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1862,6 +1916,7 @@ def shard_run_integration_aarch64_4_of_4() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
+          docker_init(ci_arm)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1907,6 +1962,7 @@ def shard_run_topi_GPU_1_of_4() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
         try {
+          docker_init(ci_gpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1950,6 +2006,7 @@ def shard_run_topi_GPU_2_of_4() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
         try {
+          docker_init(ci_gpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -1993,6 +2050,7 @@ def shard_run_topi_GPU_3_of_4() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
         try {
+          docker_init(ci_gpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -2036,6 +2094,7 @@ def shard_run_topi_GPU_4_of_4() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
         try {
+          docker_init(ci_gpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -2080,6 +2139,7 @@ def shard_run_frontend_GPU_1_of_6() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
         try {
+          docker_init(ci_gpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -2123,6 +2183,7 @@ def shard_run_frontend_GPU_2_of_6() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
         try {
+          docker_init(ci_gpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -2166,6 +2227,7 @@ def shard_run_frontend_GPU_3_of_6() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
         try {
+          docker_init(ci_gpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -2209,6 +2271,7 @@ def shard_run_frontend_GPU_4_of_6() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
         try {
+          docker_init(ci_gpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -2252,6 +2315,7 @@ def shard_run_frontend_GPU_5_of_6() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
         try {
+          docker_init(ci_gpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -2295,6 +2359,7 @@ def shard_run_frontend_GPU_6_of_6() {
     node('GPU') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-gpu") {
         try {
+          docker_init(ci_gpu)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -2339,6 +2404,7 @@ def shard_run_topi_aarch64_1_of_2() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
+          docker_init(ci_arm)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -2387,6 +2453,7 @@ def shard_run_topi_aarch64_2_of_2() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
         try {
+          docker_init(ci_arm)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -2436,6 +2503,7 @@ def shard_run_frontend_aarch64_1_of_2() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
         try {
+          docker_init(ci_arm)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -2479,6 +2547,7 @@ def shard_run_frontend_aarch64_2_of_2() {
     node('ARM-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
         try {
+          docker_init(ci_arm)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
@@ -2648,6 +2717,7 @@ stage('Test') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-cpu") {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
+              docker_init(ci_cpu)
               init_git()
               withEnv(['PLATFORM=cpu'], {
                 sh(
@@ -2692,6 +2762,7 @@ stage('Test') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-qemu") {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
+              docker_init(ci_qemu)
               init_git()
               withEnv(['PLATFORM=qemu'], {
                 sh(
@@ -2736,6 +2807,7 @@ stage('Test') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-cpu") {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
+              docker_init(ci_cpu)
               init_git()
               withEnv(['PLATFORM=cpu'], {
                 sh(
@@ -2773,6 +2845,7 @@ stage('Test') {
     if (!skip_ci) {
       node('GPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/docs-python-gpu") {
+          docker_init(ci_gpu)
           init_git()
           sh(
             script: """
@@ -2814,8 +2887,7 @@ stage('Test') {
   },
   )
 }
-}
-/*
+}/*
 stage('Build packages') {
   parallel 'conda CPU': {
     node('CPU') {
