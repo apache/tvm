@@ -1281,13 +1281,10 @@ def test_compute_at_non_perfect_channel_group():
                     cc = T.axis.spatial(720, c_o * 360 + c_i)
                     Y[cc, hh, ww] = X[cc, hh, ww] + B[cc // 16]
 
-    def check_sched(debug_mask):
-        sch = tir.Schedule(grouped_channel_bias, debug_mask=debug_mask)
-        loop = sch.get_loops(sch.get_block("compute"))[0]
-        sch.compute_at(sch.get_block("init"), loop)
-        tvm.ir.assert_structural_equal(sch.mod["main"], grouped_channel_bias_non_perfect_tiled)
-
-    check_sched("all")
+    sch = tir.Schedule(grouped_channel_bias, debug_mask="all")
+    loop = sch.get_loops(sch.get_block("compute"))[0]
+    sch.compute_at(sch.get_block("init"), loop)
+    tvm.ir.assert_structural_equal(sch.mod["main"], grouped_channel_bias_non_perfect_tiled)
 
 
 def test_fail_subtree_complete_block():
