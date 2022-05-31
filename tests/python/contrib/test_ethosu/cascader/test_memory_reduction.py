@@ -162,7 +162,7 @@ def test_double_conv2d(
     "accel_type, expected_ws_size_without_striping, expected_ws_size_with_striping",
     [
         ("ethos-u55-256", 180288, 15200),
-        ("ethos-u55-128", 180288, 14432),
+        ("ethos-u55-128", 180288, 15200),
         ("ethos-u55-64", 180288, 14432),
         ("ethos-u55-32", 180272, 14416),
     ],
