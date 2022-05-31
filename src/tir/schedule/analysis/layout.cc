@@ -68,17 +68,18 @@ class SplitExprCollector {
    * \param index The indexing pattern
    * \param input_iters The input iterators' domain
    * \param predicate The predicate of the affine map
-   * \param require_bijective Whether the affine map is required to be bijective
+   * \param check_level The iter mapping checking level
    * \param analyzer The analyzer
    * \return The collected split expressions
    */
   static std::vector<SplitExpr> Collect(const PrimExpr& index,
                                         const Map<Var, Range>& input_iters,  //
                                         const PrimExpr& predicate,           //
-                                        bool require_bijective,              //
+                                        arith::IterMapLevel check_level,     //
                                         arith::Analyzer* analyzer) {
-    Array<arith::IterSumExpr> iter_sum_exprs = arith::DetectIterMap(
-        {analyzer->Simplify(index)}, input_iters, predicate, require_bijective, analyzer);
+    arith::IterMapResult res = arith::DetectIterMap({analyzer->Simplify(index)}, input_iters,
+                                                    predicate, check_level, analyzer);
+    const auto& iter_sum_exprs = res->indices;
     if (iter_sum_exprs.empty()) {
       return {};
     }
@@ -149,7 +150,7 @@ Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& 
   // Step 3. Detect the IterSplitExpr of the indexing pattern
   std::vector<SplitExprCollector::SplitExpr> split_exprs = SplitExprCollector::Collect(
       /*index=*/f_flatten_index(indices), input_iters, predicate,
-      /*require_bijective=*/false, analyzer);
+      /*check_level=*/arith::IterMapLevel::Surjective, analyzer);
   if (split_exprs.empty()) {
     return NullOpt;
   }

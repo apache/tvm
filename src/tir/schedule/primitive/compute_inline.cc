@@ -552,13 +552,14 @@ class ReverseComputeInliner : public BaseInliner {
       }
     }
 
-    buffer_load_iter_map_ = arith::DetectIterMap(
+    auto res = arith::DetectIterMap(
         /*indices=*/buffer_load_indices_,
         /*input_iters=*/consumer_iter_doms,
         /*predicate=*/true,
-        /*require_bijective=*/true,
+        /*check_level=*/arith::IterMapLevel::Bijective,
         /*analyzer=*/&analyzer,
         /*simplify_trivial_iterators=*/false);
+    buffer_load_iter_map_ = res->indices;
     if (buffer_load_iter_map_.empty()) {
       // Failure: indices of BufferLoad are not bijective affine
       return false;

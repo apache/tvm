@@ -1249,6 +1249,44 @@ def test_compute_at_simplify_static_bound():
     verify_trace_roundtrip(sch=sch, mod=static_bound)
 
 
+def test_compute_at_non_perfect_channel_group():
+    @T.prim_func
+    def grouped_channel_bias(
+        X: T.Buffer[(720, 8, 8), "float32"], Y: T.Buffer[(720, 8, 8), "float32"]
+    ):
+        B = T.alloc_buffer([45], dtype="float32", scope="")
+        for i in T.grid(45):
+            with T.block("init"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = vi
+        for c_o, h, w, c_i in T.grid(2, 8, 8, 360):
+            with T.block("compute"):
+                hh, ww = T.axis.remap("SS", [h, w])
+                cc = T.axis.spatial(720, c_o * 360 + c_i)
+                Y[cc, hh, ww] = X[cc, hh, ww] + B[cc // 16]
+
+    @T.prim_func
+    def grouped_channel_bias_non_perfect_tiled(
+        X: T.Buffer[(720, 8, 8), "float32"], Y: T.Buffer[(720, 8, 8), "float32"]
+    ):
+        B = T.alloc_buffer([45], dtype="float32")
+        for c_o in range(2):
+            for ax0 in range(23):
+                with T.block("init"):
+                    vi = T.axis.spatial(45, c_o * 22 + ax0)
+                    B[vi] = vi
+            for h, w, c_i in T.grid(8, 8, 360):
+                with T.block("compute"):
+                    hh, ww = T.axis.remap("SS", [h, w])
+                    cc = T.axis.spatial(720, c_o * 360 + c_i)
+                    Y[cc, hh, ww] = X[cc, hh, ww] + B[cc // 16]
+
+    sch = tir.Schedule(grouped_channel_bias, debug_mask="all")
+    loop = sch.get_loops(sch.get_block("compute"))[0]
+    sch.compute_at(sch.get_block("init"), loop)
+    tvm.ir.assert_structural_equal(sch.mod["main"], grouped_channel_bias_non_perfect_tiled)
+
+
 def test_fail_subtree_complete_block():
     sch = tir.Schedule(fail_subtree_compact_dataflow, debug_mask="all")
     block = sch.get_block("B_0")
