@@ -28,7 +28,7 @@ GitHub Actions is used to run Windows jobs, MacOS jobs, and various on-GitHub au
 * [ping languishing PRs after no activity for a week (currently opt-in only)](https://github.com/apache/tvm/issues/9983)
 * [push a `last-successful` branch to GitHub with the last `main` commit that passed CI](https://github.com/apache/tvm/tree/last-successful)
 
-https://github.com/apache/tvm/actions has the logs for each of these workflows. Note that when debugging these workflows changes from PRs from forked repositories won't be relfected in the PR. These should be tested in the forked repository first and linked in the PR body.
+https://github.com/apache/tvm/actions has the logs for each of these workflows. Note that when debugging these workflows changes from PRs from forked repositories won't be reflected in the PR. These should be tested in the forked repository first and linked in the PR body.
 
 
 ## Keeping CI Green
@@ -53,7 +53,7 @@ search [recent GitHub issues related to flaky tests](https://github.com/apache/t
 [file a new issue](https://github.com/apache/tvm/issues/new?assignees=&labels=&template=ci-problem.md&title=%5BCI+Problem%5D+>)
 if you don't see any reports of the failure. If a certain test or class of tests affects
 several PRs or commits on `main` with flaky failures, the test should be disabled via
-[pytest's @xfail decorator](https://docs.pytest.org/en/6.2.x/skipping.html#xfail-mark-test-functions-as-expected-to-fail) with [`strict=True`](https://docs.pytest.org/en/6.2.x/skipping.html#strict-parameter) and the relevant issue linked in the
+[pytest's @xfail decorator](https://docs.pytest.org/en/6.2.x/skipping.html#xfail-mark-test-functions-as-expected-to-fail) with [`strict=False`](https://docs.pytest.org/en/6.2.x/skipping.html#strict-parameter) and the relevant issue linked in the
 disabling PR.
 
 ```python
@@ -133,8 +133,9 @@ The template files in this directory are used to generate the [`Jenkinsfile`](..
 To regenerate the `Jenkinsfile`, run
 
 ```bash
-pip install -r jenkins/requirements.txt
-python jenkins/generate.py
+python3 -mvenv _venv
+_venv/bin/pip3 install -r jenkins/requirements.txt
+_venv/bin/python3 jenkins/generate.py
 ```
 
 # Infrastructure
@@ -155,7 +156,7 @@ Dashboards of CI data can be found:
 
 ## CI Diagram
 
-This details the individual parts that interact in TVM's CI.
+This details the individual parts that interact in TVM's CI. For details on operations, see https://github.com/tlc-pack/ci.
 
 ```mermaid
 graph TD
