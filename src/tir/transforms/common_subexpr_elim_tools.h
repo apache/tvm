@@ -180,6 +180,7 @@ void PrintComputationTable(const ComputationTable& table);
 using MaybeValue = dmlc::optional<PrimExpr>;
 
 bool EqualTerms(const PrimExpr& a, const PrimExpr& b);
+PrimExpr NormalizeTerm(const PrimExpr& expr); // Used for deciding the (decidable) equivalence relation
 bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b);
 std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
     const ComputationTable& table);

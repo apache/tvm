@@ -182,7 +182,7 @@ def test_deterministic_cse():
 
 
 # First specific test for if nodes : Some duplicated computations appear only in one branch (here the Then branch), not in both branches.
-# In this case, the CSE pass should introduce the redundant computation at the top if the Then branch, not before the whole If
+# In this case, the CSE pass should introduce the redundant computation at the top of the Then branch, not before the whole If
 # (otherwise that would lead to some computations being computed for nothing when it is the Else branch that is executed).
 def test_cse_ifNode_1():
     b = te.var("b")
@@ -353,8 +353,31 @@ def test_cse_cascade():
     assert tvm.ir.structural_equal(store3.value, cse_var_2)
 
 
+# A test which ensures that we don't perform reductions outside of introduced variables
+def test_no_normalization_without_commoning():
+    x = te.var("x")
+    y = te.var("y")
+    z = te.var("z")
+    a = te.var("a")
+    # Test prog :
+    # let a = x + (y + z) in a
+    body = tvm.tir.LetStmt(a, x + (y + z), tvm.tir.Evaluate(a))
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([x, y, z], body))
+    body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
+
+    tvm.transform.PrintIR()(body)
+
+    body = body["main"].body  # Gets the body of the main, i.e. the full statement
+
+    assert body.var.name == "a"
+    assert tvm.ir.structural_equal(body.value, x + (y + z))
+
+
 if __name__ == "__main__":
     test_cse()
+    test_deterministic_cse()
     test_cse_ifNode_1()
     test_cse_ifNode_2()
     test_cse_cascade()
+    test_no_normalization_without_commoning()
