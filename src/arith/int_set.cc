@@ -867,9 +867,10 @@ Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
     for (const Range& range : region) {
       affine_indices.push_back(range->min);
     }
-    iter_sum_exprs = DetectIterMap(
+    auto res = DetectIterMap(
         /*indices=*/affine_indices, /*input_iters=*/var_dom,
-        /*predicate=*/predicate, /*require_bijective=*/false, analyzer);
+        /*predicate=*/predicate, /*check_level=*/IterMapLevel::Surjective, analyzer);
+    iter_sum_exprs = res->indices;
   }
   if (iter_sum_exprs.empty()) {
     return NullOpt;
