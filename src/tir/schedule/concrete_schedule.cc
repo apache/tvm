@@ -199,16 +199,16 @@ Schedule ConcreteScheduleNode::Copy() {
  * \param level An ScheduleErrorRenderLevel enum, level of error rendering
  * \sa ScheduleErrorRenderLevel
  */
-#define TVM_TIR_SCHEDULE_END(primitive, level)                    \
-  }                                                               \
-  catch (const ScheduleError& error) {                            \
-    if ((level) == ScheduleErrorRenderLevel::kDetail) {           \
-      throw tvm::runtime::Error(error.RenderReport(primitive));   \
-    } else if ((level) == ScheduleErrorRenderLevel::kFast) {      \
-      throw tvm::runtime::Error(error.FastErrorString());         \
-    } else if ((level) == ScheduleErrorRenderLevel::kNone) {      \
-      throw tvm::runtime::Error("ScheduleError: (not rendered)"); \
-    }                                                             \
+#define TVM_TIR_SCHEDULE_END(primitive, level)                                                \
+  }                                                                                           \
+  catch (const ScheduleError& error) {                                                        \
+    if ((level) == ScheduleErrorRenderLevel::kDetail) {                                       \
+      throw tvm::runtime::Error(error.RenderReport(primitive) + "\n" + runtime::Backtrace()); \
+    } else if ((level) == ScheduleErrorRenderLevel::kFast) {                                  \
+      throw tvm::runtime::Error(error.FastErrorString());                                     \
+    } else if ((level) == ScheduleErrorRenderLevel::kNone) {                                  \
+      throw tvm::runtime::Error("ScheduleError: (not rendered)");                             \
+    }                                                                                         \
   }
 
 /******** Schedule: Schedule: Sampling ********/
