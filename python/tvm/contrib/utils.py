@@ -93,11 +93,15 @@ class TempDirectory(object):
         finally:
             cls._KEEP_FOR_DEBUG = old_keep_for_debug
 
-    def __init__(self, custom_path=None):
+    def __init__(self, custom_path=None, keep_for_debug=None):
         if self.TEMPDIRS is None:
             raise DirectoryCreatedPastAtExit()
 
-        self._created_with_keep_for_debug = self._KEEP_FOR_DEBUG
+        if keep_for_debug is not None:
+            self._created_with_keep_for_debug = keep_for_debug
+        else:
+            self._created_with_keep_for_debug = self._KEEP_FOR_DEBUG
+
         if custom_path:
             os.mkdir(custom_path)
             self.temp_dir = custom_path
@@ -169,7 +173,7 @@ class TempDirectory(object):
 atexit.register(TempDirectory.remove_tempdirs)
 
 
-def tempdir(custom_path=None):
+def tempdir(custom_path=None, keep_for_debug=None):
     """Create temp dir which deletes the contents when exit.
 
     Parameters
@@ -177,12 +181,14 @@ def tempdir(custom_path=None):
     custom_path : str, optional
         Manually specify the exact temp dir path
 
+    keep_for_debug : bool
+        Keep temp directory for debugging purposes
     Returns
     -------
     temp : TempDirectory
         The temp directory object
     """
-    return TempDirectory(custom_path)
+    return TempDirectory(custom_path=custom_path, keep_for_debug=keep_for_debug)
 
 
 class FileLock(object):
