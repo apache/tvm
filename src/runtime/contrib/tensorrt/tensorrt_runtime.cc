@@ -95,7 +95,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
    *
    * \return module type key.
    */
-  const char* type_key() const override { return "tensorrt"; }
+  const char* type_key() const final { return "tensorrt"; }
 
   /*!
    * \brief Initialize runtime. Create TensorRT layer from JSON

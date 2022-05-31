@@ -52,7 +52,7 @@ class InterfaceCNode : public runtime::ModuleNode {
         pools_(FilterExternalPools(pools)),
         io_pool_allocations_(io_pool_allocations),
         workspace_size_(workspace_size) {}
-  const char* type_key() const { return "h"; }
+  const char* type_key() const final { return "h"; }
 
   std::string GetSource(const std::string& format) final {
     std::stringstream code;
@@ -167,11 +167,11 @@ class InterfaceCNode : public runtime::ModuleNode {
       code_stream << " * \\param outputs Output tensors for the module \n";
     }
 
-    if (!devices_.empty()) {
-      code_stream << " * \\param devices Device context pointers for the module \n";
-    }
     if (!pools_.empty()) {
       code_stream << " * \\param workspace_pools Workspace memory pool pointers for the module \n";
+    }
+    if (!devices_.empty()) {
+      code_stream << " * \\param devices Device context pointers for the module \n";
     }
 
     code_stream << " */\n"
@@ -182,11 +182,11 @@ class InterfaceCNode : public runtime::ModuleNode {
       call_args_ss << "  struct " << inputs_struct << "* inputs,\n";
       call_args_ss << "  struct " << outputs_struct << "* outputs,\n";
     }
-    if (!devices_.empty()) {
-      call_args_ss << "  struct " << devices_struct << "* devices,\n";
-    }
     if (!pools_.empty()) {
       call_args_ss << "  struct " << pools_struct << "* workspace_pools,\n";
+    }
+    if (!devices_.empty()) {
+      call_args_ss << "  struct " << devices_struct << "* devices,\n";
     }
     std::string call_args_str = call_args_ss.str();
     call_args_str.pop_back();

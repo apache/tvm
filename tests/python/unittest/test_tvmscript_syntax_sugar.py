@@ -148,6 +148,21 @@ def test_match_buffer_syntax_sugar():
     assert_structural_equal(elementwise_handle, elementwise_buffer_no_kwargs)
 
 
+def test_match_buffer_1d():
+    @T.prim_func
+    def func_no_sugar(a: T.handle):
+        A = T.match_buffer(a, shape=(16,))
+        for i in T.serial(16):
+            A[i] = 0.0
+
+    @T.prim_func
+    def func_with_sugar(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            A[i] = 0.0
+
+    assert_structural_equal(func_no_sugar, func_with_sugar)
+
+
 # match buffer failed case
 def test_match_buffer_no_kwargs_failed():
     with pytest.raises(ValueError) as e:

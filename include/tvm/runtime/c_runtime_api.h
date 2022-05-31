@@ -76,18 +76,6 @@ extern "C" {
 #endif
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <sys/types.h>
-
-#if defined(_MSC_VER)
-#if defined(_WIN64)
-typedef int64_t tvm_ssize_t;
-#else
-typedef int32_t tvm_ssize_t;
-#endif
-#else
-typedef ssize_t tvm_ssize_t;
-#endif
 
 /*! \brief type of array index. */
 typedef int64_t tvm_index_t;

@@ -442,6 +442,18 @@ TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const String& 
 TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                              BufferIndexType buffer_index_type, const IndexMap& index_map);
 
+/*!
+ * \brief Apply a transformation represented by IndexMap to block
+ * \details The block iters and the block body are transformed by the given index_map.
+ * Outer loops corresponding to each new block iter are regenerated.
+ * The index_map is required to be bijective affine since we need its inverse mapping.
+ * \param self The state of the schedule
+ * \param block_sref The block sref that refers to the block to be transformed
+ * \param index_map The transformation to apply.
+ */
+TVM_DLL void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
+                                  const IndexMap& index_map);
+
 /******** Schedule: Misc ********/
 
 }  // namespace tir

@@ -693,6 +693,14 @@ void ConcreteScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_i
   TVM_TIR_SCHEDULE_END("transform_layout", this->error_render_level_);
 }
 
+void ConcreteScheduleNode::TransformBlockLayout(const BlockRV& block_rv,
+                                                const IndexMap& index_map) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::TransformBlockLayout(state_, this->GetSRef(block_rv), index_map);
+  this->state_->DebugVerify();
+  TVM_TIR_SCHEDULE_END("transform_block_layout", this->error_render_level_);
+}
+
 void ConcreteScheduleNode::SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
                                             BufferIndexType buffer_index_type,
                                             const Array<IntImm>& axis_separators) {

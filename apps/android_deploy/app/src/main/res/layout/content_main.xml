@@ -35,10 +35,10 @@ under the License.
 
         <Button
             android:id="@+id/btnPickImage"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Select or Capture picture" />
+            android:text="@string/btnPickImage_text" />
 
     </LinearLayout>
     <View
@@ -58,7 +58,8 @@ under the License.
         android:id="@+id/imageView"
         android:layout_width="match_parent"
         android:layout_height="375dp"
-        android:layout_weight="1" />
+        android:layout_weight="1"
+        android:contentDescription="@string/image_description"/>
 
     <View
         android:layout_width="match_parent"

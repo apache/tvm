@@ -115,7 +115,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
     Array<PrimExpr> v = arith::IterMapSimplify(/*indices=*/op->iter_values,
                                                /*input_iters=*/loop_var2extent_,
                                                /*input_pred=*/op->predicate,
-                                               /*require_bijective=*/false);
+                                               /*check_level=*/arith::IterMapLevel::Surjective);
     if (v.same_as(op->iter_values)) {
       return GetRef<Stmt>(op);
     } else {
@@ -248,25 +248,6 @@ class NotOnlyChildError : public ScheduleError {
   IRModule mod_;
   For outer_;
   For inner_;
-};
-
-class LoopNotStartWithZeroError : public ScheduleError {
- public:
-  explicit LoopNotStartWithZeroError(IRModule mod, For loop) : mod_(mod), loop_(std::move(loop)) {}
-
-  String FastErrorString() const final {
-    return "ScheduleError: The primitive only supports loop starting with 0";
-  }
-
-  String DetailRenderTemplate() const final {
-    return "The loop {0} does not start with 0, which is not supported";
-  }
-
-  IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
-
-  IRModule mod_;
-  For loop_;
 };
 
 class NotSingleInferFactorError : public ScheduleError {
@@ -407,10 +388,8 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   }
   // Currently, loops not starting with 0 are not supported
   arith::Analyzer analyzer;
-  if (!analyzer.CanProve(loop->min == 0)) {
-    throw LoopNotStartWithZeroError(self->mod, GetRef<For>(loop));
-  }
-  // Step 2. Replace all occurrences of the original loop var with new variables
+  CheckLoopStartsWithZero(self, loop_sref, &analyzer);
+
   int n = factors.size();
   PrimExpr substitute_value = 0;
   std::vector<Var> new_loop_vars;
@@ -482,9 +461,7 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
     }
     outer_loop_sref = sref;
     outer_loop = loop;
-    if (!analyzer.CanProve(loop->min == 0)) {
-      throw LoopNotStartWithZeroError(self->mod, GetRef<For>(loop));
-    }
+    CheckLoopStartsWithZero(self, sref, &analyzer);
     const VarNode* used_var = nullptr;
     auto f_contain = [&outer_loop_vars, &used_var](const VarNode* var) {
       if (outer_loop_vars.count(var)) {

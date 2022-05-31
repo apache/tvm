@@ -442,6 +442,16 @@ void TracedScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_ind
                            /*outputs=*/{}));
 }
 
+void TracedScheduleNode::TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) {
+  ConcreteScheduleNode::TransformBlockLayout(block_rv, index_map);
+  static const InstructionKind& kind = InstructionKind::Get("TransformBlockLayout");
+  trace_->Append(
+      /*inst=*/Instruction(/*kind=*/kind,
+                           /*inputs=*/{block_rv},
+                           /*attrs=*/{index_map},
+                           /*outputs=*/{}));
+}
+
 void TracedScheduleNode::SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
                                           BufferIndexType buffer_index_type,
                                           const Array<IntImm>& axis_separators) {
