@@ -62,7 +62,7 @@ def schedule_injective_from_existing(sch, out):
 
 
 def schedule_injective(outs):
-    """X86 reference schedule for injective op.
+    """X86 schedule for injective op.
     Parameters
     ----------
     outs: Array of Tensor
@@ -135,7 +135,7 @@ def schedule_concatenate_cpu(outs):
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of injective in the format
+          The computation graph description in the format
           of an array of tensors.
     Returns
     -------
