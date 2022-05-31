@@ -43,6 +43,8 @@ def test_fit():
 
     upper_model.fit(xs, ys, plan_size=32)
 
+    upper_model.predict(np.ones(12))
+
 
 def fit_spawn():
     assert multiprocessing.get_start_method(False) == "spawn"

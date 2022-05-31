@@ -243,18 +243,27 @@ class XGBoostCostModel(CostModel):
         else:
             raise RuntimeError("Invalid feature type: " + self.fea_type)
         result = pool.map_with_error_catching(feature_extract_func, data)
+        result = list(result) # store results so we can iterate through them twice
 
-        # filter out feature with different shapes
-        fea_len = len(self._get_feature([0])[0])
+        # get maximum feature length
+        fea_len = -1
+        for res in result:
+            if res.status != StatusKind.COMPLETE:
+                continue
+            x, _ = res.value
+            fea_len = max(fea_len, x.shape[0])
 
         xs, ys = [], []
         for res in result:
             if res.status != StatusKind.COMPLETE:
                 continue
             x, y = res.value
-            if len(x) == fea_len:
+            # Features may not be the same size, pad them until they are
+            if fea_len > len(x):
+                xs.append(np.pad(x, (0, fea_len - len(x))))
+            else:
                 xs.append(x)
-                ys.append(y)
+            ys.append(y)
 
         if len(xs) < min_seed_records:  # no enough samples
             return False
