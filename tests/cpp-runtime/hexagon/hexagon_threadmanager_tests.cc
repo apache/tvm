@@ -35,8 +35,9 @@ class HexagonThreadManagerTest : public ::testing::Test {
   void TearDown() override {
     delete htm;
   }
-  HexagonThreadManager *htm;
+  HexagonThreadManager *htm {nullptr};
   std::vector<TVMStreamHandle> streams;
+  int answer{0};
 };
 
 TEST_F(HexagonThreadManagerTest, init) {
@@ -50,83 +51,98 @@ TEST_F(HexagonThreadManagerTest, ctor_errors) {
   ASSERT_ANY_THROW(HexagonThreadManager(6, 16*1024, MAX_PIPE_SIZE_WORDS + 1));
 }
 
-TEST_F(HexagonThreadManagerTest, wait_on_threads) {
-  htm->WaitOnThreads();
-  CHECK_EQ(42, 42);
+void get_the_answer(void* answer) {
+  *(int*)answer = 42;
 }
 
-TEST_F(HexagonThreadManagerTest, start_wait) {
+TEST_F(HexagonThreadManagerTest, dispatch) {
+  htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->Start();
   htm->WaitOnThreads();
-  CHECK_EQ(42, 42);
+  CHECK_EQ(answer, 42);
+}
+
+TEST_F(HexagonThreadManagerTest, dispatch_wait) {
+  htm->Dispatch(streams[0], get_the_answer, &answer);
+  htm->WaitOnThreads();
+  CHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, wait_signal) {
   htm->Wait(streams[0], 0);
   htm->Signal(streams[1], 0);
+  htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(42, 42);
+  CHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, re_signal) {
   htm->Wait(streams[0], 0);
   htm->Signal(streams[1], 0);
   htm->Signal(streams[1], 0);
+  htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(42, 42);
+  CHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, re_wait) {
   htm->Wait(streams[0], 0);
   htm->Signal(streams[1], 0);
   htm->Wait(streams[0], 0);
+  htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(42, 42);
+  CHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, wait_signal_x2) {
   htm->Wait(streams[0], 0);
   htm->Signal(streams[1], 0);
-  htm->Wait(streams[1], 1);
-  htm->Signal(streams[0], 1);
+  htm->Wait(streams[0], 1);
+  htm->Signal(streams[1], 1);
+  htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(42, 42);
+  CHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, signal_wait) {
   htm->Signal(streams[1], 0);
   htm->Wait(streams[0], 0);
+  htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(42, 42);
+  CHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, sync_from_to) {
-  htm->SyncFromTo(streams[0], streams[1]);
+  htm->SyncFromTo(streams[1], streams[0]);
+  htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(42, 42);
+  CHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, sync_from_to_self) {
   htm->SyncFromTo(streams[0], streams[0]);
+  htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(42, 42);
+  CHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, sync_from_to_x2) {
   htm->SyncFromTo(streams[0], streams[1]);
   htm->SyncFromTo(streams[1], streams[0]);
+  htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(42, 42);
+  CHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, sync_from_to_all) {
-  htm->SyncFromTo(streams[0], streams[1]);
-  htm->SyncFromTo(streams[1], streams[2]);
-  htm->SyncFromTo(streams[2], streams[3]);
-  htm->SyncFromTo(streams[3], streams[4]);
-  htm->SyncFromTo(streams[4], streams[5]);
+  htm->SyncFromTo(streams[5], streams[4]);
+  htm->SyncFromTo(streams[4], streams[3]);
+  htm->SyncFromTo(streams[3], streams[2]);
+  htm->SyncFromTo(streams[2], streams[1]);
+  htm->SyncFromTo(streams[1], streams[0]);
+  htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(42, 42);
+  CHECK_EQ(answer, 42);
 }
 
 struct ToWrite {
