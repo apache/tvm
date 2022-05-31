@@ -916,13 +916,19 @@ def HoistAllocates() -> tvm.IRModule:
     return _ffi_api.HoistAllocates()
 
 
-def CopyComputeReordering(max_copy_movements: Optional[int] = None) -> tvm.IRModule:
+def CopyComputeReordering(
+    max_copy_movements: Optional[int] = None, reorder_by_cycles: Optional[bool] = None
+) -> tvm.IRModule:
     """
-    Reorders copy and compute nodes in such a way that independent DMA copies,
+    Reorders copy and compute nodes in such a way that independent DMA copies
     and computes happen in parallel.
-    Copies to buffers with local scope are not reordered, indeed they copy LUT
-    into the SHRAM which already happens in parallel with copying weights into
+    Copies to buffers with local scope are not reordered since they copy LUT
+    into the SHRAM and that already happens in parallel with copying weights into
     the weights encoder.
+
+    If reorder_by_cycles is set, we use the cycle hint to decide the reordering. If it is not set,
+    we move the copies up by a fixed number of movements, either by max_copy_movements if it is
+    specified, or by default value of 1.
 
     Parameters
     ----------
@@ -932,12 +938,18 @@ def CopyComputeReordering(max_copy_movements: Optional[int] = None) -> tvm.IRMod
         tir.contrib.ethos-u.copy_compute_reordering_max_copy_movements
         is used if provided, otherwise the default value will be 1.
 
+    reorder_by_cycles: Optional[bool]
+        Whether to reorder the computes and copies based on the cycle hint.
+        If None, the pass context option
+        tir.contrib.ethos-u.copy_compute_reordering_reorder_by_cycles
+        is used if provided, otherwise the default value will be False.
+
     Returns
     -------
     tvm.IRModule
         The new module with copy and compute nodes reordered.
     """
-    return _ffi_api.CopyComputeReordering(max_copy_movements)
+    return _ffi_api.CopyComputeReordering(max_copy_movements, reorder_by_cycles)
 
 
 def MergeConstants(const_dict):
