@@ -15,3 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utility methods for the Universal Modular Accelerator Interface (UMA)"""
+
+from enum import Enum, auto
+
+# TODO: naming
+class PassPhase(Enum):
+    """UMA pass phases."""
+
+    PRE_PARTITIONING = auto()
+    POST_PARTITIONING_0 = auto()
+    POST_PARTITIONING_1 = auto()
+    TIR_PHASE_0 = auto()
+    TIR_PHASE_1 = auto()
+    TIR_PHASE_2 = auto()
+    TIR_PHASE_3 = auto()

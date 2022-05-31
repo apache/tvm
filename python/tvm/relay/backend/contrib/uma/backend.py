@@ -16,22 +16,20 @@
 # under the License.
 """Backend base class of the Universal Modular Accelerator Interface (UMA)"""
 
+from abc import ABC, abstractmethod
+from typing import Union, Dict, Callable, Optional, Any
+
 import tvm
-
-from abc import abstractmethod
-from typing import Union, Dict, Callable, Optional
-
-from tvm.relay.backend.contrib.uma.api.partitioner import UMAPartitioner
-from tvm.relay.backend.contrib.uma.api.lower import UMALower
 from tvm.relay.backend.contrib.uma.api.codegen import UMACodegen
+from tvm.relay.backend.contrib.uma.api.lower import UMALower
+from tvm.relay.backend.contrib.uma.api.partitioner import UMAPartitioner
+from tvm.relay.backend.contrib.uma.api.utils import PassPhase
 
 
-class UMABackend(object):
-    def __init__(self, variant: str = "", merge_compiler_regions: bool = True) -> None:
-        # TODO: variant implementation
-        # - variant should allow the user to differentiate between different variants of the same NPU
-        # - we need to decide where we want to make the variant decision and which parts of UMA are affected by it
-        self._target_attrs: Dict = dict()
+class UMABackend(ABC):
+    def __init__(self, merge_compiler_regions: bool = True) -> None:
+        self._target_attrs: Dict = {}
+        self._target_preprocessor: Callable[[str], Dict[str, Any]] = None
         self._relay_to_relay = UMAPartitioner(self.target_name, merge_compiler_regions)
         self._relay_to_tir = UMALower(self.target_name)
         self._tir_to_runtime = UMACodegen(self.target_name)
@@ -52,20 +50,40 @@ class UMABackend(object):
     # Target configuration
     ############################################################################
     def _register_target_attr(
-        self, name: str, default: Optional[Union[str, int, bool]] = "",
+        self,
+        name: str,
+        default: Optional[Union[str, int, bool]] = "",
     ) -> None:
-        """Register a target attribute name that can be used during target instantiation."""
+        """Register a target attribute name that can be used during target instantiation.
+        Parameters
+        ----------
+        name: str
+           The name of the target attribute.
+
+        default: Optional[Union[str, int, bool]]
+            A default value for the attribute.
+            If none is provided, the attribute will be treated as a string.
+
+        Example
+        -------
+        Here is an example of how two attribute options are registered.
+
+        .. code-block:: python
+
+            self._register_target_attr("attrA", default=0)
+            self._register_target_attr("attrB", default=False)
+        """
         self._target_attrs[name] = default
 
     ############################################################################
     # Relay to Relay function registration
     ############################################################################
-    def _register_relay_pass(self, phase: int, relay_pass: tvm.transform.Pass) -> None:
+    def _register_relay_pass(self, phase: PassPhase, relay_pass: tvm.transform.Pass) -> None:
         """Registers a relay pass at the given phase in the lowering process.
 
         Parameters
         ----------
-        phase: int
+        phase: PassPhase
            The phase at which the pass is registered.
 
         relay_pass: tvm.transform.Pass
@@ -78,13 +96,13 @@ class UMABackend(object):
 
         .. code-block:: python
 
-            self._register_relay_pass(0, MyPassA)
-            self._register_relay_pass(0, MyPassB)
+            self._register_relay_pass(PassPhase.PRE_PARTITIONING, MyPassA)
+            self._register_relay_pass(PassPhase.POST_PARTITIONING, MyPassB)
 
         Where a relay pass can look like this:
 
         .. code-block:: python
-            
+
             @tvm.ir.transform.module_pass(opt_level=0)
             class MyPassA:
                 def transform_module(self, mod, ctx):
@@ -93,7 +111,11 @@ class UMABackend(object):
         """
         self._relay_to_relay._relay_passes.append((phase, relay_pass))
 
-    def _register_pattern(self, name: str, pattern: tvm.relay.dataflow_pattern.DFPattern,) -> None:
+    def _register_pattern(
+        self,
+        name: str,
+        pattern: tvm.relay.dataflow_pattern.DFPattern,
+    ) -> None:
         """Registers a dataflow pattern that is used to partition the relay graph.
 
         Parameters
@@ -117,7 +139,7 @@ class UMABackend(object):
         Where a dataflow pattern can look like this:
 
         .. code-block:: python
-            
+
             conv1d_pattern = is_op("nn.conv1d")(wildcard(), wildcard())
             optional_bias = lambda x: is_op("nn.bias_add")(x, wildcard())
             optional_relu = lambda x: is_op("nn.relu")(x)
@@ -175,17 +197,16 @@ class UMABackend(object):
         """
         self._relay_to_tir._operator_strategies.append((op, strategy, plevel))
 
-    def _register_tir_pass(self, phase: int, tir_pass: tvm.tir.transform.PrimFuncPass) -> None:
+    def _register_tir_pass(self, phase: PassPhase, tir_pass: tvm.tir.transform.PrimFuncPass) -> None:
         """Registers a TIR pass at the given phase in the lowering process.
 
         Parameters
         ----------
-        phase: int
+        phase: PassPhase
            The phase at which the pass is registered.
 
         tir_pass: tvm.tir.transform.PrimFuncPass
             The TIR pass to be registered.
-
         Example
         -------
         Here is an example of how two TIR passes are registered.
@@ -193,13 +214,13 @@ class UMABackend(object):
 
         .. code-block:: python
 
-            self._register_tir_pass(0, MyPassA)
-            self._register_tir_pass(0, MyPassB)
+            self._register_tir_pass(PassPhase.TIR_PHASE_0, MyPassA)
+            self._register_tir_pass(PassPhase.TIR_PHASE_1, MyPassB)
 
         Where a TIR pass can look like this:
 
         .. code-block:: python
-            
+
             @tvm.tir.transform.prim_func_pass(opt_level=0)
             class MyPassA:
                 def transform_function(self, func, mod, ctx):

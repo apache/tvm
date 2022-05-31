@@ -16,28 +16,30 @@
 # under the License.
 """Partitioner base class of the Universal Modular Accelerator Interface (UMA)"""
 
+from typing import Dict, List, Tuple, Optional
+
 import tvm
 from tvm import relay
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.op.contrib.register import register_pattern_table
+from .utils import PassPhase
 
-from typing import Dict, List, Tuple, Optional
 
+class UMAPartitioner():
+    """Partitioner base class of the Universal Modular Accelerator Interface (UMA)."""
 
-class UMAPartitioner(object):
-    def __init__(
-        self, target_name: str, merge_compiler_regions: bool = True
-    ) -> None:
+    def __init__(self, target_name: str, merge_compiler_regions: bool = True) -> None:
         self.target_name = target_name
         self.merge_compiler_regions = merge_compiler_regions
 
-        self._relay_passes: List[Tuple[int, tvm.transform.Pass]] = []
+        self._relay_passes: List[Tuple[PassPhase, tvm.transform.Pass]] = []
         self._patterns: List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern]] = []
 
     def _pattern_table(self):
         return [(self.target_name + "." + pattern[0], pattern[1]) for pattern in self._patterns]
 
     def register(self) -> None:
+        """Register all relevant relay-to-relay functions."""
         register_pattern_table(self.target_name, self._pattern_table)
 
     def partition(
@@ -60,7 +62,9 @@ class UMAPartitioner(object):
             mod["main"] = bind_params_by_name(mod["main"], params)
 
         mod = relay.transform.InferType()(mod)
-        mod = tvm.transform.Sequential([p[1] for p in self._relay_passes if p[0] == 0])(mod)
+        mod = tvm.transform.Sequential(
+            [p[1] for p in self._relay_passes if p[0] == PassPhase.PRE_PARTITIONING]
+        )(mod)
         mod = relay.transform.MergeComposite(self._pattern_table())(mod)
         mod = relay.transform.AnnotateTarget(self.target_name)(mod)
         if self.merge_compiler_regions:
@@ -68,11 +72,15 @@ class UMAPartitioner(object):
         mod = relay.transform.InferType()(mod)
         mod = relay.transform.PartitionGraph()(mod)
         mod = relay.transform.InferType()(mod)
-        mod = tvm.transform.Sequential([p[1] for p in self._relay_passes if p[0] == 1])(mod)
+        mod = tvm.transform.Sequential(
+            [p[1] for p in self._relay_passes if p[0] == PassPhase.POST_PARTITIONING_0]
+        )(mod)
         mod = relay.transform.InferType()(mod)
         # Defunctionalize the partitioned functions to allow lowering
         for gv, func in mod.functions.items():
             mod.update_func(gv, relay.transform.Defunctionalization(func, mod))
-        mod = tvm.transform.Sequential([p[1] for p in self._relay_passes if p[0] == 2])(mod)
+        mod = tvm.transform.Sequential(
+            [p[1] for p in self._relay_passes if p[0] == PassPhase.POST_PARTITIONING_1]
+        )(mod)
 
         return mod

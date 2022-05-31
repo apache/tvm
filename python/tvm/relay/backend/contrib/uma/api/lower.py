@@ -16,16 +16,18 @@
 # under the License.
 """Lowering base class of the Universal Modular Accelerator Interface (UMA)"""
 
-import tvm
-from tvm import relay, te
-from tvm.relay.op.op import register_strategy
-
 from typing import List, Tuple, Callable, Optional
 
+import tvm
 from . import _ffi_api
+from tvm import relay, te
+from tvm.relay.op.op import register_strategy
+from .utils import PassPhase
 
 
-class UMALower(object):
+class UMALower:
+    """Lowering base class of the Universal Modular Accelerator Interface (UMA)."""
+
     def __init__(self, target_name: str) -> None:
         self.target_name = target_name
 
@@ -39,7 +41,7 @@ class UMALower(object):
                 Optional[int],
             ]
         ] = []
-        self._tir_passes: List[Tuple[int, tvm.tir.transform.PrimFuncPass]] = []
+        self._tir_passes: List[Tuple[PassPhase, tvm.tir.transform.PrimFuncPass]] = []
 
     def _lower_relay_to_tir(self, relay_prim_func: relay.Function) -> tvm.tir.PrimFunc:
         """Lower a Relay primitive function to a S-TIR primitive function.
@@ -83,12 +85,20 @@ class UMALower(object):
         curr_ctxt = tvm.transform.PassContext().current()
         assert "tir.add_lower_pass" not in curr_ctxt.config
 
+        pass_map = {
+            PassPhase.TIR_PHASE_0: 0,
+            PassPhase.TIR_PHASE_1: 1,
+            PassPhase.TIR_PHASE_2: 2,
+            PassPhase.TIR_PHASE_3: 3,
+        }
+        lower_passes = [(pass_map[k], v) for k, v in self._tir_passes]
+
         with tvm.transform.PassContext(
             opt_level=curr_ctxt.opt_level,
             required_pass=curr_ctxt.required_pass,
             disabled_pass=curr_ctxt.disabled_pass,
             instruments=curr_ctxt.instruments,
-            config={**dict(curr_ctxt.config), "tir.add_lower_pass": self._tir_passes},
+            config={**dict(curr_ctxt.config), "tir.add_lower_pass": lower_passes},
         ):
             mod = tvm.lower(tvm.ir.IRModule.from_expr(prim_func))
         prim_func = mod[prim_func.attrs["global_symbol"]]
@@ -118,6 +128,7 @@ class UMALower(object):
         return mod
 
     def register(self) -> None:
+        """Register all relevant relay-to-tir functions."""
         tvm._ffi.register_func(f"relay.ext.uma.{self.target_name}.relay_to_tir", self.relay_to_tir)
         for op, strategy, plevel in self._operator_strategies:
             register_strategy(op, strategy, plevel)

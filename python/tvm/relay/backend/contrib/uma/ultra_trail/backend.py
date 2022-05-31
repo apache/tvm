@@ -16,36 +16,40 @@
 # under the License.
 """UMA backend for the UltraTrail accelerator"""
 
+from ..api.utils import PassPhase
 from ..backend import UMABackend
-from .strategies import *
-from .passes import *
-from .patterns import *
-from .codegen import *
+from .codegen import gen_includes, gen_replace_call_extern
+from .passes import ConfigGenerator, BufferScopeAnnotator, CodegenGenerateExternCalls
+from .patterns import conv1d_relu_pattern
+from .strategies import custom_conv1d_strategy
 
 
 class UltraTrailBackend(UMABackend):
+    """UMA backend for the UltraTrail accelerator."""
+
     def __init__(self):
-        super(UltraTrailBackend, self).__init__()
+        super().__init__()
 
         #######################################################################
         # Target configuration
         #######################################################################
         self._register_target_attr("dimension")
+        self._register_target_preprocessor(lambda x: {"attr": x})
 
         #######################################################################
         # Relay to Relay function registration
         #######################################################################
         self._register_pattern("conv1d_relu", conv1d_relu_pattern())
 
-        self._register_relay_pass(1, ConfigGenerator())
-        self._register_relay_pass(2, BufferScopeAnnotator())
+        self._register_relay_pass(PassPhase.POST_PARTITIONING_0, ConfigGenerator())
+        self._register_relay_pass(PassPhase.POST_PARTITIONING_1, BufferScopeAnnotator())
 
         #######################################################################
         # Relay to TIR function registration
         #######################################################################
         self._register_operator_strategy("nn.conv1d", custom_conv1d_strategy, plevel=9)
 
-        self._register_tir_pass(0, CodegenGenerateExternCalls())
+        self._register_tir_pass(PassPhase.TIR_PHASE_0, CodegenGenerateExternCalls())
 
         #######################################################################
         # TIR to runtime function registration
