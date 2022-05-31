@@ -34,24 +34,34 @@ class TexturePool::Pool {
   Pool() = default;
   void* Alloc(Device dev, DeviceAPI* device, size_t width, size_t height, DLDataType type_hint) {
     Entry e;
+    Entry new_mem;
+    // Processed several experiments and found that when we are trying to fit
+    // small texture to too big texture then it may lead to the performance
+    // degradation.
+    // Coefficient at 5 looks like robust variant for reusing textures.
+    const int64_t max_ratio = 5;
     e.data = nullptr;
+    std::vector<Entry>::iterator best_mem;
     if (free_list_.size() != 0) {
-      Entry new_mem;
       int64_t min_added_size_x = std::numeric_limits<int64_t>::max();
       int64_t min_added_size_y = std::numeric_limits<int64_t>::max();
       int64_t min_wasted_size_x = std::numeric_limits<int64_t>::max();
       int64_t min_wasted_size_y = std::numeric_limits<int64_t>::max();
-      std::vector<Entry>::iterator best_mem;
       for (auto it = free_list_.begin(); it != free_list_.end(); ++it) {
         if (it->type.code != type_hint.code) {
           continue;
         }
-        new_mem.x = std::max(it->x, width);
-        new_mem.y = std::max(it->y, height);
-        int64_t added_size_x = new_mem.x - it->x;
-        int64_t added_size_y = new_mem.y - it->y;
-        int64_t wasted_size_x = new_mem.x - width;
-        int64_t wasted_size_y = new_mem.y - height;
+        // avoid reusing too small and too big textures
+        if (width / it->x > max_ratio || it->x / width > max_ratio || height / it->y > max_ratio ||
+            it->y / height > max_ratio) {
+          continue;
+        }
+        int64_t new_width = std::max(it->x, width);
+        int64_t new_height = std::max(it->y, height);
+        int64_t added_size_x = new_width - it->x;
+        int64_t added_size_y = new_height - it->y;
+        int64_t wasted_size_x = new_width - width;
+        int64_t wasted_size_y = new_height - height;
         // Minimize added size first and wasted size thereafter
         if ((min_added_size_x > 0 && added_size_x < min_added_size_x) ||
             (min_added_size_y > 0 && added_size_y < min_added_size_y) ||
@@ -62,6 +72,8 @@ class TexturePool::Pool {
           min_wasted_size_x = wasted_size_x;
           min_wasted_size_y = wasted_size_y;
           best_mem = it;
+          new_mem.x = new_width;
+          new_mem.y = new_height;
         }
       }
 
