@@ -26,7 +26,7 @@ apt-get install -y --no-install-recommends protobuf-compiler \
 
 
 # install python packages
-pip install "numpy" "protobuf" "scikit-image" "six"
+pip install "numpy" "protobuf==3.20.1" "scikit-image" "six"
 
 # Build the Caffe and the python wrapper
 echo "Downloading Caffe"
