@@ -2372,9 +2372,15 @@ def _test_less_equal(data):
 # -----
 
 
-def _test_equal(data):
+def _test_equal(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of equal"""
-    return _test_elemwise(math_ops.equal, data)
+    return _test_elemwise(
+        math_ops.equal,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+    )
 
 
 #######################################################################
