@@ -26,10 +26,12 @@
 using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
 
+#define oneK 0x400
+
 class HexagonThreadManagerTest : public ::testing::Test {
   protected:
   void SetUp() override {
-    htm = new HexagonThreadManager(6, MIN_STACK_SIZE_BYTES, MIN_PIPE_SIZE_WORDS);
+    htm = new HexagonThreadManager(6, oneK, oneK);
     htm->GetStreamHandles(&streams);
   }
   void TearDown() override {
@@ -43,12 +45,6 @@ class HexagonThreadManagerTest : public ::testing::Test {
 TEST_F(HexagonThreadManagerTest, init) {
   CHECK(htm != nullptr);
   CHECK_EQ(streams.size(), 6);
-}
-
-TEST_F(HexagonThreadManagerTest, ctor_errors) {
-  ASSERT_ANY_THROW(HexagonThreadManager(60, 16*1024, 1024));
-  ASSERT_ANY_THROW(HexagonThreadManager(6, MAX_STACK_SIZE_BYTES + 1, 1024));
-  ASSERT_ANY_THROW(HexagonThreadManager(6, 16*1024, MAX_PIPE_SIZE_WORDS + 1));
 }
 
 void get_the_answer(void* answer) {
@@ -143,6 +139,40 @@ TEST_F(HexagonThreadManagerTest, sync_from_to_all) {
   htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
   CHECK_EQ(answer, 42);
+}
+
+TEST(HexagonThreadManagerStandalone, ctor_errors) {
+  ASSERT_THROW(HexagonThreadManager(0, oneK, oneK), InternalError);
+  ASSERT_THROW(HexagonThreadManager(60, oneK, oneK), InternalError);
+  ASSERT_THROW(HexagonThreadManager(6, MAX_STACK_SIZE_BYTES + 1, oneK), InternalError);
+  ASSERT_THROW(HexagonThreadManager(6, oneK, MAX_PIPE_SIZE_WORDS + 1), InternalError);
+}
+
+TEST(HexagonThreadManagerStandalone, pipe_overflow) {
+  int answer = 0;
+  unsigned tiny = 128;
+  HexagonThreadManager tinyhtm(1, tiny, tiny);
+  std::vector<TVMStreamHandle> streams;
+  tinyhtm.GetStreamHandles(&streams);
+  // fill the pipe
+  for (int i = 0; i < tiny; ++i) {
+    tinyhtm.Dispatch(streams[0], get_the_answer, &answer);
+  }
+  // overflow the pipe
+  ASSERT_THROW(tinyhtm.Dispatch(streams[0], get_the_answer, &answer), InternalError);
+}
+
+TEST(HexagonThreadManagerStandalone, pipe_fill) {
+  int answer = 0;
+  unsigned tiny = 128;
+  HexagonThreadManager tinyhtm(1, tiny, tiny);
+  std::vector<TVMStreamHandle> streams;
+  tinyhtm.GetStreamHandles(&streams);
+  // fill the pipe
+  for (int i = 0; i < tiny; ++i) {
+    tinyhtm.Dispatch(streams[0], get_the_answer, &answer);
+  }
+  tinyhtm.WaitOnThreads();
 }
 
 struct ToWrite {

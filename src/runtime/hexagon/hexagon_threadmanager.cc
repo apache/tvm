@@ -12,6 +12,7 @@ namespace hexagon {
 HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words) {
   // Note: could technically manage more software threads than allowable hardware threads, but there is no system constant defined
   //  in the qurt libs for that maximum.
+  CHECK(num_threads);
   CHECK_LE(num_threads, QURT_MAX_HTHREAD_LIMIT);
   nthreads = num_threads;
 
@@ -163,11 +164,7 @@ void HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* ar
   qurt_pipe_t* pipeAddr = &pipes[thread];
 
   int trysend = qurt_pipe_try_send(pipeAddr, msg);
-  if (trysend) {
-    // log that the pipe was full, then do a blocking send
-    DBG("Blocking on dispatch to thread " << thread << " due to full pipe");
-    qurt_pipe_send(pipeAddr, msg);
-  }
+  CHECK_EQ(trysend, 0);
 }
 
 void HexagonThreadManager::Start() {

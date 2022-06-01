@@ -21,9 +21,9 @@ namespace hexagon {
 #define DBG(msg) DLOG(INFO) << msg << "\n"
 
 // TODO: adjust as necessary
-#define MIN_STACK_SIZE_BYTES 0x4000 // 16KB
+#define MIN_STACK_SIZE_BYTES 128 // 128 bytes
 #define MAX_STACK_SIZE_BYTES 0x10000 // 64KB 
-#define MIN_PIPE_SIZE_WORDS 0x400 // 1K words
+#define MIN_PIPE_SIZE_WORDS 128 // 128 words
 #define MAX_PIPE_SIZE_WORDS 0x1000 // 4K words
   
 class HexagonThreadManager {
@@ -59,13 +59,14 @@ private:
   static void thread_exit(void* status);
   static void thread_unpack(void* wrapped);
   static void thread_main(void* context);
-  unsigned nthreads;
-  void* stack_buffer;
-  void* pipe_buffer;
+
+  unsigned nthreads{0};
+  void* stack_buffer{nullptr};
+  void* pipe_buffer{nullptr};
   #if defined(__hexagon__)
-  qurt_thread_t* threads;
-  qurt_pipe_t* pipes;
-  ThreadContext** contexts;
+  qurt_thread_t* threads{nullptr};
+  qurt_pipe_t* pipes{nullptr};
+  ThreadContext** contexts{nullptr};
   std::vector<qurt_sem_t> semaphores;
   qurt_sem_t start_semaphore;
   #endif
