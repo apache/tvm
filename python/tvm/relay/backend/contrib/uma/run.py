@@ -43,14 +43,15 @@ def main():
     mod = ut_backend.partition(mod)
 
     # Relay build (AOT C target)
-    TARGET = tvm.target.Target("c")
+    TARGET = tvm.target.Target("ultra_trail", host=tvm.target.Target("c"))
+    GENERIC_TARGET= tvm.target.Target("c")
     RUNTIME = tvm.relay.backend.Runtime("crt")
     EXECUTOR = tvm.relay.backend.Executor("aot", {"unpacked-api": True})
 
     with tvm.transform.PassContext(
         opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["AlterOpLayout"]
     ):
-        module = relay.build(mod, target=TARGET, runtime=RUNTIME, executor=EXECUTOR, params=params)
+        module = relay.build(mod, target=[GENERIC_TARGET, TARGET], runtime=RUNTIME, executor=EXECUTOR, params=params)
 
     model_library_format_tar_path = Path("build/lib.tar")
     model_library_format_tar_path.unlink(missing_ok=True)
