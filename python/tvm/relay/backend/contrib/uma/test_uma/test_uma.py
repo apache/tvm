@@ -1,3 +1,5 @@
+# FIXME: move to proper test case directory
+
 import tvm
 from tvm import relay
 from tvm.relay.backend.contrib.uma.ultra_trail.backend import UltraTrailBackend
@@ -37,7 +39,8 @@ ut_backend.register()
 @pytest.mark.parametrize(
     "compound_target", 
     [
-        [tvm.target.Target("c"), tvm.target.Target("ultra_trail", host=tvm.target.Target("c"))]
+        [tvm.target.Target("llvm"), tvm.target.Target("ultra_trail", host=tvm.target.Target("llvm"))],
+        [tvm.target.Target("c"), tvm.target.Target("ultra_trail", host=tvm.target.Target("c"))],
     ]
 )
 def test_ultra_trail(compound_target):
@@ -48,12 +51,17 @@ def test_ultra_trail(compound_target):
     scripted_model = torch.jit.trace(torch_mod, dummy_input).eval()
     mod, params = relay.frontend.from_pytorch(scripted_model, [("input_data", input_shape)])
 
-    # Relay target specific partitioning    
+    # Relay target specific partitioning
     mod = ut_backend.partition(mod)
 
+    generic_target = compound_target[0]
+
     # Relay build (AOT C target)
-    RUNTIME = tvm.relay.backend.Runtime("crt")
-    EXECUTOR = tvm.relay.backend.Executor("aot", {"unpacked-api": True})
+    RUNTIME = tvm.relay.backend.Runtime("crt", {"system-lib": True})
+    if str(generic_target.kind) == "llvm":
+        EXECUTOR = tvm.relay.backend.Executor("graph", {"link-params": True})
+    else:
+        EXECUTOR = tvm.relay.backend.Executor("aot", {"unpacked-api": True})
 
     with tvm.transform.PassContext(
         opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["AlterOpLayout"]
