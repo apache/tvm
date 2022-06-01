@@ -732,14 +732,14 @@ PrimExpr NormalizeTerm(const PrimExpr& expr) {
   // associativity (like (x+y)+z and x+(y+z)), etc. For that, a normalization procedure (or an 
   // incomplete "pseudo-normalization" like arith::Analyzer::Simplify) will be used.
 
-  //return expr;
+  return expr;
 
   // Just an attempt to do more commonings by using the pseudo-normalization function
   // offered by arith::Analyzer::Simplify(). "pseudo" because while it is correct (i.e. 
   // the simplification is indeed equivalent to the original term), it is incomplete (i.e. 
   // the returned term is not guaranteed to be a normal form).
-  arith::Analyzer analyzer;
-  return analyzer.Simplify(expr);
+  //arith::Analyzer analyzer;
+  //return analyzer.Simplify(expr);
 }
 
 /*!
