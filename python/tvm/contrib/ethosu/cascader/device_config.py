@@ -48,9 +48,24 @@ class _Shape:
             self.width = int(shape[3])
             self.depth = int(shape[2]) * int(shape[4])
         else:
-            self.height = int(shape[1])
-            self.width = int(shape[2])
-            self.depth = int(shape[3])
+            # identity layout is NHWC but the shape is not always 4
+            length = len(shape)
+            if length == 4:
+                self.height = int(shape[1])
+                self.width = int(shape[2])
+                self.depth = int(shape[3])
+            elif length == 3:
+                self.height = int(shape[0])
+                self.width = int(shape[1])
+                self.depth = int(shape[2])
+            elif length == 2:
+                self.height = int(shape[0])
+                self.width = int(shape[1])
+                self.depth = 1
+            elif length == 1:
+                self.height = int(shape[0])
+                self.width = 1
+                self.depth = 1
 
     def round_up(self, other: "_Shape"):
         self.height = _round_up(self.height, other.height)
@@ -627,18 +642,19 @@ class EthosuDeviceConfig:
         stride_w = int(op_attrs.get("stride_w", 1))
         transform = ifm_propagator.transform
 
-        if input_layout == "NHCWB16":
-            transform[1][-1] = min(transform[1][-1], self._subkernel_limits[0] - stride_h)
-            transform[3][-1] = min(transform[3][-1], self._subkernel_limits[1] - stride_w)
-        else:
-            transform[1][-1] = min(transform[1][-1], self._subkernel_limits[0] - stride_h)
-            transform[2][-1] = min(transform[2][-1], self._subkernel_limits[1] - stride_w)
+        if op_type != "ethosu_identity":
+            if input_layout == "NHCWB16":
+                transform[1][-1] = min(transform[1][-1], self._subkernel_limits[0] - stride_h)
+                transform[3][-1] = min(transform[3][-1], self._subkernel_limits[1] - stride_w)
+            else:
+                transform[1][-1] = min(transform[1][-1], self._subkernel_limits[0] - stride_h)
+                transform[2][-1] = min(transform[2][-1], self._subkernel_limits[1] - stride_w)
 
-        if op_type in ("ethosu_pooling", "ethosu_depthwise_conv2d"):
-            if output_layout == "NHCWB16" and input_layout == "NHWC":
-                transform[3][-1] = depth
-            elif output_layout == "NHCWB16" and input_layout == "NHCWB16":
-                transform[2][-1] = 1 + ((depth - 1) // 16)
+            if op_type in ("ethosu_pooling", "ethosu_depthwise_conv2d"):
+                if output_layout == "NHCWB16" and input_layout == "NHWC":
+                    transform[3][-1] = depth
+                elif output_layout == "NHCWB16" and input_layout == "NHCWB16":
+                    transform[2][-1] = 1 + ((depth - 1) // 16)
 
         return Propagator(transform, ifm_propagator.offset)
 
