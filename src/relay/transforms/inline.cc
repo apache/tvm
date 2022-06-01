@@ -69,6 +69,7 @@ class Inliner : ExprMutator {
         for (auto arg : vanilla_call->args) {
           new_args.push_back(VisitExpr(arg));
         }
+        // TODO(mbs): Does not handle multiple calls to the same global function.
         cur_node_->RemoveCallTo(gv);
         return MakeNewExpr(gv, new_args, GetRef<Call>(call_node));
       }
