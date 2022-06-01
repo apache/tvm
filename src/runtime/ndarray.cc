@@ -206,8 +206,7 @@ NDArray NDArray::Empty(ShapeTuple shape, DLDataType dtype, Device dev, Optional<
 }
 
 NDArray NDArray::FromExternalDLTensor(const DLTensor& dl_tensor) {
-  ICHECK(::tvm::runtime::IsContiguous(dl_tensor))
-      << "External DLTensor is not contiguous. It does not support for now";
+  ICHECK(::tvm::runtime::IsContiguous(dl_tensor)) << "External DLTensor must be contiguous.";
   ICHECK(IsAligned(dl_tensor)) << "Data in DLTensor is not aligned as required by NDArray";
   NDArray::Container* data = new NDArray::Container();
 
@@ -224,7 +223,7 @@ NDArray NDArray::FromExternalDLTensor(const DLTensor& dl_tensor) {
 
 NDArray NDArray::NewFromDLTensor(DLTensor* tensor, const Device& dev) {
   ICHECK(::tvm::runtime::IsContiguous(*tensor))
-      << "DLTensor is not contiguous. It does not support for now";
+      << "DLTensor is not contiguous. Copying from non-contiguous data is currently not supported";
   std::vector<int64_t> shape;
   for (int64_t i = 0; i < tensor->ndim; i++) {
     shape.push_back(tensor->shape[i]);
@@ -240,6 +239,9 @@ NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
   data->SetDeleter(Internal::DLPackDeleter);
   // fill up content.
   data->manager_ctx = tensor;
+  ICHECK(::tvm::runtime::IsContiguous(tensor->dl_tensor)) << "DLManagedTensor must be contiguous.";
+  ICHECK(IsAligned(tensor->dl_tensor))
+      << "Data in DLManagedTensor is not aligned as required by NDArray";
   data->dl_tensor = tensor->dl_tensor;
   // update shape_
   std::vector<ShapeTuple::index_type> shape;
