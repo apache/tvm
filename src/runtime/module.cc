@@ -107,6 +107,7 @@ std::string ModuleNode::GetSource(const std::string& format) {
 }
 
 const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
+  std::lock_guard<std::mutex> lock(mutex_);
   auto it = import_cache_.find(name);
   if (it != import_cache_.end()) return it->second.get();
   PackedFunc pf;
