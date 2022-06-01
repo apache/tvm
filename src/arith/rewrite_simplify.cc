@@ -32,6 +32,7 @@
 
 #include "../target/datatype/registry.h"
 #include "const_fold.h"
+#include "constraint_extract.h"
 #include "pattern_match.h"
 
 namespace tvm {
@@ -229,8 +230,10 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
   // we will compare the already simplified result with the constraint,
   // so simplify the constarint as well
   PrimExpr new_constraint = operator()(constraint);
-  if (SideEffect(new_constraint) <= CallEffectKind::kPure) {
-    literal_constraints_.push_back(new_constraint);
+  for (const PrimExpr& subconstraint : ExtractConstraints(new_constraint)) {
+    if (SideEffect(subconstraint) <= CallEffectKind::kPure) {
+      literal_constraints_.push_back(subconstraint);
+    }
   }
   size_t new_literal_size = literal_constraints_.size();
   auto frecover = [old_literal_size, new_literal_size, this]() {
