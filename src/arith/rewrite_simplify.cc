@@ -237,7 +237,13 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
       // that would require performing a rewrite of each expression
       // being checked.  This way, we only apply a rewrite for each
       // constraint being applied.
-      auto negation = operator()(Not(subconstraint));
+      PrimExpr negation;
+      if (subconstraint.dtype().is_bool()) {
+        negation = Not(subconstraint);
+      } else {
+        negation = subconstraint == make_zero(subconstraint.dtype());
+      }
+      negation = operator()(negation);
       literal_constraints_.push_back(Not(negation));
     }
   }
