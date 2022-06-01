@@ -881,3 +881,7 @@ def schedule_correlation_nchw(outs):
         The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+
+def schedule_lstm(outs):
+    return _default_schedule(outs, False)
