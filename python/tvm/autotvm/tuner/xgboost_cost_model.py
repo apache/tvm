@@ -243,7 +243,7 @@ class XGBoostCostModel(CostModel):
         else:
             raise RuntimeError("Invalid feature type: " + self.fea_type)
         result = pool.map_with_error_catching(feature_extract_func, data)
-        result = list(result) # store results so we can iterate through them twice
+        result = list(result)  # store results so we can iterate through them twice
 
         # get maximum feature length
         fea_len = -1

@@ -71,7 +71,6 @@ def matmul(N, L, M, dtype):
     else:
         s[C].reorder(yo, k, yi, x)
 
-
     return s, [A, B, C]
 
 
