@@ -1,0 +1,78 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+"""Hexagon slice batch flatten compute and schedule"""
+import typing
+
+from tvm import te, tir, topi
+from tvm.script import tir as T
+
+
+def batch_flatten_compute(A: te.Tensor) -> te.Tensor:
+    """Compute for slice batch flatten op for hexagon.
+    This op makes the following assumptions:
+    1. This op is written for a sliced batch flatten operation.
+    2. The input is assumed to be in NHWC layout.
+
+    Parameters
+    ----------
+    Input : te.Tensor
+        Input activations padded for inner dimension size
+    Returns
+    -------
+    Output : te.Tensor
+        Output of applying batch flatten operation on input
+    """
+    return topi.nn.flatten(A)
+
+
+def batch_flatten_STIR_schedule(
+    outputs: te.Tensor,
+    input: te.Tensor,
+    out_layout: typing.Callable,
+    in_layout: typing.Callable,
+) -> tir.Schedule:
+    """STIR schedule definition for the compute of batch flatten compute.
+    Parameters
+    ----------
+    outputs : te.Tensor
+        The output tensor as returned by a call to batch_flatten_compute
+    input : te.Tensor
+        Input tensor to batch_flatten
+    out_layout: typing.Callable
+        The transformation function definition for the expected output layout
+    in_layout: typing.Callable
+        The transformation function definition for the input layout
+    Returns
+    -------
+    sch : tvm.tir.Schedule
+        The STIR schedule for slice batch flatten compute
+    """
+
+    batch_flatten_func = te.create_prim_func([input, outputs])
+    sch = tir.Schedule(batch_flatten_func, debug_mask="all")
+    compute = sch.get_block("compute")
+
+    sch.transform_layout(compute, input.name, in_layout)
+    sch.transform_layout(compute, outputs.name, out_layout)
+    i, j = sch.get_loops(compute)
+    jo, c = sch.split(j, [None, input.shape[3]])
+    h, w = sch.split(jo, [input.shape[1], input.shape[2]])
+    co, ci = sch.split(c, [None, 1024])
+    ci_1, ci_2 = sch.split(ci, [None, 64])
+    sch.vectorize(ci_2)
+    return sch
