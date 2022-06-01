@@ -1697,6 +1697,13 @@ def test_all_resize():
             tf.image.resize_nearest_neighbor,
             images_data_float32,
             size_data,
+            align_corners=True,
+            half_pixel_centers=False,
+        )
+        _test_resize(
+            tf.image.resize_nearest_neighbor,
+            images_data_float32,
+            size_data,
             align_corners=False,
             half_pixel_centers=True,
         )
