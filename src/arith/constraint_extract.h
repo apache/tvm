@@ -28,6 +28,8 @@
 
 #include <tvm/tir/expr.h>
 
+#include <vector>
+
 namespace tvm {
 namespace arith {
 
