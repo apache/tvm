@@ -4983,9 +4983,6 @@ class Round(OnnxOpConverter):
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
-        # See the tutorial for full implementation details:
-        # https://www.youtube.com/watch?v=fZvNG-oKK5Q&list=PL_4zDggB-DBpynCEnC9hV-1euZrP3xDRK&index=4
-
         # Onnx round uses Banker's rounding which rounds .5 to the nearest even integer
 
         x = inputs[0]
