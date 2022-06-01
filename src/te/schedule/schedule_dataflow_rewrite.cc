@@ -511,14 +511,14 @@ void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
   std::vector<bool> changed(sch->stages.size(), false);
   std::vector<Stmt> new_hybrid_body(sch->stages.size());
   std::vector<bool> hybrid_changed(sch->stages.size(), false);
-  // (sshtin): this workaround allows to inline extern ops.
-  // All inputs for extern op should not be inlined because inlining happens
-  // before generation of TE script for particular extern op. That may lead to
+  // (sshtin): this workaround allows to inline extern ops into their consumer.
+  // All inputs for extern op should not be inlined because inlining may happen
+  // before TE generation for particular extern op. That may lead to
   // crash during lowering or building stages.
   // The problem description:
-  // In case of operations fuzing arguments inlining
+  // In case of operations fusing, arguments inlining
   // prevents creation of ProducerNode for extern operation.
-  // Instead of the creation it supposed to use operation argument as inlined buffer
+  // Instead of the creation it is supposed to use operation argument as inlined buffer
   // but extern_op TIR generation can be peformed after inlining procedure so
   // newly generated TIR does not have reference to input data at all.
   std::unordered_map<Operation, Operation> ext_ops;
@@ -550,7 +550,7 @@ void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
         }
         if (ext_ops.find(stage->op) != ext_ops.end()) {
           // sshtin: The extern op can try to get access to the input tensors as a row data,
-          // that can lead to error in TE scripts.
+          // that can lead to error in IR builder.
           stage->attach_type = kGroupRoot;
           continue;
         }
