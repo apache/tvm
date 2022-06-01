@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-27T14:45:11.226042
+// Generated at 2022-05-31T16:54:56.997402
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -1268,7 +1268,6 @@ def shard_run_python_i386_1_of_5() {
                 script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
                 label: 'Run i386 integration tests',
               )
-              fsim_test(ci_i386)
             })
           }
         } finally {
@@ -1360,7 +1359,6 @@ def shard_run_python_i386_3_of_5() {
                 script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
                 label: 'Run i386 integration tests',
               )
-              fsim_test(ci_i386)
             })
           }
         } finally {
@@ -1406,7 +1404,6 @@ def shard_run_python_i386_4_of_5() {
                 script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
                 label: 'Run i386 integration tests',
               )
-              fsim_test(ci_i386)
             })
           }
         } finally {
@@ -1452,7 +1449,6 @@ def shard_run_python_i386_5_of_5() {
                 script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
                 label: 'Run i386 integration tests',
               )
-              fsim_test(ci_i386)
             })
           }
         } finally {
@@ -2476,7 +2472,6 @@ def shard_run_topi_aarch64_2_of_2() {
                       )
 
               ci_setup(ci_arm)
-              cpp_unittest(ci_arm)
               sh (
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
                 label: 'Run test_arm_compute_lib test',
