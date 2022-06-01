@@ -14,15 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name, unused-variable, unused-argument, too-many-locals
 
-from tvm.ir.module import IRModule
-from tvm import te
-from tvm import tir
-from tvm.script import tir as T
-from ..utils import get_layout_transform_fn
+""" Compute and schedule for avg_pool2d slice op
 
-"""
-The slice op implementation for avg_pool2d makes serveral assumptions:
+Please note the following assumptions made by the implementation:
 
 1) The input must be padded in advance to account for 'padding'. In addition,
    both input and output must be padded as per the physical buffer layout.
@@ -35,20 +31,27 @@ The slice op implementation for avg_pool2d makes serveral assumptions:
    for the input.
 """
 
+#from tvm.ir.module import IRModule
+from tvm import te
+from tvm import tir
+from ..utils import get_layout_transform_fn
+
 
 def validate_out_shape(out_shape, in_shape, kernel, stride, dilation):
-    ob, oh, ow, oc = out_shape
-    ib, ih, iw, ic = in_shape
+    """Validate output shape"""
+    _, oh, ow, _ = out_shape
+    _, ih, iw, _ = in_shape
     kh, kw = kernel
     sh, sw = stride
     dh, dw = dilation
     if ih < (oh - 1) * sh + dh * (kh - 1) + 1:
-        raise RuntimeError(f"Output height is too large")
+        raise RuntimeError("Output height is too large")
     if iw < (ow - 1) * sw + dw * (kw - 1) + 1:
-        raise RuntimeError(f"Output width is too large")
+        raise RuntimeError("Output width is too large")
 
 
 def avg_pool2d_compute(A, out_shape, kernel, stride, dilation):
+    """avg_pool2d compute"""
     kh, kw = kernel
     rh = te.reduce_axis((0, kh), name="rh")
     rw = te.reduce_axis((0, kw), name="rw")
@@ -72,9 +75,8 @@ def avg_pool2d_compute(A, out_shape, kernel, stride, dilation):
     )
     return Avg
 
-
-# Schedule for input and output layout nhwc-8h2w32c2w
 def STIR_schedule_nhwc_8h2w32c2w(outs, ins, output_layout: str, input_layout: str):
+    """Schedule for input and output layout nhwc-8h2w32c2w"""
     func = te.create_prim_func([ins, outs])
     s = tir.Schedule(func)
     Sum = s.get_block("sum")
@@ -103,9 +105,8 @@ def STIR_schedule_nhwc_8h2w32c2w(outs, ins, output_layout: str, input_layout: st
     # s.vectorize(ci_wii) # Doesn't work
     return s
 
-
-# Schedule for output layout: n11c-1024c, input layout: nhwc-8h2w32c2w
 def STIR_schedule_n11c_1024c(outs, ins, output_layout: str, input_layout: str):
+    """Schedule for output layout: n11c-1024c, input layout: nhwc-8h2w32c2w"""
     func = te.create_prim_func([ins, outs])
     s = tir.Schedule(func)
     Sum = s.get_block("sum")
@@ -129,9 +130,8 @@ def STIR_schedule_n11c_1024c(outs, ins, output_layout: str, input_layout: str):
     # s.vectorize(Sum_axis[-3]) # Doesn't work
     return s
 
-
-# STIR based schedule
 def avg_pool2d_STIR_schedule(outs, ins, output_layout: str, input_layout: str):
+    """STIR based schedule"""
     if output_layout == "nhwc-8h2w32c2w-2d":
         return STIR_schedule_nhwc_8h2w32c2w(outs, ins, output_layout, input_layout)
     if output_layout == "n11c-1024c-2d":
