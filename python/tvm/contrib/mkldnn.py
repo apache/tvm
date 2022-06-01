@@ -59,6 +59,7 @@ def dnnl_conv2d(
     padding,
     dilation,
     groups,
+    channel_last=False,
     out_dtype="float32",
     **kwargs
 ):
@@ -85,10 +86,14 @@ def dnnl_conv2d(
 
     groups: str
         input data layout: NCHW or NHWC
-    
+
+    channel_last: bool
+        chose if input/output data format is in channel_last format(NHWC) or
+        in plain format(NCHW)
+
     out_dtype: str
         output datatype: now only support float32
-    
+
     Returns
     -------
     Output : tvm.te.Tensor
@@ -107,8 +112,12 @@ def dnnl_conv2d(
     else:
         dilation_h, dilation_w = dilation
 
-    batch, _, in_height, in_width = Input.shape
-    num_filter, _, kernel_h, kernel_w = Filter.shape
+    if channel_last:
+        batch, in_height, in_width, _ = Input.shape
+        kernel_h, kernel_w, _, num_filter = Filter.shape
+    else:
+        batch, _, in_height, in_width = Input.shape
+        num_filter, _, kernel_h, kernel_w = Filter.shape
 
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
@@ -119,7 +128,10 @@ def dnnl_conv2d(
     out_height = ((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
     out_width = ((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
     
-    out_shape = (batch, out_channel, out_height, out_width)
+    if channel_last:
+        out_shape = (batch, out_height, out_width, out_channel)
+    else:
+        out_shape = (batch, out_channel, out_height, out_width)
 
     return te.extern(
         out_shape,
@@ -136,6 +148,7 @@ def dnnl_conv2d(
             stride[0],
             stride[1],
             groups,
+            channel_last,
         ),
         name="C",
         dtype=out_dtype,

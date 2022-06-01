@@ -24,13 +24,15 @@ import tvm
 from tvm import te
 from tvm import autotvm
 from tvm.contrib import mkldnn
-from .. import nn, generic
+from .. import nn
+
 from ..nn.conv2d import conv2d_infer_layout, _get_workload as _get_conv2d_workload
 from ..nn.conv2d import unpack_NCHWc_to_nchw
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
 from ..nn.utils import get_pad_tuple
 from ..utils import get_const_tuple, traverse_inline
 from . import conv2d_avx_1x1, conv2d_avx_common
+from .. import generic
 
 logger = logging.getLogger("topi")
 
@@ -271,12 +273,24 @@ def schedule_conv2d_NCHWc(cfg, outs):
 def conv2d_nchw_mkldnn(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """Compute conv2d in NCHW format using mkldnn."""
     groups=1
-    _out = mkldnn.dnnl_conv2d(data, kernel, strides, padding, dilation, groups, out_dtype)
+    _out = mkldnn.dnnl_conv2d(data, kernel, strides, padding, dilation, groups, False, out_dtype)
     return _out
 
 @autotvm.register_topi_schedule("conv2d_nchw_mkldnn.x86")
 def schedule_conv2d_nchw_mkldnn(_, outs):
     """Create schedule for conv2d_nchw_mkldnn"""
+    return generic.schedule_extern(outs)
+
+@autotvm.register_topi_compute("conv2d_nhwc_mkldnn.x86")
+def conv2d_nhwc_mkldnn(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute conv2d in NHWC format using mkldnn."""
+    groups=1
+    _out = mkldnn.dnnl_conv2d(data, kernel, strides, padding, dilation, groups, True, out_dtype)
+    return _out
+
+@autotvm.register_topi_schedule("conv2d_nhwc_mkldnn.x86")
+def schedule_conv2d_nhwc_mkldnn(_, outs):
+    """Create schedule for conv2d_nhwc_mkldnn"""
     return generic.schedule_extern(outs)
 
 
