@@ -43,7 +43,9 @@ def test_fit():
 
     upper_model.fit(xs, ys, plan_size=32)
 
+    # feature lengths are not guaranteed to always be the same
     upper_model.predict(np.ones(12))
+    upper_model.predict(np.ones(8))
 
 
 def fit_spawn():
