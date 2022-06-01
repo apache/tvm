@@ -94,6 +94,33 @@ inline bool IsTextureStorage(std::string scope) {
   return scope.find("texture") != std::string::npos;
 }
 
+class TVM_DLL Pool {
+ public:
+  Pool() = default;
+  void* Alloc(Device dev, DeviceAPI* device, size_t width, size_t height, DLDataType type_hint);
+  void Free(void* data);
+  // Release all resources immediately
+  void Release(Device dev, DeviceAPI* device);
+  inline size_t FreeListSize() const { return free_list_.size(); }
+  inline size_t AllocatedListSize() const { return allocated_.size(); }
+  inline std::pair<size_t, size_t> FreeListItemSize(size_t idx) const {
+    return std::make_pair(free_list_[idx].x, free_list_[idx].y);
+  }
+  inline std::pair<size_t, size_t> AllocatedListItemSize(size_t idx) const {
+    return std::make_pair(allocated_[idx].x, allocated_[idx].y);
+  }
+
+ protected:
+  struct Entry {
+    void* data;
+    size_t x;
+    size_t y;
+    DLDataType type;
+  };
+  std::vector<Entry> free_list_;
+  std::vector<Entry> allocated_;
+};
+
 /*!
  * \brief A two dimensional storage pool that recycles temporal workspace
  * allocations for dynamically allocated texture. See AllocTexture docstring
@@ -136,7 +163,6 @@ class TVM_DLL TexturePool {
   void FreeTexture(Device dev, void* ptr);
 
  private:
-  class Pool;
   /*! \brief pool of device local array */
   std::vector<Pool*> array_;
   /*! \brief device type this pool support */
