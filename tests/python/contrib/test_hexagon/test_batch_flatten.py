@@ -90,7 +90,7 @@ class TestBatchFlatten(BaseTestBatchFlatten):
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
         A = te.placeholder(input_shape, name="A", dtype=data_type)
         D = sl.batch_flatten_compute(A)
-        tir_s = sl.batch_flatten_STIR_schedule(
+        tir_s = sl.batch_flatten_stir_schedule(
             D,
             A,
             nc_1024_1d,

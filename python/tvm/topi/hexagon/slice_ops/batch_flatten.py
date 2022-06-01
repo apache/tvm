@@ -22,7 +22,7 @@ from tvm import te, tir, topi
 from tvm.script import tir as T
 
 
-def batch_flatten_compute(A: te.Tensor) -> te.Tensor:
+def batch_flatten_compute(inp: te.Tensor) -> te.Tensor:
     """Compute for slice batch flatten op for hexagon.
     This op makes the following assumptions:
     1. This op is written for a sliced batch flatten operation.
@@ -37,12 +37,12 @@ def batch_flatten_compute(A: te.Tensor) -> te.Tensor:
     Output : te.Tensor
         Output of applying batch flatten operation on input
     """
-    return topi.nn.flatten(A)
+    return topi.nn.flatten(inp)
 
 
-def batch_flatten_STIR_schedule(
-    outputs: te.Tensor,
-    input: te.Tensor,
+def batch_flatten_stir_schedule(
+    out: te.Tensor,
+    inp: te.Tensor,
     out_layout: typing.Callable,
     in_layout: typing.Callable,
 ) -> tir.Schedule:
@@ -63,16 +63,16 @@ def batch_flatten_STIR_schedule(
         The STIR schedule for slice batch flatten compute
     """
 
-    batch_flatten_func = te.create_prim_func([input, outputs])
+    batch_flatten_func = te.create_prim_func([inp, out])
     sch = tir.Schedule(batch_flatten_func, debug_mask="all")
     compute = sch.get_block("compute")
 
-    sch.transform_layout(compute, input.name, in_layout)
-    sch.transform_layout(compute, outputs.name, out_layout)
+    sch.transform_layout(compute, inp.name, in_layout)
+    sch.transform_layout(compute, out.name, out_layout)
     i, j = sch.get_loops(compute)
-    jo, c = sch.split(j, [None, input.shape[3]])
-    h, w = sch.split(jo, [input.shape[1], input.shape[2]])
+    jo, c = sch.split(j, [None, inp.shape[3]])
+    h, w = sch.split(jo, [inp.shape[1], inp.shape[2]])
     co, ci = sch.split(c, [None, 1024])
-    ci_1, ci_2 = sch.split(ci, [None, 64])
-    sch.vectorize(ci_2)
+    cio, cii = sch.split(ci, [None, 64])
+    sch.vectorize(cii)
     return sch
