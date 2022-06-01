@@ -105,6 +105,9 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
    */
   bool CanInlineLet(const LetNode* op);
 
+  // Whether the expression matches a previously defined constraint.
+  bool MatchesLiteralConstraint(const PrimExpr& expr) const;
+
  private:
   // Whether x >= val
   bool CanProveGreaterEqual(const PrimExpr& x, int64_t val) {

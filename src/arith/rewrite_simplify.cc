@@ -1291,11 +1291,22 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
   return ret;
 }
 
+bool RewriteSimplifier::Impl::MatchesLiteralConstraint(const PrimExpr& expr) const {
+  ExprDeepEqual expr_equal;
+  for (const auto& constraint : literal_constraints_) {
+    if (expr_equal(constraint, expr)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const EQNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<EQNode>();
   PrimExpr const_res = TryConstFold<EQ>(op->a, op->b);
   if (const_res.defined()) return const_res;
+  if (MatchesLiteralConstraint(ret)) return make_const(op->dtype, true);
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
@@ -1344,6 +1355,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LTNode* op) {
   op = ret.as<LTNode>();
   PrimExpr const_res = TryConstFold<LT>(op->a, op->b);
   if (const_res.defined()) return const_res;
+  if (MatchesLiteralConstraint(ret)) return make_const(op->dtype, true);
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
@@ -1475,6 +1487,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NotNode* op) {
   op = ret.as<NotNode>();
   PrimExpr const_res = TryConstFold<Not>(op->a);
   if (const_res.defined()) return const_res;
+  if (MatchesLiteralConstraint(ret)) return make_const(op->dtype, true);
+
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
   PVar<int> lanes;
@@ -1499,6 +1513,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
   op = ret.as<AndNode>();
   PrimExpr const_res = TryConstFold<And>(op->a, op->b);
   if (const_res.defined()) return const_res;
+  if (MatchesLiteralConstraint(ret)) return make_const(op->dtype, true);
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
@@ -1538,6 +1553,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
   op = ret.as<OrNode>();
   PrimExpr const_res = TryConstFold<Or>(op->a, op->b);
   if (const_res.defined()) return const_res;
+  if (MatchesLiteralConstraint(ret)) return make_const(op->dtype, true);
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
@@ -1602,13 +1618,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
       return op->args[0] << op->args[1];
     }
   }
-  ExprDeepEqual expr_equal;
   if (op->op.same_as(tir::builtin::likely())) {
-    for (const auto& constraint : literal_constraints_) {
-      // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
-      if (expr_equal(constraint, op->args[0])) {
-        return make_const(op->dtype, true);
-      }
+    // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
+    if (MatchesLiteralConstraint(op->args[0])) {
+      return make_const(op->dtype, true);
     }
   }
   return ret;
