@@ -549,7 +549,7 @@ void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
           args.push_back(iv->var);
         }
         if (ext_ops.find(stage->op) != ext_ops.end()) {
-          // sshtin: The extern op can try to get access to the input tensors as a row data,
+          // sshtin: The extern op can try to get access to the input tensors as a raw data,
           // that can lead to error in IR builder.
           stage->attach_type = kGroupRoot;
           continue;
