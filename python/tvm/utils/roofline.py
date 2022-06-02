@@ -392,7 +392,7 @@ def roofline_from_existing(
             compute_bound = arith_inten > ridge_point
             call["Bound"] = "compute" if compute_bound else "memory"
             per_mem_bound = (loaded_bytes / runtime) / peak_bandwidth * 100
-            per_compute_bound = flops / peak_flops * 100.0
+            per_compute_bound = (flops / runtime) / peak_flops * 100.0
             # We use ratio here because the percentages should be averaged instead of summed.
             call["Percent of Theoretical Optimal"] = profiling.Ratio(
                 per_compute_bound if compute_bound else per_mem_bound
