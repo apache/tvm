@@ -1,9 +1,9 @@
-from tvm.ir.module import IRModule
+# pylint: disable=invalid-name
+
 from tvm import te
 from tvm import tir
-from tvm.script import tir as T
 from tvm import topi
-from ..utils import apply_transform, get_layout_transform_fn
+from ..utils import get_layout_transform_fn
 
 
 def add_broadcast_compute(A, B):

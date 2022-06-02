@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 
 """ Hexagon testing infrastructure """
 
@@ -236,10 +237,12 @@ def transform_numpy(arr_np, layout):
         return arr_np
     elif layout == "nhwc-8h2w32c2w":
         N, H, W, C = arr_np.shape
-        return arr_np.reshape([N, H // 8, 8, W // 4, 2, 2, C // 32, 32]).transpose(0, 1, 3, 6, 2, 4, 7, 5)
+        return arr_np.reshape([N, H // 8, 8, W // 4, 2, 2, C // 32, 32]).transpose(
+            0, 1, 3, 6, 2, 4, 7, 5
+        )
     elif layout == "n11c-1024c":
         N, H, W, C = arr_np.shape
-        assert (H == 1 and W == 1), "The size of H and W must be 1!"
-        return arr_np.reshape([N, C//1024, 1024]).transpose(0, 1, 2)
+        assert H == 1 and W == 1, "The size of H and W must be 1!"
+        return arr_np.reshape([N, C // 1024, 1024]).transpose(0, 1, 2)
     else:
         raise RuntimeError(f"Unexpected layout '{layout}'")
