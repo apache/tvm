@@ -26,11 +26,16 @@ from ..utils import get_layout_transform_fn
 
 
 def clip_compute(A, A_min, A_max):
-    # Use topi implementation
+    """
+    Use topi clip implementation
+    """
     return topi.clip(A, A_min, A_max)
 
 
 def clip_schedule(outs, ins, output_layout: str, input_layout: str):
+    """
+    Hexagon clip schedule
+    """
     A = ins
     M = outs
 
