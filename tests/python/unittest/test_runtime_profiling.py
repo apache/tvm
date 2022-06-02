@@ -325,7 +325,6 @@ def test_roofline_analysis(target, dev):
     assert "Percent of Theoretical Optimal" in report.table()
     for call in report.calls:
         if "Percent of Theoretical Optimal" in call:
-            print(call["Percent of Theoretical Optimal"].ratio)
             # Ideally we'd like a little tighter bound here, but it is hard to
             # know how well this dense will perform without tuning. And we
             # don't have an operator that uses a specific number of flops.
