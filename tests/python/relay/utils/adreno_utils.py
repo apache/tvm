@@ -116,3 +116,14 @@ def gpu_preprocess(tvm_mod):
             mod = tvm.IRModule.from_expr(tvm_mod)
             tvm_mod_nchwc = seq(mod)
             return tvm_mod_nchwc
+
+
+def gpu_preprocess_nhwc(tvm_mod):
+    layout_config = relay.transform.LayoutConfig()
+    desired_layouts = {"nn.conv2d": ["NHWC4c", "HWIO4o"]}
+    with layout_config:
+        seq = tvm.transform.Sequential([relay.transform.ConvertLayout(desired_layouts)])
+        with tvm.transform.PassContext(opt_level=3):
+            mod = tvm.IRModule.from_expr(tvm_mod)
+            tvm_mod_nhwcc = seq(mod)
+            return tvm_mod_nhwcc

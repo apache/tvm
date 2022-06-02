@@ -500,7 +500,7 @@ def test_conv2d_vgg16_winograd():
         "bias" : tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, gpu_preprocess)
+    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, [], gpu_preprocess)
 
 def test_conv2d_vgg16_winograd_4d():
     target="opencl --device=adreno"
@@ -531,4 +531,4 @@ def test_conv2d_vgg16_winograd_4d():
         "bias" : tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target)
+    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, [])
