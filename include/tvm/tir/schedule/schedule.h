@@ -364,6 +364,19 @@ class ScheduleNode : public runtime::Object {
    */
   virtual BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
                              const String& storage_scope) = 0;
+  /*!
+   * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
+   * The layout of the cache will be the same as by the iterators of the block that reads/writes the
+   * buffer. It requires:
+   * 1) There is only one block who reads/writes the target buffer
+   * 2) There is only one buffer load/store of this buffer in the block
+   * \param block_rv The block operates on the target buffer.
+   * \param buffer_index The index of the buffer in block's read or write region.
+   * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+   * \return The reindex stage block.
+   */
+  virtual BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
+                          BufferIndexType buffer_index_type) = 0;
   /******** Schedule: Compute location ********/
   /*!
    * \brief Move a producer block under the specific loop, and regenerate the
