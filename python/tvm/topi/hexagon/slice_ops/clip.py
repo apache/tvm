@@ -21,7 +21,6 @@
 Clip the elements in `A` between `A_min` and `A_max`.
 """
 
-from tvm.ir.module import IRModule
 from tvm import te, tir, topi
 from ..utils import get_layout_transform_fn
 
