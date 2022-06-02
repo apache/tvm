@@ -31,7 +31,6 @@ Please note the following assumptions made by the implementation:
    for the input.
 """
 
-#from tvm.ir.module import IRModule
 from tvm import te
 from tvm import tir
 from ..utils import get_layout_transform_fn
@@ -75,6 +74,7 @@ def avg_pool2d_compute(A, out_shape, kernel, stride, dilation):
     )
     return Avg
 
+
 def STIR_schedule_nhwc_8h2w32c2w(outs, ins, output_layout: str, input_layout: str):
     """Schedule for input and output layout nhwc-8h2w32c2w"""
     func = te.create_prim_func([ins, outs])
@@ -105,6 +105,7 @@ def STIR_schedule_nhwc_8h2w32c2w(outs, ins, output_layout: str, input_layout: st
     # s.vectorize(ci_wii) # Doesn't work
     return s
 
+
 def STIR_schedule_n11c_1024c(outs, ins, output_layout: str, input_layout: str):
     """Schedule for output layout: n11c-1024c, input layout: nhwc-8h2w32c2w"""
     func = te.create_prim_func([ins, outs])
@@ -129,6 +130,7 @@ def STIR_schedule_n11c_1024c(outs, ins, output_layout: str, input_layout: str):
     s.reorder(Sum_axis[-2], Sum_axis[-1], Sum_axis[-3])
     # s.vectorize(Sum_axis[-3]) # Doesn't work
     return s
+
 
 def avg_pool2d_STIR_schedule(outs, ins, output_layout: str, input_layout: str):
     """STIR based schedule"""
