@@ -27,5 +27,5 @@ pip3 install \
     "h5py==3.1.0" \
     keras==2.6 \
     tensorflow-aarch64==2.6.3 \
-    protobuf<4 \
+    "protobuf<4" \
     -f https://snapshots.linaro.org/ldcg/python-cache/tensorflow-aarch64/
