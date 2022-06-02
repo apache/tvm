@@ -23,8 +23,10 @@ apt-get install -y --no-install-recommends libhdf5-dev
 
 # We're only using the TensorFlow wheel snapshot here as the
 # h5py wheel tries to use the wrong .so file
+# NOTE: protobuf is pinned to an older version due to https://github.com/apache/tvm/issues/11545.
 pip3 install \
     "h5py==3.1.0" \
     keras==2.6 \
     tensorflow-aarch64==2.6.2 \
+    protobuf==3.20.1 \
     -f https://snapshots.linaro.org/ldcg/python-cache/tensorflow-aarch64/
