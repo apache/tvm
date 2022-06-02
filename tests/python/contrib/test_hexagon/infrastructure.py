@@ -48,7 +48,7 @@ def allocate_hexagon_array(
         for dim_i, dim_f in zip(boundaries[:-1], boundaries[1:])
     ]
 
-    arr = tvm.nd.empty(physical_shape, dtype=dtype, device=dev)
+    arr = tvm.nd.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)
 
     if data is not None:
         arr.copyfrom(data.reshape(physical_shape))
@@ -228,3 +228,17 @@ def conv2d_compute(X, filt, pad, stride, dilation):
         )
 
     return output_shape, compute
+
+# Transpose and reshape numpy array according to the specified layout
+def transform_numpy(arr_np, layout):
+    if layout == "nhwc":
+        return arr_np
+    elif layout == "nhwc-8h2w32c2w":
+        N, H, W, C = arr_np.shape
+        return arr_np.reshape([N, H // 8, 8, W // 4, 2, 2, C // 32, 32]).transpose(0, 1, 3, 6, 2, 4, 7, 5)
+    elif layout == "n11c-1024c":
+        N, H, W, C = arr_np.shape
+        assert (H == 1 and W == 1), "The size of H and W must be 1!"
+        return arr_np.reshape([N, C//1024, 1024]).transpose(0, 1, 2)
+    else:
+        raise RuntimeError(f"Unexpected layout '{layout}'")
