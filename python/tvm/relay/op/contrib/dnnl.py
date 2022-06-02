@@ -418,15 +418,16 @@ def tag2layout(input_data, is_weight=False, op_type="Conv1D"):
 
     if "Dense" in op_type:
         # Post process for dense weight layout
-        # e.g. NC16c64n => NC64n16c
+        # e.g. NC16c64n => NC64n
         regexN = "\d+n"
         regexC = "\d+c"
 
         matchN = re.findall(regexN, res)
-        matchC = re.findall(regexC, res)
-        res = "NC" + "".join(matchN) + "".join(matchC)
+        layout_fmt = "NC" + "".join(matchN)
+        full_layout_fmt = res
+        return layout_fmt, full_layout_fmt
 
-    return res
+    return res, res
 
 
 def legalize_group_conv(attrs, inputs, types):
@@ -474,9 +475,9 @@ def alter_conv(attrs, inputs, tinfos, out_type):
         dtype,
     )
     src_df, weight_df, dst_df = res.split(",")
-    new_attrs["data_layout"] = tag2layout(src_df, is_weight=False, op_type=conv_type)
-    new_attrs["kernel_layout"] = tag2layout(weight_df, is_weight=True, op_type=conv_type)
-    new_attrs["out_layout"] = tag2layout(dst_df, is_weight=False, op_type=conv_type)
+    new_attrs["data_layout"], _ = tag2layout(src_df, is_weight=False, op_type=conv_type)
+    new_attrs["kernel_layout"], _ = tag2layout(weight_df, is_weight=True, op_type=conv_type)
+    new_attrs["out_layout"], _ = tag2layout(dst_df, is_weight=False, op_type=conv_type)
 
     if conv_type == "Conv1D":
         return relay.nn.conv1d(data, weight, **new_attrs)
@@ -513,9 +514,9 @@ def alter_conv_transpose(attrs, inputs, tinfos, out_type):
         dtype,
     )
     src_df, weight_df, dst_df = res.split(",")
-    new_attrs["data_layout"] = tag2layout(src_df, is_weight=False, op_type=conv_type)
-    new_attrs["kernel_layout"] = tag2layout(weight_df, is_weight=True, op_type=conv_type)
-    new_attrs["out_layout"] = tag2layout(dst_df, is_weight=False, op_type=conv_type)
+    new_attrs["data_layout"], _ = tag2layout(src_df, is_weight=False, op_type=conv_type)
+    new_attrs["kernel_layout"], _ = tag2layout(weight_df, is_weight=True, op_type=conv_type)
+    new_attrs["out_layout"], _ = tag2layout(dst_df, is_weight=False, op_type=conv_type)
 
     if conv_type == "Conv1DTranspose":
         return relay.nn.conv1d_transpose(data, weight, **new_attrs)
@@ -540,14 +541,13 @@ def alter_dense(attrs, inputs, tinfos, out_type):
 
     _, weight_df, _ = res.split(",")
 
-    new_attrs = {}
-    new_attrs["weight_layout"] = tag2layout(weight_df, is_weight=True, op_type="Dense")
+    wei_layout, full_wei_layout = tag2layout(weight_df, is_weight=True, op_type="Dense")
 
-    weight_transform = relay.layout_transform(weight, "NC", dst_layout=new_attrs["weight_layout"])
+    weight_transform = relay.layout_transform(weight, "NC", dst_layout=wei_layout)
     return relay.nn.contrib_dense_pack(
         data,
         weight_transform,
-        weight_layout=new_attrs["weight_layout"],
+        weight_layout=full_wei_layout,
         units=None,
         out_dtype=out_type.dtype,
     )
@@ -784,14 +784,14 @@ class DenseReshapeBiasGeluRewrite(DFPatternCallback):
             res = get_optimal_layout_for_dense(data_shape, weight_shape, out_shape)
 
             _, weight_df, _ = res.split(",")
-            reco_weight_layout = tag2layout(weight_df, is_weight=True, op_type="Dense")
+            wei_layout, full_wei_layout = tag2layout(weight_df, is_weight=True, op_type="Dense")
 
-            weight_transform = relay.layout_transform(weight, "NC", dst_layout=reco_weight_layout)
+            weight_transform = relay.layout_transform(weight, "NC", dst_layout=wei_layout)
 
             den = relay.op.nn.contrib_dense_pack(
                 data,
                 weight_transform,
-                weight_layout=reco_weight_layout,
+                weight_layout=full_wei_layout,
                 units=None,
                 out_dtype=self.attr_map["nn.dense"]["out_dtype"]
                 if "out_dtype" in self.attr_map["nn.dense"]
@@ -871,13 +871,13 @@ class DenseReshapeBiasRewrite(DFPatternCallback):
             res = get_optimal_layout_for_dense(data_shape, weight_shape, out_shape)
 
             _, weight_df, _ = res.split(",")
-            reco_weight_layout = tag2layout(weight_df, is_weight=True, op_type="Dense")
-            weight_transform = relay.layout_transform(weight, "NC", dst_layout=reco_weight_layout)
+            wei_layout, full_wei_layout = tag2layout(weight_df, is_weight=True, op_type="Dense")
+            weight_transform = relay.layout_transform(weight, "NC", dst_layout=wei_layout)
 
             den = relay.op.nn.contrib_dense_pack(
                 data,
                 weight_transform,
-                weight_layout=reco_weight_layout,
+                weight_layout=full_wei_layout,
                 units=None,
                 out_dtype=self.attr_map["nn.dense"]["out_dtype"]
                 if "out_dtype" in self.attr_map["nn.dense"]
@@ -937,13 +937,13 @@ class PackDenseRewrite(DFPatternCallback):
 
         _, weight_df, _ = res.split(",")
 
-        reco_weight_layout = tag2layout(weight_df, is_weight=True, op_type="Dense")
+        wei_layout, full_wei_layout = tag2layout(weight_df, is_weight=True, op_type="Dense")
 
-        weight_transform = relay.layout_transform(weight, "NC", dst_layout=reco_weight_layout)
+        weight_transform = relay.layout_transform(weight, "NC", dst_layout=wei_layout)
         return relay.op.nn.contrib_dense_pack(
             data,
             weight_transform,
-            weight_layout=reco_weight_layout,
+            weight_layout=full_wei_layout,
             units=None,
             out_dtype=self.attr_map["nn.dense"]["out_dtype"]
             if "out_dtype" in self.attr_map["nn.dense"]
