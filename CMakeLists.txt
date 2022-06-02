@@ -616,7 +616,6 @@ if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND EXISTS ${USE_OPENCL_GTEST})
   set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(googletest)
   target_link_libraries(tvm_runtime PUBLIC gtest)
-  # TODO: double check if we really need to link libtvm with gtest
   target_link_libraries(tvm PUBLIC gtest)
   include_directories("${USE_OPENCL_GTEST}/include")
   include_directories("${USE_OPENCL_GTEST}/googletest/include")

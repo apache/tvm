@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Hexagon testing fixtures used to deduce testing argument
+""" OpenCL testing fixtures used to deduce testing argument
     values from testing parameters """
 
 

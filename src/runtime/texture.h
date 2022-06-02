@@ -101,14 +101,6 @@ class TVM_DLL Pool {
   void Free(void* data);
   // Release all resources immediately
   void Release(Device dev, DeviceAPI* device);
-  inline size_t FreeListSize() const { return free_list_.size(); }
-  inline size_t AllocatedListSize() const { return allocated_.size(); }
-  inline std::pair<size_t, size_t> FreeListItemSize(size_t idx) const {
-    return std::make_pair(free_list_[idx].x, free_list_[idx].y);
-  }
-  inline std::pair<size_t, size_t> AllocatedListItemSize(size_t idx) const {
-    return std::make_pair(allocated_[idx].x, allocated_[idx].y);
-  }
 
  protected:
   struct Entry {
