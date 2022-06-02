@@ -2420,6 +2420,8 @@ class Softmax(OnnxOpConverter):
             axis += ndim
         if axis == 0:
             reshape_shape = [-1]
+        elif axis == ndim - 1:
+            return _op.nn.softmax(inputs[0], axis=axis)
         else:
             axis_val = [in_shape[i] for i in range(axis)]
             reshape_shape = [np.prod(axis_val)] + [-1]
