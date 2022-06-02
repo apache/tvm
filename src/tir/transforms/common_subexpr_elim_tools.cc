@@ -796,8 +796,8 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
     }
   }
 
-  // norm_table.size() is the number of equivalence class that we have built, so it's also exactly
-  // the number of items that we will return in the vector of semantical entities
+  // norm_table.size() is the number of equivalence class that we have built, so it's exactly the
+  // number of items that we will return in the vector of semantical entities
   result.reserve(norm_table.size());
 
   // Transform the intermediate hashtable `norm_table` into a vector, forgetting the keys,
