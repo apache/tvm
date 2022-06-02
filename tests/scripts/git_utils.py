@@ -34,7 +34,7 @@ def post(url: str, body: Optional[Any] = None, auth: Optional[Tuple[str, str]] =
     print(f"Requesting POST to", url, "with", body)
     headers = {}
     if auth is not None:
-        auth_str = base64.b64encode(f"{auth[0]}:{auth[1]}")
+        auth_str = base64.b64encode(f"{auth[0]}:{auth[1]}".encode())
         request.add_header("Authorization", f"Basic {auth_str}")
 
     if body is None:
