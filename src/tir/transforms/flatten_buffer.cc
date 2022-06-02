@@ -53,9 +53,7 @@ class BufferFlattener : public StmtExprMutator {
   static PrimFunc Flatten(PrimFunc func) {
     Map<Var, Buffer> preflattened_buffer_map =
         Merge(func->buffer_map, func->preflattened_buffer_map);
-
     auto pass = BufferFlattener(func->buffer_map);
-
     auto writer = func.CopyOnWrite();
     writer->body = pass.VisitStmt(func->body);
     writer->preflattened_buffer_map = preflattened_buffer_map;
@@ -137,7 +135,7 @@ class BufferFlattener : public StmtExprMutator {
     } else {
       PrimExpr expr = it->second;
       if (expr.dtype() != var.dtype()) {
-        expr = Cast(var.dtype(), std::move(expr));
+        expr = tvm::cast(var.dtype(), std::move(expr));
       }
       return expr;
     }
@@ -164,33 +162,35 @@ class BufferFlattener : public StmtExprMutator {
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    bool store_returns_bool = (op->value.dtype() == DataType::Bool());
+    store = VisitBufferAccess(store);
 
     // Handle casts from the value's dtype to the dtype of the
     // backing array.
     // TODO(Lunderberg): Move the handling of boolean into a
     // dedicated pass.
-    if (store->value.dtype() == DataType::Bool()) {
+    if (store_returns_bool) {
       ICHECK_EQ(store->buffer->dtype, DataType::Int(8))
           << "Expected int8 backing array for boolean tensor";
       auto writer = store.CopyOnWrite();
-      writer->value = tir::Cast(DataType::Int(8), store->value);
+      writer->value = tvm::cast(DataType::Int(8), store->value);
+      return store;
     }
-    auto flattened_indices = store->buffer->ElemOffset(store->indices);
-    return VisitBufferAccess(std::move(store));
+    return store;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     bool load_returns_bool = (op->dtype == DataType::Bool());
     BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
     load = VisitBufferAccess(load);
-
     // Handle casts from dtype of the backing array to value's dtype.
     // TODO(Lunderberg): Move the handling of boolean into a
     // dedicated pass.
     if (load_returns_bool) {
       ICHECK_EQ(load->buffer->dtype, DataType::Int(8))
           << "Expected int8 backing array for boolean tensor";
-      return tir::Cast(DataType::Bool(), load);
+      load.CopyOnWrite()->dtype = DataType::Int(8);
+      return tvm::cast(DataType::Bool(), load);
     } else {
       return std::move(load);
     }
