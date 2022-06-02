@@ -45,7 +45,7 @@ HexagonThreadManager::~HexagonThreadManager() {
   
   // dispatch a command to each thread to exit with status 0
   for (int i = 0; i < nthreads; i++) {
-    Dispatch((TVMStreamHandle)i, &thread_exit, (void*) 0);
+    while(!Dispatch((TVMStreamHandle)i, &thread_exit, (void*) 0));
   }
 
   // join with each thread (wait for them to terminate); if already exited, the call returns immediately
@@ -151,12 +151,12 @@ void HexagonThreadManager::PreallocateSyncs(unsigned number_syncs) {
   check_semaphore(number_syncs);
 }
   
-void HexagonThreadManager::Dispatch(TVMStreamHandle thread, PackedFunc f, TVMArgs args, TVMRetValue* rv) {
+bool HexagonThreadManager::Dispatch(TVMStreamHandle thread, PackedFunc f, TVMArgs args, TVMRetValue* rv) {
   WrappedPackedFunc* wrapped = new WrappedPackedFunc(f, args, rv);  // WrappedPackedFunc object freed by receiving thread
-  Dispatch(thread, thread_unpack, (void*)wrapped);
+  return Dispatch(thread, thread_unpack, (void*)wrapped);
 }
   
-void HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* args) {
+bool HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* args) {
   unsigned thread = (unsigned)stream;
   DBG("Dispatching to stream " << std::to_string(thread));
   Command* cmd = new Command(f, args);  // Command object freed by receiving thread
@@ -164,7 +164,8 @@ void HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* ar
   qurt_pipe_t* pipeAddr = &pipes[thread];
 
   int trysend = qurt_pipe_try_send(pipeAddr, msg);
-  CHECK_EQ(trysend, 0);
+  //CHECK_EQ(trysend, 0);
+  return trysend == 0;
 }
 
 void HexagonThreadManager::Start() {
@@ -190,7 +191,7 @@ void HexagonThreadManager::WaitOnThreads() {
   }
   // dispatch signal() command to each thread on their private semaphore
   for (int i = 0; i < nthreads; i++) {
-    Dispatch((TVMStreamHandle)i, thread_signal, &finished[i]);
+    while(!Dispatch((TVMStreamHandle)i, thread_signal, &finished[i]));
   }
   // wait on each semaphore, one at a time
   for (int i = 0; i < nthreads; i++) {
@@ -214,24 +215,27 @@ void HexagonThreadManager::check_semaphore(unsigned syncID) {
   }
 }
   
-void HexagonThreadManager::Signal(TVMStreamHandle thread, SyncPoint syncID) {
+bool HexagonThreadManager::Signal(TVMStreamHandle thread, SyncPoint syncID) {
   check_semaphore(syncID);
-  Dispatch(thread, thread_signal, (void*) &semaphores[syncID]);
+  return Dispatch(thread, thread_signal, (void*) &semaphores[syncID]);
 }
 
-void HexagonThreadManager::Wait(TVMStreamHandle thread, SyncPoint syncID) {
+bool HexagonThreadManager::Wait(TVMStreamHandle thread, SyncPoint syncID) {
   check_semaphore(syncID);
-  Dispatch(thread, thread_wait, (void*) &semaphores[syncID]);
+  return Dispatch(thread, thread_wait, (void*) &semaphores[syncID]);
 }
 
 /* Create a sync_from_to relationship with a dynamic semaphore allocation.
 Makes use of thread_wait_free to also free the semaphore after sync is complete.
 */
-void HexagonThreadManager::SyncFromTo(TVMStreamHandle signal_thread, TVMStreamHandle wait_thread) {
+bool HexagonThreadManager::SyncFromTo(TVMStreamHandle signal_thread, TVMStreamHandle wait_thread) {
   qurt_sem_t* sem = (qurt_sem_t*) malloc(sizeof(qurt_sem_t));
   qurt_sem_init_val(sem, 0);
-  Dispatch(signal_thread, thread_signal, (void*)sem);
-  Dispatch(wait_thread, thread_wait_free, (void*)sem);
+  if(Dispatch(signal_thread, thread_signal, (void*)sem)) {
+    return Dispatch(wait_thread, thread_wait_free, (void*)sem);
+  } else {
+    return false;
+  }
 }
   
 void HexagonThreadManager::thread_signal(void* semaphore) {

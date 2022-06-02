@@ -151,7 +151,7 @@ TEST(HexagonThreadManagerStandalone, ctor_errors) {
 TEST(HexagonThreadManagerStandalone, pipe_overflow) {
   int answer = 0;
   unsigned tiny = 128;
-  HexagonThreadManager tinyhtm(1, tiny, tiny);
+  HexagonThreadManager tinyhtm(1, 16*1024, tiny);
   std::vector<TVMStreamHandle> streams;
   tinyhtm.GetStreamHandles(&streams);
   // fill the pipe
@@ -159,7 +159,9 @@ TEST(HexagonThreadManagerStandalone, pipe_overflow) {
     tinyhtm.Dispatch(streams[0], get_the_answer, &answer);
   }
   // overflow the pipe
-  ASSERT_THROW(tinyhtm.Dispatch(streams[0], get_the_answer, &answer), InternalError);
+  //ASSERT_THROW(tinyhtm.Dispatch(streams[0], get_the_answer, &answer), InternalError);
+  bool space = tinyhtm.Dispatch(streams[0], get_the_answer, &answer);
+  CHECK_EQ(space, 0);
 }
 
 TEST(HexagonThreadManagerStandalone, pipe_fill) {

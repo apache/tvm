@@ -18,7 +18,7 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {    
 
-#define DBG(msg) DLOG(INFO) << msg << "\n"
+#define DBG(msg) LOG(WARNING) << msg << "\n"
 
 // TODO: adjust as necessary
 #define MIN_STACK_SIZE_BYTES 128 // 128 bytes
@@ -36,11 +36,11 @@ public:
   void GetStreamHandles(std::vector<TVMStreamHandle>* out);
   //void GetThreadHandles(std::vector<void*>* out);
   void PreallocateSyncs(unsigned number_syncs);
-  void Dispatch(TVMStreamHandle thread, voidfunc f, void* args);
-  void Dispatch(TVMStreamHandle thread, PackedFunc f, TVMArgs args, TVMRetValue* rv = NULL);
-  void Signal(TVMStreamHandle thread, SyncPoint syncID);
-  void Wait(TVMStreamHandle thread, SyncPoint syncID);
-  void SyncFromTo(TVMStreamHandle signal_thread, TVMStreamHandle wait_thread);
+  bool Dispatch(TVMStreamHandle thread, voidfunc f, void* args);
+  bool Dispatch(TVMStreamHandle thread, PackedFunc f, TVMArgs args, TVMRetValue* rv = NULL);
+  bool Signal(TVMStreamHandle thread, SyncPoint syncID);
+  bool Wait(TVMStreamHandle thread, SyncPoint syncID);
+  bool SyncFromTo(TVMStreamHandle signal_thread, TVMStreamHandle wait_thread);
   void Start(); // Unblock threads to start execution
   void WaitOnThreads();  // Blocking call to wait until all threads have empty queues
   
