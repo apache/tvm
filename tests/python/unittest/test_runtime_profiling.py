@@ -325,10 +325,11 @@ def test_roofline_analysis(target, dev):
     assert "Percent of Theoretical Optimal" in report.table()
     for call in report.calls:
         if "Percent of Theoretical Optimal" in call:
+            print(call["Percent of Theoretical Optimal"].ratio)
             # Ideally we'd like a little tighter bound here, but it is hard to
             # know how well this dense will perform without tuning. And we
             # don't have an operator that uses a specific number of flops.
-            assert call["Percent of Theoretical Optimal"].ratio >= 0
+            assert call["Percent of Theoretical Optimal"].ratio >= 5.0
 
 
 @tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
@@ -354,7 +355,7 @@ def test_roofline_analysis_rpc():
             # Ideally we'd like a little tighter bound here, but it is hard to
             # know how well this dense will perform without tuning. And we
             # don't have an operator that uses a specific number of flops.
-            assert call["Percent of Theoretical Optimal"].ratio >= 0
+            assert call["Percent of Theoretical Optimal"].ratio >= 5.0
 
 
 if __name__ == "__main__":
