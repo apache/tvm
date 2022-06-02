@@ -32,6 +32,7 @@
 
 #include "../target/datatype/registry.h"
 #include "const_fold.h"
+#include "constraint_extract.h"
 #include "pattern_match.h"
 
 namespace tvm {
@@ -228,7 +229,24 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
   size_t old_literal_size = literal_constraints_.size();
   // we will compare the already simplified result with the constraint,
   // so simplify the constarint as well
-  literal_constraints_.push_back(operator()(constraint));
+  PrimExpr new_constraint = operator()(constraint);
+  for (const PrimExpr& subconstraint : ExtractConstraints(new_constraint)) {
+    if (SideEffect(subconstraint) <= CallEffectKind::kPure) {
+      literal_constraints_.push_back(subconstraint);
+      // We could apply this during TryMatchLiteralConstraint, but
+      // that would require performing a rewrite of each expression
+      // being checked.  This way, we only apply a rewrite for each
+      // constraint being applied.
+      PrimExpr negation;
+      if (subconstraint.dtype().is_bool()) {
+        negation = Not(subconstraint);
+      } else {
+        negation = subconstraint == make_zero(subconstraint.dtype());
+      }
+      negation = operator()(negation);
+      literal_constraints_.push_back(Not(negation));
+    }
+  }
   size_t new_literal_size = literal_constraints_.size();
   auto frecover = [old_literal_size, new_literal_size, this]() {
     ICHECK_EQ(literal_constraints_.size(), new_literal_size);
@@ -1291,11 +1309,27 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
   return ret;
 }
 
+Optional<PrimExpr> RewriteSimplifier::Impl::TryMatchLiteralConstraint(const PrimExpr& expr) const {
+  PrimExpr negation = Not(expr);
+
+  ExprDeepEqual expr_equal;
+  for (const auto& constraint : literal_constraints_) {
+    if (expr_equal(constraint, expr)) {
+      return make_const(expr->dtype, true);
+    }
+    if (expr_equal(constraint, negation)) {
+      return make_const(expr->dtype, false);
+    }
+  }
+  return NullOpt;
+}
+
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const EQNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<EQNode>();
   PrimExpr const_res = TryConstFold<EQ>(op->a, op->b);
   if (const_res.defined()) return const_res;
+  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
@@ -1344,6 +1378,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LTNode* op) {
   op = ret.as<LTNode>();
   PrimExpr const_res = TryConstFold<LT>(op->a, op->b);
   if (const_res.defined()) return const_res;
+  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
@@ -1475,6 +1510,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NotNode* op) {
   op = ret.as<NotNode>();
   PrimExpr const_res = TryConstFold<Not>(op->a);
   if (const_res.defined()) return const_res;
+  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
+
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
   PVar<int> lanes;
@@ -1499,6 +1536,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
   op = ret.as<AndNode>();
   PrimExpr const_res = TryConstFold<And>(op->a, op->b);
   if (const_res.defined()) return const_res;
+  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
@@ -1538,6 +1576,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
   op = ret.as<OrNode>();
   PrimExpr const_res = TryConstFold<Or>(op->a, op->b);
   if (const_res.defined()) return const_res;
+  if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
 
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
@@ -1602,13 +1641,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
       return op->args[0] << op->args[1];
     }
   }
-  ExprDeepEqual expr_equal;
   if (op->op.same_as(tir::builtin::likely())) {
-    for (const auto& constraint : literal_constraints_) {
-      // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
-      if (expr_equal(constraint, op->args[0])) {
-        return make_const(op->dtype, true);
-      }
+    // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
+    if (auto match = TryMatchLiteralConstraint(op->args[0])) {
+      return match.value();
     }
   }
   return ret;
