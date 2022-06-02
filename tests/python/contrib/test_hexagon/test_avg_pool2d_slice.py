@@ -313,7 +313,7 @@ class TestAvgPool2dSlice:
         hexagon_session,
     ):
 
-        target_hexagon = tvm.target.hexagon("v69")
+        target_hexagon = tvm.target.hexagon("v68")
         A = te.placeholder(input_shape_padded, name="A", dtype=dtype)
 
         M = sl.avg_pool2d_compute(A, output_shape, kernel, stride, dilation)
