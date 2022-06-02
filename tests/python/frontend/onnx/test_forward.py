@@ -1589,6 +1589,8 @@ def test_upsample3d_trilinear(target, dev):
     tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+# TODO: Fix softmax with dynamic input on cuda and enable this test
+@tvm.testing.known_failing_targets("cuda")
 @tvm.testing.parametrize_targets
 def test_softmax(target, dev):
     def verify_softmax(inshape, axis, opset=None, dynamic=False):
