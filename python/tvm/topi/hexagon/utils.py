@@ -14,27 +14,33 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=invalid-name
+"""Common hexagon specific utilities"""
 from tvm import te
 
 
 def n11c_1024c_2d(n, h, w, c):
+    """Return index map for n11c_1024 2d layout"""
     return [n, h, w, c // 1024, te.AXIS_SEPARATOR, c % 1024]
 
 
 def n11c_1024c_1d(n, h, w, c):
+    """Return index map for n11c_1024 1d layout"""
     return [n, h, w, c // 1024, c % 1024]
 
 
 def nhwc_8h2w32c2w_2d(n, h, w, c):
+    """Return index map for nhwc_8h2w32c2w 2d layout"""
     return [n, h // 8, w // 4, c // 32, te.AXIS_SEPARATOR, h % 8, (w % 4) // 2, c % 32, w % 2]
 
 
 def nhwc_8h2w32c2w_1d(n, h, w, c):
+    """Return index map for nhwc_8h2w32c2w 1d layout"""
     return [n, h // 8, w // 4, c // 32, h % 8, (w % 4) // 2, c % 32, w % 2]
 
 
 def get_layout_transform_fn(layout):
+    """Return index map function as per the layout string"""
     if layout == "nhwc-8h2w32c2w-2d":
         return nhwc_8h2w32c2w_2d
     if layout == "nhwc-8h2w32c2w-1d":
