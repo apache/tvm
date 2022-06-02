@@ -122,51 +122,6 @@ bool CommonSubexpressionEliminator::CanContainEligibleComputations(const PrimExp
 }
 
 /*!
- * \brief Implements an order on pairs (expression,frequency). First attempts to compare them
-          using the size of the expression. When they are the same, uses the frequency to break
-          the tie. If the frequency is also the same, decides something else still deterministic.
- * \param a The first pair
- * \param b The second pair
- * \return A boolean telling if the first pair `a` comes before the second pair `b`
- * \note We need this order to be deterministic in order to have a fully deterministic pass,
- *       as we will deal with elements that are coming from a hashtable, but the order in which
- *       they appeared in the hashtable was based on some runtime addresses, so it can potentially
- *       change with every execution.
- */
-bool CommonSubexpressionEliminator::OrderOnExprAndFrequency(std::pair<PrimExpr, size_t> a,
-                                                            std::pair<PrimExpr, size_t> b) {
-  size_t a_size = CalculateExprComplexity(a.first);
-  size_t b_size = CalculateExprComplexity(b.first);
-
-  // Criteria 1 - Size of the expression comes first
-  // `a` comes before `b` if the size of `a` is bigger
-  if (a_size > b_size)
-    return true;
-  // `a` does NOT come before `b` if the size of `b` is bigger
-  else if (b_size > a_size)
-    return false;
-
-  // Criteria 2 - When they are the same, we use their frequencies (i.e. number of time seen) to
-  // break the tie.
-  // `a` comes before `b` if the frequency of `a` is bigger
-  else if(a.second > b.second)
-    return true;
-  // `a` does NOT come before `b` if the frequency of `b` is bigger
-  else if(b.second > a.second)
-    return false;
-
-  // Criteria 3 - If they also had the same frequency, use the lexicographic order as a last resort
-  // as we need a deterministic order
-  else {
-    std::stringstream a_stream;
-    std::stringstream b_stream;
-    a_stream << a.first;
-    b_stream << b.first;
-    return (a_stream.str().compare(b_stream.str()) < 0);
-  }
-}
-
-/*!
  * \brief Generates a new fresh variable, whose name will be cse_var_i.
  * \param type_annotation The type of the new variable to generate
  * \return A new variable of type `type_annotation` called cse_var_i where i is the first available
@@ -251,7 +206,9 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
 
   // Sort the vector of semantic entities by decreasing size
   std::sort(semantic_comp_done_by_expr.begin(), semantic_comp_done_by_expr.end(),
-      OrderOnExprAndFrequency);
+            [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
+              return (CalculateExprComplexity(a.first) > CalculateExprComplexity(b.first));
+            });
 
   // For each computation done (considering them from biggest to smallest)
   for (size_t i = 0; i < semantic_comp_done_by_expr.size(); i++) {
@@ -431,7 +388,9 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
 
   // Sort the vector of semantic entities by decreasing size
   std::sort(semantic_comp_done_by_stmt.begin(), semantic_comp_done_by_stmt.end(),
-      OrderOnExprAndFrequency);
+            [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
+              return (CalculateExprComplexity(a.first) > CalculateExprComplexity(b.first));
+            });
 
   // For each computation done (considering them from biggest to smallest)
   for (size_t i = 0; i < semantic_comp_done_by_stmt.size(); i++) {

@@ -786,7 +786,20 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   // equivalence classes as there are elements)
   norm_table.reserve(table.size());
 
-  for(const auto& elem : table) {
+  // Traverse through map in a sorted order on keys to maintain deterministic behavior
+  // We do this by comparing the string repr of each PrimExpr to get a determinstic ordering
+  std::vector<std::pair<PrimExpr, size_t>> sorted_map_items(table.begin(), table.end());
+
+  sort(sorted_map_items.begin(), sorted_map_items.end(),
+       [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
+         std::stringstream a_stream;
+         std::stringstream b_stream;
+         a_stream << a.first;
+         b_stream << b.first;
+         return a_stream.str().compare(b_stream.str()) < 0;
+       });
+
+  for(const auto& elem : sorted_map_items) {
     PrimExpr norm_elem = NormalizeTerm(elem.first, identify_equiv_terms);
     // If the normalized term is not already a key in the normalized table
     auto it_found = norm_table.find(norm_elem);
