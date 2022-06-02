@@ -725,7 +725,7 @@ bool EqualTerms(const PrimExpr& a, const PrimExpr& b) {
  * \brief Normalization function of a term, use to decide the equivalence relation of interest
  * \param expr The expression to normalize
  */
-PrimExpr NormalizeTerm(const PrimExpr& expr) {
+inline PrimExpr NormalizeTerm(const PrimExpr& expr) {
   // For now, the equivalence relation just checks the syntactic equality, so the normalization
   // is just the identity function. But the equiv relation could later become a semantic test,
   // for instance identifying computations modulo commutativity (like x+y and y+x), or modulo
@@ -772,7 +772,13 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   // (in practice, the first term of the equivalence class that was encoutered).
   std::unordered_map<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash, ExprDeepEqual> norm_table;
 
-  for(auto elem : table) {
+  // In order to avoid frequent rehashing if the norm_table becomes big, we immediately ask for
+  // enough space to store the amount of elements that the input table has, as it's clearly an
+  // upper bound (in the worst case, each element is its own representant, and there is as many
+  // equivalence classes as there are elements)
+  norm_table.reserve(table.size());
+
+  for(const auto& elem : table) {
     PrimExpr norm_elem = NormalizeTerm(elem.first);
     // If the normalized term is not already a key in the normalized table
     auto it_found = norm_table.find(norm_elem);
@@ -781,38 +787,39 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
       // (i.e. `norm_elem` has been seen `elem`.second many times so far, and the chosen element
       // to represent the equivalence class will be `elem`.first as it's the first element of the
       // class that we see)
-      norm_table[norm_elem] = {elem.first, elem.second};
+      norm_table[norm_elem] = elem;
     } else {
       // Otherwise, it's not the first time we see a term in this equivalence class, so we just
-      // increase the count of this equivalence class
-      std::pair<PrimExpr, size_t> norm_and_current_count = it_found->second;
-      // The same pair, with just the count increased, as we now have `elem`.second additional items
-      // coming to the equivalence class
-      std::pair<PrimExpr, size_t> norm_and_updated_count =
-        {norm_and_current_count.first, norm_and_current_count.second + elem.second};
-      norm_table[norm_elem] = norm_and_updated_count;
+      // increase the count of this equivalence class as we now have `elem`.second additional items
+      // coming to the equivalence class.
+      it_found->second.second += elem.second;
     }
   }
 
-  // norm_table.size() is the number of equivalence class that we have built
+  // norm_table.size() is the number of equivalence class that we have built, so it's also exactly
+  // the number of items that we will return in the vector of semantical entities
   result.reserve(norm_table.size());
 
-  // Traverse through map in a sorted order on keys to maintain deterministic behavior
-  // We do this by comparing the string repr of each PrimExpr to get a determinstic ordering
-  std::vector<std::pair<PrimExpr, std::pair<PrimExpr, size_t>>> sorted_map_items(norm_table.begin(), norm_table.end());
-  sort(sorted_map_items.begin(), sorted_map_items.end(),
-       [](std::pair<PrimExpr, std::pair<PrimExpr, size_t>> a, std::pair<PrimExpr, std::pair<PrimExpr, size_t>> b) {
+  // Transform the intermediate hashtable `norm_table` into a vector, forgetting the keys,
+  // (which are the normal forms), as they won't be used as the canonical representants (which are
+  // instead the first element of each class that is effectively seen)
+  std::unordered_map<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash, ExprDeepEqual>::const_iterator it_norm_table;
+  for( it_norm_table = norm_table.begin(); it_norm_table != norm_table.end(); ++it_norm_table ) {
+    result.push_back( it_norm_table->second );
+  }
+
+  // Order the result using the effective canonical representant (using a comparison of the
+  // string repr of each PrimExpr) in order to have a fully determinstic pass (as the order
+  // currently depends on the previous order of appearance in the hastable, which was based
+  // on some runtime addresses, so it potentially changed with every execution)
+  sort(result.begin(), result.end(),
+       [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
          std::stringstream a_stream;
          std::stringstream b_stream;
          a_stream << a.first;
          b_stream << b.first;
          return a_stream.str().compare(b_stream.str()) < 0;
        });
-
-  // For each equivalence class
-  for (auto equiv_class : sorted_map_items) {
-    result.push_back(equiv_class.second);
-  }
 
   return result;
 }
