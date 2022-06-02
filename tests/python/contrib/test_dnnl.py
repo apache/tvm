@@ -17,6 +17,8 @@
 import pytest
 import itertools
 import numpy as np
+import sys
+import subprocess
 
 import tvm
 from tvm import relay
@@ -37,7 +39,21 @@ run_module = tvm.testing.parameter(
     ids=["compile", "run"],
 )
 
-bf16_supported = "avx512" in open("/proc/cpuinfo", "r").read()
+_bf16_supported = None
+
+
+def bf16_supported():
+    global _bf16_supported
+    if _bf16_supported is None:
+        _bf16_supported = False
+        if sys.platform.startswith("darwin"):
+            cpu_info = subprocess.check_output("sysctl -a", shell=True).strip().decode()
+            for line in cpu_info.split("\n"):
+                if line.startswith("hw.optional.avx512f"):
+                    _bf16_supported = bool(line.split(":", 1)[1])
+        elif sys.platform.startswith("linux"):
+            _bf16_supported = "avx512" in open("/proc/cpuinfo", "r").read()
+    return _bf16_supported
 
 
 def partition_for_dnnl(mod, params=None, alter_layout=True):
@@ -150,7 +166,7 @@ def run_and_verify(mod, input, params, target, run_module, subgraph_num=None, te
             (True, False, False),
             (True, True, False),
         ]
-        if test_bf16 and bf16_supported:
+        if test_bf16 and bf16_supported():
             configs += [(True, False, True), (True, True, True)]
         for use_dnnl, alter_layout, use_bf16 in configs:
             result_key = (
