@@ -20,6 +20,7 @@ import tvm
 from tvm import te
 from tvm.ir.base import save_json
 from tvm.ir.module import IRModule
+from tvm.script import tir as T
 
 
 # A test program which gives the opportunity for the CSE pass to introduce two new variables, at two different levels
@@ -374,6 +375,59 @@ def test_no_normalization_without_commoning():
     assert tvm.ir.structural_equal(body.value, x + (y + z))
 
 
+# Part for testing the commoning with equivalences
+
+@T.prim_func
+def func_distributivity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32) -> None:
+    B = T.buffer_decl((50,), "int32")
+    B[i1] = x * (y + z)
+    B[i2] = x * y + x * z
+
+
+@T.prim_func
+def func_distributivity_expected(
+    i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
+) -> None:
+    B = T.buffer_decl((50,), "int32")
+    cse_var_1 = T.var("int32")
+    with T.let(cse_var_1, x * (y + z)):
+        B[i1] = cse_var_1
+        B[i2] = cse_var_1
+
+
+@T.prim_func
+def func_associativity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32) -> None:
+    B = T.buffer_decl((50,), "int32")
+    B[i1] = (x + y) + z
+    B[i2] = x + (y + z)
+
+
+@T.prim_func
+def func_associativity_expected(
+    i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
+) -> None:
+    B = T.buffer_decl((50,), "int32")
+    cse_var_1 = T.var("int32")
+    with T.let(cse_var_1, (x + y) + z):
+        B[i1] = cse_var_1
+        B[i2] = cse_var_1
+
+
+def _check(original, transformed):
+    func = original
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.CommonSubexprElimTIR()(mod)
+    tvm.ir.assert_structural_equal(mod["main"], transformed)
+
+
+def test_semantic_equiv_distributivity():
+    _check(func_distributivity, func_distributivity_expected)
+
+
+def test_semantic_equiv_associativity():
+    _check(func_associativity, func_associativity_expected)
+
+
 if __name__ == "__main__":
     test_cse()
     test_deterministic_cse()
@@ -381,3 +435,7 @@ if __name__ == "__main__":
     test_cse_ifNode_2()
     test_cse_cascade()
     test_no_normalization_without_commoning()
+    # Tests for testing the commoning with equivalences:
+    #test_semantic_equiv_distributivity()
+    #test_semantic_equiv_associativity()
+

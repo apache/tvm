@@ -812,6 +812,7 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   // string repr of each PrimExpr) in order to have a fully determinstic pass (as the order
   // currently depends on the previous order of appearance in the hastable, which was based
   // on some runtime addresses, so it potentially changed with every execution)
+/*
   sort(result.begin(), result.end(),
        [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
          std::stringstream a_stream;
@@ -820,6 +821,7 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
          b_stream << b.first;
          return a_stream.str().compare(b_stream.str()) < 0;
        });
+*/
 
   return result;
 }
