@@ -318,7 +318,7 @@ def _should_generate_interface_header(mod):
     return "interface-api" in mod.executor and mod.executor["interface-api"] == "c"
 
 
-def _make_tar(source_dir, tar_file_path, mod):
+def _make_tar(source_dir, tar_file_path, modules):
     """Build a tar file from source_dir."""
     with tarfile.open(tar_file_path, "w") as tar_f:
 
@@ -328,9 +328,12 @@ def _make_tar(source_dir, tar_file_path, mod):
             return tarinfo
 
         tar_f.add(str(source_dir), arcname=".", filter=reset)
-        is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
-        if is_aot and str(mod.runtime) == "crt":
-            tar_f.add(get_standalone_crt_dir(), arcname=STANDALONE_CRT_URL)
+
+        for mod in modules:
+            is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
+            if is_aot and str(mod.runtime) == "crt":
+                tar_f.add(get_standalone_crt_dir(), arcname=STANDALONE_CRT_URL)
+                break
 
 
 _GENERATED_VERSION = 7

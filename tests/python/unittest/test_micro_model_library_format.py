@@ -562,6 +562,9 @@ def test_multiple_relay_modules_c():
     assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "include", "tvmgen_mod1.h"))
     assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "include", "tvmgen_mod2.h"))
 
+    # check CRT runtime directory
+    assert os.path.exists(os.path.join(extract_dir, "runtime"))
+
 
 @tvm.testing.requires_micro
 def test_multiple_relay_modules_aot_graph():
