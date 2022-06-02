@@ -20,7 +20,6 @@
 import pytest
 import numpy as np
 
-np.set_printoptions(threshold=np.inf)
 from tvm import te, topi
 
 import tvm.testing
@@ -75,6 +74,7 @@ def transformed_expected_output_np(expected_output_np, output_layout):
 def hexagon_wrapper_allocation(
     device, layout, axis_separators, tensor_shape=None, data=None, transformed_data=None, dtype=None
 ):
+    """Input layout can either be nhwc-8h2w32c2w or nhwc"""
     if layout == "nhwc-8h2w32c2w":
         data_nd = allocate_hexagon_array(
             device,
@@ -233,4 +233,4 @@ class TestAddSubtractMultiplyBroadcast2d:
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()
