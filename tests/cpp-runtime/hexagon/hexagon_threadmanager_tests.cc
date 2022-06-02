@@ -27,11 +27,12 @@ using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
 
 #define oneK 0x400
+#define sixteenK 16 * oneK
 
 class HexagonThreadManagerTest : public ::testing::Test {
   protected:
   void SetUp() override {
-    htm = new HexagonThreadManager(6, oneK, oneK);
+    htm = new HexagonThreadManager(6, sixteenK, oneK);
     htm->GetStreamHandles(&streams);
   }
   void TearDown() override {
@@ -142,16 +143,16 @@ TEST_F(HexagonThreadManagerTest, sync_from_to_all) {
 }
 
 TEST(HexagonThreadManagerStandalone, ctor_errors) {
-  ASSERT_THROW(HexagonThreadManager(0, oneK, oneK), InternalError);
-  ASSERT_THROW(HexagonThreadManager(60, oneK, oneK), InternalError);
+  ASSERT_THROW(HexagonThreadManager(0, sixteenK, oneK), InternalError);
+  ASSERT_THROW(HexagonThreadManager(60, sixteenK, oneK), InternalError);
   ASSERT_THROW(HexagonThreadManager(6, MAX_STACK_SIZE_BYTES + 1, oneK), InternalError);
-  ASSERT_THROW(HexagonThreadManager(6, oneK, MAX_PIPE_SIZE_WORDS + 1), InternalError);
+  ASSERT_THROW(HexagonThreadManager(6, sixteenK, MAX_PIPE_SIZE_WORDS + 1), InternalError);
 }
 
 TEST(HexagonThreadManagerStandalone, pipe_overflow) {
   int answer = 0;
   unsigned tiny = 128;
-  HexagonThreadManager tinyhtm(1, 16*1024, tiny);
+  HexagonThreadManager tinyhtm(1, sixteenK, tiny);
   std::vector<TVMStreamHandle> streams;
   tinyhtm.GetStreamHandles(&streams);
   // fill the pipe
@@ -167,7 +168,7 @@ TEST(HexagonThreadManagerStandalone, pipe_overflow) {
 TEST(HexagonThreadManagerStandalone, pipe_fill) {
   int answer = 0;
   unsigned tiny = 128;
-  HexagonThreadManager tinyhtm(1, tiny, tiny);
+  HexagonThreadManager tinyhtm(1, sixteenK, tiny);
   std::vector<TVMStreamHandle> streams;
   tinyhtm.GetStreamHandles(&streams);
   // fill the pipe

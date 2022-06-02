@@ -21,8 +21,8 @@ namespace hexagon {
 #define DBG(msg) LOG(WARNING) << msg << "\n"
 
 // TODO: adjust as necessary
-#define MIN_STACK_SIZE_BYTES 128 // 128 bytes
-#define MAX_STACK_SIZE_BYTES 0x10000 // 64KB 
+#define MIN_STACK_SIZE_BYTES 0x400 // 1KB
+#define MAX_STACK_SIZE_BYTES 0x10000 // 64KB
 #define MIN_PIPE_SIZE_WORDS 128 // 128 words
 #define MAX_PIPE_SIZE_WORDS 0x1000 // 4K words
   
