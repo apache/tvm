@@ -26,13 +26,10 @@
 using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
 
-#define oneK 0x400
-#define sixteenK 16 * oneK
-
 class HexagonThreadManagerTest : public ::testing::Test {
   protected:
   void SetUp() override {
-    htm = new HexagonThreadManager(6, sixteenK, oneK);
+    htm = new HexagonThreadManager(6, stack_size, pipe_size);
     htm->GetStreamHandles(&streams);
   }
   void TearDown() override {
@@ -41,7 +38,20 @@ class HexagonThreadManagerTest : public ::testing::Test {
   HexagonThreadManager *htm {nullptr};
   std::vector<TVMStreamHandle> streams;
   int answer{0};
+  unsigned pipe_size {100};
+  unsigned stack_size {0x4000}; // 16KB
 };
+
+TEST_F(HexagonThreadManagerTest, ctor_errors) {
+  // zero threads
+  ASSERT_THROW(HexagonThreadManager(0, stack_size, pipe_size), InternalError);
+  // too many threads
+  ASSERT_THROW(HexagonThreadManager(60, stack_size, pipe_size), InternalError);
+  // stack too big
+  ASSERT_THROW(HexagonThreadManager(6, MAX_STACK_SIZE_BYTES + 1, pipe_size), InternalError);
+  // pipe too big
+  ASSERT_THROW(HexagonThreadManager(6, stack_size, MAX_PIPE_SIZE_WORDS + 1), InternalError);
+}
 
 TEST_F(HexagonThreadManagerTest, init) {
   CHECK(htm != nullptr);
@@ -142,40 +152,23 @@ TEST_F(HexagonThreadManagerTest, sync_from_to_all) {
   CHECK_EQ(answer, 42);
 }
 
-TEST(HexagonThreadManagerStandalone, ctor_errors) {
-  ASSERT_THROW(HexagonThreadManager(0, sixteenK, oneK), InternalError);
-  ASSERT_THROW(HexagonThreadManager(60, sixteenK, oneK), InternalError);
-  ASSERT_THROW(HexagonThreadManager(6, MAX_STACK_SIZE_BYTES + 1, oneK), InternalError);
-  ASSERT_THROW(HexagonThreadManager(6, sixteenK, MAX_PIPE_SIZE_WORDS + 1), InternalError);
+TEST_F(HexagonThreadManagerTest, pipe_fill) {
+  // fill the pipe
+  for (int i = 0; i < pipe_size; ++i) {
+    htm->Dispatch(streams[0], get_the_answer, &answer);
+  }
+  htm->WaitOnThreads();
+  CHECK_EQ(answer, 42);
 }
 
-TEST(HexagonThreadManagerStandalone, pipe_overflow) {
-  int answer = 0;
-  unsigned tiny = 128;
-  HexagonThreadManager tinyhtm(1, sixteenK, tiny);
-  std::vector<TVMStreamHandle> streams;
-  tinyhtm.GetStreamHandles(&streams);
+TEST_F(HexagonThreadManagerTest, pipe_overflow) {
   // fill the pipe
-  for (int i = 0; i < tiny; ++i) {
-    tinyhtm.Dispatch(streams[0], get_the_answer, &answer);
+  for (int i = 0; i < pipe_size; ++i) {
+    htm->Dispatch(streams[0], get_the_answer, &answer);
   }
   // overflow the pipe
-  //ASSERT_THROW(tinyhtm.Dispatch(streams[0], get_the_answer, &answer), InternalError);
-  bool space = tinyhtm.Dispatch(streams[0], get_the_answer, &answer);
-  CHECK_EQ(space, 0);
-}
-
-TEST(HexagonThreadManagerStandalone, pipe_fill) {
-  int answer = 0;
-  unsigned tiny = 128;
-  HexagonThreadManager tinyhtm(1, sixteenK, tiny);
-  std::vector<TVMStreamHandle> streams;
-  tinyhtm.GetStreamHandles(&streams);
-  // fill the pipe
-  for (int i = 0; i < tiny; ++i) {
-    tinyhtm.Dispatch(streams[0], get_the_answer, &answer);
-  }
-  tinyhtm.WaitOnThreads();
+  bool space = htm->Dispatch(streams[0], get_the_answer, &answer);
+  CHECK_EQ(space, false);
 }
 
 struct ToWrite {
