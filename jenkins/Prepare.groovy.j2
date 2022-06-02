@@ -135,6 +135,20 @@ def prepare() {
         {% endfor %}
 
         sh (script: """
+          ls /var/
+          mkdir -p /var/crash
+          echo "int main() { int* x = 0; return *x; }" > test.c
+          gcc test.c
+          ./a.out || echo ok
+          ulimit -c unlimited
+          ulimit -c
+          ./a.out || echo ok
+
+          ls -l /var/crash
+          # sudo sysctl -w kernel.core_pattern=/var/crash/coredump-%e.%p.%h.%t
+          # echo "/var/crash/core.%e.%p.%h.%t" > /proc/sys/kernel/core_pattern
+          sysctl kernel.core_pattern
+          exit 1
           echo "Docker images being used in this build:"
           {% for image in images %}
           echo " {{ image.name }} = ${ {{- image.name -}} }"

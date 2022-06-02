@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-06-01T16:34:53.941462
+// Generated at 2022-06-02T11:56:08.506227
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -242,6 +242,20 @@ def prepare() {
         ci_wasm = params.ci_wasm_param ?: ci_wasm
 
         sh (script: """
+          ls /var/
+          mkdir -p /var/crash
+          echo "int main() { int* x = 0; return *x; }" > test.c
+          gcc test.c
+          ./a.out || echo ok
+          ulimit -c unlimited
+          ulimit -c
+          ./a.out || echo ok
+
+          ls -l /var/crash
+          # sudo sysctl -w kernel.core_pattern=/var/crash/coredump-%e.%p.%h.%t
+          # echo "/var/crash/core.%e.%p.%h.%t" > /proc/sys/kernel/core_pattern
+          sysctl kernel.core_pattern
+          exit 1
           echo "Docker images being used in this build:"
           echo " ci_arm = ${ci_arm}"
           echo " ci_cpu = ${ci_cpu}"
