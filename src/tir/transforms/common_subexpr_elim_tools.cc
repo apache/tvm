@@ -724,32 +724,40 @@ bool EqualTerms(const PrimExpr& a, const PrimExpr& b) {
 /*!
  * \brief Normalization function of a term, use to decide the equivalence relation of interest
  * \param expr The expression to normalize
+ * \param do_normalization Whether we want the function to actually do normalization
+ * \note This function can be customized
  */
-inline PrimExpr NormalizeTerm(const PrimExpr& expr) {
-  // For now, the equivalence relation just checks the syntactic equality, so the normalization
-  // is just the identity function. But the equiv relation could later become a semantic test,
-  // for instance identifying computations modulo commutativity (like x+y and y+x), or modulo
-  // associativity (like (x+y)+z and x+(y+z)), etc. For that, a normalization procedure (or an 
-  // incomplete "pseudo-normalization" like arith::Analyzer::Simplify) will be used.
+PrimExpr NormalizeTerm(const PrimExpr& expr, bool do_normalization) {
+  if(do_normalization) {
+    // Customize here!
+    // We could decide to normalize terms in a way that identifies them modulo commutativity
+    // (like x+y and y+x), or modulo associativity (like (x+y)+z and x+(y+z)), etc.
+    // For that, a normalization procedure (or an incomplete "pseudo-normalization" like
+    // arith::Analyzer::Simplify) will be used.
 
-  return expr;
-
-  // Just an attempt to do more commonings by using the pseudo-normalization function
-  // offered by arith::Analyzer::Simplify(). "pseudo" because while it is correct (i.e. 
-  // the simplification is indeed equivalent to the original term), it is incomplete (i.e. 
-  // the returned term is not guaranteed to be a normal form).
-  //arith::Analyzer analyzer;
-  //return analyzer.Simplify(expr);
+    // One possible customization:
+    // Here is just an attempt to do more commonings by using the pseudo-normalization function
+    // offered by arith::Analyzer::Simplify(). "pseudo" because while it is correct (i.e.
+    // the simplification is indeed equivalent to the original term), it is incomplete (i.e.
+    // the returned term is not guaranteed to be a normal form).
+    arith::Analyzer analyzer;
+    return analyzer.Simplify(expr);
+  } else {
+    // If `do_normalization` is false, the equivalence relation just checks the syntactic equality,
+    // so the normalization is just the identity function.
+    return expr;
+  }
 }
 
 /*!
  * \brief Decides if two terms are equivalent semantically
  */
-bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b) {
-  // We restrict the equivalence to be decidable by a normalization procedure that is used to
-  // normalize both sides, and to then compare the normal forms with the strict syntactical 
-  // equality
-  return EqualTerms( NormalizeTerm(a), NormalizeTerm(b) );
+bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b, bool identify_equiv_terms) {
+    // We restrict the equivalence to be decidable by a normalization procedure that is used to
+    // normalize both sides, and to then compare the normal forms with the strict syntactical 
+    // equality
+    return EqualTerms(NormalizeTerm(a, identify_equiv_terms),
+                      NormalizeTerm(b, identify_equiv_terms));
 }
 
 /*!
@@ -763,7 +771,7 @@ bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b) {
           computations.
  */
 std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
-    const ComputationTable& table) {
+    const ComputationTable& table, bool identify_equiv_terms) {
   std::vector<std::pair<PrimExpr, size_t>> result;
 
   // In order to produce the result (a vector of semantical entities), the input table will be
@@ -779,7 +787,7 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   norm_table.reserve(table.size());
 
   for(const auto& elem : table) {
-    PrimExpr norm_elem = NormalizeTerm(elem.first);
+    PrimExpr norm_elem = NormalizeTerm(elem.first, identify_equiv_terms);
     // If the normalized term is not already a key in the normalized table
     auto it_found = norm_table.find(norm_elem);
     if(it_found == norm_table.end()) {
@@ -853,7 +861,8 @@ void InsertElemToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size
           decreasing size of the expression) and maintain the vector sorted while doing so.
  */
 void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>* sorted_vec,
-                                              const std::vector<PrimExpr>& vec_to_add) {
+                                              const std::vector<PrimExpr>& vec_to_add,
+                                              bool identify_equiv_terms) {
   if (sorted_vec == nullptr) {
     return;
   }
@@ -861,9 +870,10 @@ void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, si
     // See if the current element to add (or an equivalent one) is already present
     // in the sorted vector
     auto it_found = std::find_if(sorted_vec->begin(), sorted_vec->end(),
-                                 [elem_to_add](std::pair<PrimExpr, size_t> elem) {
-                                   return EquivalentTerms(elem.first, elem_to_add);
-                                 });
+                        [elem_to_add, identify_equiv_terms](std::pair<PrimExpr, size_t> elem) {
+                                   return EquivalentTerms(elem.first, elem_to_add, 
+                                                                      identify_equiv_terms);
+                        });
 
     // If we found `elem_to_add` (or an equivalent expression) already in sorted_vec
     if (it_found != sorted_vec->end()) {

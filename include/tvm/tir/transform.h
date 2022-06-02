@@ -472,7 +472,7 @@ TVM_DLL Pass LowerVtcmAlloc();
  * \param enable_cse_tir Whether common subexpression elimination is enabled.
  * \return The pass.
  */
-TVM_DLL Pass CommonSubexprElimTIR(bool enable_cse_tir = true);
+TVM_DLL Pass CommonSubexprElimTIR(bool enable_cse_tir = true, bool identify_equiv_terms = false);
 
 /*!
  * \brief Unify all the thread bindings for "blockIdx.x/y/z", "threadIdx.x/y/z", and
