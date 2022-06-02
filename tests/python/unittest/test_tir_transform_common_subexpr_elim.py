@@ -357,7 +357,7 @@ def func_distributivity_expected(
 ) -> None:
     B = T.buffer_decl((50,), "int32")
     cse_var_1 = T.var("int32")
-    with T.let(cse_var_1, x * (y + z)):
+    with T.let(cse_var_1, x * y + x * z):
         B[i1] = cse_var_1
         B[i2] = cse_var_1
 

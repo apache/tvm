@@ -769,6 +769,11 @@ bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b, bool identify_equiv_t
    \note This function is needed because the advantage of the hashtable was the constant lookup.
           But in order to have this constant lookup, we could not collapse semantically equivalent
           computations.
+          Attention, the pairs returned are deterministic and will always be the same (as the same
+          canonical representant will always be chosen for a given class of equivalence), but the
+          order in which these pairs appear in the result is not deterministic, as it is based on
+          the order in which we found items in the "normalized hashtable" `norm_table`). The caller
+          is expected to sort the result anyway.
  */
 std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
     const ComputationTable& table, bool identify_equiv_terms) {
@@ -786,11 +791,14 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   // equivalence classes as there are elements)
   norm_table.reserve(table.size());
 
-  // Traverse through map in a sorted order on keys to maintain deterministic behavior
-  // We do this by comparing the string repr of each PrimExpr to get a determinstic ordering
-  std::vector<std::pair<PrimExpr, size_t>> sorted_map_items(table.begin(), table.end());
+  // Transform the input hashtable to a vector and sort it according to some order, as we will be
+  // iterating through its items soon, and the order of appearance will be used to determine the
+  // individual representant for each class of equivalence, which we want to be deterministic
+  // (otherwise {x+y, y+x} could be both replaced by x+y, and on another run by y+x).
+  std::vector<std::pair<PrimExpr, size_t>> sorted_items_of_table(table.begin(), table.end());
 
-  sort(sorted_map_items.begin(), sorted_map_items.end(),
+  // We do the ordering by comparing the string repr of each PrimExpr to get a determinstic ordering
+  sort(sorted_items_of_table.begin(), sorted_items_of_table.end(),
        [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
          std::stringstream a_stream;
          std::stringstream b_stream;
@@ -799,7 +807,7 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
          return a_stream.str().compare(b_stream.str()) < 0;
        });
 
-  for(const auto& elem : sorted_map_items) {
+  for(const auto& elem : sorted_items_of_table) {
     PrimExpr norm_elem = NormalizeTerm(elem.first, identify_equiv_terms);
     // If the normalized term is not already a key in the normalized table
     auto it_found = norm_table.find(norm_elem);
@@ -824,6 +832,9 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   // Transform the intermediate hashtable `norm_table` into a vector, forgetting the keys,
   // (which are the normal forms), as they won't be used as the canonical representants (which are
   // instead the first element of each class that is effectively seen)
+  // Careful : the pairs will never change (the canonical represantants chosen will always be the
+  // same), but the order in which the pairs are produced can vary as we are iterating through the
+  // hashtable `norm_table`. It is not an issue as the called will be sorting the result anyway.
   std::unordered_map<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash, ExprDeepEqual>::const_iterator it_norm_table;
   for( it_norm_table = norm_table.begin(); it_norm_table != norm_table.end(); ++it_norm_table ) {
     result.push_back( it_norm_table->second );
