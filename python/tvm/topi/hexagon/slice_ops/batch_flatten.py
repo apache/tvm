@@ -19,7 +19,6 @@
 import typing
 
 from tvm import te, tir, topi
-from tvm.script import tir as T
 
 
 def batch_flatten_compute(inp: te.Tensor) -> te.Tensor:
@@ -74,5 +73,6 @@ def batch_flatten_stir_schedule(
     height, width = sch.split(jout, [inp.shape[1], inp.shape[2]])
     channelo, channeli = sch.split(channel, [None, 1024])
     channelio, channelii = sch.split(channeli, [None, 64])
+    sch.reorder(i, height, width, channelo, channelio, channelii)
     sch.vectorize(channelii)
     return sch
