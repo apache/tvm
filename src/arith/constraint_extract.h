@@ -38,7 +38,7 @@ namespace arith {
  * Utility to break up a boolean expression into independent
  * constraints.
  *
- * Example: `i==5 && j==3` => `[i==5 && j==3, * i==5, j==3]`
+ * Example: `i==5 && j==3` => `[i==5 && j==3, i==5, j==3]`
  * Example: `i==5 || j==3` => `[i==5 || j==3]`
  * Example: `!(i>5 || j==3)` => `[!(i==5 || j==3), i<=5, j!=3]`
  *
