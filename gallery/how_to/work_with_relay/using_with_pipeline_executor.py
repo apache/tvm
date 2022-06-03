@@ -19,7 +19,7 @@ Using Pipeline Executor in Relay
 =================================
 **Author**: `Hua Jiang <https://https://github.com/huajsj>`_
 
-This is a short tutorial on how to use Pipeline Executor with Relay.
+This is a short tutorial on how to use the Pipeline Executor with Relay.
 """
 import tvm
 from tvm import te
