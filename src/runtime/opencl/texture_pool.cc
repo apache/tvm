@@ -29,7 +29,8 @@
 namespace tvm {
 namespace runtime {
 
-void* Pool::Alloc(Device dev, DeviceAPI* device, size_t width, size_t height, DLDataType type_hint) {
+void* Pool::Alloc(Device dev, DeviceAPI* device, size_t width, size_t height,
+                  DLDataType type_hint) {
   Entry e;
   Entry new_mem;
   // Processed several experiments and found that when we are trying to fit

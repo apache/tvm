@@ -27,12 +27,11 @@ import tvm.testing
 pytest_plugins = [
     "tvm.contrib.hexagon.pytest_plugin",
 ]
-#def pytest_addoption(parser):
-#    parser.addoption("--gtest_args", action="store", default="")
+# def pytest_addoption(parser):
+#     parser.addoption("--gtest_args", action="store", default="")
 #
 #
-#def pytest_generate_tests(metafunc):
-#    option_value = metafunc.config.option.gtest_args
-#    if "gtest_args" in metafunc.fixturenames and option_value is not None:
-#        metafunc.parametrize("gtest_args", [option_value])
-
+# def pytest_generate_tests(metafunc):
+#     option_value = metafunc.config.option.gtest_args
+#     if "gtest_args" in metafunc.fixturenames and option_value is not None:
+#         metafunc.parametrize("gtest_args", [option_value])

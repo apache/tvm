@@ -58,4 +58,3 @@ TVM_REGISTER_GLOBAL("opencl.run_gtests").set_body([](TVMArgs args, TVMRetValue* 
 }  // namespace cl
 }  // namespace runtime
 }  // namespace tvm
-

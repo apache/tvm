@@ -555,9 +555,10 @@ def test_conv2d_yolov3_v2_nhwc_3c():
 
     build_run_compare(mod, params, {"data": input_shape}, dtype, target)
 
+
 def test_conv2d_vgg16_winograd():
-    target="opencl --device=adreno"
-    dtype="float16"
+    target = "opencl --device=adreno"
+    dtype = "float16"
 
     input_shape = (1, 28, 28, 512)
     filter_shape = (3, 3, 512, 512)
@@ -566,9 +567,16 @@ def test_conv2d_vgg16_winograd():
     B = relay.var("weight", shape=filter_shape, dtype=dtype)
     bias = relay.var("bias", shape=bias_shape, dtype=dtype)
 
-    conv = relay.nn.conv2d(A, B, data_layout="NHWC", kernel_layout="HWIO",
-            padding=[1,1,1,1], channels=512, kernel_size=[3, 3],
-            out_dtype=dtype)
+    conv = relay.nn.conv2d(
+        A,
+        B,
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        padding=[1, 1, 1, 1],
+        channels=512,
+        kernel_size=[3, 3],
+        out_dtype=dtype,
+    )
     D = relay.op.add(conv, bias)
     D = relay.op.nn.relu(D)
 
@@ -581,14 +589,15 @@ def test_conv2d_vgg16_winograd():
     initializer("bias", bias_data)
     params1 = {
         "weight": tvm.nd.array(filter_data),
-        "bias" : tvm.nd.array(bias_data),
+        "bias": tvm.nd.array(bias_data),
     }
 
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, gpu_preprocess_nhwc)
 
+
 def test_conv2d_vgg16_winograd_4d():
-    target="opencl --device=adreno"
-    dtype="float16"
+    target = "opencl --device=adreno"
+    dtype = "float16"
 
     input_shape = (1, 28, 28, 512)
     filter_shape = (3, 3, 512, 512)
@@ -597,9 +606,16 @@ def test_conv2d_vgg16_winograd_4d():
     B = relay.var("weight", shape=filter_shape, dtype=dtype)
     bias = relay.var("bias", shape=bias_shape, dtype=dtype)
 
-    conv = relay.nn.conv2d(A, B, data_layout="NHWC", kernel_layout="HWIO",
-            padding=[1,1,1,1], channels=512, kernel_size=[3, 3],
-            out_dtype=dtype)
+    conv = relay.nn.conv2d(
+        A,
+        B,
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        padding=[1, 1, 1, 1],
+        channels=512,
+        kernel_size=[3, 3],
+        out_dtype=dtype,
+    )
     D = relay.op.add(conv, bias)
     D = relay.op.nn.relu(D)
 
@@ -612,7 +628,7 @@ def test_conv2d_vgg16_winograd_4d():
     initializer("bias", bias_data)
     params1 = {
         "weight": tvm.nd.array(filter_data),
-        "bias" : tvm.nd.array(bias_data),
+        "bias": tvm.nd.array(bias_data),
     }
 
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target)

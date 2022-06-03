@@ -20,14 +20,14 @@
 #include <gtest/gtest.h>
 #include <tvm/runtime/container/optional.h>
 
-#include "../src/runtime/texture.h"
 #include "../src/runtime/opencl/opencl_common.h"
+#include "../src/runtime/texture.h"
 
 using namespace tvm::runtime;
 using namespace tvm::runtime::cl;
 
 class PoolWrapper : public Pool {
-public:
+ public:
   inline size_t FreeListSize() const { return free_list_.size(); }
   inline size_t AllocatedListSize() const { return allocated_.size(); }
   inline std::pair<size_t, size_t> FreeListItemSize(size_t idx) const {

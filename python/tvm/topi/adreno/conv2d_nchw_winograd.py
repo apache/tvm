@@ -25,7 +25,13 @@ from tvm import autotvm
 from tvm.topi import nn
 from tvm.topi.utils import get_const_int, get_const_tuple, traverse_inline
 from ..nn.winograd_util import winograd_transform_matrices
-from .utils import split_to_chunks, pack_input, pack_filter, expand_spatial_dimensions, add_pad, bind_data_copy, get_texture_storage
+from .utils import (
+    split_to_chunks,
+    pack_input,
+    pack_filter,
+    bind_data_copy,
+    get_texture_storage,
+)
 
 
 logger = logging.getLogger("conv2d_nchw_winograd")
@@ -41,49 +47,62 @@ def _infer_tile_size(data):
         return 4
     return 2
 
+
 @autotvm.register_topi_compute("conv2d_nchw_winograd.image2d")
 def conv2d_nchw_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    args={"shared" : False, "accumulator" : "float16"}
+    args = {"shared": False, "accumulator": "float16"}
     return conv2d_nchw_winograd_comp(
         cfg, data, kernel, strides, padding, dilation, out_dtype, args=args, pre_computed=False
     )
 
+
 @autotvm.register_topi_compute("conv2d_nchw_winograd_acc32.image2d")
 def conv2d_nchw_winograd_acc32(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    args={"shared" : False, "accumulator" : "float32"}
+    args = {"shared": False, "accumulator": "float32"}
     return conv2d_nchw_winograd_comp(
         cfg, data, kernel, strides, padding, dilation, out_dtype, args=args, pre_computed=False
     )
+
 
 @autotvm.register_topi_schedule("conv2d_nchw_winograd.image2d")
 def schedule_conv2d_nchw_winograd(cfg, outs):
     return schedule_conv2d_nchw_winograd_impl(cfg, outs, tag="cast_from_acc16")
 
+
 @autotvm.register_topi_schedule("conv2d_nchw_winograd_acc32.image2d")
 def schedule_conv2d_nchw_winograd_acc32(cfg, outs):
     return schedule_conv2d_nchw_winograd_impl(cfg, outs, tag="cast_from_acc32")
 
+
 @autotvm.register_topi_compute("conv2d_nchw_winograd_without_weight_transform.image2d")
-def conv2d_nchw_winograd_without_weight_transform(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    args={"shared" : False, "accumulator" : "float16"}
+def conv2d_nchw_winograd_without_weight_transform(
+    cfg, data, kernel, strides, padding, dilation, out_dtype
+):
+    args = {"shared": False, "accumulator": "float16"}
     return conv2d_nchw_winograd_comp(
         cfg, data, kernel, strides, padding, dilation, out_dtype, args=args, pre_computed=True
     )
 
+
 @autotvm.register_topi_compute("conv2d_nchw_winograd_without_weight_transform_acc32.image2d")
-def conv2d_nchw_winograd_without_weight_transform_acc32(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    args={"shared" : False, "accumulator" : "float32"}
+def conv2d_nchw_winograd_without_weight_transform_acc32(
+    cfg, data, kernel, strides, padding, dilation, out_dtype
+):
+    args = {"shared": False, "accumulator": "float32"}
     return conv2d_nchw_winograd_comp(
         cfg, data, kernel, strides, padding, dilation, out_dtype, args=args, pre_computed=True
     )
+
 
 @autotvm.register_topi_schedule("conv2d_nchw_winograd_without_weight_transform.image2d")
 def schedule_conv2d_nchw_winograd_without_weight_transform(cfg, outs):
     return schedule_conv2d_nchw_winograd_impl(cfg, outs, tag="cast_from_acc16", pre_computed=True)
 
+
 @autotvm.register_topi_schedule("conv2d_nchw_winograd_without_weight_transform_acc32.image2d")
 def schedule_conv2d_nchw_winograd_without_weight_transform_acc32(cfg, outs):
     return schedule_conv2d_nchw_winograd_impl(cfg, outs, tag="cast_from_acc32", pre_computed=True)
+
 
 def schedule_conv2d_nchw_winograd_impl(cfg, outs, tag, pre_computed=False):
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
@@ -96,7 +115,10 @@ def schedule_conv2d_nchw_winograd_impl(cfg, outs, tag, pre_computed=False):
     traverse_inline(s, outs[0].op, _callback)
     return s
 
-def conv2d_nchw_winograd_comp(cfg, data, kernel, strides, padding, dilation, out_dtype, args, pre_computed):
+
+def conv2d_nchw_winograd_comp(
+    cfg, data, kernel, strides, padding, dilation, out_dtype, args, pre_computed
+):
     """Compute declaration for winograd"""
     tile_size = _infer_tile_size(data)
 
@@ -117,7 +139,7 @@ def conv2d_nchw_winograd_comp(cfg, data, kernel, strides, padding, dilation, out
 
         in_channel_chunks, in_channel_block, in_channel_tail = split_to_chunks(CI, 4)
         out_channel_chunks, out_channel_block, out_channel_tail = split_to_chunks(out_channels, 4)
-        if autotvm.GLOBAL_SCOPE.in_tuning == True:
+        if autotvm.GLOBAL_SCOPE.in_tuning is True:
             dshape = (N, in_channel_chunks, H, W, in_channel_block)
             data = tvm.te.placeholder(dshape, data.dtype, name="data_placeholder")
             if not pre_computed:  # kernel tensor is raw tensor, do strict check
@@ -128,13 +150,37 @@ def conv2d_nchw_winograd_comp(cfg, data, kernel, strides, padding, dilation, out
                 kernel = tvm.te.placeholder(kshape, kernel.dtype, name="kernel_placeholder")
         else:
             convert_from4d = True
-            data = pack_input(data, "NCHW", N, in_channel_chunks, in_channel_block, in_channel_tail, H, W)
+            data = pack_input(
+                data, "NCHW", N, in_channel_chunks, in_channel_block, in_channel_tail, H, W
+            )
             if not pre_computed:  # kernel tensor is raw tensor, do strict check
-                kernel = pack_filter(kernel, "OIHW", out_channel_chunks, out_channel_block, out_channel_tail,
-                                     CI, in_channel_chunks, in_channel_block, in_channel_tail, KH, KW)
+                kernel = pack_filter(
+                    kernel,
+                    "OIHW",
+                    out_channel_chunks,
+                    out_channel_block,
+                    out_channel_tail,
+                    CI,
+                    in_channel_chunks,
+                    in_channel_block,
+                    in_channel_tail,
+                    KH,
+                    KW,
+                )
             else:
-                kernel = pack_filter(kernel, "HWIO", out_channel_chunks, out_channel_block, out_channel_tail,
-                                     CI, in_channel_chunks, in_channel_block, in_channel_tail, alpha, alpha)
+                kernel = pack_filter(
+                    kernel,
+                    "HWIO",
+                    out_channel_chunks,
+                    out_channel_block,
+                    out_channel_tail,
+                    CI,
+                    in_channel_chunks,
+                    in_channel_block,
+                    in_channel_tail,
+                    alpha,
+                    alpha,
+                )
     N, DCI, H, W, CB = get_const_tuple(data.shape)
     if not pre_computed:  # kernel tensor is raw tensor, do strict check
         CO, CI, KH, KW, COB = get_const_tuple(kernel.shape)
@@ -188,7 +234,9 @@ def conv2d_nchw_winograd_comp(cfg, data, kernel, strides, padding, dilation, out
     # pack input tile
     input_tile = te.compute(
         (alpha, alpha, CI, P, CB),
-        lambda eps, nu, c, p, cb: data_pad[idxdiv(p, (nH * nW))][c][idxmod(idxdiv(p, nW), nH) * m + eps][idxmod(p, nW) * m + nu][cb],
+        lambda eps, nu, c, p, cb: data_pad[idxdiv(p, (nH * nW))][c][
+            idxmod(idxdiv(p, nW), nH) * m + eps
+        ][idxmod(p, nW) * m + nu][cb],
         name="d",
     )
 
@@ -216,7 +264,10 @@ def conv2d_nchw_winograd_comp(cfg, data, kernel, strides, padding, dilation, out
     bgemm = te.compute(
         (alpha, alpha, CO, P, COB),
         lambda eps, nu, co, p, cob: te.sum(
-            (kernel_pack[eps][nu][ci * CB + cb][co][cob] * data_pack_trans[eps][nu][ci][p][cb]).astype(args["accumulator"]), axis=[ci, cb]
+            (
+                kernel_pack[eps][nu][ci * CB + cb][co][cob] * data_pack_trans[eps][nu][ci][p][cb]
+            ).astype(args["accumulator"]),
+            axis=[ci, cb],
         ),
         name="bgemm",
     )
@@ -227,23 +278,28 @@ def conv2d_nchw_winograd_comp(cfg, data, kernel, strides, padding, dilation, out
     inverse = te.compute(
         (CO, P, m, m, COB),
         lambda co, p, vh, vw, cob: te.sum(
-            bgemm[r_a][r_b][co][p][cob] * (A[r_a][vh] * A[r_b][vw]).astype(args["accumulator"]), axis=[r_a, r_b]
+            bgemm[r_a][r_b][co][p][cob] * (A[r_a][vh] * A[r_b][vw]).astype(args["accumulator"]),
+            axis=[r_a, r_b],
         ),
         name="inverse",
     )
 
     # output
-    if convert_from4d and autotvm.GLOBAL_SCOPE.in_tuning == False:
+    if convert_from4d and autotvm.GLOBAL_SCOPE.in_tuning is False:
         output = te.compute(
             (N, out_channels, H, W),
-            lambda n, c, h, w: inverse[c // CB][n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m)][idxmod(h, m)][idxmod(w, m)][c % CB].astype(out_dtype),
+            lambda n, c, h, w: inverse[c // CB][n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m)][
+                idxmod(h, m)
+            ][idxmod(w, m)][c % CB].astype(out_dtype),
             name="output",
             tag="cast_from_acc" + args["accumulator"][-2:],
         )
     else:
         output = te.compute(
             (N, CO, H, W, COB),
-            lambda n, co, h, w, cob: inverse[co][n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m)][idxmod(h, m)][idxmod(w, m)][cob].astype(out_dtype),
+            lambda n, co, h, w, cob: inverse[co][n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m)][
+                idxmod(h, m)
+            ][idxmod(w, m)][cob].astype(out_dtype),
             name="output",
             tag="cast_from_acc" + args["accumulator"][-2:],
         )
@@ -334,16 +390,28 @@ def schedule_conv2d_winograd(cfg, s, output, pre_computed):
     rcc = s[bgemm].op.reduce_axis[0]
     alpha = get_const_int(b1.dom.extent)
 
-    cfg.define_split("tile_y", y, num_outputs=3, filter=lambda entry: entry.size[2] <= 64 and entry.size[1] <= 8)
-    cfg.define_split("tile_x", x, num_outputs=3, filter=lambda entry: entry.size[2] <= 64 and entry.size[1] >= 4 and entry.size[1] <= 8)
+    cfg.define_split(
+        "tile_y", y, num_outputs=3, filter=lambda entry: entry.size[2] <= 64 and entry.size[1] <= 8
+    )
+    cfg.define_split(
+        "tile_x",
+        x,
+        num_outputs=3,
+        filter=lambda entry: entry.size[2] <= 64 and entry.size[1] >= 4 and entry.size[1] <= 8,
+    )
     cfg.define_split("tile_rc", rcc, num_outputs=2)
-    #cfg.multi_filter(filter=lambda entity: entity["tile_y"].size[2] * entity["tile_x"].size[2] in range(32,1024))
+    # cfg.multi_filter(
+    # filter=lambda entity: entity["tile_y"].size[2] * entity["tile_x"].size[2] in range(32,1024)
+    # )
     ##### space definition end #####
 
     # batch gemm
     OL = s.cache_write(bgemm, "local")
-    if (autotvm.GLOBAL_SCOPE.in_tuning or
-        isinstance(kernel.op, tvm.te.ComputeOp) and "filter_pack" in kernel.op.tag):
+    if (
+        autotvm.GLOBAL_SCOPE.in_tuning
+        or isinstance(kernel.op, tvm.te.ComputeOp)
+        and "filter_pack" in kernel.op.tag
+    ):
         BB = s.cache_read(kernel_pack, get_texture_storage(kernel_pack.shape), [OL])
         bind_data_copy(s[BB])
 
@@ -373,7 +441,7 @@ def schedule_conv2d_winograd(cfg, s, output, pre_computed):
     # inference. After using auto_unroll_max_step for automatic unrolling the
     # optimal configuration wasn't found. It is necessary to investigate how we
     # can improve search of optimal configuration.
-    #s[OL].unroll(rcb)
+    # s[OL].unroll(rcb)
     s[OL].pragma(rcb, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
     s[OL].pragma(rcb, "unroll_explicit", True)
     s[OL].vectorize(cb)

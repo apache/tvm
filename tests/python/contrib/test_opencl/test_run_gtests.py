@@ -29,7 +29,11 @@ from tvm import rpc
 # pytest -sv <this file> --gtests_args="--gtest_filter=*foo* --gtest_repeat=2"
 @tvm.testing.requires_opencl
 def test_run_gtests(gtest_args):
-    if "TVM_TRACKER_HOST" in os.environ and "TVM_TRACKER_PORT" in os.environ and "TVM_TRACKER_KEY" in os.environ:
+    if (
+        "TVM_TRACKER_HOST" in os.environ
+        and "TVM_TRACKER_PORT" in os.environ
+        and "TVM_TRACKER_KEY" in os.environ
+    ):
         rpc_tracker_host = os.environ["TVM_TRACKER_HOST"]
         rpc_tracker_port = os.environ["TVM_TRACKER_PORT"]
         rpc_tracker_port = int(rpc_tracker_port)
@@ -49,4 +53,3 @@ def test_run_gtests(gtest_args):
 
     gtest_error_code = func(gtest_args)
     np.testing.assert_equal(gtest_error_code, 0)
-

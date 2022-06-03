@@ -75,7 +75,9 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
                     logger.warning("Does not support weight pre-transform for dilated convolution.")
                     return None
 
-                assert (data_layout == "NCHW" and kernel_layout == "OIHW") or (data_layout == "NHWC" and kernel_layout == "HWIO")
+                assert (data_layout == "NCHW" and kernel_layout == "OIHW") or (
+                    data_layout == "NHWC" and kernel_layout == "HWIO"
+                )
                 if data_layout == "NCHW":
                     N, CI, H, W = get_const_tuple(data_tensor.shape)
                     CO, _, KH, KW = get_const_tuple(kernel_tensor.shape)
@@ -231,7 +233,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
         assert data_layout == "NHWC" and kernel_layout == "HWIO"
         N, H, W, CI = get_const_tuple(data_tensor.shape)
-        KH, KW, _, CO  = get_const_tuple(kernel_tensor.shape)
+        KH, KW, _, CO = get_const_tuple(kernel_tensor.shape)
 
         # pre-compute weight transformation in winograd
         weight = relay.layout_transform(inputs[1], "HWIO", "OIHW")

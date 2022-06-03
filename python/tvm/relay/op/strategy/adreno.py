@@ -78,7 +78,7 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
             data_layout == "NHWC4c" and kernel_layout == "HWIO4o"
         ):
             if len(kernel.shape) == 4:
-                kh, kw, _, _  = get_const_tuple(kernel.shape)
+                kh, kw, _, _ = get_const_tuple(kernel.shape)
             else:
                 kh, kw, _, _, _ = get_const_tuple(kernel.shape)
             if (
@@ -204,8 +204,6 @@ def conv2d_winograd_without_weight_transfrom_strategy_adreno(attrs, inputs, out_
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
     layout = attrs.data_layout
-    data, kernel = inputs
-    stride_h, stride_w = attrs.get_int_tuple("strides")
     assert dilation == (1, 1), "Do not support dilate now"
     assert groups == 1, "Do not supoort arbitrary group number"
     strategy = _op.OpStrategy()
@@ -213,13 +211,17 @@ def conv2d_winograd_without_weight_transfrom_strategy_adreno(attrs, inputs, out_
         if out_type.dtype == "float16":
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.adreno.conv2d_nchw_winograd_without_weight_transform),
-                wrap_topi_schedule(topi.adreno.schedule_conv2d_nchw_winograd_without_weight_transform),
+                wrap_topi_schedule(
+                    topi.adreno.schedule_conv2d_nchw_winograd_without_weight_transform
+                ),
                 name="conv2d_nchw_winograd_without_weight_transform.image2d",
                 plevel=35,
             )
         strategy.add_implementation(
             wrap_compute_conv2d(topi.adreno.conv2d_nchw_winograd_without_weight_transform_acc32),
-            wrap_topi_schedule(topi.adreno.schedule_conv2d_nchw_winograd_without_weight_transform_acc32),
+            wrap_topi_schedule(
+                topi.adreno.schedule_conv2d_nchw_winograd_without_weight_transform_acc32
+            ),
             name="conv2d_nchw_winograd_without_weight_transform_acc32.image2d",
             plevel=40,
         )
@@ -227,13 +229,17 @@ def conv2d_winograd_without_weight_transfrom_strategy_adreno(attrs, inputs, out_
         if out_type.dtype == "float16":
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.adreno.conv2d_nhwc_winograd_without_weight_transform),
-                wrap_topi_schedule(topi.adreno.schedule_conv2d_nhwc_winograd_without_weight_transform),
+                wrap_topi_schedule(
+                    topi.adreno.schedule_conv2d_nhwc_winograd_without_weight_transform
+                ),
                 name="conv2d_nhwc_winograd_without_weight_transform.image2d",
                 plevel=35,
             )
         strategy.add_implementation(
             wrap_compute_conv2d(topi.adreno.conv2d_nhwc_winograd_without_weight_transform_acc32),
-            wrap_topi_schedule(topi.adreno.schedule_conv2d_nhwc_winograd_without_weight_transform_acc32),
+            wrap_topi_schedule(
+                topi.adreno.schedule_conv2d_nhwc_winograd_without_weight_transform_acc32
+            ),
             name="conv2d_nhwc_winograd_without_weight_transform_acc32.image2d",
             plevel=40,
         )
