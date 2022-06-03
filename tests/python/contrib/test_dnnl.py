@@ -34,8 +34,8 @@ has_dnnl_codegen = pytest.mark.skipif(
 )
 
 run_module = tvm.testing.parameter(
-    pytest.param(False, marks=[has_dnnl_codegen, *tvm.testing.requires_llvm()]),
-    pytest.param(True, marks=[has_dnnl_codegen, *tvm.testing.requires_llvm()]),
+    pytest.param(False, marks=[has_dnnl_codegen, *tvm.testing.requires_llvm.marks()]),
+    pytest.param(True, marks=[has_dnnl_codegen, *tvm.testing.requires_llvm.marks()]),
     ids=["compile", "run"],
 )
 
