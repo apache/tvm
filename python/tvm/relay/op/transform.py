@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=import-outside-toplevel, unused-argument
+# pylint: disable=import-outside-toplevel, unused-argument, invalid-name
 """Transform operators."""
 
 from ...tir import expr as _expr
