@@ -260,9 +260,10 @@ class GlobalVarNode : public RelayExprNode {
  */
 class GlobalVar : public RelayExpr {
  public:
-  TVM_DLL explicit GlobalVar(String name_hint, Type type = {});
+  TVM_DLL explicit GlobalVar(String name_hint, Type type = {}, Span span = {});
 
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelayExpr, GlobalVarNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(GlobalVarNode);
 };
 
 // PrimExprs that are useful as runtime containers.
