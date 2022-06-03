@@ -61,7 +61,7 @@ namespace tir {
           to collect them for the CSE pass, but we also won't even want to collect computations
           that contain them.
           The reason is that reusing such computations would change the semantics of the program,
-          and therefore before doing any introduction of variable or any reuse of already introduced
+          and therefore before doing any introduction of var or any reuse of already introduced
           variables, we will make sure that the computation being considered is not forbidden, and
           that it does not even contain a forbidden computation.
  * \param expr The expression to check
@@ -203,10 +203,12 @@ int CommonSubexpressionEliminator::GetNbVarGenerated() { return nb_var_; }
                           of the function being analyzed
  * \return A new statement where CSE has been performed
  */
-Stmt CommonSubexpressionEliminator::PerformCSE(const Stmt& stmt, const Context& context_init, bool identify_equiv_terms) {
+Stmt CommonSubexpressionEliminator::PerformCSE(const Stmt& stmt, const Context& context_init, 
+                                                                      bool identify_equiv_terms) {
   // As this function is being called for each PrimFunc definition, we create a new instance
   // for the one we are having now.
-  CommonSubexpressionEliminator common_subexpression_eliminator(stmt, context_init, identify_equiv_terms);
+  CommonSubexpressionEliminator common_subexpression_eliminator(stmt, context_init,
+                                                                      identify_equiv_terms);
   return common_subexpression_eliminator.VisitStmt(stmt);
 }
 
@@ -312,8 +314,8 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
         // Replace in the current `result` everything that is selected by the selector with
         // the new variable, without diving into expressions in which we don't have the
         // right to dive.
-        result = ReplaceSelectedExpr::ReplaceSelectedExprInExpr(result, predicate_selector, new_var,
-                                                                CanContainEligibleComputations);
+        result = ReplaceSelectedExpr::ReplaceSelectedExprInExpr(result, predicate_selector, 
+                                                          new_var, CanContainEligibleComputations);
         // Build a let-in that introduces the new variable in the current `result`
         result = Let(new_var, computation_and_nb.first, result);
         // We don't add the variable to the context because the invariant is that the
@@ -493,8 +495,8 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
         // Replace in the current `result` everything that is selected by the selector with
         // the new variable, without diving into expressions in which we don't have the
         // right to dive.
-        result = ReplaceSelectedExpr::ReplaceSelectedExprInStmt(result, predicate_selector, new_var,
-                                                                CanContainEligibleComputations);
+        result = ReplaceSelectedExpr::ReplaceSelectedExprInStmt(result, predicate_selector,
+                                                          new_var, CanContainEligibleComputations);
         // Build a let-in that introduces the new variable in the current `result`
         result = LetStmt(new_var, computation_and_nb.first, result);
         // We don't add the variable to the context because the invariant is that the
@@ -630,7 +632,8 @@ namespace transform {
  * \return The pass for performing CSE.
  */
 Pass CommonSubexprElimTIR(bool enable_cse_tir, bool identify_equiv_terms) {
-  auto pass_func = [enable_cse_tir, identify_equiv_terms](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [enable_cse_tir, identify_equiv_terms](PrimFunc f, IRModule m,
+                                                                      PassContext ctx) {
     if (enable_cse_tir) {
       auto* n = f.CopyOnWrite();
       Context context_init;
@@ -643,16 +646,17 @@ Pass CommonSubexprElimTIR(bool enable_cse_tir, bool identify_equiv_terms) {
         context_init.push_back({current_param, MaybeValue()});
       }
 
-auto start = std::chrono::high_resolution_clock::now();
+      auto start = std::chrono::high_resolution_clock::now();
 
       // Do the Common Subexpression Elimination on the body of the function, with the initial
       // context that we have prepared
-      n->body = CommonSubexpressionEliminator::PerformCSE(std::move(f->body), context_init, identify_equiv_terms);
+      n->body = CommonSubexpressionEliminator::PerformCSE(std::move(f->body), context_init,
+                                                                            identify_equiv_terms);
 
-auto stop = std::chrono::high_resolution_clock::now();
+      auto stop = std::chrono::high_resolution_clock::now();
 
-auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-std::cout << "THE DURATION OF THE CSE PASS IS : " << duration.count() << std::endl;
+      auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+      std::cout << "THE DURATION OF THE CSE PASS IS : " << duration.count() << std::endl;
     }
 
     return f;

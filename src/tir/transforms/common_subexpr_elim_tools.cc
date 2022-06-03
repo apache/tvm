@@ -783,7 +783,8 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   // normalized. This normalized table will keep the count for each set of equivalent terms
   // (i.e. each equivalence class), together with a term that did appear in this equivalence class
   // (in practice, the first term of the equivalence class that was encoutered).
-  std::unordered_map<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash, ExprDeepEqual> norm_table;
+  std::unordered_map<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash, ExprDeepEqual>
+      norm_table;
 
   // In order to avoid frequent rehashing if the norm_table becomes big, we immediately ask for
   // enough space to store the amount of elements that the input table has, as it's clearly an
@@ -797,7 +798,7 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   // (otherwise {x+y, y+x} could be both replaced by x+y, and on another run by y+x).
   std::vector<std::pair<PrimExpr, size_t>> sorted_items_of_table(table.begin(), table.end());
 
-  // We do the ordering by comparing the string repr of each PrimExpr to get a determinstic ordering
+  // We do the ordering by comparing the string repr of each expr to get a determinstic ordering
   sort(sorted_items_of_table.begin(), sorted_items_of_table.end(),
        [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
          std::stringstream a_stream;
@@ -835,7 +836,8 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   // Careful : the pairs will never change (the canonical represantants chosen will always be the
   // same), but the order in which the pairs are produced can vary as we are iterating through the
   // hashtable `norm_table`. It is not an issue as the called will be sorting the result anyway.
-  std::unordered_map<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash, ExprDeepEqual>::const_iterator it_norm_table;
+  std::unordered_map<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash, ExprDeepEqual>
+      ::const_iterator it_norm_table;
   for( it_norm_table = norm_table.begin(); it_norm_table != norm_table.end(); ++it_norm_table ) {
     result.push_back( it_norm_table->second );
   }

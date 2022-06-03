@@ -25,7 +25,8 @@ from tvm.script import tir as T
 # -----------------------------------------------------
 # Basic test for the expected Behavior of the CSE pass
 # -----------------------------------------------------
-# A test program which gives the opportunity for the CSE pass to introduce two new variables, at two different levels
+# A test program which gives the opportunity for the CSE pass to introduce two new variables,
+# at two different levels
 def test_cse():
     z1 = te.var("z1")
     z2 = te.var("z2")
@@ -73,9 +74,9 @@ def test_cse():
             ),
         ),
     )
-    # This test program gives the opportunity to introduce two new variables, at two different levels
-    # and to perform replacements in the value of "a" and "b", using these new variables
-    # We will check all of that underneath and more, making also sure that nothing else has been changed
+    # This test program gives the opportunity to introduce two new variables, at two different
+    # levels and to perform replacements in the value of "a" and "b", using these new variables.
+    # We will check all of that underneath and more, making also sure that nothing else has changed
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, z3], body))
     body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
@@ -144,9 +145,11 @@ def test_cse():
 # -----------------------------------------------------
 # Tests related to If nodes
 # -----------------------------------------------------
-# First specific test for if nodes : Some duplicated computations appear only in one branch (here the Then branch), not in both branches.
-# In this case, the CSE pass should introduce the redundant computation at the top of the Then branch, not before the whole If
-# (otherwise that would lead to some computations being computed for nothing when it is the Else branch that is executed).
+# First specific test for if nodes : Some duplicated computations appear only in one branch (here
+# the Then branch), not in both branches.
+# In this case, the CSE pass should introduce the redundant computation at the top of the Then
+# branch, not before the whole If (otherwise that would lead to some computations being computed
+# for nothing when it is the Else branch that is executed).
 def test_cse_ifNode_1():
     b = te.var("b")
     i1 = te.var("i1")
@@ -171,7 +174,10 @@ def test_cse_ifNode_1():
         tvm.tir.IfThenElse(
             b,
             tvm.tir.SeqStmt(
-                [tvm.tir.BufferStore(buffer, y + z, [i1]), tvm.tir.BufferStore(buffer, y + z, [i2])]
+                [
+                    tvm.tir.BufferStore(buffer, y + z, [i1]),
+                    tvm.tir.BufferStore(buffer, y + z, [i2])
+                ]
             ),
             tvm.tir.BufferStore(buffer, y, [i3]),
         ),
@@ -200,9 +206,9 @@ def test_cse_ifNode_1():
     assert tvm.ir.structural_equal(body.value, y + z)
 
 
-# Second test for if nodes : Some duplicated computations appear in both the Then and the Else branch.
-# In this case, the CSE pass should introduce the redundant computation before the whole If node, because
-# regardless of the execution path, it is going to be computed.
+# Second test for if nodes : Some duplicated computations appear in both the Then and Else branch.
+# In this case, the CSE pass should introduce the redundant computation before the whole If node,
+# because regardless of the execution path, it is going to be computed.
 def test_cse_ifNode_2():
     b = te.var("b")
     i1 = te.var("i1")
@@ -228,7 +234,7 @@ def test_cse_ifNode_2():
             b,
             tvm.tir.SeqStmt(
                 [
-                    tvm.tir.BufferStore(buffer, y + z, [i1]),  # (y+z) is present in the Then branch
+                    tvm.tir.BufferStore(buffer, y + z, [i1]),  # (y+z) is present in Then branch
                     tvm.tir.BufferStore(buffer, y, [i2]),
                 ]
             ),
@@ -445,8 +451,19 @@ def test_deterministic_cse():
         assert json_hash == initial_hash
 
 
-# Things needed for the second test on determinism
-LOG_LINE = '{"i": [["[\\"conv2d_layer\\", 1, 7, 7, 512, 512, 3, 3, [1, 1], [1, 1]]", "llvm -keys=cpu -link-params=0 -mcpu=broadwell -num-cores=2", [8, 64, 64, 0, 0, 0, 0, 0], "", 1, []], [[], [["CI", 5], ["SP", 3, 0, 1, [1, 1, 1], 1], ["SP", 3, 4, 512, [1, 32, 16], 1], ["SP", 3, 8, 7, [7, 1, 1], 1], ["SP", 3, 12, 7, [1, 1, 1], 1], ["SP", 3, 16, 512, [1], 1], ["SP", 3, 18, 3, [1], 1], ["SP", 3, 20, 3, [3], 1], ["RE", 3, [0, 4, 8, 12, 1, 5, 9, 13, 16, 18, 20, 2, 6, 10, 14, 17, 19, 21, 3, 7, 11, 15]], ["FSP", 6, 0, 1, 2], ["FSP", 6, 3, 2, 2], ["FSP", 6, 6, 3, 2], ["FSP", 6, 9, 4, 2], ["RE", 6, [0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11]], ["CA", 3, 6, 7], ["CA", 1, 6, 5], ["FU", 6, [0, 1, 2, 3, 4, 5]], ["AN", 6, 0, 3], ["PR", 3, 0, "auto_unroll_max_step$512"], ["AN", 1, 3, 2], ["AN", 3, 21, 2], ["AN", 6, 6, 2]]]], "r": [[0.0331129], 0, 0.900362, 1647464342], "v": "v0.6"}\n'
+# Needed for the second test on determinism
+LOG_LINE = '{"i": [["[\\"conv2d_layer\\", 1, 7, 7, 512, 512, 3, 3, [1, 1], [1, 1]]", \
+            "llvm -keys=cpu -link-params=0 -mcpu=broadwell -num-cores=2", \
+            [8, 64, 64, 0, 0, 0, 0, 0], "", 1, []], [[], [["CI", 5], \
+            ["SP", 3, 0, 1, [1, 1, 1], 1], ["SP", 3, 4, 512, [1, 32, 16], 1], \
+            ["SP", 3, 8, 7, [7, 1, 1], 1], ["SP", 3, 12, 7, [1, 1, 1], 1], \
+            ["SP", 3, 16, 512, [1], 1], ["SP", 3, 18, 3, [1], 1], ["SP", 3, 20, 3, [3], 1], \
+            ["RE", 3, [0, 4, 8, 12, 1, 5, 9, 13, 16, 18, 20, 2, 6, 10, 14, 17, 19, 21, 3, 7, \
+            11, 15]], ["FSP", 6, 0, 1, 2], ["FSP", 6, 3, 2, 2], ["FSP", 6, 6, 3, 2], \
+            ["FSP", 6, 9, 4, 2], ["RE", 6, [0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11]], \
+            ["CA", 3, 6, 7], ["CA", 1, 6, 5], ["FU", 6, [0, 1, 2, 3, 4, 5]], ["AN", 6, 0, 3], \
+            ["PR", 3, 0, "auto_unroll_max_step$512"], ["AN", 1, 3, 2], ["AN", 3, 21, 2], \
+            ["AN", 6, 6, 2]]]], "r": [[0.0331129], 0, 0.900362, 1647464342], "v": "v0.6"}\n'
 
 # The workload associated with the log
 @auto_scheduler.register_workload
