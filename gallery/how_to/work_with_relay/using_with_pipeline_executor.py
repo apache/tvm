@@ -20,16 +20,6 @@ Using Pipeline Executor in Relay
 **Author**: `Hua Jiang <https://https://github.com/huajsj>`_
 
 This is a short tutorial on how to use Pipeline Executor with Relay.
-
-Relay uses TVM internally to generate target specific code. For example, with cuda backend TVM generates cuda kernels for all layers in the user provided network.
-But sometimes it is also helpful to incorporate external libraries developed by various vendors into Relay.
-Luckily, TVM has a mechanism to transparently call into these libraries.
-For Relay users, all we need to do is just to set a target string appropriately.
-
-Before we can use external libraries from Relay, your TVM needs to be built with libraries you want to use.
-For example, to use cuDNN, USE_CUDNN option in `cmake/config.cmake` needs to be enabled, and cuDNN include and library directories need to be specified if necessary.
-
-To begin with, we import Relay and TVM.
 """
 import tvm
 from tvm import te
