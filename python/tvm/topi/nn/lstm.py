@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name
 """General LSTM implementation using TE scan."""
 from tvm import te, tir
+from tvm.topi import tag
 
 
 def lstm(
@@ -103,7 +104,9 @@ def lstm(
         name="Xi2h",
     )
     if Bi is not None:
-        Xi2h = te.compute(Xi2h.shape, lambda tb, ij: Xi2h[tb, ij] + Bi[ij], name="Xi2h_bias")
+        Xi2h = te.compute(
+            Xi2h.shape, lambda tb, ij: Xi2h[tb, ij] + Bi[ij], name="Xi2h_bias", tag=tag.INJECTIVE
+        )
 
     h_state = te.placeholder((scan_len, batch_size, proj_dim), name="h_state")
     c_state = te.placeholder((scan_len, batch_size, hidden_dim), name="c_state")
@@ -130,6 +133,7 @@ def lstm(
             s_h2h.shape,
             lambda t, b, i, j: s_h2h[t, b, i, j] + Bh[i * hidden_dim + j],
             name="s_h2h_bias",
+            tag=tag.INJECTIVE,
         )
 
     # helper to reverse time if scanning backwards
@@ -140,6 +144,7 @@ def lstm(
         lambda t, b, i, j: Xi2h[get_x_t(t) * batch_size + b, i * hidden_dim + j]
         + s_h2h[t, b, i, j],
         name="gates",
+        tag=tag.INJECTIVE,
     )
 
     # helper to correctly read each gate dense from the batched output
@@ -155,6 +160,7 @@ def lstm(
                 read_gate(t, b, j, i_gate_idx) + p_i[b, j] * c_state[t - 1, b, j]
             ),
             name="i_gate_p",
+            tag=tag.INJECTIVE,
         )
         f_gate = te.compute(
             gate_shape,
@@ -162,16 +168,25 @@ def lstm(
                 read_gate(t, b, j, f_gate_idx) + p_f[b, j] * c_state[t - 1, b, j]
             ),
             name="f_gate_p",
+            tag=tag.INJECTIVE,
         )
     else:
-        i_gate = te.compute(gate_shape, lambda *i: f_act(read_gate(*i, i_gate_idx)), name="i_gate")
+        i_gate = te.compute(
+            gate_shape,
+            lambda *i: f_act(read_gate(*i, i_gate_idx)),
+            name="i_gate",
+            tag=tag.INJECTIVE,
+        )
         f_gate = te.compute(
             gate_shape,
             lambda *i: f_act(read_gate(*i, f_gate_idx)),
             name="f_gate",
+            tag=tag.INJECTIVE,
         )
 
-    g_gate = te.compute(gate_shape, lambda *i: g_act(read_gate(*i, g_gate_idx)), name="g_gate")
+    g_gate = te.compute(
+        gate_shape, lambda *i: g_act(read_gate(*i, g_gate_idx)), name="g_gate", tag=tag.INJECTIVE
+    )
 
     next_c = te.compute(
         gate_shape,
@@ -184,9 +199,15 @@ def lstm(
             gate_shape,
             lambda t, b, j: f_act(read_gate(t, b, j, o_gate_idx) + p_o[b, j] * next_c[t, b, j]),
             name="o_gate_p",
+            tag=tag.INJECTIVE,
         )
     else:
-        o_gate = te.compute(gate_shape, lambda *i: f_act(read_gate(*i, o_gate_idx)), name="o_gate")
+        o_gate = te.compute(
+            gate_shape,
+            lambda *i: f_act(read_gate(*i, o_gate_idx)),
+            name="o_gate",
+            tag=tag.INJECTIVE,
+        )
 
     next_h = te.compute(gate_shape, lambda *i: o_gate(*i) * h_act(next_c(*i)), name="next_h")
 
