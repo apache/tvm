@@ -1894,28 +1894,34 @@ def stft(
 def interpolate(x, xp, fp, mode="linear"):
     """Calculates piecewise interpolant to a function with given discrete data points
     and evaluated at given indices.
+
     .. note::
         Similar to ``numpy.interp``.
+
     Parameters
     ----------
     x : relay.Expr
         The indices at which to evaluate the interpolated values.
+
     xp : relay.Expr
         The indices corresponding to the reference data points.
+
     fp : relay.Expr
         The values of the reference data points.
+
     Returns
     -------
     ret : relay.Expr
         The computed result.
+
     Examples
     --------
     .. code-block:: python
+
         x = [0, 1, 1.5, 2.72, 3.14]
         xp = [1, 2, 3]
         fp = [3, 2, 0]
         f = relay.interpolate(x, xp, fp)
         f = [3.  , 3.  , 2.5 , 0.56, 0.  ]
     """
-
     return _make.interpolate(x, xp, fp)
