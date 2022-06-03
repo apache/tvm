@@ -53,19 +53,15 @@ def transformed_expected_output_np(expected_output_np, output_layout):
 
 
 class BaseTestBatchFlatten:
-    (
-        input_shape,
-        input_layout,
-        output_layout,
-        input_axis_sep,
-        output_axis_sep,
-    ) = tvm.testing.parameters(
-        ((1, 1, 1, 2048), "n11c-1024c-1d", "nc-1d", [4], [2]),
-        ((1, 2, 4, 2048), "n11c-1024c-1d", "nc-1d", [4], [2]),
-        ((1, 8, 8, 1024), "n11c-1024c-1d", "nc-1d", [4], [2]),
-        ((2, 4, 8, 1024), "n11c-1024c-1d", "nc-1d", [4], [2]),
-        ((2, 3, 5, 2048), "n11c-1024c-1d", "nc-1d", [4], [2]),
+    input_shape = tvm.testing.parameter(
+        (1, 1, 1, 2048),
+        (1, 2, 4, 2048),
+        (1, 8, 8, 1024),
+        (2, 4, 8, 1024),
+        (2, 3, 5, 2048),
     )
+    input_layout, input_axis_sep = tvm.testing.parameters(("n11c-1024c-1d", [4]))
+    output_layout, output_axis_sep = tvm.testing.parameters(("nc-1d", [2]))
     data_type = tvm.testing.parameter("float16")
 
 
@@ -98,8 +94,7 @@ class TestBatchFlatten(BaseTestBatchFlatten):
         )
         func_name = "batch_flatten"
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_assert": True}):
-            tir_irm = tvm.lower(tir_s.mod, [A, D], name=func_name)
-            runtime_module = tvm.build(tir_irm, [A, D], target=target, name=func_name)
+            runtime_module = tvm.build(tir_s.mod, target=target, name=func_name)
 
         mod = hexagon_session.load_module(runtime_module)
 
