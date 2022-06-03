@@ -71,31 +71,26 @@ HexagonThreadManager::~HexagonThreadManager() {
   }
 
   // Dealloc memory blocks
-  free(threads);
-  free(pipes);
-  free(contexts);
-  free(stack_buffer);
-  free(pipe_buffer);
+  hexbuffs.FreeHexagonBuffer(threads);
+  hexbuffs.FreeHexagonBuffer(pipes);
+  hexbuffs.FreeHexagonBuffer(contexts);
+  hexbuffs.FreeHexagonBuffer(stack_buffer);
+  hexbuffs.FreeHexagonBuffer(pipe_buffer);
 }
 
 void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words) {
-  unsigned thread_pipe_size = thread_pipe_size_words * sizeof(qurt_pipe_data_t);
   
   // allocate all stack space for threads
-  int ret = posix_memalign(&stack_buffer, MEM_ALIGNMENT, thread_stack_size_bytes * nthreads);
-  CHECK_EQ(ret, 0);
+  stack_buffer = hexbuffs.AllocateHexagonBuffer(thread_stack_size_bytes * nthreads, MEM_ALIGNMENT, String("global"));
   // allocate space for pipe buffers (command queues)
-  ret = posix_memalign(&pipe_buffer, MEM_ALIGNMENT, thread_pipe_size * nthreads);
-  CHECK_EQ(ret, 0);
+  unsigned thread_pipe_size_bytes = thread_pipe_size_words * sizeof(qurt_pipe_data_t);
+  pipe_buffer = hexbuffs.AllocateHexagonBuffer(thread_pipe_size_bytes * nthreads, MEM_ALIGNMENT, String("global"));
   // array of thread objects
-  ret = posix_memalign((void**)&threads, MEM_ALIGNMENT, sizeof(qurt_thread_t) * nthreads);
-  CHECK_EQ(ret, 0);
+  threads = static_cast<qurt_thread_t*>(hexbuffs.AllocateHexagonBuffer(sizeof(qurt_thread_t) * nthreads, MEM_ALIGNMENT, String("global")));
   // array of pipe objects
-  ret = posix_memalign((void**)&pipes, MEM_ALIGNMENT, sizeof(qurt_pipe_t) * nthreads);
-  CHECK_EQ(ret, 0);
+  pipes = static_cast<qurt_pipe_t*>(hexbuffs.AllocateHexagonBuffer(sizeof(qurt_pipe_t) * nthreads, MEM_ALIGNMENT, String("global")));
   // array of ThreadContexts
-  ret = posix_memalign((void**)&contexts, MEM_ALIGNMENT, sizeof(ThreadContext) * nthreads);
-  CHECK_EQ(ret, 0);
+  contexts = static_cast<ThreadContext**>(hexbuffs.AllocateHexagonBuffer(sizeof(ThreadContext) * nthreads, MEM_ALIGNMENT, String("global")));
   
   DBG("Buffers allocated");
 
@@ -105,7 +100,7 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes, unsign
     qurt_pipe_attr_t pipe_attr;
     qurt_pipe_attr_init(&pipe_attr);
     qurt_pipe_attr_set_buffer(&pipe_attr, (qurt_pipe_data_t*) next_pipe_start);
-    next_pipe_start += thread_pipe_size;
+    next_pipe_start += thread_pipe_size_bytes;
     qurt_pipe_attr_set_buffer_partition(&pipe_attr, QURT_PIPE_ATTR_MEM_PARTITION_RAM);
     qurt_pipe_attr_set_elements(&pipe_attr, thread_pipe_size_words);
 

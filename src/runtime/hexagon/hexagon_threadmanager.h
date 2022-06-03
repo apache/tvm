@@ -18,6 +18,27 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {    
 
+// TODO: move to separate file and use inside Hexagon Device API
+class HexagonBufferMap {
+  public:
+  void FreeHexagonBuffer(void* ptr) {
+    auto it = hexagon_buffer_map_.find(ptr);
+    CHECK(it != hexagon_buffer_map_.end())
+        << "Attempt made to free unknown or already freed dataspace allocation";
+    CHECK(it->second != nullptr);
+    hexagon_buffer_map_.erase(it);
+  }
+  template <typename... Args>
+  void* AllocateHexagonBuffer(Args&&... args) {
+    auto buf = std::make_unique<HexagonBuffer>(std::forward<Args>(args)...);
+    void* ptr = buf->GetPointer();
+    hexagon_buffer_map_.insert({ptr, std::move(buf)});
+    return ptr;
+  }
+  private:
+  std::unordered_map<void*, std::unique_ptr<HexagonBuffer>> hexagon_buffer_map_;
+};
+
 #define DBG(msg) LOG(WARNING) << msg << "\n"
 
 #define MIN_STACK_SIZE_BYTES 0x400 // 1KB
@@ -59,6 +80,7 @@ private:
   static void thread_unpack(void* wrapped);
   static void thread_main(void* context);
 
+  HexagonBufferMap hexbuffs;
   unsigned nthreads{0};
   void* stack_buffer{nullptr};
   void* pipe_buffer{nullptr};
