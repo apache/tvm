@@ -188,7 +188,7 @@ evaluate_addition(fadd, tgt, "naive", log=log)
 
 ################################################################################
 # Updating the Schedule to Use Parallelism
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 # Now that we've illustrated the fundamentals of TE, let's go deeper into what
 # schedules do, and how they can be used to optimize tensor expressions for
