@@ -4198,6 +4198,7 @@ RELAY_REGISTER_OP("interpolate")
     .add_type_rel("Interpolate", InterpolateRel)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_support_level(10);
 
 }  // namespace relay
 }  // namespace tvm
