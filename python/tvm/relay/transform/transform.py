@@ -1371,8 +1371,10 @@ def SplitArgs(max_function_args):
 
 
 def OutlineCompilerFunctionsWithExistingGlobalSymbols(compiler_filter=""):
-    """A pass to outline all literal functions in direct call positions which have a "Compiler"
-    attribute. The functions are bound to unique global vars according to their existing
+    """Outlines all literal functions in direct call positions which have a "Compiler"
+    attribute.
+
+    The outlined functions are bound to unique global vars according to their existing
     "global_symbol" attribute. At most one function with the same global symbol is outlined.
 
     If compiler_filter is non-empty only functions with that as their attribute value are
@@ -1395,9 +1397,11 @@ def OutlineCompilerFunctionsWithExistingGlobalSymbols(compiler_filter=""):
 
 
 def MarkCompilerFunctionsAsExtern(compiler_filter=""):
-    """A pass to mark all global functions which have a "Compiler" attribute matching
-    compiler_filter as 'extern' by replacing all attributes with a single "Extern" attribute, and
-    rewrite all calls to such functions to use the 'call_lowered' calling convention.
+    """Marks all global functions which have a "Compiler" attribute matching
+    compiler_filter as 'extern'.
+
+    The function's attributes are replaced with a single "Extern" attribute, and
+    all calls to the function are switched to use the 'call_lowered' calling convention.
 
     If compiler_filter is non-empty only functions with that as their attribute value are
     outlined.

@@ -49,8 +49,9 @@ class Outliner : public MixedModeMutator {
       if (opt_compiler.defined() &&
           (compiler_filter_.empty() || opt_compiler.value() == compiler_filter_)) {
         auto function = GetRef<Function>(function_node);
-        ICHECK(FreeVars(function).empty()) << "Function marked with '" << attr::kCompiler
+        DCHECK(FreeVars(function).empty()) << "Function marked with '" << attr::kCompiler
                                            << "' attribute should not have free variables";
+        // Ask the cache to supply a unique  global var for this function.
         GlobalVar global_symbol = cache_->GetGlobalSymbol(function);
         // Depending on the cache's implementation, two structurally equal (but not object equal)
         // functions may be assigned the same global symbol. If so we'll lift it just once, but
@@ -60,6 +61,7 @@ class Outliner : public MixedModeMutator {
               WithAttr(std::move(function), tvm::attr::kGlobalSymbol, global_symbol->name_hint);
           mod_->Add(global_symbol, function);
         }
+        // Update the call.
         return WithFields(new_call, global_symbol);
       }
     }
@@ -67,8 +69,15 @@ class Outliner : public MixedModeMutator {
   }
 
  private:
+  /*!
+   * \brief A cached mapping from functions to global variables. Depending on the implementation
+   * the cache may generate fresh symbols or require the function to already have a "global_symbol"
+   * attribute, and may share symbols between structurally equal functions.
+   */
   GlobalSymbolCache* cache_;
+  /*! \brief If non-empty, the "Compiler" attribute value to require on functions to outline. */
   std::string compiler_filter_;
+  /*! \brief Module being rewritten. */
   IRModule mod_;
 };
 
@@ -102,7 +111,9 @@ class CallRewriter : public MixedModeMutator {
   }
 
  private:
+  /*! \brief If non-empty, the "Compiler" attribute value to require on functions to outline. */
   std::string compiler_filter_;
+  /*! \brief Module being rewritten. */
   IRModule mod_;
 };
 

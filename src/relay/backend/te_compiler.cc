@@ -176,7 +176,7 @@ class TECompilerImpl : public TECompilerNode {
                 WithFields(GetRef<Function>(function_node), function_node->params,
                            function_node->body, function_node->ret_type, function_node->type_params,
                            /* erase attributes */ DictAttrs(Map<String, ObjectRef>()));
-            // Mark function as 'extern' using the "ExternalSymbol" attribute.
+            // Mark function as 'extern'.
             function = WithAttr(std::move(function), attr::kExtern, Integer(1));
             module->Add(kv2.first, function);
           }

@@ -172,23 +172,29 @@ const FunctionNode* AsOptimizableFunctionNode(const BaseFunc& base_func);
 namespace attr {
 
 /*!
- * \brief Mark the function as a primitive function. Should be bound to \p Integer(1).
+ * \brief Mark the function as representing a sub-graph which is to be lowered or compiled as
+ * a unit. For example, the function may represent a kernel which TVM will lower to a PrimFunc.
+ * If present should be bound to \p Integer(1). May be accompanied by "Compiler", see below.
+ * The function body should be considered opaque by Relay, and many passes simply ignore these
+ * functions.
  *
  * Type: Integer
  */
 constexpr const char* kPrimitive = "Primitive";
 
 /*!
- * \brief Mark the function as being 'extern', ie implemented in a runtime::Module. Should be bound
- * to \p Integer(1). Typically accompanied by "Primitive".
+ * \brief Mark the function as externally implemented, ie bound in a runtime::Module within the
+ * IRModule's "external_mods" attribute. If present should be bound to \p Integer(1). Generally
+ * the only attribute when present.
  *
  * Type: Integer
  */
 constexpr const char* kExtern = "Extern";
 
 /*!
- * \brief Indicate the external codegen 'compiler' that should be used for building this function.
- * When this is unset or set to "default", the default compilation pipeline will be used.
+ * \brief Indicates the name of the external codegen 'compiler' that should be used to lower
+ * or compile the function other than TVM's default lowering pipeline. The name may correspond
+ * to a TargetKind name. There may be a global function registered under 'relay.ext.{name}'.
  *
  * Type: String
  */
