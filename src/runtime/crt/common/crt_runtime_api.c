@@ -556,7 +556,6 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
       if (err != kTvmErrorNoError) {
         goto release_and_return;
       }
-
     } while (repeat_res_seconds < min_repeat_seconds);
     double mean_exec_seconds = repeat_res_seconds / exec_count;
     *iter = mean_exec_seconds;
