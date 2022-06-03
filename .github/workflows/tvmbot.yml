@@ -13,9 +13,8 @@ concurrency:
 
 jobs:
   run-tvm-bot:
-    if: github.repository == 'apache/tvm'
+    if: ${{ github.event.issue.pull_request && github.repository == 'apache/tvm' }}
     runs-on: ubuntu-20.04
-    if: ${{ github.event.issue.pull_request }}
     steps:
       - uses: actions/checkout@v2
       - name: Run tvm-bot
