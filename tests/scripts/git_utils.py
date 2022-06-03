@@ -36,7 +36,7 @@ def post(url: str, body: Optional[Any] = None, auth: Optional[Tuple[str, str]] =
     req = request.Request(url, headers=headers, method="POST")
     if auth is not None:
         auth_str = base64.b64encode(f"{auth[0]}:{auth[1]}".encode())
-        req.add_header("Authorization", f"Basic {auth_str}")
+        req.add_header("Authorization", f"Basic {auth_str.decode()}")
 
     if body is None:
         body = ""
@@ -47,8 +47,7 @@ def post(url: str, body: Optional[Any] = None, auth: Optional[Tuple[str, str]] =
     req.add_header("Content-Length", len(data))
 
     with request.urlopen(req, data) as response:
-        response = json.loads(response.read())
-    return response
+        return response.read()
 
 
 class GitHubRepo:
