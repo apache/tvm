@@ -168,7 +168,7 @@ class TECompilerImpl : public TECompilerNode {
           if (const auto* function_node = kv2.second.as<FunctionNode>()) {
             // Abandon the existing function annotations.
 
-            // Unfortuantely, Optional<DictAttrs>() is indistinguishable from
+            // Unfortunately, Optional<DictAttrs>() is indistinguishable from
             // NullValue<DictAttrs>(), and DictAttrs() is nullptr, so to erase the attributes, we
             // need pass in DictAttrs<Map<String, ObjectRef>()), which is a DictAttrs containing no
             // attributes.
@@ -176,8 +176,8 @@ class TECompilerImpl : public TECompilerNode {
                 WithFields(GetRef<Function>(function_node), function_node->params,
                            function_node->body, function_node->ret_type, function_node->type_params,
                            /* erase attributes */ DictAttrs(Map<String, ObjectRef>()));
-            // Mark function as 'extern' using the "ExternalSymbol" attribute.
-            function = WithAttr(std::move(function), attr::kExternalSymbol, kv2.first->name_hint);
+            // Mark function as 'extern'.
+            function = WithAttr(std::move(function), attr::kExtern, Integer(1));
             module->Add(kv2.first, function);
           }
         }
@@ -688,7 +688,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
 
   Expr DeviceAwareVisitExpr_(const FunctionNode* function_node) override {
     if (function_node->HasNonzeroAttr(attr::kPrimitive) ||
-        function_node->GetAttr<String>(attr::kExternalSymbol)) {
+        function_node->HasNonzeroAttr(attr::kExtern)) {
       // Nothing to lower inside primitive/external functions.
       return GetRef<Function>(function_node);
     } else {
