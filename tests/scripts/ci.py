@@ -191,8 +191,6 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
         command.append("-i")
         scripts = ["interact() {", "  bash", "}", "trap interact 0", ""] + scripts
 
-    command.append("--net=host")
-
     for key, value in env.items():
         command.append("--env")
         command.append(f"{key}={value}")
