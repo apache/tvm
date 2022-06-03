@@ -168,7 +168,7 @@ class TestAddSubtractMultiplyBroadcast2d:
         input_B_layout,
         op_name,
     ):
-        target_hexagon = tvm.target.hexagon("v69")
+        target_hexagon = tvm.target.hexagon("v68")
         A = te.placeholder(input_shape_A, name="A", dtype=dtype)
         B = te.placeholder(input_shape_B, name="B", dtype=dtype)
         if op_name == "add":
