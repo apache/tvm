@@ -452,44 +452,50 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
   void LayerNorm(const size_t& nid) {
+
     auto node = nodes_[nid];
 
-    auto data_entry = node.GetInputs()[0];
-    auto gamma_entry = node.GetInputs()[1];
-    auto beta_entry = node.GetInputs()[2];
-    
-    dnnl::memory::dims data_shape = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
+    auto src_tr = GetInput(nid, 0);
+    auto gamma_tr = GetInput(nid, 1);
+    auto beta_tr = GetInput(nid, 2);
+    auto dst_tr = GetOutput(nid, 0);
 
-    float epsilon = std::stof(node.GetAttr<std::vector<std::string>>("epsilon")[0]);
+    auto axis = GetNodeAttr<int>(node, "axis");
+    auto epsilon = GetNodeAttr<float>(node, "epsilon");
+    auto center = GetNodeAttr<bool>(node, "center");
+    auto scale = GetNodeAttr<bool>(node, "scale");
 
-    // Memory description.
-    dnnl::memory::desc data_md = GenDNNLMemDescByShape(data_shape, dt::f32);
+    ICHECK(axis == -1 && center && scale) << "Unimplemented LayerNorm case";
 
     // LN description.
     auto lnorm_desc = dnnl::layer_normalization_forward::desc(
-        dnnl::prop_kind::forward_inference, data_md, epsilon,
-        dnnl::normalization_flags::use_scale | dnnl::normalization_flags::use_shift);
+        dnnl::prop_kind::forward_inference, src_tr.desc(), epsilon,
+        dnnl::normalization_flags::use_scale_shift);
 
     auto lnorm_prim_desc = dnnl::layer_normalization_forward::primitive_desc(lnorm_desc, engine_);
     auto lnorm_prim = dnnl::layer_normalization_forward(lnorm_prim_desc);
 
-    net_.push_back(lnorm_prim);
+    // Concatenate scale and shift tensors
+    auto scale_shift_tr = TensorRequisite::AsIs(lnorm_prim_desc.weights_desc(), GenUniqueEid());
+    auto sc_sh_dims = scale_shift_tr.dims();
 
-    // Memories.
-    auto data_memory = BindDNNLMemory(data_entry, data_md);
-    JSONGraphNodeEntry out_entry(nid, 0);
-    auto dst_memory = BindDNNLMemory(out_entry, data_md);
-    auto scale_memory = BindDNNLMemory(gamma_entry, data_md);
-    auto shift_memory = BindDNNLMemory(beta_entry, data_md);
-    auto mean_memory = dnnl::memory(lnorm_prim_desc.mean_desc(), engine_);
-    auto variance_memory = dnnl::memory(lnorm_prim_desc.variance_desc(), engine_);
+    ICHECK(sc_sh_dims.size() == 2);
+    ICHECK(sc_sh_dims[0] == 2);
+    sc_sh_dims[0] /= 2;
+    auto scale_tr = scale_shift_tr.Crop(sc_sh_dims, {0, 0}).Squeeze();
+    auto shift_tr = scale_shift_tr.Crop(sc_sh_dims, {1, 0}).Squeeze();
 
-    net_args_.push_back({{DNNL_ARG_SRC, data_memory},
-                         {DNNL_ARG_MEAN, mean_memory},
-                         {DNNL_ARG_VARIANCE, variance_memory},
-                         {DNNL_ARG_SCALE, scale_memory},
-                         {DNNL_ARG_SHIFT, shift_memory},
-                         {DNNL_ARG_DST, dst_memory}});
+    auto register_copy = [this](const TensorRequisite& src, const TensorRequisite& dst) {
+      dnnl::reorder::primitive_desc copy_pd(engine_, src.desc(), engine_, dst.desc());
+      Submit(dnnl::reorder(copy_pd), {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst}});
+    };
+
+    register_copy(gamma_tr, scale_tr);
+    register_copy(beta_tr, shift_tr);
+
+    Submit(dnnl::layer_normalization_forward(lnorm_prim_desc), {{DNNL_ARG_SRC, src_tr},
+                                                                {DNNL_ARG_DST, dst_tr},
+                                                                {DNNL_ARG_SCALE_SHIFT, scale_shift_tr}});
   }
 
   void Pooling(const size_t& nid, dnnl::algorithm algo) {
