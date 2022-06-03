@@ -17,6 +17,7 @@
 import sys
 import pytest
 import tvm
+import tvm.testing
 from tvm import te
 from tvm.driver.build_module import schedule_to_module
 from tvm.script import tir as T
@@ -671,4 +672,4 @@ def test_access_in_let_value():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

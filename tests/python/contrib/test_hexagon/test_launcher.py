@@ -23,12 +23,11 @@ import tvm.testing
 from tvm import te
 from tvm import relay
 from tvm.relay.backend import Executor, Runtime
+from tvm.contrib.hexagon.session import Session
 
-from .conftest import requires_hexagon_toolchain
 
-
-@requires_hexagon_toolchain
-def test_add(hexagon_session):
+@tvm.testing.requires_hexagon
+def test_add(hexagon_session: Session):
     dtype = "int8"
     A = tvm.te.placeholder((2,), dtype=dtype)
     B = tvm.te.placeholder((1,), dtype=dtype)
@@ -52,8 +51,8 @@ def test_add(hexagon_session):
     assert (C_data.numpy() == np.array([6, 7])).all()
 
 
-@requires_hexagon_toolchain
-def test_add_vtcm(hexagon_session):
+@tvm.testing.requires_hexagon
+def test_add_vtcm(hexagon_session: Session):
     dtype = "int8"
     A = tvm.te.placeholder((2,), dtype=dtype)
     B = tvm.te.placeholder((1,), dtype=dtype)
@@ -86,7 +85,7 @@ class TestMatMul:
     N = tvm.testing.parameter(32)
     K = tvm.testing.parameter(32)
 
-    @requires_hexagon_toolchain
+    @tvm.testing.requires_hexagon
     def test_matmul(self, hexagon_session, M, N, K):
         X = te.placeholder((M, K), dtype="float32")
         Y = te.placeholder((K, N), dtype="float32")
@@ -121,8 +120,8 @@ class TestMatMul:
         tvm.testing.assert_allclose(zt.numpy(), ztcpu.numpy(), rtol=1e-4)
 
 
-@requires_hexagon_toolchain
-def test_graph_executor(hexagon_session):
+@tvm.testing.requires_hexagon
+def test_graph_executor(hexagon_session: Session):
     dtype = "float32"
     data = relay.var("data", relay.TensorType((1, 64, 64, 3), dtype))
     weight = relay.var("weight", relay.TensorType((5, 5, 3, 8), dtype))
@@ -177,8 +176,8 @@ def test_graph_executor(hexagon_session):
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 
-@requires_hexagon_toolchain
-def test_graph_executor_multiple_conv2d(hexagon_session):
+@tvm.testing.requires_hexagon
+def test_graph_executor_multiple_conv2d(hexagon_session: Session):
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
@@ -254,8 +253,8 @@ def test_graph_executor_multiple_conv2d(hexagon_session):
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 
-@requires_hexagon_toolchain
-def test_aot_executor(hexagon_session, aot_host_target, aot_target):
+@tvm.testing.requires_hexagon
+def test_aot_executor(hexagon_session: Session, aot_host_target, aot_target):
     dtype = "float32"
     input_shape = (1, 128, 128, 3)
     w_shape = (5, 5, 3, 8)
@@ -313,8 +312,8 @@ def test_aot_executor(hexagon_session, aot_host_target, aot_target):
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 
-@requires_hexagon_toolchain
-def test_aot_executor_multiple_conv2d(hexagon_session, aot_host_target, aot_target):
+@tvm.testing.requires_hexagon
+def test_aot_executor_multiple_conv2d(hexagon_session: Session, aot_host_target, aot_target):
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
@@ -389,4 +388,4 @@ def test_aot_executor_multiple_conv2d(hexagon_session, aot_host_target, aot_targ
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

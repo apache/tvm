@@ -265,6 +265,18 @@ BlockRV TracedScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buffer
   return result;
 }
 
+BlockRV TracedScheduleNode::ReIndex(const BlockRV& block_rv, int buffer_index,
+                                    BufferIndexType buffer_index_type) {
+  BlockRV result = ConcreteScheduleNode::ReIndex(block_rv, buffer_index, buffer_index_type);
+
+  static const InstructionKind& kind = InstructionKind::Get("ReIndex");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{block_rv},
+                                      /*attrs=*/{Integer(buffer_index), Integer(buffer_index_type)},
+                                      /*outputs=*/{result}));
+  return result;
+}
+
 /******** Schedule: Compute location ********/
 
 void TracedScheduleNode::ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
@@ -439,6 +451,16 @@ void TracedScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_ind
       /*inst=*/Instruction(/*kind=*/kind,
                            /*inputs=*/{block_rv},
                            /*attrs=*/{Integer(buffer_index), Integer(buffer_index_type), index_map},
+                           /*outputs=*/{}));
+}
+
+void TracedScheduleNode::TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) {
+  ConcreteScheduleNode::TransformBlockLayout(block_rv, index_map);
+  static const InstructionKind& kind = InstructionKind::Get("TransformBlockLayout");
+  trace_->Append(
+      /*inst=*/Instruction(/*kind=*/kind,
+                           /*inputs=*/{block_rv},
+                           /*attrs=*/{index_map},
                            /*outputs=*/{}));
 }
 

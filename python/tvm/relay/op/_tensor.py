@@ -21,7 +21,7 @@ from tvm.te.hybrid import script
 from tvm import topi
 from tvm.runtime import convert
 
-from .op import register_compute, register_shape_func
+from .op import register_compute, register_shape_func, register_legalize
 from .op import register_broadcast_schedule, register_injective_schedule
 from .op import register_pattern, OpPattern
 
@@ -91,6 +91,27 @@ register_injective_schedule("device_copy")
 register_broadcast_schedule("fast_exp")
 register_broadcast_schedule("fast_tanh")
 register_broadcast_schedule("fast_erf")
+
+
+@register_legalize("erf")
+def legalize_erf(attrs, inputs, types):
+    """Legalize ERF op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.math.erf_legalize(attrs, inputs, types)
 
 
 # zeros
@@ -285,3 +306,4 @@ register_shape_func("log2", False, elemwise_shape_func)
 register_shape_func("sigmoid", False, elemwise_shape_func)
 register_shape_func("tanh", False, elemwise_shape_func)
 register_shape_func("logical_not", False, elemwise_shape_func)
+register_shape_func("ceil", False, elemwise_shape_func)

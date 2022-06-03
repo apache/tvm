@@ -523,11 +523,13 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       op_index = itr->second;
     }
 
-    // Capture the dictionary of attributes from the original primitive function so that they
-    // can contribute to the hash of the compiled primitive. This way we can distinguish primitives
-    // with the same body expression but different attributes which may arbitrarily influence code
-    // generation.
-    op_attrs[op_index] = attrs->dict;
+    if (attrs.defined() && attrs->dict.defined()) {
+      // Capture the dictionary of attributes from the original primitive function so that they
+      // can contribute to the hash of the compiled primitive. This way we can distinguish
+      // primitives with the same body expression but different attributes which may arbitrarily
+      // influence code generation.
+      op_attrs[op_index] = attrs->dict;
+    }
 
     Emit(Instruction::InvokePacked(op_index, argument_registers.size(), output_tuple->fields.size(),
                                    argument_registers));
@@ -981,25 +983,25 @@ void VMCompiler::LowerImpl(IRModule mod) {
   }
 }
 
-transform::Sequential VMCompiler::MemoryOpt(const VirtualDevice& host_virtual_device) {
+transform::Sequential VMCompiler::MemoryOpt(const CompilationConfig& config) {
   Array<Pass> pass_seqs;
   // Remove unused functions
   Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Manifest the allocations.
-  pass_seqs.push_back(transform::ManifestAlloc(host_virtual_device));
+  pass_seqs.push_back(transform::ManifestAlloc(config->host_virtual_device));
 
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
 
   // Fuse & lower any new shape functions and device_copies.
-  pass_seqs.push_back(FuseAndLowerOperators(host_virtual_device));
+  pass_seqs.push_back(FuseAndLowerOperators(config));
 
   // Manifest the allocations needed for the shape functions.
-  pass_seqs.push_back(transform::ManifestAlloc(host_virtual_device));
+  pass_seqs.push_back(transform::ManifestAlloc(config->host_virtual_device));
 
   // Fuse & lower any new allocations.
-  pass_seqs.push_back(FuseAndLowerOperators(host_virtual_device));
+  pass_seqs.push_back(FuseAndLowerOperators(config));
 
   // TODO(mbrookhart, jroesch, masahi): this pass is very slow, and is
   // incomplete to provide memory resuse optimizations. Disable it until we can
@@ -1011,10 +1013,10 @@ transform::Sequential VMCompiler::MemoryOpt(const VirtualDevice& host_virtual_de
   pass_seqs.push_back(transform::FoldConstant());
 
   // Fuse & lower yet again
-  pass_seqs.push_back(FuseAndLowerOperators(host_virtual_device));
+  pass_seqs.push_back(FuseAndLowerOperators(config));
 
   // Create allocations for math introduced by dynamic region math.
-  pass_seqs.push_back(transform::ManifestAlloc(host_virtual_device));
+  pass_seqs.push_back(transform::ManifestAlloc(config->host_virtual_device));
 
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
@@ -1030,7 +1032,7 @@ transform::Sequential VMCompiler::MemoryOpt(const VirtualDevice& host_virtual_de
   return transform::Sequential(std::move(pass_seqs));
 }
 
-transform::Sequential VMCompiler::FuseAndLowerOperators(const VirtualDevice& host_virtual_device) {
+transform::Sequential VMCompiler::FuseAndLowerOperators(const CompilationConfig& config) {
   Array<Pass> pass_seqs;
   // Hoist operators to "primitive" Functions.
   pass_seqs.push_back(FuseOps());
@@ -1043,7 +1045,7 @@ transform::Sequential VMCompiler::FuseAndLowerOperators(const VirtualDevice& hos
                                            backend::UpdateConstants(func, &params_);
                                          }
                                        },
-                                       host_virtual_device));
+                                       config));
   // Since lowered functions are bound in the IRModule, we can now eliminate any unused
   // let-bound functions.
   pass_seqs.push_back(DeadCodeElimination(/*inline_once=*/false));
@@ -1094,7 +1096,7 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
                                            backend::UpdateConstants(func, &params_);
                                          }
                                        },
-                                       config_->host_virtual_device));
+                                       config_));
 
   // Since lowered functions are bound in the IRModule, we can now eliminate any unused
   // let-bound functions.
@@ -1111,7 +1113,7 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   // external codegen.
   pass_seqs.push_back(transform::Inline());
 
-  pass_seqs.push_back(MemoryOpt(config_->host_virtual_device));
+  pass_seqs.push_back(MemoryOpt(config_));
   pass_seqs.push_back(transform::InferType());
 
   transform::Sequential seq(pass_seqs);

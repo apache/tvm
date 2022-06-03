@@ -70,6 +70,32 @@ Array<MatchBufferRegion> ReplaceBuffer(Array<MatchBufferRegion> match_buffers, c
   return match_buffers;
 }
 
+Array<BufferRegion> ReplaceBufferRegion(Array<BufferRegion> regions, const Buffer& source_buffer,
+                                        const BufferRegion& target) {
+  regions.MutateByApply([&source_buffer, &target](const BufferRegion& region) -> BufferRegion {
+    if (region->buffer.same_as(source_buffer)) {
+      return target;
+    }
+    return region;
+  });
+  return regions;
+}
+
+Array<MatchBufferRegion> ReplaceBufferRegion(Array<MatchBufferRegion> match_buffers,
+                                             const Buffer& source_buffer,
+                                             const BufferRegion& target) {
+  match_buffers.MutateByApply([&source_buffer, &target](
+                                  const MatchBufferRegion& match_buffer) -> MatchBufferRegion {
+    if (match_buffer->source->buffer.same_as(source_buffer)) {
+      ObjectPtr<MatchBufferRegionNode> n = make_object<MatchBufferRegionNode>(*match_buffer.get());
+      n->source = target;
+      return MatchBufferRegion(n);
+    }
+    return match_buffer;
+  });
+  return match_buffers;
+}
+
 /******** ReplaceBufferMutator ********/
 ReplaceBufferMutator::ReplaceBufferMutator(const Buffer& old_buffer, Buffer new_buffer,
                                            Map<Block, Block>* block_sref_reuse)
@@ -279,6 +305,37 @@ Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::Block
 }
 
 TVM_REGISTER_GLOBAL("tir.schedule.TileWithTensorIntrin").set_body_typed(TileWithTensorIntrin);
+
+/******** BlockBufferAccessSimplifier ********/
+void BlockBufferAccessSimplifier::SimplifyAccessRegion(Array<BufferRegion>* old_access_regions) {
+  auto fmutate = [this](const BufferRegion& buffer_region) {
+    std::vector<Range> new_buffer_region;
+    for (const auto& range : buffer_region->region) {
+      new_buffer_region.push_back(Range::FromMinExtent(analyzer_->Simplify(range->min),
+                                                       analyzer_->Simplify(range->extent)));
+    }
+    return BufferRegion(buffer_region->buffer, new_buffer_region);
+  };
+  (*old_access_regions).MutateByApply(fmutate);
+}
+
+Stmt BlockBufferAccessSimplifier::VisitStmt_(const BlockNode* op) {
+  Block block = Downcast<Block>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
+  auto* n = block.CopyOnWrite();
+  SimplifyAccessRegion(&n->reads);
+  SimplifyAccessRegion(&n->writes);
+  return std::move(block);
+}
+
+Stmt BlockBufferAccessSimplifier::VisitStmt_(const BufferStoreNode* op) {
+  auto node = Downcast<BufferStore>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
+  return VisitBufferAccess(std::move(node));
+}
+
+PrimExpr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
+  auto node = Downcast<BufferLoad>(arith::IRMutatorWithAnalyzer::VisitExpr_(op));
+  return VisitBufferAccess(std::move(node));
+}
 
 }  // namespace tir
 }  // namespace tvm

@@ -131,7 +131,7 @@ def conv2d_winograd_cpu(
             vh, vw, p_3, co_1, r_a_1, r_b_1 = T.axis.remap(
                 "SSSSRR", [i0_7, i1_7, i2_5, i3_5, i4_2, i5_1]
             )
-            T.block_attr({"schedule_rule": "meta_schedule.winograd_inverse"})
+            T.block_attr({"schedule_rule": "meta_schedule.winograd_inverse.llvm"})
             T.reads(
                 [
                     inverse[vh, vw, p_3, co_1],

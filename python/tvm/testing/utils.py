@@ -62,6 +62,7 @@ function in this module. Then targets using this node should be added to the
 `TVM_TEST_TARGETS` environment variable in the CI.
 
 """
+import inspect
 import copy
 import copyreg
 import ctypes
@@ -404,6 +405,10 @@ def _get_targets(target_str=None):
         if target_kind == "cuda" and "cudnn" in tvm.target.Target(target).attrs.get("libs", []):
             is_enabled = tvm.support.libinfo()["USE_CUDNN"].lower() in ["on", "true", "1"]
             is_runnable = is_enabled and cudnn.exists()
+        elif target_kind == "hexagon":
+            is_enabled = tvm.support.libinfo()["USE_HEXAGON"].lower() in ["on", "true", "1"]
+            # If Hexagon has compile-time support, we can always fall back
+            is_runnable = is_enabled and "ANDROID_SERIAL_NUMBER" in os.environ
         else:
             is_enabled = tvm.runtime.enabled(target_kind)
             is_runnable = is_enabled and tvm.device(target_kind).exist
@@ -1509,3 +1514,8 @@ def identity_after(x, sleep):
 def terminate_self():
     """Testing function to terminate the process."""
     sys.exit(-1)
+
+
+def main():
+    test_file = inspect.getsourcefile(sys._getframe(1))
+    sys.exit(pytest.main([test_file] + sys.argv[1:]))

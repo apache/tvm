@@ -94,6 +94,8 @@ void SendToRunner(const Runner& runner, const TuneContext& context, PackedFunc l
 
 void TaskSchedulerNode::InitializeTask(int task_id) {
   TuneContext task = this->tasks[task_id];
+  TVM_PY_LOG(INFO, this->logging_func)
+      << "Initializing Task #" << task_id << ": " << task->task_name;
   TVM_PY_LOG(INFO, task->logging_func)
       << "Initializing Task #" << task_id << ": " << task->task_name;
   CHECK(task->mod.defined()) << "ValueError: Require `context.mod`, but it is not defined";

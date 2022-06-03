@@ -23,6 +23,7 @@ from typing import Set
 
 import pytest
 import tvm
+import tvm.testing
 from tvm._ffi.base import TVMError
 from tvm.meta_schedule import TuneContext, measure_callback
 from tvm.meta_schedule.search_strategy import ReplayTrace
@@ -365,4 +366,4 @@ def test_meta_schedule_task_scheduler_multiple_gradient_based():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

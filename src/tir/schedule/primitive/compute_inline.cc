@@ -24,12 +24,13 @@ namespace tir {
 static const char kErrBodyInline[] = R"(The body of the inlined block should be in form of
     'A[i, j, k, ...] = f(i, j, k, ...)',
 where the indices on the left are distinct atomic variables,
-and there should not no variables other than the index variables)";
+and there should be no variables other than the index variables)";
 
 static const char kErrBodyReverseInline[] = R"(The body of the inlined block should be in form of
-    `B[...] = g(i, j, k, A[i, j, k, ...] ...)`,
+    `B[...] = g(i, j, k, A[f(i, j, k, ...)] ...)`,
 where A is the only buffer the block consumes, whose indices are distinct atomic variables,
-and there should not no variables other than the index variables)";
+and there should be no variables other than the index variables), and f is a bijective affine
+mapping)";
 
 class HasInitBlock : public ScheduleError {
  public:
@@ -258,57 +259,6 @@ class BaseInliner : public StmtExprMutator {
   }
 
   /*!
-   * \brief Check if the indices are atomic distinct variables and the access is n-dimensional.
-   * If so, set `self->idx_vars_` properly.
-   * \param indices The indices to be extracted
-   * \param expected_ndim The expected ndim of the access
-   * \return A boolean flag indicating if the check is successful
-   */
-  bool UpdateAndCheckIndexVars(const Array<PrimExpr>& indices, int expected_ndim) {
-    int n = indices.size();
-    if (n != expected_ndim) {
-      // Failure: dimension mismatch
-      return false;
-    }
-    std::vector<const VarNode*> result;
-    result.reserve(n);
-    for (const PrimExpr& i : indices) {
-      if (const auto* var = i.as<VarNode>()) {
-        result.push_back(var);
-      } else {
-        // Failure: indexing expression is not a variable
-        return false;
-      }
-    }
-    using DistinctSet = std::unordered_set<const VarNode*>;
-    int n_distinct = DistinctSet(result.begin(), result.end()).size();
-    if (n != n_distinct) {
-      // Failure: indexing variables are not distinct
-      return false;
-    }
-    if (idx_vars_.empty()) {
-      idx_vars_ = std::move(result);
-    } else if (!support::ArrayWithSameContent(idx_vars_, result)) {
-      // Failure: indexing variables are not consitent in different BufferLoads
-      return false;
-    }
-    return true;
-  }
-
-  /*!
-   * \brief Set the mapping of index substitution `self->idx_sub_`
-   * \param indices The expressions that the corresponding index variables are replaced to
-   */
-  void SetIndexSubstitution(const Array<PrimExpr>& indices) {
-    ICHECK_EQ(indices.size(), idx_vars_.size());
-    int n = idx_vars_.size();
-    idx_sub_.reserve(n);
-    for (int i = 0; i < n; ++i) {
-      idx_sub_[idx_vars_[i]] = indices[i];
-    }
-  }
-
-  /*!
    * \brief Count the number of undefined variables that are not used
    * as buffer objects.
    *
@@ -490,6 +440,57 @@ class ComputeInliner : public BaseInliner {
     SetIndexSubstitution(load->indices);
     return Substitute(inlined_store_->value, idx_sub_);
   }
+
+  /*!
+   * \brief Check if the indices are atomic distinct variables and the access is n-dimensional.
+   * If so, set `self->idx_vars_` properly.
+   * \param indices The indices to be extracted
+   * \param expected_ndim The expected ndim of the access
+   * \return A boolean flag indicating if the check is successful
+   */
+  bool UpdateAndCheckIndexVars(const Array<PrimExpr>& indices, int expected_ndim) {
+    int n = indices.size();
+    if (n != expected_ndim) {
+      // Failure: dimension mismatch
+      return false;
+    }
+    std::vector<const VarNode*> result;
+    result.reserve(n);
+    for (const PrimExpr& i : indices) {
+      if (const auto* var = i.as<VarNode>()) {
+        result.push_back(var);
+      } else {
+        // Failure: indexing expression is not a variable
+        return false;
+      }
+    }
+    using DistinctSet = std::unordered_set<const VarNode*>;
+    int n_distinct = DistinctSet(result.begin(), result.end()).size();
+    if (n != n_distinct) {
+      // Failure: indexing variables are not distinct
+      return false;
+    }
+    if (idx_vars_.empty()) {
+      idx_vars_ = std::move(result);
+    } else if (!support::ArrayWithSameContent(idx_vars_, result)) {
+      // Failure: indexing variables are not consitent in different BufferLoads
+      return false;
+    }
+    return true;
+  }
+
+  /*!
+   * \brief Set the mapping of index substitution `self->idx_sub_`
+   * \param indices The expressions that the corresponding index variables are replaced to
+   */
+  void SetIndexSubstitution(const Array<PrimExpr>& indices) {
+    ICHECK_EQ(indices.size(), idx_vars_.size());
+    int n = idx_vars_.size();
+    idx_sub_.reserve(n);
+    for (int i = 0; i < n; ++i) {
+      idx_sub_[idx_vars_[i]] = indices[i];
+    }
+  }
 };
 
 /*!
@@ -534,12 +535,34 @@ class ReverseComputeInliner : public BaseInliner {
       // Failure: no BufferLoad from the `inlined_buffer_`
       return false;
     }
-    int n_vars = GetNumUndefinedNonpointerVars(GetRef<Stmt>(inlined_store_));
+
+    // Collect block iter domains and update the substition map
+    Map<Var, Range> consumer_iter_doms;
+    for (const auto& iter_var : consumer_block->iter_vars) {
+      consumer_iter_doms.Set(iter_var->var, iter_var->dom);
+      // Set default mapping for unit iters
+      if (is_const_int(iter_var->dom->extent, 1) && is_const_int(iter_var->dom->min)) {
+        idx_sub_[iter_var->var.get()] = iter_var->dom->min;
+      }
+    }
+
     for (const BufferLoadNode* load : loads) {
-      if (!UpdateAndCheckIndexVars(load->indices, n_vars)) {
-        // Failure: incorrect of inconsistent index vars
+      if (!UpdateAndCheckIndexExprs(load->indices)) {
         return false;
       }
+    }
+
+    auto res = arith::DetectIterMap(
+        /*indices=*/buffer_load_indices_,
+        /*input_iters=*/consumer_iter_doms,
+        /*predicate=*/true,
+        /*check_level=*/arith::IterMapLevel::Bijective,
+        /*analyzer=*/&analyzer,
+        /*simplify_trivial_iterators=*/false);
+    buffer_load_iter_map_ = res->indices;
+    if (buffer_load_iter_map_.empty()) {
+      // Failure: indices of BufferLoad are not bijective affine
+      return false;
     }
     return true;
   }
@@ -556,8 +579,20 @@ class ReverseComputeInliner : public BaseInliner {
     return ReplaceInlinedBuffer(std::move(store));
   }
 
+  /*!
+   * \brief Apply the inverse of `buffer_load_iter_map_` to producer indices. Update `idx_sub_` with
+   *        the result. It will be later used to transform the BufferStore indices of the producer.
+   * \param producer_indices The BufferStore indices of the producer.
+   */
+  void CreateInverseMapping(const Array<PrimExpr> producer_indices) {
+    auto inverse_iter_map = arith::InverseAffineIterMap(buffer_load_iter_map_, producer_indices);
+    for (const auto& pair : inverse_iter_map) {
+      idx_sub_[pair.first.get()] = pair.second;
+    }
+  }
+
   Stmt ReplaceInlinedBuffer(BufferStore producer) {
-    SetIndexSubstitution(producer->indices);
+    CreateInverseMapping(producer->indices);
     producer_rhs_ = producer->value;
     return Substituter(this)(GetRef<BufferStore>(inlined_store_));
   }
@@ -588,8 +623,32 @@ class ReverseComputeInliner : public BaseInliner {
     return std::move(extractor.result);
   }
 
+  /*!
+   * \brief Update `buffer_load_indices_` with the given indices. If `buffer_load_indices_` is
+   *        already non-empty, check it is consistent with the given indices.
+   * \param indices The indices
+   * \param expected_ndim The expected ndim of the access
+   * \return A boolean flag indicating if the check is successful
+   */
+  bool UpdateAndCheckIndexExprs(const Array<PrimExpr>& indices) {
+    if (buffer_load_indices_.empty()) {
+      buffer_load_indices_ = indices;
+    } else if (!std::equal(buffer_load_indices_.begin(), buffer_load_indices_.end(),
+                           indices.begin(), indices.end(), ExprDeepEqual())) {
+      // Failure: indices are not consistent in different BufferLoads
+      return false;
+    }
+    return true;
+  }
+
   /*! \brief The RHS value of the producer's BufferStore statement */
   PrimExpr producer_rhs_{nullptr};
+  /*! \brief The indices of the consumer's BufferLoad */
+  Array<PrimExpr> buffer_load_indices_;
+  /*! \brief The IterMap representing the indices of the consumer's BufferLoad */
+  Array<arith::IterSumExpr> buffer_load_iter_map_{nullptr};
+  /*! \brief The arithmetic analyzer */
+  arith::Analyzer analyzer;
 };
 
 void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,

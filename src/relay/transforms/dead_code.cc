@@ -534,6 +534,7 @@ namespace transform {
 // Declared in relay/transform.h
 Pass DeadCodeElimination(bool inline_once, bool ignore_impurity) {
   auto pass_func = [=](IRModule mod, PassContext pc) -> IRModule {
+    VLOG(1) << "Before:" << std::endl << PrettyPrint(mod);
     // Which let bindings are pure and can be safely elided?
     std::unordered_map<const VarNode*, bool> var_to_purity;
     if (!ignore_impurity) {
@@ -566,6 +567,7 @@ Pass DeadCodeElimination(bool inline_once, bool ignore_impurity) {
         result->Add(kv.first, kv.second);
       }
     }
+    VLOG(1) << "After:" << std::endl << PrettyPrint(result);
 
     return result;
   };

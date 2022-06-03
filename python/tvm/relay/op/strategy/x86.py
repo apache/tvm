@@ -19,7 +19,7 @@
 import logging
 
 import re
-from tvm import topi
+from tvm import topi, tir
 from tvm.topi.x86.utils import target_has_vnni
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
@@ -46,13 +46,6 @@ def schedule_reduce_cpu(attrs, outs, target):
     """schedule reduction ops for x86"""
     with target:
         return topi.x86.schedule_reduce(outs)
-
-
-@schedule_concatenate.register("cpu")
-def schedule_concatenate_cpu(attrs, outs, target):
-    """schedule concatenate op for x86"""
-    with target:
-        return topi.x86.schedule_concatenate(outs)
 
 
 @schedule_pool.register("cpu")
@@ -739,5 +732,36 @@ def conv2d_winograd_without_weight_transfrom_strategy_cpu(attrs, inputs, out_typ
     else:
         raise RuntimeError(
             "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)
+        )
+    return strategy
+
+
+@concatenate_strategy.register(["cpu"])
+def concatenate_strategy_cpu(attrs, inputs, out_type, target):
+    """concatenate x86 strategy"""
+    strategy = _op.OpStrategy()
+    use_only_old_concat = False
+    for inpt in inputs:
+        shape = inpt.shape
+        for i in shape:
+            if not isinstance(i, tir.expr.IntImm):
+                use_only_old_concat = True
+                break
+    if use_only_old_concat:
+        strategy.add_implementation(
+            wrap_compute_concat(topi.transform.concatenate),
+            wrap_topi_schedule(topi.x86.injective.schedule_concatenate),
+            name="concatenate.generic",
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_concat(topi.x86.concatenate),
+            wrap_topi_schedule(topi.x86.schedule_concatenate_cpu),
+            name="concatenate.cpu",
+        )
+        strategy.add_implementation(
+            wrap_compute_concat(topi.transform.concatenate),
+            wrap_topi_schedule(topi.x86.injective.schedule_concatenate),
+            name="concatenate.generic",
         )
     return strategy

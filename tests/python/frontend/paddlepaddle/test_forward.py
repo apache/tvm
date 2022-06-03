@@ -33,6 +33,7 @@ import paddle.nn as nn
 
 PADDLE_TEST_DATA_ROOT_PATH = Path(Path("~").expanduser(), ".tvm_test_data", "paddle")
 PADDLE_TEST_DATA_ROOT_PATH.mkdir(parents=True, exist_ok=True)
+cached_program = list()
 
 
 def assert_shapes_match(tru, est):
@@ -43,10 +44,14 @@ def assert_shapes_match(tru, est):
 
 def get_paddle_model(func, input_spec):
     global PADDLE_TEST_DATA_ROOT_PATH
+    global cached_program
     model_path = Path(PADDLE_TEST_DATA_ROOT_PATH, "model")
 
     paddle.jit.save(func, str(model_path), input_spec=input_spec)
     baseline_model = paddle.jit.load(str(model_path))
+    if len(cached_program) >= 4:
+        cached_program = list()
+    cached_program.append(baseline_model._get_program_holder())
 
     shutil.rmtree(str(PADDLE_TEST_DATA_ROOT_PATH))
     return baseline_model
@@ -716,8 +721,8 @@ def test_forward_group_norm():
     for input_shape in input_shapes:
         num_channels = input_shape[1]
         input_data = paddle.uniform(input_shape)
-        verify_model(GroupNorm(num_channels, 1), input_data)
-        verify_model(GroupNorm(num_channels, 2), input_data)
+        verify_model(GroupNorm(num_channels, 1), input_data, rtol=1e-4, atol=1e-4)
+        verify_model(GroupNorm(num_channels, 2), input_data, rtol=1e-4, atol=1e-4)
 
 
 @tvm.testing.uses_gpu
@@ -775,6 +780,44 @@ def test_forward_shape_full():
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(full1, input_data=[input_data])
     verify_model(full2, input_data=[input_data])
+
+
+@tvm.testing.uses_gpu
+def test_forward_split():
+    class Split(nn.Layer):
+        def __init__(
+            self, axis=None, num_or_sections=None, axis_is_tensor=False, num_is_tensor=False
+        ):
+            super(Split, self).__init__()
+            self.axis = axis
+            self.num_or_sections = num_or_sections
+            self.axis_is_tensor = axis_is_tensor
+            self.num_is_tensor = num_is_tensor
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            axis = self.axis
+            if self.axis_is_tensor:
+                axis = paddle.to_tensor(axis, dtype="int32")
+            num_or_sections = self.num_or_sections
+            if self.num_is_tensor:
+                new_num_or_sections = []
+                for i in num_or_sections:
+                    if isinstance(i, list):
+                        i = paddle.to_tensor(i, dtype="int32")
+                    new_num_or_sections.append(i)
+                num_or_sections = new_num_or_sections
+            return paddle.split(inputs, num_or_sections=num_or_sections, axis=axis)
+
+    input_shape = [3, 6, 2]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(Split(axis=1, num_or_sections=3), input_data=input_data)
+    verify_model(
+        Split(axis=[1], num_or_sections=[2, 3, 1], axis_is_tensor=True), input_data=input_data
+    )
+    verify_model(
+        Split(axis=1, num_or_sections=[2, -1, [3]], num_is_tensor=True), input_data=input_data
+    )
 
 
 @tvm.testing.uses_gpu

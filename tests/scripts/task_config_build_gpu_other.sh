@@ -18,9 +18,7 @@
 
 # This file is a compiler test to ensure that runtimes can compile
 # correctly, even if they aren't actively tested in the CI.
-
-set -e
-set -u
+set -euxo pipefail
 
 BUILD_DIR=$1
 mkdir -p "$BUILD_DIR"

@@ -227,6 +227,14 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
     Array<String> variables = std::get<0>(res);
     String func_name = std::get<1>(res);
 
+    Optional<Target> opt_target = Target::Current();
+    if (opt_target.defined() && opt_target.value()->kind->name == "ccompiler") {
+      Optional<String> header = opt_target.value()->GetAttr<String>("header");
+      if (header.defined() && !header.value().empty()) {
+        code_stream_ << header.value().c_str() << "\n";
+      }
+    }
+
     // Create headers
     code_stream_ << "#include <stdio.h>\n";
     code_stream_ << "#include <stdlib.h>\n";
@@ -292,6 +300,10 @@ runtime::Module CCompiler(const ObjectRef& ref) {
 }
 
 TVM_REGISTER_GLOBAL("relay.ext.ccompiler").set_body_typed(CCompiler);
+
+TVM_REGISTER_TARGET_KIND("ccompiler", kDLCPU)
+    .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(true))
+    .add_attr_option<String>("header", String(""));  // value is prepended to every output CModule
 
 }  // namespace contrib
 }  // namespace relay

@@ -265,6 +265,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintRange(const RangeNode* op);
   Doc PrintArray(const ArrayNode* op);
   Doc PrintBuffer(const BufferNode* op);
+  Doc PrintBufferIndices(const Array<PrimExpr>& indices);
   Doc PrintNonHeaderBufferDeclarations(const Array<Buffer>& aliasing_buffers);
   Doc AllocBufferDeclaration(const Buffer& buf);
   Doc PrintBlockVar(const IterVar& iter_var, const PrimExpr& value);
@@ -617,7 +618,12 @@ bool TVMScriptPrinter::IsSimpleBuffer(const Buffer& buf) {
 
 Doc TVMScriptPrinter::PrintInlineBufferBind(const Buffer& buffer) {
   Doc doc;
-  doc << tir_prefix_ << ".Buffer[" << PrintTuple(buffer->shape.as<ArrayNode>());
+  doc << tir_prefix_ << ".Buffer[";
+  if (buffer->shape.size() == 1) {
+    doc << Print(buffer->shape[0]);
+  } else {
+    doc << PrintTuple(buffer->shape.as<ArrayNode>());
+  }
   doc << ", " << PrintDType(buffer->dtype) << "]";
   return doc;
 }
@@ -834,7 +840,7 @@ Doc TVMScriptPrinter::VisitExpr_(const BufferLoadNode* op, ExprPrecedence* out_p
   if (op->indices.size() == 0) {
     doc << Print(op->buffer) << "[()]";
   } else {
-    doc << Print(op->buffer) << Print(op->indices);
+    doc << Print(op->buffer) << PrintBufferIndices(op->indices);
   }
   return doc;
 }
@@ -1260,7 +1266,7 @@ Doc TVMScriptPrinter::VisitStmt_(const BufferStoreNode* op) {
   if (op->indices.size() == 0) {
     doc << Print(op->buffer) << "[()] = " << Print(op->value);
   } else {
-    doc << Print(op->buffer) << Print(op->indices) << " = " << Print(op->value);
+    doc << Print(op->buffer) << PrintBufferIndices(op->indices) << " = " << Print(op->value);
   }
   return doc;
 }
@@ -1565,7 +1571,7 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   if (op->body->IsInstance<BlockRealizeNode>() &&
       op->body.as<BlockRealizeNode>()->iter_values.empty()) {
     const BlockNode* block = op->body.as<BlockRealizeNode>()->block.get();
-    if (block->annotations.empty()) {
+    if (block->annotations.empty() && !ContainsOptionalInfo(GetRef<Stmt>(block))) {
       // Skip print root block
       body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
       body << PrintBlockBody(block);
@@ -1676,6 +1682,30 @@ Doc TVMScriptPrinter::PrintRange(const RangeNode* op) {
 Doc TVMScriptPrinter::PrintBuffer(const BufferNode* op) {
   const Buffer& buffer = GetRef<Buffer>(op);
   return meta_.InMeta(buffer) ? meta_.GetMetaNode(buffer) : AllocBuf(buffer);
+}
+
+Doc TVMScriptPrinter::PrintBufferIndices(const Array<PrimExpr>& indices) {
+  Doc doc;
+  doc << '[';
+  for (size_t i = 0; i < indices.size(); ++i) {
+    if (i != 0) {
+      doc << ", ";
+    }
+    PrimExpr index = indices[i];
+    if (const RampNode* ramp = index.as<RampNode>()) {
+      // specify ramp printing as python index slice
+      if (auto* stride_imm = ramp->stride.as<IntImmNode>()) {
+        doc << Print(ramp->base) << ":" << Print(ramp->base + ramp->lanes * ramp->stride);
+        if (stride_imm->value != 1) {
+          doc << ":" << Print(ramp->stride);
+        }
+        continue;
+      }
+    }
+    doc << Print(index);
+  }
+  doc << ']';
+  return doc;
 }
 
 Doc TVMScriptPrinter::PrintNonHeaderBufferDeclarations(const Array<Buffer>& aliasing_buffers) {

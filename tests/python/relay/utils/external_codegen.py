@@ -22,7 +22,7 @@ import sys
 import pytest
 
 import tvm
-from tvm import relay, runtime
+from tvm import relay, runtime, testing
 from tvm.contrib import utils
 
 
@@ -104,7 +104,8 @@ def check_aot_executor_result(
     mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", device=tvm.cpu()
 ):
     # Late import to avoid breaking test with USE_MICRO=OFF.
-    from aot.aot_test_utils import AOTTestModel, AOT_DEFAULT_RUNNER, compile_and_run
+    from tvm.testing.aot import AOTTestModel, compile_and_run
+    from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER
 
     interface_api = "packed"
     use_unpacked_api = False
