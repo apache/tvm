@@ -586,14 +586,10 @@ __attribute__((weak)) tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer,
 }
 
 // Default implementation, overridden by the platform runtime.
-__attribute__((weak)) tvm_crt_error_t TVMPlatformBeforeMeasurement() {
-  return kTvmErrorNoError;
-}
+__attribute__((weak)) tvm_crt_error_t TVMPlatformBeforeMeasurement() { return kTvmErrorNoError; }
 
 // Default implementation, overridden by the platform runtime.
-__attribute__((weak)) tvm_crt_error_t TVMPlatformAfterMeasurement() {
-  return kTvmErrorNoError;
-}
+__attribute__((weak)) tvm_crt_error_t TVMPlatformAfterMeasurement() { return kTvmErrorNoError; }
 
 // Fill the tensor in args[0] with random data using TVMPlatformGenerateRandom.
 // Named to correspond with the analogous function in the C++ runtime.
