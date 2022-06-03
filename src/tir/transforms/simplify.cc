@@ -70,6 +70,10 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
       // because the call to simplify will always inline the var.
       analyzer_->Bind(op->var, value);
       return this->VisitStmt(op->body);
+    } else if (SideEffect(op->value) <= CallEffectKind::kPure) {
+      // Even if we aren't replacing all occurrences, they may be
+      // necessary for proving conditional statements.
+      non_inlined_bindings_.Set(op->var, value);
     }
     Stmt body = this->VisitStmt(op->body);
     if (value.same_as(op->value) && body.same_as(op->body)) {
@@ -80,6 +84,20 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
       n->body = std::move(body);
       return Stmt(n);
     }
+  }
+
+  Stmt VisitStmt_(const IfThenElseNode* op) {
+    PrimExpr cond = analyzer_->Simplify(Substitute(op->condition, non_inlined_bindings_));
+    if (const int64_t* as_int = as_const_int(cond)) {
+      if (*as_int) {
+        return this->VisitStmt(op->then_case);
+      } else if (op->else_case.defined()) {
+        return this->VisitStmt(op->else_case);
+      } else {
+        return Evaluate(0);
+      }
+    }
+    return Parent::VisitStmt_(op);
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
@@ -114,6 +132,8 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
     return true;
   }
+
+  Map<Var, PrimExpr> non_inlined_bindings_;
 };
 
 }  // namespace arith

@@ -391,5 +391,27 @@ class TestLiteralConstraintSplitBooleanOr(BaseBeforeAfter):
                 A[i, j] = 2
 
 
+class TestProveConditionUsingLet(BaseBeforeAfter):
+    """Simplify conditions using non-inlined let bindings
+
+    Not all let bindings are inlined when they occur in later
+    expressions.  However, even if they are not inlined, they may be
+    used to prove the value of a condition.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            if condition or i >= 3:
+                A[i] = condition
+
+    @T.prim_func
+    def expected(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            A[i] = condition
+
+
 if __name__ == "__main__":
     tvm.testing.main()
