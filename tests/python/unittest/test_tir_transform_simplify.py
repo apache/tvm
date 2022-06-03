@@ -460,5 +460,19 @@ class TestProveRepeatedLetCondition(BaseBeforeAfter):
                 A[i] = True
 
 
+class TestIfThenElseExpr(BaseBeforeAfter):
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if i < 12:
+                A[i] = T.if_then_else(i < 12, 1.0, 2.0, dtype="float32")
+
+    @T.prim_func
+    def expected(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if i < 12:
+                A[i] = 1.0
+
+
 if __name__ == "__main__":
     tvm.testing.main()
