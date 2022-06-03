@@ -141,10 +141,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "range(min=" << op->min << ", ext=" << op->extent << ')';
     });
 
-GlobalVar::GlobalVar(String name_hint, Type type) {
+GlobalVar::GlobalVar(String name_hint, Type type, Span span) {
   ObjectPtr<GlobalVarNode> n = make_object<GlobalVarNode>();
   n->name_hint = std::move(name_hint);
   n->checked_type_ = std::move(type);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
