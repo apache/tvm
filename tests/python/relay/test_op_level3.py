@@ -2207,5 +2207,38 @@ class TestSTFT:
         )
 
 
+def test_interpolate():
+    def verify_interpolate(x, xp, fp):
+        input_vars = [
+            relay.var("x", relay.TensorType([len(x)], "float32")),
+            relay.var("xp", relay.TensorType([len(xp)], "float32")),
+            relay.var("fp", relay.TensorType([len(fp)], "float32")),
+        ]
+        input_data = [x, xp, fp]
+
+        out = relay.op.interpolate(input_vars[0], input_vars[1], input_vars[2])
+        func = relay.Function(input_vars, out)
+        mod = tvm.ir.IRModule.from_expr(func)
+
+        ref_res = np.interp(x, xp, fp)
+
+        for target, dev in [("llvm", tvm.cpu())]:
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
+                op_res = intrp.evaluate(func)(*input_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    xp = [1.0, 2.0, 3.0]
+    fp = [3.0, 2.0, 0.0]
+    verify_interpolate([2.5], xp, fp)
+
+    verify_interpolate([0.0, 1.0, 1.5, 2.72, 3.14], xp, fp)
+
+    xp = np.linspace(0, 2 * np.pi, 10).astype("float32")
+    fp = np.sin(xp).astype("float32")
+
+    verify_interpolate(np.linspace(0, 2 * np.pi, 50).astype("float32"), xp, fp)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

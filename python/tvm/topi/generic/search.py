@@ -86,3 +86,17 @@ def schedule_unique(outs):
       The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+
+def schedule_interpolate(outs):
+    """Schedule for interpolate operator.
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of interpolate.
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
