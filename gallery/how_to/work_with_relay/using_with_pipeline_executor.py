@@ -81,7 +81,7 @@ net, params, data_shape = get_network()
 # own splitting function logic.
 import os
 
-os.sys.path.append(os.path.abspath("../../../tests/python/relay"))
+os.sys.path.append(os.path.abspath(os.environ["TVM_HOME"] + "/tests/python/relay"))
 from test_pipeline_executor import graph_split
 
 # Splitting the network into two subgraphs.
@@ -167,7 +167,8 @@ data = np.random.uniform(-1, 1, size=data_shape).astype("float32")
 pipeline_module.set_input("data", tvm.nd.array(data))
 pipeline_module.run()
 outputs = []
-while not (outputs := pipeline_module.get_output()):
+while not outputs:
+    outputs = pipeline_module.get_output()
     time.sleep(0.001)
 # Run with graph_executor and verify the output of pipeline executor.
 target = "llvm"
