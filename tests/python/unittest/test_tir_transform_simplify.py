@@ -413,5 +413,52 @@ class TestProveConditionUsingLet(BaseBeforeAfter):
             A[i] = condition
 
 
+class TestProveLetCondition(BaseBeforeAfter):
+    """Simplify conditions using non-inlined let bindings
+
+    Not all let bindings are inlined when they occur in later
+    expressions.  However, even if they are not inlined, they may be
+    used to prove the value of a condition.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            if i < 3:
+                if condition:
+                    A[i] = condition
+
+    @T.prim_func
+    def expected(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            if i < 3:
+                A[i] = condition
+
+
+class TestProveRepeatedLetCondition(BaseBeforeAfter):
+    """Simplify conditions using non-inlined let bindings
+
+    A variable may be used as a literal constraint, and be recognized
+    as being True within the context of the constraint.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            if condition:
+                if condition:
+                    A[i] = condition
+
+    @T.prim_func
+    def expected(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            if condition:
+                A[i] = True
+
+
 if __name__ == "__main__":
     tvm.testing.main()
