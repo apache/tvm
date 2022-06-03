@@ -1,0 +1,294 @@
+{
+  "title": "[ci] Add filter to teams",
+  "body": "This improves the parsing to avoid issues like in #11454\r\n\r\ncc @Mousius @areusch",
+  "state": "OPEN",
+  "author": {
+    "login": "abc"
+  },
+  "comments": {
+    "pageInfo": {
+      "hasPreviousPage": false
+    },
+    "nodes": [
+      {
+        "authorAssociation": "CONTRIBUTOR",
+        "author": {
+          "login": "Lunderberg"
+        },
+        "id": "IC_kwDOBDeBdM5Dy9eD",
+        "updatedAt": "2022-05-25T15:22:18Z",
+        "body": "Ooh, nice.  So that was triggered by the empty square brackets in the PR title?"
+      },
+      {
+        "authorAssociation": "COLLABORATOR",
+        "author": {
+          "login": "driazati"
+        },
+        "id": "IC_kwDOBDeBdM5Dy--Y",
+        "updatedAt": "2022-05-25T15:27:45Z",
+        "body": "> Ooh, nice. So that was triggered by the empty square brackets in the PR title?\r\n\r\nright, that plus some bad parsing logic of the source teams issue (more details [in the logs](https://github.com/apache/tvm/runs/6594725752?check_suite_focus=true#step:3:429)), I'd like to clean it up a bit but I don't have permissions to edit other people's comments out"
+      },
+      {
+        "authorAssociation": "COLLABORATOR",
+        "author": {
+          "login": "driazati"
+        },
+        "id": "IC_kwDOBDeBdM5EMVgS",
+        "updatedAt": "2022-06-01T20:08:36Z",
+        "body": "@tvm-bot merge"
+      },
+      {
+        "authorAssociation": "NONE",
+        "author": {
+          "login": "github-actions"
+        },
+        "id": "IC_kwDOBDeBdM5EMVkn",
+        "updatedAt": "2022-06-01T20:08:55Z",
+        "body": "Cannot merge, these CI jobs are not successful on 8b000d0a4c9789f42ed4e8f3fc797e7bd76452ce:\n * [PR / cc-reviewers (`CANCELLED`)](https://github.com/apache/tvm/runs/6692618718)\n * [Teams / tag-teams (`CANCELLED`)](https://github.com/apache/tvm/runs/6692618705)"
+      }
+    ]
+  },
+  "authorCommits": {
+    "nodes": [
+      {
+        "commit": {
+          "authors": {
+            "nodes": [
+              {
+                "name": "driazati",
+                "email": "driazati@users.noreply.github.com"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "commits": {
+    "nodes": [
+      {
+        "commit": {
+          "oid": "8b000d0a4c9789f42ed4e8f3fc797e7bd76452ce",
+          "statusCheckRollup": {
+            "contexts": {
+              "pageInfo": {
+                "hasNextPage": false
+              },
+              "nodes": [
+                {
+                  "name": "cc-reviewers",
+                  "checkSuite": {
+                    "workflowRun": {
+                      "workflow": {
+                        "name": "PR"
+                      }
+                    }
+                  },
+                  "status": "COMPLETED",
+                  "completedAt": "2022-06-01T15:32:23Z",
+                  "conclusion": "CANCELLED",
+                  "url": "https://github.com/apache/tvm/runs/6692618718"
+                },
+                {
+                  "name": "tag-teams",
+                  "checkSuite": {
+                    "workflowRun": {
+                      "workflow": {
+                        "name": "Teams"
+                      }
+                    }
+                  },
+                  "status": "COMPLETED",
+                  "completedAt": "2022-06-01T15:32:21Z",
+                  "conclusion": "CANCELLED",
+                  "url": "https://github.com/apache/tvm/runs/6692618705"
+                },
+                {
+                  "name": "MacOS",
+                  "checkSuite": {
+                    "workflowRun": {
+                      "workflow": {
+                        "name": "CI"
+                      }
+                    }
+                  },
+                  "status": "COMPLETED",
+                  "completedAt": "2022-05-28T00:52:07Z",
+                  "conclusion": "SUCCESS",
+                  "url": "https://github.com/apache/tvm/runs/6633016151"
+                },
+                {
+                  "name": "maybe-merge",
+                  "checkSuite": {
+                    "workflowRun": {
+                      "workflow": {
+                        "name": "Merge"
+                      }
+                    }
+                  },
+                  "status": "COMPLETED",
+                  "completedAt": "2022-06-01T20:08:01Z",
+                  "conclusion": "SUCCESS",
+                  "url": "https://github.com/apache/tvm/runs/6697027810"
+                },
+                {
+                  "name": "cc-reviewers",
+                  "checkSuite": {
+                    "workflowRun": {
+                      "workflow": {
+                        "name": "PR"
+                      }
+                    }
+                  },
+                  "status": "COMPLETED",
+                  "completedAt": "2022-05-27T23:21:28Z",
+                  "conclusion": "SUCCESS",
+                  "url": "https://github.com/apache/tvm/runs/6633016519"
+                },
+                {
+                  "name": "cc-reviewers",
+                  "checkSuite": {
+                    "workflowRun": {
+                      "workflow": {
+                        "name": "PR"
+                      }
+                    }
+                  },
+                  "status": "COMPLETED",
+                  "completedAt": "2022-05-27T23:22:11Z",
+                  "conclusion": "SUCCESS",
+                  "url": "https://github.com/apache/tvm/runs/6633020322"
+                },
+                {
+                  "name": "cc-reviewers",
+                  "checkSuite": {
+                    "workflowRun": {
+                      "workflow": {
+                        "name": "PR"
+                      }
+                    }
+                  },
+                  "status": "COMPLETED",
+                  "completedAt": "2022-06-01T15:34:03Z",
+                  "conclusion": "SUCCESS",
+                  "url": "https://github.com/apache/tvm/runs/6692623314"
+                },
+                {
+                  "name": "tag-teams",
+                  "checkSuite": {
+                    "workflowRun": {
+                      "workflow": {
+                        "name": "Teams"
+                      }
+                    }
+                  },
+                  "status": "COMPLETED",
+                  "completedAt": "2022-05-27T23:21:23Z",
+                  "conclusion": "SUCCESS",
+                  "url": "https://github.com/apache/tvm/runs/6633016525"
+                },
+                {
+                  "name": "tag-teams",
+                  "checkSuite": {
+                    "workflowRun": {
+                      "workflow": {
+                        "name": "Teams"
+                      }
+                    }
+                  },
+                  "status": "COMPLETED",
+                  "completedAt": "2022-05-27T23:22:25Z",
+                  "conclusion": "SUCCESS",
+                  "url": "https://github.com/apache/tvm/runs/6633020321"
+                },
+                {
+                  "name": "tag-teams",
+                  "checkSuite": {
+                    "workflowRun": {
+                      "workflow": {
+                        "name": "Teams"
+                      }
+                    }
+                  },
+                  "status": "COMPLETED",
+                  "completedAt": "2022-06-01T15:33:09Z",
+                  "conclusion": "SUCCESS",
+                  "url": "https://github.com/apache/tvm/runs/6692621919"
+                },
+                {
+                  "name": "Windows",
+                  "checkSuite": {
+                    "workflowRun": {
+                      "workflow": {
+                        "name": "CI"
+                      }
+                    }
+                  },
+                  "status": "COMPLETED",
+                  "completedAt": "2022-05-28T00:48:58Z",
+                  "conclusion": "SUCCESS",
+                  "url": "https://github.com/apache/tvm/runs/6633016091"
+                },
+                {
+                  "name": "Android",
+                  "checkSuite": {
+                    "workflowRun": {
+                      "workflow": {
+                        "name": "CI"
+                      }
+                    }
+                  },
+                  "status": "COMPLETED",
+                  "completedAt": "2022-05-28T00:31:19Z",
+                  "conclusion": "SUCCESS",
+                  "url": "https://github.com/apache/tvm/runs/6633016015"
+                },
+                {
+                  "state": "SUCCESS",
+                  "context": "tvm-ci/pr-head",
+                  "targetUrl": "https://ci.tlcpack.ai/job/tvm/job/PR-11455/4/display/redirect"
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "reviewDecision": "APPROVED",
+  "reviews": {
+    "pageInfo": {
+      "hasPreviousPage": false
+    },
+    "nodes": [
+      {
+        "body": "",
+        "updatedAt": "2022-05-25T15:23:30Z",
+        "url": "https://github.com/apache/tvm/pull/11455#pullrequestreview-985024880",
+        "id": "PRR_kwDOBDeBdM46tklw",
+        "authorCanPushToRepository": true,
+        "commit": {
+          "oid": "1b9747f58ebd170f4c2fc75c2f4cf3700d7cc131"
+        },
+        "author": {
+          "login": "Lunderberg"
+        },
+        "state": "COMMENTED"
+      },
+      {
+        "body": "",
+        "updatedAt": "2022-06-01T20:07:39Z",
+        "url": "https://github.com/apache/tvm/pull/11455#pullrequestreview-992618832",
+        "id": "PRR_kwDOBDeBdM47KilQ",
+        "authorCanPushToRepository": true,
+        "commit": {
+          "oid": "8b000d0a4c9789f42ed4e8f3fc797e7bd76452ce"
+        },
+        "author": {
+          "login": "areusch"
+        },
+        "state": "APPROVED"
+      }
+    ]
+  }
+}

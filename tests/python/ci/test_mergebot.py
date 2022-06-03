@@ -134,6 +134,14 @@ test_data = {
         "user": "abc",
         "detail": "Start a new CI job",
     },
+    "duplicate-jobs": {
+        "number": 11455,
+        "filename": "pr11455-duplicate-jobs.json",
+        "expected": "Dry run, would have merged",
+        "comment": "@tvm-bot merge",
+        "user": "abc",
+        "detail": "Check that only the most recent run of GitHub Actions jobs is used",
+    },
 }
 
 

@@ -59,6 +59,7 @@
               "nodes": [
                 {
                   "name": "MacOS",
+                  "completedAt": "2022-05-28T00:52:07Z",
                   "checkSuite": {
                     "workflowRun": {
                       "workflow": {
@@ -72,6 +73,7 @@
                 },
                 {
                   "name": "cc-reviewers",
+                  "completedAt": "2022-05-28T00:52:07Z",
                   "checkSuite": {
                     "workflowRun": {
                       "workflow": {
@@ -85,6 +87,7 @@
                 },
                 {
                   "name": "cc-reviewers",
+                  "completedAt": "2022-05-28T00:52:07Z",
                   "checkSuite": {
                     "workflowRun": {
                       "workflow": {
@@ -98,6 +101,7 @@
                 },
                 {
                   "name": "tag-teams",
+                  "completedAt": "2022-05-28T00:52:07Z",
                   "checkSuite": {
                     "workflowRun": {
                       "workflow": {
@@ -111,6 +115,7 @@
                 },
                 {
                   "name": "Windows",
+                  "completedAt": "2022-05-28T00:52:07Z",
                   "checkSuite": {
                     "workflowRun": {
                       "workflow": {

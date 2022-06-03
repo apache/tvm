@@ -21,6 +21,8 @@ import json
 import argparse
 import warnings
 import logging
+import collections
+import datetime
 import traceback
 import re
 from typing import Dict, Any, List, Optional, Callable
@@ -114,6 +116,7 @@ PR_QUERY = """
                           }
                         }
                         status
+                        completedAt
                         conclusion
                         url
                       }
@@ -255,23 +258,14 @@ class PR:
         Get a list of all CI jobs (GitHub Actions and other) in a unified format
         """
         jobs = []
+        # Collect GitHub actions jobs to de-duplicate them later
+        actions_by_name = collections.defaultdict(list)
+
         for item in self.head_commit()["statusCheckRollup"]["contexts"]["nodes"]:
             if "checkSuite" in item:
                 # GitHub Actions job, parse separately
-                status = item["conclusion"]
-                if status is None:
-                    # If the 'conclusion' isn't filled out the job hasn't
-                    # finished yet
-                    status = "PENDING"
-                jobs.append(
-                    {
-                        "name": item["checkSuite"]["workflowRun"]["workflow"]["name"]
-                        + " / "
-                        + item["name"],
-                        "url": item["url"],
-                        "status": status.upper(),
-                    }
-                )
+                name = item["checkSuite"]["workflowRun"]["workflow"]["name"] + " / " + item["name"]
+                actions_by_name[name].append(item)
             else:
                 # GitHub Status (e.g. from Jenkins)
                 jobs.append(
@@ -281,6 +275,28 @@ class PR:
                         "status": item["state"].upper(),
                     }
                 )
+
+        for name, runs in actions_by_name.items():
+            # The date strings are lexically sortable, GitHub only shows the last
+            # one but returns all previous runs through the API. This grabs only
+            # the most recent
+            item = list(sorted(runs, key=lambda x: x["completedAt"]))[-1]
+
+            status = item["conclusion"]
+            if status is None:
+                # If the 'conclusion' isn't filled out the job hasn't
+                # finished yet
+                status = "PENDING"
+
+            jobs.append(
+                {
+                    "name": item["checkSuite"]["workflowRun"]["workflow"]["name"]
+                    + " / "
+                    + item["name"],
+                    "url": item["url"],
+                    "status": status.upper(),
+                }
+            )
 
         logging.info(f"Found CI jobs for {self.head_commit()['oid']} {to_json_str(jobs)}")
         return jobs
@@ -417,11 +433,10 @@ class PR:
         return self.raw["author"]["login"]
 
     def find_failed_ci_jobs(self) -> List[CIJob]:
-        # NEUTRAL is GitHub Action's way of saying cancelled
         return [
             job
             for job in self.ci_jobs()
-            if job["status"] not in {"SUCCESS", "SUCCESSFUL", "SKIPPED"}
+            if job["status"] not in {"SUCCESS", "SUCCESSFUL", "SKIPPED", "NEUTRAL"}
         ]
 
     def find_missing_expected_jobs(self) -> List[str]:
@@ -572,6 +587,7 @@ if __name__ == "__main__":
     remote = git(["config", "--get", f"remote.{args.remote}.url"])
     logging.info(f"Using remote remote={remote}")
     owner, repo = parse_remote(remote)
+    owner = os.getenv("DEBUG_OWNER", owner)
 
     if args.pr.strip() == "":
         logging.info("No PR number passed")

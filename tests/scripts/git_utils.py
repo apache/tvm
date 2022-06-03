@@ -20,7 +20,7 @@ import json
 import subprocess
 import re
 import base64
-import logging
+import urllib
 from urllib import request
 from typing import Dict, Tuple, Any, Optional, List
 
@@ -77,6 +77,14 @@ class GitHubRepo:
             raise RuntimeError(msg)
         return response
 
+    def _urlopen(self, req, data=None):
+        try:
+            with request.urlopen(req, data) as response:
+                return json.loads(response.read())
+        except urllib.error.HTTPError as e:
+            print(f"Failed with {e}, got error response:\n{e.read().decode()}")
+            raise e
+
     def _request(self, full_url: str, body: Dict[str, Any], method: str) -> Dict[str, Any]:
         print(f"Requesting {method} to", full_url, "with", body)
         req = request.Request(full_url, headers=self.headers(), method=method.upper())
@@ -85,9 +93,7 @@ class GitHubRepo:
         data = data.encode("utf-8")
         req.add_header("Content-Length", len(data))
 
-        with request.urlopen(req, data) as response:
-            response = json.loads(response.read())
-        return response
+        return self._urlopen(req, data)
 
     def put(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:
         return self._request(self.base + url, data, method="PUT")
@@ -99,17 +105,13 @@ class GitHubRepo:
         url = self.base + url
         print("Requesting GET to", url)
         req = request.Request(url, headers=self.headers())
-        with request.urlopen(req) as response:
-            response = json.loads(response.read())
-        return response
+        return self._urlopen(req)
 
     def delete(self, url: str) -> Dict[str, Any]:
         url = self.base + url
         print("Requesting DELETE to", url)
         req = request.Request(url, headers=self.headers(), method="DELETE")
-        with request.urlopen(req) as response:
-            response = json.loads(response.read())
-        return response
+        return self._urlopen(req)
 
 
 def parse_remote(remote: str) -> Tuple[str, str]:
