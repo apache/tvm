@@ -46,7 +46,6 @@
 #include <unordered_map>  // For the hashtable datatype
 #include <utility>        // For std::pair and std::move
 #include <vector>
-#include <chrono> 						// Added for perf tests. To remove later.
 
 #include "../analysis/check_contains.h"  // For the visitor CheckContains
 #include "common_subexpr_elim_tools.h"   // For the auxiliary analysis (visitors) and tools
@@ -646,17 +645,10 @@ Pass CommonSubexprElimTIR(bool enable_cse_tir, bool identify_equiv_terms) {
         context_init.push_back({current_param, MaybeValue()});
       }
 
-      auto start = std::chrono::high_resolution_clock::now();
-
       // Do the Common Subexpression Elimination on the body of the function, with the initial
       // context that we have prepared
       n->body = CommonSubexpressionEliminator::PerformCSE(std::move(f->body), context_init,
                                                                             identify_equiv_terms);
-
-      auto stop = std::chrono::high_resolution_clock::now();
-
-      auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-      std::cout << "THE DURATION OF THE CSE PASS IS : " << duration.count() << std::endl;
     }
 
     return f;

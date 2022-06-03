@@ -438,7 +438,6 @@ def test_deterministic_cse():
     initial_hash = None
     for _ in range(REPEATS):
         body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
-        tvm.transform.PrintIR()(body)
 
         body = body["main"]
 
@@ -481,13 +480,19 @@ def test_deterministic_cse_2():
     inp, inr = auto_scheduler.measure_record.load_record_from_string(LOG_LINE)
     inp = auto_scheduler.measure.recover_measure_input(inp, rebuild_state=True)
 
+    initial_hash = None
+
     for _ in range(10):
         sch, args = inp.task.compute_dag.apply_steps_from_state(inp.state)
         ir_module = tvm.lower(sch, args)
         primfunc = ir_module["main"]
         json_str = save_json(primfunc)
-        print(hashlib.sha256(json_str.encode("utf-8")).hexdigest())
-
+        new_hash = hashlib.sha256(json_str.encode("utf-8")).hexdigest()
+        # Make sure that all the hashes are going to be the same
+        if(initial_hash is None):
+          initial_hash = new_hash        
+        assert new_hash == initial_hash
+          
 
 if __name__ == "__main__":
     # Basic test:
@@ -497,9 +502,9 @@ if __name__ == "__main__":
     test_cse_ifNode_2()
     # Test performing a commoning on a commoning:
     test_cse_cascade()
-    # Test that verify that the input program itself is not being normalized by the pass:
+    # Test that verifies that the input program itself is not being normalized by the pass:
     test_no_normalization_without_commoning()
-    # Tests that verify the commoning with equivalences:
+    # Tests that turn on the equivalence of terms and verify the commoning with equivalences:
     test_semantic_equiv_distributivity()
     test_semantic_equiv_associativity()
     # Tests that verify the determinism of the pass:
