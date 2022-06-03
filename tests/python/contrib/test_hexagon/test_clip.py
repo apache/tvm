@@ -41,13 +41,13 @@ def input_np(input_shape, dtype):
 @tvm.testing.fixture
 def transformed_expected_output_np(expected_output_np, output_layout):
     # transform_numpy does not support layouts that end in -*d
-    return transform_numpy(expected_output_np, output_layout[:-3])
+    return transform_numpy(expected_output_np, "nhwc", output_layout[:-3])
 
 
 @tvm.testing.fixture
 def transformed_input_np(input_np, input_layout):
     # transform_numpy does not support layouts that end in -*d
-    return transform_numpy(input_np, input_layout[:-3])
+    return transform_numpy(input_np, "nhwc", input_layout[:-3])
 
 
 class TestClipSlice:
