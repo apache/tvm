@@ -47,8 +47,12 @@ TEST_F(HexagonThreadManagerTest, ctor_errors) {
   ASSERT_THROW(HexagonThreadManager(0, stack_size, pipe_size), InternalError);
   // too many threads
   ASSERT_THROW(HexagonThreadManager(60, stack_size, pipe_size), InternalError);
+  // stack too small
+  ASSERT_THROW(HexagonThreadManager(6, MIN_STACK_SIZE_BYTES - 1, pipe_size), InternalError);
   // stack too big
   ASSERT_THROW(HexagonThreadManager(6, MAX_STACK_SIZE_BYTES + 1, pipe_size), InternalError);
+  // pipe too small
+  ASSERT_THROW(HexagonThreadManager(6, stack_size, MIN_PIPE_SIZE_WORDS - 1), InternalError);
   // pipe too big
   ASSERT_THROW(HexagonThreadManager(6, stack_size, MAX_PIPE_SIZE_WORDS + 1), InternalError);
 }

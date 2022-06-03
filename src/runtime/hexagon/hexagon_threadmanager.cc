@@ -16,15 +16,11 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   CHECK_LE(num_threads, QURT_MAX_HTHREAD_LIMIT);
   nthreads = num_threads;
 
+  CHECK_GE(thread_stack_size_bytes, MIN_STACK_SIZE_BYTES);
   CHECK_LE(thread_stack_size_bytes, MAX_STACK_SIZE_BYTES);
-  if (thread_stack_size_bytes < MIN_STACK_SIZE_BYTES) {
-    thread_stack_size_bytes = MIN_STACK_SIZE_BYTES;
-  }
 
+  CHECK_GE(thread_pipe_size_words, MIN_PIPE_SIZE_WORDS);
   CHECK_LE(thread_pipe_size_words, MAX_PIPE_SIZE_WORDS);
-  if (thread_pipe_size_words < MIN_PIPE_SIZE_WORDS) {
-    thread_pipe_size_words = MIN_PIPE_SIZE_WORDS;
-  }
 
   DBG("Spawning threads");
   SpawnThreads(thread_stack_size_bytes, thread_pipe_size_words);
