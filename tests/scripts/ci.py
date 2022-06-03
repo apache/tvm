@@ -342,6 +342,7 @@ def generate_command(
     options: Dict[str, Option],
     help: str,
     precheck: Optional[Callable[[], None]] = None,
+    post_build: Optional[List[str]] = None,
 ):
     """
     Helper to generate CLIs that:
@@ -377,6 +378,9 @@ def generate_command(
                 f"./tests/scripts/task_config_build_{name}.sh {get_build_dir(name)}",
                 f"./tests/scripts/task_build.py --build-dir {get_build_dir(name)}",
             ]
+
+        if post_build is not None:
+            scripts += post_build
 
         # Check that a test suite was not used alongside specific test names
         if any(v for v in kwargs.values()) and tests is not None:
@@ -624,12 +628,12 @@ generated = [
     generate_command(
         name="hexagon",
         help="Run Hexagon build and test(s)",
+        post_build=["./tests/scripts/task_build_hexagon_api.sh --output build-hexagon"],
         options={
             "cpp": CPP_UNITTEST,
             "test": (
                 "run Hexagon API/Python tests",
                 [
-                    "./tests/scripts/task_build_hexagon_api.sh",
                     "./tests/scripts/task_python_hexagon.sh",
                 ],
             ),
