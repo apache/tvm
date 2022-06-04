@@ -187,7 +187,7 @@ TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs);
 TVM_DLL void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs);
 
 /*!
- * \brief Create a new thread_binding loop on top of the `loop_rv`
+ * \brief Create a new unit loop on top of the specific block or loop.
  * \param sref The block/loop above which the new thread_binding loop is created
  * \param extent The extent of the new thread_binding loop
  * \param thread_axis The thread axis of the new thread_binding loop

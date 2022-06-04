@@ -687,7 +687,7 @@ class Schedule(Object):
 
     @type_checked
     def add_unit_loop(self, block_or_loop: Union[LoopRV, BlockRV]) -> LoopRV:
-        """Create a new unit loop on top of the specific block.
+        """Create a new unit loop on top of the specific block or loop.
 
         Parameters
         ----------
