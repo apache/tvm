@@ -105,7 +105,8 @@ void dnnl_conv2d_common(float* data, float* weights, float* bias, float* out, in
       memory({{conv2d_weights_tz}, dt::f32, channel_last? tag::ghwio : tag::goihw}, eng, weights);
   auto conv2d_user_bias_memory =
       memory({{conv2d_bias_tz}, dt::f32, tag::x}, eng, bias);
-  auto user_dst_memory = memory({{conv2d_dst_tz}, dt::f32, channel_last? tag::nhwc : tag::nchw}, eng, out);
+  auto user_dst_memory = 
+      memory({{conv2d_dst_tz}, dt::f32, channel_last? tag::nhwc : tag::nchw}, eng, out);
 
   auto conv2d_src_md = memory::desc({conv2d_src_tz}, dt::f32, tag::any);
   auto conv2d_bias_md = memory::desc({conv2d_bias_tz}, dt::f32, tag::any);
