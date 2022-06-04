@@ -80,8 +80,8 @@ inline void read_from_dnnl_memory(void* handle, const memory& mem) {
 
 void dnnl_conv2d_common(float* data, float* weights, float* bias, float* out, int p_N_, int p_C_,
                         int p_H_, int p_W_, int p_O_, int p_G_, int p_Ph0_, int p_Pw0_, int p_Ph1_,
-                        int p_Pw1_, int p_Kh_, int p_Kw_, int p_Sh_, int p_Sw_,
-                        primitive_attr attr, bool channel_last) {
+                        int p_Pw1_, int p_Kh_, int p_Kw_, int p_Sh_, int p_Sw_, primitive_attr attr,
+                        bool channel_last) {
   using tag = memory::format_tag;
   using dt = memory::data_type;
   engine eng(engine::kind::cpu, 0);
@@ -98,15 +98,15 @@ void dnnl_conv2d_common(float* data, float* weights, float* bias, float* out, in
   memory::dims conv2d_padding1 = {p_Ph1_, p_Pw1_};
 
   auto user_src_memory =
-      memory({{conv2d_src_tz}, dt::f32, channel_last? tag::nhwc : tag::nchw}, eng, data);
+      memory({{conv2d_src_tz}, dt::f32, channel_last ? tag::nhwc : tag::nchw}, eng, data);
   auto user_weights_memory =
-      memory({{conv2d_weights_tz}, dt::f32, channel_last? tag::hwio : tag::oihw}, eng, weights);
-  if (p_G_ > 1) user_weights_memory =
-      memory({{conv2d_weights_tz}, dt::f32, channel_last? tag::ghwio : tag::goihw}, eng, weights);
-  auto conv2d_user_bias_memory =
-      memory({{conv2d_bias_tz}, dt::f32, tag::x}, eng, bias);
+      memory({{conv2d_weights_tz}, dt::f32, channel_last ? tag::hwio : tag::oihw}, eng, weights);
+  if (p_G_ > 1)
+    user_weights_memory = memory(
+        {{conv2d_weights_tz}, dt::f32, channel_last ? tag::ghwio : tag::goihw}, eng, weights);
+  auto conv2d_user_bias_memory = memory({{conv2d_bias_tz}, dt::f32, tag::x}, eng, bias);
   auto user_dst_memory =
-      memory({{conv2d_dst_tz}, dt::f32, channel_last? tag::nhwc : tag::nchw}, eng, out);
+      memory({{conv2d_dst_tz}, dt::f32, channel_last ? tag::nhwc : tag::nchw}, eng, out);
 
   auto conv2d_src_md = memory::desc({conv2d_src_tz}, dt::f32, tag::any);
   auto conv2d_bias_md = memory::desc({conv2d_bias_tz}, dt::f32, tag::any);
@@ -129,10 +129,10 @@ void dnnl_conv2d_common(float* data, float* weights, float* bias, float* out, in
   // reorder if weights layout not DNNL chosen.
   auto conv2d_weights_memory = user_weights_memory;
   if (conv2d_prim_desc.weights_desc() != user_weights_memory.get_desc()) {
-      conv2d_weights_memory = memory(conv2d_prim_desc.weights_desc(), eng);
-      auto reorder_weights = reorder(user_weights_memory, conv2d_weights_memory);
-      reorder_weights.execute(
-          s, {{DNNL_ARG_FROM, user_weights_memory}, {DNNL_ARG_TO, conv2d_weights_memory}});
+    conv2d_weights_memory = memory(conv2d_prim_desc.weights_desc(), eng);
+    auto reorder_weights = reorder(user_weights_memory, conv2d_weights_memory);
+    reorder_weights.execute(
+        s, {{DNNL_ARG_FROM, user_weights_memory}, {DNNL_ARG_TO, conv2d_weights_memory}});
   }
 
   auto conv2d_dst_memory = user_dst_memory;
@@ -148,8 +148,8 @@ void dnnl_conv2d_common(float* data, float* weights, float* bias, float* out, in
 
   // reorder if dst layout not DNNL chosen.
   if (conv2d_prim_desc.dst_desc() != user_dst_memory.get_desc()) {
-    reorder(conv2d_dst_memory, user_dst_memory).execute(
-          s, {{DNNL_ARG_FROM, conv2d_dst_memory}, {DNNL_ARG_TO, user_dst_memory}});
+    reorder(conv2d_dst_memory, user_dst_memory)
+        .execute(s, {{DNNL_ARG_FROM, conv2d_dst_memory}, {DNNL_ARG_TO, user_dst_memory}});
   }
 
   s.wait();
@@ -342,21 +342,12 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mkldnn.conv2d").set_body([](TVMArgs args, TVMRe
   DLTensor* input = args[0];
   DLTensor* weights = args[1];
   DLTensor* output = args[2];
-  int p_Ph0_ = args[3],
-      p_Pw0_ = args[4],
-      p_Ph1_ = args[5],
-      p_Pw1_ = args[6],
-      p_Sh_ = args[7],
-      p_Sw_ = args[8],
-      p_G_ = args[9];
+  int p_Ph0_ = args[3], p_Pw0_ = args[4], p_Ph1_ = args[5], p_Pw1_ = args[6], p_Sh_ = args[7],
+      p_Sw_ = args[8], p_G_ = args[9];
   bool channel_last = args[10];
 
-  int p_N_ = input->shape[0],
-      p_C_ = input->shape[1],
-      p_H_ = input->shape[2],
-      p_W_ = input->shape[3],
-      p_O_ = output->shape[1],
-      p_Kh_ = weights->shape[2],
+  int p_N_ = input->shape[0], p_C_ = input->shape[1], p_H_ = input->shape[2],
+      p_W_ = input->shape[3], p_O_ = output->shape[1], p_Kh_ = weights->shape[2],
       p_Kw_ = weights->shape[3];
 
   if (channel_last) {
@@ -372,9 +363,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mkldnn.conv2d").set_body([](TVMArgs args, TVMRe
   std::vector<float> bias(p_O_, 0);
   primitive_attr attr;
   return dnnl_conv2d_common(static_cast<float*>(input->data), static_cast<float*>(weights->data),
-                            bias.data(), static_cast<float*>(output->data), p_N_, p_C_, p_H_,
-                            p_W_, p_O_, p_G_, p_Ph0_, p_Pw0_, p_Ph1_, p_Pw1_, p_Kh_, p_Kw_,
-                            p_Sh_, p_Sw_, attr, channel_last);
+                            bias.data(), static_cast<float*>(output->data), p_N_, p_C_, p_H_, p_W_,
+                            p_O_, p_G_, p_Ph0_, p_Pw0_, p_Ph1_, p_Pw1_, p_Kh_, p_Kw_, p_Sh_, p_Sw_,
+                            attr, channel_last);
 });
 
 }  // namespace contrib
