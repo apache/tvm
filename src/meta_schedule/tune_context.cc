@@ -89,7 +89,7 @@ TVM_REGISTER_GLOBAL("meta_schedule.TuneContext")
     });
 
 TVM_REGISTER_GLOBAL("meta_schedule._SHash2Hex").set_body_typed(SHash2Hex);
-TVM_REGISTER_GLOBAL("meta_schedule.TuneContextNodeInitialize")
+TVM_REGISTER_GLOBAL("meta_schedule.TuneContextInitialize")
     .set_body_method<TuneContext>(&TuneContextNode::Initialize);
 
 }  // namespace meta_schedule
