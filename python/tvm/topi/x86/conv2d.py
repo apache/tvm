@@ -285,7 +285,7 @@ def schedule_conv2d_nchw_mkldnn(_, outs):
 @autotvm.register_topi_compute("conv2d_nhwc_mkldnn.x86")
 def conv2d_nhwc_mkldnn(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """Compute conv2d in NHWC format using mkldnn."""
-    groups =  1
+    groups = 1
     _out = mkldnn.dnnl_conv2d(data, kernel, strides, padding, dilation, groups, True, out_dtype)
     return _out
 
