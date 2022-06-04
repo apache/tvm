@@ -52,6 +52,7 @@ def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
         **kwargs,
     )
 
+
 def dnnl_conv2d(
     Input,
     Filter,
@@ -61,7 +62,7 @@ def dnnl_conv2d(
     groups,
     channel_last=False,
     out_dtype="float32",
-    **kwargs
+    **kwargs,
 ):
     """Convolution operator in NCHW layout.
 
@@ -125,9 +126,9 @@ def dnnl_conv2d(
         padding, (dilated_kernel_h, dilated_kernel_w)
     )
     out_channel = num_filter
-    out_height = ((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
-    out_width = ((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
-    
+    out_height = (in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1
+    out_width = (in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1
+
     if channel_last:
         out_shape = (batch, out_height, out_width, out_channel)
     else:
@@ -137,8 +138,8 @@ def dnnl_conv2d(
         out_shape,
         [Input, Filter],
         lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.mkldnn.conv2d", 
-            ins[0], 
+            "tvm.contrib.mkldnn.conv2d",
+            ins[0],
             ins[1],
             outs[0],
             pad_top,

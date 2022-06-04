@@ -267,24 +267,28 @@ def schedule_conv2d_NCHWc(cfg, outs):
     traverse_inline(s, outs[0].op, _callback)
     return s
 
+
 @autotvm.register_topi_compute("conv2d_nchw_mkldnn.x86")
 def conv2d_nchw_mkldnn(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """Compute conv2d in NCHW format using mkldnn."""
-    groups=1
+    groups = 1
     _out = mkldnn.dnnl_conv2d(data, kernel, strides, padding, dilation, groups, False, out_dtype)
     return _out
+
 
 @autotvm.register_topi_schedule("conv2d_nchw_mkldnn.x86")
 def schedule_conv2d_nchw_mkldnn(_, outs):
     """Create schedule for conv2d_nchw_mkldnn"""
     return generic.schedule_extern(outs)
 
+
 @autotvm.register_topi_compute("conv2d_nhwc_mkldnn.x86")
 def conv2d_nhwc_mkldnn(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """Compute conv2d in NHWC format using mkldnn."""
-    groups=1
+    groups =  1
     _out = mkldnn.dnnl_conv2d(data, kernel, strides, padding, dilation, groups, True, out_dtype)
     return _out
+
 
 @autotvm.register_topi_schedule("conv2d_nhwc_mkldnn.x86")
 def schedule_conv2d_nhwc_mkldnn(_, outs):
