@@ -122,7 +122,7 @@ bool CommonSubexpressionEliminator::CanContainEligibleComputations(const PrimExp
 
 /*!
  * \brief Implements an order on pairs (expression,frequency). First attempts to compare them
-          using the size of the expression. If the is the same, decides something else still 
+          using the size of the expression. If the is the same, decides something else still
           deterministic.
  * \param a The first pair
  * \param b The second pair
@@ -139,8 +139,7 @@ bool CommonSubexpressionEliminator::OrderOnExprAndFrequency(std::pair<PrimExpr, 
 
   // Criteria 1 - Size of the expression comes first
   // `a` comes before `b` if the size of `a` is bigger
-  if (a_size > b_size)
-    return true;
+  if (a_size > b_size) return true;
   // `a` does NOT come before `b` if the size of `b` is bigger
   else if (b_size > a_size)
     return false;
@@ -201,11 +200,11 @@ int CommonSubexpressionEliminator::GetNbVarGenerated() { return nb_var_; }
  * \return A new statement where CSE has been performed
  */
 Stmt CommonSubexpressionEliminator::PerformCSE(const Stmt& stmt, const Context& context_init,
-                                                                      bool identify_equiv_terms) {
+                                               bool identify_equiv_terms) {
   // As this function is being called for each PrimFunc definition, we create a new instance
   // for the one we are having now.
   CommonSubexpressionEliminator common_subexpression_eliminator(stmt, context_init,
-                                                                      identify_equiv_terms);
+                                                                identify_equiv_terms);
   return common_subexpression_eliminator.VisitStmt(stmt);
 }
 
@@ -270,7 +269,7 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
           // Note : safe to call value() as we check has_value() just before
           return (var_and_value.second.has_value() &&
                   EquivalentTerms(var_and_value.second.value(), computation_and_nb.first,
-                                                                ident_equiv_terms));
+                                  ident_equiv_terms));
         });
 
     // Case where we have a perfectly equivalent computation already available in a variable
@@ -311,8 +310,8 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
         // Replace in the current `result` everything that is selected by the selector with
         // the new variable, without diving into expressions in which we don't have the
         // right to dive.
-        result = ReplaceSelectedExpr::ReplaceSelectedExprInExpr(result, predicate_selector,
-                                                          new_var, CanContainEligibleComputations);
+        result = ReplaceSelectedExpr::ReplaceSelectedExprInExpr(result, predicate_selector, new_var,
+                                                                CanContainEligibleComputations);
         // Build a let-in that introduces the new variable in the current `result`
         result = Let(new_var, computation_and_nb.first, result);
         // We don't add the variable to the context because the invariant is that the
@@ -337,7 +336,7 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
         // decreasing size/complexity), and it will only insert at locations > i as the
         // direct subexprs are necessarily smaller than the current computation.
         InsertVectorToSortedSemanticComputations(&semantic_comp_done_by_expr, direct_subexprs,
-                                                                            identify_equiv_terms_);
+                                                 identify_equiv_terms_);
       }
     }
     // Note : we do not remove the current element, as we never look back in the local vector
@@ -450,7 +449,7 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
           // Note : safe to call value() as we check has_value() just before
           return (var_and_value.second.has_value() &&
                   EquivalentTerms(var_and_value.second.value(), computation_and_nb.first,
-                                                                ident_equiv_terms));
+                                  ident_equiv_terms));
         });
 
     // Case where we have a perfectly equivalent computation already available in a variable
@@ -492,8 +491,8 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
         // Replace in the current `result` everything that is selected by the selector with
         // the new variable, without diving into expressions in which we don't have the
         // right to dive.
-        result = ReplaceSelectedExpr::ReplaceSelectedExprInStmt(result, predicate_selector,
-                                                          new_var, CanContainEligibleComputations);
+        result = ReplaceSelectedExpr::ReplaceSelectedExprInStmt(result, predicate_selector, new_var,
+                                                                CanContainEligibleComputations);
         // Build a let-in that introduces the new variable in the current `result`
         result = LetStmt(new_var, computation_and_nb.first, result);
         // We don't add the variable to the context because the invariant is that the
@@ -518,7 +517,7 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
         // decreasing size/complexity), and it will only insert at locations > i as the
         // direct subexprs are necessarily smaller than the current computation.
         InsertVectorToSortedSemanticComputations(&semantic_comp_done_by_stmt, direct_subexprs,
-                                                                            identify_equiv_terms_);
+                                                 identify_equiv_terms_);
       }
     }
     // Note : we do not remove the current element, as we never look back in the local vector
@@ -629,8 +628,7 @@ namespace transform {
  * \return The pass for performing CSE.
  */
 Pass CommonSubexprElimTIR(bool enable_cse_tir, bool identify_equiv_terms) {
-  auto pass_func = [enable_cse_tir, identify_equiv_terms](PrimFunc f, IRModule m,
-                                                                      PassContext ctx) {
+  auto pass_func = [enable_cse_tir, identify_equiv_terms](PrimFunc f, IRModule m, PassContext ctx) {
     if (enable_cse_tir) {
       auto* n = f.CopyOnWrite();
       Context context_init;
@@ -646,7 +644,7 @@ Pass CommonSubexprElimTIR(bool enable_cse_tir, bool identify_equiv_terms) {
       // Do the Common Subexpression Elimination on the body of the function, with the initial
       // context that we have prepared
       n->body = CommonSubexpressionEliminator::PerformCSE(std::move(f->body), context_init,
-                                                                            identify_equiv_terms);
+                                                          identify_equiv_terms);
     }
 
     return f;

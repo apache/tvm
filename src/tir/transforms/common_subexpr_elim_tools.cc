@@ -26,7 +26,7 @@
 #include "common_subexpr_elim_tools.h"
 
 #include <tvm/arith/analyzer.h>  // For the arith::Analyzer::Simplify() method simplifying terms
-#include <tvm/ir/transform.h>  // For the class Pass and the class PassContext
+#include <tvm/ir/transform.h>    // For the class Pass and the class PassContext
 #include <tvm/runtime/container/string.h>
 #include <tvm/tir/analysis.h>  // For the ExprDeepEqual analysis
 #include <tvm/tir/expr.h>
@@ -753,9 +753,9 @@ PrimExpr NormalizeTerm(const PrimExpr& expr, bool do_normalization) {
  * \brief Decides if two terms are equivalent semantically
  */
 bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b, bool identify_equiv_terms) {
-    // We restrict the equivalence to be decidable by a normalization procedure that is used to
-    // normalize both sides, and to then compare the normal forms with the strict syntactical
-    // equality
+  // We restrict the equivalence to be decidable by a normalization procedure that is used to
+  // normalize both sides, and to then compare the normal forms with the strict syntactical
+  // equality
     return EqualTerms(NormalizeTerm(a, identify_equiv_terms),
                       NormalizeTerm(b, identify_equiv_terms));
 }
@@ -836,8 +836,8 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   // Careful : the pairs will never change (the canonical represantants chosen will always be the
   // same), but the order in which the pairs are produced can vary as we are iterating through the
   // hashtable `norm_table`. It is not an issue as the called will be sorting the result anyway.
-  std::unordered_map<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash, ExprDeepEqual>
-      ::const_iterator it_norm_table;
+  std::unordered_map<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash,
+                     ExprDeepEqual>::const_iterator it_norm_table;
   for (it_norm_table = norm_table.begin(); it_norm_table != norm_table.end(); ++it_norm_table) {
     result.push_back(it_norm_table->second);
   }
@@ -895,11 +895,11 @@ void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, si
   for (auto elem_to_add : vec_to_add) {
     // See if the current element to add (or an equivalent one) is already present
     // in the sorted vector
-    auto it_found = std::find_if(sorted_vec->begin(), sorted_vec->end(),
-                        [elem_to_add, identify_equiv_terms](std::pair<PrimExpr, size_t> elem) {
-                                   return EquivalentTerms(elem.first, elem_to_add,
-                                                                      identify_equiv_terms);
-                        });
+    auto it_found =
+        std::find_if(sorted_vec->begin(), sorted_vec->end(),
+                     [elem_to_add, identify_equiv_terms](std::pair<PrimExpr, size_t> elem) {
+                       return EquivalentTerms(elem.first, elem_to_add, identify_equiv_terms);
+                     });
 
     // If we found `elem_to_add` (or an equivalent expression) already in sorted_vec
     if (it_found != sorted_vec->end()) {
