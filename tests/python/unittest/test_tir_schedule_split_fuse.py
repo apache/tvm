@@ -524,5 +524,63 @@ def test_fuse_not_affine():
     verify_trace_roundtrip(sch=sch, mod=elementwise_not_affine)
 
 
+def test_add_unit_loop_above_block():
+    @T.prim_func
+    def zero_dim(
+        A: T.Buffer[(), "int32"],
+        B: T.Buffer[(), "int32"],
+        C: T.Buffer[(), "int32"],
+    ) -> None:
+        with T.block("C"):
+            vi = T.axis.spatial(1, 0)
+            C[()] = A[()] + B[()]
+
+    @T.prim_func
+    def zero_dim_added(
+        A: T.Buffer[(), "int32"],
+        B: T.Buffer[(), "int32"],
+        C: T.Buffer[(), "int32"],
+    ) -> None:
+        for u in range(1):
+            with T.block("C"):
+                vi = T.axis.spatial(1, 0)
+                C[()] = A[()] + B[()]
+
+    sch = tir.Schedule(zero_dim, debug_mask="all")
+    block = sch.get_block("C")
+    sch.add_unit_loop(block)
+    tvm.ir.assert_structural_equal(zero_dim_added, sch.mod["main"])
+
+
+def test_add_unit_loop_above_loop():
+    @T.prim_func
+    def zero_dim(
+        A: T.Buffer[(), "int32"],
+        B: T.Buffer[(), "int32"],
+        C: T.Buffer[(), "int32"],
+    ) -> None:
+        for u in range(1):
+            with T.block("C"):
+                vi = T.axis.spatial(1, 0)
+                C[()] = A[()] + B[()]
+
+    @T.prim_func
+    def zero_dim_added(
+        A: T.Buffer[(), "int32"],
+        B: T.Buffer[(), "int32"],
+        C: T.Buffer[(), "int32"],
+    ) -> None:
+        for u1, u2 in T.grid(1, 1):
+            with T.block("C"):
+                vi = T.axis.spatial(1, 0)
+                C[()] = A[()] + B[()]
+
+    sch = tir.Schedule(zero_dim, debug_mask="all")
+    block = sch.get_block("C")
+    (loop,) = sch.get_loops(block)
+    sch.add_unit_loop(loop)
+    tvm.ir.assert_structural_equal(zero_dim_added, sch.mod["main"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

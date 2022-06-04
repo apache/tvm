@@ -303,6 +303,18 @@ class ScheduleNode : public runtime::Object {
    * \param ordered_loop_rvs The loops in the new order
    */
   virtual void Reorder(const Array<LoopRV>& ordered_loop_rvs) = 0;
+  /*!
+   * \brief Create a new unit loop on top of the specific block.
+   * \param block_rv The block above which the new loop is created
+   * \return The new loop created
+   */
+  virtual LoopRV AddUnitLoop(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Create a new unit loop on top of the specific loop.
+   * \param loop_rv The loop above which the new loop is created
+   * \return The new loop created
+   */
+  virtual LoopRV AddUnitLoop(const LoopRV& loop_rv) = 0;
   /******** Schedule: Manipulate ForKind ********/
   /*!
    * \brief Parallelize the input loop. It requires:
