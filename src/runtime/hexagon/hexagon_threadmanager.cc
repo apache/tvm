@@ -53,7 +53,8 @@ HexagonThreadManager::~HexagonThreadManager() {
   // destroy semaphores
   qurt_sem_destroy(&start_semaphore);
   for (int i = 0; i < semaphores.size(); i++) {
-    qurt_sem_destroy(&semaphores[i]);
+    qurt_sem_destroy(semaphores[i]);
+    free(semaphores[i]);
   }
   
   // Delete pipe objects and contexts
@@ -149,7 +150,7 @@ bool HexagonThreadManager::Dispatch(TVMStreamHandle thread, PackedFunc f, TVMArg
   
 bool HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* args) {
   unsigned thread = (unsigned)stream;
-  DBG("Dispatching to stream " << std::to_string(thread));
+  DBG("Dispatching to stream " << STR(thread));
   Command* cmd = new Command(f, args);  // Command object freed by receiving thread
   qurt_pipe_data_t msg = (qurt_pipe_data_t)(cmd);
   qurt_pipe_t* pipeAddr = &pipes[thread];
@@ -198,22 +199,26 @@ void HexagonThreadManager::WaitOnThreads() {
 void HexagonThreadManager::check_semaphore(unsigned syncID) {
   // extend the semaphore vector if it's not long enough
   if (syncID >= semaphores.size()) {
+    DBG("Expanding semaphores from " << STR(semaphores.size()) << " to " << STR(syncID+1));
     auto oldsize = semaphores.size();
     semaphores.resize(syncID + 1);
     for (int i = oldsize; i < semaphores.size(); i++) {
-      qurt_sem_init_val(&semaphores[i], 0);
+      semaphores[i] = (qurt_sem_t*) malloc(sizeof(qurt_sem_t));
+      qurt_sem_init_val(semaphores[i], 0);
     }
   }
 }
   
 bool HexagonThreadManager::Signal(TVMStreamHandle thread, SyncPoint syncID) {
   check_semaphore(syncID);
-  return Dispatch(thread, thread_signal, (void*) &semaphores[syncID]);
+  DBG("Dispatching signal to thread " << STR(thread) << " on semaphore ID " << STR(syncID) << " located @ " << HEX(semaphores[syncID]));
+  return Dispatch(thread, thread_signal, (void*) semaphores[syncID]);
 }
 
 bool HexagonThreadManager::Wait(TVMStreamHandle thread, SyncPoint syncID) {
   check_semaphore(syncID);
-  return Dispatch(thread, thread_wait, (void*) &semaphores[syncID]);
+  DBG("Dispatching wait to thread " << STR(thread) << " on semaphore ID " << STR(syncID) << " located @ " << HEX(semaphores[syncID]));
+  return Dispatch(thread, thread_wait, (void*) semaphores[syncID]);
 }
 
 /* Create a sync_from_to relationship with a dynamic semaphore allocation.
@@ -230,10 +235,12 @@ bool HexagonThreadManager::SyncFromTo(TVMStreamHandle signal_thread, TVMStreamHa
 }
   
 void HexagonThreadManager::thread_signal(void* semaphore) {
+  DBG("Signaling semaphore addr " << HEX(semaphore));
   qurt_sem_add( (qurt_sem_t*) semaphore, QURT_MAX_HTHREAD_LIMIT);
 }
 
 void HexagonThreadManager::thread_wait(void* semaphore) {
+  DBG("Waiting on semaphore addr " << HEX(semaphore));
   qurt_sem_down( (qurt_sem_t*) semaphore);
 }
 

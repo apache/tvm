@@ -40,6 +40,8 @@ class HexagonBufferMap {
 };
 
 #define DBG(msg) LOG(WARNING) << msg << "\n"
+#define STR(num) std::to_string((int)num)
+#define HEX(num) "0x" << std::hex << (int)num << std::dec
 
 #define MIN_STACK_SIZE_BYTES 0x400 // 1KB
 #define MAX_STACK_SIZE_BYTES 0x10000 // 64KB
@@ -88,7 +90,7 @@ private:
   qurt_thread_t* threads{nullptr};
   qurt_pipe_t* pipes{nullptr};
   ThreadContext** contexts{nullptr};
-  std::vector<qurt_sem_t> semaphores;
+  std::vector<qurt_sem_t*> semaphores;
   qurt_sem_t start_semaphore;
   #endif
 

@@ -222,3 +222,31 @@ TEST_F(HexagonThreadManagerTest, dispatch_prints) {
   htm->WaitOnThreads();
 }
 
+void increment(void *val) {
+  int x = *(int*)val;
+  x = x + 1;
+  LOG(WARNING) << "incrementing value to " << x << "\n";
+  *(int*)val = x;
+}
+
+TEST_F(HexagonThreadManagerTest, producer_consumer_signal_wait) {
+  htm->Wait(streams[0], 0);
+  htm->Wait(streams[1], 1);
+  htm->Wait(streams[2], 2);
+  htm->Wait(streams[3], 3);
+  htm->Wait(streams[4], 4);
+
+  htm->Dispatch(streams[5], increment, &answer);
+  htm->Signal(streams[5], 4);
+  htm->Dispatch(streams[4], increment, &answer);  
+  htm->Signal(streams[4], 3);
+  htm->Dispatch(streams[3], increment, &answer);
+  htm->Signal(streams[3], 2);
+  htm->Dispatch(streams[2], increment, &answer);
+  htm->Signal(streams[2], 1);
+  htm->Dispatch(streams[1], increment, &answer);
+  htm->Signal(streams[1], 0);
+  htm->Dispatch(streams[0], increment, &answer);
+  htm->WaitOnThreads();
+  CHECK_EQ(answer, 6);
+}

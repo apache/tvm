@@ -27,7 +27,10 @@ import tvm
 # pytest -sv <this file> --gtests_args="--gtest_filter=*foo* --gtest_repeat=2"
 @tvm.testing.requires_hexagon
 def test_run_unit_tests(hexagon_session, gtest_args):
-    gtest_args = "--gtest_filter=HexagonThreadManagerStandalone.pipe_overflow"
+    suite_name = "HexagonThreadManagerTest"
+    #test_name = "producer_consumer_signal_wait"
+    test_name = "*"
+    gtest_args = "--gtest_filter=" + suite_name + "." + test_name
     func = hexagon_session._rpc.get_function("hexagon.run_unit_tests")
     gtest_error_code_and_output = func(gtest_args)
     gtest_error_code = int(gtest_error_code_and_output.splitlines()[0])
