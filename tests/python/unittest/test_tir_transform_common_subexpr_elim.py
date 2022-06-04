@@ -486,7 +486,7 @@ def test_deterministic_cse_2():
         new_hash = hashlib.sha256(json_str.encode("utf-8")).hexdigest()
         # Make sure that all the hashes are going to be the same
         if initial_hash is None:
-            initial_hash = new_hash        
+            initial_hash = new_hash      
         assert new_hash == initial_hash
 
 
