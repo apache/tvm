@@ -129,3 +129,4 @@ class TuneContext(Object):
             rand_state,
             num_threads,
         )
+        _ffi_api.TuneContextNodeInitialize(self)
