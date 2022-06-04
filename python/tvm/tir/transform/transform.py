@@ -323,6 +323,7 @@ def BF16TypeLowering():
     """
     return _ffi_api.BF16TypeLowering()  # type: ignore
 
+
 def CommonSubexprElimTIR(enable_cse_tir: bool = True, identify_equiv_terms: bool = False):
     """Replace redundant computations by new variables.
 

@@ -174,10 +174,7 @@ def test_cse_ifNode_1():
         tvm.tir.IfThenElse(
             b,
             tvm.tir.SeqStmt(
-                [
-                    tvm.tir.BufferStore(buffer, y + z, [i1]),
-                    tvm.tir.BufferStore(buffer, y + z, [i2])
-                ]
+                [tvm.tir.BufferStore(buffer, y + z, [i1]), tvm.tir.BufferStore(buffer, y + z, [i2])]
             ),
             tvm.tir.BufferStore(buffer, y, [i3]),
         ),
@@ -470,11 +467,10 @@ def conv2d_layer(N, H, W, CO, CI, KH, KW, stride, padding):
     data = te.placeholder((N, CI, H, W), name="data")
     kernel = te.placeholder((CO, CI, KH, KW), name="kernel")
     bias = te.placeholder((1, CO, 1, 1), name="bias")
-    conv = topi.nn.conv2d_nchw(
-        data, kernel, stride, padding, dilation=1, out_dtype="float32"
-    )
+    conv = topi.nn.conv2d_nchw(data, kernel, stride, padding, dilation=1, out_dtype="float32")
     out = topi.nn.relu(conv + bias)
     return [data, kernel, bias, out]
+
 
 def test_deterministic_cse_2():
     inp, inr = auto_scheduler.measure_record.load_record_from_string(LOG_LINE)
@@ -489,10 +485,10 @@ def test_deterministic_cse_2():
         json_str = save_json(primfunc)
         new_hash = hashlib.sha256(json_str.encode("utf-8")).hexdigest()
         # Make sure that all the hashes are going to be the same
-        if(initial_hash is None):
+        if initial_hash is None:
           initial_hash = new_hash        
         assert new_hash == initial_hash
-          
+
 
 if __name__ == "__main__":
     # Basic test:
@@ -510,4 +506,3 @@ if __name__ == "__main__":
     # Tests that verify the determinism of the pass:
     test_deterministic_cse()
     test_deterministic_cse_2()
-
