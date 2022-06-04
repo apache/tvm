@@ -54,8 +54,8 @@ def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
 
 
 def dnnl_conv2d(
-    input,
-    filter,
+    src,
+    weights,
     stride,
     padding,
     dilation,
@@ -68,10 +68,10 @@ def dnnl_conv2d(
 
     Parameters
     ----------
-    Input : tvm.te.Tensor
+    src : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    Filter : tvm.te.Tensor
+    weights : tvm.te.Tensor
         4-D with shape [num_filter, in_channel, filter_height, filter_width]
 
     stride : int or a list/tuple of two ints
@@ -114,11 +114,11 @@ def dnnl_conv2d(
         dilation_h, dilation_w = dilation
 
     if channel_last:
-        batch, in_height, in_width, _ = input.shape
-        kernel_h, kernel_w, _, num_filter = filter.shape
+        batch, in_height, in_width, _ = src.shape
+        kernel_h, kernel_w, _, num_filter = weights.shape
     else:
-        batch, _, in_height, in_width = input.shape
-        num_filter, _, kernel_h, kernel_w = filter.shape
+        batch, _, in_height, in_width = src.shape
+        num_filter, _, kernel_h, kernel_w = weights.shape
 
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
@@ -136,7 +136,7 @@ def dnnl_conv2d(
 
     return te.extern(
         out_shape,
-        [input, filter],
+        [src, weights],
         lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.mkldnn.conv2d",
             ins[0],
