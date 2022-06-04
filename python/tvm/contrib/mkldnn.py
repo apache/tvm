@@ -54,8 +54,8 @@ def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
 
 
 def dnnl_conv2d(
-    Input,
-    Filter,
+    input,
+    filter,
     stride,
     padding,
     dilation,
