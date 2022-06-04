@@ -97,12 +97,14 @@ void dnnl_conv2d_common(float* data, float* weights, float* bias, float* out, in
   memory::dims conv2d_padding0 = {p_Ph0_, p_Pw0_};
   memory::dims conv2d_padding1 = {p_Ph1_, p_Pw1_};
 
-  auto user_src_memory = memory({{conv2d_src_tz}, dt::f32, channel_last? tag::nhwc : tag::nchw}, eng, data);
+  auto user_src_memory =
+      memory({{conv2d_src_tz}, dt::f32, channel_last? tag::nhwc : tag::nchw}, eng, data);
   auto user_weights_memory =
       memory({{conv2d_weights_tz}, dt::f32, channel_last? tag::hwio : tag::oihw}, eng, weights);
   if (p_G_ > 1) user_weights_memory =
       memory({{conv2d_weights_tz}, dt::f32, channel_last? tag::ghwio : tag::goihw}, eng, weights);
-  auto conv2d_user_bias_memory = memory({{conv2d_bias_tz}, dt::f32, tag::x}, eng, bias);
+  auto conv2d_user_bias_memory =
+      memory({{conv2d_bias_tz}, dt::f32, tag::x}, eng, bias);
   auto user_dst_memory = memory({{conv2d_dst_tz}, dt::f32, channel_last? tag::nhwc : tag::nchw}, eng, out);
 
   auto conv2d_src_md = memory::desc({conv2d_src_tz}, dt::f32, tag::any);
@@ -158,7 +160,8 @@ extern "C" void dnnl_conv2d(float* data, float* weights, float* out, int p_N_, i
   primitive_attr attr;
   std::vector<float> bias(p_O_, 0);
   return dnnl_conv2d_common(data, weights, bias.data(), out, p_N_, p_C_, p_H_, p_W_, p_O_, p_G_,
-                            p_Ph0_, p_Pw0_, p_Ph1_, p_Pw1_, p_Kh_, p_Kw_, p_Sh_, p_Sw_, attr, false);
+                            p_Ph0_, p_Pw0_, p_Ph1_, p_Pw1_, p_Kh_, p_Kw_, p_Sh_, p_Sw_, attr,
+                            false);
 }
 
 primitive_attr create_attr_with_relu_post_op() {
@@ -333,9 +336,9 @@ extern "C" void dnnl_binary_op(float* data, float* weight, float* out, int algo_
   read_from_dnnl_memory(out, dst_memory);
 }
 
-// DNNL Conv2d single OP 
+// DNNL Conv2d single OP
 TVM_REGISTER_GLOBAL("tvm.contrib.mkldnn.conv2d").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* input = args[0];                
+  DLTensor* input = args[0];
   DLTensor* weights = args[1];
   DLTensor* output = args[2];
   int p_Ph0_ = args[3],
@@ -367,10 +370,10 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mkldnn.conv2d").set_body([](TVMArgs args, TVMRe
 
   std::vector<float> bias(p_O_, 0);
   primitive_attr attr;
-  return dnnl_conv2d_common(static_cast<float*>(input->data), static_cast<float*>(weights->data), bias.data(),
-                            static_cast<float*>(output->data), p_N_, p_C_, p_H_, p_W_, p_O_, p_G_,
-                            p_Ph0_, p_Pw0_, p_Ph1_, p_Pw1_, p_Kh_, p_Kw_, p_Sh_, p_Sw_, attr, channel_last);
-
+  return dnnl_conv2d_common(static_cast<float*>(input->data), static_cast<float*>(weights->data),
+                            bias.data(), static_cast<float*>(output->data), p_N_, p_C_, p_H_,
+                            p_W_, p_O_, p_G_, p_Ph0_, p_Pw0_, p_Ph1_, p_Pw1_, p_Kh_, p_Kw_,
+                            p_Sh_, p_Sw_, attr, channel_last);
 });
 
 }  // namespace contrib
