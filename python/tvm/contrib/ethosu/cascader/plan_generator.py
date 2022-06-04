@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Algorithms to generate Plans for a CascaderGraph."""
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
-from tvm.contrib.ethosu.cascader.tensor_config import MemoryRegion
+from tvm.contrib.ethosu.cascader.tensor_config import MemoryRegion, TensorConfig
 
 from . import _ffi_api
 from .cascader_options import CascaderOptions
@@ -55,3 +55,23 @@ def _generate_graph_plans(
         home_map,
         options,
     )
+
+
+def get_copy_cycles_hint(tensor_config: TensorConfig) -> Tuple[int, int]:
+    """
+    Returns a hint estimating the number of cycles for the copy
+    specified by tensor_config.
+
+    Parameters
+    ----------
+    tensor_config : TensorConfig
+        The tensor configuration to estimate.
+
+    Returns
+    -------
+    mem2mem_cycles : int
+        Total estimated cycles.
+    initial_mem2mem_cycles : int
+        Estimated cycles for the first block.
+    """
+    return _ffi_api.GetCopyCyclesHint(tensor_config)

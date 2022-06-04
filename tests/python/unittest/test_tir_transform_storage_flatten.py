@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 from tvm.driver.build_module import schedule_to_module
 from tvm.script import tir as T
@@ -165,4 +166,4 @@ def test_flatten_tir():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

@@ -199,16 +199,16 @@ Schedule ConcreteScheduleNode::Copy() {
  * \param level An ScheduleErrorRenderLevel enum, level of error rendering
  * \sa ScheduleErrorRenderLevel
  */
-#define TVM_TIR_SCHEDULE_END(primitive, level)                    \
-  }                                                               \
-  catch (const ScheduleError& error) {                            \
-    if ((level) == ScheduleErrorRenderLevel::kDetail) {           \
-      throw tvm::runtime::Error(error.RenderReport(primitive));   \
-    } else if ((level) == ScheduleErrorRenderLevel::kFast) {      \
-      throw tvm::runtime::Error(error.FastErrorString());         \
-    } else if ((level) == ScheduleErrorRenderLevel::kNone) {      \
-      throw tvm::runtime::Error("ScheduleError: (not rendered)"); \
-    }                                                             \
+#define TVM_TIR_SCHEDULE_END(primitive, level)                                                \
+  }                                                                                           \
+  catch (const ScheduleError& error) {                                                        \
+    if ((level) == ScheduleErrorRenderLevel::kDetail) {                                       \
+      throw tvm::runtime::Error(error.RenderReport(primitive) + "\n" + runtime::Backtrace()); \
+    } else if ((level) == ScheduleErrorRenderLevel::kFast) {                                  \
+      throw tvm::runtime::Error(error.FastErrorString());                                     \
+    } else if ((level) == ScheduleErrorRenderLevel::kNone) {                                  \
+      throw tvm::runtime::Error("ScheduleError: (not rendered)");                             \
+    }                                                                                         \
   }
 
 /******** Schedule: Schedule: Sampling ********/
@@ -511,6 +511,16 @@ BlockRV ConcreteScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buff
   return CreateRV<BlockRV>(result);
 }
 
+BlockRV ConcreteScheduleNode::ReIndex(const BlockRV& block_rv, int buffer_index,
+                                      BufferIndexType buffer_index_type) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::ReIndex(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type);
+  TVM_TIR_SCHEDULE_END("reindex", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<BlockRV>(result);
+}
+
 /******** Schedule: Compute location ********/
 
 void ConcreteScheduleNode::ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
@@ -691,6 +701,14 @@ void ConcreteScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_i
   tir::TransformLayout(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type, index_map);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("transform_layout", this->error_render_level_);
+}
+
+void ConcreteScheduleNode::TransformBlockLayout(const BlockRV& block_rv,
+                                                const IndexMap& index_map) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::TransformBlockLayout(state_, this->GetSRef(block_rv), index_map);
+  this->state_->DebugVerify();
+  TVM_TIR_SCHEDULE_END("transform_block_layout", this->error_render_level_);
 }
 
 void ConcreteScheduleNode::SetAxisSeparator(const BlockRV& block_rv, int buffer_index,

@@ -533,16 +533,16 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
   if (loop_var_ranges.empty()) {
     return true;
   }
-  Array<arith::IterSumExpr> results = arith::DetectIterMap(
+  auto res = arith::DetectIterMap(
       /*indices=*/realize->iter_values,
       /*input_iters=*/loop_var_ranges,
       /*predicate=*/realize->predicate,
-      /*require_bijective=*/false,
+      /*check_level=*/arith::IterMapLevel::Surjective,
       /*analyzer=*/analyzer);
-  if (results.empty()) {
+  if (res->indices.empty()) {
     return false;
   }
-  for (const arith::IterSumExpr& sum_expr : results) {
+  for (const arith::IterSumExpr& sum_expr : res->indices) {
     const Array<arith::IterSplitExpr>& args = sum_expr->args;
     if (!args.empty() && !is_one(args[0]->scale)) {
       return false;
@@ -684,6 +684,35 @@ bool GetVarsTouchedByBlockIters(const BlockRealize& block_realize,
   }
 
   return has_block_vars_of_other_types;
+}
+
+/******** Loop properties ********/
+
+void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
+                             arith::Analyzer* analyzer) {
+  class LoopNotStartWithZeroError : public ScheduleError {
+   public:
+    explicit LoopNotStartWithZeroError(IRModule mod, For loop)
+        : mod_(mod), loop_(std::move(loop)) {}
+
+    String FastErrorString() const final {
+      return "ScheduleError: The primitive only supports loop starting with 0";
+    }
+
+    String DetailRenderTemplate() const final {
+      return "The loop {0} does not start with 0, which is not supported";
+    }
+
+    IRModule mod() const final { return mod_; }
+    Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+
+    IRModule mod_;
+    For loop_;
+  };
+  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  if (!analyzer->CanProve(loop->min == 0)) {
+    throw LoopNotStartWithZeroError(self->mod, GetRef<For>(loop));
+  }
 }
 
 /******** Block-loop relation ********/
@@ -1926,6 +1955,25 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
     total_unused_block_vars += n_unused_block_vars;
   }
   return total_unused_block_vars >= 1;
+}
+
+bool IsSpatialPrimFunc(const PrimFunc& func) {
+  bool result = true;
+  PreOrderVisit(func->body, [&result](const ObjectRef& obj) {
+    if (result == false) {
+      return false;
+    }
+    if (const auto* block = obj.as<BlockNode>()) {
+      for (const IterVar& iter_var : block->iter_vars) {
+        if (iter_var->iter_type != IterVarType::kDataPar) {
+          result = false;
+          return false;
+        }
+      }
+    }
+    return true;
+  });
+  return result;
 }
 
 std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const tir::ScheduleState& self,

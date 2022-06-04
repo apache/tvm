@@ -34,7 +34,7 @@ from tvm.rpc.proxy import Proxy
 
 if __name__ == "__main__":
     # NOTE: must live here to avoid registering PackedFunc with libtvm.so twice.
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()
 
 
 # tkonolige: The issue as I understand it is this: multiprocessing's spawn

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import tir, te
+from tvm import te, tir
 from tvm.script import tir as T
 
 
@@ -37,12 +37,12 @@ def compacted_elementwise_func(a: T.handle, c: T.handle) -> None:
             T.writes(C[i, 0:16])
             B = T.alloc_buffer([1, 16], "float32", scope="global")
             for j in range(0, 16):
-                with T.block() as []:
+                with T.block():
                     T.reads(A[i, j])
                     T.writes(B[0, j])
                     B[0, j] = A[i, j] + 1.0
             for j in range(0, 16):
-                with T.block() as []:
+                with T.block():
                     T.reads(B[0, j])
                     T.writes(C[i, j])
                     C[i, j] = B[0, j] * 2.0
@@ -74,12 +74,12 @@ def compacted_gpu_func(a: T.handle, c: T.handle) -> None:
                     T.writes(C[i0 * 4 + i1 * 2 + i2, 0:16])
                     B = T.alloc_buffer([1, 16], "float32", scope="local")
                     for j in range(0, 16):
-                        with T.block() as []:
+                        with T.block():
                             T.reads(A[i0 * 4 + i1 * 2 + i2, j])
                             T.writes(B[0, j])
                             B[0, j] = A[i0 * 4 + i1 * 2 + i2, j] + 1.0
                     for j in range(0, 16):
-                        with T.block() as []:
+                        with T.block():
                             T.reads(B[0, j])
                             T.writes(C[i0 * 4 + i1 * 2 + i2, j])
                             C[i0 * 4 + i1 * 2 + i2, j] = B[0, j] * 2.0
@@ -117,12 +117,12 @@ def compacted_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) ->
             T.writes(C[i, m])
             B = T.alloc_buffer((m,), "float32", scope="global")
             for j in range(0, m):
-                with T.block() as []:
+                with T.block():
                     T.reads(A[i, j])
                     T.writes(B[j])
                     B[j] = A[i, j] + 1.0
             for j in range(0, m):
-                with T.block() as []:
+                with T.block():
                     T.reads(B[j])
                     T.writes(C[i, j])
                     C[i, j] = B[j] * 2.0
@@ -149,7 +149,7 @@ def compacted_predicate_func(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (32), "float32")
 
     for i, j in T.grid(5, 7):
-        with T.block() as []:
+        with T.block():
             T.reads(A[i * 7 + j])
             T.writes(C[i * 7 + j])
             T.where(i * 7 + j < 32)
@@ -174,7 +174,7 @@ def compacted_unit_loop_func(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (32), "float32")
 
     for x, y, z in T.grid(4, 1, 8):
-        with T.block() as []:
+        with T.block():
             T.reads(A[x * 8 + y * 8 + z])
             T.writes(C[x * 8 + y * 8 + z])
             C[x * 8 + y * 8 + z] = A[x * 8 + y * 8 + z] + 1.0
@@ -197,7 +197,7 @@ def compacted_multi_alloc_func(a: T.handle, d: T.handle) -> None:
     D = T.match_buffer(d, (32), "float32")
 
     for i in range(0, 32):
-        with T.block() as []:
+        with T.block():
             T.reads(A[i])
             T.writes(D[i])
             B = T.alloc_buffer((32,), scope="global")
@@ -233,13 +233,13 @@ def compacted_strided_buffer_func(a: T.handle, c: T.handle) -> None:
             B = T.alloc_buffer([4, 16], "float32", strides=[17, 1], scope="global")
             for i1 in range(0, 4):
                 for j in range(0, 16):
-                    with T.block() as []:
+                    with T.block():
                         T.reads(A[i0 * 4 + i1, j])
                         T.writes(B[i1, j])
                         B[i1, j] = A[i0 * 4 + i1, j] + 1.0
             for i1 in range(0, 4):
                 for j in range(0, 16):
-                    with T.block() as []:
+                    with T.block():
                         T.reads(B[i1, j])
                         T.writes(C[i0 * 4 + i1, j])
                         C[i0 * 4 + i1, j] = B[i1, j] * 2.0
@@ -266,6 +266,33 @@ def annotated_loops(a: T.handle) -> None:
     A = T.match_buffer(a, (16,), "float32")
     for i in range(0, 16, annotations={"pragma_1": "str_value", "pragma_2": 1, "pragma_3": 0.0}):
         A[i] = 0.0
+
+
+@T.prim_func
+def boolean_handling_before(a: T.Buffer[10, "bool"], b: T.Buffer[10, "bool"]) -> None:
+    for i0 in T.serial(10):
+        with T.block("b"):
+            T.reads(a[i0])
+            T.writes(b[i0])
+            b[i0] = a[i0]
+
+
+@T.prim_func
+def boolean_handling_after(a: T.Buffer[10, "int8"], b: T.Buffer[10, "int8"]) -> None:
+    T.preflattened_buffer(a, [10], dtype="bool", data=a.data)
+    T.preflattened_buffer(b, [10], dtype="bool", data=b.data)
+    # body
+    for i0 in T.serial(10):
+        b[i0] = T.cast(T.cast(a[i0], "bool"), "int8")
+
+
+@T.prim_func
+def boolean_handle_after(a: T.Buffer[10, "int8"], b: T.Buffer[10, "int8"]) -> None:
+    T.preflattened_buffer(a, [10], dtype="bool", data=a.data)
+    T.preflattened_buffer(b, [10], dtype="bool", data=b.data)
+    # body
+    for i0 in T.serial(10):
+        b[i0] = T.cast(T.cast(a[i0], "bool"), "int8")
 
 
 def test_elementwise():
@@ -319,6 +346,13 @@ def test_annotated_loops():
     tvm.ir.assert_structural_equal(attr3.value, tvm.tir.FloatImm("float32", 0.0))
 
 
+def test_boolean_handling():
+    _check(boolean_handling_before, boolean_handling_after)
+    # mod = tvm.IRModule.from_expr(boolean_handling_before)
+    # mod = tvm.tir.transform.FlattenBuffer()(mod)
+    # print(mod.script())
+
+
 if __name__ == "__main__":
     test_elementwise()
     test_gpu_workload()
@@ -329,3 +363,4 @@ if __name__ == "__main__":
     test_strided_buffer()
     test_lower_te()
     test_annotated_loops()
+    test_boolean_handling()

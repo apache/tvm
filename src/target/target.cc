@@ -495,8 +495,12 @@ Target::Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<Stri
 }
 
 bool Target::IsExternalCodegen() const {
-  TargetKindAttrMap<Bool> attr_map = TargetKind::GetAttrMap<Bool>(::tvm::attr::kIsExternalCodegen);
-  return attr_map.get(get()->kind, Bool(false));
+  TargetKindAttrMap<Bool> is_external_codegen_map =
+      TargetKind::GetAttrMap<Bool>(tvm::attr::kIsExternalCodegen);
+  TargetKindAttrMap<FTVMRelayToTIR> relay_to_tir_map =
+      TargetKind::GetAttrMap<FTVMRelayToTIR>(tvm::attr::kRelayToTIR);
+  return is_external_codegen_map.get(get()->kind, Bool(false)) ||
+         relay_to_tir_map.count(get()->kind);
 }
 
 bool Target::IsExternalCodegenFor(const Target& that) const {

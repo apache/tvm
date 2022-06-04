@@ -70,34 +70,41 @@ const std::vector<int64_t> EthosuPartNode::GetBytesRead(const std::vector<int>& 
   return bytes_per_input;
 }
 
+float EthosuPartNode::CalculateCost(const BlockConfig& block_config,
+                                    const StripeConfig& output_stripe_config) {
+  std::vector<int> output_block = block_config->GetOutputBlockShape();
+  std::vector<int> output_stripe_shape = output_stripe_config->GetShape();
+  auto input_stripe_configs = CalculateInputStripeConfigs(output_stripe_config);
+  std::vector<int> input_stripe_shape = input_stripe_configs[0]->GetShape();
+
+  std::vector<int64_t> bytes_per_input = GetBytesRead(output_block, output_stripe_shape);
+  bytes_per_input[0] *= subkernels_;
+
+  // Calculate bytes read per output element
+  float cost =
+      static_cast<float>(bytes_per_input[0] + bytes_per_input[1]) / mul_reduce(output_stripe_shape);
+
+  // Single buffering hardware optimization
+  if (mul_reduce(input_stripe_shape) <= 2 * mul_reduce(block_config->GetInputBlockShape())) {
+    cost /= 2;
+  }
+  return cost;
+}
+
 const BlockConfig EthosuPartNode::GetBlockConfig(const StripeConfig& output_stripe_config) {
-  BlockConfig best_block_config;
-  float best_cost = std::numeric_limits<float>::infinity();
+  BlockConfig best_block_config = valid_block_configs_[0];
+  float best_cost = CalculateCost(best_block_config, output_stripe_config);
   std::vector<int> output_stripe_shape = output_stripe_config->GetShape();
   auto input_stripe_configs = CalculateInputStripeConfigs(output_stripe_config);
   std::vector<int> input_stripe_shape = input_stripe_configs[0]->GetShape();
 
   for (const auto& block_config : valid_block_configs_) {
-    std::vector<int> output_block = block_config->GetOutputBlockShape();
-
-    std::vector<int64_t> bytes_per_input = GetBytesRead(output_block, output_stripe_shape);
-    bytes_per_input[0] *= subkernels_;
-
-    // Calculate bytes read per output element
-    float relative_cost = static_cast<float>(bytes_per_input[0] + bytes_per_input[1]) /
-                          mul_reduce(output_stripe_shape);
-
-    // Single buffering hardware optimization
-    if (mul_reduce(input_stripe_shape) <= 2 * mul_reduce(block_config->GetInputBlockShape())) {
-      relative_cost /= 2;
-    }
-
+    float relative_cost = CalculateCost(block_config, output_stripe_config);
     if (relative_cost < best_cost) {
       best_block_config = block_config;
       best_cost = relative_cost;
     }
   }
-
   return best_block_config;
 }
 

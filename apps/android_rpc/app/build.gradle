@@ -17,17 +17,49 @@
 
 apply plugin: 'com.android.application'
 
+task generateJniHeaders(type: Exec, description: 'Generate JNI Headers') {
+    def headerPath = "${project.projectDir}/src/main/jni"
+    def classPath = "${project.projectDir}/../../../jvm/core/target/*"
+    def filePath = "${project.projectDir}/../../../jvm/core/src/main/java/org/apache/tvm/LibInfo.java"
+    commandLine "javac", "-h", headerPath, "-classpath", classPath, filePath
+    doLast {
+        file("${headerPath}/org_apache_tvm_LibInfo.h").renameTo(file("${headerPath}/org_apache_tvm_native_c_api.h"))
+    }
+}
+
+task copyFiles(type: Copy, description: 'Copy Sources for ndk-build') {
+    dependsOn "generateJniHeaders"
+    def ndkFilesPath = "${project.projectDir}/../../../jvm/native/src/main/native"
+    def srcPath = "${project.projectDir}/src/main/jni/"
+
+    from "${ndkFilesPath}/org_apache_tvm_native_c_api.cc", "${ndkFilesPath}/jni_helper_func.h"
+    into srcPath
+}
+
+task deleteLibs(type: Delete, description: "Delete Compiled Libraries") {
+    dependsOn "copyFiles"
+    def libsPath = "${project.projectDir}/src/main/libs"
+    delete libsPath
+}
+
 task buildJni(type: Exec, description: 'Build JNI libs') {
-    commandLine 'sh', 'src/main/jni/build.sh'
+    dependsOn "deleteLibs"
+    def buildPath = "${project.projectDir}/src/main/jni"
+    commandLine "ndk-build", "--directory", buildPath
 }
 
 tasks.withType(JavaCompile) {
     compileTask -> compileTask.dependsOn buildJni
 }
 
+// gradle.projectsEvaluated {
+//     tasks.withType(JavaCompile) {
+//         options.compilerArgs << "-Xlint:deprecation"
+//     }
+// }
+
 android {
-    compileSdkVersion 26
-    buildToolsVersion "26.0.1"
+    compileSdkVersion 31
     defaultConfig {
         applicationId "org.apache.tvm.tvmrpc"
         minSdkVersion 24
@@ -48,16 +80,22 @@ android {
             jniLibs.srcDirs = ['src/main/libs']
         }
     }
+
+    lintOptions {
+        disable "Instantiatable" // MainActivity and RPCActivity must extend android.app.Activity
+        disable "MissingClass" // .RPCWatchdogService was not found in the project or the libraries
+        disable "IconDipSize" // The image ic_launcher.png varies significantly in its density-independent size
+    }
 }
 
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
-    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    androidTestImplementation('com.android.support.test.espresso:espresso-core:3.4.0', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
-    compile 'com.android.support:appcompat-v7:26.0.1'
-    compile 'com.android.support.constraint:constraint-layout:1.0.2'
-    compile 'com.android.support:design:26.0.1'
-    compile 'org.apache.tvm:tvm4j-core:0.0.1-SNAPSHOT'
-    testCompile 'junit:junit:4.12'
+    implementation 'androidx.appcompat:appcompat:1.4.1'
+    implementation 'com.android.support.constraint:constraint-layout:2.1.3'
+    implementation 'com.android.support:design:28.0.0'
+    implementation files('../../../jvm/core/target/tvm4j-core-0.0.1-SNAPSHOT.jar')
+    testImplementation 'junit:junit:4.13.2'
 }

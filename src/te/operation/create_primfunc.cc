@@ -264,6 +264,12 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
   }
   // Set script_parsing_detect_access
   annotations.Set(tir::attr::script_parsing_detect_access, IntImm(DataType::Int(32), 3));
+  if (iter_vars.empty()) {
+    IterVar iter(Range::FromMinExtent(0, 1), Var("vi", DataType::Int(32)), IterVarType::kDataPar);
+    PrimExpr binding(0);
+    iter_vars.push_back(iter);
+    bindings.push_back(binding);
+  }
 
   // Step 6. Create Block and BlockRealize.
   return BlockRealize(/*iter_values=*/std::move(bindings),
@@ -454,44 +460,11 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
                             {{"global_symbol", String("main")}, {"tir.noalias", Bool(true)}});
   const auto* complete = runtime::Registry::Get("script.Complete");
   ICHECK(complete);
-  func = (*complete)(func, info.root_alloc);
+  func = (*complete)(std::move(func), info.root_alloc);
   return LayoutFreePlaceholdersNormalizer().Process(std::move(func));
 }
 
-PrimFunc CreatePrimFuncFromOutputs(const Array<te::Tensor>& outputs) {
-  std::vector<te::Tensor> stack;
-  std::unordered_set<const te::TensorNode*> visited;
-  for (const te::Tensor& output : outputs) {
-    if (!visited.count(output.get())) {
-      visited.insert(output.get());
-      stack.push_back(output);
-    }
-  }
-
-  Array<te::Tensor> arg_list;
-  while (!stack.empty()) {
-    te::Tensor tensor = stack.back();
-    stack.pop_back();
-    if (tensor->op->IsInstance<te::PlaceholderOpNode>()) {
-      arg_list.push_back(tensor);
-    } else if (tensor->op->IsInstance<te::ComputeOpNode>()) {
-      Array<te::Tensor> inputs = tensor->op->InputTensors();
-      for (const te::Tensor& input : inputs) {
-        if (!visited.count(input.get())) {
-          visited.insert(input.get());
-          stack.push_back(input);
-        }
-      }
-    }
-  }
-  for (const te::Tensor& output : outputs) {
-    arg_list.push_back(output);
-  }
-  return CreatePrimFunc(arg_list);
-}
-
 TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_typed(CreatePrimFunc);
-TVM_REGISTER_GLOBAL("te.CreatePrimFuncFromOutputs").set_body_typed(CreatePrimFuncFromOutputs);
 
 }  // namespace tir
 }  // namespace tvm

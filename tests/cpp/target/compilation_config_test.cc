@@ -196,6 +196,27 @@ TEST(CompilationConfig, Constructor_Heterogeneous_InvalidOrdering) {
       CompilationConfig(pass_ctx, {ext_codegen1_target, cuda_target, ext_codegen2_target}));
 }
 
+TEST(CompilationConfig, Constructor_Homogenous_JustExternalCodegen) {
+  transform::PassContext pass_ctx = transform::PassContext::Create();
+
+  Target host_target = TestDefaultCpuTarget();
+  Target ext_codegen1_target = Target::WithHost(TestExtCodegenTarget1(), host_target);
+
+  CompilationConfig config(pass_ctx, {ext_codegen1_target});
+  ASSERT_EQ(config->primitive_targets.size(), 1);
+  EXPECT_TRUE(StructuralEqual()(config->primitive_targets[0], ext_codegen1_target));
+}
+
+TEST(CompliationConfig, Constructor_DuplicateKinds) {
+  transform::PassContext pass_ctx = transform::PassContext::Create();
+
+  Target host_target = TestDefaultCpuTarget();
+  Target cuda_target_1 = Target::WithHost(TestCudaTarget(), host_target);
+  Target cuda_target_2 = Target::WithHost(TestCudaTarget(), host_target);
+
+  EXPECT_ANY_THROW(CompilationConfig(pass_ctx, {cuda_target_1, cuda_target_2}));
+}
+
 TEST(CompilationConfig, Constructor_NoTargets) {
   transform::PassContext pass_ctx = transform::PassContext::Create();
   EXPECT_ANY_THROW(CompilationConfig(pass_ctx, {}));
@@ -243,15 +264,26 @@ TEST(CompilationConfig, Constructor_Idempotent) {
                                 reconstructed_config->primitive_targets[1]));
 }
 
-TEST(CompilationConfig, FindPrimitiveTargetOrFail_Valid) {
+TEST(CompilationConfig, FindPrimitiveTargetForDeviceOrFail_Valid) {
   CompilationConfig config = TestCompilationConfig();
   Target cpu_target = Target::WithHost(TestCpuTarget(), TestDefaultCpuTarget());
-  ASSERT_TRUE(StructuralEqual()(config->FindPrimitiveTargetOrFail(kDLCPU), cpu_target));
+  ASSERT_TRUE(StructuralEqual()(config->FindPrimitiveTargetForDeviceOrFail(kDLCPU), cpu_target));
 }
 
-TEST(CompilationConfig, FindPrimitiveTargetOrFail_Invalid) {
+TEST(CompilationConfig, FindPrimitiveTargetForDeviceOrFail_Invalid) {
   CompilationConfig config = TestCompilationConfig();
-  EXPECT_ANY_THROW(config->FindPrimitiveTargetOrFail(kDLMetal));
+  EXPECT_ANY_THROW(config->FindPrimitiveTargetForDeviceOrFail(kDLMetal));
+}
+
+TEST(CompilationConfig, FindPrimitiveTargetForKind_Found) {
+  CompilationConfig config = TestCompilationConfig();
+  Target cuda_target = Target::WithHost(TestCudaTarget(), TestDefaultCpuTarget());
+  ASSERT_TRUE(StructuralEqual()(config->FindPrimitiveTargetForKind("cuda").value(), cuda_target));
+}
+
+TEST(CompilationConfig, FindPrimitiveTargetForKind_NotFound) {
+  CompilationConfig config = TestCompilationConfig();
+  ASSERT_FALSE(config->FindPrimitiveTargetForKind("cutlass").defined());
 }
 
 TEST(CompilationConfig, CanonicalVirtualDevice) {

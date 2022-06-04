@@ -20,4 +20,6 @@ under the License.
 
 <resources>
     <string name="app_name">TVM Android Demo</string>
+    <string name="btnPickImage_text">Select or Capture Picture</string>
+    <string name="image_description">Input Image</string>
 </resources>

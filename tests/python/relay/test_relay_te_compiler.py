@@ -24,7 +24,6 @@ from tvm import topi
 from tvm.relay.backend import te_compiler
 from tvm.relay.testing import run_infer_type
 from tvm.relay.testing.temp_op_attr import TempOpAttr
-import tvm.testing
 
 
 @autotvm.register_topi_compute("test/conv2d_1")

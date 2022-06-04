@@ -42,11 +42,15 @@ def schedule_reduce_cuda(attrs, outs, target):
         return topi.cuda.schedule_reduce(outs)
 
 
-@schedule_concatenate.register(["cuda", "gpu"])
-def schedule_concatenate_cuda(attrs, outs, target):
-    """schedule concatenate for cuda"""
-    with target:
-        return topi.cuda.schedule_injective(outs)
+@concatenate_strategy.register(["cuda", "gpu"])
+def concatenate_strategy_cuda(attrs, inputs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_concat(topi.transform.concatenate),
+        wrap_topi_schedule(topi.cuda.schedule_injective),
+        name="concatenate.cuda",
+    )
+    return strategy
 
 
 @schedule_pool.register(["cuda", "gpu"])

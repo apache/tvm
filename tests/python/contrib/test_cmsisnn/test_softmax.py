@@ -129,4 +129,4 @@ def test_invalid_parameters(in_dtype, out_dtype, zero_point, scale, out_zero_poi
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

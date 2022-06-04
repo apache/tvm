@@ -181,4 +181,4 @@ def test_dense_cuda_int8(
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

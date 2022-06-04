@@ -244,7 +244,7 @@ class ScopeReconstructor : private StmtMutator {
       if (preserve_unit_loops || !is_one(iter_dom->extent)) {
         Var var("ax" + std::to_string(loop_vars.size()), DataType::Int(32));
         loop_vars.push_back(var);
-        loop_extents.push_back(iter_dom->extent);
+        loop_extents.push_back(analyzer->Simplify(iter_dom->extent));
         iter_values.push_back(iter_dom->min + var);
         analyzer->Bind(var, Range::FromMinExtent(0, iter_dom->extent));
       } else {

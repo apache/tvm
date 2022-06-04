@@ -20,6 +20,7 @@ import sys
 import pytest
 
 import tvm
+import tvm.testing
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.meta_schedule import TuneContext
@@ -56,4 +57,4 @@ def test_tune_context_create():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()
