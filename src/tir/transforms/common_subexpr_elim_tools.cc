@@ -756,8 +756,7 @@ bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b, bool identify_equiv_t
   // We restrict the equivalence to be decidable by a normalization procedure that is used to
   // normalize both sides, and to then compare the normal forms with the strict syntactical
   // equality
-    return EqualTerms(NormalizeTerm(a, identify_equiv_terms),
-                      NormalizeTerm(b, identify_equiv_terms));
+  return EqualTerms(NormalizeTerm(a, identify_equiv_terms), NormalizeTerm(b, identify_equiv_terms));
 }
 
 /*!
