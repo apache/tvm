@@ -728,7 +728,7 @@ bool EqualTerms(const PrimExpr& a, const PrimExpr& b) {
  * \note This function can be customized
  */
 PrimExpr NormalizeTerm(const PrimExpr& expr, bool do_normalization) {
-  if(do_normalization) {
+  if (do_normalization) {
     // Customize here!
     // We could decide to normalize terms in a way that identifies them modulo commutativity
     // (like x+y and y+x), or modulo associativity (like (x+y)+z and x+(y+z)), etc.
@@ -754,7 +754,7 @@ PrimExpr NormalizeTerm(const PrimExpr& expr, bool do_normalization) {
  */
 bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b, bool identify_equiv_terms) {
     // We restrict the equivalence to be decidable by a normalization procedure that is used to
-    // normalize both sides, and to then compare the normal forms with the strict syntactical 
+    // normalize both sides, and to then compare the normal forms with the strict syntactical
     // equality
     return EqualTerms(NormalizeTerm(a, identify_equiv_terms),
                       NormalizeTerm(b, identify_equiv_terms));
@@ -808,11 +808,11 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
          return a_stream.str().compare(b_stream.str()) < 0;
        });
 
-  for(const auto& elem : sorted_items_of_table) {
+  for (const auto& elem : sorted_items_of_table) {
     PrimExpr norm_elem = NormalizeTerm(elem.first, identify_equiv_terms);
     // If the normalized term is not already a key in the normalized table
     auto it_found = norm_table.find(norm_elem);
-    if(it_found == norm_table.end()) {
+    if (it_found == norm_table.end()) {
       // Then we add the mapping `norm_elem` -> (`elem`.first, `elem`.second) to the norm table
       // (i.e. `norm_elem` has been seen `elem`.second many times so far, and the chosen element
       // to represent the equivalence class will be `elem`.first as it's the first element of the
@@ -838,8 +838,8 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   // hashtable `norm_table`. It is not an issue as the called will be sorting the result anyway.
   std::unordered_map<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash, ExprDeepEqual>
       ::const_iterator it_norm_table;
-  for( it_norm_table = norm_table.begin(); it_norm_table != norm_table.end(); ++it_norm_table ) {
-    result.push_back( it_norm_table->second );
+  for (it_norm_table = norm_table.begin(); it_norm_table != norm_table.end(); ++it_norm_table) {
+    result.push_back(it_norm_table->second);
   }
 
   return result;
@@ -897,7 +897,7 @@ void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, si
     // in the sorted vector
     auto it_found = std::find_if(sorted_vec->begin(), sorted_vec->end(),
                         [elem_to_add, identify_equiv_terms](std::pair<PrimExpr, size_t> elem) {
-                                   return EquivalentTerms(elem.first, elem_to_add, 
+                                   return EquivalentTerms(elem.first, elem_to_add,
                                                                       identify_equiv_terms);
                         });
 

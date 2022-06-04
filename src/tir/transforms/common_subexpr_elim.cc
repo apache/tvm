@@ -147,13 +147,11 @@ bool CommonSubexpressionEliminator::OrderOnExprAndFrequency(std::pair<PrimExpr, 
 
   // Criteria 2 - If they had the same size, use the lexicographic order as a last resort
   // as we need a deterministic order
-  else {
-    std::stringstream a_stream;
-    std::stringstream b_stream;
-    a_stream << a.first;
-    b_stream << b.first;
-    return (a_stream.str().compare(b_stream.str()) < 0);
-  }
+  std::stringstream a_stream;
+  std::stringstream b_stream;
+  a_stream << a.first;
+  b_stream << b.first;
+  return (a_stream.str().compare(b_stream.str()) < 0);
 }
 
 /*!
@@ -202,7 +200,7 @@ int CommonSubexpressionEliminator::GetNbVarGenerated() { return nb_var_; }
                           of the function being analyzed
  * \return A new statement where CSE has been performed
  */
-Stmt CommonSubexpressionEliminator::PerformCSE(const Stmt& stmt, const Context& context_init, 
+Stmt CommonSubexpressionEliminator::PerformCSE(const Stmt& stmt, const Context& context_init,
                                                                       bool identify_equiv_terms) {
   // As this function is being called for each PrimFunc definition, we create a new instance
   // for the one we are having now.
@@ -249,7 +247,7 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
   for (size_t i = 0; i < semantic_comp_done_by_expr.size(); i++) {
     std::pair<PrimExpr, size_t>& computation_and_nb = semantic_comp_done_by_expr[i];
 
-    bool ident_equiv_terms = identify_equiv_terms_; // To avoid the capture of "this"
+    bool ident_equiv_terms = identify_equiv_terms_;  // To avoid the capture of "this"
 
     // The predicate later used (when doing replacements) to select expressions that are
     // equivalent to the current computation (`computation_and_nb.first`)
@@ -313,7 +311,7 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
         // Replace in the current `result` everything that is selected by the selector with
         // the new variable, without diving into expressions in which we don't have the
         // right to dive.
-        result = ReplaceSelectedExpr::ReplaceSelectedExprInExpr(result, predicate_selector, 
+        result = ReplaceSelectedExpr::ReplaceSelectedExprInExpr(result, predicate_selector,
                                                           new_var, CanContainEligibleComputations);
         // Build a let-in that introduces the new variable in the current `result`
         result = Let(new_var, computation_and_nb.first, result);
@@ -429,7 +427,7 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
   for (size_t i = 0; i < semantic_comp_done_by_stmt.size(); i++) {
     std::pair<PrimExpr, size_t>& computation_and_nb = semantic_comp_done_by_stmt[i];
 
-    bool ident_equiv_terms = identify_equiv_terms_; // To avoid the capture of "this"
+    bool ident_equiv_terms = identify_equiv_terms_;  // To avoid the capture of "this"
 
     // The predicate later used (when doing replacements) to select expressions that are
     // equivalent to the current computation (`computation_and_nb.first`)
