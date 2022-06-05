@@ -101,9 +101,8 @@ subgraphs = graph_split(net["main"], split_config, params)
 ############################################################
 # Enable the pipeline executor, and doing the configuration.
 # ----------------------------------------------------------
-# In build/config.cmake set USE_PIPELINE_EXECUTOR as ON to enable pipeline executor
-# import pipeline_executor, and pipeline_executor_build
-##############################################################
+# In build/config.cmake set USE_PIPELINE_EXECUTOR as ON to enable pipeline executor.
+
 from tvm.contrib import graph_executor, pipeline_executor, pipeline_executor_build
 
 # Create subgraph pipeline configuration.
