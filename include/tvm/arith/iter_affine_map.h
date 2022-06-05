@@ -349,11 +349,12 @@ IterMapResult DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range
  * \param input_iters Map from variable to iterator's range.
  * \param input_pred The predicate constraints on the input iterators
  * \param check_level The iter mapping checking level.
- *
+ * \param simplify_trivial_iterators If true, iterators with unit extents are simplified
  * \return The indices after rewrite
  */
 Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
-                                const PrimExpr& input_pred, IterMapLevel check_level);
+                                const PrimExpr& input_pred, IterMapLevel check_level,
+                                bool simplify_trivial_iterators = true);
 
 /*!
  * \brief Apply the inverse of the affine transformation to the outputs.
