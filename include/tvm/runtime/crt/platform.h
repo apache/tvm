@@ -100,7 +100,7 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds);
 /*! \brief Platform-specific before measurement call.
  *
  * A function which is called before calling TVMFuncCall in the TimeEvaluator.
- * Can be used, for example, to initialize reset global state which may affect the results of 
+ * Can be used, for example, to initialize reset global state which may affect the results of
  * measurement.
  *
  * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
