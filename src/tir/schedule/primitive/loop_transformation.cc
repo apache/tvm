@@ -115,7 +115,8 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
     Array<PrimExpr> v = arith::IterMapSimplify(/*indices=*/op->iter_values,
                                                /*input_iters=*/loop_var2extent_,
                                                /*input_pred=*/op->predicate,
-                                               /*check_level=*/arith::IterMapLevel::Surjective);
+                                               /*check_level=*/arith::IterMapLevel::Surjective,
+                                               /*simplify_trivial_iterators=*/false);
     if (v.same_as(op->iter_values)) {
       return GetRef<Stmt>(op);
     } else {
@@ -397,7 +398,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   for (int i = 0; i < n; i++) {
     const PrimExpr& factor = factors[i];
     Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i));
-    if (!is_one(factor)) substitute_value = substitute_value * factor + var;
+    substitute_value = substitute_value * factor + var;
     analyzer.Bind(var, Range::FromMinExtent(0, factor));
     new_loop_vars.emplace_back(std::move(var));
   }

@@ -178,7 +178,7 @@ def elementwise_split_case0(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128, 128])
     for i1, i2, i3, j1, j2, k1, k2 in T.grid(2, 1, 64, 4, 32, 16, 8):
         with T.block("B"):
-            vi = T.axis.S(128, i1 * 64 + i3)
+            vi = T.axis.S(128, (i1 + i2) * 64 + i3)
             vj = T.axis.S(128, j1 * 32 + j2)
             vk = T.axis.S(128, k1 * 8 + k2)
             T.reads([A[vi, vj, vk]])
@@ -192,9 +192,9 @@ def elementwise_split_case1(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128, 128])
     for i1, i2, i3, j1, j2, j3, k1, k2, k3 in T.grid(2, 1, 64, 2, 1, 64, 2, 1, 64):
         with T.block("B"):
-            vi = T.axis.S(128, i1 * 64 + i3)
-            vj = T.axis.S(128, j1 * 64 + j3)
-            vk = T.axis.S(128, k1 * 64 + k3)
+            vi = T.axis.S(128, (i1 + i2) * 64 + i3)
+            vj = T.axis.S(128, (j1 + j2) * 64 + j3)
+            vk = T.axis.S(128, (k1 + k2) * 64 + k3)
             T.reads([A[vi, vj, vk]])
             T.writes([B[vi, vj, vk]])
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
@@ -206,10 +206,10 @@ def elementwise_split_with_predicate(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128, 128])
     for i0, i1, i2, j0, j1, k0, k1 in T.grid(1000, 2, 3, 1, 129, 3, 43):
         with T.block("B"):
-            T.where((i0 * 2 + i1) * 3 + i2 < 128 and j1 < 128 and k0 * 43 + k1 < 128)
             vi = T.axis.S(128, i0 * 6 + i1 * 3 + i2)
-            vj = T.axis.S(128, j1)
+            vj = T.axis.S(128, j0 * 129 + j1)
             vk = T.axis.S(128, k0 * 43 + k1)
+            T.where((i0 * 2 + i1) * 3 + i2 < 128 and j0 * 129 + j1 < 128 and k0 * 43 + k1 < 128)
             T.reads([A[vi, vj, vk]])
             T.writes([B[vi, vj, vk]])
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
