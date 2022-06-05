@@ -15,12 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import sys
-
 import pytest
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import te, tir
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
@@ -580,6 +578,63 @@ def test_add_unit_loop_above_loop():
     (loop,) = sch.get_loops(block)
     sch.add_unit_loop(loop)
     tvm.ir.assert_structural_equal(zero_dim_added, sch.mod["main"])
+
+
+@pytest.mark.skip("Pending fix in affine analysis")
+def test_fuse_int64():
+    def _create_prim_func():
+        n = te.const(16, "int32")
+        m = te.const(32, "int64")
+        A = te.placeholder((n, m), name="A", dtype="int32")
+        B = te.compute((n, m), lambda i, j: A[i, j] + 1, name="B")
+        return te.create_prim_func([A, B])
+
+    mod = _create_prim_func()
+    sch = tir.Schedule(mod, debug_mask="all")
+    i, j = sch.get_loops(sch.get_block("B"))
+    sch.fuse(i, j)
+    verify_trace_roundtrip(sch=sch, mod=mod)
+
+
+def test_split_int64_extent_with_mixed_factors():
+    def _create_prim_func():
+        m = te.const(384, "int64")
+        A = te.placeholder((m,), name="A", dtype="float32")
+        B = te.compute((m,), lambda i: A[i] + 1, name="B")
+        return te.create_prim_func([A, B])
+
+    mod = _create_prim_func()
+    sch = tir.Schedule(mod, debug_mask="all")
+    (i,) = sch.get_loops(sch.get_block("B"))
+    sch.split(
+        i,
+        factors=[
+            te.const(1, "int64"),
+            te.const(512, "int32"),
+        ],
+    )
+
+
+def test_split_int64_extent_with_int32_factors():
+    def _create_prim_func():
+        m = te.const(12, "int64")
+        A = te.placeholder((m,), name="A", dtype="float32")
+        B = te.compute((m,), lambda i: A[i] + 1, name="B")
+        return te.create_prim_func([A, B])
+
+    mod = _create_prim_func()
+    sch = tir.Schedule(mod, debug_mask="all")
+    (i,) = sch.get_loops(sch.get_block("B"))
+    sch.split(
+        i,
+        factors=[
+            te.const(1, "int32"),
+            te.const(1, "int32"),
+            te.const(3, "int32"),
+            te.const(1, "int32"),
+            te.const(4, "int32"),
+        ],
+    )
 
 
 if __name__ == "__main__":

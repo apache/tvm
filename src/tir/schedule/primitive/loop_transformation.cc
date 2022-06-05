@@ -54,7 +54,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
   PrimExpr VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
     if (Optional<PrimExpr> ret = vmap_(var)) {
-      return ret.value();
+      return tvm::cast(var.dtype(), ret.value());
     } else {
       return std::move(var);
     }
@@ -391,15 +391,24 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   arith::Analyzer analyzer;
   CheckLoopStartsWithZero(self, loop_sref, &analyzer);
 
+  // Find the most common dtype
+  DataType dtype;
+  {
+    int bits = loop->loop_var.dtype().bits();
+    for (const PrimExpr& factor : factors) {
+      bits = std::max(bits, factor.dtype().bits());
+    }
+    dtype = DataType::Int(bits);
+  }
   int n = factors.size();
-  PrimExpr substitute_value = 0;
+  PrimExpr substitute_value = make_const(dtype, 0);
   std::vector<Var> new_loop_vars;
   new_loop_vars.reserve(n);
   for (int i = 0; i < n; i++) {
     const PrimExpr& factor = factors[i];
-    Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i));
+    Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i)).copy_with_dtype(dtype);
     substitute_value = substitute_value * factor + var;
-    analyzer.Bind(var, Range::FromMinExtent(0, factor));
+    analyzer.Bind(var, Range::FromMinExtent(make_const(dtype, 0), tvm::cast(dtype, factor)));
     new_loop_vars.emplace_back(std::move(var));
   }
   Map<Block, Block> opaque_block_reuse;
@@ -481,11 +490,13 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   // Step 2. Create fused loop var and replace the original loop vars
   std::string suffix;
   int n = loops.size();
+  int bits = loops[0]->loop_var.dtype().bits();
   for (int i = 1; i < n; i++) {
     suffix += "_" + loops[i]->loop_var->name_hint;
+    bits = std::max(bits, loops[i]->loop_var.dtype().bits());
   }
   suffix += "_fused";
-  Var fused_var = loops[0]->loop_var.copy_with_suffix(suffix);
+  Var fused_var = loops[0]->loop_var.copy_with_suffix(suffix).copy_with_dtype(DataType::Int(bits));
   Array<PrimExpr> substitute_value;
   substitute_value.resize(loops.size());
   PrimExpr lower = 1;
