@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-
 from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
 from tvm.meta_schedule.testing.schedule_rule import auto_bind
 from tvm.meta_schedule.testing.space_generation import check_trace
