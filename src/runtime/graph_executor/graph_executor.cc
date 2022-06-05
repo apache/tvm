@@ -151,7 +151,8 @@ int GraphExecutor::GetOutputIndex(const std::string& name) {
  * \brief Get the output info of Graph by parsing the output nodes.
  * \return The shape and dtype tuple.
  */
-std::tuple<GraphExecutor::ShapeInfo, GraphExecutor::DtypeInfo> GraphExecutor::GetOutputInfo() const {
+std::tuple<GraphExecutor::ShapeInfo, GraphExecutor::DtypeInfo> GraphExecutor::GetOutputInfo()
+    const {
   GraphExecutor::ShapeInfo shape_dict;
   GraphExecutor::DtypeInfo dtype_dict;
   for (const auto& output : outputs_) {
