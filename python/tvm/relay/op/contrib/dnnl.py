@@ -41,7 +41,7 @@ from tvm.relay.expr import GlobalVar
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 from ... import _ffi_api
-from ...dataflow_pattern import wildcard, is_op, is_constant, is_expr, rewrite, DFPatternCallback
+from ...dataflow_pattern import wildcard, is_op, is_expr, rewrite, DFPatternCallback
 from .register import register_pattern_table
 
 logger = logging.getLogger("DNNL")

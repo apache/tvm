@@ -473,7 +473,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
         dnnl::normalization_flags::use_scale_shift);
 
     auto lnorm_prim_desc = dnnl::layer_normalization_forward::primitive_desc(lnorm_desc, engine_);
-    auto lnorm_prim = dnnl::layer_normalization_forward(lnorm_prim_desc);
 
     // Concatenate scale and shift tensors
     auto scale_shift_tr = TensorRequisite::AsIs(lnorm_prim_desc.weights_desc(), GenUniqueEid());
@@ -493,9 +492,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     register_copy(gamma_tr, scale_tr);
     register_copy(beta_tr, shift_tr);
 
-    Submit(dnnl::layer_normalization_forward(lnorm_prim_desc), {{DNNL_ARG_SRC, src_tr},
-                                                                {DNNL_ARG_DST, dst_tr},
-                                                                {DNNL_ARG_SCALE_SHIFT, scale_shift_tr}});
+    Submit(
+      dnnl::layer_normalization_forward(lnorm_prim_desc),
+      {{DNNL_ARG_SRC, src_tr}, {DNNL_ARG_DST, dst_tr}, {DNNL_ARG_SCALE_SHIFT, scale_shift_tr}});
   }
 
   void Pooling(const size_t& nid, dnnl::algorithm algo) {
