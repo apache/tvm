@@ -193,6 +193,7 @@ def test_meta_schedule_integration_extract_from_bert_base():
 @requires_torch
 def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
     def filter_func(args) -> bool:
+        from tvm.te import create_prim_func  # pylint: disable=import-outside-toplevel
 
         has_complex_op = False
         visited = set()
@@ -205,16 +206,16 @@ def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
             if isinstance(t.op, te.PlaceholderOp):
                 pass
             elif isinstance(t.op, te.ComputeOp):
-                has_complex_op = has_complex_op or any(
-                    [isinstance(e, tir.Reduce) for e in t.op.body]
-                )
+                has_complex_op = has_complex_op or any(isinstance(e, tir.Reduce) for e in t.op.body)
                 for x in t.op.input_tensors:
                     traverse(x)
             visited.add(t.handle.value)
 
         for t in args:
             traverse(t)
-        return has_complex_op
+        if not has_complex_op:
+            return None
+        return create_prim_func(args)
 
     mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     extracted_tasks = ms.extract_task_from_relay(

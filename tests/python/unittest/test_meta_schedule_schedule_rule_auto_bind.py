@@ -76,9 +76,9 @@ def test_cuda_element_wise():
         [
             'b0 = sch.get_block(name="C", func_name="main")',
             "l1, l2 = sch.get_loops(block=b0)",
-            "l3 = sch.fuse(l1, l2)",
+            "l3 = sch.fuse(l1, l2, preserve_unit_iters=True)",
             "v4 = sch.sample_categorical(candidates=[32, 64, 128, 256, 512, 1024], probs=[0.16666666666666666, 0.16666666666666666, 0.16666666666666666, 0.16666666666666666, 0.16666666666666666, 0.16666666666666666])",
-            "l5, l6 = sch.split(loop=l3, factors=[None, v4])",
+            "l5, l6 = sch.split(loop=l3, factors=[None, v4], preserve_unit_iters=True)",
             'sch.bind(loop=l5, thread_axis="blockIdx.x")',
             'sch.bind(loop=l6, thread_axis="threadIdx.x")',
         ]
@@ -100,8 +100,8 @@ def test_cuda_reduction_loop_only():
             'b0 = sch.get_block(name="C", func_name="main")',
             "l1, = sch.get_loops(block=b0)",
             "l2 = sch.add_unit_loop(block_or_loop=l1)",
-            "l3 = sch.fuse(l2)",
-            "l4, l5 = sch.split(loop=l3, factors=[None, 1])",
+            "l3 = sch.fuse(l2, preserve_unit_iters=True)",
+            "l4, l5 = sch.split(loop=l3, factors=[None, 1], preserve_unit_iters=True)",
             'sch.bind(loop=l4, thread_axis="blockIdx.x")',
             'sch.bind(loop=l5, thread_axis="threadIdx.x")',
         ]
@@ -122,8 +122,8 @@ def test_cuda_zero_dim_add():
         [
             'b0 = sch.get_block(name="C", func_name="main")',
             "l1 = sch.add_unit_loop(block_or_loop=b0)",
-            "l2 = sch.fuse(l1)",
-            "l3, l4 = sch.split(loop=l2, factors=[None, 1])",
+            "l2 = sch.fuse(l1, preserve_unit_iters=True)",
+            "l3, l4 = sch.split(loop=l2, factors=[None, 1], preserve_unit_iters=True)",
             'sch.bind(loop=l3, thread_axis="blockIdx.x")',
             'sch.bind(loop=l4, thread_axis="threadIdx.x")',
         ]
