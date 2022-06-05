@@ -452,7 +452,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
   void LayerNorm(const size_t& nid) {
-
     auto node = nodes_[nid];
 
     auto src_tr = GetInput(nid, 0);
@@ -493,8 +492,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     register_copy(beta_tr, shift_tr);
 
     Submit(
-      dnnl::layer_normalization_forward(lnorm_prim_desc),
-      {{DNNL_ARG_SRC, src_tr}, {DNNL_ARG_DST, dst_tr}, {DNNL_ARG_SCALE_SHIFT, scale_shift_tr}});
+        dnnl::layer_normalization_forward(lnorm_prim_desc),
+        {{DNNL_ARG_SRC, src_tr}, {DNNL_ARG_DST, dst_tr}, {DNNL_ARG_SCALE_SHIFT, scale_shift_tr}});
   }
 
   void Pooling(const size_t& nid, dnnl::algorithm algo) {

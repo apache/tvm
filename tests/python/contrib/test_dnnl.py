@@ -111,6 +111,8 @@ def partition_for_dnnl(mod, params=None, alter_layout=True):
                             with tvm.transform.PassContext(opt_level=3):
                                 mod = alter_layout_seq(mod)
 
+    mod = dnnl.rewrite_layer_norm(mod)
+
     byoc_seq = tvm.transform.Sequential(
         [
             transform.MergeComposite(dnnl.pattern_table()),
