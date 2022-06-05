@@ -30,9 +30,9 @@ from tvm.relay import testing
 import tvm.testing
 import time
 
-######################################################################
+#######################################################################
 # Create a simple network, this network can be a pre-trained model too.
-# -----------------------
+# ---------------------------------------------------------------------
 # Let's create a very simple network for demonstration.
 # It consists of convolution, batch normalization, and ReLU activation.
 def get_network():
@@ -64,9 +64,9 @@ def get_network():
 
 
 net, params, data_shape = get_network()
-######################################################################
+#############################################
 # Apply a customer graph splitting function.
-# -------------------------------
+# ------------------------------------------
 # We use an testing linear graph splitting function as a example. User also can create their
 # own splitting function logic.
 import os
@@ -77,28 +77,30 @@ from test_pipeline_executor import graph_split
 # Splitting the network into two subgraphs.
 split_config = [{"op_name": "nn.relu", "op_index": 0}]
 subgraphs = graph_split(net["main"], split_config, params)
-##############################################################
+###########################################################
 # The generated subgraphs should look something like below.
-##subgraphs[0])
-#
-# def @main(%data: Tensor[(1, 3, 224, 224), float32]) {
-#  %0 = nn.conv2d(%data, meta[relay.Constant][0] /* ty=Tensor[(16, 3, 3, 3), float32] */, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3]) /* ty=Tensor[(1, 16, 224, 224), float32] */;
-#  %1 = nn.batch_norm(%0, meta[relay.Constant][1] /* ty=Tensor[(16), float32] */, meta[relay.Constant][2] /* ty=Tensor[(16), float32]*/, meta[relay.Constant][3] /* ty=Tensor[(16), float32] */, meta[relay.Constant][4] /* ty=Tensor[(16), float32] */) /* ty=(Tensor[(1,16, 224, 224), float32], Tensor[(16), float32], Tensor[(16), float32]) */;
-#  %2 = %1.0;
-#  nn.relu(%2) /* ty=Tensor[(1, 16, 224, 224), float32] */
-# }
-#
-#
-##subgraphs[1]
-#
-# def @main(%data_n_0: Tensor[(1, 16, 224, 224), float32]) {
-#  nn.conv2d(%data_n_0, meta[relay.Constant][0] /* ty=Tensor[(16, 16, 3, 3), float32] */, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3]) /* ty=Tensor[(1, 16, 224, 224), float32] */
-# }
-##############################################################
+#----------------------------------------------------------
+```
+#subgraphs[0])
 
-##############################################################
+ def @main(%data: Tensor[(1, 3, 224, 224), float32]) {
+  %0 = nn.conv2d(%data, meta[relay.Constant][0] /* ty=Tensor[(16, 3, 3, 3), float32] */, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3]) /* ty=Tensor[(1, 16, 224, 224), float32] */;
+  %1 = nn.batch_norm(%0, meta[relay.Constant][1] /* ty=Tensor[(16), float32] */, meta[relay.Constant][2] /* ty=Tensor[(16), float32]*/, meta[relay.Constant][3] /* ty=Tensor[(16), float32] */, meta[relay.Constant][4] /* ty=Tensor[(16), float32] */) /* ty=(Tensor[(1,16, 224, 224), float32], Tensor[(16), float32], Tensor[(16), float32]) */;
+  %2 = %1.0;
+  nn.relu(%2) /* ty=Tensor[(1, 16, 224, 224), float32] */
+ }
+
+
+#subgraphs[1]
+
+ def @main(%data_n_0: Tensor[(1, 16, 224, 224), float32]) {
+  nn.conv2d(%data_n_0, meta[relay.Constant][0] /* ty=Tensor[(16, 16, 3, 3), float32] */, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3]) /* ty=Tensor[(1, 16, 224, 224), float32] */
+ }
+```
+
+############################################################
 # Enable the pipeline executor, and doing the configuration.
-# -------------------------------------------------------------
+# ----------------------------------------------------------
 # In build/config.cmake set USE_PIPELINE_EXECUTOR as ON to enable pipeline executor
 # import pipeline_executor, and pipeline_executor_build
 ##############################################################
@@ -129,9 +131,11 @@ pipe_config[mod1].cpu_affinity = "1"
 pipe_config["input"]["data"].connect(pipe_config[mod0]["input"]["data"])
 pipe_config[mod0]["output"][0].connect(pipe_config[mod1]["input"]["data_n_0"])
 pipe_config[mod1]["output"]["0"].connect(pipe_config["output"][0])
-####################################################################
-# The pipeline configuration like below(print(pipe_config)).
-#
+##########################################
+# The pipeline configuration like below().
+#-----------------------------------------
+```
+print(pipe_config)
 # Inputs
 #  |data: mod0:data
 #
@@ -140,6 +144,7 @@ pipe_config[mod1]["output"]["0"].connect(pipe_config["output"][0])
 #
 # connections
 #  |mod0.output(0)-> mod1.data_n_0
+```
 # Build the pipeline executor
 with tvm.transform.PassContext(opt_level=3):
     pipeline_mod_factory = pipeline_executor_build.build(pipe_config)
