@@ -1720,10 +1720,12 @@ PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr) {
 TVM_REGISTER_GLOBAL("arith.NormalizeIterMapToExpr").set_body_typed(NormalizeIterMapToExpr);
 
 Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
-                                const PrimExpr& input_pred, IterMapLevel check_level) {
+                                const PrimExpr& input_pred, IterMapLevel check_level,
+                                bool simplify_trivial_iterators) {
   if (!IterRangeSanityCheck(input_iters)) return indices;
   Analyzer analyzer;
-  auto res = DetectIterMap(indices, input_iters, input_pred, check_level, &analyzer);
+  auto res = DetectIterMap(indices, input_iters, input_pred, check_level, &analyzer,
+                           /*simplify_trivial_iterators=*/simplify_trivial_iterators);
   Array<IterSumExpr> rewrite = res->indices;
 
   if (rewrite.empty()) {
