@@ -79,8 +79,8 @@ split_config = [{"op_name": "nn.relu", "op_index": 0}]
 subgraphs = graph_split(net["main"], split_config, params)
 ###########################################################
 # The generated subgraphs should look something like below.
-#----------------------------------------------------------
-```
+# ----------------------------------------------------------
+"""
 #subgraphs[0])
 
  def @main(%data: Tensor[(1, 3, 224, 224), float32]) {
@@ -96,7 +96,7 @@ subgraphs = graph_split(net["main"], split_config, params)
  def @main(%data_n_0: Tensor[(1, 16, 224, 224), float32]) {
   nn.conv2d(%data_n_0, meta[relay.Constant][0] /* ty=Tensor[(16, 16, 3, 3), float32] */, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3]) /* ty=Tensor[(1, 16, 224, 224), float32] */
  }
-```
+"""
 
 ############################################################
 # Enable the pipeline executor, and doing the configuration.
@@ -133,18 +133,18 @@ pipe_config[mod0]["output"][0].connect(pipe_config[mod1]["input"]["data_n_0"])
 pipe_config[mod1]["output"]["0"].connect(pipe_config["output"][0])
 ##########################################
 # The pipeline configuration like below().
-#-----------------------------------------
-```
+# -----------------------------------------
+"""
 print(pipe_config)
-# Inputs
-#  |data: mod0:data
-#
-# output
-#  |output(0) : mod1.output(0)
-#
-# connections
-#  |mod0.output(0)-> mod1.data_n_0
-```
+ Inputs
+  |data: mod0:data
+
+ output
+  |output(0) : mod1.output(0)
+
+ connections
+  |mod0.output(0)-> mod1.data_n_0
+"""
 # Build the pipeline executor
 with tvm.transform.PassContext(opt_level=3):
     pipeline_mod_factory = pipeline_executor_build.build(pipe_config)
