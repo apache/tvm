@@ -698,6 +698,43 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
   self->Replace(GetRef<StmtSRef>(top), new_loop, {});
 }
 
+StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
+  if (sref->stmt->IsInstance<ForNode>()) {
+    For new_loop(Var("u", DataType::Int(32)), 0, 1, ForKind::kSerial, GetRef<Stmt>(sref->stmt));
+    self->Replace(sref, new_loop, {});
+    return self->stmt2ref.at(new_loop.get());
+  }
+  class NewLoopCreator : public StmtMutator {
+   public:
+    explicit NewLoopCreator(const StmtNode* src_block) : src_block_(src_block) {}
+
+    Stmt VisitStmt_(const BlockRealizeNode* realize) final {
+      if (realize->block.get() == src_block_) {
+        new_loop_ =
+            For(Var("u", DataType::Int(32)), 0, 1, ForKind::kSerial, GetRef<BlockRealize>(realize));
+        return new_loop_;
+      }
+      return StmtMutator::VisitStmt_(realize);
+    }
+
+    const StmtNode* src_block_;
+    For new_loop_{nullptr};
+  };
+
+  CHECK(sref->parent != nullptr) << "ValueError: Cannot add loops on top of the root block";
+  StmtSRef parent_sref = GetRef<StmtSRef>(sref->parent);
+  NewLoopCreator creator(sref->stmt);
+  Stmt new_stmt = creator(GetRef<Stmt>(parent_sref->stmt));
+  if (new_stmt->IsInstance<ForNode>()) {
+    self->Replace(parent_sref, std::move(new_stmt), {});
+  } else {
+    Block old_parent_block = GetRef<Block>(parent_sref->StmtAs<BlockNode>());
+    Block new_parent_block = Downcast<Block>(new_stmt);
+    self->Replace(parent_sref, new_stmt, {{old_parent_block, new_parent_block}});
+  }
+  return self->stmt2ref.at(creator.new_loop_.get());
+}
+
 /******** InstructionKind Registration ********/
 
 struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
@@ -800,9 +837,41 @@ struct ReorderTraits : public UnpackedInstTraits<ReorderTraits> {
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
+struct AddUnitLoopTraits : public UnpackedInstTraits<AddUnitLoopTraits> {
+  static constexpr const char* kName = "AddUnitLoop";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  static LoopRV UnpackedApplyToSchedule(Schedule sch, ObjectRef rv) {
+    if (const auto* block = rv.as<BlockRVNode>()) {
+      return sch->AddUnitLoop(GetRef<BlockRV>(block));
+    } else if (const auto* loop = rv.as<LoopRVNode>()) {
+      return sch->AddUnitLoop(GetRef<LoopRV>(loop));
+    } else {
+      LOG(FATAL) << "TypeError: AddUnitLoop expects a loop or block";
+      throw;
+    }
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String rv) {
+    PythonAPICall py("add_unit_loop");
+    py.Input("block_or_loop", rv);
+    py.SingleOutput(outputs);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
 TVM_REGISTER_INST_KIND_TRAITS(SplitTraits);
 TVM_REGISTER_INST_KIND_TRAITS(FuseTraits);
 TVM_REGISTER_INST_KIND_TRAITS(ReorderTraits);
+TVM_REGISTER_INST_KIND_TRAITS(AddUnitLoopTraits);
 
 }  // namespace tir
 }  // namespace tvm
