@@ -40,9 +40,6 @@ def reduction_loop_only(
     B: T.Buffer[2, "float32"],
     C: T.Buffer[(), "float32"],
 ) -> None:
-    # function attr dict
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
-    # body
     for i0 in T.serial(2):
         with T.block("C"):
             k0 = T.axis.reduce(2, i0)
@@ -51,6 +48,17 @@ def reduction_loop_only(
             with T.init():
                 C[()] = T.float32(1.0)
             C[()] = T.min(C[()], A[k0] / B[k0])
+
+
+@T.prim_func
+def zero_dim_add(
+    A: T.Buffer[(), "float32"],
+    B: T.Buffer[(), "float32"],
+    C: T.Buffer[(), "float32"],
+) -> None:
+    with T.block("C"):
+        vi = T.axis.spatial(1, 0)
+        C[()] = A[()] + B[()]
 
 
 def _create_context(mod, target, rule) -> TuneContext:
@@ -95,11 +103,11 @@ def test_cuda_reduction_loop_only():
         [
             'b0 = sch.get_block(name="C", func_name="main")',
             "l1, = sch.get_loops(block=b0)",
-            "l2, l3 = sch.split(loop=l1, factors=[1, None])",
-            "l4 = sch.fuse(l2)",
-            "l5, l6 = sch.split(loop=l4, factors=[None, 1])",
-            'sch.bind(loop=l5, thread_axis="blockIdx.x")',
-            'sch.bind(loop=l6, thread_axis="threadIdx.x")',
+            "l2 = sch.add_unit_loop(block_or_loop=l1)",
+            "l3 = sch.fuse(l2)",
+            "l4, l5 = sch.split(loop=l3, factors=[None, 1])",
+            'sch.bind(loop=l4, thread_axis="blockIdx.x")',
+            'sch.bind(loop=l5, thread_axis="threadIdx.x")',
         ]
     ]
     target = Target("nvidia/geforce-rtx-3080", host="llvm")
@@ -113,6 +121,29 @@ def test_cuda_reduction_loop_only():
     check_trace(spaces, expected)
 
 
+def test_cuda_zero_dim_add():
+    expected = [
+        [
+            'b0 = sch.get_block(name="C", func_name="main")',
+            "l1 = sch.add_unit_loop(block_or_loop=b0)",
+            "l2 = sch.fuse(l1)",
+            "l3, l4 = sch.split(loop=l2, factors=[None, 1])",
+            'sch.bind(loop=l3, thread_axis="blockIdx.x")',
+            'sch.bind(loop=l4, thread_axis="threadIdx.x")',
+        ]
+    ]
+    target = Target("nvidia/geforce-rtx-3080", host="llvm")
+    ctx = _create_context(
+        zero_dim_add,
+        target=target,
+        rule=auto_bind(target=target),
+    )
+    spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
+    assert len(spaces) == 1
+    check_trace(spaces, expected)
+
+
 if __name__ == "__main__":
     test_cuda_element_wise()
     test_cuda_reduction_loop_only()
+    test_cuda_zero_dim_add()
