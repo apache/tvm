@@ -30,11 +30,12 @@ void BindBlockThreadIdx(const tir::Schedule& sch, const tir::BlockRV& block_rv,
                         int64_t max_threadblocks, int64_t max_threads_per_block,
                         std::function<tir::ExprRV(int64_t)> get_factor) {
   using namespace tvm::tir;
-  Array<StmtSRef> loops = tir::GetLoops(sch->GetSRef(block_rv));
-  int n = loops.size();
-  if (n == 0) {
+  StmtSRef block_sref = sch->GetSRef(block_rv);
+  if (block_sref->parent == nullptr) {
     return;
   }
+  Array<StmtSRef> loops = tir::GetLoops(block_sref);
+  int n = loops.size();
   int i_block_idx = -1;
   int i_thread_idx = -1;
   int i_multi_child = -1;
@@ -83,10 +84,13 @@ void BindBlockThreadIdx(const tir::Schedule& sch, const tir::BlockRV& block_rv,
   {
     Array<LoopRV> loop_rvs = sch->GetLoops(block_rv);
     if (i_spatial_loop == -1) {
-      Array<LoopRV> split = sch->Split(loop_rvs[0], {Integer(1), NullOpt});
-      ICHECK_EQ(split.size(), 2);
-      loop_rvs.Set(0, split[1]);
-      loop_rvs.insert(loop_rvs.begin(), split[0]);
+      LoopRV spatial_loop_rv{nullptr};
+      if (loop_rvs.empty()) {
+        spatial_loop_rv = sch->AddUnitLoop(block_rv);
+      } else {
+        spatial_loop_rv = sch->AddUnitLoop(loop_rvs[0]);
+      }
+      loop_rvs.insert(loop_rvs.begin(), spatial_loop_rv);
       i_spatial_loop = 0;
       if (i_block_idx != -1) {
         i_block_idx += 1;
