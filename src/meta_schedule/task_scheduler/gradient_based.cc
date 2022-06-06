@@ -189,10 +189,10 @@ TaskScheduler TaskScheduler::GradientBased(Array<TuneContext> tasks,            
                                            Array<FloatImm> task_weights,                        //
                                            Builder builder,                                     //
                                            Runner runner,                                       //
-                                           Database database,                                   //
-                                           int max_trials,                                      //
+                                           Optional<Database> database,                         //
                                            Optional<CostModel> cost_model,                      //
                                            Optional<Array<MeasureCallback>> measure_callbacks,  //
+                                           int max_trials,                                      //
                                            PackedFunc logging_func,                             //
                                            double alpha,                                        //
                                            int window_size,                                     //
@@ -227,9 +227,6 @@ TaskScheduler TaskScheduler::GradientBased(Array<TuneContext> tasks,            
   n->best_time_cost_per_task_ = std::vector<double>(n_tasks, 1e100);
   n->num_rounds_already_ = 0;
   support::LinearCongruentialEngine(&n->rand_state_).Seed(seed);
-  for (const TuneContext& task : tasks) {
-    task->task_scheduler = n.get();
-  }
   return TaskScheduler(n);
 }
 
