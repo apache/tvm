@@ -237,8 +237,12 @@ def estimate_peak_bandwidth(
     # that has a very low arithmetic intensity and we haven't come up with one
     # yet.
     vec_width, _ = _detect_vec_width_registers(target, vec_width, 1)
+
+    threads = num_threads()
+
     specialized = peak_bandwidth_tir.specialize(
         {
+            peak_bandwidth_tir.params[2]: threads,
             peak_bandwidth_tir.params[3]: vec_width,
         }
     )
@@ -259,16 +263,15 @@ def estimate_peak_bandwidth(
         random_fill = get_global_func("tvm.contrib.random.random_fill")
     assert random_fill, "Please make sure USE_RANDOM is ON in config.cmake"
 
-    threads = num_threads()
     # Data size needs to be larger than last level of cache. We don't have a
     # way of getting cache sizes, so this number should give us a large enough
     # size.
     size = 10**8 // (4 * threads * vec_width)
     a = nd.empty((threads, size, 4, vec_width), dtype="float32", device=dev)
     random_fill(a)
-    b = nd.empty((threads, vec_width, 4), dtype="float32", device=dev)
+    b = nd.empty((threads, 4, vec_width), dtype="float32", device=dev)
     random_fill(b)
-    times = f.time_evaluator(f.entry_name, dev, repeat=10, number=1)(a, b, threads)
+    times = f.time_evaluator(f.entry_name, dev, repeat=10, number=1)(a, b)
     return a.numpy().size * 4 / times.min  # 4 bytes per float32
 
 
