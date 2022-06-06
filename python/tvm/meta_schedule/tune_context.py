@@ -131,6 +131,6 @@ class TuneContext(Object):
         )
 
     def initialize(self):
-        '''Initialize the tuning context'''
+        """Initialize the tuning context"""
 
         _ffi_api.TuneContextInitialize(self)  # type: ignore # pylint: disable=no-member
