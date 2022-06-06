@@ -52,9 +52,9 @@ HexagonThreadManager::~HexagonThreadManager() {
 
   // destroy semaphores
   qurt_sem_destroy(&start_semaphore);
-  for (int i = 0; i < semaphores.size(); i++) {
-    qurt_sem_destroy(semaphores[i]);
-    free(semaphores[i]);
+  for (auto it : semaphores) {
+    qurt_sem_destroy(it.second);
+    free(it.second);
   }
   
   // Delete pipe objects and contexts
@@ -136,13 +136,6 @@ void HexagonThreadManager::GetStreamHandles(std::vector<TVMStreamHandle>* out) {
   }
 }
   
-/*
-PreallocateSyncs is not necessary, but can eliminate runtime overhead for semaphore allocation and vector resizing.
-*/
-void HexagonThreadManager::PreallocateSyncs(unsigned number_syncs) {
-  CheckSemaphore(number_syncs);
-}
-  
 bool HexagonThreadManager::Dispatch(TVMStreamHandle thread, PackedFunc f, TVMArgs args, TVMRetValue* rv) {
   WrappedPackedFunc* wrapped = new WrappedPackedFunc(f, args, rv);  // WrappedPackedFunc object freed by receiving thread
   return Dispatch(thread, thread_unpack, (void*)wrapped);
@@ -196,15 +189,9 @@ void HexagonThreadManager::WaitOnThreads() {
 }
   
 void HexagonThreadManager::CheckSemaphore(unsigned syncID) {
-  // extend the semaphore vector if it's not long enough
-  if (syncID >= semaphores.size()) {
-    DBG("Expanding semaphores from " << STR(semaphores.size()) << " to " << STR(syncID+1));
-    auto oldsize = semaphores.size();
-    semaphores.resize(syncID + 1);
-    for (int i = oldsize; i < semaphores.size(); i++) {
-      semaphores[i] = (qurt_sem_t*) malloc(sizeof(qurt_sem_t));
-      qurt_sem_init_val(semaphores[i], 0);
-    }
+  if (semaphores.find(syncID) == semaphores.end()) {
+    semaphores[syncID] = (qurt_sem_t*) malloc(sizeof(qurt_sem_t));
+    qurt_sem_init_val(semaphores[syncID], 0);
   }
 }
   

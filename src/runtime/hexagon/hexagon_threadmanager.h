@@ -56,7 +56,6 @@ public:
   HexagonThreadManager(unsigned num_threads, unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words);
   ~HexagonThreadManager();
   void GetStreamHandles(std::vector<TVMStreamHandle>* out);
-  void PreallocateSyncs(unsigned number_syncs);
   bool Dispatch(TVMStreamHandle thread, voidfunc f, void* args);
   bool Dispatch(TVMStreamHandle thread, PackedFunc f, TVMArgs args, TVMRetValue* rv = NULL);
   bool Signal(TVMStreamHandle thread, SyncPoint syncID);
@@ -89,7 +88,7 @@ private:
   qurt_thread_t* threads{nullptr};
   qurt_pipe_t* pipes{nullptr};
   ThreadContext** contexts{nullptr};
-  std::vector<qurt_sem_t*> semaphores;
+  std::unordered_map<unsigned, qurt_sem_t*> semaphores;
   qurt_sem_t start_semaphore;
   #endif
 
