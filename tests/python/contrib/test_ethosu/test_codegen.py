@@ -1022,7 +1022,11 @@ def test_tflite_leaky_relu(accel_type, ifm_shape, alpha):
         return tf.nn.leaky_relu(x, alpha=alpha)
 
     infra.compare_tvm_with_tflite(
-        leaky_relu_func, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+        leaky_relu_func,
+        [ifm_shape],
+        accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
+        ranges=[(-1, 1)],
     )
 
 
