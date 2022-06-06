@@ -46,6 +46,9 @@ namespace backend {
  * containing function is annotated with an "io_used_memory" annotation which refers to the total
  * memory required for the IO tensors.
  *
+ * Note: This pass does not support dynamic shapes, it is the users responsibility to check this
+ * pass isn't applied where dynamic shapes may be input.
+ *
  * A simple example:
  *
  * Before:

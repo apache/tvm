@@ -563,6 +563,9 @@ TVM_DLL Pass FlattenAtrousConv();
  * function in question as a list of the number of bytes for each callsite. In addition, the
  * containing function is annotated with an "io_used_memory" annotation which refers to the total
  * memory required for the IO tensors.
+ *
+ * Note: This pass does not support dynamic shapes, it is the users responsibility to check this
+ * pass isn't applied where dynamic shapes may be input.
  */
 TVM_DLL Pass AnnotateUsedMemory();
 
