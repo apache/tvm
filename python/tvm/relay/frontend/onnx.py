@@ -2124,18 +2124,21 @@ class EyeLike(OnnxOpConverter):
 
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        in_checked_type = infer_type(inputs[0]).checked_type
-        in_dtype = in_checked_type.dtype
-        in_shape = list(get_const_tuple(in_checked_type.shape))
         dtype = attr.get("dtype", None)
         if dtype is None:
+            in_checked_type = infer_type(inputs[0]).checked_type
+            in_dtype = in_checked_type.dtype
             dtype = in_dtype
         else:
             dtype = get_type(dtype)
+
+        in_shape = _op.shape_of(inputs[0])
         zeros = _op.zeros(in_shape, dtype)
-        dim = in_shape[0]
-        indices = _op.arange(_op.const(0), _op.const(dim), dtype="int32")
-        ones = _op.full(_op.const(1), (dim,), dtype=dtype)
+
+        dim = _op.take(in_shape, _op.const(0))
+
+        indices = _op.arange(_op.const(0), dim, dtype="int32")
+        ones = _op.full(_op.const(1), _op.reshape(dim, (1,)), dtype=dtype)
         k = _op.const(attr.get("k", 0), dtype="int32")
         return _op.scatter_nd(zeros, _op.stack([indices, indices + k], axis=0), ones, "update")
 
