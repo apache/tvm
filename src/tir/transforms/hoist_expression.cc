@@ -89,6 +89,27 @@ class HoistExpressionConfig : public Attrs {
 TVM_REGISTER_NODE_TYPE(HoistExpressionConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.HoistExpression", HoistExpressionConfig);
 
+struct HoistIfThenElseConfigNode : public tvm::AttrsNode<HoistIfThenElseConfigNode> {
+  // Would like to replace the typo here from "hosting" to "hoisting",
+  // but that may impact user configurations.
+  bool support_block_scope_hosting;
+
+  TVM_DECLARE_ATTRS(HoistIfThenElseConfigNode, "tir.transform.HoistIfThenElseConfig") {
+    TVM_ATTR_FIELD(support_block_scope_hosting)
+        .describe("Hoist if cond with block scope variables")
+        .set_default(false);
+  }
+};
+
+class HoistIfThenElseConfig : public Attrs {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(HoistIfThenElseConfig, Attrs,
+                                            HoistIfThenElseConfigNode);
+};
+
+TVM_REGISTER_NODE_TYPE(HoistIfThenElseConfigNode);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.HoistIfThenElse", HoistIfThenElseConfig);
+
 class HoistInfoCollector : public StmtExprVisitor {
  public:
   struct ConditionInfo {
@@ -519,6 +540,54 @@ Pass HoistExpression() {
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.HoistExpression").set_body_typed(HoistExpression);
+
+Pass HoistIfThenElse() {
+  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    auto cfg = ctx->GetConfig<HoistIfThenElseConfig>("tir.HoistIfThenElse");
+
+    if (!cfg.defined()) {
+      cfg = AttrsWithDefaultValues<HoistIfThenElseConfig>();
+    }
+    int block_var =
+        int(cfg.value()->support_block_scope_hosting ? HoistedConditionals::kUsingBlockVar
+                                                     : HoistedConditionals::kNone);
+    HoistExpressionConfig config(block_var | int(HoistedConditionals::kIfElseStmt),
+                                 int(HoistedLetBindings::kNone));
+    n->body = ExpressionHoister::Hoist(std::move(n->body), config);
+    return f;
+  };
+  auto insertion_pass = CreatePrimFuncPass(pass_func, 0, "tir.InsertHoistIfThenElse", {});
+  return Sequential(
+      {
+          insertion_pass,
+          Simplify(),
+          RemoveNoOp(),
+      },
+      "tir.HoistIfThenElse");
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.HoistIfThenElse").set_body_typed(HoistIfThenElse);
+
+Pass HoistIfThenElseBasic() {
+  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    HoistExpressionConfig config(static_cast<int>(HoistedConditionals::kIfElseStmt),
+                                 static_cast<int>(HoistedLetBindings::kNone));
+    n->body = ExpressionHoister::Hoist(std::move(n->body), config);
+    return f;
+  };
+  auto insertion_pass = CreatePrimFuncPass(pass_func, 0, "tir.InsertHoistIfThenElseBasic", {});
+  return Sequential(
+      {
+          insertion_pass,
+          Simplify(),
+          RemoveNoOp(),
+      },
+      "tir.HoistIfThenElseBasic");
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.HoistIfThenElseBasic").set_body_typed(HoistIfThenElseBasic);
 
 }  // namespace transform
 
