@@ -72,11 +72,41 @@ def test_ethosu_conv2d_single(
             padding=padding,
             dilations=dilation,
         )
-        if activation:
+        if activation == "RELU":
             op = tf.nn.relu(op)
         return op
 
     infra.compare_tvm_with_tflite(conv2d, [ifm_shape], accel_type)
+
+
+def test_tflite_conv2d_with_separate_pad():
+    np.random.seed(0)
+
+    ifm_shape = (1, 55, 34, 3)
+    kernel_shape = (3, 2)
+    strides = (1, 1)
+    dilation = (2, 1)
+    padding = (0, 0, 1, 1)
+
+    @tf.function
+    def conv2d(x):
+        tf_strides = [1, strides[0], strides[1], 1]
+        op = tf.pad(
+            x,
+            [[0, 0], [padding[0], padding[2]], [padding[1], padding[3]], [0, 0]],
+            "CONSTANT",
+        )
+        weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 3]
+        weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+        return tf.nn.conv2d(
+            op,
+            weight,
+            strides=tf_strides,
+            padding="VALID",
+            dilations=dilation,
+        )
+
+    infra.compare_tvm_with_tflite(conv2d, [ifm_shape], "ethos-u55-256")
 
 
 @pytest.mark.parametrize("ifm_shape", [(1, 214, 227, 2), (1, 27, 42, 3)])
@@ -120,7 +150,7 @@ def test_ethosu_conv2d_double(
             padding=padding,
             dilations=dilation,
         )
-        if activation:
+        if activation == "RELU":
             op2 = tf.nn.relu(op2)
         return op2
 
@@ -156,7 +186,7 @@ def test_out_of_range_scaling(weight_min, weight_max):
             padding=padding,
             dilations=dilation,
         )
-        if activation:
+        if activation == "RELU":
             op = tf.nn.relu(op)
         return op
 
@@ -191,11 +221,41 @@ def test_tflite_depthwise_conv2d(
         op = tf.nn.depthwise_conv2d(
             x, weight, strides=tf_strides, padding=padding, dilations=dilation
         )
-        if activation_function:
+        if activation_function == "RELU":
             op = tf.nn.relu(op)
         return op
 
     infra.compare_tvm_with_tflite(depthwise_conv2d, [ifm_shape], accel_type)
+
+
+def test_tflite_depthwise_conv2d_with_separate_pad():
+    np.random.seed(0)
+
+    ifm_shape = (1, 23, 32, 7)
+    kernel_shape = (1, 2)
+    strides = (3, 2)
+    dilation = (1, 1)
+    padding = (0, 0, 1, 1)
+
+    @tf.function
+    def depthwise_conv2d(x):
+        tf_strides = [1, strides[0], strides[1], 1]
+        op = tf.pad(
+            x,
+            [[0, 0], [padding[0], padding[2]], [padding[1], padding[3]], [0, 0]],
+            "CONSTANT",
+        )
+        weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 1]
+        weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+        return tf.nn.depthwise_conv2d(
+            op,
+            weight,
+            strides=tf_strides,
+            padding="VALID",
+            dilations=dilation,
+        )
+
+    infra.compare_tvm_with_tflite(depthwise_conv2d, [ifm_shape], "ethos-u55-256")
 
 
 @pytest.mark.parametrize(
