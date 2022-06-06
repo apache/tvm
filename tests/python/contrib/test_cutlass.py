@@ -16,7 +16,6 @@
 # under the License.
 import logging
 import math
-import pytest
 import tvm
 from tvm import relay
 from tvm.contrib.cudnn import conv_output_shape
@@ -25,20 +24,18 @@ from tvm.runtime.vm import VirtualMachine
 from tvm.relay.op.contrib.cutlass import partition_for_cutlass
 from tvm.relay.transform import FirstOrderGradient, ToMixedPrecision, InferType
 from tvm.contrib.cutlass import (
-    tune_cutlass_kernels,
-    build_cutlass_kernels,
-    build_cutlass_kernels_vm,
+    has_cutlass,
+    num_cutlass_partitions,
+    finalize_modules,
+    finalize_modules_vm,
 )
+import tvm.testing
 
 logging.basicConfig(level=logging.INFO)
 
 
 def has_cublas():
     return tvm.get_global_func("tvm.contrib.cublas.matmul", True) != None
-
-
-def has_cutlass():
-    return tvm.get_global_func("relay.ext.cutlass", True) != None
 
 
 def get_ref_rt_mod(mod, params, target="cuda"):
@@ -258,24 +255,33 @@ def profile_and_build(
     sm,
     split_k_slices=[1],
     tmp_dir="./tmp",
-    lib_path="compile.so",
     use_fast_math=False,
     use_3xtf32=True,
 ):
+    logging.info("before partitioning:\n%s", mod)
     mod = partition_for_cutlass(mod)
-    mod, num_cutlass_partition = tune_cutlass_kernels(
-        mod,
-        sm,
-        use_3xtf32=use_3xtf32,
-        split_k_slices=split_k_slices,
-        profile_all_alignments=False,
-        find_first_valid=True,
-        use_multiprocessing=True,
-        tmp_dir=tmp_dir,
+    logging.info("after partitioning:\n%s", mod)
+
+    num_cutlass_partition = num_cutlass_partitions(mod)
+    host = tvm.target.Target("llvm")
+    cuda = tvm.target.Target("cuda", host=host)
+    cutlass = tvm.target.Target(
+        {
+            "kind": "cutlass",
+            "sm": sm,
+            "use_3xtf32": use_3xtf32,
+            "split_k_slices": split_k_slices,
+            "profile_all_alignments": False,
+            "find_first_valid": True,
+            "use_multiprocessing": True,
+            "use_fast_math": use_fast_math,
+            "tmp_dir": tmp_dir,
+        },
+        host=host,
     )
     with tvm.transform.PassContext(opt_level=3):
-        lib = relay.build(mod, target="cuda", params=params)
-    lib = build_cutlass_kernels(lib, sm, tmp_dir, lib_path, use_fast_math=use_fast_math)
+        lib = relay.build(mod, target=[cuda, cutlass], params=params)
+    lib = finalize_modules(lib, "compile.so", tmp_dir)
     dev = tvm.device("cuda", 0)
     rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
     return rt_mod, dev, num_cutlass_partition
@@ -287,26 +293,30 @@ def profile_and_build_vm(
     sm,
     split_k_slices=[1],
     tmp_dir="./tmp",
-    lib_path="compile.so",
-    vmcode_path="vmcode.ro",
     use_fast_math=False,
     use_3xtf32=True,
 ):
     mod = partition_for_cutlass(mod)
-    mod, num_cutlass_partition = tune_cutlass_kernels(
-        mod,
-        sm,
-        split_k_slices=split_k_slices,
-        use_3xtf32=use_3xtf32,
-        profile_all_alignments=False,
-        find_first_valid=True,
-        tmp_dir=tmp_dir,
+    num_cutlass_partition = num_cutlass_partitions(mod)
+    host = tvm.target.Target("llvm")
+    cuda = tvm.target.Target("cuda", host=host)
+    cutlass = tvm.target.Target(
+        {
+            "kind": "cutlass",
+            "sm": sm,
+            "use_3xtf32": use_3xtf32,
+            "split_k_slices": split_k_slices,
+            "profile_all_alignments": False,
+            "find_first_valid": True,
+            "use_multiprocessing": True,
+            "use_fast_math": use_fast_math,
+            "tmp_dir": tmp_dir,
+        },
+        host=host,
     )
     with tvm.transform.PassContext(opt_level=3):
-        vm_exec = relay.vm.compile(mod, target="cuda", params=params)
-    vm_exec = build_cutlass_kernels_vm(
-        vm_exec, sm, tmp_dir, lib_path, vmcode_path, use_fast_math=use_fast_math
-    )
+        vm_exec = relay.vm.compile(mod, target=[cuda, cutlass], params=params)
+    vm_exec = finalize_modules_vm(vm_exec, "compile.so", tmp_dir)
     dev = tvm.device("cuda", 0)
     return VirtualMachine(vm_exec, dev), dev, num_cutlass_partition
 
@@ -325,8 +335,7 @@ def verify_dense(
     weight_dtype="float16",
     use_3xtf32=True,
 ):
-    if not has_cutlass():
-        return
+    assert has_cutlass()
     if sm < 80 and data_dtype == "float32":
         return
 
@@ -377,8 +386,7 @@ def verify_dense(
 def verify_batch_matmul(
     func, batch, M, N, K, ref_target="cuda", sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
 ):
-    if not has_cutlass():
-        return
+    assert has_cutlass()
     mod = tvm.IRModule.from_expr(func)
     typ = relay.transform.InferType()(mod)["main"].body.checked_type
     use_vm = any(isinstance(s, tvm.tir.Any) for s in typ.shape)
@@ -415,6 +423,7 @@ N = 64
 K = 64
 
 
+@tvm.testing.requires_cutlass
 def test_dense():
     verify_dense(get_dense(M, N, K), M, N, K)
     verify_dense(get_dense(M, N, K, out_dtype="float32"), M, N, K)
@@ -449,21 +458,25 @@ def test_dense():
     )
 
 
+@tvm.testing.requires_cutlass
 def test_dense_bias():
     verify_dense(get_dense_bias(M, N, K), M, N, K)
     verify_dense(get_dense_bias(M, N, K, out_dtype="float32"), M, N, K)
 
 
+@tvm.testing.requires_cutlass
 def test_dense_bias_relu():
     verify_dense(get_dense_bias_relu(M, N, K), M, N, K)
     verify_dense(get_dense_bias_relu(M, N, K, out_dtype="float32"), M, N, K)
 
 
+@tvm.testing.requires_cutlass
 def test_dense_bias_gelu():
     verify_dense(get_dense_bias_gelu(M, N, K), M, N, K, atol=1e-3, rtol=1e-3)
     verify_dense(get_dense_bias_gelu(M, N, K, out_dtype="float32"), M, N, K, atol=1e-3, rtol=1e-3)
 
 
+@tvm.testing.requires_cutlass
 def test_dense_dynamic():
     data_shape = (relay.Any(), K)
     weight_shape = (relay.Any(), K)
@@ -490,6 +503,7 @@ def test_dense_dynamic():
     )
 
 
+@tvm.testing.requires_cutlass
 def test_batch_matmul():
     batch = 8
     verify_batch_matmul(get_batch_matmul(batch, M, N, K), batch, M, N, K)
@@ -527,8 +541,7 @@ def verify_conv2d_common(
     ref_target="cuda",
     use_vm=False,
 ):
-    if not has_cutlass():
-        return
+    assert has_cutlass()
     if sm < 80 and inputs[0].dtype == "float32":
         return
 
@@ -666,6 +679,7 @@ def verify_conv2d_backward_weight(
     )
 
 
+@tvm.testing.requires_cutlass
 def test_conv2d():
     padding = (1, 1)
     for IC in [3, 16]:
@@ -746,6 +760,7 @@ def test_conv2d():
     )
 
 
+@tvm.testing.requires_cutlass
 def test_conv2d_fusion():
     d_shape = (16, 16, 32, 32)
     w_shape = (32, 16, 3, 3)
@@ -793,6 +808,7 @@ def test_conv2d_fusion():
     )
 
 
+@tvm.testing.requires_cutlass
 def test_conv2d_residual_block():
     d_shape = (16, 16, 32, 32)
     w_shape = (16, 16, 3, 3)
@@ -813,6 +829,7 @@ def test_conv2d_residual_block():
         verify_conv2d(func, func, d_shape, w_shape, sm=80, atol=tol, rtol=tol, run_benchmark=False)
 
 
+@tvm.testing.requires_cutlass
 def test_conv2d_transpose():
     OC = 8
     IC = 16
@@ -852,6 +869,7 @@ def test_conv2d_transpose():
         )
 
 
+@tvm.testing.requires_cutlass
 def test_conv2d_backward_weight():
     OC = 8
     IC = 16
@@ -890,6 +908,7 @@ def test_conv2d_backward_weight():
             )
 
 
+@tvm.testing.requires_cutlass
 def test_conv2d_bwd():
     IC = 16
     OC = 8
