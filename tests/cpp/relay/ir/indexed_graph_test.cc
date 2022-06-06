@@ -146,7 +146,7 @@ TEST(IndexedGraph, RecursiveExprRegression) {
     node->AccumulateDownstreamNodes(&downstreams);
     ASSERT_EQ(downstreams.size(), 4);
     for (const auto* downstream : downstreams) {
-      ASSERT_TRUE(downstream->index_ > 49 && downstream->index_ < 52);
+      ASSERT_TRUE(downstream->index_ >= 49 && downstream->index_ <= 52);
     }
   }
 
