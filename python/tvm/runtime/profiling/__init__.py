@@ -36,7 +36,10 @@ class Report(Object):
     """
 
     def __init__(
-        self, calls: Sequence[Dict[str, Object]], device_metrics: Dict[str, Dict[str, Object]]
+        self,
+        calls: Sequence[Dict[str, Object]],
+        device_metrics: Dict[str, Dict[str, Object]],
+        configuration: Dict[str, Object],
     ):
         """Construct a profiling report from a list of metrics and per-device metrics.
 
@@ -47,8 +50,12 @@ class Report(Object):
 
         device_metrics : Dict[str, Dict[str, Object]]
             Per device metrics.
+
+        configuration : Dict[str, Object]
+            Configuration of TVM for this profiling run. Includes number of
+            threads, executor.
         """
-        self.__init_handle_by_constructor__(_ffi_api.Report, calls, device_metrics)
+        self.__init_handle_by_constructor__(_ffi_api.Report, calls, device_metrics, configuration)
 
     def csv(self):
         """Convert this profiling report into CSV format.
