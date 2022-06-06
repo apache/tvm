@@ -26,7 +26,7 @@ from tvm import auto_scheduler
 from tvm import meta_schedule as ms
 from tvm import relay
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
-import onnx
+import onnx  # type: ignore
 
 
 def _parse_args():
