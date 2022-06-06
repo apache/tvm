@@ -140,7 +140,7 @@ void HexagonThreadManager::GetStreamHandles(std::vector<TVMStreamHandle>* out) {
 PreallocateSyncs is not necessary, but can eliminate runtime overhead for semaphore allocation and vector resizing.
 */
 void HexagonThreadManager::PreallocateSyncs(unsigned number_syncs) {
-  check_semaphore(number_syncs);
+  CheckSemaphore(number_syncs);
 }
   
 bool HexagonThreadManager::Dispatch(TVMStreamHandle thread, PackedFunc f, TVMArgs args, TVMRetValue* rv) {
@@ -156,7 +156,6 @@ bool HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* ar
   qurt_pipe_t* pipeAddr = &pipes[thread];
 
   int trysend = qurt_pipe_try_send(pipeAddr, msg);
-  //CHECK_EQ(trysend, 0);
   return trysend == 0;
 }
 
@@ -196,7 +195,7 @@ void HexagonThreadManager::WaitOnThreads() {
   }
 }
   
-void HexagonThreadManager::check_semaphore(unsigned syncID) {
+void HexagonThreadManager::CheckSemaphore(unsigned syncID) {
   // extend the semaphore vector if it's not long enough
   if (syncID >= semaphores.size()) {
     DBG("Expanding semaphores from " << STR(semaphores.size()) << " to " << STR(syncID+1));
@@ -210,13 +209,13 @@ void HexagonThreadManager::check_semaphore(unsigned syncID) {
 }
   
 bool HexagonThreadManager::Signal(TVMStreamHandle thread, SyncPoint syncID) {
-  check_semaphore(syncID);
+  CheckSemaphore(syncID);
   DBG("Dispatching signal to thread " << STR(thread) << " on semaphore ID " << STR(syncID) << " located @ " << HEX(semaphores[syncID]));
   return Dispatch(thread, thread_signal, (void*) semaphores[syncID]);
 }
 
 bool HexagonThreadManager::Wait(TVMStreamHandle thread, SyncPoint syncID) {
-  check_semaphore(syncID);
+  CheckSemaphore(syncID);
   DBG("Dispatching wait to thread " << STR(thread) << " on semaphore ID " << STR(syncID) << " located @ " << HEX(semaphores[syncID]));
   return Dispatch(thread, thread_wait, (void*) semaphores[syncID]);
 }

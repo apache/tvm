@@ -56,7 +56,6 @@ public:
   HexagonThreadManager(unsigned num_threads, unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words);
   ~HexagonThreadManager();
   void GetStreamHandles(std::vector<TVMStreamHandle>* out);
-  //void GetThreadHandles(std::vector<void*>* out);
   void PreallocateSyncs(unsigned number_syncs);
   bool Dispatch(TVMStreamHandle thread, voidfunc f, void* args);
   bool Dispatch(TVMStreamHandle thread, PackedFunc f, TVMArgs args, TVMRetValue* rv = NULL);
@@ -74,7 +73,7 @@ private:
   };
   
   void SpawnThreads(unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words);
-  void check_semaphore(unsigned syncID);
+  void CheckSemaphore(unsigned syncID);
   static void thread_signal(void* semaphore);
   static void thread_wait(void* semaphore);
   static void thread_wait_free(void* semaphore);

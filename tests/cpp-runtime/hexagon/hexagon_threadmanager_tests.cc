@@ -29,7 +29,7 @@ using namespace tvm::runtime::hexagon;
 class HexagonThreadManagerTest : public ::testing::Test {
   protected:
   void SetUp() override {
-    htm = new HexagonThreadManager(6, stack_size, pipe_size);
+    htm = new HexagonThreadManager(threads, stack_size, pipe_size);
     htm->GetStreamHandles(&streams);
   }
   void TearDown() override {
@@ -38,8 +38,9 @@ class HexagonThreadManagerTest : public ::testing::Test {
   HexagonThreadManager *htm {nullptr};
   std::vector<TVMStreamHandle> streams;
   int answer{0};
-  unsigned pipe_size {100};
-  unsigned stack_size {0x4000}; // 16KB
+  const unsigned threads {6};
+  const unsigned pipe_size {100};
+  const unsigned stack_size {0x4000}; // 16KB
 };
 
 TEST_F(HexagonThreadManagerTest, ctor_errors) {
@@ -59,7 +60,7 @@ TEST_F(HexagonThreadManagerTest, ctor_errors) {
 
 TEST_F(HexagonThreadManagerTest, init) {
   CHECK(htm != nullptr);
-  CHECK_EQ(streams.size(), 6);
+  CHECK_EQ(streams.size(), threads);
 }
 
 void get_the_answer(void* answer) {
@@ -175,6 +176,127 @@ TEST_F(HexagonThreadManagerTest, pipe_overflow) {
   CHECK_EQ(space, false);
 }
 
+void increment(void *val) {
+  *(int*)val = *(int*)val + 1;
+}
+
+TEST_F(HexagonThreadManagerTest, producer_consumer) {
+  htm->Dispatch(streams[5], increment, &answer);
+  htm->SyncFromTo(streams[5], streams[4]);
+  htm->Dispatch(streams[4], increment, &answer);
+  htm->SyncFromTo(streams[4], streams[3]);
+  htm->Dispatch(streams[3], increment, &answer);
+  htm->SyncFromTo(streams[3], streams[2]);
+  htm->Dispatch(streams[2], increment, &answer);
+  htm->SyncFromTo(streams[2], streams[1]);
+  htm->Dispatch(streams[1], increment, &answer);
+  htm->SyncFromTo(streams[1], streams[0]);
+  htm->Dispatch(streams[0], increment, &answer);
+  htm->WaitOnThreads();
+  CHECK_EQ(answer, 6);
+}
+
+TEST_F(HexagonThreadManagerTest, producer_consumer_signal_wait) {
+  htm->Wait(streams[0], 0);
+  htm->Wait(streams[1], 1);
+  htm->Wait(streams[2], 2);
+  htm->Wait(streams[3], 3);
+  htm->Wait(streams[4], 4);
+
+  htm->Dispatch(streams[5], increment, &answer);
+  htm->Signal(streams[5], 4);
+  htm->Dispatch(streams[4], increment, &answer);  
+  htm->Signal(streams[4], 3);
+  htm->Dispatch(streams[3], increment, &answer);
+  htm->Signal(streams[3], 2);
+  htm->Dispatch(streams[2], increment, &answer);
+  htm->Signal(streams[2], 1);
+  htm->Dispatch(streams[1], increment, &answer);
+  htm->Signal(streams[1], 0);
+  htm->Dispatch(streams[0], increment, &answer);
+  htm->WaitOnThreads();
+  CHECK_EQ(answer, 6);
+}
+
+struct ToAppend {
+  std::vector<int> *arr;
+  int value;
+  ToAppend(std::vector<int> *addr, int value) : arr(addr), value(value) {};
+};
+
+void append(void *toappend) {
+  ToAppend* cmd = (ToAppend*)toappend;
+  cmd->arr->push_back(cmd->value);
+}
+
+TEST_F(HexagonThreadManagerTest, thread_order) {
+  std::vector<int> arr;
+
+  ToAppend cmd0(&arr, 0);
+  htm->Dispatch(streams[0], append, &cmd0);
+  htm->SyncFromTo(streams[0], streams[1]);
+
+  ToAppend cmd1(&arr, 1);
+  htm->Dispatch(streams[1], append, &cmd1);
+  htm->SyncFromTo(streams[1], streams[2]);
+
+  ToAppend cmd2(&arr, 2);
+  htm->Dispatch(streams[2], append, &cmd2);
+  htm->SyncFromTo(streams[2], streams[3]);
+
+  ToAppend cmd3(&arr, 3);
+  htm->Dispatch(streams[3], append, &cmd3);
+  htm->SyncFromTo(streams[3], streams[4]);
+
+  ToAppend cmd4(&arr, 4);
+  htm->Dispatch(streams[4], append, &cmd4);
+  htm->SyncFromTo(streams[4], streams[5]);
+
+  ToAppend cmd5(&arr, 5);
+  htm->Dispatch(streams[5], append, &cmd5);
+  htm->WaitOnThreads();
+  for (int i = 0; i < threads; ++i) {
+    CHECK_EQ(arr[i], i);
+  }
+}
+
+TEST_F(HexagonThreadManagerTest, thread_order_signal_wait) {
+  std::vector<int> arr;
+
+  htm->Wait(streams[1], 1);
+  htm->Wait(streams[2], 2);
+  htm->Wait(streams[3], 3);
+  htm->Wait(streams[4], 4);
+  htm->Wait(streams[5], 5);
+
+  ToAppend cmd0(&arr, 0);
+  htm->Dispatch(streams[0], append, &cmd0);
+  htm->Signal(streams[0], 1);
+
+  ToAppend cmd1(&arr, 1);
+  htm->Dispatch(streams[1], append, &cmd1);
+  htm->Signal(streams[1], 2);
+
+  ToAppend cmd2(&arr, 2);
+  htm->Dispatch(streams[2], append, &cmd2);
+  htm->Signal(streams[2], 3);
+
+  ToAppend cmd3(&arr, 3);
+  htm->Dispatch(streams[3], append, &cmd3);
+  htm->Signal(streams[3], 4);
+
+  ToAppend cmd4(&arr, 4);
+  htm->Dispatch(streams[4], append, &cmd4);
+  htm->Signal(streams[4], 5);
+
+  ToAppend cmd5(&arr, 5);
+  htm->Dispatch(streams[5], append, &cmd5);
+  htm->WaitOnThreads();
+  for (int i = 0; i < threads; ++i) {
+    CHECK_EQ(arr[i], i);
+  }
+}
+
 struct ToWrite {
   int* addr;
   int value;
@@ -220,33 +342,4 @@ TEST_F(HexagonThreadManagerTest, dispatch_prints) {
   }
   htm->Start();
   htm->WaitOnThreads();
-}
-
-void increment(void *val) {
-  int x = *(int*)val;
-  x = x + 1;
-  LOG(WARNING) << "incrementing value to " << x << "\n";
-  *(int*)val = x;
-}
-
-TEST_F(HexagonThreadManagerTest, producer_consumer_signal_wait) {
-  htm->Wait(streams[0], 0);
-  htm->Wait(streams[1], 1);
-  htm->Wait(streams[2], 2);
-  htm->Wait(streams[3], 3);
-  htm->Wait(streams[4], 4);
-
-  htm->Dispatch(streams[5], increment, &answer);
-  htm->Signal(streams[5], 4);
-  htm->Dispatch(streams[4], increment, &answer);  
-  htm->Signal(streams[4], 3);
-  htm->Dispatch(streams[3], increment, &answer);
-  htm->Signal(streams[3], 2);
-  htm->Dispatch(streams[2], increment, &answer);
-  htm->Signal(streams[2], 1);
-  htm->Dispatch(streams[1], increment, &answer);
-  htm->Signal(streams[1], 0);
-  htm->Dispatch(streams[0], increment, &answer);
-  htm->WaitOnThreads();
-  CHECK_EQ(answer, 6);
 }
