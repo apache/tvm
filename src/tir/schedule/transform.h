@@ -74,6 +74,27 @@ Array<MatchBufferRegion> ReplaceBuffer(Array<MatchBufferRegion> match_buffers, c
                                        const Buffer& target);
 
 /*!
+ * \brief Replaces the buffer region within the specific sequence of regions
+ * \param regions The regions to be replaced
+ * \param source_buffer The buffer to whose region is to be replaced
+ * \param target The buffer region to be replaced to
+ * \return The new sequence of regions after replacement
+ */
+Array<BufferRegion> ReplaceBufferRegion(Array<BufferRegion> regions, const Buffer& source_buffer,
+                                        const BufferRegion& target);
+
+/*!
+ * \brief Replaces the buffer region within the specific sequence of match_buffers
+ * \param regions The match_buffers to be replaced
+ * \param source_buffer The buffer to whose region is to be replaced
+ * \param target The buffer region to be replaced to
+ * \return The new sequence of match_buffers after replacement
+ */
+Array<MatchBufferRegion> ReplaceBufferRegion(Array<MatchBufferRegion> match_buffers,
+                                             const Buffer& source_buffer,
+                                             const BufferRegion& target);
+
+/*!
  * \brief A helper mutator which recursively replaces the old buffer with the new buffer and
  * collects the block sref reuse information for the following replacement.
  *

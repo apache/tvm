@@ -170,19 +170,40 @@ const FunctionNode* AsOptimizableFunctionNode(const BaseFunc& base_func);
  * \brief namespace of the attributes that can be attached to a relay::Function.
  */
 namespace attr {
-/*! \brief Mark the function as a primitive function. */
-constexpr const char* kPrimitive = "Primitive";
+
 /*!
- * \brief Indicate the compiler that should be used for building this function.
- * When this is unset or set to "default", the default compilation pipeline will be used.
+ * \brief Mark the function as representing a sub-graph which is to be lowered or compiled as
+ * a unit. For example, the function may represent a kernel which TVM will lower to a PrimFunc.
+ * If present should be bound to \p Integer(1). May be accompanied by "Compiler", see below.
+ * The function body should be considered opaque by Relay, and many passes simply ignore these
+ * functions.
+ *
+ * Type: Integer
+ */
+constexpr const char* kPrimitive = "Primitive";
+
+/*!
+ * \brief Mark the function as externally implemented, ie bound in a runtime::Module within the
+ * IRModule's "external_mods" attribute. If present should be bound to \p Integer(1). Generally
+ * the only attribute when present.
+ *
+ * Type: Integer
+ */
+constexpr const char* kExtern = "Extern";
+
+/*!
+ * \brief Indicates the name of the external codegen 'compiler' that should be used to lower
+ * or compile the function other than TVM's default lowering pipeline. The name may correspond
+ * to a TargetKind name. There may be a global function registered under 'relay.ext.{name}'.
+ *
+ * Type: String
  */
 constexpr const char* kCompiler = "Compiler";
+
 /*! \brief Indicate if the function is a closure. */
 constexpr const char* kClosure = "Closure";
 /*! \brief Store a Var to parameter/Constant mapping on a Function. */
 constexpr const char* kParams = "__params__";
-/*! \brief Store the unique external symbol for external compilers. */
-constexpr const char* kExternalSymbol = "ExternalSymbol";
 /*! \brief Mark if the function should be avoided being optimized. */
 constexpr const char* kSkipOptimization = "SkipOptimization";
 /*! \brief Treat the function as a composite operator. */
@@ -193,6 +214,7 @@ constexpr const char* kInline = "Inline";
 constexpr const char* kPartitionedFromPattern = "PartitionedFromPattern";
 /*! \brief Mark the function as only composed of reshape operations. */
 constexpr const char* kReshapeOnly = "relay.reshape_only";
+
 }  // namespace attr
 
 }  // namespace relay
