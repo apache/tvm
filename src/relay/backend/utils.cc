@@ -229,7 +229,7 @@ Array<Pass> GetPassPrefix(bool is_homogeneous, bool is_vm) {
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   pass_seqs.push_back(transform::ToBasicBlockNormalForm());
   // Run all dialect legalization passes.
-  pass_seqs.push_back(relay::qnn::transform::Legalize());
+  // pass_seqs.push_back(relay::qnn::transform::Legalize());
 
   // Legalize pass is restricted to homogeneous execution for now.
   if (is_homogeneous) {
