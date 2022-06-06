@@ -282,11 +282,6 @@ TVM_DLL Pass InferType();
 TVM_DLL Type InferTypeLocal(const Expr& expr);
 
 /*!
- * \brief Infer the types of all sub-expression of expr.
- */
-TVM_DLL Expr InferTypeExpr(const Expr& expr);
-
-/*!
  * \brief Search and eliminate common subexpression. For example, if there are
  * two expressions evaluated to an identical value, a single variable is created
  * and these two expressions are replaced by this variable.

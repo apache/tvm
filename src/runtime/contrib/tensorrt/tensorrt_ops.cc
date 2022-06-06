@@ -67,7 +67,7 @@ nvinfer1::ITensor* TensorRTOpConverter::Transpose(TensorRTOpConverterParams* par
     // Batch dimension cannot be modified.
     ICHECK_EQ(input->getDimensions().nbDims, order.size() - 1);
     ICHECK_EQ(order[0], 0);
-    for (size_t i = 0; i + 1 < order.size(); ++i) {
+    for (size_t i = 0; i < order.size(); ++i) {
       perm.order[i] = order[i + 1] - 1;
     }
   } else {
