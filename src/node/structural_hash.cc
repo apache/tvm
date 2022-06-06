@@ -521,6 +521,7 @@ struct ReportNodeTrait {
   static void VisitAttrs(runtime::profiling::ReportNode* report, AttrVisitor* attrs) {
     attrs->Visit("calls", &report->calls);
     attrs->Visit("device_metrics", &report->device_metrics);
+    attrs->Visit("configuration", &report->configuration);
   }
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;

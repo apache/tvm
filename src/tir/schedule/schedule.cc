@@ -153,6 +153,18 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleFuse").set_body_method<Schedule>(&Sche
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSplit").set_body_method<Schedule>(&ScheduleNode::Split);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorder")
     .set_body_method<Schedule>(&ScheduleNode::Reorder);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAddUnitLoop")
+    .set_body_typed([](Schedule self, ObjectRef rv) -> LoopRV {
+      if (const auto* loop_rv = rv.as<LoopRVNode>()) {
+        return self->AddUnitLoop(GetRef<LoopRV>(loop_rv));
+      } else if (const auto* block_rv = rv.as<BlockRVNode>()) {
+        return self->AddUnitLoop(GetRef<BlockRV>(block_rv));
+      } else {
+        LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << rv->GetTypeKey()
+                   << ". Its value is: " << rv;
+        throw;
+      }
+    });
 /******** (FFI) Manipulate ForKind ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleParallel")
     .set_body_method<Schedule>(&ScheduleNode::Parallel);

@@ -15,19 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """The TensorIR schedule class"""
-from typing import Callable, Dict, List, Optional, Union, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import IRModule, PrimExpr
 from tvm.runtime import Object, String
-from tvm.tir import Block, FloatImm, For, IntImm, PrimFunc, Buffer
-from ..function import IndexMap
+from tvm.tir import Block, Buffer, FloatImm, For, IntImm, PrimFunc
 
+from ..function import IndexMap
 from . import _ffi_api
+from ._type_checker import type_checked
 from .state import ScheduleState, StmtSRef, _parse_debug_mask, _parse_mod
 from .trace import Trace
-from ._type_checker import type_checked
 
 
 @register_error
@@ -684,6 +684,62 @@ class Schedule(Object):
 
         """
         _ffi_api.ScheduleReorder(self, ordered_loops)  # type: ignore # pylint: disable=no-member
+
+    @type_checked
+    def add_unit_loop(self, block_or_loop: Union[LoopRV, BlockRV]) -> LoopRV:
+        """Create a new unit loop on top of the specific block or loop.
+
+        Parameters
+        ----------
+        block_or_loop : Union[LoopRV, BlockRV]
+            The block above which the new loop is created
+
+        Returns
+        -------
+        new_loop : LoopRV
+            The new unit loop
+
+        Examples
+        --------
+
+        Before add_unit_loop, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_add_unit_loop(
+                A: T.Buffer[(), "int32"],
+                B: T.Buffer[(), "int32"],
+                C: T.Buffer[(), "int32"],
+            ) -> None:
+                with T.block("C"):
+                    vi = T.axis.spatial(1, 0)
+                    C[()] = A[()] + B[()]
+
+        Create the schedule and do add-unit-loop:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_add_unit_loop)
+            sch.add_unit_loop(sch.get_block("C"))
+            print(sch.mod["main"].script())
+
+        After applying add-unit-loop, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_add_unit_loop(
+                A: T.Buffer[(), "int32"],
+                B: T.Buffer[(), "int32"],
+                C: T.Buffer[(), "int32"],
+            ) -> None:
+                for u in T.serial(1):
+                    with T.block("C"):
+                        vi = T.axis.spatial(1, 0)
+                        C[()] = A[()] + B[()]
+        """
+        return _ffi_api.ScheduleAddUnitLoop(self, block_or_loop)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: Manipulate ForKind ##########
 
