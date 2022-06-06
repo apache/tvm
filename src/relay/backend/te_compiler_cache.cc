@@ -29,6 +29,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/op_strategy.h>
+#include <tvm/relay/qnn/attrs.h>
 #include <tvm/runtime/builtin_fp16.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
@@ -131,6 +132,86 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
   return res;
 }
 
+// Helper class that is used during lowering to TE.
+// It matches sequence of Ops and lower them into single TOPI operation.
+class PatternMatcher {
+ public:
+  PatternMatcher()
+      : qnn_conv2d_op_(Op::Get("qnn.conv2d")),
+        qnn_requantize_op_(Op::Get("qnn.requantize")),
+        bias_add_op_(Op::Get("add")) {}
+
+  // Memoize visited operations
+  void Register(const CallNode* call_node) {
+    ICHECK(call_node->op.as<OpNode>());
+    Op op = Downcast<Op>(call_node->op);
+    if (op == qnn_conv2d_op_) {
+      registered_ops_[QConv2d]++;
+      anchor_op_ = call_node;
+    } else if (op == qnn_requantize_op_) {
+      registered_ops_[QRequantize]++;
+    } else if (op == bias_add_op_) {
+      registered_ops_[BiasAdd]++;
+    }
+  }
+
+  // Check whether given Op is part of matched pattern.
+  bool find(const Op& op) {
+    if (registered_ops_.empty()) return false;
+
+    if (op == qnn_conv2d_op_ || op == qnn_requantize_op_ || op == bias_add_op_) {
+      // Patterns: qnn.conv2d -> qnn.requantize or qnn.conv2d -> bias_add -> qnn.requantize
+      if (registered_ops_[QConv2d] && registered_ops_[QRequantize]) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // returns whether given Op is last in the pattern qequence.
+  bool IsLeafOp(const Op& op) { return op == qnn_requantize_op_; }
+
+  LoweredOutput LowerOps(const CallNode* a_op, const CallNode* leaf_op,
+                         const Array<te::Tensor>& inputs, tvm::Target target) {
+    static auto flower_call = tvm::runtime::Registry::Get("relay.backend.lower_call");
+    ICHECK(flower_call) << "relay.backend.lower_call is not registered.";
+    ICHECK(a_op == anchor_op_);
+
+    // TODO(ibsidorenko):
+    // now this code changes output data type of anchor op on output data type of
+    // requantize op. After lowering it restore previous output data type.
+    // It will be better to pass new data type directly to lowering function.
+    if (auto* pattr = const_cast<Conv2DAttrs*>(a_op->attrs.as<Conv2DAttrs>())) {
+      const auto* requantize_attrs = leaf_op->attrs.as<qnn::RequantizeAttrs>();
+
+      DataType init_dtype = pattr->out_dtype;
+      pattr->out_dtype = requantize_attrs->out_dtype;
+
+      LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(a_op), inputs, target);
+
+      pattr->out_dtype = init_dtype;
+
+      return lowered_out;
+    } else {
+      LOG(FATAL) << "Unsupported op: " << PrettyPrint(a_op->op);
+      return LoweredOutput({}, OpImplementation());
+    }
+  }
+
+  const CallNode* GetAnchorOp() { return anchor_op_; }
+
+ private:
+  const Op& qnn_conv2d_op_;
+  const Op& qnn_requantize_op_;
+  const Op& bias_add_op_;
+
+  // Main (complicated) operation in the primitive.
+  const CallNode* anchor_op_ = nullptr;
+
+  enum POper { QConv2d, BiasAdd, QRequantize };
+  std::map<POper, int> registered_ops_;
+};
+
 // Lowers Relay primitive Function to TE Compute
 class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
  public:
@@ -220,6 +301,8 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
     static auto flower_call = tvm::runtime::Registry::Get("relay.backend.lower_call");
     ICHECK(flower_call) << "relay.backend.lower_call is not registered.";
 
+    pattern_matcher_.Register(call_node);
+
     Array<te::Tensor> inputs;
     int count_tuple = 0;
     for (Expr arg : call_node->args) {
@@ -243,9 +326,27 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
     // TODO(mbs): device_copy cleanup
     ICHECK_NE(op, device_copy_op_) << "device_copy cannot be lowered";
 
-    LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(call_node), inputs, target_);
-    Array<te::Tensor> outputs = lowered_out->outputs;
-    op_implementations_[op.operator->()] = lowered_out->implementation;
+    Array<te::Tensor> outputs;
+
+    if (pattern_matcher_.find(op)) {
+      if (pattern_matcher_.IsLeafOp(op)) {
+        // Lower anchor op when pattern leaf op was reached
+        auto anchor_op = pattern_matcher_.GetAnchorOp();
+        LoweredOutput lowered_out =
+            pattern_matcher_.LowerOps(anchor_op, call_node, inputs, target_);
+        outputs = lowered_out->outputs;
+        Op a_op = Downcast<Op>(anchor_op->op);
+        op_implementations_[a_op.operator->()] = lowered_out->implementation;
+      } else {
+        // Forward inputs as "outputs" for successor.
+        readable_name_stream_ << '_' << op->name;
+        return inputs;
+      }
+    } else {
+      LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(call_node), inputs, target_);
+      outputs = lowered_out->outputs;
+      op_implementations_[op.operator->()] = lowered_out->implementation;
+    }
 
     if (outputs.size() != 1) {
       const auto* tuple_type = call_node->checked_type().as<TupleTypeNode>();
@@ -301,6 +402,8 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
   std::string candidate_name_;
 
  private:
+  PatternMatcher pattern_matcher_;
+
   tvm::Target target_;
   std::ostringstream readable_name_stream_;
   // Index of the global constants

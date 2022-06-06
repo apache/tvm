@@ -15,15 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Schedules for Hexagon. """
-
 # pylint: disable=wildcard-import
+"""QNN op strategies."""
+from __future__ import absolute_import as _abs
 
-from .batch_matmul import *
-from .conv2d import *
-from .dense import *
-from .injective import *
-from .pooling import *
-from .qnn import *
-from .reduce import *
-from .resize2d import *
+from .generic import *
+from . import hexagon
