@@ -395,8 +395,16 @@ class EvolutionarySearchNode : public SearchStrategyNode {
                  const Optional<CostModel>& cost_model) final {
     ICHECK(!design_spaces.empty());
     CHECK(this->context_ != nullptr) << "ValueError: Did you forget to initialize the TuneContext?";
-    CHECK(database.defined()) << "ValueError: Database is not supplied in PreTuning";
-    CHECK(cost_model.defined()) << "ValueError: CostModel is not supplied in PreTuning";
+    CHECK(database.defined())
+        << "ValueError: Database is not supplied in PreTuning. Evolutionary"
+           "search algorithm requires a database to be present, so that it "
+           "could sample from previously-explored population. If you do not "
+           "intent to store data on disk, please use `tvm.meta_schedule.testing.DummyDatabase`";
+    CHECK(cost_model.defined())
+        << "ValueError: CostModel is not supplied in PreTuning. Evolutionary search "
+           "algorithm expects a cost model to filter out potentially less efficient kernels. If "
+           "you do not expect a cost model to help, please use "
+           "`tvm.meta_schedule.cost_model.RandomModel`";
     if (this->state_ != nullptr) {
       TVM_PY_LOG(WARNING, this->context_->logging_func)
           << "EvolutionarySearch is already initialized.";
