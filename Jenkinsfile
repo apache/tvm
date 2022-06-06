@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-05-31T16:54:56.997402
+// Generated at 2022-06-01T16:34:53.941462
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -2875,7 +2875,10 @@ stage('Test') {
             label: 'Upload artifacts to S3',
           )
 
-          archiveArtifacts(artifacts: 'docs.tgz', fingerprint: true)
+          sh(
+            script: "aws s3 cp --no-progress _docs s3://${s3_prefix}/docs --recursive",
+            label: 'Upload docs to S3',
+          )
         }
       }
     }

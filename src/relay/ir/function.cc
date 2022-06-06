@@ -112,7 +112,7 @@ FuncType FunctionNode::func_type_annotation() const {
 const FunctionNode* AsOptimizableFunctionNode(const BaseFunc& base_func) {
   if (const auto* function_node = base_func.as<FunctionNode>()) {
     if (!function_node->GetAttr<String>(attr::kCompiler).defined() &&
-        !function_node->GetAttr<String>(attr::kExternalSymbol).defined() &&
+        !function_node->HasNonzeroAttr(attr::kExtern) &&
         !function_node->HasNonzeroAttr(attr::kSkipOptimization)) {
       return function_node;
     }

@@ -21,9 +21,9 @@ set -o pipefail
 
 # Install LLVM/clang
 CLANG_LLVM_HOME=/opt/clang-llvm
-CLANG_LLVM_VERSION=13.0.0
+CLANG_LLVM_VERSION=14.0.0
 CLANG_LLVM_FILENAME=clang_llvm.tar.xz
-wget -q https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_LLVM_VERSION}/clang+llvm-${CLANG_LLVM_VERSION}-x86_64-linux-gnu-ubuntu-16.04.tar.xz -O ${CLANG_LLVM_FILENAME}
+wget -q https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_LLVM_VERSION}/clang+llvm-${CLANG_LLVM_VERSION}-x86_64-linux-gnu-ubuntu-18.04.tar.xz -O ${CLANG_LLVM_FILENAME}
 mkdir ${CLANG_LLVM_HOME}
 tar -xvf ${CLANG_LLVM_FILENAME} -C ${CLANG_LLVM_HOME} --strip-components=1
 rm ${CLANG_LLVM_FILENAME}

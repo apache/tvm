@@ -70,6 +70,32 @@ Array<MatchBufferRegion> ReplaceBuffer(Array<MatchBufferRegion> match_buffers, c
   return match_buffers;
 }
 
+Array<BufferRegion> ReplaceBufferRegion(Array<BufferRegion> regions, const Buffer& source_buffer,
+                                        const BufferRegion& target) {
+  regions.MutateByApply([&source_buffer, &target](const BufferRegion& region) -> BufferRegion {
+    if (region->buffer.same_as(source_buffer)) {
+      return target;
+    }
+    return region;
+  });
+  return regions;
+}
+
+Array<MatchBufferRegion> ReplaceBufferRegion(Array<MatchBufferRegion> match_buffers,
+                                             const Buffer& source_buffer,
+                                             const BufferRegion& target) {
+  match_buffers.MutateByApply([&source_buffer, &target](
+                                  const MatchBufferRegion& match_buffer) -> MatchBufferRegion {
+    if (match_buffer->source->buffer.same_as(source_buffer)) {
+      ObjectPtr<MatchBufferRegionNode> n = make_object<MatchBufferRegionNode>(*match_buffer.get());
+      n->source = target;
+      return MatchBufferRegion(n);
+    }
+    return match_buffer;
+  });
+  return match_buffers;
+}
+
 /******** ReplaceBufferMutator ********/
 ReplaceBufferMutator::ReplaceBufferMutator(const Buffer& old_buffer, Buffer new_buffer,
                                            Map<Block, Block>* block_sref_reuse)

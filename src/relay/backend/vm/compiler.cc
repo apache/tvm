@@ -922,7 +922,7 @@ void VMCompiler::LowerImpl(IRModule mod) {
   for (const auto& pair : context_.module->functions) {
     auto gvar = pair.first;
     if (auto* n = pair.second.as<FunctionNode>()) {
-      if (n->GetAttr<String>(attr::kExternalSymbol).defined()) {
+      if (n->HasNonzeroAttr(attr::kExtern)) {
         // Already compiled during lowering.
         continue;
       }
@@ -1131,7 +1131,7 @@ size_t VMCompiler::PopulateGlobalMap() {
   // Excludes PrimFuncs and externs, which are managed by the primitive_map_.
   for (const auto& kv : context_.module->functions) {
     if (const auto* function_node = kv.second.as<FunctionNode>()) {
-      if (!function_node->GetAttr<String>(attr::kExternalSymbol)) {
+      if (!function_node->HasNonzeroAttr(attr::kExtern)) {
         context_.global_map.emplace(kv.first, context_.global_map.size());
       }
     }

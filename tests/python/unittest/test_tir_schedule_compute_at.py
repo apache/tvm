@@ -15,13 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import sys
-
 import pytest
-
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import te, tir
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
@@ -1333,6 +1330,25 @@ def test_fail_all_producers_under_loop():
     loop, _ = sch.get_loops(sch.get_block("C"))
     with pytest.raises(tvm.tir.ScheduleError, match="requires all the producer"):
         sch.reverse_compute_at(block, loop)
+
+
+def test_compute_at_int64_loop():
+    def _create_prim_func():
+        n = te.var("n", dtype="int64")
+        m = te.var("m", dtype="int64")
+        A = te.placeholder((n, m), name="A", dtype="float32")
+        B = te.placeholder((n, m), name="B", dtype="float32")
+        C = te.compute((n, m), lambda i, j: A[i, j] + B[i, j], name="C")
+        D = te.compute((n, m), lambda i, j: C[i, j] + 1.0, name="D")
+        return te.create_prim_func([A, B, D])
+
+    mod = _create_prim_func()
+    sch = tir.Schedule(mod, debug_mask="all")
+    block_c = sch.get_block("C")
+    block_d = sch.get_block("D")
+    i, _ = sch.get_loops(block_d)
+    sch.compute_at(block_c, i)
+    verify_trace_roundtrip(sch=sch, mod=mod)
 
 
 if __name__ == "__main__":
