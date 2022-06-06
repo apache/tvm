@@ -62,16 +62,22 @@ struct HoistExpressionConfigNode : public tvm::AttrsNode<HoistExpressionConfigNo
   TVM_DECLARE_ATTRS(HoistExpressionConfigNode, "tir.transform.HoistExpressionConfig") {
     TVM_ATTR_FIELD(hoisted_conditionals)
         .describe("Bitflags for the types of boolean expressions to hoist")
-        .set_default(int(HoistedConditionals::kIfElseStmt) | int(HoistedConditionals::kIfElseExpr) |
-                     int(HoistedConditionals::kBooleanExpression));
+        .set_default(static_cast<int>(HoistedConditionals::kIfElseStmt) |
+                     static_cast<int>(HoistedConditionals::kIfElseExpr) |
+                     static_cast<int>(HoistedConditionals::kBooleanExpression));
     TVM_ATTR_FIELD(hoisted_let_bindings)
         .describe("Bitflags for the types of let bindings to hoist")
-        .set_default(int(HoistedLetBindings::kRequiredByCondition) |
-                     int(HoistedLetBindings::kLetStmt) | int(HoistedLetBindings::kLetExpr));
+        .set_default(static_cast<int>(HoistedLetBindings::kRequiredByCondition) |
+                     static_cast<int>(HoistedLetBindings::kLetStmt) |
+                     static_cast<int>(HoistedLetBindings::kLetExpr));
   }
 
-  bool FlagSet(HoistedConditionals flag) const { return int(flag) & hoisted_conditionals; }
-  bool FlagSet(HoistedLetBindings flag) const { return int(flag) & hoisted_let_bindings; }
+  bool FlagSet(HoistedConditionals flag) const {
+    return static_cast<int>(flag) & hoisted_conditionals;
+  }
+  bool FlagSet(HoistedLetBindings flag) const {
+    return static_cast<int>(flag) & hoisted_let_bindings;
+  }
 };
 
 class HoistExpressionConfig : public Attrs {
@@ -356,7 +362,7 @@ class HoistInfoCollector : public StmtExprVisitor {
 
     for (auto it = active_loops.rbegin(); it != active_loops.rend(); it++) {
       Var loop_var = it->loop_var;
-      bool uses_loop_var = UsesVar(expr, [&](const VarNode* var) {
+      bool uses_loop_var = UsesVar(expr, [&](const VarNode* var) -> bool {
         if (var == loop_var.get()) {
           return true;
         }
@@ -366,7 +372,7 @@ class HoistInfoCollector : public StmtExprVisitor {
           return false;
         }
 
-        return bool(it->second.count(loop_var.get()));
+        return it->second.count(loop_var.get());
       });
 
       if (it->reached_sequential_node || uses_loop_var) {
@@ -549,11 +555,11 @@ Pass HoistIfThenElse() {
     if (!cfg.defined()) {
       cfg = AttrsWithDefaultValues<HoistIfThenElseConfig>();
     }
-    int block_var =
-        int(cfg.value()->support_block_scope_hosting ? HoistedConditionals::kUsingBlockVar
-                                                     : HoistedConditionals::kNone);
-    HoistExpressionConfig config(block_var | int(HoistedConditionals::kIfElseStmt),
-                                 int(HoistedLetBindings::kNone));
+    int block_var = static_cast<int>(cfg.value()->support_block_scope_hosting
+                                         ? HoistedConditionals::kUsingBlockVar
+                                         : HoistedConditionals::kNone);
+    HoistExpressionConfig config(block_var | static_cast<int>(HoistedConditionals::kIfElseStmt),
+                                 static_cast<int>(HoistedLetBindings::kNone));
     n->body = ExpressionHoister::Hoist(std::move(n->body), config);
     return f;
   };
