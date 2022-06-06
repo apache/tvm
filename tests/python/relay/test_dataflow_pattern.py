@@ -632,32 +632,6 @@ def test_at_most_one_parent():
     assert not pattern.match(n11)
 
 
-def test_parallel_injective():
-    # Pattern
-    P = is_op("add")(wildcard(), wildcard())  # 'parent'
-    I = is_op("squeeze")(wildcard()) | is_op("transpose")(
-        wildcard()
-    )  # 'intermediate' ('path' in the code)
-    C = is_op("left_shift")(wildcard(), wildcard())  # 'child'
-    pattern = dominates(P, I, C)
-
-    #
-    #      n5(P)
-    #     /     \
-    #  n6(I)   n8(I)
-    #     \     /
-    #      n9(C)
-    #
-
-    x = relay.var("x", shape=(10, 20))
-    n5 = relay.add(x, relay.const(1, "float32"))
-    n6 = relay.squeeze(n5)
-    n8 = relay.transpose(n5, axes=[0, 1])
-    n9 = relay.left_shift(n6, n8)
-
-    assert pattern.match(n9)
-
-
 def test_match_dominator():
     # Pattern
     is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard())
