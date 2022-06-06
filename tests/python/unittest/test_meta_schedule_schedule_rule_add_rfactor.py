@@ -119,5 +119,171 @@ def test_cpu_matmul():
     )
 
 
+def test_cpu_argmax():
+    @T.prim_func
+    def argmax(
+        idx: T.Buffer[(128, 128), "int32"],
+        val: T.Buffer[(128, 128), "float32"],
+        argmax_v0: T.Buffer[(128,), "int32"],
+        argmax_v1: T.Buffer[(128,), "float32"],
+    ) -> None:
+        for i0, i1 in T.grid(128, 128):
+            with T.block("argmax"):
+                i = T.axis.spatial(128, i0)
+                k = T.axis.reduce(128, i1)
+                T.reads(idx[i, k], val[i, k])
+                T.writes(argmax_v0[i], argmax_v1[i])
+                with T.init():
+                    argmax_v0[i] = -1
+                    argmax_v1[i] = T.min_value("float32")
+                v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+                v_argmax_v1: T.float32 = T.Select(
+                    argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
+                )
+                argmax_v0[i] = v_argmax_v0
+                argmax_v1[i] = v_argmax_v1
+
+    @T.prim_func
+    def argmax_0(
+        idx: T.Buffer[(128, 128), "int32"],
+        val: T.Buffer[(128, 128), "float32"],
+        argmax_v0: T.Buffer[128, "int32"],
+        argmax_v1: T.Buffer[128, "float32"],
+    ) -> None:
+        for i0, i1 in T.grid(128, 128):
+            with T.block("argmax"):
+                i, k = T.axis.remap("SR", [i0, i1])
+                T.reads(idx[i, k], val[i, k])
+                T.writes(argmax_v0[i], argmax_v1[i])
+                with T.init():
+                    argmax_v0[i] = -1
+                    argmax_v1[i] = T.float32(-3.4028234663852886e38)
+                v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+                v_argmax_v1: T.float32 = T.Select(
+                    argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k]
+                )
+                argmax_v0[i] = v_argmax_v0
+                argmax_v1[i] = v_argmax_v1
+
+    @T.prim_func
+    def argmax_1(
+        idx: T.Buffer[(128, 128), "int32"],
+        val: T.Buffer[(128, 128), "float32"],
+        argmax_v0: T.Buffer[128, "int32"],
+        argmax_v1: T.Buffer[128, "float32"],
+    ) -> None:
+        argmax_v0_rf = T.alloc_buffer([128, 16], dtype="int32")
+        argmax_v1_rf = T.alloc_buffer([128, 16], dtype="float32")
+        for i0, i1_0, i1_1 in T.grid(128, 8, 16):
+            with T.block("argmax_rf"):
+                vi1_1, i, vi1_0 = T.axis.remap("SSR", [i1_1, i0, i1_0])
+                T.reads(idx[i, vi1_0 * 16 + vi1_1], val[i, vi1_0 * 16 + vi1_1])
+                T.writes(argmax_v0_rf[i, vi1_1], argmax_v1_rf[i, vi1_1])
+                with T.init():
+                    argmax_v0_rf[i, vi1_1] = -1
+                    argmax_v1_rf[i, vi1_1] = T.float32(-3.4028234663852886e38)
+                v_argmax_v0_rf: T.int32 = T.Select(
+                    argmax_v1_rf[i, vi1_1] >= val[i, vi1_0 * 16 + vi1_1],
+                    argmax_v0_rf[i, vi1_1],
+                    idx[i, vi1_0 * 16 + vi1_1],
+                )
+                v_argmax_v1_rf: T.float32 = T.Select(
+                    argmax_v1_rf[i, vi1_1] >= val[i, vi1_0 * 16 + vi1_1],
+                    argmax_v1_rf[i, vi1_1],
+                    val[i, vi1_0 * 16 + vi1_1],
+                )
+                argmax_v0_rf[i, vi1_1] = v_argmax_v0_rf
+                argmax_v1_rf[i, vi1_1] = v_argmax_v1_rf
+        for i0, i1_1 in T.grid(128, 16):
+            with T.block("argmax"):
+                vi1_1, i = T.axis.remap("RS", [i1_1, i0])
+                T.reads(argmax_v0_rf[i, vi1_1], argmax_v1_rf[i, vi1_1])
+                T.writes(argmax_v0[i], argmax_v1[i])
+                T.block_attr({"meta_schedule.random_compute_producer": 1})
+                with T.init():
+                    argmax_v0[i] = -1
+                    argmax_v1[i] = T.float32(-3.4028234663852886e38)
+                v_argmax_v0: T.int32 = T.Select(
+                    argmax_v1[i] >= argmax_v1_rf[i, vi1_1], argmax_v0[i], argmax_v0_rf[i, vi1_1]
+                )
+                v_argmax_v1: T.float32 = T.Select(
+                    argmax_v1[i] >= argmax_v1_rf[i, vi1_1], argmax_v1[i], argmax_v1_rf[i, vi1_1]
+                )
+                argmax_v0[i] = v_argmax_v0
+                argmax_v1[i] = v_argmax_v1
+
+    @T.prim_func
+    def argmax_2(
+        idx: T.Buffer[(128, 128), "int32"],
+        val: T.Buffer[(128, 128), "float32"],
+        argmax_v0: T.Buffer[128, "int32"],
+        argmax_v1: T.Buffer[128, "float32"],
+    ) -> None:
+        # body
+        # with T.block("root")
+        argmax_v0_rf = T.alloc_buffer([128, 8], dtype="int32")
+        argmax_v1_rf = T.alloc_buffer([128, 8], dtype="float32")
+        for i0, i1_0, i1_1 in T.grid(128, 8, 16):
+            with T.block("argmax_rf"):
+                vi1_0, i, vi1_1 = T.axis.remap("SSR", [i1_0, i0, i1_1])
+                T.reads(idx[i, vi1_0 * 16 + vi1_1], val[i, vi1_0 * 16 + vi1_1])
+                T.writes(argmax_v0_rf[i, vi1_0], argmax_v1_rf[i, vi1_0])
+                with T.init():
+                    argmax_v0_rf[i, vi1_0] = -1
+                    argmax_v1_rf[i, vi1_0] = T.float32(-3.4028234663852886e38)
+                v_argmax_v0_rf: T.int32 = T.Select(
+                    argmax_v1_rf[i, vi1_0] >= val[i, vi1_0 * 16 + vi1_1],
+                    argmax_v0_rf[i, vi1_0],
+                    idx[i, vi1_0 * 16 + vi1_1],
+                )
+                v_argmax_v1_rf: T.float32 = T.Select(
+                    argmax_v1_rf[i, vi1_0] >= val[i, vi1_0 * 16 + vi1_1],
+                    argmax_v1_rf[i, vi1_0],
+                    val[i, vi1_0 * 16 + vi1_1],
+                )
+                argmax_v0_rf[i, vi1_0] = v_argmax_v0_rf
+                argmax_v1_rf[i, vi1_0] = v_argmax_v1_rf
+        for i0, i1_0 in T.grid(128, 8):
+            with T.block("argmax"):
+                vi1_0, i = T.axis.remap("RS", [i1_0, i0])
+                T.reads(argmax_v0_rf[i, vi1_0], argmax_v1_rf[i, vi1_0])
+                T.writes(argmax_v0[i], argmax_v1[i])
+                T.block_attr({"meta_schedule.random_compute_producer": 1})
+                with T.init():
+                    argmax_v0[i] = -1
+                    argmax_v1[i] = T.float32(-3.4028234663852886e38)
+                v_argmax_v0: T.int32 = T.Select(
+                    argmax_v1[i] >= argmax_v1_rf[i, vi1_0], argmax_v0[i], argmax_v0_rf[i, vi1_0]
+                )
+                v_argmax_v1: T.float32 = T.Select(
+                    argmax_v1[i] >= argmax_v1_rf[i, vi1_0], argmax_v1[i], argmax_v1_rf[i, vi1_0]
+                )
+                argmax_v0[i] = v_argmax_v0
+                argmax_v1[i] = v_argmax_v1
+
+    decision_0 = []  # type: ignore
+    decision_1 = [
+        ("SamplePerfectTile", [8, 16]),
+    ]
+    decision_2 = [
+        ("SamplePerfectTile", [8, 16]),
+    ]
+    mod = argmax
+    actual = ms.TuneContext(
+        mod=mod,
+        target=Target("llvm --num-cores=32"),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules=[ms.schedule_rule.AddRFactor()],
+        task_name="test",
+    ).generate_design_space()
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[argmax_0, argmax_1, argmax_2],
+        expected_decisions=[decision_0, decision_1, decision_2],
+    )
+
+
 if __name__ == "__main__":
     test_cpu_matmul()
+    test_cpu_argmax()
