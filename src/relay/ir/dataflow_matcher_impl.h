@@ -55,7 +55,6 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   const std::unordered_map<DFPattern, Array<Expr>, ObjectPtrHash, ObjectPtrEqual>& memo() const {
     return memo_;
   }
-  const IndexedGraph<Expr>& dataflow_graph() const { return *expr_graph_; }
 
  protected:
   bool VisitDFPattern(const DFPattern& pattern, const Expr& expr) override;

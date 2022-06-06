@@ -19,11 +19,12 @@
 
 /*!
  * \file src/relay/ir/indexed_graph.h
- * \brief A graph representation of the dataflow in a Relay expression or Relay dataflow
- * pattern. Nodes in this graph capture generic dataflow inputs, outputs, dominators and control
- * flow scopes.
+ * \brief A graph representation of the dataflow in a Relay expression or Relay (dataflow)
+ * pattern. Each 'indexed graph' node is 1:1 with an expression/pattern 'node', hence the
+ * term 'IndexedGraph'. Dataflow is captured in a generic representation which is convenient
+ * for analysis, particularly pattern matching and partitioning.
  *
- * TODO(mbs): Rename to 'DataflowGraph'.
+ * TODO(mbs): Copied from fuse_ops.cc, consider refactoring to share implementation.
  */
 #ifndef TVM_RELAY_IR_INDEXED_GRAPH_H_
 #define TVM_RELAY_IR_INDEXED_GRAPH_H_
@@ -45,34 +46,33 @@ namespace relay {
 using PostDfsIndex = size_t;
 
 /*!
- * \brief Returns a brief summary of the 'reference' expression or pattern. Only used for
- * debugging by IndexedGraph::ToString().
+ * \brief Returns a brief summary of the 'reference' expression or pattern. Only used by
+ * IndexedGraph::ToString() for debugging.
  */
 std::string RefToSummary(const Expr& expr);
 std::string RefToSummary(const DFPattern& pattern);
 
 /*!
- * \brief Represents the dataflow of an expression (or dataflow pattern) as a graph which is
- * overlaid on the underlying expression (or dataflow pattern) graph.
+ * \brief Represents the implied dataflow of an expression or (dataflow) pattern as a DAG who's
+ * nodes are 1:1 with those in the underlying expression/pattern.
  *
- * Each indexed graph node references the corresponding sub-expression (or dataflow sub-pattern)
- * node, and captures:
- *  - dataflow inputs
- *  - dataflow outputs (or a flag indicating the node is an implied output)
- *  - dominator parent
- *  - dominator children
- *  - basic block
+ * Each indexed graph node captures:
+ *  - Dataflow inputs.
+ *  - Dataflow outputs (or a flag indicating the node is an implied output).
+ *  - Dominator parent (ie closest node at which all outputs of the current node re-combine).
+ *  - Dominator children (inverse of above).
+ *  - Basic block (ie node representing the body of a function, arm of an if, etc).
  *
  * This class is templated so we can analyze both DFPatterns and Exprs with the same infrastructure.
  *
- * IndexedGraph should be instantiated through the CreateIndexedGraph utilities.
+ * IndexedGraph should be instantiated through the CreateIndexedGraph utilities below.
  */
 template <typename T>
 class IndexedGraph {
  public:
   using TNode = typename T::ContainerType;
 
-  /*! \brief A Node in the dataflow graph. */
+  /*! \brief A Node in the graph. */
   struct Node {
     /*! \brief Node Constructor
      *  \param ref The expression or dataflow pattern node this indexed graph node is augmenting.
@@ -164,25 +164,6 @@ class IndexedGraph {
       return false;
     }
   };
-
-  /*! \brief Construct the domination tree inside IndexedGraph */
-  void PostDom() {
-    for (PostDfsIndex i = topological_order_.size(); i != 0; --i) {
-      PostDfsIndex index = i - 1;
-      auto* current = topological_order_[index].get();
-      if (current->is_external_) {
-        current->depth_ = 1;
-        current->dominator_parent_ = nullptr;
-      } else {
-        auto parent = LeastCommonAncestor(current->outputs_);
-        current->depth_ = parent ? parent->depth_ + 1 : 1;
-        current->dominator_parent_ = parent;
-        if (parent) {
-          parent->dominator_children_.push_back(current);
-        }
-      }
-    }
-  }
 
   PostDfsIndex size() const { return topological_order_.size(); }
 
@@ -298,6 +279,25 @@ class IndexedGraph {
   }
 
  private:
+  /*! \brief Construct the domination tree inside IndexedGraph */
+  void PostDom() {
+    for (PostDfsIndex i = topological_order_.size(); i != 0; --i) {
+      PostDfsIndex index = i - 1;
+      auto* current = topological_order_[index].get();
+      if (current->is_external_) {
+        current->depth_ = 1;
+        current->dominator_parent_ = nullptr;
+      } else {
+        auto parent = LeastCommonAncestor(current->outputs_);
+        current->depth_ = parent ? parent->depth_ + 1 : 1;
+        current->dominator_parent_ = parent;
+        if (parent) {
+          parent->dominator_children_.push_back(current);
+        }
+      }
+    }
+  }
+
   /*! \brief Find the least common ancestor of all outputs of a node */
   Node* LeastCommonAncestor(const std::vector<Node*>& outputs) {
     if (outputs.size() == 0) {
@@ -345,8 +345,7 @@ class IndexedGraph {
   }
 
   /*!
-   * \brief Map from underlying sub-expressions or dataflow sub-pattern graph nodes to their
-   * indexed graph nodes.
+   * \brief Map from underlying sub-expression or sub-pattern nodes to their indexed graph nodes.
    */
   std::unordered_map<const TNode*, Node*> node_map_;
   /*! \brief All nodes in increasing post-dfs index order. This vector owns all the nodes. */

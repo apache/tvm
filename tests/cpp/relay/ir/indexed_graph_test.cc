@@ -138,6 +138,27 @@ TEST(IndexedGraph, RecursiveExprRegression) {
     ASSERT_EQ(node->inputs_[3]->index_, 21);  // %4
     ASSERT_EQ(node->inputs_[4]->index_, 39);  // %16
   }
+
+  {
+    // Downstream nodes of %18
+    auto node = graph->index_to_node(48);
+    std::unordered_set<const IndexedGraph<Expr>::Node*> downstreams;
+    node->AccumulateDownstreamNodes(&downstreams);
+    ASSERT_EQ(downstreams.size(), 4);
+    for (const auto* downstream : downstreams) {
+      ASSERT_TRUE(downstream->index_ > 49 && downstream->index_ < 52);
+    }
+  }
+
+  {
+    // Dominates relation for %4
+    auto upstream = graph->index_to_node(21);
+    // Path 1: 21->23->24->25->40
+    // Path 2: 21->36->37->38->39->40
+    // Then 40->43
+    auto downstream = graph->index_to_node(43);
+    ASSERT_TRUE(downstream->Dominates(upstream));
+  }
 }
 
 // A module with unused let-bound function. The 'add' operator should have no dominator

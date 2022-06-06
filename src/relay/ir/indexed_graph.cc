@@ -19,9 +19,8 @@
 
 /*!
  * \file src/relay/ir/indexed_graph.cc
- * \brief A graph representation of the dataflow in a Relay expression or Relay dataflow
- * pattern. Nodes in this graph capture generic dataflow inputs, outputs, dominators and control
- * flow scopes.
+ * \brief A graph representation of the dataflow in a Relay expression or Relay (dataflow)
+ * pattern.
  */
 #include "indexed_graph.h"
 
@@ -62,7 +61,10 @@ std::string RefToSummary(const Expr& expr) {
   return Visitor().VisitExpr(expr);
 }
 
-std::string RefToSummary(const DFPattern& pattern) { return ""; }
+std::string RefToSummary(const DFPattern& pattern) {
+  // TODO(mbs): Implement as debugging requires.
+  return "";
+}
 
 std::unique_ptr<IndexedGraph<Expr>> CreateIndexedGraph(const Expr& expr) {
   /*!
@@ -105,7 +107,7 @@ std::unique_ptr<IndexedGraph<Expr>> CreateIndexedGraph(const Expr& expr) {
           if (var_node == current_let_bound_var_) {
             // Remember this is a recursive call to the let-rec bound function.
             // The Annotator functor below will not record any dependency from the let-rec bound
-            // var to the expression so that the dataflow graph is always a DAG.
+            // var to the expression so that the indexed graph is always a DAG.
             VLOG(1) << "Remembering recursive call to '" << var_node->name_hint() << "'";
             rec_calls_->emplace(call_node);
           }
@@ -219,7 +221,7 @@ std::unique_ptr<IndexedGraph<Expr>> CreateIndexedGraph(const Expr& expr) {
     void VisitExpr_(const CallNode* call_node) override {
       auto node = graph_->item_to_node(GetRef<Call>(call_node));
       if (rec_calls_->count(call_node)) {
-        // We want the dataflow graph to be a dag, so don't consider a call to a let-rec bound
+        // We want the indexed graph to be a DAG, so don't consider a call to a let-rec bound
         // function from inside the function to depend on the let-rec bound var.
         VLOG(1) << "Ignoring op in call " << RefToSummary(GetRef<Call>(call_node));
       } else {

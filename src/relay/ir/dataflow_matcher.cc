@@ -722,11 +722,13 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
         for (auto* output : node->outputs_) {
           // and the node is used by nodes outside of the group
           if (memo.count(output->ref()) == 0) {
-            // TODO(mbs): The dominates relation is backwards here, and will always fail.
-            // So all we're doing is failing if an internal node connects to an outside node.
-            // Exit because nodes in this pattern's body are used outside the pattern
-            // fusing it would be invalid
+            // TODO(mbs): This condition used to also include the following test, which since
+            // the dominators relation is used back-to-front was always vacuously true. So the
+            // code is just rejecting the match if a strictly internal node happened to connect
+            // to an outside node.
             ICHECK(!matcher_->expr_to_node(expr)->Dominates(output));
+            // Exit because nodes in this pattern's body are used outside the pattern, fusing it
+            // would be invalid
             return;
           }
         }
