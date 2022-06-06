@@ -311,10 +311,7 @@ class CopyComputeReorderingMutator : public StmtExprMutator {
           new_seq.push_back(op.compute_op);
         }
       }
-
-    }
-    // Reorder the copies and computes by a fixed number of movements
-    else {
+    } else {
       // Each copy statement to a buffer with global scope is moved up
       // at most `_max_copy_movements` times.
       for (size_t index = 0; index < new_seq.size(); ++index) {
