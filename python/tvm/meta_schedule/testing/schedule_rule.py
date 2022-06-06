@@ -26,6 +26,8 @@ from tvm.meta_schedule.schedule_rule import (
     ReuseType,
     ScheduleRule,
 )
+from tvm.meta_schedule.schedule_rule.multi_level_tiling import MultiLevelTilingTensorCore
+from tvm.tir import tensor_intrin
 from tvm.target import Target
 
 
@@ -105,6 +107,38 @@ def multi_level_tiling(target: Target) -> ScheduleRule:
                 req="must",
                 levels=[3],
                 scope="local",
+            ),
+        )
+    raise NotImplementedError(f"{target.kind.name} is not supported")
+
+
+def multi_level_tiling_tensor_core(target: Target, scope="shared") -> ScheduleRule:
+    """Default schedule rules for with multi-level tiling reuse for tensor core"""
+    assert scope in ["shared", "global"]
+    if target.kind.name == "cuda":
+        return MultiLevelTilingTensorCore(
+            intrin_group={
+                "init": tensor_intrin.WMMA_FILL_16x16x16_F32_INTRIN,
+                "load_a": tensor_intrin.WMMA_LOAD_16x16x16_F16_A_INTRIN,
+                "load_b": tensor_intrin.WMMA_LOAD_16x16x16_F16_B_INTRIN,
+                "compute": tensor_intrin.WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
+                "store": tensor_intrin.WMMA_STORE_16x16x16_F32_SHARED_INTRIN
+                if scope == "shared"
+                else tensor_intrin.WMMA_STORE_16x16x16_F32_GLOBAL_INTRIN,
+            },
+            structure="SSSRRSRS",
+            tile_binds=["blockIdx.y", "blockIdx.x", "threadIdx.y"],
+            max_innermost_factor=4,  # 64 // tensor intrin size
+            vector_load_lens=[1, 2, 3, 4],
+            reuse_read=ReuseType(
+                req="must",
+                levels=[4],
+                scope="shared",
+            ),
+            reuse_write=ReuseType(
+                req="must" if scope == "shared" else "no",
+                levels=[2],
+                scope="shared",
             ),
         )
     raise NotImplementedError(f"{target.kind.name} is not supported")

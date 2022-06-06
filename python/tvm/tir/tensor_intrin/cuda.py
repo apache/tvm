@@ -769,15 +769,15 @@ TensorIntrin.register(
     *get_wmma_load_intrin(16, 16, 16, "float16", "shared", True, False),
 )
 
-WMMA_LOAD_16x16x16_F16_A_INTRIN = "wmma_load_16x16x16_f16_a_trans"
+WMMA_LOAD_16x16x16_F16_A_TRANS_INTRIN = "wmma_load_16x16x16_f16_a_trans"
 TensorIntrin.register(
-    WMMA_LOAD_16x16x16_F16_A_INTRIN,
+    WMMA_LOAD_16x16x16_F16_A_TRANS_INTRIN,
     *get_wmma_load_intrin(16, 16, 16, "float16", "shared", False, True),
 )
 
-WMMA_LOAD_16x16x16_F16_B_INTRIN = "wmma_load_16x16x16_f16_b_trans"
+WMMA_LOAD_16x16x16_F16_B_TRANS_INTRIN = "wmma_load_16x16x16_f16_b_trans"
 TensorIntrin.register(
-    WMMA_LOAD_16x16x16_F16_B_INTRIN,
+    WMMA_LOAD_16x16x16_F16_B_TRANS_INTRIN,
     *get_wmma_load_intrin(16, 16, 16, "float16", "shared", True, True),
 )
 

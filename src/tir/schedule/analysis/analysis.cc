@@ -1942,6 +1942,9 @@ bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
 }
 
 bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref) {
+  if (HasBeenMultiLevelTiled(block_sref)) {
+    return false;
+  }
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   if (block->writes.size() != 1 || block->reads.empty() || IsSpatial(block_sref) ||
       !IsTrivialBinding(self, block_sref)) {
