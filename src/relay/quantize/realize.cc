@@ -511,13 +511,14 @@ Expr BatchMatmulRealize(const Call& ref_call, const Array<Expr>& new_args, const
 
   Expr ldata = lhs->data;
   Expr rdata = rhs->data;
-  DataType dtype = cfg->dtype_input;
+  DataType dtype_input = cfg->dtype_input;
+  DataType dtype_weight = cfg->dtype_weight;
 
-  if (lhs->dtype != dtype) {
-    ldata = Cast(ldata, dtype);
+  if (lhs->dtype != dtype_input) {
+    ldata = Cast(ldata, dtype_input);
   }
-  if (rhs->dtype != dtype) {
-    rdata = Cast(rdata, dtype);
+  if (rhs->dtype != dtype_weight) {
+    rdata = Cast(rdata, dtype_weight);
   }
 
   const auto ref_attrs = ref_call->attrs.as<BatchMatmulAttrs>();
