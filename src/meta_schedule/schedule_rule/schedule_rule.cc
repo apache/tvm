@@ -21,6 +21,18 @@
 namespace tvm {
 namespace meta_schedule {
 
+void PyScheduleRuleNode::InitializeWithTuneContext(const TuneContext& context) {
+  ICHECK(f_initialize_with_tune_context != nullptr)
+      << "PyScheduleRule's InitializeWithTuneContext method not implemented!";
+  f_initialize_with_tune_context(context);
+}
+
+Array<tir::Schedule> PyScheduleRuleNode::Apply(const tir::Schedule& sch,
+                                               const tir::BlockRV& block) {
+  ICHECK(f_apply != nullptr) << "PyScheduleRule's Apply method not implemented!";
+  return f_apply(sch, block);
+}
+
 ScheduleRule ScheduleRule::PyScheduleRule(
     PyScheduleRuleNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
     PyScheduleRuleNode::FApply f_apply,                                             //

@@ -17,7 +17,6 @@
 """ Test Meta Schedule Task Scheduler """
 
 import random
-import sys
 import weakref
 from typing import Set
 
@@ -108,7 +107,6 @@ class BatchMatmulModule:
 def _schedule_matmul(sch: Schedule):
     block = sch.get_block("matmul")
     i, j, k = sch.get_loops(block=block)
-    # TODO(@zxybazh): Change to `sample_perfect_tile` after upstreaming
     i_0, i_1, i_2, i_3 = sch.split(loop=i, factors=[2, 4, 64, 2])
     j_0, j_1, j_2, j_3 = sch.split(loop=j, factors=[4, 64, 2, 2])
     k_0, k_1 = sch.split(loop=k, factors=[32, 32])
@@ -118,7 +116,6 @@ def _schedule_matmul(sch: Schedule):
 def _schedule_batch_matmul(sch: Schedule):
     block = sch.get_block("matmul")
     i, j, k, t = sch.get_loops(block=block)
-    # TODO(@zxybazh): Change to `sample_perfect_tile` after upstreaming
     i_0, i_1, i_2, i_3 = sch.split(loop=i, factors=[2, 2, 2, 2])
     j_0, j_1, j_2, j_3 = sch.split(loop=j, factors=[2, 4, 64, 2])
     k_0, k_1 = sch.split(loop=k, factors=[32, 32])
@@ -156,23 +153,22 @@ class MyTaskScheduler(PyTaskScheduler):
 def test_meta_schedule_task_scheduler_single():
     num_trials_per_iter = 3
     max_trials_per_task = 10
-    sch_fn = ScheduleFn(sch_fn=_schedule_matmul)
-    replay = ReplayTrace(num_trials_per_iter, max_trials_per_task)
-    task = TuneContext(
-        MatmulModule,
-        target=tvm.target.Target("llvm"),
-        space_generator=sch_fn,
-        search_strategy=replay,
-        task_name="Test",
-        rand_state=42,
-    )
     database = DummyDatabase()
     round_robin = RoundRobin(
-        [task],
+        [
+            TuneContext(
+                MatmulModule,
+                target=tvm.target.Target("llvm"),
+                space_generator=ScheduleFn(sch_fn=_schedule_matmul),
+                search_strategy=ReplayTrace(num_trials_per_iter, max_trials_per_task),
+                task_name="Test",
+                rand_state=42,
+            )
+        ],
         [1.0],
-        DummyBuilder(),
-        DummyRunner(),
-        database,
+        builder=DummyBuilder(),
+        runner=DummyRunner(),
+        database=database,
         measure_callbacks=[measure_callback.AddToDatabase()],
         max_trials=max_trials_per_task,
     )
@@ -212,10 +208,10 @@ def test_meta_schedule_task_scheduler_multiple():
     database = DummyDatabase()
     round_robin = RoundRobin(
         tasks,
-        [1.0],
-        DummyBuilder(),
-        DummyRunner(),
-        database,
+        [1.0, 1.0, 1.0],
+        builder=DummyBuilder(),
+        runner=DummyRunner(),
+        database=database,
         measure_callbacks=[measure_callback.AddToDatabase()],
         max_trials=max_trials_per_task * len(tasks),
     )
@@ -239,18 +235,23 @@ def test_meta_schedule_task_scheduler_NIE():  # pylint: disable=invalid-name
         pass
 
     with pytest.raises(TVMError, match="PyTaskScheduler's NextTaskId method not implemented!"):
-        scheduler = NIETaskScheduler([], DummyBuilder(), DummyRunner(), DummyDatabase(), 1)
+        scheduler = NIETaskScheduler(
+            tasks=[],
+            builder=DummyBuilder(),
+            runner=DummyRunner(),
+            database=DummyDatabase(),
+            max_trials=1,
+        )
         scheduler.next_task_id()
 
 
 def test_meta_schedule_task_scheduler_avoid_cyclic():  # pylint: disable=invalid-name
-
     database = DummyDatabase()
     scheduler = MyTaskScheduler(
         [],
-        DummyBuilder(),
-        DummyRunner(),
-        database,
+        builder=DummyBuilder(),
+        runner=DummyRunner(),
+        database=database,
         measure_callbacks=[
             measure_callback.AddToDatabase(),
         ],
@@ -262,7 +263,6 @@ def test_meta_schedule_task_scheduler_avoid_cyclic():  # pylint: disable=invalid
 
 
 def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: disable=invalid-name
-
     num_trials_per_iter = 6
     max_trials_per_task = 101
     tasks = [
@@ -294,9 +294,9 @@ def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: d
     database = DummyDatabase()
     scheduler = MyTaskScheduler(
         tasks,
-        DummyBuilder(),
-        DummyRunner(),
-        database,
+        builder=DummyBuilder(),
+        runner=DummyRunner(),
+        database=database,
         measure_callbacks=[
             measure_callback.AddToDatabase(),
         ],

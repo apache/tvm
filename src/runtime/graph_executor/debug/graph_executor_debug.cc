@@ -294,7 +294,7 @@ class GraphExecutorDebug : public GraphExecutor {
    */
   profiling::Report Profile(Array<profiling::MetricCollector> collectors) {
     std::vector<profiling::MetricCollector> cs(collectors.begin(), collectors.end());
-    profiling::Profiler prof(devices_, cs);
+    profiling::Profiler prof(devices_, cs, {{String("Executor"), String("Graph")}});
 
     // warm up. 1 iteration does not seem enough.
     for (int i = 0; i < 3; i++) {

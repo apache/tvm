@@ -19,7 +19,14 @@
 #ifndef TVM_META_SCHEDULE_DATABASE_H_
 #define TVM_META_SCHEDULE_DATABASE_H_
 
+#include <tvm/ir/expr.h>
+#include <tvm/ir/module.h>
 #include <tvm/meta_schedule/arg_info.h>
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/schedule/trace.h>
 

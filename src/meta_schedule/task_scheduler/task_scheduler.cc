@@ -117,7 +117,7 @@ void TaskSchedulerNode::InitializeTask(int task_id) {
                                          << tir::AsTVMScript(sch->mod()) << "\n"
                                          << Concat(trace->AsPython(false), "\n");
   }
-  task->search_strategy.value()->PreTuning(design_spaces);
+  task->search_strategy.value()->PreTuning(design_spaces, database, cost_model);
 }
 
 void TaskSchedulerNode::Tune() {
@@ -199,14 +199,51 @@ Array<RunnerResult> TaskSchedulerNode::JoinRunningTask(int task_id) {
   return results;
 }
 
+void PyTaskSchedulerNode::Tune() {
+  if (f_tune == nullptr) {
+    TaskSchedulerNode::Tune();
+  } else {
+    f_tune();
+  }
+}
+
+void PyTaskSchedulerNode::InitializeTask(int task_id) {
+  if (f_initialize_task == nullptr) {
+    TaskSchedulerNode::InitializeTask(task_id);
+  } else {
+    f_initialize_task(task_id);
+  }
+}
+
+void PyTaskSchedulerNode::TouchTask(int task_id) {
+  if (f_touch_task == nullptr) {
+    return TaskSchedulerNode::TouchTask(task_id);
+  } else {
+    return f_touch_task(task_id);
+  }
+}
+
+Array<RunnerResult> PyTaskSchedulerNode::JoinRunningTask(int task_id) {
+  if (f_join_running_task == nullptr) {
+    return TaskSchedulerNode::JoinRunningTask(task_id);
+  } else {
+    return f_join_running_task(task_id);
+  }
+}
+
+int PyTaskSchedulerNode::NextTaskId() {
+  ICHECK(f_next_task_id != nullptr) << "PyTaskScheduler's NextTaskId method not implemented!";
+  return f_next_task_id();
+}
+
 TaskScheduler TaskScheduler::PyTaskScheduler(
     Array<TuneContext> tasks,                                   //
     Builder builder,                                            //
     Runner runner,                                              //
-    Database database,                                          //
-    int max_trials,                                             //
+    Optional<Database> database,                                //
     Optional<CostModel> cost_model,                             //
     Optional<Array<MeasureCallback>> measure_callbacks,         //
+    int max_trials,                                             //
     PackedFunc logging_func,                                    //
     PyTaskSchedulerNode::FTune f_tune,                          //
     PyTaskSchedulerNode::FInitializeTask f_initialize_task,     //
