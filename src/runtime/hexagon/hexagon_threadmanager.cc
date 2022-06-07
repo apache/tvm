@@ -27,7 +27,7 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
 
   // Initially, block all threads until we get the Start() call
   qurt_sem_init_val(&start_semaphore, 0);
-  for (int i = 0; i < nthreads; i ++) {
+  for (unsigned i = 0; i < nthreads; i ++) {
     Dispatch((TVMStreamHandle)i, thread_wait, &start_semaphore);
   }
 }
@@ -42,7 +42,7 @@ HexagonThreadManager::~HexagonThreadManager() {
   DBG("Threads started");
 
   // dispatch a command to each thread to exit with status 0
-  for (int i = 0; i < nthreads; i++) {
+  for (unsigned i = 0; i < nthreads; i++) {
     while(!Dispatch((TVMStreamHandle)i, &thread_exit, (void*) 0));
   }
 
@@ -50,13 +50,13 @@ HexagonThreadManager::~HexagonThreadManager() {
 
   // join with each thread (wait for them to terminate); if already exited, the call returns immediately
   int status;  // don't actually care what the thread exit status was
-  for (int i = 0; i < nthreads; i++) {
+  for (unsigned i = 0; i < nthreads; i++) {
     qurt_thread_join(threads[i], &status);
   }
 
   DBG("Threads joined");
 
-  // destroy semaphores
+  // Destroy semaphores
   qurt_sem_destroy(&start_semaphore);
   for (auto it : semaphores) {
     qurt_sem_destroy(it.second);
@@ -66,7 +66,7 @@ HexagonThreadManager::~HexagonThreadManager() {
   DBG("Semaphores destroyed");
 
   // Delete pipe objects and contexts
-  for (int i = 0; i < nthreads; i++) {
+  for (unsigned i = 0; i < nthreads; i++) {
     qurt_pipe_destroy(&pipes[i]);
     delete contexts[i];
   }
@@ -96,7 +96,7 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes, unsign
 
   // First, create pipe resources for all threads
   char* next_pipe_start = (char*) pipe_buffer;
-  for (int i = 0; i < nthreads; i++) {
+  for (unsigned i = 0; i < nthreads; i++) {
     qurt_pipe_attr_t pipe_attr;
     qurt_pipe_attr_init(&pipe_attr);
     qurt_pipe_attr_set_buffer(&pipe_attr, (qurt_pipe_data_t*) next_pipe_start);
@@ -113,7 +113,7 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes, unsign
 
   // Create all threads
   char* next_stack_start = (char*) stack_buffer;
-  for (int i = 0; i < nthreads; i++) {
+  for (unsigned i = 0; i < nthreads; i++) {
     // create initialize the thread attr
     qurt_thread_attr_t thread_attr;
     char name[32];
@@ -134,7 +134,7 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes, unsign
 }
 
 void HexagonThreadManager::GetStreamHandles(std::vector<TVMStreamHandle>* out) {
-  for (int i = 0; i < nthreads; i++) {
+  for (unsigned i = 0; i < nthreads; i++) {
     out->push_back((TVMStreamHandle)i);  // threads identified by index into `threads` array
   }
 }
@@ -145,7 +145,7 @@ bool HexagonThreadManager::Dispatch(TVMStreamHandle thread, PackedFunc f, TVMArg
 }
   
 bool HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* args) {
-  unsigned thread = (unsigned)stream;
+  unsigned thread = (uint64_t)stream;
   DBG("Dispatching to stream " << STR(thread));
   Command* cmd = new Command(f, args);  // Command object freed by receiving thread
   qurt_pipe_data_t msg = (qurt_pipe_data_t)(cmd);
@@ -173,20 +173,20 @@ void HexagonThreadManager::WaitOnThreads() {
   finished.resize(nthreads);
   
   // initialize one semaphore for each thread
-  for (int i = 0; i < nthreads; i++) {
+  for (unsigned i = 0; i < nthreads; i++) {
     qurt_sem_init_val(&finished[i], 0);
   }
   // dispatch signal() command to each thread on their private semaphore
-  for (int i = 0; i < nthreads; i++) {
+  for (unsigned i = 0; i < nthreads; i++) {
     while(!Dispatch((TVMStreamHandle)i, thread_signal, &finished[i]));
   }
   // wait on each semaphore, one at a time
-  for (int i = 0; i < nthreads; i++) {
+  for (unsigned i = 0; i < nthreads; i++) {
     thread_wait(&finished[i]);
   }
   
   // clean up
-  for (int i = 0; i < nthreads; i++) {
+  for (unsigned i = 0; i < nthreads; i++) {
     qurt_sem_destroy(&finished[i]);
   }
 }
@@ -242,7 +242,7 @@ void HexagonThreadManager::thread_wait_free(void* semaphore) {
 
 void HexagonThreadManager::thread_exit(void* status) {
   DBG("thread exiting");
-  qurt_thread_exit( (int) status);
+  qurt_thread_exit( (uint64_t) status);
 }
 
 void HexagonThreadManager::thread_unpack(void* wpf) {
