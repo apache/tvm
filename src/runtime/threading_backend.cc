@@ -164,9 +164,18 @@ class ThreadGroup::Impl {
       CPU_SET(id, &cpuset);
     }
 #if defined(__ANDROID__)
-    sched_setaffinity(thread, sizeof(cpu_set_t), &cpuset);
+    struct pthread_tid {
+      void* nothing[90];
+      pid_t tid;
+    };
+    pid_t tid = reinterpret_cast<struct pthread_tid*>(thread)->tid;
+    if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) == -1) {
+      LOG(WARNING) << "SetThreadAffinity fail!";
+    }
 #else
-    pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
+    if (pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset) == -1) {
+      LOG(WARNING) << "SetThreadAffinity fail!";
+    }
 #endif
 #endif
   }
