@@ -2284,6 +2284,11 @@ class Reduce(OnnxOpConverter):
         if noop_with_empty_axes and num_axis == 0:
             return inputs[0]
 
+        if isinstance(axes, _expr.Constant):
+            # Get axis and unpack scalar
+            constant_axis = int(axes.data.numpy()[0])
+            return cls.run_calculation([data], constant_axis, attr.get("keepdims", True))
+
         if num_axis > 0:
             raise ValueError("Dynamic Reduce is not supported yet!")
 
