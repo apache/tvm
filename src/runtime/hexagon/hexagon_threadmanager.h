@@ -2,10 +2,7 @@
 #ifndef TVM_RUNTIME_HEXAGON_THREADMANAGER
 #define TVM_RUNTIME_HEXAGON_THREADMANAGER
 
-// Qualcom lib
-#if defined(__hexagon__)
 #include "qurt.h"
-#endif
 
 // TVM libs
 #include "tvm/runtime/logging.h"
@@ -84,13 +81,11 @@ private:
   unsigned nthreads{0};
   void* stack_buffer{nullptr};
   void* pipe_buffer{nullptr};
-  #if defined(__hexagon__)
   std::vector<qurt_thread_t> threads;
   std::vector<qurt_pipe_t> pipes;
   std::vector<ThreadContext*> contexts;
   std::unordered_map<unsigned, qurt_sem_t*> semaphores;
   qurt_sem_t start_semaphore;
-  #endif
 
   /*
     Encapsulate a function pointer + arg pointer. Sent via pipe to threads to execute.

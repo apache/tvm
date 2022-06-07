@@ -1,7 +1,5 @@
 #include "hexagon_threadmanager.h"
 
-#if defined(__hexagon__)
-
 #include <stdlib.h>
 #include <sstream>
 
@@ -277,5 +275,3 @@ void HexagonThreadManager::thread_main(void* context) {
 }  // namespace hexagon
 }  // namespace runtime
 }  // namespace tvm
-
-#endif  // __hexagon__

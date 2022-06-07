@@ -197,9 +197,7 @@ void HexagonDeviceAPI::SetStream(Device dev, TVMStreamHandle stream) {
 }
   
 void HexagonDeviceAPI::SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
-  #if defined(__hexagon__)
   thread_manager->SyncFromTo(event_src, event_dst);
-  #endif
 }
 
 void HexagonDeviceAPI::Dispatch(Device dev, PackedFunc f, TVMArgs args, TVMRetValue* rv, TVMStreamHandle stream) {
@@ -207,15 +205,11 @@ void HexagonDeviceAPI::Dispatch(Device dev, PackedFunc f, TVMArgs args, TVMRetVa
     CHECK_GE(active_stream, (void*)0);
     stream = active_stream;
   }
-  #if defined(__hexagon__)
   thread_manager->Dispatch(stream, f, args, rv);
-  #endif
 }
 
 void HexagonDeviceAPI::Start(Device dev) {
-  #if defined(__hexagon__)
   thread_manager->Start();
-  #endif
 }
 
   

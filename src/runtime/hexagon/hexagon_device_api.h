@@ -46,17 +46,13 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Constructor
   HexagonDeviceAPI() {
-    #if defined(__hexagon__)
     thread_manager = new HexagonThreadManager(6, 16*(1<<10), 1<<10);
     thread_manager->GetStreamHandles(&free_streams);
-    #endif
   }
 
   //! \brief Destructor
   ~HexagonDeviceAPI() {
-    #if defined(__hexagon__)
     delete thread_manager;
-    #endif
   }
 
   /*! \brief Currently unimplemented interface to specify the active
@@ -173,9 +169,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
   //! Lookup table for the HexagonBuffer managing an allocation.
   std::unordered_map<void*, std::unique_ptr<HexagonBuffer>> hexagon_buffer_map_;
 
-  #if defined(__hexagon__)
   HexagonThreadManager* thread_manager;
-  #endif
   std::vector<TVMStreamHandle> free_streams;
   TVMStreamHandle active_stream = (void*)-1;
 };
