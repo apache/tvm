@@ -2270,6 +2270,27 @@ class Reduce(OnnxOpConverter):
 
         return cls._impl_v1(inputs, attr, params)
 
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        data = inputs[0]
+        axes = inputs[1]
+
+        if not infer_shape(data):  # promote scalar to 1-D tensor
+            data = _op.expand_dims(data, axis=0)
+
+        noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
+        if noop_with_empty_axes:
+            return inputs[0]
+
+        if axes is not None:
+            num_axis = int(infer_type(axes).checked_type.shape[0])
+            if num_axis > 0:
+                raise ValueError("Dynamic Reduce is not supported yet!")
+
+        axis_len = len(infer_shape(data))
+        axis = list(range(axis_len))
+        return cls.run_calculation([data], axis, attr.get("keepdims", True))
+
 
 class ReduceMax(Reduce):
     """Operator converter for ReduceMax."""
