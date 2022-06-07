@@ -20,9 +20,9 @@ import numpy as np
 from tvm.contrib.hexagon.session import Session
 
 import tvm.testing
-from tvm import te
-
-from ..conftest import requires_hexagon_toolchain
+from tvm import te, tir
+from tvm.script import tir as T
+from tvm.contrib.hexagon.session import Session
 
 
 def intrin_mem_copy(shape, dtype, dst_scope, src_scope):
@@ -98,7 +98,7 @@ def verify(hexagon_session: Session, s, x, y, z, size):
     np.testing.assert_equal(zt.numpy(), ref)
 
 
-@requires_hexagon_toolchain
+@tvm.testing.requires_hexagon
 def test_cache_read_write(hexagon_session: Session):
     size = 128
     outer_shape = (size,)
@@ -140,7 +140,7 @@ def layout_transform_2d(n):
     return [n // 16, te.AXIS_SEPARATOR, n % 16]
 
 
-@requires_hexagon_toolchain
+@tvm.testing.requires_hexagon
 def test_cache_read_write_2d(hexagon_session: Session):
     size = 128
     outer_shape = (size,)
@@ -174,3 +174,40 @@ def test_cache_read_write_2d(hexagon_session: Session):
     s[z].tensorize(zinner, mem_copy_write)
 
     verify(hexagon_session, s, x, y, z, size)
+
+
+@T.prim_func
+def scale_by_two(A: T.Buffer[(8192,), "int8"], C: T.Buffer[(8192,), "int8"]):
+    for i in T.serial(
+        0,
+        8192,
+    ):
+        with T.block("C"):
+            C[i] = A[i] * T.int8(2)
+
+
+def test_vtcm_lowering():
+    mod = tvm.IRModule.from_expr(scale_by_two.with_attr("global_symbol", "main"))
+    sch = tir.Schedule(mod, debug_mask="all")
+    block_c = sch.get_block("C")
+    (flat,) = sch.get_loops(block_c)
+    o, i, ii, iii = sch.split(flat, factors=[8, 4, 2, 128])
+    cache_block = sch.cache_read(block_c, 0, storage_scope="global.vtcm")
+    sch.compute_at(cache_block, o)
+    lowered = tvm.lower(sch.mod["main"])
+
+    def ir_module_has_allocate_nodes(irmod):
+        nallocs = 0
+
+        def _visit(stmt):
+            nonlocal nallocs
+            if isinstance(stmt, tvm.tir.Allocate):
+                nallocs += 1
+
+        tvm.tir.stmt_functor.post_order_visit(irmod["main"].body, _visit)
+        return nallocs
+
+    assert not ir_module_has_allocate_nodes(lowered), (
+        "AllocateNode found in lowered IRModule, "
+        "VTCM allocations should have been lowered to tir.nd_mem_alloc_with_scope"
+    )

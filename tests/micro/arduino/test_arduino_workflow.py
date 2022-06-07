@@ -21,6 +21,8 @@ import shutil
 import sys
 import pytest
 
+import tvm.testing
+
 import test_utils
 
 """
@@ -218,4 +220,4 @@ def test_project_inference_runtime(serial_output):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

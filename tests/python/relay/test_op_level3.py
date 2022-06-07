@@ -30,7 +30,7 @@ from tvm.relay.testing import check_grad, run_infer_type
 
 from utils import ref_funcs
 
-executor_kind = tvm.testing.parameter("graph", "debug")
+executor_kind = tvm.testing.parameter("graph", "vm")
 
 
 class TestZerosOnes:
@@ -644,7 +644,7 @@ def test_full_like_infer_type():
     assert yy.checked_type == relay.TensorType((n, c, h, w), "float32")
 
 
-def test_infer_type_leaky_relu(target, dev):
+def test_infer_type_leaky_relu(target, dev, executor_kind):
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     y = relay.nn.leaky_relu(x, alpha=0.1)
@@ -663,10 +663,8 @@ def test_infer_type_leaky_relu(target, dev):
     x_data = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
     ref_res = np.where(x_data > 0, x_data, x_data * 0.1)
 
-    op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
-    tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-    op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
-    tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
+    op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(x_data)
+    tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 class TestInferTypePrelu:
@@ -684,7 +682,7 @@ class TestInferTypePrelu:
         ((1, 2, 2, 3), None, 3, (1, 2, 2, 3)),
     )
 
-    def test_infer_type_prelu(self, target, dev, data, alpha, axis, output, dtype):
+    def test_infer_type_prelu(self, target, dev, executor_kind, data, alpha, axis, output, dtype):
         x = relay.var("data", relay.TensorType(data, dtype))
         if alpha:
             y = relay.var("alpha", relay.TensorType(alpha, dtype))
@@ -712,14 +710,10 @@ class TestInferTypePrelu:
         else:
             ref_res = (x_data < 0) * (x_data * a_data.reshape(1, 1, 3)) + (x_data >= 0) * x_data
 
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
             x_data, a_data
         )
-        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
-            x_data, a_data
-        )
-        tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 class TestArange:
@@ -1051,7 +1045,7 @@ class TestDynamicScatter:
         ((16, 16, 4, 5), (16, 16, 4, 5), 3),
     )
 
-    @pytest.mark.parametrize("executor_kind", ["vm", "debug"])
+    @pytest.mark.parametrize("executor_kind", ["vm"])
     def test_dynamic_scatter(self, target, dev, executor_kind, dshape, ishape, axis):
         d = relay.var("d", relay.TensorType([relay.Any() for i in range(len(dshape))], "float32"))
         i = relay.var("i", relay.TensorType([relay.Any() for i in range(len(ishape))], "int64"))
@@ -2033,31 +2027,30 @@ def test_unique(target, dev):
         x_data = np.random.randint(50, size=n).astype(dtype)
 
         if is_dyn:
-            backends = ["vm", "debug"]
+            backend = "vm"
         else:
-            backends = ["graph", "debug"]
+            backend = "graph"
 
-        for kind in backends:
-            mod = tvm.ir.IRModule.from_expr(func)
-            tvm_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                x_data
-            )  # unique, indices, inverse_indices, num_unique, (counts)
-            np_res = calc_numpy_unique(
-                x_data, is_sorted
-            )  # unique, indices, inverse_indices, num_unique, counts
-            num_unique = np_res[3][0]
+        mod = tvm.ir.IRModule.from_expr(func)
+        tvm_res = relay.create_executor(backend, mod=mod, device=dev, target=target).evaluate()(
+            x_data
+        )  # unique, indices, inverse_indices, num_unique, (counts)
+        np_res = calc_numpy_unique(
+            x_data, is_sorted
+        )  # unique, indices, inverse_indices, num_unique, counts
+        num_unique = np_res[3][0]
 
-            # num_unique
-            assert num_unique == tvm_res[3].numpy()[0]
-            # unique
-            tvm.testing.assert_allclose(tvm_res[0].numpy()[:num_unique], np_res[0], rtol=1e-5)
-            # indices
-            tvm.testing.assert_allclose(tvm_res[1].numpy()[:num_unique], np_res[1], rtol=1e-5)
-            # inverse_indices
-            tvm.testing.assert_allclose(tvm_res[2].numpy(), np_res[2], rtol=1e-5)
-            # counts
-            if return_counts:
-                tvm.testing.assert_allclose(tvm_res[4].numpy()[:num_unique], np_res[4], rtol=1e-5)
+        # num_unique
+        assert num_unique == tvm_res[3].numpy()[0]
+        # unique
+        tvm.testing.assert_allclose(tvm_res[0].numpy()[:num_unique], np_res[0], rtol=1e-5)
+        # indices
+        tvm.testing.assert_allclose(tvm_res[1].numpy()[:num_unique], np_res[1], rtol=1e-5)
+        # inverse_indices
+        tvm.testing.assert_allclose(tvm_res[2].numpy(), np_res[2], rtol=1e-5)
+        # counts
+        if return_counts:
+            tvm.testing.assert_allclose(tvm_res[4].numpy()[:num_unique], np_res[4], rtol=1e-5)
 
     for dtype in ["int32", "int64"]:
         for i in range(8):
@@ -2215,4 +2208,4 @@ class TestSTFT:
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

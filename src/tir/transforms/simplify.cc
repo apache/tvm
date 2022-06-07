@@ -90,12 +90,12 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   // eliminate useless stores
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore store = Downcast<BufferStore>(Parent::VisitStmt_(op));
-    if (const BufferLoadNode* load = op->value.as<BufferLoadNode>()) {
-      if (load->buffer->data.same_as(op->buffer->data) &&
-          ArrayDeepEqual(load->indices, op->indices) &&
-          tir::ExprDeepEqual()(load->buffer->elem_offset, op->buffer->elem_offset) &&
-          ArrayDeepEqual(load->buffer->shape, op->buffer->shape) &&
-          ArrayDeepEqual(load->buffer->strides, op->buffer->strides)) {
+    if (const BufferLoadNode* load = store->value.as<BufferLoadNode>()) {
+      if (load->buffer->data.same_as(store->buffer->data) &&
+          ArrayDeepEqual(load->indices, store->indices) &&
+          tir::ExprDeepEqual()(load->buffer->elem_offset, store->buffer->elem_offset) &&
+          ArrayDeepEqual(load->buffer->shape, store->buffer->shape) &&
+          ArrayDeepEqual(load->buffer->strides, store->buffer->strides)) {
         return Evaluate(0);
       }
     }

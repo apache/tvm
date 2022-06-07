@@ -21,6 +21,7 @@ import math
 import numpy as np
 import pytest
 import tvm
+import tvm.testing
 from tvm import relay
 
 tvm._ffi._init_api("relay.ext.cmsisnn.transform", __name__)
@@ -224,4 +225,4 @@ def test_multiple_functions_non_cmsisnn_compiler(external_compiler):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

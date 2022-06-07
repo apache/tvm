@@ -287,7 +287,9 @@ def match_ethosu_conv2d(output_tensor, device_config):
     ifm_dtype = input_tensors[0].dtype
     ofm_dtype = output_tensor.dtype
 
-    ifm_channels = int(input_tensors[0].shape[3])
+    # Use channels from the weights tensor since that its shape doesn't change during layout
+    # conversion
+    ifm_channels = int(input_tensors[1].shape[3])
     ofm_channels, kernel_height, kernel_width = (int(axis) for axis in input_tensors[1].shape[0:3])
     kernel_elements = kernel_height * kernel_width
 

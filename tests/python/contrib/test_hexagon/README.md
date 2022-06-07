@@ -33,7 +33,7 @@ First, ensure to export Clang libraries to `LD_LIBRARY_PATH` and Hexagon toolcha
 ```bash
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"Path to `llvm-clang/lib` sub-directory. Currently we use LLVM-13 in TVM CI."
 
-export HEXAGON_TOOLCHAIN="Path to Hexagon toolchain. It can be the Hexagon toolchain included in the SDK, for example `HEXAGON_SDK_PATH/tools/HEXAGON_Tools/x.y.z/Tools`.  The `x.y.z` in the path is the toolchain version number, which is specific to the version of the SDK."
+export HEXAGON_TOOLCHAIN="Path to Hexagon toolchain. It can be the Hexagon toolchain included in the SDK, for example `HEXAGON_SDK_ROOT/tools/HEXAGON_Tools/x.y.z/Tools`.  The `x.y.z` in the path is the toolchain version number, which is specific to the version of the SDK."
 ```
 
 You can find more information about downloading [Hexagon SDK](https://developer.qualcomm.com/software/hexagon-dsp-sdk).
@@ -104,7 +104,7 @@ You have the options of running Hexagon test on real hardware or on Hexagon simu
 ```bash
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"path to `llvm-clang/lib` sub-directory"
 
-export HEXAGON_TOOLCHAIN="Path to Hexagon toolchain. It can be the Hexagon toolchain included in the HexagonSDK, for example `HEXAGON_SDK_PATH/tools/HEXAGON_Tools/x.y.z/Tools`.  The `x.y.z` in the path is the toolchain version number, which is specific to the version of the SDK."
+export HEXAGON_TOOLCHAIN="Path to Hexagon toolchain. It can be the Hexagon toolchain included in the HexagonSDK, for example `HEXAGON_SDK_ROOT/tools/HEXAGON_Tools/x.y.z/Tools`.  The `x.y.z` in the path is the toolchain version number, which is specific to the version of the SDK."
 
 export PYTHONPATH=$PYTHONPATH:"path to `tvm/python`"
 ```

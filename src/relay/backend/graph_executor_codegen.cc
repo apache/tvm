@@ -232,7 +232,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
           // lowering process directly.
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
         },
-        config_->host_virtual_device)(mod);
+        config_)(mod);
 
     Optional<backend::FunctionInfo> main_func_info =
         lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");

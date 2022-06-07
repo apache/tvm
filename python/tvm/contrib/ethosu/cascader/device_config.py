@@ -48,9 +48,24 @@ class _Shape:
             self.width = int(shape[3])
             self.depth = int(shape[2]) * int(shape[4])
         else:
-            self.height = int(shape[1])
-            self.width = int(shape[2])
-            self.depth = int(shape[3])
+            # identity layout is NHWC but the shape is not always 4
+            length = len(shape)
+            if length == 4:
+                self.height = int(shape[1])
+                self.width = int(shape[2])
+                self.depth = int(shape[3])
+            elif length == 3:
+                self.height = int(shape[0])
+                self.width = int(shape[1])
+                self.depth = int(shape[2])
+            elif length == 2:
+                self.height = int(shape[0])
+                self.width = int(shape[1])
+                self.depth = 1
+            elif length == 1:
+                self.height = int(shape[0])
+                self.width = 1
+                self.depth = 1
 
     def round_up(self, other: "_Shape"):
         self.height = _round_up(self.height, other.height)
@@ -84,7 +99,7 @@ class EthosuDeviceConfig:
 
             self._total_banks = 48
             self._reserved_banks = 4
-            self._input_granularity = 8
+            self._input_granularity = {1: 8, 2: 8, 4: 16}
             self._accumulator_granularity = {4: 16, 5: 20}
             self._lut_reserved = True
         elif self._device == "ethos-u55-128":
@@ -96,7 +111,7 @@ class EthosuDeviceConfig:
 
             self._total_banks = 24
             self._reserved_banks = 4
-            self._input_granularity = 4
+            self._input_granularity = {1: 4, 2: 4, 4: 8}
             self._accumulator_granularity = {4: 8, 5: 12}
             self._lut_reserved = True
         elif self._device == "ethos-u55-64":
@@ -108,7 +123,7 @@ class EthosuDeviceConfig:
 
             self._total_banks = 16
             self._reserved_banks = 2
-            self._input_granularity = 2
+            self._input_granularity = {1: 2, 2: 2, 4: 4}
             self._accumulator_granularity = {4: 4, 5: 8}
             self._lut_reserved = False
         elif self._device == "ethos-u55-32":
@@ -120,8 +135,8 @@ class EthosuDeviceConfig:
 
             self._total_banks = 16
             self._reserved_banks = 2
-            self._input_granularity = 2
-            self._accumulator_granularity = {4: 4, 5: 8}
+            self._input_granularity = {1: 2, 2: 2, 4: 4}
+            self._accumulator_granularity = {4: 4, 5: 4}
             self._lut_reserved = False
 
     def _get_output_cycles(
@@ -448,17 +463,31 @@ class EthosuDeviceConfig:
             input_block_shape.depth * input_bytewidth, 8
         )
         input_banks = _round_up_div(input_bytes, self._bank_size_bytes) * 2
-        input_banks = _round_up(input_banks, self._input_granularity)
+        input_banks = _round_up(input_banks, self._input_granularity[input_bytewidth])
 
         return input_banks
 
-    def _get_accumulator_banks(self, output_block_shape, acc_bytewidth, depth):
-        acc_depth = _round_up(min(output_block_shape.depth, depth), 8)
+    def _get_accumulator_banks(self, output_block_shape, acc_bytewidth):
+        acc_depth = _round_up(output_block_shape.depth, 8)
         acc_bytes = output_block_shape.area() * self._align(acc_depth, 8) * acc_bytewidth
         acc_banks = _round_up_div(acc_bytes, self._bank_size_bytes) * 2
         acc_banks = _round_up(acc_banks, self._accumulator_granularity[acc_bytewidth])
 
         return acc_banks
+
+    @staticmethod
+    def _create_layout_block(nhwc_block_config, layout):
+        """A helper function to convert to brick layout"""
+        if layout == "NHCWB16":
+            return [
+                nhwc_block_config[0],
+                nhwc_block_config[1],
+                1 + ((nhwc_block_config[3] - 1) // 16),
+                nhwc_block_config[2],
+                16,
+            ]
+        # else it could only be NHWC
+        return nhwc_block_config
 
     def get_elementwise_block_config(
         self,
@@ -537,22 +566,22 @@ class EthosuDeviceConfig:
         # Split the block in half until it fits into SHRAM
         max_height, max_width, max_depth = self._max_block_shape.as_list()[1:]
         if output_layout == "NHCWB16":
-            split_order = (a for a in [1, 3, 2])
-            output_block = [
-                output_shape[0],
-                _round_up(min(output_shape[1], max_height), self._micro_block.height),
-                min(output_shape[2] * output_shape[4], max_depth),
-                _round_up(min(output_shape[3], max_width), self._micro_block.width),
-                16,
-            ]
+            output_height = output_shape[1]
+            output_width = output_shape[3]
+            output_channels = output_shape[2] * 16
         else:
-            split_order = (a for a in [1, 2, 3])
-            output_block = [
-                output_shape[0],
-                _round_up(min(output_shape[1], max_height), self._micro_block.height),
-                _round_up(min(output_shape[2], max_width), self._micro_block.width),
-                _round_up(min(output_shape[3], max_depth), self._micro_block.depth),
-            ]
+            output_height = output_shape[1]
+            output_width = output_shape[2]
+            output_channels = output_shape[3]
+
+        output_nhwc_block = [
+            1,
+            _round_up(min(output_height, max_height), self._micro_block.height),
+            _round_up(min(output_width, max_width), self._micro_block.width),
+            _round_up(min(output_channels, max_depth), self._micro_block.depth),
+        ]
+        output_block = self._create_layout_block(output_nhwc_block, output_layout)
+        split_order = (a for a in [1, 2, 3])
         split_axis = next(split_order)
 
         offset = [0] * len(output_block)
@@ -572,7 +601,7 @@ class EthosuDeviceConfig:
                 )
             else:
                 # Unary elementwise
-                input2_block = _Shape([0, 0, 0, 0])
+                input2_block = input_block
 
             input_block.round_up(self._input_micro_block)
             input2_block.round_up(self._input_micro_block)
@@ -589,15 +618,19 @@ class EthosuDeviceConfig:
                 )
                 output_cycles *= reduce(lambda a, b: a * b, output_block, 1)
                 output_cycles = int(math.ceil(output_cycles))
-                block_config.append(BlockConfig(output_block, output_block, 0, output_cycles))
+                block_config.append(
+                    BlockConfig(input_block.as_list(), output_block, 0, output_cycles)
+                )
                 break
 
-            if output_block[split_axis] == self._micro_block.as_list()[split_axis]:
+            if output_nhwc_block[split_axis] == self._micro_block.as_list()[split_axis]:
                 split_axis = next(split_order)
 
-            output_block[split_axis] = _round_up(
-                _round_up_div(output_block[split_axis], 2), self._micro_block.as_list()[split_axis]
+            output_nhwc_block[split_axis] = _round_up(
+                _round_up_div(output_nhwc_block[split_axis], 2),
+                self._micro_block.as_list()[split_axis],
             )
+            output_block = self._create_layout_block(output_nhwc_block, output_layout)
 
         return block_config
 
@@ -609,18 +642,19 @@ class EthosuDeviceConfig:
         stride_w = int(op_attrs.get("stride_w", 1))
         transform = ifm_propagator.transform
 
-        if input_layout == "NHCWB16":
-            transform[1][-1] = min(transform[1][-1], self._subkernel_limits[0] - stride_h)
-            transform[3][-1] = min(transform[3][-1], self._subkernel_limits[1] - stride_w)
-        else:
-            transform[1][-1] = min(transform[1][-1], self._subkernel_limits[0] - stride_h)
-            transform[2][-1] = min(transform[2][-1], self._subkernel_limits[1] - stride_w)
+        if op_type != "ethosu_identity":
+            if input_layout == "NHCWB16":
+                transform[1][-1] = min(transform[1][-1], self._subkernel_limits[0] - stride_h)
+                transform[3][-1] = min(transform[3][-1], self._subkernel_limits[1] - stride_w)
+            else:
+                transform[1][-1] = min(transform[1][-1], self._subkernel_limits[0] - stride_h)
+                transform[2][-1] = min(transform[2][-1], self._subkernel_limits[1] - stride_w)
 
-        if op_type in ("ethosu_pooling", "ethosu_depthwise_conv2d"):
-            if output_layout == "NHCWB16" and input_layout == "NHWC":
-                transform[3][-1] = depth
-            elif output_layout == "NHCWB16" and input_layout == "NHCWB16":
-                transform[2][-1] = 1 + ((depth - 1) // 16)
+            if op_type in ("ethosu_pooling", "ethosu_depthwise_conv2d"):
+                if output_layout == "NHCWB16" and input_layout == "NHWC":
+                    transform[3][-1] = depth
+                elif output_layout == "NHCWB16" and input_layout == "NHCWB16":
+                    transform[2][-1] = 1 + ((depth - 1) // 16)
 
         return Propagator(transform, ifm_propagator.offset)
 
@@ -739,7 +773,7 @@ class EthosuDeviceConfig:
                             height,
                             1 + ((depth - 1) // 16),
                             width,
-                            min(16, _round_up(ofm_channels, self._micro_block.depth)),
+                            16,
                         )
                         order = [1, 2, 4, 3, 0]
                     else:
@@ -771,9 +805,7 @@ class EthosuDeviceConfig:
                     # Banks required for input block
                     input_banks = self._get_input_banks(input_block_shape, input_bytewidth)
                     # Banks required for accumulation
-                    acc_banks = self._get_accumulator_banks(
-                        output_block_shape, acc_bytewidth, depth
-                    )
+                    acc_banks = self._get_accumulator_banks(output_block_shape, acc_bytewidth)
 
                     if (input_banks + acc_banks) <= banks_available:
                         output_cycles = self._get_output_cycles(

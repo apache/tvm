@@ -95,11 +95,12 @@ def test_tflite_lut_activations(accel_type):
     # Generate reference data
     input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
 
+    test_runner = infra.create_test_runner(accel_type)
     compiled_models = infra.build_source(
         mod,
         input_data,
         output_data,
-        accel_type,
+        test_runner,
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
@@ -110,7 +111,7 @@ def test_tflite_lut_activations(accel_type):
     compilation_artifacts = get_artifacts(ethosu_module)
     cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
-    infra.verify_source(compiled_models, accel_type)
+    infra.verify_source(compiled_models, test_runner)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -151,11 +152,12 @@ def test_random_lut(accel_type):
     mod["main"] = relay.Function([ifm], call)
     mod = relay.transform.InferType()(mod)
 
+    test_runner = infra.create_test_runner(accel_type)
     compiled_models = infra.build_source(
         mod,
         {"ifm": in_data},
         {"output": out_data},
-        accel_type,
+        test_runner,
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
@@ -166,7 +168,7 @@ def test_random_lut(accel_type):
     compilation_artifacts = get_artifacts(ethosu_module)
     cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
-    infra.verify_source(compiled_models, accel_type)
+    infra.verify_source(compiled_models, test_runner)
 
 
 if __name__ == "__main__":

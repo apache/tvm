@@ -28,6 +28,7 @@
 #include <tvm/te/tensor.h>
 #include <tvm/tir/expr.h>
 
+#include <chrono>
 #include <thread>
 
 namespace tvm {
@@ -121,7 +122,7 @@ TVM_REGISTER_GLOBAL("testing.object_use_count").set_body([](TVMArgs args, TVMRet
 
 class FrontendTestModuleNode : public runtime::ModuleNode {
  public:
-  virtual const char* type_key() const { return "frontend_test"; }
+  const char* type_key() const final { return "frontend_test"; }
 
   static constexpr const char* kAddFunctionName = "__add_function";
 
@@ -158,5 +159,10 @@ runtime::Module NewFrontendTestModule() {
 }
 
 TVM_REGISTER_GLOBAL("testing.FrontendTestModule").set_body_typed(NewFrontendTestModule);
+
+TVM_REGISTER_GLOBAL("testing.sleep_in_ffi").set_body_typed([](double timeout) {
+  std::chrono::duration<int64_t, std::nano> duration(static_cast<int64_t>(timeout * 1e9));
+  std::this_thread::sleep_for(duration);
+});
 
 }  // namespace tvm

@@ -20,6 +20,7 @@ import sys
 import json
 import textwrap
 import pytest
+import tvm.testing
 
 from test_utils import REPO_ROOT
 
@@ -510,6 +511,7 @@ def test_github_tag_teams(tmpdir_factory):
         """
         comment2 = """
         something @person4
+        @person5
         """
         teams = {
             "data": {
@@ -730,6 +732,20 @@ def test_github_tag_teams(tmpdir_factory):
         check="Dry run, would have updated issues/1234 with {'body': '@person2 @SOME1-ONE-\\n\\ncc @person1'}",
     )
 
+    run(
+        type="ISSUE",
+        data={
+            "title": "[] A title",
+            "number": 1234,
+            "user": {
+                "login": "person5",
+            },
+            "labels": [],
+            "body": "@person2 @SOME1-ONE-",
+        },
+        check="No one to cc, exiting",
+    )
+
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

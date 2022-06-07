@@ -62,6 +62,7 @@ We do encourage everyone to work anything they are interested in.
 - [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies - relay
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic) (PMC): @kparzysz-quic - hexagon, llvm
 - [Andrew Reusch](https://github.com/areusch): (PMC) @areusch - runtime, microTVM
+- [David Riazati](https://github.com/driazati): @driazati - ci, community
 - [Jared Roesch](https://github.com/jroesch) (PMC): @jroesch - relay
 - [Gustavo Romero](https://github.com/gromero): @gromero - microtvm, tvmc
 - [Giuseppe Rossini](https://github.com/giuseros): @giuseros - aot, arm
@@ -143,6 +144,7 @@ We do encourage everyone to work anything they are interested in.
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
+- [Ramana Radhakrishnan](https://github.com/u99127): @u99127
 - [Andrew Reusch](https://github.com/areusch): @areusch
 - [David Riazati](https://github.com/driazati): @driazati
 - [Jared Roesch](https://github.com/jroesch): @jroesch

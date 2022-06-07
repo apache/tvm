@@ -540,10 +540,12 @@ Example::
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(2)
     .add_type_rel("BatchFlatten", BatchFlattenRel)
-    .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                                             const Type& out_type) {
-      return Array<te::Tensor>{topi::nn::flatten(inputs[0])};
-    });
+    .set_attr<FTVMCompute>("FTVMCompute",
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_type) {
+                             return Array<te::Tensor>{topi::nn::flatten(inputs[0])};
+                           })
+    .set_attr<TReshapeOp>("TReshapeOp", true);
 
 // relu
 TVM_REGISTER_GLOBAL("relay.op.nn._make.relu").set_body_typed([](Expr data) {
@@ -1010,6 +1012,7 @@ Both `tensor_a` and `tensor_b` can be transposed. For legacy reason, we use NT f
 - **out**: `(b, m, n)`.
 
 )code" TVM_ADD_FILELINE)
+    .set_attrs_type<BatchMatmulAttrs>()
     .set_num_inputs(2)
     .add_argument("tensor_a", "3D Tensor", "The first input.")
     .add_argument("tensor_b", "3D Tensor", "The second input.")

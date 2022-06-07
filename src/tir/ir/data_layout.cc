@@ -205,10 +205,15 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 inline bool GetStoreRule(Array<PrimExpr>* index_rule, Array<PrimExpr>* shape_rule,
                          const Layout& src_layout, const Layout& dst_layout) {
-  if (!src_layout.defined() || src_layout.name().empty() || !dst_layout.defined() ||
-      dst_layout.name().empty()) {
+  if (!src_layout.defined() || src_layout.name().empty()) {
+    LOG(WARNING) << "src layout '" << src_layout.name() << "' is invalid.";
     return false;
   }
+  if (!dst_layout.defined() || dst_layout.name().empty()) {
+    LOG(WARNING) << "dst layout '" << dst_layout.name() << "' is invalid.";
+    return false;
+  }
+
   for (size_t i = 0; i < dst_layout.ndim(); ++i) {
     const auto& store_axis = dst_layout[i];
     const IterVar& store_axis_impl = dst_layout->axes[i];
@@ -237,7 +242,8 @@ inline bool GetStoreRule(Array<PrimExpr>* index_rule, Array<PrimExpr>* shape_rul
       }
     }
     if (tir::is_zero(index_store)) {
-      // Not convertible
+      LOG(WARNING) << "layout '" << src_layout.name() << "'-->'" << dst_layout.name()
+                   << "' is not convertible.";
       return false;
     }
 

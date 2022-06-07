@@ -83,16 +83,17 @@ class PyLogMessage {
     if (this->logging_func.defined()) {
       logging_func(static_cast<int>(logging_level), stream_.str());
     } else {
-      if (logging_level == Level::INFO)
+      if (logging_level == Level::INFO) {
         LOG(INFO) << stream_.str();
-      else if (logging_level == Level::WARNING)
+      } else if (logging_level == Level::WARNING) {
         LOG(WARNING) << stream_.str();
-      else if (logging_level == Level::ERROR)
+      } else if (logging_level == Level::ERROR) {
         LOG(ERROR) << stream_.str();
-      else if (logging_level == Level::DEBUG)
+      } else if (logging_level == Level::DEBUG) {
         DLOG(INFO) << stream_.str();
-      else
+      } else {
         LOG(FATAL) << stream_.str();
+      }
     }
   }
   std::ostringstream& stream() { return stream_; }

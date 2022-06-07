@@ -127,6 +127,28 @@ class Module(object):
         self._entry = self.get_function(self.entry_name)
         return self._entry
 
+    def implements_function(self, name, query_imports=False):
+        """Returns True if the module has a definition for the global function with name. Note
+        that has_function(name) does not imply get_function(name) is non-null since the module
+        may be, eg, a CSourceModule which cannot supply a packed-func implementation of the function
+        without further compilation. However, get_function(name) non null should always imply
+        has_function(name).
+
+        Parameters
+        ----------
+        name : str
+            The name of the function
+
+        query_imports : bool
+            Whether to also query modules imported by this module.
+
+        Returns
+        -------
+        b : Bool
+            True if module (or one of its imports) has a definition for name.
+        """
+        return _ffi_api.ModuleImplementsFunction(self, name, query_imports)
+
     def get_function(self, name, query_imports=False):
         """Get function from the module.
 
@@ -216,6 +238,18 @@ class Module(object):
         """
         nmod = _ffi_api.ModuleImportsSize(self)
         return [_ffi_api.ModuleGetImport(self, i) for i in range(nmod)]
+
+    @property
+    def is_dso_exportable(self):
+        """Returns true if module is 'DSO exportable', ie can be included in result of
+        export_library by the external compiler directly.
+
+        Returns
+        -------
+        b : Bool
+            True if the module is DSO exportable.
+        """
+        return _ffi_api.ModuleIsDSOExportable(self)
 
     def save(self, file_name, fmt=""):
         """Save the module to file.
@@ -332,8 +366,7 @@ class Module(object):
         return dso_modules
 
     def _collect_dso_modules(self):
-        is_dso_exportable = lambda m: (m.type_key == "llvm" or m.type_key == "c")
-        return self._collect_from_import_tree(is_dso_exportable)
+        return self._collect_from_import_tree(lambda m: m.is_dso_exportable)
 
     def export_library(self, file_name, fcompile=None, addons=None, workspace_dir=None, **kwargs):
         """
@@ -418,10 +451,7 @@ class Module(object):
                 else:
                     object_format = fcompile.object_format
             else:
-                if module.type_key == "llvm":
-                    object_format = "o"
-                else:
-                    assert module.type_key == "c"
+                if module.type_key == "c":
                     if len(module.format) > 0:
                         assert module.format in [
                             "c",
@@ -436,6 +466,9 @@ class Module(object):
                         if kwargs["cc"] == "nvcc":
                             object_format = "cu"
                     has_c_module = True
+                else:
+                    assert module.type_key == "llvm" or module.type_key == "static_library"
+                    object_format = "o"
             path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
             module.save(path_obj)
             files.append(path_obj)
@@ -550,6 +583,13 @@ def load_module(path, fmt=""):
         path += ".so"
     # Redirect to the load API
     return _ffi_api.ModuleLoadFromFile(path, fmt)
+
+
+def load_static_library(path, func_names):
+    """Load the .o library at path which implements functions with func_names.
+    Unlike the generic load_module the result will remain as a static_library
+    and will not be relinked on-the-fly into a .so library."""
+    return _ffi_api.ModuleLoadStaticLibrary(path, func_names)
 
 
 def enabled(target):

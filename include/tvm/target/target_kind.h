@@ -402,6 +402,16 @@ namespace attr {
  * See also \p Target::IsExternalCodegenFor
  */
 constexpr const char* kIsExternalCodegen = "is_external_codegen";
+
+/*!
+ * \brief A \p TargetKind attribute of type \p FTVMRelayToTIR. If set, then the target kind name
+ * also corresponds to an external codegen 'compiler' name, and the bound value is a \p Pass
+ * to apply before the TVM lowering.
+ *
+ * See also \p Target::IsExternalCodegenFor
+ */
+constexpr const char* kRelayToTIR = "RelayToTIR";
+
 }  // namespace attr
 
 /*!

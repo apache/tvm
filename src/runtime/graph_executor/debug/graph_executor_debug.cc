@@ -140,6 +140,11 @@ class GraphExecutorDebug : public GraphExecutor {
       return 0;
     }
 
+    if (nodes_[index].param.func_name == "__nop") {
+      LOG_INFO << "Skipping __nop function";
+      return 0;
+    }
+
     const Device& dev = data_entry_[entry_id(index, 0)]->device;
     TVMOpParam param = nodes_[index].param;
     std::string name = param.func_name;
@@ -289,7 +294,7 @@ class GraphExecutorDebug : public GraphExecutor {
    */
   profiling::Report Profile(Array<profiling::MetricCollector> collectors) {
     std::vector<profiling::MetricCollector> cs(collectors.begin(), collectors.end());
-    profiling::Profiler prof(devices_, cs);
+    profiling::Profiler prof(devices_, cs, {{String("Executor"), String("Graph")}});
 
     // warm up. 1 iteration does not seem enough.
     for (int i = 0; i < 3; i++) {

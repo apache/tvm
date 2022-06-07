@@ -60,14 +60,29 @@ int strcmp_cursor(const char** cursor, const char* name) {
   return return_value;
 }
 
+uint16_t TVMFuncRegistry_GetNumFuncs(const TVMFuncRegistry* reg) {
+  uint16_t num_funcs;
+  memcpy(&num_funcs, reg->names, sizeof(num_funcs));
+  return num_funcs;
+}
+
+int TVMFuncRegistry_SetNumFuncs(const TVMFuncRegistry* reg, const uint16_t num_funcs) {
+  memcpy((char*)reg->names, &num_funcs, sizeof(num_funcs));
+  return 0;
+}
+
+const char* TVMFuncRegistry_Get0thFunctionName(const TVMFuncRegistry* reg) {
+  // NOTE: first function name starts at index 2 to skip num_funcs.
+  return (reg->names + sizeof(uint16_t));
+}
+
 tvm_crt_error_t TVMFuncRegistry_Lookup(const TVMFuncRegistry* reg, const char* name,
                                        tvm_function_index_t* function_index) {
   tvm_function_index_t idx;
-  const char* reg_name_ptr;
+  const char* reg_name_ptr = TVMFuncRegistry_Get0thFunctionName(reg);
 
   idx = 0;
-  // NOTE: reg_name_ptr starts at index 1 to skip num_funcs.
-  for (reg_name_ptr = reg->names + 1; *reg_name_ptr != '\0'; reg_name_ptr++) {
+  for (; *reg_name_ptr != '\0'; reg_name_ptr++) {
     if (!strcmp_cursor(&reg_name_ptr, name)) {
       *function_index = idx;
       return kTvmErrorNoError;
@@ -82,9 +97,9 @@ tvm_crt_error_t TVMFuncRegistry_Lookup(const TVMFuncRegistry* reg, const char* n
 tvm_crt_error_t TVMFuncRegistry_GetByIndex(const TVMFuncRegistry* reg,
                                            tvm_function_index_t function_index,
                                            TVMBackendPackedCFunc* out_func) {
-  uint8_t num_funcs;
+  uint16_t num_funcs;
 
-  num_funcs = reg->names[0];
+  num_funcs = TVMFuncRegistry_GetNumFuncs(reg);
   if (function_index >= num_funcs) {
     return kTvmErrorFunctionIndexInvalid;
   }
@@ -101,7 +116,8 @@ tvm_crt_error_t TVMMutableFuncRegistry_Create(TVMMutableFuncRegistry* reg, uint8
 
   reg->registry.names = (const char*)buffer;
   buffer[0] = 0;  // number of functions present in buffer.
-  buffer[1] = 0;  // end of names list marker.
+  buffer[1] = 0;  // note that we combine the first two elements to form a 16-bit function index.
+  buffer[2] = 0;  // end of names list marker.
 
   // compute a guess of the average size of one entry:
   //  - assume average function name is around ~10 bytes
@@ -117,13 +133,12 @@ tvm_crt_error_t TVMMutableFuncRegistry_Create(TVMMutableFuncRegistry* reg, uint8
 tvm_crt_error_t TVMMutableFuncRegistry_Set(TVMMutableFuncRegistry* reg, const char* name,
                                            TVMBackendPackedCFunc func, int override) {
   size_t idx;
-  char* reg_name_ptr;
+  char* reg_name_ptr = (char*)TVMFuncRegistry_Get0thFunctionName(&(reg->registry));
 
   idx = 0;
   // NOTE: safe to discard const qualifier here, since reg->registry.names was set from
   // TVMMutableFuncRegistry_Create above.
-  // NOTE: reg_name_ptr starts at index 1 to skip num_funcs.
-  for (reg_name_ptr = (char*)reg->registry.names + 1; *reg_name_ptr != 0; reg_name_ptr++) {
+  for (; *reg_name_ptr != 0; reg_name_ptr++) {
     if (!strcmp_cursor((const char**)&reg_name_ptr, name)) {
       if (override == 0) {
         return kTvmErrorFunctionAlreadyDefined;
@@ -149,7 +164,11 @@ tvm_crt_error_t TVMMutableFuncRegistry_Set(TVMMutableFuncRegistry* reg, const ch
   reg_name_ptr += name_len + 1;
   *reg_name_ptr = 0;
   ((TVMBackendPackedCFunc*)reg->registry.funcs)[idx] = func;
-  ((char*)reg->registry.names)[0]++;  // increment num_funcs.
+
+  uint16_t num_funcs;
+  // increment num_funcs.
+  num_funcs = TVMFuncRegistry_GetNumFuncs(&(reg->registry)) + 1;
+  TVMFuncRegistry_SetNumFuncs(&(reg->registry), num_funcs);
 
   return kTvmErrorNoError;
 }

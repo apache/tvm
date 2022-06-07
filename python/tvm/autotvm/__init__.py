@@ -60,5 +60,6 @@ from .task import (
     FallbackContext,
     ApplyHistoryBest as apply_history_best,
     ApplyGraphBest as apply_graph_best,
+    ApplyFixedConfig as apply_fixed_config,
 )
 from .env import GLOBAL_SCOPE

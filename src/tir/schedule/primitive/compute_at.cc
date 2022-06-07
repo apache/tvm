@@ -194,7 +194,7 @@ struct BlockVarDomainInfo {
       }
       return;
     }
-    // simplify intsets
+    // simplify intset
     dom = to_simplified(dom);
     bound = to_simplified(bound);
     // if can proof the dom is within bound, remove bound
@@ -242,9 +242,10 @@ class ScopeReconstructor : private StmtMutator {
     for (int i = 0; i < n_iters; ++i) {
       Range iter_dom = iter_doms[i].dom.CoverRange(block_->iter_vars[i]->dom);
       if (preserve_unit_loops || !is_one(iter_dom->extent)) {
-        Var var("ax" + std::to_string(loop_vars.size()), DataType::Int(32));
+        int bits = std::max(iter_dom->min.dtype().bits(), iter_dom->extent.dtype().bits());
+        Var var("ax" + std::to_string(loop_vars.size()), DataType::Int(bits));
         loop_vars.push_back(var);
-        loop_extents.push_back(iter_dom->extent);
+        loop_extents.push_back(analyzer->Simplify(iter_dom->extent));
         iter_values.push_back(iter_dom->min + var);
         analyzer->Bind(var, Range::FromMinExtent(0, iter_dom->extent));
       } else {

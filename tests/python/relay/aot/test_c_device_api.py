@@ -21,15 +21,12 @@ from collections import OrderedDict
 import numpy as np
 import pytest
 import re
+import tvm.testing
 
 from tvm import relay
 from tvm.ir.module import IRModule
-from aot_test_utils import (
-    AOT_DEFAULT_RUNNER,
-    AOTTestModel,
-    generate_ref_data,
-    compile_models,
-)
+from tvm.testing.aot import AOTTestModel, generate_ref_data, compile_models
+from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER
 
 
 @pytest.fixture
@@ -249,4 +246,4 @@ def test_without_device_api_packed_api(non_device_api_main_func):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

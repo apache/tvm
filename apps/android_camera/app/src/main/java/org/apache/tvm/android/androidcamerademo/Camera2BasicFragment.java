@@ -382,7 +382,7 @@ public class Camera2BasicFragment extends Fragment {
     }
 
     private float[] getFrame(ImageProxy imageProxy) {
-        @SuppressLint("UnsafeExperimentalUsageError")
+        @SuppressLint("UnsafeOptInUsageError")
         Image image = imageProxy.getImage();
         // extract the jpeg content
         if (image == null) {

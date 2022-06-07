@@ -138,6 +138,16 @@ class HexagonDeviceAPI final : public DeviceAPI {
     hexagon_buffer_map_.insert({ptr, std::move(buf)});
     return ptr;
   }
+
+  /*! \brief Helper to check if the device type is valid for the Hexagon Device API
+   *  \return Boolean indicating whether the device type is valid
+   */
+  bool IsValidDevice(DLDevice dev) {
+    // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU
+    return (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
+           (DLDeviceType(dev.device_type) == kDLCPU);
+  }
+
   /*! \brief Helper to free a HexagonBuffer and unregister the result
    *  from the owned buffer map.
    */

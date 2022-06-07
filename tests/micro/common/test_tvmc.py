@@ -26,6 +26,7 @@ import os
 import shutil
 
 import tvm
+import tvm.testing
 from tvm.contrib.download import download_testdata
 
 from ..zephyr.test_utils import ZEPHYR_BOARDS
@@ -217,4 +218,4 @@ def test_tvmc_model_run(board, output_dir):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

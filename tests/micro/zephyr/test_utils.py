@@ -32,7 +32,7 @@ import requests
 import tvm.micro
 from tvm.micro import export_model_library_format
 from tvm.micro.model_library_format import generate_c_interface_header
-from tvm.micro.testing import (
+from tvm.micro.testing.utils import (
     mlf_extract_workspace_size_bytes,
     aot_transport_init_wait,
     aot_transport_find_message,

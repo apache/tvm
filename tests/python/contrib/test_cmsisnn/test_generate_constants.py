@@ -21,6 +21,7 @@ import math
 import numpy as np
 import pytest
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
@@ -225,4 +226,4 @@ def test_op_int8(
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

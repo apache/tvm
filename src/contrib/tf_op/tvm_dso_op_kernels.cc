@@ -207,7 +207,7 @@ class TVMDSOOpTrait<GPUDevice> {
     tensorflow::int64* dims = new tensorflow::int64[num_dims];
     cudaMemcpy(dims, flat, sizeof(tensorflow::int64) * num_dims, cudaMemcpyDeviceToHost);
     tensorflow::TensorShapeUtils::MakeShape(dims, num_dims, output_shape);
-    delete dims;
+    delete[] dims;
   }
 };
 #endif

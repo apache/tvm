@@ -134,11 +134,11 @@ class InMemoryMetadataNode : public ::tvm::target::metadata::VisitableMetadataNo
   }
 
  private:
-  ::std::unique_ptr<struct TVMTensorInfo> inputs_;
+  ::std::unique_ptr<struct TVMTensorInfo[]> inputs_;
   std::vector<::tvm::runtime::metadata::TensorInfo> inputs_objs_;
-  ::std::unique_ptr<struct TVMTensorInfo> outputs_;
+  ::std::unique_ptr<struct TVMTensorInfo[]> outputs_;
   std::vector<::tvm::runtime::metadata::TensorInfo> outputs_objs_;
-  ::std::unique_ptr<struct TVMTensorInfo> pools_;
+  ::std::unique_ptr<struct TVMTensorInfo[]> pools_;
   std::vector<::tvm::runtime::metadata::TensorInfo> pools_objs_;
   ::std::string mod_name_;
   struct ::TVMMetadata storage_;
@@ -186,7 +186,7 @@ class InMemoryTensorInfoNode : public ::tvm::target::metadata::VisitableTensorIn
 
  private:
   ::std::string name_;
-  ::std::unique_ptr<int64_t> shape_;
+  ::std::unique_ptr<int64_t[]> shape_;
   struct ::TVMTensorInfo storage_;
 };
 

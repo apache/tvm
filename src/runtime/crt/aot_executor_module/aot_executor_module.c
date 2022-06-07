@@ -176,7 +176,7 @@ static const TVMBackendPackedCFunc aot_executor_registry_funcs[] = {
 };
 
 static const TVMFuncRegistry aot_executor_registry = {
-    "\x0aget_input\0"
+    "\x0a\0get_input\0"
     "get_input_index\0"
     "get_input_info\0"
     "get_num_inputs\0"

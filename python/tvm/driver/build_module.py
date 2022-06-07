@@ -17,9 +17,9 @@
 
 # pylint: disable=invalid-name
 """The build utils in python."""
-import warnings
-
 from typing import Union, Optional, List, Mapping
+
+import warnings
 
 import tvm.tir
 
@@ -238,12 +238,6 @@ def build(
             f"but got {type(inputs)}."
         )
 
-    if target_host is not None:
-        warnings.warn(
-            "target_host parameter is going to be deprecated. "
-            "Please pass in tvm.target.Target(target, host=target_host) instead."
-        )
-
     if not isinstance(inputs, (dict, container.Map)):
         target = Target.current() if target is None else target
         target = target if target else "llvm"
@@ -261,11 +255,17 @@ def build(
             raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
         annotated_mods[tar] = mod.with_attr("runtime", runtime)
 
-    annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
+    annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
 
+    # TODO(mbs): Both CompilationConfig and TIRToRuntime implement the same host target
+    #  defaulting logic, but there's currently no way to get back the decided host.
+    if target_host is not None:
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
+        )
     if not target_host:
         for tar, mod in annotated_mods.items():
-            tar = Target(tar)
             device_type = ndarray.device(tar.kind.name, 0).device_type
             if device_type == ndarray.cpu(0).device_type:
                 target_host = tar
@@ -273,11 +273,11 @@ def build(
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
-    annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
+    annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
 
     rt_mod_host = _driver_ffi.tir_to_runtime(annotated_mods, target_host)
 
-    annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
+    annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
 
     if not isinstance(target_host, Target):
         target_host = Target(target_host)

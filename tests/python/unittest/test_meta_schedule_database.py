@@ -23,6 +23,7 @@ from typing import Callable
 
 import pytest
 import tvm
+import tvm.testing
 from tvm import tir
 from tvm.ir.module import IRModule
 from tvm.meta_schedule.arg_info import ArgInfo
@@ -296,4 +297,4 @@ def test_meta_schedule_database_reload():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()
