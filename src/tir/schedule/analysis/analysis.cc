@@ -2234,7 +2234,6 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
   return TensorizeInfo(ret);
 }
 
-TVM_REGISTER_GLOBAL("tir.schedule.IsSpatialPrimFunc").set_body_typed(IsSpatialPrimFunc);
 TVM_REGISTER_GLOBAL("tir.schedule.GetTensorizeLoopMapping")
     .set_body_typed([](Schedule sch, BlockRV block, PrimFunc desc_func) {
       return GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block), desc_func);
