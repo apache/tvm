@@ -79,7 +79,7 @@ def partition_for_clml(mod, params=None):
 @register_func("relay.ext.clml.optimize")
 def preprocess_module(mod):
     """
-    Pre-process a module containing functions ready for CLML codegen. For now we enforce OHWI
+    Pre-process a module containing functions ready for CLML codegen. For now we enforce OIHW
     kernel layout and fold the transforms away.
 
     Parameters
@@ -132,15 +132,7 @@ def clml_pattern_table():
     """Get the CLML pattern table."""
 
     def conv_pattern():
-        """Create a convolution pattern.
-
-        Returns
-        -------
-        pattern : dataflow_pattern.AltPattern
-            Denotes the convolution pattern.
-        """
-        # pattern = is_op("nn.pad")(wildcard(), wildcard()) | wildcard()
-        # pattern = is_op("nn.conv2d")(pattern, is_constant())
+        """Create a convolution pattern."""
         pattern = is_op("nn.conv2d")(wildcard(), is_constant())
         pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
         pattern = pattern.optional(
@@ -153,13 +145,7 @@ def clml_pattern_table():
         return pattern
 
     def batch_norm_pattern():
-        """Create a batch norm pattern.
-
-        Returns
-        -------
-        pattern : dataflow_pattern.AltPattern
-            Denotes the batch norm pattern.
-        """
+        """Create a batch norm pattern."""
         pattern = is_op("nn.batch_norm")(
             wildcard(), is_constant(), is_constant(), is_constant(), is_constant()
         )
@@ -167,25 +153,13 @@ def clml_pattern_table():
         return pattern
 
     def dense_pattern():
-        """Create a dense pattern.
-
-        Returns
-        -------
-        pattern : dataflow_pattern.AltPattern
-            Denotes the dense pattern.
-        """
+        """Create a dense pattern."""
         pattern = is_op("nn.dense")(wildcard(), is_constant())
         pattern = pattern.optional(lambda x: is_op("add")(x, is_constant()))
         return pattern
 
     def pad_pattern():
-        """Create a pad pattern.
-
-        Returns
-        -------
-        pattern : dataflow_pattern.AltPattern
-            Denotes the dense pattern.
-        """
+        """Create a pad pattern."""
         pattern = is_op("nn.pad")(wildcard(), wildcard())
         return pattern
 
@@ -200,25 +174,27 @@ def clml_pattern_table():
                 call = call.tuple_value
         while call.op.name != "nn.conv2d":
             call = call.args[0]
-        return conv2d(call)
-
-    def check_batch_norm(extract):
-        """Check batch norm pattern is supported by CLML."""
-        return True
-
-    def check_dense(extract):
-        """Check dense pattern is supported by CLML."""
-        return True
-
-    def check_pad(extract):
-        """Check pad pattern is supported by CLML."""
+        attrs, args = call.attrs, call.args
+        if attrs.data_layout != "NCHW":
+            return False
+        data_typ = args[0].checked_type
+        kernel_typ = args[1].checked_type
+        is_depthwise = is_depthwise_conv2d(
+            data_typ.shape,
+            attrs["data_layout"],
+            kernel_typ.shape,
+            attrs["kernel_layout"],
+            attrs["groups"],
+        )
+        if attrs.groups != 1 and not is_depthwise:
+            return False
         return True
 
     return [
         ("clml.conv2d", conv_pattern(), check_conv),
-        ("clml.dense", dense_pattern(), check_dense),
-        ("clml.pad", pad_pattern(), check_pad),
-        ("clml.batch_norm", batch_norm_pattern(), check_batch_norm),
+        ("clml.dense", dense_pattern()),
+        ("clml.pad", pad_pattern()),
+        ("clml.batch_norm", batch_norm_pattern()),
     ]
 
 
@@ -228,45 +204,6 @@ def _register_external_op_helper(op_name, supported=True):
         return supported
 
     return _func_wrapper
-
-
-@tvm.ir.register_op_attr("nn.conv2d", "target.clml")
-def conv2d(expr):
-    """Check if the external CLML codegen for conv2d should be used."""
-    attrs, args = expr.attrs, expr.args
-    if attrs.data_layout != "NCHW":
-        return False
-    # if attrs.out_dtype != "float32" and attrs.out_dtype != "":
-    #    return False
-    data_typ = args[0].checked_type
-    # if len(data_typ.shape) != 4 or data_typ.shape[0] != 1 or data_typ.dtype != "float32":
-    #    return False
-    kernel_typ = args[1].checked_type
-    # if len(kernel_typ.shape) != 4 or kernel_typ.dtype != "float32":
-    #    return False
-    is_depthwise = is_depthwise_conv2d(
-        data_typ.shape,
-        attrs["data_layout"],
-        kernel_typ.shape,
-        attrs["kernel_layout"],
-        attrs["groups"],
-    )
-    if is_depthwise:
-        return depthwise_conv2d(attrs, args)
-    if attrs.groups != 1 and not is_depthwise:
-        return False
-    return True
-
-
-def depthwise_conv2d(attrs, args):
-    """Check if the CLML codegen for depthwise convolution should be used.
-
-    Note
-    ----
-    Relay does not have a depthwise conv2d operator whilst ACL does. We simply
-    separate the checks for depthwise for clarity.
-    """
-    return True
 
 
 _register_external_op_helper("clip")

@@ -18,29 +18,33 @@
  */
 
 /*!
- * \file src/runtime/contrib/clml/acl_runtime.cc
+ * \file src/runtime/contrib/clml/clml_runtime.cc
  * \brief A simple JSON runtime for CLML.
  */
 
+#include <CL/cl.h>
+#include <CL/opencl.h>
+#ifdef TVM_GRAPH_EXECUTOR_CLML
+#include <CL/cl_qcom_ml_ops.h>
+#endif
 #include <stdlib.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
 
 #include <fstream>
+#include <map>
+#include <utility>
 
+#include "../../opencl/opencl_common.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
-
-#ifdef TVM_GRAPH_EXECUTOR_CLML
-#include "clml_utils.h"
-#endif
-#include "../../opencl/opencl_common.h"
 
 namespace tvm {
 namespace runtime {
 namespace contrib {
 
 using namespace tvm::runtime::json;
+using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 
 class CLMLRuntime : public JSONRuntimeBase {
  public:
@@ -56,7 +60,38 @@ class CLMLRuntime : public JSONRuntimeBase {
                        const Array<String>& const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
-  ~CLMLRuntime() {}
+  ~CLMLRuntime() {
+#ifdef TVM_GRAPH_EXECUTOR_CLML
+    cl_int result = 0;
+    if (this->is_tuning_run) {
+      result = h_ClmlIntf->clReleaseMLTuningCacheQCOM(this->tuning_cache);
+      ICHECK(result == CL_SUCCESS) << "clReleaseMLTuningCacheQCOM:" << result;
+    }
+    for (auto it = this->layer_.storage_map.begin(); it != this->layer_.storage_map.end(); it++) {
+      auto tensor_desc = it->second.first;
+      result = h_ClmlIntf->clReleaseMLTensorQCOM(tensor_desc->tensor);
+      ICHECK(result == CL_SUCCESS) << "clReleaseMLTensorQCOM:" << result;
+      result = clReleaseMemObject(tensor_desc->memory);
+      ICHECK(result == CL_SUCCESS) << "clReleaseMemObject:" << result;
+    }
+    for (size_t i = 0; i < this->layer_.function.size(); ++i) {
+      result = h_ClmlIntf->clReleaseMLOpQCOM(this->layer_.function[i]);
+      ICHECK(result == CL_SUCCESS) << "clReleaseMLOpQCOM:" << result;
+    }
+    for (auto it = this->layer_.in_placeholder.begin(); it != this->layer_.in_placeholder.end();
+         it++) {
+      result = h_ClmlIntf->clReleaseMLTensorQCOM((*it)->tensor);
+      ICHECK(result == CL_SUCCESS) << "clReleaseMLTensorQCOM:" << result;
+    }
+    for (auto it = this->layer_.out_placeholder.begin(); it != this->layer_.out_placeholder.end();
+         it++) {
+      result = h_ClmlIntf->clReleaseMLTensorQCOM((*it)->tensor);
+      ICHECK(result == CL_SUCCESS) << "clReleaseMLTensorQCOM:" << result;
+    }
+    result = h_ClmlIntf->clReleaseMLTensorMemoryDescriptorSetQCOM(layer_.descriptorSet);
+    ICHECK(result == CL_SUCCESS) << "clReleaseMLTensorMemoryDescriptorSetQCOM:" << result;
+#endif
+  }
 
   /*!
    * \brief The type key of the module.
@@ -76,7 +111,23 @@ class CLMLRuntime : public JSONRuntimeBase {
         << "The number of input constants must match the number of required.";
     SetupConstants(consts);
 
-#if __ANDROID__
+#ifdef TVM_GRAPH_EXECUTOR_CLML
+    InitCLML();
+#endif
+
+    BuildEngine();
+  }
+
+#ifdef TVM_GRAPH_EXECUTOR_CLML
+  std::vector<cl_uint> GetVectorValues(const std::vector<std::string>& val) {
+    std::vector<cl_uint> array;
+    for (auto i : val) {
+      array.push_back((cl_uint)stoi(i));
+    }
+    return array;
+  }
+
+  void InitCLML() {
     // Setup CLML Context
     cl_int result = 0;
 
@@ -148,12 +199,8 @@ class CLMLRuntime : public JSONRuntimeBase {
       result = h_ClmlIntf->clLoadMLTuningCacheQCOM(tuning_cache, buffer.size(), buffer.data());
       ICHECK(result == CL_SUCCESS) << "clLoadMLTuningCacheQCOM:" << result;
     }
-#endif
-
-    BuildEngine();
   }
 
-#if __ANDROID__
   std::vector<unsigned char> readBinFile(const std::string& filename) {
     std::ifstream fin(filename, std::ios::binary | std::ios::ate);
     if (!fin.good()) {
@@ -168,9 +215,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     ICHECK(fin.good());
     return buffer;
   }
-#endif
 
-#ifdef TVM_GRAPH_EXECUTOR_CLML
   void CopyDataToCLMLTensor(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> tensor, void* data,
                             cl_ml_tensor_layout_qcom layout = CL_TENSOR_LAYOUT_NCHW_QCOM) {
     cl_int result = 0;
@@ -336,9 +381,6 @@ class CLMLRuntime : public JSONRuntimeBase {
           auto out = CreateBatchNormLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
           this->layer_.func_outs.push_back(out);
-          /*} else if ("nn.max_pool2d" == op_name || "nn.avg_pool2d" == op_name ||
-                     "nn.l2_pool2d" == op_name) {
-            CreatePoolingLayer(&layer_, node); */
         } else if ("nn.global_max_pool2d" == op_name || "nn.global_avg_pool2d" == op_name) {
           auto out = CreateGlobalPoolingLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
@@ -427,7 +469,6 @@ class CLMLRuntime : public JSONRuntimeBase {
         cache_out.write(reinterpret_cast<char*>(savedCache.data()), savedCache.size());
         cache_out.close();
       }
-      // h_ClmlIntf->clReleaseMLTuningCacheQCOM(this->tuning_cache);
       LOG(WARNING) << "CLML: Tuning cache dumped to:" << tuning_file;
     }
   }
@@ -451,6 +492,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     std::vector<cl_ml_tensor_memory_desc_qcom> out_tensorMemDescs;
     cl_ml_tensor_mem_desc_set_qcom descriptorSet;
     std::vector<std::string> layer_names;
+    cl_ml_tensor_qcom unusedTensor = NULL;
   };
 
   struct tensor_dims_t {
@@ -660,11 +702,10 @@ class CLMLRuntime : public JSONRuntimeBase {
       bias = MakeCLMLTensorFromJSONEntry(inputs[2]);
     } else {
       cl_ml_tensor_desc_qcom desc = {};
-      cl_ml_tensor_qcom unusedTensor = NULL;
       desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
-      result = h_ClmlIntf->clCreateMLTensorQCOM(context, NULL, &desc, &unusedTensor);
-      ICHECK(unusedTensor && result == CL_SUCCESS) << "clCreateMLTensorQCOM:" << result;
-      bias->tensor = unusedTensor;
+      result = h_ClmlIntf->clCreateMLTensorQCOM(context, NULL, &desc, &layer_.unusedTensor);
+      ICHECK(layer_.unusedTensor && result == CL_SUCCESS) << "clCreateMLTensorQCOM:" << result;
+      bias->tensor = layer_.unusedTensor;
     }
     // Output
     auto output = MakeCLMLTensorFromJSONNode(node);
@@ -748,13 +789,13 @@ class CLMLRuntime : public JSONRuntimeBase {
                                               CL_ARITHMETIC_MODE_FP32_QCOM};
 
     cl_ml_tensor_desc_qcom desc = {};
-    cl_ml_tensor_qcom unusedTensor = NULL;
     desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
-    result = h_ClmlIntf->clCreateMLTensorQCOM(context, NULL, &desc, &unusedTensor);
-    ICHECK(unusedTensor && result == CL_SUCCESS) << ":" << result;
+    result = h_ClmlIntf->clCreateMLTensorQCOM(context, NULL, &desc, &layer_.unusedTensor);
+    ICHECK(layer_.unusedTensor && result == CL_SUCCESS) << ":" << result;
 
-    result = h_ClmlIntf->clCreateMLOpActivationForwardQCOM(
-        context, 0, &act_desc, input->tensor, unusedTensor, output->tensor, &op, tuning_cache);
+    result = h_ClmlIntf->clCreateMLOpActivationForwardQCOM(context, 0, &act_desc, input->tensor,
+                                                           layer_.unusedTensor, output->tensor, &op,
+                                                           tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Activation Error:" << result;
 
     layer_.func_ins.push_back(input);
@@ -830,13 +871,13 @@ class CLMLRuntime : public JSONRuntimeBase {
     };
 
     cl_ml_tensor_desc_qcom desc = {};
-    cl_ml_tensor_qcom unusedTensor = NULL;
     desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
-    result = h_ClmlIntf->clCreateMLTensorQCOM(context, NULL, &desc, &unusedTensor);
-    ICHECK(unusedTensor && result == CL_SUCCESS) << ":" << result;
+    result = h_ClmlIntf->clCreateMLTensorQCOM(context, NULL, &desc, &layer_.unusedTensor);
+    ICHECK(layer_.unusedTensor && result == CL_SUCCESS) << ":" << result;
 
-    result = h_ClmlIntf->clCreateMLOpPoolingForwardQCOM(
-        context, 0, &pool_desc, input->tensor, unusedTensor, output->tensor, &op, tuning_cache);
+    result = h_ClmlIntf->clCreateMLOpPoolingForwardQCOM(context, 0, &pool_desc, input->tensor,
+                                                        layer_.unusedTensor, output->tensor, &op,
+                                                        tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Pooling Error:" << result;
 
     layer_.func_ins.push_back(input);
@@ -1013,7 +1054,6 @@ class CLMLRuntime : public JSONRuntimeBase {
    */
 
   CachedLayer layer_;
-#ifdef __ANDROID__
   // CLML Context
   CLMLInterfaceV2QCOM* h_ClmlIntf = NULL;
   cl_platform_id platform = NULL;
@@ -1024,7 +1064,6 @@ class CLMLRuntime : public JSONRuntimeBase {
   cl_ml_tuningcache_qcom tuning_cache = NULL;
   bool is_tuning_run;
   char* tuning_file;
-#endif
 #else
   void Run() override {
     LOG(FATAL) << "Cannot call run on CLML module without runtime enabled. "

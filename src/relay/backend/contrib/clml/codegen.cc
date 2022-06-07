@@ -139,10 +139,8 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
     } else {
       current_call = fn->body.as<CallNode>();
     }
-    // if (backend::IsOp(current_call, "nn.relu") || backend::IsOp(current_call, "nn.relu6")) {
     if (backend::IsOp(current_call, "nn.relu")) {
       nodes.activation = current_call;
-      // nodes.act_type = backend::IsOp(current_call, "nn.relu") ? "relu" : "relu6";
       nodes.act_type = "relu";
       if (current_call->args[0].as<TupleGetItemNode>()) {
         auto tuple_item = current_call->args[0].as<TupleGetItemNode>();
@@ -151,13 +149,6 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
         current_call = current_call->args[0].as<CallNode>();
       }
     }
-#if 0
-    if (backend::IsOp(current_call, "nn.relu6")) {
-      nodes.activation = current_call;
-      current_call = current_call->args[0].as<CallNode>();
-      nodes.act_type = "relu6";
-    }
-#endif
     if (backend::IsOp(current_call, "nn.batch_norm")) {
       nodes.bn = current_call;
       current_call = current_call->args[0].as<CallNode>();
@@ -240,8 +231,8 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
       const auto* pad_attr = nodes.pad->attrs.as<PadAttrs>();
       ICHECK(pad_attr);
       auto p = pad_attr->pad_width;
-      // Standard convolution pad layout for TVM: before and after dimension wise.
-      // CLML Takes dimensions as all befores and afters.
+      // Standard convolution pad layout for TVM: dimension wise pair of pre and post padding.
+      // CLML takes dimension wise pre-padding followed by dimension wise post-padding.
       std::vector<std::string> padding = {std::to_string(p[2][0].as<IntImmNode>()->value),
                                           std::to_string(p[3][0].as<IntImmNode>()->value),
                                           std::to_string(p[2][1].as<IntImmNode>()->value),
@@ -342,8 +333,8 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
     const auto* pad_attr = pad->attrs.as<PadAttrs>();
     ICHECK(pad_attr);
     auto p = pad_attr->pad_width;
-    // Standard convolution pad layout for TVM: before and after dimension wise.
-    // CLML Takes dimensions as all befores and afters.
+    // TVM padding format: Dimension wise pair of pre and post padding.
+    // CLML padding format: Dimension wise pre padding followed by dimension wise post padding.
     std::vector<std::string> padding = {std::to_string(p[2][0].as<IntImmNode>()->value),
                                         std::to_string(p[2][1].as<IntImmNode>()->value),
                                         std::to_string(p[3][0].as<IntImmNode>()->value),
@@ -385,7 +376,7 @@ runtime::Module CLMLCompiler(const ObjectRef& ref) {
   std::string graph_json = serializer.GetJSON();
   auto param_names = serializer.GetParams();
   const auto* pf = runtime::Registry::Get("runtime.clml_runtime_create");
-  ICHECK(pf != nullptr) << "Cannot find JSON runtime module to create";
+  ICHECK(pf != nullptr) << "Cannot find CLML runtime module to create";
   runtime::Module lib = (*pf)(func_name, graph_json, param_names);
   return lib;
 }

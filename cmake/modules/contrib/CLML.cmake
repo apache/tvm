@@ -47,7 +47,7 @@ if(USE_CLML_GRAPH_EXECUTOR)
     message(STATUS "Build with CLML graph runtime support: "
             ${EXTERN_CLML_COMPUTE_LIB})
 
-    # Set flag to detect ADRENO DNN graph runtime support.
+    # Set flag to detect CLML graph runtime support.
     add_definitions(-DTVM_GRAPH_EXECUTOR_CLML)
 
     message(STATUS "Enable OpenCL as fallback to CLML")
