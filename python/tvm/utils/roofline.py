@@ -187,7 +187,7 @@ def peak_bandwidth_tir(a: T.handle, b: T.handle, threads: T.int32, vec_width: T.
     # pylint: disable=invalid-name, missing-function-docstring
     N = T.var("int32")
     A = T.match_buffer(a, [threads, N, 4, vec_width], "float32")
-    B = T.match_buffer(b, [threads, vec_width, 4], "float32")
+    B = T.match_buffer(b, [threads, 4, vec_width], "float32")
     # Parallelism is necessary to hit all cores/nodes
     for i in T.parallel(threads):
         for k in T.serial(N):
