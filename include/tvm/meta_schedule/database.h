@@ -139,8 +139,8 @@ class TuningRecord : public runtime::ObjectRef {
    \param args_info The argument information of the tuning record.
   */
   TVM_DLL explicit TuningRecord(tir::Trace trace, Workload workload,
-          Optional<Array<FloatImm>> run_secs, Optional<Target> target,
-          Optional<Array<ArgInfo>> args_info);
+                                Optional<Array<FloatImm>> run_secs, Optional<Target> target,
+                                Optional<Array<ArgInfo>> args_info);
   /*!
    * \brief Create a tuning record from a json object.
    * \param json_obj The json object.

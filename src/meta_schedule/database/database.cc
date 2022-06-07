@@ -75,7 +75,7 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
 /******** TuningRecord ********/
 
 TuningRecord::TuningRecord(tir::Trace trace, Workload workload, Optional<Array<FloatImm>> run_secs,
-        Optional<Target> target, Optional<Array<ArgInfo>> args_info) {
+                           Optional<Target> target, Optional<Array<ArgInfo>> args_info) {
   ObjectPtr<TuningRecordNode> n = make_object<TuningRecordNode>();
   n->trace = trace;
   n->workload = workload;
@@ -101,7 +101,7 @@ ObjectRef TuningRecordNode::AsJSON() const {
   }
   return Array<ObjectRef>{trace->AsJSON(false),  //
                           run_secs,              //
-                          json_target,      //
+                          json_target,           //
                           json_args_info};
 }
 
@@ -176,7 +176,7 @@ TVM_REGISTER_GLOBAL("meta_schedule.WorkloadAsJSON")
 TVM_REGISTER_GLOBAL("meta_schedule.WorkloadFromJSON").set_body_typed(&Workload::FromJSON);
 TVM_REGISTER_GLOBAL("meta_schedule.TuningRecord")
     .set_body_typed([](tir::Trace trace, Workload workload, Optional<Array<FloatImm>> run_secs,
-                Optional<Target> target, Optional<Array<ArgInfo>> args_info) {
+                       Optional<Target> target, Optional<Array<ArgInfo>> args_info) {
       return TuningRecord(trace, workload, run_secs, target, args_info);
     });
 TVM_REGISTER_GLOBAL("meta_schedule.TuningRecordAsJSON")
