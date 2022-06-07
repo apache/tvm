@@ -307,8 +307,8 @@ def test_meta_schedule_relay_lowering():
         database.commit_tuning_record(
             TuningRecord(
                 Trace([], {}),
-                [0.0],
                 database.commit_workload(tvmgen_default_fused_nn_contrib_conv2d_NCHWc),
+                [0.0],
                 target=target,
                 args_info=[],
             )

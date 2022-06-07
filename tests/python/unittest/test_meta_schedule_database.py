@@ -115,8 +115,8 @@ def test_meta_schedule_tuning_record_round_trip():
         workload = database.commit_workload(mod)
         record = TuningRecord(
             _create_schedule(mod, _schedule_matmul).trace,
-            [1.5, 2.5, 1.8],
             workload,
+            [1.5, 2.5, 1.8],
             tvm.target.Target("llvm"),
             ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
         )
@@ -140,8 +140,8 @@ def test_meta_schedule_database_has_workload():
         workload = database.commit_workload(mod)
         record = TuningRecord(
             _create_schedule(mod, _schedule_matmul).trace,
-            [1.5, 2.5, 1.8],
             workload,
+            [1.5, 2.5, 1.8],
             tvm.target.Target("llvm"),
             ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
         )
@@ -158,8 +158,8 @@ def test_meta_schedule_database_add_entry():
         workload = database.commit_workload(mod)
         record = TuningRecord(
             _create_schedule(mod, _schedule_matmul).trace,
-            [1.5, 2.5, 1.8],
             workload,
+            [1.5, 2.5, 1.8],
             tvm.target.Target("llvm"),
             ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
         )
@@ -178,8 +178,8 @@ def test_meta_schedule_database_missing():
         workload_2 = database.commit_workload(mod_2)
         record = TuningRecord(
             _create_schedule(mod, _schedule_matmul).trace,
-            [1.5, 2.5, 1.8],
             workload,
+            [1.5, 2.5, 1.8],
             tvm.target.Target("llvm"),
             ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
         )
@@ -197,43 +197,43 @@ def test_meta_schedule_database_sorting():
         records = [
             TuningRecord(
                 trace,
+                token,
                 [7.0, 8.0, 9.0],
-                token,
                 tvm.target.Target("llvm"),
                 ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
             ),
             TuningRecord(
                 trace,
+                token,
                 [1.0, 2.0, 3.0],
-                token,
                 tvm.target.Target("llvm"),
                 ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
             ),
             TuningRecord(
                 trace,
+                token,
                 [4.0, 5.0, 6.0],
-                token,
                 tvm.target.Target("llvm"),
                 ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
             ),
             TuningRecord(
                 trace,
+                token,
                 [1.1, 1.2, 600.0],
-                token,
                 tvm.target.Target("llvm"),
                 ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
             ),
             TuningRecord(
                 trace,
+                token,
                 [1.0, 100.0, 6.0],
-                token,
                 tvm.target.Target("llvm"),
                 ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
             ),
             TuningRecord(
                 trace,
-                [4.0, 9.0, 8.0],
                 token,
+                [4.0, 9.0, 8.0],
                 tvm.target.Target("llvm"),
                 ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
             ),
@@ -259,22 +259,22 @@ def test_meta_schedule_database_reload():
         records = [
             TuningRecord(
                 trace,
+                token,
                 [7.0, 8.0, 9.0],
-                token,
                 tvm.target.Target("llvm"),
                 ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
             ),
             TuningRecord(
                 trace,
+                token,
                 [1.0, 2.0, 3.0],
-                token,
                 tvm.target.Target("llvm"),
                 ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
             ),
             TuningRecord(
                 trace,
-                [4.0, 5.0, 6.0],
                 token,
+                [4.0, 5.0, 6.0],
                 tvm.target.Target("llvm"),
                 ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
             ),
