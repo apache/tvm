@@ -21,6 +21,17 @@
 namespace tvm {
 namespace meta_schedule {
 
+void PyPostprocNode::InitializeWithTuneContext(const TuneContext& context) {
+  ICHECK(f_initialize_with_tune_context != nullptr)
+      << "PyPostproc's InitializeWithTuneContext method not implemented!";
+  f_initialize_with_tune_context(context);
+}
+
+bool PyPostprocNode::Apply(const tir::Schedule& sch) {
+  ICHECK(f_apply != nullptr) << "PyPostproc's Apply method not implemented!";
+  return f_apply(sch);
+}
+
 Postproc Postproc::PyPostproc(
     PyPostprocNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
     PyPostprocNode::FApply f_apply,                                             //

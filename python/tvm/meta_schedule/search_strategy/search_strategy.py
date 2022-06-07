@@ -18,7 +18,7 @@
 Meta Schedule search strategy that generates the measure
 candidates for measurement.
 """
-from typing import Callable, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, List, Optional
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
@@ -29,6 +29,8 @@ from ..arg_info import ArgInfo
 from ..runner import RunnerResult
 
 if TYPE_CHECKING:
+    from ..cost_model import CostModel
+    from ..database import Database
     from ..tune_context import TuneContext
 
 
@@ -87,15 +89,29 @@ class SearchStrategy(Object):
             self, context
         )
 
-    def pre_tuning(self, design_spaces: List[Schedule]) -> None:
+    def pre_tuning(
+        self,
+        design_spaces: List[Schedule],
+        database: Optional["Database"] = None,
+        cost_model: Optional["CostModel"] = None,
+    ) -> None:
         """Pre-tuning for the search strategy.
 
         Parameters
         ----------
         design_spaces : List[Schedule]
-            The design spaces for pre-tuning.
+            The design spaces used during tuning process.
+        database : Optional[Database] = None
+            The database used during tuning process.
+        cost_model : Optional[CostModel] = None
+            The cost model used during tuning process.
         """
-        _ffi_api.SearchStrategyPreTuning(self, design_spaces)  # type: ignore # pylint: disable=no-member
+        _ffi_api.SearchStrategyPreTuning(  # type: ignore # pylint: disable=no-member
+            self,
+            design_spaces,
+            database,
+            cost_model,
+        )
 
     def post_tuning(self) -> None:
         """Post-tuning for the search strategy."""

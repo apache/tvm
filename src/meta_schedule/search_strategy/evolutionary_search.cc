@@ -246,13 +246,41 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     int ed;
     /*! \brief The counter of returning empty results. */
     int num_empty_iters;
+    /*! \brief The metadata of the function arguments. */
+    Array<ArgInfo> args_info_{nullptr};
+    /*! \brief Pre thread data including module to be tuned and random state. */
+    std::vector<PerThreadData> per_thread_data_;
+    /*!
+     * \brief The workloads that are already measured.
+     * TODO(junrushao1994): add records from the database to avoid re-measuring.
+     * */
+    IRModuleSet measured_workloads_;
+    /*! \brief A Database for selecting useful candidates. */
+    Database database_{nullptr};
+    /*! \brief A cost model helping to explore the search space */
+    CostModel cost_model_{nullptr};
+    /*! \brief The token registered for the given workload in database. */
+    Workload token_{nullptr};
 
-    explicit State(EvolutionarySearchNode* self, Array<tir::Trace> design_spaces)
+    explicit State(EvolutionarySearchNode* self, Array<tir::Trace> design_spaces, Database database,
+                   CostModel cost_model)
         : self(self),
           design_spaces(design_spaces),
           st(0),
           ed(self->num_trials_per_iter),
-          num_empty_iters(0) {}
+          num_empty_iters(0) {
+      const TuneContextNode* ctx = self->context_;
+      IRModule mod = ctx->mod.value();
+      this->args_info_ = ArgInfo::FromPrimFunc(FindEntryFunc(mod));
+      this->per_thread_data_.resize(ctx->num_threads);
+      for (PerThreadData& data : this->per_thread_data_) {
+        data.mod = DeepCopyIRModule(mod);
+        data.rand_state = ForkSeed(&self->rand_state_);
+      }
+      this->database_ = database;
+      this->cost_model_ = cost_model;
+      this->token_ = database->CommitWorkload(mod);
+    }
 
     /*!
      * \brief Pick up best candidates from database.
@@ -293,33 +321,10 @@ class EvolutionarySearchNode : public SearchStrategyNode {
 
   /*! \brief The tuning context of the evolutionary search strategy. */
   const TuneContextNode* context_{nullptr};
-  /*! \brief The target for the workload. */
-  Target target_{nullptr};
-  /*! \brief The metadata of the function arguments. */
-  Array<ArgInfo> args_info_{nullptr};
-  /*! \brief A Database for selecting useful candidates. */
-  Database database_{nullptr};
-  /*! \brief A cost model helping to explore the search space */
-  CostModel cost_model_{nullptr};
-  /*! \brief The postprocessors. */
-  Array<Postproc> postprocs_{nullptr};
-  /*! \brief Mutators and their probability mass */
-  Map<Mutator, FloatImm> mutator_probs_{nullptr};
-  /*! \brief The number of threads to use. To be initialized with TuneContext. */
-  int num_threads_;
   /*! \brief The random state. To be initialized with TuneContext. */
   TRandState rand_state_;
-  /*! \brief Pre thread data including module to be tuned and random state. */
-  std::vector<PerThreadData> per_thread_data_;
   /*! \brief The state of the search strategy. */
   std::unique_ptr<State> state_ = nullptr;
-  /*! \brief The token registered for the given workload in database. */
-  Workload token_{nullptr};
-  /*!
-   * \brief The workloads that are already measured.
-   * TODO(junrushao1994): add records from the database to avoid re-measuring.
-   * */
-  IRModuleSet measured_workloads_;
 
   /*** Configuration: global ***/
   /*! \brief The number of trials per iteration. */
@@ -351,15 +356,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `context_` is not visited
-    // `target_` is not visited
-    // `args_info_` is not visited
-    // `database` is not visited
-    // `cost_model` is not visited
-    // `postprocs` is not visited
-    // `mutator_probs_` is not visited
-    // `num_threads` is not visited
     // `rand_state_` is not visited
-    // `per_thread_data_` is not visited
     // `state_` is not visited
 
     /*** Configuration: global ***/
@@ -386,39 +383,41 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     CHECK(context->num_threads > 0) << "Number of threads has to be larger than 0.";
     CHECK(context->target.defined()) << "Target must be defined!";
     this->context_ = context.get();
-    this->target_ = context->target.value();
-    this->args_info_ = ArgInfo::FromPrimFunc(FindEntryFunc(context->mod.value()));
-    this->mutator_probs_ = context->mutator_probs;
-    this->postprocs_ = context->postprocs;
-    this->num_threads_ = context->num_threads;
     this->rand_state_ = ForkSeed(&context->rand_state);
-    CHECK(context->task_scheduler != nullptr)
-        << "ValueError: TaskScheduler is not defined in TuneContext";
-    this->cost_model_ = context->task_scheduler->cost_model.value();
-    this->database_ = context->task_scheduler->database;
-    this->token_ = this->database_->CommitWorkload(context->mod.value());
-    this->per_thread_data_.resize(this->num_threads_);
-    for (const auto& kv : this->mutator_probs_) {
+    for (const auto& kv : context->mutator_probs) {
       double mass = kv.second->value;
       TVM_META_SCHEDULE_CHECK_PROB_RANGE(mass, "mutator_probs");
-    }
-    for (PerThreadData& data : this->per_thread_data_) {
-      data.mod = DeepCopyIRModule(context->mod.value());
-      data.rand_state = ForkSeed(&this->rand_state_);
     }
     this->state_.reset();
   }
 
-  void PreTuning(const Array<Schedule>& design_spaces) final {
+  void PreTuning(const Array<Schedule>& design_spaces, const Optional<Database>& database,
+                 const Optional<CostModel>& cost_model) final {
     ICHECK(!design_spaces.empty());
+    CHECK(this->context_ != nullptr) << "ValueError: Did you forget to initialize the TuneContext?";
+    CHECK(database.defined())
+        << "ValueError: Database is not supplied in PreTuning. Evolutionary"
+           "search algorithm requires a database to be present, so that it "
+           "could sample from previously-explored population. If you do not "
+           "intent to store data on disk, please use `tvm.meta_schedule.testing.DummyDatabase`";
+    CHECK(cost_model.defined())
+        << "ValueError: CostModel is not supplied in PreTuning. Evolutionary search "
+           "algorithm expects a cost model to filter out potentially less efficient kernels. If "
+           "you do not expect a cost model to help, please use "
+           "`tvm.meta_schedule.cost_model.RandomModel`";
+    if (this->state_ != nullptr) {
+      TVM_PY_LOG(WARNING, this->context_->logging_func)
+          << "EvolutionarySearch is already initialized.";
+      this->state_.reset();
+    }
     ICHECK(this->state_ == nullptr);
-    // Change to traces
     Array<tir::Trace> design_space_traces;
     design_space_traces.reserve(design_spaces.size());
     for (const Schedule& space : design_spaces) {
       design_space_traces.push_back(space->trace().value()->Simplified(true));
     }
-    this->state_ = std::make_unique<State>(this, design_space_traces);
+    this->state_ =
+        std::make_unique<State>(this, design_space_traces, database.value(), cost_model.value());
   }
 
   void PostTuning() final {
@@ -442,16 +441,16 @@ class EvolutionarySearchNode : public SearchStrategyNode {
 std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int num) {
   std::vector<tir::Trace> measured_traces;
   measured_traces.reserve(num);
-  Array<TuningRecord> top_records = self->database_->GetTopK(self->token_, num);
+  Array<TuningRecord> top_records = this->database_->GetTopK(this->token_, num);
   for (TuningRecord record : top_records) {
     measured_traces.push_back(record->trace);
   }
   int actual_num = measured_traces.size();
-  ThreadedTraceApply pp(self->postprocs_);
+  ThreadedTraceApply pp(self->context_->postprocs);
   std::vector<Schedule> results(actual_num, Schedule{nullptr});
   auto f_proc_measured = [this, &measured_traces, &results, &pp](int thread_id,
                                                                  int trace_id) -> void {
-    PerThreadData& data = self->per_thread_data_.at(thread_id);
+    PerThreadData& data = this->per_thread_data_.at(thread_id);
     TRandState* rand_state = &data.rand_state;
     const IRModule& mod = data.mod;
     tir::Trace trace = measured_traces.at(trace_id);
@@ -464,17 +463,17 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int nu
       throw;
     }
   };
-  support::parallel_for_dynamic(0, actual_num, self->num_threads_, f_proc_measured);
+  support::parallel_for_dynamic(0, actual_num, self->context_->num_threads, f_proc_measured);
   return results;
 }
 
 std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int num) {
-  ThreadedTraceApply pp(self->postprocs_);
+  ThreadedTraceApply pp(self->context_->postprocs);
   std::vector<Schedule> out_schs;
   while (static_cast<int>(out_schs.size()) < self->init_min_unmeasured) {
     std::vector<Schedule> results(num, Schedule{nullptr});
     auto f_proc_unmeasured = [this, &results, &pp](int thread_id, int trace_id) -> void {
-      PerThreadData& data = self->per_thread_data_.at(thread_id);
+      PerThreadData& data = this->per_thread_data_.at(thread_id);
       TRandState* rand_state = &data.rand_state;
       const IRModule& mod = data.mod;
       Schedule& result = results.at(trace_id);
@@ -485,7 +484,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
         result = sch.value();
       }
     };
-    support::parallel_for_dynamic(0, num, self->num_threads_, f_proc_unmeasured);
+    support::parallel_for_dynamic(0, num, self->context_->num_threads, f_proc_unmeasured);
     for (int i = 0; i < num; i++) {
       if (results[i].defined()) {
         out_schs.push_back(results[i]);
@@ -501,14 +500,14 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
     std::vector<Schedule> population, int num) {
   ICHECK_GT(num, 0);
   // The heap to record best schedule, we do not consider schedules that are already measured
-  IRModuleSet exists = self->measured_workloads_;
+  IRModuleSet exists = this->measured_workloads_;
   SizedHeap heap(num);
   for (int iter = 0;; ++iter) {
     // Predict normalized score with the cost model,
     std::vector<double> scores = PredictNormalizedScore(population,                           //
                                                         GetRef<TuneContext>(self->context_),  //
-                                                        self->cost_model_,                    //
-                                                        self->args_info_);
+                                                        this->cost_model_,                    //
+                                                        this->args_info_);
     ICHECK_EQ(scores.size(), population.size());
     for (int i = 0, n = population.size(); i < n; ++i) {
       Schedule sch = population.at(i);
@@ -524,18 +523,18 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
     if (iter == self->genetic_num_iters) {
       break;
     }
-    // Set threaded samplers, with probability from predicated normalized throughputs
-    for (PerThreadData& data : self->per_thread_data_) {
-      data.Set(scores, self->genetic_mutate_prob, self->mutator_probs_);
+    // Set threaded samplers, with probability from predicated normalized throughput
+    for (PerThreadData& data : this->per_thread_data_) {
+      data.Set(scores, self->genetic_mutate_prob, self->context_->mutator_probs);
     }
-    ThreadedTraceApply pp(self->postprocs_);
+    ThreadedTraceApply pp(self->context_->postprocs);
     ConcurrentBitmask cbmask(self->population_size);
     std::vector<Schedule> next_population(self->population_size, Schedule{nullptr});
     // The worker function
     auto f_find_candidate = [&cbmask, &population, &next_population, &pp, this](int thread_id,
                                                                                 int trace_id) {
       // Prepare samplers
-      PerThreadData& data = self->per_thread_data_.at(thread_id);
+      PerThreadData& data = this->per_thread_data_.at(thread_id);
       TRandState* rand_state = &data.rand_state;
       const IRModule& mod = data.mod;
       std::function<int()>& trace_sampler = data.trace_sampler;
@@ -567,7 +566,8 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
         result = population.at(sampled_trace_id);
       }
     };
-    support::parallel_for_dynamic(0, self->population_size, self->num_threads_, f_find_candidate);
+    support::parallel_for_dynamic(0, self->population_size, self->context_->num_threads,
+                                  f_find_candidate);
     population.swap(next_population);
     TVM_PY_LOG(INFO, self->context_->logging_func) << "Evolve iter #" << iter << " done. Summary:\n"
                                                    << pp.SummarizeFailures();
@@ -607,7 +607,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickWithEpsGreedy(
       tir::SampleWithoutReplacement(&self->rand_state_, unmeasured.size(), unmeasured.size());
   std::vector<Schedule> results;
   results.reserve(num);
-  IRModuleSet& measured_workloads = self->measured_workloads_;
+  IRModuleSet& measured_workloads = this->measured_workloads_;
   for (int i = 0, i_bests = 0, i_rands = 0; i < num; ++i) {
     bool has_best = i_bests < static_cast<int>(bests.size());
     bool has_rand = i_rands < static_cast<int>(rands.size());
@@ -677,7 +677,7 @@ Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasure
       return NullOpt;
     }
   }
-  return AssembleCandidates(picks, self->args_info_);
+  return AssembleCandidates(picks, this->args_info_);
 }
 
 void EvolutionarySearchNode::State::NotifyRunnerResults(
@@ -712,6 +712,12 @@ SearchStrategy SearchStrategy::EvolutionarySearch(int num_trials_per_iter,     /
   n->eps_greedy = eps_greedy;
   return SearchStrategy(n);
 }
+
+class EvolutionarySearch : public SearchStrategy {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(EvolutionarySearch, SearchStrategy,
+                                                    EvolutionarySearchNode);
+};
 
 TVM_REGISTER_NODE_TYPE(EvolutionarySearchNode);
 TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearch")

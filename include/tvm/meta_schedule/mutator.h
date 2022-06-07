@@ -20,7 +20,13 @@
 #ifndef TVM_META_SCHEDULE_MUTATOR_H_
 #define TVM_META_SCHEDULE_MUTATOR_H_
 
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/support/random_engine.h>
 #include <tvm/tir/schedule/schedule.h>
+#include <tvm/tir/schedule/trace.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -89,17 +95,9 @@ class PyMutatorNode : public MutatorNode {
     // `f_as_string` is not visited
   }
 
-  void InitializeWithTuneContext(const TuneContext& context) final {
-    ICHECK(f_initialize_with_tune_context != nullptr)
-        << "PyMutator's InitializeWithTuneContext method not implemented!";
-    this->f_initialize_with_tune_context(context);
-  }
-
+  void InitializeWithTuneContext(const TuneContext& context) final;
   Optional<tir::Trace> Apply(const tir::Trace& trace,
-                             support::LinearCongruentialEngine::TRandState* rand_state) final {
-    ICHECK(f_apply != nullptr) << "PyMutator's Apply method not implemented!";
-    return this->f_apply(trace, *rand_state);
-  }
+                             support::LinearCongruentialEngine::TRandState* rand_state) final;
 
   static constexpr const char* _type_key = "meta_schedule.PyMutator";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyMutatorNode, MutatorNode);

@@ -21,6 +21,18 @@
 namespace tvm {
 namespace meta_schedule {
 
+void PySpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
+  ICHECK(f_initialize_with_tune_context != nullptr)
+      << "PySpaceGenerator's InitializeWithTuneContext method not implemented!";
+  f_initialize_with_tune_context(context);
+}
+
+Array<tir::Schedule> PySpaceGeneratorNode::GenerateDesignSpace(const IRModule& mod) {
+  ICHECK(f_generate_design_space != nullptr)
+      << "PySpaceGenerator's GenerateDesignSpace method not implemented!";
+  return f_generate_design_space(mod);
+}
+
 SpaceGenerator SpaceGenerator::PySpaceGenerator(
     PySpaceGeneratorNode::FInitializeWithTuneContext f_initialize_with_tune_context,
     PySpaceGeneratorNode::FGenerateDesignSpace f_generate_design_space) {
