@@ -196,6 +196,26 @@ class Session:
         self._set_device_type(graph_mod)
         return tvm.contrib.graph_executor.create(graph_json, graph_mod, self.device)
 
+    def get_aot_executor(
+        self,
+        module_file: Union[str, pathlib.Path],
+    ):
+        """Create a local GraphModule which consumes a remote libmod.
+        The session must be established (via __enter__) prior to
+        calling this function.
+        Parameters
+        ----------
+        module_file : Union[str, pathlib.Path]
+            The remote module filename, following the same restrictions
+            as `load_module`. The filename should be an absolute path.
+        Returns
+        -------
+        GraphModule :
+            Runtime graph module that can be used to execute the graph.
+        """
+        aot_mod = self.load_module(module_file)
+        return tvm.runtime.executor.AotModule(aot_mod["default"](self.device))
+
     def get_graph_debug_executor(
         self,
         graph_json: str,
@@ -357,5 +377,4 @@ class Session:
 
             remote_file_path = self.upload(binary_path, binary_name)
 
-        aot_mod = self.load_module(str(remote_file_path))
-        return tvm.runtime.executor.AotModule(aot_mod["default"](self.device))
+        return self.get_aot_executor(remote_file_path)
