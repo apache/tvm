@@ -3,12 +3,13 @@ Extract tasks from Relay IR models and randomly sample from the mutations
 of subgraphs.
 '''
 
-# import json
+import json
 
 import tvm
 from tvm import meta_schedule as ms
 # from tvm.meta_schedule.testing.relay_workload import get_network
 from tvm.meta_schedule import TuneContext
+from tvm.meta_schedule.database import Workload, TuningRecord
 from tvm.meta_schedule.search_strategy import EvolutionarySearch
 from tvm.meta_schedule.space_generator import PostOrderApply
 from tvm.meta_schedule.task_scheduler import RoundRobin
@@ -31,10 +32,10 @@ if __name__ == '__main__':
     all_tasks = ms.extract_task_from_relay(mod, target='cuda', params=params)
     task = all_tasks[0]
     task_name = task.task_name
-    subgraph = task.dispatched[0]
-    check_spatial = tvm.get_global_func('tir.schedule.IsSpatialPrimFunc')
-    prim_func = subgraph[subgraph.get_global_vars()[0]]
-    is_spatial = check_spatial(prim_func)
+    #subgraph = task.dispatched[0]
+    #check_spatial = tvm.get_global_func('tir.schedule.IsSpatialPrimFunc')
+    #prim_func = subgraph[subgraph.get_global_vars()[0]]
+    #is_spatial = check_spatial(prim_func)
     #subgraph_str = save_json(subgraph)
     #subgraph_obj = json.loads(subgraph_str)
     #subgraph_str = json.dumps(subgraph_obj)
@@ -65,23 +66,10 @@ if __name__ == '__main__':
         mutator_probs=DefaultCUDA._mutator_probs(),
         task_name=task_name,
     )
-    _scheduler = RoundRobin(
-        tasks=[context],
-        task_weights=[1.0],
-        builder=ms.builder.LocalBuilder(),
-        runner=ms.runner.LocalRunner(),
-        database=DummyDatabase(),
-        cost_model=ms.cost_model.RandomModel(),
-        measure_callbacks=[],
-        max_trials=1,
-    )
     context.initialize()
-    context.space_generator.initialize_with_tune_context(context)
     schs = context.space_generator.generate_design_space(context.mod)
     # just containing one tir schedule
-
-    strategy.initialize_with_tune_context(context)
-    strategy.pre_tuning(schs)
+    strategy.pre_tuning(schs, database=DummyDatabase(), cost_model=ms.cost_model.RandomModel())
 
     sample_init_population = tvm.get_global_func(
         'meta_schedule.SearchStrategyEvolutionarySearchSampleInitPopulation'
@@ -89,11 +77,15 @@ if __name__ == '__main__':
     states = sample_init_population(strategy, 2560)
     # contains a lot of tir schedule
     print(len(states))
-    
-    evolve_with_cost_model = tvm.get_global_func(
-        'meta_schedule.SearchStrategyEvolutionarySearchEvolveWithCostModel'
-    )
-    states = evolve_with_cost_model(strategy, states, len(states))
-    print(len(states))
-    del _scheduler
+
+    #evolve_with_cost_model = tvm.get_global_func(
+    #    'meta_schedule.SearchStrategyEvolutionarySearchEvolveWithCostModel'
+    #)
+    #states = evolve_with_cost_model(strategy, states, len(states))
+    #print(len(states))
+
+    workload = Workload(context.mod)
+    tuning_record = TuningRecord(states[0].trace, workload)
+    result = tuning_record.as_json() # a list with four elements
+    tuning_record.from_json(result, workload)
 
