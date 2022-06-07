@@ -778,6 +778,21 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
     const ComputationTable& table, bool identify_equiv_terms) {
   std::vector<std::pair<PrimExpr, size_t>> result;
 
+  // If we do NOT identify equivalent terms, then we simply need to transform the input hashtable
+  // into a vector, without doing anything else.
+  if (!identify_equiv_terms) {
+    // The result will contain exactly as many elements as the input `table` has
+    result.reserve(table.size());
+    for (const auto& elem : table) {
+      result.push_back(elem);
+    }
+
+    return result;
+  }
+
+  // Otherwise, in order to identify equivalent terms, we will go through a table `norm_table`
+  // where normal forms are the keys., and use it to efficiently merge equivalent terms.
+
   // In order to produce the result (a vector of semantical entities), the input table will be
   // normalized. This normalized table will keep the count for each set of equivalent terms
   // (i.e. each equivalence class), together with a term that did appear in this equivalence class
