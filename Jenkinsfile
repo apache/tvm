@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-06-09T09:42:12.430625
+// Generated at 2022-06-10T12:12:40.419262
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -3330,7 +3330,7 @@ def deploy_docs() {
       git status
       git checkout -B $DOCS_DEPLOY_BRANCH
 
-      rm -rf docs
+      git ls-tree HEAD docs/ --name-only | grep -vP '^docs/v\\d' | xargs rm -rf
       mkdir -p docs
       tar xf ../docs.tgz -C docs
       COMMIT=$(cat docs/commit_hash)
