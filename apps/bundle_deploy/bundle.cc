@@ -35,9 +35,8 @@ TVM_BUNDLE_FUNCTION void* tvm_runtime_create(const char* build_graph_json,
   int device_type = kDLCPU;
   int device_id = 0;
 
-  tvm::runtime::Module mod =
-      (*tvm::runtime::Registry::Get("tvm.graph_executor.create"))(json_data, mod_syslib,
-                                                                  device_type, device_id);
+  tvm::runtime::Module mod = (*tvm::runtime::Registry::Get("tvm.graph_executor.create"))(
+      json_data, mod_syslib, device_type, device_id);
   TVMByteArray params;
   params.data = reinterpret_cast<const char*>(&build_params_bin[0]);
   params.size = build_params_bin_len;
