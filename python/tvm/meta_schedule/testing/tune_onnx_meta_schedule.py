@@ -19,11 +19,11 @@ import argparse
 import json
 import logging
 import numpy as np  # type: ignore
+import onnx  # type: ignore
 import tvm
 from tvm.relay.frontend import from_onnx
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
-import onnx  # type: ignore
 
 
 def _parse_args():
@@ -42,7 +42,7 @@ def _parse_args():
         "--input-shape",
         type=str,
         required=True,
-        # example: `[{"name": "input1", "dtype": "int64", "shape": [1, 1, 8]}]`
+        help='example: `[{"name": "input1", "dtype": "int64", "shape": [1, 1, 8]}]',
     )
     args.add_argument(
         "--target",

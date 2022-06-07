@@ -20,13 +20,13 @@ import json
 import os
 
 import numpy as np  # type: ignore
+import onnx  # type: ignore
 import tvm
 from tvm.relay.frontend import from_onnx
 from tvm import auto_scheduler
 from tvm import meta_schedule as ms
 from tvm import relay
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
-import onnx  # type: ignore
 
 
 def _parse_args():
@@ -45,7 +45,7 @@ def _parse_args():
         "--input-shape",
         type=str,
         required=True,
-        # example: `[{"name": "input1", "dtype": "int64", "shape": [1, 1, 8]}]`
+        help='example: `[{"name": "input1", "dtype": "int64", "shape": [1, 1, 8]}]',
     )
     args.add_argument(
         "--target",
@@ -78,7 +78,7 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
-        "--log-dir",
+        "--work-dir",
         type=str,
         required=True,
     )
@@ -98,7 +98,7 @@ ARGS = _parse_args()
 
 
 def main():
-    log_file = os.path.join(ARGS.log_dir, f"{ARGS.model_name}.json")
+    log_file = os.path.join(ARGS.work_dir, f"{ARGS.model_name}.json")
 
     runner = auto_scheduler.RPCRunner(
         key=ARGS.rpc_key,
