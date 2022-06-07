@@ -5072,15 +5072,28 @@ def test_cumsum(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_eyelike(target, dev):
-    def verify_eyelike(indata):
+    if target != "llvm":
+        pytest.skip()
+
+    def verify_eyelike(indata, dynamic=False):
+        node_list = []
+        eyelike_inputs = ["X"]
+        if dynamic:
+            shape_node = helper.make_node("Shape", ["X"], ["shape"])
+            reshape_node = helper.make_node("Reshape", ["X", "shape"], ["X_dyn"])
+
+            eyelike_inputs[0] = "X_dyn"
+            node_list += [shape_node, reshape_node]
+
         node = helper.make_node(
             "EyeLike",
-            inputs=["X"],
+            inputs=eyelike_inputs,
             outputs=["Y"],
         )
+        node_list.append(node)
 
         graph = helper.make_graph(
-            [node],
+            node_list,
             "eyelike_test",
             inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(indata.shape))],
             outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(indata.shape))],
@@ -5094,6 +5107,7 @@ def test_eyelike(target, dev):
 
     input_data = np.zeros((5, 5), dtype=np.float32)
     verify_eyelike(input_data)
+    verify_eyelike(input_data, True)
 
 
 """
