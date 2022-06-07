@@ -228,8 +228,8 @@ def test_simplify_pool_pad():
 
     # Check Pool pad folding when pad width on pad op is all zero.
     validate(max_pools, 1, [[0, 0], [0, 0], [0, 0]], float_min_val, [2, 0], "NCW", 2)
-    # Check MaxPool pad folding with int dtype
-    int_min_val = get_min_value("int32")
+    # Check MaxPool pad folding with uint dtype
+    int_min_val = get_min_value("uint8")
     validate(
         max_pools,
         2,
@@ -238,7 +238,7 @@ def test_simplify_pool_pad():
         [2, 0, 0, 0],
         "NCHW",
         2,
-        dtype="int32",
+        dtype="uint8",
     )
     # Fold when original AvgPool has its own padding but count_include_pad=True
     validate(

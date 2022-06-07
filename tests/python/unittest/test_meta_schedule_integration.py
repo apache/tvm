@@ -197,6 +197,69 @@ def test_meta_schedule_integration_extract_from_bert_base():
 
 
 @requires_torch
+def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
+    def filter_func(args) -> bool:
+        from tvm import te, tir
+
+        has_complex_op = False
+        visited = set()
+
+        def traverse(t):
+            nonlocal has_complex_op
+            assert t.handle is not None
+            if t.handle.value in visited:
+                return
+            if isinstance(t.op, te.PlaceholderOp):
+                pass
+            elif isinstance(t.op, te.ComputeOp):
+                has_complex_op = has_complex_op or any(
+                    [isinstance(e, tir.Reduce) for e in t.op.body]
+                )
+                for x in t.op.input_tensors:
+                    traverse(x)
+            visited.add(t.handle.value)
+
+        for t in args:
+            traverse(t)
+        return has_complex_op
+
+    mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
+    extracted_tasks = ms.extract_task_from_relay(
+        mod,
+        target="llvm",
+        params=params,
+        filter_func=filter_func,
+    )
+    expected_task_names = [
+        "fused_" + s
+        for s in [
+            "nn_max_pool2d",
+            "nn_adaptive_avg_pool2d",
+            "nn_dense_add",
+            "nn_conv2d_add",
+            "nn_conv2d_add_1",
+            "nn_conv2d_add_2",
+            "nn_conv2d_add_add_nn_relu",
+            "nn_conv2d_add_add_nn_relu_1",
+            "nn_conv2d_add_nn_relu",
+            "nn_conv2d_add_nn_relu_1",
+            "nn_conv2d_add_nn_relu_2",
+            "nn_conv2d_add_nn_relu_3",
+            "nn_conv2d_add_nn_relu_4",
+            "nn_conv2d_add_nn_relu_5",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_add_nn_relu",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_add_nn_relu_1",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu",
+            "nn_contrib_conv2d_winograd_without_weight_transform_add_nn_relu_1",
+        ]
+    ]
+
+    assert len(extracted_tasks) == len(expected_task_names)
+    for t in extracted_tasks:
+        assert t.task_name in expected_task_names, t.task_name
+
+
+@requires_torch
 def test_meta_schedule_integration_apply_history_best():
     mod, _, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     database = DummyDatabase()

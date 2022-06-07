@@ -44,9 +44,9 @@ has_tensorrt_runtime = pytest.mark.skipif(
 )
 
 run_module = tvm.testing.parameter(
-    pytest.param(False, marks=[has_tensorrt_codegen, *tvm.testing.requires_cuda()]),
+    pytest.param(False, marks=[has_tensorrt_codegen, *tvm.testing.requires_cuda.marks()]),
     pytest.param(
-        True, marks=[has_tensorrt_runtime, has_tensorrt_codegen, *tvm.testing.requires_cuda()]
+        True, marks=[has_tensorrt_runtime, has_tensorrt_codegen, *tvm.testing.requires_cuda.marks()]
     ),
     ids=["compile", "run"],
 )

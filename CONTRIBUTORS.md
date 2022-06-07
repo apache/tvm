@@ -62,6 +62,7 @@ We do encourage everyone to work anything they are interested in.
 - [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies - relay
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic) (PMC): @kparzysz-quic - hexagon, llvm
 - [Andrew Reusch](https://github.com/areusch): (PMC) @areusch - runtime, microTVM
+- [David Riazati](https://github.com/driazati): @driazati - ci, community
 - [Jared Roesch](https://github.com/jroesch) (PMC): @jroesch - relay
 - [Gustavo Romero](https://github.com/gromero): @gromero - microtvm, tvmc
 - [Giuseppe Rossini](https://github.com/giuseros): @giuseros - aot, arm

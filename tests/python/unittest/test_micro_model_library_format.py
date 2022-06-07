@@ -22,6 +22,7 @@ import tarfile
 
 import numpy
 import pytest
+import platform
 
 import tvm
 import tvm.relay
@@ -418,14 +419,24 @@ def test_export_byoc_c_module():
         with tf.extractfile("./metadata.json") as f:
             metadata = json.load(f)
         main_md = metadata["memory"]["functions"]["main"]
-        assert main_md == [
-            {
-                "constants_size_bytes": 0,
-                "device": 1,
-                "io_size_bytes": 4800,
-                "workspace_size_bytes": 800,
-            }
-        ]
+        if platform.architecture()[0] == "64bit":
+            assert main_md == [
+                {
+                    "constants_size_bytes": 0,
+                    "device": 1,
+                    "io_size_bytes": 4800,
+                    "workspace_size_bytes": 1264,
+                }
+            ]
+        else:
+            assert main_md == [
+                {
+                    "constants_size_bytes": 0,
+                    "device": 1,
+                    "io_size_bytes": 4800,
+                    "workspace_size_bytes": 1248,
+                }
+            ]
 
 
 if __name__ == "__main__":

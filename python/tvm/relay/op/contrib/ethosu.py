@@ -201,6 +201,8 @@ class QnnConv2DParams:
         from tvm.relay.backend.contrib.ethosu.util import RequantArgs
 
         activation = None
+        separate_padding = None
+
         if str(func_body.op) in self.activation_map.keys():
             activation = func_body
             requantize_op = activation.args[0]
@@ -208,8 +210,11 @@ class QnnConv2DParams:
             requantize_op = func_body
         bias_add = requantize_op.args[0]
         qnn_conv2d = bias_add.args[0]
+        if isinstance(qnn_conv2d.args[0], relay.Call) and str(qnn_conv2d.args[0].op) == "nn.pad":
+            separate_padding = qnn_conv2d.args[0]
         data_layout = qnn_conv2d.attrs.data_layout
         self.kernel_layout = qnn_conv2d.attrs.kernel_layout
+
         # We consider the weights & biases as params as it should be a Constant
         self.weights = TensorParams(
             qnn_conv2d.args[QConv2DArgs.WEIGHTS.value],
@@ -224,8 +229,11 @@ class QnnConv2DParams:
             requantize_op.args[RequantArgs.IFM_SCALE.value],
             requantize_op.args[RequantArgs.IFM_ZERO_POINT.value],
         )
+        ifm_tensor = (
+            separate_padding.args[0] if separate_padding else qnn_conv2d.args[QConv2DArgs.IFM.value]
+        )
         self.ifm = TensorParams(
-            qnn_conv2d.args[QConv2DArgs.IFM.value],
+            ifm_tensor,
             data_layout,
             qnn_conv2d.args[QConv2DArgs.IFM_SCALE.value],
             qnn_conv2d.args[QConv2DArgs.IFM_ZERO_POINT.value],
@@ -237,7 +245,10 @@ class QnnConv2DParams:
             requantize_op.args[RequantArgs.OFM_ZERO_POINT.value],
         )
         attrs = qnn_conv2d.attrs
-        self.padding = attrs.padding
+
+        pad_value = int(qnn_conv2d.args[QConv2DArgs.IFM_ZERO_POINT.value].data.asnumpy())
+        self.padding = self.extract_padding(attrs.padding, separate_padding, pad_value)
+
         self.strides = attrs.strides
         self.dilation = attrs.dilation
         self.activation = activation
@@ -249,6 +260,37 @@ class QnnConv2DParams:
         channels_axis = {"HWIO": 3, "HWOI": 2}
         if self.groups == self.weights.shape[channels_axis[self.kernel_layout]]:
             self.is_depthwise = True
+
+    @staticmethod
+    def extract_padding(
+        operator_padding: Tuple[int, int, int, int],
+        separate_padding: relay.Call,
+        pad_value: int,
+    ) -> Optional[Tuple[int, int, int, int]]:
+        """
+        Convolution operations can sometimes have padding represented as a separate
+        padding operation before the convolution operation itself. Here we can check
+        whether these representations can be combined into a single padding attribute
+        as part of the NPU convolution itself. If the padding specified by the separate
+        nn.pad operation is not supported, None will be returned. This will cause the
+        nn.pad to be offloaded separately.
+        """
+        if separate_padding is None:
+            return operator_padding
+        if pad_value != int(separate_padding.args[1].data.asnumpy()):
+            return None
+        pad_width = separate_padding.attrs["pad_width"]
+        if len(pad_width) != 4:
+            return None
+        if list(pad_width[0]) != [0, 0] or list(pad_width[3]) != [0, 0]:
+            return None
+        top, left, bottom, right = operator_padding
+        return [
+            top + pad_width[1][0],
+            left + pad_width[2][0],
+            bottom + pad_width[1][1],
+            right + pad_width[2][1],
+        ]
 
     def is_valid(self) -> bool:
         """
@@ -267,7 +309,7 @@ class QnnConv2DParams:
             return False
         if not check_dilation(self.dilation):
             return False
-        if not check_padding(self.padding, self.padding_bounds):
+        if not self.padding or not check_padding(self.padding, self.padding_bounds):
             return False
         legal_groups = [1, self.ofm.shape[3]]
         if self.groups not in legal_groups:
@@ -437,7 +479,7 @@ class QnnDepthwiseConv2DParams(QnnConv2DParams):
             return False
         if not check_dilation(self.dilation):
             return False
-        if not check_padding(self.padding, self.padding_bounds):
+        if not self.padding or not check_padding(self.padding, self.padding_bounds):
             return False
         if self.weights.layout != "HWOI":
             return False
@@ -453,8 +495,14 @@ def qnn_conv2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     """
     This function creates the pattern for qnn.conv2D with optional fused RELU activation.
     """
+    optional_pad = is_op("nn.pad")(wildcard(), is_constant())
     qnn_conv2d = is_op("qnn.conv2d")(
-        wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+        optional_pad | wildcard(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
     ).has_attr({"kernel_layout": "HWIO"})
     bias_add = is_op("nn.bias_add")(qnn_conv2d, is_constant())
     req = is_op("qnn.requantize")(
@@ -468,8 +516,14 @@ def qnn_depthwise_conv2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     """
     This function creates the pattern for depthwise qnn.conv2D with optional fused RELU activation.
     """
+    optional_pad = is_op("nn.pad")(wildcard(), is_constant())
     qnn_conv2d = is_op("qnn.conv2d")(
-        wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+        optional_pad | wildcard(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
     ).has_attr({"kernel_layout": "HWOI"})
     bias_add = is_op("nn.bias_add")(qnn_conv2d, is_constant())
     req = is_op("qnn.requantize")(

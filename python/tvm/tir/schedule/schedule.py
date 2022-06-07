@@ -15,19 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """The TensorIR schedule class"""
-from typing import Callable, Dict, List, Optional, Union, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import IRModule, PrimExpr
 from tvm.runtime import Object, String
-from tvm.tir import Block, FloatImm, For, IntImm, PrimFunc, Buffer
-from ..function import IndexMap
+from tvm.tir import Block, Buffer, FloatImm, For, IntImm, PrimFunc
 
+from ..function import IndexMap
 from . import _ffi_api
+from ._type_checker import type_checked
 from .state import ScheduleState, StmtSRef, _parse_debug_mask, _parse_mod
 from .trace import Trace
-from ._type_checker import type_checked
 
 
 @register_error
@@ -685,6 +685,62 @@ class Schedule(Object):
         """
         _ffi_api.ScheduleReorder(self, ordered_loops)  # type: ignore # pylint: disable=no-member
 
+    @type_checked
+    def add_unit_loop(self, block_or_loop: Union[LoopRV, BlockRV]) -> LoopRV:
+        """Create a new unit loop on top of the specific block or loop.
+
+        Parameters
+        ----------
+        block_or_loop : Union[LoopRV, BlockRV]
+            The block above which the new loop is created
+
+        Returns
+        -------
+        new_loop : LoopRV
+            The new unit loop
+
+        Examples
+        --------
+
+        Before add_unit_loop, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_add_unit_loop(
+                A: T.Buffer[(), "int32"],
+                B: T.Buffer[(), "int32"],
+                C: T.Buffer[(), "int32"],
+            ) -> None:
+                with T.block("C"):
+                    vi = T.axis.spatial(1, 0)
+                    C[()] = A[()] + B[()]
+
+        Create the schedule and do add-unit-loop:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_add_unit_loop)
+            sch.add_unit_loop(sch.get_block("C"))
+            print(sch.mod["main"].script())
+
+        After applying add-unit-loop, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_add_unit_loop(
+                A: T.Buffer[(), "int32"],
+                B: T.Buffer[(), "int32"],
+                C: T.Buffer[(), "int32"],
+            ) -> None:
+                for u in T.serial(1):
+                    with T.block("C"):
+                        vi = T.axis.spatial(1, 0)
+                        C[()] = A[()] + B[()]
+        """
+        return _ffi_api.ScheduleAddUnitLoop(self, block_or_loop)  # type: ignore # pylint: disable=no-member
+
     ########## Schedule: Manipulate ForKind ##########
 
     @type_checked
@@ -1054,6 +1110,79 @@ class Schedule(Object):
         """
         return _ffi_api.ScheduleCacheWrite(  # type: ignore # pylint: disable=no-member
             self, block, write_buffer_index, storage_scope
+        )
+
+    @type_checked
+    def reindex(self, block: BlockRV, buffer_index: int, buffer_index_type: str) -> BlockRV:
+        """Create a block that read/write a buffer region into a read/write cache with reindexing.
+        The layout of the cache will be the same as by the iterators of the block that reads/writes
+        the buffer. It requires:
+        1) There is only one block who reads/writes the target buffer
+        2) There is only one buffer load/store of this buffer in the block
+
+        Parameters
+        ----------
+        block: BlockRV
+            The block that accesses the target buffer
+        buffer_index: int
+            The index of the buffer in block's read or write region
+        buffer_index_type : str
+            Type of the buffer index, "read" or "write"
+
+        Returns
+        -------
+        reindex_block : BlockRV
+            The block of the reindex stage
+
+        Examples
+        --------
+
+        Before transform_layout, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_reindex(
+                A: T.Buffer[(128, 128), "float32"],
+                B: T.Buffer[(128, 128), "float32"]
+            ) -> None:
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vj, vi] * 2.0
+
+        Create the schedule and do transform_layout:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_reindex)
+            block = sch.get_block("B")
+            sch.reindex(block, 0, "read)
+
+        After applying reindex, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_reindex(
+                A: T.Buffer[(128, 128), "float32"],
+                B: T.Buffer[(128, 128), "float32"]
+            ) -> None:
+                A_reindex = T.alloc_buffer((128, 128), "float32")
+                for i, j in T.grid(128, 128):
+                    with T.block("A_reindex"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        A_reindex[vi, vj] = A[vj, vi]
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A_reindex[vi, vj] * 2.0
+
+        """
+        assert buffer_index_type in ["read", "write"], "Invalid buffer_index_type"
+        buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
+        return _ffi_api.ScheduleReIndex(  # type: ignore # pylint: disable=no-member
+            self, block, buffer_index, buffer_index_type_enum
         )
 
     ########## Schedule: Compute location ##########

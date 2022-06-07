@@ -69,6 +69,7 @@ def test_vm(target, dev):
     assert "Total" in str(report)
     assert "AllocTensorReg" in str(report)
     assert "AllocStorage" in str(report)
+    assert report.configuration["Executor"] == "VM"
 
     csv = read_csv(report)
     assert "Hash" in csv.keys()
@@ -102,6 +103,7 @@ def test_graph_executor(target, dev):
     assert "fused_nn_softmax" in str(report)
     assert "Total" in str(report)
     assert "Hash" in str(report)
+    assert "Graph" in str(report)
 
 
 @tvm.testing.parametrize_targets("cuda", "llvm")
@@ -147,6 +149,7 @@ def test_json():
     parsed = json.loads(report.json())
     assert "device_metrics" in parsed
     assert "calls" in parsed
+    assert "configuration" in parsed
     assert "Duration (us)" in parsed["calls"][0]
     assert "microseconds" in parsed["calls"][0]["Duration (us)"]
     assert len(parsed["calls"]) > 0
@@ -328,7 +331,7 @@ def test_roofline_analysis(target, dev):
             # Ideally we'd like a little tighter bound here, but it is hard to
             # know how well this dense will perform without tuning. And we
             # don't have an operator that uses a specific number of flops.
-            assert call["Percent of Theoretical Optimal"].ratio >= 0
+            assert call["Percent of Theoretical Optimal"].ratio >= 5.0
 
 
 @tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
@@ -354,7 +357,7 @@ def test_roofline_analysis_rpc():
             # Ideally we'd like a little tighter bound here, but it is hard to
             # know how well this dense will perform without tuning. And we
             # don't have an operator that uses a specific number of flops.
-            assert call["Percent of Theoretical Optimal"].ratio >= 0
+            assert call["Percent of Theoretical Optimal"].ratio >= 5.0
 
 
 if __name__ == "__main__":

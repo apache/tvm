@@ -473,10 +473,17 @@ def compute_ofm_shape(ifm_shape, padding, kernel_shape, strides, dilation=[1, 1]
     assert len(strides) == 2
     assert len(dilation) == 2
     assert len(kernel_shape) == 2
-    if padding.lower() == "valid":
+    if isinstance(padding, tuple):
+        h = (
+            ifm_shape[1] - (kernel_shape[0] - 1) * dilation[0] + padding[0] + padding[2]
+        ) // strides[0]
+        w = (
+            ifm_shape[2] - (kernel_shape[1] - 1) * dilation[1] + padding[1] + padding[3]
+        ) // strides[1]
+    elif padding.lower() == "valid":
         h = math.ceil((ifm_shape[1] - (kernel_shape[0] - 1) * dilation[0]) / strides[0])
         w = math.ceil((ifm_shape[2] - (kernel_shape[1] - 1) * dilation[1]) / strides[1])
-    if padding.lower() == "same":
+    elif padding.lower() == "same":
         h = math.ceil(ifm_shape[1] / strides[0])
         w = math.ceil(ifm_shape[2] / strides[1])
     ofm_shape = [ifm_shape[0], h, w, ifm_shape[3]]
