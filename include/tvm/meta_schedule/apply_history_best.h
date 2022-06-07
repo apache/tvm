@@ -19,7 +19,14 @@
 #ifndef TVM_META_SCHEDULE_APPLY_HISTORY_BEST_H_
 #define TVM_META_SCHEDULE_APPLY_HISTORY_BEST_H_
 
+#include <tvm/ir/module.h>
 #include <tvm/meta_schedule/database.h>
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 
 namespace tvm {
@@ -36,7 +43,7 @@ class ApplyHistoryBestNode : public runtime::Object {
   /*! \brief The logging function to be used */
   PackedFunc logging_func;
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("database", &database); }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("database", &database); }
   /*!
    * \brief Query the best entry from the database
    * \param task_name The name of the task to be queried

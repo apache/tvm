@@ -21,9 +21,15 @@
 #define TVM_META_SCHEDULE_MEASURE_CALLBACK_H_
 
 #include <tvm/meta_schedule/builder.h>
+#include <tvm/meta_schedule/measure_candidate.h>
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/meta_schedule/search_strategy.h>
 #include <tvm/meta_schedule/tune_context.h>
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -94,10 +100,7 @@ class PyMeasureCallbackNode : public MeasureCallbackNode {
              int task_id,                                        //
              const Array<MeasureCandidate>& measure_candidates,  //
              const Array<BuilderResult>& builds,                 //
-             const Array<RunnerResult>& results) final {
-    ICHECK(f_apply != nullptr) << "PyMeasureCallback's Apply method not implemented!";
-    return this->f_apply(task_scheduler, task_id, measure_candidates, builds, results);
-  }
+             const Array<RunnerResult>& results);
 
   static constexpr const char* _type_key = "meta_schedule.PyMeasureCallback";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyMeasureCallbackNode, MeasureCallbackNode);

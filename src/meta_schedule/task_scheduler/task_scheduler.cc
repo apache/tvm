@@ -199,6 +199,43 @@ Array<RunnerResult> TaskSchedulerNode::JoinRunningTask(int task_id) {
   return results;
 }
 
+void PyTaskSchedulerNode::Tune() {
+  if (f_tune == nullptr) {
+    TaskSchedulerNode::Tune();
+  } else {
+    f_tune();
+  }
+}
+
+void PyTaskSchedulerNode::InitializeTask(int task_id) {
+  if (f_initialize_task == nullptr) {
+    TaskSchedulerNode::InitializeTask(task_id);
+  } else {
+    f_initialize_task(task_id);
+  }
+}
+
+void PyTaskSchedulerNode::TouchTask(int task_id) {
+  if (f_touch_task == nullptr) {
+    return TaskSchedulerNode::TouchTask(task_id);
+  } else {
+    return f_touch_task(task_id);
+  }
+}
+
+Array<RunnerResult> PyTaskSchedulerNode::JoinRunningTask(int task_id) {
+  if (f_join_running_task == nullptr) {
+    return TaskSchedulerNode::JoinRunningTask(task_id);
+  } else {
+    return f_join_running_task(task_id);
+  }
+}
+
+int PyTaskSchedulerNode::NextTaskId() {
+  ICHECK(f_next_task_id != nullptr) << "PyTaskScheduler's NextTaskId method not implemented!";
+  return f_next_task_id();
+}
+
 TaskScheduler TaskScheduler::PyTaskScheduler(
     Array<TuneContext> tasks,                                   //
     Builder builder,                                            //
