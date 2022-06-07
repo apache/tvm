@@ -88,7 +88,7 @@ import tvm.te
 import tvm._ffi
 
 from tvm.contrib import nvcc, cudnn
-from tvm.contrib.hexagon import pytest_plugin as hexagon
+import tvm.contrib.hexagon._ci_env_check as hexagon
 from tvm.error import TVMError
 
 

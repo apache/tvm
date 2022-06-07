@@ -26,7 +26,6 @@ from typing import Optional, Union
 import pytest
 
 import tvm
-import tvm.testing
 import tvm.rpc.tracker
 from tvm.contrib.hexagon.build import HexagonLauncher, HexagonLauncherRPC
 from tvm.contrib.hexagon.session import Session
@@ -52,35 +51,6 @@ def _compose(args, decs):
             func = dec(func)
         return func
     return decs
-
-
-def _compile_time_check():
-    """Return True if compile-time support for Hexagon is present, otherwise
-    error string.
-
-    Designed for use as a the ``compile_time_check`` argument to
-    `tvm.testing.Feature`.
-    """
-    if _cmake_flag_enabled("USE_LLVM") and tvm.target.codegen.llvm_version_major() < 7:
-        return "Hexagon requires LLVM 7 or later"
-
-    if "HEXAGON_TOOLCHAIN" not in os.environ:
-        return f"Missing environment variable {HEXAGON_TOOLCHAIN}."
-
-    return True
-
-
-def _run_time_check():
-    """Return True if run-time support for Hexagon is present, otherwise
-    error string.
-
-    Designed for use as a the ``run_time_check`` argument to
-    `tvm.testing.Feature`.
-    """
-    if ANDROID_SERIAL_NUMBER not in os.environ:
-        return f"Missing environment variable {ANDROID_SERIAL_NUMBER}."
-
-    return True
 
 
 requires_hexagon_toolchain = tvm.testing.requires_hexagon(support_required="compile-only")
