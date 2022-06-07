@@ -24,8 +24,8 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm import autotvm
-from .conv2d_nchw_winograd import _infer_tile_size
 from ..utils import get_const_tuple
+from .utils import infer_tile_size
 from ..nn import conv2d_alter_layout
 
 logger = logging.getLogger("topi")
@@ -88,7 +88,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
                     weight = relay.layout_transform(inputs[1], "HWIO", "OIHW")
 
                 # Pre-compute weight transformation in winograd
-                tile_size = _infer_tile_size(data_tensor)
+                tile_size = infer_tile_size(data_tensor, data_layout)
 
                 # alpha, alpha, CO, CI
                 weight = relay.nn.contrib_conv2d_winograd_weight_transform(
@@ -112,7 +112,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
             logger.warning("Does not support weight pre-transform for dilated convolution.")
             return None
 
-        tile_size = _infer_tile_size(data_tensor)
+        tile_size = infer_tile_size(data_tensor, data_layout)
         if len(data_tensor.shape) == 5:
             assert data_layout == "NCHW4c" and kernel_layout == "OIHW4o"
             N, CI, H, W, CB = get_const_tuple(data_tensor.shape)
@@ -205,7 +205,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
             logger.warning("Does not support weight pre-transform for dilated convolution.")
             return None
 
-        tile_size = _infer_tile_size(data_tensor)
+        tile_size = infer_tile_size(data_tensor, data_layout)
         if len(data_tensor.shape) == 5:
             assert data_layout == "NHWC4c" and kernel_layout == "HWIO4o"
             N, CI, H, W, CB = get_const_tuple(data_tensor.shape)

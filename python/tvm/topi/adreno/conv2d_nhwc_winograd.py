@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument
-"""Winograd template for Adreno backend"""
+"""Winograd NHWC template for Adreno backend"""
 
 import logging
 import tvm
@@ -31,21 +31,11 @@ from .utils import (
     pack_filter,
     bind_data_copy,
     get_texture_storage,
+    infer_tile_size,
 )
 
 
 logger = logging.getLogger("conv2d_nhwc_winograd")
-
-
-def _infer_tile_size(data):
-    if len(data.shape) == 4:
-        N, H, W, CI = get_const_tuple(data.shape)
-    else:
-        N, H, W, CI, CB = get_const_tuple(data.shape)
-
-    if H % 8 == 0:
-        return 4
-    return 2
 
 
 @autotvm.register_topi_compute("conv2d_nhwc_winograd.image2d")
@@ -119,8 +109,46 @@ def schedule_conv2d_nhwc_winograd_impl(cfg, outs, tag, pre_computed=False):
 def conv2d_nhwc_winograd_comp(
     cfg, data, kernel, strides, padding, dilation, out_dtype, args, pre_computed
 ):
-    """Compute declaration for winograd"""
-    tile_size = _infer_tile_size(data)
+    """Compute declaration for winograd
+
+    Parameters
+    ----------
+    cfg: ConfigEntity
+        The config for this template
+
+    data: tvm.te.Tensor
+        4-D or 5-D Data tensor with shape NCHW or NCHW4c
+
+    kernel: tvm.te.Tensor
+        4-D or 5-D tensor with shape OIHW or OIHW4o
+
+    strides: int or a list/tuple of two ints
+        stride size, or [stride_height, stride_width]
+
+    padding: int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
+
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
+
+    out_dtype: str
+        The output type. This is used for mixed precision.
+
+    args: dict
+        Dictionary with additional arguments, e.g. accumulator type
+
+    pre_computed: bool
+        Flag if weights were pre computed if true or the weights should be
+        computed in runtime
+
+    Returns
+    -------
+    output: tvm.te.Tensor
+        4-D or 5-D with shape NCHW or NCHW4c
+    """
+    tile_size = infer_tile_size(data, "NHWC")
 
     if isinstance(dilation, int):
         dilation_h = dilation_w = dilation
@@ -399,6 +427,7 @@ def schedule_conv2d_winograd(cfg, s, output, pre_computed):
         filter=lambda entry: entry.size[2] <= 64 and entry.size[1] >= 4 and entry.size[1] <= 8,
     )
     cfg.define_split("tile_rc", rcc, num_outputs=2)
+    # TODO: Uncomment the following lines when multi_filter will be introduced
     # cfg.multi_filter(
     # filter=lambda entity: entity["tile_y"].size[2] * entity["tile_x"].size[2] in range(32,1024)
     # )
@@ -436,10 +465,6 @@ def schedule_conv2d_winograd(cfg, s, output, pre_computed):
     (rcc, rcb) = s[OL].op.reduce_axis
     b = s[OL].fuse(b1, b2)
     s[OL].reorder(b, y, x, rcc, rcb, cb)
-    # TODO: commented unroll improves performance of vgg16 for fp16_fp32
-    # inference. After using auto_unroll_max_step for automatic unrolling the
-    # optimal configuration wasn't found. It is necessary to investigate how we
-    # can improve search of optimal configuration.
     # s[OL].unroll(rcb)
     s[OL].pragma(rcb, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
     s[OL].pragma(rcb, "unroll_explicit", True)
