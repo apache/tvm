@@ -19,6 +19,7 @@
 #ifndef TVM_META_SCHEDULE_TUNE_CONTEXT_H_
 #define TVM_META_SCHEDULE_TUNE_CONTEXT_H_
 
+#include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/meta_schedule/builder.h>
 #include <tvm/meta_schedule/mutator.h>
@@ -27,6 +28,13 @@
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/meta_schedule/search_strategy.h>
 #include <tvm/meta_schedule/space_generator.h>
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/support/random_engine.h>
 #include <tvm/target/target.h>
 

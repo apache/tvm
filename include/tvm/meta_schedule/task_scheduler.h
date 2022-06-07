@@ -25,6 +25,12 @@
 #include <tvm/meta_schedule/measure_callback.h>
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/meta_schedule/tune_context.h>
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/support/random_engine.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -181,42 +187,11 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
     // `f_next_task_id` is not visited
   }
 
-  void Tune() final {
-    if (f_tune == nullptr) {
-      TaskSchedulerNode::Tune();
-    } else {
-      f_tune();
-    }
-  }
-
-  void InitializeTask(int task_id) final {
-    if (f_initialize_task == nullptr) {
-      TaskSchedulerNode::InitializeTask(task_id);
-    } else {
-      f_initialize_task(task_id);
-    }
-  }
-
-  void TouchTask(int task_id) final {
-    if (f_touch_task == nullptr) {
-      return TaskSchedulerNode::TouchTask(task_id);
-    } else {
-      return f_touch_task(task_id);
-    }
-  }
-
-  Array<RunnerResult> JoinRunningTask(int task_id) final {
-    if (f_join_running_task == nullptr) {
-      return TaskSchedulerNode::JoinRunningTask(task_id);
-    } else {
-      return f_join_running_task(task_id);
-    }
-  }
-
-  int NextTaskId() final {
-    ICHECK(f_next_task_id != nullptr) << "PyTaskScheduler's NextTaskId method not implemented!";
-    return f_next_task_id();
-  }
+  void Tune() final;
+  void InitializeTask(int task_id) final;
+  void TouchTask(int task_id) final;
+  Array<RunnerResult> JoinRunningTask(int task_id) final;
+  int NextTaskId() final;
 
   static constexpr const char* _type_key = "meta_schedule.PyTaskScheduler";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyTaskSchedulerNode, TaskSchedulerNode);
