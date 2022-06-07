@@ -100,6 +100,7 @@ ALLOW_FILE_NAME = {
     "Makefile",
     "Doxyfile",
     "pylintrc",
+    "pylintrc_tests",
     "condarc",
     "rat-excludes",
     "log4j.properties",

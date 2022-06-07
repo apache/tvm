@@ -1,0 +1,1142 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+[MASTER]
+
+# Specify a configuration file.
+#rcfile=
+
+# Python code to execute, usually for sys.path manipulation such as
+# pygtk.require().
+#init-hook=
+
+# Add files or directories to the blacklist. They should be base names, not
+# paths.
+ignore = CVS, _cy2, _cy3, grammar,
+  conftest.py,
+  test_device_constraint_utils.py,
+  test_ewise_fpga.py,
+  test_dot.py,
+  test_scan.py,
+  test_gemm.py,
+  test_ewise.py,
+  test_tuning.py,
+  test_winograd_nnpack.py,
+  test_cblas.py,
+  test_random.py,
+  test_arm_mprofile_dsp.py,
+  test_meta_schedule_auto_tensorize.py,
+  test_lower.py,
+  test_gemm_acc32_vnni.py,
+  test_util.py,
+  test_coreml_codegen.py,
+  test_dlpack.py,
+  test_cudnn.py,
+  test_reduce.py,
+  test_miopen.py,
+  test_mps.py,
+  test_sort.py,
+  test_thrust.py,
+  test_rocblas.py,
+  test_gemm_acc16.py,
+  test_rpc_proxy.py,
+  test_tensorrt_int8_exp.py,
+  test_coreml_runtime.py,
+  test_cutlass.py,
+  test_libtorch_ops.py,
+  test_tedd.py,
+  test_mxnet_bridge.py,
+  test_edgetpu_runtime.py,
+  test_rpc_tracker.py,
+  test_onnx.py,
+  test_nnpack.py,
+  test_sparse.py,
+  test_dnnl.py,
+  test_runtime.py,
+  test_cublas.py,
+  test_concatenate.py,
+  test_popen_pool.py,
+  test_maximum.py,
+  test_reshape.py,
+  test_pooling.py,
+  infrastructure.py,
+  test_add.py,
+  test_onnx_model.py,
+  test_dense.py,
+  test_tensorrt.py,
+  test_conv2d.py,
+  utils.py,
+  test_attr_passing.py,
+  test_networks.py,
+  test_replace_identity.py,
+  test_networks.py,
+  test_rpc_server_device.py,
+  test_outline_compiler_functions.py,
+  test_extract_constants.py,
+  test_replace_binary_elementwise.py,
+  test_copy_compute_reordering.py,
+  test_network.py,
+  test_vela_api.py,
+  test_tflite_runtime.py,
+  test_replace_conv2d.py,
+  test_compiler.py,
+  test_replace_copy.py,
+  test_type_inference.py,
+  test_tir_to_cs_translator.py,
+  test_encode_constants.py,
+  test_replace_pooling.py,
+  test_preprocess.py,
+  test_replace_unary_elementwise.py,
+  test_legalize_no_ops.py,
+  test_remove_concatenates.py,
+  test_hoist_allocates.py,
+  test_replace_depthwise_conv2d.py,
+  test_create_tiles.py,
+  infra.py,
+  test_lower_to_te.py,
+  test_placeholder.py,
+  test_rolling_buffer.py,
+  test_stripe_config.py,
+  test_propagator.py,
+  test_lut_optimizer.py,
+  test_scheduler.py,
+  test_ethosu_part_performance.py,
+  test_ethosu_inline_matcher.py,
+  test_pareto.py,
+  test_ethosu_part.py,
+  test_memory_reduction.py,
+  test_proposal_generator.py,
+  test_ethosu_unary_elementwise_matcher.py,
+  test_graph.py,
+  test_ethosu_pooling_matcher.py,
+  test_ethosu_block_config.py,
+  test_plan_generator.py,
+  test_tensor_config.py,
+  test_plan.py,
+  infra.py,
+  test_identity_optimizer.py,
+  test_ethosu_depthwise2d_matcher.py,
+  test_ethosu_identity_matcher.py,
+  test_ethosu_binary_elementwise_matcher.py,
+  conftest.py,
+  test_ethosu_conv2d_matcher.py,
+  test_run_gtests.py,
+  conftest.py,
+  test_maxpool2d_blocked.py,
+  test_codegen.py,
+  test_scheduler.py,
+  test_usmp.py,
+  infrastructure.py,
+  test_run_unit_tests.py,
+  test_launcher.py,
+  conftest.py,
+  test_2d_physical_buffers.py,
+  test_thread_pool.py,
+  test_autotvm.py,
+  benchmark_util.py,
+  test_conv2d_transpose.py,
+  benchmark_elemwise_add.py,
+  test_conv2d_nhwc.py,
+  test_models.py,
+  test_batch_matmul.py,
+  test_softmax.py,
+  test_reduce.py,
+  test_cache_read_write.py,
+  test_pooling.py,
+  test_depthwise_conv2d.py,
+  test_dense.py,
+  test_matmul.py,
+  test_conv2d_blocked.py,
+  test_conv2d_conv2d.py,
+  test_conv2d.py,
+  test_layout_optimizer.py,
+  test_pooling.py,
+  test_conv2d_patterns.py,
+  test_conv2d_nchw.py,
+  test_normalization.py,
+  infrastructure.py,
+  test_dense.py,
+  test_split.py,
+  test_onnx_topologies.py,
+  test_constant_duplication.py,
+  test_fullyconnected.py,
+  infrastructure.py,
+  test_lookup_table.py,
+  test_concatenate.py,
+  test_partition_params.py,
+  test_addition.py,
+  test_topi_bitserial_conv2d.py,
+  test_topi_bitserial_conv2d.py,
+  test_topi_scan.py,
+  test_topi_conv3d_transpose_ncdhw.py,
+  test_topi_dilate.py,
+  test_topi_bitserial_dense.py,
+  test_topi_upsampling.py,
+  test_topi_conv2d_transpose_nchw.py,
+  test_topi_deformable_conv2d.py,
+  test_topi_conv2d_hwcn.py,
+  test_topi_tensor.py,
+  test_topi_conv2d_nchw.py,
+  test_topi_reduce.py,
+  test_topi_bitserial_conv2d_rasp.py,
+  test_topi_conv2d_nhwc_winograd.py,
+  test_topi_dense.py,
+  test_topi_prng.py,
+  test_topi_group_conv2d_transpose.py,
+  test_topi_conv2d_nhwc_tensorcore.py,
+  test_topi_conv3d_ncdhw.py,
+  test_topi_conv2d_winograd.py,
+  test_topi_matmul.py,
+  test_topi_conv3d_winograd.py,
+  test_topi_unique.py,
+  test_topi_depthwise_conv2d_back_input.py,
+  test_topi_lstm.py,
+  test_topi_conv2d_NCHWc.py,
+  test_topi_bnn.py,
+  test_legalize.py,
+  test_topi_depth_to_space.py,
+  test_topi_conv2d_nhwc_pack_int8.py,
+  test_topi_image.py,
+  test_topi_basic.py,
+  test_topi_depthwise_conv2d.py,
+  test_topi_softmax.py,
+  test_topi_conv1d_transpose_ncw.py,
+  test_topi_math.py,
+  test_topi_vision.py,
+  test_topi_batch_norm.py,
+  test_topi_correlation.py,
+  test_topi_einsum.py,
+  test_topi_conv2d_nhwc.py,
+  test_topi_clip.py,
+  test_topi_batch_to_space_nd.py,
+  test_topi_space_to_batch_nd.py,
+  test_topi_space_to_depth.py,
+  test_topi_batch_matmul_tensorcore.py,
+  test_topi_reorg.py,
+  test_topi_searchsorted.py,
+  test_topi_lrn.py,
+  test_topi_group_conv2d_NCHWc_int8.py,
+  test_topi_conv1d.py,
+  test_topi_conv2d_int8.py,
+  test_topi_loss.py,
+  test_topi_pooling.py,
+  test_topi_broadcast.py,
+  test_topi_relu.py,
+  test_topi_scatter.py,
+  test_topi_util.py,
+  test_topi_qnn.py,
+  test_topi_conv3d_ndhwc_tensorcore.py,
+  test_topi_conv3d_ndhwc.py,
+  test_topi_batch_matmul.py,
+  test_topi_dense_tensorcore.py,
+  test_minimal_target_codegen_llvm.py,
+  test_runtime_packed_func.py,
+  test_topi_conv2d_hwnc_tensorcore.py,
+  test_runtime_ndarray.py,
+  test_script_converter.py,
+  test_utils.py,
+  test_topi_sort.py,
+  test_pass_qnn_legalize.py,
+  test_mergebot.py,
+  test_ir_text_printer.py,
+  test_topi_group_conv2d.py,
+  test_ir_bind.py,
+  test_ci.py,
+  test_pass_manifest_lifetimes.py,
+  test_memory_passes.py,
+  test_op_level6.py,
+  test_pass_lambda_lift.py,
+  test_op_qnn_simulated_dequantize.py,
+  test_pass_flatten_atrous_conv.py,
+  test_pass_to_graph_normal_form.py,
+  test_analysis_feature.py,
+  test_topi_sparse.py,
+  test_ir_nodes.py,
+  test_pass_gradient.py,
+  test_topi_transform.py,
+  test_op_qnn_unary_elementwise.py,
+  test_runtime.py,
+  test_op_qnn_dequantize.py,
+  test_pass_eliminate_common_subexpr.py,
+  test_json_runtime.py,
+  test_py_converter.py,
+  test_pass_legalize.py,
+  test_pass_fold_explicit_padding.py,
+  test_change_batch.py,
+  test_pass_combine_parallel_conv2d.py,
+  test_external_codegen.py,
+  test_pass_plan_devices.py,
+  test_pass_annotate_target.py,
+  test_op_qnn_batch_matmul.py,
+  test_op_fast_math.py,
+  test_pass_dead_code_elimination.py,
+  test_op_qnn_conv2d.py,
+  test_analysis_basic_block_normal_form.py,
+  test_tensor_array.py,
+  test_pass_lazy_gradient_init.py,
+  test_pass_legalize_tensorcore.py,
+  test_typecall.py,
+  test_pass_simplify_expr.py,
+  test_op_qnn_subtract.py,
+  test_op_qnn_mul.py,
+  test_call_graph.py,
+  test_op_qnn_leaky_relu.py,
+  test_executor.py,
+  test_pass_defunctionalization.py,
+  test_conv2d_nhwc_texture.py,
+  test_op_qnn_requantize.py,
+  test_depthwise_conv2d_nchw_texture.py,
+  test_pipeline_executor.py,
+  test_pass_fast_math.py,
+  test_pass_auto_quantize.py,
+  test_pass_check_kind.py,
+  test_pass_eta_expand.py,
+  test_pass_vars.py,
+  test_ir_op.py,
+  test_simplify_fc_transpose.py,
+  test_param_dict.py,
+  test_debug.py,
+  test_pass_fold_constant.py,
+  test_expr_functor.py,
+  test_prng.py,
+  test_auto_scheduler_task_extraction.py,
+  test_cmp_op.py,
+  test_type_infer.py,
+  test_analysis_extract_operators.py,
+  test_recast.py,
+  test_op_qnn_concatenate.py,
+  test_analysis_extract_fake_quantized_ops.py,
+  test_op_qnn_simulated_quantize.py,
+  test_op_qnn_quantize.py,
+  test_analysis_extract_fused_functions.py,
+  test_pass_mac_count.py,
+  test_pass_combine_parallel_dense.py,
+  test_pass_alter_op_layout.py,
+  test_pass_fold_scale_axis.py,
+  test_pass_defuse_ops.py,
+  test_op_level4.py,
+  test_ir_parser.py,
+  test_name_transforms.py,
+  test_vm.py,
+  test_ir_structural_equal_hash.py,
+  test_pass_to_basic_block_normal_form.py,
+  test_op_grad_level2.py,
+  test_backend_graph_executor.py,
+  test_pass_partial_eval.py,
+  test_op_qnn_conv2_transpose.py,
+  test_pass_to_cps.py,
+  test_name_mangling.py,
+  test_op_grad_level4.py,
+  test_pass_split_args.py,
+  test_pass_fuse_ops.py,
+  test_pass_merge_composite.py,
+  test_sparse_dense_convert.py,
+  test_auto_scheduler_layout_rewrite_networks.py,
+  test_pass_unmatched_cases.py,
+  test_op_grad_level10.py,
+  test_op_grad_level1.py,
+  test_target_hooks.py,
+  test_op_level1.py,
+  test_vm_serialization.py,
+  test_pass_instrument.py,
+  test_pass_fake_quantization_to_integer.py,
+  test_relay_te_compiler.py,
+  test_conv2d_nchw_texture.py,
+  test_to_mixed_precision.py,
+  test_type_functor.py,
+  test_auto_scheduler_tuning.py,
+  test_depthwise_conv2d_nhwc_texture.py,
+  test_pass_manager.py,
+  test_ir_module.py,
+  test_sparse_conv2d_convert.py,
+  test_any.py,
+  test_pass_remove_unused_functions.py,
+  test_pass_convert_op_layout.py,
+  test_layer_count.py,
+  test_json_compact.py,
+  test_pass_to_a_normal_form.py,
+  test_adt.py,
+  test_const.py,
+  test_annotated_regions.py,
+  test_build_module.py,
+  test_op_level2.py,
+  test_pass_simplify_inference.py,
+  test_backend_interpreter.py,
+  test_op_level3.py,
+  test_pass_dynamic_to_static.py,
+  test_op_qnn_add.py,
+  test_pass_annotate_spans_defuse.py,
+  test_cpp_build_module.py,
+  test_op_grad_level3.py,
+  test_autotvm_task_extraction.py,
+  test_analysis_get_calibration_data.py,
+  test_ir_well_formed.py,
+  test_pass_flexible_shape_dispatch.py,
+  test_pass_merge_compiler_regions.py,
+  test_pass_canonicalize_cast.py,
+  test_type_solver.py,
+  test_pass_partition_graph.py,
+  test_op_qnn_dense.py,
+  test_op_level5.py,
+  test_pass_inline.py,
+  test_c_device_api.py,
+  test_max_pool.py,
+  test_group_conv2d.py,
+  test_conv2d_NCHWc.py,
+  test_conv1d_ncw.py,
+  test_avg_pool.py,
+  test_conv2d_nhwc.py,
+  test_cpp_aot.py,
+  test_conv1d_nwc.py,
+  test_conv2d_nchw.py,
+  test_depthwise_conv2d_NCHWc.py,
+  test_tensor.py,
+  test_dense_dsp.py,
+  test_depthwise_conv2d.py,
+  test_annotation.py,
+  test_crt_aot_usmp.py,
+  test_op_level10.py,
+  test_crt_aot.py,
+  external_codegen.py,
+  ref_funcs.py,
+  adreno_utils.py,
+  test_pass_lower_te.py,
+  assert_diagnostic.py,
+  test_canonicalizations.py,
+  test_dynamic_op_level5.py,
+  test_dynamic_op_level4.py,
+  test_compiler_function_utils.py,
+  benchmark_vm.py,
+  test_dynamic_op_level6.py,
+  test_registry_options.py,
+  test_pass_list.py,
+  test_target_options.py,
+  test_dynamic_op_level10.py,
+  test_frontends.py,
+  test_quantization_accuracy.py,
+  test_target.py,
+  test_pass_config.py,
+  test_command_line.py,
+  test_parse_config_file.py,
+  test_model.py,
+  test_dynamic_op_level2.py,
+  test_shape_parser.py,
+  test_mlf.py,
+  test_tracker.py,
+  test_runner.py,
+  test_autoscheduler.py,
+  conftest.py,
+  test_autotuner.py,
+  test_dynamic_op_level3.py,
+  test_dataflow_pattern.py,
+  test_compiler.py,
+  test_quantization_accuracy_for_vit.py,
+  test_composite_target.py,
+  test_aot_legalize_packed_call.py,
+  test_runtime_module_export.py,
+  test_tir_schedule_blockize.py,
+  test_tir_renew_defs.py,
+  test_tir_transform_lower_init_block.py,
+  test_target_codegen_blob.py,
+  test_tir_schedule_set_scope.py,
+  test_tir_schedule_trace.py,
+  test_target_codegen_arm.py,
+  test_tvm_testing_features.py,
+  test_testing.py,
+  test_meta_schedule_schedule_rule_multi_level_tiling.py,
+  test_tir_transform_instrument_bound_checkers.py,
+  test_target_codegen_hexagon.py,
+  test_tir_transform_bf16_legalize.py,
+  test_tir_constructor.py,
+  test_tir_transform_flatten_buffer.py,
+  test_meta_schedule_task_scheduler.py,
+  test_runtime_graph_cuda_graph.py,
+  test_meta_schedule_schedule_rule_add_rfactor.py,
+  test_runtime_graph_debug.py,
+  test_runtime_heterogeneous.py,
+  test_tir_transform_merge_dynamic_shared_memory_allocations.py,
+  test_tir_texture_scope.py,
+  test_tir_transform_convert_for_loops_serial.py,
+  test_autotvm_flop_calculator.py,
+  test_gen_requirements.py,
+  test_tir_transform_inject_virtual_thread.py,
+  test_te_schedule_bound_inference_tiling.py,
+  test_format_si_prefix.py,
+  test_ir_container.py,
+  test_auto_scheduler_cost_model.py,
+  test_meta_schedule_search_strategy.py,
+  test_te_schedule.py,
+  test_tir_analysis_verify_gpu_code.py,
+  test_tir_schedule_compute_inline.py,
+  test_te_schedule_postproc_rewrite_for_tensor_core.py,
+  test_autotvm_record.py,
+  test_autotvm_index_tuner.py,
+  test_tir_schedule_transform_layout.py,
+  test_target_codegen_cross_llvm.py,
+  test_tir_schedule_reorder.py,
+  test_tvmscript_spans.py,
+  test_tir_transform_common_subexpr_elim.py,
+  test_tir_transform_decorate_device_scope.py,
+  test_tir_transform_inject_double_buffer.py,
+  test_tvmscript_meta_programming.py,
+  test_tir_analysis_detect_buffer_access_lca.py,
+  test_meta_schedule_space_generator.py,
+  test_tir_schedule_tensorize_ldmatrix_mma.py,
+  test_meta_schedule_builder.py,
+  test_tir_transform_lift_attr_scope.py,
+  test_meta_schedule_tune_context.py,
+  test_meta_schedule_postproc_rewrite_unbound_block.py,
+  test_target_codegen_llvm.py,
+  test_meta_schedule_cost_model.py,
+  test_tir_analysis_verify_ssa.py,
+  test_tvmscript_error_report.py,
+  test_tir_transform_rewrite_unsafe_select.py,
+  test_subwarp_reduction_cuda.py,
+  test_tir_transform_compact_buffer_region.py,
+  test_tir_schedule_reduction.py,
+  test_arith_modular_set.py,
+  test_meta_schedule_schedule_rule_parallel_vectorize_unroll.py,
+  test_runtime_vm_profiler.py,
+  test_tir_ptx_cp_async.py,
+  test_target_codegen_vm_basic.py,
+  test_runtime_profiling.py,
+  test_te_hybrid_script.py,
+  test_te_build_lower.py,
+  test_tir_schedule_analysis.py,
+  test_auto_scheduler_compute_dag.py,
+  test_micro_project_api.py,
+  test_tir_transform_unify_thread_binding.py,
+  test_tir_transform_ir_utils.py,
+  test_te_schedule_bound_inference.py,
+  test_tvmscript_complete.py,
+  test_auto_scheduler_search_task.py,
+  test_autotvm_feature.py,
+  test_autotvm_dispatch_context.py,
+  test_crt.py,
+  test_tir_transform_storage_rewrite.py,
+  test_arith_solve_linear_inequality.py,
+  test_tir_schedule_for_kind.py,
+  test_target_texture_codegen_opencl.py,
+  test_autotvm_database.py,
+  test_index_map.py,
+  test_tir_usmp_algo_hill_climb.py,
+  test_arith_deduce_bound.py,
+  test_tir_schedule_transform.py,
+  test_tir_ptx_mma_sp.py,
+  test_meta_schedule_postproc_verify_gpu_code.py,
+  test_runtime_rpc.py,
+  test_autotvm_graph_tuner_utils.py,
+  test_autotvm_xgboost_model.py,
+  test_tir_transform_lower_cross_thread_reduction.py,
+  test_tir_transform_make_unpacked_api.py,
+  test_tir_stmt_functor_ir_transform.py,
+  test_auto_scheduler_feature.py,
+  test_micro_model_library_format.py,
+  test_tir_transform_hoist_if.py,
+  test_arith_solve_linear_equations.py,
+  test_target_codegen_rocm.py,
+  test_target_codegen_bool.py,
+  test_tir_schedule_instruction.py,
+  test_node_reflection.py,
+  test_tir_analysis_usedef.py,
+  test_tir_structural_equal_hash.py,
+  test_meta_schedule_postproc_rewrite_parallel_vectorize_unroll.py,
+  test_autotvm_graph_tuner_core.py,
+  test_tir_specialize.py,
+  test_tir_transform_combine_context_call.py,
+  test_arith_iter_affine_map.py,
+  test_meta_schedule_schedule_rule_cross_thread_reduction.py,
+  test_tir_schedule_reindex.py,
+  test_tir_intrin.py,
+  test_tir_transform_plan_update_buffer_allocation_location.py,
+  test_tir_transform_lower_warp_memory.py,
+  test_te_schedule_ops.py,
+  test_auto_scheduler_task_scheduler.py,
+  test_te_group.py,
+  test_tir_schedule_split_fuse.py,
+  test_tir_usmp_transform_convert_pool_allocations_to_offsets.py,
+  test_lower_build.py,
+  test_tir_transform_remove_no_op.py,
+  test_te_schedule_tensorize.py,
+  test_runtime_container.py,
+  test_runtime_trace.py,
+  test_auto_scheduler_layout_rewrite.py,
+  test_tir_schedule_state.py,
+  test_tir_lower_match_buffer.py,
+  test_te_schedule_tensor_core.py,
+  test_te_tag.py,
+  test_te_autodiff.py,
+  test_tir_analysis_expr_deep_equal.py,
+  test_arith_detect_linear_equation.py,
+  test_tir_transform_extract_constants.py,
+  test_tir_transform_inject_software_pipeline.py,
+  test_arith_intset.py,
+  test_tir_schedule_sampling.py,
+  test_te_verify_compute.py,
+  test_te_create_primfunc.py,
+  test_ir_type.py,
+  test_meta_schedule_post_order_apply.py,
+  test_tir_transform_narrow_datatype.py,
+  test_target_codegen_c_host.py,
+  test_tir_usmp_transform_create_io_allocates.py,
+  test_link_params.py,
+  test_tir_analysis_get_block_access_region.py,
+  test_tir_transform_make_packed_api.py,
+  test_tir_transform_unroll_loop.py,
+  test_tir_analysis_verify_memory.py,
+  test_tir_schedule_cache_read_write.py,
+  test_runtime_measure.py,
+  test_te_schedule_lstm.py,
+  test_target_codegen_extern.py,
+  test_arith_canonical_simplify.py,
+  test_tir_transform_inject_rolling_buffer.py,
+  test_transform_layout.py,
+  test_target_codegen_device.py,
+  test_runtime_module_load.py,
+  test_auto_scheduler_evolutionary_search.py,
+  test_runtime_extension.py,
+  test_tir_transform_thread_sync.py,
+  test_tir_schedule_compute_at.py,
+  test_target_codegen_metal.py,
+  test_meta_schedule_postproc_rewrite_tensorize.py,
+  test_tir_base.py,
+  test_meta_schedule_database.py,
+  test_tir_transform_helpers.py,
+  test_target_codegen_cuda.py,
+  test_arith_detect_clip_bound.py,
+  test_runtime_error.py,
+  test_tvmscript_roundtrip.py,
+  test_tvmscript_ops.py,
+  test_tir_transform_lower_intrin.py,
+  test_tir_schedule_set_axis_separator.py,
+  test_filter_untracked.py,
+  test_tir_transform_split_host_device.py,
+  test_type_annotation_checker.py,
+  test_tir_ops.py,
+  test_auto_scheduler_measure.py,
+  test_tir_transform_inject_copy_intrin.py,
+  test_meta_schedule_schedule_rule_auto_bind.py,
+  test_te_schedule_graph.py,
+  test_tir_schedule_error.py,
+  test_tvmscript_regression.py,
+  test_auto_scheduler_sketch_generation.py,
+  test_tir_transform_simplify.py,
+  test_tir_transform_renormalize_split_pattern.py,
+  test_te_tensor_overload.py,
+  test_tir_transform_inject_ptx_async_copy.py,
+  test_tir_schedule_state_cached_flags.py,
+  test_meta_schedule_multi_anchor.py,
+  test_tir_transform_convert_blocks_to_opaque.py,
+  test_tir_transform_loop_partition.py,
+  test_target_codegen_static_init.py,
+  test_tir_transform_lower_tvm_builtin.py,
+  test_tir_schedule_storage_align.py,
+  test_tir_buffer.py,
+  test_tir_usmp_algo.py,
+  test_tir_transform_vectorize.py,
+  test_arith_const_int_bound.py,
+  test_tir_usmp_analysis_extract_bufferinfo.py,
+  test_tir_analysis_estimate_tir_flops.py,
+  test_auto_scheduler_search_policy.py,
+  test_tir_schedule_block_scope.py,
+  test_custom_datatypes.py,
+  test_autotvm_measure.py,
+  test_runtime_module_based_interface.py,
+  test_tir_schedule_rfactor.py,
+  test_autotvm_space.py,
+  test_tir_transform_prim_func_pass.py,
+  test_tir_ptx_ldmatrix.py,
+  test_meta_schedule_runner.py,
+  test_micro_transport.py,
+  test_arith_domain_touched.py,
+  test_tir_ir_builder.py,
+  test_meta_schedule_tune_tir.py,
+  test_target_codegen_vulkan.py,
+  test_target_codegen_x86.py,
+  test_ir_attrs.py,
+  test_target_codegen_opencl.py,
+  test_tir_usmp_utils.py,
+  test_tir_transform_coproc_sync.py,
+  test_tir_schedule_utilities.py,
+  test_tir_transform_storage_flatten.py,
+  test_tir_analysis_calculate_workspace.py,
+  test_meta_schedule_integration.py,
+  test_tir_nodes.py,
+  test_tir_data_layout.py,
+  test_meta_schedule_byoc_tensorrt.py,
+  test_tir_schedule_tensorize.py,
+  test_virtual_device.py,
+  test_arm_target.py,
+  test_auto_scheduler_loop_state.py,
+  test_common.py,
+  test_graph.py,
+  test_te_tensor.py,
+  test_runtime_graph.py,
+  __init__.py,
+  test_tir_ptx_mma.py,
+  squeezenet.py,
+  test_tvmscript_syntax_sugar.py,
+  test_forward.py,
+  test_graph.py,
+  vgg.py,
+  inception_v3.py,
+  test_target_target.py,
+  mlp.py,
+  dqn.py,
+  squeezenet.py,
+  dcgan.py,
+  resnet.py,
+  test_vision_models.py,
+  common.py,
+  test_forward.py,
+  test_bn_dynamic.py,
+  test_forward.py,
+  test_qnn_ops_utils.py,
+  test_sequential_models.py,
+  test_no_op.py,
+  test_control_flow.py,
+  test_debugging.py,
+  test_arith_rewrite_simplify.py,
+  test_fx_quant.py,
+  test_forward.py,
+  test_forward.py,
+  test_lstm.py,
+  test_object_detection.py,
+  qnn_test.py,
+  test_rnns.py,
+  test_functional_models.py,
+  test_forward.py,
+  pylintrc_tests,
+  test_topi_argwhere.py,
+  test_mobilenet.py,
+  test_topi_depthwise_conv2d_back_weight.py,
+  test_fifo_buffer.py,
+  test_verilator_ops.py,
+  test_depth_to_space.py,
+  test_sigmoid.py,
+  test_tanh.py,
+  test_relu.py,
+  test_topologies.py,
+  test_mean.py,
+  test_meta_schedule_schedule_rule_random_compute_location.py,
+  test_meta_schedule_postproc_rewrite_reduction_block.py,
+  test_meta_schedule_schedule_rule_auto_inline.py,
+  test_meta_schedule_postproc_rewrite_cooperative_fetch.py,
+  test_leaky_relu.py,
+  test_integration.py,
+  test_invalid_graphs.py,
+  test_vitis_ai_runtime_cpu_part.py,
+  test_vitis_ai_codegen.py,
+  test_fully_connected.py,
+  test_binary_ops.py,
+  test_generate_constants.py,
+  test_meta_schedule_tune_relay.py,
+  pylintrc_tests
+
+# Add files or directories matching the regex patterns to the blacklist. The
+# regex matches against base names, not paths.
+ignore-patterns=
+
+# Pickle collected data for later comparisons.
+persistent=yes
+
+# List of plugins (as comma separated values of python modules names) to load,
+# usually to register additional checkers.
+load-plugins=
+
+# Use multiple processes to speed up Pylint.
+jobs=8
+
+# Allow loading of arbitrary C extensions. Extensions are imported into the
+# active Python interpreter and may run arbitrary code.
+unsafe-load-any-extension=no
+
+# A comma-separated list of package or module names from where C extensions may
+# be loaded. Extensions are loading into the active Python interpreter and may
+# run arbitrary code
+extension-pkg-whitelist=numpy,opencv
+
+# Allow optimization of some AST trees. This will activate a peephole AST
+# optimizer, which will apply various small optimizations. For instance, it can
+# be used to obtain the result of joining multiple strings with the addition
+# operator. Joining a lot of strings can lead to a maximum recursion error in
+# Pylint and this flag can prevent that. It has one side effect, the resulting
+# AST will be different than the one from reality. This option is deprecated
+# and it will be removed in Pylint 2.0.
+optimize-ast=no
+
+
+[MESSAGES CONTROL]
+
+# Only show warnings with the listed confidence levels. Leave empty to show
+# all. Valid levels: HIGH, INFERENCE, INFERENCE_FAILURE, UNDEFINED
+confidence=
+
+# Enable the message, report, category or checker with the given id(s). You can
+# either give multiple identifier separated by comma (,) or put this option
+# multiple time (only on the command line, not in the configuration file where
+# it should appear only once). See also the "--disable" option for examples.
+enable=indexing-exception,old-raise-syntax
+
+# Disable the message, report, category or checker with the given id(s). You
+# can either give multiple identifiers separated by comma (,) or put this
+# option multiple times (only on the command line, not in the configuration
+# file where it should appear only once).You can also use "--disable=all" to
+# disable everything first and then reenable specific checks. For example, if
+# you want to run only the similarities checker, you can use "--disable=all
+# --enable=similarities". If you want to run only the classes checker, but have
+# no Warning level messages displayed, use"--disable=all --enable=classes
+# --disable=W"
+disable=design,similarities,no-self-use,attribute-defined-outside-init,locally-disabled,star-args,pointless-except,bad-option-value,global-statement,fixme,suppressed-message,useless-suppression,locally-enabled,no-member,no-name-in-module,import-error,unsubscriptable-object,unbalanced-tuple-unpacking,undefined-variable,protected-access,useless-object-inheritance,consider-using-get,bad-continuation,too-many-lines
+
+[REPORTS]
+
+# Set the output format. Available formats are text, parseable, colorized, msvs
+# (visual studio) and html. You can also give a reporter class, eg
+# mypackage.mymodule.MyReporterClass.
+output-format=parseable
+
+# Put messages in a separate file for each module / package specified on the
+# command line instead of printing them on stdout. Reports (if any) will be
+# written in a file name "pylint_global.[txt|html]". This option is deprecated
+# and it will be removed in Pylint 2.0.
+files-output=no
+
+# Tells whether to display a full report or only the messages
+reports=no
+
+# Python expression which should return a note less than 10 (10 is the highest
+# note). You have access to the variables errors warning, statement which
+# respectively contain the number of errors / warnings messages and the total
+# number of statements analyzed. This is used by the global evaluation report
+# (RP0004).
+evaluation=10.0 - ((float(5 * error + warning + refactor + convention) / statement) * 10)
+
+# Template used to display messages. This is a python new-style format string
+# used to format the message information. See doc for all details
+#msg-template=
+
+
+[FORMAT]
+
+# Maximum number of characters on a single line.
+max-line-length=100
+
+# Regexp for a line that is allowed to be longer than the limit.
+ignore-long-lines=^\s*(# )?<?https?://\S+>?$
+
+# Allow the body of an if to be on the same line as the test if there is no
+# else.
+single-line-if-stmt=no
+
+# List of optional constructs for which whitespace checking is disabled. `dict-
+# separator` is used to allow tabulation in dicts, etc.: {1  : 1,\n222: 2}.
+# `trailing-comma` allows a space between comma and closing bracket: (a, ).
+# `empty-line` allows space-only lines.
+no-space-check=trailing-comma,dict-separator
+
+# Maximum number of lines in a module
+max-module-lines=1500
+
+# String used as indentation unit. This is usually "    " (4 spaces) or "\t" (1
+# tab).
+indent-string='    '
+
+# Number of spaces of indent required inside a hanging  or continued line.
+indent-after-paren=4
+
+# Expected format of line ending, e.g. empty (any line ending), LF or CRLF.
+expected-line-ending-format=
+
+
+[SPELLING]
+
+# Spelling dictionary name. Available dictionaries: none. To make it working
+# install python-enchant package.
+spelling-dict=
+
+# List of comma separated words that should not be checked.
+spelling-ignore-words=
+
+# A path to a file that contains private dictionary; one word per line.
+spelling-private-dict-file=
+
+# Tells whether to store unknown words to indicated private dictionary in
+# --spelling-private-dict-file option instead of raising a message.
+spelling-store-unknown-words=no
+
+
+[MISCELLANEOUS]
+
+# List of note tags to take in consideration, separated by a comma.
+notes=FIXME,XXX,TODO
+
+
+[TYPECHECK]
+
+# Tells whether missing members accessed in mixin class should be ignored. A
+# mixin class is detected if its name ends with "mixin" (case insensitive).
+ignore-mixin-members=yes
+
+# List of module names for which member attributes should not be checked
+# (useful for modules/projects where namespaces are manipulated during runtime
+# and thus existing member attributes cannot be deduced by static analysis. It
+# supports qualified module names, as well as Unix pattern matching.
+ignored-modules=
+
+# List of class names for which member attributes should not be checked (useful
+# for classes with dynamically set attributes). This supports the use of
+# qualified names.
+ignored-classes=optparse.Values,thread._local,_thread._local
+
+# List of members which are set dynamically and missed by pylint inference
+# system, and so shouldn't trigger E1101 when accessed. Python regular
+# expressions are accepted.
+generated-members=
+
+# List of decorators that produce context managers, such as
+# contextlib.contextmanager. Add to this list to register other decorators that
+# produce valid context managers.
+contextmanager-decorators=contextlib.contextmanager
+
+
+[LOGGING]
+
+# Logging modules to check that the string format arguments are in logging
+# function parameter format
+logging-modules=logging
+
+
+[SIMILARITIES]
+
+# Minimum lines number of a similarity.
+min-similarity-lines=4
+
+# Ignore comments when computing similarities.
+ignore-comments=yes
+
+# Ignore docstrings when computing similarities.
+ignore-docstrings=yes
+
+# Ignore imports when computing similarities.
+ignore-imports=no
+
+
+[VARIABLES]
+
+# Tells whether we should check for unused import in __init__ files.
+init-import=no
+
+# A regular expression matching the name of dummy variables (i.e. expectedly
+# not used).
+dummy-variables-rgx=(_+[a-zA-Z0-9]*?$)|dummy
+
+# List of additional names supposed to be defined in builtins. Remember that
+# you should avoid to define new builtins when possible.
+additional-builtins=
+
+# List of strings which can identify a callback function by name. A callback
+# name must start or end with one of those strings.
+callbacks=cb_,_cb
+
+# List of qualified module names which can have objects that can redefine
+# builtins.
+redefining-builtins-modules=six.moves,future.builtins
+
+
+[BASIC]
+
+# Good variable names which should always be accepted, separated by a comma
+good-names=i,j,_,a,b,op,x,y,wd,lr,kv,k,v,s,p,h,c,m,n,X,t,g,f
+
+# Bad variable names which should always be refused, separated by a comma
+bad-names=
+
+# Colon-delimited sets of names that determine each other's naming style when
+# the name regexes allow several styles.
+name-group=
+
+# Include a hint for the correct naming format with invalid-name
+include-naming-hint=no
+
+# List of decorators that produce properties, such as abc.abstractproperty. Add
+# to this list to register other decorators that produce valid properties.
+property-classes=abc.abstractproperty
+
+# Regular expression matching correct module names
+module-rgx=(([a-z_][a-z0-9_]*)|([A-Z][a-zA-Z0-9]+))$
+
+# Naming hint for module names
+module-name-hint=(([a-z_][a-z0-9_]*)|([A-Z][a-zA-Z0-9]+))$
+
+# Regular expression matching correct constant names
+const-rgx=(([A-Z_][A-Z0-9_]*)|(__.*__))$
+
+# Naming hint for constant names
+const-name-hint=(([A-Z_][A-Z0-9_]*)|(__.*__))$
+
+# Regular expression matching correct inline iteration names
+inlinevar-rgx=[A-Za-z_][A-Za-z0-9_]*$
+
+# Naming hint for inline iteration names
+inlinevar-name-hint=[A-Za-z_][A-Za-z0-9_]*$
+
+# Regular expression matching correct method names
+method-rgx=[a-z_][a-z0-9_]{2,30}$
+
+# Naming hint for method names
+method-name-hint=[a-z_][a-z0-9_]{2,30}$
+
+# Regular expression matching correct class attribute names
+class-attribute-rgx=([A-Za-z_][A-Za-z0-9_]{2,30}|(__.*__))$
+
+# Naming hint for class attribute names
+class-attribute-name-hint=([A-Za-z_][A-Za-z0-9_]{2,30}|(__.*__))$
+
+# Regular expression matching correct argument names
+argument-rgx=[a-z_][a-z0-9_]{2,30}$
+
+# Naming hint for argument names
+argument-name-hint=[a-z_][a-z0-9_]{2,30}$
+
+# Regular expression matching correct attribute names
+attr-rgx=[a-z_][a-z0-9_]{2,30}$
+
+# Naming hint for attribute names
+attr-name-hint=[a-z_][a-z0-9_]{2,30}$
+
+# Regular expression matching correct variable names
+variable-rgx=[a-z_][a-z0-9_]{2,30}$
+
+# Naming hint for variable names
+variable-name-hint=[a-z_][a-z0-9_]{2,30}$
+
+# Regular expression matching correct function names
+function-rgx=[a-z_][a-z0-9_]{2,48}$
+
+# Naming hint for function names
+function-name-hint=[a-z_][a-z0-9_]{2,48}$
+
+# Regular expression matching correct class names
+class-rgx=[A-Z_][a-zA-Z0-9]+$
+
+# Naming hint for class names
+class-name-hint=[A-Z_][a-zA-Z0-9]+$
+
+# Regular expression which should only match function or class names that do
+# not require a docstring.
+no-docstring-rgx=^_
+
+# Minimum line length for functions/classes that require docstrings, shorter
+# ones are exempt.
+docstring-min-length=10
+
+
+[ELIF]
+
+# Maximum number of nested blocks for function / method body
+max-nested-blocks=5
+
+
+[CLASSES]
+
+# List of method names used to declare (i.e. assign) instance attributes.
+defining-attr-methods=__init__,__new__,setUp
+
+# List of valid names for the first argument in a class method.
+valid-classmethod-first-arg=cls
+
+# List of valid names for the first argument in a metaclass class method.
+valid-metaclass-classmethod-first-arg=mcs
+
+# List of member names, which should be excluded from the protected access
+# warning.
+exclude-protected=_asdict,_fields,_replace,_source,_make
+
+
+[IMPORTS]
+
+# Deprecated modules which should not be used, separated by a comma
+deprecated-modules=optparse
+
+# Create a graph of every (i.e. internal and external) dependencies in the
+# given file (report RP0402 must not be disabled)
+import-graph=
+
+# Create a graph of external dependencies in the given file (report RP0402 must
+# not be disabled)
+ext-import-graph=
+
+# Create a graph of internal dependencies in the given file (report RP0402 must
+# not be disabled)
+int-import-graph=
+
+# Force import order to recognize a module as part of the standard
+# compatibility libraries.
+known-standard-library=
+
+# Force import order to recognize a module as part of a third party library.
+known-third-party=enchant
+
+# Analyse import fallback blocks. This can be used to support both Python 2 and
+# 3 compatible code, which means that the block might have code that exists
+# only in one or another interpreter, leading to false positives when analysed.
+analyse-fallback-blocks=no
+
+
+[DESIGN]
+
+# Maximum number of arguments for function / method
+max-args=5
+
+# Argument names that match this expression will be ignored. Default to name
+# with leading underscore
+ignored-argument-names=_.*
+
+# Maximum number of locals for function / method body
+max-locals=15
+
+# Maximum number of return / yield for function / method body
+max-returns=6
+
+# Maximum number of branch for function / method body
+max-branches=12
+
+# Maximum number of statements in function / method body
+max-statements=50
+
+# Maximum number of parents for a class (see R0901).
+max-parents=7
+
+# Maximum number of attributes for a class (see R0902).
+max-attributes=7
+
+# Minimum number of public methods for a class (see R0903).
+min-public-methods=0
+
+# Maximum number of public methods for a class (see R0904).
+max-public-methods=20
+
+# Maximum number of boolean expressions in a if statement
+max-bool-expr=5
+
+
+[EXCEPTIONS]
+
+# Exceptions that will emit a warning when being caught. Defaults to
+# "Exception"
+overgeneral-exceptions=Exception
