@@ -61,8 +61,6 @@ class TuneContextNode : public runtime::Object {
   /*! \brief The number of threads to be used. */
   int num_threads;
 
-  /*! \brief The task scheduler that owns the tune context */
-  const TaskSchedulerNode* task_scheduler;
   /*! \brief Whether the tuning task has been stopped or finished. */
   bool is_terminated;
   /*! \brief The measure candidates. */

@@ -28,6 +28,13 @@ MeasureCandidate::MeasureCandidate(tir::Schedule sch, Array<ArgInfo> args_info) 
   data_ = std::move(n);
 }
 
+void PySearchStrategyNode::PreTuning(const Array<tir::Schedule>& design_spaces,
+                                     const Optional<Database>& database,
+                                     const Optional<CostModel>& cost_model) {
+  ICHECK(f_pre_tuning != nullptr) << "PySearchStrategy's PreTuning method not implemented!";
+  this->f_pre_tuning(design_spaces, database, cost_model);
+}
+
 SearchStrategy SearchStrategy::PySearchStrategy(
     PySearchStrategyNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
     PySearchStrategyNode::FPreTuning f_pre_tuning,                                    //

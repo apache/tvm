@@ -113,12 +113,16 @@ class SearchStrategyNode : public runtime::Object {
 
   /*!
    * \brief Pre-tuning for the search strategy.
-   * \param design_spaces The design spaces for pre-tuning.
+   * \param design_spaces The design spaces used during tuning process.
+   * \param database The database used during tuning process.
+   * \param cost_model The cost model used during tuning process.
    * \note Pre-tuning is supposed to be called before the tuning process and after the
    *  initialization. Because the search strategy is stateful, we can always call pretuning
    *  and reset the search strategy.
    */
-  virtual void PreTuning(const Array<tir::Schedule>& design_spaces) = 0;
+  virtual void PreTuning(const Array<tir::Schedule>& design_spaces,
+                         const Optional<Database>& database,
+                         const Optional<CostModel>& cost_model) = 0;
 
   /*!
    * \brief Post-tuning for the search strategy.
@@ -159,7 +163,8 @@ class PySearchStrategyNode : public SearchStrategyNode {
    * \brief The function type of `PreTuning` method.
    * \param design_spaces The design spaces for pre-tuning.
    */
-  using FPreTuning = runtime::TypedPackedFunc<void(const Array<tir::Schedule>&)>;
+  using FPreTuning = runtime::TypedPackedFunc<void(
+      const Array<tir::Schedule>&, const Optional<Database>&, const Optional<CostModel>&)>;
   /*! \brief The function type of `PostTuning` method. */
   using FPostTuning = runtime::TypedPackedFunc<void()>;
   /*!
@@ -199,10 +204,8 @@ class PySearchStrategyNode : public SearchStrategyNode {
     this->f_initialize_with_tune_context(context);
   }
 
-  void PreTuning(const Array<tir::Schedule>& design_spaces) final {
-    ICHECK(f_pre_tuning != nullptr) << "PySearchStrategy's PreTuning method not implemented!";
-    this->f_pre_tuning(design_spaces);
-  }
+  void PreTuning(const Array<tir::Schedule>& design_spaces, const Optional<Database>& database,
+                 const Optional<CostModel>& cost_model) final;
 
   void PostTuning() final {
     ICHECK(f_post_tuning != nullptr) << "PySearchStrategy's PostTuning method not implemented!";
