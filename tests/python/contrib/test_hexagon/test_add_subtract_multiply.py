@@ -52,30 +52,24 @@ def input_np_B(input_shape_B, dtype):
 
 @tvm.testing.fixture
 def transformed_input_np_A(input_np_A, input_A_layout):
-    if input_A_layout == "nhwc-8h2w32c2w":
-        return transform_numpy(input_np_A, input_A_layout)
-    elif input_A_layout == "nhwc":
-        return input_np_A
+    return transform_numpy(input_np_A, "nhwc", input_A_layout)
 
 
 @tvm.testing.fixture
 def transformed_input_np_B(input_np_B, input_B_layout):
-    if input_B_layout == "nhwc-8h2w32c2w":
-        return transform_numpy(input_np_B, input_B_layout)
-    elif input_B_layout == "nhwc":
-        return input_np_B
+    return transform_numpy(input_np_B, "nhwc", input_B_layout)
 
 
 @tvm.testing.fixture
 def transformed_expected_output_np(expected_output_np, output_layout):
-    return transform_numpy(expected_output_np, output_layout)
+    return transform_numpy(expected_output_np, "nhwc", output_layout)
 
 
 def hexagon_wrapper_allocation(
     device, layout, axis_separators, tensor_shape=None, data=None, transformed_data=None, dtype=None
 ):
-    """Input layout can either be nhwc-8h2w32c2w or nhwc"""
-    if layout == "nhwc-8h2w32c2w":
+    """Input layout can either be nhwc-8h2w32c2w-2d or nhwc"""
+    if layout == "nhwc-8h2w32c2w-2d":
         data_nd = allocate_hexagon_array(
             device,
             tensor_shape=tensor_shape,
@@ -105,27 +99,27 @@ class TestAddSubtractMultiplyBroadcast2d:
         (
             [1, 8, 4, 32],
             [1, 8, 4, 32],
-            "nhwc-8h2w32c2w",
-            "nhwc-8h2w32c2w",
-            "nhwc-8h2w32c2w",
+            "nhwc-8h2w32c2w-2d",
+            "nhwc-8h2w32c2w-2d",
+            "nhwc-8h2w32c2w-2d",
             "float16",
         ),
         # no broadcast needed - large input
         (
             [1, 56, 64, 128],
             [1, 56, 64, 128],
-            "nhwc-8h2w32c2w",
-            "nhwc-8h2w32c2w",
-            "nhwc-8h2w32c2w",
+            "nhwc-8h2w32c2w-2d",
+            "nhwc-8h2w32c2w-2d",
+            "nhwc-8h2w32c2w-2d",
             "float16",
         ),
         # one input needs broadcast
         (
             [1, 56, 64, 128],
             [1, 1, 64, 1],
-            "nhwc-8h2w32c2w",
+            "nhwc-8h2w32c2w-2d",
             "nhwc",
-            "nhwc-8h2w32c2w",
+            "nhwc-8h2w32c2w-2d",
             "float16",
         ),
         # Both input needs broadcast
@@ -134,16 +128,16 @@ class TestAddSubtractMultiplyBroadcast2d:
             [1, 1, 64, 1],
             "nhwc",
             "nhwc",
-            "nhwc-8h2w32c2w",
+            "nhwc-8h2w32c2w-2d",
             "float16",
         ),
         # One axis in one input needs broadcast
         (
             [1, 56, 20, 128],
             [1, 56, 20, 1],
-            "nhwc-8h2w32c2w",
+            "nhwc-8h2w32c2w-2d",
             "nhwc",
-            "nhwc-8h2w32c2w",
+            "nhwc-8h2w32c2w-2d",
             "float16",
         ),
     )
@@ -168,7 +162,7 @@ class TestAddSubtractMultiplyBroadcast2d:
         input_B_layout,
         op_name,
     ):
-        target_hexagon = tvm.target.hexagon("v68")
+        target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape_A, name="A", dtype=dtype)
         B = te.placeholder(input_shape_B, name="B", dtype=dtype)
         if op_name == "add":
@@ -184,7 +178,7 @@ class TestAddSubtractMultiplyBroadcast2d:
         sch = tir_schedule.mod
 
         input_axis_separator = [4]
-        if output_layout == "nhwc-8h2w32c2w":
+        if output_layout == "nhwc-8h2w32c2w-2d":
             output_axis_separator = [4]
         else:
             raise RuntimeError(f"Unexpected layout '{output_layout}'")
@@ -226,7 +220,7 @@ class TestAddSubtractMultiplyBroadcast2d:
 
         b, h, w, c = output_shape
         # convert nd to np and reshape to fixed chunk size layout
-        if output_layout == "nhwc-8h2w32c2w":
+        if output_layout == "nhwc-8h2w32c2w-2d":
             M_data_np = M_data_nd.numpy().reshape([b, h // 8, w // 4, c // 32, 8, 2, 32, 2])
 
         np.testing.assert_allclose(transformed_expected_output_np, M_data_np, rtol=1e-3, atol=1e-3)
