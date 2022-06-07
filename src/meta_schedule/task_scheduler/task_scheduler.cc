@@ -117,7 +117,7 @@ void TaskSchedulerNode::InitializeTask(int task_id) {
                                          << tir::AsTVMScript(sch->mod()) << "\n"
                                          << Concat(trace->AsPython(false), "\n");
   }
-  task->search_strategy.value()->PreTuning(design_spaces);
+  task->search_strategy.value()->PreTuning(design_spaces, database, cost_model);
 }
 
 void TaskSchedulerNode::Tune() {
@@ -203,10 +203,10 @@ TaskScheduler TaskScheduler::PyTaskScheduler(
     Array<TuneContext> tasks,                                   //
     Builder builder,                                            //
     Runner runner,                                              //
-    Database database,                                          //
-    int max_trials,                                             //
+    Optional<Database> database,                                //
     Optional<CostModel> cost_model,                             //
     Optional<Array<MeasureCallback>> measure_callbacks,         //
+    int max_trials,                                             //
     PackedFunc logging_func,                                    //
     PyTaskSchedulerNode::FTune f_tune,                          //
     PyTaskSchedulerNode::FInitializeTask f_initialize_task,     //

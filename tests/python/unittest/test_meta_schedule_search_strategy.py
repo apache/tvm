@@ -123,43 +123,37 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name]
 
     num_trials_per_iter = 10
     max_trials_per_task = 2000
+    (correct_sch,) = ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(Matmul)
 
-    strategy = EvolutionarySearch(
-        num_trials_per_iter=num_trials_per_iter,
-        max_trials_per_task=max_trials_per_task,
-        population_size=5,
-        init_measured_ratio=0.1,
-        init_min_unmeasured=50,
-        genetic_num_iters=3,
-        genetic_mutate_prob=0.5,
-        genetic_max_fail_count=10,
-        eps_greedy=0.9,
-    )
     context = TuneContext(
         mod=Matmul,
-        space_generator=ScheduleFn(sch_fn=_schedule_matmul_small),
+        space_generator=ScheduleFn(
+            sch_fn=_schedule_matmul_small,
+        ),
+        search_strategy=EvolutionarySearch(
+            num_trials_per_iter=num_trials_per_iter,
+            max_trials_per_task=max_trials_per_task,
+            population_size=5,
+            init_measured_ratio=0.1,
+            init_min_unmeasured=50,
+            genetic_num_iters=3,
+            genetic_mutate_prob=0.5,
+            genetic_max_fail_count=10,
+            eps_greedy=0.9,
+        ),
         mutator_probs={
             DummyMutator(): 1.0,
         },
         target=tvm.target.Target("llvm"),
         num_threads=1,  # because we are using a mutator from the python side
     )
-    _scheduler = RoundRobin(
-        tasks=[context],
-        task_weights=[1.0],
-        builder=ms.builder.LocalBuilder(),
-        runner=ms.runner.LocalRunner(),
+    context.initialize()
+    strategy = context.search_strategy
+    strategy.pre_tuning(
+        context.space_generator.generate_design_space(context.mod),
         database=DummyDatabase(),
         cost_model=ms.cost_model.RandomModel(),
-        measure_callbacks=[],
-        max_trials=1,
     )
-    context.space_generator.initialize_with_tune_context(context)
-    spaces = context.space_generator.generate_design_space(context.mod)
-
-    strategy.initialize_with_tune_context(context)
-    strategy.pre_tuning(spaces)
-    (correct_sch,) = ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(Matmul)
     num_trials_each_iter: List[int] = []
     candidates = strategy.generate_measure_candidates()
     while candidates is not None:
@@ -177,52 +171,46 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name]
     strategy.post_tuning()
     assert sum(num_trials_each_iter) == 25
     assert num_trials_each_iter.count(0) < 5
-    del _scheduler
 
 
 def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = invalid-name]
     def _schedule_matmul_empty(sch: Schedule):
         return sch
 
+    (correct_sch,) = ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(Matmul)
+
     num_trials_per_iter = 10
     max_trials_per_task = 100
 
-    strategy = EvolutionarySearch(
-        num_trials_per_iter=num_trials_per_iter,
-        max_trials_per_task=max_trials_per_task,
-        population_size=5,
-        init_measured_ratio=0.1,
-        init_min_unmeasured=50,
-        genetic_num_iters=3,
-        genetic_mutate_prob=0.5,
-        genetic_max_fail_count=10,
-        eps_greedy=0.9,
-    )
     context = TuneContext(
         mod=Matmul,
-        space_generator=ScheduleFn(sch_fn=_schedule_matmul_empty),
+        search_strategy=EvolutionarySearch(
+            num_trials_per_iter=num_trials_per_iter,
+            max_trials_per_task=max_trials_per_task,
+            population_size=5,
+            init_measured_ratio=0.1,
+            init_min_unmeasured=50,
+            genetic_num_iters=3,
+            genetic_mutate_prob=0.5,
+            genetic_max_fail_count=10,
+            eps_greedy=0.9,
+        ),
+        space_generator=ScheduleFn(
+            sch_fn=_schedule_matmul_empty,
+        ),
         mutator_probs={
             DummyMutator(): 1.0,
         },
         target=tvm.target.Target("llvm"),
-        num_threads=1,  # because we are using a mutator from the python side
+        num_threads=1,
     )
-    _scheduler = RoundRobin(
-        tasks=[context],
-        task_weights=[1.0],
-        builder=ms.builder.LocalBuilder(),
-        runner=ms.runner.LocalRunner(),
+    context.initialize()
+    strategy = context.search_strategy
+    strategy.pre_tuning(
+        context.space_generator.generate_design_space(context.mod),
         database=DummyDatabase(),
         cost_model=ms.cost_model.RandomModel(),
-        measure_callbacks=[],
-        max_trials=1,
     )
-    context.space_generator.initialize_with_tune_context(context)
-    spaces = context.space_generator.generate_design_space(context.mod)
-
-    strategy.initialize_with_tune_context(context)
-    strategy.pre_tuning(spaces)
-    (correct_sch,) = ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(Matmul)
     num_trials_each_iter: List[int] = []
     candidates = strategy.generate_measure_candidates()
     while candidates is not None:
@@ -239,7 +227,6 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
         candidates = strategy.generate_measure_candidates()
     strategy.post_tuning()
     assert num_trials_each_iter == [1, 0, 0, 0, 0]
-    del _scheduler
 
 
 if __name__ == "__main__":
