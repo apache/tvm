@@ -391,5 +391,31 @@ class TestLiteralConstraintSplitBooleanOr(BaseBeforeAfter):
                 A[i, j] = 2
 
 
+class TestCeilLog2Float(BaseBeforeAfter):
+    """Simplify expressions resulting from topi.math.ceil_log2"""
+
+    @T.prim_func
+    def before(A: T.Buffer[1, "float32"]):
+        A[0] = T.ceil(T.log2(14.0, dtype="float32"), dtype="float32")
+
+    @T.prim_func
+    def expected(A: T.Buffer[1, "float32"]):
+        A[0] = 4.0
+
+
+class TestCeilLog2Int(BaseBeforeAfter):
+    """Simplify expressions resulting from topi.math.ceil_log2"""
+
+    @T.prim_func
+    def before(A: T.Buffer[1, "int32"]):
+        A[0] = T.cast(
+            T.ceil(T.log2(T.cast(14, "float64"), dtype="float64"), dtype="float64"), dtype="int32"
+        )
+
+    @T.prim_func
+    def expected(A: T.Buffer[1, "int32"]):
+        A[0] = 4
+
+
 if __name__ == "__main__":
     tvm.testing.main()

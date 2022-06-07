@@ -1640,13 +1640,27 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
       // the operator overload will eagerly constant fold.
       return op->args[0] << op->args[1];
     }
+  } else if (op->op.same_as(Op::Get("tir.ceil"))) {
+    if (auto as_int = op->args[0].as<IntImmNode>()) {
+      return cast(op->dtype, IntImm(as_int->dtype, as_int->value));
+    } else if (auto as_float = op->args[0].as<FloatImmNode>()) {
+      return cast(op->dtype, FloatImm(as_float->dtype, std::ceil(as_float->value)));
+    }
+  } else if (op->op.same_as(Op::Get("tir.log2"))) {
+    if (auto as_int = op->args[0].as<IntImmNode>()) {
+      return cast(op->dtype, FloatImm(as_int->dtype, std::log2(as_int->value)));
+    } else if (auto as_float = op->args[0].as<FloatImmNode>()) {
+      return cast(op->dtype, FloatImm(as_float->dtype, std::log2(as_float->value)));
+    }
   }
+
   if (op->op.same_as(tir::builtin::likely())) {
     // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
     if (auto match = TryMatchLiteralConstraint(op->args[0])) {
       return match.value();
     }
   }
+
   return ret;
 }
 
