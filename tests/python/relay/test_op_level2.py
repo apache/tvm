@@ -1998,6 +1998,12 @@ def test_conv2d_rocm_sdot4():
 
 @tvm.testing.requires_x86
 def test_conv2d_nchw_mkldnn():
+    if not tvm.get_global_func("tvm.contrib.mkldnn.conv2d", allow_missing=True):
+        print(
+            "skip because extern mkldnn function is not available, \
+                built with MKLDNN=ON"
+        )
+        return
     d_shape = (1, 64, 56, 56)
     w_shape = (64, 64, 3, 3)
     padding = (1, 1)
@@ -2040,6 +2046,12 @@ def test_conv2d_nchw_mkldnn():
 
 @tvm.testing.requires_x86
 def test_conv2d_nhwc_mkldnn():
+    if not tvm.get_global_func("tvm.contrib.mkldnn.conv2d", allow_missing=True):
+        print(
+            "skip because extern mkldnn function is not available, \
+                built with MKLDNN=ON"
+        )
+        return
     d_shape = (1, 56, 56, 64)
     w_shape = (3, 3, 64, 64)
     padding = (1, 1)
