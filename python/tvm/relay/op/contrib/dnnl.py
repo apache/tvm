@@ -150,11 +150,19 @@ def make_dense_pattern(with_bias=True, with_eltwise=None):
     else:
         dense_out = dense
     if with_eltwise == "gelu":
-        div = is_op("divide")(dense_out, is_constant())
+        const1 = wildcard()
+        const2 = wildcard()
+        const3 = wildcard()
+        # div = is_op("divide")(dense_out, is_constant())
+        # erf_val = is_op("erf")(div)
+        # added_erf_val = is_op("add")(erf_val, is_constant())
+        # mul_val = is_op("multiply")(dense_out, added_erf_val)
+        # dense_out = is_op("multiply")(mul_val, is_constant())
+        div = is_op("divide")(dense_out, const1)
         erf_val = is_op("erf")(div)
-        added_erf_val = is_op("add")(erf_val, is_constant())
+        added_erf_val = is_op("add")(erf_val, const2)
         mul_val = is_op("multiply")(dense_out, added_erf_val)
-        dense_out = is_op("multiply")(mul_val, is_constant())
+        dense_out = is_op("multiply")(mul_val, const3)
 
     elif with_eltwise:
         dense_out = is_op(with_eltwise)(dense_out)

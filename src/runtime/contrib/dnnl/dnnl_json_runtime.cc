@@ -196,7 +196,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
           Convolution(nid);
         } else if (std::regex_match(op_name, dense_pack_pat) ||
                    "nn.contrib_dense_pack" == op_name) {
-          DensePack(nid);
+          // DensePack(nid);
         } else if (std::regex_match(op_name, dense_pat)) {
           Dense(nid);
         } else if ("nn.batch_norm" == op_name) {
@@ -415,69 +415,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
                                                           {DNNL_ARG_DST, dst_tr}});
   }
 
-  void DensePack(const size_t& nid) {
-    auto node = nodes_[nid];
-    auto op_name = node.GetOpName();
-    dnnl::primitive_attr attr;
-    bool has_bias = ParsingOpName(op_name, attr);
-
-    // Setup attributes.
-    auto data_entry = node.GetInputs()[0];
-    auto weight_entry = node.GetInputs()[1];
-    JSONGraphNodeEntry out_entry(nid, 0);
-    dnnl::memory::dims input_shape = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
-    dnnl::memory::dims weight_shape = nodes_[weight_entry.id_].GetOpShape()[weight_entry.index_];
-    dnnl::memory::dims out_shape = nodes_[out_entry.id_].GetOpShape()[out_entry.index_];
-    dnnl::memory::dim OC = out_shape[1];
-
-    std::string weight_layout = node.GetAttr<std::vector<std::string>>("weight_layout")[0];
-
-    // Memory shapes.
-    dnnl::memory::dims data_dims = input_shape;
-    dnnl::memory::dims weight_dims = {out_shape[1], input_shape[1]};
-    dnnl::memory::dims bias_dims = {OC};
-    dnnl::memory::dims out_dims = out_shape;
-
-    // Memory descriptions.
-    auto dl_dtype = nodes_[data_entry.id_].GetOpDataType()[data_entry.index_];
-    auto dtype = dtype_dl2dnnl(dl_dtype);
-    auto data_md = dnnl::memory::desc({data_dims, dt::f32, tag::nc});
-    auto weight_md = dnnl::memory::desc({weight_dims, dt::f32, layout2tag(weight_layout)});
-    auto bias_md = dnnl::memory::desc({bias_dims, dt::f32, tag::x});
-    auto dst_md = dnnl::memory::desc({out_dims, dt::f32, tag::nc});
-
-    // Dense description.
-    auto dense_desc = dnnl::inner_product_forward::desc(dnnl::prop_kind::forward_inference, data_md,
-                                                        weight_md, bias_md, dst_md);
-
-    // Enable elementwise post-ops.
-    auto dense_prim_desc = dnnl::inner_product_forward::primitive_desc(dense_desc, attr, engine_);
-
-    auto dense = dnnl::inner_product_forward(dense_prim_desc);
-    net_.push_back(dense);
-
-    // Memories.
-    auto data_memory = BindDNNLMemory(data_entry, data_md);
-    auto weight_memory = BindDNNLMemory(weight_entry, weight_md);
-
-    // Bias memory.
-    auto bias_memory = dnnl::memory(bias_md, engine_);
-    if (has_bias) {
-      auto bias_entry = node.GetInputs()[2];
-      BindDNNLMemory(bias_entry, bias_memory);
-    } else {
-      float bias[OC] = {0};
-      write_to_dnnl_memory(bias, bias_memory, OC * ((dl_dtype.bits + 7) / 8));
-    }
-
-    // Output memory.
-    auto dst_memory = BindDNNLMemory(out_entry, dense_prim_desc.dst_desc());
-
-    net_args_.push_back({{DNNL_ARG_SRC, data_memory},
-                         {DNNL_ARG_WEIGHTS, weight_memory},
-                         {DNNL_ARG_BIAS, bias_memory},
-                         {DNNL_ARG_DST, dst_memory}});
-  }
 
   void BatchNorm(const size_t& nid) {
     auto node = nodes_[nid];

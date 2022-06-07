@@ -19,6 +19,7 @@ import itertools
 import numpy as np
 import sys
 import subprocess
+import math
 
 import tvm
 from tvm import relay
@@ -121,6 +122,7 @@ def partition_for_dnnl(mod, params=None, alter_layout=True):
             transform.PartitionGraph(),
         ]
     )
+
     with tvm.transform.PassContext(opt_level=3):
         mod = byoc_seq(mod)
         mod = dnnl.prune_dnnl_subgraphs(mod)
@@ -170,6 +172,7 @@ def run_and_verify(mod, input, params, target, run_module, subgraph_num=None, te
         ]
         if test_bf16 and bf16_supported():
             configs += [(True, False, True), (True, True, True)]
+
         for use_dnnl, alter_layout, use_bf16 in configs:
             result_key = (
                 mode
@@ -185,6 +188,8 @@ def run_and_verify(mod, input, params, target, run_module, subgraph_num=None, te
                     continue
             if use_dnnl:
                 processed_mod = partition_for_dnnl(processed_mod, params, alter_layout)
+                print("hebi-dbg: processed_mod: ", result_key)
+                print(processed_mod)
                 check_dnnl_used(processed_mod)
 
             with tvm.transform.PassContext(opt_level=3):
@@ -194,6 +199,10 @@ def run_and_verify(mod, input, params, target, run_module, subgraph_num=None, te
             if run_module:
                 if isinstance(input, dict):
                     result_dict[result_key] = func(**input, **params)
+                    print("input:", input)
+                    print("params:", params)
+                    print("result_dict[result_key]:")
+                    print(result_dict[result_key])
                 else:
                     result_dict[result_key] = func(input, **params)
 
@@ -585,12 +594,27 @@ def get_conv3d_transpose_bias(
         return out, dic, param_lst
 
 
+def gelu_helper(data):
+    const1 = relay.const(math.sqrt(2.0))
+    const2 = relay.const(1.0)
+    const3 = relay.const(0.5)
+    divisor = relay.op.divide(data, const1)
+    val_erf = relay.op.erf(divisor)
+    added_erf = relay.op.add(val_erf, const2)
+    mul1 = relay.op.multiply(data, added_erf)
+    out = relay.op.multiply(mul1, const3)
+    return out
+
+
 def get_dense(x_shape=(1, 16), k_shape=(32, 16), activation=None, dtype="float32"):
     x = relay.var("x", shape=(x_shape), dtype=dtype)
     kernel = relay.var("kernel", shape=(k_shape), dtype=dtype)
     out = relay.nn.dense(x, kernel, units=k_shape[0])
     dic = {"x": x_shape, "kernel": k_shape}
     param_lst = ["kernel"]
+
+    if activation == "gelu":
+        out = gelu_helper(out)
     return out, dic, param_lst
 
 
@@ -600,6 +624,9 @@ def get_dense_bias(x_shape=(1, 16), k_shape=(32, 16), activation=None, dtype="fl
     out = relay.nn.bias_add(dense, bias)
     dic["bias"] = (k_shape[0],)
     param_lst += ["bias"]
+
+    if activation == "gelu":
+        out = gelu_helper(out)
     return out, dic, param_lst
 
 
@@ -902,6 +929,11 @@ def test_dense_pattern(run_module, dtype="float32"):
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
     dense_bias, dic, param_lst = get_dense_bias(x_shape, k_shape, dtype=dtype)
+    dense_bias = tvm.IRModule.from_expr(dense_bias)
+    config = dense_bias, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+    dense_bias, dic, param_lst = get_dense_bias(x_shape, k_shape,  activation="gelu", dtype=dtype)
     dense_bias = tvm.IRModule.from_expr(dense_bias)
     config = dense_bias, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
