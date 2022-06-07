@@ -39,16 +39,22 @@ HexagonThreadManager::~HexagonThreadManager() {
     Start();
   }
   
+  DBG("Threads started");
+
   // dispatch a command to each thread to exit with status 0
   for (int i = 0; i < nthreads; i++) {
     while(!Dispatch((TVMStreamHandle)i, &thread_exit, (void*) 0));
   }
+
+  DBG("Threads exited");
 
   // join with each thread (wait for them to terminate); if already exited, the call returns immediately
   int status;  // don't actually care what the thread exit status was
   for (int i = 0; i < nthreads; i++) {
     qurt_thread_join(threads[i], &status);
   }
+
+  DBG("Threads joined");
 
   // destroy semaphores
   qurt_sem_destroy(&start_semaphore);
@@ -57,22 +63,21 @@ HexagonThreadManager::~HexagonThreadManager() {
     free(it.second);
   }
   
+  DBG("Semaphores destroyed");
+
   // Delete pipe objects and contexts
   for (int i = 0; i < nthreads; i++) {
-    if (pipes != NULL) {
-      qurt_pipe_delete(&pipes[i]);  // with manual buffers, cannot use qurt_pipe_destroy()
-    }
-    if (contexts != NULL) {
-      delete contexts[i]; // TODO: is there a qurt function for this?
-    }
+    qurt_pipe_destroy(&pipes[i]);
+    delete contexts[i];
   }
 
+  DBG("Pipes and contexts deleted");
+
   // Dealloc memory blocks
-  hexbuffs.FreeHexagonBuffer(threads);
-  hexbuffs.FreeHexagonBuffer(pipes);
-  hexbuffs.FreeHexagonBuffer(contexts);
   hexbuffs.FreeHexagonBuffer(stack_buffer);
   hexbuffs.FreeHexagonBuffer(pipe_buffer);
+
+  DBG("Buffers freed");
 }
 
 void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words) {
@@ -82,13 +87,11 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes, unsign
   // allocate space for pipe buffers (command queues)
   unsigned thread_pipe_size_bytes = thread_pipe_size_words * sizeof(qurt_pipe_data_t);
   pipe_buffer = hexbuffs.AllocateHexagonBuffer(thread_pipe_size_bytes * nthreads, MEM_ALIGNMENT, String("global"));
-  // array of thread objects
-  threads = static_cast<qurt_thread_t*>(hexbuffs.AllocateHexagonBuffer(sizeof(qurt_thread_t) * nthreads, MEM_ALIGNMENT, String("global")));
-  // array of pipe objects
-  pipes = static_cast<qurt_pipe_t*>(hexbuffs.AllocateHexagonBuffer(sizeof(qurt_pipe_t) * nthreads, MEM_ALIGNMENT, String("global")));
-  // array of ThreadContexts
-  contexts = static_cast<ThreadContext**>(hexbuffs.AllocateHexagonBuffer(sizeof(ThreadContext) * nthreads, MEM_ALIGNMENT, String("global")));
   
+  threads.resize(nthreads);
+  pipes.resize(nthreads);
+  contexts.resize(nthreads);
+
   DBG("Buffers allocated");
 
   // First, create pipe resources for all threads
@@ -102,7 +105,7 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes, unsign
     qurt_pipe_attr_set_elements(&pipe_attr, thread_pipe_size_words);
 
     // create the pipe
-    int rc = qurt_pipe_init(&(pipes[i]), &pipe_attr);
+    int rc = qurt_pipe_init(&pipes[i], &pipe_attr);
     CHECK_EQ(rc, QURT_EOK);
   }
 
@@ -123,7 +126,7 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes, unsign
 
     // create the thread
     contexts[i] = new ThreadContext(this, i);
-    int rc = qurt_thread_create(&(threads[i]), &thread_attr, thread_main, (void*)contexts[i]);
+    int rc = qurt_thread_create(&threads[i], &thread_attr, thread_main, (void*)contexts[i]);
     CHECK_EQ(rc, QURT_EOK);
   }
 
@@ -254,7 +257,7 @@ void HexagonThreadManager::thread_unpack(void* wpf) {
 void HexagonThreadManager::thread_main(void* context) {
   ThreadContext* tc = static_cast<ThreadContext*>(context);
   unsigned index = tc->index;
-  qurt_pipe_t* mypipe = &(tc->tm->pipes[index]);
+  qurt_pipe_t* mypipe = &tc->tm->pipes[index];
 
   DBG("Thread " << std::to_string(index) << " spawned");
    
