@@ -2279,13 +2279,13 @@ class Reduce(OnnxOpConverter):
             data = _op.expand_dims(data, axis=0)
 
         noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
-        if noop_with_empty_axes:
+        num_axis = int(infer_type(axes).checked_type.shape[0]) if axes is not None else 0
+
+        if noop_with_empty_axes and num_axis == 0:
             return inputs[0]
 
-        if axes is not None:
-            num_axis = int(infer_type(axes).checked_type.shape[0])
-            if num_axis > 0:
-                raise ValueError("Dynamic Reduce is not supported yet!")
+        if num_axis > 0:
+            raise ValueError("Dynamic Reduce is not supported yet!")
 
         axis_len = len(infer_shape(data))
         axis = list(range(axis_len))
