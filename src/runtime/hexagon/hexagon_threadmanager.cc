@@ -146,7 +146,7 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes,
     next_stack_start += thread_stack_size_bytes;
 
     // create the thread
-    contexts[i] = new ThreadContext(this, i);
+    contexts[i] = new ThreadContext(&pipes[i], i);
     int rc = qurt_thread_create(&threads[i], &thread_attr, thread_main,
                                 reinterpret_cast<void*>(contexts[i]));
     CHECK_EQ(rc, QURT_EOK);
@@ -268,7 +268,7 @@ void HexagonThreadManager::thread_exit(void* status) {
 void HexagonThreadManager::thread_main(void* context) {
   ThreadContext* tc = static_cast<ThreadContext*>(context);
   unsigned index = tc->index;
-  qurt_pipe_t* mypipe = &tc->tm->pipes[index];
+  qurt_pipe_t* mypipe = tc->pipe;
 
   DBG("Thread " << std::to_string(index) << " spawned");
 

@@ -106,10 +106,12 @@ class HexagonThreadManager {
    */
   bool Wait(TVMStreamHandle thread, SyncPoint syncID);
   /*!
-   *! \brief Creates a synchronization point between two threads by creating a semaphore,
+   * \brief Creates a synchronization point between two threads by creating a semaphore,
    *dispatching the `signal_thread` to signal that semaphore and dispatching the `wait_thread to
-   *wait on that semaphore. \param signal_thread Stream handle for the thread which will signal the
-   *semaphore. \param wait_thread Stream handle for the thread which will wait on the semaphore.
+   *wait on that semaphore.
+   * \param signal_thread Stream handle for the thread which will signal the
+   *semaphore.
+   * \param wait_thread Stream handle for the thread which will wait on the semaphore.
    * \returns Boolean value indicating success or failure of the combined dispatch of both the
    *signal and the wait; user must either 1) `Start` threads executing to clear space in the pipe
    *before retrying dispatch or 2) create a `HexagonThreadManager` with a larger pipe.
@@ -123,9 +125,9 @@ class HexagonThreadManager {
 
  private:
   struct ThreadContext {
-    HexagonThreadManager* tm;
+    qurt_pipe_t* pipe;
     unsigned index;
-    ThreadContext(HexagonThreadManager* tm, unsigned index) : tm(tm), index(index) {}
+    ThreadContext(qurt_pipe_t* pipe, unsigned index) : pipe(pipe), index(index) {}
   };
 
   //! \brief Helper function for the constructor to spawn threads.
