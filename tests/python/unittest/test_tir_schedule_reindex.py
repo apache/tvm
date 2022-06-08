@@ -168,33 +168,36 @@ def multiple_read(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "f
             B[vi, vj] = A[vj, vi] + A[vi, vj]
 
 
-def test_reindex_read_basic():
+use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+
+
+def test_reindex_read_basic(use_block_name):
     sch = tir.Schedule(transpose_elementwise)
-    block = sch.get_block("B")
+    block = "B" if use_block_name else sch.get_block("B")
     sch.reindex(block, 0, "read")
     tvm.ir.assert_structural_equal(transpose_elementwise_reindex_read, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=transpose_elementwise)
 
 
-def test_conv2d_reindex_read():
+def test_conv2d_reindex_read(use_block_name):
     sch = tir.Schedule(conv2d_nhwc)
-    block = sch.get_block("conv2d_nhwc")
+    block = "conv2d_nhwc" if use_block_name else sch.get_block("conv2d_nhwc")
     sch.reindex(block, 1, "read")
     tvm.ir.assert_structural_equal(conv2d_nhwc_reindex_weight, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=conv2d_nhwc)
 
 
-def test_matmul_reindex_write():
+def test_matmul_reindex_write(use_block_name):
     sch = tir.Schedule(matmul)
-    block = sch.get_block("matmul")
+    block = "matmul" if use_block_name else sch.get_block("matmul")
     sch.reindex(block, 0, "write")
     tvm.ir.assert_structural_equal(matmul_reindex_write, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=matmul)
 
 
-def test_reindex_fail_multiple_read():
+def test_reindex_fail_multiple_read(use_block_name):
     sch = tir.Schedule(multiple_read)
-    block = sch.get_block("B")
+    block = "B" if use_block_name else sch.get_block("B")
     with pytest.raises(ScheduleError):
         sch.reindex(block, 0, "read")
 
