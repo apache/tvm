@@ -211,8 +211,10 @@ class SearchStrategy : public runtime::ObjectRef {
    * \brief Constructor of replay trace search strategy.
    * \param num_trials_per_iter The number of trials per iteration, i.e., the batch size.
    * \param max_trials_per_task The total number of trials for trace replaying.
+   * \param max_fail_count The max number of failures during trace replaying.
    */
-  TVM_DLL static SearchStrategy ReplayTrace(int num_trials_per_iter, int max_trials_per_task);
+  TVM_DLL static SearchStrategy ReplayTrace(int num_trials_per_iter, int max_trials_per_task,
+                                            int max_fail_count);
 
   /*!
    * \brief Constructor of replay func search strategy.
