@@ -203,6 +203,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
           Binary(nid, dnnl::algorithm::binary_add);
         } else if ("multiply" == op_name) {
           Binary(nid, dnnl::algorithm::binary_mul);
+        } else if ("nn.layer_norm" == op_name) {
+          LayerNorm(nid);
         } else {
           LOG(FATAL) << "Unsupported op: " << op_name;
         }
@@ -447,6 +449,51 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
                                                              {DNNL_ARG_SCALE_SHIFT, scale_shift_tr},
                                                              {DNNL_ARG_MEAN, mean_tr},
                                                              {DNNL_ARG_VARIANCE, var_tr}});
+  }
+
+  void LayerNorm(const size_t& nid) {
+    auto node = nodes_[nid];
+
+    auto src_tr = GetInput(nid, 0);
+    auto gamma_tr = GetInput(nid, 1);
+    auto beta_tr = GetInput(nid, 2);
+    auto dst_tr = GetOutput(nid, 0);
+
+    auto axis = GetNodeAttr<int>(node, "axis");
+    auto epsilon = GetNodeAttr<float>(node, "epsilon");
+    auto center = GetNodeAttr<bool>(node, "center");
+    auto scale = GetNodeAttr<bool>(node, "scale");
+
+    ICHECK(axis == -1 && center && scale) << "Unimplemented LayerNorm case";
+
+    // LN description.
+    auto lnorm_desc = dnnl::layer_normalization_forward::desc(
+        dnnl::prop_kind::forward_inference, src_tr.desc(), epsilon,
+        dnnl::normalization_flags::use_scale_shift);
+
+    auto lnorm_prim_desc = dnnl::layer_normalization_forward::primitive_desc(lnorm_desc, engine_);
+
+    // Concatenate scale and shift tensors
+    auto scale_shift_tr = TensorRequisite::AsIs(lnorm_prim_desc.weights_desc(), GenUniqueEid());
+    auto sc_sh_dims = scale_shift_tr.dims();
+
+    ICHECK(sc_sh_dims.size() == 2);
+    ICHECK(sc_sh_dims[0] == 2);
+    sc_sh_dims[0] /= 2;
+    auto scale_tr = scale_shift_tr.Crop(sc_sh_dims, {0, 0}).Squeeze();
+    auto shift_tr = scale_shift_tr.Crop(sc_sh_dims, {1, 0}).Squeeze();
+
+    auto register_copy = [this](const TensorRequisite& src, const TensorRequisite& dst) {
+      dnnl::reorder::primitive_desc copy_pd(engine_, src.desc(), engine_, dst.desc());
+      Submit(dnnl::reorder(copy_pd), {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst}});
+    };
+
+    register_copy(gamma_tr, scale_tr);
+    register_copy(beta_tr, shift_tr);
+
+    Submit(
+        dnnl::layer_normalization_forward(lnorm_prim_desc),
+        {{DNNL_ARG_SRC, src_tr}, {DNNL_ARG_DST, dst_tr}, {DNNL_ARG_SCALE_SHIFT, scale_shift_tr}});
   }
 
   void Pooling(const size_t& nid, dnnl::algorithm algo) {
