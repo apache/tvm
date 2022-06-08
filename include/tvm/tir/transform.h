@@ -24,6 +24,7 @@
 #ifndef TVM_TIR_TRANSFORM_H_
 #define TVM_TIR_TRANSFORM_H_
 
+#include <tvm/driver/driver_api.h>
 #include <tvm/ir/transform.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
@@ -623,6 +624,24 @@ TVM_DLL Pass ExtractPrimFuncConstants();
  * \return The pass.
  */
 TVM_DLL Pass RenormalizeSplitPattern();
+
+/*!
+ * \brief Annotate a PrimFunc with a given target.
+ * \return The pass.
+ */
+TVM_DLL Pass BindTarget(Target target);
+
+/*!
+ * \brief Set a PrimFunc as the entry point if it is only function in IRModule.
+ * \return The pass.
+ */
+TVM_DLL Pass AnnotateEntryFunc();
+
+/*!
+ * \brief Filter PrimFuncs with a given condition.
+ * \return The pass.
+ */
+TVM_DLL Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond);
 
 }  // namespace transform
 }  // namespace tir
