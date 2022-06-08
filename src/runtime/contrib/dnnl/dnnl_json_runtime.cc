@@ -83,7 +83,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       // Find proper dnnl::memory buffers
       std::unordered_map<int, dnnl::memory> mem_args;
       for (const auto& kvp : arg_reqs) mem_args[kvp.first] = mem_solver(kvp.second);
-
       prim.execute(stream_, mem_args);
     }
   }
@@ -179,7 +178,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     std::regex deconv_pat(".*deconv[1-3]d.*");
     std::regex conv_transpose_pat(".*conv[1-3]d_transpose.*");
     std::regex dense_pat(".*dense.*");
-    std::regex dense_pack_pat(".*packeddense.*");
     std::regex max_pool_pat(".*max_pool[1-3]d");
     std::regex avg_pool_pat(".*avg_pool[1-3]d");
 
@@ -194,9 +192,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
           Deconvolution(nid);
         } else if (std::regex_match(op_name, conv_pat)) {
           Convolution(nid);
-        } else if (std::regex_match(op_name, dense_pack_pat) ||
-                   "nn.contrib_dense_pack" == op_name) {
-          // DensePack(nid);
         } else if (std::regex_match(op_name, dense_pat)) {
           Dense(nid);
         } else if ("nn.batch_norm" == op_name) {
@@ -414,7 +409,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
                                                           {DNNL_ARG_SCRATCHPAD, scratchpad_tr},
                                                           {DNNL_ARG_DST, dst_tr}});
   }
-
 
   void BatchNorm(const size_t& nid) {
     auto node = nodes_[nid];

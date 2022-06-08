@@ -188,8 +188,6 @@ def run_and_verify(mod, input, params, target, run_module, subgraph_num=None, te
                     continue
             if use_dnnl:
                 processed_mod = partition_for_dnnl(processed_mod, params, alter_layout)
-                print("hebi-dbg: processed_mod: ", result_key)
-                print(processed_mod)
                 check_dnnl_used(processed_mod)
 
             with tvm.transform.PassContext(opt_level=3):
@@ -199,10 +197,6 @@ def run_and_verify(mod, input, params, target, run_module, subgraph_num=None, te
             if run_module:
                 if isinstance(input, dict):
                     result_dict[result_key] = func(**input, **params)
-                    print("input:", input)
-                    print("params:", params)
-                    print("result_dict[result_key]:")
-                    print(result_dict[result_key])
                 else:
                     result_dict[result_key] = func(input, **params)
 
@@ -914,6 +908,11 @@ def test_dense(run_module, dtype="float32"):
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
     dense, dic, param_lst = get_dense(x_shape, k_shape=(1, 16), dtype=dtype)
+    dense = tvm.IRModule.from_expr(dense)
+    config = dense, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+    dense, dic, param_lst = get_dense(x_shape, k_shape,  activation="gelu", dtype=dtype)
     dense = tvm.IRModule.from_expr(dense)
     config = dense, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)

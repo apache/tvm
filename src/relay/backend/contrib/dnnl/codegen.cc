@@ -436,6 +436,38 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
 
 #else  // DNNL JSON runtime
 
+/*!
+ * \brief Retrieve the expected "root" op nested inside a fused call, such as conv2d in
+ *        relu(add(conv2d))
+ * \param call A Relay call node. Typically nn.relu when called the first time.
+ * \param max_depth The maximum number of calls before the root op, counting from current_call.
+ * \param root_name The name of expected "root" op in this fused call.
+ * \return A CallNode corresponding to the root op
+ */
+inline const CallNode* FindCallWithName(const CallNode* current_call, int max_depth,
+                                        const std::string& root_name) {
+  ICHECK(current_call && max_depth >= 0);
+
+  if (max_depth == 0) {
+    ICHECK(current_call && IsOp(current_call, root_name));
+    return current_call;
+  }
+  if (IsOp(current_call, root_name)) {
+    return current_call;
+  }
+
+  ICHECK_GT(current_call->args.size(), 0);
+
+  size_t valid_node_idx = 0;
+  while (valid_node_idx < current_call->args.size() &&
+         current_call->args[valid_node_idx].as<VarNode>()) {
+    valid_node_idx++;
+  }
+
+  const auto* next_call = current_call->args[valid_node_idx].as<CallNode>();
+  return FindCallWithName(next_call, max_depth - 1, root_name);
+}
+
 class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
   using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
   using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
@@ -447,9 +479,6 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
       {"sigmoid", "sigmoid"},
       {"nn.deconv2d", "nn.conv2d_transpose"},
       {"nn.deconv3d", "nn.conv3d_transpose"},
-      {"add", "add"},
-      {"multiply", "multiply"},
-      {"nn.packeddense", "nn.contrib_dense_pack"},
   };
 
   std::vector<std::string> ParsingOpList(const std::string& pattern_name,
@@ -458,18 +487,11 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
     std::vector<std::string> op_list;
     size_t pos = 0, start = 0;
 
-    std::string raw_name = pattern_name;
-    if (raw_name.find("gelu") != std::string::npos) {
-      //TODO(billishyahao): Remove me after introducing new gelu operator
-      raw_name.replace(raw_name.find("gelu"), 4, "multiply_multiply_");
-    } 
-    while ((pos = raw_name.find(interval, start)) != std::string::npos) {
-      std::string op_name = raw_name.substr(start, pos - start);
+    while ((pos = pattern_name.find(interval, start)) != std::string::npos) {
+      std::string op_name = pattern_name.substr(start, pos - start);
       if (op_name.find("dnnl") != std::string::npos) {
         op_name.replace(op_name.find("dnnl"), 4, "nn");
         if (op_name.find("deconv") != std::string::npos) {
-          op_name = op_map[op_name];
-        } else if (op_name.find("packeddense") != std::string::npos) {
           op_name = op_map[op_name];
         }
       } else {
@@ -478,8 +500,8 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
       if (pos > start) op_list.push_back(op_name);
       start = pos + interval.size();
     }
-    if (raw_name.size() > start) {
-      op_list.push_back(op_map[raw_name.substr(start)]);
+    if (pattern_name.size() > start) {
+      op_list.push_back(op_map[pattern_name.substr(start)]);
     }
     return op_list;
   }
@@ -518,11 +540,10 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
         std::vector<std::string> op_list = ParsingOpList(name);
         call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
         ICHECK(call->op.as<OpNode>()) << "Not op node";
-      } else if (name.find("dnnl.dense") != std::string::npos) {
-        std::vector<std::string> op_list = ParsingOpList(name);
-        call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
+      } else if (name.find("gelu") != std::string::npos) {
+        call = FindCallWithName(fn->body.as<CallNode>(), 10, "nn.dense");
         ICHECK(call->op.as<OpNode>()) << "Not op node";
-      } else if (name.find("dnnl.packeddense") != std::string::npos) {
+      } else if (name.find("dnnl.dense") != std::string::npos) {
         std::vector<std::string> op_list = ParsingOpList(name);
         call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
         ICHECK(call->op.as<OpNode>()) << "Not op node";
