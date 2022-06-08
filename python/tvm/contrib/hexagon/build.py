@@ -22,7 +22,6 @@ import datetime
 import multiprocessing as mp
 import os
 import pathlib
-import shutil
 import signal
 import socket
 import stat
@@ -595,7 +594,6 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
 
     def cleanup_directory(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        shutil.rmtree(self._workspace)
 
     def stop_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""

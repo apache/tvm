@@ -213,6 +213,8 @@ def hexagon_launcher(
             launcher.start_server()
         yield launcher
     finally:
+        if android_serial_number == "simulator":
+            launcher.stop_server()
         launcher.cleanup_directory()
 
 
