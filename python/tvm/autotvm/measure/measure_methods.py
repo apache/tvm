@@ -589,8 +589,7 @@ class _WrappedBuildFunc:
             if self.build_func.output_format == ".model-library-format":
                 # Late import to preserve autoTVM with USE_MICRO OFF
                 try:
-                    from tvm import \
-                        micro  # pylint: disable=import-outside-toplevel
+                    from tvm import micro  # pylint: disable=import-outside-toplevel
                 except ImportError:
                     raise ImportError("Requires USE_MICRO")
                 micro.export_model_library_format(func, filename)

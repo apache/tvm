@@ -49,10 +49,18 @@ from tvm.target import Target
 
 from . import _ffi_api
 from .loop_state import StateObject
-from .utils import (call_func_with_timeout, check_remote, get_const_tuple,
-                    get_func_name, make_traceback_info, request_remote)
-from .workload_registry import (deserialize_workload_registry_entry,
-                                serialize_workload_registry_entry)
+from .utils import (
+    call_func_with_timeout,
+    check_remote,
+    get_const_tuple,
+    get_func_name,
+    make_traceback_info,
+    request_remote,
+)
+from .workload_registry import (
+    deserialize_workload_registry_entry,
+    serialize_workload_registry_entry,
+)
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("auto_scheduler")
@@ -212,8 +220,7 @@ def recover_measure_input(inp, rebuild_state=False):
         The fully recovered MeasureInput with all fields rebuilt.
     """
     # pylint: disable=import-outside-toplevel
-    from .search_task import \
-        SearchTask  # lazily import to avoid recursive dependency
+    from .search_task import SearchTask  # lazily import to avoid recursive dependency
 
     task = inp.task
     task.target, task.target_host = Target.canon_target_and_host(task.target, task.target_host)
@@ -833,8 +840,7 @@ def prepare_runner_args(inp, build_res):
 
     """
     # pylint: disable=import-outside-toplevel
-    from .search_task import \
-        get_task_input_buffer  # lazily import to avoid recursive dependency
+    from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
 
     task_input_names = inp.task.task_input_names
     tensor_input_map = prepare_input_map(build_res.args)
