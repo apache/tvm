@@ -66,7 +66,7 @@ This folder contains the source of TVM's documentation, hosted at https://tvm.ap
 4. Run an HTTP server and visit http://localhost:8000 in your browser
 
    ```bash
-   cd docs/_build/html && python3 -m http.server
+   cd _docs && python3 -m http.server
    ```
 
 ## Only Execute Specified Tutorials
