@@ -416,7 +416,7 @@ void InitializeBufferBinds(const Array<te::Operation>& ordered_ops, CreateFuncIn
   // Process any TE operations which contain user defined buffers
   for (const auto& op : ordered_ops) {
     // Initialize the tensor2buffer binds map with buffers defined by the te.extern
-    if (const auto extern_op = op.as<te::ExternOpNode>()) {
+    if (const auto* extern_op = op.as<te::ExternOpNode>()) {
       ICHECK_EQ(extern_op->inputs.size(), extern_op->input_placeholders.size());
       for (size_t i = 0; i < extern_op->inputs.size(); ++i) {
         const te::Tensor& input = extern_op->inputs[i];

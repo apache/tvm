@@ -45,39 +45,22 @@ def compute_tir_conv2d_nchw_oihw(data_shape, weight_shape, dtype):
     )
     N, K, BH, BW = output_shape
 
+    # fmt: off
     @T.prim_func
-    def conv2d(
-        a: T.handle,
-        filt: T.handle,
-        b: T.handle,
-    ) -> None:
+    def conv2d(a: T.handle, filt: T.handle, b: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         A = T.match_buffer(a, data_shape, dtype=dtype)
         Filter = T.match_buffer(filt, weight_shape, dtype=dtype)
         B = T.match_buffer(b, output_shape, dtype=dtype)
-        for (
-            n,
-            k,
-            bh,
-            bw,
-        ) in T.grid(N, K, BH, BW):
+        for n, k, bh, bw in T.grid(N, K, BH, BW):
             with T.block("init"):
-                (
-                    vn,
-                    vk,
-                    vbh,
-                    vbw,
-                ) = T.axis.remap("SSSS", [n, k, bh, bw])
+                vn, vk, vbh, vbw = T.axis.remap("SSSS", [n, k, bh, bw])
                 B[vn, vk, vbh, vbw] = T.float32(0)
             for ic, fh, fw in T.grid(IC, FH, FW):
                 with T.block("update"):
-                    vn, vk, vbh, vbw, vc, vfh, vfw = T.axis.remap(
-                        "SSSSRRR", [n, k, bh, bw, ic, fh, fw]
-                    )
-                    B[vn, vk, vbh, vbw] = (
-                        B[vn, vk, vbh, vbw]
-                        + A[vn, vc, vbh + vfh, vbw + vfw] * Filter[vk, vc, vfh, vfw]
-                    )
+                    vn, vk, vbh, vbw, vc, vfh, vfw = T.axis.remap("SSSSRRR", [n, k, bh, bw, ic, fh, fw])
+                    B[vn, vk, vbh, vbw] = B[vn, vk, vbh, vbw] + A[vn, vc, vbh + vfh, vbw + vfw] * Filter[vk, vc, vfh, vfw]
+    # fmt: on
 
     return conv2d
 

@@ -35,19 +35,25 @@ namespace arith {
 
 using namespace tir;
 
+namespace {
+
+using BufferTouches = std::vector<std::vector<IntSet>>;
+
 struct LoadAccess {
-  std::vector<std::vector<IntSet>> set;
+  BufferTouches set;
 };
 
 struct StoreAccess {
-  std::vector<std::vector<IntSet>> set;
+  BufferTouches set;
 };
 
 struct CombinedAccess {
-  std::vector<std::vector<IntSet>> set;
+  BufferTouches set;
 };
 
 using BufferDomainAccess = std::tuple<LoadAccess, StoreAccess, CombinedAccess>;
+
+}  // namespace
 
 // Find Read region of the tensor in the stmt.
 class BufferTouchedDomain final : public StmtExprVisitor {
@@ -65,7 +71,7 @@ class BufferTouchedDomain final : public StmtExprVisitor {
 
     Region ret;
     Range none;
-    std::vector<std::vector<IntSet>> bounds;  //= kv->second[set_index];
+    BufferTouches bounds;
     if (consider_loads && consider_stores) {
       bounds = std::get<CombinedAccess>(kv->second).set;
     } else if (consider_loads) {
@@ -126,7 +132,7 @@ class BufferTouchedDomain final : public StmtExprVisitor {
 
  private:
   template <typename ArrayType>
-  void Touch(std::vector<std::vector<IntSet>>* bounds, const ArrayType& args) const {
+  void Touch(BufferTouches* bounds, const ArrayType& args) const {
     if (args.size() > bounds->size()) {
       bounds->resize(args.size());
     }
