@@ -30,7 +30,7 @@
 #include <vector>
 
 #include "hexagon_buffer.h"
-#include "hexagon_buffer_map.h"
+#include "hexagon_buffer_manager.h"
 
 namespace tvm {
 namespace runtime {
@@ -73,7 +73,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
    */
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
 
-  //! Erase from tracked hexagon_buffer_map and free
+  //! Erase from HexagonBufferManagert and free
   void FreeWorkspace(Device dev, void* data) final;
 
   /*!
@@ -138,7 +138,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
   }
 
   //! \brief Manages underlaying HexagonBuffer allocations
-  HexagonBufferMap hexbuffs;
+  HexagonBufferManager hexbuffs;
 };
 }  // namespace hexagon
 }  // namespace runtime

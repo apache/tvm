@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_BUFFER_MAP_H_
-#define TVM_RUNTIME_HEXAGON_HEXAGON_BUFFER_MAP_H_
+#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_BUFFER_MANAGER_H_
+#define TVM_RUNTIME_HEXAGON_HEXAGON_BUFFER_MANAGER_H_
 
 #include <tvm/runtime/logging.h>
 
@@ -32,7 +32,7 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-class HexagonBufferMap {
+class HexagonBufferManager {
  public:
   /*!
    * \brief Free a HexagonBuffer.
@@ -79,4 +79,4 @@ class HexagonBufferMap {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_BUFFER_MAP_H_
+#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_BUFFER_MANAGER_H_

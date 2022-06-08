@@ -30,7 +30,7 @@
 #include <vector>
 
 #include "hexagon_buffer.h"
-#include "hexagon_buffer_map.h"
+#include "hexagon_buffer_manager.h"
 #include "hexagon_common.h"
 #include "qurt.h"
 
@@ -153,7 +153,7 @@ class HexagonThreadManager {
   static void thread_main(void* context);
 
   //! \brief Manages underlaying HexagonBuffer allocations.
-  HexagonBufferMap hexbuffs;
+  HexagonBufferManager hexbuffs;
 
   //! \brief Number of threads allocatted.
   unsigned nthreads{0};
