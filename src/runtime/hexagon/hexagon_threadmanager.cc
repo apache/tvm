@@ -161,13 +161,6 @@ void HexagonThreadManager::GetStreamHandles(std::vector<TVMStreamHandle>* out) {
   }
 }
 
-bool HexagonThreadManager::Dispatch(TVMStreamHandle thread, PackedFunc f, TVMArgs args,
-                                    TVMRetValue* rv) {
-  WrappedPackedFunc* wrapped =
-      new WrappedPackedFunc(f, args, rv);  // WrappedPackedFunc object freed by receiving thread
-  return Dispatch(thread, thread_unpack, reinterpret_cast<void*>(wrapped));
-}
-
 bool HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* args) {
   unsigned thread = (uint64_t)stream;
   DBG("Dispatching to stream " << STR(thread));
@@ -270,15 +263,6 @@ void HexagonThreadManager::thread_wait_free(void* semaphore) {
 void HexagonThreadManager::thread_exit(void* status) {
   DBG("thread exiting");
   qurt_thread_exit((uint64_t)status);
-}
-
-void HexagonThreadManager::thread_unpack(void* wpf) {
-  WrappedPackedFunc* wrapped = static_cast<WrappedPackedFunc*>(wpf);
-  PackedFunc f = wrapped->f;
-  TVMArgs args = wrapped->args;
-  TVMRetValue* rv = wrapped->rv;
-  delete wrapped;  // reclaim memory before call in case call is thread_exit
-  f->CallPacked(args, rv);
 }
 
 void HexagonThreadManager::thread_main(void* context) {

@@ -34,6 +34,10 @@ namespace hexagon {
 
 class HexagonBufferMap {
  public:
+  /*!
+   * \brief Free a HexagonBuffer.
+   * \param ptr Address of the HexagonBuffer as returned by `AllocateHexagonBuffer`.
+   */
   void FreeHexagonBuffer(void* ptr) {
     auto it = hexagon_buffer_map_.find(ptr);
     CHECK(it != hexagon_buffer_map_.end())
@@ -41,6 +45,10 @@ class HexagonBufferMap {
     CHECK(it->second != nullptr);
     hexagon_buffer_map_.erase(it);
   }
+  /*!
+   * \brief Allocate a HexagonBuffer.
+   * \param args Templated arguments to pass through to HexagonBuffer constructor.
+   */
   template <typename... Args>
   void* AllocateHexagonBuffer(Args&&... args) {
     auto buf = std::make_unique<HexagonBuffer>(std::forward<Args>(args)...);
@@ -48,15 +56,22 @@ class HexagonBufferMap {
     hexagon_buffer_map_.insert({ptr, std::move(buf)});
     return ptr;
   }
+
+  //! \brief Returns whether the HexagonBuffer is in the map.
   size_t count(void* ptr) { return hexagon_buffer_map_.count(ptr); }
+
+  //! \brief Returns an iterator to the HexagonBuffer within the map.
   std::unordered_map<void*, std::unique_ptr<HexagonBuffer>>::iterator find(void* ptr) {
     return hexagon_buffer_map_.find(ptr);
   }
+
+  //! \brief Retruns the end of the map.
   std::unordered_map<void*, std::unique_ptr<HexagonBuffer>>::iterator end() {
     return hexagon_buffer_map_.end();
   }
 
  private:
+  //! \brief Contains the HexagonBuffer objects managed by this class.
   std::unordered_map<void*, std::unique_ptr<HexagonBuffer>> hexagon_buffer_map_;
 };
 

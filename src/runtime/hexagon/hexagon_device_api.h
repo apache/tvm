@@ -137,6 +137,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
            (DLDeviceType(dev.device_type) == kDLCPU);
   }
 
+  //! \brief Manages underlaying HexagonBuffer allocations
   HexagonBufferMap hexbuffs;
 };
 }  // namespace hexagon
