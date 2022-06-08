@@ -550,7 +550,7 @@ def get_texture_storage(shape):
 
 
 def infer_tile_size(data, layout):
-    """Compute the tile size
+    """Compute the tile size for Winograd algorithm
 
     Parameters
     ----------

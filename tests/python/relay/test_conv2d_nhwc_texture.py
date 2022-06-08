@@ -21,7 +21,7 @@ import tvm
 import numpy as np
 from tvm import relay
 from tvm.relay import testing
-from utils.adreno_utils import gpu_preprocess, build_run_compare, gpu_preprocess_nhwc
+from utils.adreno_utils import gpu_preprocess, build_run_compare
 
 
 @tvm.testing.requires_opencl

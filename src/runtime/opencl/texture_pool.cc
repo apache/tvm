@@ -29,7 +29,7 @@
 namespace tvm {
 namespace runtime {
 
-void* Pool::Alloc(Device dev, DeviceAPI* device, size_t width, size_t height,
+void* Pool2D::Alloc(Device dev, DeviceAPI* device, size_t width, size_t height,
                   DLDataType type_hint) {
   Entry e;
   Entry new_mem;
@@ -107,7 +107,7 @@ void* Pool::Alloc(Device dev, DeviceAPI* device, size_t width, size_t height,
   return e.data;
 }
 
-void Pool::Free(void* data) {
+void Pool2D::Free(void* data) {
   Entry e;
   if (allocated_.back().data == data) {
     // quick path, last allocated.
@@ -125,7 +125,7 @@ void Pool::Free(void* data) {
 }
 
 // Release all resources immediately
-void Pool::Release(Device dev, DeviceAPI* device) {
+void Pool2D::Release(Device dev, DeviceAPI* device) {
   for (auto& e : allocated_) {
     device->FreeDataSpace(dev, e.data);
   }
@@ -156,7 +156,7 @@ void* TexturePool::AllocTexture(Device dev, size_t width, size_t height, DLDataT
     array_.resize(dev.device_id + 1, nullptr);
   }
   if (array_[dev.device_id] == nullptr) {
-    array_[dev.device_id] = new Pool();
+    array_[dev.device_id] = new Pool2D();
   }
   return array_[dev.device_id]->Alloc(dev, device_, width, height, type_hint);
 }

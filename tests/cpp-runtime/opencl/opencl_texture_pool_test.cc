@@ -26,10 +26,10 @@
 using namespace tvm::runtime;
 using namespace tvm::runtime::cl;
 
-// PoolWrapper is necessary because in class Pool we don't have an access to
+// PoolWrapper is necessary because in class Pool2D we don't have an access to
 // its protected members. In this class we add new methods which allow us to
 // get and check internal state of class Pool
-class PoolWrapper : public Pool {
+class PoolWrapper : public Pool2D {
  public:
   inline size_t FreeListSize() const { return free_list_.size(); }
   inline size_t AllocatedListSize() const { return allocated_.size(); }

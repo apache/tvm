@@ -94,9 +94,9 @@ inline bool IsTextureStorage(std::string scope) {
   return scope.find("texture") != std::string::npos;
 }
 
-class TVM_DLL Pool {
+class TVM_DLL Pool2D {
  public:
-  Pool() = default;
+  Pool2D() = default;
   void* Alloc(Device dev, DeviceAPI* device, size_t width, size_t height, DLDataType type_hint);
   void Free(void* data);
   // Release all resources immediately
@@ -156,7 +156,7 @@ class TVM_DLL TexturePool {
 
  private:
   /*! \brief pool of device local array */
-  std::vector<Pool*> array_;
+  std::vector<Pool2D*> array_;
   /*! \brief device type this pool support */
   DLDeviceType device_type_;
   /*! \brief The device API */
