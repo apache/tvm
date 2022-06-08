@@ -30,34 +30,13 @@
 #include <vector>
 
 #include "hexagon_buffer.h"
+#include "hexagon_buffer_map.h"
 #include "hexagon_common.h"
 #include "qurt.h"
 
 namespace tvm {
 namespace runtime {
 namespace hexagon {
-
-// TODO(Straw): move to separate file and use inside Hexagon Device API
-class HexagonBufferMap {
- public:
-  void FreeHexagonBuffer(void* ptr) {
-    auto it = hexagon_buffer_map_.find(ptr);
-    CHECK(it != hexagon_buffer_map_.end())
-        << "Attempt made to free unknown or already freed dataspace allocation";
-    CHECK(it->second != nullptr);
-    hexagon_buffer_map_.erase(it);
-  }
-  template <typename... Args>
-  void* AllocateHexagonBuffer(Args&&... args) {
-    auto buf = std::make_unique<HexagonBuffer>(std::forward<Args>(args)...);
-    void* ptr = buf->GetPointer();
-    hexagon_buffer_map_.insert({ptr, std::move(buf)});
-    return ptr;
-  }
-
- private:
-  std::unordered_map<void*, std::unique_ptr<HexagonBuffer>> hexagon_buffer_map_;
-};
 
 #define DBG(msg) LOG(WARNING) << msg << "\n"
 #define STR(num) std::to_string(reinterpret_cast<unsigned>(num))
