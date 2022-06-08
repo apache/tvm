@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 
 
 import pytest
@@ -172,7 +171,7 @@ class TestAddSubtractMultiplyBroadcast2d:
         elif op_name == "multiply":
             M = sl.multiply_broadcast_compute(A, B)
 
-        tir_schedule = sl.STIR_broadcast_schedule(
+        tir_schedule = sl.tir_broadcast_schedule(
             M, A, B, output_layout, input_A_layout, input_B_layout, op_name
         )
         sch = tir_schedule.mod

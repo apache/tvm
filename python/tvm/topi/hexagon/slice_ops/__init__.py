@@ -17,6 +17,4 @@
 
 """ Computes and Schedules for Hexagon slice ops. """
 
-# pylint: disable=wildcard-import
-
 from .add_subtract_multiply import *

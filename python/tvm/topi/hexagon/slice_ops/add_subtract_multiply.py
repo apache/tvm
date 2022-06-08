@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable, unused-argument, too-many-locals
 
 """Compute and schedule for add, multiply, subtract slice op
 
@@ -28,26 +27,32 @@ from tvm import topi
 from ..utils import get_layout_transform_fn
 
 
-def add_broadcast_compute(A, B):
+def add_broadcast_compute(input_a, input_b):
     """Call the add op from topi"""
-    return topi.add(A, B)
+    return topi.add(input_a, input_b)
 
 
-def subtract_broadcast_compute(A, B):
+def subtract_broadcast_compute(input_a, input_b):
     """Call the subtract op from topi"""
-    return topi.subtract(A, B)
+    return topi.subtract(input_a, input_b)
 
 
-def multiply_broadcast_compute(A, B):
+def multiply_broadcast_compute(input_a, input_b):
     """Call the multiply op from topi"""
-    return topi.multiply(A, B)
+    return topi.multiply(input_a, input_b)
 
 
-def STIR_broadcast_schedule(
-    M, A, B, output_layout: str, input_A_layout: str, input_B_layout: str, op_name: str
+def tir_broadcast_schedule(
+    out_m,
+    input_a,
+    input_b,
+    output_layout: str,
+    input_a_layout: str,
+    input_b_layout: str,
+    op_name: str,
 ):
     """Schedule for input and output layout nhwc-8h2w32c2w-2d considering broadcast"""
-    func = te.create_prim_func([A, B, M])
+    func = te.create_prim_func([input_a, input_b, out_m])
 
     s = tir.Schedule(func)
 
@@ -55,27 +60,27 @@ def STIR_broadcast_schedule(
 
     block = s.get_block(block_dict[op_name])
 
-    if input_A_layout == "nhwc-8h2w32c2w-2d":
-        input_A_transformed_layout = get_layout_transform_fn(input_A_layout)
-        s.transform_layout(block, buffer=("read", 0), index_map=input_A_transformed_layout)
+    if input_a_layout == "nhwc-8h2w32c2w-2d":
+        input_a_transformed_layout = get_layout_transform_fn(input_a_layout)
+        s.transform_layout(block, buffer=("read", 0), index_map=input_a_transformed_layout)
 
-    if input_B_layout == "nhwc-8h2w32c2w-2d":
-        input_B_transformed_layout = get_layout_transform_fn(input_B_layout)
-        s.transform_layout(block, buffer=("read", 1), index_map=input_B_transformed_layout)
+    if input_b_layout == "nhwc-8h2w32c2w-2d":
+        input_b_transformed_layout = get_layout_transform_fn(input_b_layout)
+        s.transform_layout(block, buffer=("read", 1), index_map=input_b_transformed_layout)
 
     output_transformed_layout = get_layout_transform_fn(output_layout)
     s.transform_layout(block, buffer=("write", 0), index_map=output_transformed_layout)
 
     n, h, w, c = s.get_loops(block)
 
-    ho, hi = s.split(h, [None, 8])
-    wo, wi = s.split(w, [None, 4])
-    co, ci = s.split(c, [None, 32])
-    wio, wii = s.split(wi, [None, 2])
+    h_o, h_i = s.split(h, [None, 8])
+    w_o, w_i = s.split(w, [None, 4])
+    c_o, c_i = s.split(c, [None, 32])
+    wio, wii = s.split(w_i, [None, 2])
 
-    s.reorder(n, ho, wo, co, hi, wio, ci, wii)
+    s.reorder(n, h_o, w_o, c_o, h_i, wio, c_i, wii)
 
-    fused = s.fuse(ci, wii)
+    fused = s.fuse(c_i, wii)
     s.vectorize(fused)
 
     return s
