@@ -18,29 +18,26 @@
  */
 
 #include <gtest/gtest.h>
-#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/logging.h>
 
 #include "../src/runtime/hexagon/hexagon_threadmanager.h"
-#include "tvm/runtime/logging.h"
 
 using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
 
 class HexagonThreadManagerTest : public ::testing::Test {
-  protected:
+ protected:
   void SetUp() override {
     htm = new HexagonThreadManager(threads, stack_size, pipe_size);
     htm->GetStreamHandles(&streams);
   }
-  void TearDown() override {
-    delete htm;
-  }
-  HexagonThreadManager *htm {nullptr};
+  void TearDown() override { delete htm; }
+  HexagonThreadManager* htm{nullptr};
   std::vector<TVMStreamHandle> streams;
   int answer{0};
-  const unsigned threads {6};
-  const unsigned pipe_size {100};
-  const unsigned stack_size {0x4000}; // 16KB
+  const unsigned threads{6};
+  const unsigned pipe_size{100};
+  const unsigned stack_size{0x4000};  // 16KB
 };
 
 TEST_F(HexagonThreadManagerTest, ctor_errors) {
@@ -63,9 +60,7 @@ TEST_F(HexagonThreadManagerTest, init) {
   CHECK_EQ(streams.size(), threads);
 }
 
-void get_the_answer(void* answer) {
-  *(int*)answer = 42;
-}
+void get_the_answer(void* answer) { *(int*)answer = 42; }
 
 TEST_F(HexagonThreadManagerTest, dispatch) {
   htm->Dispatch(streams[0], get_the_answer, &answer);
@@ -176,9 +171,7 @@ TEST_F(HexagonThreadManagerTest, pipe_overflow) {
   CHECK_EQ(space, false);
 }
 
-void increment(void *val) {
-  *(int*)val = *(int*)val + 1;
-}
+void increment(void* val) { *(int*)val = *(int*)val + 1; }
 
 TEST_F(HexagonThreadManagerTest, producer_consumer) {
   htm->Dispatch(streams[5], increment, &answer);
@@ -205,7 +198,7 @@ TEST_F(HexagonThreadManagerTest, producer_consumer_signal_wait) {
 
   htm->Dispatch(streams[5], increment, &answer);
   htm->Signal(streams[5], 4);
-  htm->Dispatch(streams[4], increment, &answer);  
+  htm->Dispatch(streams[4], increment, &answer);
   htm->Signal(streams[4], 3);
   htm->Dispatch(streams[3], increment, &answer);
   htm->Signal(streams[3], 2);
@@ -219,12 +212,12 @@ TEST_F(HexagonThreadManagerTest, producer_consumer_signal_wait) {
 }
 
 struct ToAppend {
-  std::vector<int> *arr;
+  std::vector<int>* arr;
   int value;
-  ToAppend(std::vector<int> *addr, int value) : arr(addr), value(value) {};
+  ToAppend(std::vector<int>* addr, int value) : arr(addr), value(value){};
 };
 
-void append(void *toappend) {
+void append(void* toappend) {
   ToAppend* cmd = (ToAppend*)toappend;
   cmd->arr->push_back(cmd->value);
 }
@@ -300,7 +293,7 @@ TEST_F(HexagonThreadManagerTest, thread_order_signal_wait) {
 struct ToWrite {
   int* addr;
   int value;
-  ToWrite(int* addr, int value) : addr(addr), value(value) {};
+  ToWrite(int* addr, int value) : addr(addr), value(value){};
 };
 
 void thread_write_val(void* towrite) {
@@ -328,9 +321,7 @@ TEST_F(HexagonThreadManagerTest, dispatch_writes) {
   }
 }
 
-void thread_print(void* msg) {
-  LOG(WARNING) << (char*)msg << "\n";
-}
+void thread_print(void* msg) { LOG(WARNING) << (char*)msg << "\n"; }
 
 TEST_F(HexagonThreadManagerTest, dispatch_prints) {
   std::vector<std::string> strings;

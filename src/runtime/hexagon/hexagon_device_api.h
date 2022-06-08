@@ -46,14 +46,12 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Constructor
   HexagonDeviceAPI() {
-    thread_manager = new HexagonThreadManager(6, 16*(1<<10), 1<<10);
+    thread_manager = new HexagonThreadManager(6, 16 * (1 << 10), 1 << 10);
     thread_manager->GetStreamHandles(&free_streams);
   }
 
   //! \brief Destructor
-  ~HexagonDeviceAPI() {
-    delete thread_manager;
-  }
+  ~HexagonDeviceAPI() { delete thread_manager; }
 
   /*! \brief Currently unimplemented interface to specify the active
    *  Hexagon device.
@@ -131,7 +129,8 @@ class HexagonDeviceAPI final : public DeviceAPI {
   void FreeStream(Device dev, TVMStreamHandle stream);
   void SetStream(Device dev, TVMStreamHandle stream);
   void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst);
-  void Dispatch(Device dev, PackedFunc f, TVMArgs args, TVMRetValue* rv, TVMStreamHandle stream = (void*)-1);
+  void Dispatch(Device dev, PackedFunc f, TVMArgs args, TVMRetValue* rv,
+                TVMStreamHandle stream = reinterpret_cast<void*>(-1));
   void Start(Device dev);
 
  protected:
@@ -171,7 +170,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   HexagonThreadManager* thread_manager;
   std::vector<TVMStreamHandle> free_streams;
-  TVMStreamHandle active_stream = (void*)-1;
+  TVMStreamHandle active_stream = reinterpret_cast<void*>(-1);
 };
 }  // namespace hexagon
 }  // namespace runtime
