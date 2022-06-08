@@ -160,7 +160,7 @@ def hexagon_server_process(
     """Initials and returns hexagon launcher if ANDROID_SERIAL_NUMBER is defined.
     This launcher is started only once per test session.
     """
-    if android_serial_number is None:
+    if android_serial_number is None or android_serial_number == "simulator":
         yield None
     else:
         # Requesting these fixtures sets up a local tracker, if one
@@ -194,11 +194,12 @@ def hexagon_launcher(
     android_serial_number,
 ) -> HexagonLauncherRPC:
     """Initials and returns hexagon launcher which reuses RPC info and Android serial number."""
-    if hexagon_server_process._serial_number != "simulator":
+    if android_serial_number is None:
+        yield None
+
+    if android_serial_number != "simulator":
         rpc_info = hexagon_server_process._rpc_info
-        serial_number = hexagon_server_process._serial_number
     else:
-        serial_number = android_serial_number
         rpc_info = {
             "rpc_tracker_host": tvm_tracker_host,
             "rpc_tracker_port": tvm_tracker_port,
@@ -206,9 +207,9 @@ def hexagon_launcher(
             "adb_server_socket": adb_server_socket,
         }
 
-    launcher = HexagonLauncher(serial_number=serial_number, rpc_info=rpc_info)
+    launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     try:
-        if hexagon_server_process._serial_number == "simulator":
+        if android_serial_number == "simulator":
             launcher.start_server()
         yield launcher
     finally:

@@ -22,6 +22,7 @@ import datetime
 import multiprocessing as mp
 import os
 import pathlib
+import shutil
 import signal
 import socket
 import stat
@@ -123,6 +124,11 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def stop_server(self):
         """Stop the RPC server"""
+        ...
+
+    @abc.abstractmethod
+    def cleanup_directory(self):
+        """Cleanup working directory"""
         ...
 
     @abc.abstractmethod
@@ -474,7 +480,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         )
 
     def cleanup_directory(self):
-        # Remove workspace directory on remote target
+        """Abstract method implementation. See description in HexagonLauncherRPC."""
         subprocess.Popen(self._adb_device_sub_cmd + ["shell", f"rm -rf {self._workspace}"])
 
     def start_server(self):
@@ -588,7 +594,8 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
         self._server_process.start()
 
     def cleanup_directory(self):
-        pass
+        """Abstract method implementation. See description in HexagonLauncherRPC."""
+        shutil.rmtree(self._workspace)
 
     def stop_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
