@@ -46,11 +46,9 @@ def get_network():
     bn_mmean = relay.var("bn_mean")
     bn_mvar = relay.var("bn_var")
     simple_net = relay.nn.conv2d(
-        data=data, weight=weight, kernel_size=(3, 3),
-        channels=out_channels, padding=(1, 1)
+        data=data, weight=weight, kernel_size=(3, 3), channels=out_channels, padding=(1, 1)
     )
-    simple_net = relay.nn.batch_norm(simple_net, bn_gamma, bn_beta,
-                                     bn_mmean, bn_mvar)[0]
+    simple_net = relay.nn.batch_norm(simple_net, bn_gamma, bn_beta, bn_mmean, bn_mvar)[0]
     simple_net = relay.nn.relu(simple_net)
     simple_net = relay.nn.conv2d(
         data=simple_net,
@@ -72,9 +70,11 @@ net, params, data_shape = get_network()
 # We use an testing linear graph splitting function as a example. User also can create their
 # own splitting function logic.
 import os
-test_path = os.path.join(os.path.dirname(__file__), '../../../tests/python/relay')
+
+test_path = os.path.join(os.path.dirname(__file__), "../../../tests/python/relay")
 os.sys.path.append(test_path)
 from test_pipeline_executor import graph_split
+
 ###########################################
 # Splitting the network into two subgraphs.
 split_config = [{"op_name": "nn.relu", "op_index": 0}]
@@ -105,6 +105,7 @@ subgraphs = graph_split(net["main"], split_config, params)
 # ---------------------------------------
 # In build/config.cmake set USE_PIPELINE_EXECUTOR as ON to enable pipeline executor.
 from tvm.contrib import graph_executor, pipeline_executor, pipeline_executor_build
+
 #########################################
 # Create subgraph pipeline configuration.
 # Associate the subgraph module with a target.
