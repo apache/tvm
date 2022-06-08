@@ -267,7 +267,7 @@ def test_meta_schedule_integration_apply_history_best():
     target = Target("llvm")
     workload = database.commit_workload(MockModule)
     database.commit_tuning_record(
-        TuningRecord(Schedule(MockModule).trace, [1.0], workload, target, [])
+        TuningRecord(Schedule(MockModule).trace, workload, [1.0], target, [])
     )
     mod = env.query(task_name="mock-task", mod=mod, target=target, dispatched=[MockModule])
     assert tvm.ir.structural_equal(mod, workload.mod)

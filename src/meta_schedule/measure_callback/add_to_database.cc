@@ -47,8 +47,8 @@ class AddToDatabaseNode : public MeasureCallbackNode {
       }
       database->CommitTuningRecord(TuningRecord(
           /*trace=*/candidate->sch->trace().value(),
-          /*run_secs=*/run_secs,
           /*workload=*/workload,
+          /*run_secs=*/run_secs,
           /*target=*/target,
           /*args_info=*/candidate->args_info));
     }

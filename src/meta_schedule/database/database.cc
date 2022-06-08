@@ -74,48 +74,62 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
 
 /******** TuningRecord ********/
 
-TuningRecord::TuningRecord(tir::Trace trace, Array<FloatImm> run_secs, Workload workload,
-                           Target target, Array<ArgInfo> args_info) {
+TuningRecord::TuningRecord(tir::Trace trace, Workload workload, Optional<Array<FloatImm>> run_secs,
+                           Optional<Target> target, Optional<Array<ArgInfo>> args_info) {
   ObjectPtr<TuningRecordNode> n = make_object<TuningRecordNode>();
   n->trace = trace;
-  n->run_secs = run_secs;
   n->workload = workload;
+  n->run_secs = run_secs;
   n->target = target;
   n->args_info = args_info;
   this->data_ = n;
 }
 
 ObjectRef TuningRecordNode::AsJSON() const {
-  Array<ObjectRef> json_args_info;
-  json_args_info.reserve(args_info.size());
-  for (const ArgInfo& arg_info : args_info) {
-    json_args_info.push_back(arg_info->AsJSON());
+  Optional<Array<ObjectRef>> json_args_info{nullptr};
+  Optional<ObjectRef> json_target{nullptr};
+  if (args_info.defined()) {
+    Array<ObjectRef> info;
+    info.reserve(args_info.value().size());
+    for (const ArgInfo& arg_info : args_info.value()) {
+      info.push_back(arg_info->AsJSON());
+    }
+    json_args_info = info;
+  }
+  if (target.defined()) {
+    json_target = target.value()->Export();
   }
   return Array<ObjectRef>{trace->AsJSON(false),  //
                           run_secs,              //
-                          target->Export(),      //
+                          json_target,           //
                           json_args_info};
 }
 
 TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& workload) {
   tir::Trace trace{nullptr};
-  Array<FloatImm> run_secs{nullptr};
-  Target target{nullptr};
-  Array<ArgInfo> args_info;
+  Optional<Array<FloatImm>> run_secs{nullptr};
+  Optional<Target> target{nullptr};
+  Optional<Array<ArgInfo>> args_info{nullptr};
   try {
     const ArrayNode* json_array = json_obj.as<ArrayNode>();
     CHECK(json_array && json_array->size() == 4);
     // Load json[1] => run_secs
-    run_secs = Downcast<Array<FloatImm>>(json_array->at(1));
+    if (json_array->at(1).defined()) {
+      run_secs = Downcast<Array<FloatImm>>(json_array->at(1));
+    }
     // Load json[2] => target
-    target = Target(Downcast<Map<String, ObjectRef>>(json_array->at(2)));
+    if (json_array->at(2).defined()) {
+      target = Target(Downcast<Map<String, ObjectRef>>(json_array->at(2)));
+    }
     // Load json[3] => args_info
-    {
+    if (json_array->at(3).defined()) {
       const ArrayNode* json_args_info = json_array->at(3).as<ArrayNode>();
-      args_info.reserve(json_args_info->size());
+      Array<ArgInfo> info;
+      info.reserve(json_args_info->size());
       for (const ObjectRef& json_arg_info : *json_args_info) {
-        args_info.push_back(ArgInfo::FromJSON(json_arg_info));
+        info.push_back(ArgInfo::FromJSON(json_arg_info));
       }
+      args_info = info;
     }
     // Load json[0] => trace
     {
@@ -130,7 +144,7 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                << "\nThe error is: " << e.what();
   }
-  return TuningRecord(trace, run_secs, workload, target, args_info);
+  return TuningRecord(trace, workload, run_secs, target, args_info);
 }
 
 /******** PyDatabase ********/
@@ -161,9 +175,9 @@ TVM_REGISTER_GLOBAL("meta_schedule.WorkloadAsJSON")
     .set_body_method<Workload>(&WorkloadNode::AsJSON);
 TVM_REGISTER_GLOBAL("meta_schedule.WorkloadFromJSON").set_body_typed(&Workload::FromJSON);
 TVM_REGISTER_GLOBAL("meta_schedule.TuningRecord")
-    .set_body_typed([](tir::Trace trace, Array<FloatImm> run_secs, Workload workload, Target target,
-                       Array<ArgInfo> args_info) {
-      return TuningRecord(trace, run_secs, workload, target, args_info);
+    .set_body_typed([](tir::Trace trace, Workload workload, Optional<Array<FloatImm>> run_secs,
+                       Optional<Target> target, Optional<Array<ArgInfo>> args_info) {
+      return TuningRecord(trace, workload, run_secs, target, args_info);
     });
 TVM_REGISTER_GLOBAL("meta_schedule.TuningRecordAsJSON")
     .set_body_method<TuningRecord>(&TuningRecordNode::AsJSON);

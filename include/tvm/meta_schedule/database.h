@@ -103,19 +103,19 @@ class TuningRecordNode : public runtime::Object {
  public:
   /*! \brief The trace tuned. */
   tir::Trace trace;
-  /*! \brief The profiling result in seconds. */
-  Array<FloatImm> run_secs;
   /*! \brief The workload. */
   Workload workload{nullptr};
+  /*! \brief The profiling result in seconds. */
+  Optional<Array<FloatImm>> run_secs;
   /*! \brief The target for tuning. */
-  Target target;
+  Optional<Target> target;
   /*! \brief The argument information. */
-  Array<ArgInfo> args_info;
+  Optional<Array<ArgInfo>> args_info;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("trace", &trace);
-    v->Visit("run_secs", &run_secs);
     v->Visit("workload", &workload);
+    v->Visit("run_secs", &run_secs);
     v->Visit("target", &target);
     v->Visit("args_info", &args_info);
   }
@@ -140,13 +140,14 @@ class TuningRecord : public runtime::ObjectRef {
   /*!
    \brief Constructor of a tuning record.
    \param trace The trace of the tuning record.
-   \param run_secs The running time of the tuning record.
    \param workload The workload of the tuning record.
+   \param run_secs The running time of the tuning record.
    \param target The target of the tuning record.
    \param args_info The argument information of the tuning record.
   */
-  TVM_DLL explicit TuningRecord(tir::Trace trace, Array<FloatImm> run_secs, Workload workload,
-                                Target target, Array<ArgInfo> args_info);
+  TVM_DLL explicit TuningRecord(tir::Trace trace, Workload workload,
+                                Optional<Array<FloatImm>> run_secs, Optional<Target> target,
+                                Optional<Array<ArgInfo>> args_info);
   /*!
    * \brief Create a tuning record from a json object.
    * \param json_obj The json object.
