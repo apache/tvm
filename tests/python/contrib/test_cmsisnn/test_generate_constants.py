@@ -16,7 +16,6 @@
 # under the License.
 
 """CMSIS-NN integration tests: generate_constants pass"""
-import itertools
 import math
 import numpy as np
 import pytest
@@ -25,9 +24,8 @@ import tvm.testing
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
-from utils import (
+from .utils import (
     make_module,
-    get_range_for_dtype_str,
     get_same_padding,
     get_conv2d_qnn_params,
     make_qnn_relu,
@@ -43,6 +41,8 @@ def quantize_scale(scale):
 
 
 class CheckGeneratedConstants(tvm.relay.ExprVisitor):
+    """Provides methods to compare against expected quantization parameters"""
+
     def __init__(self, enable_bias, multiplier, shift):
         super().__init__()
         self.num_constant_args_ = 0
@@ -53,7 +53,6 @@ class CheckGeneratedConstants(tvm.relay.ExprVisitor):
     def visit_call(self, call):
         super().visit_call(call)
         if isinstance(call.op, tvm.ir.expr.GlobalVar):
-            # extern_fn_call(input, weight, multiplier, weight_scale, bias_optional, input_scale, shift)
             multiplier = call.args[2]
             shift = call.args[6] if self.enable_bias_ else call.args[5]
             assert isinstance(
@@ -107,7 +106,7 @@ def make_model(
 
     weight_shape = (kernel_h, kernel_w, shape[3] // groups, out_channels)
     rng = np.random.default_rng(12321)
-    w = tvm.nd.array(
+    weight = tvm.nd.array(
         rng.integers(
             np.iinfo(kernel_dtype).min,
             high=np.iinfo(kernel_dtype).max,
@@ -115,7 +114,7 @@ def make_model(
             dtype=kernel_dtype,
         )
     )
-    weight_const = relay.const(w, kernel_dtype)
+    weight_const = relay.const(weight, kernel_dtype)
     conv = relay.qnn.op.conv2d(
         a,
         weight_const,
@@ -133,8 +132,8 @@ def make_model(
         padding=p,
         out_dtype="int32",
     )
-    b = tvm.nd.array(rng.integers(0, high=10, size=(out_channels,), dtype="int32"))
-    bias_const = relay.const(b, "int32")
+    bias = tvm.nd.array(rng.integers(0, high=10, size=(out_channels,), dtype="int32"))
+    bias_const = relay.const(bias, "int32")
     last_op = relay.nn.bias_add(conv, bias_const, axis=3) if enable_bias else conv
     requant_input_sc = [sc * input_scale for sc in kernel_scale]
     last_op = relay.qnn.op.requantize(
@@ -146,7 +145,7 @@ def make_model(
         out_dtype=dtype,
     )
     last_op = make_qnn_relu(last_op, relu_type, output_scale, output_zero_point, dtype)
-    params = {"w": w, "b": b}
+    params = {"w": weight, "b": bias}
     return last_op, params
 
 
@@ -163,6 +162,7 @@ def test_op_int8(
     kernel_scale,
     out_channels,
 ):
+    """Tests for CMSIS-NN constants when the dtype is int8"""
     ifm_shape = (1, 28, 28, 3)
     padding = "VALID"
     strides = (1, 1)
@@ -175,7 +175,6 @@ def test_op_int8(
     kernel_w = kernel_size[1]
     dtype = "int8"
     relu_type = "RELU"
-    in_min, in_max = get_range_for_dtype_str(dtype)
 
     weight_shape = (kernel_h, kernel_w, ifm_shape[3] // groups, out_channels)
 
