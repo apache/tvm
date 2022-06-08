@@ -149,8 +149,8 @@ def test_tir_schedule_copy_1(use_block_name):
     # Tests:
     # - Schedule.copy
     sch_1 = tir.Schedule(matmul, debug_mask="all")
-    block = "update" if use_block_name else sch.get_block(name="update")
-    i, j, k = sch_1.get_loops(block)
+    block_rv = sch_1.get_block(name="update")
+    i, j, k = sch_1.get_loops(block="update" if use_block_name else block_rv)
     assert sch_1.get(i).loop_var.name == "i"
     assert sch_1.get(j).loop_var.name == "j"
     assert sch_1.get(k).loop_var.name == "k"
