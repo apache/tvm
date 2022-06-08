@@ -47,6 +47,7 @@ We do encourage everyone to work anything they are interested in.
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
 - [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm - ethos-u, memory planner
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
+- [Tristan Konolige](https://github.com/tkonolige): @tkonolige - profiling, relay, tir, runtime
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574 - tir, tvm-script
 - [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
