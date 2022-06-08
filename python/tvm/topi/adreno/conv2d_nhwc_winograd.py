@@ -18,21 +18,7 @@
 """Winograd NHWC template for Adreno backend"""
 
 import logging
-import tvm
-from tvm import te
 from tvm import autotvm
-
-from tvm.topi import nn
-from tvm.topi.utils import get_const_int, get_const_tuple, traverse_inline
-from ..nn.winograd_util import winograd_transform_matrices
-from .utils import (
-    split_to_chunks,
-    pack_input,
-    pack_filter,
-    bind_data_copy,
-    get_texture_storage,
-    infer_tile_size,
-)
 from .conv2d_winograd_common import conv2d_winograd_comp, schedule_conv2d_winograd_impl
 
 
@@ -137,4 +123,6 @@ def conv2d_nhwc_winograd_comp(
     output: tvm.te.Tensor
         4-D or 5-D with shape NCHW or NCHW4c
     """
-    return conv2d_winograd_comp(cfg, data, kernel, strides, padding, dilation, out_dtype, args, pre_computed, "NHWC")
+    return conv2d_winograd_comp(
+        cfg, data, kernel, strides, padding, dilation, out_dtype, args, pre_computed, "NHWC"
+    )

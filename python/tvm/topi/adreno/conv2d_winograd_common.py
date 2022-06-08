@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument
 """Common Winograd implementation for Adreno backend"""
 
-import logging
 import tvm
 from tvm import te
 from tvm import autotvm
@@ -80,7 +79,7 @@ def conv2d_winograd_comp(
     output: tvm.te.Tensor
         4-D or 5-D with shape NCHW or NCHW4c
     """
-    assert layout == "NCHW" or layout == "NHWC"
+    assert layout in ("NCHW", "NHWC")
     tile_size = infer_tile_size(data, layout)
 
     if isinstance(dilation, int):
@@ -301,9 +300,9 @@ def conv2d_winograd_comp(
         else:
             output = te.compute(
                 (N, CO, H, W, COB),
-                lambda n, co, h, w, cob: inverse[co][n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m)][
-                    idxmod(h, m)
-                ][idxmod(w, m)][cob].astype(out_dtype),
+                lambda n, co, h, w, cob: inverse[co][
+                    n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m)
+                ][idxmod(h, m)][idxmod(w, m)][cob].astype(out_dtype),
                 name="output",
                 tag="cast_from_acc" + args["accumulator"][-2:],
             )
@@ -320,9 +319,9 @@ def conv2d_winograd_comp(
         else:
             output = te.compute(
                 (N, H, W, CO, COB),
-                lambda n, h, w, co, cob: inverse[co][n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m)][
-                    idxmod(h, m)
-                ][idxmod(w, m)][cob].astype(out_dtype),
+                lambda n, h, w, co, cob: inverse[co][
+                    n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m)
+                ][idxmod(h, m)][idxmod(w, m)][cob].astype(out_dtype),
                 name="output",
                 tag="cast_from_acc" + args["accumulator"][-2:],
             )
