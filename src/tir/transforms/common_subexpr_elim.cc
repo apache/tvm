@@ -122,7 +122,7 @@ bool CommonSubexpressionEliminator::CanContainEligibleComputations(const PrimExp
 
 /*!
  * \brief Implements an order on pairs (expression,frequency). First attempts to compare them
-          using the size of the expression. If the is the same, decides something else still
+          using the size of the expression. If it is the same, decides something else still
           deterministic.
  * \param a The first pair
  * \param b The second pair
