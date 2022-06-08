@@ -158,7 +158,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     if (std::regex_match(op_name, gelu_pat)) {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_gelu_erf, 0.f, 0.f);
     }
-    if (ops.len() != 0){
+    if (ops.len() != 0) {
       attr.set_post_ops(ops);
     }
 

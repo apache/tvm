@@ -912,7 +912,7 @@ def test_dense(run_module, dtype="float32"):
     config = dense, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
-    dense, dic, param_lst = get_dense(x_shape, k_shape,  activation="gelu", dtype=dtype)
+    dense, dic, param_lst = get_dense(x_shape, k_shape, activation="gelu", dtype=dtype)
     dense = tvm.IRModule.from_expr(dense)
     config = dense, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
@@ -932,7 +932,7 @@ def test_dense_pattern(run_module, dtype="float32"):
     config = dense_bias, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
-    dense_bias, dic, param_lst = get_dense_bias(x_shape, k_shape,  activation="gelu", dtype=dtype)
+    dense_bias, dic, param_lst = get_dense_bias(x_shape, k_shape, activation="gelu", dtype=dtype)
     dense_bias = tvm.IRModule.from_expr(dense_bias)
     config = dense_bias, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
