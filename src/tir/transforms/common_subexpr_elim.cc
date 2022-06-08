@@ -139,10 +139,13 @@ bool CommonSubexpressionEliminator::OrderOnExprAndFrequency(std::pair<PrimExpr, 
 
   // Criteria 1 - Size of the expression comes first
   // `a` comes before `b` if the size of `a` is bigger
-  if (a_size > b_size) return true;
+  if (a_size > b_size) {
+    return true;
+  }
   // `a` does NOT come before `b` if the size of `b` is bigger
-  else if (b_size > a_size)
+  if (b_size > a_size) {
     return false;
+  }
 
   // Criteria 2 - If they had the same size, use the lexicographic order as a last resort
   // as we need a deterministic order
