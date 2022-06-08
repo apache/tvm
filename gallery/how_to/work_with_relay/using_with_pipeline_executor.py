@@ -69,10 +69,11 @@ net, params, data_shape = get_network()
 # -----------------------------------------
 # We use an testing linear graph splitting function as a example. User also can create their
 # own splitting function logic.
+import inspect
 import os
 
-test_path = os.path.join(os.path.dirname(__file__), "../../../tests/python/relay")
-os.sys.path.append(test_path)
+test_path = os.path.dirname(inspect.getfile(lambda: None))
+os.sys.path.append(os.path.join(test_path, "../../../tests/python/relay"))
 from test_pipeline_executor import graph_split
 
 ###########################################
