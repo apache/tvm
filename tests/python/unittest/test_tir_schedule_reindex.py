@@ -169,37 +169,42 @@ def multiple_read(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "f
 
 
 use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+use_buffer_name = tvm.testing.parameter(by_dict={"buffer_index": False, "buffer_name": True})
 
 
-def test_reindex_read_basic(use_block_name):
+def test_reindex_read_basic(use_block_name, use_buffer_name):
     sch = tir.Schedule(transpose_elementwise)
     block = "B" if use_block_name else sch.get_block("B")
-    sch.reindex(block, 0, "read")
+    buf = "A" if use_buffer_name else ("read", 0)
+    sch.reindex(block, buf)
     tvm.ir.assert_structural_equal(transpose_elementwise_reindex_read, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=transpose_elementwise)
 
 
-def test_conv2d_reindex_read(use_block_name):
+def test_conv2d_reindex_read(use_block_name, use_buffer_name):
     sch = tir.Schedule(conv2d_nhwc)
     block = "conv2d_nhwc" if use_block_name else sch.get_block("conv2d_nhwc")
-    sch.reindex(block, 1, "read")
+    buf = "Weight" if use_buffer_name else ("read", 1)
+    sch.reindex(block, buf)
     tvm.ir.assert_structural_equal(conv2d_nhwc_reindex_weight, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=conv2d_nhwc)
 
 
-def test_matmul_reindex_write(use_block_name):
+def test_matmul_reindex_write(use_block_name, use_buffer_name):
     sch = tir.Schedule(matmul)
     block = "matmul" if use_block_name else sch.get_block("matmul")
-    sch.reindex(block, 0, "write")
+    buf = "C" if use_buffer_name else ("write", 0)
+    sch.reindex(block, buf)
     tvm.ir.assert_structural_equal(matmul_reindex_write, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=matmul)
 
 
-def test_reindex_fail_multiple_read(use_block_name):
+def test_reindex_fail_multiple_read(use_block_name, use_buffer_name):
     sch = tir.Schedule(multiple_read)
     block = "B" if use_block_name else sch.get_block("B")
+    buf = "A" if use_buffer_name else ("read", 0)
     with pytest.raises(ScheduleError):
-        sch.reindex(block, 0, "read")
+        sch.reindex(block, buf)
 
 
 if __name__ == "__main__":

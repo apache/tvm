@@ -1125,7 +1125,9 @@ class Schedule(Object):
 
     @type_checked
     def reindex(
-        self, block: Union[BlockRV, str], buffer_index: int, buffer_index_type: str
+        self,
+        block: Union[BlockRV, str],
+        buffer: Union[Tuple[str, int], str, Buffer],
     ) -> BlockRV:
         """Create a block that read/write a buffer region into a read/write cache with reindexing.
         The layout of the cache will be the same as by the iterators of the block that reads/writes
@@ -1135,12 +1137,27 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block: Union[BlockRV, str]
-            The block that accesses the target buffer
-        buffer_index: int
-            The index of the buffer in block's read or write region
-        buffer_index_type : str
-            Type of the buffer index, "read" or "write"
+        block : Union[BlockRV, str]
+
+            The block that accesses the target buffer.  If a string,
+            this must uniquely identify a block.
+
+        buffer: Union[Tuple[str,int], Buffer, str]
+
+            The buffer to be transformed, or a specification of how to
+            identify the buffer to be transformed.
+
+            If `buffer` if a tuple of ``(str,int)``, the first item
+            should be either "read" or "write", and the second item is
+            an index into the block's read or write regions.
+
+            If `buffer` is a string, it is the name of the buffer,
+            which must exist within the reads/writes of the block.  In
+            addition, the reads/writes of the block may not contain
+            more than one buffer with this name.
+
+            If `buffer` is a Buffer object, it must exist within the
+            reads/writes of the block.
 
         Returns
         -------
@@ -1170,7 +1187,7 @@ class Schedule(Object):
 
             sch = tir.Schedule(before_reindex)
             block = sch.get_block("B")
-            sch.reindex(block, 0, "read)
+            sch.reindex(block, ("read", 0))
 
         After applying reindex, the IR becomes:
 
@@ -1193,6 +1210,7 @@ class Schedule(Object):
 
         """
         block = self._normalize_block_arg(block)
+        buffer_index_type, buffer_index, _ = self._normalize_buffer_arg(block, buffer)
         assert buffer_index_type in ["read", "write"], "Invalid buffer_index_type"
         buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
         return _ffi_api.ScheduleReIndex(  # type: ignore # pylint: disable=no-member
