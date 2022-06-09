@@ -51,9 +51,9 @@ class PTXAsyncCopyInjector : public StmtMutator {
       if (auto* load = store->value.as<BufferLoadNode>()) {
         if (load->buffer.scope() == "global") {
           ICHECK(load->indices.size() == 1 && store->indices.size() == 1);
-	  ICHECK(load->indices[0]->dtype.lanes() == store->indices[0]->dtype.lanes());
+          ICHECK(load->indices[0]->dtype.lanes() == store->indices[0]->dtype.lanes());
 
-	  const int indices_lanes = load->indices[0]->dtype.lanes();
+          const int indices_lanes = load->indices[0]->dtype.lanes();
           const int bytes = indices_lanes * load->buffer->dtype.bytes();
 
           if (bytes == 4 || bytes == 8 || bytes == 16) {
@@ -77,20 +77,20 @@ class PTXAsyncCopyInjector : public StmtMutator {
             }
 
             if (indices_lanes == 1) {
-	      auto src_offset = load->indices[0];
-	      auto dst_offset = store->indices[0];
+              auto src_offset = load->indices[0];
+              auto dst_offset = store->indices[0];
               return Evaluate(
                   Call(store->buffer->dtype, tvm::tir::builtin::ptx_cp_async(),
                        {store->buffer->data, tir::Mul(dst_offset, PrimExpr(index_factor)),
                         load->buffer->data, src_offset, PrimExpr(bytes)}));
             }
 
-	    // Only some vectorized indexing patterns are supported for now.
+            // Only some vectorized indexing patterns are supported for now.
             auto src_offset = [=]() -> PrimExpr {
               if (load->indices[0]->IsInstance<RampNode>()) {
                 return load->indices[0].as<RampNode>()->base;
               }
-	      return PrimExpr();
+              return PrimExpr();
             }();
 
             auto dst_offset = [=]() -> PrimExpr {
