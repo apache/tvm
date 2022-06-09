@@ -41,6 +41,14 @@
         "vid_hex": "2341",
         "pid_hex": "805a"
     },
+    "portentah7": {
+        "package": "arduino",
+        "architecture": "mbed_portenta",
+        "board": "envie_m7",
+        "model": "stm32h7xx",
+        "vid_hex": "2341",
+        "pid_hex": "025b"
+    },
     "pybadge": {
         "package": "adafruit",
         "architecture": "samd",
