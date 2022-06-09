@@ -40,13 +40,13 @@ class LibxsmmJSONRuntime : public json::JSONRuntimeBase {
             nodes_[weight_entry.id_].GetOpShape()[weight_entry.index_];
         std::vector<int64_t> out_shape = nodes_[out_entry.id_].GetOpShape()[out_entry.index_];
 
-        M = input_shape[0];
-        N = weight_shape[0];
-        K = input_shape[1];
+        M_ = input_shape[0];
+        N_ = weight_shape[0];
+        K_ = input_shape[1];
 
-        int lda = N;
-        int ldb = K;
-        int ldc = N;
+        int lda = N_;
+        int ldb = K_;
+        int ldc = N_;
 
         // Curently we support fp32 only.
         libxsmm_datatype dtype = LIBXSMM_DATATYPE_F32;
@@ -55,9 +55,9 @@ class LibxsmmJSONRuntime : public json::JSONRuntimeBase {
         libxsmm_bitfield l_flags = LIBXSMM_GEMM_FLAG_NONE | LIBXSMM_GEMM_FLAG_BETA_0;
         libxsmm_bitfield l_prefetch_flags = LIBXSMM_GEMM_PREFETCH_NONE;
         libxsmm_gemm_shape l_shape =
-            libxsmm_create_gemm_shape(N, M, K, lda, ldb, ldc, dtype, dtype, dtype, dtype);
-        libxsmm_blasint stride_a = N * K * sizeof(float);
-        libxsmm_blasint stride_b = K * M * sizeof(float);
+            libxsmm_create_gemm_shape(N_, M_, K_, lda, ldb, ldc, dtype, dtype, dtype, dtype);
+        libxsmm_blasint stride_a = N_ * K_ * sizeof(float);
+        libxsmm_blasint stride_b = K_ * M_ * sizeof(float);
         libxsmm_gemm_batch_reduce_config l_brconfig = libxsmm_create_gemm_batch_reduce_config(
             LIBXSMM_GEMM_BATCH_REDUCE_STRIDE, stride_a, stride_b, 0 /*br_unrool_hint*/);
 
@@ -78,7 +78,7 @@ class LibxsmmJSONRuntime : public json::JSONRuntimeBase {
           l_argops.cp_unary_type = LIBXSMM_MELTW_TYPE_UNARY_RELU;
           l_argops.ldcp = ldc;
           // relu mask should have the same size as matrix C.
-          relu_mask_.resize(M * N, 0);
+          relu_mask_.resize(M_ * N_, 0);
         }
 
         // Use "libxsmm_gemmfunction" for GEMM kernel, and "libxsmm_gemmfunction_ext" for fused GEMM
@@ -105,12 +105,12 @@ class LibxsmmJSONRuntime : public json::JSONRuntimeBase {
 
     // Transpose weight matrix since libxsmm only support GEMM rather than DENSE.
     if (!transposed_filter_handle_) {
-      TVMDeviceAllocDataSpace(dev, K * N * sizeof(float), kAllocAlignment, type_hint,
+      TVMDeviceAllocDataSpace(dev_, K_ * N_ * sizeof(float), kAllocAlignment, type_hint_,
                               &transposed_filter_handle_);
-      for (int k = 0; k < K; ++k) {
-        for (int n = 0; n < N; ++n) {
-          static_cast<float*>(transposed_filter_handle_)[k * N + n] =
-              static_cast<float*>(filter_handle)[n * K + k];
+      for (int k = 0; k < K_; ++k) {
+        for (int n = 0; n < N_; ++n) {
+          static_cast<float*>(transposed_filter_handle_)[k * N_ + n] =
+              static_cast<float*>(filter_handle)[n * K_ + k];
         }
       }
     }
@@ -153,7 +153,7 @@ class LibxsmmJSONRuntime : public json::JSONRuntimeBase {
     }
   }
 
-  ~LibxsmmJSONRuntime() { TVMDeviceFreeDataSpace(dev, transposed_filter_handle_); }
+  ~LibxsmmJSONRuntime() { TVMDeviceFreeDataSpace(dev_, transposed_filter_handle_); }
 
  private:
   libxsmm_gemmfunction gemm_kernel_;
@@ -162,12 +162,12 @@ class LibxsmmJSONRuntime : public json::JSONRuntimeBase {
   // Transposed weight is saved to avoid redundant transpose in following steps.
   void* transposed_filter_handle_{nullptr};
 
-  DLDevice dev{kDLCPU, 0};
-  DLDataType type_hint{2, 32, 1};
+  DLDevice dev_{kDLCPU, 0};
+  DLDataType type_hint_{2, 32, 1};
 
-  int64_t M;
-  int64_t K;
-  int64_t N;
+  int64_t M_;
+  int64_t K_;
+  int64_t N_;
 
   bool has_bias_{false};
   bool has_relu_{false};
