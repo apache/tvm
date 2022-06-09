@@ -133,9 +133,9 @@ def test_conv2d_number_primfunc_args(
     kernel_scale,
     out_channels,
 ):
+    """Tests number of arguments in Conv2D primfunc"""
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     ifm_shape = (1, 64, 100, 4)
     kernel_size = (3, 3)
@@ -203,7 +203,7 @@ def test_conv2d_number_primfunc_args(
     expected_num_params = 6 if enable_bias else 5
     cmsisnn_tir_mod = None
     for target, mod in compiled_models[0].executor_factory.lowered_ir_mods.items():
-        if "cmsis-nn" == target.kind.name:
+        if target.kind.name == "cmsis-nn":
             cmsisnn_tir_mod = mod
 
     cmsisnn_func = cmsisnn_tir_mod["tvmgen_default_cmsis_nn_main_0"]
