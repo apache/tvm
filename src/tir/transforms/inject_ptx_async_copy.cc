@@ -38,6 +38,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
  public:
   Stmt VisitStmt_(const AttrStmtNode* attr) {
     if (attr->attr_key == tir::attr::async_scope) {
+      ICHECK(in_async == false) << "Nested async scopes not supported";
       in_async = true;
       auto body = this->VisitStmt(attr->body);
       in_async = false;
