@@ -22,6 +22,7 @@ import tvm
 from tvm import relay
 from tvm.ir.transform import Sequential
 from tvm.relay import transform
+from tvm.relay.build_module import bind_params_by_name
 
 from ...dataflow_pattern import wildcard, is_op, is_constant
 from .register import register_pattern_table
@@ -62,7 +63,7 @@ def check_dense_shape(call):
 
 def make_dense_pattern(with_bias=False, eltwise=None):
     data = wildcard()
-    weight = wildcard()
+    weight = is_constant()
     bias = wildcard()
     dense = is_op("nn.dense")(data, weight)
     pattern_name = "libxsmm.dense"

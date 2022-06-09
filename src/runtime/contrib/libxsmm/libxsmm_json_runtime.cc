@@ -19,6 +19,8 @@ class LibxsmmJSONRuntime : public json::JSONRuntimeBase {
   const char* type_key() const { return "libxsmm_json"; }
 
   void Init(const Array<NDArray>& consts) override {
+
+    SetupConstants(consts);
     for (size_t nid = 0; nid < nodes_.size(); ++nid) {
       auto& node = nodes_[nid];
       if (node.GetOpType() == "kernel") {
@@ -158,7 +160,6 @@ class LibxsmmJSONRuntime : public json::JSONRuntimeBase {
   libxsmm_gemmfunction_ext gemm_fusion_kernel_;
 
   // Transposed weight is saved to avoid redundant transpose in following steps.
-  // TODO(wenxizhu): check if current graph executor is in inference mode.
   void* transposed_filter_handle_{nullptr};
 
   DLDevice dev{kDLCPU, 0};

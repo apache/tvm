@@ -37,7 +37,7 @@ def run_and_verify(mod, input_dict, params, target, libxsmm_enabled=True):
     result_dict = {}
     for r in ("origin", "libxsmm"):
         if r == "libxsmm":
-            mod = partition_for_libxsmm(mod)
+            mod = partition_for_libxsmm(mod, params)
             check_libxsmm_used(mod, libxsmm_enabled)
 
         json, lib, param = relay.build(mod, target="llvm", params=params)
@@ -53,6 +53,10 @@ def run_and_verify(mod, input_dict, params, target, libxsmm_enabled=True):
 
 def run_and_verify_func(config, dtype, libxsmm_enabled=True):
     f, input_shapes, param_list = config
+
+    if not param_list:
+      param_list = {}
+
     params = {x: np.random.uniform(-1, 1, input_shapes[x]).astype(dtype) for x in param_list}
     input_dict = {
         k: np.random.uniform(-1, 1, v).astype(dtype)
@@ -90,6 +94,17 @@ def test_dense():
     dense = tvm.IRModule.from_expr(dense)
     config = dense, dic, param_list
     run_and_verify_func(config, dtype=dtype)
+
+def test_dense_variable_weight():
+    dtype = "float32"
+    x_shape = (16, 32)
+    k_shape = (64, 32)
+
+    dense, dic, param_list = get_dense(x_shape, k_shape, dtype=dtype)
+    dense = tvm.IRModule.from_expr(dense)
+    config = dense, dic, None # Empty param_list
+    run_and_verify_func(config, dtype=dtype)
+
 
 
 def test_dense_libxsmm_not_enabled():

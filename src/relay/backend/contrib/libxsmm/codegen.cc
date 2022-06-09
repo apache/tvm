@@ -52,6 +52,11 @@ class LibxsmmJSONSerializer : public backend::contrib::JSONSerializer {
       inputs.insert(inputs.end(), res.begin(), res.end());
     }
 
+    // Add the constant weight also as input node
+    ICHECK(call->args.size() == 2);
+    auto weights = VisitExpr(call->args[1]);
+    inputs.insert(inputs.end(), weights.begin(), weights.end());
+
     auto node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
 
     SetCallNodeAttribute(node, call);
