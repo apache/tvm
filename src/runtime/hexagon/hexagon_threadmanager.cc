@@ -155,10 +155,12 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes,
   DBG("Threads created");
 }
 
-void HexagonThreadManager::GetStreamHandles(std::vector<TVMStreamHandle>* out) {
+const std::vector<TVMStreamHandle> HexagonThreadManager::GetStreamHandles() {
+  std::vector<TVMStreamHandle> out;
   for (unsigned i = 0; i < nthreads; i++) {
-    out->push_back((TVMStreamHandle)i);  // threads identified by index into `threads` array
+    out.push_back((TVMStreamHandle)i);  // threads identified by index into `threads` array
   }
+  return out;
 }
 
 bool HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* args) {

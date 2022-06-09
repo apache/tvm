@@ -73,7 +73,7 @@ class HexagonThreadManager {
    * \brief Get the spawned threads as stream handles.
    * \returns Vector of stream handles.
    */
-  void GetStreamHandles(std::vector<TVMStreamHandle>* out);
+  const std::vector<TVMStreamHandle> GetStreamHandles();
 
   /*!
    * \brief Non-blocking dispatch of a void function and args on a given thread.

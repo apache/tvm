@@ -29,7 +29,7 @@ class HexagonThreadManagerTest : public ::testing::Test {
  protected:
   void SetUp() override {
     htm = new HexagonThreadManager(threads, stack_size, pipe_size);
-    htm->GetStreamHandles(&streams);
+    streams = htm->GetStreamHandles();
   }
   void TearDown() override { delete htm; }
   HexagonThreadManager* htm{nullptr};
