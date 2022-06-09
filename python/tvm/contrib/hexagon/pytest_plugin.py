@@ -53,15 +53,7 @@ def _compose(args, decs):
     return decs
 
 
-def requires_hexagon_toolchain(*args):
-    _requires_hexagon_toolchain = [
-        pytest.mark.skipif(
-            os.environ.get(HEXAGON_TOOLCHAIN) is None,
-            reason=f"Missing environment variable {HEXAGON_TOOLCHAIN}.",
-        ),
-    ]
-
-    return _compose(args, _requires_hexagon_toolchain)
+requires_hexagon_toolchain = tvm.testing.requires_hexagon(support_required="compile-only")
 
 
 @tvm.testing.fixture

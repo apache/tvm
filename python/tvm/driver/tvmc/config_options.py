@@ -43,6 +43,15 @@ def get_configs_json_dir() -> str:
     """
     global CONFIGS_JSON_DIR
     if CONFIGS_JSON_DIR is None:
+
+        # If a non-default location for the build directory is used, e.g. set via TVM_LIBRARY_PATH
+        # we need to provide the user a way to overwrite CONFIGS_JSON_DIR as well.
+        if os.environ.get("TVM_CONFIGS_JSON_DIR", None):
+            user_config_dir = os.environ["TVM_CONFIGS_JSON_DIR"]
+            if os.path.isdir(user_config_dir):
+                CONFIGS_JSON_DIR = user_config_dir
+                return CONFIGS_JSON_DIR
+
         candidate_paths = []
         candidate_paths.extend(libinfo.find_lib_path())
         # When running from source, the configs directory will be located one directory above the

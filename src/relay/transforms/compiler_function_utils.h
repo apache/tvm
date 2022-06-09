@@ -71,6 +71,7 @@ namespace transforms {
  */
 class GlobalSymbolCache {
  public:
+  virtual ~GlobalSymbolCache();
   virtual GlobalVar GetGlobalSymbol(const Function& function) = 0;
 };
 
