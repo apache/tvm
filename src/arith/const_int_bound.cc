@@ -346,6 +346,12 @@ class ConstIntBoundAnalyzer::Impl
   Entry VisitLeftShift(const CallNode* op) {
     Entry a = VisitExpr(op->args[0]);
     Entry b = VisitExpr(op->args[1]);
+
+    // Until C++20, performing a left shift is only well-defined for
+    // positive arguments.  If we have a negative argument, it just
+    // means we couldn't prove that the inputs were positive.
+    a.min_value = std::max(int64_t(0), a.min_value);
+    b.min_value = std::max(int64_t(0), b.min_value);
     return BinaryOpBoundary(a, b, InfAwareLeftShift);
   }
 
