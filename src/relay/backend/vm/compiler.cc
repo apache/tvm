@@ -244,6 +244,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
         host_virtual_device_(std::move(host_virtual_device)) {}
 
   VMFunction Compile(const GlobalVar& var, const Function& func) {
+    VLOG(1) << "Compiling:" << std::endl << PrettyPrint(func);
     std::vector<Index> param_device_indexes;
     if (IsClosure(func)) {
       // After lifting we'll have functions of the form:
