@@ -644,7 +644,7 @@ TVM_DLL Pass AnnotateEntryFunc();
  */
 TVM_DLL Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond);
 
- /*!
+/*!
  * \brief Pass to rewrite global to shared memory copy on CUDA with asyncronous copy.
  * \return The pass.
  */
