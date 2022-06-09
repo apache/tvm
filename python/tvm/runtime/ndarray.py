@@ -127,7 +127,7 @@ class NDArray(NDArrayBase):
             raise TypeError("type %s not supported" % str(type(value)))
 
     def copyfrom(self, source_array):
-        """Perform an synchronize copy from the array.
+        """Perform a synchronized copy from the array.
 
         Parameters
         ----------
