@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""AOT with C++ Runtime Tests"""
 
 import re
-import sys
 import textwrap
 
 import numpy as np
@@ -28,13 +27,10 @@ from tvm import IRModule
 from tvm import relay
 from tvm.relay import backend, testing
 from tvm.testing.aot import generate_ref_data
-from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER
 
 
 def test_error_c_interface():
-    interface_api = "c"
-    use_unpacked_api = False
-    test_runner = AOT_DEFAULT_RUNNER
+    """Checks that an error occurs when using the packed API in combination with C interface"""
 
     two = relay.add(relay.const(1), relay.const(1))
     func = relay.Function([], two)
@@ -53,12 +49,11 @@ def test_error_c_interface():
         )
 
 
-enable_usmp = tvm.testing.parameter(True, False)
-target_kind = tvm.testing.parameter("c", "llvm")
-
-
+@pytest.mark.parametrize("enable_usmp", [True, False])
+@pytest.mark.parametrize("target_kind", ["c", "llvm"])
 def test_conv2d(enable_usmp, target_kind):
-    RELAY_MODEL = textwrap.dedent(
+    """Tests compilation of convolutions"""
+    relay_model = textwrap.dedent(
         """\
         #[version = "0.0.5"]
         def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(3, 3, 5, 5), int8]) {
@@ -86,7 +81,7 @@ def test_conv2d(enable_usmp, target_kind):
         }
     """
     )
-    ir_mod = tvm.parser.fromtext(RELAY_MODEL)
+    ir_mod = tvm.parser.fromtext(relay_model)
 
     main_func = ir_mod["main"]
     shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
@@ -119,7 +114,10 @@ def test_conv2d(enable_usmp, target_kind):
     assert (runner.get_output(0).asnumpy() == list(ref_outputs.values())[0]).all()
 
 
+@pytest.mark.parametrize("enable_usmp", [True, False])
+@pytest.mark.parametrize("target_kind", ["c", "llvm"])
 def test_mobilenet(enable_usmp, target_kind):
+    """Full network test with Mobilenet"""
     ir_mod, params = testing.mobilenet.get_workload(batch_size=1)
     data_shape = [int(x) for x in ir_mod["main"].checked_type.arg_types[0].shape]
     data = np.random.uniform(size=data_shape).astype("float32")
@@ -147,10 +145,11 @@ def test_mobilenet(enable_usmp, target_kind):
 
 
 def test_module_list():
-    x = tvm.relay.var("x", tvm.relay.TensorType([1], dtype="float32"))
-    expr = tvm.relay.add(x, tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32"))))
+    """Checks the correct list of module names is generated"""
+    input_x = tvm.relay.var("x", tvm.relay.TensorType([1], dtype="float32"))
+    expr = tvm.relay.add(input_x, tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32"))))
     mod = tvm.relay.build(
-        tvm.IRModule.from_expr(tvm.relay.Function([x], expr)),
+        tvm.IRModule.from_expr(tvm.relay.Function([input_x], expr)),
         target="c",
         executor=tvm.relay.backend.Executor("aot", {"interface-api": "packed"}),
         mod_name="unusual_module_name_fred",
@@ -177,6 +176,7 @@ def test_create_executor():
 
 
 def test_pass_wrong_device_arg():
+    """Ensure an error is generated if the incorrect number of devices are passed"""
     x = tvm.relay.var("x", tvm.relay.TensorType([1], dtype="float32"))
     expr = tvm.relay.add(x, tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32"))))
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
@@ -191,12 +191,12 @@ def test_pass_wrong_device_arg():
     mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
     loaded_mod = tvm.runtime.load_module(test_so_path)
 
-    with pytest.raises(tvm.TVMError) as cm:
+    with pytest.raises(tvm.TVMError) as error:
         tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0), tvm.cpu(0)))
 
         assert (
             "Check failed: devices_.size() == 1 (2 vs. 1) : Expect exactly 1 device passed."
-            in str(cm.exception)
+            in str(error.exception)
         )
     # TODO write asserts for # and type of device.
 
