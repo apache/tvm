@@ -314,6 +314,8 @@ class ConstIntBoundAnalyzer::Impl
 
     if (op->op.same_as(tir::builtin::shift_right())) {
       return VisitRightShift(op);
+    } else if (op->op.same_as(tir::builtin::shift_left())) {
+      return VisitLeftShift(op);
     } else if (op->op.same_as(tir::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
     } else {
@@ -339,6 +341,12 @@ class ConstIntBoundAnalyzer::Impl
     } else {
       return MakeBound(0, kPosInf);
     }
+  }
+
+  Entry VisitLeftShift(const CallNode* op) {
+    Entry a = VisitExpr(op->args[0]);
+    Entry b = VisitExpr(op->args[1]);
+    return BinaryOpBoundary(a, b, InfAwareLeftShift);
   }
 
   Entry VisitRightShift(const CallNode* op) {
@@ -509,7 +517,33 @@ class ConstIntBoundAnalyzer::Impl
     return floordiv(x, y);
   }
   /*!
-   * \brief Compute x / y, aware of inf.
+   * \brief Compute x << y, aware of inf.
+   * \param x The left operand.
+   * \param y The right operand.
+   * \return the result.
+   */
+  static int64_t InfAwareLeftShift(int64_t x, int64_t y) {
+    if (x == kPosInf || x == kNegInf) return x;
+
+    // Can be replaced with std::bit_width in C++20
+    auto bit_width = [](int64_t as_signed) {
+      uint64_t val = std::abs(as_signed);
+      int num_bits = 0;
+      while (val) {
+        ++num_bits;
+        val >>= 1;
+      }
+      return num_bits;
+    };
+    int x_bits = bit_width(x);
+    if (x_bits + y < 64) {
+      return x << y;
+    } else {
+      return kPosInf;
+    }
+  }
+  /*!
+   * \brief Compute x >> y, aware of inf.
    * \param x The left operand.
    * \param y The right operand.
    * \return the result.

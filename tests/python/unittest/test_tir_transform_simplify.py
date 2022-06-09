@@ -417,5 +417,45 @@ class TestCeilLog2Int(BaseBeforeAfter):
         A[0] = 4
 
 
+class TestLeftShiftLowerBound(BaseBeforeAfter):
+    """Integer bounds are propagated through left shift
+
+    min(1 << i) = 1 << min(i)
+                = 1 << 0
+                = 1
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if T.shift_left(1, i, dtype="int32") >= 1:
+                A[i] = 0.0
+
+    @T.prim_func
+    def expected(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            A[i] = 0.0
+
+
+class TestLeftShiftUpperBound(BaseBeforeAfter):
+    """Integer bounds are propagated through left shift
+
+    max(31 << i) = 31 << max(i)
+                 = 31 << 15
+                 = 1015808
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if T.shift_left(31, i, dtype="int32") <= 1015808:
+                A[i] = 0.0
+
+    @T.prim_func
+    def expected(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            A[i] = 0.0
+
+
 if __name__ == "__main__":
     tvm.testing.main()
