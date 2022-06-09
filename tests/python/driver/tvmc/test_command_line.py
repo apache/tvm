@@ -166,17 +166,10 @@ def paddle_model(paddle_resnet50):
         return paddle_resnet50
 
 
-@pytest.fixture
-def tflite_model(tflite_mobilenet_v1_1_quant):
-    if pytest.importorskip("tflite", reason="'tflite' module not installed"):
-        return tflite_mobilenet_v1_1_quant
-
-
 @pytest.mark.parametrize(
     "model",
     [
         lazy_fixture("paddle_model"),
-        lazy_fixture("tflite_model"),
     ],
 )
 # compile_model() can take too long and is tested elsewhere, hence it's mocked below
