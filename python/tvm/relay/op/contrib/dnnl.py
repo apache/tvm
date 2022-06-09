@@ -700,15 +700,10 @@ class DenseReshapeBiasGeluRewrite(DFPatternCallback):
 
 def rewrite_dense_bias_gelu_reshape_last(mod):
     """Rewrite the input graph to reorder reshape operators so that
-    we can perform dense_bias_gelu fusion and then offload them to byoc part.
+    we can perform dense_bias_gelu/dense_bias fusion and then offload
+    them to byoc part.
     """
-    mod["main"] = rewrite(DenseReshapeBiasGeluRewrite(), mod["main"])
-    return mod
-
-
-def rewrite_dense_bias_reshape_last(mod):
-    """Rewrite the input graph to reorder reshape operators so that
-    we can perform dense_bias fusion and then offload them to byoc part.
-    """
-    mod["main"] = rewrite(DenseReshapeBiasGeluRewrite(has_gelu=False), mod["main"])
+    mod["main"] = rewrite(
+        [DenseReshapeBiasGeluRewrite(), DenseReshapeBiasGeluRewrite(has_gelu=False)], mod["main"]
+    )
     return mod
