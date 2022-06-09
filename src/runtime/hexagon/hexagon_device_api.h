@@ -73,7 +73,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
    */
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
 
-  //! Erase from HexagonBufferManagert and free
+  //! Erase from HexagonBufferManager and free
   void FreeWorkspace(Device dev, void* data) final;
 
   /*!
@@ -137,7 +137,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
            (DLDeviceType(dev.device_type) == kDLCPU);
   }
 
-  //! \brief Manages underlaying HexagonBuffer allocations
+  //! \brief Manages underlying HexagonBuffer allocations
   HexagonBufferManager hexbuffs;
 };
 }  // namespace hexagon

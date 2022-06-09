@@ -163,7 +163,9 @@ void HexagonThreadManager::GetStreamHandles(std::vector<TVMStreamHandle>* out) {
 
 bool HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* args) {
   unsigned thread = (uint64_t)stream;
-  DBG("Dispatching to stream " << STR(thread));
+  std::stringstream log;
+  log << "Dispatching to stream " << thread;
+  DBG(log.str());
   Command* cmd = new Command(f, args);  // Command object freed by receiving thread
   qurt_pipe_data_t msg = (qurt_pipe_data_t)(cmd);
   qurt_pipe_t* pipeAddr = &pipes[thread];
@@ -218,15 +220,19 @@ void HexagonThreadManager::CheckSemaphore(unsigned syncID) {
 
 bool HexagonThreadManager::Signal(TVMStreamHandle thread, SyncPoint syncID) {
   CheckSemaphore(syncID);
-  DBG("Dispatching signal to thread " << STR(thread) << " on semaphore ID " << STR(syncID)
-                                      << " located @ " << HEX(semaphores[syncID]));
+  std::stringstream log;
+  log << "Dispatching signal to thread " << thread << " on semaphore ID " << syncID
+      << " located @ 0x" << std::hex << semaphores[syncID];
+  DBG(log.str());
   return Dispatch(thread, thread_signal, reinterpret_cast<void*>(semaphores[syncID]));
 }
 
 bool HexagonThreadManager::Wait(TVMStreamHandle thread, SyncPoint syncID) {
   CheckSemaphore(syncID);
-  DBG("Dispatching wait to thread " << STR(thread) << " on semaphore ID " << STR(syncID)
-                                    << " located @ " << HEX(semaphores[syncID]));
+  std::stringstream log;
+  log << "Dispatching wait to thread " << thread << " on semaphore ID " << syncID << " located @ 0x"
+      << std::hex << semaphores[syncID];
+  DBG(log.str());
   return Dispatch(thread, thread_wait, reinterpret_cast<void*>(semaphores[syncID]));
 }
 
@@ -244,12 +250,16 @@ bool HexagonThreadManager::SyncFromTo(TVMStreamHandle signal_thread, TVMStreamHa
 }
 
 void HexagonThreadManager::thread_signal(void* semaphore) {
-  DBG("Signaling semaphore addr " << HEX(semaphore));
+  std::stringstream log;
+  log << "Signaling semaphore addr 0x" << std::hex << semaphore;
+  DBG(log.str());
   qurt_sem_add(reinterpret_cast<qurt_sem_t*>(semaphore), QURT_MAX_HTHREAD_LIMIT);
 }
 
 void HexagonThreadManager::thread_wait(void* semaphore) {
-  DBG("Waiting on semaphore addr " << HEX(semaphore));
+  std::stringstream log;
+  log << "Waiting on semaphore addr 0x" << std::hex << semaphore;
+  DBG(log.str());
   qurt_sem_down(reinterpret_cast<qurt_sem_t*>(semaphore));
 }
 
@@ -270,10 +280,14 @@ void HexagonThreadManager::thread_main(void* context) {
   unsigned index = tc->index;
   qurt_pipe_t* mypipe = tc->pipe;
 
-  DBG("Thread " << std::to_string(index) << " spawned");
+  std::stringstream log1;
+  log1 << "Thread " << index << " spawned";
+  DBG(log1.str());
 
   while (true) {  // loop, executing commands from pipe
-    DBG("Thread " << std::to_string(index) << " receiving command");
+    std::stringstream log2;
+    log2 << "Thread " << index << " receiving command";
+    DBG(log2.str());
     qurt_pipe_data_t msg = qurt_pipe_receive(mypipe);  // blocks if empty
     Command* cmd = reinterpret_cast<Command*>(msg);
     voidfunc f = cmd->f;

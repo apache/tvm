@@ -38,18 +38,7 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-#define DBG(msg) LOG(WARNING) << msg << "\n"
-#define STR(num) std::to_string(reinterpret_cast<unsigned>(num))
-#define HEX(num) "0x" << std::hex << reinterpret_cast<unsigned>(num) << std::dec
-
-//! \brief Minimum stack size in bytes per thread.
-#define MIN_STACK_SIZE_BYTES 0x400  // 1KB
-//! \brief Maximum stack size in bytes per thread.
-#define MAX_STACK_SIZE_BYTES 0x10000  // 64KB
-//! \brief Minimum pipe (or command buffer) size in words (or commands) per thread.
-#define MIN_PIPE_SIZE_WORDS 10
-//! \brief Maximum pipe (or command buffer) size in words (or commands) per thread.
-#define MAX_PIPE_SIZE_WORDS 0x10000  // 64K words
+#define DBG(msg) LOG(DEBUG) << msg << "\n";
 
 class HexagonThreadManager {
   //! \brief Void function.
@@ -58,12 +47,21 @@ class HexagonThreadManager {
   typedef unsigned SyncPoint;
   //! \brief Alignment of underlying memory allocations.
   const unsigned MEM_ALIGNMENT = 32;
+  //! \brief Minimum stack size in bytes per thread.
+  const unsigned MIN_STACK_SIZE_BYTES = 0x400;  // 1KB
+  //! \brief Maximum stack size in bytes per thread.
+  const unsigned MAX_STACK_SIZE_BYTES = 0x10000;  // 64KB
+  //! \brief Minimum pipe (or command buffer) size in words (or commands) per thread.
+  const unsigned MIN_PIPE_SIZE_WORDS = 10;
+  //! \brief Maximum pipe (or command buffer) size in words (or commands) per thread.
+  const unsigned MAX_PIPE_SIZE_WORDS = 0x10000;  // 64K words
 
  public:
   /*!
    * \brief Spawn a number of Hexagon threads with a given stack (in bytes) and pipe (a.k.a. command
-   * buffer; in words or commands) within the min and max values specified above. \param num_threads
-   * Number of threads to spawn. \param thread_stack_size_bytes Stack size in bytes per thread.
+   * buffer; in words or commands) within the min and max values specified above.
+   * \param num_threads Number of threads to spawn.
+   * \param thread_stack_size_bytes Stack size in bytes per thread.
    * \param thread_pipe_size_words Pipe (or command buffer) size in words (or commands).
    */
   HexagonThreadManager(unsigned, unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words);
@@ -152,7 +150,7 @@ class HexagonThreadManager {
   //! \brief Void function executed by each thread as `main`.
   static void thread_main(void* context);
 
-  //! \brief Manages underlaying HexagonBuffer allocations.
+  //! \brief Manages underlying HexagonBuffer allocations.
   HexagonBufferManager hexbuffs;
 
   //! \brief Number of threads allocatted.
