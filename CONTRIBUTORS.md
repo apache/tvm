@@ -95,6 +95,7 @@ We do encourage everyone to work anything they are interested in.
 - [Liangfu Chen](https://github.com/liangfu): @liangfu
 - [Tianqi Chen](https://github.com/tqchen): @tqchen
 - [Zhi Chen](https://github.com/zhiics): @zhiics
+- [Valery Chernov](https://github.com/vvchernov): @vvchernov
 - [Neo Chien](https://github.com/cchung100m): @cchung100m
 - [Meghan Cowan](https://github.com/cowanmeg): @cowanmeg
 - [Balint Cristian](https://github.com/cbalint13): @cbalint13
