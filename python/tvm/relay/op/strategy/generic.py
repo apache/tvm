@@ -1375,6 +1375,39 @@ def wrap_compute_sparse_reshape(topi_compute):
     return _compute_sparse_reshape
 
 
+# stft
+@override_native_generic_func("stft_strategy")
+def stft_strategy(attrs, outs, out_type, target):
+    """stft generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_stft(topi.stft),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="stft.generic",
+    )
+    return strategy
+
+
+def wrap_compute_stft(topi_compute):
+    """Wrap stft compute"""
+
+    def _compute_stft(attrs, inputs, output_type):
+        return [
+            topi_compute(
+                inputs[0],
+                attrs.n_fft,
+                attrs.hop_length,
+                attrs.win_length,
+                inputs[1],
+                attrs.normalized,
+                attrs.onesided,
+                output_type.shape,
+            )
+        ]
+
+    return _compute_stft
+
+
 # roi_pool
 @generic_func
 def schedule_roi_pool(attrs, outs, target):
@@ -1748,6 +1781,15 @@ def wrap_compute_scanop(topi_compute):
     return _compute_scanop
 
 
+def wrap_compute_concat(topi_compute):
+    """Wrap concatenate topi compute"""
+
+    def _compute_concat(attrs, inputs, _):
+        return [topi_compute(inputs, attrs.axis)]
+
+    return _compute_concat
+
+
 @override_native_generic_func("cumsum_strategy")
 def cumsum_strategy(attrs, inputs, out_type, target):
     """cumsum generic strategy"""
@@ -1756,6 +1798,18 @@ def cumsum_strategy(attrs, inputs, out_type, target):
         wrap_compute_scanop(topi.cumsum),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="cumsum.generic",
+    )
+    return strategy
+
+
+@override_native_generic_func("concat_strategy")
+def concatenate_strategy(attrs, inputs, out_type, target):
+    """concatenate generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_concat(topi.concatenate),
+        wrap_topi_schedule(topi.generic.schedule_injective),
+        name="concatenate",
     )
     return strategy
 

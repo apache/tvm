@@ -27,7 +27,9 @@
 #include <tvm/relay/dataflow_matcher.h>
 #include <tvm/relay/dataflow_pattern.h>
 #include <tvm/relay/dataflow_pattern_functor.h>
+#include <tvm/relay/expr_functor.h>
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -39,10 +41,21 @@ namespace relay {
 
 class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Expr&)> {
  public:
-  explicit DFPatternMatcher(const Expr& root_expr) : expr_graph_(CreateIndexedGraph(root_expr)) {}
+  explicit DFPatternMatcher(const IndexedGraph<Expr>* expr_graph) : expr_graph_(expr_graph) {}
   bool Match(const DFPattern& pattern, const Expr& expr);
   Map<DFPattern, Array<Expr>> GetMemo() { return Map<DFPattern, Array<Expr>>(memo_); }
-  const IndexedGraph<Expr> expr_graph_;
+
+  const IndexedGraph<Expr>::Node* expr_to_node(const Expr& expr) const {
+    return expr_graph_->item_to_node(expr);
+  }
+  const IndexedGraph<Expr>::Node* index_to_node(size_t index) const {
+    return expr_graph_->index_to_node(index);
+  }
+  size_t size() const { return expr_graph_->size(); }
+  const std::unordered_map<DFPattern, Array<Expr>, ObjectPtrHash, ObjectPtrEqual>& memo() const {
+    return memo_;
+  }
+  const IndexedGraph<Expr>& expr_graph() const { return *expr_graph_; }
 
  protected:
   bool VisitDFPattern(const DFPattern& pattern, const Expr& expr) override;
@@ -67,6 +80,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool MatchesPath(const DominatorPatternNode* op, const Expr& expr);
   bool DominatesParent(const DominatorPatternNode* op, const Expr& expr);
 
+  const IndexedGraph<Expr>* expr_graph_;
   std::unordered_map<DFPattern, Array<Expr>, ObjectPtrHash, ObjectPtrEqual> memo_;
   std::vector<DFPattern> matched_nodes_;
   bool memoize_ = true;
@@ -131,7 +145,7 @@ class PatternGrouper {
   std::unordered_map<int, Group> groups_;
   std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> gid_assignments_;
   DFPatternMatcher* matcher_ = nullptr;
-  IndexedGraph<DFPattern> pattern_graph_;
+  std::unique_ptr<IndexedGraph<DFPattern>> pattern_graph_;
   int gid_ = 0;
   int graph_number_ = 0;
 };

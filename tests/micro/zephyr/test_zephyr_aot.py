@@ -33,12 +33,12 @@ import tvm.relay as relay
 from tvm.relay.backend import Executor, Runtime
 
 from tvm.contrib.download import download_testdata
-from tvm.micro.testing import aot_transport_init_wait, aot_transport_find_message
 
 import test_utils
 
 
 @tvm.testing.requires_micro
+@pytest.mark.skip_boards(["mps2_an521"])
 def test_tflite(temp_dir, board, west_cmd, tvm_debug):
     """Testing a TFLite model."""
     model = test_utils.ZEPHYR_BOARDS[board]
@@ -94,6 +94,7 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
 
 
 @tvm.testing.requires_micro
+@pytest.mark.skip_boards(["mps2_an521"])
 def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
     """Testing QEMU make fail."""
     if board not in ["qemu_x86", "mps2_an521", "mps3_an547"]:
@@ -136,4 +137,4 @@ def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

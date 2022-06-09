@@ -58,11 +58,6 @@ namespace tvm {
 namespace relay {
 namespace tec {
 
-// TODO(@jroesch, @chrisS) these should be a tvm::Map for uniformity sake
-// we should a version of context which works in Map
-using TargetMap = std::unordered_map<DLDeviceType, Target, backend::EnumClassHash>;
-using DeviceMap =
-    std::unordered_map<Expr, tvm::Device, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
 using ProcessFn = std::function<void(BaseFunc)>;
 
 /*!
@@ -161,24 +156,13 @@ void UpdateFunctionMetadata(BaseFunc relay_func,
                             Integer workspace_byte_alignment = 16);
 
 /*!
- * \brief Obtain the Target from the device type.
- * If homogenous compilation, this will return the only target.
- * If heterogeneous compilation, this will select the associated target using the
- * targets_ Map.
- *
- * \param dev_type
- * \return Target
- */
-Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets);
-
-/*!
  * \brief Update the "main" control function's metadata
  *
  * \param mod The module
- * \param targets Map of targets
+ * \param config All the available targets.
  * \return function_infos Function info for each function in the module
  */
-backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMap targets,
+backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, const CompilationConfig& config,
                                               Map<Expr, backend::StorageInfo> storage_info_map);
 
 /*! \brief Returns all the global \p PrimFunc functions in \p mod, but separated into an \p IRModule
@@ -205,7 +189,8 @@ IRModule LowerTE(
     const IRModule& module, backend::StaticMemoryPlan memory_plan, const String& module_name,
     ProcessFn process_fn = [](BaseFunc f) {});
 
-/*! \brief Pass to lower an IRModule's primitive functions to TIR.
+/*!
+ * \brief Pass to lower an IRModule's primitive functions to TIR.
  *
  * This is the "back half" of the Relay compiler which lowers "primitive functions"
  * to TE expressions, schedules them, and then to TIR. It annotates all functions
@@ -214,11 +199,11 @@ IRModule LowerTE(
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process
  * each function that we lower
- * \param host_virtual_device \p VirtualDevice for host data and computations
- * \returns The pass which lowers primative functions to TIR
+ * \param config All available targets.
+ * \returns The pass which lowers primitive functions to TIR
  */
-transform::Pass LowerTEPass(const String& module_name, ProcessFn process_fn,
-                            VirtualDevice host_virtual_device);
+transform::Pass LowerTEPass(String module_name, ProcessFn process_fn, CompilationConfig config);
+
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm

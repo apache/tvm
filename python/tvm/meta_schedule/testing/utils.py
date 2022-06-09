@@ -155,7 +155,7 @@ def apply_fixed_schedules(
 
         if schedule_fn(task, sch):
             workload = database.commit_workload(mod)
-            tune_rec = TuningRecord(sch.trace, [0.0], workload, target, [])
+            tune_rec = TuningRecord(sch.trace, workload, [0.0], target, [])
             database.commit_tuning_record(tune_rec)
 
     return database

@@ -77,6 +77,44 @@ pub struct Conv2DAttrsNode {
 
 #[repr(C)]
 #[derive(Object, Debug)]
+#[ref_name = "Conv3DAttrs"]
+#[type_key = "relay.attrs.Conv3DAttrs"]
+pub struct Conv3DAttrsNode {
+    pub base: BaseAttrsNode,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    pub groups: i32,
+    pub channels: IndexExpr,
+    pub kernel_size: Array<IndexExpr>,
+    pub data_layout: TString,
+    pub kernel_layout: TString,
+    pub out_layout: TString,
+    pub auto_scheduler_rewritten_layout: TString,
+    pub out_dtype: DataType,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "Conv3DTransposeAttrs"]
+#[type_key = "relay.attrs.Conv3DTransposeAttrs"]
+pub struct Conv3DTransposeAttrsNode {
+    pub base: BaseAttrsNode,
+    pub channels: IndexExpr,
+    pub kernel_size: Array<IndexExpr>,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub output_padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    pub groups: i32,
+    pub data_layout: TString,
+    pub kernel_layout: TString,
+    pub out_layout: TString,
+    pub out_dtype: DataType,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
 #[ref_name = "BiasAddAttrs"]
 #[type_key = "relay.attrs.BiasAddAttrs"]
 pub struct BiasAddAttrsNode {

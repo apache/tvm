@@ -207,7 +207,7 @@ void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
         continue;
       } else if (prev_used_iter == -1) {
         // the stride of last axis is not 1 means the memory access is not contiguous
-        if (strides[i] != 1) {
+        if (strides[i] != 1 && fusible != 0) {
           break;
         }
         fusible++;

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm.relay import Function, transform
 from tvm.relay.testing import inception_v3
 import pytest
@@ -144,4 +145,4 @@ def test_simple_match():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

@@ -187,8 +187,8 @@ log = [("numpy", np_running_time / np_repeat)]
 evaluate_addition(fadd, tgt, "naive", log=log)
 
 ################################################################################
-# Updating the Schedule to Use Paralleism
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Updating the Schedule to Use Parallelism
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 # Now that we've illustrated the fundamentals of TE, let's go deeper into what
 # schedules do, and how they can be used to optimize tensor expressions for
@@ -754,7 +754,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # regular but discontinuous. We expect that after some transformation we can
 # get a continuous access pattern. By reordering a ``[16][16]`` array to a
 # ``[16/4][16][4]`` array the access pattern of B will be sequential when
-# grabing the corresponding value from the packed array.
+# grabbing the corresponding value from the packed array.
 #
 # To accomplish this, we are going to have to start with a new default
 # schedule, taking into account the new packing of B. It's worth taking a
@@ -889,7 +889,7 @@ for result in log:
 # have from this introduction to TE, we can now begin to explore how TVM can
 # automate the schedule optimization process.
 #
-# This tutorial provided a walkthrough of TVM Tensor Expresstion (TE) workflow
+# This tutorial provided a walk-through of TVM Tensor Expression (TE) workflow
 # using a vector add and a matrix multiplication examples. The general workflow
 # is
 #

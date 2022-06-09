@@ -34,6 +34,7 @@
 #include <utility>
 #include <vector>
 
+#include "../support/scalars.h"
 #include "./meta_ref.h"
 #include "./token.h"
 
@@ -174,35 +175,16 @@ struct Tokenizer {
   Token ParseNumber(bool is_pos, bool is_float, std::string number) {
     ICHECK(number.size() > 0) << "an empty string is an invalid number";
 
-    if (!is_float) {
-      auto token = NewToken(TokenType::kInteger);
-      size_t index = 0;
-      int64_t value = 0;
-      try {
-        value = std::stoll(number, &index);
-      } catch (const std::invalid_argument& err) {
-        this->diag_ctx.Emit(Diagnostic::Error(token->span) << "invalid number `" << number << "`");
-      } catch (const std::out_of_range& err) {
-        this->diag_ctx.Emit(Diagnostic::Error(token->span) << "invalid number `" << number << "`");
-      }
-      if (number.size() <= index) {
-        value = is_pos ? value : -value;
-        if (value > std::numeric_limits<int32_t>::max()) {
-          token->data = tvm::IntImm(DataType::Int(64), value);
-        } else {
-          token->data = tvm::IntImm(DataType::Int(32), value);
-        }
-        return token;
-      }
+    Token token = NewToken(is_float ? TokenType::kFloat : TokenType::kInteger);
+    size_t suffix_pos = number.rfind(is_float ? 'f' : 'i');
+    if (suffix_pos == std::string::npos) {
+      suffix_pos = number.size();
     }
-    auto token = NewToken(TokenType::kFloat);
-
-    auto suffix_pos = number.rfind("f");
-
-    auto literal_text = number.substr(0, suffix_pos);
-
-    auto suffix = number.substr(suffix_pos + 1, number.size() - suffix_pos);
-
+    std::string literal_text = number.substr(0, suffix_pos);
+    std::string suffix;
+    if (suffix_pos < number.size()) {
+      suffix = number.substr(suffix_pos + 1, number.size() - suffix_pos);
+    }
     int width = 32;
 
     if (suffix.size()) {
@@ -217,9 +199,62 @@ struct Tokenizer {
       }
     }
 
-    double value = stod(literal_text);
-    value = is_pos ? value : -value;
-    token->data = tvm::FloatImm(DataType::Float(width), value);
+    if (is_float) {
+      double value = 0.0;
+      size_t index = 0;
+      try {
+        value = stod(literal_text, &index);
+      } catch (const std::invalid_argument& err) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span)
+                            << "invalid floating point number `" << literal_text << "`");
+      } catch (const std::out_of_range& err) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span)
+                            << "invalid floating point number `" << literal_text << "`");
+      }
+      if (index < literal_text.size()) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span)
+                            << "invalid floating point number `" << literal_text << "`");
+      }
+      value = is_pos ? value : -value;
+      token->data = support::ValueToFloatImm(value, width);
+      if (!token->data.defined()) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span)
+                            << "floating point number `" << literal_text
+                            << "` unrepresentable in width " << width);
+        token->data = support::ValueToFloatImm(0.0, width);
+      }
+    } else {
+      int64_t value = 0;
+      size_t index = 0;
+      try {
+        value = std::stoll(literal_text, &index);
+      } catch (const std::invalid_argument& err) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span)
+                            << "invalid integer number `" << literal_text << "`");
+      } catch (const std::out_of_range& err) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span)
+                            << "invalid integer number `" << literal_text << "`");
+      }
+      if (index < literal_text.size()) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span)
+                            << "invalid integer number `" << literal_text << "`");
+      }
+      value = is_pos ? value : -value;
+      token->data = support::ValueToIntImm(value, width);
+      if (!token->data.defined() && suffix.empty()) {
+        // Without any i suffix the legacy behavior was to default to int64 if out of range
+        // for int32.
+        width = 64;
+        token->data = support::ValueToIntImm(value, width);
+      }
+      if (!token->data.defined()) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span)
+                            << "integer number `" << literal_text << "` unrepresentable in width "
+                            << width);
+        token->data = support::ValueToIntImm(0, width);
+      }
+    }
+
     return token;
   }
 
@@ -230,14 +265,13 @@ struct Tokenizer {
     }
 
     bool is_float = false;
-
-    // Remove trailing floating point prefix.
-    if (More() && Peek() == 'f') {
+    if (More() && (Peek() == 'f' || Peek() == 'i')) {
+      is_float = Peek() == 'f';
+      // Capture trailing width suffix
       ss << Next();
       while (More() && IsNumeric(Peek())) {
         ss << Next();
       }
-      is_float = true;
     }
     return ParseNumber(is_pos, is_float, ss.str());
   }
@@ -261,8 +295,6 @@ struct Tokenizer {
     int line = this->line;
     int column = this->col;
 
-    ICHECK_EQ(Peek(), '[');
-    Next();
     std::stringstream type_key;
     while (More() && Peek() != ']') {
       type_key << Next();
@@ -464,7 +496,7 @@ struct Tokenizer {
       auto token = NewToken(TokenType::kQuestion);
       Next();
       return token;
-    } else if (MatchString("meta")) {
+    } else if (MatchString("meta[")) {
       return TokenizeMetaRef();
     } else if (next == '#') {
       return TokenizeAttr();

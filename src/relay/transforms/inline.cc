@@ -69,6 +69,7 @@ class Inliner : ExprMutator {
         for (auto arg : vanilla_call->args) {
           new_args.push_back(VisitExpr(arg));
         }
+        // TODO(mbs): Does not handle multiple calls to the same global function.
         cur_node_->RemoveCallTo(gv);
         return MakeNewExpr(gv, new_args, GetRef<Call>(call_node));
       }
@@ -109,7 +110,7 @@ class Inliner : ExprMutator {
     if (!function_node->body.defined()) return false;
 
     // The function must be annotated with the inline attribute.
-    // (Note that external functions do not have this attribute!)
+    // (Note that partitioned functions and external functions do not have this attribute!)
     if (!function_node->HasNonzeroAttr(attr::kInline)) return false;
 
     // The function is not able to be inlined if any callee under the CallGraph
@@ -135,8 +136,7 @@ class Inliner : ExprMutator {
     auto func = Function(fn->params, fn->body, fn->ret_type, fn->type_params, fn->attrs);
     // Inline the function body to the caller if this function uses default
     // compiler, i.e. no external codegen is needed.
-    if (!func->GetAttr<String>(attr::kCompiler).defined() &&
-        !func->GetAttr<String>(attr::kExternalSymbol).defined()) {
+    if (!func->GetAttr<String>(attr::kCompiler).defined() && !func->HasNonzeroAttr(attr::kExtern)) {
       ICHECK_EQ(func->params.size(), args.size())
           << "Mismatch found in the number of parameters and call args";
       // Bind the parameters with call args.

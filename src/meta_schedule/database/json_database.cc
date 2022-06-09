@@ -40,8 +40,8 @@ struct SortTuningRecordByMeanRunSecs {
   }
 
   bool operator()(const TuningRecord& a, const TuningRecord& b) const {
-    double a_time = Mean(a->run_secs);
-    double b_time = Mean(b->run_secs);
+    double a_time = Mean(a->run_secs.value_or({}));
+    double b_time = Mean(b->run_secs.value_or({}));
     return a_time < b_time;
   }
 };

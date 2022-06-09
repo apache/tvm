@@ -18,6 +18,7 @@
 import pytest
 
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.target.target import Target
 from tvm.relay.backend import Runtime, Executor, graph_executor_codegen
@@ -64,12 +65,11 @@ def test_build_relay_graph_():
     """Test to build a simple relay graph by using APIs directly"""
 
     def build_graph(mod, target):
-        target = relay.build_module.build_target_by_device_type_map(target)
-        target, target_host = tvm.target.Target.check_and_update_host_consist(target)
-        mod, _ = relay.optimize(mod, target, None)
+        target, target_host = tvm.target.Target.canon_target_and_host(target)
+        mod, _ = relay.optimize(mod, target)
         grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
         _, lowered_funcs, _ = grc.codegen(mod, mod["main"])
-        _ = relay.backend._backend.build(lowered_funcs, target, target_host)
+        _ = relay.backend._backend.build(lowered_funcs, target)
 
     def add(shape, dtype):
         lhs = relay.var("A", shape=shape, dtype=dtype)
@@ -83,4 +83,4 @@ def test_build_relay_graph_():
 
 
 if __name__ == "__main__":
-    pytest.main()
+    tvm.testing.main()

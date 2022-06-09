@@ -16,9 +16,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+set -euxo pipefail
+
 source tests/scripts/setup-pytest-env.sh
 
 echo "Checking MyPy Type defs in the TensorIR schedule package."
@@ -40,6 +39,7 @@ echo "Checking MyPy Type defs in tvm.relay.op.contrib"
 mypy --disallow-untyped-defs python/tvm/relay/op/contrib/cublas.py
 mypy --disallow-untyped-defs python/tvm/relay/op/contrib/cudnn.py
 mypy --disallow-untyped-defs python/tvm/relay/op/contrib/te_target.py
+mypy --disallow-untyped-defs python/tvm/relay/op/contrib/tensorrt.py
 
 #TODO(@mikepapadim): This is failing atm
 # echo "Checking MyPy Type defs in the tvm.relay.backend.contrib.ethosu package."

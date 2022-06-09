@@ -16,12 +16,10 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import re
-from random import random
 from typing import List
 
 import pytest
 import tvm
-from tvm.ir import IRModule, assert_structural_equal
 from tvm.meta_schedule.builder import BuilderResult
 from tvm.meta_schedule.measure_callback import PyMeasureCallback
 from tvm.meta_schedule.runner import RunnerResult
@@ -66,7 +64,7 @@ def test_meta_schedule_measure_callback():
             results: List[RunnerResult],
         ) -> None:
             assert len(measure_candidates) == 1
-            assert_structural_equal(measure_candidates[0].sch.mod, Matmul)
+            tvm.ir.assert_structural_equal(measure_candidates[0].sch.mod, Matmul)
             assert (
                 len(builds) == 1
                 and builds[0].error_msg is None
@@ -78,7 +76,14 @@ def test_meta_schedule_measure_callback():
 
     measure_callback = FancyMeasureCallback()
     measure_callback.apply(
-        RoundRobin([], [], DummyBuilder(), DummyRunner(), DummyDatabase(), max_trials=1),
+        RoundRobin(
+            tasks=[],
+            task_weights=[],
+            builder=DummyBuilder(),
+            runner=DummyRunner(),
+            database=DummyDatabase(),
+            max_trials=1,
+        ),
         0,
         [MeasureCandidate(Schedule(Matmul), None)],
         [BuilderResult("test_build", None)],
@@ -102,7 +107,14 @@ def test_meta_schedule_measure_callback_fail():
     measure_callback = FailingMeasureCallback()
     with pytest.raises(ValueError, match="test"):
         measure_callback.apply(
-            RoundRobin([], [], DummyBuilder(), DummyRunner(), DummyDatabase(), max_trials=1),
+            RoundRobin(
+                tasks=[],
+                task_weights=[],
+                builder=DummyBuilder(),
+                runner=DummyRunner(),
+                database=DummyDatabase(),
+                max_trials=1,
+            ),
             0,
             [MeasureCandidate(Schedule(Matmul), None)],
             [BuilderResult("test_build", None)],

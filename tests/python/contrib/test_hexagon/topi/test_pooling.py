@@ -20,12 +20,12 @@ import pytest
 import sys
 
 import tvm
+import tvm.testing
 from tvm import topi
 from tvm import te
+from tvm.contrib.hexagon.session import Session
 import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
-
-from ..conftest import requires_hexagon_toolchain
 
 
 class TestAdaptivePool:
@@ -56,8 +56,8 @@ class TestAdaptivePool:
         ((1, 16, 32, 32, 32), (2, 4, 4), "max", "NDHWC"),
     )
 
-    @requires_hexagon_toolchain
-    def test_adaptive_pool(self, hexagon_session, dshape, out_size, pool_type, layout):
+    @tvm.testing.requires_hexagon
+    def test_adaptive_pool(self, hexagon_session: Session, dshape, out_size, pool_type, layout):
         dtype = "float32"
         np_data = np.random.uniform(low=0, high=255, size=dshape).astype(dtype)
         np_out = tvm.topi.testing.adaptive_pool(np_data, out_size, pool_type, layout)
@@ -232,10 +232,10 @@ class TestPool1D:
         ([1, 31, 16], [3], [3], [3], [3, 0], "max", True, True, "NWC"),
     )
 
-    @requires_hexagon_toolchain
+    @tvm.testing.requires_hexagon
     def test_pool1d(
         self,
-        hexagon_session,
+        hexagon_session: Session,
         input_shape,
         kernel,
         stride,
@@ -309,10 +309,10 @@ class TestPool2D:
         ([1, 31, 31, 16], [3, 3], [3, 3], [2, 2], [3, 2, 1, 0], "max", True, True, "NHWC"),
     )
 
-    @requires_hexagon_toolchain
+    @tvm.testing.requires_hexagon
     def test_pool2d(
         self,
-        hexagon_session,
+        hexagon_session: Session,
         input_shape,
         kernel,
         stride,
@@ -707,10 +707,10 @@ class TestPool3D:
         ),
     )
 
-    @requires_hexagon_toolchain
+    @tvm.testing.requires_hexagon
     def test_pool3d(
         self,
-        hexagon_session,
+        hexagon_session: Session,
         input_shape,
         kernel,
         stride,
@@ -737,4 +737,4 @@ class TestPool3D:
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

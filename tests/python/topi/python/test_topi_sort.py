@@ -159,4 +159,4 @@ def test_topk(target, dev, topk, axis, topk_ret_type, is_ascend, dtype):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

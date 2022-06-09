@@ -27,9 +27,11 @@ from test_dynamic_op_level3 import verify_func
 import tvm.topi.testing
 from tvm.relay.testing import run_infer_type
 
+executor_kind = tvm.testing.parameter("debug", "vm")
+
 
 @tvm.testing.uses_gpu
-def test_dyn_upsampling_run():
+def test_dyn_upsampling_run(executor_kind):
     def verify_upsampling(dshape, scale_h, scale_w, layout, method, align_corners=False):
 
         if layout == "NCHW":
@@ -58,12 +60,13 @@ def test_dyn_upsampling_run():
         func = relay.Function([x, scale_h_var, scale_w_var], z)
 
         for target, dev in tvm.testing.enabled_targets():
-            for kind in ["vm", "debug"]:
-                mod = tvm.ir.IRModule.from_expr(func)
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_data, np.array(scale_h).astype("float32"), np.array(scale_w).astype("float32")
-                )
-                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
+            mod = tvm.ir.IRModule.from_expr(func)
+            op_res = relay.create_executor(
+                executor_kind, mod=mod, device=dev, target=target
+            ).evaluate()(
+                x_data, np.array(scale_h).astype("float32"), np.array(scale_w).astype("float32")
+            )
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
 
     verify_upsampling((1, 16, 32, 32), 3, 2.0, "NCHW", "nearest_neighbor")
     verify_upsampling((1, 16, 32, 32), 5, 2.0, "NCHW", "bilinear", True)
@@ -85,7 +88,7 @@ def test_dyn_upsampling_infer_type_const():
 
 
 @tvm.testing.uses_gpu
-def test_dyn_upsampling3d_run():
+def test_dyn_upsampling3d_run(executor_kind):
     def verify_upsampling3d(
         dshape, scale_d, scale_h, scale_w, layout, method, coord_trans="asymmetric"
     ):
@@ -124,15 +127,16 @@ def test_dyn_upsampling3d_run():
         func = relay.Function([x, scale_d_var, scale_h_var, scale_w_var], z)
 
         for target, dev in enabled_targets():
-            for kind in ["vm", "debug"]:
-                mod = tvm.ir.IRModule.from_expr(func)
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_data,
-                    np.array(scale_d).astype("float32"),
-                    np.array(scale_h).astype("float32"),
-                    np.array(scale_w).astype("float32"),
-                )
-                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
+            mod = tvm.ir.IRModule.from_expr(func)
+            op_res = relay.create_executor(
+                executor_kind, mod=mod, device=dev, target=target
+            ).evaluate()(
+                x_data,
+                np.array(scale_d).astype("float32"),
+                np.array(scale_h).astype("float32"),
+                np.array(scale_w).astype("float32"),
+            )
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
 
     verify_upsampling3d((1, 1, 1, 1, 1), 2, 3, 4, "NCDHW", "nearest_neighbor")
     verify_upsampling3d((1, 8, 16, 16, 16), 2.0, 3.0, 4.0, "NCDHW", "nearest_neighbor")
@@ -163,7 +167,7 @@ def test_dyn_upsampling3d_infer_type_const():
 
 
 @tvm.testing.uses_gpu
-def test_dyn_pad():
+def test_dyn_pad(executor_kind):
     def verify_pad(dshape, pad_width, pad_val, dtype):
         x = relay.var("x", relay.TensorType(dshape, dtype))
         ndim = len(dshape)
@@ -178,7 +182,9 @@ def test_dyn_pad():
         ref_res = np.pad(data, pad_width, "constant", constant_values=(((pad_val,) * 2),) * ndim)
         pad_width = np.array(pad_width).astype("int64")
 
-        verify_func(func, [data, pad_width, np.array(pad_val).astype(dtype)], ref_res)
+        verify_func(
+            executor_kind, func, [data, pad_width, np.array(pad_val).astype(dtype)], ref_res
+        )
 
     def verify_pad_default_fill(dshape, pad_width, dtype):
         x = relay.var("x", relay.TensorType(dshape, dtype))
@@ -193,7 +199,7 @@ def test_dyn_pad():
         ref_res = np.pad(data, pad_width)
         pad_width = np.array(pad_width).astype("int64")
 
-        verify_func(func, [data, pad_width], ref_res)
+        verify_func(executor_kind, func, [data, pad_width], ref_res)
 
     verify_pad((4, 10, 7, 7), ((1, 1), (2, 2), (3, 3), (4, 4)), 2.0, "int32")
     verify_pad((2, 7), ((1, 4), (2, 2)), 4.0, "float64")
@@ -202,6 +208,4 @@ def test_dyn_pad():
 
 
 if __name__ == "__main__":
-    test_dyn_pad()
-    test_dyn_upsampling_infer_type_const()
-    test_dyn_upsampling_run()
+    tvm.testing.main()

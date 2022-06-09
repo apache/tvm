@@ -82,7 +82,7 @@ TEST(StrCmpScan, Test) {
 }
 
 TEST(FuncRegistry, Empty) {
-  TVMFuncRegistry registry{"\000", NULL};
+  TVMFuncRegistry registry{"\000\000", NULL};
 
   EXPECT_EQ(kTvmErrorFunctionNameNotFound, TVMFuncRegistry_Lookup(&registry, "foo", NULL));
   EXPECT_EQ(kTvmErrorFunctionIndexInvalid,
@@ -101,7 +101,7 @@ static int Bar(TVMValue* args, int* type_codes, int num_args, TVMValue* out_ret_
 }
 
 // Matches the style of registry defined in generated C modules.
-const char* kBasicFuncNames = "\002Foo\0Bar\0";  // NOTE: final \0
+const char* kBasicFuncNames = "\002\000Foo\0Bar\0";  // NOTE: final \0
 const TVMBackendPackedCFunc funcs[2] = {&Foo, &Bar};
 const TVMFuncRegistry kConstRegistry = {kBasicFuncNames, (const TVMBackendPackedCFunc*)funcs};
 
@@ -111,7 +111,8 @@ TEST(FuncRegistry, ConstGlobalRegistry) {
 
   // Foo
   EXPECT_EQ(kBasicFuncNames[0], 2);
-  EXPECT_EQ(kBasicFuncNames[1], 'F');
+  EXPECT_EQ(kBasicFuncNames[1], 0);
+  EXPECT_EQ(kBasicFuncNames[2], 'F');
   EXPECT_EQ(kTvmErrorNoError, TVMFuncRegistry_Lookup(&kConstRegistry, "Foo", &func_index));
   EXPECT_EQ(0, func_index);
 

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Tuning record database"""
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Optional
 
 from tvm._ffi import register_object
 from tvm.ir.module import IRModule
@@ -47,12 +47,13 @@ class Workload(Object):
         )
 
     def as_json(self) -> Any:
-        """Export the workload to a JSON string.
+        """Export the workload to JSON as a python object.
 
         Returns
         -------
-        json_str : str
-            The JSON string exported.
+        json : Any
+            The JSON serialized as a python object (e.g. a Dict or List).
+            Use json.dumps() to get the associated json string.
         """
         return _json_de_tvm(_ffi_api.WorkloadAsJSON(self))  # type: ignore # pylint: disable=no-member
 
@@ -81,35 +82,35 @@ class TuningRecord(Object):
     ----------
     trace : tvm.ir.Trace
         The trace of the tuning record.
-    run_secs : List[float]
-        The run time of the tuning record.
     workload : Workload
         The workload of the tuning record.
-    target : Target
+    run_secs : Optional[List[float]]
+        The run time of the tuning record.
+    target : Optional[Target]
         The target of the tuning record.
-    args_info : List[ArgInfo]
+    args_info : Optional[List[ArgInfo]]
         The argument information of the tuning record.
     """
 
     trace: Trace
-    run_secs: List[float]
     workload: Workload
-    target: Target
-    args_info: List[ArgInfo]
+    run_secs: Optional[List[float]]
+    target: Optional[Target]
+    args_info: Optional[List[ArgInfo]]
 
-    def __init__(
+    def __init__(  # type: ignore # pylint: disable=too-many-arguments
         self,
         trace: Trace,
-        run_secs: List[float],
         workload: Workload,
-        target: Target,
-        args_info: List[ArgInfo],
+        run_secs: Optional[List[float]] = None,
+        target: Optional[Target] = None,
+        args_info: Optional[List[ArgInfo]] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.TuningRecord,  # type: ignore # pylint: disable=no-member
             trace,
-            run_secs,
             workload,
+            run_secs,
             target,
             args_info,
         )

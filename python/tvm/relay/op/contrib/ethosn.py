@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-argument
 """Arm(R) Ethos(TM)-N NPU supported operators."""
 from enum import Enum
+import warnings
 
 import tvm.ir
 from tvm.relay import transform
@@ -46,7 +47,7 @@ def ethosn_available():
     return Available.SW_AND_HW if hw else Available.SW_ONLY
 
 
-def partition_for_ethosn77(mod, params=None, **opts):
+def partition_for_ethosn(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
     operators to Arm Ethos-N NPU.
 
@@ -61,48 +62,19 @@ def partition_for_ethosn77(mod, params=None, **opts):
     -------
     ret : annotated and partitioned module.
     """
-    if opts:
-        tops = opts.get("tops", None)
-        ple_ratio = opts.get("ple_ratio", None)
-        sram_size = opts.get("sram_size", None)
-        if tops or ple_ratio or sram_size:
-            raise ValueError(
-                "Setting tops, ple_ratio or sram_size has no effect when targeting Ethos(TM)-N77"
-            )
+    opts = opts or {}
+    if "variant" not in opts:
+        raise ValueError("Please specify a variant in the target string, e.g. -variant=n78.")
 
-    if params:
-        mod["main"] = bind_params_by_name(mod["main"], params)
-
-    seq = tvm.transform.Sequential(
-        [
-            transform.InferType(),
-            transform.MergeComposite(pattern_table()),
-            transform.AnnotateTarget("ethos-n"),
-            transform.MergeCompilerRegions(),
-            transform.PartitionGraph(),
-        ]
-    )
-
-    return seq(mod)
-
-
-def partition_for_ethosn78(mod, params=None, **opts):
-    """Partition the graph greedily offloading supported
-    operators to Arm Ethos-N NPU.
-
-    Parameters
-    ----------
-    mod : Module
-        The module to run passes on.
-    params : Optional[Dict[str, NDArray]]
-        Constant input parameters.
-
-    Returns
-    -------
-    ret : annotated and partitioned module.
-    """
-    if not opts or opts.get("variant", "").lower() != "ethos-n78":
-        raise ValueError("When targeting Ethos(TM)-N78, -variant=Ethos-N78 should be set.")
+    # -variant=ethos-n78 deprecated in favour of -variant=n78
+    if opts["variant"].lower() == "ethos-n78":
+        warnings.warn(
+            "Please use '-variant=n78' instead of the deprecated "
+            "'-variant=ethos-n78', which will be removed in TVM v0.9.",
+            DeprecationWarning,
+        )
+    elif opts["variant"] != "n78":
+        raise ValueError("When targeting Ethos(TM)-N78, -variant=n78 should be set.")
 
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
@@ -171,6 +143,12 @@ def pattern_table():
         pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
         return pattern
 
+    def qnn_leaky_relu_pattern():
+        pattern = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+        pattern = is_op("nn.leaky_relu")(pattern)
+        pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
+        return pattern
+
     def check_conv2d(extract):
         """Check if a conv2d is supported by Ethos-N."""
         if not ethosn_available():
@@ -213,6 +191,13 @@ def pattern_table():
 
         return support.tanh(extract)
 
+    def check_leaky_relu(extract):
+        """Check if Leaky ReLU is supported."""
+        if not ethosn_available():
+            return False
+
+        return support.leaky_relu(extract)
+
     return [
         ("ethos-n.qnn_conv2d", qnn_conv_pattern(), check_conv2d),
         ("ethos-n.qnn_avg_pool2d", qnn_avg_pool2d_pattern(), check_avg_pool2d),
@@ -220,6 +205,7 @@ def pattern_table():
         ("ethos-n.qnn_fc", qnn_fc_pattern(), check_fc),
         ("ethos-n.qnn_mean", qnn_mean_pattern(), check_mean),
         ("ethos-n.qnn_tanh", qnn_tanh_pattern(), check_tanh),
+        ("ethos-n.qnn_leaky_relu", qnn_leaky_relu_pattern(), check_leaky_relu),
     ]
 
 

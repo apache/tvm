@@ -165,7 +165,9 @@ void GraphExecutor::CheckExternalDLTensor(const DLTensor* external, uint32_t eid
   const DLTensor* internal = data_entry_[eid].operator->();
 
   ICHECK_EQ(data_alignment_[eid], details::GetDataAlignment(*external));
-  ICHECK_EQ(reinterpret_cast<size_t>(external->data) % kAllocAlignment, 0);
+  ICHECK_EQ(reinterpret_cast<size_t>(static_cast<char*>(external->data) + external->byte_offset) %
+                kAllocAlignment,
+            0);
   ICHECK_EQ(internal->ndim, static_cast<size_t>(external->ndim));
   ICHECK_EQ(internal->device.device_type, external->device.device_type);
   ICHECK_EQ(internal->device.device_id, external->device.device_id);
@@ -185,7 +187,7 @@ void GraphExecutor::SetInputZeroCopy(int index, DLTensor* data_ref) {
   CheckExternalDLTensor(data_ref, eid);
   // Update the data pointer for each argument of each op
   for (DLTensor* t : input_dltensors_[eid]) {
-    t->data = data_ref->data;
+    t->data = static_cast<char*>(data_ref->data) + data_ref->byte_offset;
   }
 }
 /*!
@@ -204,12 +206,12 @@ void GraphExecutor::SetOutputZeroCopy(int index, DLTensor* data_ref) {
 
   // Update the data pointer for output op
   for (DLTensor* t : output_dltensors_[output_node_eid]) {
-    t->data = data_ref->data;
+    t->data = static_cast<char*>(data_ref->data) + data_ref->byte_offset;
   }
 
   // Update the input of the op connected to the output
   for (DLTensor* t : both_output_opinput_dltensors_[output_node_eid]) {
-    t->data = data_ref->data;
+    t->data = static_cast<char*>(data_ref->data) + data_ref->byte_offset;
   }
 }
 /*!

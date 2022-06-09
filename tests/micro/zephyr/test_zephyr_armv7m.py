@@ -103,6 +103,7 @@ def _apply_desired_layout_no_simd(relay_mod):
 
 
 @tvm.testing.requires_micro
+@pytest.mark.skip_boards(["mps2_an521"])
 def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
     """Testing a ARM v7m SIMD extension."""
 
@@ -187,4 +188,4 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

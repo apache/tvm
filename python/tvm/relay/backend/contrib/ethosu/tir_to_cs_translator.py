@@ -441,6 +441,7 @@ def assign_addresses(buffer_info, npu_ops, scratch_region_map):
             )
         assert buffer in buffer_addresses.keys(), f"searching for buffer : {buffer}, but not found"
         address, buffer_type = buffer_addresses[buffer]
+        address = address + int(npu_addr_range.address.indices[0].value)
         return vapi.NpuAddressRange(_get_region(buffer_type), address, npu_addr_range.length)
 
     def replace_tir_loads(npu_object):
@@ -606,13 +607,30 @@ def _create_npu_op_conv2d(
     """This is a helper function to capture a list
     of arguments to create Vela NpuConv2DOperation object.
     """
+    has_two_weights = serial_2d_convolution.weight2.address != -1
+    has_two_biases = serial_2d_convolution.scale_bias2.address != -1
+
     npu_conv2d_op = vapi.NpuConv2DOperation()
     npu_conv2d_op.ifm = _create_npu_feature_map(serial_2d_convolution.ifm)
     npu_conv2d_op.ofm = _create_npu_feature_map(serial_2d_convolution.ofm)
     npu_conv2d_op.kernel = _create_npu_kernel(serial_2d_convolution.kernel)
-    npu_conv2d_op.weights = [_create_npu_address_range(serial_2d_convolution.weight)]
+    npu_conv2d_op.weights = (
+        [
+            _create_npu_address_range(serial_2d_convolution.weight),
+            _create_npu_address_range(serial_2d_convolution.weight2),
+        ]
+        if has_two_weights
+        else [_create_npu_address_range(serial_2d_convolution.weight)]
+    )
     weights_zero_point = np.int64(serial_2d_convolution.weight_zero_point.value)
-    npu_conv2d_op.biases = [_create_npu_address_range(serial_2d_convolution.scale_bias)]
+    npu_conv2d_op.biases = (
+        [
+            _create_npu_address_range(serial_2d_convolution.scale_bias),
+            _create_npu_address_range(serial_2d_convolution.scale_bias2),
+        ]
+        if has_two_biases
+        else [_create_npu_address_range(serial_2d_convolution.scale_bias)]
+    )
     npu_conv2d_op.padding = _create_npu_padding(serial_2d_convolution.padding)
 
     npu_conv2d_op.activation = _create_npu_activation(serial_2d_convolution.activation)

@@ -54,7 +54,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
   PrimExpr VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
     if (Optional<PrimExpr> ret = vmap_(var)) {
-      return ret.value();
+      return tvm::cast(var.dtype(), ret.value());
     } else {
       return std::move(var);
     }
@@ -115,7 +115,8 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
     Array<PrimExpr> v = arith::IterMapSimplify(/*indices=*/op->iter_values,
                                                /*input_iters=*/loop_var2extent_,
                                                /*input_pred=*/op->predicate,
-                                               /*require_bijective=*/false);
+                                               /*check_level=*/arith::IterMapLevel::Surjective,
+                                               /*simplify_trivial_iterators=*/false);
     if (v.same_as(op->iter_values)) {
       return GetRef<Stmt>(op);
     } else {
@@ -248,25 +249,6 @@ class NotOnlyChildError : public ScheduleError {
   IRModule mod_;
   For outer_;
   For inner_;
-};
-
-class LoopNotStartWithZeroError : public ScheduleError {
- public:
-  explicit LoopNotStartWithZeroError(IRModule mod, For loop) : mod_(mod), loop_(std::move(loop)) {}
-
-  String FastErrorString() const final {
-    return "ScheduleError: The primitive only supports loop starting with 0";
-  }
-
-  String DetailRenderTemplate() const final {
-    return "The loop {0} does not start with 0, which is not supported";
-  }
-
-  IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
-
-  IRModule mod_;
-  For loop_;
 };
 
 class NotSingleInferFactorError : public ScheduleError {
@@ -407,19 +389,26 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   }
   // Currently, loops not starting with 0 are not supported
   arith::Analyzer analyzer;
-  if (!analyzer.CanProve(loop->min == 0)) {
-    throw LoopNotStartWithZeroError(self->mod, GetRef<For>(loop));
+  CheckLoopStartsWithZero(self, loop_sref, &analyzer);
+
+  // Find the most common dtype
+  DataType dtype;
+  {
+    int bits = loop->loop_var.dtype().bits();
+    for (const PrimExpr& factor : factors) {
+      bits = std::max(bits, factor.dtype().bits());
+    }
+    dtype = DataType::Int(bits);
   }
-  // Step 2. Replace all occurrences of the original loop var with new variables
   int n = factors.size();
-  PrimExpr substitute_value = 0;
+  PrimExpr substitute_value = make_const(dtype, 0);
   std::vector<Var> new_loop_vars;
   new_loop_vars.reserve(n);
   for (int i = 0; i < n; i++) {
     const PrimExpr& factor = factors[i];
-    Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i));
-    if (!is_one(factor)) substitute_value = substitute_value * factor + var;
-    analyzer.Bind(var, Range::FromMinExtent(0, factor));
+    Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i)).copy_with_dtype(dtype);
+    substitute_value = substitute_value * factor + var;
+    analyzer.Bind(var, Range::FromMinExtent(make_const(dtype, 0), tvm::cast(dtype, factor)));
     new_loop_vars.emplace_back(std::move(var));
   }
   Map<Block, Block> opaque_block_reuse;
@@ -482,9 +471,7 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
     }
     outer_loop_sref = sref;
     outer_loop = loop;
-    if (!analyzer.CanProve(loop->min == 0)) {
-      throw LoopNotStartWithZeroError(self->mod, GetRef<For>(loop));
-    }
+    CheckLoopStartsWithZero(self, sref, &analyzer);
     const VarNode* used_var = nullptr;
     auto f_contain = [&outer_loop_vars, &used_var](const VarNode* var) {
       if (outer_loop_vars.count(var)) {
@@ -503,11 +490,13 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   // Step 2. Create fused loop var and replace the original loop vars
   std::string suffix;
   int n = loops.size();
+  int bits = loops[0]->loop_var.dtype().bits();
   for (int i = 1; i < n; i++) {
     suffix += "_" + loops[i]->loop_var->name_hint;
+    bits = std::max(bits, loops[i]->loop_var.dtype().bits());
   }
   suffix += "_fused";
-  Var fused_var = loops[0]->loop_var.copy_with_suffix(suffix);
+  Var fused_var = loops[0]->loop_var.copy_with_suffix(suffix).copy_with_dtype(DataType::Int(bits));
   Array<PrimExpr> substitute_value;
   substitute_value.resize(loops.size());
   PrimExpr lower = 1;
@@ -721,6 +710,43 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
   self->Replace(GetRef<StmtSRef>(top), new_loop, {});
 }
 
+StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
+  if (sref->stmt->IsInstance<ForNode>()) {
+    For new_loop(Var("u", DataType::Int(32)), 0, 1, ForKind::kSerial, GetRef<Stmt>(sref->stmt));
+    self->Replace(sref, new_loop, {});
+    return self->stmt2ref.at(new_loop.get());
+  }
+  class NewLoopCreator : public StmtMutator {
+   public:
+    explicit NewLoopCreator(const StmtNode* src_block) : src_block_(src_block) {}
+
+    Stmt VisitStmt_(const BlockRealizeNode* realize) final {
+      if (realize->block.get() == src_block_) {
+        new_loop_ =
+            For(Var("u", DataType::Int(32)), 0, 1, ForKind::kSerial, GetRef<BlockRealize>(realize));
+        return new_loop_;
+      }
+      return StmtMutator::VisitStmt_(realize);
+    }
+
+    const StmtNode* src_block_;
+    For new_loop_{nullptr};
+  };
+
+  CHECK(sref->parent != nullptr) << "ValueError: Cannot add loops on top of the root block";
+  StmtSRef parent_sref = GetRef<StmtSRef>(sref->parent);
+  NewLoopCreator creator(sref->stmt);
+  Stmt new_stmt = creator(GetRef<Stmt>(parent_sref->stmt));
+  if (new_stmt->IsInstance<ForNode>()) {
+    self->Replace(parent_sref, std::move(new_stmt), {});
+  } else {
+    Block old_parent_block = GetRef<Block>(parent_sref->StmtAs<BlockNode>());
+    Block new_parent_block = Downcast<Block>(new_stmt);
+    self->Replace(parent_sref, new_stmt, {{old_parent_block, new_parent_block}});
+  }
+  return self->stmt2ref.at(creator.new_loop_.get());
+}
+
 /******** InstructionKind Registration ********/
 
 struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
@@ -823,9 +849,41 @@ struct ReorderTraits : public UnpackedInstTraits<ReorderTraits> {
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
+struct AddUnitLoopTraits : public UnpackedInstTraits<AddUnitLoopTraits> {
+  static constexpr const char* kName = "AddUnitLoop";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  static LoopRV UnpackedApplyToSchedule(Schedule sch, ObjectRef rv) {
+    if (const auto* block = rv.as<BlockRVNode>()) {
+      return sch->AddUnitLoop(GetRef<BlockRV>(block));
+    } else if (const auto* loop = rv.as<LoopRVNode>()) {
+      return sch->AddUnitLoop(GetRef<LoopRV>(loop));
+    } else {
+      LOG(FATAL) << "TypeError: AddUnitLoop expects a loop or block";
+      throw;
+    }
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String rv) {
+    PythonAPICall py("add_unit_loop");
+    py.Input("block_or_loop", rv);
+    py.SingleOutput(outputs);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
 TVM_REGISTER_INST_KIND_TRAITS(SplitTraits);
 TVM_REGISTER_INST_KIND_TRAITS(FuseTraits);
 TVM_REGISTER_INST_KIND_TRAITS(ReorderTraits);
+TVM_REGISTER_INST_KIND_TRAITS(AddUnitLoopTraits);
 
 }  // namespace tir
 }  // namespace tvm

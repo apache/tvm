@@ -386,7 +386,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     // Overload tvm_address_of to add storage scope (e.g. __global).
     const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
     ICHECK(op->args.size() == 1 && load);
-    ICHECK_EQ(load->indices.size(), 0) << "CodeGenOpenCL only supports flat memory allocations.";
+    ICHECK_EQ(load->indices.size(), 1) << "CodeGenOpenCL only supports flat memory allocations.";
     os << "((";
     auto it = alloc_storage_scope_.find(load->buffer->data.get());
     if (it != alloc_storage_scope_.end()) {
@@ -541,12 +541,26 @@ void CodeGenOpenCL::VisitExpr_(const OrNode* op, std::ostream& os) {
 }
 
 void CodeGenOpenCL::VisitExpr_(const SelectNode* op, std::ostream& os) {
+  std::ostringstream oss;
   os << "select(";
-  PrintExpr(op->false_value, os);
+  PrintExpr(op->false_value, oss);
+  os << CastFromTo(oss.str(), op->false_value.dtype(), op->dtype);
+  oss.str("");
   os << ", ";
-  PrintExpr(op->true_value, os);
+  PrintExpr(op->true_value, oss);
+  os << CastFromTo(oss.str(), op->true_value.dtype(), op->dtype);
+  oss.str("");
   os << ", ";
-  PrintExpr(op->condition, os);
+  PrintExpr(op->condition, oss);
+  if (op->dtype.is_float()) {
+    if (op->condition.dtype().is_uint() || op->condition.dtype().is_int()) {
+      os << oss.str();
+    } else {
+      os << CastTo(oss.str(), DataType::Int(op->dtype.bits(), op->dtype.lanes()));
+    }
+  } else {
+    os << CastFromTo(oss.str(), op->condition.dtype(), op->dtype);
+  }
   os << ")";
 }
 

@@ -14,9 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 import tvm.testing
 from tvm import te
+from tvm.tir.buffer import decl_buffer
 
 
 def test_deduce():
@@ -210,8 +212,26 @@ def test_deduce_complex():
     test_complex(2, 6, -4)
 
 
+def test_deduce_non_support():
+    a = te.var("a")
+
+    def test_non_support(lhs):
+        res = tvm.arith.deduce_bound(a, lhs < 10, {}, {})
+        assert res.is_nothing()
+
+    test_non_support(tvm.tir.floordiv(a, 16))
+    test_non_support(tvm.tir.floormod(a, 16))
+    test_non_support(tvm.tir.Min(a, 16))
+    test_non_support(tvm.tir.Max(a, 16))
+    test_non_support(tvm.tir.LE(a, 16))
+    test_non_support(tvm.tir.LT(a, 16))
+    test_non_support(tvm.tir.GE(a, 16))
+    test_non_support(tvm.tir.GT(a, 16))
+    test_non_support(tvm.tir.EQ(a, 16))
+    test_non_support(tvm.tir.NE(a, 16))
+    test_non_support(tvm.tir.log(a))
+    test_non_support(tvm.tir.BufferLoad(decl_buffer([16], "int32"), [a]))
+
+
 if __name__ == "__main__":
-    test_check()
-    test_deduce()
-    test_deduce_basic()
-    test_deduce_complex()
+    pytest.main([__file__])

@@ -20,12 +20,12 @@ import pytest
 import sys
 
 import tvm
+import tvm.testing
 from tvm import topi
 from tvm import te
+from tvm.contrib.hexagon.session import Session
 import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
-
-from ..conftest import requires_hexagon_toolchain
 
 random_seed = tvm.testing.parameter(0)
 
@@ -67,9 +67,16 @@ def dense_ref_data(random_seed, batch_size, in_dim, out_dim, use_bias, in_dtype,
     return (a_np, b_np, c_np, d_np)
 
 
-@requires_hexagon_toolchain
+@tvm.testing.requires_hexagon
 def test_dense(
-    hexagon_session, batch_size, in_dim, out_dim, use_bias, in_dtype, out_dtype, dense_ref_data
+    hexagon_session: Session,
+    batch_size,
+    in_dim,
+    out_dim,
+    use_bias,
+    in_dtype,
+    out_dtype,
+    dense_ref_data,
 ):
     if in_dtype == "float16":
         pytest.xfail("float16 is not supported.")
@@ -109,4 +116,4 @@ def test_dense(
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

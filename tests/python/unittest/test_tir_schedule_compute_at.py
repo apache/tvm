@@ -15,12 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import sys
-
 import pytest
-
 import tvm
-from tvm import tir
+import tvm.testing
+from tvm import te, tir
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
@@ -580,6 +578,40 @@ def tiled_after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
                 vi = T.axis.S(128, i_0 * 16 + i_1)
                 vj = T.axis.S(128, j_0 * 16 + j_1)
                 C[vi, vj] = B[vi, vj] + 1.0
+
+
+@T.prim_func
+def tiled_trivial_binding(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [1, 128, 128], "float32")
+    B = T.alloc_buffer([1, 128, 128], "float32")
+    C = T.match_buffer(c, [1, 128, 128], "float32")
+    for i_0, j_0, i_1, j_1 in T.grid(8, 8, 16, 16):
+        with T.block("B"):
+            vi = T.axis.S(128, i_0 * 16 + i_1)
+            vj = T.axis.S(128, j_0 * 16 + j_1)
+            B[0, vi, vj] = A[0, vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[0, vi, vj] = B[0, vi, vj] + 1.0
+
+
+@T.prim_func
+def tiled_trivial_binding_after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [1, 128, 128], "float32")
+    B = T.alloc_buffer([1, 128, 128], "float32")
+    C = T.match_buffer(c, [1, 128, 128], "float32")
+    for i_0, j_0, i_1 in T.grid(8, 8, 16):
+        for j_1 in T.serial(0, 16):
+            with T.block("B"):
+                vi = T.axis.S(128, i_0 * 16 + i_1)
+                vj = T.axis.S(128, j_0 * 16 + j_1)
+                B[0, vi, vj] = A[0, vi, vj] * 2.0
+        for j_1 in T.serial(0, 16):
+            with T.block("C"):
+                vi = T.axis.S(128, i_0 * 16 + i_1)
+                vj = T.axis.S(128, j_0 * 16 + j_1)
+                C[0, vi, vj] = B[0, vi, vj] + 1.0
 
 
 @T.prim_func
@@ -1149,6 +1181,15 @@ def test_reverse_compute_at_tiled():
     verify_trace_roundtrip(sch=sch, mod=tiled)
 
 
+def test_reverse_compute_at_tiled_trivial_binding():
+    sch = tir.Schedule(tiled_trivial_binding, debug_mask="all")
+    block = sch.get_block("C")
+    _, _, loop, _ = sch.get_loops(sch.get_block("B"))
+    sch.reverse_compute_at(block, loop, preserve_unit_loops=False)
+    tvm.ir.assert_structural_equal(tiled_trivial_binding_after_reverse_compute_at, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=tiled_trivial_binding)
+
+
 def test_reverse_compute_at_blockized_2():
     sch = tir.Schedule(blockized_2, debug_mask="all")
     block = sch.get_block("C")
@@ -1205,6 +1246,44 @@ def test_compute_at_simplify_static_bound():
     verify_trace_roundtrip(sch=sch, mod=static_bound)
 
 
+def test_compute_at_non_perfect_channel_group():
+    @T.prim_func
+    def grouped_channel_bias(
+        X: T.Buffer[(720, 8, 8), "float32"], Y: T.Buffer[(720, 8, 8), "float32"]
+    ):
+        B = T.alloc_buffer([45], dtype="float32", scope="")
+        for i in T.grid(45):
+            with T.block("init"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = vi
+        for c_o, h, w, c_i in T.grid(2, 8, 8, 360):
+            with T.block("compute"):
+                hh, ww = T.axis.remap("SS", [h, w])
+                cc = T.axis.spatial(720, c_o * 360 + c_i)
+                Y[cc, hh, ww] = X[cc, hh, ww] + B[cc // 16]
+
+    @T.prim_func
+    def grouped_channel_bias_non_perfect_tiled(
+        X: T.Buffer[(720, 8, 8), "float32"], Y: T.Buffer[(720, 8, 8), "float32"]
+    ):
+        B = T.alloc_buffer([45], dtype="float32")
+        for c_o in range(2):
+            for ax0 in range(23):
+                with T.block("init"):
+                    vi = T.axis.spatial(45, c_o * 22 + ax0)
+                    B[vi] = vi
+            for h, w, c_i in T.grid(8, 8, 360):
+                with T.block("compute"):
+                    hh, ww = T.axis.remap("SS", [h, w])
+                    cc = T.axis.spatial(720, c_o * 360 + c_i)
+                    Y[cc, hh, ww] = X[cc, hh, ww] + B[cc // 16]
+
+    sch = tir.Schedule(grouped_channel_bias, debug_mask="all")
+    loop = sch.get_loops(sch.get_block("compute"))[0]
+    sch.compute_at(sch.get_block("init"), loop)
+    tvm.ir.assert_structural_equal(sch.mod["main"], grouped_channel_bias_non_perfect_tiled)
+
+
 def test_fail_subtree_complete_block():
     sch = tir.Schedule(fail_subtree_compact_dataflow, debug_mask="all")
     block = sch.get_block("B_0")
@@ -1253,5 +1332,24 @@ def test_fail_all_producers_under_loop():
         sch.reverse_compute_at(block, loop)
 
 
+def test_compute_at_int64_loop():
+    def _create_prim_func():
+        n = te.var("n", dtype="int64")
+        m = te.var("m", dtype="int64")
+        A = te.placeholder((n, m), name="A", dtype="float32")
+        B = te.placeholder((n, m), name="B", dtype="float32")
+        C = te.compute((n, m), lambda i, j: A[i, j] + B[i, j], name="C")
+        D = te.compute((n, m), lambda i, j: C[i, j] + 1.0, name="D")
+        return te.create_prim_func([A, B, D])
+
+    mod = _create_prim_func()
+    sch = tir.Schedule(mod, debug_mask="all")
+    block_c = sch.get_block("C")
+    block_d = sch.get_block("D")
+    i, _ = sch.get_loops(block_d)
+    sch.compute_at(block_c, i)
+    verify_trace_roundtrip(sch=sch, mod=mod)
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

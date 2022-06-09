@@ -37,9 +37,9 @@ class ScheduleFn(PySpaceGenerator):
 
     # Multiple cases of schedule functions supported
     SCH_FN_TYPE = Union[
-        Callable[[IRModule], None],  # No output
-        Callable[[IRModule], Schedule],  # Single output
-        Callable[[IRModule], List[Schedule]],  # Multiple outputs
+        Callable[[Schedule], None],  # No output
+        Callable[[Schedule], Schedule],  # Single output
+        Callable[[Schedule], List[Schedule]],  # Multiple outputs
     ]
 
     def __init__(self, sch_fn: SCH_FN_TYPE):

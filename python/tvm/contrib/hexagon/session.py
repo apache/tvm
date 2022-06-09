@@ -253,8 +253,8 @@ class Session:
         if not hasattr(module, "target"):
             self._requires_cpu_device = False
         else:
-            assert len(module.target.values()) == 1
-            for target in module.target.values():
+            assert len(module.target) == 1
+            for target in module.target:
                 target_type = str(target).split()[0]
 
             if target_type == "llvm":
@@ -319,13 +319,13 @@ class Session:
 
         hexagon_arch = set(
             target.mcpu.replace("hexagon", "")
-            for target in module.target.values()
+            for target in module.target
             if "hexagon" in target.keys
         )
 
         self._set_device_type(module)
 
-        for target in module.target.values():
+        for target in module.target:
             target_type = str(target).split()[0]
 
         assert hexagon_arch, "No hexagon target architecture found"

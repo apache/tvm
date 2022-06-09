@@ -15,19 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """The TensorIR schedule class"""
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import IRModule, PrimExpr
 from tvm.runtime import Object, String
-from tvm.tir import Block, FloatImm, For, IntImm, PrimFunc
-from ..function import IndexMap
+from tvm.tir import Block, Buffer, FloatImm, For, IntImm, PrimFunc
 
+from ..function import IndexMap
 from . import _ffi_api
+from ._type_checker import type_checked
 from .state import ScheduleState, StmtSRef, _parse_debug_mask, _parse_mod
 from .trace import Trace
-from ._type_checker import type_checked
 
 
 @register_error
@@ -592,7 +592,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B") as [vi, vj]:
+                    with T.block("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -684,6 +684,62 @@ class Schedule(Object):
 
         """
         _ffi_api.ScheduleReorder(self, ordered_loops)  # type: ignore # pylint: disable=no-member
+
+    @type_checked
+    def add_unit_loop(self, block_or_loop: Union[LoopRV, BlockRV]) -> LoopRV:
+        """Create a new unit loop on top of the specific block or loop.
+
+        Parameters
+        ----------
+        block_or_loop : Union[LoopRV, BlockRV]
+            The block above which the new loop is created
+
+        Returns
+        -------
+        new_loop : LoopRV
+            The new unit loop
+
+        Examples
+        --------
+
+        Before add_unit_loop, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_add_unit_loop(
+                A: T.Buffer[(), "int32"],
+                B: T.Buffer[(), "int32"],
+                C: T.Buffer[(), "int32"],
+            ) -> None:
+                with T.block("C"):
+                    vi = T.axis.spatial(1, 0)
+                    C[()] = A[()] + B[()]
+
+        Create the schedule and do add-unit-loop:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_add_unit_loop)
+            sch.add_unit_loop(sch.get_block("C"))
+            print(sch.mod["main"].script())
+
+        After applying add-unit-loop, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_add_unit_loop(
+                A: T.Buffer[(), "int32"],
+                B: T.Buffer[(), "int32"],
+                C: T.Buffer[(), "int32"],
+            ) -> None:
+                for u in T.serial(1):
+                    with T.block("C"):
+                        vi = T.axis.spatial(1, 0)
+                        C[()] = A[()] + B[()]
+        """
+        return _ffi_api.ScheduleAddUnitLoop(self, block_or_loop)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: Manipulate ForKind ##########
 
@@ -1054,6 +1110,79 @@ class Schedule(Object):
         """
         return _ffi_api.ScheduleCacheWrite(  # type: ignore # pylint: disable=no-member
             self, block, write_buffer_index, storage_scope
+        )
+
+    @type_checked
+    def reindex(self, block: BlockRV, buffer_index: int, buffer_index_type: str) -> BlockRV:
+        """Create a block that read/write a buffer region into a read/write cache with reindexing.
+        The layout of the cache will be the same as by the iterators of the block that reads/writes
+        the buffer. It requires:
+        1) There is only one block who reads/writes the target buffer
+        2) There is only one buffer load/store of this buffer in the block
+
+        Parameters
+        ----------
+        block: BlockRV
+            The block that accesses the target buffer
+        buffer_index: int
+            The index of the buffer in block's read or write region
+        buffer_index_type : str
+            Type of the buffer index, "read" or "write"
+
+        Returns
+        -------
+        reindex_block : BlockRV
+            The block of the reindex stage
+
+        Examples
+        --------
+
+        Before transform_layout, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_reindex(
+                A: T.Buffer[(128, 128), "float32"],
+                B: T.Buffer[(128, 128), "float32"]
+            ) -> None:
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vj, vi] * 2.0
+
+        Create the schedule and do transform_layout:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_reindex)
+            block = sch.get_block("B")
+            sch.reindex(block, 0, "read)
+
+        After applying reindex, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_reindex(
+                A: T.Buffer[(128, 128), "float32"],
+                B: T.Buffer[(128, 128), "float32"]
+            ) -> None:
+                A_reindex = T.alloc_buffer((128, 128), "float32")
+                for i, j in T.grid(128, 128):
+                    with T.block("A_reindex"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        A_reindex[vi, vj] = A[vj, vi]
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A_reindex[vi, vj] * 2.0
+
+        """
+        assert buffer_index_type in ["read", "write"], "Invalid buffer_index_type"
+        buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
+        return _ffi_api.ScheduleReIndex(  # type: ignore # pylint: disable=no-member
+            self, block, buffer_index, buffer_index_type_enum
         )
 
     ########## Schedule: Compute location ##########
@@ -2114,25 +2243,111 @@ class Schedule(Object):
 
     ########## Schedule: Layout transformation ##########
 
+    def _normalize_block_arg(self, block: Union[BlockRV, str]) -> BlockRV:
+        if isinstance(block, str):
+            return self.get_block(block)
+
+        return block
+
+    def _normalize_buffer_arg(
+        self, block: BlockRV, buffer: Union[Tuple[str, int], str, Buffer]
+    ) -> Tuple[str, int, Buffer]:
+
+        block_name = self.get(block).name_hint
+
+        def iter_buffers():
+            block_obj = self.get(block)
+            for i, read in enumerate(block_obj.reads):
+                yield "read", i, read.buffer
+            for i, write in enumerate(block_obj.writes):
+                yield "write", i, write.buffer
+
+        if isinstance(buffer, str):
+            possible_buffers = {}
+            # String lookup requires ensuring that the name is unique
+            for buffer_index, buffer_index_type, buf in iter_buffers():
+                if buf.name == buffer:
+                    possible_buffers[buf] = (buffer_index_type, buffer_index)
+
+            assert possible_buffers, f"Could not find buffer '{buffer}' in block '{block_name}'"
+            assert (
+                len(possible_buffers) == 1
+            ), f"Multiple buffers named '{buffer}' in block '{block_name}'"
+            buffer_obj, (buffer_index, buffer_index_type) = next(iter(possible_buffers.items()))
+
+        elif isinstance(buffer, Buffer):
+            # Buffer lookup has unique id, can break out early
+            found = False
+            for buffer_index, buffer_index_type, buffer_obj in iter_buffers():
+                if buffer_obj.same_as(buffer):
+                    found = True
+                    break
+
+            assert found, "Could not find buffer '{buffer.name}' in block '{block_name}'"
+
+        elif isinstance(buffer, tuple):
+            buffer_index_type, buffer_index = buffer
+            assert buffer_index_type in ["read", "write",], (
+                f"Invalid buffer_index_type.  "
+                f"Expected 'read' or 'write', "
+                f"but received {buffer_index_type}"
+            )
+            buffer_list = (
+                self.get(block).reads if buffer_index_type == "read" else self.get(block).writes
+            )
+            assert 0 <= buffer_index < len(buffer_list), (
+                f"Invalid buffer_index {buffer_index}.  "
+                f"Block {block_name} has only "
+                f"{len(buffer_list)} {buffer_index_type} buffers."
+            )
+            buffer_obj = buffer_list[buffer_index].buffer
+
+        else:
+            raise TypeError(f"Invalid type for argument 'buffer': {type(buffer)}")
+
+        return (buffer_index_type, buffer_index, buffer_obj)
+
     @type_checked
     def transform_layout(
         self,
-        block: BlockRV,
-        buffer_index: int,
-        buffer_index_type: str,
+        block: Union[BlockRV, str],
+        buffer: Union[Tuple[str, int], str, Buffer],
         index_map: Union[IndexMap, Callable],
     ) -> None:
         """Apply a transformation represented by IndexMap to buffer
+
         Parameters
         ----------
-        block_rv : BlockRV
-            The block that accesses the target buffer
-        buffer_index: int
-            The index of the buffer in block's read or write region
-        buffer_index_type : str
-            Type of the buffer index, "read" or "write"
+        block : Union[BlockRV, str]
+
+            The block that accesses the target buffer.  If a string,
+            this must uniquely identify a block.
+
+        buffer: Union[Tuple[str,int], Buffer, str]
+
+            The buffer to be transformed, or a specification of how to
+            identify the buffer to be transformed.
+
+            If `buffer` if a tuple of ``(str,int)``, the first item
+            should be either "read" or "write", and the second item is
+            an index into the block's read or write regions.
+
+            If `buffer` is a string, it is the name of the buffer,
+            which must exist within the reads/writes of the block.  In
+            addition, the reads/writes of the block may not contain
+            more than one buffer with this name.
+
+            If `buffer` is a Buffer object, it must exist within the
+            reads/writes of the block.
+
         index_map : Union[IndexMap, Callable]
-            The transformation to apply
+
+            The transformation to apply.
+
+            If `index_map` is a callable, and the returned list
+            contains IndexMap.AXIS_SEPARATOR, the SetAxisSeparators
+            primitive will be called in addition to the
+            TransformLayout primitive.
 
         Examples
         --------
@@ -2159,7 +2374,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_storage_align)
-            sch.transform_layout(sch.get_block("B"), buffer_index=0, "write",
+            sch.transform_layout(sch.get_block("B"), buffer=("write",0),
                                  index_map=lambda m, n: (m // 16, n // 16, m % 16, n % 16))
             print(sch.mod["main"].script())
 
@@ -2182,12 +2397,181 @@ class Schedule(Object):
                         C[vi, vj] = B[vi // 16, vj // 16, vi % 16, vj % 16] + 1.0
 
         """
+        block = self._normalize_block_arg(block)
+        buffer_index_type, buffer_index, buffer_obj = self._normalize_buffer_arg(block, buffer)
+
+        ndim = len(buffer_obj.shape)
         if callable(index_map):
-            index_map = IndexMap.from_func(index_map)
-        assert buffer_index_type in ["read", "write"], "Invalid buffer_index_type"
+            index_map, axis_separators = IndexMap.from_func_with_separators(index_map, ndim=ndim)
+        else:
+            axis_separators = []
+
         buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
         _ffi_api.ScheduleTransformLayout(  # type: ignore # pylint: disable=no-member
             self, block, buffer_index, buffer_index_type_enum, index_map
+        )
+        if axis_separators:
+            _ffi_api.ScheduleSetAxisSeparator(  # type: ignore # pylint: disable=no-member
+                self, block, buffer_index, buffer_index_type_enum, axis_separators
+            )
+
+    @type_checked
+    def transform_block_layout(
+        self,
+        block: BlockRV,
+        index_map: Union[IndexMap, Callable],
+    ) -> None:
+        """Apply a transformation represented by IndexMap to block
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block to be transformed
+
+        index_map : Union[IndexMap, Callable]
+            The transformation to apply.
+
+        Examples
+        --------
+
+        Before transform_block_layout, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_transform_block_layout(
+                A: T.Buffer[(16, 16), "float32"],
+                B: T.Buffer[(16, 16), "float32"]
+            ) -> None:
+                for i, j in T.grid(16, 16):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do transform_block_layout:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_transform_block_layout)
+            sch.transform_block_layout(sch.get_block("B"), lambda i, j: (i * 16 + j,))
+            print(sch.mod["main"].script())
+
+        After applying transform_block_layout, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_transform_block_layout(
+                A: T.Buffer[(16, 16), "float32"],
+                B: T.Buffer[(16, 16), "float32"]
+            ) -> None:
+                for i in range(256):
+                    with T.block("B"):
+                        vi, = T.axis.remap("S", [i])
+                        B[vi // 16, vi % 16] = A[vi // 16, vi % 16] * 2.0
+        """
+        if callable(index_map):
+            index_map = IndexMap.from_func(index_map)
+        _ffi_api.ScheduleTransformBlockLayout(  # type: ignore # pylint: disable=no-member
+            self, block, index_map
+        )
+
+    @type_checked
+    def set_axis_separator(
+        self,
+        block: Union[BlockRV, str],
+        buffer: Union[Tuple[str, int], str, Buffer],
+        axis_separators: Optional[List[int]],
+    ) -> None:
+        """Set the axis separator of a buffer, where the buffer is specified by a block and a read
+        or write index.
+
+        Parameters
+        ----------
+        block : Union[BlockRV, str]
+
+            The block that accesses the target buffer.  If a string,
+            this must uniquely identify a block.
+
+        buffer: Union[Tuple[str,int], Buffer, str]
+
+            The buffer to be transformed, or a specification of how to
+            identify the buffer to be transformed.
+
+            If `buffer` if a tuple of ``(str,int)``, the first item
+            should be either "read" or "write", and the second item is
+            an index into the block's read or write regions.
+
+            If `buffer` is a string, it is the name of the buffer,
+            which must exist within the reads/writes of the block.  In
+            addition, the reads/writes of the block may not contain
+            more than one buffer with this name.
+
+            If `buffer` is a Buffer object, it must exist within the
+            reads/writes of the block.
+
+        axis_separators : Optional[List[int]]
+
+            The axis separators.
+
+        Examples
+        --------
+
+        Before set_axis_separator, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_set_axis_separator(
+                A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]
+            ) -> None:
+                B = T.alloc_buffer((128, 128), dtype="float32")
+
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do set_axis_separator:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_set_axis_separator)
+            sch.set_axis_separators(sch.get_block("B"), buffer_index=0, buffer_index_type="write",
+                                    axis_separators=[1])
+            print(sch.mod["main"].script())
+
+        After applying set_axis_separator, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_set_axis_separators(
+                A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]
+            ) -> None:
+                B = T.alloc_buffer([128, 128], dtype="float32", axis_separators=[1])
+
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * T.float32(2)
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + T.float32(1)
+        """
+        axis_separators = axis_separators or []
+
+        block = self._normalize_block_arg(block)
+        buffer_index_type, buffer_index, _ = self._normalize_buffer_arg(block, buffer)
+
+        buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
+        _ffi_api.ScheduleSetAxisSeparator(  # type: ignore # pylint: disable=no-member
+            self, block, buffer_index, buffer_index_type_enum, axis_separators
         )
 
     ########## Schedule: Misc ##########

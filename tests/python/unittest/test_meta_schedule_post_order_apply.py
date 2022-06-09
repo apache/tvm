@@ -22,6 +22,7 @@ from typing import List
 
 import pytest
 import tvm
+import tvm.testing
 from tvm._ffi import register_func
 from tvm.error import TVMError
 from tvm.meta_schedule import TuneContext
@@ -388,4 +389,4 @@ def test_meta_schedule_custom_search_space():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

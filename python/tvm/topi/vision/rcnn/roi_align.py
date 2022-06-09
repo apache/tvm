@@ -58,8 +58,8 @@ def _sample_common(
         roi_bin_grid_w = te.ceil(roi_w / pooled_size_w).astype("int32")
 
     count = roi_bin_grid_h * roi_bin_grid_w
-    rh = te.reduce_axis((0, roi_bin_grid_h))
-    rw = te.reduce_axis((0, roi_bin_grid_w))
+    rh = te.reduce_axis((0, roi_bin_grid_h), name="rh")
+    rw = te.reduce_axis((0, roi_bin_grid_w), name="rw")
     roi_start_h += ph * bin_h
     roi_start_w += pw * bin_w
 

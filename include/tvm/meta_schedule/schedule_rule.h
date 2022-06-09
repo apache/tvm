@@ -20,6 +20,14 @@
 #ifndef TVM_META_SCHEDULE_SCHEDULE_RULE_H_
 #define TVM_META_SCHEDULE_SCHEDULE_RULE_H_
 
+#include <tvm/ir/expr.h>
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/tir/schedule/schedule.h>
 
 namespace tvm {
@@ -90,16 +98,8 @@ class PyScheduleRuleNode : public ScheduleRuleNode {
     // `f_as_string` is not visited
   }
 
-  void InitializeWithTuneContext(const TuneContext& context) final {
-    ICHECK(f_initialize_with_tune_context != nullptr)
-        << "PyScheduleRule's InitializeWithTuneContext method not implemented!";
-    this->f_initialize_with_tune_context(context);
-  }
-
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block) final {
-    ICHECK(f_apply != nullptr) << "PyScheduleRule's Apply method not implemented!";
-    return this->f_apply(sch, block);
-  }
+  void InitializeWithTuneContext(const TuneContext& context) final;
+  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block) final;
 
   static constexpr const char* _type_key = "meta_schedule.PyScheduleRule";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyScheduleRuleNode, ScheduleRuleNode);
@@ -212,6 +212,13 @@ class ScheduleRule : public runtime::ObjectRef {
                                                          int max_vectorize_extent,         //
                                                          Array<Integer> unroll_max_steps,  //
                                                          bool unroll_explicit);
+  /*!
+   * \brief Auto bind loops around the block to BlockIdx and ThreadIdx
+   * \param max_threadblocks The maximum number of threadblock on GPU
+   * \param thread_extents Candidates of thread axis extent.
+   * \return The schedule rule created
+   */
+  TVM_DLL static ScheduleRule AutoBind(int max_threadblocks, Array<Integer> thread_extents);
   /*!
    * \brief Create a schedule rule with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.

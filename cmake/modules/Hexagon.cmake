@@ -61,7 +61,7 @@ endif()
 # the path to the SDK), unless it's needed. The flag USE_HEXAGON decides
 # whether any Hexagon-related functionality is enabled. Specifically,
 # setting USE_HEXAGON=OFF, disables any form of Hexagon support.
-# 
+#
 # Note on the function of USE_HEXAGON_RPC:
 # - When building for Hexagon, this will build the Hexagon endpoint of the
 #   RPC server: the FastRPC skel library (with TVM runtime built into it),
@@ -84,9 +84,6 @@ if(NOT USE_HEXAGON)
   if(BUILD_FOR_HOST)
     list(APPEND COMPILER_SRCS src/target/opt/build_hexagon_off.cc)
   endif()
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_buffer.cc)
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_common.cc)
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_user_dma.cc)
   return()
 endif()
 
@@ -119,14 +116,23 @@ function(add_hexagon_wrapper_paths)
   link_directories("${HEXAGON_TOOLCHAIN}/lib/iss")
 endfunction()
 
-
-# Common sources for TVM runtime with Hexagon support
-file_glob_append(RUNTIME_HEXAGON_SRCS
-  "${TVMRT_SOURCE_DIR}/hexagon/*.cc"
-)
-
+if(BUILD_FOR_HEXAGON OR USE_HEXAGON_RPC)
+  # Common sources for TVM runtime with Hexagon support
+  file_glob_append(RUNTIME_HEXAGON_SRCS
+    "${TVMRT_SOURCE_DIR}/hexagon/*.cc"
+  )
+else()
+  file_glob_append(RUNTIME_HEXAGON_SRCS
+    "${TVMRT_SOURCE_DIR}/hexagon/hexagon_module.cc"
+  )
+endif()
 
 if(BUILD_FOR_HEXAGON)
+  if(DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
+    file_glob_append(RUNTIME_HEXAGON_SRCS
+      "${CMAKE_SOURCE_DIR}/tests/cpp-runtime/hexagon/*.cc"
+    )
+  endif()
   get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
     SDK_INCLUDE   SDK_INCLUDE_DIRS
     QURT_INCLUDE  QURT_INCLUDE_DIRS
@@ -166,6 +172,14 @@ if(USE_HEXAGON_RPC)
           -o "${TVMRT_SOURCE_DIR}/hexagon/rpc"
       MAIN_DEPENDENCY "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc.idl"
     )
+
+    if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+        # We can't easily fix this at the source-code level, because the .c file is generated
+        # by the qaic program.  But it should be safe to ignore the warning:
+        # https://stackoverflow.com/questions/13905200/is-it-wise-to-ignore-gcc-clangs-wmissing-braces-warning
+        set_source_files_properties("${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_stub.c"
+            PROPERTY COMPILE_FLAGS "-Wno-missing-braces")
+    endif()
   endfunction()
 
   if(BUILD_FOR_ANDROID)

@@ -538,6 +538,8 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   llvm::Function* fcompute =
       llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
                              value->value.operator llvm::StringRef(), module_.get());
+  SetTargetAttributes(fcompute);
+
   BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
   // enter compute scope and setup compute function.
   With<ComputeScopeStates> scope_states_guard(this);
@@ -568,6 +570,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     }
 #endif
   }
+
   function_ = fcompute;
   BasicBlock* compute_entry = BasicBlock::Create(*ctx_, "entry", function_);
   builder_->SetInsertPoint(compute_entry);
@@ -619,6 +622,8 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
   llvm::Function* f =
       llvm::Function::Create(ftype_tvm_parallel_lambda_, llvm::Function::PrivateLinkage,
                              "__tvm_parallel_lambda", module_.get());
+  SetTargetAttributes(f);
+
   // allocate and setup the closure, call the closure.
   Array<Var> vfields = tir::UndefinedVars(body, {});
   uint64_t nbytes;
@@ -687,6 +692,7 @@ void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& bod
   llvm::Function* f =
       llvm::Function::Create(ftype_tvm_static_init_callback_, llvm::Function::PrivateLinkage,
                              "__tvm_static_init_lambda", module_.get());
+  SetTargetAttributes(f);
   llvm::Value* gv = CreateStaticHandle();
   llvm::Function* finit = module_->getFunction(init_fname);
   if (finit == nullptr) {
@@ -1230,6 +1236,8 @@ void CodeGenCPU::DefineMetadata(runtime::metadata::Metadata metadata) {
   function_ =
       llvm::Function::Create(ftype_tvm_backend_packed_c_func_, llvm::Function::ExternalLinkage,
                              "get_c_metadata", module_.get());
+  SetTargetAttributes(function_);
+
   function_->setCallingConv(llvm::CallingConv::C);
   function_->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
 
@@ -1287,6 +1295,7 @@ void CodeGenCPU::DefineFunctionRegistry(Array<String> func_names) {
   llvm::FunctionType* ftype = llvm::FunctionType::get(t_void_p_, {}, false);
   function_ = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
                                      "TVMSystemLibEntryPoint", module_.get());
+  SetTargetAttributes(function_);
   llvm::BasicBlock* entry_point_entry = llvm::BasicBlock::Create(*ctx_, "entry", function_);
   builder_->SetInsertPoint(entry_point_entry);
   builder_->CreateRet(builder_->CreateBitCast(module, t_void_p_));
@@ -1297,6 +1306,7 @@ void CodeGenCPU::AddStartupFunction() {
     llvm::FunctionType* ftype = llvm::FunctionType::get(t_void_, {}, false);
     function_ = llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
                                        "__tvm_module_startup", module_.get());
+    SetTargetAttributes(function_);
     llvm::BasicBlock* startup_entry = llvm::BasicBlock::Create(*ctx_, "entry", function_);
     builder_->SetInsertPoint(startup_entry);
     for (const auto& kv : export_system_symbols_) {

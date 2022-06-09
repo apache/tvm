@@ -19,8 +19,6 @@
 
 import contextlib
 import sys
-import tempfile
-import pathlib
 
 import pytest
 import numpy as np
@@ -31,7 +29,7 @@ from tvm import te
 from tvm.tir.stmt_functor import post_order_visit
 from tvm.contrib.hexagon.build import HexagonLauncher
 
-from .conftest import requires_hexagon_toolchain
+from tvm.contrib.hexagon.pytest_plugin import requires_hexagon_toolchain
 from .infrastructure import allocate_hexagon_array
 
 # Needed to register the link_shared packedfunc.
@@ -272,6 +270,12 @@ class TestElementWise:
 
     @requires_hexagon_toolchain
     def test_build(self, schedule_args, target_host, input_layout, working_layout, output_layout):
+        """Testing build success/failure
+
+        * On Hexagon targets, build must succeed for both 1-d and 2-d memory.
+        * On non-Hexagon targets, build must succeed 1-d memory.
+        * On non-Hexagon targets, build must fail and report an error for 2-d memory.
+        """
         # contextlib.nullcontext wasn't added until python3.7, and the
         # CI currently runs on python3.6.  Therefore, using ExitStack
         # to manage an optional context instead.
@@ -292,7 +296,7 @@ class TestElementWise:
 
         return tvm.build(*schedule_args, target=target_host)
 
-    @requires_hexagon_toolchain
+    @tvm.testing.requires_hexagon
     def test_execute(
         self,
         runtime_module,
@@ -332,4 +336,4 @@ class TestElementWise:
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

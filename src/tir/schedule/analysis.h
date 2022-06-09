@@ -277,6 +277,17 @@ bool GetVarsTouchedByBlockIters(const BlockRealize& block_realize,
                                 std::unordered_set<const VarNode*>* data_par_vars,
                                 std::unordered_set<const VarNode*>* reduce_vars);
 
+/******** Loop properties ********/
+/*!
+ * \brief Check the loop starts with zero.
+ * \param self The schedule state
+ * \param loop_sref The StmtSRef that points to the loop to be checked
+ * \param analyzer The arithmetic analyzer
+ * \throw ScheduleError If the loop doesn't starts with zero.
+ */
+void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
+                             arith::Analyzer* analyzer);
+
 /******** Block-loop relation ********/
 
 /*!
@@ -613,6 +624,13 @@ bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref);
  * \return A boolean indicating whether the block has data reuse opportunity
  */
 bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref);
+
+/*!
+ * \brief Checks if all the blocks in the PrimFunc is spatial
+ * \param func The PrimFunc to be checked
+ * \return A boolean indicating whether all the blocks in the PrimFunc is spatial
+ */
+bool IsSpatialPrimFunc(const PrimFunc& func);
 
 /*!
  * \brief Checks if the rfactor or cross thread reduction is beneficial to the given block.

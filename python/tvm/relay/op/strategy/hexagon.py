@@ -26,13 +26,25 @@ from .. import op as _op
 
 
 @batch_matmul_strategy.register("hexagon")
-def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
+def batch_matmul_strategy_hexagon(attrs, inputs, out_type, target):
     """batch_matmul strategy for Hexagon"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_batch_matmul(topi.nn.batch_matmul),
         wrap_topi_schedule(topi.hexagon.schedule_batch_matmul),
         name="batch_matmul.hexagon",
+    )
+    return strategy
+
+
+@concatenate_strategy.register("hexagon")
+def concatenate_strategy_hexagon(attrs, inputs, out_type, target):
+    """concatenate strategy for Hexagon"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_concat(topi.concatenate),
+        wrap_topi_schedule(topi.hexagon.schedule_injective),
+        name="concatenate.hexagon",
     )
     return strategy
 
@@ -109,6 +121,26 @@ def softmax_strategy_hexagon(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.hexagon.schedule_softmax),
         name="softmax.hexagon",
     )
+    return strategy
+
+
+@conv2d_transpose_strategy.register("hexagon")
+def conv2d_transpose_strategy_hexagon(attrs, inputs, out_type, target):
+    """conv2d_transpose hexagon strategy"""
+    layout = attrs.data_layout
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    assert layout == "NCHW", "only support nchw for now"
+    assert dilation == (1, 1), "not support dilate now"
+    strategy = _op.OpStrategy()
+    if groups == 1:
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.nn.conv2d_transpose_nchw),
+            wrap_topi_schedule(topi.hexagon.schedule_conv2d_transpose_nchw),
+            name="conv2d_transpose_nchw.generic",
+        )
+    else:
+        raise RuntimeError("Unsupported conv2d_transpose layout {}".format(layout))
     return strategy
 
 

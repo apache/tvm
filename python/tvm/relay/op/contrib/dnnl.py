@@ -41,7 +41,7 @@ from tvm.relay.expr import GlobalVar
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 from ... import _ffi_api
-from ...dataflow_pattern import wildcard, is_op
+from ...dataflow_pattern import wildcard, is_op, is_expr, rewrite, DFPatternCallback
 from .register import register_pattern_table
 
 logger = logging.getLogger("DNNL")
@@ -85,7 +85,6 @@ _register_external_op_helper("clip")
 _register_external_op_helper("exp")
 _register_external_op_helper("log")
 _register_external_op_helper("sqrt")
-_register_external_op_helper("round")
 _register_external_op_helper("nn.relu")
 _register_external_op_helper("nn.leaky_relu")
 _register_external_op_helper("tanh")
@@ -93,6 +92,7 @@ _register_external_op_helper("sigmoid")
 _register_external_op_helper("nn.softmax")
 _register_external_op_helper("add")
 _register_external_op_helper("multiply")
+_register_external_op_helper("nn.layer_norm")
 
 
 def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
@@ -212,7 +212,7 @@ def pattern_table():
 
 
 def get_optimal_layout_for_conv(
-    data_layout, kernel_layout, weight_shape, out_shape, paddings, strides, dilates, groups
+    data_layout, kernel_layout, weight_shape, out_shape, paddings, strides, dilates, groups, dtype
 ):
     """Get the optimal layout of dnnl, given shape of conv2d.
 
@@ -236,6 +236,7 @@ def get_optimal_layout_for_conv(
         strides,
         dilates,
         groups,
+        dtype,
     )
 
 
@@ -249,6 +250,7 @@ def get_optimal_layout_for_conv_transpose(
     strides,
     dilates,
     groups,
+    dtype,
 ):
     """Get the optimal layout of dnnl, given shape of tranposed conv2d.
 
@@ -274,6 +276,7 @@ def get_optimal_layout_for_conv_transpose(
         strides,
         dilates,
         groups,
+        dtype,
     )
 
 
@@ -289,6 +292,21 @@ def get_shape(tensor):
         return tensor[-1].shape
     if isinstance(tensor, relay.expr.Call):
         return tensor.checked_type.shape
+    raise TypeError("Unsupport data type: %s" % type(tensor))
+
+
+def get_dtype(tensor):
+    """Get tensor's dtype."""
+    if isinstance(tensor, relay.expr.Var):
+        return tensor.type_annotation.dtype
+    if isinstance(tensor, relay.expr.Constant):
+        return tensor.data.dtype
+    if isinstance(tensor, tvm.ir.tensor_type.TensorType):
+        return tensor.dtype
+    if isinstance(tensor, tvm.ir.container.Array):
+        return tensor[-1].dtype
+    if isinstance(tensor, relay.expr.Call):
+        return tensor.checked_type.dtype
     raise TypeError("Unsupport data type: %s" % type(tensor))
 
 
@@ -353,6 +371,7 @@ def alter_conv(attrs, inputs, tinfos, out_type):
     paddings = ",".join([str(x) for x in attrs.get_int_tuple("padding")])
     strides = ",".join([str(x) for x in attrs.get_int_tuple("strides")])
     dilates = ",".join([str(x) for x in attrs.get_int_tuple("dilation")])
+    dtype = get_dtype(weight)
     new_attrs = dict(attrs)
     conv_type = type(attrs).__name__.split("Attrs")[0]
 
@@ -365,6 +384,7 @@ def alter_conv(attrs, inputs, tinfos, out_type):
         strides,
         dilates,
         groups,
+        dtype,
     )
     src_df, weight_df, dst_df = res.split(",")
     new_attrs["data_layout"] = tag2layout(src_df, is_weight=False, conv_type=conv_type)
@@ -389,6 +409,7 @@ def alter_conv_transpose(attrs, inputs, tinfos, out_type):
     strides = ",".join([str(x) for x in attrs.get_int_tuple("strides")])
     dilates = ",".join([str(x) for x in attrs.get_int_tuple("dilation")])
     groups = str(attrs.groups)
+    dtype = get_dtype(weight)
     new_attrs = dict(attrs)
     conv_type = type(attrs).__name__.split("Attrs")[0]
 
@@ -402,6 +423,7 @@ def alter_conv_transpose(attrs, inputs, tinfos, out_type):
         strides,
         dilates,
         groups,
+        dtype,
     )
     src_df, weight_df, dst_df = res.split(",")
     new_attrs["data_layout"] = tag2layout(src_df, is_weight=False, conv_type=conv_type)
@@ -434,6 +456,7 @@ class IsComputeIntensiveGraph(ExprVisitor):
                 "nn.conv3d",
                 "nn.conv3d_transpose",
                 "nn.dense",
+                "nn.layer_norm",
             ]
         )
         if isinstance(call.op, tvm.tir.op.Op):
@@ -505,3 +528,69 @@ def prune_dnnl_subgraphs(mod):
     new_mod["main"] = SubgraphRemover(subgraphs_to_remove, mod, new_mod).visit(mod["main"])
     new_mod = transform.RemoveUnusedFunctions()(new_mod)
     return new_mod
+
+
+class LayerNormRewrite(DFPatternCallback):
+    """
+    A callback to rewrite the following operators into a single layer normalization operator.
+
+    Pattern #1:
+    1   %4 = mean(%3, axis=[-1], keepdims=True) /* ty=Tensor[(1, 3136, 1), float32] */;
+    2   %5 = subtract(%3, %4) /* ty=Tensor[(1, 3136, 64), float32] */;
+    3   %6 = cast(%5, dtype="float32") /* ty=Tensor[(1, 3136, 64), float32] */;
+    4   %7 = power(%6, 2f /* ty=float32 */) /* ty=Tensor[(1, 3136, 64), float32] */;
+    5   %8 = mean(%7, axis=[-1], keepdims=True) /* ty=Tensor[(1, 3136, 1), float32] */;
+    6   %9 = add(%8, 1e-05f /* ty=float32 */) /* ty=Tensor[(1, 3136, 1), float32] */;
+    7   %10 = sqrt(%9) /* ty=Tensor[(1, 3136, 1), float32] */;
+    8   %11 = divide(%5, %10) /* ty=Tensor[(1, 3136, 64), float32] */;
+    9   %12 = multiply(%11, meta[relay.Constant][2] /* ty=Tensor[(64), float32] */)
+            /* ty=Tensor[(1, 3136, 64), float32] */;
+    10   %13 = add(%12, meta[relay.Constant][3] /* ty=Tensor[(64), float32] */)
+            /* ty=Tensor[(1, 3136, 64), float32] */;
+
+    Pattern #2:
+    1   %0 = mean(%input, axis=[-1], keepdims=True);
+    2   %1 = variance(%input, %0, axis=[-1], keepdims=True);
+    3   %2 = add(%1, 1e-05f /* ty=float32 */) /* ty=Tensor[(1, 49, 1), float32] */;
+    4   %3 = subtract(%input, %0);
+    5   %4 = sqrt(%2) /* ty=Tensor[(1, 49, 1), float32] */;
+    6   %5 = divide(%3, %4);
+    7   %6 = multiply(%5, meta[relay.Constant][0] /* ty=Tensor[(64), float32] */)
+            /* ty=Tensor[(1, 49, 64), float32] */;
+    8   %7 = add(%6, meta[relay.Constant][1] /* ty=Tensor[(64), float32] */)
+            /* ty=Tensor[(1, 49, 64), float32] */
+
+    """
+
+    def __init__(self):
+        super(LayerNormRewrite, self).__init__()
+        self.data = wildcard()
+        self.gamma = wildcard()
+        self.beta = wildcard()
+        mu = is_op("mean")(self.data)
+        diff = is_op("subtract")(self.data, mu)
+        cdiff = diff | is_op("cast")(diff)
+        const_two = is_expr(relay.const(2)) | is_expr(relay.const(2.0))
+        p1 = is_op("power")(cdiff, const_two)
+        mp1 = is_op("mean")(p1) | is_op("variance")(self.data, mu)
+        eps = is_expr(relay.const(1e-5))
+        added_eps = is_op("add")(mp1, eps)
+        deno = is_op("sqrt")(added_eps)
+        div_out = is_op("divide")(diff, deno)
+        weighted = is_op("multiply")(div_out, self.gamma)
+        added_bias = is_op("add")(weighted, self.beta)
+        self.pattern = added_bias
+
+    def callback(self, pre, post, node_map):
+        data = node_map[self.data][0]
+        gamma = node_map[self.gamma][0]
+        beta = node_map[self.beta][0]
+        return relay.op.nn.layer_norm(data=data, gamma=gamma, beta=beta)
+
+
+def rewrite_layer_norm(mod):
+    """Rewrite the input graph to replace multiple operators with a TVM native layer normalization
+    operator so that we can offload them to dnnl layer normalization byoc part.
+    """
+    mod["main"] = rewrite(LayerNormRewrite(), mod["main"])
+    return mod

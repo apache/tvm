@@ -20,6 +20,8 @@ This module provides typing class for TVM script type annotation usage, it can b
 a wrapper for uniform Type system in IR
 """
 # pylint: disable=invalid-name
+from numbers import Integral
+
 import tvm
 from .special_stmt import SpecialStmt, convert_to_int
 
@@ -121,6 +123,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
             align=-1,
             offset_factor=0,
             buffer_type="default",
+            axis_separators=None,
             span=None,
         ):
             if strides is None:
@@ -140,6 +143,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
                 align,
                 offset_factor,
                 buffer_type,
+                axis_separators,
                 span=span,
             )
             return buffer
@@ -160,6 +164,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
         align=-1,
         offset_factor=0,
         buffer_type="default",
+        axis_separators=None,
         span=None,
     ):
         """
@@ -174,8 +179,13 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
         """
         if len(args) < 2:
             raise ValueError("T.Buffer[...] needs at least two arguments: shape and dtype.")
+
         shape = args[0]
-        if not isinstance(shape, tuple):
+        dtype = args[1]
+
+        valid_shape = isinstance(shape, (tvm.ir.PrimExpr, Integral, tuple, list))
+        valid_dtype = isinstance(dtype, str)
+        if not (valid_shape and valid_dtype):
             raise ValueError(
                 "The first argument of T.Buffer[...] needs to be a tuple, "
                 "followed by the second argument dtype as a string"

@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.relay.backend import Executor
 from tvm.relay import transform
@@ -370,6 +371,189 @@ def test_fold_dropout():
     tvm.ir.assert_structural_equal(run_infer_type(before_mod["main"]), after_mod["main"])
 
 
+def test_fold_qnn_const():
+    def before():
+        # QNN op with 2 constant arguments.
+        add = relay.qnn.op.add(
+            relay.const(np.ones((2, 3), dtype="uint8"), dtype="uint8"),
+            relay.const(np.ones((2, 3), dtype="uint8"), dtype="uint8"),
+            lhs_scale=relay.const(2.0),
+            lhs_zero_point=relay.const(0),
+            rhs_scale=relay.const(2.0),
+            rhs_zero_point=relay.const(0),
+            output_scale=relay.const(1.0),
+            output_zero_point=relay.const(0),
+        )
+        # QNN op with 1 constant and 1 non-constant arguments.
+        a = relay.var("a", shape=[2, 3], dtype="float32")
+        dense = relay.qnn.op.dense(
+            relay.qnn.op.quantize(a, relay.const(1.0), relay.const(0)),
+            add,
+            input_zero_point=relay.const(0),
+            kernel_zero_point=relay.const(0),
+            input_scale=relay.const(2.0),
+            kernel_scale=relay.const(2.0),
+            units=None,
+        )
+        # QNN op with 2 non-constant arguments.
+        b = relay.var("b", shape=[2], dtype="float32")
+        bias = relay.qnn.op.add(
+            dense,
+            relay.qnn.op.quantize(b, relay.const(1.0), relay.const(0), out_dtype="int32"),
+            lhs_scale=relay.const(2.0),
+            lhs_zero_point=relay.const(0),
+            rhs_scale=relay.const(2.0),
+            rhs_zero_point=relay.const(0),
+            output_scale=relay.const(1.0),
+            output_zero_point=relay.const(0),
+        )
+        return relay.Function([a, b], bias)
+
+    def expected():
+        a = relay.var("a", shape=[2, 3], dtype="float32")
+        dense = relay.qnn.op.dense(
+            relay.qnn.op.quantize(a, relay.const(1.0), relay.const(0)),
+            relay.const(np.array([[4, 4, 4], [4, 4, 4]], dtype="uint8"), dtype="uint8"),
+            input_zero_point=relay.const(0),
+            kernel_zero_point=relay.const(0),
+            input_scale=relay.const(2.0),
+            kernel_scale=relay.const(2.0),
+            units=None,
+        )
+        b = relay.var("b", shape=[2], dtype="float32")
+        bias = relay.qnn.op.add(
+            dense,
+            relay.qnn.op.quantize(b, relay.const(1.0), relay.const(0), out_dtype="int32"),
+            lhs_scale=relay.const(2.0),
+            lhs_zero_point=relay.const(0),
+            rhs_scale=relay.const(2.0),
+            rhs_zero_point=relay.const(0),
+            output_scale=relay.const(1.0),
+            output_zero_point=relay.const(0),
+        )
+        return relay.Function([a, b], bias)
+
+    # Nothing changed after applying FoldConstant
+    a = run_opt_pass(before(), transform.FoldConstant())
+    b = run_opt_pass(before(), transform.InferType())
+    tvm.ir.assert_structural_equal(a, b)
+
+    # Fold QNN constants
+    a = run_opt_pass(before(), transform.FoldConstant(fold_qnn=True))
+    b = run_opt_pass(expected(), transform.InferType())
+    tvm.ir.assert_structural_equal(a, b)
+
+
+def test_fold_quantize():
+    t = relay.TensorType([1, 2, 3], "int8")
+
+    def before():
+        data = tvm.nd.array(np.array([1.0, 2.0, 3.0], dtype="float32"))
+        const_fp = relay.const(data, dtype="float32")
+        const_i8 = relay.qnn.op.quantize(
+            const_fp, output_scale=relay.const(0.5), output_zero_point=relay.const(0)
+        )
+        x = relay.var("x", t)
+        sub = relay.op.subtract(x, const_i8)
+        func = relay.Function([x], sub)
+        return func
+
+    def expected():
+        data = tvm.nd.array(np.array([2, 4, 6], dtype="int8"))
+        const_i8 = relay.const(data, dtype="int8")
+        x = relay.var("x", t)
+        sub = relay.op.subtract(x, const_i8)
+        func = relay.Function([x], sub)
+        return func
+
+    # Nothing changed after applying FoldConstant
+    a = run_opt_pass(before(), transform.FoldConstant())
+    b = run_opt_pass(before(), transform.InferType())
+    tvm.ir.assert_structural_equal(a, b)
+
+    # Fold QNN constants
+    a = run_opt_pass(before(), transform.FoldConstant(fold_qnn=True))
+    b = run_opt_pass(expected(), transform.InferType())
+    tvm.ir.assert_structural_equal(a, b)
+
+
+def test_fold_qnn_conv2d_qnn_mul():
+    def before():
+        dtype = "uint8"
+        op0 = relay.qnn.op.conv2d(
+            relay.const(np.ones((1, 1, 2, 2), dtype=dtype), dtype=dtype),
+            relay.const(np.ones((1, 1, 2, 2), dtype=dtype), dtype=dtype),
+            input_zero_point=relay.const(0, "int32"),
+            kernel_zero_point=relay.const(0, "int32"),
+            input_scale=relay.const(1.0, "float32"),
+            kernel_scale=relay.const(1.0, "float32"),
+            kernel_size=(2, 2),
+            channels=1,
+        )
+        op = relay.qnn.op.mul(
+            op0,
+            relay.const(np.array([10], dtype="int32"), dtype="int32"),
+            relay.const(1.0, dtype="float32"),
+            relay.const(0, dtype="int32"),
+            relay.const(1.0, dtype="float32"),
+            relay.const(0, dtype="int32"),
+            relay.const(1.0, dtype="float32"),
+            relay.const(0, dtype="int32"),
+        )
+        func = relay.Function([], op)
+        return func
+
+    def expected():
+        data = relay.const(np.array([[[[40]]]], dtype="int32"), dtype="int32")
+        func = relay.Function([], data)
+        return func
+
+    # Nothing changed after applying FoldConstant
+    a = run_opt_pass(before(), transform.FoldConstant())
+    b = run_opt_pass(before(), transform.InferType())
+    tvm.ir.assert_structural_equal(a, b)
+
+    # Fold QNN constants
+    a = run_opt_pass(before(), transform.FoldConstant(fold_qnn=True))
+    b = run_opt_pass(expected(), transform.InferType())
+    tvm.ir.assert_structural_equal(a, b)
+
+
+def test_fold_requantize():
+    def before():
+        data = tvm.nd.array(np.array([1, 2, 3], dtype="int8"))
+        const_i8 = relay.const(data, dtype="int8")
+        op = relay.qnn.op.requantize(
+            const_i8,
+            input_scale=relay.const(2.0, dtype="float32"),
+            input_zero_point=relay.const(1, dtype="int32"),
+            output_scale=relay.const(1.0, dtype="float32"),
+            output_zero_point=relay.const(1, dtype="int32"),
+        )
+        x = relay.var("x", relay.TensorType([3], "int8"))
+        add = relay.op.add(op, x)
+        func = relay.Function([x], add)
+        return func
+
+    def expected():
+        data = tvm.nd.array(np.array([1, 3, 5], dtype="int8"))
+        const_i8 = relay.const(data, dtype="int8")
+        x = relay.var("x", relay.TensorType([3], "int8"))
+        add = relay.op.add(const_i8, x)
+        func = relay.Function([x], add)
+        return func
+
+    # Nothing changed after applying FoldConstant
+    a = run_opt_pass(before(), transform.FoldConstant())
+    b = run_opt_pass(before(), transform.InferType())
+    tvm.ir.assert_structural_equal(a, b)
+
+    # Fold QNN constants
+    a = run_opt_pass(before(), transform.FoldConstant(fold_qnn=True))
+    b = run_opt_pass(expected(), transform.InferType())
+    tvm.ir.assert_structural_equal(a, b)
+
+
 def test_pass_link_params():
     """
     This test checks ensures that proper executor is passed to interpreter instance
@@ -389,7 +573,4 @@ def test_pass_link_params():
 
 
 if __name__ == "__main__":
-    import sys
-    import pytest
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()
