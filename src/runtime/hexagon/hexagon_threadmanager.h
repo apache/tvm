@@ -38,7 +38,7 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-#define DBG(msg) LOG(DEBUG) << msg << "\n";
+#define DBG(msg) DLOG(INFO) << msg << "\n";
 
 class HexagonThreadManager {
   //! \brief Void function.
