@@ -1103,9 +1103,8 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   // let-bound functions.
   pass_seqs.push_back(DeadCodeElimination(/*inline_once=*/false));
 
-  // Now that we have PrimFuncs, flow and solve VirtualDevice constraints again to account for
-  // any memory scopes which lowering has settled on.
-  pass_seqs.push_back(transform::PlanDevices(config_));
+  // At this point it's possible to run PlanDevices again to pick up any additional constraints
+  // introduced during lowering. However we'll not do this until more testing has been done.
 
   // Inline the functions that are lifted to the module scope. We perform this
   // pass after all other optimization passes but before the memory allocation
