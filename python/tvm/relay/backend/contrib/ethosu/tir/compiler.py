@@ -90,6 +90,8 @@ def lower_ethosu(sch, args, const_dict, name="main"):
         mod = tvm.tir.transform.RemoveNoOp()(mod)
         mod, const_dict = ethosu_passes.EncodeConstants(const_dict)(mod)
         mod = ethosu_passes.HoistAllocates()(mod)
+        if not util.is_striping_enabled():
+            mod, const_dict = ethosu_passes.MergeConstants(const_dict)(mod)
         mod = ethosu_passes.CopyComputeReordering()(mod)
 
         # When striping is enabled and if storage_rewrite is not run
