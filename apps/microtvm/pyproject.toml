@@ -20,7 +20,7 @@
 
 [tool.black]
 line-length = 100
-target-version = ['py36']
+target-version = ['py37']
 include = '(\.pyi?$)'
 exclude = '''
 
@@ -59,12 +59,12 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
+python = ">=3.7, <3.9"
 attrs = "^19"
 decorator = "^4.4"
 numpy = "~1.19"
 psutil = "^5"
 scipy = "^1.4"
-python = "^3.6"
 tornado = "^6"
 typed_ast = "^1.4"
 pyyaml = "^5.4.1"
@@ -93,16 +93,15 @@ cffi = {version = "^1.14", optional = true}
 mxnet = {version = "^1.6.0", optional = true}
 
 # ONNX frontend
-onnx = {version = "1.6.0", optional = true}
-onnxruntime = {version = "1.0.0", optional = true}
+onnx = {version = "==1.10.2", optional = true}
+onnxoptimizer = { version = "==0.2.6", optional = true }
+onnxruntime = { version = "==1.9.0", optional = true }
 
 # Pytorch (also used by ONNX)
-# NOTE: cannot download this right now due to https://github.com/python-poetry/poetry/issues/2247
-# torch = {url = "https://download.pytorch.org/whl/cu101/torch-1.4.0-cp36-cp36m-manylinux1_x86_64.whl", optional = true}
-# torchvision = {version = "0.5.0", optional = true}
-# NOTE: torch depends on a number of other packages, but unhelpfully, does not expose that in the
-# wheel!!!
-future = {version = "*", optional = true}
+torch = { version = "==1.11.0", optional = true }
+torchvision = { version = "==0.12.0", optional = true }
+
+future = { version = "==*", optional = true }
 
 # Tensorflow frontend
 tensorflow = {version = "^2.1", optional = true}
@@ -120,7 +119,7 @@ importer-caffe2 = ["torch"]
 importer-coreml = ["coremltools"]
 importer-darknet = ["opencv-python"]
 importer-keras = ["tensorflow", "tensorflow-estimator"]
-importer-onnx = ["onnx", "onnxruntime", "torch", "torchvision", "future"]
+importer-onnx = ["future", "onnx", "onnxoptimizer", "onnxruntime", "torch", "torchvision"]
 importer-pytorch = ["torch", "torchvision", "future"]
 importer-tensorflow = ["tensorflow", "tensorflow-estimator"]
 importer-tflite = ["tflite", "tensorflow", "tensorflow-estimator"]
