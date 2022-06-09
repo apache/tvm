@@ -51,7 +51,7 @@ def bf16_supported():
             cpu_info = subprocess.check_output("sysctl -a", shell=True).strip().decode()
             for line in cpu_info.split("\n"):
                 if line.startswith("hw.optional.avx512f"):
-                    _bf16_supported = bool(line.split(":", 1)[1])
+                    _bf16_supported = bool(int(line.split(":", 1)[1]))
         elif sys.platform.startswith("linux"):
             _bf16_supported = "avx512" in open("/proc/cpuinfo", "r").read()
     return _bf16_supported
@@ -114,6 +114,7 @@ def partition_for_dnnl(mod, params=None, alter_layout=True, prune_subgraphs=True
 
     mod = dnnl.rewrite_layer_norm(mod)
     mod = dnnl.rewrite_dense_bias_gelu_reshape_last(mod)
+    mod = dnnl.legalize_qnn_for_dnnl(mod)
 
     byoc_seq = tvm.transform.Sequential(
         [
