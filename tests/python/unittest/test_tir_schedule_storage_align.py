@@ -98,10 +98,12 @@ def element_wise_invalid_annotation(a: T.handle, c: T.handle) -> None:
                     C[vi_1, vj_1] = (B[vi_1, vj_1] + T.float32(1))
 
 
-def test_storage_align():
+use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+
+def test_storage_align(use_block_name):
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
-    B = s.get_block("B")
+    B = 'B' if use_block_name else s.get_block("B")
     s.storage_align(B, 0, axis=0, factor=128, offset=127)
     tvm.ir.assert_structural_equal(element_wise_storage_align, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
