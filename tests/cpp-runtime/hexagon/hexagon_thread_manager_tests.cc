@@ -20,7 +20,7 @@
 #include <gtest/gtest.h>
 #include <tvm/runtime/logging.h>
 
-#include "../src/runtime/hexagon/hexagon_threadmanager.h"
+#include "../src/runtime/hexagon/hexagon_thread_manager.h"
 
 using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;

@@ -142,13 +142,7 @@ void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHan
   CHECK_EQ(to->byte_offset, 0);
   CHECK_EQ(GetDataSize(*from), GetDataSize(*to));
 
-  auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* {
-    auto it = hexbuffs.find(ptr);
-    if (it != hexbuffs.end()) {
-      return it->second.get();
-    }
-    return nullptr;
-  };
+  auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* { return hexbuffs.find(ptr); };
 
   HexagonBuffer* hex_from_buf = lookup_hexagon_buffer(from->data);
   HexagonBuffer* hex_to_buf = lookup_hexagon_buffer(to->data);

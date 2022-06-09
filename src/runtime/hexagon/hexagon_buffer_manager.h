@@ -61,13 +61,12 @@ class HexagonBufferManager {
   size_t count(void* ptr) { return hexagon_buffer_map_.count(ptr); }
 
   //! \brief Returns an iterator to the HexagonBuffer within the map.
-  std::unordered_map<void*, std::unique_ptr<HexagonBuffer>>::iterator find(void* ptr) {
-    return hexagon_buffer_map_.find(ptr);
-  }
-
-  //! \brief Retruns the end of the map.
-  std::unordered_map<void*, std::unique_ptr<HexagonBuffer>>::iterator end() {
-    return hexagon_buffer_map_.end();
+  HexagonBuffer* find(void* ptr) {
+    auto it = hexagon_buffer_map_.find(ptr);
+    if (it != hexagon_buffer_map_.end()) {
+      return it->second.get();
+    }
+    return nullptr;
   }
 
  private:

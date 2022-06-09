@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_THREADMANAGER_H_
-#define TVM_RUNTIME_HEXAGON_HEXAGON_THREADMANAGER_H_
+#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_THREAD_MANAGER_H_
+#define TVM_RUNTIME_HEXAGON_HEXAGON_THREAD_MANAGER_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/logging.h>
@@ -193,4 +193,4 @@ class HexagonThreadManager {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_THREADMANAGER_H_
+#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_THREAD_MANAGER_H_

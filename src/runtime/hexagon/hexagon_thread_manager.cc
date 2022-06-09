@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include "hexagon_threadmanager.h"
+#include "hexagon_thread_manager.h"
 
 namespace tvm {
 namespace runtime {
