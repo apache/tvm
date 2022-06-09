@@ -76,12 +76,6 @@ def matmul(m, n, k, in_dtype, out_dtype, b_transposed):
     return (a, b, c)
 
 
-def is_ampere_or_newer():
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
-    return major >= 8
-
-
 def run_test(
     k_inner,
     in_dtype,
@@ -117,7 +111,7 @@ def run_test(
         mma_store_intrin,
     )
 
-    if not is_ampere_or_newer():
+    if not tvm.testing.is_ampere_or_newer():
         return None
 
     f = tvm.build(sch.mod["main"], target="cuda", name="dense")

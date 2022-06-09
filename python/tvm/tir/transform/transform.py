@@ -825,3 +825,7 @@ def Filter(fcond: Callable):
         The result pass
     """
     return _ffi_api.Filter(fcond)  # type: ignore
+
+
+def InjectPTXAsyncCopy():
+    return _ffi_api.InjectPTXAsyncCopy()  # type: ignore
