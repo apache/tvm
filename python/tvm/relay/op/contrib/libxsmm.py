@@ -28,21 +28,6 @@ from ...dataflow_pattern import wildcard, is_op, is_constant
 from .register import register_pattern_table
 
 
-def use_libxsmm(m, n, k):
-    """Conditions to enable libxsmm BYOC.
-    Currently we enable libxsmm when cube_root(m * n * k ) <= 256 since it has significant performance improvement."""
-    return bool(np.cbrt(m * n * k) <= 256)
-
-
-@tvm.ir.register_op_attr("nn.dense", "target.libxsmm")
-def dense(expr):
-    args = expr.args
-    m = int(args[0].checked_type.shape[0])
-    n = int(args[1].checked_type.shape[0])
-    k = int(args[0].checked_type.shape[1])
-    return use_libxsmm(m, n, k)
-
-
 def get_root_call(call, root_op_name):
     if not isinstance(call, relay.Call):
         return None
@@ -58,7 +43,15 @@ def check_dense_shape(call):
     m = int(data.shape[0])
     n = int(weight.shape[0])
     k = int(data.shape[1])
-    return use_libxsmm(m, n, k)
+
+    # Conditions to enable libxsmm BYOC.
+    # Note: currently we enable libxsmm when cube_root(m * n * k ) <= 256 since it has significant performance improvement.
+    return bool(np.cbrt(m * n * k) <= 256)
+
+
+@tvm.ir.register_op_attr("nn.dense", "target.libxsmm")
+def dense(expr):
+    return check_dense_shape(expr)
 
 
 def make_dense_pattern(with_bias=False, eltwise=None):
