@@ -32,6 +32,7 @@ This RVM has been tested and is known to work with these boards:
 - Adafruit Pybadge
 - Arduino Due
 - Arduino Nano 33 BLE
+- Arduino Portenta H7
 - Feather S2
 - Sony Spresense
 - Wio Terminal
