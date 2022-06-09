@@ -2126,10 +2126,6 @@ def test_all_unary_elemwise():
     # tensorflow version upgrade support
     if tf.__version__ < LooseVersion("2.6.1"):
         _test_forward_unary_elemwise(_test_rsqrt, negative=False, int_quant_dtype=tf.uint8)
-    else:
-        # This test is flaky, see https://github.com/apache/tvm/issues/11567
-        # _test_forward_unary_elemwise(_test_rsqrt, negative=False, int_quant_dtype=tf.int8)
-        pass
 
     # ceil and cos come with TFLite 1.14.0.post1 fbs schema
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
@@ -2146,6 +2142,11 @@ def test_all_unary_elemwise():
         # _test_forward_unary_elemwise(_test_tan)
         _test_forward_unary_elemwise(_test_elu, quantized=False)
 
+
+@pytest.mark.xfail(strict=False, reason="Flaky test: https://github.com/apache/tvm/issues/11567")
+def test_rsqrt():
+    if tf.__version__ >= LooseVersion("2.6.1"):
+        _test_forward_unary_elemwise(_test_rsqrt, negative=False, int_quant_dtype=tf.int8)
 
 #######################################################################
 # Element-wise
