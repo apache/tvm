@@ -204,7 +204,6 @@ def get_conv2d_qnn_params(
     return output_scale, output_zp
 
 
-# pylint: disable=inconsistent-return-statements
 def make_qnn_relu(expr, fused_activation_fn, scale, zero_point, dtype):
     """Mimics convert_qnn_fused_activation_function from TFLite frontend"""
     quantize = lambda x: float(int(round(x / scale)) + zero_point)
@@ -225,4 +224,5 @@ def make_qnn_relu(expr, fused_activation_fn, scale, zero_point, dtype):
         )
     if fused_activation_fn == "RELU":
         return tvm.relay.op.clip(expr, a_min=max(qmin, quantize(0.0)), a_max=qmax)
-    assert False, "Unsupported activation function"
+
+    raise ValueError("Invalid argument provided with fused_activation_fn")

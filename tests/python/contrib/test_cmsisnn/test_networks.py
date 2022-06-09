@@ -79,7 +79,11 @@ def _convert_to_relay(
 def test_cnn_small(test_runner):
     """Download a small network and tests TVM via CMSIS-NN output against TFLite output"""
     # download the model
-    base_url = "https://github.com/ARM-software/ML-zoo/raw/48a22ee22325d15d2371a6df24eb7d67e21dcc97/models/keyword_spotting/cnn_small/tflite_int8"  # pylint: disable=line-too-long
+    base_url = (
+        "https://github.com/ARM-software/ML-zoo/raw/"
+        "48a22ee22325d15d2371a6df24eb7d67e21dcc97"
+        "/models/keyword_spotting/cnn_small/tflite_int8"
+    )
     file_to_download = "cnn_s_quantized.tflite"
     file_saved = "cnn_s_quantized_15Dec2021.tflite"
     model_file = download_testdata("{}/{}".format(base_url, file_to_download), file_saved)
