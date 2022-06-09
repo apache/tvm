@@ -17,11 +17,9 @@
 
 """CMSIS-NN functions for testing networks"""
 
-import platform
 import math
+from typing import List, Union, Tuple
 import numpy as np
-import pytest
-from typing import List, Dict, Optional, Any, Union, Tuple
 
 import tvm
 from tvm import relay
@@ -52,6 +50,7 @@ def count_num_calls(mod):
 
 
 def assert_partitioned_function(orig_mod, cmsisnn_mod):
+    """If kCompiler attribute is missing, this function raises assertion"""
     attrs = [
         cmsisnn_mod[var.name_hint].attrs
         for var in cmsisnn_mod.get_global_vars()
@@ -225,3 +224,5 @@ def make_qnn_relu(expr, fused_activation_fn, scale, zero_point, dtype):
         )
     if fused_activation_fn == "RELU":
         return tvm.relay.op.clip(expr, a_min=max(qmin, quantize(0.0)), a_max=qmax)
+
+    raise ValueError("Invalid argument provided with fused_activation_fn")
