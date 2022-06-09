@@ -25,6 +25,8 @@ import pathlib
 import signal
 import socket
 import stat
+import random
+import string
 import subprocess
 from typing import Union
 
@@ -58,7 +60,9 @@ def _get_hexagon_rpc_lib_dir() -> pathlib.Path:
 
 def _get_test_directory_name() -> str:
     """Generate a time-stamped name for use as a test directory name."""
-    return datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    date_str = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    random_str = "".join(random.choice(string.ascii_lowercase) for _ in range(10))
+    return f"{date_str}-{random_str}"
 
 
 class HexagonLauncherRPC(metaclass=abc.ABCMeta):

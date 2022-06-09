@@ -60,6 +60,8 @@ class ReplayTraceNode : public SearchStrategyNode {
   int num_trials_per_iter;
   /*! \brief The number of total trials. */
   int max_trials_per_task;
+  /*! \brief The max number of failures during trace replaying. */
+  int max_fail_count;
 
   /*! \brief The tuning context of the search strategy. */
   const TuneContextNode* context_{nullptr};
@@ -71,6 +73,7 @@ class ReplayTraceNode : public SearchStrategyNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("num_trials_per_iter", &num_trials_per_iter);
     v->Visit("max_trials_per_task", &max_trials_per_task);
+    v->Visit("max_fail_count", &max_fail_count);
     // `context_` is not visited.
     // `rand_state_` is not visited
     // `state_` is not visited
@@ -136,7 +139,8 @@ inline Optional<Array<MeasureCandidate>> ReplayTraceNode::State::GenerateMeasure
                                                                         int task_id) -> void {
     TRandState& rand_state = per_thread_rand_state[thread_id];
     IRModule mod = this->per_thread_mod_[thread_id];
-    for (;;) {
+
+    for (int fail_count = 0; fail_count < self->max_fail_count; fail_count++) {
       int design_space_index = tir::SampleInt(&rand_state, 0, design_spaces.size());
       tir::Trace trace = design_spaces[design_space_index];
       tir::Trace new_trace = tir::Trace(trace->insts, {});
@@ -147,7 +151,13 @@ inline Optional<Array<MeasureCandidate>> ReplayTraceNode::State::GenerateMeasure
     }
   };
   support::parallel_for_dynamic(0, ed - st, ctx->num_threads, f_worker);
-  return per_task_result;
+  Array<MeasureCandidate> filtered;
+  filtered.reserve(ed - st);
+  for (MeasureCandidate result : per_task_result)
+    if (result.defined()) {
+      filtered.push_back(result);
+    }
+  return filtered;
 }
 
 inline void ReplayTraceNode::State::NotifyRunnerResults(const Array<RunnerResult>& results) {
@@ -155,10 +165,12 @@ inline void ReplayTraceNode::State::NotifyRunnerResults(const Array<RunnerResult
   ed += self->num_trials_per_iter;
 }
 
-SearchStrategy SearchStrategy::ReplayTrace(int num_trials_per_iter, int max_trials_per_task) {
+SearchStrategy SearchStrategy::ReplayTrace(int num_trials_per_iter, int max_trials_per_task,
+                                           int max_fail_count) {
   ObjectPtr<ReplayTraceNode> n = make_object<ReplayTraceNode>();
   n->num_trials_per_iter = num_trials_per_iter;
   n->max_trials_per_task = max_trials_per_task;
+  n->max_fail_count = max_fail_count;
   return SearchStrategy(n);
 }
 

@@ -119,6 +119,8 @@ class CallRewriter : public MixedModeMutator {
 
 }  // namespace
 
+GlobalSymbolCache::~GlobalSymbolCache() = default;
+
 GlobalVar ExistingGlobalSymbolCache::GetGlobalSymbol(const Function& function) {
   Optional<String> opt_global_symbol = function->GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(opt_global_symbol.defined())
