@@ -20,7 +20,7 @@
 
 [tool.black]
 line-length = 100
-target-version = ['py36']
+target-version = ['py37']
 include = '(\.pyi?$)'
 exclude = '''
 
@@ -64,7 +64,7 @@ decorator = "^4.4"
 numpy = "~1.19"
 psutil = "^5"
 scipy = "^1.4"
-python = "^3.8"
+python = "^3.7"
 tornado = "^6"
 typed_ast = "^1.4"
 pyyaml = "^5.4.1"
@@ -93,8 +93,9 @@ cffi = {version = "^1.14", optional = true}
 mxnet = {version = "^1.6.0", optional = true}
 
 # ONNX frontend
-onnx = {version = "1.6.0", optional = true}
-onnxruntime = {version = "1.0.0", optional = true}
+onnx = {version = "1.10.2", optional = true}
+onnxruntime = {version = "1.9.0", optional = true}
+onnxoptimizer {version = "0.2.6", optional = true}
 
 # Pytorch (also used by ONNX)
 # NOTE: cannot download this right now due to https://github.com/python-poetry/poetry/issues/2247
@@ -120,7 +121,7 @@ importer-caffe2 = ["torch"]
 importer-coreml = ["coremltools"]
 importer-darknet = ["opencv-python"]
 importer-keras = ["tensorflow", "tensorflow-estimator"]
-importer-onnx = ["onnx", "onnxruntime", "torch", "torchvision", "future"]
+importer-onnx = ["onnx", "onnxruntime", "onnxoptimizer", "torch", "torchvision", "future"]
 importer-pytorch = ["torch", "torchvision", "future"]
 importer-tensorflow = ["tensorflow", "tensorflow-estimator"]
 importer-tflite = ["tflite", "tensorflow", "tensorflow-estimator"]

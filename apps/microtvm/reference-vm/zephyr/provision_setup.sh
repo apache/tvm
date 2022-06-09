@@ -28,9 +28,9 @@ apps/microtvm/reference-vm/rebuild-tvm.sh ${platform}
 # Build poetry
 cd apps/microtvm/reference-vm/zephyr
 
-poetry env use 3.8
+poetry env use 3.7
 # NOTE: due to https://github.com/python-poetry/poetry/issues/2247, download torch here.
-poetry run pip3 install torch==1.4.0 torchvision==0.5.0
+poetry run pip3 install torch==1.11.0 torchvision==0.12.0 --extra-index-url https://download.pytorch.org/whl/cpu
 
 # importers
 poetry install -E importer-onnx
