@@ -212,4 +212,4 @@ def run_pipeline_executor():
 # To run pipeline executor with dnnl, USE_PIPELINE_EXECUTOR need to get set as ON.
 # and the 'USE_DNNL_CODEGEN' should set as ON in config.cmake and installing MKL-DNN.
 
-# run_pipeline_executor()
+run_pipeline_executor()
