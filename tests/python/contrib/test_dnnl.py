@@ -111,6 +111,8 @@ def partition_for_dnnl(mod, params=None, alter_layout=True):
                             with tvm.transform.PassContext(opt_level=3):
                                 mod = alter_layout_seq(mod)
 
+    mod = dnnl.rewrite_layer_norm(mod)
+
     byoc_seq = tvm.transform.Sequential(
         [
             transform.MergeComposite(dnnl.pattern_table()),
@@ -452,6 +454,16 @@ def get_conv2d_bias_bn_relu(x_shape=(1, 32, 8, 8), k_shape=(16, 32, 3, 3), dtype
         epsilon=1e-5,
     )
     return relay.nn.relu(conv2d_bias_bn), dic, param_lst
+
+
+def get_layer_norm(x_shape=(1, 49, 64), dtype="float32"):
+    dic = {"input": x_shape}
+    param_lst = []
+    input = relay.var("input", shape=x_shape)
+    beta = relay.const(np.zeros(x_shape[2]).astype(dtype))
+    gamma = relay.const(np.ones(x_shape[2]).astype(dtype))
+    out = relay.nn.layer_norm(input, gamma=gamma, beta=beta)
+    return out, dic, param_lst
 
 
 def get_conv2d_bias_sum_relu(x_shape=(1, 32, 8, 8), k_shape=(16, 32, 3, 3), dtype="float32"):
@@ -1030,6 +1042,15 @@ def test_prune_dnnl_subgraph(run_module):
         return out, dic, param_lst
 
     run_and_verify_func(get_graph(), subgraph_num=1, run_module=run_module, test_bf16=False)
+
+
+def test_layer_norm(run_module, dtype="float32"):
+    x_shape = (1, 49, 64)
+
+    ln, dic, param_lst = get_layer_norm(x_shape, dtype=dtype)
+    ln = tvm.IRModule.from_expr(ln)
+    config = ln, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
 
 if __name__ == "__main__":

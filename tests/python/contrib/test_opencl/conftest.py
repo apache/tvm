@@ -15,13 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=redefined-builtin, wildcard-import
-"""Qualcomm Adreno GPU specific declaration and schedules."""
-from .conv2d_nchw import *
-from .depthwise_conv2d_nchw import *
-from .conv2d_nhwc import *
-from .depthwise_conv2d_nhwc import *
-from .pooling import *
-from .conv2d_alter_op import *
-from .conv2d_nchw_winograd import *
-from .conv2d_nhwc_winograd import *
+""" OpenCL testing fixtures used to deduce testing argument
+    values from testing parameters """
+
+
+import pytest
+
+import tvm
+import tvm.testing
+
+pytest_plugins = [
+    "tvm.contrib.hexagon.pytest_plugin",
+]
