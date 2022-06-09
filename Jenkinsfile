@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-06-01T16:34:53.941462
+// Generated at 2022-06-02T14:03:43.284817
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -847,6 +847,14 @@ def shard_run_unittest_GPU_1_of_3() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -899,6 +907,14 @@ def shard_run_unittest_GPU_2_of_3() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -947,6 +963,14 @@ def shard_run_unittest_GPU_3_of_3() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -994,6 +1018,14 @@ def shard_run_integration_CPU_1_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1040,6 +1072,14 @@ def shard_run_integration_CPU_2_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1086,6 +1126,14 @@ def shard_run_integration_CPU_3_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1132,6 +1180,14 @@ def shard_run_integration_CPU_4_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1178,6 +1234,14 @@ def shard_run_integration_CPU_5_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1224,6 +1288,14 @@ def shard_run_integration_CPU_6_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1271,6 +1343,14 @@ def shard_run_python_i386_1_of_5() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1317,6 +1397,14 @@ def shard_run_python_i386_2_of_5() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1362,6 +1450,14 @@ def shard_run_python_i386_3_of_5() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1407,6 +1503,14 @@ def shard_run_python_i386_4_of_5() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1452,6 +1556,14 @@ def shard_run_python_i386_5_of_5() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1498,6 +1610,14 @@ def shard_run_test_Hexagon_1_of_7() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1542,6 +1662,14 @@ def shard_run_test_Hexagon_2_of_7() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1586,6 +1714,14 @@ def shard_run_test_Hexagon_3_of_7() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1630,6 +1766,14 @@ def shard_run_test_Hexagon_4_of_7() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1674,6 +1818,14 @@ def shard_run_test_Hexagon_5_of_7() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1718,6 +1870,14 @@ def shard_run_test_Hexagon_6_of_7() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1762,6 +1922,14 @@ def shard_run_test_Hexagon_7_of_7() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1808,6 +1976,14 @@ def shard_run_integration_aarch64_1_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1853,6 +2029,14 @@ def shard_run_integration_aarch64_2_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1898,6 +2082,14 @@ def shard_run_integration_aarch64_3_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1943,6 +2135,14 @@ def shard_run_integration_aarch64_4_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1988,6 +2188,14 @@ def shard_run_topi_GPU_1_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2032,6 +2240,14 @@ def shard_run_topi_GPU_2_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2076,6 +2292,14 @@ def shard_run_topi_GPU_3_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2120,6 +2344,14 @@ def shard_run_topi_GPU_4_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2165,6 +2397,14 @@ def shard_run_frontend_GPU_1_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2209,6 +2449,14 @@ def shard_run_frontend_GPU_2_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2253,6 +2501,14 @@ def shard_run_frontend_GPU_3_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2297,6 +2553,14 @@ def shard_run_frontend_GPU_4_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2341,6 +2605,14 @@ def shard_run_frontend_GPU_5_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2385,6 +2657,14 @@ def shard_run_frontend_GPU_6_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2435,6 +2715,14 @@ def shard_run_topi_aarch64_1_of_2() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2483,6 +2771,14 @@ def shard_run_topi_aarch64_2_of_2() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2528,6 +2824,14 @@ def shard_run_frontend_aarch64_1_of_2() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2572,6 +2876,14 @@ def shard_run_frontend_aarch64_2_of_2() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2742,6 +3054,14 @@ stage('Test') {
                 )
               })
             } finally {
+              sh(
+                script: """
+                  set -eux
+                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+                """,
+                label: 'Upload JUnits to S3',
+              )
+
               junit 'build/pytest-results/*.xml'
             }
           }
@@ -2787,6 +3107,14 @@ stage('Test') {
                 )
               })
             } finally {
+              sh(
+                script: """
+                  set -eux
+                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+                """,
+                label: 'Upload JUnits to S3',
+              )
+
               junit 'build/pytest-results/*.xml'
             }
           }
@@ -2827,6 +3155,14 @@ stage('Test') {
                 )
               })
             } finally {
+              sh(
+                script: """
+                  set -eux
+                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+                """,
+                label: 'Upload JUnits to S3',
+              )
+
               junit 'build/pytest-results/*.xml'
             }
           }
