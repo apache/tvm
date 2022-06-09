@@ -164,32 +164,6 @@ TVM_REGISTER_GLOBAL("driver.get_binds")
       return out_arr;
     });
 
-transform::Pass BindTarget(Target target) {
-  auto fpass = [target](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
-    return WithAttr(std::move(f), tvm::attr::kTarget, target);
-  };
-  return tir::transform::CreatePrimFuncPass(fpass, 0, "BindTarget", {});
-}
-
-static transform::Pass AnnotateEntryFunc(bool b) {
-  auto fpass = [](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
-    return WithAttr(std::move(f), tir::attr::kIsEntryFunc, Bool(true));
-  };
-  return tir::transform::CreatePrimFuncPass(fpass, 0, "AnnotateEntryFunc", {});
-}
-
-template <typename FCond>
-transform::Pass Filter(FCond fcond) {
-  auto fpass = [fcond](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
-    if (fcond(f)) {
-      return f;
-    } else {
-      return tir::PrimFunc(nullptr);
-    }
-  };
-  return tir::transform::CreatePrimFuncPass(fpass, 0, "Filter", {});
-}
-
 Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
 
@@ -564,12 +538,12 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   Array<Pass> mixed_pass_list;
 
-  mixed_pass_list.push_back(BindTarget(target));
+  mixed_pass_list.push_back(tir::transform::BindTarget(target));
 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
 
   if (ShouldAnnotateEntryFunc(mixed_mod)) {
-    mixed_pass_list.push_back(AnnotateEntryFunc(true));
+    mixed_pass_list.push_back(tir::transform::AnnotateEntryFunc());
   }
 
   bool detect_global_barrier =
@@ -606,14 +580,16 @@ TVM_REGISTER_GLOBAL("driver.mixed_mod_passes")
 
 transform::Sequential HostModulePassManager(IRModule mixed_mod, Target target_host) {
   Array<tvm::transform::Pass> host_pass_list;
-  host_pass_list.push_back(Filter([](const tir::PrimFunc& f) {
+
+  runtime::TypedPackedFunc<bool(tir::PrimFunc)> fcond = [](const tir::PrimFunc& f) {
     return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) !=
            CallingConv::kDeviceKernelLaunch;
-  }));
+  };
+  host_pass_list.push_back(tir::transform::Filter(fcond));
 
   ICHECK(mixed_mod.defined()) << "This module must be defined";
 
-  host_pass_list.push_back(BindTarget(target_host));
+  host_pass_list.push_back(tir::transform::BindTarget(target_host));
 
   host_pass_list.push_back(tir::transform::LowerTVMBuiltin());
   host_pass_list.push_back(tir::transform::LowerCustomDatatypes());
@@ -631,12 +607,13 @@ TVM_REGISTER_GLOBAL("driver.host_mod_passes")
 
 transform::Sequential DeviceModulePassManager(IRModule mixed_mod, Target target) {
   Array<Pass> device_pass_list;
-  device_pass_list.push_back(Filter([](const tir::PrimFunc& f) {
+  runtime::TypedPackedFunc<bool(tir::PrimFunc)> fcond = [](const tir::PrimFunc& f) {
     return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
            CallingConv::kDeviceKernelLaunch;
-  }));
+  };
+  device_pass_list.push_back(tir::transform::Filter(fcond));
 
-  device_pass_list.push_back(BindTarget(target));
+  device_pass_list.push_back(tir::transform::BindTarget(target));
 
   device_pass_list.push_back(tir::transform::LowerWarpMemory());
   device_pass_list.push_back(tir::transform::Simplify());
