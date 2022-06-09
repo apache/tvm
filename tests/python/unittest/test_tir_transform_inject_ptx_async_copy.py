@@ -24,9 +24,7 @@ def count_cp_async(stmt):
     num_alloc = [0]
 
     def verify(n):
-        if (
-            isinstance(n, tvm.tir.Call) and str(n.op) == "tir.ptx_cp_async"
-        ):
+        if isinstance(n, tvm.tir.Call) and str(n.op) == "tir.ptx_cp_async":
             num_alloc[0] += 1
 
     tvm.tir.stmt_functor.post_order_visit(stmt, verify)
