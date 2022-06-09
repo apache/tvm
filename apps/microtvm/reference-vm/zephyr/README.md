@@ -24,6 +24,8 @@ that are supported by [Zephyr Project](https://zephyrproject.org/).
 Zephyr VM is published under [tlcpack](https://app.vagrantup.com/tlcpack).
 Here is a list of different release versions and their tools.
 
+**Note**: We will release all microTVM RVM boxes under [microtvm-zephyr](https://app.vagrantup.com/tlcpack/boxes/microtvm-zephyr) and use box versioning in Vagrant file. Previous versions like `microtvm-zephyr-2.5`, `microtvm-zephyr-2.4` are not continued and will be removed in future.
+
 ### [microtvm-zephyr-2.5](https://app.vagrantup.com/tlcpack/boxes/microtvm-zephyr-2.5/versions/0.0.1)
 
 - Zephyr [version 2.5.0]
