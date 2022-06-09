@@ -144,6 +144,7 @@ We do encourage everyone to work anything they are interested in.
 - [Michalis Papadimitriou](https://github.com/mikepapadim): @mikepapadim
 - [Ashutosh Parkhi](https://github.com/ashutosh-arm): @ashutosh-arm
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
+- [Alexander Peskov](https://github.com/apeskov): @apeskov
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
 - [Ramana Radhakrishnan](https://github.com/u99127): @u99127
