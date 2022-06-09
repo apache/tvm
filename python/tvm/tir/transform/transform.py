@@ -17,7 +17,7 @@
 """Wrapping existing transformations."""
 # pylint: disable=invalid-name
 from typing import Optional, Callable
-from tvm.target import Target
+
 from . import _ffi_api
 from . import function_pass as _fpass
 
@@ -789,8 +789,12 @@ def RenormalizeSplitPattern():
     return _ffi_api.RenormalizeSplitPattern()  # type: ignore
 
 
-def BindTarget(target: Target):
+def BindTarget(target):
     """Annotate a PrimFunc with a given target.
+    Parameters
+    -------
+    target : tvm.target.Target
+        target
 
     Returns
     -------

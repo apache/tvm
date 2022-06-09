@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file helpers.cc
+ * \file primfunc_utils.cc
  * \brief Passes that serve as helper functions.
  */
 

@@ -24,8 +24,8 @@
 #ifndef TVM_TIR_TRANSFORM_H_
 #define TVM_TIR_TRANSFORM_H_
 
-#include <tvm/driver/driver_api.h>
 #include <tvm/ir/transform.h>
+#include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 
