@@ -18,9 +18,11 @@
 import subprocess
 import sys
 import json
+from tempfile import tempdir
 import textwrap
 import pytest
 import tvm.testing
+from pathlib import Path
 
 from test_utils import REPO_ROOT
 
@@ -29,10 +31,12 @@ class TempGit:
     def __init__(self, cwd):
         self.cwd = cwd
 
-    def run(self, *args):
-        proc = subprocess.run(["git"] + list(args), cwd=self.cwd)
+    def run(self, *args, **kwargs):
+        proc = subprocess.run(["git"] + list(args), encoding="utf-8", cwd=self.cwd, **kwargs)
         if proc.returncode != 0:
             raise RuntimeError(f"git command failed: '{args}'")
+
+        return proc
 
 
 def test_cc_reviewers(tmpdir_factory):
@@ -745,6 +749,95 @@ def test_github_tag_teams(tmpdir_factory):
         },
         check="No one to cc, exiting",
     )
+
+
+@pytest.mark.parametrize(
+    "changed_files,name,check,expected_code",
+    [
+        d.values()
+        for d in [
+            dict(
+                changed_files=[],
+                name="abc",
+                check="Image abc is not using new naming scheme",
+                expected_code=1,
+            ),
+            dict(
+                changed_files=[], name="123-123-abc", check="No extant hash found", expected_code=1
+            ),
+            dict(
+                changed_files=[["test.txt"]],
+                name=None,
+                check="Did not find changes, no rebuild necessary",
+                expected_code=0,
+            ),
+            dict(
+                changed_files=[["test.txt"], ["docker/test.txt"]],
+                name=None,
+                check="Found docker changes",
+                expected_code=2,
+            ),
+        ]
+    ],
+)
+def test_should_rebuild_docker(tmpdir_factory, changed_files, name, check, expected_code):
+    tag_script = REPO_ROOT / "tests" / "scripts" / "should_rebuild_docker.py"
+
+    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+    git.run("init")
+    git.run("config", "user.name", "ci")
+    git.run("config", "user.email", "email@example.com")
+    git.run("checkout", "-b", "main")
+    git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+
+    git_path = Path(git.cwd)
+    for i, commits in enumerate(changed_files):
+        for filename in commits:
+            path = git_path / filename
+            path.parent.mkdir(exist_ok=True, parents=True)
+            path.touch()
+            git.run("add", filename)
+
+        git.run("commit", "-m", f"message {i}")
+
+    if name is None:
+        ref = "HEAD"
+        if len(changed_files) > 1:
+            ref = f"HEAD~{len(changed_files) - 1}"
+        proc = git.run("rev-parse", ref, stdout=subprocess.PIPE)
+        last_hash = proc.stdout.strip()
+        name = f"123-123-{last_hash}"
+
+    docker_data = {
+        "repositories/tlcpack": {
+            "results": [
+                {
+                    "name": "ci-something",
+                },
+                {
+                    "name": "something-else",
+                },
+            ],
+        },
+        "repositories/tlcpack/ci-something/tags": {
+            "results": [{"name": name}, {"name": name + "old"}],
+        },
+    }
+
+    proc = subprocess.run(
+        [
+            str(tag_script),
+            "--testing-docker-data",
+            json.dumps(docker_data),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        encoding="utf-8",
+        cwd=git.cwd,
+    )
+
+    assert_in(check, proc.stdout)
+    assert proc.returncode == expected_code
 
 
 if __name__ == "__main__":

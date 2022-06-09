@@ -16,6 +16,25 @@ stage('Build packages') {
 }
 */
 
+
+def update_docker(ecr_image, hub_image) {
+  if (!ecr_image.contains("amazonaws.com")) {
+    sh("echo Skipping '${ecr_image}' since it doesn't look like an ECR image")
+    return
+  }
+  docker_init(ecr_image)
+  sh(
+    script: """
+    set -eux
+    docker tag \
+      ${ecr_image} \
+      ${hub_image}
+    docker push ${hub_image}
+    """,
+    label: "Update ${hub_image} on Docker Hub",
+  )
+}
+
 def deploy_docs() {
   // Note: This code must stay in the Jenkinsfile to ensure that it runs
   // from a trusted context only
@@ -64,6 +83,37 @@ def deploy() {
         ws({{ m.per_exec_ws('tvm/deploy-docs') }}) {
           {{ m.download_artifacts(tag='docs', filenames=["docs.tgz"]) }}
           deploy_docs()
+        }
+      }
+    }
+    if (env.BRANCH_NAME == 'main' && env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null) {
+      node('CPU') {
+        ws({{ m.per_exec_ws('tvm/deploy-docker') }}) {
+          try {
+            withCredentials([string(
+              credentialsId: 'dockerhub-tlcpackstaging-key',
+              variable: 'DOCKERHUB_KEY',
+            )]) {
+              sh(
+                script: 'docker login -u tlcpackstaging -p ${DOCKERHUB_KEY}',
+                label: 'Log in to Docker Hub',
+              )
+            }
+            def date_Ymd_HMS = sh(
+              script: 'python3 -c \'import datetime; print(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))\'',
+              label: 'Determine date',
+              returnStdout: true,
+            ).trim()
+            def tag = "${date_Ymd_HMS}-${upstream_revision.substring(0, 8)}"
+            {% for image in images %}
+            update_docker({{ image.name }}, "tlcpackstaging/test_{{ image.name }}:${tag}")
+            {% endfor %}
+          } finally {
+            sh(
+              script: 'docker logout',
+              label: 'Clean up login credentials'
+            )
+          }
         }
       }
     }
