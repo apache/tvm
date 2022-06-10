@@ -93,9 +93,7 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
 /*!
  * brief Returns number of global inputs.
  */
-int PipelineExecutor::NumInputs(void) {
-  return input_connection_config_.GetInputNum();
-}
+int PipelineExecutor::NumInputs(void) { return input_connection_config_.GetInputNum(); }
 /*!
  * \brief set input to the runtime module.
  * \param input_name The input name.
