@@ -541,8 +541,8 @@ def get_wmma_load_intrin(
             c, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope=wmma_fragment_scope
         )
         with T.block("root"):
-            T.reads(A[0:16, 0:16])
-            T.writes(C[0:16, 0:16])
+            T.reads(A[0:m_dim, 0:n_dim])
+            T.writes(C[0:m_dim, 0:n_dim])
             T.evaluate(
                 T.tvm_load_matrix_sync(
                     C.data,
