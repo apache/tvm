@@ -25,15 +25,15 @@ import time
 
 import pytest
 import tvm
-from tvm.autotvm.measure import measure_methods
-from tvm.ir.transform import PassContext
 import tvm.relay
 import tvm.testing
 from tvm import autotvm, te
+from tvm.autotvm.measure import measure_methods
 from tvm.autotvm.tuner import RandomTuner
-from tvm.target import Target
 from tvm.contrib import tar
 from tvm.ir.instrument import pass_instrument
+from tvm.ir.transform import PassContext
+from tvm.target import Target
 
 
 def setup_module():
@@ -210,7 +210,7 @@ def test_tuning_gpu_inherits_pass_context(target, dev):
         FUNC_NAME = "verify_gpu_code"
 
         def __init__(self) -> None:
-            self.old_impl = tvm._ffi.get_global_func(self.FFI_FUNC)
+            self.old_impl = tvm._ffi.get_global_func(self.FFI_FUNC_HANDLE)
             self.has_been_run = False
 
         def gpu_verify_pass_mocked(self):
