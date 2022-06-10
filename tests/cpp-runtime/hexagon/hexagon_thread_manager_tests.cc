@@ -60,7 +60,7 @@ TEST_F(HexagonThreadManagerTest, init) {
   CHECK_EQ(streams.size(), threads);
 }
 
-void get_the_answer(void* answer) { *(int*)answer = 42; }
+void get_the_answer(void* answer) { *reinterpret_cast<int*>(answer) = 42; }
 
 TEST_F(HexagonThreadManagerTest, dispatch) {
   htm->Dispatch(streams[0], get_the_answer, &answer);
@@ -171,7 +171,10 @@ TEST_F(HexagonThreadManagerTest, pipe_overflow) {
   CHECK_EQ(space, false);
 }
 
-void increment(void* val) { *(int*)val = *(int*)val + 1; }
+void increment(void* voidptr) {
+  int* intptr = reinterpret_cast<int*>(voidptr);
+  *intptr = *intptr + 1;
+}
 
 TEST_F(HexagonThreadManagerTest, producer_consumer) {
   htm->Dispatch(streams[5], increment, &answer);
@@ -218,7 +221,7 @@ struct ToAppend {
 };
 
 void append(void* toappend) {
-  ToAppend* cmd = (ToAppend*)toappend;
+  ToAppend* cmd = reinterpret_cast<ToAppend*>(toappend);
   cmd->arr->push_back(cmd->value);
 }
 
@@ -297,7 +300,7 @@ struct ToWrite {
 };
 
 void thread_write_val(void* towrite) {
-  ToWrite* cmd = (ToWrite*)towrite;
+  ToWrite* cmd = reinterpret_cast<ToWrite*>(towrite);
   *(cmd->addr) = cmd->value;
   delete cmd;
 }
@@ -316,21 +319,6 @@ TEST_F(HexagonThreadManagerTest, dispatch_writes) {
   htm->Start();
   htm->WaitOnThreads();
   for (int i = 0; i < streams.size(); i++) {
-    DBG(std::to_string(array[i]) << " " << std::to_string(truth[i]));
     CHECK_EQ(array[i], truth[i]);
   }
-}
-
-void thread_print(void* msg) { LOG(WARNING) << (char*)msg << "\n"; }
-
-TEST_F(HexagonThreadManagerTest, dispatch_prints) {
-  std::vector<std::string> strings;
-  strings.resize(streams.size());
-  DBG(std::to_string(streams.size()) << " streams");
-  for (int i = 0; i < streams.size(); i++) {
-    strings[i] += "In thread " + std::to_string(i);
-    htm->Dispatch(streams[i], thread_print, (void*)strings[0].c_str());
-  }
-  htm->Start();
-  htm->WaitOnThreads();
 }

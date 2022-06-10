@@ -38,7 +38,7 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   CHECK_GE(thread_pipe_size_words, MIN_PIPE_SIZE_WORDS);
   CHECK_LE(thread_pipe_size_words, MAX_PIPE_SIZE_WORDS);
 
-  DBG("Spawning threads");
+  DLOG(INFO) << "Spawning threads";
   SpawnThreads(thread_stack_size_bytes, thread_pipe_size_words);
 
   // Initially, block all threads until we get the Start() call
@@ -54,17 +54,17 @@ HexagonThreadManager::~HexagonThreadManager() {
     Start();
   }
 
-  DBG("Threads started");
+  DLOG(INFO) << "Threads started";
 
   // dispatch a command to each thread to exit with status 0
   for (unsigned i = 0; i < nthreads; i++) {
-    bool success = Dispatch((TVMStreamHandle)i, &thread_exit, reinterpret_cast<void*>(0));
+    bool success = Dispatch((TVMStreamHandle)i, &thread_exit, nullptr);
     while (!success) {
-      success = Dispatch((TVMStreamHandle)i, &thread_exit, reinterpret_cast<void*>(0));
+      success = Dispatch((TVMStreamHandle)i, &thread_exit, nullptr);
     }
   }
 
-  DBG("Threads exited");
+  DLOG(INFO) << "Threads exited";
 
   // join with each thread (wait for them to terminate); if already exited, the call returns
   // immediately
@@ -73,7 +73,7 @@ HexagonThreadManager::~HexagonThreadManager() {
     qurt_thread_join(threads[i], &status);
   }
 
-  DBG("Threads joined");
+  DLOG(INFO) << "Threads joined";
 
   // Destroy semaphores
   qurt_sem_destroy(&start_semaphore);
@@ -82,7 +82,7 @@ HexagonThreadManager::~HexagonThreadManager() {
     free(it.second);
   }
 
-  DBG("Semaphores destroyed");
+  DLOG(INFO) << "Semaphores destroyed";
 
   // Delete pipe objects and contexts
   for (unsigned i = 0; i < nthreads; i++) {
@@ -90,13 +90,13 @@ HexagonThreadManager::~HexagonThreadManager() {
     delete contexts[i];
   }
 
-  DBG("Pipes and contexts deleted");
+  DLOG(INFO) << "Pipes and contexts deleted";
 
   // Dealloc memory blocks
   hexbuffs.FreeHexagonBuffer(stack_buffer);
   hexbuffs.FreeHexagonBuffer(pipe_buffer);
 
-  DBG("Buffers freed");
+  DLOG(INFO) << "Buffers freed";
 }
 
 void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes,
@@ -113,7 +113,7 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes,
   pipes.resize(nthreads);
   contexts.resize(nthreads);
 
-  DBG("Buffers allocated");
+  DLOG(INFO) << "Buffers allocated";
 
   // First, create pipe resources for all threads
   char* next_pipe_start = reinterpret_cast<char*>(pipe_buffer);
@@ -130,7 +130,7 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes,
     CHECK_EQ(rc, QURT_EOK);
   }
 
-  DBG("Pipes created");
+  DLOG(INFO) << "Pipes created";
 
   // Create all threads
   char* next_stack_start = reinterpret_cast<char*>(stack_buffer);
@@ -147,12 +147,11 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes,
 
     // create the thread
     contexts[i] = new ThreadContext(&pipes[i], i);
-    int rc = qurt_thread_create(&threads[i], &thread_attr, thread_main,
-                                reinterpret_cast<void*>(contexts[i]));
+    int rc = qurt_thread_create(&threads[i], &thread_attr, thread_main, contexts[i]);
     CHECK_EQ(rc, QURT_EOK);
   }
 
-  DBG("Threads created");
+  DLOG(INFO) << "Threads created";
 }
 
 const std::vector<TVMStreamHandle> HexagonThreadManager::GetStreamHandles() {
@@ -165,9 +164,7 @@ const std::vector<TVMStreamHandle> HexagonThreadManager::GetStreamHandles() {
 
 bool HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* args) {
   unsigned thread = (uint64_t)stream;
-  std::stringstream log;
-  log << "Dispatching to stream " << thread;
-  DBG(log.str());
+  DLOG(INFO) << "Dispatching to stream " << thread;
   Command* cmd = new Command(f, args);  // Command object freed by receiving thread
   qurt_pipe_data_t msg = (qurt_pipe_data_t)(cmd);
   qurt_pipe_t* pipeAddr = &pipes[thread];
@@ -222,20 +219,16 @@ void HexagonThreadManager::CheckSemaphore(unsigned syncID) {
 
 bool HexagonThreadManager::Signal(TVMStreamHandle thread, SyncPoint syncID) {
   CheckSemaphore(syncID);
-  std::stringstream log;
-  log << "Dispatching signal to thread " << thread << " on semaphore ID " << syncID
-      << " located @ 0x" << std::hex << semaphores[syncID];
-  DBG(log.str());
-  return Dispatch(thread, thread_signal, reinterpret_cast<void*>(semaphores[syncID]));
+  DLOG(INFO) << "Dispatching signal to thread " << thread << " on semaphore ID " << syncID
+             << " located @ 0x" << std::hex << semaphores[syncID];
+  return Dispatch(thread, thread_signal, semaphores[syncID]);
 }
 
 bool HexagonThreadManager::Wait(TVMStreamHandle thread, SyncPoint syncID) {
   CheckSemaphore(syncID);
-  std::stringstream log;
-  log << "Dispatching wait to thread " << thread << " on semaphore ID " << syncID << " located @ 0x"
-      << std::hex << semaphores[syncID];
-  DBG(log.str());
-  return Dispatch(thread, thread_wait, reinterpret_cast<void*>(semaphores[syncID]));
+  DLOG(INFO) << "Dispatching wait to thread " << thread << " on semaphore ID " << syncID
+             << " located @ 0x" << std::hex << semaphores[syncID];
+  return Dispatch(thread, thread_wait, semaphores[syncID]);
 }
 
 /* Create a sync_from_to relationship with a dynamic semaphore allocation.
@@ -244,24 +237,20 @@ Makes use of thread_wait_free to also free the semaphore after sync is complete.
 bool HexagonThreadManager::SyncFromTo(TVMStreamHandle signal_thread, TVMStreamHandle wait_thread) {
   qurt_sem_t* sem = reinterpret_cast<qurt_sem_t*>(malloc(sizeof(qurt_sem_t)));
   qurt_sem_init_val(sem, 0);
-  if (Dispatch(signal_thread, thread_signal, reinterpret_cast<void*>(sem))) {
-    return Dispatch(wait_thread, thread_wait_free, reinterpret_cast<void*>(sem));
+  if (Dispatch(signal_thread, thread_signal, sem)) {
+    return Dispatch(wait_thread, thread_wait_free, sem);
   } else {
     return false;
   }
 }
 
 void HexagonThreadManager::thread_signal(void* semaphore) {
-  std::stringstream log;
-  log << "Signaling semaphore addr 0x" << std::hex << semaphore;
-  DBG(log.str());
+  DLOG(INFO) << "Signaling semaphore addr 0x" << std::hex << semaphore;
   qurt_sem_add(reinterpret_cast<qurt_sem_t*>(semaphore), QURT_MAX_HTHREAD_LIMIT);
 }
 
 void HexagonThreadManager::thread_wait(void* semaphore) {
-  std::stringstream log;
-  log << "Waiting on semaphore addr 0x" << std::hex << semaphore;
-  DBG(log.str());
+  DLOG(INFO) << "Waiting on semaphore addr 0x" << std::hex << semaphore;
   qurt_sem_down(reinterpret_cast<qurt_sem_t*>(semaphore));
 }
 
@@ -273,7 +262,7 @@ void HexagonThreadManager::thread_wait_free(void* semaphore) {
 }
 
 void HexagonThreadManager::thread_exit(void* status) {
-  DBG("thread exiting");
+  DLOG(INFO) << "thread exiting";
   qurt_thread_exit((uint64_t)status);
 }
 
@@ -282,14 +271,10 @@ void HexagonThreadManager::thread_main(void* context) {
   unsigned index = tc->index;
   qurt_pipe_t* mypipe = tc->pipe;
 
-  std::stringstream log1;
-  log1 << "Thread " << index << " spawned";
-  DBG(log1.str());
+  DLOG(INFO) << "Thread " << index << " spawned";
 
   while (true) {  // loop, executing commands from pipe
-    std::stringstream log2;
-    log2 << "Thread " << index << " receiving command";
-    DBG(log2.str());
+    DLOG(INFO) << "Thread " << index << " receiving command";
     qurt_pipe_data_t msg = qurt_pipe_receive(mypipe);  // blocks if empty
     Command* cmd = reinterpret_cast<Command*>(msg);
     voidfunc f = cmd->f;

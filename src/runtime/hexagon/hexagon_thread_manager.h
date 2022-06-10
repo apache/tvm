@@ -38,13 +38,11 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-#define DBG(msg) DLOG(INFO) << msg << "\n";
-
 class HexagonThreadManager {
   //! \brief Void function.
-  typedef void (*voidfunc)(void*);
+  using voidfunc = void (*)(void*);
   //! \brief Semaphore ID.
-  typedef unsigned SyncPoint;
+  using SyncPoint = unsigned;
   //! \brief Alignment of underlying memory allocations.
   const unsigned MEM_ALIGNMENT = 32;
   //! \brief Minimum stack size in bytes per thread.
