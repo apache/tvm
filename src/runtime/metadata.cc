@@ -41,12 +41,13 @@ ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::inputs() {
 ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::outputs() {
   return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->outputs, data_->num_outputs);
 }
-ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::pools() {
-  return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->pools, data_->num_pools);
+ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::workspace_pools() {
+  return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->workspace_pools,
+                                                         data_->num_workspace_pools);
 }
-ArrayAccessor<struct TVMConstantInfo, ConstantInfoMetadata> MetadataNode::consts() {
-  return ArrayAccessor<struct TVMConstantInfo, ConstantInfoMetadata>(data_->consts,
-                                                                     data_->num_consts);
+ArrayAccessor<struct TVMConstantInfo, ConstantInfoMetadata> MetadataNode::constant_pools() {
+  return ArrayAccessor<struct TVMConstantInfo, ConstantInfoMetadata>(data_->constant_pools,
+                                                                     data_->num_constant_pools);
 }
 
 TVM_REGISTER_OBJECT_TYPE(MetadataBaseNode);

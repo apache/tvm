@@ -61,12 +61,12 @@ class MetadataNode : public MetadataBaseNode {
   ArrayAccessor<struct TVMTensorInfo, TensorInfo> inputs();
   inline int64_t num_outputs() const { return data_->num_outputs; }
   ArrayAccessor<struct TVMTensorInfo, TensorInfo> outputs();
-  inline int64_t num_pools() const { return data_->num_pools; }
-  ArrayAccessor<struct TVMTensorInfo, TensorInfo> pools();
+  inline int64_t num_workspace_pools() const { return data_->num_workspace_pools; }
+  ArrayAccessor<struct TVMTensorInfo, TensorInfo> workspace_pools();
   inline ::tvm::runtime::String mod_name() const { return ::tvm::runtime::String(data_->mod_name); }
   const struct ::TVMMetadata* data() const { return data_; }
-  ArrayAccessor<struct TVMConstantInfo, ConstantInfoMetadata> consts();
-  inline int64_t num_consts() const { return data_->num_consts; }
+  ArrayAccessor<struct TVMConstantInfo, ConstantInfoMetadata> constant_pools();
+  inline int64_t num_constant_pools() const { return data_->num_constant_pools; }
   TVM_DECLARE_FINAL_OBJECT_INFO(MetadataNode, MetadataBaseNode);
 
  private:

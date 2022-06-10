@@ -73,17 +73,17 @@ AotExecutor::AotExecutor(tvm::runtime::Module module, const std::vector<Device>&
   };
 
   // USMP is used
-  if (metadata_->num_pools()) {
+  if (metadata_->num_workspace_pools()) {
     // merge all constants into one ndarray
     int64_t blob_len = 0;
-    for (const auto& c : metadata_->consts()) {
+    for (const auto& c : metadata_->constant_pools()) {
       auto data = c->data();
       int64_t byte_size = get_array_byte_size(data.DataType(), data.Shape()) + c->byte_offset();
       blob_len = blob_len > byte_size ? blob_len : byte_size;
     }
     ICHECK(blob_len < std::numeric_limits<int32_t>::max());
     NDArray ci = NDArray::Empty({blob_len}, DataType::UInt(8), devices_[0]);
-    for (const auto& c : metadata_->consts()) {
+    for (const auto& c : metadata_->constant_pools()) {
       auto data = c->data();
       data.CopyToBytes(static_cast<uint8_t*>(ci->data) + c->byte_offset(),
                        get_array_byte_size(data.DataType(), data.Shape()));
@@ -92,7 +92,7 @@ AotExecutor::AotExecutor(tvm::runtime::Module module, const std::vector<Device>&
     args_.emplace_back(ci);
 
     int32_t pool_len = 0;
-    for (auto pool : metadata_->pools()) {
+    for (auto pool : metadata_->workspace_pools()) {
       pool_len = get_array_byte_size(pool->dtype(), pool->shape());
       args_.emplace_back(NDArray::Empty({pool_len}, DataType::UInt(8), devices_[0]));
     }

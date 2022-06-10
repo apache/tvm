@@ -39,7 +39,8 @@ static void DumpMetadata(const TVMMetadata* md) {
   LOG_DEBUG("\tversion=%" PRId64 "\n", md->version);
   LOG_DEBUG("\tnum_inputs=%" PRId64 "\n", md->num_inputs);
   LOG_DEBUG("\tnum_outputs=%" PRId64 "\n", md->num_outputs);
-  LOG_DEBUG("\tnum_pools=%" PRId64 "\n", md->num_pools);
+  LOG_DEBUG("\tnum_workspace_pools=%" PRId64 "\n", md->num_workspace_pools);
+  LOG_DEBUG("\tnum_constant_pools=%" PRId64 "\n", md->num_constant_pools);
 
   int i;
 
@@ -51,8 +52,12 @@ static void DumpMetadata(const TVMMetadata* md) {
     LOG_DEBUG("\toutput[%d]: %s\n", i, md->outputs[i].name);
   }
 
-  for (i = 0; i < md->num_pools; ++i) {
-    LOG_DEBUG("\tpools[%d]: %s\n", i, md->pools[i].name);
+  for (i = 0; i < md->num_workspace_pools; ++i) {
+    LOG_DEBUG("\tworkspace_pools[%d]: %s\n", i, md->workspace_pools[i].name);
+  }
+
+  for (i = 0; i < md->num_constant_pools; ++i) {
+    LOG_DEBUG("\tconstant_pools[%d]: %s\n", i, md->constant_pools[i].name_hint);
   }
 }
 
@@ -160,7 +165,7 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
 
   DumpMetadata(md);
 
-  executor->num_args = md->num_inputs + md->num_outputs + md->num_pools;
+  executor->num_args = md->num_inputs + md->num_outputs + md->num_workspace_pools;
 
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(executor->num_args * sizeof(*executor->args),
                                                   executor->device, (void**)(&executor->args));
@@ -198,16 +203,17 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
     TVMNDArray_IncrementReference(array);
   }
 
-  for (i = 0; i < md->num_pools; ++i) {
-    LOG_DEBUG("pools allocate[%d]: %s\n", i, md->pools[i].name);
+  for (i = 0; i < md->num_workspace_pools; ++i) {
+    LOG_DEBUG("pools allocate[%d]: %s\n", i, md->workspace_pools[i].name);
 
-    status = TVMNDArray_Empty(md->pools[i].num_shape, md->pools[i].shape, md->pools[i].dtype,
-                              executor->device, &executor->args[arg_idx++]);
+    status = TVMNDArray_Empty(md->workspace_pools[i].num_shape, md->workspace_pools[i].shape,
+                              md->workspace_pools[i].dtype, executor->device,
+                              &executor->args[arg_idx++]);
     if (status != 0) {
       return status;
     }
   }
-
+  CHECK_EQ(0, md->num_constant_pools, "Constant pools not supported");
   return status;
 }
 

@@ -106,7 +106,7 @@ TEST(Metadata, ParseStruct) {
   EXPECT_THAT(output1->shape(), ElementsAre(3, 8, 8));
   EXPECT_THAT(output1->dtype(), Eq(tvm::runtime::DataType(DLDataType{3, 4, 5})));
 
-  auto pools = md->pools();
+  auto pools = md->workspace_pools();
   EXPECT_THAT(pools.size(), Eq(1));
 
   auto workspace_pool1 = pools[0];
@@ -170,10 +170,10 @@ TEST(Metadata, Visitor) {
   TestVisitor v;
   ::tvm::ReflectionVTable::Global()->VisitAttrs(md.operator->(), &v);
 
-  EXPECT_THAT(v.keys,
-              ElementsAre(StrEq("version"), StrEq("inputs"), StrEq("num_inputs"), StrEq("outputs"),
-                          StrEq("num_outputs"), StrEq("pools"), StrEq("num_pools"), StrEq("consts"),
-                          StrEq("num_consts"), StrEq("mod_name")));
+  EXPECT_THAT(v.keys, ElementsAre(StrEq("version"), StrEq("inputs"), StrEq("num_inputs"),
+                                  StrEq("outputs"), StrEq("num_outputs"), StrEq("workspace_pools"),
+                                  StrEq("num_workspace_pools"), StrEq("constant_pools"),
+                                  StrEq("num_constant_pools"), StrEq("mod_name")));
   EXPECT_THAT(Downcast<tvm::IntImm>(v.values[0])->value, Eq(TVM_METADATA_VERSION));
 
   EXPECT_THAT(Downcast<tvm::IntImm>(v.values[0])->value, Eq(TVM_METADATA_VERSION));
@@ -214,8 +214,8 @@ TEST(Metadata, Visitor) {
 
   EXPECT_THAT(workspace_pool1->name(), Eq("workspace_pool1"));
 
-  auto num_pools = Downcast<tvm::IntImm>(v.values[6]);
-  EXPECT_THAT(num_pools->value, Eq(1));
+  auto num_workspace_pools = Downcast<tvm::IntImm>(v.values[6]);
+  EXPECT_THAT(num_workspace_pools->value, Eq(1));
 
   auto consts_array = Downcast<MetadataArray>(v.values[7]);
   EXPECT_THAT(consts_array->kind, Eq(MetadataKind::kMetadata));
@@ -280,7 +280,7 @@ TEST(Metadata, InMemory) {
   EXPECT_THAT(tvm::runtime::DataType(output0->dtype),
               Eq(tvm::runtime::DataType(DLDataType({3, 4, 5}))));
 
-  auto workspace_pool0 = &md_data->pools[0];
+  auto workspace_pool0 = &md_data->workspace_pools[0];
   EXPECT_THAT(workspace_pool0->name, StrEq("Workspace_Pool1"));
   EXPECT_THAT(std::vector<int64_t>(workspace_pool0->shape,
                                    workspace_pool0->shape + workspace_pool0->num_shape),
@@ -288,7 +288,7 @@ TEST(Metadata, InMemory) {
   EXPECT_THAT(tvm::runtime::DataType(workspace_pool0->dtype),
               Eq(tvm::runtime::DataType(DLDataType({3, 4, 7}))));
 
-  auto constant_pool0 = &md_data->consts[0];
+  auto constant_pool0 = &md_data->constant_pools[0];
   EXPECT_THAT(constant_pool0->name_hint, StrEq("Constant_Pool1"));
 
   EXPECT_THAT(md_data->mod_name, StrEq("default"));
@@ -313,9 +313,9 @@ TEST(Metadata, ZeroElementLists) {
   EXPECT_THAT(md->outputs()[0]->shape().size(), Eq(0));
   EXPECT_THAT(md->outputs()[0]->shape(), ElementsAre());
 
-  EXPECT_THAT(md->pools().size(), Eq(0));
-  EXPECT_THAT(md->num_pools(), Eq(0));
-  EXPECT_THAT(md->pools(), ElementsAre());
+  EXPECT_THAT(md->workspace_pools().size(), Eq(0));
+  EXPECT_THAT(md->num_workspace_pools(), Eq(0));
+  EXPECT_THAT(md->workspace_pools(), ElementsAre());
 }
 
 TEST(MetadataArray, GetElementCStructName) {
@@ -354,7 +354,7 @@ TEST(DiscoverArraysVisitor, DiscoverArrays) {
                                    DiscoveredNameEq("kTvmgenMetadata_inputs"),
                                    DiscoveredNameEq("kTvmgenMetadata_outputs_0_shape"),
                                    DiscoveredNameEq("kTvmgenMetadata_outputs"),
-                                   DiscoveredNameEq("kTvmgenMetadata_pools_0_shape"),
+                                   DiscoveredNameEq("kTvmgenMetadata_workspace_pools_0_shape"),
                                    DiscoveredNameEq("kTvmgenMetadata_workspace_pools"),
                                    DiscoveredNameEq("kTvmgenMetadata_constant_pools")}));
 }
