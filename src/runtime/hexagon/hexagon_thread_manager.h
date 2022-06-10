@@ -149,33 +149,33 @@ class HexagonThreadManager {
   static void thread_main(void* context);
 
   //! \brief Manages underlying HexagonBuffer allocations.
-  HexagonBufferManager hexbuffs;
+  HexagonBufferManager hexbuffs_;
 
   //! \brief Number of threads allocatted.
-  unsigned nthreads{0};
+  unsigned nthreads_{0};
 
   //! \brief Pointer to the base of the stacks allocated for all threads; size = `nthreads` *
   //! `thread_stack_size_bytes`.
-  void* stack_buffer{nullptr};
+  void* stack_buffer_{nullptr};
 
   //! \brief Pointer to the base of the pipes (or command buffers) allocated for all threads; size =
   //! `nthreads` * `thread_pipe_size_words` * sizeof(word).
-  void* pipe_buffer{nullptr};
+  void* pipe_buffer_{nullptr};
 
   //! \brief QURT thread structure for each spawned thread.
-  std::vector<qurt_thread_t> threads;
+  std::vector<qurt_thread_t> threads_;
 
   //! \brief QURT pipe (or command buffer) structure for each spawned thread.
-  std::vector<qurt_pipe_t> pipes;
+  std::vector<qurt_pipe_t> pipes_;
 
   //! \brief Thread context passed into each `thread_main` function.
-  std::vector<ThreadContext*> contexts;
+  std::vector<ThreadContext*> contexts_;
 
   //! \brief Semaphores used by `Signal` and `Wait` mapped by ID.
-  std::unordered_map<unsigned, qurt_sem_t*> semaphores;
+  std::unordered_map<unsigned, qurt_sem_t*> semaphores_;
 
   //! \brief Start semaphore created at time of construction; signled by `Start`.
-  qurt_sem_t start_semaphore;
+  qurt_sem_t start_semaphore_;
 
   /*!
    *\brief Encapsulate a void function pointer + arg pointer; sent via pipe to threads to execute.
