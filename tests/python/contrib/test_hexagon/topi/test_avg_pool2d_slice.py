@@ -24,7 +24,7 @@ import tvm.testing
 from tvm.topi import testing
 from tvm.contrib.hexagon.build import HexagonLauncher
 import tvm.topi.hexagon.slice_ops as sl
-from .infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy
 
 
 input_layout = tvm.testing.parameter(
