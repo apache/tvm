@@ -44,7 +44,7 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
   // Initially, block all threads until we get the Start() call
   qurt_sem_init_val(&start_semaphore, 0);
   for (unsigned i = 0; i < nthreads; i++) {
-    Dispatch((TVMStreamHandle)i, thread_wait, &start_semaphore);
+    Dispatch(reinterpret_cast<TVMStreamHandle>(i), thread_wait, &start_semaphore);
   }
 }
 
@@ -58,9 +58,9 @@ HexagonThreadManager::~HexagonThreadManager() {
 
   // dispatch a command to each thread to exit with status 0
   for (unsigned i = 0; i < nthreads; i++) {
-    bool success = Dispatch((TVMStreamHandle)i, &thread_exit, nullptr);
+    bool success = Dispatch(reinterpret_cast<TVMStreamHandle>(i), thread_exit, nullptr);
     while (!success) {
-      success = Dispatch((TVMStreamHandle)i, &thread_exit, nullptr);
+      success = Dispatch(reinterpret_cast<TVMStreamHandle>(i), thread_exit, nullptr);
     }
   }
 
@@ -157,13 +157,14 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes,
 const std::vector<TVMStreamHandle> HexagonThreadManager::GetStreamHandles() {
   std::vector<TVMStreamHandle> out;
   for (unsigned i = 0; i < nthreads; i++) {
-    out.push_back((TVMStreamHandle)i);  // threads identified by index into `threads` array
+    // threads identified by index into `threads` array
+    out.push_back(reinterpret_cast<TVMStreamHandle>(i));
   }
   return out;
 }
 
 bool HexagonThreadManager::Dispatch(TVMStreamHandle stream, voidfunc f, void* args) {
-  unsigned thread = (uint64_t)stream;
+  unsigned thread = reinterpret_cast<unsigned>(stream);
   DLOG(INFO) << "Dispatching to stream " << thread;
   Command* cmd = new Command(f, args);  // Command object freed by receiving thread
   qurt_pipe_data_t msg = (qurt_pipe_data_t)(cmd);
@@ -194,9 +195,9 @@ void HexagonThreadManager::WaitOnThreads() {
   }
   // dispatch signal() command to each thread on their private semaphore
   for (unsigned i = 0; i < nthreads; i++) {
-    bool success = Dispatch((TVMStreamHandle)i, thread_signal, &finished[i]);
+    bool success = Dispatch(reinterpret_cast<TVMStreamHandle>(i), thread_signal, &finished[i]);
     while (!success) {
-      success = Dispatch((TVMStreamHandle)i, thread_signal, &finished[i]);
+      success = Dispatch(reinterpret_cast<TVMStreamHandle>(i), thread_signal, &finished[i]);
     }
   }
   // wait on each semaphore, one at a time
