@@ -1996,5 +1996,103 @@ def test_conv2d_rocm_sdot4():
     np.testing.assert_equal(out, ref)
 
 
+@tvm.testing.requires_x86
+def test_conv2d_nchw_mkldnn():
+    if not tvm.get_global_func("tvm.contrib.mkldnn.conv2d", allow_missing=True):
+        print(
+            "skip because extern mkldnn function is not available, \
+                built with MKLDNN=ON"
+        )
+        return
+    d_shape = (1, 64, 56, 56)
+    w_shape = (64, 64, 3, 3)
+    padding = (1, 1)
+    strides = (1, 1)
+
+    data = relay.var("data", shape=d_shape, dtype="float32")
+    weight = relay.var("weight", shape=w_shape, dtype="float32")
+    out_channel = w_shape[0]
+    conv2d = relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=w_shape[2:],
+        channels=out_channel,
+        padding=padding,
+        strides=strides,
+        out_dtype="float32",
+    )
+
+    mod = tvm.IRModule.from_expr(conv2d)
+
+    data_np = np.random.uniform(1, 10, d_shape).astype("float32")
+    weight_np = np.random.uniform(1, 10, size=w_shape).astype("float32")
+
+    target = "llvm -mcpu=skylake-avx512 -libs=mkldnn"
+    with tvm.transform.PassContext(opt_level=3):
+        lib = relay.build(mod, target=target, params={"weight": weight_np})
+
+    dev = tvm.device(target, 0)
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    runtime.set_input("data", data_np)
+    runtime.run()
+
+    out = runtime.get_output(0).numpy()
+
+    ref = tvm.topi.testing.conv2d_nchw_python(data_np, weight_np, strides, padding)
+
+    np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+
+
+@tvm.testing.requires_x86
+def test_conv2d_nhwc_mkldnn():
+    if not tvm.get_global_func("tvm.contrib.mkldnn.conv2d", allow_missing=True):
+        print(
+            "skip because extern mkldnn function is not available, \
+                built with MKLDNN=ON"
+        )
+        return
+    d_shape = (1, 56, 56, 64)
+    w_shape = (3, 3, 64, 64)
+    padding = (1, 1)
+    strides = (1, 1)
+
+    data = relay.var("data", shape=d_shape, dtype="float32")
+    weight = relay.var("weight", shape=w_shape, dtype="float32")
+    out_channel = w_shape[3]
+    conv2d = relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=w_shape[:2],
+        channels=out_channel,
+        padding=padding,
+        strides=strides,
+        out_dtype="float32",
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+    )
+
+    mod = tvm.IRModule.from_expr(conv2d)
+
+    data_np = np.random.uniform(1, 10, d_shape).astype("float32")
+    weight_np = np.random.uniform(1, 10, size=w_shape).astype("float32")
+
+    target = "llvm -mcpu=skylake-avx512 -libs=mkldnn"
+    with tvm.transform.PassContext(opt_level=3):
+        lib = relay.build(mod, target=target, params={"weight": weight_np})
+
+    dev = tvm.device(target, 0)
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    runtime.set_input("data", data_np)
+    runtime.run()
+
+    out = runtime.get_output(0).numpy()
+
+    ref = tvm.topi.testing.conv2d_nhwc_python(data_np, weight_np, strides, padding)
+
+    np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
