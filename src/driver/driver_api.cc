@@ -50,6 +50,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_storage_rewrite", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.is_entry_func", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.add_lower_pass", Array<Array<ObjectRef>>);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.debug_keep_trivial_loop", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.use_ptx_async_copy", Bool);
 
 using runtime::PackedFunc;
 using runtime::TVMArgs;
@@ -558,6 +559,13 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
   mixed_pass_list.push_back(tir::transform::InferFragment());
   mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
+
+  bool use_ptx_async_copy =
+      pass_ctx->GetConfig<Bool>("tir.use_ptx_async_copy", Bool(false)).value();
+
+  if (use_ptx_async_copy) {
+    mixed_pass_list.push_back(tir::transform::InjectPTXAsyncCopy());
+  }
 
   bool unpacked_api = mixed_mod->GetAttr<relay::Executor>(tvm::attr::kExecutor)
                           .value_or(relay::Executor::Create("graph", {}))

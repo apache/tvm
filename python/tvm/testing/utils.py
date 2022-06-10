@@ -1599,6 +1599,13 @@ def terminate_self():
     sys.exit(-1)
 
 
+def is_ampere_or_newer():
+    """Check if the target environment has an NVIDIA Ampere GPU or newer."""
+    arch = tvm.contrib.nvcc.get_target_compute_version()
+    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
+    return major >= 8
+
+
 def main():
     test_file = inspect.getsourcefile(sys._getframe(1))
     sys.exit(pytest.main([test_file] + sys.argv[1:]))
