@@ -33,6 +33,7 @@ poetry env use 3.7
 # importers
 poetry install -E importer-onnx
 poetry install -E importer-tflite
+poetry install -E importer-mxnet
 
 poetry install
 poetry run pip3 install -r ${ZEPHYR_BASE}/scripts/requirements.txt
