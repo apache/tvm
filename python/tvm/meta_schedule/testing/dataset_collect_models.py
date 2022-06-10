@@ -1,12 +1,26 @@
-"""
-Import models to TVM.
-"""
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# pylint: disable=missing-docstring
 
 import argparse
 import os
 from typing import List, Tuple
-from tqdm import tqdm  # type: ignore
 
+from tqdm import tqdm  # type: ignore
 from tvm.meta_schedule.testing.relay_workload import get_network
 
 
@@ -46,28 +60,26 @@ def _build_dataset() -> List[Tuple[str, List[int]]]:
         for batch_size in [1, 4, 8]:
             for image_size in [64]:
                 network_keys.append((name, [batch_size, 3, image_size, image_size]))
-
     return network_keys
 
 
-def cache_models(network_keys, cache_dir):
-    """Download the model and cache it in the given directory."""
-
-    for name, input_shape in tqdm(network_keys):
-        get_network(name=name, input_shape=input_shape, cache_dir=cache_dir)
+def main():
+    model_cache_dir = args.model_cache_dir
+    try:
+        os.makedirs(model_cache_dir, exist_ok=True)
+    except OSError:
+        print(f"Directory {model_cache_dir} cannot be created successfully.")
+    keys = _build_dataset()
+    for name, input_shape in tqdm(keys):
+        get_network(name=name, input_shape=input_shape, cache_dir=model_cache_dir)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()  # pylint: disable=invalid-name
     parser.add_argument(
-        "--model_cache_dir", type=str, help="Please provide the full path to the model cache dir."
+        "--model_cache_dir",
+        type=str,
+        help="Please provide the full path to the model cache dir.",
     )
     args = parser.parse_args()  # pylint: disable=invalid-name
-    model_cache_dir = args.model_cache_dir  # pylint: disable=invalid-name
-
-    try:
-        os.makedirs(model_cache_dir, exist_ok=True)
-    except OSError as error:
-        print(f"Directory {model_cache_dir} cannot be created successfully.")
-    keys = _build_dataset()  # pylint: disable=invalid-name
-    cache_models(keys, model_cache_dir)
+    main()

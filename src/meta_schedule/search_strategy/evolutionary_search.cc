@@ -721,8 +721,8 @@ Array<Schedule> EvolutionarySearchSampleInitPopulation(EvolutionarySearch self, 
   return Array<Schedule>(results.begin(), results.end());
 }
 
-Array<Schedule> EvolutionarySearchEvolveWithCostModel(EvolutionarySearch self, Array<Schedule> population,
-                                                      int num) {
+Array<Schedule> EvolutionarySearchEvolveWithCostModel(EvolutionarySearch self,
+                                                      Array<Schedule> population, int num) {
   Array<Schedule> result;
   std::vector<Schedule> population_vec =
       std::vector<Schedule>(population.begin(), population.end());

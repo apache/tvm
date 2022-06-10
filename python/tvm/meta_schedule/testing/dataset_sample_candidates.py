@@ -1,22 +1,31 @@
-"""
-Sample measure candidates for each tuning task by evolutionary search.
-"""
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# pylint: disable=missing-docstring
 
 import argparse
 import glob
 import json
 import os
 from typing import List
-from tqdm import tqdm  # type: ignore
 
+from tqdm import tqdm  # type: ignore
 import tvm
 from tvm import meta_schedule as ms
 from tvm.ir import load_json
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.database import MemoryDatabase, TuningRecord, Workload
-from tvm.meta_schedule.search_strategy import EvolutionarySearch
-from tvm.meta_schedule.space_generator import PostOrderApply
-from tvm.meta_schedule.default_config import _DefaultCUDA, _DefaultLLVM
 from tvm.target import Target
 
 
@@ -93,33 +102,37 @@ def sample_candidates(task, task_name, model_name):
     Returns
     -------
     None
-
     """
-
-    strategy = EvolutionarySearch(
+    sample_init_population = tvm.get_global_func(
+        "meta_schedule.SearchStrategyEvolutionarySearchSampleInitPopulation"
+    )
+    evolve_with_cost_model = tvm.get_global_func(
+        "meta_schedule.SearchStrategyEvolutionarySearchEvolveWithCostModel"
+    )
+    strategy = ms.search_strategy.EvolutionarySearch(
         num_trials_per_iter=args.num_trials_per_iter,
         max_trials_per_task=args.max_trials_per_task,
+        init_measured_ratio=0.0,
     )
-    default_config = _DefaultCUDA if args.target != "llvm" else _DefaultLLVM
-    context = TuneContext(
+    target = Target(args.target)
+    context = ms.TuneContext(
         mod=task,
-        target=Target(args.target),
-        space_generator=PostOrderApply(),
+        target=target,
+        space_generator=ms.space_generator.PostOrderApply(),
         search_strategy=strategy,
-        sch_rules=default_config.schedule_rules(),  # type: ignore
-        postprocs=default_config.postprocs(),  # type: ignore
-        mutator_probs=default_config.mutator_probs(),  # type: ignore
+        sch_rules=ms.default_config.schedule_rules(None, target),
+        postprocs=ms.default_config.postproc(None, target),
+        mutator_probs=ms.default_config.mutator_probs(None, target),
         task_name=task_name,
     )
     context.initialize()
-    spaces = context.generate_design_space()
-    strategy.pre_tuning(
-        spaces,
-        database=MemoryDatabase(),  # type: ignore
+    context.pre_tuning(
+        context.generate_design_space(),
+        database=ms.database.MemoryDatabase(),  # type: ignore
         cost_model=ms.cost_model.RandomModel(),  # type: ignore
     )
 
-    all_states: List[tvm.tir.schedule.schedule.Schedule] = []
+    all_states: List[tvm.tir.Schedule] = []
     num_retry, itr = 0, 0
     states = sample_init_population(strategy, args.init_population_size)
     while len(all_states) < args.num_samples_per_task and num_retry < args.max_retry_per_task:
@@ -134,11 +147,11 @@ def sample_candidates(task, task_name, model_name):
         itr += 1
     all_states = all_states[: args.num_samples_per_task]
 
-    workload = Workload(context.mod)
+    workload = ms.database.Workload(context.mod)
     file_path = os.path.join(args.candidate_cache_dir, model_name, task_name + ".json")
     with open(file_path, "w", encoding="utf8") as file:
         for i, state in enumerate(all_states):
-            tuning_record = TuningRecord(state.trace, workload)
+            tuning_record = ms.database.TuningRecord(state.trace, workload)
             json_str = json.dumps(tuning_record.as_json())
             assert "\n" not in json_str, "Failed to generate single line string."
             if i == len(all_states) - 1:
@@ -147,34 +160,32 @@ def sample_candidates(task, task_name, model_name):
                 file.write(json_str + "\n")
 
 
-if __name__ == "__main__":
-    args = _parse_args()  # pylint: disable=invalid-name
+args = _parse_args()  # pylint: disable=invalid-name
+
+
+def main():
     if not os.path.isdir(args.task_cache_dir):
         raise Exception("Please provide a correct task cache dir.")
     try:
         os.makedirs(args.candidate_cache_dir, exist_ok=True)
-    except OSError as error:
+    except OSError:
         print(f"Directory {args.candidate_cache_dir} cannot be created successfully.")
 
-    sample_init_population = tvm.get_global_func(  # pylint: disable=invalid-name
-        "meta_schedule.SearchStrategyEvolutionarySearchSampleInitPopulation"
-    )
-    evolve_with_cost_model = tvm.get_global_func(  # pylint: disable=invalid-name
-        "meta_schedule.SearchStrategyEvolutionarySearchEvolveWithCostModel"
-    )
-    task_paths = sorted(  # pylint: disable=invalid-name
-        glob.glob(os.path.join(args.task_cache_dir, "*.json"))
-    )[  # pylint: disable=invalid-name
+    task_paths = sorted(glob.glob(os.path.join(args.task_cache_dir, "*.json")))[
         args.file_group * 10 : (args.file_group + 1) * 10
     ]
     print(f"Selected models: {task_paths}")
     for num, task_path in enumerate(task_paths):
         print(f"Processing model {num} ...")
-        with open(task_path, "rb") as f:
-            tasks = f.readlines()
-        model_n = task_path.split("/")[-1][len("relay-") :][: -len("_extracted_tasks.json")]
-        os.makedirs(os.path.join(args.candidate_cache_dir, model_n), exist_ok=True)
+        with open(task_path, "rb") as file:
+            tasks = file.readlines()
+        model_name = task_path.split("/")[-1][len("relay-") :][: -len("_extracted_tasks.json")]
+        os.makedirs(os.path.join(args.candidate_cache_dir, model_name), exist_ok=True)
         for task_str in tqdm(tasks):
-            task_mod, task_n = json.loads(task_str)
+            task_name, task_mod = json.loads(task_str)
             task_mod = load_json(json.dumps(task_mod))
-            sample_candidates(task_mod, task_n, model_n)
+            sample_candidates(task_mod, task_name, model_name)
+
+
+if __name__ == "__main__":
+    main()
