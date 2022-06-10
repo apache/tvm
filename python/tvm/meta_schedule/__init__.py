@@ -20,7 +20,9 @@ from . import (
     builder,
     cost_model,
     database,
+    default_config,
     feature_extractor,
+    measure_callback,
     mutator,
     postproc,
     runner,
@@ -32,5 +34,6 @@ from .apply_history_best import ApplyHistoryBest
 from .extracted_task import ExtractedTask
 from .relay_integration import extract_task_from_relay
 from .search_strategy import MeasureCandidate
-from .tune import TuneConfig, tune_relay, tune_te, tune_tir
+from .tune import TuneConfig, tune_extracted_tasks, tune_relay, tune_te, tune_tir
 from .tune_context import TuneContext
+from .utils import derived_object
