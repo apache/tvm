@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 class Postproc(Object):
     """Rules to apply a postprocessor to a schedule."""
 
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the postprocessor with a tune context.
 
         Parameters
@@ -96,10 +96,10 @@ class PyPostproc:
 
     _tvm_metadata = {
         "cls": _PyPostproc,
-        "methods": ["initialize_with_tune_context", "apply", "__str__"],
+        "methods": ["_initialize_with_tune_context", "apply", "__str__"],
     }
 
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the postprocessor with a tune context.
 
         Parameters

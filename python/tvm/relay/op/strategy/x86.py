@@ -120,6 +120,12 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                     wrap_topi_schedule(topi.x86.schedule_conv2d_nchw_int8),
                     name="conv2d_nchw_int8.x86",
                 )
+            elif "mkldnn" in target.libs:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.x86.conv2d_nchw_mkldnn),
+                    wrap_topi_schedule(topi.x86.schedule_conv2d_nchw_mkldnn),
+                    name="conv2d_nchw_mkldnn.x86",
+                )
             else:
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.x86.conv2d_nchw),
@@ -133,11 +139,18 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             assert kernel_layout == "HWIO"
             if not is_auto_scheduler_enabled():
                 logger.warning("conv2d NHWC layout is not optimized for x86 with autotvm.")
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.nn.conv2d_nhwc, need_auto_scheduler_layout=True),
-                wrap_topi_schedule(topi.x86.schedule_conv2d_nhwc),
-                name="conv2d_nhwc.x86",
-            )
+            if "mkldnn" in target.libs:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.x86.conv2d_nhwc_mkldnn),
+                    wrap_topi_schedule(topi.x86.schedule_conv2d_nhwc_mkldnn),
+                    name="conv2d_nhwc_mkldnn.x86",
+                )
+            else:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.nn.conv2d_nhwc, need_auto_scheduler_layout=True),
+                    wrap_topi_schedule(topi.x86.schedule_conv2d_nhwc),
+                    name="conv2d_nhwc.x86",
+                )
 
             judge_winograd_auto_scheduler = False
             if len(kernel.shape) == 4:

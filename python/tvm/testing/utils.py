@@ -88,6 +88,7 @@ import tvm.te
 import tvm._ffi
 
 from tvm.contrib import nvcc, cudnn
+import tvm.contrib.hexagon._ci_env_check as hexagon
 from tvm.error import TVMError
 
 
@@ -937,11 +938,8 @@ requires_hexagon = Feature(
     "Hexagon",
     cmake_flag="USE_HEXAGON",
     target_kind_enabled="hexagon",
-    compile_time_check=lambda: (
-        (_cmake_flag_enabled("USE_LLVM") and tvm.target.codegen.llvm_version_major() >= 7)
-        or "Hexagon requires LLVM 7 or later"
-    ),
-    target_kind_hardware="hexagon",
+    compile_time_check=hexagon._compile_time_check,
+    run_time_check=hexagon._run_time_check,
     parent_features="llvm",
 )
 
@@ -1599,6 +1597,13 @@ def identity_after(x, sleep):
 def terminate_self():
     """Testing function to terminate the process."""
     sys.exit(-1)
+
+
+def is_ampere_or_newer():
+    """Check if the target environment has an NVIDIA Ampere GPU or newer."""
+    arch = tvm.contrib.nvcc.get_target_compute_version()
+    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
+    return major >= 8
 
 
 def main():

@@ -63,9 +63,15 @@ def _sch() -> Schedule:
 
 
 def _make_mutator(target: Target) -> Mutator:
-    mutator = MutateThreadBinding()
-    mutator.initialize_with_tune_context(TuneContext(mod=element_wise, target=target))
-    return mutator
+    ctx = TuneContext(
+        mod=element_wise,
+        target=target,
+        mutator_probs={
+            MutateThreadBinding(): 1.0,
+        },
+    )
+    ctx.initialize()
+    return list(ctx.mutator_probs.keys())[0]
 
 
 def test_mutate_thread_binding():

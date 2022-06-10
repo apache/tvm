@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule Mutator."""
-from typing import Callable, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Optional
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 class Mutator(Object):
     """Mutator is designed to mutate the trace to explore the design space."""
 
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the mutator with a tune context.
 
         Parameters
@@ -94,10 +94,10 @@ class PyMutator:
 
     _tvm_metadata = {
         "cls": _PyMutator,
-        "methods": ["initialize_with_tune_context", "apply", "__str__"],
+        "methods": ["_initialize_with_tune_context", "apply", "__str__"],
     }
 
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the mutator with a tune context.
 
         Parameters

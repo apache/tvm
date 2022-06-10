@@ -53,7 +53,7 @@ class ScheduleFn(PySpaceGenerator):
         super().__init__()
         self.sch_fn = sch_fn
 
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the design space generator with tuning context.
 
         Parameters

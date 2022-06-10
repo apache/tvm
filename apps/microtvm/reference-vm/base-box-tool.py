@@ -479,7 +479,7 @@ def release_command(args):
     if args.release_full_name:
         vm_name = args.release_full_name
     else:
-        vm_name = f"tlcpack/microtvm-{args.platform}-{args.platform_version}"
+        vm_name = f"tlcpack/microtvm-{args.platform}"
 
     if not args.skip_creating_release_version:
         subprocess.check_call(
@@ -605,29 +605,17 @@ def parse_args():
         help="Skip creating the version and just upload for this provider.",
     )
     parser_release.add_argument(
-        "--platform-version",
-        required=False,
-        help=(
-            "For Zephyr, the platform version to release, in the form 'x.y'. "
-            "For Arduino, the version of arduino-cli that's being used, in the form 'x.y.z'."
-        ),
-    )
-    parser_release.add_argument(
         "--release-full-name",
         required=False,
         type=str,
         default=None,
         help=(
             "If set, it will use this as the full release name and version for the box. "
-            "If this set, it will ignore `--platform-version` and `--release-version`."
+            "If this set, it will ignore `--release-version`."
         ),
     )
 
     args = parser.parse_args()
-
-    if args.action == "release" and not args.release_full_name:
-        parser.error("--platform-version is requireed.")
-
     return args
 
 

@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm
-from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
 from tvm.meta_schedule.schedule_rule import RandomComputeLocation
+from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
 from tvm.meta_schedule.testing.space_generation import check_trace
 from tvm.meta_schedule.tune_context import TuneContext
 from tvm.script import tir as T
@@ -63,9 +63,7 @@ def _create_context(mod, target, rule):
         sch_rules=[rule],
         task_name="test",
     )
-    ctx.space_generator.initialize_with_tune_context(ctx)
-    for sch_rule in ctx.sch_rules:
-        sch_rule.initialize_with_tune_context(ctx)
+    ctx.initialize()
     return ctx
 
 
