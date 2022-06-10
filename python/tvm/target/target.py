@@ -108,7 +108,7 @@ class Target(Object):
             When using a dictionary or json string to configure target, the possible values are
             same as target.
         """
-        if "-libs=mkldnn" in target:
+        if isinstance(target, str) and "-libs=mkldnn" in target:
             target = target.replace("mkldnn", "dnnl")
             warnings.warn(
                 "legacy supoort of mkldnn will be eprecated in the next release."
