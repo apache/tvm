@@ -561,7 +561,7 @@ struct InputConnectionConfig {
     return input_connection[key];
   }
   /*!\brief Returns the number of global inputs through the input_runtime_map list size.*/
-  int GetInputNum(){
+  int GetInputNum() {
     return input_runtime_map.size();
   }
 
