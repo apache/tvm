@@ -1040,13 +1040,11 @@ transform::Sequential VMCompiler::FuseAndLowerOperators(const CompilationConfig&
   // Give each "primitive" Function a hash.
   pass_seqs.push_back(LabelOps());
   // Lower "primitive" Functions to PrimFuncs and rewrite calls.
-  pass_seqs.push_back(tec::LowerTEPass(/*module_name=*/"vm_mod",
-                                       [this](const BaseFunc& func) {
-                                         if (func->GetAttr<String>(attr::kCompiler).defined()) {
-                                           backend::UpdateConstants(func, &params_);
-                                         }
-                                       },
-                                       config));
+  pass_seqs.push_back(tec::LowerTE(/*module_name=*/"vm_mod", config, [this](const BaseFunc& func) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
+      backend::UpdateConstants(func, &params_);
+    }
+  }));
   // Since lowered functions are bound in the IRModule, we can now eliminate any unused
   // let-bound functions.
   pass_seqs.push_back(DeadCodeElimination(/*inline_once=*/false));
@@ -1091,13 +1089,11 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   pass_seqs.push_back(transform::LabelOps());
 
   // Lower all functions annotated as "primitive" by FuseOps.
-  pass_seqs.push_back(tec::LowerTEPass(/*module_name=*/"vm_mod",
-                                       [this](const BaseFunc& func) {
-                                         if (func->GetAttr<String>(attr::kCompiler).defined()) {
-                                           backend::UpdateConstants(func, &params_);
-                                         }
-                                       },
-                                       config_));
+  pass_seqs.push_back(tec::LowerTE(/*module_name=*/"vm_mod", config_, [this](const BaseFunc& func) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
+      backend::UpdateConstants(func, &params_);
+    }
+  }));
 
   // Since lowered functions are bound in the IRModule, we can now eliminate any unused
   // let-bound functions.
