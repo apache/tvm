@@ -46,7 +46,7 @@ def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
         (n, m),
         [lhs, rhs],
         lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.mkldnn.matmul", ins[0], ins[1], outs[0], transa, transb
+            "tvm.contrib.dnnl.matmul", ins[0], ins[1], outs[0], transa, transb
         ),
         name="C",
         **kwargs,
@@ -138,7 +138,7 @@ def dnnl_conv2d(
         out_shape,
         [src, weights],
         lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.mkldnn.conv2d",
+            "tvm.contrib.dnnl.conv2d",
             ins[0],
             ins[1],
             outs[0],

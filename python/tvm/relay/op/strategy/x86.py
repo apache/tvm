@@ -120,11 +120,11 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                     wrap_topi_schedule(topi.x86.schedule_conv2d_nchw_int8),
                     name="conv2d_nchw_int8.x86",
                 )
-            elif "mkldnn" in target.libs:
+            elif "dnnl" in target.libs:
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.x86.conv2d_nchw_mkldnn),
-                    wrap_topi_schedule(topi.x86.schedule_conv2d_nchw_mkldnn),
-                    name="conv2d_nchw_mkldnn.x86",
+                    wrap_compute_conv2d(topi.x86.conv2d_nchw_dnnl),
+                    wrap_topi_schedule(topi.x86.schedule_conv2d_nchw_dnnl),
+                    name="conv2d_nchw_dnnl.x86",
                 )
             else:
                 strategy.add_implementation(
@@ -139,11 +139,11 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             assert kernel_layout == "HWIO"
             if not is_auto_scheduler_enabled():
                 logger.warning("conv2d NHWC layout is not optimized for x86 with autotvm.")
-            if "mkldnn" in target.libs:
+            if "dnnl" in target.libs:
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.x86.conv2d_nhwc_mkldnn),
-                    wrap_topi_schedule(topi.x86.schedule_conv2d_nhwc_mkldnn),
-                    name="conv2d_nhwc_mkldnn.x86",
+                    wrap_compute_conv2d(topi.x86.conv2d_nhwc_dnnl),
+                    wrap_topi_schedule(topi.x86.schedule_conv2d_nhwc_dnnl),
+                    name="conv2d_nhwc_dnnl.x86",
                 )
             else:
                 strategy.add_implementation(
@@ -443,18 +443,18 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
                 "Currently mkl only support the data type to be float32, float64 or input with "
                 "uint8 and int8 while output wiht int32. Skip."
             )
-    if "mkldnn" in target.libs:
+    if "dnnl" in target.libs:
         length_before = len(strategy.specializations) if strategy.specializations else 0
         with SpecializedCondition(same_type and dtype == "float32"):
             strategy.add_implementation(
-                wrap_compute_matmul(topi.x86.matmul_mkldnn),
-                wrap_topi_schedule(topi.x86.schedule_matmul_mkldnn),
-                name="matmul_mkldnn.x86",
+                wrap_compute_matmul(topi.x86.matmul_dnnl),
+                wrap_topi_schedule(topi.x86.schedule_matmul_dnnl),
+                name="matmul_dnnl.x86",
                 plevel=15,
             )
         length_after = len(strategy.specializations) if strategy.specializations else 0
         if length_before == length_after:
-            logger.warning("Currently mkldnn only support the data type to be float32. Skip.")
+            logger.warning("Currently dnnl only support the data type to be float32. Skip.")
 
     if is_auto_scheduler_enabled():
         strategy.add_implementation(
@@ -464,11 +464,11 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
             plevel=11,
         )
     else:
-        # If no cblas/mkl/mkldnn strategy choosed
+        # If no cblas/mkl/dnnl strategy choosed
         if not strategy.specializations:
             logger.warning(
                 "Matmul is not optimized for x86. "
-                "Recommend to use cblas/mkl/mkldnn for better performance."
+                "Recommend to use cblas/mkl/dnnl for better performance."
             )
         strategy.add_implementation(
             wrap_compute_matmul(topi.nn.matmul),
@@ -523,12 +523,12 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
                 name="dense_mkl.x86",
                 plevel=14,
             )
-    if "mkldnn" in target.libs:
+    if "dnnl" in target.libs:
         with SpecializedCondition(same_type and dtype == "float32"):
             strategy.add_implementation(
-                wrap_compute_dense(topi.x86.dense_mkldnn),
-                wrap_topi_schedule(topi.x86.schedule_dense_mkldnn),
-                name="dense_mkldnn.x86",
+                wrap_compute_dense(topi.x86.dense_dnnl),
+                wrap_topi_schedule(topi.x86.schedule_dense_dnnl),
+                name="dense_dnnl.x86",
                 plevel=15,
             )
     return strategy

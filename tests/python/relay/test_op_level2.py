@@ -1997,11 +1997,11 @@ def test_conv2d_rocm_sdot4():
 
 
 @tvm.testing.requires_x86
-def test_conv2d_nchw_mkldnn():
-    if not tvm.get_global_func("tvm.contrib.mkldnn.conv2d", allow_missing=True):
+def test_conv2d_nchw_dnnl():
+    if not tvm.get_global_func("tvm.contrib.dnnl.conv2d", allow_missing=True):
         print(
-            "skip because extern mkldnn function is not available, \
-                built with MKLDNN=ON"
+            "skip because extern dnnl function is not available, \
+                built with dnnl=ON"
         )
         return
     d_shape = (1, 64, 56, 56)
@@ -2027,7 +2027,7 @@ def test_conv2d_nchw_mkldnn():
     data_np = np.random.uniform(1, 10, d_shape).astype("float32")
     weight_np = np.random.uniform(1, 10, size=w_shape).astype("float32")
 
-    target = "llvm -mcpu=skylake-avx512 -libs=mkldnn"
+    target = "llvm -mcpu=skylake-avx512 -libs=dnnl"
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target=target, params={"weight": weight_np})
 
@@ -2045,11 +2045,11 @@ def test_conv2d_nchw_mkldnn():
 
 
 @tvm.testing.requires_x86
-def test_conv2d_nhwc_mkldnn():
-    if not tvm.get_global_func("tvm.contrib.mkldnn.conv2d", allow_missing=True):
+def test_conv2d_nhwc_dnnl():
+    if not tvm.get_global_func("tvm.contrib.dnnl.conv2d", allow_missing=True):
         print(
-            "skip because extern mkldnn function is not available, \
-                built with MKLDNN=ON"
+            "skip because extern dnnl function is not available, \
+                built with dnnl=ON"
         )
         return
     d_shape = (1, 56, 56, 64)
@@ -2077,7 +2077,7 @@ def test_conv2d_nhwc_mkldnn():
     data_np = np.random.uniform(1, 10, d_shape).astype("float32")
     weight_np = np.random.uniform(1, 10, size=w_shape).astype("float32")
 
-    target = "llvm -mcpu=skylake-avx512 -libs=mkldnn"
+    target = "llvm -mcpu=skylake-avx512 -libs=dnnl"
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target=target, params={"weight": weight_np})
 
