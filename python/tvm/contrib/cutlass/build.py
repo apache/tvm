@@ -572,7 +572,7 @@ def compile_for_cutlass(mod, cutlass_target):
     return final_mod
 
 
-def finalize_modules(lib, lib_path, tmp_dir):
+def finalize_modules(lib, lib_path="compile.so", tmp_dir="./tmp"):
     """Returns lib with any C source, LLVM and static library modules complied and linked in ready
     for use by the graph or AOT executors. This method is not specific to CUTLASS, however it does
     assume nvcc will be used for final compilation and linking. It is provided here for
@@ -584,14 +584,15 @@ def finalize_modules(lib, lib_path, tmp_dir):
         The output from relay.build.
 
     lib_path : string
-        Name for temporary library .so file.
+        The path to a shared library which will be generated as the result of the build process.
 
-    tmp_dir : Working temporary directory.
+    tmp_dir : string
+        A temporary directory where intermediate compiled artifacts will be stored.
 
     Returns
     -------
-    updated_lib : runtime::Module
-        The given lib with any final compilation and linking steps completed.
+    updated_lib : runtime.Module
+        The updated library with all compilation and linking completed.
 
     """
     lib_path = os.path.join(tmp_dir, lib_path)
@@ -599,7 +600,7 @@ def finalize_modules(lib, lib_path, tmp_dir):
     return runtime.load_module(lib_path)
 
 
-def finalize_modules_vm(vm_exec, lib_path, tmp_dir):
+def finalize_modules_vm(vm_exec, lib_path="compile.so", vmcode_path="vmcode.ro", tmp_dir="./tmp"):
     """Returns vm_exec with any C source, LLVM and static library modules compiled and linked in
     ready for use by the VM executor. This method is not specific to CUTLASS, however it does
     assume nvcc will be used for final compilation and linking. It is provided here for
@@ -608,20 +609,28 @@ def finalize_modules_vm(vm_exec, lib_path, tmp_dir):
     Parameters
     ----------
     vm_exec : vm.Executable
-        The output from relay.vm.compile.
+        The output from relay.vm.compile containing compiled host code and kernels.
 
     lib_path : string
-        Name for temporary library .so file.
+        The path to a shared library which will be generated as the result of the build process.
 
-    tmp_dir : Working temporary directory.
+    vmcode_path : string
+        The path where the VM bytecode will be serialized to.
+
+    tmp_dir : string
+        A temporary directory where intermediate compiled artifacts will be stored.
 
     Returns
     -------
     updated_vm_exec : vm.Executable
-        The given lib with any final compilation and linking steps completed.
+        The updated VM executable with all compilation and linking completed.
     """
     code, lib = vm_exec.save()
     lib_path = os.path.join(tmp_dir, lib_path)
+    vmcode_path = os.path.join(tmp_dir, vmcode_path)
     lib.export_library(lib_path, workspace_dir=tmp_dir, cc="nvcc")
+    with open(vmcode_path, "wb") as fo:
+        fo.write(code)
     lib = tvm.runtime.load_module(lib_path)
+    code = bytearray(open(vmcode_path, "rb").read())
     return tvm.runtime.vm.Executable.load_exec(code, lib)
