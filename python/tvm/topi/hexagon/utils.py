@@ -19,24 +19,43 @@
 from tvm import te
 
 
-def n11c_1024c_2d(n, h, w, c):
+def n11c_1024c_2d(batch, height, width, channel):
     """Return index map for n11c_1024 2d layout"""
-    return [n, h, w, c // 1024, te.AXIS_SEPARATOR, c % 1024]
+    return [batch, height, width, channel // 1024, te.AXIS_SEPARATOR, channel % 1024]
 
 
-def n11c_1024c_1d(n, h, w, c):
+def n11c_1024c_1d(batch, height, width, channel):
     """Return index map for n11c_1024 1d layout"""
-    return [n, h, w, c // 1024, c % 1024]
+    return [batch, height, width, channel // 1024, channel % 1024]
 
 
-def nhwc_8h2w32c2w_2d(n, h, w, c):
+def nhwc_8h2w32c2w_2d(batch, height, width, channel):
     """Return index map for nhwc_8h2w32c2w 2d layout"""
-    return [n, h // 8, w // 4, c // 32, te.AXIS_SEPARATOR, h % 8, (w % 4) // 2, c % 32, w % 2]
+    return [
+        batch,
+        height // 8,
+        width // 4,
+        channel // 32,
+        te.AXIS_SEPARATOR,
+        height % 8,
+        (width % 4) // 2,
+        channel % 32,
+        width % 2,
+    ]
 
 
-def nhwc_8h2w32c2w_1d(n, h, w, c):
+def nhwc_8h2w32c2w_1d(batch, height, width, channel):
     """Return index map for nhwc_8h2w32c2w 1d layout"""
-    return [n, h // 8, w // 4, c // 32, h % 8, (w % 4) // 2, c % 32, w % 2]
+    return [
+        batch,
+        height // 8,
+        width // 4,
+        channel // 32,
+        height % 8,
+        (width % 4) // 2,
+        channel % 32,
+        width % 2,
+    ]
 
 
 def get_layout_transform_fn(layout):
