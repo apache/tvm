@@ -98,8 +98,7 @@ class ReplayFuncNode : public SearchStrategyNode {
     return this->state_->GenerateMeasureCandidates();
   }
 
-  void NotifyRunnerResults(const TuneContext& context,
-                           const Array<MeasureCandidate>& measure_candidates,
+  void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                            const Array<RunnerResult>& results) final {
     ICHECK(this->state_ != nullptr);
     this->state_->NotifyRunnerResults(results);

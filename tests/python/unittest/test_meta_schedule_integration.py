@@ -14,21 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import sys
-
+"""Integration test for MetaSchedule"""
 import numpy as np
 import pytest
 import tvm
 import tvm.testing
 from tvm import meta_schedule as ms
-from tvm import relay
-from tvm.meta_schedule import ApplyHistoryBest
-from tvm.meta_schedule.database import TuningRecord
-from tvm.meta_schedule.relay_integration import extract_task_from_relay
-from tvm.meta_schedule.testing import DummyDatabase
+from tvm import relay, te, tir
 from tvm.meta_schedule.testing.relay_workload import get_network
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
-from tvm.meta_schedule.tune import Parse
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir import Schedule
@@ -63,7 +57,7 @@ requires_torch = pytest.mark.skipif(not _has_torch(), reason="torch is not insta
 
 
 def test_meta_schedule_apply_history_best_no_current():
-    assert ApplyHistoryBest.current() is None
+    assert ms.ApplyHistoryBest.current() is None
 
 
 @requires_torch
@@ -199,7 +193,6 @@ def test_meta_schedule_integration_extract_from_bert_base():
 @requires_torch
 def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
     def filter_func(args) -> bool:
-        from tvm import te, tir
 
         has_complex_op = False
         visited = set()
@@ -262,14 +255,25 @@ def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
 @requires_torch
 def test_meta_schedule_integration_apply_history_best():
     mod, _, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
-    database = DummyDatabase()
-    env = ApplyHistoryBest(database)
+    database = ms.database.MemoryDatabase()
+    env = ms.ApplyHistoryBest(database)
     target = Target("llvm")
     workload = database.commit_workload(MockModule)
     database.commit_tuning_record(
-        TuningRecord(Schedule(MockModule).trace, workload, [1.0], target, [])
+        ms.database.TuningRecord(
+            trace=Schedule(MockModule).trace,
+            workload=workload,
+            run_secs=[1.0],
+            target=target,
+            args_info=[],
+        )
     )
-    mod = env.query(task_name="mock-task", mod=mod, target=target, dispatched=[MockModule])
+    mod = env.query(
+        task_name="mock-task",
+        mod=mod,
+        target=target,
+        dispatched=[MockModule],
+    )
     assert tvm.ir.structural_equal(mod, workload.mod)
 
 
@@ -277,7 +281,7 @@ def test_meta_schedule_integration_apply_history_best():
 def extract_task_qbert():
     mod, params, _ = load_quantized_bert_base(batch_size=1, seq_len=128)
     target = "llvm -mcpu=cascadelake"
-    extracted_tasks = extract_task_from_relay(mod, target, params)
+    extracted_tasks = ms.extract_task_from_relay(mod, target, params)
     tune_tasks = list(
         filter(
             lambda task: "dense" in task.task_name or "batch_matmul" in task.task_name,
@@ -294,7 +298,7 @@ def extract_task_qbert():
         if out_type.dtype == "float32":
             continue
 
-        mod = Parse._mod(task.dispatched[0])
+        mod = ms.default_config.mod(task.dispatched[0])
         sch = tvm.tir.Schedule(mod)
         block = sch.get_block("compute")
         annotations = sch.get(block).annotations
@@ -331,7 +335,7 @@ def test_extract_task_arm_conv2d_nchwc():
     params = {"weight": weight_np, "bias": bias_np}
 
     target = "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon"
-    extracted_tasks = extract_task_from_relay(relay_mod, target, params)
+    extracted_tasks = ms.extract_task_from_relay(relay_mod, target, params)
     tune_tasks = list(
         filter(
             lambda task: "conv2d" in task.task_name,

@@ -22,10 +22,10 @@ from typing import TYPE_CHECKING, Callable, List
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
-from tvm.tir.schedule import Schedule, BlockRV
+from tvm.tir.schedule import BlockRV, Schedule
 
-from ..utils import _get_default_str
 from .. import _ffi_api
+from ..utils import _get_default_str
 
 if TYPE_CHECKING:
     from ..tune_context import TuneContext
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 class ScheduleRule(Object):
     """Rules to modify a block in a schedule."""
 
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the schedule rule with a tune context.
 
         Parameters
@@ -102,10 +102,10 @@ class PyScheduleRule:
 
     _tvm_metadata = {
         "cls": _PyScheduleRule,
-        "methods": ["initialize_with_tune_context", "apply", "__str__"],
+        "methods": ["_initialize_with_tune_context", "apply", "__str__"],
     }
 
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the schedule rule with a tune context.
 
         Parameters

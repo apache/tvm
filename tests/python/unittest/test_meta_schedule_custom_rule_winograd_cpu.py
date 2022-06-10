@@ -17,11 +17,9 @@
 # pylint: disable=missing-docstring
 
 import tvm
+from tvm import meta_schedule as ms
 from tvm.ir import IRModule
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.space_generator import PostOrderApply
 from tvm.meta_schedule.testing.conv2d_winograd_cpu import conv2d_winograd_cpu
-from tvm.meta_schedule.tune import DefaultLLVM
 from tvm.target import Target
 from tvm.tir.schedule import Schedule, Trace
 
@@ -164,16 +162,20 @@ def _get_mod():
 def test_conv2d_winograd_cpu():
     mod = conv2d_winograd_cpu
     mod = IRModule({"main": mod})
-    context = TuneContext(
+    target = Target("llvm --num-cores=16")
+    context = ms.TuneContext(
         mod=mod,
-        target=Target("llvm"),
+        target=target,
         task_name="Custom Search Space Task",
-        sch_rules=DefaultLLVM._sch_rules(),  # pylint: disable=protected-access
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules=ms.default_config.schedule_rules(
+            None,
+            target,
+        ),
     )
-    post_order_apply = PostOrderApply()
-    post_order_apply.initialize_with_tune_context(context)
+    context.initialize()
+    post_order_apply = context.space_generator
     (sch,) = post_order_apply.generate_design_space(mod)
-
     decisions = dict(
         zip(
             [i for i in sch.trace.insts[:-4] if i.kind.name.startswith("Sample")],

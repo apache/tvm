@@ -80,9 +80,15 @@ def _sch(decisions: List[List[int]], ann_val: int) -> Schedule:
 
 
 def _make_mutator(target: Target, max_jobs_per_core: int) -> Mutator:
-    mutator = MutateParallel(max_jobs_per_core)
-    mutator.initialize_with_tune_context(TuneContext(mod=matmul, target=target))
-    return mutator
+    ctx = TuneContext(
+        mod=matmul,
+        target=target,
+        mutator_probs={
+            MutateParallel(max_jobs_per_core): 1.0,
+        },
+    )
+    ctx.initialize()
+    return list(ctx.mutator_probs.keys())[0]
 
 
 def test_mutate_parallel_matmul():
