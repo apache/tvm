@@ -198,7 +198,7 @@
                   },
                   "status": "COMPLETED",
                   "completedAt": "2022-05-27T23:22:25Z",
-                  "conclusion": "SUCCESS",
+                  "conclusion": "FAILED",
                   "url": "https://github.com/apache/tvm/runs/6633020321"
                 },
                 {
