@@ -48,18 +48,14 @@ class PoolInfoAssigner : public StmtExprMutator {
     ICHECK(target_host) << "main function does not have a target attr";
     WorkspaceMemoryPools workspace_pools =
         module->GetAttr<WorkspaceMemoryPools>(tvm::attr::kWorkspaceMemoryPools)
-            .value_or(WorkspaceMemoryPools({CreateDefaultMemoryPool(module)}));
+            .value_or(WorkspaceMemoryPools({CreateDefaultWorkspaceMemoryPool(module)}));
     // make default ConstantPoolInfo if no constant and no workspace pool infos supplied
     ConstantMemoryPools constant_pools =
         module->GetAttr<ConstantMemoryPools>(tvm::attr::kConstantMemoryPools)
             .value_or(
                 module->GetAttr<WorkspaceMemoryPools>(tvm::attr::kWorkspaceMemoryPools).defined()
                     ? ConstantMemoryPools()
-                    : ConstantMemoryPools({ConstantPoolInfo(
-                          "global_const_workspace", {CreateDefaultMemoryPool(module)->targets}, {},
-                          PoolInfoProperties(kUnrestrictedPoolSizeHint, kUnknownClockFrequency,
-                                             kUnknownReadBandwidth, kUnknownWriteBandwidth, 0, 0,
-                                             {{target_host.value(), 1}}, Bool(true)))}));
+                    : ConstantMemoryPools({CreateDefaultConstantMemoryPool(module)}));
     auto to_map = [](auto pool_infos) {
       Map<String, Array<PoolInfo>> pool_map;
       for (const PoolInfo& pool_info : pool_infos) {
@@ -92,10 +88,17 @@ class PoolInfoAssigner : public StmtExprMutator {
   Map<String, Array<PoolInfo>> target_pool_infos_;
   Map<String, Array<PoolInfo>> target_const_pool_infos_;
   PrimFunc func_;
-  WorkspacePoolInfo CreateDefaultMemoryPool(const IRModule& module);
+  WorkspacePoolInfo CreateDefaultWorkspaceMemoryPool(const IRModule& module);
+  ConstantPoolInfo CreateDefaultConstantMemoryPool(const IRModule& module) {
+    auto p = CreateDefaultWorkspaceMemoryPool(module);
+    return ConstantPoolInfo(
+        "global_const_workspace", {p->targets}, {},
+        PoolInfoProperties(kUnrestrictedPoolSizeHint, kUnknownClockFrequency, kUnknownReadBandwidth,
+                           kUnknownWriteBandwidth, 0, 0, {p->target_burst_bytes}, Bool(true)));
+  }
 };
 
-WorkspacePoolInfo PoolInfoAssigner::CreateDefaultMemoryPool(const tvm::IRModule& module) {
+WorkspacePoolInfo PoolInfoAssigner::CreateDefaultWorkspaceMemoryPool(const tvm::IRModule& module) {
   VLOG(1) << "Creating default memory pool for:" << std::endl << PrettyPrint(module);
   Map<Target, String> target_access;
   tir::PrimFunc tir_main_func =

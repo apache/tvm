@@ -67,7 +67,7 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
 
     target = tvm.target.target.micro(model)
     executor = Executor(
-        "aot", {"unpacked-api": True, "interface-api": "c", "workspace-alignment": 4}
+        "aot", {"unpacked-api": True, "interface-api": "c", "workspace-byte-alignment": 4}
     )
     runtime = Runtime("crt")
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):

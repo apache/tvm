@@ -245,7 +245,7 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
       Integer workspace_alignment = 16;
       if (executor_config) {
         workspace_alignment =
-            executor_config.value()->GetAttr<Integer>("workspace-alignment").value_or(16);
+            executor_config.value()->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
       }
 
       BufferInfoKind bi_kind = BufferInfoKind::kIntermediate;
@@ -329,7 +329,7 @@ void BufferInfoExtractor::RecordAllocateConstNodeInfo(const AllocateConstNode* o
     Integer alignment = 16;
     if (executor_config) {
       alignment =
-          executor_config.value()->GetAttr<Integer>("constant-alignment").value_or(alignment);
+          executor_config.value()->GetAttr<Integer>("constant-byte-alignment").value_or(alignment);
     }
     auto buffer_info = BufferInfo(GetUniqueBufferName(buffer_var->name_hint), size_bytes,
                                   pool_candidates, alignment);

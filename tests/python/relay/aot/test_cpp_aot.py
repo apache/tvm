@@ -106,7 +106,7 @@ def test_conv2d(enable_usmp, target_kind):
             target=target_kind,  # + " -constants-byte-alignment=8 -workspace-byte-alignment=8",
             executor=backend.Executor(
                 "aot", {"interface-api": "packed", "unpacked-api": False}
-            ),  # , "constant-alignment":8, "workspace-alignment":8}),
+            ),  # , "constant-byte-alignment":8, "workspace-byte-alignment":8}),
         )
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"

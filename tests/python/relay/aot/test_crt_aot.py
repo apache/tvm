@@ -939,7 +939,7 @@ def test_workspace_calculation(workspace_byte_alignment, main_workspace_size):
     executor = Executor(
         "aot",
         {
-            "workspace-alignment": workspace_byte_alignment,
+            "workspace-byte-alignment": workspace_byte_alignment,
         },
     )
     with tvm.transform.PassContext(
@@ -974,7 +974,7 @@ def test_workspace_calculation_cmsis_nn():
     executor = Executor(
         "aot",
         {
-            "workspace-alignment": 16,
+            "workspace-byte-alignment": 16,
             "interface-api": "c",
             "unpacked-api": True,
         },
@@ -1057,7 +1057,7 @@ def test_aot_uses_anf():
     executor = Executor(
         "aot",
         {
-            "workspace-alignment": 8,
+            "workspace-byte-alignment": 8,
             "interface-api": "c",
             "unpacked-api": True,
         },

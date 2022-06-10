@@ -115,8 +115,8 @@ def test_memory_planning(
     executor = Executor(
         "aot",
         {
-            "workspace-alignment": workspace_byte_alignment,
-            "constant-alignment": constant_byte_alignment,
+            "workspace-byte-alignment": workspace_byte_alignment,
+            "constant-byte-alignment": constant_byte_alignment,
         },
     )
     with tvm.transform.PassContext(

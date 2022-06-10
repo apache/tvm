@@ -200,7 +200,7 @@ class WorkspacePoolInfo(PoolInfo):
     def __init__(
         self,
         pool_name: str,
-        targets,  # Dict[Target, str]
+        targets,  # list[Target]
         pool_info_properties=None,
     ):
         if pool_info_properties is None:

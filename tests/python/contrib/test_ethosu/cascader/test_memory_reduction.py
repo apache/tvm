@@ -44,7 +44,7 @@ def _get_ethosu_workspace_size(
     executor = Executor(
         "aot",
         {
-            "workspace-alignment": 16,
+            "workspace-byte-alignment": 16,
             "interface-api": "c",
             "unpacked-api": True,
         },

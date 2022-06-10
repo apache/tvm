@@ -606,8 +606,8 @@ def compile_models(
     executor = Executor(
         "aot",
         {
-            "workspace-alignment": workspace_byte_alignment,
-            "constant-alignment": constant_byte_alignment,
+            "workspace-byte-alignment": workspace_byte_alignment,
+            "constant-byte-alignment": constant_byte_alignment,
             "interface-api": interface_api,
             "unpacked-api": use_unpacked_api,
         },
