@@ -603,7 +603,7 @@ def get_wmma_fill_intrin(
 
 
 def get_wmma_store_intrin(
-    m_dim: int, n_dim: int, k_dim: int, dtype: str, shared_scope: str
+    m_dim: int, n_dim: int, k_dim: int, dtype: str, scope: str
 ) -> Tuple[PrimFunc, PrimFunc]:
     """Generator of wmma_store intrins"""
 
@@ -612,7 +612,7 @@ def get_wmma_store_intrin(
         A = T.match_buffer(
             a, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope="wmma.accumulator"
         )
-        C = T.match_buffer(c, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope="global")
+        C = T.match_buffer(c, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope=scope)
         with T.block("root"):
             T.reads(A[0:m_dim, 0:n_dim])
             T.writes(C[0:m_dim, 0:n_dim])
@@ -629,7 +629,7 @@ def get_wmma_store_intrin(
             a, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope="wmma.accumulator"
         )
         C = T.match_buffer(
-            c, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope="global", strides=[s1, s0]
+            c, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope=scope, strides=[s1, s0]
         )
         with T.block("root"):
             T.reads(A[0:m_dim, 0:n_dim])
@@ -787,12 +787,22 @@ TensorIntrin.register(WMMA_FILL_16x16x16_F32_INTRIN, *get_wmma_fill_intrin(16, 1
 WMMA_FILL_16x16x16_F16_INTRIN = "wmma_fill_16x16x16_f16"
 TensorIntrin.register(WMMA_FILL_16x16x16_F16_INTRIN, *get_wmma_fill_intrin(16, 16, 16, "float16"))
 
-WMMA_STORE_16x16x16_F32_INTRIN = "wmma_store_16x16x16_f32"
+WMMA_STORE_16x16x16_F32_SHARED_INTRIN = "wmma_store_16x16x16_f32_shared"
 TensorIntrin.register(
-    WMMA_STORE_16x16x16_F32_INTRIN, *get_wmma_store_intrin(16, 16, 16, "float32", "shared")
+    WMMA_STORE_16x16x16_F32_SHARED_INTRIN, *get_wmma_store_intrin(16, 16, 16, "float32", "shared")
 )
 
-WMMA_STORE_16x16x16_F16_INTRIN = "wmma_store_16x16x16_f16"
+WMMA_STORE_16x16x16_F16_SHARED_INTRIN = "wmma_store_16x16x16_f16_shared"
 TensorIntrin.register(
-    WMMA_STORE_16x16x16_F16_INTRIN, *get_wmma_store_intrin(16, 16, 16, "float16", "shared")
+    WMMA_STORE_16x16x16_F16_SHARED_INTRIN, *get_wmma_store_intrin(16, 16, 16, "float16", "shared")
+)
+
+WMMA_STORE_16x16x16_F32_GLOBAL_INTRIN = "wmma_store_16x16x16_f32_global"
+TensorIntrin.register(
+    WMMA_STORE_16x16x16_F32_GLOBAL_INTRIN, *get_wmma_store_intrin(16, 16, 16, "float32", "global")
+)
+
+WMMA_STORE_16x16x16_F16_GLOBAL_INTRIN = "wmma_store_16x16x16_f16_global"
+TensorIntrin.register(
+    WMMA_STORE_16x16x16_F16_GLOBAL_INTRIN, *get_wmma_store_intrin(16, 16, 16, "float16", "global")
 )
