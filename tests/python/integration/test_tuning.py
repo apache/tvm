@@ -33,6 +33,7 @@ from tvm import autotvm, te
 from tvm.autotvm.tuner import RandomTuner
 from tvm.target import Target
 from tvm.contrib import tar
+from tvm.ir.instrument import pass_instrument
 
 
 def setup_module():
@@ -181,9 +182,6 @@ def test_tuning_gpu(target, dev):
         assert len(successful_results) > 0, f"No successful tuning runs: {results!r}"
 
     run_test_with_all_multiprocessing(runner, target, dev)
-
-
-from tvm.ir.instrument import pass_instrument
 
 
 @tvm.testing.parametrize_targets("cuda", "opencl")
