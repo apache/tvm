@@ -93,7 +93,7 @@ class Session:
     def get_system_lib(self):
         return self._rpc.get_function("runtime.SystemLib")()
 
-    def get_aot_lib(self):
+    def create_aot_executor(self):
         return self._rpc.get_function("tvm.aot_executor.create")(
             self.get_system_lib(), self.device, "default"
         )

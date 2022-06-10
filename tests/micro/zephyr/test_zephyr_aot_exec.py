@@ -87,7 +87,7 @@ def test_relay(temp_dir, board, west_cmd, tvm_debug):
 
     with _make_session(temp_dir, board, west_cmd, mod, build_config) as session:
 
-        aot_executor = tvm.runtime.executor.aot_executor.AotModule(session.get_aot_lib())
+        aot_executor = tvm.runtime.executor.aot_executor.AotModule(session.create_aot_executor())
 
         x_in = np.random.randint(10, size=shape[0], dtype=dtype)
         aot_executor.run(x=x_in)
@@ -125,7 +125,7 @@ def test_aot_executor(temp_dir, board, west_cmd, tvm_debug):
 
     def do_test():
 
-        aot_executor = tvm.runtime.executor.aot_executor.AotModule(session.get_aot_lib())
+        aot_executor = tvm.runtime.executor.aot_executor.AotModule(session.create_aot_executor())
 
         assert aot_executor.get_input_index("a") == 0
         assert aot_executor.get_input_index("b") == 1
@@ -153,4 +153,4 @@ def test_aot_executor(temp_dir, board, west_cmd, tvm_debug):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()
