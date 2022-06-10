@@ -25,7 +25,7 @@ import tvm.testing
 from tvm.topi import testing
 from tvm.contrib.hexagon.build import HexagonLauncher
 import tvm.topi.hexagon.slice_ops as sl
-from .infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy
 
 
 @tvm.testing.fixture
@@ -161,7 +161,7 @@ class TestAddSubtractMultiplyBroadcast2d:
         input_B_layout,
         op_name,
     ):
-        target_hexagon = tvm.target.hexagon("v69")
+        target_hexagon = tvm.target.hexagon("v68")
         A = te.placeholder(input_shape_A, name="A", dtype=dtype)
         B = te.placeholder(input_shape_B, name="B", dtype=dtype)
         if op_name == "add":
