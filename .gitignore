@@ -265,3 +265,6 @@ gallery/how_to/work_with_microtvm/micro_tvmc.py
 
 # Test sample data files
 !tests/python/ci/sample_prs/*.json
+
+# Used in CI to communicate between Python and Jenkins
+.docker-image-names/

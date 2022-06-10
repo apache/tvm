@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-06-10T12:12:40.419262
+// Generated at 2022-06-14T11:01:40.694929
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -253,6 +253,68 @@ def prepare() {
         ci_qemu = params.ci_qemu_param ?: ci_qemu
         ci_wasm = params.ci_wasm_param ?: ci_wasm
 
+        is_docs_only_build = sh (
+          returnStatus: true,
+          script: './tests/scripts/git_change_docs.sh',
+          label: 'Check for docs only changes',
+        )
+        skip_ci = should_skip_ci(env.CHANGE_ID)
+        skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
+        rebuild_docker_images = sh (
+          returnStatus: true,
+          script: './tests/scripts/should_rebuild_docker.py',
+          label: 'Check for any docker changes',
+        )
+        if (skip_ci) {
+          // Don't rebuild when skipping CI
+          rebuild_docker_images = false
+        }
+        if (!rebuild_docker_images) {
+          // Pull image names from the results of should_rebuild_docker.py
+          if (env.USE_AUTOUPDATED_DOCKER_IMAGES == 'yes') {
+            ci_arm = sh(
+              script: "cat .docker-image.names/ci_arm",
+              label: "Find docker image name for ci_arm",
+              returnStdout: true,
+            ).trim()
+            ci_cpu = sh(
+              script: "cat .docker-image.names/ci_cpu",
+              label: "Find docker image name for ci_cpu",
+              returnStdout: true,
+            ).trim()
+            ci_gpu = sh(
+              script: "cat .docker-image.names/ci_gpu",
+              label: "Find docker image name for ci_gpu",
+              returnStdout: true,
+            ).trim()
+            ci_hexagon = sh(
+              script: "cat .docker-image.names/ci_hexagon",
+              label: "Find docker image name for ci_hexagon",
+              returnStdout: true,
+            ).trim()
+            ci_i386 = sh(
+              script: "cat .docker-image.names/ci_i386",
+              label: "Find docker image name for ci_i386",
+              returnStdout: true,
+            ).trim()
+            ci_lint = sh(
+              script: "cat .docker-image.names/ci_lint",
+              label: "Find docker image name for ci_lint",
+              returnStdout: true,
+            ).trim()
+            ci_qemu = sh(
+              script: "cat .docker-image.names/ci_qemu",
+              label: "Find docker image name for ci_qemu",
+              returnStdout: true,
+            ).trim()
+            ci_wasm = sh(
+              script: "cat .docker-image.names/ci_wasm",
+              label: "Find docker image name for ci_wasm",
+              returnStdout: true,
+            ).trim()
+          }
+        }
+
         sh (script: """
           echo "Docker images being used in this build:"
           echo " ci_arm = ${ci_arm}"
@@ -264,23 +326,6 @@ def prepare() {
           echo " ci_qemu = ${ci_qemu}"
           echo " ci_wasm = ${ci_wasm}"
         """, label: 'Docker image names')
-
-        is_docs_only_build = sh (
-          returnStatus: true,
-          script: './tests/scripts/git_change_docs.sh',
-          label: 'Check for docs only changes',
-        )
-        skip_ci = should_skip_ci(env.CHANGE_ID)
-        skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
-        rebuild_docker_images = sh (
-          returnStatus: true,
-          script: './tests/scripts/git_change_docker.sh',
-          label: 'Check for any docker changes',
-        )
-        if (skip_ci) {
-          // Don't rebuild when skipping CI
-          rebuild_docker_images = false
-        }
       }
     }
   }
@@ -3377,7 +3422,7 @@ def deploy() {
         }
       }
     }
-    if (env.BRANCH_NAME == 'main' && env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null) {
+    if (env.BRANCH_NAME == 'main' && env.PUSH_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null) {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docker") {
           try {

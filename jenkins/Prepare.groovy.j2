@@ -145,13 +145,6 @@ def prepare() {
         {{ image.name }} = params.{{ image.name }}_param ?: {{ image.name }}
         {% endfor %}
 
-        sh (script: """
-          echo "Docker images being used in this build:"
-          {% for image in images %}
-          echo " {{ image.name }} = ${ {{- image.name -}} }"
-          {% endfor %}
-        """, label: 'Docker image names')
-
         is_docs_only_build = sh (
           returnStatus: true,
           script: './tests/scripts/git_change_docs.sh',
@@ -161,13 +154,32 @@ def prepare() {
         skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
         rebuild_docker_images = sh (
           returnStatus: true,
-          script: './tests/scripts/git_change_docker.sh',
+          script: './tests/scripts/should_rebuild_docker.py',
           label: 'Check for any docker changes',
         )
         if (skip_ci) {
           // Don't rebuild when skipping CI
           rebuild_docker_images = false
         }
+        if (!rebuild_docker_images) {
+          // Pull image names from the results of should_rebuild_docker.py
+          if (env.USE_AUTOUPDATED_DOCKER_IMAGES == 'yes') {
+            {% for image in images %}
+            {{ image.name }} = sh(
+              script: "cat .docker-image.names/{{ image.name }}",
+              label: "Find docker image name for {{ image.name }}",
+              returnStdout: true,
+            ).trim()
+            {% endfor %}
+          }
+        }
+
+        sh (script: """
+          echo "Docker images being used in this build:"
+          {% for image in images %}
+          echo " {{ image.name }} = ${ {{- image.name -}} }"
+          {% endfor %}
+        """, label: 'Docker image names')
       }
     }
   }

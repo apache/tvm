@@ -25,10 +25,11 @@ from typing import Dict, Any, List
 
 
 from http_utils import get
-from cmd_utils import Sh, init_log
+from cmd_utils import Sh, init_log, REPO_ROOT
 
 
 DOCKER_API_BASE = "https://hub.docker.com/v2/"
+DOCKER_USER = "tlcpack"
 PAGE_SIZE = 25
 TEST_DATA = None
 
@@ -111,7 +112,9 @@ def find_commit_in_repo(tags: List[Dict[str, Any]]):
 
 def main():
     # Fetch all tlcpack images
-    images = docker_api("repositories/tlcpack")
+    images = docker_api(f"repositories/{DOCKER_USER}")
+    NAMES_DIR = REPO_ROOT / ".docker-image-names"
+    NAMES_DIR.mkdir(exist_ok=True)
 
     # Ignore all non-ci images
     relevant_images = [image for image in images["results"] if image["name"].startswith("ci-")]
@@ -120,7 +123,7 @@ def main():
 
     for image in relevant_images:
         # Check the tags for the image
-        tags = docker_api(f"repositories/tlcpack/{image['name']}/tags")
+        tags = docker_api(f"repositories/{DOCKER_USER}/{image['name']}/tags")
 
         # Find the hash of the most recent tag
         shorthash, tag = find_commit_in_repo(tags)
@@ -132,6 +135,11 @@ def main():
             logging.info(f"Found docker changes from {shorthash} when checking {name}")
             logging.info(diff)
             exit(2)
+        else:
+            fullname = f"{DOCKER_USER}/{image['name']}:{name}"
+            logging.info(f"Using image {fullname} for {image}")
+            with open(NAMES_DIR / image["name"], "w") as f:
+                f.write(fullname)
 
     logging.info("Did not find changes, no rebuild necessary")
     exit(0)
@@ -140,7 +148,8 @@ def main():
 if __name__ == "__main__":
     init_log()
     parser = argparse.ArgumentParser(
-        description="Exits 0 if Docker images don't need to be rebuilt, 1 otherwise"
+        description="Exits 0 if Docker images don't need to be rebuilt, 1 otherwise. "
+        "If 0, image names will be written to a .docker-image-names folder"
     )
     parser.add_argument(
         "--testing-docker-data",
