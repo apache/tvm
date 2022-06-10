@@ -108,6 +108,12 @@ class Target(Object):
             When using a dictionary or json string to configure target, the possible values are
             same as target.
         """
+        if isinstance(target, str) and "-libs=mkldnn" in target:
+            target = target.replace("mkldnn", "dnnl")
+            warnings.warn(
+                "legacy supoort of mkldnn will be eprecated in the next release."
+                " Please replace -libs=mkldnn to -libs=dnnl to enable Intel OneDNN.",
+            )
         if isinstance(target, (dict, str)):
             target = convert(target)
         if isinstance(host, (dict, str)):
