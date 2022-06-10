@@ -54,9 +54,18 @@ arduino-cli core update-index --additional-urls $ADAFRUIT_BOARDS_URL,$ESP32_BOAR
 arduino-cli version
 arduino-cli core install arduino:mbed_nano@3.0.1
 arduino-cli core install arduino:sam@1.6.12
+arduino-cli core install arduino:mbed_portenta@3.1.1
 arduino-cli core install adafruit:samd@1.7.10 --additional-urls $ADAFRUIT_BOARDS_URL
 arduino-cli core install esp32:esp32@2.0.2 --additional-urls $ESP32_BOARDS_URL
 arduino-cli core install SPRESENSE:spresense@2.5.0 --additional-urls $SPRESENSE_BOARDS_URL
+
+# The Arduino Code API has a major bug that breaks TVM. It has been worked around in
+# most board SDKs (including arduino:sam), but it still exists for the Portenta H7.
+# There is a PR to fix it (https://github.com/arduino/ArduinoCore-API/pull/163), but
+# it may not be merged for a while (and a new release will have to be deployed too).
+# The below sed command avoids the bug, and will be removed when no longer needed.
+PORTENTA_H7_BUGFIX_PATH=~/.arduino15/packages/arduino/hardware/mbed_portenta/3.1.1/cores/arduino/api/Common.h
+sed -i '3 i #include <stdbool.h>' $PORTENTA_H7_BUGFIX_PATH
 
 # Cleanup
 rm -f *.sh

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import re
 import tvm
 import numpy as np
 from tvm import relay
@@ -392,3 +393,45 @@ def test_conv2d_yolov3_v2_nchw_3c():
     }
 
     build_run_compare(mod, params, {"data": input_shape}, dtype, target)
+
+
+@tvm.testing.requires_opencl
+def test_conv2d_vgg16_winograd_4d():
+    target = "opencl --device=adreno"
+    dtype = "float16"
+
+    input_shape = (1, 512, 28, 28)
+    filter_shape = (512, 512, 3, 3)
+    bias_shape = (1, 512, 1, 1)
+    A = relay.var("data", shape=input_shape, dtype=dtype)
+    B = relay.var("weight", shape=filter_shape, dtype=dtype)
+    bias = relay.var("bias", shape=bias_shape, dtype=dtype)
+
+    conv = relay.nn.conv2d(
+        A,
+        B,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        padding=[1, 1, 1, 1],
+        channels=512,
+        kernel_size=[3, 3],
+        out_dtype=dtype,
+    )
+    D = relay.op.add(conv, bias)
+    D = relay.op.nn.relu(D)
+
+    mod = relay.Function([A, B, bias], D)
+    np.random.seed(0)
+    initializer = relay.testing.init.Xavier()
+    filter_data = np.zeros(filter_shape).astype(dtype)
+    bias_data = np.zeros(bias_shape).astype(dtype)
+    initializer("weight", filter_data)
+    initializer("bias", bias_data)
+    params1 = {
+        "weight": tvm.nd.array(filter_data),
+        "bias": tvm.nd.array(bias_data),
+    }
+
+    graph = build_run_compare(mod, params1, {"data": input_shape}, dtype, target)
+    matches = re.findall("winograd", graph)
+    assert len(matches) > 0

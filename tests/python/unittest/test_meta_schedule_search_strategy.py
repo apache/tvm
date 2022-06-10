@@ -16,25 +16,13 @@
 # under the License.
 """ Test Meta Schedule SearchStrategy """
 # pylint: disable=missing-function-docstring
-import sys
 from typing import List
 
 import pytest
 import tvm
 import tvm.testing
 from tvm import meta_schedule as ms
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.runner import RunnerResult
-from tvm.meta_schedule.search_strategy import (
-    EvolutionarySearch,
-    ReplayFunc,
-    ReplayTrace,
-    SearchStrategy,
-)
-from tvm.meta_schedule.space_generator import ScheduleFn
-from tvm.meta_schedule.task_scheduler import RoundRobin
-from tvm.meta_schedule.testing import DummyMutator
-from tvm.meta_schedule.testing.utils import DummyDatabase
+from tvm.meta_schedule.testing.dummy_object import DummyMutator
 from tvm.script import tir as T
 from tvm.tir.schedule import Schedule, Trace
 
@@ -81,34 +69,51 @@ def _schedule_matmul(sch: Schedule):
     sch.reorder(i_0, j_0, i_1, j_1, k_0, i_2, j_2, k_1, i_3, j_3)
 
 
-@pytest.mark.parametrize("TestClass", [ReplayFunc, ReplayTrace])
-def test_meta_schedule_replay_func(TestClass: SearchStrategy):  # pylint: disable = invalid-name
+@pytest.mark.parametrize(
+    "TestClass",
+    [
+        ms.search_strategy.ReplayFunc,
+        ms.search_strategy.ReplayTrace,
+    ],
+)
+def test_meta_schedule_replay_func(
+    TestClass: ms.search_strategy.SearchStrategy,
+):  # pylint: disable = invalid-name
     num_trials_per_iter = 7
     max_trials_per_task = 20
 
-    strategy = TestClass(
-        num_trials_per_iter=num_trials_per_iter, max_trials_per_task=max_trials_per_task
+    context = ms.TuneContext(
+        mod=Matmul,
+        space_generator=ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul),
+        search_strategy=TestClass(
+            num_trials_per_iter=num_trials_per_iter, max_trials_per_task=max_trials_per_task
+        ),
     )
-    context = TuneContext(mod=Matmul, space_generator=ScheduleFn(sch_fn=_schedule_matmul))
-    context.space_generator.initialize_with_tune_context(context)
+    context.initialize()
+    strategy = context.search_strategy
     spaces = context.space_generator.generate_design_space(context.mod)
-
-    strategy.initialize_with_tune_context(context)
     strategy.pre_tuning(spaces)
-    (correct_sch,) = ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(Matmul)
+    (correct_sch,) = ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(
+        Matmul
+    )
     num_trials_each_iter: List[int] = []
     candidates = strategy.generate_measure_candidates()
     while candidates is not None:
         num_trials_each_iter.append(len(candidates))
-        runner_results: List[RunnerResult] = []
+        runner_results: List[ms.runner.RunnerResult] = []
         for candidate in candidates:
             _is_trace_equal(
                 candidate.sch,
                 correct_sch,
-                remove_decisions=(isinstance(strategy, ReplayTrace)),
+                remove_decisions=(isinstance(strategy, ms.search_strategy.ReplayTrace)),
             )
-            runner_results.append(RunnerResult(run_secs=[0.11, 0.41, 0.54], error_msg=None))
-        strategy.notify_runner_results(context, candidates, runner_results)
+            runner_results.append(
+                ms.runner.RunnerResult(
+                    run_secs=[0.11, 0.41, 0.54],
+                    error_msg=None,
+                )
+            )
+        strategy.notify_runner_results(candidates, runner_results)
         candidates = strategy.generate_measure_candidates()
     strategy.post_tuning()
     assert num_trials_each_iter == [7, 7, 6]
@@ -123,14 +128,16 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name]
 
     num_trials_per_iter = 10
     max_trials_per_task = 2000
-    (correct_sch,) = ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(Matmul)
+    (correct_sch,) = ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(
+        Matmul
+    )
 
-    context = TuneContext(
+    context = ms.TuneContext(
         mod=Matmul,
-        space_generator=ScheduleFn(
+        space_generator=ms.space_generator.ScheduleFn(
             sch_fn=_schedule_matmul_small,
         ),
-        search_strategy=EvolutionarySearch(
+        search_strategy=ms.search_strategy.EvolutionarySearch(
             num_trials_per_iter=num_trials_per_iter,
             max_trials_per_task=max_trials_per_task,
             population_size=5,
@@ -151,22 +158,27 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name]
     strategy = context.search_strategy
     strategy.pre_tuning(
         context.space_generator.generate_design_space(context.mod),
-        database=DummyDatabase(),
+        database=ms.database.MemoryDatabase(),
         cost_model=ms.cost_model.RandomModel(),
     )
     num_trials_each_iter: List[int] = []
     candidates = strategy.generate_measure_candidates()
     while candidates is not None:
         num_trials_each_iter.append(len(candidates))
-        runner_results: List[RunnerResult] = []
+        runner_results: List[ms.runner.RunnerResult] = []
         for candidate in candidates:
             _is_trace_equal(
                 candidate.sch,
                 correct_sch,
-                remove_decisions=(isinstance(strategy, ReplayTrace)),
+                remove_decisions=(isinstance(strategy, ms.search_strategy.ReplayTrace)),
             )
-            runner_results.append(RunnerResult(run_secs=[0.11, 0.41, 0.54], error_msg=None))
-        strategy.notify_runner_results(context, candidates, runner_results)
+            runner_results.append(
+                ms.runner.RunnerResult(
+                    run_secs=[0.11, 0.41, 0.54],
+                    error_msg=None,
+                )
+            )
+        strategy.notify_runner_results(candidates, runner_results)
         candidates = strategy.generate_measure_candidates()
     strategy.post_tuning()
     assert sum(num_trials_each_iter) == 25
@@ -177,14 +189,16 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
     def _schedule_matmul_empty(sch: Schedule):
         return sch
 
-    (correct_sch,) = ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(Matmul)
+    (correct_sch,) = ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(
+        Matmul
+    )
 
     num_trials_per_iter = 10
     max_trials_per_task = 100
 
-    context = TuneContext(
+    context = ms.TuneContext(
         mod=Matmul,
-        search_strategy=EvolutionarySearch(
+        search_strategy=ms.search_strategy.EvolutionarySearch(
             num_trials_per_iter=num_trials_per_iter,
             max_trials_per_task=max_trials_per_task,
             population_size=5,
@@ -195,7 +209,7 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
             genetic_max_fail_count=10,
             eps_greedy=0.9,
         ),
-        space_generator=ScheduleFn(
+        space_generator=ms.space_generator.ScheduleFn(
             sch_fn=_schedule_matmul_empty,
         ),
         mutator_probs={
@@ -208,22 +222,27 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
     strategy = context.search_strategy
     strategy.pre_tuning(
         context.space_generator.generate_design_space(context.mod),
-        database=DummyDatabase(),
+        database=ms.database.MemoryDatabase(),
         cost_model=ms.cost_model.RandomModel(),
     )
     num_trials_each_iter: List[int] = []
     candidates = strategy.generate_measure_candidates()
     while candidates is not None:
         num_trials_each_iter.append(len(candidates))
-        runner_results: List[RunnerResult] = []
+        runner_results: List[ms.runner.RunnerResult] = []
         for candidate in candidates:
             _is_trace_equal(
                 candidate.sch,
                 correct_sch,
-                remove_decisions=(isinstance(strategy, ReplayTrace)),
+                remove_decisions=(isinstance(strategy, ms.search_strategy.ReplayTrace)),
             )
-            runner_results.append(RunnerResult(run_secs=[0.11, 0.41, 0.54], error_msg=None))
-        strategy.notify_runner_results(context, candidates, runner_results)
+            runner_results.append(
+                ms.runner.RunnerResult(
+                    run_secs=[0.11, 0.41, 0.54],
+                    error_msg=None,
+                ),
+            )
+        strategy.notify_runner_results(candidates, runner_results)
         candidates = strategy.generate_measure_candidates()
     strategy.post_tuning()
     assert num_trials_each_iter == [1, 0, 0, 0, 0]

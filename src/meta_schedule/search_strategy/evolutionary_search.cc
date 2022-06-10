@@ -314,8 +314,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     /*! \brief An interface method to be called by it's counterpart in EvolutionarySearchNode */
     inline Optional<Array<MeasureCandidate>> GenerateMeasureCandidates();
     /*! \brief An interface method to be called by it's counterpart in EvolutionarySearchNode */
-    inline void NotifyRunnerResults(const TuneContext& context,
-                                    const Array<MeasureCandidate>& measure_candidates,
+    inline void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                                     const Array<RunnerResult>& results);
   };
 
@@ -399,7 +398,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
         << "ValueError: Database is not supplied in PreTuning. Evolutionary"
            "search algorithm requires a database to be present, so that it "
            "could sample from previously-explored population. If you do not "
-           "intent to store data on disk, please use `tvm.meta_schedule.testing.DummyDatabase`";
+           "intent to store data on disk, please use `tvm.meta_schedule.database.MemoryDatabase`";
     CHECK(cost_model.defined())
         << "ValueError: CostModel is not supplied in PreTuning. Evolutionary search "
            "algorithm expects a cost model to filter out potentially less efficient kernels. If "
@@ -430,11 +429,10 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     return this->state_->GenerateMeasureCandidates();
   }
 
-  void NotifyRunnerResults(const TuneContext& context,
-                           const Array<MeasureCandidate>& measure_candidates,
+  void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                            const Array<RunnerResult>& results) final {
     ICHECK(this->state_ != nullptr);
-    this->state_->NotifyRunnerResults(context, measure_candidates, results);
+    this->state_->NotifyRunnerResults(measure_candidates, results);
   }
 };
 
@@ -681,8 +679,7 @@ Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasure
 }
 
 void EvolutionarySearchNode::State::NotifyRunnerResults(
-    const TuneContext& context, const Array<MeasureCandidate>& measure_candidates,
-    const Array<RunnerResult>& results) {
+    const Array<MeasureCandidate>& measure_candidates, const Array<RunnerResult>& results) {
   st += results.size();
   ed += results.size();
 }

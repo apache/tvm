@@ -215,19 +215,21 @@ def colsum_decompose_with_vectorization(a: T.handle, b: T.handle) -> None:
 
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
+use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
-def test_reduction_decompose0():
+
+def test_reduction_decompose0(use_block_name):
     s = tir.Schedule(matmul, debug_mask="all")
-    C = s.get_block("update")
+    C = "update" if use_block_name else s.get_block("update")
     i, j, k = s.get_loops(C)
     s.decompose_reduction(C, i)
     tvm.ir.assert_structural_equal(matmul_decompose0, s.mod["main"])
     verify_trace_roundtrip(s, mod=matmul)
 
 
-def test_reduction_decompose1():
+def test_reduction_decompose1(use_block_name):
     s = tir.Schedule(rowsum_blockized, debug_mask="all")
-    blockized_B = s.get_block("blockized_B")
+    blockized_B = "blockized_B" if use_block_name else s.get_block("blockized_B")
     io, ko = s.get_loops(blockized_B)
     s.decompose_reduction(blockized_B, io)
     tvm.ir.assert_structural_equal(matmul_decompose1, s.mod["main"])

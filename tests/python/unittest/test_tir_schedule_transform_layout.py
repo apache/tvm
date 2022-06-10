@@ -171,15 +171,13 @@ def conv2d_nhwc_transformed(
 # pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 # fmt: on
 
-use_sugared_transform = tvm.testing.parameter(
-    by_dict={"transform_layout": False, "transform_layout_sugared": True}
-)
+use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
 
-def test_two_elementwise_transform_intermediate_buffer(use_sugared_transform):
+def test_two_elementwise_transform_intermediate_buffer(use_block_name):
     sch = tir.Schedule(two_elementwise, debug_mask="all")
 
-    if use_sugared_transform:
+    if use_block_name:
         sch.transform_layout(
             block="B",
             buffer="B",
@@ -193,10 +191,10 @@ def test_two_elementwise_transform_intermediate_buffer(use_sugared_transform):
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 
 
-def test_two_elementwise_transform_input_buffer(use_sugared_transform):
+def test_two_elementwise_transform_input_buffer(use_block_name):
     sch = tir.Schedule(two_elementwise, debug_mask="all")
 
-    if use_sugared_transform:
+    if use_block_name:
         sch.transform_layout(
             index_map=packed_index_map_func,
             block="B",
@@ -210,10 +208,10 @@ def test_two_elementwise_transform_input_buffer(use_sugared_transform):
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 
 
-def test_two_elementwise_transform_output_buffer(use_sugared_transform):
+def test_two_elementwise_transform_output_buffer(use_block_name):
     sch = tir.Schedule(two_elementwise, debug_mask="all")
 
-    if use_sugared_transform:
+    if use_block_name:
         sch.transform_layout(
             index_map=packed_index_map_func,
             block="C",
@@ -295,17 +293,17 @@ def test_var_args_sugar():
     tvm.ir.assert_structural_equal(summation_3d_split, sch.mod["main"])
 
 
-def test_transform_block_layout_basic():
+def test_transform_block_layout_basic(use_block_name):
     sch = tir.Schedule(elementwise, debug_mask="all")
-    block = sch.get_block("B")
+    block = "B" if use_block_name else sch.get_block("B")
     sch.transform_block_layout(block, lambda i, j: (i * 128 + j,))
     tvm.ir.assert_structural_equal(elementwise_transformed, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
-def test_transform_block_layout_conv2d_nhwc():
+def test_transform_block_layout_conv2d_nhwc(use_block_name):
     sch = tir.Schedule(conv2d_nhwc, debug_mask="all")
-    block = sch.get_block("conv2d_nhwc")
+    block = "conv2d_nhwc" if use_block_name else sch.get_block("conv2d_nhwc")
     sch.transform_block_layout(
         block,
         lambda n, h, w, co, rh, rw, rc: (n * 112 * 112 + h * 112 + w, co, rh * 7 * 3 + rw * 3 + rc),
@@ -314,16 +312,16 @@ def test_transform_block_layout_conv2d_nhwc():
     verify_trace_roundtrip(sch=sch, mod=conv2d_nhwc)
 
 
-def test_transform_block_layout_fail_non_affine():
+def test_transform_block_layout_fail_non_affine(use_block_name):
     sch = tir.Schedule(elementwise, debug_mask="all")
-    block = sch.get_block("B")
+    block = "B" if use_block_name else sch.get_block("B")
     with pytest.raises(tir.ScheduleError):
         sch.transform_block_layout(block, lambda i, j: (i + j,))
 
 
-def test_transform_block_layout_fail_mixed_iter_type():
+def test_transform_block_layout_fail_mixed_iter_type(use_block_name):
     sch = tir.Schedule(conv2d_nhwc, debug_mask="all")
-    block = sch.get_block("conv2d_nhwc")
+    block = "conv2d_nhwc" if use_block_name else sch.get_block("conv2d_nhwc")
     with pytest.raises(tir.ScheduleError):
         sch.transform_block_layout(
             block,
