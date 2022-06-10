@@ -19,6 +19,7 @@ import subprocess
 import os
 import logging
 import sys
+from typing import List, Union
 from pathlib import Path
 
 
@@ -50,11 +51,18 @@ class Sh:
             self.env.update(env)
         self.cwd = cwd
 
-    def run(self, cmd: str, **kwargs):
-        logging.info(f"+ {cmd}")
+    def run(self, cmd: Union[str, List[str]], **kwargs):
+        default_shell = True
+        if isinstance(cmd, list):
+            default_shell = False
+            cmd_str = " ".join(cmd)
+        else:
+            cmd_str = cmd
+
+        logging.info(f"+ {cmd_str}")
         defaults = {
             "check": True,
-            "shell": True,
+            "shell": default_shell,
             "env": self.env,
             "encoding": "utf-8",
             "cwd": self.cwd,

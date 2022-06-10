@@ -16,9 +16,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from asyncio import subprocess
 import os
 import json
 import argparse
+import tempfile
 import warnings
 import logging
 import traceback
@@ -27,7 +29,7 @@ from typing import Dict, Any, List, Optional, Callable
 from pathlib import Path
 
 from git_utils import git, GitHubRepo, parse_remote, post
-from cmd_utils import init_log
+from cmd_utils import init_log, Sh
 
 
 Review = Dict[str, Any]
@@ -525,6 +527,24 @@ class Rerun:
     @staticmethod
     def run(pr: PR):
         pr.rerun_jenkins_ci()
+
+
+class Rebase:
+    triggers = [
+        "rebase",
+    ]
+
+    @staticmethod
+    def run(pr: PR):
+        git_url = f"https://github.com/{pr.owner}/{pr.repo_name}.git"
+        with tempfile.TemporaryDirectory() as dir:
+            dir = Path(dir)
+            sh = Sh(cwd=dir)
+            sh.run(["git", "clone", git_url], shell=False)
+            git_sh = Sh(cwd=dir / pr.repo_name)
+            git_sh.run(["gh", "pr", "checkout", pr.number])
+            git_sh.run(["git", "rebase", "origin/main"])
+            git_sh.run(["git", "push", "fork"])
 
 
 if __name__ == "__main__":
