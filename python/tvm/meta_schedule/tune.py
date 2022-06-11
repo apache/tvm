@@ -404,6 +404,7 @@ def tune_tir(
     )
 
     # pylint: disable=protected-access
+    mod = default_config.mod(mod)
     target = default_config.target(target)
     # pylint: enable=protected-access
     database = tune_extracted_tasks(
