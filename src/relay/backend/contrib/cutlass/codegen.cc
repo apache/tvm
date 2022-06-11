@@ -704,8 +704,7 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
       return GenerateBody(conv2d_call, pattern_name.value(), GetArgumentNames(caller),
                           Conv2dArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.conv2d_transpose") {
-      const auto* conv2d_call =
-          GetRootCall(callee->body.as<CallNode>(), 0, "nn.conv2d_transpose");
+      const auto* conv2d_call = GetRootCall(callee->body.as<CallNode>(), 0, "nn.conv2d_transpose");
       return GenerateBody(conv2d_call, "cutlass_conv2d_transpose", GetArgumentNames(caller),
                           Conv2dArgs(std::ref(attrs_), true, false));
     } else if (pattern_name == "cutlass.conv2d_backward_weight") {
