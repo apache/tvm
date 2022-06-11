@@ -88,7 +88,7 @@ TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
       dtype = runtime::String2DLDataType(dtype_str);
     }
     // Load json[2] => shape
-    shape = Downcast<Array<Integer>>(json_array->at(2));
+    shape = AsIntArray(json_array->at(2));
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                << "\nThe error is: " << e.what();
