@@ -56,6 +56,9 @@ class MemoryDatabase(PyDatabase):
             )
         )[: int(top_k)]
 
+    def get_all_tuning_records(self) -> List[TuningRecord]:
+        return self.records
+
     def __len__(self) -> int:
         return len(self.records)
 
