@@ -18,7 +18,8 @@
  */
 
 /*!
- * \brief Proof-of-concept unit tests for the family of WithFields helpers. Only Call is tested.
+ * \brief Proof-of-concept unit tests for the family of WithFields helpers.
+ * Only Call, GlobalVar and Constant are currently tested.
  */
 
 #include <gtest/gtest.h>
@@ -51,22 +52,26 @@ IRModule TestIRModule() {
 }
 
 Function TestFunction() { return Downcast<Function>(TestIRModule()->Lookup("main")); }
+Call TestCall() { return Downcast<Call>(TestFunction()->body); }
 GlobalVar TestGlobalVar() { return TestIRModule()->GetGlobalVar("main"); }
+VirtualDevice TestVirtualDevice() { return VirtualDevice::ForDevice({kDLCUDA, 3}); }
+Span TestSpan() { return Span(SourceName::Get("foo"), 3, 4, 6, 42); }
+Constant TestConstant() {
+  return Constant(runtime::NDArray::Empty({}, DataType::Int(32), {kDLCPU, 0}));
+}
 
 //
 // Call
 //
 
 TEST(WithFields, Call_Noop) {
-  Function function = TestFunction();
-  Call call = Downcast<Call>(function->body);
+  Call call = TestCall();
   Call result = WithFields(call);
   ASSERT_TRUE(result.same_as(call));
 }
 
 TEST(WithFields, Call_Op) {
-  Function function = TestFunction();
-  Call call = Downcast<Call>(function->body);
+  Call call = TestCall();
   Op new_op = Op::Get("tanh");
   Call result = WithFields(call, new_op);
   ASSERT_FALSE(result.same_as(call));
@@ -75,9 +80,8 @@ TEST(WithFields, Call_Op) {
 }
 
 TEST(WithFields, Call_Args) {
-  Function function = TestFunction();
-  Call call = Downcast<Call>(function->body);
-  Array<Expr> new_args = {function->params[0]};
+  Call call = TestCall();
+  Array<Expr> new_args = {Tuple(Array<Expr>())};
   Call result = WithFields(call, /*opt_op=*/{}, new_args);
   ASSERT_FALSE(result.same_as(call));
   ASSERT_FALSE(call->args.same_as(new_args));
@@ -85,8 +89,7 @@ TEST(WithFields, Call_Args) {
 }
 
 TEST(WithFields, Call_Attrs) {
-  Function function = TestFunction();
-  Call call = Downcast<Call>(function->body);
+  Call call = TestCall();
   Attrs new_attrs = DictAttrs(Map<String, ObjectRef>());
   Call result = WithFields(call, /*opt_op=*/{}, /*opt_args=*/{}, new_attrs);
   ASSERT_FALSE(result.same_as(call));
@@ -95,8 +98,7 @@ TEST(WithFields, Call_Attrs) {
 }
 
 TEST(WithFields, Call_TypeArgs) {
-  Function function = TestFunction();
-  Call call = Downcast<Call>(function->body);
+  Call call = TestCall();
   Array<Type> new_type_args;
   Call result = WithFields(call, /*opt_op=*/{}, /*opt_args=*/{}, /*opt_attrs=*/{}, new_type_args);
   ASSERT_FALSE(result.same_as(call));
@@ -105,10 +107,8 @@ TEST(WithFields, Call_TypeArgs) {
 }
 
 TEST(WithFields, Call_VirtualDevice) {
-  Function function = TestFunction();
-  Call call = Downcast<Call>(function->body);
-  Device device = {kDLCUDA, 3};
-  VirtualDevice new_virtual_device = VirtualDevice::ForDevice(device);
+  Call call = TestCall();
+  VirtualDevice new_virtual_device = TestVirtualDevice();
   Call result = WithFields(call, /*opt_op=*/{}, /*opt_args=*/{}, /*opt_attrs=*/{},
                            /*opt_type_args=*/{}, new_virtual_device);
   ASSERT_FALSE(result.same_as(call));
@@ -117,9 +117,8 @@ TEST(WithFields, Call_VirtualDevice) {
 }
 
 TEST(WithFields, Call_Span) {
-  Function function = TestFunction();
-  Call call = Downcast<Call>(function->body);
-  Span new_span(SourceName::Get("foo"), 3, 4, 6, 42);
+  Call call = TestCall();
+  Span new_span = TestSpan();
   Call result = WithFields(call, /*opt_op=*/{}, /*opt_args=*/{}, /*opt_attrs=*/{},
                            /*opt_type_args=*/{}, /*opt_virtual_device=*/{}, new_span);
   ASSERT_FALSE(result.same_as(call));
@@ -132,23 +131,84 @@ TEST(WithFields, Call_Span) {
 //
 
 TEST(WithFields, GlobalVar_Noop) {
-  GlobalVar gv  = TestGlobalVar();
+  GlobalVar gv = TestGlobalVar();
   GlobalVar result = WithFields(gv);
   ASSERT_TRUE(result.same_as(gv));
 }
 
 TEST(WithFields, GlobalVar_Name) {
-  GlobalVar gv  = TestGlobalVar();
-  String name("foo");
-  GlobalVar result = WithFields(gv, name);
+  GlobalVar gv = TestGlobalVar();
+  String new_name("foo");
+  GlobalVar result = WithFields(gv, new_name);
   ASSERT_FALSE(result.same_as(gv));
-  ASSERT_FALSE(gv->name_hint.same_as(name));
-  ASSERT_TRUE(result->name_hint.same_as(name));
+  ASSERT_FALSE(gv->name_hint.same_as(new_name));
+  ASSERT_TRUE(result->name_hint.same_as(new_name));
+}
+
+TEST(WithFields, GlobalVar_Type) {
+  GlobalVar gv = TestGlobalVar();
+  Type new_type = TupleType(Array<Type>());
+  GlobalVar result = WithFields(gv, /*opt_name_hint=*/{}, new_type);
+  ASSERT_FALSE(result.same_as(gv));
+  ASSERT_FALSE(gv->checked_type().same_as(new_type));
+  ASSERT_TRUE(result->checked_type().same_as(new_type));
+}
+
+TEST(WithFields, GlobalVar_VirtualDevice) {
+  GlobalVar gv = TestGlobalVar();
+  VirtualDevice new_virtual_device = TestVirtualDevice();
+  GlobalVar result = WithFields(gv, /*opt_name_hint=*/{}, /*opt_type=*/{}, new_virtual_device);
+  ASSERT_FALSE(result.same_as(gv));
+  ASSERT_FALSE(gv->virtual_device().same_as(new_virtual_device));
+  ASSERT_TRUE(result->virtual_device().same_as(new_virtual_device));
+}
+
+TEST(WithFields, GlobalVar_Span) {
+  GlobalVar gv = TestGlobalVar();
+  Span new_span = TestSpan();
+  GlobalVar result =
+      WithFields(gv, /*opt_name_hint=*/{}, /*opt_type=*/{}, /*opt_virtual_device=*/{}, new_span);
+  ASSERT_FALSE(result.same_as(gv));
+  ASSERT_FALSE(gv->span.same_as(new_span));
+  ASSERT_TRUE(result->span.same_as(new_span));
 }
 
 //
 // Constant
 //
+
+TEST(WithFields, Constant_Noop) {
+  Constant constant = TestConstant();
+  Constant result = WithFields(constant);
+  ASSERT_TRUE(result.same_as(constant));
+}
+
+TEST(WithFields, Constant_Data) {
+  Constant constant = TestConstant();
+  runtime::NDArray new_data = runtime::NDArray::Empty({}, DataType::Float(32), {kDLCPU, 0});
+  Constant result = WithFields(constant, new_data);
+  ASSERT_FALSE(result.same_as(constant));
+  ASSERT_FALSE(constant->data.same_as(new_data));
+  ASSERT_TRUE(result->data.same_as(new_data));
+}
+
+TEST(WithFields, Constant_VirtualDevice) {
+  Constant constant = TestConstant();
+  VirtualDevice new_virtual_device = TestVirtualDevice();
+  Constant result = WithFields(constant, /*opt_data=*/{}, new_virtual_device);
+  ASSERT_FALSE(result.same_as(constant));
+  ASSERT_FALSE(constant->virtual_device().same_as(new_virtual_device));
+  ASSERT_TRUE(result->virtual_device().same_as(new_virtual_device));
+}
+
+TEST(WithFields, Constant_Span) {
+  Constant constant = TestConstant();
+  Span new_span = TestSpan();
+  Constant result = WithFields(constant, /*opt_data=*/{}, /*opt_virtual_device=*/{}, new_span);
+  ASSERT_FALSE(result.same_as(constant));
+  ASSERT_FALSE(constant->span.same_as(new_span));
+  ASSERT_TRUE(result->span.same_as(new_span));
+}
 
 }  // namespace
 }  // namespace relay
