@@ -111,8 +111,8 @@ class Target(Object):
         if isinstance(target, str) and "-libs=mkldnn" in target:
             target = target.replace("mkldnn", "dnnl")
             warnings.warn(
-                "legacy supoort of mkldnn will be eprecated in the next release."
-                " Please replace -libs=mkldnn to -libs=dnnl to enable Intel OneDNN.",
+                "Legacy support of mkldnn is going to be deprecated. "
+                "Please use -libs=dnnl instead.",
             )
         if isinstance(target, (dict, str)):
             target = convert(target)
