@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <set>
+#include <thread>
 #include <unordered_map>
 
 #include "../utils.h"
@@ -45,6 +46,45 @@ struct SortTuningRecordByMeanRunSecs {
     return a_time < b_time;
   }
 };
+
+/*!
+ * \brief Read lines from a json file.
+ * \param path The path to the json file.
+ * \param num_lines The number of threads used to concurrently parse the lines.
+ * \param allow_missing Whether to create new file when the given path is not found.
+ * \return An array containing lines read from the json file.
+ */
+std::vector<ObjectRef> JSONFileReadLines(const String& path, int num_threads, bool allow_missing) {
+  std::ifstream is(path);
+  if (is.good()) {
+    std::vector<String> json_strs;
+    for (std::string str; std::getline(is, str);) {
+      json_strs.push_back(str);
+    }
+    int n = json_strs.size();
+    std::vector<ObjectRef> json_objs;
+    json_objs.resize(n);
+    support::parallel_for_dynamic(0, n, num_threads, [&](int thread_id, int task_id) {
+      json_objs[task_id] = JSONLoads(json_strs[task_id]);
+    });
+    return json_objs;
+  }
+  CHECK(allow_missing) << "ValueError: File doesn't exist: " << path;
+  std::ofstream os(path);
+  CHECK(os.good()) << "ValueError: Cannot create new file: " << path;
+  return {};
+}
+
+/*!
+ * \brief Append a line to a json file.
+ * \param path The path to the json file.
+ * \param line The line to append.
+ */
+void JSONFileAppendLine(const String& path, const std::string& line) {
+  std::ofstream os(path, std::ofstream::app);
+  CHECK(os.good()) << "ValueError: Cannot open the file to write: " << path;
+  os << line << std::endl;
+}
 
 /*! \brief The default database implementation, which mimics two database tables with two files. */
 class JSONDatabaseNode : public DatabaseNode {
@@ -83,7 +123,7 @@ class JSONDatabaseNode : public DatabaseNode {
     // If `mod` is new in `workloads2idx_`, append it to the workload file
     if (inserted) {
       it->second = static_cast<int>(this->workloads2idx_.size()) - 1;
-      JSONFileAppendLine(this->path_workload, JSONObj2Str(workload->AsJSON()));
+      JSONFileAppendLine(this->path_workload, JSONDumps(workload->AsJSON()));
     }
     return it->first;
   }
@@ -91,7 +131,7 @@ class JSONDatabaseNode : public DatabaseNode {
   void CommitTuningRecord(const TuningRecord& record) {
     this->tuning_records_.insert(record);
     JSONFileAppendLine(this->path_tuning_record,
-                       JSONObj2Str(Array<ObjectRef>{
+                       JSONDumps(Array<ObjectRef>{
                            /*workload_index=*/Integer(this->workloads2idx_.at(record->workload)),
                            /*tuning_record=*/record->AsJSON()  //
                        }));
@@ -121,11 +161,12 @@ class JSONDatabaseNode : public DatabaseNode {
 
 Database Database::JSONDatabase(String path_workload, String path_tuning_record,
                                 bool allow_missing) {
+  int num_threads = std::thread::hardware_concurrency();
   ObjectPtr<JSONDatabaseNode> n = make_object<JSONDatabaseNode>();
   // Load `n->workloads2idx_` from `path_workload`
   std::vector<Workload> workloads;
   {
-    Array<ObjectRef> json_objs = JSONStr2Obj(JSONFileReadLines(path_workload, allow_missing));
+    std::vector<ObjectRef> json_objs = JSONFileReadLines(path_workload, num_threads, allow_missing);
     int n_objs = json_objs.size();
     n->workloads2idx_.reserve(n_objs);
     workloads.reserve(n_objs);
@@ -137,20 +178,25 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
   }
   // Load `n->tuning_records_` from `path_tuning_record`
   {
-    Array<ObjectRef> json_objs = JSONStr2Obj(JSONFileReadLines(path_tuning_record, allow_missing));
-    for (const ObjectRef& json_obj : json_objs) {
-      int workload_index = -1;
-      ObjectRef tuning_record{nullptr};
-      try {
-        const ArrayNode* arr = json_obj.as<ArrayNode>();
-        ICHECK_EQ(arr->size(), 2);
-        workload_index = Downcast<Integer>(arr->at(0));
-        tuning_record = arr->at(1);
-      } catch (std::runtime_error& e) {
-        LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
-                   << "\nThe error is: " << e.what();
-      }
-      n->tuning_records_.insert(TuningRecord::FromJSON(tuning_record, workloads[workload_index]));
+    std::vector<ObjectRef> json_objs =
+        JSONFileReadLines(path_tuning_record, num_threads, allow_missing);
+    std::vector<TuningRecord> records;
+    records.resize(json_objs.size(), TuningRecord{nullptr});
+    support::parallel_for_dynamic(
+        0, json_objs.size(), num_threads, [&](int thread_id, int task_id) {
+          const ObjectRef& json_obj = json_objs[task_id];
+          try {
+            const ArrayNode* arr = json_obj.as<ArrayNode>();
+            ICHECK_EQ(arr->size(), 2);
+            records[task_id] = TuningRecord::FromJSON(arr->at(1),  //
+                                                      workloads[Downcast<Integer>(arr->at(0))]);
+          } catch (std::runtime_error& e) {
+            LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
+                       << "\nThe error is: " << e.what();
+          }
+        });
+    for (const TuningRecord& record : records) {
+      n->tuning_records_.insert(record);
     }
   }
   n->path_workload = path_workload;
