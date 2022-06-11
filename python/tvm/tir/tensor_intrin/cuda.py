@@ -742,7 +742,7 @@ TensorIntrin.register(
 WMMA_SYNC_16x16x16_f16f16f32_TRANS_INTRIN = "wmma_sync_16x16x16_f16f16f32_trans"
 TensorIntrin.register(
     WMMA_SYNC_16x16x16_f16f16f32_TRANS_INTRIN,
-    *get_wmma_sync_intrin(16, 16, 16, "float16", "float32", False),
+    *get_wmma_sync_intrin(16, 16, 16, "float16", "float32", True),
 )
 
 WMMA_SYNC_16x16x16_f16f16f16_INTRIN = "wmma_sync_16x16x16_f16f16f16"
@@ -754,7 +754,7 @@ TensorIntrin.register(
 WMMA_SYNC_16x16x16_f16f16f16_TRANS_INTRIN = "wmma_sync_16x16x16_f16f16f16_trans"
 TensorIntrin.register(
     WMMA_SYNC_16x16x16_f16f16f16_TRANS_INTRIN,
-    *get_wmma_sync_intrin(16, 16, 16, "float16", "float16", False),
+    *get_wmma_sync_intrin(16, 16, 16, "float16", "float16", True),
 )
 
 WMMA_LOAD_16x16x16_F16_A_INTRIN = "wmma_load_16x16x16_f16_a"
