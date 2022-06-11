@@ -129,6 +129,7 @@ class TuningRecordNode : public runtime::Object {
    * argument information.
    */
   ObjectRef AsJSON() const;
+  tir::Schedule TransformIRModule() const;
 };
 
 /*!

@@ -70,6 +70,13 @@ void TuneContextNode::Initialize() {
   }
 }
 
+MeasureCandidate TuneContextNode::_GetMeasureCandidate(
+        const tir::Schedule& schedule, const tir::PrimFunc& func) {
+  Array<ArgInfo> args_info = ArgInfo::FromPrimFunc(func);
+  MeasureCandidate measure_candidate = MeasureCandidate(schedule, args_info);
+  return measure_candidate;
+}
+
 void TuneContextNode::_SetMeasureCandidates(const Array<MeasureCandidate>& candidates) {
   this->measure_candidates = candidates;
 }
@@ -172,6 +179,18 @@ TVM_REGISTER_GLOBAL("meta_schedule.TuneContext")
 TVM_REGISTER_GLOBAL("meta_schedule._SHash2Hex").set_body_typed(SHash2Hex);
 TVM_REGISTER_GLOBAL("meta_schedule.TuneContextInitialize")
     .set_body_method<TuneContext>(&TuneContextNode::Initialize);
+TVM_REGISTER_GLOBAL("meta_schedule.TuneContextGetMeasureCandidate")
+    .set_body_method<TuneContext>(&TuneContextNode::_GetMeasureCandidate);
+TVM_REGISTER_GLOBAL("meta_schedule.TuneContextSetMeasureCandidates")
+    .set_body_method<TuneContext>(&TuneContextNode::_SetMeasureCandidates);
+TVM_REGISTER_GLOBAL("meta_schedule.TuneContextSendToBuilder")
+    .set_body_method<TuneContext>(&TuneContextNode::_SendToBuilder);
+TVM_REGISTER_GLOBAL("meta_schedule.TuneContextSendToRunner")
+    .set_body_method<TuneContext>(&TuneContextNode::_SendToRunner);
+TVM_REGISTER_GLOBAL("meta_schedule.TuneContextJoin")
+    .set_body_method<TuneContext>(&TuneContextNode::_Join);
+TVM_REGISTER_GLOBAL("meta_schedule.TuneContextClearMeasureState")
+    .set_body_method<TuneContext>(&TuneContextNode::_ClearMeasureState);
 
 }  // namespace meta_schedule
 }  // namespace tvm

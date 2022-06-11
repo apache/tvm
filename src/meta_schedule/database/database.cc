@@ -105,6 +105,21 @@ ObjectRef TuningRecordNode::AsJSON() const {
                           json_args_info};
 }
 
+tir::Schedule TuningRecordNode::TransformIRModule() const {
+  tir::Schedule sch = tir::Schedule::Traced(
+    workload->mod,
+    -1,
+    0,
+    tir::ScheduleErrorRenderLevel::kDetail
+  );
+  trace->ApplyToSchedule(
+    sch,
+    false,
+    nullptr
+  );
+  return sch;
+}
+
 TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& workload) {
   tir::Trace trace{nullptr};
   Optional<Array<FloatImm>> run_secs{nullptr};
@@ -181,6 +196,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.TuningRecord")
     });
 TVM_REGISTER_GLOBAL("meta_schedule.TuningRecordAsJSON")
     .set_body_method<TuningRecord>(&TuningRecordNode::AsJSON);
+TVM_REGISTER_GLOBAL("meta_schedule.TuningRecordTransformIRModule")
+    .set_body_method<TuningRecord>(&TuningRecordNode::TransformIRModule);
 TVM_REGISTER_GLOBAL("meta_schedule.TuningRecordFromJSON").set_body_typed(TuningRecord::FromJSON);
 TVM_REGISTER_GLOBAL("meta_schedule.DatabaseHasWorkload")
     .set_body_method<Database>(&DatabaseNode::HasWorkload);

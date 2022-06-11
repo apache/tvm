@@ -125,6 +125,17 @@ class TuningRecord(Object):
         """
         return _json_de_tvm(_ffi_api.TuningRecordAsJSON(self))  # type: ignore # pylint: disable=no-member
 
+    def transform_ir_module(self) -> IRModule:
+        """Transform the initial IR module in the workload into a new IR module
+        given the trace.
+
+        Returns
+        -------
+        mod : IRModule
+            The transformed IR module.
+        """
+        return _ffi_api.TuningRecordTransformIRModule(self)
+
     @staticmethod
     def from_json(json_obj: Any, workload: Workload) -> "TuningRecord":
         """Create a tuning record from a json object.

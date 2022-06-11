@@ -99,6 +99,9 @@ class TuneContextNode : public runtime::Object {
 
   /*! \brief Initialize members that needs initialization with tune context. */
   void Initialize();
+  /*! \brief Construct the measure candidate given schedule and prim_func. */
+  MeasureCandidate _GetMeasureCandidate(
+          const tir::Schedule& schedule, const tir::PrimFunc& func);
   /*! \brief Set the measure candidates from the SearchStrategy */
   void _SetMeasureCandidates(const Array<MeasureCandidate>& candidates);
   /*!
