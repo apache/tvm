@@ -716,9 +716,35 @@ class EvolutionarySearch : public SearchStrategy {
                                                     EvolutionarySearchNode);
 };
 
+Array<Schedule> EvolutionarySearchSampleInitPopulation(EvolutionarySearch self, int num) {
+  std::vector<Schedule> results = self->state_->SampleInitPopulation(num);
+  return Array<Schedule>(results.begin(), results.end());
+}
+
+Array<Schedule> EvolutionarySearchEvolveWithCostModel(EvolutionarySearch self,
+                                                      Array<Schedule> population, int num) {
+  Array<Schedule> result;
+  std::vector<Schedule> population_vec =
+      std::vector<Schedule>(population.begin(), population.end());
+  std::vector<Schedule> schs = self->state_->EvolveWithCostModel(population_vec, num);
+  for (Schedule sch : schs) {
+    IRModule mod = sch->mod();
+    size_t shash = StructuralHash()(mod);
+    if (!self->state_->measured_workloads_.Has(mod, shash)) {
+      self->state_->measured_workloads_.Add(mod, shash);
+      result.push_back(sch);
+    }
+  }
+  return result;
+}
+
 TVM_REGISTER_NODE_TYPE(EvolutionarySearchNode);
 TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearch")
     .set_body_typed(SearchStrategy::EvolutionarySearch);
+TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearchSampleInitPopulation")
+    .set_body_typed(EvolutionarySearchSampleInitPopulation);
+TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearchEvolveWithCostModel")
+    .set_body_typed(EvolutionarySearchEvolveWithCostModel);
 
 }  // namespace meta_schedule
 }  // namespace tvm
