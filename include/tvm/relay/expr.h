@@ -39,6 +39,22 @@
 #include "./type.h"
 
 namespace tvm {
+
+/*!
+ * \brief Returns the global_var with given properties. A null property denotes 'no change'.
+ * Returns this if all properties are unchanged. Otherwise, returns a copy with the new fields.
+ * \param global_var The global var to copy
+ * \param opt_name_hint The (optional) op name of the global var
+ * \param opt_type The (optional) type for the global var
+ * \param opt_virtual_device The (optional) virtual_device for the copied constant. If none,
+ * ret_constant->virtual_device = constant->virtual_device.
+ * \param opt_span The (optional) span for the copied global var. If none,
+ * ret_constant->span = constant->span.
+ */
+GlobalVar WithFields(GlobalVar global_var, Optional<String> opt_name_hint = {},
+                     Optional<Type> opt_type = {}, Optional<VirtualDevice> opt_virtual_device = {},
+                     Optional<Span> opt_span = {});
+
 namespace relay {
 
 using Expr = tvm::RelayExpr;
@@ -97,7 +113,22 @@ class Constant : public Expr {
   TVM_DLL explicit Constant(runtime::NDArray data, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Constant, RelayExpr, ConstantNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
 };
+
+/*!
+ * \brief Returns the constant with given properties. A null property denotes 'no change'.
+ * Returns this if all properties are unchanged. Otherwise, returns a copy with the new fields.
+ * \param constant The constant to copy
+ * \param opt_data The (optional) data for the copied constant. If none, ret_constant->data =
+ * constant->data.
+ * \param opt_virtual_device The (optional) virtual_device for the copied constant. If none,
+ * ret_constant->virtual_device = constant->virtual_device.
+ * \param opt_span The (optional) span for the copied constant. If none,
+ * ret_constant->span = constant->span.
+ */
+Constant WithFields(Constant constant, Optional<runtime::NDArray> opt_data = {},
+                    Optional<VirtualDevice> opt_virtual_device = {}, Optional<Span> opt_span = {});
 
 /*! \brief Tuple of multiple Exprs */
 class Tuple;
