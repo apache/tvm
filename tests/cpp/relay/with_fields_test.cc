@@ -51,6 +51,11 @@ IRModule TestIRModule() {
 }
 
 Function TestFunction() { return Downcast<Function>(TestIRModule()->Lookup("main")); }
+GlobalVar TestGlobalVar() { return TestIRModule()->GetGlobalVar("main"); }
+
+//
+// Call
+//
 
 TEST(WithFields, Call_Noop) {
   Function function = TestFunction();
@@ -121,6 +126,29 @@ TEST(WithFields, Call_Span) {
   ASSERT_FALSE(call->span.same_as(new_span));
   ASSERT_TRUE(result->span.same_as(new_span));
 }
+
+//
+// GlobalVar
+//
+
+TEST(WithFields, GlobalVar_Noop) {
+  GlobalVar gv  = TestGlobalVar();
+  GlobalVar result = WithFields(gv);
+  ASSERT_TRUE(result.same_as(gv));
+}
+
+TEST(WithFields, GlobalVar_Name) {
+  GlobalVar gv  = TestGlobalVar();
+  String name("foo");
+  GlobalVar result = WithFields(gv, name);
+  ASSERT_FALSE(result.same_as(gv));
+  ASSERT_FALSE(gv->name_hint.same_as(name));
+  ASSERT_TRUE(result->name_hint.same_as(name));
+}
+
+//
+// Constant
+//
 
 }  // namespace
 }  // namespace relay
