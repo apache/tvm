@@ -615,7 +615,7 @@ def finalize_modules_vm(vm_exec, lib_path="compile.so", vmcode_path="vmcode.ro",
         The path to a shared library which will be generated as the result of the build process.
 
     vmcode_path : string
-        The path where the VM bytecode will be serialized to.
+        The path where the VM bytecode will be serialized to as a side-effect.
 
     tmp_dir : string
         A temporary directory where intermediate compiled artifacts will be stored.
@@ -632,5 +632,4 @@ def finalize_modules_vm(vm_exec, lib_path="compile.so", vmcode_path="vmcode.ro",
     with open(vmcode_path, "wb") as fo:
         fo.write(code)
     lib = tvm.runtime.load_module(lib_path)
-    code = bytearray(open(vmcode_path, "rb").read())
     return tvm.runtime.vm.Executable.load_exec(code, lib)
