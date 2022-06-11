@@ -21,6 +21,7 @@ from tvm import relay
 from tvm.ir.transform import Sequential, PassContext
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
 from ...dataflow_pattern import wildcard, is_op, is_constant
 
 
@@ -200,8 +201,10 @@ def check_conv2d_residual(call, binary_op):
     return all(x == y for (x, y) in zip(lhs.checked_type.shape, rhs.checked_type.shape))
 
 
-def partition_for_cutlass(mod, params=None):
-    """Partition the input module into CUTLASS-supported subgraphs."""
+@register_pattern_table("cutlass")
+def pattern_table():
+    """Returns list of triples describing the name, dataflow pattern and predicate for all
+    the CUTLASS-supported operators."""
     dense_pat = ("cutlass.dense", make_gemm_pattern(False, None), check_gemm)
     dense_bias_pat = ("cutlass.dense_bias", make_gemm_pattern(True, None), check_gemm)
     dense_bias_relu_pat = ("cutlass.dense_bias_relu", make_gemm_pattern(True, "relu"), check_gemm)
@@ -273,9 +276,11 @@ def partition_for_cutlass(mod, params=None):
                     )
                 )
 
-    cutlass_patterns = (
-        residual_block_patterns + dense_patterns + conv2d_patterns + conv2d_grad_patterns
-    )
+    return residual_block_patterns + dense_patterns + conv2d_patterns + conv2d_grad_patterns
+
+
+def partition_for_cutlass(mod, params=None):
+    """Partition the input module into CUTLASS-supported subgraphs."""
 
     if params is not None:
         mod["main"] = bind_params_by_name(mod["main"], params)
@@ -289,6 +294,8 @@ def partition_for_cutlass(mod, params=None):
         )
         with PassContext(opt_level=3):
             mod = remove_bn_pass(mod)
+
+    cutlass_patterns = relay.op.contrib.get_pattern_table("cutlass")
 
     seq = Sequential(
         [
