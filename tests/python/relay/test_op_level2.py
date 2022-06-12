@@ -522,6 +522,13 @@ def test_conv3d_infer_type():
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, d, h, w, 16), "int32")
 
+    # Infer with groups
+    x = relay.var("x", relay.TensorType((1, 16, 224, 224, 224), "float32"))
+    w = relay.var("w", relay.TensorType((4, 4, 1, 1, 1), "float32"))
+    y = relay.nn.conv3d(x, w, groups=4, kernel_size=(1, 1, 1), channels=4)
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((1, 4, 224, 224, 224), "float32")
+
 
 @tvm.testing.uses_gpu
 def test_conv3d_run():
