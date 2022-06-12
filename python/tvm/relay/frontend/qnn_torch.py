@@ -1132,6 +1132,6 @@ convert_map = {
     "quantized::mul_scalar": _mul_scalar(),
     "quantized::relu6": _relu6(),
     "quantized::linear_dynamic": _linear_dynamic(),
-    "quantized::hardswish": _hswish(),
+    "quantized::hardswish": _hswish(fp32_piggy_back=False),
     "quantized::conv_transpose2d": _quantized_conv_transpose2d(),
 }
