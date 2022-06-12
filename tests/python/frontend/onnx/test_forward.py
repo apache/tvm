@@ -973,17 +973,13 @@ def _test_onnx_op_elementwise(
 
     y = helper.make_node(opname, ["in"], ["out"], **kwargs)
 
-    onnx_dtype = {
-        'float16': TensorProto.FLOAT16,
-        'float32': TensorProto.FLOAT,
-        'float64': TensorProto.DOUBLE,
-    }[dtype]
+    ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
 
     graph = helper.make_graph(
         [y],
         opname + "_test",
-        inputs=[helper.make_tensor_value_info("in", onnx_dtype, list(indata.shape))],
-        outputs=[helper.make_tensor_value_info("out", onnx_dtype, list(outdata.shape))],
+        inputs=[helper.make_tensor_value_info("in", ONNX_DTYPE, list(indata.shape))],
+        outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, list(outdata.shape))],
     )
 
     model = helper.make_model(graph, producer_name=opname + "_test")
@@ -1002,7 +998,6 @@ def _test_onnx_op_elementwise(
             opset=opset,
             opt_level=3,
         )
-
 
 
 @tvm.testing.parametrize_targets
@@ -1077,7 +1072,9 @@ def test_clip_min_max_as_inputs(target, dev):
 @tvm.testing.parametrize_targets
 def test_round(target, dev):
     _test_onnx_op_elementwise(target, dev, (2, 4, 5, 6), np.round, {}, "float32", "Round", {})
-    _test_onnx_op_elementwise(target, dev, (2, 4, 5, 6), np.round, {}, "float64", "Round", {}, verify=False) # enable verification once ORT supports float64
+    _test_onnx_op_elementwise(
+        target, dev, (2, 4, 5, 6), np.round, {}, "float64", "Round", {}, verify=False
+    )  # TODO: enable verification once ORT supports float64
 
 
 def _test_finite_ops(target, dev, inshape, outfunc, npargs, dtype, opname, kwargs):
