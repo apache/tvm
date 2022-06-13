@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Tuning record database"""
+"""TuningRecord database"""
 from typing import Any, Callable, List, Optional
 
 from tvm._ffi import register_object

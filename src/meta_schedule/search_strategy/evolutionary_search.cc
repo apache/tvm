@@ -314,8 +314,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     /*! \brief An interface method to be called by it's counterpart in EvolutionarySearchNode */
     inline Optional<Array<MeasureCandidate>> GenerateMeasureCandidates();
     /*! \brief An interface method to be called by it's counterpart in EvolutionarySearchNode */
-    inline void NotifyRunnerResults(const TuneContext& context,
-                                    const Array<MeasureCandidate>& measure_candidates,
+    inline void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                                     const Array<RunnerResult>& results);
   };
 
@@ -399,7 +398,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
         << "ValueError: Database is not supplied in PreTuning. Evolutionary"
            "search algorithm requires a database to be present, so that it "
            "could sample from previously-explored population. If you do not "
-           "intent to store data on disk, please use `tvm.meta_schedule.testing.DummyDatabase`";
+           "intent to store data on disk, please use `tvm.meta_schedule.database.MemoryDatabase`";
     CHECK(cost_model.defined())
         << "ValueError: CostModel is not supplied in PreTuning. Evolutionary search "
            "algorithm expects a cost model to filter out potentially less efficient kernels. If "
@@ -430,11 +429,10 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     return this->state_->GenerateMeasureCandidates();
   }
 
-  void NotifyRunnerResults(const TuneContext& context,
-                           const Array<MeasureCandidate>& measure_candidates,
+  void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                            const Array<RunnerResult>& results) final {
     ICHECK(this->state_ != nullptr);
-    this->state_->NotifyRunnerResults(context, measure_candidates, results);
+    this->state_->NotifyRunnerResults(measure_candidates, results);
   }
 };
 
@@ -681,8 +679,7 @@ Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasure
 }
 
 void EvolutionarySearchNode::State::NotifyRunnerResults(
-    const TuneContext& context, const Array<MeasureCandidate>& measure_candidates,
-    const Array<RunnerResult>& results) {
+    const Array<MeasureCandidate>& measure_candidates, const Array<RunnerResult>& results) {
   st += results.size();
   ed += results.size();
 }
@@ -719,9 +716,35 @@ class EvolutionarySearch : public SearchStrategy {
                                                     EvolutionarySearchNode);
 };
 
+Array<Schedule> EvolutionarySearchSampleInitPopulation(EvolutionarySearch self, int num) {
+  std::vector<Schedule> results = self->state_->SampleInitPopulation(num);
+  return Array<Schedule>(results.begin(), results.end());
+}
+
+Array<Schedule> EvolutionarySearchEvolveWithCostModel(EvolutionarySearch self,
+                                                      Array<Schedule> population, int num) {
+  Array<Schedule> result;
+  std::vector<Schedule> population_vec =
+      std::vector<Schedule>(population.begin(), population.end());
+  std::vector<Schedule> schs = self->state_->EvolveWithCostModel(population_vec, num);
+  for (Schedule sch : schs) {
+    IRModule mod = sch->mod();
+    size_t shash = StructuralHash()(mod);
+    if (!self->state_->measured_workloads_.Has(mod, shash)) {
+      self->state_->measured_workloads_.Add(mod, shash);
+      result.push_back(sch);
+    }
+  }
+  return result;
+}
+
 TVM_REGISTER_NODE_TYPE(EvolutionarySearchNode);
 TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearch")
     .set_body_typed(SearchStrategy::EvolutionarySearch);
+TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearchSampleInitPopulation")
+    .set_body_typed(EvolutionarySearchSampleInitPopulation);
+TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearchEvolveWithCostModel")
+    .set_body_typed(EvolutionarySearchEvolveWithCostModel);
 
 }  // namespace meta_schedule
 }  // namespace tvm

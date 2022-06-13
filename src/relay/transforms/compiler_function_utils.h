@@ -43,11 +43,8 @@
  *
  *  - \p MarkCompilerFunctionsAsExtern will replace global functions with a matching "Compiler"
  *    attribute with the same function with just  an "Extern" attribute, signalling the function
- *    has been dealt with. Calls to such functions will be rewritten to use the 'call_lowered'
- *    calling convention. Can be used after lowering to cleanup the IRModule.
- *
- * Note that the above behaviour is hard coded within the TECompiler, but is only available to
- * external codegen using the Function-at-a-time "relay.ext.toolchain" extension point.
+ *    has been dealt with. However calls to such functions will be left unchanged.  Can be used
+ *    after lowering to cleanup the IRModule.
  */
 
 #ifndef TVM_RELAY_TRANSFORMS_COMPILER_FUNCTION_UTILS_H_
@@ -118,8 +115,8 @@ transform::Pass OutlineCompilerFunctionsWithExistingGlobalSymbols(std::string co
 
 /*!
  * \brief A pass to mark all global functions which have a "Compiler" attribute matching
- * compiler_filter as 'extern' by replacing all attributes with a single "Extern" attribute, and
- * rewrite all calls to such functions to use the 'call_lowered' calling convention.
+ * compiler_filter as 'extern' by replacing all attributes with a single "Extern" attribute.
+ * Calls to such functions are not changed.
  *
  * If \p compiler_filter is non-empty only functions with that as their attribute value are
  * outlined.

@@ -68,9 +68,13 @@ def _sch(decisions: List[List[int]]) -> Schedule:
 
 
 def _make_mutator(target: Target) -> Mutator:
-    mutator = MutateTileSize()
-    mutator.initialize_with_tune_context(TuneContext(mod=matmul, target=target))
-    return mutator
+    ctx = TuneContext(
+        mod=matmul,
+        target=target,
+        mutator_probs={MutateTileSize(): 1.0},
+    )
+    ctx.initialize()
+    return list(ctx.mutator_probs.keys())[0]
 
 
 def test_mutate_tile_size_matmul():

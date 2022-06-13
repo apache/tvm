@@ -160,8 +160,18 @@ set(USE_BLAS none)
 # set(USE_MKL <path to venv or site-packages directory>) if using `pip install mkl`
 set(USE_MKL OFF)
 
-# Whether use MKLDNN library, choices: ON, OFF, path to mkldnn library
-set(USE_MKLDNN OFF)
+# Whether use DNNL library, aka Intel OneDNN: https://oneapi-src.github.io/oneDNN
+#
+# Now matmul/dense/conv2d supported by -libs=dnnl,
+# and more OP patterns supported in DNNL codegen(json runtime)
+#
+# choices:
+# - ON: Enable DNNL in BYOC and -libs=dnnl, by default using json runtime in DNNL codegen
+# - JSON: same as above.
+# - C_SRC: use c source runtime in DNNL codegen
+# - path/to/oneDNN：oneDNN root path
+# - OFF: Disable DNNL
+set(USE_DNNL OFF)
 
 # Whether use OpenMP thread pool, choices: gnu, intel
 # Note: "gnu" uses gomp library, "intel" uses iomp5 library
@@ -211,9 +221,6 @@ set(USE_ROCBLAS OFF)
 
 # Whether use contrib sort
 set(USE_SORT ON)
-
-# Whether use MKL-DNN (DNNL) codegen
-set(USE_DNNL_CODEGEN OFF)
 
 # Whether to use Arm Compute Library (ACL) codegen
 # We provide 2 separate flags since we cannot build the ACL runtime on x86.
