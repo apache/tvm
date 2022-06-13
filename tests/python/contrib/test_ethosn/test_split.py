@@ -32,6 +32,10 @@ def _get_model(shape, dtype, splits, axis):
 
 
 @requires_ethosn
+@pytest.mark.skipif(
+    tei.get_ethosn_api_version() == 2205,
+    reason="Split is not supported by the 22.05 release of the driver stack",
+)
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_split(dtype):
     trials = [
@@ -61,6 +65,10 @@ def test_split(dtype):
 
 
 @requires_ethosn
+@pytest.mark.skipif(
+    tei.get_ethosn_api_version() == 2205,
+    reason="Split is not supported by the 22.05 release of the driver stack",
+)
 def test_split_failure():
     trials = [
         ((1, 4, 4, 4, 4), "uint8", 4, 2, "dimensions=5, dimensions must be <= 4;"),
