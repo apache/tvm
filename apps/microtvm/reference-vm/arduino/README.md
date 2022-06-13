@@ -34,6 +34,7 @@ This RVM has been tested and is known to work with these boards:
 - Arduino Nano 33 BLE
 - Arduino Portenta H7
 - Feather S2
+- Raspberry Pi Pico
 - Sony Spresense
 - Wio Terminal
 
