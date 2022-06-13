@@ -75,6 +75,7 @@ void TuneContextNode::_SetMeasureCandidates(const Array<MeasureCandidate>& candi
 }
 
 void TuneContextNode::_SendToBuilder(const Builder& builder) {
+  auto _ = Profiler::TimedScope("SendToBuilder");
   Array<MeasureCandidate> candidates = this->measure_candidates.value();
   Target target = this->target.value();
   Array<BuilderInput> inputs;
@@ -86,6 +87,7 @@ void TuneContextNode::_SendToBuilder(const Builder& builder) {
 }
 
 void TuneContextNode::_SendToRunner(const Runner& runner) {
+  auto _ = Profiler::TimedScope("SendToRunner");
   Array<MeasureCandidate> candidates = this->measure_candidates.value();
   Array<BuilderResult> builder_results = this->builder_results.value();
   Target target = this->target.value();
@@ -133,9 +135,12 @@ Array<RunnerResult> TuneContextNode::_Join() {
   Array<RunnerFuture> futures = this->runner_futures.value();
   int n = futures.size();
   Array<RunnerResult> results;
-  results.reserve(n);
-  for (RunnerFuture future : futures) {
-    results.push_back(future->Result());
+  {
+    auto _ = Profiler::TimedScope("JoinRunnerFutures");
+    results.reserve(n);
+    for (RunnerFuture future : futures) {
+      results.push_back(future->Result());
+    }
   }
   this->search_strategy.value()->NotifyRunnerResults(this->measure_candidates.value(), results);
   ICHECK(this->measure_candidates.defined());
