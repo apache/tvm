@@ -115,7 +115,7 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
     CHECK(json_array && json_array->size() == 4);
     // Load json[1] => run_secs
     if (json_array->at(1).defined()) {
-      run_secs = Downcast<Array<FloatImm>>(json_array->at(1));
+      run_secs = AsFloatArray(json_array->at(1));
     }
     // Load json[2] => target
     if (json_array->at(2).defined()) {

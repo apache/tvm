@@ -15,4 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 """BYOC support for CUTLASS."""
-from .build import tune_cutlass_kernels, build_cutlass_kernels, build_cutlass_kernels_vm
+from .build import has_cutlass, num_cutlass_partitions, finalize_modules, finalize_modules_vm

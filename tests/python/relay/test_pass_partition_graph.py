@@ -928,9 +928,9 @@ def test_dnnl_fuse():
     ) = (
         dnnl_patterns[1],
         dnnl_patterns[13],
-        dnnl_patterns[19],
-        dnnl_patterns[25],
-        dnnl_patterns[37],
+        dnnl_patterns[20],
+        dnnl_patterns[26],
+        dnnl_patterns[38],
     )
 
     def get_blocks(

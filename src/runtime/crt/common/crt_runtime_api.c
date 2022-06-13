@@ -526,6 +526,11 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
     int exec_count = 0;
     // do-while structure ensures we run even when `min_repeat_ms` isn't set (i.e., is 0).
     do {
+      err = TVMPlatformBeforeMeasurement();
+      if (err != kTvmErrorNoError) {
+        goto release_and_return;
+      }
+
       err = TVMPlatformTimerStart();
       if (err != kTvmErrorNoError) {
         goto release_and_return;
@@ -546,6 +551,11 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
         goto release_and_return;
       }
       repeat_res_seconds += curr_res_seconds;
+
+      err = TVMPlatformAfterMeasurement();
+      if (err != kTvmErrorNoError) {
+        goto release_and_return;
+      }
     } while (repeat_res_seconds < min_repeat_seconds);
     double mean_exec_seconds = repeat_res_seconds / exec_count;
     *iter = mean_exec_seconds;
@@ -574,6 +584,12 @@ release_and_return : {
 __attribute__((weak)) tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   return kTvmErrorFunctionCallNotImplemented;
 }
+
+// Default implementation, overridden by the platform runtime.
+__attribute__((weak)) tvm_crt_error_t TVMPlatformBeforeMeasurement() { return kTvmErrorNoError; }
+
+// Default implementation, overridden by the platform runtime.
+__attribute__((weak)) tvm_crt_error_t TVMPlatformAfterMeasurement() { return kTvmErrorNoError; }
 
 // Fill the tensor in args[0] with random data using TVMPlatformGenerateRandom.
 // Named to correspond with the analogous function in the C++ runtime.

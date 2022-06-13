@@ -100,6 +100,9 @@ if (currentBuild.getBuildCauses().toString().contains('BranchIndexingCause')) {
 {% set hexagon_api = ['build/hexagon_api_output',] %}
 s3_prefix = "tvm-jenkins-artifacts-prod/tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"
 
+{% set aws_default_region = "us-west-2" %}
+{% set aws_ecr_url = "dkr.ecr." + aws_default_region + ".amazonaws.com" %}
+
 // General note: Jenkins has limits on the size of a method (or top level code)
 // that are pretty strict, so most usage of groovy methods in these templates
 // are purely to satisfy the JVM

@@ -121,28 +121,9 @@ class Function : public BaseFunc {
 };
 
 /*!
- * \brief Returns the function with given properties. A null property denotes 'no change'.
- * Returns function if all properties are unchanged. Otherwise, returns a copy with the new fields.
- * \param function The function to copy.
- * \param opt_params The (optional) params for the copied function. If none,
- * ret_function->params = function->params.
- * \param opt_body The (optional) body for the copied function. If none,
- * ret_function->body = function->body.
- * \param opt_ret_type The (optional) return type for the copied function. If none,
- * ret_function->ret_type = function->ret_type.
- * \param opt_ty_params The (optional) type params for the copied function. If none,
- * ret_function->type_params = function->type_params.
- * \param opt_attrs
- * The (optional) attributes for the copied function. If none,
- * ret_function->attrs = function->attrs.
- * \param opt_virtual_device The (optional) virtual_device for the copied function. If none,
- * ret_function->virtual_device = function->virtual_device.
- * \param opt_span The (optional) span for the copied function. If none,
- * ret_function->span = function->span.
- * \return If all properties are null or the same as the property in the input function
- * (i.e., opt_params is null or opt_params.value() == function->params, etc.), then we return
- * function. Otherwise, we return a copy of function with the different fields overwritten. (i.e.,
- * if opt_params.value() != function->params, then ret_function->params = opt_params.value()).
+ * \brief Returns \p function with the given properties. A null property denotes 'no change'.
+ * Returns \p function if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
  */
 Function WithFields(Function function, Optional<Array<Var>> opt_params = Optional<Array<Var>>(),
                     Optional<Expr> opt_body = Optional<Expr>(),
