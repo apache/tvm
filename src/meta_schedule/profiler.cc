@@ -23,80 +23,70 @@ namespace meta_schedule {
 
 /**************** Context Manager ****************/
 
-class ProfilerInternal {
- public:
-  static void EnterScope(Profiler ctx) { ctx.EnterWithScope(); }
-  static void ExitScope(Profiler ctx) { ctx.ExitWithScope(); }
-};
-
-void Profiler::EnterWithScope() {
-  Optional<Profiler>& ctx = ProfilerThreadLocalStore::Get()->ctx;
-  CHECK(!ctx.defined()) << "ValueError: Nested Profiler context managers are not allowed";
-  ctx = *this;
+std::vector<Profiler>* ThreadLocalProfilers() {
+  static thread_local std::vector<Profiler> profilers;
+  return &profilers;
 }
 
-void Profiler::ExitWithScope() {
-  Optional<Profiler>& ctx = ProfilerThreadLocalStore::Get()->ctx;
-  ICHECK(ctx.defined());
-  ctx = NullOpt;
+void Profiler::EnterWithScope() { ThreadLocalProfilers()->push_back(*this); }
+void Profiler::ExitWithScope() { ThreadLocalProfilers()->pop_back(); }
+
+Optional<Profiler> Profiler::Current() {
+  std::vector<Profiler>* profilers = ThreadLocalProfilers();
+  if (profilers->empty()) {
+    return NullOpt;
+  } else {
+    return profilers->back();
+  }
 }
 
 /**************** Profiler ****************/
 
+Map<String, FloatImm> ProfilerNode::Get() const {
+  Map<String, FloatImm> ret;
+  for (const auto& kv : stats_sec) {
+    ret.Set(kv.first, FloatImm(DataType::Float(64), kv.second));
+  }
+  return ret;
+}
+
+String ProfilerNode::Table() const {
+  // TODO(@zxybazh): Add a table format.
+}
+
 Profiler::Profiler() {
   ObjectPtr<ProfilerNode> n = make_object<ProfilerNode>();
+  n->stats_sec.clear();
   data_ = n;
 }
 
-ScopedTimer ProfilerNode::TimeScope(String name) {
-  return ScopedTimer([name, tick = std::chrono::high_resolution_clock::now()]() -> void {
-    Optional<Profiler> profiler = ProfilerThreadLocalStore::Get()->ctx;
-    if (profiler.defined()) {
-      Map<String, FloatImm>& stats = profiler.value()->stats;
-      double duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                            std::chrono::high_resolution_clock::now() - tick)
-                            .count() /
-                        1e9 / 60;
-      if (stats.find(name) != stats.end()) {
-        stats.Set(name, FloatImm(DataType::Float(64), stats.at(name)->value + duration));
-      } else {
-        stats.Set(name, FloatImm(DataType::Float(64), duration));
-      }
-    }
-  });
-}
-
-void ProfilerNode::StartContextTimer(String name) {
-  stack.push_back(std::make_pair(name, std::chrono::high_resolution_clock::now()));
-}
-
-void ProfilerNode::EndContextTimer() {
-  ICHECK(stack.size() > 0) << "There is no timer context running!";
-  String name = stack.back().first;
-  double duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                        std::chrono::high_resolution_clock::now() - stack.back().second)
-                        .count() /
-                    1e9 / 60;
-  if (stats.find(name) != stats.end()) {
-    stats.Set(name, FloatImm(DataType::Float(64), stats.at(name)->value + duration));
-  } else {
-    stats.Set(name, FloatImm(DataType::Float(64), duration));
+runtime::TypedPackedFunc<void()> ProfilerTimedScope(String name) {
+  if (Optional<Profiler> opt_profiler = Profiler::Current()) {
+    return [profiler = opt_profiler.value(),                  //
+            tik = std::chrono::high_resolution_clock::now(),  //
+            name = std::move(name)]() {
+      auto tok = std::chrono::high_resolution_clock::now();
+      double duration = std::chrono::duration_cast<std::chrono::seconds>(tok - tik).count();
+      profiler->stats_sec[name] += duration;
+    };
   }
-  stack.pop_back();
+  return nullptr;
 }
+
+ScopedTimer Profiler::TimedScope(String name) { return ScopedTimer(ProfilerTimedScope(name)); }
 
 TVM_REGISTER_NODE_TYPE(ProfilerNode);
 TVM_REGISTER_GLOBAL("meta_schedule.Profiler").set_body_typed([]() -> Profiler {
   return Profiler();
 });
-TVM_REGISTER_GLOBAL("meta_schedule.ProfilerEnterScope")
-    .set_body_typed(ProfilerInternal::EnterScope);
-TVM_REGISTER_GLOBAL("meta_schedule.ProfilerExitScope").set_body_typed(ProfilerInternal::ExitScope);
-TVM_REGISTER_GLOBAL("meta_schedule.ProfilerStartContextTimer")
-    .set_body_method<Profiler>(&ProfilerNode::StartContextTimer);
-TVM_REGISTER_GLOBAL("meta_schedule.ProfilerEndContextTimer")
-    .set_body_method<Profiler>(&ProfilerNode::EndContextTimer);
+TVM_REGISTER_GLOBAL("meta_schedule.ProfilerEnterWithScope")
+    .set_body_method(&Profiler::EnterWithScope);
+TVM_REGISTER_GLOBAL("meta_schedule.ProfilerExitWithScope")
+    .set_body_method(&Profiler::ExitWithScope);
+TVM_REGISTER_GLOBAL("meta_schedule.ProfilerCurrent").set_body_typed(Profiler::Current);
+TVM_REGISTER_GLOBAL("meta_schedule.ProfilerTimedScope").set_body_typed(ProfilerTimedScope);
 TVM_REGISTER_GLOBAL("meta_schedule.ProfilerGet").set_body_method<Profiler>(&ProfilerNode::Get);
+TVM_REGISTER_GLOBAL("meta_schedule.ProfilerTable").set_body_method<Profiler>(&ProfilerNode::Table);
 
 }  // namespace meta_schedule
 }  // namespace tvm

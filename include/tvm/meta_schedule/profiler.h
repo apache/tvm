@@ -34,47 +34,39 @@
 namespace tvm {
 namespace meta_schedule {
 
-struct ScopedTimer {
-  std::function<void()> func;
-  explicit ScopedTimer(std::function<void()> func) : func(func) {}
-  ~ScopedTimer() { func(); }
+class ScopedTimer {
+ public:
+  ~ScopedTimer() {
+    if (deferred_ != nullptr) {
+      deferred_();
+    }
+  }
+
+ private:
+  friend class Profiler;
+
+  explicit ScopedTimer(runtime::TypedPackedFunc<void()> deferred) : deferred_(deferred) {}
+  runtime::TypedPackedFunc<void()> deferred_;
 };
 
-/*!
- * \brief A profiler to count tuning time cost in different parts.
- */
+/*! \brief A generic profiler */
 class ProfilerNode : public runtime::Object {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("stats", &stats); }
+  /*! \brief The segments that are already profiled */
+  std::unordered_map<std::string, double> stats_sec;
 
-  /*!
-   * \brief Profile the time usage in the given scope in the given name.
-   * \param name Name for the scope.
-   * \return A scope timer for time profiling.
-   */
-  static ScopedTimer TimeScope(String name);
-
-  /*!
-   * \brief Get the profiling results.
-   * \return The tuning profiling results as a dict.
-   */
-  Map<String, FloatImm> Get() const { return stats; }
-
-  /*!
-   * \brief Start the timer for a new context.
-   * \param name Name of the context.
-   */
-  void StartContextTimer(String name);
-
-  /*! \brief End the timer for the most recent context. */
-  void EndContextTimer();
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    // `stats_sec` is not visited.
+  }
 
   static constexpr const char* _type_key = "meta_schedule.Profiler";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProfilerNode, runtime::Object);
 
- protected:
-  Map<String, FloatImm> stats;
-  std::vector<std::pair<String, std::chrono::time_point<std::chrono::high_resolution_clock>>> stack;
+ public:
+  /*! \brief Get the internal stats of the running time */
+  Map<String, FloatImm> Get() const;
+  /*! \brief Return a summary of profiling results as table format */
+  String Table() const;
 };
 
 /*!
@@ -86,19 +78,19 @@ class Profiler : public runtime::ObjectRef {
   Profiler();
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Profiler, runtime::ObjectRef, ProfilerNode);
 
- protected:
-  friend class ProfilerInternal;
-
   /*! \brief Entering the scope of the context manager */
   void EnterWithScope();
   /*! \brief Exiting the scope of the context manager */
   void ExitWithScope();
+  /*! \brief Returns the current profiler */
+  static Optional<Profiler> Current();
+  /*!
+   * \brief Profile the time usage in the given scope in the given name.
+   * \param name Name for the scope.
+   * \return A scope timer for time profiling.
+   */
+  static ScopedTimer TimedScope(String name);
 };
-
-struct ProfilerThreadLocalEntry {
-  Optional<Profiler> ctx;
-};
-using ProfilerThreadLocalStore = dmlc::ThreadLocalStore<ProfilerThreadLocalEntry>;
 
 }  // namespace meta_schedule
 }  // namespace tvm
