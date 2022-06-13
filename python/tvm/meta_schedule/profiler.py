@@ -67,7 +67,7 @@ class Profiler(Object):
         @contextmanager
         def _timeit():
             try:
-                f = _ffi_api.ProfilerTimedScope(  # pylint:type: ignore # pylint: disable=no-member
+                f = _ffi_api.ProfilerTimedScope(  # type: ignore # pylint: disable=no-member
                     name
                 )
                 yield
