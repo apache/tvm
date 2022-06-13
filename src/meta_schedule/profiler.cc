@@ -16,29 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <algorithm>
+
 #include "./utils.h"
 
 namespace tvm {
 namespace meta_schedule {
-
-/**************** Context Manager ****************/
-
-std::vector<Profiler>* ThreadLocalProfilers() {
-  static thread_local std::vector<Profiler> profilers;
-  return &profilers;
-}
-
-void Profiler::EnterWithScope() { ThreadLocalProfilers()->push_back(*this); }
-void Profiler::ExitWithScope() { ThreadLocalProfilers()->pop_back(); }
-
-Optional<Profiler> Profiler::Current() {
-  std::vector<Profiler>* profilers = ThreadLocalProfilers();
-  if (profilers->empty()) {
-    return NullOpt;
-  } else {
-    return profilers->back();
-  }
-}
 
 /**************** Profiler ****************/
 
@@ -51,29 +34,88 @@ Map<String, FloatImm> ProfilerNode::Get() const {
 }
 
 String ProfilerNode::Table() const {
-  // TODO(@zxybazh): Add a table format.
+  CHECK(!stats_sec.empty()) << "ValueError: The stats are empty. Please run the profiler first.";
+  CHECK(stats_sec.count("Total"))
+      << "ValueError: The total time is not recorded. This method should be called only after "
+         "exiting the profiler's with scope.";
+  double total = stats_sec.at("Total");
+  struct Entry {
+    String name;
+    double minutes;
+    double percentage;
+    bool operator<(const Entry& other) const { return percentage > other.percentage; }
+  };
+  std::vector<Entry> table_entry;
+  for (const auto& kv : stats_sec) {
+    table_entry.push_back(Entry{kv.first, kv.second / 60.0, kv.second / total * 100.0});
+  }
+  std::sort(table_entry.begin(), table_entry.end());
+  support::TablePrinter p;
+  p.Row() << "ID"
+          << "Name"
+          << "Time (min)"
+          << "Percentage";
+  p.Separator();
+  for (int i = 0, n = table_entry.size(); i < n; ++i) {
+    if (i == 0) {
+      p.Row() << "" << table_entry[i].name << table_entry[i].minutes << table_entry[i].percentage;
+    } else {
+      p.Row() << i << table_entry[i].name << table_entry[i].minutes << table_entry[i].percentage;
+    }
+  }
+  return p.AsStr();
 }
 
 Profiler::Profiler() {
   ObjectPtr<ProfilerNode> n = make_object<ProfilerNode>();
   n->stats_sec.clear();
+  n->total_timer = nullptr;
   data_ = n;
 }
 
-runtime::TypedPackedFunc<void()> ProfilerTimedScope(String name) {
+PackedFunc ProfilerTimedScope(String name) {
   if (Optional<Profiler> opt_profiler = Profiler::Current()) {
-    return [profiler = opt_profiler.value(),                  //
-            tik = std::chrono::high_resolution_clock::now(),  //
-            name = std::move(name)]() {
+    return TypedPackedFunc<void()>([profiler = opt_profiler.value(),                  //
+                                    tik = std::chrono::high_resolution_clock::now(),  //
+                                    name = std::move(name)]() {
       auto tok = std::chrono::high_resolution_clock::now();
       double duration = std::chrono::duration_cast<std::chrono::seconds>(tok - tik).count();
       profiler->stats_sec[name] += duration;
-    };
+    });
   }
   return nullptr;
 }
 
 ScopedTimer Profiler::TimedScope(String name) { return ScopedTimer(ProfilerTimedScope(name)); }
+
+/**************** Context Manager ****************/
+
+std::vector<Profiler>* ThreadLocalProfilers() {
+  static thread_local std::vector<Profiler> profilers;
+  return &profilers;
+}
+
+void Profiler::EnterWithScope() {
+  ThreadLocalProfilers()->push_back(*this);
+  (*this)->total_timer = ProfilerTimedScope("Total");
+}
+
+void Profiler::ExitWithScope() {
+  ThreadLocalProfilers()->pop_back();
+  if ((*this)->total_timer != nullptr) {
+    (*this)->total_timer();
+    (*this)->total_timer = nullptr;
+  }
+}
+
+Optional<Profiler> Profiler::Current() {
+  std::vector<Profiler>* profilers = ThreadLocalProfilers();
+  if (profilers->empty()) {
+    return NullOpt;
+  } else {
+    return profilers->back();
+  }
+}
 
 TVM_REGISTER_NODE_TYPE(ProfilerNode);
 TVM_REGISTER_GLOBAL("meta_schedule.Profiler").set_body_typed([]() -> Profiler {

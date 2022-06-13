@@ -22,6 +22,7 @@ from tvm import meta_schedule as ms
 
 def test_meta_schedule_profiler_context_manager():
     with ms.Profiler() as profiler:
+        time.sleep(1)
         with ms.Profiler.timeit("Level0"):
             time.sleep(1)
             with ms.Profiler.timeit("Level1"):
@@ -29,7 +30,8 @@ def test_meta_schedule_profiler_context_manager():
     # Note that the results are in seconds
 
     result = profiler.get()
-    assert len(result) == 2
+    assert len(result) == 3
+    assert 3.9 <= result["Total"] <= 4.1
     assert 2.9 <= result["Level0"] <= 3.1
     assert 1.9 <= result["Level1"] <= 2.1
 

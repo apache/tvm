@@ -54,9 +54,12 @@ class ProfilerNode : public runtime::Object {
  public:
   /*! \brief The segments that are already profiled */
   std::unordered_map<std::string, double> stats_sec;
+  /*! \brief Counter for the total time used */
+  runtime::PackedFunc total_timer;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `stats_sec` is not visited.
+    // `total_timer` is not visited.
   }
 
   static constexpr const char* _type_key = "meta_schedule.Profiler";
