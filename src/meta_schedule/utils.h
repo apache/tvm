@@ -28,6 +28,7 @@
 #include <tvm/meta_schedule/database.h>
 #include <tvm/meta_schedule/feature_extractor.h>
 #include <tvm/meta_schedule/measure_callback.h>
+#include <tvm/meta_schedule/profiler.h>
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/meta_schedule/search_strategy.h>
