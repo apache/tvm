@@ -28,6 +28,8 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 
+#include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
