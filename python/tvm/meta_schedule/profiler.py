@@ -18,7 +18,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict
+from contextlib import contextmanager
+from typing import Dict, Optional
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
@@ -28,27 +29,9 @@ from . import _ffi_api
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-class TimeItContext:
-    """The context to profile given scope."""
-
-    profiler: Profiler
-    name: str
-
-    def __init__(self, profiler: "Profiler", name: str):
-        self.profiler = profiler
-        self.name = name
-
-    def __enter__(self):
-        _ffi_api.ProfilerStartContextTimer(self.profiler, self.name)  # type: ignore # pylint: disable=no-member
-        return self
-
-    def __exit__(self, exctype, excinst, exctb):
-        _ffi_api.ProfilerEndContextTimer(self.profiler)  # type: ignore # pylint: disable=no-member
-
-
 @register_object("meta_schedule.Profiler")
 class Profiler(Object):
-    """A profiler to count tuning time cost in different parts."""
+    """Tuning time profiler."""
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(
@@ -59,14 +42,37 @@ class Profiler(Object):
         """Get the profiling results in minutes"""
         return _ffi_api.ProfilerGet(self)  # type: ignore # pylint: disable=no-member
 
-    def timeit(self, name: str) -> TimeItContext:
-        return TimeItContext(self, name)
+    def table(self) -> str:
+        """Get the profiling results in a table format"""
+        return _ffi_api.ProfilerTable(self)  # type: ignore # pylint: disable=no-member
 
     def __enter__(self) -> "Profiler":
         """Entering the scope of the context manager"""
-        _ffi_api.ProfilerEnterScope(self)  # type: ignore # pylint: disable=no-member
+        _ffi_api.ProfilerEnterWithScope(self)  # type: ignore # pylint: disable=no-member
         return self
 
     def __exit__(self, ptype, value, trace) -> None:
         """Exiting the scope of the context manager"""
-        _ffi_api.ProfilerExitScope(self)  # type: ignore # pylint: disable=no-member
+        _ffi_api.ProfilerExitWithScope(self)  # type: ignore # pylint: disable=no-member
+
+    @staticmethod
+    def current() -> Optional["Profiler"]:
+        """Get the current profiler."""
+        return _ffi_api.ProfilerCurrent()  # type: ignore # pylint: disable=no-member
+
+    @staticmethod
+    def timeit(name: str):
+        """Timeit a block of code"""
+
+        @contextmanager
+        def _timeit():
+            try:
+                f = _ffi_api.ProfilerTimedScope(  # pylint:type: ignore # pylint: disable=no-member
+                    name
+                )
+                yield
+            finally:
+                if f:
+                    f()
+
+        return _timeit()
