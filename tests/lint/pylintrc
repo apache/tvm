@@ -240,9 +240,8 @@ redefining-builtins-modules=six.moves,future.builtins
 
 
 [BASIC]
-
-# Good variable names which should always be accepted, separated by a comma
-good-names=i,j,_,a,b,op,x,y,wd,lr,kv,k,v,s,p,h,c,m,n,X,t,g,f
+# Good variable names regexes, separated by a comma. 
+good-names-rgxs=^[_a-z][_a-z0-9]?$,[A-Z]
 
 # Bad variable names which should always be refused, separated by a comma
 bad-names=
