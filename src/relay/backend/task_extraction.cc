@@ -52,7 +52,7 @@ bool DefaultTaskFilter(const Array<te::Tensor>& args) {
     stack.pop_back();
     if (tensor->op->IsInstance<PlaceholderOpNode>()) {
       // do nothing
-    } else if (tensor->op->IsInstance<ComputeOpNode>()) {
+    } else if (tensor->op->IsInstance<ComputeOpNode>() || tensor->op->IsInstance<ExternOpNode>()) {
       Array<Tensor> inputs = tensor->op->InputTensors();
       for (const Tensor& v : inputs) {
         if (!visited.count(v.get())) {

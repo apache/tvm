@@ -373,14 +373,14 @@ class Schedule(Object):
     @type_checked
     def sample_compute_location(
         self,
-        block: BlockRV,
+        block: Union[BlockRV, str],
         decision: Optional[int] = None,
     ) -> LoopRV:
         """Sample a compute-at location of the given block
 
         Parameters
         ----------
-        block : BlockRV
+        block : Union[BlockRV, str]
             The block whose compute-at location is to be sampled
         decision : Optional[int]
             The sampling decision
@@ -390,6 +390,8 @@ class Schedule(Object):
         result : LoopRV
             The sampled loop where the input block is to be computed at
         """
+        block = self._normalize_block_arg(block)
+
         return _ffi_api.ScheduleSampleComputeLocation(  # type: ignore  # pylint: disable=no-member
             self,
             block,
@@ -425,12 +427,12 @@ class Schedule(Object):
         )
 
     @type_checked
-    def get_loops(self, block: BlockRV) -> List[LoopRV]:
+    def get_loops(self, block: Union[BlockRV, str]) -> List[LoopRV]:
         """Get the parent loops of the block in its scope, from outer to inner
 
         Parameters
         ----------
-        block : BlockRV
+        block : Union[BlockRV, str]
             The query block
 
         Returns
@@ -438,6 +440,7 @@ class Schedule(Object):
         loops : List[LoopRV]
             A list of loops above the given block in its scope, from outer to inner
         """
+        block = self._normalize_block_arg(block)
         return list(_ffi_api.ScheduleGetLoops(self, block))  # type: ignore # pylint: disable=no-member
 
     @type_checked
@@ -457,12 +460,12 @@ class Schedule(Object):
         return list(_ffi_api.ScheduleGetChildBlocks(self, block_or_loop))  # type: ignore # pylint: disable=no-member
 
     @type_checked
-    def get_producers(self, block: BlockRV) -> List[BlockRV]:
+    def get_producers(self, block: Union[BlockRV, str]) -> List[BlockRV]:
         """Get the producers of a specific block
 
         Parameters
         ----------
-        block : BlockRV
+        block : Union[BlockRV, str]
             The block in the query
 
         Returns
@@ -470,15 +473,16 @@ class Schedule(Object):
         producers : List[BlockRV]
             A list of producers of the given block
         """
+        block = self._normalize_block_arg(block)
         return list(_ffi_api.ScheduleGetProducers(self, block))  # type: ignore # pylint: disable=no-member
 
     @type_checked
-    def get_consumers(self, block: BlockRV) -> List[BlockRV]:
+    def get_consumers(self, block: Union[BlockRV, str]) -> List[BlockRV]:
         """Get the consumers of a specific block
 
         Parameters
         ----------
-        block : BlockRV
+        block : Union[BlockRV, str]
             The block in the query
 
         Returns
@@ -486,6 +490,7 @@ class Schedule(Object):
         consumers : List[BlockRV]
             A list of consumers of the given block
         """
+        block = self._normalize_block_arg(block)
         return list(_ffi_api.ScheduleGetConsumers(self, block))  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: Transform loops ##########
@@ -970,7 +975,9 @@ class Schedule(Object):
     ########## Schedule: Insert cache stages ##########
 
     @type_checked
-    def cache_read(self, block: BlockRV, read_buffer_index: int, storage_scope: str) -> BlockRV:
+    def cache_read(
+        self, block: Union[BlockRV, str], read_buffer_index: int, storage_scope: str
+    ) -> BlockRV:
         """Create a block that reads a buffer region into a read cache. It requires:
 
         1) There is at most one block who write the buffer in the scope.
@@ -979,7 +986,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : BlockRV
+        block : Union[BlockRV, str]
             The consumer block of the target buffer.
 
         read_buffer_index: int
@@ -1036,12 +1043,15 @@ class Schedule(Object):
                         B[vi, vj] = A_local[vi, vj] * 2.0
 
         """
+        block = self._normalize_block_arg(block)
         return _ffi_api.ScheduleCacheRead(  # type: ignore # pylint: disable=no-member
             self, block, read_buffer_index, storage_scope
         )
 
     @type_checked
-    def cache_write(self, block: BlockRV, write_buffer_index: int, storage_scope: str) -> BlockRV:
+    def cache_write(
+        self, block: Union[BlockRV, str], write_buffer_index: int, storage_scope: str
+    ) -> BlockRV:
         """Create a block that reads a buffer region into a write cache. It requires:
 
         1) There is only one block who write the buffer in the scope.
@@ -1050,7 +1060,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : BlockRV
+        block : Union[BlockRV, str]
             The producer block of the target buffer.
 
         write_buffer_index: int
@@ -1108,12 +1118,17 @@ class Schedule(Object):
                         B[vi, vj] = B_local[vi, vj]
 
         """
+        block = self._normalize_block_arg(block)
         return _ffi_api.ScheduleCacheWrite(  # type: ignore # pylint: disable=no-member
             self, block, write_buffer_index, storage_scope
         )
 
     @type_checked
-    def reindex(self, block: BlockRV, buffer_index: int, buffer_index_type: str) -> BlockRV:
+    def reindex(
+        self,
+        block: Union[BlockRV, str],
+        buffer: Union[Tuple[str, int], str, Buffer],
+    ) -> BlockRV:
         """Create a block that read/write a buffer region into a read/write cache with reindexing.
         The layout of the cache will be the same as by the iterators of the block that reads/writes
         the buffer. It requires:
@@ -1122,12 +1137,27 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block: BlockRV
-            The block that accesses the target buffer
-        buffer_index: int
-            The index of the buffer in block's read or write region
-        buffer_index_type : str
-            Type of the buffer index, "read" or "write"
+        block : Union[BlockRV, str]
+
+            The block that accesses the target buffer.  If a string,
+            this must uniquely identify a block.
+
+        buffer: Union[Tuple[str,int], Buffer, str]
+
+            The buffer to be transformed, or a specification of how to
+            identify the buffer to be transformed.
+
+            If `buffer` if a tuple of ``(str,int)``, the first item
+            should be either "read" or "write", and the second item is
+            an index into the block's read or write regions.
+
+            If `buffer` is a string, it is the name of the buffer,
+            which must exist within the reads/writes of the block.  In
+            addition, the reads/writes of the block may not contain
+            more than one buffer with this name.
+
+            If `buffer` is a Buffer object, it must exist within the
+            reads/writes of the block.
 
         Returns
         -------
@@ -1157,7 +1187,7 @@ class Schedule(Object):
 
             sch = tir.Schedule(before_reindex)
             block = sch.get_block("B")
-            sch.reindex(block, 0, "read)
+            sch.reindex(block, ("read", 0))
 
         After applying reindex, the IR becomes:
 
@@ -1179,6 +1209,8 @@ class Schedule(Object):
                         B[vi, vj] = A_reindex[vi, vj] * 2.0
 
         """
+        block = self._normalize_block_arg(block)
+        buffer_index_type, buffer_index, _ = self._normalize_buffer_arg(block, buffer)
         assert buffer_index_type in ["read", "write"], "Invalid buffer_index_type"
         buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
         return _ffi_api.ScheduleReIndex(  # type: ignore # pylint: disable=no-member
@@ -1190,7 +1222,7 @@ class Schedule(Object):
     @type_checked
     def compute_at(
         self,
-        block: BlockRV,
+        block: Union[BlockRV, str],
         loop: LoopRV,
         preserve_unit_loops: bool = False,
     ) -> None:
@@ -1213,7 +1245,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : BlockRV
+        block : Union[BlockRV, str]
             The block to be moved
 
         loop: LoopRV
@@ -1273,6 +1305,7 @@ class Schedule(Object):
                             C[vi, vj] = B[vi, vj] + 1.0
 
         """
+        block = self._normalize_block_arg(block)
         _ffi_api.ScheduleComputeAt(  # type: ignore # pylint: disable=no-member
             self,
             block,
@@ -1283,7 +1316,7 @@ class Schedule(Object):
     @type_checked
     def reverse_compute_at(
         self,
-        block: BlockRV,
+        block: Union[BlockRV, str],
         loop: LoopRV,
         preserve_unit_loops: bool = False,
     ) -> None:
@@ -1303,7 +1336,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : BlockRV
+        block : Union[BlockRV, str]
             The block to be moved
 
         loop: LoopRV
@@ -1363,6 +1396,7 @@ class Schedule(Object):
                             C[vi, vj] = B[vi, vj] + 1.0
 
         """
+        block = self._normalize_block_arg(block)
         _ffi_api.ScheduleReverseComputeAt(  # type: ignore # pylint: disable=no-member
             self,
             block,
@@ -1371,7 +1405,7 @@ class Schedule(Object):
         )
 
     @type_checked
-    def compute_inline(self, block: BlockRV) -> None:
+    def compute_inline(self, block: Union[BlockRV, str]) -> None:
         """Inline a block into its consumer(s). It requires:
 
         1) The block is a complete non-root block, which only produces one buffer
@@ -1386,7 +1420,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : BlockRV
+        block : Union[BlockRV, str]
             The block to be inlined to its consumer(s)
 
         Examples
@@ -1432,10 +1466,11 @@ class Schedule(Object):
                         C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
+        block = self._normalize_block_arg(block)
         _ffi_api.ScheduleComputeInline(self, block)  # type: ignore # pylint: disable=no-member
 
     @type_checked
-    def reverse_compute_inline(self, block: BlockRV) -> None:
+    def reverse_compute_inline(self, block: Union[BlockRV, str]) -> None:
         """Inline a block into its only producer. It requires:
 
         1) The block is a complete non-root block, which only produces and consumes one buffer
@@ -1453,7 +1488,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : BlockRV
+        block : Union[BlockRV, str]
             The block to be inlined to its producer
 
         Examples
@@ -1499,12 +1534,13 @@ class Schedule(Object):
                         C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
+        block = self._normalize_block_arg(block)
         _ffi_api.ScheduleReverseComputeInline(self, block)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: Reduction ##########
 
     @type_checked
-    def decompose_reduction(self, block: BlockRV, loop: LoopRV) -> BlockRV:
+    def decompose_reduction(self, block: Union[BlockRV, str], loop: LoopRV) -> BlockRV:
         """Decompose a reduction block into two separate blocks.
 
         a) The init block, which is translated from the init statement of the reduction block;
@@ -1523,7 +1559,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : BlockRV
+        block : Union[BlockRV, str]
             The reduction block to be decomposed
         loop : LoopRV
             The loop above which the init block is inserted before.
@@ -1578,6 +1614,7 @@ class Schedule(Object):
                         C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
         """
+        block = self._normalize_block_arg(block)
         return _ffi_api.ScheduleDecomposeReduction(self, block, loop)  # type: ignore # pylint: disable=no-member
 
     @type_checked
@@ -1734,7 +1771,7 @@ class Schedule(Object):
     @type_checked
     def storage_align(  # pylint: disable=too-many-arguments
         self,
-        block: BlockRV,
+        block: Union[BlockRV, str],
         buffer_index: int,
         axis: int,
         factor: int,
@@ -1747,7 +1784,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : BlockRV
+        block : Union[BlockRV, str]
             The producer block of the buffer.
         buffer_index : int
             The index of the buffer in block's write region.
@@ -1812,18 +1849,19 @@ class Schedule(Object):
         ----
         Storage_align requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
         """
+        block = self._normalize_block_arg(block)
         _ffi_api.ScheduleStorageAlign(  # type: ignore # pylint: disable=no-member
             self, block, buffer_index, axis, factor, offset
         )
 
     @type_checked
-    def set_scope(self, block: BlockRV, buffer_index: int, storage_scope: str) -> None:
+    def set_scope(self, block: Union[BlockRV, str], buffer_index: int, storage_scope: str) -> None:
         """Set the storage scope of a buffer, where the buffer is
         specified by the a block and a write-index
 
         Parameters
         ----------
-        block : BlockRV
+        block : Union[BlockRV, str]
             The producer block of the buffer
         buffer_index : int
             The index of the buffer in block's write region
@@ -1883,6 +1921,7 @@ class Schedule(Object):
         ----
         Set_scope requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
         """
+        block = self._normalize_block_arg(block)
         _ffi_api.ScheduleSetScope(  # type: ignore # pylint: disable=no-member
             self, block, buffer_index, storage_scope
         )
@@ -2418,14 +2457,14 @@ class Schedule(Object):
     @type_checked
     def transform_block_layout(
         self,
-        block: BlockRV,
+        block: Union[BlockRV, str],
         index_map: Union[IndexMap, Callable],
     ) -> None:
         """Apply a transformation represented by IndexMap to block
 
         Parameters
         ----------
-        block : BlockRV
+        block : Union[BlockRV, str]
             The block to be transformed
 
         index_map : Union[IndexMap, Callable]
@@ -2470,6 +2509,7 @@ class Schedule(Object):
                         vi, = T.axis.remap("S", [i])
                         B[vi // 16, vi % 16] = A[vi // 16, vi % 16] * 2.0
         """
+        block = self._normalize_block_arg(block)
         if callable(index_map):
             index_map = IndexMap.from_func(index_map)
         _ffi_api.ScheduleTransformBlockLayout(  # type: ignore # pylint: disable=no-member

@@ -454,6 +454,7 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
     ICHECK_NE(pattern_name, "");
     std::vector<std::string> op_list;
     size_t pos = 0, start = 0;
+
     while ((pos = pattern_name.find(interval, start)) != std::string::npos) {
       std::string op_name = pattern_name.substr(start, pos - start);
       if (op_name.find("dnnl") != std::string::npos) {
@@ -508,8 +509,7 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
         call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
         ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else if (name.find("dnnl.dense") != std::string::npos) {
-        std::vector<std::string> op_list = ParsingOpList(name);
-        call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
+        call = GetRootCall(fn->body.as<CallNode>(), 10, "nn.dense");
         ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else {
         LOG(FATAL) << "Unrecognized DNNL pattern: " << name;

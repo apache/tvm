@@ -23,17 +23,13 @@ from typing import List
 import numpy as np  # type: ignore
 import pytest
 import tvm
+from tvm import meta_schedule as ms
 from tvm import relay
 from tvm._ffi import register_func
 from tvm.contrib import graph_executor
 from tvm.ir import IRModule
-from tvm.meta_schedule import ApplyHistoryBest, TuneConfig
-from tvm.meta_schedule.database import JSONDatabase, PyDatabase, TuningRecord, Workload
-from tvm.meta_schedule.relay_integration import extract_task_from_relay
-from tvm.meta_schedule.testing import apply_fixed_schedules
 from tvm.meta_schedule.testing.relay_workload import get_network
-from tvm.meta_schedule.tune import tune_extracted_tasks, tune_relay
-from tvm.meta_schedule.utils import derived_object
+from tvm.meta_schedule.testing.utils import apply_fixed_schedules
 from tvm.script import tir as T
 from tvm.target.target import Target
 from tvm.tir.schedule import BlockRV, Schedule
@@ -142,11 +138,11 @@ def test_meta_schedule_tune_relay(
     mod, params, (input_name, _, _) = get_network(name=model_name, input_shape=input_shape)
     target = Target(target)
     with tempfile.TemporaryDirectory() as work_dir:
-        rt_mod1: tvm.runtime.Module = tune_relay(
+        rt_mod1: tvm.runtime.Module = ms.tune_relay(
             mod=mod,
             params=params,
             target=target,
-            config=TuneConfig(
+            config=ms.TuneConfig(
                 strategy="evolutionary",
                 num_trials_per_iter=32,
                 max_trials_per_task=20000,
@@ -156,7 +152,7 @@ def test_meta_schedule_tune_relay(
                 },
             ),
             work_dir=work_dir,
-            database=JSONDatabase(
+            database=ms.database.JSONDatabase(
                 osp.join(work_dir, "workload.json"),
                 osp.join(work_dir, "records.json"),
             ),
@@ -178,14 +174,14 @@ def test_meta_schedule_tune_relay(
 
 
 def test_meta_schedule_te2primfunc_argument_order():
-    @derived_object
-    class TestDummyDatabase(PyDatabase):
+    @ms.derived_object
+    class TestDummyDatabase(ms.database.PyDatabase):
         def __init__(self):
             super().__init__()
             self.records = []
             self.workload_reg = []
 
-        def has_workload(self, mod: IRModule) -> Workload:
+        def has_workload(self, mod: IRModule) -> ms.database.Workload:
             for workload in self.workload_reg:
                 if tvm.ir.structural_equal(workload.mod, mod):
                     return True
@@ -195,18 +191,22 @@ def test_meta_schedule_te2primfunc_argument_order():
                 + " Incorrect TIR was generated from TE subgraph."
             )
 
-        def commit_tuning_record(self, record: TuningRecord) -> None:
+        def commit_tuning_record(self, record: ms.database.TuningRecord) -> None:
             self.records.append(record)
 
-        def commit_workload(self, mod: IRModule) -> Workload:
+        def commit_workload(self, mod: IRModule) -> ms.database.Workload:
             for workload in self.workload_reg:
                 if tvm.ir.structural_equal(workload.mod, mod):
                     return workload
-            workload = Workload(mod)
+            workload = ms.database.Workload(mod)
             self.workload_reg.append(workload)
             return workload
 
-        def get_top_k(self, workload: Workload, top_k: int) -> List[TuningRecord]:
+        def get_top_k(
+            self,
+            workload: ms.database.Workload,
+            top_k: int,
+        ) -> List[ms.database.TuningRecord]:
             return list(
                 filter(
                     lambda x: x.workload == workload,
@@ -250,7 +250,7 @@ def test_meta_schedule_te2primfunc_argument_order():
     database.commit_workload(tvmgen_default_fused_layout_transform_1)
     database.commit_workload(tvmgen_default_fused_nn_contrib_conv2d_NCHWc)
 
-    with ApplyHistoryBest(database):
+    with ms.ApplyHistoryBest(database):
         with tvm.transform.PassContext(
             opt_level=3,
             config={"relay.backend.use_meta_schedule": True},
@@ -300,12 +300,11 @@ def test_meta_schedule_relay_lowering():
     data = tvm.nd.array(data_sample, dev)
 
     with tempfile.TemporaryDirectory() as work_dir:
-        database = JSONDatabase(
+        database = ms.database.JSONDatabase(
             osp.join(work_dir, "workload.json"), osp.join(work_dir, "records.json")
         )
-
         database.commit_tuning_record(
-            TuningRecord(
+            ms.database.TuningRecord(
                 Trace([], {}),
                 database.commit_workload(tvmgen_default_fused_nn_contrib_conv2d_NCHWc),
                 [0.0],
@@ -313,8 +312,7 @@ def test_meta_schedule_relay_lowering():
                 args_info=[],
             )
         )
-
-        with ApplyHistoryBest(database):
+        with ms.ApplyHistoryBest(database):
             with tvm.transform.PassContext(
                 opt_level=3,
                 config={"relay.backend.use_meta_schedule": True},
@@ -435,8 +433,7 @@ def manual_tir_common(do_tune=False):
     params = {"weight": weight_np, "bias": bias_np}
 
     if do_tune:
-        extracted_tasks = extract_task_from_relay(relay_mod, target, params)
-
+        extracted_tasks = ms.extract_task_from_relay(relay_mod, target, params)
         # Filter out tasks that we don't intend to schedule / tune with TIR.
         tune_tasks = list(
             filter(
@@ -444,7 +441,7 @@ def manual_tir_common(do_tune=False):
                 extracted_tasks,
             )
         )
-        config = TuneConfig(
+        config = ms.TuneConfig(
             strategy="replay_trace",
             num_trials_per_iter=64,
             max_trials_per_task=20000,
@@ -454,7 +451,7 @@ def manual_tir_common(do_tune=False):
         with tempfile.TemporaryDirectory() as work_dir:
             # postprocs=lambda: [] is important to prevent default post processors from
             # tampering with the manual schedule.
-            database = tune_extracted_tasks(
+            database = ms.tune_extracted_tasks(
                 tune_tasks,
                 config,
                 work_dir=work_dir,
@@ -480,7 +477,7 @@ def manual_tir_common(do_tune=False):
 
         database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
 
-    with ApplyHistoryBest(database):
+    with ms.ApplyHistoryBest(database):
         with tvm.transform.PassContext(
             opt_level=3,
             config={"relay.backend.use_meta_schedule": True},

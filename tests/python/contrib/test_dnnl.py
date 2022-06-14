@@ -19,6 +19,7 @@ import itertools
 import numpy as np
 import sys
 import subprocess
+import math
 
 import tvm
 from tvm import relay
@@ -56,7 +57,7 @@ def bf16_supported():
     return _bf16_supported
 
 
-def partition_for_dnnl(mod, params=None, alter_layout=True):
+def partition_for_dnnl(mod, params=None, alter_layout=True, prune_subgraphs=True):
     """Partition the graph greedily offloading supported operators to DNNL.
 
     Parameters
@@ -112,6 +113,7 @@ def partition_for_dnnl(mod, params=None, alter_layout=True):
                                 mod = alter_layout_seq(mod)
 
     mod = dnnl.rewrite_layer_norm(mod)
+    mod = dnnl.rewrite_dense_bias_gelu_reshape_last(mod)
 
     byoc_seq = tvm.transform.Sequential(
         [
@@ -121,9 +123,11 @@ def partition_for_dnnl(mod, params=None, alter_layout=True):
             transform.PartitionGraph(),
         ]
     )
+
     with tvm.transform.PassContext(opt_level=3):
         mod = byoc_seq(mod)
-        mod = dnnl.prune_dnnl_subgraphs(mod)
+        if prune_subgraphs:
+            mod = dnnl.prune_dnnl_subgraphs(mod)
     return mod
 
 
@@ -150,16 +154,15 @@ def assert_result_dict_holds(result_dict):
                 tvm.testing.assert_allclose(r1, r2, rtol=1e-3, atol=1e-3)
 
 
-def run_and_verify(mod, input, params, target, run_module, subgraph_num=None, test_bf16=True):
-    def check_dnnl_used(mod, subgraph_num=None):
-        num_dnnl_subgraphs = sum(
-            [1 if "dnnl" in gv.name_hint else 0 for gv in mod.get_global_vars()]
-        )
-        if subgraph_num:
-            assert num_dnnl_subgraphs == subgraph_num
-        else:
-            assert num_dnnl_subgraphs >= 1
+def check_dnnl_used(mod, subgraph_num=None):
+    num_dnnl_subgraphs = sum([1 if "dnnl" in gv.name_hint else 0 for gv in mod.get_global_vars()])
+    if subgraph_num:
+        assert num_dnnl_subgraphs == subgraph_num
+    else:
+        assert num_dnnl_subgraphs >= 1
 
+
+def run_and_verify(mod, input, params, target, run_module, subgraph_num=None, test_bf16=True):
     dev = tvm.cpu()
     result_dict = dict()
     for mode in ["graph", "vm"]:
@@ -170,6 +173,7 @@ def run_and_verify(mod, input, params, target, run_module, subgraph_num=None, te
         ]
         if test_bf16 and bf16_supported():
             configs += [(True, False, True), (True, True, True)]
+
         for use_dnnl, alter_layout, use_bf16 in configs:
             result_key = (
                 mode
@@ -585,21 +589,56 @@ def get_conv3d_transpose_bias(
         return out, dic, param_lst
 
 
-def get_dense(x_shape=(1, 16), k_shape=(32, 16), activation=None, dtype="float32"):
+def gelu_helper(data):
+    const1 = relay.const(math.sqrt(2.0))
+    const2 = relay.const(1.0)
+    const3 = relay.const(0.5)
+    divisor = relay.op.divide(data, const1)
+    val_erf = relay.op.erf(divisor)
+    added_erf = relay.op.add(val_erf, const2)
+    mul1 = relay.op.multiply(data, added_erf)
+    out = relay.op.multiply(mul1, const3)
+    return out
+
+
+def get_dense(
+    x_shape=(1, 16), k_shape=(32, 16), activation=None, has_reshape=False, dtype="float32"
+):
     x = relay.var("x", shape=(x_shape), dtype=dtype)
     kernel = relay.var("kernel", shape=(k_shape), dtype=dtype)
     out = relay.nn.dense(x, kernel, units=k_shape[0])
+    # out = relay.nn.dense(x, kernel, units=None)
+    if has_reshape:
+        out = relay.reshape(out, newshape=(1, x_shape[0], k_shape[0]))
     dic = {"x": x_shape, "kernel": k_shape}
     param_lst = ["kernel"]
+
+    if activation == "gelu":
+        out = gelu_helper(out)
     return out, dic, param_lst
 
 
-def get_dense_bias(x_shape=(1, 16), k_shape=(32, 16), activation=None, dtype="float32"):
-    dense, dic, param_lst = get_dense(x_shape=x_shape, k_shape=k_shape, dtype=dtype)
+def get_dense_bias(
+    x_shape=(1, 16),
+    k_shape=(32, 16),
+    activation=None,
+    has_reshape=False,
+    use_add=False,
+    dtype="float32",
+):
+    dense, dic, param_lst = get_dense(
+        x_shape=x_shape, k_shape=k_shape, has_reshape=has_reshape, dtype=dtype
+    )
     bias = relay.var("bias", shape=(k_shape[0],), dtype=dtype)
-    out = relay.nn.bias_add(dense, bias)
+    if use_add:
+        out = relay.add(dense, bias)
+    else:
+        out = relay.nn.bias_add(dense, bias)
     dic["bias"] = (k_shape[0],)
     param_lst += ["bias"]
+
+    if activation == "gelu":
+        out = gelu_helper(out)
     return out, dic, param_lst
 
 
@@ -891,6 +930,11 @@ def test_dense(run_module, dtype="float32"):
     config = dense, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
+    dense, dic, param_lst = get_dense(x_shape, k_shape, activation="gelu", dtype=dtype)
+    dense = tvm.IRModule.from_expr(dense)
+    config = dense, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
 
 def test_dense_pattern(run_module, dtype="float32"):
     x_shape = (1, 16)
@@ -902,6 +946,11 @@ def test_dense_pattern(run_module, dtype="float32"):
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
     dense_bias, dic, param_lst = get_dense_bias(x_shape, k_shape, dtype=dtype)
+    dense_bias = tvm.IRModule.from_expr(dense_bias)
+    config = dense_bias, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+    dense_bias, dic, param_lst = get_dense_bias(x_shape, k_shape, activation="gelu", dtype=dtype)
     dense_bias = tvm.IRModule.from_expr(dense_bias)
     config = dense_bias, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
@@ -1051,6 +1100,30 @@ def test_layer_norm(run_module, dtype="float32"):
     ln = tvm.IRModule.from_expr(ln)
     config = ln, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+
+def test_rewrite_dense_bias_gelu_reshape_last(run_module, dtype="float32"):
+    def get_graph(act=None):
+        x_shape = (1, 16)
+        k_shape = (32, 16)
+
+        dense_bias, dic, param_lst = get_dense_bias(
+            x_shape, k_shape, activation=act, has_reshape=True, use_add=True, dtype=dtype
+        )
+        dense_bias = tvm.IRModule.from_expr(dense_bias)
+        processed_dense_bias = partition_for_dnnl(
+            dense_bias, params=None, alter_layout=False, prune_subgraphs=False
+        )
+        check_dnnl_used(processed_dense_bias, 1)
+
+        return dense_bias, dic, param_lst
+
+    run_and_verify_func(
+        get_graph("gelu"), subgraph_num=1, run_module=run_module, dtype=dtype, test_bf16=False
+    )
+    run_and_verify_func(
+        get_graph(), subgraph_num=1, run_module=run_module, dtype=dtype, test_bf16=False
+    )
 
 
 if __name__ == "__main__":

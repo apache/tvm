@@ -19,6 +19,16 @@
   "workspace/exec_${env.EXECUTOR_NUMBER}/{{ folder }}"
 {%- endmacro -%}
 
+{% macro junit_to_s3() %}
+sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+{% endmacro %}
+
 {% macro sharded_test_step(name, num_shards, node, ws, docker_image, platform, test_method_names) %}
 
 {% for shard_index in range(1, num_shards + 1) %}
@@ -39,6 +49,7 @@ def {{ method_name }}() {
             })
           }
         } finally {
+          {{ junit_to_s3() }}
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -86,6 +97,7 @@ def {{ method_name }}() {
                 {{ caller() | indent(width=12) | trim }}
               })
             } finally {
+              {{ junit_to_s3() | indent(width=4) }}
               junit 'build/pytest-results/*.xml'
             }
           }
