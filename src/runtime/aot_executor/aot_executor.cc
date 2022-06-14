@@ -64,21 +64,13 @@ AotExecutor::AotExecutor(tvm::runtime::Module module, const std::vector<Device>&
                                       output->dtype(), devices_[0]));
   }
 
-  auto get_array_byte_size = [](DataType data_type, auto shape) {
-    int64_t nbytes = (data_type.bits() * data_type.lanes() + 7) / 8;
-    for (const auto& s : shape) {
-      nbytes *= s;
-    }
-    return nbytes;
-  };
-
   // USMP is used
   if (metadata_->num_workspace_pools()) {
     // merge all constants into one ndarray
     int64_t blob_len = 0;
     for (const auto& c : metadata_->constant_pools()) {
       auto data = c->data();
-      int64_t byte_size = get_array_byte_size(data.DataType(), data.Shape()) + c->byte_offset();
+      int64_t byte_size = GetDataSize(*data.operator->()) + c->byte_offset();
       blob_len = blob_len > byte_size ? blob_len : byte_size;
     }
     ICHECK(blob_len < std::numeric_limits<int32_t>::max());
@@ -86,14 +78,15 @@ AotExecutor::AotExecutor(tvm::runtime::Module module, const std::vector<Device>&
     for (const auto& c : metadata_->constant_pools()) {
       auto data = c->data();
       data.CopyToBytes(static_cast<uint8_t*>(ci->data) + c->byte_offset(),
-                       get_array_byte_size(data.DataType(), data.Shape()));
+                       GetDataSize(*data.operator->()));
     }
     // Emplace constant node pool only if workspace pools supplied
     args_.emplace_back(ci);
 
     int32_t pool_len = 0;
     for (auto pool : metadata_->workspace_pools()) {
-      pool_len = get_array_byte_size(pool->dtype(), pool->shape());
+      pool_len =
+          GetDataSize(*NDArray::Empty({pool->shape()}, pool->dtype(), devices_[0]).operator->());
       args_.emplace_back(NDArray::Empty({pool_len}, DataType::UInt(8), devices_[0]));
     }
   }

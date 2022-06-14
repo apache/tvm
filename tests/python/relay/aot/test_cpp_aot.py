@@ -98,19 +98,17 @@ def test_conv2d(enable_usmp, target_kind):
         config={
             "tir.disable_vectorize": True,
             "tir.usmp.enable": enable_usmp,
-        },  # , "tir.usmp.algorithm": "hill_climb"}
+        },
     ):
         mod = tvm.relay.build(
             ir_mod,
             params=params,
-            target=target_kind,  # + " -constants-byte-alignment=8 -workspace-byte-alignment=8",
-            executor=backend.Executor(
-                "aot", {"interface-api": "packed", "unpacked-api": False}
-            ),  # , "constant-byte-alignment":8, "workspace-byte-alignment":8}),
+            target=target_kind,
+            executor=backend.Executor("aot", {"interface-api": "packed", "unpacked-api": False}),
         )
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"
-    mod.export_library(test_so_path, cc="c++", options=["-std=gnu++14", "-g3", "-O0"])
+    mod.export_library(test_so_path, cc="gcc", options=["-std=c++11", "-g3", "-O0"])
     loaded_mod = tvm.runtime.load_module(test_so_path)
     runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
     runner.set_input(**inputs)

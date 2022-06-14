@@ -162,9 +162,9 @@ class BufferInfoAnalysis : public ObjectRef {
  * \brief The pool allocation produced after the USMP algorithm
  */
 struct PoolAllocationNode : public Object {
-  /*! \brief The assigned WorkspacePoolInfo object */
+  /*! \brief The assigned WorkspacePoolInfo or ConstantPoolInfo object */
   PoolInfo pool_info;
-  /*! \brief The byte offset where the tensor is supposed to be placed within the pool*/
+  /*! \brief The byte offset within the pool*/
   Integer byte_offset;
 
   void VisitAttrs(tvm::AttrVisitor* v) {

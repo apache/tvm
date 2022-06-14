@@ -162,7 +162,7 @@ class PoolInfoProperties(Object):
         write_bandwidth_bytes_per_cycle: Optional[int] = -1,
         read_latency_cycles: Optional[int] = 0,
         write_latency_cycles: Optional[int] = 0,
-        target_burst_bytes=None,  # Optional[Union[Dict[target.Target, int], None]]
+        target_burst_bytes=None,
     ):
         if not target_burst_bytes:
             target_burst_bytes = dict()
@@ -200,7 +200,7 @@ class WorkspacePoolInfo(PoolInfo):
     def __init__(
         self,
         pool_name: str,
-        targets,  # list[Target]
+        targets,
         pool_info_properties=None,
     ):
         if pool_info_properties is None:

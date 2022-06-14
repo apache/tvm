@@ -237,7 +237,7 @@ TVM_REGISTER_GLOBAL("ir.ConstantMemoryPools").set_body_typed([](Array<ConstantPo
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ConstantMemoryPoolsNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const ConstantMemoryPoolsNode*>(ref.get());
-      p->stream << "ConstnatnMemoryPoolsNode(\n"
+      p->stream << "ConstantMemoryPoolsNode(\n"
                 << "pools=" << node->pools << ")";
     });
 }  // namespace tvm

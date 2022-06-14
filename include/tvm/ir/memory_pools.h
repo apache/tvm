@@ -128,6 +128,7 @@ static const int kUnknownReadBandwidth = -1;
 /*! \brief The write bandwidth is not known */
 static const int kUnknownWriteBandwidth = -1;
 
+/*! \brief Base class for WorkspacePoolInfo and ConstantPoolInfo */
 class PoolInfo : public ObjectRef {
  protected:
   TVM_DLL PoolInfo(String pool_name, Integer size_hint_bytes = kUnrestrictedPoolSizeHint,
@@ -138,7 +139,6 @@ class PoolInfo : public ObjectRef {
                    Map<Target, Integer> target_burst_bytes = {}, Bool is_internal = Bool(false));
 
  public:
-  // TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PoolInfo, ObjectRef, PoolInfoNode);
   TVM_DEFINE_OBJECT_REF_METHODS(PoolInfo, ObjectRef, PoolInfoNode);
 };
 
@@ -218,6 +218,7 @@ class PoolInfoProperties : public ObjectRef {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PoolInfoProperties, ObjectRef, PoolInfoPropertiesNode);
 };
 
+/* \brief Represents RW memory area */
 struct WorkspacePoolInfoNode : public PoolInfoNode {
   static constexpr const char* _type_key = "ir.WorkspacePoolInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(WorkspacePoolInfoNode, PoolInfoNode);
@@ -270,6 +271,8 @@ class ConstantInfo : public ObjectRef {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ConstantInfo, ObjectRef, ConstantInfoNode);
 };
 
+/* \brief ConstantPoolInfoNode represents an RO memory area initialized with
+ * data from constant_info_array */
 struct ConstantPoolInfoNode : public PoolInfoNode {
   Array<ConstantInfo> constant_info_array;
   static constexpr const char* _type_key = "ir.ConstantPoolInfo";
@@ -284,6 +287,7 @@ class ConstantPoolInfo : public PoolInfo {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ConstantPoolInfo, PoolInfo, ConstantPoolInfoNode);
 };
 
+/* \brief A container for WorkspacePoolInfo objects */
 struct WorkspaceMemoryPoolsNode : public Object {
   Array<PoolInfo> pools;
 
@@ -305,6 +309,7 @@ class WorkspaceMemoryPools : public ObjectRef {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(WorkspaceMemoryPools, ObjectRef, WorkspaceMemoryPoolsNode);
 };
 
+/* \brief A container for ConstantPoolInfo objects */
 struct ConstantMemoryPoolsNode : public Object {
   Array<ConstantPoolInfo> pools;
 
