@@ -59,6 +59,7 @@ def _list_to_str(ll):
         res = "_".join(tmp)
     return res
 
+
 def _gen_filename_str(op_name, data_shape, *args, **kwargs):
     """Combining the filename according to the op_name, shape and other args."""
     file_dir = os.path.join(CURRENT_DIR, op_name)
