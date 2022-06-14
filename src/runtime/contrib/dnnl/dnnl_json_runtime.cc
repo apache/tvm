@@ -83,7 +83,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       // Find proper dnnl::memory buffers
       std::unordered_map<int, dnnl::memory> mem_args;
       for (const auto& kvp : arg_reqs) mem_args[kvp.first] = mem_solver(kvp.second);
-
       prim.execute(stream_, mem_args);
     }
   }
@@ -143,6 +142,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     std::regex relu_pat(".*_relu.*");
     std::regex tanh_pat(".*_tanh.*");
     std::regex sigmoid_pat(".*_sigmoid.*");
+    std::regex gelu_pat(".*_gelu.*");
 
     // Parsing post-ops.
     dnnl::post_ops ops;
@@ -155,7 +155,12 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     if (std::regex_match(op_name, sigmoid_pat)) {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_logistic, 0.f, 0.f);
     }
-    attr.set_post_ops(ops);
+    if (std::regex_match(op_name, gelu_pat)) {
+      ops.append_eltwise(1.f, dnnl::algorithm::eltwise_gelu_erf, 0.f, 0.f);
+    }
+    if (ops.len() != 0) {
+      attr.set_post_ops(ops);
+    }
 
     // Parsing bias_add.
     return std::regex_match(op_name, bias_add_pat) ? true : false;

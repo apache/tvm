@@ -27,11 +27,11 @@ class UpdateCostModelNode : public MeasureCallbackNode {
              const Array<MeasureCandidate>& measure_candidates,
              const Array<BuilderResult>& builder_results,
              const Array<RunnerResult>& runner_results) final {
+    auto _ = Profiler::TimedScope("UpdateCostModel");
     TuneContext task = task_scheduler->tasks[task_id];
-    ICHECK(task_scheduler->cost_model.defined())  //
+    ICHECK(task_scheduler->cost_model.defined())
         << "Cost model must be defined for the task scheduler!";
-    ICHECK(task->measure_candidates.defined())  //
-        << "Task's measure candidates must be present!";
+    ICHECK(task->measure_candidates.defined()) << "Task's measure candidates must be present!";
     CostModel cost_model = task_scheduler->cost_model.value();
     ICHECK_EQ(measure_candidates.size(), builder_results.size());
     ICHECK_EQ(runner_results.size(), builder_results.size());

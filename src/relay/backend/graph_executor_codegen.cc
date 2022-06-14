@@ -217,22 +217,19 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       mod = WithAttr(mod, "main_func_info", func_info);
     }
 
-    IRModule lowered_mod = tec::LowerTEPass(
-        mod_name_,
-        [this](BaseFunc func) {
-          // We need to maintain the constant map for external
-          // functions so we pass this processing function which
-          // allows us to process each function as we lower it.
-          if (func->GetAttr<String>(attr::kCompiler).defined()) {
-            UpdateConstants(func, &params_);
-          }
+    IRModule lowered_mod = tec::LowerTE(mod_name_, config_, [this](BaseFunc func) {
+      // We need to maintain the constant map for external
+      // functions so we pass this processing function which
+      // allows us to process each function as we lower it.
+      if (func->GetAttr<String>(attr::kCompiler).defined()) {
+        UpdateConstants(func, &params_);
+      }
 
-          // TODO(@areusch, @jroesch): We should refactor this to
-          // execute as a further pass, instead writing data to the
-          // lowering process directly.
-          tec::UpdateFunctionMetadata(func, this->function_metadata_);
-        },
-        config_)(mod);
+      // TODO(@areusch, @jroesch): We should refactor this to
+      // execute as a further pass, instead writing data to the
+      // lowering process directly.
+      tec::UpdateFunctionMetadata(func, this->function_metadata_);
+    })(mod);
 
     Optional<backend::FunctionInfo> main_func_info =
         lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");

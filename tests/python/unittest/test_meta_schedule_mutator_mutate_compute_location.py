@@ -62,9 +62,15 @@ def _sch(decision: int) -> Schedule:
 
 
 def _make_mutator(target: Target) -> Mutator:
-    mutator = MutateComputeLocation()
-    mutator.initialize_with_tune_context(TuneContext(mod=add, target=target))
-    return mutator
+    ctx = TuneContext(
+        mod=add,
+        target=target,
+        mutator_probs={
+            MutateComputeLocation(): 1.0,
+        },
+    )
+    ctx.initialize()
+    return list(ctx.mutator_probs.keys())[0]
 
 
 def test_mutate_compute_location_add():

@@ -5095,9 +5095,10 @@ class Round(OnnxOpConverter):
         # Onnx round uses Banker's rounding which rounds .5 to the nearest even integer
 
         x = inputs[0]
-        half = _expr.const(0.5, dtype="float32")
-        one = _expr.const(1, dtype="float32")
-        two = _expr.const(2, dtype="float32")
+        dtype = infer_type(x).checked_type.dtype
+        half = _expr.const(0.5, dtype=dtype)
+        one = _expr.const(1, dtype=dtype)
+        two = _expr.const(2, dtype=dtype)
 
         rounded = _op.ceil(x - half)
         bankers_mask = one - (_op.ceil(x + half) - _op.floor(x + half))

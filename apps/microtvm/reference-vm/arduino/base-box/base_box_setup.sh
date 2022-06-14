@@ -59,6 +59,9 @@ curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poet
 sed -i "/^# If not running interactively,/ i source \$HOME/.poetry/env" ~/.bashrc
 sed -i "/^# If not running interactively,/ i\\ " ~/.bashrc
 
+# Python 3.7
+sudo apt install -y python3.7
+
 # Clean box for packaging as a base box
 sudo apt-get clean
 if [ $skip_zeroing_disk -eq 0 ]; then
