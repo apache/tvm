@@ -121,6 +121,7 @@ def test_task_extraction_for_dense_int8_cuda():
     tasks = autotvm.task.extract_from_program(mod, target=target, params=params, ops=(dense,))
     assert len(tasks) == 1 and tasks[0].name == "dense_int8.cuda"
 
+
 def test_task_extraction_for_dense_int8_vnni():
     target = "llvm -mcpu=cascadelake"
 
@@ -134,6 +135,7 @@ def test_task_extraction_for_dense_int8_vnni():
     mod, params = get_net(1, 16, 32, "uint8", "int8", "int32")
     tasks = autotvm.task.extract_from_program(mod, target=target, params=params)
     assert len(tasks) == 1 and tasks[0].name == "dense_vnni.x86"
+
 
 if __name__ == "__main__":
     test_task_extraction()
