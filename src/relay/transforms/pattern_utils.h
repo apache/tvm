@@ -593,6 +593,11 @@ inline Expr Sigmoid(Expr x) {
   return Call(op, {x}, Attrs(), {});
 }
 
+inline Expr Hardswish(Expr x) {
+  static const Op& op = Op::Get("nn.hardswish");
+  return Call(op, {x}, Attrs(), {});
+}
+
 inline Expr Rsqrt(Expr x) {
   static const Op& op = Op::Get("rsqrt");
   return Call(op, {x}, Attrs(), {});
