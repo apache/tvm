@@ -25,6 +25,8 @@
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/transform.h>
 
+#include <unordered_set>
+
 #include "../../support/utils.h"
 #include "../schedule/utils.h"
 #include "./ir_utils.h"
@@ -60,13 +62,14 @@ Block MakeBlock(const Stmt& body, const Map<Var, Buffer>& buffer_data_to_buffer)
   return block;
 }
 
-/*! Structure that represents the stage and order of the software pipeline component. */
-struct PipelineStageOrder {
+/*! Structure that represents the provided annotation per block or loop. */
+struct PipelineAnnotation {
   int stage;
   int order;
+  bool async;
 };
 
-using PipelineInfo = std::unordered_map<Block, PipelineStageOrder, ObjectPtrHash, ObjectPtrEqual>;
+using PipelineInfo = std::unordered_map<Block, PipelineAnnotation, ObjectPtrHash, ObjectPtrEqual>;
 
 struct BufferAccessInfo {
   int def = -1;  // the defining stage of the buffer
@@ -99,6 +102,8 @@ class PipelineOpaqueAccessRewriter {
     static const auto& store_matrix_sync = builtin::tvm_store_matrix_sync();
     static const auto& mma_sync = builtin::tvm_mma_sync();
     static const auto& access_ptr = builtin::tvm_access_ptr();
+    static const auto& ptx_ldmatrix = builtin::ptx_ldmatrix();
+    static const auto& ptx_mma = builtin::ptx_mma();
     if (call->op.same_as(load_matrix_sync) || call->op.same_as(store_matrix_sync)) {
       const Buffer& buffer = buffer_data_to_buffer_.at(Downcast<Var>(call->args[0]));
       auto it = buffer_remap_.find(buffer);
@@ -122,24 +127,11 @@ class PipelineOpaqueAccessRewriter {
       }
       return Call(call->dtype, call->op, new_args, call->span);
     } else if (call->op.same_as(access_ptr)) {
-      const Buffer& buffer = buffer_data_to_buffer_.at(Downcast<Var>(call->args[1]));
-      auto it = buffer_remap_.find(buffer);
-      if (it != buffer_remap_.end()) {
-        Array<PrimExpr> new_args = call->args;
-        const Buffer& new_buffer = (*it).second;
-        const PrimExpr& old_index = call->args[2];
-        PrimExpr offset;
-        if (new_buffer->strides.empty()) {
-          offset = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                         make_const(DataType::Int(32), 1), buffer->shape);
-        } else {
-          offset = new_buffer->strides[0];
-        }
-        PrimExpr new_index =
-            old_index + floormod(pipeline_loop_->loop_var, new_buffer->shape[0]) * offset;
-        new_args.Set(2, new_index);
-        return Call(call->dtype, call->op, new_args, call->span);
-      }
+      return RewriteBufferAccess(call, {1});
+    } else if (call->op.same_as(ptx_mma)) {
+      return RewriteBufferAccess(call, {6, 8, 10});
+    } else if (call->op.same_as(ptx_ldmatrix)) {
+      return RewriteBufferAccess(call, {3});
     }
     return call;
   }
@@ -164,6 +156,32 @@ class PipelineOpaqueAccessRewriter {
     new_buffer_offset +=
         floormod(pipeline_loop_->loop_var - pipeline_loop_->min, new_buffer->shape[0]) * offset;
     return new_buffer_offset;
+  }
+
+  PrimExpr RewriteBufferAccess(const Call& call, const std::vector<int> arg_indices) {
+    auto product = [](const Array<PrimExpr>& input) {
+      return foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
+                   make_const(DataType::Int(32), 1), input);
+    };
+    Array<PrimExpr> new_args = call->args;
+    for (int i : arg_indices) {
+      const Buffer& buffer = buffer_data_to_buffer_.at(Downcast<Var>(call->args[i]));
+      auto it = buffer_remap_.find(buffer);
+      if (it != buffer_remap_.end()) {
+        const Buffer& new_buffer = (*it).second;
+        const PrimExpr& old_index = call->args[i + 1];
+        PrimExpr offset;
+        if (new_buffer->strides.empty()) {
+          offset = product(buffer->shape);
+        } else {
+          offset = new_buffer->strides[0];
+        }
+        PrimExpr new_index =
+            old_index + floormod(pipeline_loop_->loop_var, new_buffer->shape[0]) * offset;
+        new_args.Set(i + 1, new_index);
+      }
+    }
+    return Call(call->dtype, call->op, new_args, call->span);
   }
 
   const Map<Var, Buffer>& buffer_data_to_buffer_;
@@ -494,6 +512,25 @@ class PipelineRewriter : public StmtExprMutator {
     return Buffer(new_buffer);
   }
 
+  struct AsyncStateGlobal {
+    std::unordered_set<const BufferNode*> dst_buffers;
+    // Only valid if all predicates are true
+    Optional<PrimExpr> producer_head;
+  };
+
+  struct AsyncStateLocal {
+    struct {
+      int insert_before;
+      PrimExpr wait_count{nullptr};
+
+      bool valid() const { return wait_count.defined(); }
+    } pending_wait;
+
+    Optional<PrimExpr> producer_head;
+    Optional<PrimExpr> predicate;
+    int insert_commit_stage_after{-1};
+  };
+
   /*!
    * \brief Emit the pipeline loop in the given range.
    * \param start The start of the range
@@ -512,11 +549,22 @@ class PipelineRewriter : public StmtExprMutator {
       return make_nop();
     }
     bool is_unit_loop = analyzer_.CanProveEqual(extent, 1);
+
     if (is_unit_loop) {
       new_loop_var = start;  // use constants as the loop var for unit loops
     } else {
       new_loop_var = pipeline_loop_->loop_var.copy_with_suffix("");
       analyzer_.Bind(Downcast<Var>(new_loop_var), Range(start, end));
+    }
+
+    std::map<int, AsyncStateLocal> async_states_local;
+
+    std::vector<PrimExpr> predicates;
+    std::vector<Block> new_blocks;
+
+    arith::Analyzer ana_normalized;
+    if (!is_unit_loop) {
+      ana_normalized.Bind(Downcast<Var>(new_loop_var), Range(pipeline_loop_->min, extent));
     }
 
     for (const Block& block : ordered_stmts_) {
@@ -527,21 +575,141 @@ class PipelineRewriter : public StmtExprMutator {
       if (analyzer_.CanProve(!inbound)) {
         continue;
       }
+
       Block new_block = Downcast<Block>(PipelineBodyRewriter(buffer_data_to_buffer_, buffer_remap_,
                                                              pipeline_loop_, max_stage_ != 1,
                                                              fragment_info_)(block));
-      Map<Var, PrimExpr> subst_map;
-      if (is_unit_loop) {
-        subst_map.Set(pipeline_loop_->loop_var, skewed_loop_var);
-      } else {
-        // normalize loop range
-        PrimExpr delta = start - pipeline_loop_->min;
-        subst_map.Set(pipeline_loop_->loop_var, skewed_loop_var + delta);
+
+      PrimExpr delta = start - pipeline_loop_->min;
+      PrimExpr normalized_access_index = is_unit_loop ? skewed_loop_var : skewed_loop_var + delta;
+
+      // Adjust the block predicate and the body according to the final loop bound
+      //  [pipeline_loop_->min, extent).
+      if (!is_unit_loop) {
         Var loop_iter = Downcast<Var>(new_loop_var);
-        inbound = Substitute(inbound, Map<Var, PrimExpr>{{loop_iter, loop_iter + delta}});
+        inbound = Substitute(inbound, {{loop_iter, loop_iter + delta}});
       }
-      new_block = Downcast<Block>(Substitute(new_block, subst_map));
-      stmts.push_back(BlockRealize({}, inbound, new_block));
+
+      new_block = Downcast<Block>(
+          Substitute(new_block, {{pipeline_loop_->loop_var, normalized_access_index}}));
+
+      if (pipeline_info_[block].async) {
+        auto& local_state = async_states_local[stage];
+        local_state.insert_commit_stage_after =
+            std::max(local_state.insert_commit_stage_after, int(new_blocks.size()));
+
+        // pending_wait.valid() == true means there is already a consumer stage waiting for the
+        // eariler async operation of this stage.
+        ICHECK(!local_state.pending_wait.valid())
+            << "Having multiple async operations within the same stage, separated by its consumer "
+               "in between, is not supported yet";
+
+        async_states_local[stage].producer_head = normalized_access_index;
+
+        // TODO: do & of predicate of the same stages?
+        async_states_local[stage].predicate = inbound;
+
+        for (auto region : new_block->writes) {
+          async_states[stage].dst_buffers.insert(region->buffer.get());
+        }
+
+        BlockNode* n = new_block.CopyOnWrite();
+        n->body = AttrStmt(make_zero(DataType::Int(32)), tir::attr::async_scope, 1, n->body);
+      }
+
+      bool need_wait = false;
+      int dep_stage_idx = -1;
+      for (auto region : new_block->reads) {
+        for (auto kv : async_states) {
+          // TODO: Is it worth doing more fine-grained check?
+          if (kv.first <= stage && kv.second.dst_buffers.count(region->buffer.get())) {
+            need_wait = true;
+            // TODO: Can a consumer stage depend on multiple stages?
+            ICHECK(dep_stage_idx == -1 || dep_stage_idx == kv.first)
+                << "A dependency on multiple async stages is not supported";
+            dep_stage_idx = kv.first;
+          }
+        }
+      }
+
+      if (need_wait) {
+        auto producer_head = [=, &async_states_local]() {
+          auto it = async_states_local.find(dep_stage_idx);
+          if (it != async_states_local.end() && it->second.producer_head) {
+            return it->second.producer_head;
+          }
+          return async_states[dep_stage_idx].producer_head;
+        }();
+
+        auto wait_count = [=, &ana_normalized]() {
+          if (producer_head && ana_normalized.CanProve(producer_head.value() >= 0)) {
+            return analyzer_.Simplify(producer_head.value() - normalized_access_index);
+          }
+          return PrimExpr(0);
+        }();
+
+        auto& pending_wait = async_states_local[dep_stage_idx].pending_wait;
+
+        if (!pending_wait.valid()) {
+          pending_wait = {static_cast<int>(new_blocks.size()), wait_count};
+        } else if (analyzer_.CanProve(wait_count < pending_wait.wait_count)) {
+          pending_wait = {pending_wait.insert_before, wait_count};
+        }
+      }
+
+      predicates.push_back(inbound);
+      new_blocks.push_back(new_block);
+    }
+
+    std::vector<std::pair<Stmt, Stmt>> async_instructions_per_block(new_blocks.size());
+
+    for (const auto& kv : async_states_local) {
+      const int stage_id = kv.first;
+      const AsyncStateLocal& state = kv.second;
+
+      auto make_intrin = [](Op intrin, Array<PrimExpr> args) {
+        return Evaluate(Call(DataType::Void(), intrin, args));
+      };
+
+      if (state.pending_wait.valid()) {
+        auto wait_stage =
+            make_intrin(builtin::async_wait_stage(), {stage_id, state.pending_wait.wait_count});
+
+        if (state.predicate && !ana_normalized.CanProve(state.predicate.value())) {
+          auto wait_stage_false = make_intrin(builtin::async_wait_stage(), {stage_id, 0});
+          async_instructions_per_block[state.pending_wait.insert_before].first =
+              IfThenElse(state.predicate.value(), wait_stage, wait_stage_false);
+        } else {
+          async_instructions_per_block[state.pending_wait.insert_before].first = wait_stage;
+        }
+      }
+
+      if (state.insert_commit_stage_after >= 0) {
+        auto commit_stage = make_intrin(builtin::async_commit_stage(), {stage_id});
+        async_instructions_per_block[state.insert_commit_stage_after].second = commit_stage;
+      }
+
+      if (state.predicate && ana_normalized.CanProve(state.predicate.value())) {
+        async_states[stage_id].producer_head =
+            async_states[stage_id].producer_head.value_or(-1) + extent;
+      } else {
+        async_states[stage_id].producer_head = NullOpt;
+      }
+    }
+
+    for (size_t i = 0; i < new_blocks.size(); ++i) {
+      auto& block = new_blocks[i];
+      BlockNode* n = block.CopyOnWrite();
+      auto wait_stage_before = async_instructions_per_block[i].first;
+      auto commit_stage_after = async_instructions_per_block[i].second;
+      if (wait_stage_before.defined() && commit_stage_after.defined()) {
+        n->body = SeqStmt({wait_stage_before, n->body, commit_stage_after});
+      } else if (wait_stage_before.defined()) {
+        n->body = SeqStmt({wait_stage_before, n->body});
+      } else if (commit_stage_after.defined()) {
+        n->body = SeqStmt({n->body, commit_stage_after});
+      }
+      stmts.push_back(BlockRealize({}, predicates[i], block));
     }
 
     Stmt new_loop{nullptr};
@@ -572,6 +740,7 @@ class PipelineRewriter : public StmtExprMutator {
   int max_stage_ = -1;
   Map<Buffer, Buffer> buffer_remap_;
   Array<Block> ordered_stmts_;
+  std::map<int, AsyncStateGlobal> async_states;
 };
 
 /*!
@@ -728,10 +897,19 @@ class PipelineInjector : private StmtExprMutator {
     CHECK_EQ(pipeline_stages.size(), original_order.size());
     CHECK_EQ(pipeline_orders.size(), original_order.size());
     for (size_t i = 0; i < pipeline_stages.size(); i++) {
-      PipelineStageOrder stage_order{/*stage=*/static_cast<int>(pipeline_stages[i]->value),
-                                     /*order=*/static_cast<int>(pipeline_orders[i]->value)};
+      PipelineAnnotation stage_order{/*stage=*/static_cast<int>(pipeline_stages[i]->value),
+                                     /*order=*/static_cast<int>(pipeline_orders[i]->value), false};
       pipeline_info.emplace(original_order[i], stage_order);
     }
+
+    if (op->annotations.count("software_pipeline_async_stages")) {
+      auto pipeline_async_stage_indices =
+          Downcast<Array<Integer>>(op->annotations.at("software_pipeline_async_stages"));
+      for (auto i : pipeline_async_stage_indices) {
+        pipeline_info[original_order[i]].async = true;
+      }
+    }
+
     ValidatePipelineBody(pipeline_info, original_order);
 
     // Step 4: Rewrite the pipeline body.

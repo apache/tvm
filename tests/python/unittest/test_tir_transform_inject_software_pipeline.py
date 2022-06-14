@@ -92,26 +92,32 @@ def transformed_trivial_pipeline(
                 C[tx, 0] = B[0, tx, 0] + T.float32(1)
 
 
-@T.prim_func
-def simple_compute(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
-        for i in T.serial(
-            0,
-            16,
-            annotations={"software_pipeline_stage": [0, 1], "software_pipeline_order": [0, 1]},
-        ):
-            with T.block():
-                T.reads(A[tx, i])
-                T.writes(C[tx, i])
-                B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
-                with T.block():
+def gen_simple_compute(num_stages):
+    @T.prim_func
+    def simple_compute(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
+        for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+            for i in T.serial(
+                0,
+                16,
+                annotations={
+                    "software_pipeline_stage": [0, num_stages],
+                    "software_pipeline_order": [0, 1],
+                },
+            ):
+                with T.block("compute"):
                     T.reads(A[tx, i])
-                    T.writes(B[tx, 0])
-                    B[tx, 0] = A[tx, i] * T.float32(2)
-                with T.block():
-                    T.reads(B[tx, 0])
                     T.writes(C[tx, i])
-                    C[tx, i] = B[tx, 0] + T.float32(1)
+                    B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+                    with T.block():
+                        T.reads(A[tx, i])
+                        T.writes(B[tx, 0])
+                        B[tx, 0] = A[tx, i] * T.float32(2)
+                    with T.block():
+                        T.reads(B[tx, 0])
+                        T.writes(C[tx, i])
+                        C[tx, i] = B[tx, 0] + T.float32(1)
+
+    return simple_compute
 
 
 @T.prim_func
@@ -156,7 +162,7 @@ def three_stage_compute(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), 
                 "software_pipeline_order": [0, 1, 2],
             },
         ):
-            with T.block():
+            with T.block("compute"):
                 T.reads(A[tx, i])
                 T.writes(D[tx, i])
                 B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
@@ -991,7 +997,7 @@ def simple_compute_missing_annotation(
 
 
 def test_simple_compute():
-    _check(simple_compute, transformed_simple_compute)
+    _check(gen_simple_compute(1), transformed_simple_compute)
 
 
 def test_trivial_pipeline():
@@ -1034,15 +1040,200 @@ def test_error_missing_annotation():
     _check_error(simple_compute_missing_annotation)
 
 
-@tvm.testing.requires_cuda
-def test_three_stage_gemm():
-    N = K = M = 4096
-    i_factors, j_factors, k_factors = [4, 8, 2, 4, 1], [1, 64, 2, 1, 2], [128, 2, 1]
+def test_simple_compute_async():
+    mod = tvm.IRModule.from_expr(gen_simple_compute(1))
+    sch = tvm.tir.Schedule(mod)
 
-    def is_ampere_or_newer():
-        arch = tvm.contrib.nvcc.get_target_compute_version()
-        major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
-        return major >= 8
+    _, loop = sch.get_loops(sch.get_block("compute"))
+    sch.annotate(loop, ann_key="software_pipeline_async_stages", ann_val=[0])
+    mod = tvm.tir.transform.InjectSoftwarePipeline()(sch.mod)
+
+    @T.prim_func
+    def ref(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+        for tx in T.thread_binding(16, thread="threadIdx.x"):
+            with T.block():
+                T.reads(A[tx, 0 : 16])
+                T.writes(C[tx, 0 : 16])
+                B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+                with T.block():
+                    T.reads(A[tx, 0])
+                    T.writes(B[0 % 2, tx, 0])
+                    with T.attr(0, "async_scope", 1):
+                        B[0 % 2, tx, 0] = A[tx, 0] * T.float32(2)
+                    T.evaluate(T.async_commit_stage(0, dtype=""))
+                with T.block():
+                    T.reads(A[tx, 1 : 16], B[0 : 2, tx, 0])
+                    T.writes(B[0 : 2, tx, 0], C[tx, 0 : 15])
+                    for i in T.serial(15):
+                        with T.block():
+                            T.where(i + 1 < 16)
+                            T.reads(A[tx, i + 1])
+                            T.writes(B[(i + 1) % 2, tx, 0])
+                            with T.attr(0, "async_scope", 1):
+                                B[(i + 1) % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
+                            T.evaluate(T.async_commit_stage(0, dtype=""))
+                        with T.block():
+                            T.where(i + 1 - 1 < 16)
+                            T.reads(B[(i - 1 + 1) % 2, tx, 0])
+                            T.writes(C[tx, i - 1 + 1])
+                            T.evaluate(T.async_wait_stage(0, 1, dtype=""))
+                            C[tx, i - 1 + 1] = B[(i - 1 + 1) % 2, tx, 0] + T.float32(1)
+                with T.block():
+                    T.reads(B[15 % 2, tx, 0])
+                    T.writes(C[tx, 15])
+                    T.evaluate(T.async_wait_stage(0, 0, dtype=""))
+                    C[tx, 15] = B[15 % 2, tx, 0] + T.float32(1)
+
+    tvm.ir.assert_structural_equal(mod["main"], ref, True)
+
+    mod = tvm.IRModule.from_expr(gen_simple_compute(3))
+    sch = tvm.tir.Schedule(mod)
+
+    _, loop = sch.get_loops(sch.get_block("compute"))
+    sch.annotate(loop, ann_key="software_pipeline_async_stages", ann_val=[0])
+    mod = tvm.tir.transform.InjectSoftwarePipeline()(sch.mod)
+
+    @T.prim_func
+    def ref(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+        for tx in T.thread_binding(16, thread="threadIdx.x"):
+            with T.block():
+                T.reads(A[tx, 0 : 16])
+                T.writes(C[tx, 0 : 16])
+                B = T.alloc_buffer([4, 16, 1], dtype="float32", scope="shared")
+                with T.block():
+                    T.reads(A[tx, 0 : 3])
+                    T.writes(B[0 : 4, tx, 0])
+                    for i in T.unroll(3):
+                        with T.block():
+                            T.where(i < 16)
+                            T.reads(A[tx, i])
+                            T.writes(B[0 : 4, tx, 0])
+                            with T.attr(0, "async_scope", 1):
+                                B[i % 4, tx, 0] = A[tx, i] * T.float32(2)
+                            T.evaluate(T.async_commit_stage(0, dtype=""))
+                with T.block():
+                    T.reads(A[tx, 3 : 16], B[0 : 4, tx, 0])
+                    T.writes(B[0 : 4, tx, 0], C[tx, 0 : 13])
+                    for i in T.serial(13):
+                        with T.block():
+                            T.where(i + 3 < 16)
+                            T.reads(A[tx, i + 3])
+                            T.writes(B[0 : 4, tx, 0])
+                            with T.attr(0, "async_scope", 1):
+                                B[(i + 3) % 4, tx, 0] = A[tx, i + 3] * T.float32(2)
+                            T.evaluate(T.async_commit_stage(0, dtype=""))
+                        with T.block():
+                            T.where(i + 3 - 3 < 16)
+                            T.reads(B[0 : 4, tx, 0])
+                            T.writes(C[tx, i - 3 + 3])
+                            T.evaluate(T.async_wait_stage(0, 3, dtype=""))
+                            C[tx, i - 3 + 3] = B[(i - 3 + 3) % 4, tx, 0] + T.float32(1)
+                with T.block():
+                    T.reads(B[0 : 4, tx, 0])
+                    T.writes(C[tx, 13 : 16])
+                    for i in T.unroll(3):
+                        with T.block():
+                            T.where(i + 16 - 3 < 16)
+                            T.reads(B[0 : 4, tx, 0])
+                            T.writes(C[tx, i - 3 + 16])
+                            T.evaluate(T.async_wait_stage(0, 2 - i, dtype=""))
+                            C[tx, i - 3 + 16] = B[(i - 3 + 16) % 4, tx, 0] + T.float32(1)
+
+
+    tvm.ir.assert_structural_equal(mod["main"], ref, True)
+
+
+def test_three_stage_compute_two_stage_async():
+    mod = tvm.IRModule.from_expr(three_stage_compute)
+    sch = tvm.tir.Schedule(mod)
+
+    _, loop = sch.get_loops(sch.get_block("compute"))
+    sch.annotate(loop, ann_key="software_pipeline_async_stages", ann_val=[0, 1])
+
+    mod = tvm.tir.transform.InjectSoftwarePipeline()(sch.mod)
+
+    @T.prim_func
+    def ref(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]) -> None:
+        for tx in T.thread_binding(16, thread="threadIdx.x"):
+            with T.block():
+                T.reads(A[tx, 0 : 16])
+                T.writes(D[tx, 0 : 16])
+                B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+                C = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+                with T.block():
+                    T.reads(A[tx, 0 : 2], B[0 : 2, tx, 0])
+                    T.writes(B[0 : 2, tx, 0], C[0 : 2, tx, 0])
+                    for i in T.unroll(2):
+                        with T.block():
+                            T.where(i < 16)
+                            T.reads(A[tx, i])
+                            T.writes(B[0 : 2, tx, 0])
+                            with T.attr(0, "async_scope", 1):
+                                B[i % 2, tx, 0] = A[tx, i] * T.float32(2)
+                            T.evaluate(T.async_commit_stage(0, dtype=""))
+                        with T.block():
+                            T.where(1 <= i and i - 1 < 16)
+                            T.reads(B[0 : 2, tx, 0])
+                            T.writes(C[0 : 2, tx, 0])
+                            T.evaluate(T.async_wait_stage(0, 1, dtype=""))
+                            with T.attr(0, "async_scope", 1):
+                                C[(i - 1) % 2, tx, 0] = B[(i - 1) % 2, tx, 0] + T.float32(2)
+                            T.evaluate(T.async_commit_stage(1, dtype=""))
+                with T.block():
+                    T.reads(A[tx, 2 : 16], B[0 : 2, tx, 0], C[0 : 2, tx, 0])
+                    T.writes(B[0 : 2, tx, 0], C[0 : 2, tx, 0], D[tx, 0 : 14])
+                    for i in T.serial(14):
+                        with T.block():
+                            T.where(i + 2 < 16)
+                            T.reads(A[tx, i + 2])
+                            T.writes(B[0 : 2, tx, 0])
+                            with T.attr(0, "async_scope", 1):
+                                B[(i + 2) % 2, tx, 0] = A[tx, i + 2] * T.float32(2)
+                            T.evaluate(T.async_commit_stage(0, dtype=""))
+                        with T.block():
+                            T.where(i + 2 - 1 < 16)
+                            T.reads(B[0 : 2, tx, 0])
+                            T.writes(C[0 : 2, tx, 0])
+                            T.evaluate(T.async_wait_stage(0, 1, dtype=""))
+                            with T.attr(0, "async_scope", 1):
+                                C[(i - 1 + 2) % 2, tx, 0] = B[(i - 1 + 2) % 2, tx, 0] + T.float32(2)
+                            T.evaluate(T.async_commit_stage(1, dtype=""))
+                        with T.block():
+                            T.where(i + 2 - 2 < 16)
+                            T.reads(C[0 : 2, tx, 0])
+                            T.writes(D[tx, i - 2 + 2])
+                            T.evaluate(T.async_wait_stage(1, 1, dtype=""))
+                            D[tx, i - 2 + 2] = C[(i - 2 + 2) % 2, tx, 0] + T.float32(1)
+                with T.block():
+                    T.reads(B[0 : 2, tx, 0], C[0 : 2, tx, 0])
+                    T.writes(C[0 : 2, tx, 0], D[tx, 14 : 16])
+                    for i in T.unroll(2):
+                        with T.block():
+                            T.where(i + 16 - 1 < 16)
+                            T.reads(B[0 : 2, tx, 0])
+                            T.writes(C[0 : 2, tx, 0])
+                            T.evaluate(T.async_wait_stage(0, 0 - i, dtype=""))
+                            with T.attr(0, "async_scope", 1):
+                                C[(i - 1 + 16) % 2, tx, 0] = B[(i - 1 + 16) % 2, tx, 0] + T.float32(2)
+                            T.evaluate(T.async_commit_stage(1, dtype=""))
+                        with T.block():
+                            T.where(i + 16 - 2 < 16)
+                            T.reads(C[0 : 2, tx, 0])
+                            T.writes(D[tx, i - 2 + 16])
+                            if i + 16 - 1 < 16:
+                                T.evaluate(T.async_wait_stage(1, 1, dtype=""))
+                            else:
+                                T.evaluate(T.async_wait_stage(1, 0, dtype=""))
+                            D[tx, i - 2 + 16] = C[(i - 2 + 16) % 2, tx, 0] + T.float32(1)
+
+    tvm.ir.assert_structural_equal(mod["main"], ref, True)
+
+
+N = K = M = 4096
+
+
+def get_mma_schedule():
+    i_factors, j_factors, k_factors = [1, 32, 1, 4, 2], [16, 2, 4, 1, 2], [128, 2, 1]
 
     def index_map(i, j):
         return (
@@ -1055,7 +1246,7 @@ def test_three_stage_gemm():
         te_workload.matmul(N, M, K, in_dtype="float16", out_dtype="float32")
     )
 
-    sch = mma_schedule(
+    return mma_schedule(
         workload,
         16,
         "float16",
@@ -1074,13 +1265,11 @@ def test_three_stage_gemm():
         "shared.dyn",
     )
 
-    k0 = sch.get_loops(sch.get_block("C_o_update"))[3]
 
-    sch.annotate(k0, ann_key="software_pipeline_stage", ann_val=[0, 0, 3])
-    sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
-
-    if is_ampere_or_newer():
-        f = tvm.build(sch.mod["main"], target="cuda")
+def build_and_run(sch):
+    if True or tvm.testing.is_ampere_or_newer():
+        with tvm.transform.PassContext(config={"tir.use_ptx_async_copy": 1}):
+            f = tvm.build(sch.mod["main"], target="cuda")
 
         dev = tvm.device("cuda", 0)
         a_np = np.random.uniform(size=(N, K)).astype("float16")
@@ -1091,7 +1280,131 @@ def test_three_stage_gemm():
         c = tvm.nd.array(np.zeros((N, M), dtype="float32"), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
+        # print(f.imported_modules[0].get_source())
+        print("ok")
+
+        # evaluator = f.time_evaluator(f.entry_name, dev, number=500)
+        # gflops = (N * M * K) * 2 / 1e9
+        # time_ms = evaluator(a, b, c).mean * 1e3
+        # print("matmul with tensor core: %f ms, %f GFLOPS" % (time_ms, gflops / (time_ms / 1e3)))
+
+
+@tvm.testing.requires_cuda
+def test_pipelined_mma_gemm_simple():
+    sch = get_mma_schedule()
+
+    k0 = sch.get_loops(sch.get_block("C_o_update"))[3]
+
+    sch.annotate(k0, ann_key="software_pipeline_stage", ann_val=[0, 0, 3])
+    sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
+    sch.annotate(k0, ann_key="software_pipeline_async_stages", ann_val=[0, 1])
+
+    seq = tvm.transform.Sequential(
+        [
+            tvm.tir.transform.PlanAndUpdateBufferAllocationLocation(),
+            tvm.tir.transform.ConvertBlocksToOpaque(),
+            tvm.tir.transform.UnifyThreadBinding(),
+            tvm.tir.transform.LowerMatchBuffer(),
+            tvm.tir.transform.InjectSoftwarePipeline(),
+        ]
+    )
+    mod = seq(sch.mod)
+
+    pipeline = mod["main"].body.block.body.body.body.body.body.block.body[1].block.body
+    prologue, body, epilogue = pipeline
+
+    assert "tir.async_commit_stage(0)" == str(prologue.block.body.body[1].block.body[-1]).rstrip()
+    assert "async_wait_stage" not in str(prologue)  # No need to wait in the prologue
+    assert "tir.async_commit_stage(0)" == str(body.block.body.body[1].block.body[1]).rstrip()
+    assert "tir.async_wait_stage(0, 3)" == str(body.block.body.body[2].block.body[0]).rstrip()
+    assert (
+        "tir.async_wait_stage(0, (2 - i2_0_0))"
+        == str(epilogue.block.body.body.block.body[0]).rstrip()
+    )
+
+    # build_and_run(sch)
+
+
+@tvm.testing.requires_cuda
+def test_nested_pipeline_mma_gemm_ideal_annotation():
+    sch = get_mma_schedule()
+
+    k0 = sch.get_loops(sch.get_block("C_o_update"))[3]
+    k1 = sch.get_loops(sch.get_block("C_o_update"))[4]
+
+    sch.annotate(k0, ann_key="software_pipeline_stage", ann_val=[0, 0, 2, 3, 3])
+    sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 3, 2, 4])
+    sch.annotate(k0, ann_key="software_pipeline_async_stages", ann_val=[0, 1])
+
+    sch.annotate(k1, ann_key="software_pipeline_stage", ann_val=[0, 0, 1])
+    sch.annotate(k1, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
+
+    seq = tvm.transform.Sequential(
+        [
+            tvm.tir.transform.PlanAndUpdateBufferAllocationLocation(),
+            tvm.tir.transform.ConvertBlocksToOpaque(),
+            tvm.tir.transform.UnifyThreadBinding(),
+            tvm.tir.transform.LowerMatchBuffer(),
+            tvm.tir.transform.InjectSoftwarePipeline(),
+        ]
+    )
+    mod = seq(sch.mod)
+
+    pipeline = mod["main"].body.block.body.body.body.body.body.block.body[1].block.body
+    prologue, body, epilogue = pipeline
+
+    assert "tir.async_commit_stage(0)" == str(prologue.block.body.body[1].block.body[-1]).rstrip()
+    assert "tir.async_wait_stage(0, 2)" == str(prologue.block.body.body[2].block.body[0]).rstrip()
+    assert "tir.async_commit_stage(0)" == str(body.block.body.body[1].block.body[-1]).rstrip()
+    assert "tir.async_wait_stage(0, 2)" == str(body.block.body.body[2].block.body[0]).rstrip()
+    assert (
+        "tir.async_wait_stage(0, (1 - i2_0_0))"
+        == str(epilogue.block.body.body[0].block.body[0]).rstrip()
+    )
+
+    # build_and_run(sch)
+
+
+@tvm.testing.requires_cuda
+def test_nested_pipeline_mma_gemm_bad_annotation():
+    sch = get_mma_schedule()
+
+    k0 = sch.get_loops(sch.get_block("C_o_update"))[3]
+    k1 = sch.get_loops(sch.get_block("C_o_update"))[4]
+
+    # This puts ldmatrix, the consumer of async copy, in the same stage as async copy
+    # So we need to put wait_stage(0) before ldmatrix, to force all async copies to
+    # complete immediately.
+    sch.annotate(k0, ann_key="software_pipeline_stage", ann_val=[0, 0, 0, 3, 3])
+    sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 3, 2, 4])
+    sch.annotate(k0, ann_key="software_pipeline_async_stages", ann_val=[0, 1])
+
+    sch.annotate(k1, ann_key="software_pipeline_stage", ann_val=[0, 0, 1])
+    sch.annotate(k1, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
+
+    seq = tvm.transform.Sequential(
+        [
+            tvm.tir.transform.PlanAndUpdateBufferAllocationLocation(),
+            tvm.tir.transform.ConvertBlocksToOpaque(),
+            tvm.tir.transform.UnifyThreadBinding(),
+            tvm.tir.transform.LowerMatchBuffer(),
+            tvm.tir.transform.InjectSoftwarePipeline(),
+        ]
+    )
+    mod = seq(sch.mod)
+
+    pipeline = mod["main"].body.block.body.body.body.body.body.block.body[1].block.body
+    body = pipeline[1]
+
+    assert "tir.async_wait_stage(0, 0)" == str(body.block.body.body[2].block.body[0]).rstrip()
+
+    # build_and_run(sch)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_simple_compute_async()
+    test_three_stage_compute_two_stage_async()
+    test_pipelined_mma_gemm_simple()
+    test_nested_pipeline_mma_gemm_ideal_annotation()
+    test_nested_pipeline_mma_gemm_bad_annotation()

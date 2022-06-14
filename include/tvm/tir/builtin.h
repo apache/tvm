@@ -651,6 +651,9 @@ TVM_DLL const Op& ptx_cp_async();
 TVM_DLL const Op& ptx_commit_group();
 TVM_DLL const Op& ptx_wait_group();
 
+TVM_DLL const Op& async_commit_stage();
+TVM_DLL const Op& async_wait_stage();
+
 /*!
  * \brief tvm intrinsic for storing the result of PTX MMA into a destination pointer.
  *        For example, if each thread in a warp of size 32 has 4 elements from the result of

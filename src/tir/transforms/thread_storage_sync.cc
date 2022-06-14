@@ -230,6 +230,26 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
   StorageScope sync_scope_;
 };
 
+class ThreadSyncAfterWaitStageInserter : public StmtExprMutator {
+ public:
+  ThreadSyncAfterWaitStageInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
+
+  Stmt VisitStmt_(const EvaluateNode* op) final {
+    if (op->value->IsInstance<CallNode>()) {
+      Call call = Downcast<Call>(op->value);
+      if (call->op.same_as(builtin::async_wait_stage())) {
+        auto sync = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
+                                  {StringImm(sync_scope_.to_string())}));
+        return SeqStmt({GetRef<Evaluate>(op), sync});
+      }
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
+ private:
+  StorageScope sync_scope_;
+};
+
 class ThreadSyncInserter : public StmtExprMutator {
  public:
   ThreadSyncInserter(StorageScope sync_scope, const std::unordered_set<const Object*>& syncs)
@@ -384,6 +404,9 @@ class ThreadSyncInserter : public StmtExprMutator {
 
 Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
   StorageScope sync_scope = StorageScope::Create(storage_scope);
+  if (sync_scope.rank == StorageRank::kShared && sync_scope.tag == "") {
+    stmt = ThreadSyncAfterWaitStageInserter(sync_scope)(stmt);
+  }
   ThreadSyncPlanner planner(sync_scope);
   planner(stmt);
   return ThreadSyncInserter(sync_scope, planner.syncs_inserted_)(std::move(stmt));

@@ -21,8 +21,10 @@
  * \file remove_no_op.cc
  * \brief Remove no op from the stmt
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
@@ -89,7 +91,20 @@ class NoOpRemover : public StmtMutator {
     op = stmt.as<ProducerRealizeNode>();
     return is_no_op(op->body) ? op->body : stmt;
   }
+
   Stmt VisitStmt_(const EvaluateNode* op) final {
+    if (op->value->IsInstance<CallNode>()) {
+      Call call = Downcast<Call>(op->value);
+      if (call->op.same_as(builtin::async_wait_stage())) {
+        // Turn wait_group with negative wait count to a nop.
+        auto wait_cnt = call->args[0];
+        arith::Analyzer ana;
+        if (ana.CanProve(wait_cnt < 0)) {
+          return Evaluate(0);
+        }
+      }
+    }
+
     if (SideEffect(op->value) > CallEffectKind::kReadState) return GetRef<Stmt>(op);
     return Evaluate(0);
   }
@@ -156,6 +171,7 @@ Pass RemoveNoOp() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = NoOpRemover()(std::move(n->body));
+    LOG(INFO) << f;
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.RemoveNoOp", {});
