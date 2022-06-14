@@ -34,22 +34,22 @@ namespace tvm {
 namespace contrib {
 
 using namespace runtime;
-inline char MKLDNNBooleanToTransposeChar(bool trans) { return trans ? 'T' : 'N'; }
+inline char DNNLBooleanToTransposeChar(bool trans) { return trans ? 'T' : 'N'; }
 
-struct MKLDNNSgemmOp {
+struct DNNLSgemmOp {
   typedef float TDatatype;
   void operator()(bool ta, bool tb, int M, int N, int K, float alpha, float* A, int lda, float* B,
                   int ldb, float beta, float* C, int ldc) {
-    dnnl_sgemm(MKLDNNBooleanToTransposeChar(tb), MKLDNNBooleanToTransposeChar(ta), N, M, K, alpha,
-               B, ldb, A, lda, beta, C, ldc);
+    dnnl_sgemm(DNNLBooleanToTransposeChar(tb), DNNLBooleanToTransposeChar(ta), N, M, K, alpha, B,
+               ldb, A, lda, beta, C, ldc);
   }
 };
 
 // matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.mkldnn.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tvm.contrib.dnnl.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
   DLTensor* A = args[0];
   ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
-  CallGemm(args, ret, MKLDNNSgemmOp());
+  CallGemm(args, ret, DNNLSgemmOp());
 });
 }  // namespace contrib
 }  // namespace tvm

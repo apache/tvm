@@ -21,7 +21,7 @@ import numpy as np
 import tvm.topi.testing
 from tvm.contrib import cblas
 from tvm.contrib import mkl
-from tvm.contrib import mkldnn
+from tvm.contrib import dnnl
 import tvm.testing
 
 
@@ -83,10 +83,10 @@ def test_matmul_add():
     verify_matmul_add(235, 128, 1024, mkl, True, False)
     verify_matmul_add(235, 128, 1024, mkl, False, True)
     verify_matmul_add(235, 128, 1024, mkl, True, True)
-    verify_matmul_add(235, 128, 1024, mkldnn)
-    verify_matmul_add(235, 128, 1024, mkldnn, True, False)
-    verify_matmul_add(235, 128, 1024, mkldnn, False, True)
-    verify_matmul_add(235, 128, 1024, mkldnn, True, True)
+    verify_matmul_add(235, 128, 1024, dnnl)
+    verify_matmul_add(235, 128, 1024, dnnl, True, False)
+    verify_matmul_add(235, 128, 1024, dnnl, False, True)
+    verify_matmul_add(235, 128, 1024, dnnl, True, True)
     verify_matmul_add(1, 16, 4, cblas)
     verify_matmul_add(1, 16, 3, cblas, True, False)
     verify_matmul_add(1, 16, 3, cblas, False, False)
@@ -95,10 +95,10 @@ def test_matmul_add():
     verify_matmul_add(1, 16, 3, mkl, True, False)
     verify_matmul_add(1, 16, 3, mkl, False, False)
     verify_matmul_add(1, 16, 3, mkl, True, True)
-    verify_matmul_add(1, 16, 4, mkldnn)
-    verify_matmul_add(1, 16, 3, mkldnn, True, False)
-    verify_matmul_add(1, 16, 3, mkldnn, False, False)
-    verify_matmul_add(1, 16, 3, mkldnn, True, True)
+    verify_matmul_add(1, 16, 4, dnnl)
+    verify_matmul_add(1, 16, 3, dnnl, True, False)
+    verify_matmul_add(1, 16, 3, dnnl, False, False)
+    verify_matmul_add(1, 16, 3, dnnl, True, True)
 
 
 def verify_quantized_matmul_add(m, l, n, transa=False, transb=False):

@@ -16,10 +16,7 @@
 # under the License.
 
 """CMSIS-NN integration tests: scalar_to_tensor_constant pass"""
-import sys
-
 import numpy as np
-import pytest
 import tvm
 import tvm.testing
 from tvm import relay
@@ -56,6 +53,8 @@ def make_binary_op(
 
 
 class CheckFunctionsForConstants(tvm.relay.ExprVisitor):
+    """Provides method to test number of scalar constants present in a function"""
+
     def __init__(self):
         super().__init__()
         self.num_constants_ = 0
@@ -66,7 +65,7 @@ class CheckFunctionsForConstants(tvm.relay.ExprVisitor):
             if isinstance(arg, relay.Constant) and arg.data.numpy().ndim > 0:
                 self.num_constants_ += 1
 
-    def check_num_constants(self, func):
+    def check_num_constants(self):
         assert self.num_constants_ == 0, "Functions should not have constant arguments in Calls"
 
 
@@ -84,44 +83,45 @@ def set_composite_func_attr(func, name):
 
 @tvm.testing.requires_cmsisnn
 def test_single_scalar_position_0():
+    """Tests conversion to tensor constant when first operand is a scalar"""
     dtype = "int8"
     shape = (8, 8)
-    x0 = generate_variable("x0", None, dtype)
-    x1 = generate_variable("x1", shape, dtype)
-    z1 = make_binary_op(
+    operand0 = generate_variable("operand0", None, dtype)
+    operand1 = generate_variable("operand1", shape, dtype)
+    binary_op = make_binary_op(
         relay.qnn.op.add,
-        x0,
-        x1,
+        operand0,
+        operand1,
         input_0_scale=0.0128,
         input_0_zero_point=32,
         input_1_scale=0.256,
         input_1_zero_point=-64,
     )
 
-    lf = relay.Function([x0, x1], z1, relay.TensorType(shape, dtype))
-    lf = set_composite_func_attr(lf, "cmsis-nn.qnn_add")
+    local_func = relay.Function([operand0, operand1], binary_op, relay.TensorType(shape, dtype))
+    local_func = set_composite_func_attr(local_func, "cmsis-nn.qnn_add")
 
-    y0 = relay.expr.const(3, dtype)
-    y1 = relay.var("y1", shape=shape, dtype=dtype)
-    c0 = relay.Call(lf, [y0, y1])
-    ef = relay.Function([y1], c0, relay.TensorType(shape, dtype))
+    arg0 = relay.expr.const(3, dtype)
+    arg1 = relay.var("arg1", shape=shape, dtype=dtype)
+    call_local_func = relay.Call(local_func, [arg0, arg1])
+    extern_func = relay.Function([arg1], call_local_func, relay.TensorType(shape, dtype))
 
     x = relay.var("x", shape=shape, dtype=dtype)
-    ev = relay.GlobalVar("external_function")
-    ef = set_external_func_attr(ef, "cmsis-nn", ev.name_hint)
-    c = relay.Call(ev, [x])
-    mf = relay.Function([x], c, relay.TensorType(shape, dtype))
-    mv = relay.GlobalVar("main")
+    global_var = relay.GlobalVar("external_function")
+    extern_func = set_external_func_attr(extern_func, "cmsis-nn", global_var.name_hint)
+    call_extern_func = relay.Call(global_var, [x])
+    main_func = relay.Function([x], call_extern_func, relay.TensorType(shape, dtype))
+    main_var = relay.GlobalVar("main")
 
     mod = tvm.IRModule()
-    mod[ev] = ef
-    mod[mv] = mf
+    mod[global_var] = extern_func
+    mod[main_var] = main_func
 
     mod = relay.transform.InferType()(mod)
     mod = ScalarToTensorConstants()(mod)
     mod = relay.transform.InferType()(mod)
     check_for_constants = CheckFunctionsForConstants()
-    check_for_constants.visit_call(mod[ev].body)
+    check_for_constants.visit_call(mod[global_var].body)
     assert (
         check_for_constants.num_constants_ == 1
     ), "Scalar constant wasn't converted into tensor constant"
@@ -129,44 +129,45 @@ def test_single_scalar_position_0():
 
 @tvm.testing.requires_cmsisnn
 def test_single_scalar_position_1():
+    """Tests conversion to tensor constant when second operand is a scalar"""
     dtype = "int8"
     shape = (8, 8)
-    x0 = generate_variable("x0", shape, dtype)
-    x1 = generate_variable("x1", None, dtype)
-    z1 = make_binary_op(
+    operand0 = generate_variable("operand0", shape, dtype)
+    operand1 = generate_variable("operand1", None, dtype)
+    binary_op = make_binary_op(
         relay.qnn.op.add,
-        x0,
-        x1,
+        operand0,
+        operand1,
         input_0_scale=0.0128,
         input_0_zero_point=32,
         input_1_scale=0.256,
         input_1_zero_point=-64,
     )
 
-    lf = relay.Function([x0, x1], z1, relay.TensorType(shape, dtype))
-    lf = set_composite_func_attr(lf, "cmsis-nn.qnn_add")
+    local_func = relay.Function([operand0, operand1], binary_op, relay.TensorType(shape, dtype))
+    local_func = set_composite_func_attr(local_func, "cmsis-nn.qnn_add")
 
-    y0 = relay.var("y0", shape=shape, dtype=dtype)
-    y1 = relay.expr.const(3, dtype)
-    c0 = relay.Call(lf, [y0, y1])
-    ef = relay.Function([y0], c0, relay.TensorType(shape, dtype))
+    arg0 = relay.var("arg0", shape=shape, dtype=dtype)
+    arg1 = relay.expr.const(3, dtype)
+    call_local_func = relay.Call(local_func, [arg0, arg1])
+    extern_func = relay.Function([arg0], call_local_func, relay.TensorType(shape, dtype))
 
     x = relay.var("x", shape=shape, dtype=dtype)
-    ev = relay.GlobalVar("external_function")
-    ef = set_external_func_attr(ef, "cmsis-nn", ev.name_hint)
-    c = relay.Call(ev, [x])
-    mf = relay.Function([x], c, relay.TensorType(shape, dtype))
-    mv = relay.GlobalVar("main")
+    global_var = relay.GlobalVar("external_function")
+    extern_func = set_external_func_attr(extern_func, "cmsis-nn", global_var.name_hint)
+    call_extern_func = relay.Call(global_var, [x])
+    main_func = relay.Function([x], call_extern_func, relay.TensorType(shape, dtype))
+    main_var = relay.GlobalVar("main")
 
     mod = tvm.IRModule()
-    mod[ev] = ef
-    mod[mv] = mf
+    mod[global_var] = extern_func
+    mod[main_var] = main_func
 
     mod = relay.transform.InferType()(mod)
     mod = ScalarToTensorConstants()(mod)
     mod = relay.transform.InferType()(mod)
     check_for_constants = CheckFunctionsForConstants()
-    check_for_constants.visit_call(mod[ev].body)
+    check_for_constants.visit_call(mod[global_var].body)
     assert (
         check_for_constants.num_constants_ == 1
     ), "Scalar constant wasn't converted into tensor constant"
@@ -174,83 +175,85 @@ def test_single_scalar_position_1():
 
 @tvm.testing.requires_cmsisnn
 def test_primary_operands_all_scalars():
+    """Tests conversion to tensor constants all operands are scalars"""
     dtype = "int8"
     shape = None
-    x0 = generate_variable("x0", None, dtype)
-    x1 = generate_variable("x1", None, dtype)
-    z1 = make_binary_op(
+    operand0 = generate_variable("operand0", None, dtype)
+    operand1 = generate_variable("operand1", None, dtype)
+    binary_op = make_binary_op(
         relay.qnn.op.add,
-        x0,
-        x1,
+        operand0,
+        operand1,
         input_0_scale=0.0128,
         input_0_zero_point=32,
         input_1_scale=0.256,
         input_1_zero_point=-64,
     )
 
-    lf = relay.Function([x0, x1], z1, relay.TensorType(shape, dtype))
-    lf = set_composite_func_attr(lf, "cmsis-nn.qnn_add")
+    local_func = relay.Function([operand0, operand1], binary_op, relay.TensorType(shape, dtype))
+    local_func = set_composite_func_attr(local_func, "cmsis-nn.qnn_add")
 
-    y0 = relay.expr.const(7, dtype)
-    y1 = relay.expr.const(3, dtype)
-    c0 = relay.Call(lf, [y0, y1])
-    ef = relay.Function([], c0, relay.TensorType(shape, dtype))
+    arg0 = relay.expr.const(7, dtype)
+    arg1 = relay.expr.const(3, dtype)
+    call_local_func = relay.Call(local_func, [arg0, arg1])
+    extern_func = relay.Function([], call_local_func, relay.TensorType(shape, dtype))
 
-    ev = relay.GlobalVar("external_function")
-    ef = set_external_func_attr(ef, "cmsis-nn", ev.name_hint)
-    c = relay.Call(ev, [])
-    mf = relay.Function([], c, relay.TensorType(shape, dtype))
-    mv = relay.GlobalVar("main")
+    global_var = relay.GlobalVar("external_function")
+    extern_func = set_external_func_attr(extern_func, "cmsis-nn", global_var.name_hint)
+    call_extern_func = relay.Call(global_var, [])
+    main_func = relay.Function([], call_extern_func, relay.TensorType(shape, dtype))
+    main_var = relay.GlobalVar("main")
 
     mod = tvm.IRModule()
-    mod[ev] = ef
-    mod[mv] = mf
+    mod[global_var] = extern_func
+    mod[main_var] = main_func
 
     mod = relay.transform.InferType()(mod)
     mod = ScalarToTensorConstants()(mod)
     new_mod = relay.transform.InferType()(mod)
-    assert tvm.ir.structural_equal(mod[ev].body, new_mod[ev].body)
+    assert tvm.ir.structural_equal(mod[global_var].body, new_mod[global_var].body)
 
 
 @tvm.testing.requires_cmsisnn
 def test_all_primary_operands_tensor_constants():
+    """Tests conversion to tensor constants all operands are tensors"""
     dtype = "int8"
     shape = (1, 3, 3, 32)
-    x0 = generate_variable("x0", shape, dtype)
-    x1 = generate_variable("x1", shape, dtype)
-    z1 = make_binary_op(
+    operand0 = generate_variable("operand0", shape, dtype)
+    operand1 = generate_variable("operand1", shape, dtype)
+    binary_op = make_binary_op(
         relay.qnn.op.add,
-        x0,
-        x1,
+        operand0,
+        operand1,
         input_0_scale=0.0128,
         input_0_zero_point=32,
         input_1_scale=0.256,
         input_1_zero_point=-64,
     )
 
-    lf = relay.Function([x0, x1], z1, relay.TensorType(shape, dtype))
-    lf = set_composite_func_attr(lf, "cmsis-nn.qnn_add")
+    local_func = relay.Function([operand0, operand1], binary_op, relay.TensorType(shape, dtype))
+    local_func = set_composite_func_attr(local_func, "cmsis-nn.qnn_add")
 
     rng = np.random.default_rng(12345)
-    y0 = relay.const(rng.integers(-128, high=127, size=shape, dtype=dtype))
-    y1 = relay.const(rng.integers(-128, high=127, size=shape, dtype=dtype))
-    c0 = relay.Call(lf, [y0, y1])
-    ef = relay.Function([], c0, relay.TensorType(shape, dtype))
+    arg0 = relay.const(rng.integers(-128, high=127, size=shape, dtype=dtype))
+    arg1 = relay.const(rng.integers(-128, high=127, size=shape, dtype=dtype))
+    call_local_func = relay.Call(local_func, [arg0, arg1])
+    extern_func = relay.Function([], call_local_func, relay.TensorType(shape, dtype))
 
-    ev = relay.GlobalVar("external_function")
-    ef = set_external_func_attr(ef, "cmsis-nn", ev.name_hint)
-    c = relay.Call(ev, [])
-    mf = relay.Function([], c, relay.TensorType(shape, dtype))
-    mv = relay.GlobalVar("main")
+    global_var = relay.GlobalVar("external_function")
+    extern_func = set_external_func_attr(extern_func, "cmsis-nn", global_var.name_hint)
+    call_extern_func = relay.Call(global_var, [])
+    main_func = relay.Function([], call_extern_func, relay.TensorType(shape, dtype))
+    main_var = relay.GlobalVar("main")
 
     mod = tvm.IRModule()
-    mod[ev] = ef
-    mod[mv] = mf
+    mod[global_var] = extern_func
+    mod[main_var] = main_func
 
     mod = relay.transform.InferType()(mod)
     mod = ScalarToTensorConstants()(mod)
     new_mod = relay.transform.InferType()(mod)
-    assert tvm.ir.structural_equal(mod[ev].body, new_mod[ev].body)
+    assert tvm.ir.structural_equal(mod[global_var].body, new_mod[global_var].body)
 
 
 @tvm.testing.requires_cmsisnn
@@ -258,26 +261,28 @@ def test_non_cmsisnn_ext_func():
     """Non CMSISNN functions should not be altered."""
 
     def get_mod():
-        x1 = relay.var("x1", shape=None)
-        x2 = relay.var("x2", shape=None)
-        z1 = x1 + x2
-        lf = relay.Function([x1, x2], z1, relay.TensorType((), "float32"))
-        lf = set_composite_func_attr(lf, "cmsis-nn.qnn_add")
+        operand1 = relay.var("operand1", shape=None)
+        operand2 = relay.var("operand2", shape=None)
+        binary_op = operand1 + operand2
+        local_func = relay.Function(
+            [operand1, operand2], binary_op, relay.TensorType((), "float32")
+        )
+        local_func = set_composite_func_attr(local_func, "cmsis-nn.qnn_add")
 
-        y0 = relay.expr.const(5, "float32")
-        y1 = relay.expr.const(3, "float32")
-        c0 = relay.Call(lf, [y0, y1])
-        ef = relay.Function([], c0, relay.TensorType((), "float32"))
+        arg0 = relay.expr.const(5, "float32")
+        arg1 = relay.expr.const(3, "float32")
+        call_local_func = relay.Call(local_func, [arg0, arg1])
+        extern_func = relay.Function([], call_local_func, relay.TensorType((), "float32"))
 
-        ev = relay.GlobalVar("external_function")
-        ef = set_external_func_attr(ef, "foo", ev.name_hint)
-        c = relay.Call(ev, [])
-        mf = relay.Function([], c, relay.TensorType((), "float32"))
-        mv = relay.GlobalVar("main")
+        global_var = relay.GlobalVar("external_function")
+        extern_func = set_external_func_attr(extern_func, "foo", global_var.name_hint)
+        call_extern_func = relay.Call(global_var, [])
+        main_func = relay.Function([], call_extern_func, relay.TensorType((), "float32"))
+        main_var = relay.GlobalVar("main")
 
         mod = tvm.IRModule()
-        mod[ev] = ef
-        mod[mv] = mf
+        mod[global_var] = extern_func
+        mod[main_var] = main_func
         mod = relay.transform.InferType()(mod)
         return mod
 

@@ -332,10 +332,11 @@ class ProfilerEngine:
         opath = os.path.join(self.binary_prefix, op["name"])
         if os.path.exists(opath):
             return
-        fi = tempfile.NamedTemporaryFile("w", delete=False, suffix=".cu")
+        fi = tempfile.NamedTemporaryFile("w", delete=False, prefix=self.binary_prefix, suffix=".cu")
         fi.write(op["src"])
         fi.close()
         cmd = self.cmd.format(cflags=self.cflags, src=fi.name, output=opath)
+        logger.info("invoking compilation %s", cmd)
         os.system(cmd)
         os.unlink(fi.name)
 
@@ -361,6 +362,7 @@ class ProfilerEngine:
         for arg in args:
             cmd.append(str(arg))
         try:
+            logger.info("invoking evaluation %s", cmd)
             sp = subprocess.run(cmd, capture_output=True, check=True)
             rt = float(sp.stdout)
             if rt == 0.0:

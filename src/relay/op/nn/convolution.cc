@@ -438,18 +438,8 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (param->kernel_size.defined() && param->channels.defined()) {
     ICHECK_EQ(param->kernel_size.size(), 3);
     ICHECK_EQ(param->dilation.size(), 3);
-    Array<IndexExpr> wshape;
-    tvm::tir::ExprDeepEqual expr_equal;
-
-    if (expr_equal(param->channels, param->groups) && !expr_equal(param->channels, 1)) {
-      // infer weight's shape for depthwise convolution
-      wshape = {{dshape_ncdhw[1], indexdiv(param->groups, dshape_ncdhw[1]), param->kernel_size[0],
-                 param->kernel_size[1], param->kernel_size[2]}};
-    } else {
-      wshape = {{param->channels, indexdiv(dshape_ncdhw[1], param->groups), param->kernel_size[0],
-                 param->kernel_size[1], param->kernel_size[2]}};
-    }
-
+    Array<IndexExpr> wshape({param->channels, indexdiv(dshape_ncdhw[1], param->groups),
+                             param->kernel_size[0], param->kernel_size[1], param->kernel_size[2]});
     wshape = trans_kernel_layout.BackwardShape(wshape);
     channels = param->channels;
     dilated_ksize_z = 1 + (param->kernel_size[0] - 1) * param->dilation[0];

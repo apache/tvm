@@ -252,9 +252,7 @@ def _create_context(mod, target, rule):
         sch_rules=[rule],
         task_name="test",
     )
-    ctx.space_generator.initialize_with_tune_context(ctx)
-    for sch_rule in ctx.sch_rules:
-        sch_rule.initialize_with_tune_context(ctx)
+    ctx.initialize()
     return ctx
 
 

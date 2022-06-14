@@ -2,11 +2,11 @@ def lint() {
   stage('Lint') {
     parallel(
       {% call m.sharded_lint_step(
-        name='Lint',
-        num_shards=2,
-        node='CPU-SMALL',
-        ws='tvm/lint',
-        docker_image='ci_lint',
+          name='Lint',
+          num_shards=2,
+          node='CPU-SMALL',
+          ws='tvm/lint',
+          docker_image='ci_lint',
         )
       %}
         sh (
