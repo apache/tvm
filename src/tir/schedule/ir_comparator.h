@@ -110,6 +110,48 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> equal_map_;
 };
 
+/*! \brief IR comparator for auto tensorization. Extract correspondence between the IR of the
+ *         workload and the tensor intrin.
+ */
+class AutoTensorizeExtractor : public TensorizeComparator {
+ public:
+  explicit AutoTensorizeExtractor(const IRModule& lhs_mod)
+      : TensorizeComparator(lhs_mod, /* assert_mode=*/false) {}
+
+ private:
+  bool VisitExprDefault_(const Object* op, const PrimExpr& other) override;
+  bool VisitStmtDefault_(const Object* op, const Stmt& other) override;
+
+  bool VisitStmt_(const BlockNode* op, const Stmt& other) override;
+  bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) override;
+
+  bool VisitExpr_(const BufferLoadNode* op, const PrimExpr& other) override;
+
+  template <typename T, typename F>
+  bool CompareArray(const Array<T>& lhs, const Array<T>& rhs, F cmp);
+  bool CompareBuffer(const Buffer& lhs, const Buffer& rhs) override;
+  template <typename T>
+  bool CompareBufferAccess(const T* lhs, const T* rhs);
+
+ public:
+  /*! \brief Block iters in the LHS stmt. */
+  std::vector<IterVar> lhs_iters_;
+  /*! \brief Block iters in the RHS stmt. */
+  std::vector<IterVar> rhs_iters_;
+  /*! \brief The buffer and its access indices in the LHS stmt. */
+  std::unordered_map<Buffer, Array<PrimExpr>, ObjectPtrHash, ObjectPtrEqual>
+      lhs_buffer_indices_map_;
+  /*! \brief The buffer and its access indices in the RHS stmt. */
+  std::unordered_map<Buffer, Array<PrimExpr>, ObjectPtrHash, ObjectPtrEqual>
+      rhs_buffer_indices_map_;
+  /*! \brief Map from LHS buffer to RHS buffer */
+  std::unordered_map<Buffer, Buffer, ObjectHash, ObjectEqual> lhs_buffer_map_;
+
+ private:
+  /*! \brief The domain of the inner block iters. */
+  Map<Var, arith::IntSet> inner_iter_dom_map_;
+};
+
 }  // namespace tir
 }  // namespace tvm
 

@@ -87,3 +87,14 @@ def get_tensorize_loop_mapping(
         TensorizeInfo structure if a valid mapping is found, None otherwise
     """
     return _ffi_api.GetTensorizeLoopMapping(sch, block, desc_func)  # type: ignore
+
+
+@tvm._ffi.register_object("tir.schedule.AutoTensorizeMappingInfo")
+class AutoTensorizeMappingInfo(Object):
+    """TODO"""
+
+
+def get_tensorize_layout_info(
+    sch: Schedule, block: BlockRV, desc_func: PrimFunc
+) -> Optional[AutoTensorizeMappingInfo]:
+    return _ffi_api.GetAutoTensorizeMappingInfo(sch, block, desc_func)  # type: ignore
