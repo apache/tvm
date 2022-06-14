@@ -488,7 +488,7 @@ class CodeEmitter(object):
         all_module_names = []
         for name in metadata["modules"].keys():
             all_module_names.append(name)
-        assert len(all_module_names) == 1, "Multiple modules is not supported."
+        assert len(metadata["modules"]) == 1, "Multiple modules is not supported."
 
         # Extract informations from the Model Library Format
         graph_file = os.path.join(

@@ -24,7 +24,6 @@ import pathlib
 import re
 import tarfile
 import typing
-from typing import Union
 
 import tvm
 from tvm.ir.type import TupleType
@@ -70,8 +69,9 @@ EPHEMERAL_MODULE_TYPE_KEYS = ("metadata_module",)
 
 
 def _populate_codegen_dir(
-    mods: Union[
-        typing.List[executor_factory.ExecutorFactoryModule], typing.List[tvm.runtime.Module]
+    mods: typing.Union[
+        typing.List[executor_factory.ExecutorFactoryModule],
+        typing.List[build_module.OperatorModule],
     ],
     codegen_dir: str,
 ):
@@ -92,8 +92,10 @@ def _populate_codegen_dir(
     for mod in mods:
         if isinstance(mod, executor_factory.ExecutorFactoryModule):
             lib = mod.lib
-        elif isinstance(mod, tvm.runtime.Module):
+        elif isinstance(mod, build_module.OperatorModule):
             lib = mod
+        else:
+            raise RuntimeError(f"Not supported module type: {type(mod)}")
 
         dso_modules = lib._collect_dso_modules()
         non_dso_modules = lib._collect_from_import_tree(lambda m: m not in dso_modules)
@@ -554,7 +556,7 @@ ExportableModule = typing.Union[
 
 
 def export_model_library_format(
-    mods: Union[ExportableModule, typing.List[ExportableModule]],
+    mods: typing.Union[ExportableModule, typing.List[ExportableModule]],
     file_name: typing.Union[str, pathlib.Path],
 ):
     """Export the build artifact in Model Library Format.
