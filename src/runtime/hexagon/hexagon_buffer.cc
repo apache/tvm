@@ -22,9 +22,7 @@
 
 #include "hexagon_common.h"
 
-#if defined(__hexagon__)
 #include "HAP_compute_res.h"
-#endif
 
 #include <algorithm>
 #include <string>
@@ -60,7 +58,6 @@ struct DDRAllocation : public Allocation {
 
 struct VTCMAllocation : public Allocation {
   VTCMAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
-#if defined(__hexagon__)
     compute_res_attr_t res_info;
     HEXAGON_SAFE_CALL(HAP_compute_res_attr_init(&res_info));
 
@@ -83,13 +80,10 @@ struct VTCMAllocation : public Allocation {
       LOG(ERROR) << "ERROR: Unable to acquire requeisted resource.";
       return;
     }
-#endif
   }
   ~VTCMAllocation() {
-#if defined(__hexagon__)
     HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
     data_ = nullptr;
-#endif
   }
   unsigned int context_id_{0};
 };
