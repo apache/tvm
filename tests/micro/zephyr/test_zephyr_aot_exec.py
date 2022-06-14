@@ -41,7 +41,8 @@ import test_utils
 def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
     config_main_stack_size = None
     if test_utils.qemu_boards(zephyr_board):
-        config_main_stack_size = 2048
+        # fyi: qemu_riscv64 seems to be the greediest stack user
+        config_main_stack_size = 4096
 
     project_options = {
         "project_type": "host_driven",

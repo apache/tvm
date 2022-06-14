@@ -149,7 +149,7 @@ static const TVMModule* registered_modules[TVM_CRT_MAX_REGISTERED_MODULES];
 /*! \brief Passed as `module_index` to EncodeFunctionHandle. */
 static const tvm_module_index_t kGlobalFuncModuleIndex = TVM_CRT_MAX_REGISTERED_MODULES;
 
-/*! \brief Special module handle for retur values from RPCTimeEvaluator. */
+/*! \brief Special module handle for return values from RPCTimeEvaluator. */
 static const tvm_module_index_t kTimeEvaluatorModuleIndex = 0x7fff;
 
 static int DecodeModuleHandle(TVMModuleHandle handle, tvm_module_index_t* out_module_index) {
