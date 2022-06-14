@@ -20,13 +20,12 @@
 
 #include <tvm/runtime/module.h>
 
-#include "hexagon_common.h"
-
-#include "HAP_compute_res.h"
-
 #include <algorithm>
 #include <string>
 #include <utility>
+
+#include "HAP_compute_res.h"
+#include "hexagon_common.h"
 
 namespace tvm {
 namespace runtime {

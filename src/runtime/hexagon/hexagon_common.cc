@@ -32,9 +32,8 @@
 #include <vector>
 
 #include "../library_module.h"
-#include "hexagon_buffer.h"
-
 #include "HAP_perf.h"
+#include "hexagon_buffer.h"
 
 namespace tvm {
 namespace runtime {
