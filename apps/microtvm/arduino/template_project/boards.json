@@ -63,7 +63,7 @@
         "board": "rpipico",
         "model": "rp2040",
         "vid_hex": "2e8a",
-        "pid_hex": "000a",
+        "pid_hex": "000a"
     },
     "teensy40": {
         "package": "teensy",
