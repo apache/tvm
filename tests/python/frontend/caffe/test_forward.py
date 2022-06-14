@@ -21,14 +21,9 @@ Caffe testcases
 This article is a test script to test Caffe operator with Relay.
 """
 import os
-
-os.environ["GLOG_minloglevel"] = "2"
-import sys
 import logging
-
-logging.basicConfig(level=logging.ERROR)
-
 import numpy as np
+
 from google.protobuf import text_format
 import caffe
 from caffe import layers as L, params as P
@@ -37,8 +32,12 @@ from caffe.proto import caffe_pb2 as pb
 import tvm
 import tvm.testing
 from tvm import relay
-from tvm.contrib import utils, graph_executor
+from tvm.contrib import graph_executor
 from tvm.contrib.download import download_testdata
+
+os.environ["GLOG_minloglevel"] = "2"
+
+logging.basicConfig(level=logging.ERROR)
 
 CURRENT_DIR = os.path.join(os.path.expanduser("~"), ".tvm_test_data", "caffe_test")
 
@@ -57,7 +56,8 @@ def _list_to_str(ll):
     """Convert list or tuple to str, separated by underline."""
     if isinstance(ll, (tuple, list)):
         tmp = [str(i) for i in ll]
-        return "_".join(tmp)
+        res = "_".join(tmp)
+    return res
 
 
 def _gen_filename_str(op_name, data_shape, *args, **kwargs):
@@ -221,11 +221,7 @@ def _run_tvm(data, proto_file, blob_file):
 
 
 def _compare_caffe_tvm(caffe_out, tvm_out, is_network=False):
-<<<<<<< HEAD
-    for i in range(len(caffe_out)):
-=======
     for i, _ in enumerate(caffe_out):
->>>>>>> 2b7ec741f... fix error
         if is_network:
             caffe_out[i] = caffe_out[i][:1]
         tvm.testing.assert_allclose(caffe_out[i], tvm_out[i], rtol=1e-5, atol=1e-5)
@@ -965,8 +961,9 @@ def _test_embed(data, **kwargs):
 
 
 def test_forward_Embed():
+    """Embed"""
     k = 20
-    data = [i for i in range(k)]
+    data = list(i for i in range(k))
     np.random.shuffle(data)
     # dimension is 1
     data = np.asarray(data)
