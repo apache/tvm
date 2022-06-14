@@ -224,6 +224,7 @@ get_meta_schedule_original_shape = _ffi.get_global_func(
 def wrap_compute_conv2d(
     topi_compute,
     need_data_layout=False,
+    need_kernel_layout=False,
     need_out_layout=False,
     has_groups=False,
     need_auto_scheduler_layout=False,
@@ -236,6 +237,7 @@ def wrap_compute_conv2d(
         strides = get_const_tuple(attrs.strides)
         dilation = get_const_tuple(attrs.dilation)
         data_layout = attrs.get_str("data_layout")
+        kernel_layout = attrs.get_str("kernel_layout")
         out_layout = attrs.get_str("out_layout")
         out_dtype = attrs.out_dtype
         out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
@@ -244,6 +246,8 @@ def wrap_compute_conv2d(
             args.append(attrs.groups)
         if need_data_layout:
             args.append(data_layout)
+        if need_kernel_layout:
+            args.append(kernel_layout)
         if need_out_layout:
             args.append(out_layout)
         args.append(out_dtype)

@@ -47,17 +47,17 @@ def conv1d(data, kernel, strides=1, padding="VALID", dilation=1, layout="NCW", o
     out_dtype : str
         The output data type. If None then output is same type as input.
     """
-    return conv(data, kernel, strides, padding, dilation, 1, layout, out_dtype)
+    return conv(data, kernel, strides, padding, dilation, 1, layout, "", out_dtype)
 
 
 def conv1d_nwc(data, kernel, strides=1, padding="VALID", dilation=1, out_dtype=None):
     """1D convolution in NWC layout. See :py:func:`conv` for details on parameters"""
-    return conv(data, kernel, strides, padding, dilation, 1, "NWC", out_dtype=out_dtype)
+    return conv(data, kernel, strides, padding, dilation, 1, "NWC", "", out_dtype=out_dtype)
 
 
 def conv1d_ncw(data, kernel, strides=1, padding="VALID", dilation=1, out_dtype=None):
     """1D convolution in NCW layout. See :py:func:`conv` for details on parameters"""
-    return conv(data, kernel, strides, padding, dilation, 1, "NCW", out_dtype=out_dtype)
+    return conv(data, kernel, strides, padding, dilation, 1, "NCW", "", out_dtype=out_dtype)
 
 
 def group_conv1d_nwc(
@@ -89,7 +89,7 @@ def group_conv1d_nwc(
     out_dtype : str
         The output data type. If None then output is same type as input.
     """
-    return conv(data, kernel, strides, padding, dilation, groups, "NWC", out_dtype=out_dtype)
+    return conv(data, kernel, strides, padding, dilation, groups, "NWC", "", out_dtype=out_dtype)
 
 
 def group_conv1d_ncw(
@@ -121,4 +121,4 @@ def group_conv1d_ncw(
     out_dtype : str
         The output data type. If None then output is same type as input.
     """
-    return conv(data, kernel, strides, padding, dilation, groups, "NCW", out_dtype=out_dtype)
+    return conv(data, kernel, strides, padding, dilation, groups, "NCW", "", out_dtype=out_dtype)
