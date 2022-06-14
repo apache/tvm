@@ -76,6 +76,7 @@ def test_error_c_interface_with_packed_api():
 
 @parametrize_aot_options
 def test_conv_with_params(interface_api, use_unpacked_api, test_runner):
+    """Tests compilation of convolution with parameters"""
     mod = get_conv2d_relay_module()
     main_func = mod["main"]
     shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}

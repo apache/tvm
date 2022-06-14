@@ -71,7 +71,7 @@ EPHEMERAL_MODULE_TYPE_KEYS = ("metadata_module",)
 def _populate_codegen_dir(
     mods: typing.Union[
         typing.List[executor_factory.ExecutorFactoryModule],
-        typing.List[build_module.OperatorModule],
+        typing.List[tvm.runtime.Module],
     ],
     codegen_dir: str,
 ):
@@ -92,7 +92,7 @@ def _populate_codegen_dir(
     for mod in mods:
         if isinstance(mod, executor_factory.ExecutorFactoryModule):
             lib = mod.lib
-        elif isinstance(mod, build_module.OperatorModule):
+        elif isinstance(mod, tvm.runtime.Module):
             lib = mod
         else:
             raise RuntimeError(f"Not supported module type: {type(mod)}")
