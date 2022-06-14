@@ -18,12 +18,11 @@ import numpy as np
 import tvm
 import tvm.testing
 import tvm.topi.testing
-
-from tvm.script import tir as T
-from tvm import tir, te, relay, topi, autotvm
-from tvm.relay.testing.temp_op_attr import TempOpAttr
+from tvm import autotvm, relay, te, tir
 from tvm.meta_schedule import ApplyHistoryBest
-from tvm.meta_schedule.testing import apply_fixed_schedules
+from tvm.meta_schedule.testing.utils import apply_fixed_schedules
+from tvm.relay.testing.temp_op_attr import TempOpAttr
+from tvm.script import tir as T
 
 
 def compute_tir_conv2d_nchw_oihw(data_shape, weight_shape, dtype):
