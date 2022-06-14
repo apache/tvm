@@ -18,6 +18,7 @@
 import argparse
 import textwrap
 import junitparser
+import traceback
 from pathlib import Path
 from typing import List, Optional
 import os
@@ -51,6 +52,10 @@ def failed_test_ids() -> List[str]:
         for suite in xml:
             # handle suites
             for case in suite:
+                if case.result is None:
+                    logging.warn(f"Incorrectly formatted JUnit found, result was None on {case}")
+                    continue
+
                 if len(case.result) > 0 and isinstance(case.result[0], FAILURE_TYPES):
                     node_id = classname_to_file(case.classname) + "::" + case.name
                     failed_node_ids.append(node_id)
@@ -112,7 +117,7 @@ def show_failure_help(failed_suites: List[str]) -> None:
         "If there is no test listed below, the failure likely came from a segmentation "
         "fault which you can find in the logs above.\n"
     )
-    if len(failed_suites) > 0:
+    if failed_suites is not None and len(failed_suites) > 0:
         print("\n".join([f"    - {suite}" for suite in failed_suites]))
         print("")
 
@@ -131,4 +136,4 @@ if __name__ == "__main__":
     except Exception as e:
         # This script shouldn't ever introduce failures since it's just there to
         # add extra information, so ignore any errors
-        logging.error(str(e))
+        logging.exception(e)

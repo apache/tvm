@@ -17,18 +17,17 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm
 from tvm import te
+from tvm.meta_schedule import schedule_rule
 from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
 from tvm.meta_schedule.testing import te_workload
-from tvm.meta_schedule.testing.schedule_rule import (
-    multi_level_tiling,
-)
+from tvm.meta_schedule.testing.schedule_rule import multi_level_tiling
 from tvm.meta_schedule.testing.space_generation import check_trace
 from tvm.meta_schedule.tune_context import TuneContext
-from tvm.meta_schedule import schedule_rule
 from tvm.script import tir as T
-from tvm.te import create_prim_func
 from tvm.target import Target
-from tvm.tir.tensor_intrin import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN, DP4A_INTRIN
+from tvm.te import create_prim_func
+from tvm.tir.tensor_intrin import DP4A_INTRIN
+from tvm.tir.tensor_intrin import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 
 def _create_context(mod, target, rule) -> TuneContext:
@@ -39,9 +38,7 @@ def _create_context(mod, target, rule) -> TuneContext:
         sch_rules=[rule],
         task_name="test",
     )
-    ctx.space_generator.initialize_with_tune_context(ctx)
-    for sch_rule in ctx.sch_rules:
-        sch_rule.initialize_with_tune_context(ctx)
+    ctx.initialize()
     return ctx
 
 

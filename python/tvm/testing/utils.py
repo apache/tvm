@@ -926,6 +926,9 @@ requires_vulkan = Feature(
 # Mark a test as requiring microTVM to run
 requires_micro = Feature("micro", "MicroTVM", cmake_flag="USE_MICRO")
 
+# Mark a test as requiring CUTLASS to run
+requires_cutlass = Feature("cutlass", "CUTLASS", cmake_flag="USE_CUTLASS")
+
 # Mark a test as requiring rpc to run
 requires_rpc = Feature("rpc", "RPC", cmake_flag="USE_RPC")
 
@@ -1597,6 +1600,13 @@ def identity_after(x, sleep):
 def terminate_self():
     """Testing function to terminate the process."""
     sys.exit(-1)
+
+
+def is_ampere_or_newer():
+    """Check if the target environment has an NVIDIA Ampere GPU or newer."""
+    arch = tvm.contrib.nvcc.get_target_compute_version()
+    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
+    return major >= 8
 
 
 def main():

@@ -27,6 +27,7 @@ void PyMeasureCallbackNode::Apply(const TaskScheduler& task_scheduler,          
                                   const Array<BuilderResult>& builds,                 //
                                   const Array<RunnerResult>& results) {
   ICHECK(f_apply != nullptr) << "PyMeasureCallback's Apply method not implemented!";
+  auto _ = Profiler::TimedScope(this->f_as_string());
   return f_apply(task_scheduler, task_id, measure_candidates, builds, results);
 }
 

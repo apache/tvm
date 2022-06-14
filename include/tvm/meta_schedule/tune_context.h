@@ -42,6 +42,7 @@ namespace tvm {
 namespace meta_schedule {
 
 class TaskSchedulerNode;
+class MeasureCallback;
 
 /*! \brief The auto tuning context. */
 class TuneContextNode : public runtime::Object {
@@ -70,7 +71,7 @@ class TuneContextNode : public runtime::Object {
   int num_threads;
 
   /*! \brief Whether the tuning task has been stopped or finished. */
-  bool is_terminated;
+  bool is_terminated;  // TODO(@junrushao1994): move to TaskScheduler
   /*! \brief The measure candidates. */
   Optional<Array<MeasureCandidate>> measure_candidates;
   /*! \brief The building results. */
@@ -87,18 +88,36 @@ class TuneContextNode : public runtime::Object {
     v->Visit("postprocs", &postprocs);
     v->Visit("mutator_probs", &mutator_probs);
     v->Visit("task_name", &task_name);
+    // `logging_func` is not visited
     v->Visit("rand_state", &rand_state);
     v->Visit("num_threads", &num_threads);
     v->Visit("is_terminated", &is_terminated);
+    v->Visit("measure_candidates", &measure_candidates);
     v->Visit("builder_results", &builder_results);
     v->Visit("runner_futures", &runner_futures);
-    v->Visit("measure_candidates", &measure_candidates);
-    // `logging_func` is not visited
   }
 
   /*! \brief Initialize members that needs initialization with tune context. */
   void Initialize();
-
+  /*! \brief Set the measure candidates from the SearchStrategy */
+  void _SetMeasureCandidates(const Array<MeasureCandidate>& candidates);
+  /*!
+   * \brief Send the measure candidates to builder.
+   * \param builder The builder to send the candidates to.
+   */
+  void _SendToBuilder(const Builder& builder);
+  /*!
+   * \brief Send the built measure candidates to runner.
+   * \param runner The runner to send the candidates to.
+   */
+  void _SendToRunner(const Runner& runner);
+  /*!
+   * \brief Join the running tasks.
+   * \returns The results from the runner
+   */
+  Array<RunnerResult> _Join();
+  /*! \brief Set `measure_candidates`, `builder_results` and `runner_futures` to null. */
+  void _ClearMeasureState();
   static constexpr const char* _type_key = "meta_schedule.TuneContext";
   TVM_DECLARE_FINAL_OBJECT_INFO(TuneContextNode, Object);
 };

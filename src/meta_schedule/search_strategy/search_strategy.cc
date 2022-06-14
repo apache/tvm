@@ -52,12 +52,11 @@ Optional<Array<MeasureCandidate>> PySearchStrategyNode::GenerateMeasureCandidate
   return f_generate_measure_candidates();
 }
 
-void PySearchStrategyNode::NotifyRunnerResults(const TuneContext& context,
-                                               const Array<MeasureCandidate>& measure_candidates,
+void PySearchStrategyNode::NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                                                const Array<RunnerResult>& results) {
   ICHECK(f_notify_runner_results != nullptr)
       << "PySearchStrategy's NotifyRunnerResults method not implemented!";
-  f_notify_runner_results(context, measure_candidates, results);
+  f_notify_runner_results(measure_candidates, results);
 }
 
 SearchStrategy SearchStrategy::PySearchStrategy(
