@@ -281,8 +281,7 @@ class DataTypeRewriter : public StmtExprMutator {
           PrimExpr extend = dom->extent;
           if (extend.dtype().is_int() && var.dtype().is_int() &&
               var.dtype().bits() != extend.dtype().bits()) {
-            int bits = std::max(extend.dtype().bits(), var.dtype().bits());
-            DataType dtype = var.dtype().with_bits(bits);
+            DataType dtype = var.dtype();
             dom = Range(cast(dtype, dom->min), cast(dtype, extend), dom->span);
           }
         }

@@ -453,6 +453,24 @@ void ConcreteScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
   this->state_->DebugVerify();
 }
 
+LoopRV ConcreteScheduleNode::AddUnitLoop(const BlockRV& block_rv) {
+  LoopRV result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = CreateRV<LoopRV>(tir::AddUnitLoop(state_, GetSRef(block_rv)));
+  TVM_TIR_SCHEDULE_END("add-unit-loop", this->error_render_level_);
+  this->state_->DebugVerify();
+  return result;
+}
+
+LoopRV ConcreteScheduleNode::AddUnitLoop(const LoopRV& loop_rv) {
+  LoopRV result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = CreateRV<LoopRV>(tir::AddUnitLoop(state_, GetSRef(loop_rv)));
+  TVM_TIR_SCHEDULE_END("add-unit-loop", this->error_render_level_);
+  this->state_->DebugVerify();
+  return result;
+}
+
 /******** Schedule: Manipulate ForKind ********/
 
 void ConcreteScheduleNode::Parallel(const LoopRV& loop_rv) {
@@ -507,6 +525,16 @@ BlockRV ConcreteScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buff
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::CacheWrite(state_, this->GetSRef(block_rv), write_buffer_index, storage_scope);
   TVM_TIR_SCHEDULE_END("cache-write", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<BlockRV>(result);
+}
+
+BlockRV ConcreteScheduleNode::ReIndex(const BlockRV& block_rv, int buffer_index,
+                                      BufferIndexType buffer_index_type) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::ReIndex(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type);
+  TVM_TIR_SCHEDULE_END("reindex", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<BlockRV>(result);
 }

@@ -24,7 +24,7 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-#if defined(__hexagon__) && __HEXAGON_ARCH__ >= 68
+#if __HEXAGON_ARCH__ >= 68
 
 inline unsigned int dmpause() {
   unsigned int dm0 = 0;

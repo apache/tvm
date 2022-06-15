@@ -62,9 +62,14 @@ def matmul(N, L, M, dtype):
 
     # schedule according to config
     yo, yi = cfg["tile_y"].apply(s, C, y)
-    xo, xi = cfg["tile_x"].apply(s, C, x)
-
-    s[C].reorder(yo, xo, k, yi, xi)
+    # Make sure configurations have a varied number of itervars. Splitting adds
+    # new itervars, so conditionally splitting with cause the number of
+    # itervars to depend on the tile size.
+    if cfg["tile_x"].size[-1] > 1:
+        xo, xi = cfg["tile_x"].apply(s, C, x)
+        s[C].reorder(yo, xo, k, yi, xi)
+    else:
+        s[C].reorder(yo, k, yi, x)
 
     return s, [A, B, C]
 

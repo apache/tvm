@@ -55,7 +55,7 @@ using Context = std::vector<std::pair<Var, MaybeValue>>;
 class CommonSubexpressionEliminator : public StmtExprMutator {
  public:
   // Toplevel (static) function
-  static Stmt PerformCSE(const Stmt& stmt, const Context& context_init);
+  static Stmt PerformCSE(const Stmt& stmt, const Context& context_init, bool identify_equiv_terms);
 
   PrimExpr VisitExpr(const PrimExpr& expr) override;
   Stmt VisitStmt(const Stmt& stmt) override;
@@ -64,7 +64,8 @@ class CommonSubexpressionEliminator : public StmtExprMutator {
 
  protected:
   // Constructor
-  CommonSubexpressionEliminator(const Stmt& stmt, const Context& context_init);
+  CommonSubexpressionEliminator(const Stmt& stmt, const Context& context_init,
+                                bool identify_equiv_terms);
 
   PrimExpr VisitExpr_(const LetNode* op) override;
 
@@ -77,9 +78,12 @@ class CommonSubexpressionEliminator : public StmtExprMutator {
   int num_last_try_ = 0;  // Number of the last variable tried
   int nb_var_ = 0;        // Number of variables introduced by the CSE pass
 
+  bool identify_equiv_terms_ = false;
+
   static bool ForbiddenComputation(const PrimExpr& expr);
   static bool IsEligibleComputation(const PrimExpr& expr);
   static bool CanContainEligibleComputations(const PrimExpr& expr);
+  static bool OrderOnExprAndFrequency(std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b);
   Var GenerateNewVar(DataType type_annotation);
 };
 

@@ -112,6 +112,10 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
       Entry entry(coeff.Eval()->value, base.Eval()->value);
       return UpdateByIntersect(var.Eval(), entry);
     }
+    if ((var == base).Match(constraint) || (base == var).Match(constraint)) {
+      Entry entry(1, base.Eval()->value);
+      return UpdateByIntersect(var.Eval(), entry);
+    }
     return nullptr;
   }
 

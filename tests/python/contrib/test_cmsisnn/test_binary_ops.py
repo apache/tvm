@@ -18,28 +18,25 @@
 """CMSIS-NN integration tests: binary ops"""
 
 import itertools
-import sys
 
 import numpy as np
-from enum import Enum
 import pytest
 
 import tvm
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
+from tvm.testing.aot import generate_ref_data, AOTTestModel, compile_and_run
+from tvm.micro.testing.aot_test_utils import (
+    AOT_USMP_CORSTONE300_RUNNER,
+)
 
-from utils import (
+from .utils import (
     skip_if_no_reference_system,
     make_module,
     make_qnn_relu,
     get_range_for_dtype_str,
     assert_partitioned_function,
     assert_no_external_function,
-)
-from tvm.testing.aot import generate_ref_data, AOTTestModel, compile_and_run
-from tvm.micro.testing.aot_test_utils import (
-    AOT_CORSTONE300_RUNNER,
-    AOT_USMP_CORSTONE300_RUNNER,
 )
 
 
@@ -104,6 +101,7 @@ def make_model(
 def test_op_int8(
     op, relu_type, input_0_scale, input_0_zero_point, input_1_scale, input_1_zero_point
 ):
+    """Tests QNN Conv2D operator for CMSIS-NN"""
     interface_api = "c"
     use_unpacked_api = True
     test_runner = AOT_USMP_CORSTONE300_RUNNER
@@ -147,8 +145,10 @@ def test_op_int8(
     )
 
 
-# At least one of the inputs is a constant, both can't be variables, both can't be scalars
 def parameterize_for_constant_inputs(test):
+    """Generates parameters in such a way so that at least one of the inputs is a constant,
+    both can't be variables, both can't be scalars.
+    """
     op = [relay.qnn.op.mul, relay.qnn.op.add]
     input_0 = [generate_variable("input_0"), generate_tensor_constant(), generate_scalar_constant()]
     input_1 = [generate_variable("input_1"), generate_tensor_constant(), generate_scalar_constant()]
@@ -178,6 +178,7 @@ def parameterize_for_constant_inputs(test):
 @tvm.testing.requires_cmsisnn
 @parameterize_for_constant_inputs
 def test_constant_input_int8(op, input_0, input_1):
+    """Tests binary ops where one of the operands is a constant"""
     interface_api = "c"
     use_unpacked_api = True
     test_runner = AOT_USMP_CORSTONE300_RUNNER
@@ -231,9 +232,9 @@ def test_constant_input_int8(op, input_0, input_1):
 def test_both_scalar_inputs_int8(
     op,
 ):
+    """Tests binary ops where both operands are scalars"""
     input_scale = 0.256
     input_zero_point = 33
-    dtype = "int8"
     model = make_model(
         op,
         generate_scalar_constant(),
@@ -257,6 +258,7 @@ def test_invalid_parameters(
     op,
     input_dtype,
 ):
+    """Tests binary ops for non int8 dtypes"""
     input_scale = 0.256
     input_zero_point = 33
     model = make_model(

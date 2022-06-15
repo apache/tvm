@@ -16,17 +16,14 @@
 # under the License.
 
 """CMSIS-NN integration tests: Tests invalid graphs"""
-import itertools
 import numpy as np
-import pytest
 import tvm
-from tvm import relay
 
 from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
 from tvm.micro.testing.aot_test_utils import (
     AOT_USMP_CORSTONE300_RUNNER,
 )
-from utils import (
+from .utils import (
     skip_if_no_reference_system,
     get_range_for_dtype_str,
 )
@@ -35,13 +32,14 @@ from utils import (
 @skip_if_no_reference_system
 @tvm.testing.requires_cmsisnn
 def test_empty_function():
-    ORIGINAL_MODEL = """
+    """Test partitioned function without composite function"""
+    original_model = """
 #[version = "0.0.5"]
 def @main(%data : Tensor[(16, 29), int8]) -> Tensor[(16, 29), int8] {
     add(%data, %data)
 }
 """
-    CMSISNN_MODEL = """
+    cmsisnn_model = """
 #[version = "0.0.5"]
 def @tvmgen_default_cmsis_nn_main_1(%i1: Tensor[(16, 29), int8], Inline=1, Compiler="cmsis-nn", global_symbol="tvmgen_default_cmsis_nn_main_1", Primitive=1) -> Tensor[(16, 29), int8] {
   add(%i1, %i1)
@@ -51,8 +49,8 @@ def @main(%data : Tensor[(16, 29), int8]) -> Tensor[(16, 29), int8] {
   %1
 }
 """
-    orig_mod = tvm.parser.fromtext(ORIGINAL_MODEL)
-    cmsisnn_mod = tvm.parser.fromtext(CMSISNN_MODEL)
+    orig_mod = tvm.parser.fromtext(original_model)
+    cmsisnn_mod = tvm.parser.fromtext(cmsisnn_model)
     params = {}
 
     # validate the output

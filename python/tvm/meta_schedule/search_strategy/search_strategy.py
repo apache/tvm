@@ -18,7 +18,7 @@
 Meta Schedule search strategy that generates the measure
 candidates for measurement.
 """
-from typing import Callable, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, List, Optional
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
@@ -29,6 +29,8 @@ from ..arg_info import ArgInfo
 from ..runner import RunnerResult
 
 if TYPE_CHECKING:
+    from ..cost_model import CostModel
+    from ..database import Database
     from ..tune_context import TuneContext
 
 
@@ -75,7 +77,7 @@ class SearchStrategy(Object):
     before usage and post-tuned after usage.
     """
 
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the search strategy with tuning context.
 
         Parameters
@@ -87,15 +89,29 @@ class SearchStrategy(Object):
             self, context
         )
 
-    def pre_tuning(self, design_spaces: List[Schedule]) -> None:
+    def pre_tuning(
+        self,
+        design_spaces: List[Schedule],
+        database: Optional["Database"] = None,
+        cost_model: Optional["CostModel"] = None,
+    ) -> None:
         """Pre-tuning for the search strategy.
 
         Parameters
         ----------
         design_spaces : List[Schedule]
-            The design spaces for pre-tuning.
+            The design spaces used during tuning process.
+        database : Optional[Database] = None
+            The database used during tuning process.
+        cost_model : Optional[CostModel] = None
+            The cost model used during tuning process.
         """
-        _ffi_api.SearchStrategyPreTuning(self, design_spaces)  # type: ignore # pylint: disable=no-member
+        _ffi_api.SearchStrategyPreTuning(  # type: ignore # pylint: disable=no-member
+            self,
+            design_spaces,
+            database,
+            cost_model,
+        )
 
     def post_tuning(self) -> None:
         """Post-tuning for the search strategy."""
@@ -113,7 +129,6 @@ class SearchStrategy(Object):
 
     def notify_runner_results(
         self,
-        context: "TuneContext",
         measure_candidates: List[MeasureCandidate],
         results: List[RunnerResult],
     ) -> None:
@@ -121,8 +136,6 @@ class SearchStrategy(Object):
 
         Parameters
         ----------
-        context : TuneContext
-            The tuning context for update.
         measure_candidates : List[MeasureCandidate]
             The measure candidates for update.
         results : List[RunnerResult]
@@ -130,7 +143,6 @@ class SearchStrategy(Object):
         """
         _ffi_api.SearchStrategyNotifyRunnerResults(  # type: ignore # pylint: disable=no-member
             self,
-            context,
             measure_candidates,
             results,
         )
@@ -176,7 +188,7 @@ class PySearchStrategy:
     _tvm_metadata = {
         "cls": _PySearchStrategy,
         "methods": [
-            "initialize_with_tune_context",
+            "_initialize_with_tune_context",
             "pre_tuning",
             "post_tuning",
             "generate_measure_candidates",
@@ -184,7 +196,7 @@ class PySearchStrategy:
         ],
     }
 
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the search strategy with tuning context.
 
         Parameters
@@ -220,7 +232,6 @@ class PySearchStrategy:
 
     def notify_runner_results(
         self,
-        context: "TuneContext",
         measure_candidates: List[MeasureCandidate],
         results: List[RunnerResult],
     ) -> None:
@@ -228,8 +239,6 @@ class PySearchStrategy:
 
         Parameters
         ----------
-        context : TuneContext
-            The tuning context for update.
         measure_candidates : List[MeasureCandidate]
             The measure candidates for update.
         results : List[RunnerResult]

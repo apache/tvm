@@ -1012,6 +1012,7 @@ Both `tensor_a` and `tensor_b` can be transposed. For legacy reason, we use NT f
 - **out**: `(b, m, n)`.
 
 )code" TVM_ADD_FILELINE)
+    .set_attrs_type<BatchMatmulAttrs>()
     .set_num_inputs(2)
     .add_argument("tensor_a", "3D Tensor", "The first input.")
     .add_argument("tensor_b", "3D Tensor", "The second input.")

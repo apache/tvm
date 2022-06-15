@@ -155,7 +155,7 @@ def _check_correct(schedule: Schedule):
 
 @derived_object
 class WowSoFancyScheduleRule(PyScheduleRule):
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
 
     def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
@@ -172,7 +172,7 @@ class WowSoFancyScheduleRule(PyScheduleRule):
 
 @derived_object
 class DoubleScheduleRule(PyScheduleRule):
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
 
     def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
@@ -197,7 +197,7 @@ class DoubleScheduleRule(PyScheduleRule):
 
 @derived_object
 class ReorderScheduleRule(PyScheduleRule):
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
 
     def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
@@ -220,10 +220,11 @@ def test_meta_schedule_post_order_apply():
         mod=mod,
         target=Target("llvm"),
         task_name="Test Task",
+        space_generator=PostOrderApply(),
         sch_rules=[WowSoFancyScheduleRule()],
     )
-    post_order_apply = PostOrderApply()
-    post_order_apply.initialize_with_tune_context(context)
+    context.initialize()
+    post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
     assert len(schs) == 1
     assert not tvm.ir.structural_equal(schs[0].mod, mod)
@@ -236,10 +237,11 @@ def test_meta_schedule_post_order_apply_double():
         mod=mod,
         target=Target("llvm"),
         task_name="Double Rules Task",
+        space_generator=PostOrderApply(),
         sch_rules=[DoubleScheduleRule()],
     )
-    post_order_apply = PostOrderApply()
-    post_order_apply.initialize_with_tune_context(context)
+    context.initialize()
+    post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
     assert len(schs) == 2
     for sch in schs:
@@ -253,10 +255,11 @@ def test_meta_schedule_post_order_apply_multiple():
         mod=mod,
         target=Target("llvm"),
         task_name="Double Rules Task",
+        space_generator=PostOrderApply(),
         sch_rules=[DoubleScheduleRule(), ReorderScheduleRule()],
     )
-    post_order_apply = PostOrderApply()
-    post_order_apply.initialize_with_tune_context(context)
+    context.initialize()
+    post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
     assert len(schs) == 4
     for sch in schs:
@@ -270,10 +273,11 @@ def test_meta_schedule_post_order_apply_duplicate_matmul():
         mod=mod,
         target=Target("llvm"),
         task_name="Duplicate Matmul Task",
+        space_generator=PostOrderApply(),
         sch_rules=[WowSoFancyScheduleRule()],
     )
-    post_order_apply = PostOrderApply()
-    post_order_apply.initialize_with_tune_context(context)
+    context.initialize()
+    post_order_apply = context.space_generator
     with pytest.raises(
         TVMError,
         match=r".*TVMError: Check failed: \(block_names_.count\(block->name_hint\) == 0\)"
@@ -285,7 +289,7 @@ def test_meta_schedule_post_order_apply_duplicate_matmul():
 def test_meta_schedule_post_order_apply_remove_block():
     @derived_object
     class TrinityDouble(PyScheduleRule):
-        def initialize_with_tune_context(self, context: "TuneContext") -> None:
+        def _initialize_with_tune_context(self, context: "TuneContext") -> None:
             pass
 
         def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
@@ -307,7 +311,7 @@ def test_meta_schedule_post_order_apply_remove_block():
 
     @derived_object
     class RemoveBlock(PyScheduleRule):
-        def initialize_with_tune_context(self, context: "TuneContext") -> None:
+        def _initialize_with_tune_context(self, context: "TuneContext") -> None:
             pass
 
         def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
@@ -341,10 +345,11 @@ def test_meta_schedule_post_order_apply_remove_block():
         mod=mod,
         target=Target("llvm"),
         task_name="Remove Block Task",
+        space_generator=PostOrderApply(),
         sch_rules=[RemoveBlock(), TrinityDouble()],
     )
-    post_order_apply = PostOrderApply()
-    post_order_apply.initialize_with_tune_context(context)
+    context.initialize()
+    post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
     assert len(schs) == 4
     for sch in schs:
@@ -368,13 +373,12 @@ def test_meta_schedule_custom_search_space():
         mod=mod,
         target=Target("llvm"),
         task_name="Custom Search Space Task",
+        space_generator=PostOrderApply(),
         sch_rules=[],
     )
-    post_order_apply = PostOrderApply()
-    post_order_apply.initialize_with_tune_context(context)
-
+    context.initialize()
+    post_order_apply = context.space_generator
     post_order_apply.generate_design_space(mod)
-
     called = False
 
     def custom_search_space_func(sch: Schedule, _: BlockRV) -> List[Schedule]:
@@ -383,7 +387,6 @@ def test_meta_schedule_custom_search_space():
         return [sch]
 
     register_func("tvm.meta_schedule.test.custom_search_space", custom_search_space_func)
-
     post_order_apply.generate_design_space(mod)
     assert called
 

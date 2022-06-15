@@ -23,22 +23,39 @@ import warnings
 import logging
 import traceback
 import re
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 from pathlib import Path
 
-from git_utils import git, GitHubRepo, parse_remote
+from git_utils import git, GitHubRepo, parse_remote, post
 from cmd_utils import init_log
 
 
 Review = Dict[str, Any]
 CIJob = Dict[str, Any]
+Comment = Dict[str, Any]
+CommentChecker = Callable[[Comment], bool]
 
 EXPECTED_JOBS = ["tvm-ci/pr-head"]
+TVM_BOT_JENKINS_TOKEN = os.environ["TVM_BOT_JENKINS_TOKEN"]
+JENKINS_URL = "https://ci.tlcpack.ai/"
 THANKS_MESSAGE = r"(\s*)Thanks for contributing to TVM!   Please refer to guideline https://tvm.apache.org/docs/contribute/ for useful information and tips. After the pull request is submitted, please request code reviews from \[Reviewers\]\(https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers\) by  them in the pull request thread.(\s*)"
 
 
 def to_json_str(obj: Any) -> str:
     return json.dumps(obj, indent=2)
+
+
+COLLABORATORS_QUERY = """
+query ($owner: String!, $name: String!, $user: String!) {
+  repository(owner: $owner, name: $name) {
+    collaborators(query: $user, first: 1) {
+      nodes {
+        login
+      }
+    }
+  }
+}
+"""
 
 
 PR_QUERY = """
@@ -60,6 +77,7 @@ PR_QUERY = """
               author {
                 login
               }
+              id
               updatedAt
               body
             }
@@ -119,6 +137,7 @@ PR_QUERY = """
               body
               updatedAt
               url
+              id
               authorCanPushToRepository
               commit {
                 oid
@@ -201,6 +220,17 @@ class PR:
 
     def __repr__(self):
         return json.dumps(self.raw, indent=2)
+
+    def plus_one(self, comment: Dict[str, Any]):
+        """
+        React with a thumbs up to a comment
+        """
+        url = f"issues/comments/{comment['id']}/reactions"
+        data = {"content": "+1"}
+        if self.dry_run:
+            logging.info(f"Dry run, would have +1'ed to {url} with {data}")
+        else:
+            self.github.post(url, data=data)
 
     def head_commit(self):
         return self.raw["commits"]["nodes"][0]["commit"]
@@ -292,6 +322,19 @@ class PR:
             },
         )["data"]["repository"]["pullRequest"]
 
+    def search_collaborator(self, user: str) -> List[Dict[str, Any]]:
+        """
+        Query GitHub for collaborators matching 'user'
+        """
+        return self.github.graphql(
+            query=COLLABORATORS_QUERY,
+            variables={
+                "owner": self.owner,
+                "name": self.repo_name,
+                "user": user,
+            },
+        )["data"]["repository"]["collaborators"]["nodes"]
+
     def comment(self, text: str) -> None:
         """
         Leave the comment 'text' on this PR
@@ -370,70 +413,8 @@ class PR:
 
         self.github.put(url, data=data)
 
-    def comment_can_merge(self, comment: Dict[str, Any]) -> bool:
-        """
-        Check if a comment was left by the PR author or by a committer
-        """
-        if comment["author"]["login"] == self.raw["author"]["login"]:
-            logging.info(f"Comment {comment} was from author and is mergeable")
-            return True
-
-        if comment.get("authorAssociation", "") == "CONTRIBUTOR":
-            logging.info(f"Comment {comment} was from committer comment and is mergeable")
-            return True
-
-        if comment.get("authorCanPushToRepository", False):
-            logging.info(f"Comment {comment} was from a committer review comment and is mergeable")
-            return True
-
-        logging.info(f"Comment {comment} was not from author or committers and is not mergeable")
-        return False
-
-    def merge_requested(self) -> bool:
-        """
-        Check if this PR has had a merge requested
-        """
-        merge_commands = [
-            "merge",
-            "merge this",
-            "merge this pr",
-        ]
-        cancel_commands = [
-            "cancel",
-            "cancel merge",
-            "cancel the merge",
-            "stop",
-            "stop merge",
-            "stop the merge",
-        ]
-
-        def parse_action(comment: Dict[str, Any]) -> Optional[str]:
-            if comment["author"]["login"] == "github-actions":
-                return "commented"
-
-            if not self.comment_can_merge(comment):
-                return None
-
-            body = comment["body"]
-            if any(f"@tvm-bot {c}" in body for c in merge_commands):
-                return "merge"
-
-            if any(f"@tvm-bot {c}" in body for c in cancel_commands):
-                return "cancel"
-
-            return None
-
-        # Check regular comments and top-level review comments
-        all_comments = self.raw["comments"]["nodes"] + self.reviews()
-        all_comments = sorted(all_comments, key=lambda comment: comment["updatedAt"])
-        actions = [parse_action(comment) for comment in all_comments]
-        logging.info(f"Found these tvm-bot actions: {actions}")
-        actions = [a for a in actions if a is not None]
-
-        if len(actions) == 0:
-            return False
-
-        return actions[-1] == "merge"
+    def author(self) -> str:
+        return self.raw["author"]["login"]
 
     def find_failed_ci_jobs(self) -> List[CIJob]:
         # NEUTRAL is GitHub Action's way of saying cancelled
@@ -502,6 +483,49 @@ class PR:
             self.comment(f"Cannot merge, CI did not pass on on {self.head_oid()}")
             return
 
+    def rerun_jenkins_ci(self) -> None:
+        url = JENKINS_URL + f"job/tvm/job/PR-{self.number}/buildWithParameters"
+        logging.info(f"Rerunning ci with URL={url}")
+        if self.dry_run:
+            logging.info("Dry run, not sending POST")
+        else:
+            post(url, auth=("tvm-bot", TVM_BOT_JENKINS_TOKEN))
+
+
+class Merge:
+    triggers = [
+        "merge",
+        "merge this",
+        "merge this pr",
+    ]
+
+    @staticmethod
+    def run(pr: PR):
+        try:
+            pr.merge_if_passed_checks()
+        except Exception as e:
+            if not args.dry_run:
+                msg = traceback.format_exc()
+                pr.comment(
+                    f"Failed to process merge request in {args.run_url}\n\n<details>\n\n```\n{msg}\n```\n\n</details>"
+                )
+            raise e
+
+
+class Rerun:
+    triggers = [
+        "rerun",
+        "rerun ci",
+        "re-run",
+        "re-run ci",
+        "run",
+        "run ci",
+    ]
+
+    @staticmethod
+    def run(pr: PR):
+        pr.rerun_jenkins_ci()
+
 
 if __name__ == "__main__":
     help = "Check if a PR has comments trying to merge it, and do so based on reviews/CI status"
@@ -509,7 +533,13 @@ if __name__ == "__main__":
     parser.add_argument("--remote", default="origin", help="ssh remote to parse")
     parser.add_argument("--pr", required=True, help="pr number to check")
     parser.add_argument("--run-url", required=True, help="workflow run URL")
+    parser.add_argument(
+        "--trigger-comment-json", required=True, help="json of the comment that triggered this run"
+    )
     parser.add_argument("--testing-pr-json", help="(testing only) manual data for testing")
+    parser.add_argument(
+        "--testing-collaborators-json", help="(testing only) manual data for testing"
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -518,7 +548,27 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     init_log()
+    comment = json.loads(args.trigger_comment_json)
+    body = comment["body"].strip()
 
+    # Check that the comment was addressed to tvm-bot
+    if not body.startswith("@tvm-bot "):
+        logging.info(f"Not a bot comment, '{body}' does not start with '@tvm-bot'")
+        exit(0)
+
+    # Find the code to run for the command from the user
+    user_command = body.lstrip("@tvm-bot").strip()
+    command_to_run = None
+    for command in [Merge, Rerun]:
+        if user_command in command.triggers:
+            command_to_run = command
+            break
+
+    if command_to_run is None:
+        logging.info(f"Command '{user_command}' did not match anything")
+        exit(0)
+
+    # Find the remote for querying more data about the PR
     remote = git(["config", "--get", f"remote.{args.remote}.url"])
     logging.info(f"Using remote remote={remote}")
     owner, repo = parse_remote(remote)
@@ -539,21 +589,34 @@ if __name__ == "__main__":
     else:
         pr = PR(number=int(args.pr), owner=owner, repo=repo, dry_run=args.dry_run)
 
+    # Acknowledge the comment with a react
+    pr.plus_one(comment)
+
+    # Check the comment author
+    comment_author = comment["user"]["login"]
+    if pr.author() == comment_author:
+        logging.info("Comment user is PR author, continuing")
+    else:
+        logging.info("Comment is not from PR author, checking collaborators")
+        # Get the list of collaborators for the repo filtered by the comment
+        # author
+        if args.testing_collaborators_json:
+            collaborators = json.loads(args.testing_collaborators_json)
+        else:
+            collaborators = pr.search_collaborator(comment_author)
+        logging.info(f"Found collaborators: {collaborators}")
+
+        if len(collaborators) > 0:
+            logging.info("Comment is from collaborator")
+        else:
+            logging.info("Comment is not from from PR author or collaborator, quitting")
+            exit(0)
+
     state = pr.state()
 
     if state != "OPEN":
         logging.info(f"Ignoring event on PR, state was not OPEN, instead was state={state}")
         exit(0)
 
-    if pr.merge_requested():
-        try:
-            pr.merge_if_passed_checks()
-        except Exception as e:
-            if not args.dry_run:
-                msg = traceback.format_exc()
-                pr.comment(
-                    f"Failed to process merge request in {args.run_url}\n\n<details>\n\n```\n{msg}\n```\n\n</details>"
-                )
-            raise e
-    else:
-        logging.info("No merge requested, exiting")
+    # Run the command
+    command_to_run.run(pr)
