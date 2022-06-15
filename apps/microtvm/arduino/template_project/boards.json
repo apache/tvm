@@ -57,6 +57,14 @@
         "vid_hex": "",
         "pid_hex": ""
     },
+    "rpipico": {
+        "package": "rp2040",
+        "architecture": "rp2040",
+        "board": "rpipico",
+        "model": "rp2040",
+        "vid_hex": "2e8a",
+        "pid_hex": "000a"
+    },
     "teensy40": {
         "package": "teensy",
         "architecture": "avr",
