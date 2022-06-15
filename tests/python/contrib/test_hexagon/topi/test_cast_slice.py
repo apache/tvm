@@ -54,6 +54,7 @@ class TestCastF16F32Slice2d:
     """
     For testing Cast F16  to F32 Slice ops
     """
+
     input_shape, input_layout, output_layout, axis_sep = tvm.testing.parameters(
         ((1, 16, 12, 64), "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
         ((1, 64, 64, 32), "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
@@ -136,6 +137,7 @@ class TestCastF32F16Slice2d:
     """
     For testing Cast F32 to F16 Slice ops
     """
+
     (input_shape, input_layout, output_layout, axis_sep,) = tvm.testing.parameters(
         ((1, 16, 12, 64), "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
         ((1, 64, 64, 32), "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
