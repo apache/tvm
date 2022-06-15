@@ -21,7 +21,7 @@ set -e
 install_path="/opt/csi-nn2"
 
 # Clone CSI-NN2 Compute Library source code
-git clone https://github.com/T-head-Semi/csi-nn2.git ${install_path}
+git clone --depth 1 --branch 1.12.2 https://github.com/T-head-Semi/csi-nn2.git ${install_path}
 
 # download cross-compiler when not building natively.
 # riscv gcc toolchain will be downloaded to "/path/csi-nn2/tools/gcc-toolchain".
