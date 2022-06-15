@@ -411,8 +411,8 @@ bool SoftmaxRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   int ndim = static_cast<int>(data->shape.size());
   if (axis >= ndim || axis < -ndim) {
     reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                     << "The axis is not in range [" << -ndim << ", " << ndim
-                                     << ")");
+                                     << "Wrong axis (" << axis << ") not in expected range: ["
+                                     << -ndim << ", " << ndim << ")");
     return false;
   }
 
