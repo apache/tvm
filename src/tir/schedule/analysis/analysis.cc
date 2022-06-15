@@ -2265,32 +2265,24 @@ TVM_REGISTER_GLOBAL("tir.schedule.GetTensorizeLoopMapping")
       return GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block), desc_func);
     });
 
-<<<<<<< HEAD
-=======
 /******** Auto Tensorization ********/
 
 /*! \brief IndexMap proposer for layout transformation in auto tensorization. */
-class MappingProposer {
+class AutoTensorizeMappingProposer {
  public:
-  static Array<IndexMap> ProposeMappings(const AutoTensorizeExtractor* extractor) {
-    MappingProposer proposer(extractor);
+  static Array<IndexMap> ProposeMappings(const AutoTensorizeExtractor* extractor,
+                                         arith::Analyzer* analyzer) {
+    AutoTensorizeMappingProposer proposer(extractor, analyzer);
     proposer.CollectFeasibleSet();
-    proposer.ProposeAllFuseMapping();
-    return proposer.mappings_;
+    return proposer.ProposeAllFuseMapping();
   }
 
  private:
-  explicit MappingProposer(const AutoTensorizeExtractor* extractor) : extractor_(extractor) {}
+  explicit AutoTensorizeMappingProposer(const AutoTensorizeExtractor* extractor,
+                                        arith::Analyzer* analyzer)
+      : extractor_(extractor), analyzer_(analyzer) {}
 
   using VarSet = std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>;
-
-  std::string to_string(const VarSet& vs) {
-    std::ostringstream os;
-    for (const auto& v : vs) {
-      os << v << ", ";
-    }
-    return os.str();
-  };
 
   void CollectFeasibleSet() {
     // Collect the set of potential iter var mapping between the workload and the tensor intrin.
@@ -2375,12 +2367,11 @@ class MappingProposer {
     }
 
     for (const auto& iter : extractor_->lhs_iters_) {
-      // lhs_representers.push_back(iter->var.copy_with_suffix("_l"));
       lhs_feasible_vars_[iter->var] = mask_to_rhs_vars[lhs_buffer_masks[iter->var.get()]];
     }
   }
 
-  void ProposeAllFuseMapping() {
+  Array<IndexMap> ProposeAllFuseMapping() {
     // Now we have calcuated potential mapping for each iter var on LHS. For iters on LHS mapped to
     // the same iter on RHS, they will be fused in the original order in LHS block iters. We will
     // generate IndexMap to represent such fusion on LHS. For example, if n, h, w on LHS are mapped
@@ -2416,33 +2407,34 @@ class MappingProposer {
       } else if (rhs_candidates.size() == 1) {
         Var rhs_var = *rhs_candidates.begin();
         PrimExpr fused_lhs = fused_lhs_iters.at(rhs_var);
-        PrimExpr updated_fused_lhs = fused_lhs * lhs_iter_extents.at(lhs_iter_var) + index_map_src[i];
+        PrimExpr updated_fused_lhs =
+            fused_lhs * lhs_iter_extents.at(lhs_iter_var) + index_map_src[i];
         fused_lhs_iters.Set(rhs_var, updated_fused_lhs);
       } else {
         // non-unique mapping is not supported
-        return;
+        return {};
       }
     }
-    arith::Analyzer analyzer;
     for (const auto& iter : extractor_->rhs_iters_) {
-      index_map_tgt.push_back(analyzer.Simplify(fused_lhs_iters[iter->var]));
+      index_map_tgt.push_back(analyzer_->Simplify(fused_lhs_iters[iter->var]));
     }
-    mappings_.push_back(IndexMap(index_map_src, index_map_tgt));
-    LOG(INFO) << mappings_[0];
+    // At most one mapping is supported.
+    return {IndexMap(index_map_src, index_map_tgt)};
   }
 
- public:
-  Array<Var> lhs_representers;
-  std::unordered_map<Buffer, Buffer, ObjectHash, ObjectEqual> lhs_buffer_map_;
-  // std::unordered_map<Var, VarSet, ObjectPtrHash, ObjectPtrEqual> rhs_feasible_vars_;
-  std::unordered_map<Var, VarSet, ObjectPtrHash, ObjectPtrEqual> lhs_feasible_vars_;
-  Array<IndexMap> mappings_;
+ private:
+  // The extractor that has extracted information for auto tensorization from the workload and the
+  // tensor intrin.
   const AutoTensorizeExtractor* extractor_;
+  // The arithmetic analyzer.
+  arith::Analyzer* analyzer_;
+  /*! \brief Potential mappings on RHS for each variable on LHS */
+  std::unordered_map<Var, VarSet, ObjectPtrHash, ObjectPtrEqual> lhs_feasible_vars_;
 };
 
 Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const tir::ScheduleState& self,
-                                            const tir::StmtSRef& block_sref,
-                                            const tir::PrimFunc& desc_func) {
+                                                               const tir::StmtSRef& block_sref,
+                                                               const tir::PrimFunc& desc_func) {
   arith::Analyzer analyzer;
   const tir::BlockRealize& block = tir::GetBlockRealize(self, block_sref);
   // Step 1. Analyze desc_func, extract its block, loops and loop vars
@@ -2455,15 +2447,14 @@ Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const tir::Schedu
   if (!extractor.VisitStmt(block->block, desc_info.desc_block->block)) {
     return NullOpt;
   }
-  Array<IndexMap> mappings = MappingProposer::ProposeMappings(&extractor);
+  Array<IndexMap> mappings = AutoTensorizeMappingProposer::ProposeMappings(&extractor, &analyzer);
   if (mappings.empty()) {
     return NullOpt;
   }
   ObjectPtr<AutoTensorizeMappingInfoNode> ret = make_object<AutoTensorizeMappingInfoNode>();
-  // Only using 1 layout now
-  ret->mapping = std::move(mappings);
+  ret->mappings = std::move(mappings);
   ret->lhs_buffer_map = std::move(extractor.lhs_buffer_map_);
-  ret->rhs_indices_map = std::move(extractor.rhs_buffer_indices_map_);
+  ret->rhs_buffer_indices = std::move(extractor.rhs_buffer_indices_map_);
   ret->lhs_iters = std::move(extractor.lhs_iters_);
   ret->rhs_iters = std::move(extractor.rhs_iters_);
   return AutoTensorizeMappingInfo(ret);
@@ -2476,6 +2467,5 @@ TVM_REGISTER_GLOBAL("tir.schedule.GetAutoTensorizeMappingInfo")
       return GetAutoTensorizeMappingInfo(sch->state(), sch->GetSRef(block), desc_func);
     });
 
->>>>>>> 19a13545e ([WIP] Tensorize Mapping proposer)
 }  // namespace tir
 }  // namespace tvm

@@ -91,10 +91,33 @@ def get_tensorize_loop_mapping(
 
 @tvm._ffi.register_object("tir.schedule.AutoTensorizeMappingInfo")
 class AutoTensorizeMappingInfo(Object):
-    """TODO"""
+    """Necessary information used to perform transformations for tensorization."""
 
 
-def get_tensorize_layout_info(
+def get_auto_tensorize_mapping_info(
     sch: Schedule, block: BlockRV, desc_func: PrimFunc
 ) -> Optional[AutoTensorizeMappingInfo]:
+    """Get mapping info between a target block and an intrinsic description including layout
+    transformations to apply.
+
+    Parameters
+    ----------
+    sch : Schedule
+        The schedule to be tensorized
+    block : BlockRV
+        The compute block for auto tensorization
+    desc_func : PrimFunc
+        The prim func describing the computation to be tensorized
+
+    Returns
+    -------
+    auto_tensorize_mapping_info : Optional[AutoTensorizeMappingInfo]
+        AutoTensorizeMappingInfo structure if potential mappings found, None otherwise.
+
+    Note
+    ----
+    Returning a valid AutoTensorizeMappingInfo doesn't guarantee the block can be tensorized.
+    We will need to apply the suggested layout transformations and then match against the tensor
+    intrinsics.
+    """
     return _ffi_api.GetAutoTensorizeMappingInfo(sch, block, desc_func)  # type: ignore

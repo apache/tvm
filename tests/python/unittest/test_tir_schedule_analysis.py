@@ -16,17 +16,22 @@
 # under the License.
 # pylint: disable=missing-docstring
 from typing import List
-
+import pytest
 import tvm
 import tvm.testing
 from tvm.tir.function import TensorIntrin
 from tvm.tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
-from tvm.tir.tensor_intrin import cuda as cuda_intrin
+from tvm.tir.tensor_intrin.cuda import WMMA_SYNC_16x16x16_f16f16f32_INTRIN
 
 
 from tvm.tir import Evaluate, For, ForKind, IndexMap, Var, decl_buffer, floordiv, floormod, Schedule
 from tvm.tir.analysis import expr_deep_equal
-from tvm.tir.schedule.analysis import suggest_index_map, get_tensorize_loop_mapping, get_tensorize_layout_info, TensorizeInfo
+from tvm.tir.schedule.analysis import (
+    get_auto_tensorize_mapping_info,
+    suggest_index_map,
+    get_tensorize_loop_mapping,
+    TensorizeInfo,
+)
 from tvm.script import tir as T
 from tvm.tir.stmt_functor import pre_order_visit
 from tvm.meta_schedule.testing import te_workload
@@ -159,72 +164,6 @@ class Conv2dNCHWcVNNIModule:
                     "int32",
                 )
 
-@T.prim_func
-def conv2d_nhwc_hwio(
-    Input: T.Buffer[(4, 16, 16, 64), "float16"],
-    Weight: T.Buffer[(3, 3, 64, 64), "float16"],
-    Conv2d_nhwc: T.Buffer[(4, 16, 16, 64), "float32"],
-) -> None:
-    PadInput = T.alloc_buffer([4, 18, 18, 64], dtype="float16")
-    for i0, i1, i2, i3 in T.grid(4, 18, 18, 64):
-        with T.block("PadInput"):
-            i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-            PadInput[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(
-                ((((i1_1 >= 1) and (i1_1 < 17)) and (i2_1 >= 1)) and (i2_1 < 17)),
-                Input[i0_1, (i1_1 - 1), (i2_1 - 1), i3_1],
-                T.float32(0),
-                dtype="float32",
-            )
-    for i0, i1, i2, i3, i4, i5, i6 in T.grid(4, 16, 16, 64, 3, 3, 64):
-        with T.block("conv2d_nhwc"):
-            n, h, w, co, rh, rw, rc = T.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
-            with T.init():
-                Conv2d_nhwc[n, h, w, co] = T.float32(0)
-            Conv2d_nhwc[n, h, w, co] = Conv2d_nhwc[n, h, w, co] + (
-                T.cast(PadInput[n, h + rh, w + rw, rc], 'float32')
-                * T.cast(Weight[rh, rw, rc, co], 'float32')
-            )
-
-@T.prim_func
-def conv2d_nhwc_ohwi(
-    Input: T.Buffer[(4, 16, 16, 64), "float16"],
-    Weight: T.Buffer[(64, 3, 3, 64), "float16"],
-    Conv2d_nhwc: T.Buffer[(4, 16, 16, 64), "float32"],
-) -> None:
-    PadInput = T.alloc_buffer([4, 18, 18, 64], dtype="float16")
-    for i0, i1, i2, i3 in T.grid(4, 18, 18, 64):
-        with T.block("PadInput"):
-            i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-            PadInput[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(
-                ((((i1_1 >= 1) and (i1_1 < 17)) and (i2_1 >= 1)) and (i2_1 < 17)),
-                Input[i0_1, (i1_1 - 1), (i2_1 - 1), i3_1],
-                T.float32(0),
-                dtype="float32",
-            )
-    for i0, i1, i2, i3, i4, i5, i6 in T.grid(4, 16, 16, 64, 3, 3, 64):
-        with T.block("conv2d_nhwc"):
-            n, h, w, co, rh, rw, rc = T.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
-            with T.init():
-                Conv2d_nhwc[n, h, w, co] = T.float32(0)
-            Conv2d_nhwc[n, h, w, co] = Conv2d_nhwc[n, h, w, co] + (
-                T.cast(PadInput[n, h + rh, w + rw, rc], 'float32')
-                * T.cast(Weight[co, rh, rw, rc], 'float32')
-            )
-
-@T.prim_func
-def batch_matmul(
-    X: T.Buffer[(16, 32, 128), "float16"],
-    W: T.Buffer[(16, 128, 64), "float16"],
-    Y: T.Buffer[(16, 32, 64), "float32"]
-) -> None:
-    for i0, i1, i2, i3 in T.grid(16, 32, 64, 128):
-        with T.block("batch_matmul"):
-            b, m, n, k = T.axis.remap("SSSR", [i0, i1, i2, i3])
-            with T.init():
-                Y[b, m, n] = T.float32(0)
-            Y[b, m, n] += T.cast(X[b, m, k], "float32") * T.cast(W[b, k, n], "float32")
-
-
 
 def collect_loops(prim_func):
     loops = []
@@ -321,21 +260,43 @@ def test_get_tensorize_loop_mapping_matmul_mma():
         assert s.get(desc_loop_to_sref[desc_loops[2]]) == s.get(i2)
 
 
-def get_intrin_desc(intrin_name):
-    return TensorIntrin.get(intrin_name).desc
-def test_get_tensorize_layout_info():
-    s = Schedule(conv2d_nhwc_hwio)
-    block = s.get_block('conv2d_nhwc')
-    print('get mapping')
-    info = get_tensorize_layout_info(s, block, get_intrin_desc(cuda_intrin.WMMA_SYNC_16x16x16_f16f16f32_INTRIN))
-    print(info.mapping)
+def check_index_map(workload, block_name, intrin_name, expected_index_map):
+    s = Schedule(workload)
+    block = s.get_block(block_name)
+    desc_func = TensorIntrin.get(intrin_name).desc
+    info = get_auto_tensorize_mapping_info(s, block, desc_func)
+    assert len(info.mappings) == 1
+    assert IndexMap.from_func(expected_index_map).is_equivalent_to(info.mappings[0])
 
-def test_get_tensorize_layout_info_gmm():
-    s = Schedule(batch_matmul)
-    block = s.get_block('batch_matmul')
-    print(batch_matmul.script())
-    info = get_tensorize_layout_info(s, block, get_intrin_desc(cuda_intrin.WMMA_SYNC_16x16x16_f16f16f32_INTRIN))
-    print(info.mapping)
+
+def test_get_auto_tensorize_mapping_info_conv2d():
+    conv2d = create_prim_func(te_workload.conv2d_nhwc_f16(4, 16, 16, 64, 64, 3, 1, 1))
+    check_index_map(
+        conv2d,
+        "conv2d_nhwc",
+        WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
+        lambda n, h, w, c, rh, rw, rc: (n * 256 + h * 16 + w, c, rh * 192 + rw * 64 + rc),
+    )
+
+
+def test_get_auto_tensorize_mapping_info_conv2d_unit_batch():
+    conv2d = create_prim_func(te_workload.conv2d_nhwc_f16(1, 16, 16, 64, 64, 3, 1, 1))
+    check_index_map(
+        conv2d,
+        "conv2d_nhwc",
+        WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
+        # unit iter is not mapped
+        lambda n, h, w, c, rh, rw, rc: (n, h * 16 + w, c, rh * 192 + rw * 64 + rc),
+    )
+
+
+@pytest.mark.parametrize("b,m,n,k", [(1, 512, 512, 512), (16, 32, 32, 32)])
+def test_get_auto_tensorize_mapping_info_batch_matmul(b, m, n, k):
+    matmul = create_prim_func(te_workload.batch_matmul_nkkm_f16(b, m, n, k))
+    check_index_map(
+        matmul, "Z", WMMA_SYNC_16x16x16_f16f16f32_INTRIN, lambda b, m, n, k: (b, m, n, k)
+    )
+
 
 if __name__ == "__main__":
-    test_get_tensorize_layout_info()
+    tvm.testing.main()

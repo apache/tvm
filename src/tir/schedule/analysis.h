@@ -711,16 +711,22 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
 class AutoTensorizeMappingInfoNode : public Object {
  public:
   /*! \brief Possible mappings to apply to block iters */
-  Array<IndexMap> mapping;
+  Array<IndexMap> mappings;
+
+  /* Additional information from AutoTensorizeExtractor */
+
   /*! \brief Mapping from LHS buffer to RHS buffer */
   Map<Buffer, Buffer> lhs_buffer_map;
-
-  Map<Buffer, Array<PrimExpr>> rhs_indices_map;
-  Array<IterVar> lhs_iters, rhs_iters;
+  /*! \brief Buffer indices on RHS */
+  Map<Buffer, Array<PrimExpr>> rhs_buffer_indices;
+  /*! \brief Block iters on LHS */
+  Array<IterVar> lhs_iters;
+  /*! \brief Block iters on RHS */
+  Array<IterVar> rhs_iters;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("mapping", &mapping);
-    v->Visit("rhs_indices_map", &rhs_indices_map);
+    v->Visit("mappings", &mappings);
+    v->Visit("rhs_buffer_indices", &rhs_buffer_indices);
     v->Visit("lhs_iters", &lhs_iters);
     v->Visit("rhs_iters", &rhs_iters);
   }
