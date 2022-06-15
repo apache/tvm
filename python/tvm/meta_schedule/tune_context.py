@@ -204,11 +204,23 @@ class TuneContext(Object):
         ----------
         design_spaces : Optional[List[Schedule]]
             The design spaces used during tuning process.
+            If None, use the outcome of `self.generate_design_space()`.
         database : Optional[Database] = None
             The database used during tuning process.
+            If None, and the search strategy is `EvolutionarySearch`,
+            then use `tvm.meta_schedule.database.MemoryDatabase`.
         cost_model : Optional[CostModel] = None
             The cost model used during tuning process.
+            If None, and the search strategy is `EvolutionarySearch`,
+            then use `tvm.meta_schedule.cost_model.RandomModel`.
         """
+        # pylint: disable=import-outside-toplevel
+        from .cost_model import RandomModel
+        from .database import MemoryDatabase
+        from .search_strategy import EvolutionarySearch
+
+        # pylint: enable=import-outside-toplevel
+
         if self.search_strategy is None:
             raise ValueError(
                 "search_strategy is not provided."
@@ -216,6 +228,12 @@ class TuneContext(Object):
             )
         if design_spaces is None:
             design_spaces = self.generate_design_space()
+        if database is None:
+            if isinstance(self.search_strategy, EvolutionarySearch):
+                database = MemoryDatabase()
+        if cost_model is None:
+            if isinstance(self.search_strategy, EvolutionarySearch):
+                cost_model = RandomModel()
         return self.search_strategy.pre_tuning(design_spaces, database, cost_model)
 
     def post_tuning(self) -> None:
