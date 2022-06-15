@@ -988,7 +988,9 @@ def _hswish(fp32_piggy_back=False):
         output_zero_point = _expr.const(inputs[2])
         input_scale = _expr.const(inputs[3])
         input_zero_point = _expr.const(inputs[4])
-        return relay.qnn.op.hardswish(input[0], input_scale, input_zero_point, output_scale, output_zero_point)
+        return relay.qnn.op.hardswish(
+            input[0], input_scale, input_zero_point, output_scale, output_zero_point
+        )
 
     def _impl(inputs, _):
         assert len(inputs) == 5, "Input quant params not found in op inputs"

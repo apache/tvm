@@ -66,10 +66,12 @@ def register_qnn_unary_op_legalize(op_name, floating_point_func):
 
     return reg.register_qnn_legalize(op_name, legalize_qnn_unary_op)
 
+
 def hardswish_func(x):
     x2 = x + 3.0
     x2 = np.clip(x2, 0, 6)
     return x * x2 / 6.0
+
 
 register_qnn_unary_op_legalize("qnn.sqrt", np.sqrt)
 register_qnn_unary_op_legalize("qnn.rsqrt", lambda arr: 1 / np.sqrt(arr))
