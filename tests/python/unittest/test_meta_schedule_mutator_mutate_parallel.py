@@ -87,7 +87,6 @@ def _make_mutator(target: Target, max_jobs_per_core: int) -> Mutator:
             MutateParallel(max_jobs_per_core): 1.0,
         },
     )
-    ctx.initialize()
     return list(ctx.mutator_probs.keys())[0]
 
 

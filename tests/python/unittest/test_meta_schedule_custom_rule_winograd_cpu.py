@@ -173,7 +173,6 @@ def test_conv2d_winograd_cpu():
             target,
         ),
     )
-    context.initialize()
     post_order_apply = context.space_generator
     (sch,) = post_order_apply.generate_design_space(mod)
     decisions = dict(

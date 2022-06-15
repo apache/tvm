@@ -221,7 +221,7 @@ def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
         mod,
         target="llvm",
         params=params,
-        filter_func=filter_func,
+        te_filter_func=filter_func,
     )
     expected_task_names = [
         "fused_" + s
