@@ -2283,6 +2283,8 @@ class OperatorConverter(object):
         num_splits = split_options.NumSplits()
 
         in_expr = self.get_expr(input_tensor_idx)
+        if num_splits == 1:
+            return in_expr
         out = _op.split(in_expr, num_splits, axis=int(split_axis))
         # Relay does not like a TupleWrapper of 1 element, further this
         # only shows up with tf1.13 if we use a split with num_splits==1.
