@@ -60,11 +60,11 @@ class RoundRobin(TaskScheduler):
         task_weights: List[float],
         builder: Builder,
         runner: Runner,
-        database: Database,
-        max_trials: int,
         *,
+        database: Database,
         cost_model: Optional[CostModel] = None,
         measure_callbacks: Optional[List[MeasureCallback]] = None,
+        max_trials: int,
     ) -> None:
         """Constructor.
 
@@ -80,12 +80,12 @@ class RoundRobin(TaskScheduler):
             The runner.
         database : Database
             The database.
-        max_trials : int
-            The maximum number of trials.
         cost_model : Optional[CostModel]
             The cost model.
         measure_callbacks: Optional[List[MeasureCallback]]
             The list of measure callbacks of the scheduler.
+        max_trials : int
+            The maximum number of trials.
         """
         del task_weights
         self.__init_handle_by_constructor__(
@@ -94,8 +94,8 @@ class RoundRobin(TaskScheduler):
             builder,
             runner,
             database,
-            max_trials,
             cost_model,
             measure_callbacks,
+            max_trials,
             make_logging_func(logger),
         )

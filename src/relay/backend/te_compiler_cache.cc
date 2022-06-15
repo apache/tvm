@@ -346,15 +346,18 @@ class ScheduleBuilder : public ExprVisitor {
         }
       }
       if (meta_schedule_ctx_) {
-        IRModule relay_mod({{prim_fn_var, relay_func}});
-        IRModule tir_mod({{prim_fn_var, tir::CreatePrimFunc(Concat(fn_inputs, tensor_outs))}});
-        if (Optional<IRModule> scheduled_mod = meta_schedule_ctx_.value()->Query(
-                prim_fn_var->name_hint, relay_mod, target_, Array<IRModule>{tir_mod})) {
-          ICHECK_EQ(scheduled_mod.value()->functions.count(prim_fn_var), 1);
-          prim_func = Downcast<tir::PrimFunc>(scheduled_mod.value()->functions[prim_fn_var]);
+        Array<te::Tensor> te_args = Concat(fn_inputs, tensor_outs);
+        if (Optional<tir::PrimFunc> tir_func =
+                meta_schedule_ctx_.value()->te_filter_func(te_args)) {
+          IRModule relay_mod({{prim_fn_var, relay_func}});
+          IRModule tir_mod({{prim_fn_var, tir_func.value()}});
+          if (Optional<IRModule> scheduled_mod = meta_schedule_ctx_.value()->Query(
+                  prim_fn_var->name_hint, relay_mod, target_, Array<IRModule>{tir_mod})) {
+            ICHECK_EQ(scheduled_mod.value()->functions.count(prim_fn_var), 1);
+            prim_func = Downcast<tir::PrimFunc>(scheduled_mod.value()->functions[prim_fn_var]);
+          }
         }
       }
-
       // Use TOPI schedule if user specificed, or the function has no auto_scheduler schedule.
       if (!schedule.defined() && !prim_func.defined()) {
         if (anchor_op_.defined()) {

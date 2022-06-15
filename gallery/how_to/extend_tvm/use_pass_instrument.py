@@ -30,7 +30,7 @@ instances to :py:class:`tvm.transform.PassContext`. We provide a pass instrument
 for collecting timing information (:py:class:`tvm.ir.instrument.PassTimingInstrument`),
 but an extension mechanism is available via the :py:func:`tvm.instrument.pass_instrument` decorator.
 
-This tutorial demostrates how developers can use ``PassContext`` to instrument
+This tutorial demonstrates how developers can use ``PassContext`` to instrument
 passes. Please also refer to the :ref:`pass-infra`.
 """
 import tvm
@@ -314,7 +314,7 @@ except ValueError as ex:
     print("Catching", str(ex).split("\n")[-1])
 
 ###############################################################################
-# Exceptions occured in ``should_run``, ``run_before_pass``, ``run_after_pass``
+# Exceptions occurred in ``should_run``, ``run_before_pass``, ``run_after_pass``
 # are not handled explicitly -- we rely on the context manager (the ``with`` syntax)
 # to exit ``PassContext`` safely.
 #

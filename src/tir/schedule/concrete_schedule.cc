@@ -453,6 +453,24 @@ void ConcreteScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
   this->state_->DebugVerify();
 }
 
+LoopRV ConcreteScheduleNode::AddUnitLoop(const BlockRV& block_rv) {
+  LoopRV result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = CreateRV<LoopRV>(tir::AddUnitLoop(state_, GetSRef(block_rv)));
+  TVM_TIR_SCHEDULE_END("add-unit-loop", this->error_render_level_);
+  this->state_->DebugVerify();
+  return result;
+}
+
+LoopRV ConcreteScheduleNode::AddUnitLoop(const LoopRV& loop_rv) {
+  LoopRV result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = CreateRV<LoopRV>(tir::AddUnitLoop(state_, GetSRef(loop_rv)));
+  TVM_TIR_SCHEDULE_END("add-unit-loop", this->error_render_level_);
+  this->state_->DebugVerify();
+  return result;
+}
+
 /******** Schedule: Manipulate ForKind ********/
 
 void ConcreteScheduleNode::Parallel(const LoopRV& loop_rv) {

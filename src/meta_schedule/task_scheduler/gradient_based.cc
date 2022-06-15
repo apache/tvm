@@ -79,10 +79,14 @@ class GradientBasedNode final : public TaskSchedulerNode {
           << /*name=*/record.task->task_name.value()      //
           << /*flops=*/static_cast<int64_t>(record.flop)  //
           << /*weight=*/static_cast<int>(record.weight);
-      if (trials == 0) {
+      double latency = 1e9;
+      if (trials > 0) {
+        latency = record.best_time_cost_history.back();
+      }
+      if (latency >= 1e9) {
         row << /*speed=*/"N/A" << /*latency=*/"N/A" << /*weighted_latency=*/"N/A";
       } else {
-        double latency = record.best_time_cost_history.back() * 1000.0;
+        latency *= 1000.0;
         double speed = record.flop / latency / 1000.0;
         double weighted_latency = latency * record.weight;
         row << /*speed=*/speed << /*latency=*/latency << /*weighted_latency=*/weighted_latency;
@@ -139,10 +143,15 @@ class GradientBasedNode final : public TaskSchedulerNode {
       int n = record.best_time_cost_history.size();
       ICHECK_GE(n, 1);
       double best = record.best_time_cost_history[n - 1];
-      double g1 = (n >= 1 + w) ? (record.best_time_cost_history[n - 1 - w] - best) / w : 0.0;
-      double g2 = best / n;
-      double g = alpha * g1 + (1 - alpha) * g2;
-      grad.push_back(g * record.weight);
+      if (best < 1e9) {
+        double g1 = (n >= 1 + w) ? (record.best_time_cost_history[n - 1 - w] - best) / w : 0.0;
+        double g2 = best / n;
+        double g = alpha * g1 + (1 - alpha) * g2;
+        grad.push_back(g * record.weight);
+      } else {
+        // If the best time cost is unavailable, it means some task is not valid. Skip it.
+        grad.push_back(-1e9);
+      }
     }
     auto max_grad = std::max_element(grad.begin(), grad.end());
     auto min_grad = std::min_element(grad.begin(), grad.end());
@@ -180,10 +189,10 @@ TaskScheduler TaskScheduler::GradientBased(Array<TuneContext> tasks,            
                                            Array<FloatImm> task_weights,                        //
                                            Builder builder,                                     //
                                            Runner runner,                                       //
-                                           Database database,                                   //
-                                           int max_trials,                                      //
+                                           Optional<Database> database,                         //
                                            Optional<CostModel> cost_model,                      //
                                            Optional<Array<MeasureCallback>> measure_callbacks,  //
+                                           int max_trials,                                      //
                                            PackedFunc logging_func,                             //
                                            double alpha,                                        //
                                            int window_size,                                     //
@@ -218,9 +227,6 @@ TaskScheduler TaskScheduler::GradientBased(Array<TuneContext> tasks,            
   n->best_time_cost_per_task_ = std::vector<double>(n_tasks, 1e100);
   n->num_rounds_already_ = 0;
   support::LinearCongruentialEngine(&n->rand_state_).Seed(seed);
-  for (const TuneContext& task : tasks) {
-    task->task_scheduler = n.get();
-  }
   return TaskScheduler(n);
 }
 

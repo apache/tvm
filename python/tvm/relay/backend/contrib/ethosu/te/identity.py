@@ -132,7 +132,7 @@ def match_ethosu_identity(output_tensor, device_config):
 
     input_tensors_shape = input_tensors[0].shape
     length = len(input_tensors_shape)
-    assert length <= 4
+    assert length <= 4, "Input tensor shape must be <= 4 for the identity operator"
     channels = int(input_tensors_shape[length - 1]) if length >= 3 else 1
 
     subkernels = len(device_config.get_kernel_steps(identity.op.name, 1, 1, ifm_dtype))

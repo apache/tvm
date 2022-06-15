@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/te/tensor.h>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -87,10 +89,16 @@ void ApplyHistoryBest::ExitWithScope() {
 
 /**************** ApplyHistoryBest ****************/
 
-ApplyHistoryBest::ApplyHistoryBest(Database database, PackedFunc logging_func) {
+ApplyHistoryBest::ApplyHistoryBest(Database database,
+                                   ApplyHistoryBestNode::FTEFilterFunc te_filter_func,
+                                   PackedFunc logging_func) {
   ObjectPtr<ApplyHistoryBestNode> n = make_object<ApplyHistoryBestNode>();
   n->database = database;
+  n->te_filter_func = te_filter_func;
   n->logging_func = logging_func;
+  if (te_filter_func == nullptr) {
+    n->te_filter_func = DefaultTaskFilter;
+  }
   data_ = n;
 }
 
@@ -129,8 +137,9 @@ Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModu
 
 TVM_REGISTER_NODE_TYPE(ApplyHistoryBestNode);
 TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBest")
-    .set_body_typed([](Database database, PackedFunc logging_func) -> ApplyHistoryBest {
-      return ApplyHistoryBest(database, logging_func);
+    .set_body_typed([](Database database, ApplyHistoryBestNode::FTEFilterFunc te_filter_func,
+                       PackedFunc logging_func) -> ApplyHistoryBest {
+      return ApplyHistoryBest(database, te_filter_func, logging_func);
     });
 TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBestEnterScope")
     .set_body_typed(ApplyHistoryBestInternal::EnterScope);

@@ -2270,6 +2270,32 @@ class Reduce(OnnxOpConverter):
 
         return cls._impl_v1(inputs, attr, params)
 
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        if not infer_shape(inputs[0]):  # promote scalar to 1-D tensor
+            inputs[0] = _op.expand_dims(inputs[0], axis=0)
+
+        noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
+        num_axis = int(infer_type(inputs[1]).checked_type.shape[0]) if inputs[1] is not None else 0
+
+        if noop_with_empty_axes and num_axis == 0:
+            return inputs[0]
+
+        if len(inputs) == 2:
+            if isinstance(inputs[1], _expr.Constant):
+                # Get axis and unpack scalar
+                constant_axis = int(inputs[1].data.numpy()[0])
+                return cls.run_calculation([inputs[0]], constant_axis, attr.get("keepdims", True))
+
+            if num_axis > 0:
+                raise ValueError("Dynamic Reduce is not supported yet!")
+
+            axis_len = len(infer_shape(inputs[0]))
+            axis = list(range(axis_len))
+            return cls.run_calculation([inputs[0]], axis, attr.get("keepdims", True))
+
+        return cls._impl_v1(inputs, attr, params)
+
 
 class ReduceMax(Reduce):
     """Operator converter for ReduceMax."""
@@ -5069,9 +5095,10 @@ class Round(OnnxOpConverter):
         # Onnx round uses Banker's rounding which rounds .5 to the nearest even integer
 
         x = inputs[0]
-        half = _expr.const(0.5, dtype="float32")
-        one = _expr.const(1, dtype="float32")
-        two = _expr.const(2, dtype="float32")
+        dtype = infer_type(x).checked_type.dtype
+        half = _expr.const(0.5, dtype=dtype)
+        one = _expr.const(1, dtype=dtype)
+        two = _expr.const(2, dtype=dtype)
 
         rounded = _op.ceil(x - half)
         bankers_mask = one - (_op.ceil(x + half) - _op.floor(x + half))

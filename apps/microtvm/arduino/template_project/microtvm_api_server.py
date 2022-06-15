@@ -34,7 +34,6 @@ from string import Template
 import re
 
 from packaging import version
-import serial.tools.list_ports
 
 from tvm.micro.project_api import server
 
@@ -485,6 +484,9 @@ class Handler(server.ProjectAPIHandler):
         subprocess.run(upload_cmd, check=True)
 
     def open_transport(self, options):
+        import serial
+        import serial.tools.list_ports
+
         # Zephyr example doesn't throw an error in this case
         if self._serial is not None:
             return

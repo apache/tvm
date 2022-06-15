@@ -16,7 +16,6 @@
 # under the License.
 
 """CMSIS-NN integration tests: Conv2D"""
-import itertools
 import numpy as np
 import pytest
 import tvm
@@ -25,12 +24,10 @@ from tvm.relay.op.contrib import cmsisnn
 
 from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
 from tvm.micro.testing.aot_test_utils import AOT_USMP_CORSTONE300_RUNNER
-from utils import (
-    skip_if_no_reference_system,
+from .utils import (
     make_module,
     get_range_for_dtype_str,
     get_same_padding,
-    get_conv2d_qnn_params,
     make_qnn_relu,
     assert_partitioned_function,
     assert_no_external_function,
@@ -49,7 +46,9 @@ def make_model(
     relu_type="RELU",
     layout="NHWC",
 ):
-    """Return a model and any parameters it may have, all parameters are defaulted to known good values"""
+    """Return a model and any parameters it may have,
+    all parameters are defaulted to known good values
+    """
     op = relay.var("input", shape=shape, dtype=dtype)
     pad_ = (0, 0, 0, 0)
     if padding == "SAME":
@@ -61,12 +60,12 @@ def make_model(
             pad_value=zero_point,
             pad_mode="constant",
         )
-    if pool_op == relay.nn.avg_pool2d:
+    if pool_op.__name__ == relay.nn.avg_pool2d.__name__:
         op = relay.cast(op, "int32")
     op = pool_op(
         op, pool_size=pool_size, strides=strides, padding=pad_, ceil_mode=True, layout=layout
     )
-    if pool_op == relay.nn.avg_pool2d:
+    if pool_op.__name__ == relay.nn.avg_pool2d.__name__:
         op = relay.cast(op, dtype)
     op = make_qnn_relu(op, relu_type, scale, zero_point, dtype)
     return op
@@ -91,6 +90,7 @@ def test_op_int8(
     zero_point,
     scale,
 ):
+    """Tests QNN pooling op for int8 inputs"""
     interface_api = "c"
     use_unpacked_api = True
     test_runner = AOT_USMP_CORSTONE300_RUNNER
@@ -138,6 +138,7 @@ def test_op_int8(
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("op", [relay.nn.avg_pool2d, relay.nn.max_pool2d])
 def test_invalid_datatype(op):
+    """Checks CMSIS-NN partitioning for non int8 dtype"""
     model = make_model(pool_op=op, dtype="int64")
 
     orig_mod = make_module(model)
@@ -148,6 +149,7 @@ def test_invalid_datatype(op):
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("op", [relay.nn.avg_pool2d, relay.nn.max_pool2d])
 def test_invalid_batch_size(op):
+    """Checks CMSIS-NN partitioning when batch size is not 1"""
     model = make_model(
         pool_op=op,
         shape=(2, 28, 28, 12),
@@ -161,6 +163,7 @@ def test_invalid_batch_size(op):
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("op", [relay.nn.avg_pool2d, relay.nn.max_pool2d])
 def test_invalid_layout(op):
+    """Checks CMSIS-NN partitioning when layout is not NHWC"""
     model = make_model(pool_op=op, layout="NCHW")
 
     orig_mod = make_module(model)

@@ -198,6 +198,28 @@ void TracedScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
                                       /*outputs=*/{}));
 }
 
+LoopRV TracedScheduleNode::AddUnitLoop(const BlockRV& block_rv) {
+  LoopRV result = ConcreteScheduleNode::AddUnitLoop(block_rv);
+
+  static const InstructionKind& kind = InstructionKind::Get("AddUnitLoop");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{block_rv},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{result}));
+  return result;
+}
+
+LoopRV TracedScheduleNode::AddUnitLoop(const LoopRV& loop_rv) {
+  LoopRV result = ConcreteScheduleNode::AddUnitLoop(loop_rv);
+
+  static const InstructionKind& kind = InstructionKind::Get("AddUnitLoop");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{loop_rv},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{result}));
+  return result;
+}
+
 /******** Schedule: Manipulate ForKind ********/
 
 void TracedScheduleNode::Parallel(const LoopRV& loop_rv) {

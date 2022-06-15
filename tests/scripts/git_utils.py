@@ -20,6 +20,7 @@ import json
 import subprocess
 import re
 import base64
+import logging
 from urllib import request
 from typing import Dict, Tuple, Any, Optional, List
 
@@ -33,22 +34,21 @@ def compress_query(query: str) -> str:
 def post(url: str, body: Optional[Any] = None, auth: Optional[Tuple[str, str]] = None):
     print(f"Requesting POST to", url, "with", body)
     headers = {}
+    req = request.Request(url, headers=headers, method="POST")
     if auth is not None:
-        auth_str = base64.b64encode(f"{auth[0]}:{auth[1]}")
-        request.add_header("Authorization", f"Basic {auth_str}")
+        auth_str = base64.b64encode(f"{auth[0]}:{auth[1]}".encode())
+        req.add_header("Authorization", f"Basic {auth_str.decode()}")
 
     if body is None:
         body = ""
 
     req.add_header("Content-Type", "application/json; charset=utf-8")
-    req = request.Request(url, headers=headers, method="POST")
     data = json.dumps(body)
     data = data.encode("utf-8")
     req.add_header("Content-Length", len(data))
 
     with request.urlopen(req, data) as response:
-        response = json.loads(response.read())
-    return response
+        return response.read()
 
 
 class GitHubRepo:

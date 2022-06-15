@@ -17,11 +17,9 @@
 # pylint: disable=missing-docstring
 
 import tvm
+from tvm import meta_schedule as ms
 from tvm.ir import IRModule
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.space_generator import PostOrderApply
 from tvm.meta_schedule.testing.conv2d_winograd_cuda import conv2d_winograd_cuda
-from tvm.meta_schedule.tune import DefaultCUDA
 from tvm.target import Target
 from tvm.tir.schedule import Schedule, Trace
 
@@ -283,16 +281,17 @@ def _get_mod():
 def test_conv2d_winograd_cuda():
     mod = conv2d_winograd_cuda
     mod = IRModule({"main": mod})
-    context = TuneContext(
+    context = ms.TuneContext(
         mod=mod,
         target=Target("nvidia/geforce-rtx-3090", host="llvm"),
         task_name="Custom Search Space Task",
-        sch_rules=DefaultCUDA._sch_rules(),  # pylint: disable=protected-access
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules=ms.default_config.schedule_rules(  # pylint: disable=protected-access
+            None, Target("cuda")
+        ),
     )
-    for sch_rule in context.sch_rules:
-        sch_rule.initialize_with_tune_context(context)
-    post_order_apply = PostOrderApply()
-    post_order_apply.initialize_with_tune_context(context)
+    context.initialize()
+    post_order_apply = context.space_generator
     (sch,) = post_order_apply.generate_design_space(mod)
     decisions = dict(
         zip(
