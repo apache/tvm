@@ -20,7 +20,7 @@
 # Install QEMU on Ubuntu.
 #
 # Usage: ubuntu_install_qemu.sh [--target-list target0,target1,...]
-#   --target-list is list of target for QEMU comma separated. e.g. aarch64-softmmu,arm-softmmu,...
+#   --target-list is list of target for QEMU comma seperated. e.g. aarch64-softmmu,arm-softmmu,...
 #
 
 set -e
