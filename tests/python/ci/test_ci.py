@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+import os
 import subprocess
 import sys
 import json
@@ -74,6 +74,7 @@ def test_docs_comment(
     assert f"Dry run, would have posted {expected_url} with data {expected_body}." in proc.stderr
 
 
+@tvm.testing.skip_if_wheel_test
 def test_cc_reviewers(tmpdir_factory):
     reviewers_script = REPO_ROOT / "tests" / "scripts" / "github_cc_reviewers.py"
 
@@ -525,6 +526,7 @@ def assert_in(needle: str, haystack: str):
         raise AssertionError(f"item not found:\n{needle}\nin:\n{haystack}")
 
 
+@tvm.testing.skip_if_wheel_test
 def test_github_tag_teams(tmpdir_factory):
     tag_script = REPO_ROOT / "tests" / "scripts" / "github_tag_teams.py"
 
