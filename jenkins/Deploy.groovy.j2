@@ -47,7 +47,7 @@ def deploy_docs() {
       git status
       git checkout -B $DOCS_DEPLOY_BRANCH
 
-      rm -rf docs
+      git ls-tree HEAD docs/ --name-only | grep -vP '^docs/v\\d' | xargs rm -rf
       mkdir -p docs
       tar xf ../docs.tgz -C docs
       COMMIT=$(cat docs/commit_hash)

@@ -522,6 +522,13 @@ def test_conv3d_infer_type():
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, d, h, w, 16), "int32")
 
+    # Infer with groups
+    x = relay.var("x", relay.TensorType((1, 16, 224, 224, 224), "float32"))
+    w = relay.var("w", relay.TensorType((4, 4, 1, 1, 1), "float32"))
+    y = relay.nn.conv3d(x, w, groups=4, kernel_size=(1, 1, 1), channels=4)
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((1, 4, 224, 224, 224), "float32")
+
 
 @tvm.testing.uses_gpu
 def test_conv3d_run():
@@ -1997,11 +2004,11 @@ def test_conv2d_rocm_sdot4():
 
 
 @tvm.testing.requires_x86
-def test_conv2d_nchw_mkldnn():
-    if not tvm.get_global_func("tvm.contrib.mkldnn.conv2d", allow_missing=True):
+def test_conv2d_nchw_dnnl():
+    if not tvm.get_global_func("tvm.contrib.dnnl.conv2d", allow_missing=True):
         print(
-            "skip because extern mkldnn function is not available, \
-                built with MKLDNN=ON"
+            "skip because extern dnnl function is not available, \
+                built with dnnl=ON"
         )
         return
     d_shape = (1, 64, 56, 56)
@@ -2027,7 +2034,7 @@ def test_conv2d_nchw_mkldnn():
     data_np = np.random.uniform(1, 10, d_shape).astype("float32")
     weight_np = np.random.uniform(1, 10, size=w_shape).astype("float32")
 
-    target = "llvm -mcpu=skylake-avx512 -libs=mkldnn"
+    target = "llvm -mcpu=skylake-avx512 -libs=dnnl"
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target=target, params={"weight": weight_np})
 
@@ -2045,11 +2052,11 @@ def test_conv2d_nchw_mkldnn():
 
 
 @tvm.testing.requires_x86
-def test_conv2d_nhwc_mkldnn():
-    if not tvm.get_global_func("tvm.contrib.mkldnn.conv2d", allow_missing=True):
+def test_conv2d_nhwc_dnnl():
+    if not tvm.get_global_func("tvm.contrib.dnnl.conv2d", allow_missing=True):
         print(
-            "skip because extern mkldnn function is not available, \
-                built with MKLDNN=ON"
+            "skip because extern dnnl function is not available, \
+                built with dnnl=ON"
         )
         return
     d_shape = (1, 56, 56, 64)
@@ -2077,7 +2084,7 @@ def test_conv2d_nhwc_mkldnn():
     data_np = np.random.uniform(1, 10, d_shape).astype("float32")
     weight_np = np.random.uniform(1, 10, size=w_shape).astype("float32")
 
-    target = "llvm -mcpu=skylake-avx512 -libs=mkldnn"
+    target = "llvm -mcpu=skylake-avx512 -libs=dnnl"
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target=target, params={"weight": weight_np})
 

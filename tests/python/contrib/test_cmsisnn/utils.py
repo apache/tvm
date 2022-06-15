@@ -224,5 +224,4 @@ def make_qnn_relu(expr, fused_activation_fn, scale, zero_point, dtype):
         )
     if fused_activation_fn == "RELU":
         return tvm.relay.op.clip(expr, a_min=max(qmin, quantize(0.0)), a_max=qmax)
-
     raise ValueError("Invalid argument provided with fused_activation_fn")

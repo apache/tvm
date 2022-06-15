@@ -51,6 +51,7 @@ class CheckGeneratedConstants(tvm.relay.ExprVisitor):
         self.shift_ = shift
 
     def visit_call(self, call):
+        """Tests if the multiplier and shift constants required by CMSIS-NN API were generated"""
         super().visit_call(call)
         if isinstance(call.op, tvm.ir.expr.GlobalVar):
             multiplier = call.args[2]

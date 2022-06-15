@@ -1522,14 +1522,24 @@ void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
   llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
     return builder_->CreateAlloca(DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
   });
-  if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
+#if TVM_LLVM_VERSION >= 110
+  auto alignment = static_cast<unsigned>(alloca->getAlign().value());
+#else
+  unsigned alignment = alloca->getAlignment();
+#endif
+  if (alignment < static_cast<unsigned>(info.alignment)) {
 #if TVM_LLVM_VERSION >= 100
     alloca->setAlignment(llvm::Align(info.alignment));
 #else
     alloca->setAlignment(info.alignment);
 #endif
   }
+#if TVM_LLVM_VERSION >= 110
+  info.alignment = static_cast<unsigned>(alloca->getAlign().value());
+#else
   info.alignment = alloca->getAlignment();
+#endif
+
   buf = alloca;
 
   buf = builder_->CreatePointerCast(

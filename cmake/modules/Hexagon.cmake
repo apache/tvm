@@ -116,7 +116,7 @@ function(add_hexagon_wrapper_paths)
   link_directories("${HEXAGON_TOOLCHAIN}/lib/iss")
 endfunction()
 
-if(BUILD_FOR_HEXAGON OR USE_HEXAGON_RPC)
+if(BUILD_FOR_HEXAGON)
   # Common sources for TVM runtime with Hexagon support
   file_glob_append(RUNTIME_HEXAGON_SRCS
     "${TVMRT_SOURCE_DIR}/hexagon/*.cc"

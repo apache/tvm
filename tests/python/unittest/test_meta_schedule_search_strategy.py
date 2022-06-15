@@ -119,7 +119,7 @@ def test_meta_schedule_replay_func(
     assert num_trials_each_iter == [7, 7, 6]
 
 
-def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name]
+def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name
     def _schedule_matmul_small(sch: Schedule):
         block = sch.get_block("matmul")
         _, j, k = sch.get_loops(block=block)
@@ -185,7 +185,7 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name]
     assert num_trials_each_iter.count(0) < 5
 
 
-def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = invalid-name]
+def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = invalid-name
     def _schedule_matmul_empty(sch: Schedule):
         return sch
 

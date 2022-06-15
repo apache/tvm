@@ -338,7 +338,7 @@ extern "C" void dnnl_binary_op(float* data, float* weight, float* out, int algo_
 }
 
 // DNNL Conv2d single OP
-TVM_REGISTER_GLOBAL("tvm.contrib.mkldnn.conv2d").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tvm.contrib.dnnl.conv2d").set_body([](TVMArgs args, TVMRetValue* ret) {
   DLTensor* input = args[0];
   DLTensor* weights = args[1];
   DLTensor* output = args[2];
