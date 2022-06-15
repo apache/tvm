@@ -33,9 +33,9 @@ deployed to Arduino using TVM.
 #   using the link at the bottom of this page, or open it online for free using Google Colab.
 #   Click the icon below to open in Google Colab.
 #
-# .. image:: https://raw.githubusercontent.com/guberti/web-data/micro-train-tutorial-data/images/utilities/colab_button.png
+# .. image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/utilities/colab_button.png
 #      :align: center
-#      :target: https://colab.research.google.com/github/guberti/tvm-site/blob/asf-site/docs/_downloads/a7c7ea4b5017ae70db1f51dd8e6dcd82/micro_train.ipynb
+#      :target: https://colab.research.google.com/github/apache/tvm-site/blob/asf-site/docs/_downloads/a7c7ea4b5017ae70db1f51dd8e6dcd82/micro_train.ipynb
 #      :width: 300px
 #
 # Motivation
@@ -490,7 +490,7 @@ arduino_project = tvm.micro.generate_project(
 # We will test our Arduino project by loading both of these images and executing the compiled model
 # on them.
 #
-# .. image:: https://raw.githubusercontent.com/guberti/web-data/micro-train-tutorial-data/testdata/microTVM/data/model_train_images_combined.png
+# .. image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/testdata/microTVM/data/model_train_images_combined.png
 #      :align: center
 #      :height: 200px
 #      :width: 600px
