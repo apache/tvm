@@ -28,12 +28,7 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
-
-namespace tvm {
-namespace te {
-class Tensor;
-}  // namespace te
-}  // namespace tvm
+#include <tvm/te/tensor.h>
 
 namespace tvm {
 namespace meta_schedule {
