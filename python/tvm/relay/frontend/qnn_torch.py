@@ -443,7 +443,7 @@ def add_input_quant_params_to_op_inputs(graph):
         "quantized::hardswish": 1,
         "aten::hardsigmoid": 1,
         "quantized::conv_transpose2d": 1,
-        "quantized::leaky_relu":1,
+        "quantized::leaky_relu": 1,
     }
 
     need_input_quant_param = set(num_quantized_inputs.keys())
@@ -935,6 +935,7 @@ def _relu6():
 
     return _impl
 
+
 def _leaky_relu():
     # refer to src/ATen/native/quantized/cpu/qrelu.cpp
     def _impl(inputs, _):
@@ -950,8 +951,9 @@ def _leaky_relu():
         return relay.qnn.op.quantize(
             dequantized, output_scale, output_zero_point, out_dtype="uint8"
         )
-        
+
     return _impl
+
 
 def _mul_scalar():
     # this is used for mobilenet v3

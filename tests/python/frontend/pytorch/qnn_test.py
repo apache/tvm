@@ -147,6 +147,7 @@ class ReLU(nn.Module):
     def fuse_model(self):
         pass
 
+
 class LeakyReLU(nn.Module):
     def __init__(self):
         super().__init__()
@@ -157,6 +158,7 @@ class LeakyReLU(nn.Module):
 
     def fuse_model(self):
         pass
+
 
 # Mobilenet V3 related modules
 class Hsigmoid(nn.Module):
@@ -312,7 +314,7 @@ def test_quantized_modules():
             ("semodule", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), False),
             ("semodule, per_channel", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), True),
             ("mul_scalar negative", imagenet_ishape, MulScalarNegative(), False),
-            ("leaky_relu", imagenet_ishape, LeakyReLU(), False)
+            ("leaky_relu", imagenet_ishape, LeakyReLU(), False),
         ]
 
     for (module_name, ishape, raw_module, per_channel) in qmodules:
