@@ -62,7 +62,7 @@ class PoolAllocationToOffsetConverter : public StmtExprMutator {
         AllocateConst allocate_const_node = Downcast<AllocateConst>(kv.first);
         extent_size = CalculateExtentsSize(allocate_const_node.operator->());
       } else {
-        LOG(FATAL) << "Not supported node type " << kv.first->GetTypeKey();
+        ICHECK(false) << "Not supported node type " << kv.first->GetTypeKey();
       }
       PoolAllocation pool_allocation = kv.second;
       PoolInfo pool_info = pool_allocation->pool_info;

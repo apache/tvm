@@ -217,7 +217,7 @@ class WorkspacePoolInfo(PoolInfo):
 @register_object("ir.ConstantPoolInfo")
 class ConstantPoolInfo(PoolInfo):
     """ConstantPoolInfo object holds information related to RO memory pools
-    where the statically sized allocate nodes will pooled into.
+    where the statically sized allocate nodes are pooled into.
 
     Parameters
     ----------

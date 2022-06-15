@@ -234,7 +234,7 @@ class WorkspacePoolInfo : public PoolInfo {
 
 /*
  * \brief The ConstantInfoNode contains numeric literal in RO pool
- * Used in initialisation of RO memory
+ * Used to initialise RO memory in ConstantPoolInfo
  */
 struct ConstantInfoNode : public Object {
   String name_hint;

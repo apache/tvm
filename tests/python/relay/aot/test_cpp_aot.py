@@ -108,7 +108,7 @@ def test_conv2d(enable_usmp, target_kind):
         )
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"
-    mod.export_library(test_so_path, cc="gcc", options=["-std=c++11", "-g3", "-O0"])
+    mod.export_library(test_so_path, cc="gcc", options=["-std=c11", "-g3", "-O0"])
     loaded_mod = tvm.runtime.load_module(test_so_path)
     runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
     runner.set_input(**inputs)
@@ -190,8 +190,7 @@ def test_pass_wrong_device_arg():
 
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"
-    # gnu++14 is used due to '0x1p-0' issue
-    mod.export_library(test_so_path, cc="c++", options=["-std=gnu++14", "-g3", "-O0"])
+    mod.export_library(test_so_path, cc="gcc", options=["-std=c11", "-g3", "-O0"])
     loaded_mod = tvm.runtime.load_module(test_so_path)
 
     with pytest.raises(tvm.TVMError) as error:

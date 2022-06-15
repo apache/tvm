@@ -652,7 +652,7 @@ class AotExecutor(_interpreter.Executor):
         # generated code.
         temp_so_dir = contrib_utils.TempDirectory()
         temp_so = temp_so_dir / "temp.so"
-        mod.export_library(temp_so, cc="gcc", options=["-std=c++11"])
+        mod.export_library(temp_so, cc="gcc", options=["-std=c11"])
 
         mod = load_module(temp_so)
         aot_mod = mod["default"](self.device)

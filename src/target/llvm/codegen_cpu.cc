@@ -1103,7 +1103,7 @@ class MetadataSerializerLLVM : public AttrVisitor {
          llvm::ConstantInt::get(llvm_types_->t_uint8, value->lanes(), false /* isSigned */)}));
   }
 
-  // Serialiding NDArray as tuple of len, data
+  // Serializing NDArray as tuple of len, data
   void Visit(const char* key, runtime::NDArray* value) final {
     std::string bytes;
     dmlc::MemoryStringStream stream(&bytes);

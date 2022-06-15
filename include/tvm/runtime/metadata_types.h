@@ -96,7 +96,7 @@ struct TVMConstantInfo {
   const char* name_hint;
   /*! \brief Offset in bytes of the constant */
   int64_t byte_offset;
-  /*! \brief lenght of the data_bytes field */
+  /*! \brief length of the data_bytes field */
   int64_t data_len;
   /*! \brief data bytes of serialized NDArray */
   const void* data_bytes;

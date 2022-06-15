@@ -574,9 +574,8 @@ BufferInfoAnalysis BufferInfoExtractor::operator()(const PrimFunc& main_func) {
   }
 
   // All ConstantPoolInfo items should have conflicts with each other
-  // as they will be placed in RO segment and pre-initialized
-
-  // split buffers to vars (WorkspacePoolInfo items) and constants (ConstantPoolInfo items)
+  // as they will be placed in RO segment and pre-initialized. To achieve this
+  // first, split buffers to vars (WorkspacePoolInfo items) and constants (ConstantPoolInfo items):
   Array<BufferInfo> buffer_info_vars;
   Array<BufferInfo> buffer_info_constants;
   for (const auto& kv : this->buffer_info_map_) {
@@ -591,7 +590,7 @@ BufferInfoAnalysis BufferInfoExtractor::operator()(const PrimFunc& main_func) {
       << "missing value";
 
   Map<ObjectRef, ObjectRef> srch;
-  // intersect with each other, as all constants should exist at the same time
+  // Then intersect constants with each other, as all constants should exist at the same time:
   for (const auto& buf : buffer_info_constants) {
     srch.Set(buf, buf);
     Array<ObjectRef> conflicts;
@@ -600,7 +599,7 @@ BufferInfoAnalysis BufferInfoExtractor::operator()(const PrimFunc& main_func) {
     buf->conflicts.Assign(conflicts.begin(), conflicts.end());
   }
 
-  // remove all conflicts with constants
+  // And third, remove all conflicts between constants and vars:
   for (const auto& buf : buffer_info_vars) {
     Array<ObjectRef> conflicts;
     std::copy_if(buf->conflicts.begin(), buf->conflicts.end(), std::back_inserter(conflicts),
