@@ -271,6 +271,7 @@ def _get_quant_param_for_input(input_value):
         "quantized::add_scalar": (2, 3),
         "quantized::hardswish": (1, 2),
         "quantized::conv_transpose2d": qconv_indices,
+        "quantized::leaky_relu": (3, 4),
     }
 
     def dfs(current_node):
