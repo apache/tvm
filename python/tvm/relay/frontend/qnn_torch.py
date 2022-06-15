@@ -947,7 +947,7 @@ def _leaky_relu():
         input_scale = _expr.const(inputs[5])
         input_zero_point = _expr.const(inputs[6])
         dequant = relay.qnn.op.dequantize(inputs[0], input_scale, input_zero_point)
-        dequantized = dequant * _op.nn.leaky_relu(dequant, alpha)
+        dequantized = _op.nn.leaky_relu(dequant, alpha)
         return relay.qnn.op.quantize(
             dequantized, output_scale, output_zero_point, out_dtype="uint8"
         )
