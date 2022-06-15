@@ -996,8 +996,7 @@ def _hswish(fp32_piggy_back=False):
         assert len(inputs) == 5, "Input quant params not found in op inputs"
         if fp32_piggy_back:
             return _impl_fp32(inputs)
-        else:
-            return _impl_int8(inputs)
+        return _impl_int8(inputs)
 
     return _impl
 
