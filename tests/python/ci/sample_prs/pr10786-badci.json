@@ -53,6 +53,20 @@
                     }
                   },
                   "status": "COMPLETED",
+                  "conclusion": "NEUTRAL",
+                  "url": "https://github.com/apache/tvm/runs/5694945392"
+                },
+                {
+                  "name": "MacOS",
+                  "completedAt": "2022-05-29T00:52:07Z",
+                  "checkSuite": {
+                    "workflowRun": {
+                      "workflow": {
+                        "name": "CI"
+                      }
+                    }
+                  },
+                  "status": "COMPLETED",
                   "conclusion": "SUCCESS",
                   "url": "https://github.com/apache/tvm/runs/5694945392"
                 },
@@ -95,7 +109,7 @@
                     }
                   },
                   "status": "COMPLETED",
-                  "conclusion": "SUCCESS",
+                  "conclusion": "FAILED",
                   "url": "https://github.com/apache/tvm/runs/5694945524"
                 },
                 {

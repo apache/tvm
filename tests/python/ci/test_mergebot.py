@@ -65,7 +65,10 @@ test_data = {
     "bad-ci": {
         "number": 10786,
         "filename": "pr10786-badci.json",
-        "expected": "Cannot merge, these CI jobs are not successful on",
+        "expected": "Cannot merge, these CI jobs are not successful on "
+        "6f04bcf57d07f915a98fd91178f04d9e92a09fcd:\n * [tvm-ci/pr-head "
+        "(`FAILED`)](https://ci.tlcpack.ai/job/tvm/job/PR-10786/1/display/redirect)\n"
+        " * [CI / Windows (`FAILED`)](https://github.com/apache/tvm/runs/5694945524)",
         "comment": "@tvm-bot merge",
         "user": "abc",
         "detail": "A PR which failed CI and cannot merge",

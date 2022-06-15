@@ -435,7 +435,7 @@ class PR:
         return self.raw["author"]["login"]
 
     def find_failed_ci_jobs(self) -> List[CIJob]:
-        def is_important_job(job):
+        def does_job_run_tests(job):
             # Ignore GitHub workflows that operate on PRs but don't run tests
             if job["source"] != "github actions":
                 return True
@@ -444,7 +444,7 @@ class PR:
         return [
             job
             for job in self.ci_jobs()
-            if is_important_job(job) and job["status"] not in {"SUCCESS", "SUCCESSFUL", "SKIPPED"}
+            if does_job_run_tests(job) and job["status"] not in {"SUCCESS", "SUCCESSFUL", "SKIPPED"}
         ]
 
     def find_missing_expected_jobs(self) -> List[str]:
