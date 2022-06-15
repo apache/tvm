@@ -230,10 +230,10 @@ class TuneContext(Object):
             design_spaces = self.generate_design_space()
         if database is None:
             if isinstance(self.search_strategy, EvolutionarySearch):
-                database = MemoryDatabase()
+                database = MemoryDatabase()  # type: ignore
         if cost_model is None:
             if isinstance(self.search_strategy, EvolutionarySearch):
-                cost_model = RandomModel()
+                cost_model = RandomModel()  # type: ignore
         return self.search_strategy.pre_tuning(design_spaces, database, cost_model)
 
     def post_tuning(self) -> None:
