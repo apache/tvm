@@ -94,6 +94,10 @@ from tvm.error import TVMError
 
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
 
+skip_if_wheel_test = pytest.mark.skipif(
+    os.getenv("WHEEL_TEST") is not None, reason="Test not supported in wheel."
+)
+
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
     """Version of np.testing.assert_allclose with `atol` and `rtol` fields set
