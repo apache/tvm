@@ -30,6 +30,7 @@ class AddToDatabaseNode : public MeasureCallbackNode {
     if (!task_scheduler->database.defined()) {
       return;
     }
+    auto _ = Profiler::TimedScope("AddToDatabase");
     TuneContext task = task_scheduler->tasks[task_id];
     Database database = task_scheduler->database.value();
     Workload workload = database->CommitWorkload(task->mod.value());
@@ -47,8 +48,8 @@ class AddToDatabaseNode : public MeasureCallbackNode {
       }
       database->CommitTuningRecord(TuningRecord(
           /*trace=*/candidate->sch->trace().value(),
-          /*run_secs=*/run_secs,
           /*workload=*/workload,
+          /*run_secs=*/run_secs,
           /*target=*/target,
           /*args_info=*/candidate->args_info));
     }

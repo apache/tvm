@@ -17,9 +17,8 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm
 import tvm.tir.tensor_intrin
+from tvm.meta_schedule import TuneContext, postproc
 from tvm.script import tir as T
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule import postproc
 
 
 @tvm.script.ir_module
@@ -458,8 +457,7 @@ def _create_context(mod, target, postprocs):
         postprocs=postprocs,
         task_name="test",
     )
-    for rule in ctx.postprocs:
-        rule.initialize_with_tune_context(ctx)
+    ctx.initialize()
     return ctx
 
 

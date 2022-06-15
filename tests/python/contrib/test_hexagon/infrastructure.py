@@ -48,7 +48,7 @@ def allocate_hexagon_array(
         for dim_i, dim_f in zip(boundaries[:-1], boundaries[1:])
     ]
 
-    arr = tvm.nd.empty(physical_shape, dtype=dtype, device=dev)
+    arr = tvm.nd.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)
 
     if data is not None:
         arr.copyfrom(data.reshape(physical_shape))

@@ -71,7 +71,7 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
-        "--log-dir",
+        "--work-dir",
         type=str,
         required=True,
     )
@@ -96,7 +96,7 @@ ARGS = _parse_args()
 
 
 def main():
-    log_file = os.path.join(ARGS.log_dir, f"{ARGS.workload}.json")
+    log_file = os.path.join(ARGS.work_dir, f"{ARGS.workload}.json")
 
     runner = auto_scheduler.RPCRunner(
         key=ARGS.rpc_key,
