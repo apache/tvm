@@ -31,12 +31,6 @@ def enabled():
     return "cmsis-nn" in Target.list_kinds()
 
 
-def _find_last(pattern):
-    if hasattr(pattern, "args"):
-        return _find_last(pattern.args[0])
-    return pattern
-
-
 def partition_for_cmsisnn(mod, params=None, mod_name="default", **opts):
     """Partition the graph greedily offloading supported
     operators on Cortex-M using CMSIS-NN
