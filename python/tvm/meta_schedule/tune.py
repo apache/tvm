@@ -88,7 +88,7 @@ class TuneConfig(NamedTuple):
     search_strategy_config: Optional[Dict[str, Any]] = None
     logger_config: Optional[Dict[str, Any]] = None
 
-    def create_strategy(self, **kwargs):
+    def create_strategy(self):
         """Create search strategy from configuration"""
         cls_tbl = {
             "evolutionary": EvolutionarySearch,
@@ -111,7 +111,6 @@ class TuneConfig(NamedTuple):
         return cls_tbl[self.strategy](
             num_trials_per_iter=self.num_trials_per_iter,
             max_trials_per_task=max_trials_per_task,
-            **kwargs,
             **config,
         )
 

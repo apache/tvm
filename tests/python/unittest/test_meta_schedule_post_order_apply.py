@@ -223,7 +223,6 @@ def test_meta_schedule_post_order_apply():
         space_generator=PostOrderApply(),
         sch_rules=[WowSoFancyScheduleRule()],
     )
-    context.initialize()
     post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
     assert len(schs) == 1
@@ -240,7 +239,6 @@ def test_meta_schedule_post_order_apply_double():
         space_generator=PostOrderApply(),
         sch_rules=[DoubleScheduleRule()],
     )
-    context.initialize()
     post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
     assert len(schs) == 2
@@ -258,7 +256,6 @@ def test_meta_schedule_post_order_apply_multiple():
         space_generator=PostOrderApply(),
         sch_rules=[DoubleScheduleRule(), ReorderScheduleRule()],
     )
-    context.initialize()
     post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
     assert len(schs) == 4
@@ -276,7 +273,6 @@ def test_meta_schedule_post_order_apply_duplicate_matmul():
         space_generator=PostOrderApply(),
         sch_rules=[WowSoFancyScheduleRule()],
     )
-    context.initialize()
     post_order_apply = context.space_generator
     with pytest.raises(
         TVMError,
@@ -348,7 +344,6 @@ def test_meta_schedule_post_order_apply_remove_block():
         space_generator=PostOrderApply(),
         sch_rules=[RemoveBlock(), TrinityDouble()],
     )
-    context.initialize()
     post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
     assert len(schs) == 4
@@ -376,7 +371,6 @@ def test_meta_schedule_custom_search_space():
         space_generator=PostOrderApply(),
         sch_rules=[],
     )
-    context.initialize()
     post_order_apply = context.space_generator
     post_order_apply.generate_design_space(mod)
     called = False

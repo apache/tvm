@@ -67,7 +67,6 @@ def _create_context(mod, target, rule) -> TuneContext:
         sch_rules=[rule],
         task_name="test",
     )
-    ctx.initialize()
     return ctx
 
 
