@@ -30,6 +30,12 @@
 #include <tvm/target/target.h>
 
 namespace tvm {
+namespace te {
+class Tensor;
+}  // namespace te
+}  // namespace tvm
+
+namespace tvm {
 namespace meta_schedule {
 
 /*!
@@ -38,12 +44,21 @@ namespace meta_schedule {
  */
 class ApplyHistoryBestNode : public runtime::Object {
  public:
+  using FTEFilterFunc =
+      runtime::TypedPackedFunc<Optional<tir::PrimFunc>(const Array<te::Tensor, void>&)>;
+
   /*! \brief The database to be queried from */
   Database database{nullptr};
+  /*! \brief The filtering function for TE computation */
+  FTEFilterFunc te_filter_func{nullptr};
   /*! \brief The logging function to be used */
   PackedFunc logging_func;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("database", &database); }
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("database", &database);
+    // `te_filter_func` is not visited
+    // `logging_func` is not visited
+  }
   /*!
    * \brief Query the best entry from the database
    * \param task_name The name of the task to be queried
@@ -67,9 +82,11 @@ class ApplyHistoryBest : public runtime::ObjectRef {
   /*!
    * \brief Constructor
    * \param database The database to be queried from
+   * \param te_filter_func The filtering function for TE computation
    * \param logging_func The logging function to use
    */
-  explicit ApplyHistoryBest(Database database, PackedFunc logging_func);
+  explicit ApplyHistoryBest(Database database, ApplyHistoryBestNode::FTEFilterFunc te_filter_func,
+                            PackedFunc logging_func);
   /*!
    * \brief The current ApplyHistoryBest in the context
    * \return The ApplyHistoryBest in the current scope.
