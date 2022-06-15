@@ -20,16 +20,17 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import te, topi
+from tvm import te
 import tvm.topi.hexagon.slice_ops as sl
-from tvm.topi import testing
-from .infrastructure import allocate_hexagon_array
-import tvm.contrib.hexagon
+from ..infrastructure import allocate_hexagon_array
 
 # pylint: disable=invalid-name
 
 
 def transform_numpy(arr_np, layout):
+    """
+    Layout transformation on numpy arrays
+    """
     if layout in ["nhwc-8h2w32c2w-2d"]:
         N, H, W, C = arr_np.shape
         return arr_np.reshape([N, H // 8, 8, W // 4, 2, 2, C // 32, 32]).transpose(
@@ -50,6 +51,9 @@ def transform_numpy(arr_np, layout):
 
 
 class TestCastF16F32Slice2d:
+    """
+    For testing Cast F16  to F32 Slice ops
+    """
     input_shape, input_layout, output_layout, axis_sep = tvm.testing.parameters(
         ((1, 16, 12, 64), "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
         ((1, 64, 64, 32), "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
@@ -85,15 +89,16 @@ class TestCastF16F32Slice2d:
         dtype,
         input_layout,
         output_layout,
-        input_np,
         transformed_input_np,
         transformed_expected_output_np,
         axis_sep,
         hexagon_session,
         working_scope,
     ):
-
-        target_hexagon = tvm.target.hexagon("v68", llvm_options="--disable-loop-unrolling-pass")
+        """
+        Top level testing function for cast fp16 to fp32
+        """
+        target_hexagon = tvm.target.hexagon("v68")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
         A = te.placeholder(input_shape, name="A", dtype=dtype)
         M = sl.cast_f16_f32_compute(A)
@@ -128,6 +133,9 @@ class TestCastF16F32Slice2d:
 
 
 class TestCastF32F16Slice2d:
+    """
+    For testing Cast F32 to F16 Slice ops
+    """
     (input_shape, input_layout, output_layout, axis_sep,) = tvm.testing.parameters(
         ((1, 16, 12, 64), "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
         ((1, 64, 64, 32), "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
@@ -163,15 +171,17 @@ class TestCastF32F16Slice2d:
         dtype,
         input_layout,
         output_layout,
-        input_np,
         transformed_input_np,
         transformed_expected_output_np,
         axis_sep,
         hexagon_session,
         working_scope,
     ):
+        """
+        Top level testing function for cast fp32 to fp16
+        """
 
-        target_hexagon = tvm.target.hexagon("v68", llvm_options="--disable-loop-unrolling-pass")
+        target_hexagon = tvm.target.hexagon("v68")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
         A = te.placeholder(input_shape, name="A", dtype=dtype)
         M = sl.cast_f32_f16_compute(A)
