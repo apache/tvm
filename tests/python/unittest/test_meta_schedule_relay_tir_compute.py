@@ -18,7 +18,7 @@ import numpy as np
 import tvm
 import tvm.testing
 import tvm.topi.testing
-from tvm import autotvm, relay, te, tir
+from tvm import autotvm, relay, te
 from tvm.meta_schedule import ApplyHistoryBest
 from tvm.meta_schedule.testing.utils import apply_fixed_schedules
 from tvm.relay.testing.temp_op_attr import TempOpAttr
@@ -147,8 +147,17 @@ def test_conv2d():
         return False
 
     with TempOpAttr("nn.conv2d", "FTVMStrategy", _tmp_strategy):
-        database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
-        with ApplyHistoryBest(database):
+        database = apply_fixed_schedules(
+            relay_mod,
+            target,
+            params,
+            schedule_fn,
+            te_filter_func="meta_schedule.DefaultTaskFilterAllowExtern",
+        )
+        with ApplyHistoryBest(
+            database,
+            te_filter_func="meta_schedule.DefaultTaskFilterAllowExtern",
+        ):
             with tvm.transform.PassContext(
                 opt_level=3,
                 config={"relay.backend.use_meta_schedule": True},

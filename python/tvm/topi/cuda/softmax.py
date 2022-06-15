@@ -63,7 +63,7 @@ def _schedule_softmax(softmax_op, s, outs, tgt):
             return False
         return True
 
-    if len(outs[0].shape) > 2:
+    if len(outs[0].shape) != 2:
         ops = [max_elem.op, expsum.op, softmax_op]
         if delta is not None:
             ops.append(delta.op)
