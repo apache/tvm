@@ -21,6 +21,7 @@ Frontend classes do lazy-loading of modules on purpose, to reduce time spent on
 loading the tool.
 """
 import logging
+import os
 import sys
 import importlib
 from abc import ABC
@@ -268,7 +269,7 @@ class PaddleFrontend(Frontend):
 
     @staticmethod
     def suffixes():
-        return ["pdmodel", "pdiparams"]
+        return ["pdmodel"]
 
     def load(self, path, shape_dict=None, **kwargs):
         # pylint: disable=C0415
@@ -277,9 +278,18 @@ class PaddleFrontend(Frontend):
         paddle.enable_static()
         paddle.disable_signal_handler()
 
+        if not os.path.exists(path):
+            raise TVMCException("File {} is not exist.".format(path))
+        if not path.endswith(".pdmodel"):
+            raise TVMCException("Path of model file should be endwith suffixes '.pdmodel'.")
+        prefix = "".join(path.strip().split(".")[:-1])
+        params_file_path = prefix + ".pdiparams"
+        if not os.path.exists(params_file_path):
+            raise TVMCException("File {} is not exist.".format(params_file_path))
+
         # pylint: disable=E1101
         exe = paddle.static.Executor(paddle.CPUPlace())
-        prog, _, _ = paddle.static.load_inference_model(path, exe)
+        prog, _, _ = paddle.static.load_inference_model(prefix, exe)
 
         return relay.frontend.from_paddle(prog, shape_dict=shape_dict, **kwargs)
 
