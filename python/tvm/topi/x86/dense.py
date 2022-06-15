@@ -327,7 +327,7 @@ def dense_vnni_schedule(cfg, s, C, O, do_parallel=True):
     a_xo, a_xi = s[C].split(C.op.axis[-1], factor=16)
     a_ko, a_ki = s[C].split(a_k, factor=4)
 
-    s[C].reorder(a_yo, a_xo, a_yi, a_ko, a_xi, a_ki)
+    s[C].reorder(a_yo, a_xo, a_ko, a_yi, a_xi, a_ki)
 
     pc = dot_16x1x16_uint8_int8_int32_cascadelake()
     s[C].tensorize(a_xi, pc)
