@@ -941,7 +941,6 @@ def _leaky_relu():
     # refer to src/ATen/native/quantized/cpu/qrelu.cpp
     def _impl(inputs, _):
         assert len(inputs) == 7, "Input quant params not found in op inputs"
-        assert inputs[2] == False, "inplace=True is not supported for quantized::leaky_relu yet"
         alpha = inputs[1]
         output_scale = _expr.const(inputs[3])
         output_zero_point = _expr.const(inputs[4])
