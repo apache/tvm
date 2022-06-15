@@ -556,7 +556,12 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     BufferCreator buffer_creator;
     tir::Var input_0 = buffer_creator.CreateBufferVar("input_0", DataType::Handle(8));
-    tir::Var input_1 = buffer_creator.CreateBufferVar("input_1", DataType::Handle(8));
+    tir::Var input_1;
+    if (mul_call->args[0].same_as(mul_call->args[1])) {
+      input_1 = input_0;
+    } else {
+      input_1 = buffer_creator.CreateBufferVar("input_1", DataType::Handle(8));
+    }
     tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
 
     tvm::Array<PrimExpr> args = {
@@ -626,7 +631,12 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     BufferCreator buffer_creator;
     tir::Var input_0 = buffer_creator.CreateBufferVar("input_0", DataType::Handle(8));
-    tir::Var input_1 = buffer_creator.CreateBufferVar("input_1", DataType::Handle(8));
+    tir::Var input_1;
+    if (add_call->args[0].same_as(add_call->args[1])) {
+      input_1 = input_0;
+    } else {
+      input_1 = buffer_creator.CreateBufferVar("input_1", DataType::Handle(8));
+    }
     tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
 
     tvm::Array<PrimExpr> args = {
