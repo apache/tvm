@@ -20,8 +20,10 @@ import pytest
 import shutil
 
 from pytest_lazyfixture import lazy_fixture
+from unittest import mock
 from tvm.driver.tvmc.main import _main
 from tvm.driver.tvmc.model import TVMCException
+from tvm.driver.tvmc import compiler
 
 
 @pytest.mark.skipif(
@@ -155,3 +157,34 @@ def test_tvmc_tune_file_check(capsys, invalid_input):
     )
     on_assert_error = f"'tvmc tune' failed to check invalid FILE: {invalid_input}"
     assert captured.err == expected_err, on_assert_error
+
+
+@pytest.fixture
+def paddle_model(paddle_resnet50):
+    # If we can't import "paddle" module, skip testing paddle as the input model.
+    if pytest.importorskip("paddle", reason="'paddle' module not installed"):
+        return paddle_resnet50
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        lazy_fixture("paddle_model"),
+    ],
+)
+# compile_model() can take too long and is tested elsewhere, hence it's mocked below
+@mock.patch.object(compiler, "compile_model")
+# @mock.patch.object(compiler, "compile_model")
+def test_tvmc_compile_input_model(mock_compile_model, tmpdir_factory, model):
+
+    output_dir = tmpdir_factory.mktemp("output")
+    output_file = output_dir / "model.tar"
+
+    compile_cmd = (
+        f"tvmc compile --target 'llvm' {model} --model-format paddle --output {output_file}"
+    )
+    run_arg = compile_cmd.split(" ")[1:]
+
+    _main(run_arg)
+
+    mock_compile_model.assert_called_once()

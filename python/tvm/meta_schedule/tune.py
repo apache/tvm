@@ -38,6 +38,7 @@ from .extracted_task import ExtractedTask
 from .measure_callback import MeasureCallback
 from .mutator import Mutator
 from .postproc import Postproc
+from .profiler import Profiler
 from .runner import Runner
 from .schedule_rule import ScheduleRule
 from .search_strategy import EvolutionarySearch, ReplayFunc, ReplayTrace
@@ -88,7 +89,7 @@ class TuneConfig(NamedTuple):
     search_strategy_config: Optional[Dict[str, Any]] = None
     logger_config: Optional[Dict[str, Any]] = None
 
-    def create_strategy(self, **kwargs):
+    def create_strategy(self):
         """Create search strategy from configuration"""
         cls_tbl = {
             "evolutionary": EvolutionarySearch,
@@ -111,7 +112,6 @@ class TuneConfig(NamedTuple):
         return cls_tbl[self.strategy](
             num_trials_per_iter=self.num_trials_per_iter,
             max_trials_per_task=max_trials_per_task,
-            **kwargs,
             **config,
         )
 
@@ -564,7 +564,8 @@ def tune_relay(
     target = default_config.target(target)
     # pylint: enable=protected-access,
     # parse the tuning contexts
-    extracted_tasks = extract_task_from_relay(mod, target, params)
+    with Profiler.timeit("TaskExtraction"):
+        extracted_tasks = extract_task_from_relay(mod, target, params)
     database = tune_extracted_tasks(
         extracted_tasks,
         config,
@@ -580,9 +581,10 @@ def tune_relay(
         mutator_probs=mutator_probs,
         num_threads=num_threads,
     )
-    with target, autotvm_silencer(), ApplyHistoryBest(database):
-        with PassContext(
-            opt_level=3,
-            config={"relay.backend.use_meta_schedule": True},
-        ):
-            return relay_build(mod, target=target, params=params)
+    with Profiler.timeit("ApplyHistoryBest"):
+        with target, autotvm_silencer(), ApplyHistoryBest(database):
+            with PassContext(
+                opt_level=3,
+                config={"relay.backend.use_meta_schedule": True},
+            ):
+                return relay_build(mod, target=target, params=params)

@@ -41,7 +41,6 @@ def _create_context(mod, target) -> TuneContext:
         ],
         task_name="test",
     )
-    ctx.initialize()
     return ctx
 
 

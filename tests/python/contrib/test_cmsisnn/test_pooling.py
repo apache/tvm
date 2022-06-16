@@ -45,11 +45,15 @@ def make_model(
     zero_point=-33,
     relu_type="RELU",
     layout="NHWC",
+    input_op=None,
 ):
     """Return a model and any parameters it may have,
     all parameters are defaulted to known good values
     """
-    op = relay.var("input", shape=shape, dtype=dtype)
+    if input_op:
+        op = input_op
+    else:
+        op = relay.var("input", shape=shape, dtype=dtype)
     pad_ = (0, 0, 0, 0)
     if padding == "SAME":
         dilation = (1, 1)
@@ -120,6 +124,65 @@ def test_op_int8(
     inputs = {
         "input": np.random.randint(in_min, high=in_max, size=in_shape, dtype="int8"),
     }
+    output_list = generate_ref_data(orig_mod["main"], inputs)
+    compile_and_run(
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=inputs,
+            outputs=output_list,
+            params=None,
+            output_tolerance=1,
+        ),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
+
+
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize(
+    "pool_size, strides, padding", [((3, 3), (2, 2), "SAME"), ((2, 2), (1, 1), "VALID")]
+)
+@pytest.mark.parametrize("relu_type", ["NONE", "RELU"])
+def test_int8_pool_with_float32_input(
+    pool_size,
+    strides,
+    padding,
+    relu_type,
+):
+    """Tests QNN maxpool partitions with float32 input"""
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
+
+    in_shape = (1, 28, 28, 12)
+    zero_point, scale = (-34, 0.0256)
+
+    input_ = relay.var("input", shape=in_shape, dtype="float32")
+    op = relay.op.add(input_, input_)
+    op = relay.qnn.op.quantize(op, relay.const(scale), relay.const(zero_point), -1, "int8")
+
+    model = make_model(
+        pool_op=relay.nn.max_pool2d,
+        shape=in_shape,
+        pool_size=pool_size,
+        strides=strides,
+        padding=padding,
+        scale=scale,
+        zero_point=zero_point,
+        relu_type=relu_type,
+        input_op=op,
+    )
+    orig_mod = make_module(model)
+
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod)
+
+    # validate pattern matching
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
+
+    # validate the output
+    np.random.seed(0)
+    inputs = {"input": np.random.uniform(0, 1, in_shape).astype("float32")}
     output_list = generate_ref_data(orig_mod["main"], inputs)
     compile_and_run(
         AOTTestModel(

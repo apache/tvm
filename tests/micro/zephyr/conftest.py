@@ -30,7 +30,7 @@ def pytest_addoption(parser):
         "--zephyr-board",
         required=True,
         choices=test_utils.ZEPHYR_BOARDS.keys(),
-        help=("Zephyr board for test."),
+        help="Zephyr board for test.",
     )
     parser.addoption(
         "--west-cmd", default="west", help="Path to `west` command for flashing device."
@@ -92,5 +92,5 @@ def skip_by_board(request, board):
 def pytest_configure(config):
     config.addinivalue_line(
         "markers",
-        "skip_by_board(board): skip test for the given board",
+        "skip_boards(board): skip test for the given board",
     )

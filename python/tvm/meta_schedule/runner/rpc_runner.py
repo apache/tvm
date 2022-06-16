@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """RPC Runner"""
-import logging
 import concurrent.futures
+import logging
 import os.path as osp
 from contextlib import contextmanager
 from typing import Callable, List, Optional, Union
@@ -26,6 +26,7 @@ from tvm.rpc import RPCSession
 from tvm.runtime import Device, Module
 
 from ..utils import (
+    cpu_count,
     derived_object,
     get_global_func_on_rpc_session,
     get_global_func_with_default_on_worker,
@@ -242,7 +243,7 @@ class RPCRunner(PyRunner):
         f_alloc_argument: Union[T_ALLOC_ARGUMENT, str, None] = None,
         f_run_evaluator: Union[T_RUN_EVALUATOR, str, None] = None,
         f_cleanup: Union[T_CLEANUP, str, None] = None,
-        max_workers: int = 1,
+        max_workers: Optional[int] = 1,
         initializer: Optional[Callable[[], None]] = None,
     ) -> None:
         """Constructor
@@ -267,8 +268,8 @@ class RPCRunner(PyRunner):
             The function name to run the evaluator or the function itself.
         f_cleanup: Union[T_CLEANUP, str, None]
             The function name to cleanup the session or the function itself.
-        max_workers: int = 1
-            The maximum number of connections. Defaults to 1.
+        max_workers: Optional[int] = None
+            The maximum number of connections. Defaults to number of logical CPU cores.
         initializer: Optional[Callable[[], None]]
             The initializer function.
         """
@@ -282,6 +283,8 @@ class RPCRunner(PyRunner):
         self.f_alloc_argument = f_alloc_argument
         self.f_run_evaluator = f_run_evaluator
         self.f_cleanup = f_cleanup
+        if max_workers is None:
+            max_workers = cpu_count()
         logger.info("RPCRunner: max_workers = %d", max_workers)
         self.pool = PopenPoolExecutor(
             max_workers=max_workers,
